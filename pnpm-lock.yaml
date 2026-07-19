@@ -263,7 +263,7 @@ importers:
         version: 0.10.8(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(solid-js@1.9.14)
       '@tanstack/react-form':
         specifier: ^1.33.0
-        version: 1.33.0(@tanstack/react-start@1.168.27(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 1.33.0(@tanstack/react-start@1.168.27(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-router':
         specifier: ^1.170.17
         version: 1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -272,7 +272,7 @@ importers:
         version: 1.167.0(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@tanstack/router-core@1.171.14)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-start':
         specifier: ^1.168.27
-        version: 1.168.27(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 1.168.27(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       lucide-react:
         specifier: ^1.23.0
         version: 1.23.0(react@19.2.7)
@@ -315,19 +315,13 @@ importers:
         version: 6.0.3(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       nitro:
         specifier: npm:nitro-nightly@3.0.1-20260701-161626-1f1e52d7
-        version: nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(nitro-nightly@3.0.1-20260701-161626-1f1e52d7)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0)
-      playwright:
-        specifier: ^1.61.1
-        version: 1.61.1
+        version: nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(nitro-nightly@3.0.1-20260701-161626-1f1e52d7)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
       vite:
         specifier: ^8.1.3
         version: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
-      vitest:
-        specifier: ^4.1.9
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
   apps/site:
     dependencies:
@@ -3107,6 +3101,9 @@ importers:
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       '@vitest/browser-playwright':
         specifier: 4.1.10
         version: 4.1.10(playwright@1.61.1)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.10)
@@ -3134,6 +3131,9 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      ws:
+        specifier: ^8.21.0
+        version: 8.21.0
 
   packages/uno-preset:
     dependencies:
@@ -20611,13 +20611,13 @@ snapshots:
       - solid-js
       - utf-8-validate
 
-  '@tanstack/react-form@1.33.0(@tanstack/react-start@1.168.27(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@tanstack/react-form@1.33.0(@tanstack/react-start@1.168.27(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@tanstack/form-core': 1.33.0
       '@tanstack/react-store': 0.11.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react: 19.2.7
     optionalDependencies:
-      '@tanstack/react-start': 1.168.27(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@tanstack/react-start': 1.168.27(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
     transitivePeerDependencies:
       - react-dom
 
@@ -20748,14 +20748,14 @@ snapshots:
       - vite-plugin-solid
       - webpack
 
-  '@tanstack/react-start-rsc@0.1.26(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))':
+  '@tanstack/react-start-rsc@0.1.26(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))':
     dependencies:
       '@tanstack/react-router': 1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/router-core': 1.171.14
       '@tanstack/router-utils': 1.162.2
       '@tanstack/start-client-core': 1.170.13
       '@tanstack/start-fn-stubs': 1.162.0
-      '@tanstack/start-plugin-core': 1.171.19(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@tanstack/start-plugin-core': 1.171.19(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       '@tanstack/start-server-core': 1.169.16(crossws@0.4.7(srvx@0.11.21))
       '@tanstack/start-storage-context': 1.167.16
       pathe: 2.0.3
@@ -20861,15 +20861,15 @@ snapshots:
       - vite-plugin-solid
       - webpack
 
-  '@tanstack/react-start@1.168.27(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))':
+  '@tanstack/react-start@1.168.27(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))':
     dependencies:
       '@tanstack/react-router': 1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-start-client': 1.168.15(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@tanstack/react-start-rsc': 0.1.26(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@tanstack/react-start-rsc': 0.1.26(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       '@tanstack/react-start-server': 1.167.21(crossws@0.4.7(srvx@0.11.21))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/router-utils': 1.162.2
       '@tanstack/start-client-core': 1.170.13
-      '@tanstack/start-plugin-core': 1.171.19(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@tanstack/start-plugin-core': 1.171.19(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       '@tanstack/start-server-core': 1.169.16(crossws@0.4.7(srvx@0.11.21))
       pathe: 2.0.3
       react: 19.2.7
@@ -21018,7 +21018,7 @@ snapshots:
       '@tanstack/router-generator': 1.167.17
       '@tanstack/router-utils': 1.162.2
       chokidar: 5.0.0
-      unplugin: 3.3.0(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      unplugin: 3.3.0(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       zod: 4.4.3
     optionalDependencies:
       '@tanstack/react-router': 1.170.15(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -21034,7 +21034,7 @@ snapshots:
       - supports-color
       - unloader
 
-  '@tanstack/router-plugin@1.168.19(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))':
+  '@tanstack/router-plugin@1.168.19(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(esbuild@0.28.1)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/template': 7.29.7
@@ -21286,14 +21286,14 @@ snapshots:
       - vite-plugin-solid
       - webpack
 
-  '@tanstack/start-plugin-core@1.171.19(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))':
+  '@tanstack/start-plugin-core@1.171.19(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(crossws@0.4.7(srvx@0.11.21))(esbuild@0.28.1)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))':
     dependencies:
       '@babel/code-frame': 7.27.1
       '@babel/core': 7.29.7
       '@babel/types': 7.29.7
       '@tanstack/router-core': 1.171.14
       '@tanstack/router-generator': 1.167.18
-      '@tanstack/router-plugin': 1.168.19(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@tanstack/router-plugin': 1.168.19(@tanstack/react-router@1.170.17(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(esbuild@0.28.1)(rollup@4.62.2)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       '@tanstack/router-utils': 1.162.2
       '@tanstack/start-server-core': 1.169.16(crossws@0.4.7(srvx@0.11.21))
       exsolve: 1.1.0
@@ -24124,6 +24124,12 @@ snapshots:
 
   dayjs@1.11.21: {}
 
+  db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)):
+    optionalDependencies:
+      '@electric-sql/pglite': 0.3.16
+      '@libsql/client': 0.17.4
+      drizzle-orm: 0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)
+
   db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)):
     optionalDependencies:
       '@electric-sql/pglite': 0.3.16
@@ -24290,6 +24296,13 @@ snapshots:
       esbuild: 0.25.12
       get-tsconfig: 4.14.0
       jiti: 2.7.0
+
+  drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0):
+    optionalDependencies:
+      '@electric-sql/pglite': 0.3.16
+      '@libsql/client': 0.17.4
+      '@opentelemetry/api': 1.9.0
+    optional: true
 
   drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1):
     optionalDependencies:
@@ -27111,23 +27124,23 @@ snapshots:
 
   nf3@0.3.22: {}
 
-  nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(nitro-nightly@3.0.1-20260701-161626-1f1e52d7)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0):
+  nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(nitro-nightly@3.0.1-20260701-161626-1f1e52d7)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0):
     dependencies:
       consola: 3.4.2
       crossws: 0.4.7(srvx@0.11.21)
-      db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))
+      db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0))
       env-runner: 0.1.15(miniflare@4.20260630.0)(wrangler@4.106.0)
       h3: 2.0.1-rc.22(crossws@0.4.7(srvx@0.11.21))
       hookable: 6.1.1
       nf3: 0.3.18
-      nitro: nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(nitro-nightly@3.0.1-20260701-161626-1f1e52d7)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0)
+      nitro: nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(nitro-nightly@3.0.1-20260701-161626-1f1e52d7)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0)
       ocache: 0.1.5
       ofetch: 2.0.0-alpha.3
       ohash: 2.0.11
       rolldown: 1.1.5
       srvx: 0.11.21
       unenv: 2.0.0-rc.24
-      unstorage: 2.0.0-alpha.7(@netlify/blobs@10.7.9)(chokidar@5.0.0)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)))(ioredis@5.11.1)(lru-cache@11.5.2)(ofetch@2.0.0-alpha.3)
+      unstorage: 2.0.0-alpha.7(@netlify/blobs@10.7.9)(chokidar@5.0.0)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)))(ioredis@5.11.1)(lru-cache@11.5.2)(ofetch@2.0.0-alpha.3)
     optionalDependencies:
       dotenv: 17.4.2
       giget: 3.3.0
@@ -29864,6 +29877,17 @@ snapshots:
       rollup: 4.62.2
       vite: 7.3.6(@types/node@26.1.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
 
+  unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)):
+    dependencies:
+      '@jridgewell/remapping': 2.3.5
+      picomatch: 4.0.5
+      webpack-virtual-modules: 0.6.2
+    optionalDependencies:
+      esbuild: 0.28.1
+      rolldown: 1.1.5
+      rollup: 4.62.2
+      vite: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+
   unplugin@3.3.0(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)):
     dependencies:
       '@jridgewell/remapping': 2.3.5
@@ -29927,6 +29951,15 @@ snapshots:
       '@netlify/blobs': 10.7.9
       db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))
       ioredis: 5.11.1
+
+  unstorage@2.0.0-alpha.7(@netlify/blobs@10.7.9)(chokidar@5.0.0)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0)))(ioredis@5.11.1)(lru-cache@11.5.2)(ofetch@2.0.0-alpha.3):
+    optionalDependencies:
+      '@netlify/blobs': 10.7.9
+      chokidar: 5.0.0
+      db0: 0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.0))
+      ioredis: 5.11.1
+      lru-cache: 11.5.2
+      ofetch: 2.0.0-alpha.3
 
   unstorage@2.0.0-alpha.7(@netlify/blobs@10.7.9)(chokidar@5.0.0)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)))(ioredis@5.11.1)(lru-cache@11.5.2)(ofetch@2.0.0-alpha.3):
     optionalDependencies:

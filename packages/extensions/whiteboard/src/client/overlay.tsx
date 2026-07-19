@@ -159,7 +159,7 @@ export function WhiteboardSurface(props: {state: SurfaceState}): JSX.Element {
   })
   return (
     <Show when={props.state.engaged()}>
-      <div class="pointer-events-none text-pw-text font-pw fixed inset-0">
+      <div class="text-pw-text font-pw pointer-events-none inset-0 fixed">
         <YieldFocus when={props.state.visible()}>
           <ErrorBoundary fallback={<OverlayError />}>
             <Suspense fallback={<OverlayLoading />}>

@@ -75,13 +75,13 @@ function stepGlyph(status: ToolStatus): JSX.Element {
         <Loader size={12} class={SPIN} aria-hidden="true" />
       </Match>
       <Match when={status === 'error'}>
-        <X size={12} class="shrink-0 text-[color:var(--chat-danger)]" aria-hidden="true" />
+        <X size={12} class="text-[color:var(--chat-danger)] shrink-0" aria-hidden="true" />
       </Match>
       <Match when={status === 'approval'}>
-        <ShieldQuestion size={12} class="shrink-0 text-[color:var(--chat-accent)]" aria-hidden="true" />
+        <ShieldQuestion size={12} class="text-[color:var(--chat-accent)] shrink-0" aria-hidden="true" />
       </Match>
       <Match when={status === 'complete'}>
-        <Check size={12} class="shrink-0 text-[color:var(--chat-success)]" aria-hidden="true" />
+        <Check size={12} class="text-[color:var(--chat-success)] shrink-0" aria-hidden="true" />
       </Match>
     </Switch>
   )
@@ -106,11 +106,11 @@ function StepShell(
     <Collapsible.Root defaultOpen={props.defaultOpen}>
       <Collapsible.Trigger class={STEP_TRIGGER}>
         {props.glyph}
-        <span class={`min-w-0 flex-1 truncate text-left ${props.titleClass ?? ''}`}>{props.title}</span>
+        <span class={`text-left flex-1 min-w-0 truncate ${props.titleClass ?? ''}`}>{props.title}</span>
         <ChevronDown size={12} class={STEP_CHEVRON} aria-hidden="true" />
       </Collapsible.Trigger>
       <Collapsible.Content>
-        <div class="pl-6.5 pr-1 py-1 min-w-0">{props.children}</div>
+        <div class="py-1 pl-6.5 pr-1 min-w-0">{props.children}</div>
       </Collapsible.Content>
     </Collapsible.Root>
   )
@@ -142,7 +142,7 @@ function ToolStep(props: {part: ToolCallPart}): JSX.Element {
 function ThinkingStep(props: {part: Extract<MessagePart, {type: 'thinking'}>}): JSX.Element {
   return (
     <StepShell glyph={stepGlyph('complete')} title="Reasoning">
-      <div class="text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] leading-[1.45] whitespace-pre-wrap">
+      <div class="text-[length:var(--chat-text-sm)] leading-[1.45] whitespace-pre-wrap [color:var(--chat-text-2)]">
         {props.part.content}
       </div>
     </StepShell>
@@ -175,16 +175,16 @@ function StepGroup(props: {turn: Turn; chain: ChainSegment; liveSegment: boolean
   return (
     <Collapsible.Root open={open()} onOpenChange={(details) => setUserOpen(details.open)}>
       <Collapsible.Trigger class={GROUP_TRIGGER}>
-        <Show when={props.liveSegment} fallback={<span class="size-3 shrink-0" aria-hidden="true" />}>
+        <Show when={props.liveSegment} fallback={<span class="shrink-0 size-3" aria-hidden="true" />}>
           <Loader size={12} class={SPIN} aria-hidden="true" />
         </Show>
-        <span class={`min-w-0 flex-1 truncate text-left font-medium ${props.liveSegment ? SHIMMER : ''}`}>
+        <span class={`font-medium text-left flex-1 min-w-0 truncate ${props.liveSegment ? SHIMMER : ''}`}>
           {title()}
         </span>
         <ChevronDown size={12} class={GROUP_CHEVRON} aria-hidden="true" />
       </Collapsible.Trigger>
       <Collapsible.Content>
-        <div class="flex flex-col gap-0.5 pt-1 min-w-0">
+        <div class="pt-1 flex flex-col gap-0.5 min-w-0">
           <Index each={steps()}>
             {(partIndex) => (
               <Switch>
@@ -271,7 +271,7 @@ function Timeline(props: {id?: string; 'aria-label'?: string; class?: string; ch
       ref={setViewport}
       id={props.id}
       aria-label={props['aria-label']}
-      class={`flex flex-1 flex-col gap-2.5 min-h-0 min-w-0 overflow-y-auto px-2.5 py-2.5 ${props.class ?? ''}`}
+      class={`px-2.5 py-2.5 flex flex-1 flex-col gap-2.5 min-h-0 min-w-0 overflow-y-auto ${props.class ?? ''}`}
       role="log"
       aria-live="polite"
     >
@@ -296,7 +296,7 @@ function Now(props: {onStop?: () => void; class?: string}): JSX.Element {
   return (
     <Show when={title()}>
       {(text) => (
-        <div class={`shrink-0 px-2.5 pb-2.5 ${props.class ?? ''}`}>
+        <div class={`px-2.5 pb-2.5 shrink-0 ${props.class ?? ''}`}>
           <NowLine title={text()} onStop={props.onStop} />
         </div>
       )}

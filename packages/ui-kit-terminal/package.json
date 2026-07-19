@@ -49,6 +49,7 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
+    "@types/ws": "^8.18.1",
     "@vitest/browser-playwright": "4.1.10",
     "@vitest/coverage-v8": "^4.1.8",
     "playwright": "^1.61.1",
@@ -57,7 +58,8 @@
     "unocss": "^66.7.2",
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "ws": "^8.21.0"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"
