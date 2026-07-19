@@ -13,7 +13,7 @@
 - Zero code comments; functions only, no classes; no `else`; no non-null assertions; no `any`/casts (repo style rules).
 - Never add test code to a shipped package's `src` beyond the `harness` pass-through parameter in `start.ts` (which is DI, not test code).
 - Commit with pathspec only: `git commit -m "..." -- <paths>`; end commit messages with `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
-- Run all commands from the repo root `/Users/omrikatz/Public/web/aidx` or the named package dir.
+- Run all commands from the repo root `/Users/dev/Public/web/aidx` or the named package dir.
 - Build via turborepo: `pnpm turbo build --filter=<pkg>` after editing shipped src, before running dependent tests.
 - Spec: `docs/superpowers/specs/2026-07-12-extension-testkit-harness-di-design.md`.
 
@@ -63,7 +63,7 @@ describe('start harness DI', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/omrikatz/Public/web/aidx/packages/core && pnpm vitest run test/start-harness-di.it.test.ts`
+Run: `cd /Users/dev/Public/web/aidx/packages/core && pnpm vitest run test/start-harness-di.it.test.ts`
 Expected: FAIL — TypeScript error `harness does not exist in type StartOpts`, or at runtime `unknown harness "fake-start-di"` from `requireHarness`.
 
 - [ ] **Step 3: Implement the pass-through**
@@ -88,15 +88,15 @@ In `appOpts` (after `extensionConfig: cfg.extensions,`):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/omrikatz/Public/web/aidx/packages/core && pnpm vitest run test/start-harness-di.it.test.ts`
+Run: `cd /Users/dev/Public/web/aidx/packages/core && pnpm vitest run test/start-harness-di.it.test.ts`
 Expected: PASS
 
 - [ ] **Step 5: Guard against regressions and commit**
 
-Run: `cd /Users/omrikatz/Public/web/aidx && pnpm turbo build typecheck lint --filter=@conciv/core` — expect all green.
+Run: `cd /Users/dev/Public/web/aidx && pnpm turbo build typecheck lint --filter=@conciv/core` — expect all green.
 
 ```bash
-cd /Users/omrikatz/Public/web/aidx
+cd /Users/dev/Public/web/aidx
 git commit -m "feat(core): start() forwards an injected harness to makeApp
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>" -- packages/core/src/start.ts packages/core/test/start-harness-di.it.test.ts
@@ -137,7 +137,7 @@ describe('createFakeHarness tty', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/omrikatz/Public/web/aidx/packages/harness-testkit && pnpm vitest run test/create-fake-harness.test.ts`
+Run: `cd /Users/dev/Public/web/aidx/packages/harness-testkit && pnpm vitest run test/create-fake-harness.test.ts`
 Expected: FAIL — `tty` not in opts type / `harness.tty` undefined in the second case.
 
 - [ ] **Step 3: Implement**
@@ -164,13 +164,13 @@ Inside the `defineHarness({...})` input, after `capabilities: {...},` add:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/omrikatz/Public/web/aidx/packages/harness-testkit && pnpm vitest run test/create-fake-harness.test.ts`
+Run: `cd /Users/dev/Public/web/aidx/packages/harness-testkit && pnpm vitest run test/create-fake-harness.test.ts`
 Expected: PASS. Also run the package suite: `pnpm vitest run` — all green (existing consumers unaffected: default stays tty-less).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/omrikatz/Public/web/aidx
+cd /Users/dev/Public/web/aidx
 git commit -m "feat(harness-testkit): opt-in tty command on createFakeHarness
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>" -- packages/harness-testkit/src/create-fake-harness.ts packages/harness-testkit/test/create-fake-harness.test.ts
@@ -208,7 +208,7 @@ With `import {createFakeHarness} from '@conciv/harness-testkit'` added to the te
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/omrikatz/Public/web/aidx/packages/extension-testkit && pnpm vitest run test/boot-server.it.test.ts`
+Run: `cd /Users/dev/Public/web/aidx/packages/extension-testkit && pnpm vitest run test/boot-server.it.test.ts`
 Expected: FAIL — `bootExtensionServer` takes 1 argument.
 
 - [ ] **Step 3: Implement forwarding**
@@ -254,13 +254,13 @@ If `@conciv/protocol` is missing from `packages/extension-testkit/package.json` 
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/omrikatz/Public/web/aidx/packages/extension-testkit && pnpm vitest run test/boot-server.it.test.ts`
+Run: `cd /Users/dev/Public/web/aidx/packages/extension-testkit && pnpm vitest run test/boot-server.it.test.ts`
 Expected: PASS (new case and all existing cases — omitted harness keeps registry behavior).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/omrikatz/Public/web/aidx
+cd /Users/dev/Public/web/aidx
 git commit -m "feat(extension-testkit): accept an injected harness through getExtensionTestApi
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>" -- packages/extension-testkit/src packages/extension-testkit/test packages/extension-testkit/package.json pnpm-lock.yaml
@@ -282,7 +282,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>" -- packages/extension-te
 
 - [ ] **Step 1: Add the devDependency**
 
-Add to `packages/extensions/terminal/package.json` devDependencies (keep alphabetical): `"@conciv/extension-testkit": "workspace:^"`. Then run `cd /Users/omrikatz/Public/web/aidx && pnpm install --filter @conciv/extension-terminal`.
+Add to `packages/extensions/terminal/package.json` devDependencies (keep alphabetical): `"@conciv/extension-testkit": "workspace:^"`. Then run `cd /Users/dev/Public/web/aidx && pnpm install --filter @conciv/extension-terminal`.
 
 - [ ] **Step 2: Write the test**
 
@@ -347,7 +347,7 @@ Two verification notes for the implementer:
 
 - [ ] **Step 3: Run the test**
 
-Run: `cd /Users/omrikatz/Public/web/aidx/packages/extensions/terminal && pnpm vitest run --project terminal test/terminal-view.it.test.ts`
+Run: `cd /Users/dev/Public/web/aidx/packages/extensions/terminal && pnpm vitest run --project terminal test/terminal-view.it.test.ts`
 Expected: PASS. This exercises: injected fake harness through `start()` (Task 1), tty on the fake harness (Task 2), testkit forwarding (Task 3), real engine + real widget host + real pty + reload restore (the shipped fixes from commits f9b3212e/5c1ee051).
 
 If it fails on the client entry, confirm `@conciv/extension-terminal/client` is an export in `packages/extensions/terminal/package.json` (the embed fixture `packages/embed/test/fixtures/global-entry.ts` already imports it).
@@ -355,7 +355,7 @@ If it fails on the client entry, confirm `@conciv/extension-terminal/client` is 
 - [ ] **Step 4: Full-suite regression run**
 
 ```bash
-cd /Users/omrikatz/Public/web/aidx && pnpm turbo build typecheck lint
+cd /Users/dev/Public/web/aidx && pnpm turbo build typecheck lint
 cd packages/extensions/terminal && pnpm vitest run
 cd ../whiteboard && pnpm vitest run test/canvas-commit.it.test.ts
 cd ../../core && pnpm vitest run test/app-harness-di.test.ts test/start-harness-di.it.test.ts
@@ -366,7 +366,7 @@ Expected: all green (whiteboard = unchanged-consumer check).
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/omrikatz/Public/web/aidx
+cd /Users/dev/Public/web/aidx
 git commit -m "test(terminal): reload-restore IT on the extension-testkit path
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>" -- packages/extensions/terminal/test/terminal-view.it.test.ts packages/extensions/terminal/package.json pnpm-lock.yaml
