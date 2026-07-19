@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "citty": "^0.2.2",
-    "execa": "^9.5.0"
+    "execa": "^9.5.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",

@@ -26,7 +26,8 @@
     "release:version": "conciv-publish version",
     "release:check": "conciv-publish check",
     "release": "conciv-publish release",
-    "release:snapshot": "conciv-publish snapshot"
+    "release:snapshot": "conciv-publish snapshot",
+    "release:sync": "conciv-publish sync"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.3",

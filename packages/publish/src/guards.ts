@@ -7,9 +7,15 @@ export function assertValidTag(tag: string): void {
   }
 }
 
+export function assertValidPackageName(name: string): void {
+  if (!/^@conciv\/[a-z][a-z0-9-]*$/.test(name)) {
+    throw new Error(`invalid package name ${JSON.stringify(name)}: must match /^@conciv\\/[a-z][a-z0-9-]*$/`)
+  }
+}
+
 const PACKAGE_GROUPS = ['packages', 'packages/extensions']
 
-const PUBLIC_PACKAGES = [
+export const PUBLIC_PACKAGES = [
   '@conciv/it',
   '@conciv/plugin',
   '@conciv/cli',
@@ -67,6 +73,23 @@ export async function assertVersioned(cwd: string): Promise<void> {
   if (stale.length > 0) {
     const names = stale.map((pkg) => pkg.name ?? '(unnamed)').join(', ')
     throw new Error(`still 0.0.0 - run "conciv-publish version" before publishing: ${names}`)
+  }
+}
+
+export async function assertBootstrappable(cwd: string, name: string): Promise<void> {
+  assertValidPackageName(name)
+  if (!PUBLIC_PACKAGES.includes(name)) {
+    throw new Error(`${name} is not in PUBLIC_PACKAGES - add it to packages/publish/src/guards.ts first`)
+  }
+  const manifest = (await readManifests(cwd)).find((pkg) => pkg.name === name)
+  if (!manifest) {
+    throw new Error(`${name} not found in the workspace`)
+  }
+  if (manifest.private) {
+    throw new Error(`${name} is private - unset "private" in its package.json before bootstrapping`)
+  }
+  if (manifest.version === '0.0.0') {
+    throw new Error(`${name} is still 0.0.0 - land a changeset and merge the version PR before bootstrapping`)
   }
 }
 

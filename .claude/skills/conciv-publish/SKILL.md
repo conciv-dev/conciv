@@ -25,9 +25,9 @@ The single exception is the first-publish bootstrap for a brand-new package (bel
 
    All `@conciv/*` packages are version-fixed (`.changeset/config.json` `fixed: [["@conciv/*"]]`, currently the 0.0.x patch line). One entry naming ANY `@conciv/*` package bumps and releases the whole set in lockstep; do not enumerate packages.
 
-2. **Merge to main.** `changesets/action` opens a `chore: version packages` PR that runs `pnpm release:version` (consumes changesets, bumps versions + CHANGELOGs, resyncs the lockfile). This version PR gets NO CI (bot-token pushes don't trigger `pull_request` workflows); its green checkmarks are CodeQL and cache-cleanup, not tests. Main was already validated at step 1's merge, so this is expected, not broken.
+2. **Merge to main.** `changesets/action` opens a `chore: version packages` PR that runs `pnpm release:version` (consumes changesets, bumps versions + CHANGELOGs, resyncs the lockfile). This version PR usually gets NO CI (bot-token pushes don't trigger `pull_request` workflows — its green checkmarks are CodeQL and cache-cleanup, not tests), though a Release run RE-RUN by a human leaks that human as `triggering_actor` and the PR does get CI. Either way is fine: main was already validated at step 1's merge.
 
-3. **Merge the version PR.** CI runs `pnpm release`: `turbo run build publint attw`, then `changeset publish` to npm with provenance, and pushes git tags.
+3. **Merge the version PR.** CI runs `pnpm release`: `turbo run build publint attw`, then `changeset publish` to npm with provenance, and pushes git tags. Landmine (2026-07-19): the squash-merge push event can be silently swallowed and NO Release run is created — zero runs for the merge SHA, nothing to debug in the workflow. Recovery: any human push to main (e.g. an empty `chore: trigger release` commit) starts a run that publishes everything still unpublished.
 
 ## Pre-release verification (multi-agent)
 
@@ -51,24 +51,26 @@ A new package with `private` unset/false needs, in the PR:
 - Its name added to `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts`, or `assertPublicSet` aborts the release on drift.
 - `homepage: https://conciv.dev` and a `repository` block with its `directory`, matching every other public manifest.
 
-Then the one-time npm bootstrap, because OIDC trusted publishing CANNOT create a new package (the trusted-publisher setting lives in per-package npmjs settings, which only exist after the package exists):
+Then the one-time first publish, because npm trusted publishing CANNOT create a new package ("Package must exist" is a hard registry prerequisite, and `npm trust` needs the human's 2FA session — credentials CI must never hold). After the version PR for the new package has merged (so its manifest carries a real version), a human with npm auth runs ONE argument-less, idempotent command:
 
-1. A human with npm auth publishes the first version manually:
-   `pnpm exec turbo run build --filter=<pkg>` then `pnpm --filter <pkg> publish --access public --no-git-checks`
-2. In that package's npmjs settings, add the trusted publisher: org `conciv-dev`, repo `conciv`, workflow `release.yml`, no environment.
+```
+pnpm release:sync
+```
 
-Until step 2 is done, every CI release fails that package with `E404 undefined - PUT`.
+`conciv-publish sync` (packages/publish/src/cli.ts) reconciles npm with `PUBLIC_PACKAGES`: for every listed package it reads the registry state (`missing` / `untrusted` / `trusted`, decided by whether the latest version carries `_npmUser.trustedPublisher`), first-publishes anything missing (`--access public --no-git-checks`), wires the trusted publisher for anything untrusted via `npx npm@^11.15.0 trust github <pkg> --repo conciv-dev/conciv --file release.yml --allow-publish` (no `--environment`, matching the existing packages; skipped when `npm trust list` already shows a config), then runs `changeset tag` and pushes tags. When everything is healthy it prints "nothing to do" and exits — safe to run anytime.
+
+Until the trust config exists, every CI release fails that package with `E404 undefined - PUT`. The sync first-publish has no provenance; the next CI publish restores it.
 
 ## Debugging a failed Release run
 
-| Symptom                                                            | Cause / fix                                                                                                                                |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `E404 undefined - PUT @conciv/<pkg>` in CI                         | Package has no trusted-publisher config on npmjs. Add it (settings above); confirm with the npm-auditor curl recipe.                       |
-| Release run failed after versions merged                           | npm may sit one version behind main. The next successful run publishes every still-unpublished package; fix the failure, don't re-version. |
-| Versions on npm but no git tags                                    | A manual publish happened (changesets only tags what IT publishes). Recover: `pnpm changeset tag && git push --tags`.                      |
-| Version on npm without provenance                                  | It was published manually. Expected for bootstraps; the next CI publish restores provenance.                                               |
-| Whole Release workflow fails at startup ("Error calling workflow") | The reusable ci.yml call is missing a permission its jobs need; grant it on the `test` job in release.yml.                                 |
-| `assertPublicSet` aborts                                           | `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts` drifted from the actual public manifests. Sync the list.                             |
+| Symptom                                                            | Cause / fix                                                                                                                                                            |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E404 undefined - PUT @conciv/<pkg>` in CI                         | Package missing from npm or has no trusted-publisher config. Run `pnpm release:sync`; confirm with `npx npm@^11.15.0 trust list <pkg>` or the npm-auditor curl recipe. |
+| Release run failed after versions merged                           | npm may sit one version behind main. The next successful run publishes every still-unpublished package; fix the failure, don't re-version.                             |
+| Versions on npm but no git tags                                    | A manual publish happened (changesets only tags what IT publishes). Recover: `pnpm changeset tag && git push --tags`.                                                  |
+| Version on npm without provenance                                  | It was published manually. Expected for bootstraps; the next CI publish restores provenance.                                                                           |
+| Whole Release workflow fails at startup ("Error calling workflow") | The reusable ci.yml call is missing a permission its jobs need; grant it on the `test` job in release.yml.                                                             |
+| `assertPublicSet` aborts                                           | `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts` drifted from the actual public manifests. Sync the list.                                                         |
 
 ## Red flags
 
