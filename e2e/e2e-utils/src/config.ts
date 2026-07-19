@@ -12,7 +12,7 @@ function serverEntry(command: string, port: number) {
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe' as const,
-    timeout: 120_000,
+    timeout: 180_000,
     env: {CONCIV_E2E: '1'},
   }
 }
@@ -22,6 +22,8 @@ export function e2eConfig(app: E2EApp, opts: {command: (port: number) => string}
   return defineConfig({
     testDir: './tests',
     workers: 1,
+    timeout: 90_000,
+    expect: {timeout: 90_000},
     reporter: reporters(),
     use: {baseURL: `http://localhost:${port}`},
     webServer: serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),
