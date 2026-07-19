@@ -1,4 +1,4 @@
-import {toolDefinition, type AnyTool} from '@tanstack/ai'
+import {toolDefinition, type AnyTool, type ServerTool} from '@tanstack/ai'
 import type {SandboxDefinition} from '@tanstack/ai-sandbox'
 import type {z} from 'zod'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -20,6 +20,7 @@ export type ChatDeps = {
   changes: Changes
   risky: ReadonlySet<string>
   tools: (sessionId: string) => AnyTool[]
+  extensionServerTools: () => ExtensionServerTool[]
   attachmentExpanders: AttachmentExpanders
   onRunStart?: (sessionId: string) => void
   onRunEnd?: (sessionId: string) => Promise<void>
@@ -32,7 +33,7 @@ type Registrable = {name: string; description: string; inputSchema: z.ZodObject<
 
 type ToolRun = (args: unknown) => Promise<unknown>
 
-export function toChatTool(tool: Registrable, run: ToolRun, opts?: {lazy?: boolean}): AnyTool {
+export function toChatTool(tool: Registrable, run: ToolRun, opts?: {lazy?: boolean}): ServerTool {
   return toolDefinition({
     name: tool.name,
     description: tool.description,

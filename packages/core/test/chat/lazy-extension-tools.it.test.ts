@@ -83,20 +83,25 @@ async function drain(stream: AsyncIterable<StreamChunk>): Promise<StreamChunk[]>
   return chunks
 }
 
+async function discoveryTurn(userText: string): Promise<Round[]> {
+  const {adapter, rounds} = recordingAdapter((round, _options) =>
+    round === 0 ? discoveryCallChunks('demo_search') : answerChunks('done'),
+  )
+  await drain(
+    chat({
+      adapter,
+      messages: [{role: 'user', content: userText}],
+      threadId: 'turn-1',
+      tools,
+      lazyToolsConfig: {includeDescription: 'first-sentence'},
+    }),
+  )
+  return rounds
+}
+
 describe('lazy extension-tool path through chat()', () => {
   test('initial model call sees eager tool + discovery, never the undiscovered lazy tool', async () => {
-    const {adapter, rounds} = recordingAdapter((round, _options) =>
-      round === 0 ? discoveryCallChunks('demo_search') : answerChunks('done'),
-    )
-    await drain(
-      chat({
-        adapter,
-        messages: [{role: 'user', content: 'do the thing'}],
-        threadId: 'turn-1',
-        tools,
-        lazyToolsConfig: {includeDescription: 'first-sentence'},
-      }),
-    )
+    const rounds = await discoveryTurn('do the thing')
 
     const first = rounds[0]
     if (!first) throw new Error('adapter was never called')
@@ -106,18 +111,7 @@ describe('lazy extension-tool path through chat()', () => {
   })
 
   test('discovery catalog reflects lazyToolsConfig first-sentence only', async () => {
-    const {adapter, rounds} = recordingAdapter((round, _options) =>
-      round === 0 ? discoveryCallChunks('demo_search') : answerChunks('done'),
-    )
-    await drain(
-      chat({
-        adapter,
-        messages: [{role: 'user', content: 'do the thing'}],
-        threadId: 'turn-1',
-        tools,
-        lazyToolsConfig: {includeDescription: 'first-sentence'},
-      }),
-    )
+    const rounds = await discoveryTurn('do the thing')
 
     const discovery = rounds[0]?.tools.find((tool) => tool.name === DISCOVERY_TOOL_NAME)
     expect(discovery?.description).toContain('Search the demo index for matches.')
@@ -125,18 +119,7 @@ describe('lazy extension-tool path through chat()', () => {
   })
 
   test('discovery returns the lazy tool schema and it becomes offered on the next model call', async () => {
-    const {adapter, rounds} = recordingAdapter((round, _options) =>
-      round === 0 ? discoveryCallChunks('demo_search') : answerChunks('done'),
-    )
-    await drain(
-      chat({
-        adapter,
-        messages: [{role: 'user', content: 'search please'}],
-        threadId: 'turn-1',
-        tools,
-        lazyToolsConfig: {includeDescription: 'first-sentence'},
-      }),
-    )
+    const rounds = await discoveryTurn('search please')
 
     expect(rounds.length).toBe(2)
     const second = rounds[1]

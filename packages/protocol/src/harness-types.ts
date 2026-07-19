@@ -13,6 +13,8 @@ export type HarnessCapabilities = {
   slashCommands: 'live' | 'files' | 'none'
 
   imageInput: 'native' | 'fileRef' | false
+
+  codeMode?: boolean
 }
 
 export type HarnessImage = {mediaType: string; dataBase64: string}

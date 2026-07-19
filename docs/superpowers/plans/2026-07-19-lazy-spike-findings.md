@@ -295,3 +295,55 @@ No `approval` flags were added or removed. The two destructive canvas tools (del
 destructive comment tools (resolve, delete) were already flagged and remain the only guarded
 extension tools; the fix in this task is what makes those four flags actually fire on the scripted
 in-process path (previously bypassed by the prefix mismatch).
+
+---
+
+## Task 7 redesign (user decision, 2026-07-19)
+
+The plan's Task 7 (opt-in `codeMode: true` flag, `approval: 'ask'` tools EXCLUDED from Code Mode,
+non-lazy bindings) was superseded by an explicit user decision: **wrangler/Cloudflare-style —
+everything reachable through Code Mode, nothing broken anywhere, approvals still fire.** What
+actually shipped in `packages/core/src/chat/code-mode.ts`:
+
+- **All extension tools are bound.** No `codeMode` opt-in field on `ExtensionTool`/`ExtensionServerTool`
+  (never added). `makeCodeMode(extensionTools, request, gate)` binds every tool via `toChatTool`.
+- **Bindings are lazy + the discovery companion is kept.** Each binding is built with
+  `toChatTool(tool, run, {lazy: true})`, so `createCodeMode` filters them all into the "Discoverable
+  APIs" catalog (kept out of the eager system-prompt docs) and returns the `discover_tools`
+  companion. We wire `codeMode.tools` (PLURAL — `[execute_typescript, discover_tools]`) into
+  `chat({tools})`, not just the single tool. Verified against the installed dist
+  (`@tanstack/ai-code-mode@0.3.7`): `createCodeMode` (`create-code-mode.js`) does
+  `config.tools.filter(t => t.lazy)` → builds `discover_tools` iff any lazy tool exists, and returns
+  `{tool, discoveryTool, tools, systemPrompt}`. Critically, `createCodeModeTool`
+  (`create-code-mode-tool.js`) binds ALL tools as callable `external_*` sandbox functions
+  (`toolsToBindings(tools)`) regardless of `lazy` — `lazy` only controls documentation placement, so
+  an all-lazy set stays fully reachable through `discover_tools` + `execute_typescript`.
+- **Approval-gated tools are gate-wrapped, not excluded.** `gatedToolRun(tool, request, gate)`
+  consults the SAME run gate instance the chat middleware uses (`makeRunGate` in `buildRunStream`) via
+  `gate.decide(tool.name, input, sessionId, randomUUID())` BEFORE calling `tool.execute`. On `deny`
+  it throws a structured refusal (matching the existing `gatedTools` precedent in `gate.ts`), which
+  the isolate driver surfaces to the sandbox as an error result — never a silent success. On `allow`
+  it executes. Security-critical, covered by `code-mode.test.ts` `gatedToolRun` tests against the
+  real `makeRunGate` (deny → execute never runs + throws; allow-reply → executes and returns).
+- **Timeout choice: `CODE_MODE_TIMEOUT_MS = 150_000`.** Verified path: the code-mode `timeout` flows
+  to `IsolateContext.execute` → isolated-vm `script.run({timeout, promise: true})`
+  (`ai-isolate-node/isolate-context.js`), bounding the sandbox script's execution. `gate.ts` sets
+  `APPROVAL_TIMEOUT_MS = 120_000`. 150s > 120s guarantees a sandbox script that triggers one
+  approval-gated tool and waits the full approval window is not killed mid-wait, whether the wait
+  counts as CPU or wall-clock time. CAVEAT: a single `execute_typescript` that sequentially triggers
+  multiple approvals could still exceed 150s if the timeout is wall-clock; the single-approval case
+  (the requirement) is safe.
+- **Driver: probe-gated module singleton, fail closed.** `getDriver()` returns a cached
+  `createNodeIsolateDriver(...)` only if `probeIsolatedVm().compatible`; otherwise `null` →
+  `makeCodeMode` returns `null` and no code-mode tools/prompt are wired. No mid-run throw (isolated-vm
+  on an incompatible Node segfaults the 127.0.0.1 server). Verified export names + probe field
+  (`{compatible, error?}`) against `ai-isolate-node/dist/esm/isolate-driver.{d.ts,js}`.
+- **Real session threading + capability gating.** `buildRunStream` calls `makeCodeMode` only when
+  `deps.harness.capabilities.codeMode` is true, with `{sessionId, model: req.model ?? null}` — never
+  an empty sessionId. `codeMode?: boolean` added to `HarnessCapabilities`
+  (`packages/protocol/src/harness-types.ts`); set `true` ONLY on the claude harness. `ChatDeps` gained
+  `extensionServerTools: () => ExtensionServerTool[]`, wired from `makeApp` to reuse the same
+  `extensionTools` array handed to `buildChatTools`.
+- `toChatTool`'s return type was widened from `AnyTool` to `ServerTool` so the bindings carry the
+  `__toolSide: 'server'` brand `createCodeMode` requires (`ServerTool` is still assignable to
+  `AnyTool`, so all existing callers are unaffected).

@@ -266,6 +266,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     changes,
     risky,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
+    extensionServerTools: () => extensionTools,
     attachmentExpanders,
     onRunStart: (sessionId) => runStartListeners.forEach((listener) => listener(sessionId)),
     onRunEnd,

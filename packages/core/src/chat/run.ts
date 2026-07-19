@@ -5,6 +5,7 @@ import {
   chat,
   EventType,
   StreamProcessor,
+  type AnyTool,
   type ContentPart,
   type ModelMessage,
   type StreamChunk,
@@ -29,7 +30,8 @@ import {
 import type {ChatDeps} from './runtime.js'
 import {createSession, sessionById, toModelMessages} from './session.js'
 import {mergedMessages, runIdFor, transcriptMessages} from './attach.js'
-import {makeRunGate, withConcivGate, withConcivSandbox} from './gate.js'
+import {makeRunGate, withConcivGate, withConcivSandbox, type PermissionGate} from './gate.js'
+import {makeCodeMode} from './code-mode.js'
 import {harnessDebug, logError} from '../lib/debug.js'
 
 export type RunRequest = {
@@ -100,6 +102,19 @@ function runMessagesFor(deps: ChatDeps, req: RunRequest): ModelMessage[] {
   return req.messages
 }
 
+function codeModeExtras(
+  deps: ChatDeps,
+  sessionId: string,
+  req: RunRequest,
+  gate: PermissionGate,
+): {systemPrompts: string[]; tools: AnyTool[]} {
+  const codeMode = deps.harness.capabilities.codeMode
+    ? makeCodeMode(deps.extensionServerTools(), {sessionId, model: req.model ?? null}, gate)
+    : null
+  const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
+  return {systemPrompts, tools: [...deps.tools(sessionId), ...(codeMode?.tools ?? [])]}
+}
+
 async function buildRunStream(
   deps: ChatDeps,
   sessionId: string,
@@ -111,6 +126,7 @@ async function buildRunStream(
     ? resumableToken(deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome)
     : null
   const gate = makeRunGate({sessionId, processor, db: deps.db, changes: deps.changes, risky: deps.risky})
+  const extras = codeModeExtras(deps, sessionId, req, gate)
   const config = deps.harness.chatConfig({
     cwd: deps.cwd,
     sessionId,
@@ -124,9 +140,9 @@ async function buildRunStream(
   return chat({
     adapter: config.adapter,
     messages: config.prepareMessages?.(messages) ?? messages,
-    systemPrompts: deps.systemText ? [deps.systemText] : [],
+    systemPrompts: extras.systemPrompts,
     threadId: sessionId,
-    tools: deps.tools(sessionId),
+    tools: extras.tools,
     lazyToolsConfig: {includeDescription: 'first-sentence'},
     modelOptions: config.modelOptions,
     middleware: [withConcivSandbox(deps.sandbox), withConcivGate(gate, sessionId)],
