@@ -25,13 +25,13 @@ function describeFailures(failures: PageFailures): string {
 export async function expectWidgetBoots(page: Page, failures: PageFailures): Promise<void> {
   const launcher = page.getByRole('button', {name: 'Open conciv chat'})
   try {
-    await expect(launcher).toBeVisible({timeout: 20_000})
+    await expect(launcher).toBeVisible()
   } catch (error) {
     const detail = describeFailures(failures)
     throw detail === '' ? error : new Error(`widget did not boot\n${detail}`, {cause: error})
   }
   await launcher.click()
-  await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 20_000})
+  await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   expect(failures.pageErrors).toEqual([])
   expect(failures.consoleErrors).toEqual([])
 }
