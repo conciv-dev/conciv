@@ -103,3 +103,4 @@ minimumReleaseAgeExclude:
   - '@garden-co/jazz-napi-win32-x64-msvc'
 patchedDependencies:
   '@tanstack/ai-sandbox-local-process@0.2.0': patches/@tanstack__ai-sandbox-local-process@0.2.0.patch
+  bippy@0.5.41: patches/bippy@0.5.41.patch

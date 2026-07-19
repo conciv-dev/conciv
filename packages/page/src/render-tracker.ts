@@ -1,9 +1,3 @@
-// Import from 'bippy/core', NOT 'bippy'. bippy's main entry has a bare
-// `import "./install-hook-only.js"` that installs the React DevTools global hook
-// at module-load time; pulling that in during a host's hydration clobbers the
-// React dispatcher on non-react-dom renderers (e.g. @tanstack/redact) → "Invalid
-// hook call". 'bippy/core' has the same API with no install-on-import side effect;
-// the hook is installed explicitly (and lazily) via instrument() in startTracking.
 import {instrument, traverseRenderedFibers, getFiberId, getDisplayName, isCompositeFiber, getTimings} from 'bippy/core'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
@@ -84,9 +78,6 @@ export function installTracker(): void {
 }
 
 export function startTracking(): void {
-  // Instrument lazily, on first real use — never at widget mount, so the host's
-  // hydration (which may run a non-react-dom renderer like @tanstack/redact) is
-  // never disturbed by bippy's onCommitFiberRoot hook.
   installTracker()
   state.stats.clear()
   state.tracking = true

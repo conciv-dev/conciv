@@ -133,11 +133,6 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<() => void> {
 }
 
 export function mountImpl(init: ConcivInit, el: HTMLElement): {ready: Promise<void>; teardown: () => void} {
-  // Do NOT instrument React here. Installing bippy's onCommitFiberRoot hook while
-  // the host is still hydrating clobbers React's dispatcher on renderers that
-  // aren't standard react-dom (e.g. @tanstack/redact), producing "Invalid hook
-  // call" / null-dispatcher crashes. The bridge installs itself lazily on first
-  // use (render-tracking / prop overrides), which is always after hydration.
   window.__CONCIV_REACT_BRIDGE__ = reactBridge
   const hostRouter = window.__TSR_ROUTER__
   const inner = document.createElement('div')

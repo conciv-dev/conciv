@@ -1,18 +1,11 @@
 import {useEffect, useState} from 'react'
 
-type ThemeMode = 'light' | 'dark' | 'auto'
+const THEME_MODES = ['light', 'dark', 'auto'] as const
+type ThemeMode = (typeof THEME_MODES)[number]
 
 function getInitialMode(): ThemeMode {
-  if (typeof window === 'undefined') {
-    return 'auto'
-  }
-
-  const stored = window.localStorage.getItem('theme')
-  if (stored === 'light' || stored === 'dark' || stored === 'auto') {
-    return stored
-  }
-
-  return 'auto'
+  const stored = typeof window === 'undefined' ? null : window.localStorage.getItem('theme')
+  return THEME_MODES.find((mode) => mode === stored) ?? 'auto'
 }
 
 function applyThemeMode(mode: ThemeMode) {
