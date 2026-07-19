@@ -7,25 +7,22 @@ export const motion = {
   'anim-msg': 'animate-pw-fade-in-up animate-duration-[160ms] animate-ease-pw motion-reduce:animate-none',
   'anim-msg-lg': 'animate-pw-fade-in-up animate-duration-[180ms] animate-ease-pw motion-reduce:animate-none',
   'anim-rise':
-    'animate-pw-fade-in-up animate-duration-[320ms] animate-ease-pw-expo animate-fill-mode-both motion-reduce:animate-none',
+    'animate-pw-fade-in-up animate-duration-[320ms] animate-ease-pw-expo animate-fill-mode-backwards motion-reduce:animate-none',
   'anim-rise-d':
-    'animate-pw-fade-in-up animate-duration-[320ms] animate-ease-pw-expo animate-delay-[40ms] animate-fill-mode-both motion-reduce:animate-none',
+    'animate-pw-fade-in-up animate-duration-[320ms] animate-ease-pw-expo animate-delay-[40ms] animate-fill-mode-backwards motion-reduce:animate-none',
   'anim-switching': 'animate-pulse animate-duration-[1.2s]',
 
   'anim-combo': 'animate-fade-in animate-duration-[120ms] animate-ease-pw motion-reduce:animate-none',
   'anim-compact': 'animate-spin animate-duration-[0.85s]',
-  'anim-fab':
-    'animate-pw-zoom-in animate-duration-[360ms] animate-ease-pw-expo animate-fill-mode-both motion-reduce:animate-none',
+  'anim-fab': 'animate-pw-zoom-in animate-duration-[360ms] animate-ease-pw-expo motion-reduce:animate-none',
   'anim-fab-ring': 'animate-pw-fab-ring animate-duration-[1.6s] animate-ease-pw animate-iteration-count-infinite',
   'anim-now': 'animate-fade-in animate-duration-[220ms] animate-ease-pw motion-reduce:animate-none',
   'anim-collapse-open': 'animate-pw-expand-height animate-duration-[200ms] animate-ease-pw',
   'anim-collapse-closed':
     'animate-pw-collapse-height animate-duration-[200ms] animate-ease-pw animate-fill-mode-forwards',
 
-  'anim-pop':
-    'animate-pw-fade-in-up animate-duration-[200ms] animate-ease-pw-expo animate-fill-mode-both motion-reduce:animate-none',
-  'anim-presence-in':
-    'animate-pw-presence-in animate-duration-[180ms] animate-ease-pw-expo animate-fill-mode-both motion-reduce:animate-none',
+  'anim-pop': 'animate-pw-fade-in-up animate-duration-[200ms] animate-ease-pw-expo motion-reduce:animate-none',
+  'anim-presence-in': 'animate-pw-presence-in animate-duration-[180ms] animate-ease-pw-expo motion-reduce:animate-none',
   'anim-presence-out':
     'animate-pw-presence-out animate-duration-[120ms] animate-ease-pw animate-fill-mode-both motion-reduce:animate-none',
   'anim-tab-right':
