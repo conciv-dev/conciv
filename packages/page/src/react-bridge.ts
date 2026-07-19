@@ -1,3 +1,11 @@
+// Import from 'bippy/core', NOT 'bippy'. bippy's main entry has a bare
+// `import "./install-hook-only.js"` that installs the React DevTools global hook
+// at module-load time. When conciv mounts, this module is imported eagerly (for
+// window.__CONCIV_REACT_BRIDGE__ and via page-handlers), so that install ran
+// during the host's hydration and clobbered the React dispatcher on non-react-dom
+// renderers (e.g. @tanstack/redact), causing "Invalid hook call" / null-dispatcher
+// crashes. 'bippy/core' exposes the same API with no install-on-import side effect;
+// the hook installs explicitly (and lazily, post-hydration) when introspection runs.
 import {
   getFiberFromHostInstance,
   getFiberStack,
@@ -8,7 +16,7 @@ import {
   getRDTHook,
   traverseFiber,
   _fiberRoots,
-} from 'bippy'
+} from 'bippy/core'
 import {parseStack, hasDebugStack, getFallbackOwnerStack, formatOwnerStack} from 'bippy/source'
 import {installTracker} from './render-tracker.js'
 import {addRef, type Refs} from './page-snapshot.js'
@@ -259,6 +267,9 @@ export async function override(
   value: unknown,
   hookId?: number,
 ): Promise<OverrideResult> {
+  // Prop/state/hook overrides go through the RDT renderer hook, which bippy sets
+  // up. Install it lazily here (post-hydration) rather than at widget mount.
+  installReactBridge()
   const found = await fiberForEl(el)
   if (!found) return {error: 'no React fiber for element'}
   const composite = composedFiber(getLatestFiber(found))
