@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import {defineCommand, runMain} from 'citty'
-import {ExecaError, execa} from 'execa'
+import {execa} from 'execa'
 import {findRoot} from './workspace-root.ts'
 import {PUBLIC_PACKAGES, assertBootstrappable, assertPublicSet, assertValidTag, assertVersioned} from './guards.ts'
 import {registryState} from './registry.ts'
@@ -11,11 +11,9 @@ const RELEASE_WORKFLOW = 'release.yml'
 async function atRoot() {
   const cwd = await findRoot(process.cwd())
   const run = (file: string, args: string[]) => execa(file, args, {cwd, stdio: 'inherit'})
-  const tee = (file: string, args: string[]) =>
-    execa(file, args, {cwd, stdin: 'inherit', stdout: ['inherit', 'pipe'], stderr: ['inherit', 'pipe']})
   const turbo = (...tasks: string[]) => run('pnpm', ['exec', 'turbo', 'run', ...tasks])
   const changeset = (...args: string[]) => run('pnpm', ['exec', 'changeset', ...args])
-  return {cwd, run, tee, turbo, changeset}
+  return {cwd, run, turbo, changeset}
 }
 
 const version = defineCommand({
@@ -61,44 +59,28 @@ const snapshot = defineCommand({
 
 const npmTrust = (...args: string[]) => ['--yes', 'npm@^11.15.0', 'trust', ...args]
 
-function execaText(error: unknown): string {
-  if (!(error instanceof ExecaError)) return ''
-  return [error.message, error.stdout, error.stderr].map(String).join('\n')
-}
-
-async function firstPublish(tee: Tee, name: string): Promise<void> {
-  await tee('pnpm', ['--filter', name, 'publish', '--access', 'public', '--no-git-checks']).catch((error: unknown) => {
-    if (execaText(error).includes('previously published versions')) {
-      console.log(
-        `${name}: this version already exists on the registry (a stale 404 from the registry cache), continuing`,
-      )
-      return
-    }
+async function firstPublish(run: Run, name: string): Promise<void> {
+  await run('pnpm', ['--filter', name, 'publish', '--access', 'public', '--no-git-checks']).catch((error: unknown) => {
+    console.log(
+      `${name}: publish failed. If npm reported "previously published versions", the registry 404 cache is stale and the package is fine - rerun sync in a few minutes. If it reported EOTP or E403, run "npm login" (browser + 2FA) and rerun sync from a real terminal.`,
+    )
     throw error
   })
 }
 
-async function wireTrust(tee: Tee, name: string): Promise<void> {
-  await tee(
+async function wireTrust(run: Run, name: string): Promise<void> {
+  await run(
     'npx',
     npmTrust('github', name, '--repo', REPOSITORY, '--file', RELEASE_WORKFLOW, '--allow-publish', '--yes'),
   ).catch((error: unknown) => {
-    const text = execaText(error)
-    if (/exist/i.test(text)) {
-      console.log(`${name}: trusted publisher already configured`)
-      return
-    }
-    if (text.includes('E403')) {
-      throw new Error(
-        `npm rejected the trust change for ${name} (E403): trust commands need an interactive "npm login" session with 2FA on the account; granular tokens with bypass-2FA are not supported`,
-        {cause: error},
-      )
-    }
+    console.log(
+      `${name}: trust setup failed. npm trust needs a real terminal, an "npm login" browser session, and 2FA on the account (bypass-2FA tokens are rejected). If a config already exists, verify with: npx npm@^11.15.0 trust list ${name}`,
+    )
     throw error
   })
 }
 
-type Tee = Awaited<ReturnType<typeof atRoot>>['tee']
+type Run = Awaited<ReturnType<typeof atRoot>>['run']
 
 const sync = defineCommand({
   meta: {
@@ -115,7 +97,7 @@ const sync = defineCommand({
     json: {type: 'boolean', default: false, description: 'Print the per-package states and plan as JSON'},
   },
   async run({args}) {
-    const {cwd, run, tee, turbo} = await atRoot()
+    const {cwd, run, turbo} = await atRoot()
     const states = await Promise.all(PUBLIC_PACKAGES.map(async (name) => ({name, state: await registryState(name)})))
     const unhealthy = states.filter(({state}) => state !== 'trusted')
     const plan = unhealthy.map(({name, state}) => ({
@@ -138,9 +120,9 @@ const sync = defineCommand({
       if (state === 'missing') {
         await assertBootstrappable(cwd, name)
         await turbo('build', `--filter=${name}`)
-        await firstPublish(tee, name)
+        await firstPublish(run, name)
       }
-      await wireTrust(tee, name)
+      await wireTrust(run, name)
     }
     await run('pnpm', ['exec', 'changeset', 'tag'])
     await run('git', ['push', 'origin', '--tags'])
