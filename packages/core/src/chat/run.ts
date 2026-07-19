@@ -127,6 +127,7 @@ async function buildRunStream(
     systemPrompts: deps.systemText ? [deps.systemText] : [],
     threadId: sessionId,
     tools: deps.tools(sessionId),
+    lazyToolsConfig: {includeDescription: 'first-sentence'},
     modelOptions: config.modelOptions,
     middleware: [withConcivSandbox(deps.sandbox), withConcivGate(gate, sessionId)],
     abortController: abort,

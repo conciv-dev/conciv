@@ -32,8 +32,13 @@ type Registrable = {name: string; description: string; inputSchema: z.ZodObject<
 
 type ToolRun = (args: unknown) => Promise<unknown>
 
-export function toChatTool(tool: Registrable, run: ToolRun): AnyTool {
-  return toolDefinition({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(run)
+export function toChatTool(tool: Registrable, run: ToolRun, opts?: {lazy?: boolean}): AnyTool {
+  return toolDefinition({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    lazy: opts?.lazy,
+  }).server(run)
 }
 
 export function buildChatTools(
@@ -46,7 +51,7 @@ export function buildChatTools(
     const request: ToolRequest = {sessionId, model: sessionModel(sessionId)}
     return [
       ...concivTools(ctx).map((tool) => toChatTool(tool, (args) => tool.execute(args))),
-      ...extensionTools.map((tool) => toChatTool(tool, (args) => tool.execute(args, request))),
+      ...extensionTools.map((tool) => toChatTool(tool, (args) => tool.execute(args, request), {lazy: true})),
     ]
   }
 }
