@@ -21,13 +21,17 @@ Two distinct MCP surfaces exist, and neither is the one the plan assumed:
 
 Per harness (`packages/harness/src/*/index.ts`):
 
-| Harness    | `capabilities.mcp` | chat-run tool path                                                                                                   |
-| ---------- | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| claude     | `'http'`           | bridge (`mcp__tanstack__*`), provisioned from `chat({tools})`                                                        |
-| codex      | `'none'`           | in-process `codexText`; tools via bridge/in-proc executor                                                            |
-| opencode   | `'none'`           | **not bridged** — `@tanstack/ai-opencode/dist/esm/adapters/text.d.ts:45`: "chat()-provided tools aren't bridged yet" |
-| gemini-cli | `'none'`           | same generation of adapters; assume unbridged until proven otherwise                                                 |
-| pi         | `'none'`           | pi-native tool contract                                                                                              |
+> **SUPERSEDED 2026-07-20 by the observed harness matrix at the end of this document.** Two claims in
+> the table below were wrong: opencode DOES bridge `chat()` tools, and `capabilities.mcp: 'none'`
+> does not mean tools fail to reach the CLI. Read the matrix, not this table.
+
+| Harness    | `capabilities.mcp` | chat-run tool path                                                                                |
+| ---------- | ------------------ | ------------------------------------------------------------------------------------------------- |
+| claude     | `'http'`           | bridge (`mcp__tanstack__*`), provisioned from `chat({tools})`                                     |
+| codex      | `'none'`           | in-process `codexText`; tools via bridge/in-proc executor                                         |
+| opencode   | `'none'`           | ~~**not bridged**~~ WRONG — stale `.d.ts` comment; the shipped `.js` bridges. See the matrix.     |
+| gemini-cli | `'none'`           | ~~assume unbridged~~ UNVERIFIED THEN, now observed: bridged but blocked upstream. See the matrix. |
+| pi         | `'none'`           | pi-native tool contract — stub harness, never spawns a CLI                                        |
 
 ## Does chat()-level `lazy: true` reach the CLIs?
 
@@ -390,3 +394,117 @@ metadata. Discovered names are additive to the session's set; the newly discover
   extension-free apps are unaffected) — this is the real client flow. Direct-client ITs that asserted
   eager extension listing (`packages/core/test/api/**`, recorder + test-runner extension ITs) were
   updated to `callTool('conciv_discover_tools', {names})` before listing/executing.
+
+---
+
+## OBSERVED HARNESS MATRIX (2026-07-20)
+
+Method: a dotted tool `probe.ping` built through conciv's real `toChatTool`, passed as `chat({tools})`
+through each harness's real `chatConfig` with the real conciv sandbox + gate middleware. `execute`
+incremented a counter and returned a sentinel token, so execution is proven by side effect, not by
+absence of error. Every row below is OBSERVED against a real CLI except where marked.
+
+| Harness    | CLI available | Tool ran           | Literal `part.name` observed | Dot           |
+| ---------- | ------------- | ------------------ | ---------------------------- | ------------- |
+| claude     | yes           | YES                | `probe_ping`                 | lost -> `_`   |
+| codex      | yes           | **NO** (cancelled) | `probe.ping`                 | preserved     |
+| opencode   | yes           | YES                | `tanstack_probe_ping`        | lost + prefix |
+| gemini-cli | yes           | **NO** (hangs)     | _(no tool part emitted)_     | UNVERIFIABLE  |
+| pi         | **no**        | NO                 | _(stub harness, RUN_ERROR)_  | n/a           |
+
+### Three name forms, none of them the registered name
+
+No harness delivers `part.name === 'canvas.read'`. A card keyed on the registered dotted name matches
+only on codex. `canonicalToolName` (`packages/harness/src/claude/blocks.ts`) strips only
+`mcp__conciv__` and handles neither observed form. Any card work needs a normalization seam in
+`packages/core` before parts reach the widget: strip a leading `tanstack_` / `mcp__<server>__`, then
+map `_` back to `.` against the registered tool names (lossless both ways — `canvas.read` and a
+hypothetical `canvas_read` must stay distinguishable).
+
+### codex: tools have never run (OUR bug)
+
+Root cause isolated to `sandboxMode` in `packages/harness/src/codex/index.ts`:
+
+- `workspace-write` (shipped) -> `TOOL_CALL_RESULT {"content":"user cancelled MCP tool call"}`, 0 execute hits
+- `workspace-write` + `networkAccessEnabled: true` -> still cancelled, 0 hits
+- `danger-full-access` + `networkAccessEnabled: true` -> executes, 1 hit
+
+`danger-full-access` is a real loosening and is NOT an accepted fix. The open task is to find the
+narrow setting that admits the loopback bridge while keeping `workspace-write`. "No config found"
+in the spike means the spike stopped looking, not that none exists.
+
+### gemini-cli: blocked upstream, and it hangs instead of failing
+
+`@tanstack/ai-acp` sends `mcpServers: [{name, url, headers}]` with no `type` discriminator. Gemini
+rejects it:
+
+```
+{"code":-32603,"message":"Internal error","data":[{"code":"invalid_union",
+"errors":[[{"code":"invalid_value","values":["http"],"path":["type"]}], ...]}]}
+```
+
+The adapter swallows that JSON-RPC error, so the turn never terminates (>300s; the identical turn
+without tools finishes in 9.9s). Bare gemini ACP is healthy — `initialize`, `session/new`,
+`session/prompt` all verified by hand. We do not construct that payload, so there is no conciv-side
+fix that makes gemini tools work. Failing fast instead of hanging may be fixable on our side.
+
+### Code mode emits NO per-tool parts (confirmed)
+
+Real claude run through the real `makeCodeMode`:
+
+```
+TOOL_CALL_START  discover_tools        args: {"toolNames":["external_probe_ping"]}
+TOOL_CALL_START  execute_typescript    args: {"typescriptCode":"return await external_probe_ping({});"}
+CUSTOM  code_mode:external_call    {"function":"external_probe_ping","args":{}}
+CUSTOM  code_mode:external_result  {"function":"external_probe_ping","result":{"token":"..."}}
+TOOL_CALL_RESULT  {"success":true,"result":{"token":"..."},"logs":[]}
+```
+
+The extension tool appears ONLY as CUSTOM events under its binding name. Binding name =
+`external_` (added by `@tanstack/ai-code-mode`) + conciv's `sanitizeIdentifier` dot->underscore.
+
+### Non-determinism on claude
+
+`packages/core/src/chat/run.ts` offers claude BOTH the direct lazy extension tools AND the code-mode
+tools, so which path the model takes varies per turn. A card keyed on `part.name` therefore renders
+on some turns and not others. The fix is not to remove a path: both paths must render the same card,
+with the code-mode path nesting its tool cards under the run.
+
+## Extension-owned card spike (2026-07-20)
+
+`defineTool(def).render(Card)` works end to end; a card attached to `element.reference` rendered from
+a real claude turn. The AGENTS.md popover-at-0,0 landmine does NOT fire for extension-owned cards:
+measured tooltip content at x=1098 y=663 against a trigger at x=1101 y=695 — a 6.4px gap matching
+ui-kit-system's `gutter: 6`, horizontal centers aligned to 0.15px. No console errors, no duplicate
+Solid or Ark copy. Whiteboard's existing externals (`/^@conciv\//`, `/^solid-js/`) already suffice
+because Ark arrives only via the external `@conciv/ui-kit-system`.
+
+Two gotchas for whoever writes the tests:
+
+- Extension client entries resolve to `dist` via `import.meta.resolve` in
+  `packages/it/src/plugin-instance.ts`, so they do NOT hot-serve. Every card edit needs
+  `pnpm turbo run build --filter=@conciv/extension-<name>`.
+- A CLOSED Ark tooltip reports `x=0 y=0 w=0 h=0` because ui-kit-system's content class is
+  `hidden data-[state=open]:block`. A naive "not at 0,0" assertion produces false failures — filter
+  on `data-state="open"`.
+
+## Approval strip already exists — do not build one
+
+`packages/ui-kit-chat/src/styled/tools/tool-call-card.tsx:26-28` appends `PermissionCard` after ANY
+matched tool card. An extension-owned card gets the approval strip for free; rendering its own
+produces two. The spec's "CanvasOpCard incl. the approval strip" line is therefore struck.
+
+Primitive: `packages/ui-kit-chat/src/primitives/tools/permission.tsx`. Styled:
+`packages/ui-kit-chat/src/styled/tools/permission-card.tsx`. Wire: gate emits a CUSTOM
+`approval-requested` event (`packages/core/src/chat/gate.ts:217-225`), part goes to
+`state === 'approval-requested'` with `part.approval = {id}`, decision returns via
+`ctx.respondApproval(approvalId, approved)`.
+
+## Nesting primitive already exists
+
+`packages/ui-kit-chat/src/styled/tool-group.tsx` — collapsible container, `active` shimmer, arbitrary
+children. What is missing is the WIRE linkage: nothing tells the widget which tool parts belong to
+which `execute_typescript` run. Correlation must stamp a parent tool-call id at emit time; grouping
+by order alone breaks on concurrent calls (`Promise.all`), two scripts in one turn, and a tool called
+both directly and from a script in the same turn. Name the field neutrally (parent tool-call id), not
+code-mode-specific, so subagents and batched calls can reuse it.
