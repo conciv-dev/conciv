@@ -1,6 +1,6 @@
 {
   "name": "@conciv/vitest-config",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "private": true,
   "description": "Internal vitest config helpers for the aidx monorepo: shared CI reporters plus the conciv-ci-summary job-summary generator.",
   "homepage": "https://conciv.dev",

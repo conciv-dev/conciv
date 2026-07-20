@@ -1,5 +1,13 @@
 # @conciv/tools
 
+## 0.0.15
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/extension@0.0.15
+  - @conciv/protocol@0.0.15
+
 ## 0.0.14
 
 ### Patch Changes

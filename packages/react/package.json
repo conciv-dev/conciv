@@ -1,6 +1,6 @@
 {
   "name": "@conciv/react",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "React component for the conciv widget: render <ConcivWidget /> to mount the conciv dev agent in any React app.",
   "keywords": [
     "ai",
