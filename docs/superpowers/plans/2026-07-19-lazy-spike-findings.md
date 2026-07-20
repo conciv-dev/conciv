@@ -455,6 +455,13 @@ stays `workspace-write`; every bridged tool is still gate-wrapped server-side by
 (0.139.0): `probe.ping` executed (1 hit, sentinel returned), no cancellation, `part.name` still
 `probe.ping` (dot preserved — matrix row unchanged).
 
+CAVEAT (found by the pre-existing bare-turn IT): a config-only `mcp_servers.tanstack` entry with no
+`url` fails codex config parsing (`Error loading config.toml: invalid transport in
+mcp_servers.tanstack`) on runs WITHOUT tools, because the adapter only emits the bridge `url` when
+tools are provisioned. `HarnessChatDeps` gained `hasTools`, set by `buildRunStream` from the actual
+tool set, and the codex harness includes the approve-mode key only when tools ride the run. Both
+branches verified against the real CLI.
+
 ### gemini-cli: blocked upstream, and it hangs instead of failing
 
 `@tanstack/ai-acp` sends `mcpServers: [{name, url, headers}]` with no `type` discriminator. Gemini

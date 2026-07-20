@@ -4,11 +4,13 @@ import {definedEntries} from '../_shared/env.js'
 
 const BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
+const bridgeApproveConfig = {[`mcp_servers.${BRIDGED_MCP_SERVER_NAME}.default_tools_approval_mode`]: '"approve"'}
+
 const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
   adapter: codexText(deps.model ?? 'gpt-5.5', {
     sandboxMode: 'workspace-write',
     approvalPolicy: 'never',
-    config: {[`mcp_servers.${BRIDGED_MCP_SERVER_NAME}.default_tools_approval_mode`]: '"approve"'},
+    ...(deps.hasTools ? {config: bridgeApproveConfig} : {}),
     env: definedEntries(deps.env),
   }),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},

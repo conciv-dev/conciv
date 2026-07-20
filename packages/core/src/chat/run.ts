@@ -135,6 +135,7 @@ async function buildRunStream(
     model: req.model ?? undefined,
     env: deps.harnessEnv?.(sessionId) ?? process.env,
     kind: req.kind,
+    hasTools: extras.tools.length > 0,
     decide: (toolName, input, toolUseId) => gate.decide(toolName, input, sessionId, toolUseId),
   })
   const messages = runMessagesFor(deps, req)
