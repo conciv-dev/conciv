@@ -143,9 +143,7 @@ function ToolStep(props: {part: ToolCallPart; subCalls?: ToolCallPart[]}): JSX.E
         tools={config.tools}
         fallback={config.fallback()}
       />
-      <Show when={(props.subCalls?.length ?? 0) > 0}>
-        <SubCallGroup parent={props.part} subCalls={props.subCalls ?? []} />
-      </Show>
+      <SubCallGroup parent={props.part} subCalls={props.subCalls ?? []} />
     </StepShell>
   )
 }
@@ -161,11 +159,13 @@ function SubCallGroup(props: {parent: ToolCallPart; subCalls: ToolCallPart[]}): 
   const parentRunning = () => toolStatus(props.parent, activity.resultFor(props.parent.id)) === 'running'
   const open = () => userOpen() ?? (parentRunning() || attention())
   return (
-    <div class="mt-1.5">
-      <ToolGroup count={props.subCalls.length} active={parentRunning()} open={open()} onOpenChange={setUserOpen}>
-        <Index each={props.subCalls}>{(call) => <ToolStep part={call()} />}</Index>
-      </ToolGroup>
-    </div>
+    <Show when={props.subCalls.length > 0}>
+      <div class="mt-1.5">
+        <ToolGroup count={props.subCalls.length} active={parentRunning()} open={open()} onOpenChange={setUserOpen}>
+          <Index each={props.subCalls}>{(call) => <ToolStep part={call()} />}</Index>
+        </ToolGroup>
+      </div>
+    </Show>
   )
 }
 

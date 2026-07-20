@@ -171,6 +171,18 @@ async function recordRunEnd(deps: ChatDeps, sessionId: string, usage: UsageSnaps
 
 type RunOutcome = {error: string | null; usage: UsageSnapshot | null}
 
+function foldToolChunks(processor: StreamProcessor, chunk: StreamChunk): boolean {
+  const toolChunks = codeModeToolChunks(chunk)
+  if (!toolChunks) return false
+  toolChunks.forEach((synthesized) => processor.processChunk(synthesized))
+  return true
+}
+
+function noteRunUsage(deps: ChatDeps, req: RunRequest, chunk: StreamChunk, outcome: RunOutcome): void {
+  if (chunk.type !== EventType.RUN_FINISHED || chunk.finishReason === 'tool_calls' || !chunk.usage) return
+  outcome.usage = usageSnapshotFor(deps, req.model ?? deps.harness.defaultModel ?? null, chunk.usage)
+}
+
 async function foldRunStream(
   deps: ChatDeps,
   sessionId: string,
@@ -180,20 +192,14 @@ async function foldRunStream(
   outcome: RunOutcome,
 ): Promise<void> {
   for await (const chunk of stream) {
-    const toolChunks = codeModeToolChunks(chunk)
-    if (toolChunks) {
-      toolChunks.forEach((synthesized) => processor.processChunk(synthesized))
-      continue
-    }
+    if (foldToolChunks(processor, chunk)) continue
     processor.processChunk(chunk)
     tapSessionId(chunk, (id) => void recordMintedToken(deps.db, sessionId, id).catch(() => {}))
     if (chunk.type === EventType.RUN_ERROR) {
       outcome.error = chunk.message || 'run failed'
       return
     }
-    if (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls' && chunk.usage) {
-      outcome.usage = usageSnapshotFor(deps, req.model ?? deps.harness.defaultModel ?? null, chunk.usage)
-    }
+    noteRunUsage(deps, req, chunk, outcome)
   }
 }
 
