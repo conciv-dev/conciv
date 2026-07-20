@@ -25,13 +25,13 @@ Per harness (`packages/harness/src/*/index.ts`):
 > the table below were wrong: opencode DOES bridge `chat()` tools, and `capabilities.mcp: 'none'`
 > does not mean tools fail to reach the CLI. Read the matrix, not this table.
 
-| Harness    | `capabilities.mcp` | chat-run tool path                                                                                                   |
-| ---------- | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| claude     | `'http'`           | bridge (`mcp__tanstack__*`), provisioned from `chat({tools})`                                                        |
-| codex      | `'none'`           | in-process `codexText`; tools via bridge/in-proc executor                                                            |
-| opencode   | `'none'`           | ~~**not bridged**~~ WRONG — stale `.d.ts` comment; the shipped `.js` bridges. See the matrix.                        |
-| gemini-cli | `'none'`           | ~~assume unbridged~~ UNVERIFIED THEN, now observed: bridged but blocked upstream. See the matrix.                     |
-| pi         | `'none'`           | pi-native tool contract — stub harness, never spawns a CLI                                                            |
+| Harness    | `capabilities.mcp` | chat-run tool path                                                                                |
+| ---------- | ------------------ | ------------------------------------------------------------------------------------------------- |
+| claude     | `'http'`           | bridge (`mcp__tanstack__*`), provisioned from `chat({tools})`                                     |
+| codex      | `'none'`           | in-process `codexText`; tools via bridge/in-proc executor                                         |
+| opencode   | `'none'`           | ~~**not bridged**~~ WRONG — stale `.d.ts` comment; the shipped `.js` bridges. See the matrix.     |
+| gemini-cli | `'none'`           | ~~assume unbridged~~ UNVERIFIED THEN, now observed: bridged but blocked upstream. See the matrix. |
+| pi         | `'none'`           | pi-native tool contract — stub harness, never spawns a CLI                                        |
 
 ## Does chat()-level `lazy: true` reach the CLIs?
 
@@ -404,13 +404,13 @@ through each harness's real `chatConfig` with the real conciv sandbox + gate mid
 incremented a counter and returned a sentinel token, so execution is proven by side effect, not by
 absence of error. Every row below is OBSERVED against a real CLI except where marked.
 
-| Harness    | CLI available | Tool ran        | Literal `part.name` observed | Dot           |
-| ---------- | ------------- | --------------- | ---------------------------- | ------------- |
-| claude     | yes           | YES             | `probe_ping`                 | lost -> `_`   |
-| codex      | yes           | **NO** (cancelled) | `probe.ping`              | preserved     |
-| opencode   | yes           | YES             | `tanstack_probe_ping`        | lost + prefix |
-| gemini-cli | yes           | **NO** (hangs)  | *(no tool part emitted)*     | UNVERIFIABLE  |
-| pi         | **no**        | NO              | *(stub harness, RUN_ERROR)*  | n/a           |
+| Harness    | CLI available | Tool ran           | Literal `part.name` observed | Dot           |
+| ---------- | ------------- | ------------------ | ---------------------------- | ------------- |
+| claude     | yes           | YES                | `probe_ping`                 | lost -> `_`   |
+| codex      | yes           | YES (fixed, below) | `probe.ping`                 | preserved     |
+| opencode   | yes           | YES                | `tanstack_probe_ping`        | lost + prefix |
+| gemini-cli | yes           | **NO** (hangs)     | _(no tool part emitted)_     | UNVERIFIABLE  |
+| pi         | **no**        | NO                 | _(stub harness, RUN_ERROR)_  | n/a           |
 
 ### Three name forms, none of them the registered name
 
@@ -421,7 +421,7 @@ only on codex. `canonicalToolName` (`packages/harness/src/claude/blocks.ts`) str
 map `_` back to `.` against the registered tool names (lossless both ways — `canvas.read` and a
 hypothetical `canvas_read` must stay distinguishable).
 
-### codex: tools have never run (OUR bug)
+### codex: tools have never run (OUR bug) — FIXED 2026-07-20
 
 Root cause isolated to `sandboxMode` in `packages/harness/src/codex/index.ts`:
 
@@ -429,9 +429,22 @@ Root cause isolated to `sandboxMode` in `packages/harness/src/codex/index.ts`:
 - `workspace-write` + `networkAccessEnabled: true` -> still cancelled, 0 hits
 - `danger-full-access` + `networkAccessEnabled: true` -> executes, 1 hit
 
-`danger-full-access` is a real loosening and is NOT an accepted fix. The open task is to find the
-narrow setting that admits the loopback bridge while keeping `workspace-write`. "No config found"
-in the spike means the spike stopped looking, not that none exists.
+**Real root cause (read from codex-rs 0.139.0 source, not guessed):** the sandbox never blocked the
+loopback bridge — codex requires a PER-TOOL APPROVAL for MCP tool calls, and
+`mcp_permission_prompt_is_auto_approved` (`codex-rs/codex-mcp/src/mcp/mod.rs:70`) auto-approves under
+`approval_policy = never` only when the sandbox policy `has_full_disk_write_access()`. That is why
+`danger-full-access` "fixed" it: it flipped the approval short-circuit, not network/sandbox access.
+Under `codex exec` (non-interactive) the prompt can never be answered, so
+`McpToolApprovalDecision::Cancel` produces `user cancelled MCP tool call`
+(`codex-rs/core/src/mcp_tool_call.rs:252`).
+
+**The narrow fix, shipped:** `mcp_servers.tanstack.default_tools_approval_mode = "approve"`
+(`custom_mcp_tool_approval_mode` reads it per server; `AppToolApproval::Approve` short-circuits the
+auto-approve check BEFORE the sandbox branch). Scoped to conciv's own bridge server only; sandbox
+stays `workspace-write`; every bridged tool is still gate-wrapped server-side by `gateProvisioner`'s
+`gatedTools`, so `approval: 'ask'` tools remain gated by conciv. Verified against the real codex CLI
+(0.139.0): `probe.ping` executed (1 hit, sentinel returned), no cancellation, `part.name` still
+`probe.ping` (dot preserved — matrix row unchanged).
 
 ### gemini-cli: blocked upstream, and it hangs instead of failing
 
