@@ -29,6 +29,32 @@ export function gatedToolRun(
   }
 }
 
+const UNSAFE_IDENTIFIER_CHARS = /[^A-Za-z0-9_$]/g
+const LEADING_DIGIT = /^[0-9]/
+
+function sanitizeIdentifier(name: string): string {
+  const replaced = name.replace(UNSAFE_IDENTIFIER_CHARS, '_')
+  return LEADING_DIGIT.test(replaced) ? `_${replaced}` : replaced
+}
+
+function uniqueIdentifier(base: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(base)) return base
+  const suffix = {value: 2}
+  while (taken.has(`${base}_${suffix.value}`)) suffix.value += 1
+  return `${base}_${suffix.value}`
+}
+
+export function withBindingNames(
+  extensionTools: ExtensionServerTool[],
+): {tool: ExtensionServerTool; bindingName: string}[] {
+  const taken = new Set<string>()
+  return extensionTools.map((tool) => {
+    const bindingName = uniqueIdentifier(sanitizeIdentifier(tool.name), taken)
+    taken.add(bindingName)
+    return {tool, bindingName}
+  })
+}
+
 export function makeCodeMode(
   extensionTools: ExtensionServerTool[],
   request: ToolRequest,
@@ -37,7 +63,9 @@ export function makeCodeMode(
   if (extensionTools.length === 0) return null
   const driver = getDriver()
   if (driver === null) return null
-  const tools = extensionTools.map((tool) => toChatTool(tool, gatedToolRun(tool, request, gate), {lazy: true}))
+  const tools = withBindingNames(extensionTools).map(({tool, bindingName}) =>
+    toChatTool({...tool, name: bindingName}, gatedToolRun(tool, request, gate), {lazy: true}),
+  )
   const codeMode = createCodeMode({
     driver,
     tools,
