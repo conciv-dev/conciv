@@ -412,7 +412,7 @@ absence of error. Every row below is OBSERVED against a real CLI except where ma
 | gemini-cli | yes           | **NO** (hangs)     | _(no tool part emitted)_     | UNVERIFIABLE  |
 | pi         | **no**        | NO                 | _(stub harness, RUN_ERROR)_  | n/a           |
 
-### Three name forms, none of them the registered name
+### Three name forms, none of them the registered name — FIXED 2026-07-20
 
 No harness delivers `part.name === 'canvas.read'`. A card keyed on the registered dotted name matches
 only on codex. `canonicalToolName` (`packages/harness/src/claude/blocks.ts`) strips only
@@ -420,6 +420,15 @@ only on codex. `canonicalToolName` (`packages/harness/src/claude/blocks.ts`) str
 `packages/core` before parts reach the widget: strip a leading `tanstack_` / `mcp__<server>__`, then
 map `_` back to `.` against the registered tool names (lossless both ways — `canvas.read` and a
 hypothetical `canvas_read` must stay distinguishable).
+
+**Shipped:** `makeToolNameNormalizer` (`packages/core/src/chat/tool-names.ts`), applied in
+`mergedMessages` (`packages/core/src/chat/attach.ts`) — the single seam both the widget snapshot and
+`historyFor` read from. Registered names come from `ChatDeps.toolNames` (built in `makeApp` from the
+same tool list the chat uses). Lossless by construction: exact registered names always win; a strip or
+`_`→`.` mapping is applied only when it lands on exactly one registered name; everything else
+(CLI-native `Bash`, foreign `mcp__playwright__*`) passes through untouched. Covered by unit tests +
+a wire IT (`tool-name-normalization.it.test.ts`) asserting all three observed forms reach the widget
+snapshot as the registered name.
 
 ### codex: tools have never run (OUR bug) — FIXED 2026-07-20
 
@@ -461,7 +470,20 @@ without tools finishes in 9.9s). Bare gemini ACP is healthy — `initialize`, `s
 `session/prompt` all verified by hand. We do not construct that payload, so there is no conciv-side
 fix that makes gemini tools work. Failing fast instead of hanging may be fixable on our side.
 
-### Code mode emits NO per-tool parts (confirmed)
+### Code mode emits NO per-tool parts (confirmed) — FIXED 2026-07-20
+
+**Shipped:** `gatedToolRun` now emits `conciv:tool_call` / `conciv:tool_result` / `conciv:tool_error`
+custom events through the binding's `emitCustomEvent` (the orchestrator stamps the parent
+`execute_typescript` `toolCallId` into every custom-event value — `tool-calls.js` in `@tanstack/ai`
+builds the tool context that way). `codeModeToolChunks`
+(`packages/core/src/chat/code-mode-parts.ts`) translates those into synthetic
+TOOL_CALL_START/ARGS/END/RESULT chunks in `foldRunStream`, with the REGISTERED dotted tool name and
+`metadata: {parentToolCallId}` (named neutrally so subagents/batches can reuse it). Deny and throw
+both produce an `output-error` result — no green dot on failure. The widget
+(`packages/ui-kit-chat/src/styled/activity.tsx`) excludes child parts from top-level steps and nests
+them under the parent's step inside the existing `ToolGroup`. Verified by unit tests, a real-isolate
+threading test, a wire IT, and a NestedSubCalls story in real Chromium. Events drain live during
+execution (`executeWithEventPolling`), so cards stream in while the script runs.
 
 Real claude run through the real `makeCodeMode`:
 
@@ -476,12 +498,16 @@ TOOL_CALL_RESULT  {"success":true,"result":{"token":"..."},"logs":[]}
 The extension tool appears ONLY as CUSTOM events under its binding name. Binding name =
 `external_` (added by `@tanstack/ai-code-mode`) + conciv's `sanitizeIdentifier` dot->underscore.
 
-### Non-determinism on claude
+### Non-determinism on claude — RESOLVED 2026-07-20
 
 `packages/core/src/chat/run.ts` offers claude BOTH the direct lazy extension tools AND the code-mode
 tools, so which path the model takes varies per turn. A card keyed on `part.name` therefore renders
 on some turns and not others. The fix is not to remove a path: both paths must render the same card,
 with the code-mode path nesting its tool cards under the run.
+
+Both paths now land on the same registered name: the direct path via the name-normalization seam,
+the code-mode path via the per-tool parts emitted with the registered name (both above). One card
+definition per tool covers every route on every harness.
 
 ## Extension-owned card spike (2026-07-20)
 
