@@ -41,6 +41,10 @@
       "types": "./dist/harness-types.d.ts",
       "import": "./dist/harness-types.js"
     },
+    "./framework-types": {
+      "types": "./dist/framework-types.d.ts",
+      "import": "./dist/framework-types.js"
+    },
     "./terminal-types": {
       "types": "./dist/terminal-types.d.ts",
       "import": "./dist/terminal-types.js"
