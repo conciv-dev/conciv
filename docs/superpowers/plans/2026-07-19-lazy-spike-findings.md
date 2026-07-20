@@ -25,13 +25,13 @@ Per harness (`packages/harness/src/*/index.ts`):
 > the table below were wrong: opencode DOES bridge `chat()` tools, and `capabilities.mcp: 'none'`
 > does not mean tools fail to reach the CLI. Read the matrix, not this table.
 
-| Harness    | `capabilities.mcp` | chat-run tool path                                                                                |
-| ---------- | ------------------ | ------------------------------------------------------------------------------------------------- |
-| claude     | `'http'`           | bridge (`mcp__tanstack__*`), provisioned from `chat({tools})`                                     |
-| codex      | `'none'`           | in-process `codexText`; tools via bridge/in-proc executor                                         |
-| opencode   | `'none'`           | ~~**not bridged**~~ WRONG — stale `.d.ts` comment; the shipped `.js` bridges. See the matrix.     |
-| gemini-cli | `'none'`           | ~~assume unbridged~~ UNVERIFIED THEN, now observed: bridged but blocked upstream. See the matrix. |
-| pi         | `'none'`           | pi-native tool contract — stub harness, never spawns a CLI                                        |
+| Harness    | `capabilities.mcp` | chat-run tool path                                                                                                   |
+| ---------- | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| claude     | `'http'`           | bridge (`mcp__tanstack__*`), provisioned from `chat({tools})`                                                        |
+| codex      | `'none'`           | in-process `codexText`; tools via bridge/in-proc executor                                                            |
+| opencode   | `'none'`           | ~~**not bridged**~~ WRONG — stale `.d.ts` comment; the shipped `.js` bridges. See the matrix.                        |
+| gemini-cli | `'none'`           | ~~assume unbridged~~ UNVERIFIED THEN, now observed: bridged but blocked upstream. See the matrix.                     |
+| pi         | `'none'`           | pi-native tool contract — stub harness, never spawns a CLI                                                            |
 
 ## Does chat()-level `lazy: true` reach the CLIs?
 
@@ -404,13 +404,13 @@ through each harness's real `chatConfig` with the real conciv sandbox + gate mid
 incremented a counter and returned a sentinel token, so execution is proven by side effect, not by
 absence of error. Every row below is OBSERVED against a real CLI except where marked.
 
-| Harness    | CLI available | Tool ran           | Literal `part.name` observed | Dot           |
-| ---------- | ------------- | ------------------ | ---------------------------- | ------------- |
-| claude     | yes           | YES                | `probe_ping`                 | lost -> `_`   |
-| codex      | yes           | **NO** (cancelled) | `probe.ping`                 | preserved     |
-| opencode   | yes           | YES                | `tanstack_probe_ping`        | lost + prefix |
-| gemini-cli | yes           | **NO** (hangs)     | _(no tool part emitted)_     | UNVERIFIABLE  |
-| pi         | **no**        | NO                 | _(stub harness, RUN_ERROR)_  | n/a           |
+| Harness    | CLI available | Tool ran        | Literal `part.name` observed | Dot           |
+| ---------- | ------------- | --------------- | ---------------------------- | ------------- |
+| claude     | yes           | YES             | `probe_ping`                 | lost -> `_`   |
+| codex      | yes           | **NO** (cancelled) | `probe.ping`              | preserved     |
+| opencode   | yes           | YES             | `tanstack_probe_ping`        | lost + prefix |
+| gemini-cli | yes           | **NO** (hangs)  | *(no tool part emitted)*     | UNVERIFIABLE  |
+| pi         | **no**        | NO              | *(stub harness, RUN_ERROR)*  | n/a           |
 
 ### Three name forms, none of them the registered name
 

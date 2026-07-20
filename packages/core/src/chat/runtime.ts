@@ -32,7 +32,9 @@ export type ChatEnv = {Variables: {chat: ChatDeps}}
 
 type Registrable = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
 
-type ToolRun = (args: unknown) => Promise<unknown>
+export type ToolRunContext = {emitCustomEvent?: (eventName: string, value: Record<string, unknown>) => void}
+
+type ToolRun = (args: unknown, context?: ToolRunContext) => Promise<unknown>
 
 export function toChatTool(tool: Registrable, run: ToolRun, opts?: {lazy?: boolean}): ServerTool {
   return toolDefinition({

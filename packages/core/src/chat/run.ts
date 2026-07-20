@@ -32,6 +32,7 @@ import {createSession, sessionById, toModelMessages} from './session.js'
 import {mergedMessages, runIdFor, transcriptMessages} from './attach.js'
 import {makeRunGate, withConcivGate, withConcivSandbox, type PermissionGate} from './gate.js'
 import {makeCodeMode} from './code-mode.js'
+import {codeModeToolChunks} from './code-mode-parts.js'
 import {harnessDebug, logError} from '../lib/debug.js'
 
 export type RunRequest = {
@@ -179,6 +180,11 @@ async function foldRunStream(
   outcome: RunOutcome,
 ): Promise<void> {
   for await (const chunk of stream) {
+    const toolChunks = codeModeToolChunks(chunk)
+    if (toolChunks) {
+      toolChunks.forEach((synthesized) => processor.processChunk(synthesized))
+      continue
+    }
     processor.processChunk(chunk)
     tapSessionId(chunk, (id) => void recordMintedToken(deps.db, sessionId, id).catch(() => {}))
     if (chunk.type === EventType.RUN_ERROR) {

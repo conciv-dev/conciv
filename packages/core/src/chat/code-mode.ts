@@ -3,8 +3,9 @@ import {createCodeMode, type IsolateDriver} from '@tanstack/ai-code-mode'
 import {createNodeIsolateDriver, probeIsolatedVm} from '@tanstack/ai-isolate-node'
 import type {AnyTool} from '@tanstack/ai'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
-import {toChatTool} from './runtime.js'
+import {toChatTool, type ToolRunContext} from './runtime.js'
 import type {PermissionGate} from './gate.js'
+import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
 
 const CODE_MODE_TIMEOUT_MS = 150_000
 
@@ -21,11 +22,25 @@ export function gatedToolRun(
   tool: ExtensionServerTool,
   request: ToolRequest,
   gate: PermissionGate,
-): (args: unknown) => Promise<unknown> {
-  return async (args) => {
+): (args: unknown, context?: ToolRunContext) => Promise<unknown> {
+  return async (args, context) => {
+    const callId = randomUUID()
+    const emit = context?.emitCustomEvent ?? (() => {})
+    emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name: tool.name, input: args})
     const decision = await gate.decide(tool.name, args, request.sessionId, randomUUID())
-    if (decision === 'deny') throw new Error(`Tool "${tool.name}" was denied by the user`)
-    return tool.execute(args, request)
+    if (decision === 'deny') {
+      const refusal = `Tool "${tool.name}" was denied by the user`
+      emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: refusal})
+      throw new Error(refusal)
+    }
+    try {
+      const result = await tool.execute(args, request)
+      emit(CODE_MODE_TOOL_RESULT_EVENT, {callId, result})
+      return result
+    } catch (error) {
+      emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: error instanceof Error ? error.message : String(error)})
+      throw error
+    }
   }
 }
 

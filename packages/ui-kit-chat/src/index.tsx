@@ -7,9 +7,12 @@ export {
   type ChatContextValue,
 } from './store/chat-context.js'
 export {
+  childCallsFor,
   coalesceTurns,
   groupSegments,
   pairResults,
+  parentToolCallIdOf,
+  type ToolCallPartWithParent,
   type Turn,
   type Segment,
   type ChainSegment,

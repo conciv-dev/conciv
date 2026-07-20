@@ -207,3 +207,65 @@ describe('gatedToolRun', () => {
     expect(ran.value).toBe(true)
   })
 })
+
+type EmittedEvent = {name: string; value: Record<string, unknown>}
+
+function capturingContext(): {
+  events: EmittedEvent[]
+  context: {emitCustomEvent: (n: string, v: Record<string, unknown>) => void}
+} {
+  const events: EmittedEvent[] = []
+  return {events, context: {emitCustomEvent: (name, value) => events.push({name, value})}}
+}
+
+describe('code mode per-tool call events', () => {
+  test('gatedToolRun emits conciv:tool_call and conciv:tool_result with the registered name', async () => {
+    const {events, context} = capturingContext()
+    const dotted = tool('canvas.svg', undefined, async () => 'drew')
+    const run = gatedToolRun(dotted, request, allowGate)
+    await expect(run({shape: 'circle'}, context)).resolves.toBe('drew')
+    const call = events.find((event) => event.name === 'conciv:tool_call')
+    expect(call?.value).toMatchObject({name: 'canvas.svg', input: {shape: 'circle'}})
+    expect(typeof call?.value.callId).toBe('string')
+    const result = events.find((event) => event.name === 'conciv:tool_result')
+    expect(result?.value).toEqual({callId: call?.value.callId, result: 'drew'})
+  })
+
+  test('gatedToolRun emits conciv:tool_error on deny', async () => {
+    const db = testDb()
+    const changes = makeChanges()
+    const {events, context} = capturingContext()
+    const gated = tool('canvas.delete', 'ask', async () => 'deleted')
+    const run = gatedToolRun(gated, request, denyingGate(['canvas.delete'], db, changes))
+    await expect(run({}, context)).rejects.toThrow(/denied/i)
+    const failure = events.find((event) => event.name === 'conciv:tool_error')
+    expect(failure?.value).toMatchObject({error: expect.stringMatching(/denied/i)})
+    expect(events.some((event) => event.name === 'conciv:tool_result')).toBe(false)
+  })
+
+  test('gatedToolRun emits conciv:tool_error when execute throws', async () => {
+    const {events, context} = capturingContext()
+    const broken = tool('canvas.svg', undefined, async () => {
+      throw new Error('draw failed')
+    })
+    const run = gatedToolRun(broken, request, allowGate)
+    await expect(run({}, context)).rejects.toThrow('draw failed')
+    expect(events.find((event) => event.name === 'conciv:tool_error')?.value).toMatchObject({error: 'draw failed'})
+  })
+
+  test('the real sandbox threads the events through a binding call', async () => {
+    const {events, context} = capturingContext()
+    const dotted = tool('canvas.svg', undefined, async () => 'drew')
+    const tools = codeModeOf([dotted], allowGate).tools
+    const entry = tools.find((candidate) => candidate.name === 'execute_typescript')
+    if (!entry?.execute) throw new Error('no execute_typescript tool')
+    const outcome = CodeResultSchema.parse(
+      await entry.execute({typescriptCode: 'return await external_canvas_svg({})'}, context),
+    )
+    expect(outcome.success).toBe(true)
+    const call = events.find((event) => event.name === 'conciv:tool_call')
+    expect(call?.value).toMatchObject({name: 'canvas.svg'})
+    const result = events.find((event) => event.name === 'conciv:tool_result')
+    expect(result?.value).toMatchObject({callId: call?.value.callId, result: 'drew'})
+  })
+})
