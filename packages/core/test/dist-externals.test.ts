@@ -18,8 +18,8 @@ describe('core dist shares one @tanstack capability-handle instance with harness
     expect(externalized('@tanstack/ai-sandbox')).toBe(true)
   })
 
-  it('externalizes @tanstack/ai-sandbox-local-process', () => {
-    expect(externalized('@tanstack/ai-sandbox-local-process')).toBe(true)
+  it('bundles @tanstack/ai-sandbox-local-process so no peer edge on ai-sandbox reaches consumers (#107)', () => {
+    expect(externalized('@tanstack/ai-sandbox-local-process')).toBe(false)
   })
 
   it('bundles no private capability-handle copy (identity mismatch breaks chat() validate)', () => {
