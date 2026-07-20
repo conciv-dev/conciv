@@ -1,6 +1,6 @@
 {
   "name": "@conciv/page",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "private": true,
   "description": "The DOM half of the conciv page plane: page-query driver + handlers, react bridge, react-grab picking, overlays. Inlined by @conciv/embed; subscribes rpc.page.queries and replies with executed verbs.",
   "type": "module",

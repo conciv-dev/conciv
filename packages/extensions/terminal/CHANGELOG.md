@@ -1,5 +1,19 @@
 # @conciv/extension-terminal
 
+## 0.0.15
+
+### Patch Changes
+
+- [#112](https://github.com/conciv-dev/conciv/pull/112) [`7b075ac`](https://github.com/conciv-dev/conciv/commit/7b075aca0d634fbfa9893f34a1366c2a1af9e20d) Thanks [@omridevk](https://github.com/omridevk)! - Replace `node-pty` with `@lydell/node-pty`, which ships prebuilt binaries as platform-scoped optional dependencies and has no install scripts. Installing `@conciv/it` under pnpm >= 10 no longer fails with `ERR_PNPM_IGNORED_BUILDS` or requires build-script approval ([#109](https://github.com/conciv-dev/conciv/issues/109)).
+
+- Updated dependencies []:
+  - @conciv/extension@0.0.15
+  - @conciv/protocol@0.0.15
+  - @conciv/ui-kit-chat@0.0.15
+  - @conciv/ui-kit-chat-tools@0.0.15
+  - @conciv/ui-kit-system@0.0.15
+  - @conciv/ui-kit-terminal@0.0.15
+
 ## 0.0.14
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @conciv/extension-testkit
 
+## 0.0.15
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.15
+  - @conciv/core@0.0.15
+  - @conciv/extension@0.0.15
+  - @conciv/extension-compiler@0.0.15
+  - @conciv/grab@0.0.15
+  - @conciv/harness-testkit@0.0.15
+  - @conciv/protocol@0.0.15
+  - @conciv/ui-kit-chat@0.0.15
+  - @conciv/ui-kit-system@0.0.15
+
 ## 0.0.14
 
 ### Patch Changes

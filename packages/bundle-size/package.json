@@ -1,6 +1,6 @@
 {
   "name": "@conciv/bundle-size",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "private": true,
   "description": "Internal CI tooling: measure gzip size of published package dists and diff against the main baseline.",
   "homepage": "https://conciv.dev",

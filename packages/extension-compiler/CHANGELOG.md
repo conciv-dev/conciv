@@ -1,5 +1,12 @@
 # @conciv/extension-compiler
 
+## 0.0.15
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/extension@0.0.15
+
 ## 0.0.14
 
 ### Patch Changes

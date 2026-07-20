@@ -1,5 +1,15 @@
 # @conciv/extension
 
+## 0.0.15
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.15
+  - @conciv/grab@0.0.15
+  - @conciv/protocol@0.0.15
+  - @conciv/ui-kit-system@0.0.15
+
 ## 0.0.14
 
 ### Patch Changes
