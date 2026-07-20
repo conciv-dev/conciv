@@ -5,5 +5,5 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: true,
-  noExternal: ['@tanstack/ai'],
+  noExternal: [/^@tanstack\/ai(\/|$)/, /^@tanstack\/ai-solid(\/|$)/],
 })
