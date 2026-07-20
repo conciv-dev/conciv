@@ -18,7 +18,6 @@ export default defineConfig({
         /^@pierre\/diffs/,
         /^shiki/,
         /^@shikijs\//,
-        /^js-beautify/,
         /^lucide-solid/,
       ],
     },
