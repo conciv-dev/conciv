@@ -20,6 +20,7 @@ export type ChatDeps = {
   changes: Changes
   risky: ReadonlySet<string>
   tools: (sessionId: string) => AnyTool[]
+  toolNames: ReadonlySet<string>
   extensionServerTools: () => ExtensionServerTool[]
   attachmentExpanders: AttachmentExpanders
   onRunStart?: (sessionId: string) => void

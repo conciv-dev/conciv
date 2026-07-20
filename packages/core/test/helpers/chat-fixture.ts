@@ -33,6 +33,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     changes: makeChanges(),
     risky: new Set<string>(),
     tools: () => [],
+    toolNames: new Set<string>(),
     extensionServerTools: () => [],
     attachmentExpanders: {},
   }

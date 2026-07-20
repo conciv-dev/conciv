@@ -5,6 +5,7 @@ import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {imageHistoryFor, lastErrorForEpoch, runEpochOf, runMessagesFor, statusOf, type RunStatus} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 import {readFileOrEmpty} from '../lib/fs.js'
+import {normalizeHistoryToolNames} from './tool-names.js'
 import {sessionById, settledMessages, userText} from './session.js'
 
 export type Changes = {emitter: EventEmitter; notify: () => void}
@@ -91,7 +92,7 @@ export async function mergedMessages(deps: ChatDeps, sessionId: string): Promise
     ...(row ? ChatHistorySchema.parse(row.messages) : []),
   ]
   const settled = settledMessages(transcript, pendingUserTextOf(unsettled))
-  return [...settled, ...unsettled]
+  return normalizeHistoryToolNames([...settled, ...unsettled], deps.toolNames)
 }
 
 async function buildSnapshot(deps: ChatDeps, sessionId: string): Promise<StreamChunk> {
