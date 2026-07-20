@@ -25,13 +25,13 @@ Per harness (`packages/harness/src/*/index.ts`):
 > the table below were wrong: opencode DOES bridge `chat()` tools, and `capabilities.mcp: 'none'`
 > does not mean tools fail to reach the CLI. Read the matrix, not this table.
 
-| Harness    | `capabilities.mcp` | chat-run tool path                                                                                |
-| ---------- | ------------------ | ------------------------------------------------------------------------------------------------- |
-| claude     | `'http'`           | bridge (`mcp__tanstack__*`), provisioned from `chat({tools})`                                     |
-| codex      | `'none'`           | in-process `codexText`; tools via bridge/in-proc executor                                         |
-| opencode   | `'none'`           | ~~**not bridged**~~ WRONG — stale `.d.ts` comment; the shipped `.js` bridges. See the matrix.     |
-| gemini-cli | `'none'`           | ~~assume unbridged~~ UNVERIFIED THEN, now observed: bridged but blocked upstream. See the matrix. |
-| pi         | `'none'`           | pi-native tool contract — stub harness, never spawns a CLI                                        |
+| Harness    | `capabilities.mcp` | chat-run tool path                                                                                      |
+| ---------- | ------------------ | ------------------------------------------------------------------------------------------------------- |
+| claude     | `'http'`           | bridge (`mcp__tanstack__*`), provisioned from `chat({tools})`                                           |
+| codex      | `'none'`           | in-process `codexText`; tools via bridge/in-proc executor                                               |
+| opencode   | `'none'`           | ~~**not bridged**~~ WRONG — stale `.d.ts` comment; the shipped `.js` bridges. See the matrix.           |
+| gemini-cli | `'none'`           | ~~blocked upstream (missing type tag)~~ DISPROVEN 2026-07-21; adapter sends type:"http". Auth now dead. |
+| pi         | `'none'`           | pi-native tool contract — stub harness, never spawns a CLI                                              |
 
 ## Does chat()-level `lazy: true` reach the CLIs?
 
@@ -409,7 +409,7 @@ absence of error. Every row below is OBSERVED against a real CLI except where ma
 | claude     | yes           | YES                | `probe_ping`                 | lost -> `_`   |
 | codex      | yes           | YES (fixed, below) | `probe.ping`                 | preserved     |
 | opencode   | yes           | YES                | `tanstack_probe_ping`        | lost + prefix |
-| gemini-cli | yes           | **NO** (hangs)     | _(no tool part emitted)_     | UNVERIFIABLE  |
+| gemini-cli | auth dead     | UNVERIFIABLE       | _(no tool part emitted)_     | UNVERIFIABLE  |
 | pi         | **no**        | NO                 | _(stub harness, RUN_ERROR)_  | n/a           |
 
 ### Three name forms, none of them the registered name — FIXED 2026-07-20
@@ -462,64 +462,48 @@ tools are provisioned. `HarnessChatDeps` gained `hasTools`, set by `buildRunStre
 tool set, and the codex harness includes the approve-mode key only when tools ride the run. Both
 branches verified against the real CLI.
 
-### gemini-cli: blocked upstream, and it hangs instead of failing — ROOT-CAUSED 2026-07-20
+### gemini-cli: prior "missing type discriminator" root cause is DISPROVEN 2026-07-21
 
-`@tanstack/ai-acp` sends `mcpServers: [{name, url, headers}]` with no `type` discriminator. Gemini
-rejects it:
+**RETRACTED.** An earlier version of this section claimed `@tanstack/ai-acp` sends
+`mcpServers: [{name, url, headers}]` with no `type` discriminator, causing gemini's `invalid_union`
+rejection and the hang. That is WRONG, verified against dependency source on 2026-07-21:
 
-```
-{"code":-32603,"message":"Internal error","data":[{"code":"invalid_union",
-"errors":[[{"code":"invalid_value","values":["http"],"path":["type"]}], ...]}]}
-```
+- `@tanstack/ai-acp` builds an intermediate `{name, url, headers}` in `compatible.js:155`, but that
+  object flows into `startAcpSession` → **`session/acp-client.js:76-83` remaps every entry to
+  `{type: "http", name, url, headers}`** before the JSON-RPC `session/new` / `session/load` call.
+- The remap is present in EVERY published version — 0.1.0, 0.2.0, 0.2.1, 0.2.2, 0.2.3 — confirmed by
+  `npm pack` + grep of each pristine tarball. The local `pnpm patch` touches only
+  `@tanstack/ai-sandbox-local-process` (an unrelated stdin-EPIPE guard), not ai-acp.
+- So the wire payload the adapter actually sends already carries the spec-required `type: "http"`.
+  The prior conclusion came from reading `compatible.js:155` alone and not following the data into
+  the remap. The `invalid_union` error is only reproducible by hand-constructing a NO-`type`
+  payload — which is exactly what the throwaway probe scripts did, not what the adapter emits.
 
-The adapter swallows that JSON-RPC error, so the turn never terminates (>300s; the identical turn
-without tools finishes in 9.9s). Bare gemini ACP is healthy — `initialize`, `session/new`,
-`session/prompt` all verified by hand.
+**What is still true (verified against the ACP spec + real gemini-cli 0.51.0, 2026-07-21):**
 
-**The `type` tag is ACP-SPEC-REQUIRED, not a gemini quirk** (verified against
-zed-industries/agent-client-protocol `agent-client-protocol-schema/src/v1/agent.rs:2812-2839`): the
-`McpServer` enum is `#[serde(tag = "type")]` with `Http`/`Sse` variants gated on agent
-`mcp_capabilities.http`/`.sse`; only `Stdio` is untagged. `{name, url, headers}` matches no variant —
-gemini's rejection is correct behavior, `@tanstack/ai-acp` (0.2.3, still unchanged) violates the spec.
+- The `type` tag IS spec-required: `McpServer` is `#[serde(tag = "type")]`
+  (zed-industries/agent-client-protocol `agent-client-protocol-schema/src/v1/agent.rs:2812-2839`);
+  only `stdio` is untagged. gemini advertises `mcpCapabilities: {http: true, sse: true}` in
+  `initialize`. A payload WITH `type:"http"` passes gemini's schema validation (advances to the auth
+  stage); a payload WITHOUT it fails `invalid_union`. Since the adapter sends the typed shape, there
+  is no schema mismatch on gemini's side.
+- **Therefore: do NOT patch `@tanstack/ai-acp` and do NOT file the "missing type discriminator"
+  upstream issue. The premise is false.**
 
-**Differential proof against real gemini-cli 0.51.0** (hand-driven `gemini --acp` over stdio,
-2026-07-20): `initialize` reports `mcpCapabilities: {"http": true, "sse": true}`;
-`session/new` with the adapter's untyped shape → the `invalid_union` above; the identical payload
-plus `type: "http"` → passes schema validation (proceeds to the auth stage). The upstream fix is
-one line: emit `{type: 'http', name, url, headers}` in `compatible.js` `mcpServers` construction.
+**Actual current gemini status: UNVERIFIABLE.** Whether the real adapter path (conciv `chat()`
+through gemini) still hangs when tools are present cannot be re-tested, because gemini account auth
+is server-side dead for this machine:
 
-Full tool round-trip could NOT be live-verified: gemini oauth (`oauth-personal`) is server-side
-blocked for this account — `IneligibleTierError: This client is no longer supported for Gemini Code
-Assist for individuals` (plain `-p` turn and ACP both; gemini-cli 0.51.0 = latest; auth methods in
-this version: oauth-personal, compute-default-credentials, gemini-api-key, vertex-ai). User decision
-2026-07-20: no API-key runs; schema-level differential proof accepted.
+- `oauth-personal` → `IneligibleTierError: This client is no longer supported for Gemini Code Assist
+for individuals` (migrate to Antigravity). Reproduced on both a plain `-p` turn and ACP, gemini-cli
+  0.51.0 (latest; auth methods available: oauth-personal, compute-default-credentials, gemini-api-key,
+  vertex-ai — no `antigravity` method: `validateAuthMethod` rejects it).
+- User directive 2026-07-20/21: no `GEMINI_API_KEY` runs — account auth only. With account auth dead,
+  no live gemini turn (with or without tools) is currently possible.
 
-**Fallback that keeps tools without the upstream fix (verified in gemini-cli source, not live):**
-ACP `session/new` merges `loadSettings(cwd).merged.mcpServers` with the payload servers
-(`packages/cli/src/acp/acpSessionManager.ts` `newSessionConfig`), and
-`GEMINI_CLI_SYSTEM_SETTINGS_PATH` (settings.ts:105) lets conciv point the CLI at a conciv-owned
-settings file (env-var values resolve via `resolveEnvVarsInObject`, so a static file +
-per-spawn env like `CONCIV_MCP_URL`/session id works; `AcpCompatibleConfig.env` exists for the
-spawn). That would route gemini tools through conciv's `/api/mcp` lazy surface instead of the
-bridge — but it requires suppressing chat() tools for gemini (else the broken payload still hangs
-the turn) and a gate-parity story. Prefer the upstream one-liner; keep this as the documented
-plan B.
-
-### Upstream issue to file on TanStack/ai (DRAFT — do not file; user verifies first)
-
-> **Title:** ai-acp: `mcpServers` payload violates ACP spec — missing `type: "http"` discriminator,
-> gemini-cli rejects it and the turn hangs
->
-> **Body:** `acpCompatible` builds `session/new` `mcpServers` entries as `{name, url, headers}`
-> (`src/adapters/compatible.ts`). The ACP spec's `McpServer` is a tagged union —
-> `#[serde(tag = "type")]`, variants `http`/`sse` (only `stdio` is untagged) — so agents validating
-> against the spec reject the payload. gemini-cli 0.51.0 returns
-> `{"code":-32603, ..., "invalid_union", "path":["mcpServers",0]}` and `@tanstack/ai-acp` swallows
-> the JSON-RPC error, leaving the turn hanging indefinitely (no RUN_ERROR, no termination).
-> Adding `type: 'http'` to the entry passes gemini's schema validation (verified by hand-driving
-> `gemini --acp`; gemini advertises `mcpCapabilities: {http: true, sse: true}` in `initialize`).
-> Two asks: (1) emit `type: 'http'` per spec; (2) surface `session/new` JSON-RPC errors as RUN_ERROR
-> instead of hanging.
+If the hang is real, it is NOT the mcpServers schema. Candidate causes to investigate once auth works
+again: the MCP HTTP handshake from gemini's process to the loopback bridge URL stalling, or a
+swallowed non-schema JSON-RPC error. Left open; no code change on this branch.
 
 ### Code mode emits NO per-tool parts (confirmed) — FIXED 2026-07-20
 
