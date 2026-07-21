@@ -123,22 +123,24 @@ export function readMutations(): CacheEntry[] {
   return client.getMutationCache().getAll().map(mutationToEntry)
 }
 
-function queryKeyForKey(client: QueryClientLike, key: string): unknown {
+function matchingQuery(client: QueryClientLike, key: string): Record<string, unknown> | null {
   const match = client
     .getQueryCache()
     .getAll()
     .find((query) => isObject(query) && JSON.stringify(query.queryKey) === key)
-  return isObject(match) ? match.queryKey : undefined
+  return isObject(match) ? match : null
 }
 
 export async function invalidateQuery(key: string): Promise<{ok: true}> {
   const client = requireQueryClient()
-  await client.invalidateQueries({queryKey: queryKeyForKey(client, key)})
+  const query = matchingQuery(client, key)
+  if (query) await client.invalidateQueries({queryKey: query.queryKey})
   return {ok: true}
 }
 
 export async function refetchQuery(key: string): Promise<{ok: true}> {
   const client = requireQueryClient()
-  await client.refetchQueries({queryKey: queryKeyForKey(client, key)})
+  const query = matchingQuery(client, key)
+  if (query) await client.refetchQueries({queryKey: query.queryKey})
   return {ok: true}
 }
