@@ -1,134 +1,169 @@
-# First-party extension install convention — design
+# First-party extension install convention (cross-bundler) — design
 
 Date: 2026-07-22
 Branch: framework-inspection-extensions (PR #126)
-Status: approved (design), pending implementation plan
+Status: approved (design v2), pending implementation plan
+Supersedes: v1 (Vite-only) — expanded to all supported frameworks after codex review.
 
 ## Problem
 
-conciv extensions have two runtimes: a **server** half (Node — tools, adapters, `node:fs`,
-diagnostics) and a **client** half (browser — Solid cards, `.render()`). Today the only ways to load an
-extension are:
+conciv extensions have two runtimes: a **server** half (Node — tools, adapters, `node:fs`, diagnostics)
+and a **client** half (browser — Solid cards, `.render()`). Today an end user cannot install a published
+dual-runtime extension (e.g. `@conciv/extension-tanstack`) without editing plugin internals:
 
-1. **Baked builtins** — `@conciv/it` (and any `createConcivUnplugin(builtins)` factory) hardcodes
-   `serverExtensions: [obj, …]` + `clientEntries: ['pkg/client', …]`. Two things per extension, wired in
-   plugin config. Not something an end user can do without editing plugin internals.
+1. **Baked builtins** — `@conciv/it` (any `createConcivUnplugin(builtins)`) hardcodes
+   `serverExtensions: [obj]` + `clientEntries: ['pkg/client']`. Two things per extension, in plugin config.
 2. **App-local single-file** — a `conciv/extensions/*.tsx` file authored in the app, split at build time
-   by the compiler (`splitExtension` node/browser + the client glob + `loadServerExtensions`).
+   by the compiler. But the CLIENT discovery is **Vite-only** (`import.meta.glob`) and the split transform
+   is Vite-only, so this does not work on non-Vite frameworks.
 
-A published, dual-runtime extension (e.g. `@conciv/extension-tanstack`) has no clean install path: you
-cannot `import` one object and have it wire both bundles, because a passed JS object carries no module
-specifier for the client bundle to import, and `transformConcivModule` skips `node_modules`.
+Supported frameworks (from `e2e/`): Vite-based (Vite, Astro, Solid Start, Svelte, TanStack Start) **and
+Next.js** (webpack + turbopack). On Next.js today `nextjs-widget.ts` mounts `mountConciv([])` — **zero**
+client extensions — and no conciv virtual-module machinery runs.
 
 ## Goal
 
-An end user installs a **non-built-in first-party extension** by dropping **one file** in
-`conciv/extensions/`, with **zero plugin or compiler changes**. Built-in extensions stay auto-present.
-Works across bundlers (vite/nextjs/astro) because it rides package resolution, not plugin wiring.
+An end user installs a **non-built-in first-party extension** by dropping **one re-export file** in
+`conciv/extensions/`, and it loads BOTH halves on **every supported framework** — Vite, Astro, Solid
+Start, Svelte, TanStack Start, and Next.js (webpack + turbopack). Built-in extensions stay auto-present.
 
-## Chosen approach: folder re-export + conditional exports (prototype-validated)
+## Approach (no reinvention — mirror the unplugin ecosystem)
 
-### Mechanism
-1. **Published extensions expose per-environment code via package.json conditional exports on `.`:**
-   ```json
-   ".": {
-     "browser": { "types": "./dist/client.d.ts", "default": "./dist/client.js" },
-     "import":  { "types": "./dist/server.d.ts", "default": "./dist/server.js" },
-     "default": { "types": "./dist/server.d.ts", "default": "./dist/server.js" }
-   }
-   ```
-   `browser` (more specific, listed first) → client entry; `import`/`default` → server entry. The existing
-   `./client` (and, added for parity, `./server`) explicit subpaths remain for direct/test use.
-2. **Install = one re-export file** in the app's `conciv/extensions/`:
-   ```ts
-   export {default} from '@conciv/extension-tanstack'
-   ```
-3. **The EXISTING folder machinery loads both halves — unchanged:**
-   - server: `loadServerExtensions` reads the folder, `splitExtension('node')` returns null for a bare
-     re-export (no `defineExtension` marker) so the source is used as-is, jiti evals it; jiti resolves the
-     package under Node conditions → `server.js` (`export default` = server extension).
-   - client: `extensionsModuleSource`'s `import.meta.glob('/conciv/extensions/*')` imports the re-export;
-     the client build resolves the package under the `browser` condition → `client.js` (Solid cards).
-   - The **conditional export IS the split** — no `splitExtension` of the package needed, no
-     `node_modules` transform.
+### 1. The split = package.json conditional exports (bundler-native)
+Published extensions expose per-environment code via conditional exports on `.`:
+```json
+".": {
+  "browser": { "types": "./dist/client.d.ts", "default": "./dist/client.js" },
+  "import":  { "types": "./dist/server.d.ts", "default": "./dist/server.js" }
+}
+```
+`browser` (listed first, more specific) → client entry; `import` → server entry; `types` nested inside
+each so editors resolve the right `.d.ts`. Every bundler honors the `browser` condition for web/client
+builds and omits it for Node/ssr — Vite, webpack, Rspack, turbopack alike. The conditional export IS the
+split; no conciv transform of the package is required. `./client` and a new `./server` explicit subpath
+remain for direct/test use.
 
-### Why it works (validated)
-- `resolveId`'s `@conciv/*`→src remap does not fight it: node_modules defers (`concivSrcEntry` returns
-  null on node_modules); workspace-dev maps to the per-environment src (`client.tsx` for browser,
-  `server.ts` for ssr) — exactly right.
-- Prototype in `apps/examples/tanstack-start`: `/@conciv/extensions.js` glob includes the re-export; the
-  compiled re-export resolves to `src/client.tsx` in the client build; widget mounts with **0 console
-  errors and no `node:fs`/server-code leak**; the core engine boots healthy (so `loadServerExtensions`
-  jiti-loaded the server half without throwing).
+Author-side install stub (one file, no build-time split needed because the package is pre-split by
+condition):
+```ts
+// conciv/extensions/tanstack.tsx
+export {default} from '@conciv/extension-tanstack'
+```
 
-## Scope of this work
+### 2. Server discovery — already cross-bundler, keep
+`loadServerExtensions` fs-reads `conciv/extensions/` and jiti-evals under Node conditions → `server.js`.
+Runs identically for Vite (`configureServer`) and Next.js (`register` → `makeEngineBooter`). No change
+except the fixes below (dedup, fatal-error clarity, extension set).
+
+### 3. Client discovery — replace Vite-only glob with the unplugin universal pattern
+Prior art (do NOT invent): `unplugin-auto-import` / `unplugin-vue-components` scan a directory with **fs**
+(via `unimport`) and serve a **virtual module** through unplugin's **universal** `resolveId`/`load` hooks;
+unplugin adapts this to every bundler (webpack via `webpack-virtual-modules`, Rspack `resolveId` ≥ v1.0,
+Rollup/esbuild natively).
+
+Changes:
+- **Move** the extensions virtual module (`EXTENSIONS_VIRTUAL_ID`/`EXTENSIONS_ROUTE`) `resolveId`+`load`
+  out of the Vite-only `makeViteHook` into the **shared unplugin hooks** in
+  `packages/plugin/src/index.ts` so every bundler serves it.
+- **Replace `import.meta.glob('/conciv/extensions/*')`** in `extensionsModuleSource` with **fs directory
+  scanning** (reuse `extensionFiles`) that emits **explicit static imports** of each discovered file — the
+  same shape already used for builtin `clientEntries`. Static imports resolve on every bundler and pull
+  each re-export through the `browser` condition → `client.js`.
+- Each framework's client bootstrap imports this virtual module. Vite: unchanged (served + script-tag
+  injected). Next.js: `withConciv` must register the conciv unplugin's `.webpack` plugin so the virtual
+  module is served, and `nextjs-widget` imports it instead of `mountConciv([])`.
+
+### 4. Next.js webpack + turbopack (the one path that needs a prototype)
+- `withConciv` wires the conciv unplugin webpack plugin into `next.config` so `resolveId`/`load` run.
+- Validate **turbopack** (Next.js 15 default `next dev` bundler) — unplugin's turbopack support is newer;
+  if the virtual module is not served under turbopack, provide a turbopack-experimental config or a
+  documented `--webpack` dev fallback. This path gets a real prototype in the Next.js example, exactly as
+  the Vite path was prototyped and proven.
+
+## Scope
 
 ### In scope
-1. **Conditional exports on ALL published extensions** so any is installable via folder re-export, even
-   in an app that does not use `@conciv/it`'s builtins:
-   - `@conciv/extension-tanstack`, `@conciv/extension-terminal`, `@conciv/extension-test-runner`,
-     `@conciv/extension-whiteboard`.
-   - Each already ships `.` (server) + `./client` (client) dual builds with `export default` on both
-     entries — the change is purely the `.` export map (+ per-env types) and adding a `./server` subpath.
-   - `publint`/`attw` must stay green (esm-only profile) after the export-map change — verify per package.
-2. **Built-ins stay auto** — terminal/test-runner/whiteboard remain baked in `@conciv/it` (auto-present,
-   no manual add). NOT retired. The folder machinery already merges builtins + folder-installed
-   extensions, so an app can also fold-install any of them if it is not using the `@conciv/it` builtins.
-3. **tanstack becomes the first non-built-in first-party install** — the example app
-   (`apps/examples/tanstack-start`) keeps the prototype's `conciv/extensions/tanstack.tsx` re-export +
-   the `@conciv/extension-tanstack` workspace dep, as the reference usage.
-4. **Docs (apps/site, comprehensive doc site under `apps/site/content/docs`):**
-   - New page: "Install a first-party extension" — the folder re-export convention, prerequisites (add
-     the package dep), the one-line re-export, that both halves wire automatically, and that built-ins
-     need no install.
-   - Update existing extension docs to reference the convention; document the conditional-exports
-     requirement for extension authors.
+1. **Conditional exports on ALL published extensions** (tanstack, terminal, test-runner, whiteboard) so any
+   is folder-installable on any bundler. Each already ships `.` (server) + `./client` with `export default`
+   on both entries; the change is the `.` export map (nested per-env `types`) + a `./server` subpath.
+   `publint` + `attw` (esm-only) MUST pass with the packed shape — finalize the exact map via those tools.
+2. **Built-ins stay auto** in `@conciv/it` (terminal/test-runner/whiteboard). NOT retired. The machinery
+   merges builtins + folder-discovered (now with dedup — see fixes).
+3. **Plugin: universal client discovery** — move the virtual-module serving to shared unplugin hooks; fs
+   scan replaces `import.meta.glob`. `@conciv/plugin` + `@conciv/extension-compiler` change (v1's
+   "zero plugin changes" no longer holds — this is a plugin change, scoped and shared across bundlers).
+4. **Next.js integration** — register the unplugin webpack plugin in `withConciv`; `nextjs-widget` loads
+   discovered client extensions; turbopack validated (prototype).
+5. **tanstack = the reference non-built-in install** — keep the prototype's example re-export + dep.
+6. **Docs** (`apps/site/content/docs`): "install a first-party extension" page (the re-export, add the
+   package dep, works on all frameworks, built-ins need no install, `.ts`/`.tsx` stub only) + author
+   guidance (conditional-exports requirement; TS `customConditions` note).
 
-### Out of scope (this work) → captured as follow-ups
+### Out of scope → follow-ups
 - **CLI `@conciv/extensions add "<name>"` (shadcn-style)** — SEPARATE GitHub issue, filed as part of this
-  work, NOT built now. Requirements to capture in the issue: resolve extension name → package; install
-  with the app's detected package manager; scaffold the `conciv/extensions/<name>.tsx` re-export; respect
-  user config/preferences; idempotent; list/remove companions later.
-- No `conciv({extensions: […]})` config option (folder re-export is the only blessed API).
+  work, NOT built now. Requirements: resolve name→package; install with the detected package manager;
+  scaffold the `conciv/extensions/<name>.tsx` re-export; respect user config; idempotent; list/remove later.
+- No `conciv({extensions})` config option (folder re-export is the only blessed API).
 - No retiring built-ins.
 
-## Components touched
+## Codex-review fixes folded in (all 7)
+1. **[HIGH] Cross-bundler** — was false in v1; this redesign makes the client path universal via unplugin.
+2. **[MED] Workspace server resolution** — corrected: `loadServerExtensions` jiti-loads the package under
+   Node conditions → **built `dist/server.js`** (not src); the client maps `dist/client.js`→`src/client.tsx`
+   only via Vite's `concivSrcEntry`. Therefore **the extension package must be built before its server half
+   loads in workspace dev**; state this and gate tests on a prior build.
+3. **[MED] Conditional map is committed + tested, not an open item** — nested `types`, `browser` before
+   `import`, `types` before runtime inside each branch. Note the **TypeScript caveat**: TS honors the
+   `browser` custom condition only when the consumer sets `customConditions: ["browser"]`; without it,
+   editors resolve server types. Document this; do NOT promise automatic browser-context editor types.
+   Reconsider a root `default` fallback for an ESM-only package (can make `require()` resolve ESM); prefer
+   `import`-only. Finalize via packed `publint`/`attw`.
+4. **[MED] Test matrix** — assert every resolution path:
+   - Vite client → `client.js`, no Node-only imports in the client chunk.
+   - jiti/Node server → `server.js`, no Solid/client init.
+   - workspace symlink client → `src/client.tsx`; workspace server → built `dist/server.js`.
+   - packed `node_modules` install → both halves from `dist`.
+   - **webpack + turbopack client → `client.js`** (the new cross-bundler paths).
+   - TypeScript resolution with and without `customConditions: ["browser"]`.
+   Smoke-only "healthy engine + zero console errors" is insufficient.
+5. **[LOW] File-extension parity** — server accepts `.ts/.tsx/.js/.jsx`; the client glob only `.ts/.tsx`.
+   Unify the fs scan to ONE extension set for both halves so a `.js` re-export is not silently server-only.
+6. **[LOW] Dedup** — folder-discovered extensions are concatenated with builtins with no dedup; a manual
+   re-export of a built-in while `@conciv/it` also bakes it double-registers/double-mounts. Add
+   dedup-by-extension-name on both the server merge and the client `mountConciv` list.
+7. **[LOW] Fatal-error clarity** — a missing/broken package import is **fatal** (jiti rejects → engine boot
+   aborts), not "skipped". Surface a legible error including the stub path + package specifier.
 
-- `packages/extensions/{tanstack,terminal,test-runner,whiteboard}/package.json` — export maps.
-- `apps/examples/tanstack-start/` — dep + `conciv/extensions/tanstack.tsx` (already prototyped) as the
-  reference install.
-- `apps/site/content/docs/**` (+ any docs route/nav) — the install guide + author guidance.
-- No changes to `@conciv/plugin`, `@conciv/extension-compiler`, or the folder machinery.
+## Components touched
+- `packages/extensions/{tanstack,terminal,test-runner,whiteboard}/package.json` — export maps (+`./server`).
+- `packages/extension-compiler/src/extensions.ts` — fs-scan discovery (drop `import.meta.glob`), unified
+  extension set, dedup, fatal-error message.
+- `packages/plugin/src/index.ts` — move virtual-module `resolveId`/`load` to shared unplugin hooks.
+- `packages/plugin/src/core/nextjs.ts` (`withConciv`) + `packages/plugin/src/nextjs-widget.ts` — register
+  the webpack plugin; load discovered client extensions.
+- `apps/examples/tanstack-start/` (reference re-export, already prototyped) + `apps/examples/nextjs-app/` /
+  `e2e/nextjs` (Next.js prototype + coverage).
+- `apps/site/content/docs/**` — install guide + author guidance.
 
 ## Testing
-
-- Per-extension: `publint` + `attw` green after the export-map change (release-safety of the new
-  conditions).
-- An e2e/integration proof that a **folder-installed** extension loads both halves in a real app: the
-  existing `apps/examples/tanstack-start` prototype is the model; formalize a check that (a) the client
-  bundle resolves the re-export to the client entry and (b) the server engine registers the extension's
-  tools. Follow the repo rule: drive the REAL app (no mocks of the unit under test); reuse
-  `@conciv/extension-testkit` / a real vite dev server where a test is warranted.
-- Do not add tests under `apps/examples/*` (demo apps); verify via the owning package or a real consumer
-  check.
+Follow repo rules: drive the REAL app, no mocks of the unit under test, no jsdom, real browser for widget
+UI, real dev servers for the bundler paths. Cover the full matrix in fix #4 across Vite and Next.js
+(webpack + turbopack). `publint`/`attw` per changed published package. No tests under `apps/examples/*` —
+verify via owning packages / real consumer (`e2e/nextjs`, testkit) checks.
 
 ## Error handling / edge cases
-
-- A re-export whose package is not installed → module resolution error at load; the folder loaders
-  already tolerate a missing `.default` (skip) — ensure the failure is legible (surface, don't swallow).
-- Conditional-export ordering: `browser` must precede `import`/`default` so client builds pick client;
-  Node/ssr (no `browser` condition) fall through to server. Verify both a workspace-dev run and a
-  simulated installed-package resolution.
-- `types` per condition so editors/tsc resolve client types in browser context, server types otherwise.
+- Missing package → fatal, legible (fix #7). Duplicate install → deduped (fix #6). `.js` stub → still
+  client-capable after the extension-set unification (fix #5).
+- Condition ordering verified in BOTH a workspace-dev run and a packed-install resolution (fix #2/#3).
+- turbopack virtual-module serving is the highest-risk unknown → prototype-gated (§4).
 
 ## Non-goals
+Config-passing API; retiring built-ins; building the CLI now; changing how the split works (conditional
+exports, not a new transform).
 
-- Config-passing API, retiring built-ins, changing the plugin/compiler, building the CLI now.
-
-## Open items to resolve during planning
-
-- Exact `attw`/`publint`-safe shape of the nested conditional export (types nested under each condition
-  vs a top-level `types`) — pick the one that passes both tools for the esm-only profile.
-- Whether `@conciv/extension-test-runner`'s extra subpaths (`./vitest`, `./jest`, …) need any change
-  (expected: none — only `.` gains the browser condition).
-- Docs IA: where the install page sits in the existing docs nav.
+## Open items for planning
+- Exact `attw`/`publint`-safe conditional-export shape (finalize by running the tools on a packed tarball).
+- turbopack virtual-module feasibility (prototype outcome decides: native, experimental config, or
+  documented webpack-dev fallback).
+- Whether `@conciv/extension-test-runner`'s extra subpaths need any change (expected: none).
+- Docs IA placement of the install page.
