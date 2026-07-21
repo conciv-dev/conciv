@@ -9,22 +9,27 @@ const pingVerbs = definePageVerbs({
   ping: pageVerb(z.object({n: z.number()}), (args) => ({pong: args.n + 1})),
 })
 
-type WidgetReply = Record<string, unknown>
-type ReplyFor = (query: {kind: string; extension?: string; verb?: string; argsJson?: string}) => WidgetReply
+const SeenQuerySchema = z.object({
+  kind: z.string(),
+  extension: z.string().optional(),
+  verb: z.string().optional(),
+  argsJson: z.string().optional(),
+})
 
-type SeenQuery = {kind: string; extension?: string; verb?: string; argsJson?: string}
+type SeenQuery = z.infer<typeof SeenQuerySchema>
+type WidgetReply = Record<string, unknown>
+type ReplyFor = (query: SeenQuery) => WidgetReply
 
 function seenQuery(query: unknown): SeenQuery | null {
-  if (typeof query !== 'object' || query === null || !('kind' in query) || typeof query.kind !== 'string') return null
-  const shape = query as SeenQuery
-  return {kind: shape.kind, extension: shape.extension, verb: shape.verb, argsJson: shape.argsJson}
+  const parsed = SeenQuerySchema.safeParse(query)
+  return parsed.success ? parsed.data : null
 }
 
 async function connectWidget(kit: Kit, replyFor: ReplyFor): Promise<{seen: SeenQuery[]; end: () => void}> {
   const ctrl = new AbortController()
   const seen: SeenQuery[] = []
   const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
-  void (async () => {
+  async function pump(): Promise<void> {
     try {
       for await (const {requestId, query} of iterator) {
         const shape = seenQuery(query)
@@ -33,7 +38,8 @@ async function connectWidget(kit: Kit, replyFor: ReplyFor): Promise<{seen: SeenQ
         void kit.rpc.page.reply({requestId, data: replyFor(shape)}).catch(() => {})
       }
     } catch {}
-  })()
+  }
+  void pump()
   return {seen, end: () => ctrl.abort()}
 }
 

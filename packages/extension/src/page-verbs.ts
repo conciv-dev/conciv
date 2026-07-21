@@ -28,7 +28,7 @@ export const PAGE_VERB_ERROR_CODES = ['no-widget', 'unknown-verb', 'invalid-args
 export type PageVerbErrorCode = (typeof PAGE_VERB_ERROR_CODES)[number]
 
 export function isPageVerbErrorCode(code: string): code is PageVerbErrorCode {
-  return (PAGE_VERB_ERROR_CODES as readonly string[]).includes(code)
+  return PAGE_VERB_ERROR_CODES.some((known) => known === code)
 }
 
 export type PageVerbError = Error & {
