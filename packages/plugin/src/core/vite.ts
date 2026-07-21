@@ -31,44 +31,50 @@ function makeDiagnosticSubscribe(server: ViteLike): (listener: (diagnostic: Bund
   const emit = (diagnostic: BundlerDiagnostic): void => {
     for (const listener of listeners) listener(diagnostic)
   }
-  const clientHot = server.environments.client.hot
-  const forward = clientHot.send
-  clientHot.send = (...args: unknown[]): void => {
-    const [first] = args
-    if (isErrorPayload(first)) {
-      const err = first.err
-      const loc = err.loc
-      emit({
-        kind: 'build-error',
-        message: err.message,
-        file: typeof err.id === 'string' ? err.id : (loc?.file ?? null),
-        loc: loc ? {line: loc.line, column: loc.column} : null,
-        timestamp: Date.now(),
-      })
-    }
-    Reflect.apply(forward, clientHot, args)
-  }
-  server.watcher.on('change', (file) => emit({kind: 'hmr-update', file, timestamp: Date.now()}))
-  server.middlewares.stack.unshift({
-    route: '',
-    handle: (req: IncomingMessage, res: ServerResponse, next: (error?: unknown) => void): void => {
-      const startedAt = Date.now()
-      const method = req.method ?? 'GET'
-      const url = req.url ?? ''
-      res.once('finish', () =>
+  let installed = false
+  const install = (): void => {
+    if (installed) return
+    installed = true
+    const clientHot = server.environments.client.hot
+    const forward = clientHot.send
+    clientHot.send = (...args: unknown[]): void => {
+      const [first] = args
+      if (isErrorPayload(first)) {
+        const err = first.err
+        const loc = err.loc
         emit({
-          kind: 'request-trace',
-          method,
-          url,
-          status: res.statusCode,
-          durationMs: Date.now() - startedAt,
+          kind: 'build-error',
+          message: err.message,
+          file: typeof err.id === 'string' ? err.id : (loc?.file ?? null),
+          loc: loc ? {line: loc.line, column: loc.column} : null,
           timestamp: Date.now(),
-        }),
-      )
-      next()
-    },
-  })
+        })
+      }
+      Reflect.apply(forward, clientHot, args)
+    }
+    server.watcher.on('change', (file) => emit({kind: 'hmr-update', file, timestamp: Date.now()}))
+    server.middlewares.stack.unshift({
+      route: '',
+      handle: (req: IncomingMessage, res: ServerResponse, next: (error?: unknown) => void): void => {
+        const startedAt = Date.now()
+        const method = req.method ?? 'GET'
+        const url = req.url ?? ''
+        res.once('finish', () =>
+          emit({
+            kind: 'request-trace',
+            method,
+            url,
+            status: res.statusCode,
+            durationMs: Date.now() - startedAt,
+            timestamp: Date.now(),
+          }),
+        )
+        next()
+      },
+    })
+  }
   return (listener) => {
+    install()
     listeners.add(listener)
     return () => {
       listeners.delete(listener)
