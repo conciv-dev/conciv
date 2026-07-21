@@ -77,7 +77,7 @@ async function openTtySession(
     server.cwd,
   )
   if (size.cols && size.rows) session.resize(size.cols, size.rows)
-  if (resume) session.inject('\u001b[2m— conciv: resumed session —\u001b[0m')
+  if (resume) session.inject('\u001b[2m\u2500 conciv: resumed session \u2500\u001b[0m')
 }
 
 const terminalOs = os.$context<{request: Request}>()

@@ -68,7 +68,7 @@ export const StreamsAFullTurn: Story = {
       chunks: [
         ...createReasoningChunks('Checking the handler'),
         ...createToolCallChunks('read', {path: 'app.ts'}, {result: 'ok'}),
-        ...createTextChunks('Found it — add the missing await.'),
+        ...createTextChunks('Found it. Add the missing await.'),
       ],
       chunkDelay: 2,
     }
@@ -85,7 +85,7 @@ export const StreamsAFullTurn: Story = {
     const c = within(canvasElement)
     await userEvent.click(c.getByText('ask'))
     await waitFor(() => expect(c.getByText('why is it broken?')).toBeVisible())
-    await waitFor(() => expect(c.getByText(/Found it — add the missing await\./)).toBeVisible(), {timeout: 4000})
+    await waitFor(() => expect(c.getByText(/Found it\. Add the missing await\./)).toBeVisible(), {timeout: 4000})
     await waitFor(() => expect(c.getByText(/tool read/)).toBeVisible())
   },
 }

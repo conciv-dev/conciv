@@ -33,7 +33,7 @@ export function TryLiveButton() {
     <div className="mt-6">
       <Button variant="outline" onClick={open}>
         <span className="size-1.5 rounded-full bg-primary" aria-hidden />
-        {isConnected ? 'Open agent panel' : 'Try it live — connect your agent'}
+        {isConnected ? 'Open agent panel' : 'Try it live: connect your agent'}
       </Button>
     </div>
   )

@@ -24,7 +24,7 @@ const CAPABILITIES: Capability[] = [
   {
     icon: MousePointer2Icon,
     title: 'Page control',
-    body: 'It grabs elements, clicks, fills, and live-edits the DOM — then persists to source.',
+    body: 'It grabs elements, clicks, fills, and live-edits the DOM, then persists to source.',
   },
   {
     icon: TerminalIcon,
@@ -143,7 +143,7 @@ export function FeaturesSection() {
           className="od-display mb-2 text-[clamp(28px,3.4vw,40px)] font-bold tracking-[-0.025em]"
         />
         <p className="mb-10 max-w-[52ch] text-muted-foreground">
-          Everything the agent can do happens right where you're looking — grounded on the real DOM, streamed into the
+          Everything the agent can do happens right where you're looking, grounded on the real DOM, streamed into the
           thread.
         </p>
         <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">

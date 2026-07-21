@@ -12,18 +12,18 @@ export function attachCommand(port: number, token: string): string {
 export function plainLines(event: ConnectEvent, token: string): string[] {
   if (event.type === 'seeded') {
     return [
-      event.seeded ? 'workspace seeded with the landing-page source' : 'no source manifest found — continuing unseeded',
+      event.seeded ? 'workspace seeded with the landing-page source' : 'no source manifest found, continuing unseeded',
     ]
   }
   if (event.type === 'started') {
     return [
       `connected: conciv core on 127.0.0.1:${event.port} (harness: ${event.harness})`,
-      'return to your browser tab — keep this command running',
+      'return to your browser tab and keep this command running',
       'to drive this page from your own claude code session (session-scoped config, conversation preserved):',
       `  ${attachCommand(event.port, token)}`,
     ]
   }
-  return ['browser paired — the widget is live']
+  return ['browser paired: the widget is live']
 }
 
 function plainUi(token: string): (event: ConnectEvent) => void {
@@ -31,7 +31,7 @@ function plainUi(token: string): (event: ConnectEvent) => void {
 }
 
 function clackUi(token: string): (event: ConnectEvent) => void {
-  intro('conciv — live connect')
+  intro('conciv live connect')
   const seedSpinner = spinner({cancelMessage: 'Disconnecting…'})
   seedSpinner.start('Preparing workspace')
   let waitSpinner: ReturnType<typeof spinner> | undefined
@@ -39,14 +39,14 @@ function clackUi(token: string): (event: ConnectEvent) => void {
     if (event.type === 'seeded') {
       seedSpinner.stop(
         event.seeded
-          ? 'Workspace ready — seeded with the conciv.dev landing source'
-          : 'Workspace ready — no source manifest found, continuing unseeded',
+          ? 'Workspace ready: seeded with the conciv.dev landing source'
+          : 'Workspace ready: no source manifest found, continuing unseeded',
       )
       return
     }
     if (event.type === 'started') {
       log.success(`conciv core running on 127.0.0.1:${event.port} (harness: ${event.harness})`)
-      note('Return to conciv.dev — Chrome will ask to allow\nlocal network access. Approve it.', 'Next')
+      note('Return to conciv.dev. Chrome will ask to allow\nlocal network access. Approve it.', 'Next')
       note(
         'To drive this page from your own Claude Code session, exit it and run:\n' +
           `${attachCommand(event.port, token)}\n` +
@@ -57,7 +57,7 @@ function clackUi(token: string): (event: ConnectEvent) => void {
       waitSpinner.start('Waiting for your browser…')
       return
     }
-    waitSpinner?.stop('Browser paired ✓ — the widget is live')
+    waitSpinner?.stop('Browser paired: the widget is live ✓')
     log.info('Keep this running. Ctrl+C disconnects.')
   }
 }

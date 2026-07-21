@@ -41,7 +41,7 @@ function isAddressInUse(error: unknown): boolean {
 function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
   if (opts.harnessAdapter) return opts.harnessAdapter
   const adapter = getHarness(opts.harness ?? 'claude')
-  if (!adapter) throw new Error(`unknown harness "${opts.harness}" — try claude, codex, gemini-cli, opencode or pi`)
+  if (!adapter) throw new Error(`unknown harness "${opts.harness}"; try claude, codex, gemini-cli, opencode or pi`)
   return adapter
 }
 

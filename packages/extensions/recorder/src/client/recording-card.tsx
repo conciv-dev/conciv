@@ -62,7 +62,7 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
     if (!recordingId) return
     const video = await exportVideo.mutateAsync({recordingId}).catch(() => null)
     if (!(video instanceof File)) {
-      toast('Could not export the recording — try again.')
+      toast('Could not export the recording. Try again.')
       return
     }
     saveFileToDisk(video)

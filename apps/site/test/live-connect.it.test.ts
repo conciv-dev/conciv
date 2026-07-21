@@ -60,7 +60,7 @@ describe('widget-native live connect on the built site', () => {
     )
     expect(sameNode).toBe(true)
     await expect
-      .poll(() => panel.getByText('Agent connected — it’s driving this page from your machine.').isVisible(), {
+      .poll(() => panel.getByText('Agent connected. It’s driving this page from your machine.').isVisible(), {
         timeout: 10_000,
       })
       .toBe(true)

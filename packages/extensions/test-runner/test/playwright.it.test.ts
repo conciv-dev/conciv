@@ -26,7 +26,7 @@ describe('playwright adapter against a real fixture (IT)', () => {
 
   const state: {mgr: TestRunnerManager | undefined} = {mgr: undefined}
   const requireMgr = (): TestRunnerManager => {
-    if (!state.mgr) throw new Error('manager not initialized — the list test runs first')
+    if (!state.mgr) throw new Error('manager not initialized; the list test runs first')
     return state.mgr
   }
   afterAll(async () => {

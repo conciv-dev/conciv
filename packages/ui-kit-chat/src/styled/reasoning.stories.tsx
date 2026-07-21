@@ -8,7 +8,7 @@ export default meta
 type Story = StoryObj
 
 const TEXT =
-  'The error is a missing await on the async call — the promise resolves after the assertion runs, so the value is still pending.'
+  'The error is a missing await on the async call; the promise resolves after the assertion runs, so the value is still pending.'
 
 function Frame(props: {children: JSX.Element}): JSX.Element {
   return <div class="p-3 w-96 [background:var(--chat-bg)]">{props.children}</div>

@@ -6,10 +6,10 @@ import {mirrorPageAction, mirrorsKind} from './page-mirror.js'
 export type PageDriver = {execute: (query: PageQuery) => Promise<PageResult>; refs: Refs; dispose: () => void}
 
 function missingTargetError(query: PageQuery): PageResult {
-  if (query.ref) return err(`stale ref ${query.ref} — re-run page snapshot`)
+  if (query.ref) return err(`stale ref ${query.ref}; re-run page snapshot`)
   if (query.name) return err(`no React component named "${query.name}" found`)
   if (query.selector) return err(`no element for selector ${query.selector}`)
-  return err('no target — pass --ref, --selector, or --name')
+  return err('no target: pass --ref, --selector, or --name')
 }
 
 export function makeDomPageDriver(

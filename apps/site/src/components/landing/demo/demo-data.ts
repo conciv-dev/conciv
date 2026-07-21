@@ -90,7 +90,7 @@ export type Message =
 
 export const GREETING: Message = {
   kind: 'agent',
-  text: "Hi — I'm running inside this page. Grab any element and tell me what to change.",
+  text: "Hi! I'm running inside this page. Grab any element and tell me what to change.",
 }
 
 export function pickScenario(pickable: Pickable): Scenario {

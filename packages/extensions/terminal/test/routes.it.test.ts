@@ -67,7 +67,7 @@ describe('terminal extension routes', () => {
     client.ws.close()
   })
 
-  it('open is idempotent while the pty is alive — buffer survives a re-open', async () => {
+  it('open is idempotent while the pty is alive: buffer survives a re-open', async () => {
     expect(await rpc().open({sessionId})).toEqual({alive: true})
     const client = await connect(wsBase(), sessionId)
     await until(() => client.received.join('').includes('ws-roundtrip-42'))
@@ -144,7 +144,7 @@ describe('terminal extension routes', () => {
       expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
       const wsBaseUrl = dedicated.wsBase
       const client = await connect(wsBaseUrl, sessionId)
-      await until(() => client.received.join('').includes('— conciv: resumed session —'))
+      await until(() => client.received.join('').includes('\u2500 conciv: resumed session \u2500'))
       client.ws.close()
     } finally {
       await dedicated.close()

@@ -5,7 +5,7 @@ describe('plainLines', () => {
   it('keeps the greppable connected line and prints the mcp attach command', () => {
     const lines = plainLines({type: 'started', port: 4732, harness: 'claude'}, 'tok-1')
     expect(lines[0]).toBe('connected: conciv core on 127.0.0.1:4732 (harness: claude)')
-    expect(lines[1]).toBe('return to your browser tab — keep this command running')
+    expect(lines[1]).toBe('return to your browser tab and keep this command running')
     expect(lines[3]).toBe(`  ${attachCommand(4732, 'tok-1')}`)
   })
   it('renders both seed outcomes', () => {
@@ -13,11 +13,11 @@ describe('plainLines', () => {
       'workspace seeded with the landing-page source',
     ])
     expect(plainLines({type: 'seeded', seeded: false}, 'tok-1')).toEqual([
-      'no source manifest found — continuing unseeded',
+      'no source manifest found, continuing unseeded',
     ])
   })
   it('announces browser pairing', () => {
-    expect(plainLines({type: 'client-connected'}, 'tok-1')).toEqual(['browser paired — the widget is live'])
+    expect(plainLines({type: 'client-connected'}, 'tok-1')).toEqual(['browser paired: the widget is live'])
   })
 })
 

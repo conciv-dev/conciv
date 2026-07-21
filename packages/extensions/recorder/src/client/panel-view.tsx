@@ -68,7 +68,7 @@ function RecorderPanel(): JSX.Element {
   const reset = useMutation(() =>
     utils.reset.mutationOptions({
       onSuccess: () => queryClient.invalidateQueries(),
-      onError: () => toast('Could not start a new recording — is the page still connected?'),
+      onError: () => toast('Could not start a new recording. Is the page still connected?'),
     }),
   )
   const retry = (): void => void queryClient.invalidateQueries()
@@ -94,12 +94,12 @@ function RecorderPanel(): JSX.Element {
   const downloadVideo = async (): Promise<void> => {
     const saved = await save.mutateAsync(pinned()).catch(() => null)
     if (!saved || 'error' in saved) {
-      toast('Could not export the recording — try again.')
+      toast('Could not export the recording. Try again.')
       return
     }
     const video = await exportVideo.mutateAsync({recordingId: saved.recordingId}).catch(() => null)
     if (!(video instanceof File)) {
-      toast('Could not export the recording — try again.')
+      toast('Could not export the recording. Try again.')
       return
     }
     saveFileToDisk(video)
@@ -108,7 +108,7 @@ function RecorderPanel(): JSX.Element {
   const sendToAgent = async (): Promise<void> => {
     const saved = await save.mutateAsync(pinned()).catch(() => null)
     if (!saved || 'error' in saved) {
-      toast('Could not save the recording — try again.')
+      toast('Could not save the recording. Try again.')
       return
     }
     const fresh = await log.refetch().catch(() => null)
@@ -190,9 +190,9 @@ function LiveBadge(): JSX.Element {
 }
 
 function RecorderFailedNotice(): JSX.Element {
-  return <RecorderNotice text="Recording is unavailable — capture failed to start on this page." />
+  return <RecorderNotice text="Recording is unavailable: capture failed to start on this page." />
 }
 
 function RecorderEmptyNotice(): JSX.Element {
-  return <RecorderNotice text="No recording yet — interact with the page first." />
+  return <RecorderNotice text="No recording yet: interact with the page first." />
 }

@@ -25,7 +25,7 @@ export function Hero() {
         <p className="mb-8 max-w-[30ch] text-[18px] text-muted-foreground">
           Add one plugin. Then <b className="font-semibold text-foreground">chat</b>, let it{' '}
           <b className="font-semibold text-foreground">drive the page</b>, and{' '}
-          <b className="font-semibold text-foreground">run your tests</b> — without ever leaving the thing you're
+          <b className="font-semibold text-foreground">run your tests</b>, without ever leaving the thing you're
           building.
         </p>
         {!isMobile && (
