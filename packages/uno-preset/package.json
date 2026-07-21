@@ -24,16 +24,20 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@unocss/preset-typography": "^66.7.2",
     "@unocss/preset-wind4": "^66.7.2"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
     "typescript": "^6.0.3",
-    "unocss": "^66.7.2"
+    "unocss": "^66.7.2",
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
     "unocss": "^66.7.2"
