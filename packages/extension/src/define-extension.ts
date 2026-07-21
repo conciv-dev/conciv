@@ -13,6 +13,7 @@ import type {
   ServerApi,
   ServerResult,
 } from './types.js'
+import type {PageVerbMap} from './page-verbs.js'
 import {useExtensionValue} from './host-context.js'
 
 export type AnyToolBuilder = ToolBuilder<z.ZodObject<z.ZodRawShape>, unknown>
@@ -42,6 +43,7 @@ export type ExtensionBuilder<
   Tools extends readonly AnyToolBuilder[] = readonly AnyToolBuilder[],
   Attachments extends readonly AnyAttachmentBuilder[] = readonly AnyAttachmentBuilder[],
   ClientValue extends object = Record<never, never>,
+  Verbs extends PageVerbMap = Record<never, never>,
 > = {
   name: Name
   configSchema?: Schema
@@ -55,18 +57,18 @@ export type ExtensionBuilder<
   commands?: readonly ExtensionCommand[]
   views?: readonly ExtensionView[]
   parseConfig: (raw: unknown) => ConfigOf<Schema>
-  __client?(): ClientFactoryResult<ClientValue>
-  __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown> | Promise<ServerResult<unknown>>
+  __client?(): ClientFactoryResult<ClientValue, Verbs>
+  __server?(server: ServerApi<ConfigOf<Schema>, Verbs>): ServerResult<unknown> | Promise<ServerResult<unknown>>
   useContext: {
     (): ClientValue
     <Selected>(select: (context: ClientValue) => Selected): Selected
   }
-  client: <Value extends object>(
-    factory: () => ClientFactoryResult<Value>,
-  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value>
+  client: <Value extends object, ClientVerbs extends PageVerbMap = Record<never, never>>(
+    factory: () => ClientFactoryResult<Value, ClientVerbs>,
+  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value, ClientVerbs>
   server: <Context extends RequiredContext<readonly [...Tools, ...Attachments]>>(
-    factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context> | Promise<ServerResult<Context>>,
-  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue>
+    factory: (server: ServerApi<ConfigOf<Schema>, Verbs>) => ServerResult<Context> | Promise<ServerResult<Context>>,
+  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue, Verbs>
 }
 
 export type AnyExtension = ExtensionBuilder<
@@ -74,7 +76,8 @@ export type AnyExtension = ExtensionBuilder<
   z.ZodType,
   readonly AnyToolBuilder[],
   readonly AnyAttachmentBuilder[],
-  object
+  object,
+  PageVerbMap
 >
 
 export type RegisterExtension<Extension> =

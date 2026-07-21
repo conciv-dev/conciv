@@ -44,3 +44,11 @@ export function pageVerbError(
 export function isPageVerbError(value: unknown): value is PageVerbError {
   return value instanceof Error && 'isPageVerbError' in value && value.isPageVerbError === true
 }
+
+export function noWidgetPageCaller<M extends PageVerbMap = PageVerbMap>(extension: string): PageCaller<M> {
+  return {
+    call<K extends keyof M & string>(verb: K): Promise<Awaited<ReturnType<M[K]['handler']>>> {
+      return Promise.reject(pageVerbError('no-widget', extension, verb, `${extension}.${verb}: no widget attached`))
+    },
+  }
+}

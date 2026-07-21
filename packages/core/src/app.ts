@@ -5,14 +5,15 @@ import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {
-  AnyExtension,
-  AttachmentDocumentPart,
-  ContentPart,
-  ExtensionServerTool,
-  ServerHarness,
-  ServerSessions,
-  ToolRequest,
+import {
+  type AnyExtension,
+  type AttachmentDocumentPart,
+  type ContentPart,
+  type ExtensionServerTool,
+  type ServerHarness,
+  type ServerSessions,
+  type ToolRequest,
+  noWidgetPageCaller,
 } from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
@@ -204,6 +205,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         cwd: opts.cwd,
         sessions: serverSessions,
         harness: serverHarness,
+        page: noWidgetPageCaller(extension.name),
       })
       const context = result?.context
       return {

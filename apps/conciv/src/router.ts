@@ -3,6 +3,7 @@ import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient} from '@tanstack/solid-query'
 import type {RpcClient} from '@conciv/contract'
 import type {AnyExtension} from '@conciv/extension'
+import {bindExtensionPageVerbs} from '@conciv/page'
 import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
@@ -40,7 +41,8 @@ export type ConcivRouterConfig = {
 function createInstances(extensions: AnyExtension[]): ExtensionInstance[] {
   return extensions.map((extension) => {
     const result = extension.__client?.()
-    return {extension, clientValue: result?.value ?? {}}
+    const dispose = bindExtensionPageVerbs(extension.name, result?.pageVerbs, result?.dispose)
+    return {extension, clientValue: result?.value ?? {}, dispose}
   })
 }
 

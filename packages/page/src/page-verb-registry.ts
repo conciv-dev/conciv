@@ -14,6 +14,18 @@ export function clearExtensionPageVerbs(): void {
   registry.clear()
 }
 
+export function bindExtensionPageVerbs(
+  extension: string,
+  verbs: PageVerbMap | undefined,
+  dispose?: () => void,
+): () => void {
+  if (verbs) registerExtensionPageVerbs(extension, verbs)
+  return () => {
+    dispose?.()
+    if (verbs) unregisterExtensionPageVerbs(extension)
+  }
+}
+
 type DispatchVerbDef = {args: PageVerbMap[string]['args']; handler: (args: unknown) => unknown}
 type Dispatch = {result: unknown} | {error: {code: string; message: string}}
 

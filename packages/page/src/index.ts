@@ -13,6 +13,7 @@ export {
   registerExtensionPageVerbs,
   unregisterExtensionPageVerbs,
   clearExtensionPageVerbs,
+  bindExtensionPageVerbs,
 } from './page-verb-registry.js'
 export * as reactBridge from './react-bridge.js'
 

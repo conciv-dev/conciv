@@ -5,6 +5,7 @@ import type {AnyRouter} from '@orpc/server'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
+import type {PageCaller, PageVerbMap} from './page-verbs.js'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -49,8 +50,9 @@ export type ExtensionTool = {
   __render?: ToolRenderer
 }
 
-export type ClientFactoryResult<ClientReturnValue extends object> = {
+export type ClientFactoryResult<ClientReturnValue extends object, Verbs extends PageVerbMap = Record<never, never>> = {
   value: ClientReturnValue
+  pageVerbs?: Verbs
   dispose?: () => void
 }
 
@@ -70,12 +72,13 @@ export type ServerHarness = {
   transcriptMessages?: (token: string) => Promise<UIMessage[]>
 }
 
-export type ServerApi<Config> = {
+export type ServerApi<Config, Verbs extends PageVerbMap = Record<never, never>> = {
   config: Config
   cwd: string
   stateDir: string
   sessions: ServerSessions
   harness: ServerHarness
+  page: PageCaller<Verbs>
 }
 
 export type ServerResult<Context> = {
