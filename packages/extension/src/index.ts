@@ -45,7 +45,15 @@ export {ensureEffectsSurface, openSource, EFFECTS_SURFACE_ATTR} from './client-h
 export {makeExtRpcClient} from './ext-rpc.js'
 export type {ExtRpcClientOpts, ExtRpcContext} from './ext-rpc.js'
 export {subscriptionIterator} from './server-stream.js'
-export {definePageVerbs, pageVerb, pageVerbError, isPageVerbError, noWidgetPageCaller} from './page-verbs.js'
+export {
+  definePageVerbs,
+  pageVerb,
+  pageVerbError,
+  isPageVerbError,
+  isPageVerbErrorCode,
+  noWidgetPageCaller,
+  PAGE_VERB_ERROR_CODES,
+} from './page-verbs.js'
 export type {
   AnyPageVerbDef,
   PageCaller,

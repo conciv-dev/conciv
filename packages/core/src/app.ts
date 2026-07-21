@@ -10,10 +10,14 @@ import {
   type AttachmentDocumentPart,
   type ContentPart,
   type ExtensionServerTool,
+  type PageCaller,
+  type PageVerbErrorCode,
+  type PageVerbMap,
   type ServerHarness,
   type ServerSessions,
   type ToolRequest,
-  noWidgetPageCaller,
+  isPageVerbErrorCode,
+  pageVerbError,
 } from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
@@ -85,6 +89,35 @@ function narrowExtensionApp(name: string, app: unknown): Hono | null {
   if (app === undefined) return null
   if (!(app instanceof Hono)) throw new Error(`extension "${name}" returned a non-hono app`)
   return app
+}
+
+function replyError(reply: Record<string, unknown>): {code: string; message: string} | null {
+  const error = reply.error
+  if (typeof error !== 'object' || error === null) return null
+  if (!('code' in error) || !('message' in error)) return null
+  const {code, message} = error
+  if (typeof code !== 'string' || typeof message !== 'string') return null
+  return {code, message}
+}
+
+function mapBrowserCode(code: string): PageVerbErrorCode {
+  return isPageVerbErrorCode(code) ? code : 'handler-error'
+}
+
+function mapBusError(error: unknown): PageVerbErrorCode {
+  if (error instanceof HTTPException && error.status === 503) return 'no-widget'
+  if (error instanceof HTTPException && error.status === 504) return 'timeout'
+  return 'handler-error'
+}
+
+type CallPageVerb = (extension: string, verb: string, argsJson: string) => Promise<unknown>
+
+function scopedPageCaller(extension: string, callPageVerb: CallPageVerb): PageCaller<PageVerbMap> {
+  return {
+    call(verb, args) {
+      return callPageVerb(extension, verb, JSON.stringify(args ?? {}))
+    },
+  }
 }
 
 function buildAttachmentExpanders(
@@ -169,6 +202,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const pageBus = makePageBus()
 
+  const callPageVerb: CallPageVerb = async (extension, verb, argsJson) => {
+    let reply: Record<string, unknown>
+    try {
+      reply = await pageBus.ask({kind: 'ext', extension, verb, argsJson})
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw pageVerbError(mapBusError(error), extension, verb, message)
+    }
+    const failure = replyError(reply)
+    if (failure) throw pageVerbError(mapBrowserCode(failure.code), extension, verb, failure.message)
+    return reply.result
+  }
+
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => resumeTokenFor(db, sessionId),
     recordToken: async (sessionId, token) => {
@@ -205,7 +251,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         cwd: opts.cwd,
         sessions: serverSessions,
         harness: serverHarness,
-        page: noWidgetPageCaller(extension.name),
+        page: scopedPageCaller(extension.name, callPageVerb),
       })
       const context = result?.context
       return {

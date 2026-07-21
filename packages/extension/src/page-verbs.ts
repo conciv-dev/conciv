@@ -23,7 +23,13 @@ export type PageCaller<M extends PageVerbMap> = {
   call<K extends keyof M & string>(verb: K, args: z.input<M[K]['args']>): Promise<Awaited<ReturnType<M[K]['handler']>>>
 }
 
-export type PageVerbErrorCode = 'no-widget' | 'unknown-verb' | 'invalid-args' | 'handler-error' | 'timeout'
+export const PAGE_VERB_ERROR_CODES = ['no-widget', 'unknown-verb', 'invalid-args', 'handler-error', 'timeout'] as const
+
+export type PageVerbErrorCode = (typeof PAGE_VERB_ERROR_CODES)[number]
+
+export function isPageVerbErrorCode(code: string): code is PageVerbErrorCode {
+  return (PAGE_VERB_ERROR_CODES as readonly string[]).includes(code)
+}
 
 export type PageVerbError = Error & {
   readonly isPageVerbError: true
