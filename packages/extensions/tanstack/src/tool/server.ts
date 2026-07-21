@@ -1,28 +1,38 @@
 import {defineTool} from '@conciv/extension'
 import type {PageCaller} from '@conciv/extension'
+import type {AppError, ServerRouteInfo} from '@conciv/protocol/framework-types'
 import type {tanstackVerbs} from '../client/verbs.js'
 import {
   BackInput,
+  BuildErrorsInput,
   LoaderDataInput,
   NavigateInput,
   QueryCacheInput,
   QueryInvalidateInput,
   QueryRefetchInput,
+  RouteManifestInput,
   RouteTreeInput,
   RouterInvalidateInput,
   RouterStateInput,
   backDef,
+  buildErrorsDef,
   loaderDataDef,
   navigateDef,
   queryCacheDef,
   queryInvalidateDef,
   queryRefetchDef,
+  routeManifestDef,
   routeTreeDef,
   routerInvalidateDef,
   routerStateDef,
 } from './def.js'
 
 type ToolCtx = {page: PageCaller<typeof tanstackVerbs>}
+
+type ServerReadCtx = {
+  buildErrors: () => AppError[]
+  routeManifest: () => Promise<ServerRouteInfo[]>
+}
 
 export const routerStateServer = defineTool<typeof RouterStateInput, ToolCtx>(routerStateDef).server(
   async (_input, ctx) => ctx.page.call('routerState', {}),
@@ -58,4 +68,12 @@ export const queryInvalidateServer = defineTool<typeof QueryInvalidateInput, Too
 
 export const queryRefetchServer = defineTool<typeof QueryRefetchInput, ToolCtx>(queryRefetchDef).server(
   async (input, ctx) => ctx.page.call('queryRefetch', {key: input.key}),
+)
+
+export const buildErrorsServer = defineTool<typeof BuildErrorsInput, ServerReadCtx>(buildErrorsDef).server(
+  async (_input, ctx) => ctx.buildErrors(),
+)
+
+export const routeManifestServer = defineTool<typeof RouteManifestInput, ServerReadCtx>(routeManifestDef).server(
+  async (_input, ctx) => ctx.routeManifest(),
 )

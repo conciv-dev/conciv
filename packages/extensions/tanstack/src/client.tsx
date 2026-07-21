@@ -2,11 +2,13 @@ import {defineExtension} from '@conciv/extension'
 import {tanstackVerbs} from './client/verbs.js'
 import {
   backClient,
+  buildErrorsClient,
   loaderDataClient,
   navigateClient,
   queryCacheClient,
   queryInvalidateClient,
   queryRefetchClient,
+  routeManifestClient,
   routeTreeClient,
   routerInvalidateClient,
   routerStateClient,
@@ -24,6 +26,8 @@ export const tanstack = defineExtension({
     backClient,
     queryInvalidateClient,
     queryRefetchClient,
+    buildErrorsClient,
+    routeManifestClient,
   ],
 }).client(() => ({
   value: {},

@@ -52,8 +52,11 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/core": "workspace:^",
     "@conciv/embed": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/plugin": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@tanstack/react-query": "^5.101.2",

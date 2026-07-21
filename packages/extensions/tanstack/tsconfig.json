@@ -9,5 +9,5 @@
     "jsxImportSource": "solid-js"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
-  "exclude": ["test/host/**", "dist", "node_modules"]
+  "exclude": ["test/host/**", "test/fixtures/**", "dist", "node_modules"]
 }

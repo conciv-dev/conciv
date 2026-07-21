@@ -76,3 +76,21 @@ export const queryRefetchDef = {
   description: 'Refetch a specific TanStack Query by its serialized key.',
   inputSchema: QueryRefetchInput,
 }
+
+export const BuildErrorsInput = z.object({})
+
+export const buildErrorsDef = {
+  name: 'tanstack_build_errors',
+  description:
+    "Read recent build/transform errors from the running TanStack dev server (compile failures, bad imports). Use it when the app is broken or a change didn't take effect.",
+  inputSchema: BuildErrorsInput,
+}
+
+export const RouteManifestInput = z.object({})
+
+export const routeManifestDef = {
+  name: 'tanstack_route_manifest',
+  description:
+    "Read the app's route manifest from routeTree.gen (all defined routes, paths, dynamic segments). Use it to see what routes exist, not just the matched ones.",
+  inputSchema: RouteManifestInput,
+}

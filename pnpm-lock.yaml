@@ -1795,12 +1795,21 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@conciv/core':
+        specifier: workspace:^
+        version: link:../../core
       '@conciv/embed':
         specifier: workspace:^
         version: link:../../embed
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../extension-testkit
+      '@conciv/harness-testkit':
+        specifier: workspace:^
+        version: link:../../harness-testkit
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../../plugin
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
