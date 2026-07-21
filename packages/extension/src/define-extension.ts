@@ -66,6 +66,14 @@ export type ExtensionBuilder<
   client: <Value extends object, ClientVerbs extends PageVerbMap = Record<never, never>>(
     factory: () => ClientFactoryResult<Value, ClientVerbs>,
   ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value, ClientVerbs>
+  pageVerbs: <BoundVerbs extends PageVerbMap>() => ExtensionBuilder<
+    Name,
+    Schema,
+    Tools,
+    Attachments,
+    ClientValue,
+    BoundVerbs
+  >
   server: <Context extends RequiredContext<readonly [...Tools, ...Attachments]>>(
     factory: (server: ServerApi<ConfigOf<Schema>, Verbs>) => ServerResult<Context> | Promise<ServerResult<Context>>,
   ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue, Verbs>
@@ -119,6 +127,9 @@ export function defineExtension<
     useContext,
     client(factory: () => ClientFactoryResult<object>) {
       builder.__client = factory
+      return builder
+    },
+    pageVerbs() {
       return builder
     },
     server(factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<unknown> | Promise<ServerResult<unknown>>) {

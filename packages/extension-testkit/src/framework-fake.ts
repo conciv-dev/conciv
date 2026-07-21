@@ -31,7 +31,7 @@ const fakeRouterCurrent: RouterCurrent = {
       status: 'success',
       error: null,
       loaderData: null,
-      staleAt: null,
+      updatedAt: null,
       isFetching: false,
     },
     {
@@ -43,7 +43,7 @@ const fakeRouterCurrent: RouterCurrent = {
       status: 'success',
       error: null,
       loaderData: {title: 'Hello world'},
-      staleAt: 1_700_000_000_000,
+      updatedAt: 1_700_000_000_000,
       isFetching: false,
     },
   ],

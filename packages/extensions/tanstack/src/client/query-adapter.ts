@@ -56,9 +56,9 @@ function errorMessage(value: unknown): string | null {
 }
 
 function queryState(host: Record<string, unknown>, state: Record<string, unknown>): CacheEntryState {
-  if (callBoolean(host, 'isStale')) return 'stale'
   if (state.fetchStatus === 'fetching') return 'fetching'
   if (state.status === 'error') return 'error'
+  if (callBoolean(host, 'isStale')) return 'stale'
   return 'fresh'
 }
 

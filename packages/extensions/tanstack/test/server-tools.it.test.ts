@@ -13,6 +13,7 @@ import tanstackServer from '../src/server.js'
 
 const BUILD_APP = fileURLToPath(new URL('./fixtures/build-errors-app', import.meta.url))
 const MANIFEST_APP = fileURLToPath(new URL('./fixtures/route-manifest-app', import.meta.url))
+const DOUBLE_QUOTED_APP = fileURLToPath(new URL('./fixtures/double-quoted-manifest-app', import.meta.url))
 
 const AppErrorSchema = z.object({
   kind: z.string(),
@@ -107,5 +108,33 @@ describe('tanstack server-half read tools (IT, real engine)', () => {
     const about = routes.find((route) => route.path === '/about')
     expect(about?.kind).toBe('page')
     expect(about?.dynamic).toBe(false)
+  })
+
+  it('tanstack_route_manifest parses a double-quoted generated routeTree with a $param dynamic route', async () => {
+    const {engine, callTool} = await bootEngine(DOUBLE_QUOTED_APP)
+    state.engine = engine
+
+    const routes = RoutesSchema.parse(await callTool('tanstack_route_manifest', {}))
+    const paths = routes.map((route) => route.path)
+    expect(paths).toContain('/')
+    expect(paths).toContain('/posts/$postId')
+
+    const dynamic = routes.find((route) => route.path === '/posts/$postId')
+    expect(dynamic?.kind).toBe('page')
+    expect(dynamic?.dynamic).toBe(true)
+  })
+
+  it('tanstack_route_manifest errors when the generated route tree is absent', async () => {
+    const {engine, callTool} = await bootEngine(await makeStateRoot())
+    state.engine = engine
+
+    await expect(callTool('tanstack_route_manifest', {})).rejects.toThrow()
+  })
+
+  it('tanstack_build_errors errors when no bundler bridge is attached', async () => {
+    const {engine, callTool} = await bootEngine(MANIFEST_APP)
+    state.engine = engine
+
+    await expect(callTool('tanstack_build_errors', {})).rejects.toThrow(/bundler bridge unavailable/)
   })
 })

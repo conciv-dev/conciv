@@ -17,7 +17,7 @@ function coreClient(): FrameworkClientCore {
             status: 'success',
             error: null,
             loaderData: {title: 'hi'},
-            staleAt: null,
+            updatedAt: null,
             isFetching: false,
           },
         ],

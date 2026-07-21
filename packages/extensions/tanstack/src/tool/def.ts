@@ -23,7 +23,7 @@ export const LoaderDataInput = z.object({routeId: z.string().optional()})
 export const loaderDataDef = {
   name: 'tanstack_loader_data',
   description:
-    'Read the dehydrated loader data for the current (or a named) TanStack route — the server/loader-fetched data the route is rendering. Use it to see the data behind what the user sees.',
+    'Read the dehydrated loader data for the current (or a named) TanStack route - the server/loader-fetched data the route is rendering. Use it to see the data behind what the user sees.',
   inputSchema: LoaderDataInput,
 }
 
@@ -41,7 +41,7 @@ export const NavigateInput = z.object({to: z.string(), replace: z.boolean().opti
 export const navigateDef = {
   name: 'tanstack_navigate',
   description:
-    "Navigate the running app's TanStack Router to a path. This changes what the user is currently viewing but destroys nothing — no data is deleted and you can navigate back.",
+    "Navigate the running app's TanStack Router to a path. This changes what the user is currently viewing but destroys nothing - no data is deleted and you can navigate back.",
   inputSchema: NavigateInput,
 }
 

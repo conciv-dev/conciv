@@ -11,7 +11,7 @@ export type FrameworkInfo = {
   dev: boolean
 }
 
-export type RouteStatus = 'pending' | 'success' | 'error'
+export type RouteStatus = 'pending' | 'success' | 'error' | 'notFound' | 'redirected'
 
 export type RouteMatch = {
   id: string
@@ -22,7 +22,7 @@ export type RouteMatch = {
   status: RouteStatus
   error: string | null
   loaderData: unknown
-  staleAt: number | null
+  updatedAt: number | null
   isFetching: boolean
 }
 

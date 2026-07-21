@@ -11,8 +11,11 @@ import type {
   RouteStatus,
 } from '@conciv/protocol/framework-types'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
-export type Fiber = any
+export type Fiber = {
+  memoizedProps?: unknown
+  child?: Fiber | null
+  sibling?: Fiber | null
+}
 
 type InvalidateOptions = {filter?: (match: unknown) => boolean}
 
@@ -96,6 +99,8 @@ function unknownRecord(value: unknown): Record<string, unknown> {
 function toStatus(value: unknown): RouteStatus {
   if (value === 'success') return 'success'
   if (value === 'error') return 'error'
+  if (value === 'notFound') return 'notFound'
+  if (value === 'redirected') return 'redirected'
   return 'pending'
 }
 
@@ -116,7 +121,7 @@ function mapMatch(match: unknown): RouteMatch {
       status: 'pending',
       error: null,
       loaderData: null,
-      staleAt: null,
+      updatedAt: null,
       isFetching: false,
     }
   return {
@@ -128,7 +133,7 @@ function mapMatch(match: unknown): RouteMatch {
     status: toStatus(match.status),
     error: errorMessage(match.error),
     loaderData: dehydrate(match.loaderData),
-    staleAt: typeof match.updatedAt === 'number' ? match.updatedAt : null,
+    updatedAt: typeof match.updatedAt === 'number' ? match.updatedAt : null,
     isFetching: Boolean(match.isFetching),
   }
 }
@@ -247,16 +252,16 @@ export function readLoaderData(routeId?: string): unknown {
   return dehydrate(match.loaderData)
 }
 
-export function navigateTo(input: {to: string; replace?: boolean}): {ok: true; to: string} {
+export async function navigateTo(input: {to: string; replace?: boolean}): Promise<{ok: true; to: string}> {
   const router = requireRouter()
-  router.navigate({to: input.to, replace: input.replace})
+  await router.navigate({to: input.to, replace: input.replace})
   return {ok: true, to: input.to}
 }
 
-export function invalidateRouter(): {ok: true} {
+export async function invalidateRouter(): Promise<{ok: true}> {
   const router = requireRouter()
   if (typeof router.invalidate !== 'function') throw new Error('TanStack router invalidate is not available')
-  router.invalidate()
+  await router.invalidate()
   return {ok: true}
 }
 

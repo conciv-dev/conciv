@@ -20,6 +20,7 @@
       "warn",
       {
         "allow": [
+          "__conciv",
           "__CONCIV__",
           "__CONCIV_API_BASE__",
           "__CONCIV_PAGE_DRIVER__",

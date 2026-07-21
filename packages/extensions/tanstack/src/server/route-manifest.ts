@@ -4,10 +4,10 @@ import type {ServerRouteInfo, ServerRouteKind} from '@conciv/protocol/framework-
 
 type ImportMap = Map<string, string>
 
-const IMPORT_RE = /import\s*\{\s*Route as (\w+)\s*\}\s*from\s*'([^']+)'/g
+const IMPORT_RE = /import\s*\{\s*Route as (\w+)\s*\}\s*from\s*['"]([^'"]+)['"]/g
 const UPDATE_RE = /const\s+\w+\s*=\s*(\w+)\.update\(\{([\s\S]*?)\}\s*as any\)/g
-const ID_RE = /id:\s*'([^']*)'/
-const PATH_RE = /path:\s*'([^']*)'/
+const ID_RE = /id:\s*['"]([^'"]*)['"]/
+const PATH_RE = /path:\s*['"]([^'"]*)['"]/
 
 function collectImports(source: string): ImportMap {
   const map: ImportMap = new Map()
@@ -71,7 +71,6 @@ function parseRouteManifest(source: string, baseDir: string): ServerRouteInfo[] 
 
 export async function readRouteManifest(cwd: string): Promise<ServerRouteInfo[]> {
   const genPath = join(cwd, 'src', 'routeTree.gen.ts')
-  const source = await readFile(genPath, 'utf8').catch(() => null)
-  if (source === null) return []
+  const source = await readFile(genPath, 'utf8')
   return parseRouteManifest(source, dirname(genPath))
 }
