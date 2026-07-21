@@ -5,20 +5,33 @@ import {hostPage, serveHost} from './helpers/host.js'
 import {openPanel} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
+const HOST_HEADING = 'Deployment checklist'
+const LONG_HOST_BODY = `<h1>Host site</h1>${Array.from(
+  {length: 60},
+  (_unused, index) => `<p>Host paragraph ${index} that the reader is scrolled through.</p>`,
+).join('')}<h2>${HOST_HEADING}</h2>${Array.from(
+  {length: 60},
+  (_unused, index) => `<p>Host paragraph ${index + 60} below the heading.</p>`,
+).join('')}`
 
 let browser: Browser
 let kit: EmbedKit
 let host: {base: string; close: () => Promise<void>}
+let longHost: {base: string; close: () => Promise<void>}
 
 beforeAll(async () => {
   browser = await chromium.launch()
   kit = await bootEmbedKit({text: ASSISTANT_TEXT})
   host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
+  longHost = await serveHost(() =>
+    hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: LONG_HOST_BODY}),
+  )
 }, 60_000)
 
 afterAll(async () => {
   await browser.close()
   await host.close()
+  await longHost.close()
   await kit.cleanup()
 })
 
@@ -141,6 +154,28 @@ describe('embed boots the conciv app against a real core', () => {
       .toBe(true)
     await openPanel(page)
     await expect.poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible()).toBe(true)
+    await page.close()
+  })
+
+  it('opening and closing the panel keeps the host page where the reader scrolled it', async () => {
+    const page = await browser.newPage()
+    await page.goto(longHost.base, {waitUntil: 'domcontentloaded'})
+    const heading = page.getByRole('heading', {name: HOST_HEADING})
+    const headingTop = async () => (await heading.boundingBox())?.y ?? Number.NaN
+    const unscrolled = await headingTop()
+
+    await page.mouse.wheel(0, 1200)
+    await expect.poll(headingTop, {timeout: 30_000}).toBeLessThan(unscrolled - 1000)
+    const readerPosition = await headingTop()
+
+    await openPanel(page)
+    expect(await headingTop()).toBe(readerPosition)
+
+    await page.getByRole('textbox', {name: 'Message the conciv agent'}).press('Escape')
+    await expect
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
+      .toBe(false)
+    expect(await headingTop()).toBe(readerPosition)
     await page.close()
   })
 
