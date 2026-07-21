@@ -133,6 +133,14 @@ describe('server.page.call end to end (IT, real core app + real page bus + real 
     expect(failure.code).toBe('unknown-verb')
   })
 
+  it('maps a browser-reported invalid-args code straight through to a PageVerbError', async () => {
+    const kit = await boot()
+    state.widget = await connectWidget(kit, () => ({error: {code: 'invalid-args', message: 'bad args'}}))
+    if (!state.page) throw new Error('server page caller not captured')
+    const failure = await expectPageVerbError(state.page.call('ping', {n: 1}))
+    expect(failure.code).toBe('invalid-args')
+  })
+
   it('maps an unrecognized browser error code to handler-error', async () => {
     const kit = await boot()
     state.widget = await connectWidget(kit, () => ({error: {code: 'weird-thing', message: 'boom'}}))
