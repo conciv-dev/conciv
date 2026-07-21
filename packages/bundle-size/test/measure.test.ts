@@ -2,7 +2,16 @@ import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, expect, test} from 'vitest'
-import {measureSizes, parseSizes, renderSizes} from '../src/measure.ts'
+import {
+  WORKER_LIMIT_KIB,
+  WORKER_NAME,
+  formatWorkerOverBudget,
+  measureSizes,
+  parseSizes,
+  parseWorkerSize,
+  renderSizes,
+  type WorkerReport,
+} from '../src/measure.ts'
 
 let root = ''
 
@@ -57,4 +66,34 @@ test('renderSizes diffs gzip sizes against a baseline', () => {
   expect(output).toContain('**3.0 kB gzip total** (+1.0 kB (+50.0%) vs main)')
   expect(renderSizes(current, null)).toContain('**3.0 kB gzip total**\n')
   expect(renderSizes(current, [])).toContain('| new |')
+})
+
+test('parseWorkerSize reads the raw and gzip totals from wrangler output', () => {
+  expect(parseWorkerSize('Total Upload: 10016.85 KiB / gzip: 2220.11 KiB\nNo bindings found.')).toEqual({
+    raw: Math.round(10016.85 * 1024),
+    gzip: Math.round(2220.11 * 1024),
+  })
+})
+
+test('parseWorkerSize throws when the totals are absent', () => {
+  for (const bad of ['', 'gzip: 47 KiB', 'Total Upload: 100 KiB']) {
+    expect(() => parseWorkerSize(bad), bad).toThrow(/could not read the worker size/)
+  }
+})
+
+const overBudget: WorkerReport = {
+  size: {name: WORKER_NAME, raw: 26_000_000, gzip: 5190 * 1024, files: 3},
+  chunks: [
+    {file: 'assets/dist-transformers.js', gzip: 374 * 1024},
+    {file: 'assets/mount-impl.js', gzip: 296 * 1024},
+  ],
+}
+
+test('formatWorkerOverBudget reports the overage and names the largest chunks', () => {
+  const message = formatWorkerOverBudget(overBudget, WORKER_LIMIT_KIB)
+  expect(message).toContain(WORKER_NAME)
+  expect(message).toContain('5190.0 KiB gzip')
+  expect(message).toContain(`over the ${WORKER_LIMIT_KIB} KiB budget`)
+  expect(message).toContain('assets/dist-transformers.js')
+  expect(message).toContain('trimServerBundle')
 })

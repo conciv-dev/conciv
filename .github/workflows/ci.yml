@@ -207,7 +207,8 @@ jobs:
           mode: firewall-free
           firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*'
+      # Build the site too so bundle-size can measure the Cloudflare worker and gate it below.
+      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*' --filter=site
       # Bundle size: measure published dists, diff against the baseline saved by the
       # latest main run. PRs read the baseline; pushes to main publish a fresh one.
       # Pinned to a main-push run for the same artifact-poisoning reason as the
@@ -223,6 +224,8 @@ jobs:
             curl -sL --max-filesize 10485760 -H "Authorization: Bearer ${GH_TOKEN}" -o bundle-size-baseline.zip "$url"
             unzip -p bundle-size-baseline.zip bundle-size.json > bundle-size-baseline.json || true
           fi
+      # Reports every package + the conciv.dev Cloudflare worker (Δ vs main), and fails only if the
+      # worker exceeds its 3 MiB gzip free-plan limit (over it `wrangler deploy` fails with 10027).
       - run: pnpm exec conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: github.event_name == 'push'
