@@ -75,9 +75,17 @@ test('parseWorkerSize reads the raw and gzip totals from wrangler output', () =>
   })
 })
 
-test('parseWorkerSize throws when the totals are absent', () => {
-  for (const bad of ['', 'gzip: 47 KiB', 'Total Upload: 100 KiB']) {
-    expect(() => parseWorkerSize(bad), bad).toThrow(/could not read the worker size/)
+test('parseWorkerSize throws when the totals are absent or malformed', () => {
+  const bad = [
+    '',
+    'gzip: 47 KiB',
+    'Total Upload: 100 KiB',
+    'Total Upload: . KiB / gzip: . KiB',
+    'Total Upload: 1.2.3 KiB / gzip: 4.5.6 KiB',
+    'Total Upload: KiB / gzip: KiB',
+  ]
+  for (const output of bad) {
+    expect(() => parseWorkerSize(output), output).toThrow(/could not read the worker size/)
   }
 })
 

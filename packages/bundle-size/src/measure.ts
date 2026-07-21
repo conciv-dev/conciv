@@ -1,5 +1,5 @@
 import {execFileSync} from 'node:child_process'
-import {existsSync, mkdtempSync, readFileSync, readdirSync} from 'node:fs'
+import {existsSync, mkdtempSync, readFileSync, readdirSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join, relative} from 'node:path'
 import {gzipSync} from 'node:zlib'
@@ -79,25 +79,35 @@ export function parseSizes(raw: string): PackageSize[] {
   })
 }
 
+const KIB_TOTALS = /Total Upload:\s*(\d+(?:\.\d+)?)\s*KiB\s*\/\s*gzip:\s*(\d+(?:\.\d+)?)\s*KiB/
+
 export function parseWorkerSize(wranglerOutput: string): {raw: number; gzip: number} {
-  const match = wranglerOutput.match(/Total Upload:\s*([\d.]+)\s*KiB\s*\/\s*gzip:\s*([\d.]+)\s*KiB/)
-  if (!match?.[1] || !match[2]) throw new Error('could not read the worker size from wrangler output')
-  return {raw: Math.round(Number(match[1]) * 1024), gzip: Math.round(Number(match[2]) * 1024)}
+  const match = wranglerOutput.match(KIB_TOTALS)
+  const raw = Number(match?.[1])
+  const gzip = Number(match?.[2])
+  if (!Number.isFinite(raw) || !Number.isFinite(gzip)) {
+    throw new Error('could not read the worker size from wrangler output')
+  }
+  return {raw: Math.round(raw * 1024), gzip: Math.round(gzip * 1024)}
 }
 
 export function measureWorker(root: string): WorkerReport | null {
   if (!existsSync(join(root, SITE_SERVER_DIST))) return null
   const outdir = mkdtempSync(join(tmpdir(), 'conciv-worker-size-'))
-  const output = execFileSync(
-    'pnpm',
-    ['--filter', 'site', 'exec', 'wrangler', 'deploy', '--dry-run', '--outdir', outdir],
-    {cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']},
-  )
-  const {raw, gzip} = parseWorkerSize(output)
-  const chunks = distFiles(outdir)
-    .map((file) => ({file: relative(outdir, file), gzip: gzipSync(readFileSync(file)).byteLength}))
-    .toSorted((a, b) => b.gzip - a.gzip)
-  return {size: {name: WORKER_NAME, raw, gzip, files: chunks.length}, chunks}
+  try {
+    const output = execFileSync(
+      'pnpm',
+      ['--filter', 'site', 'exec', 'wrangler', 'deploy', '--dry-run', '--outdir', outdir],
+      {cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']},
+    )
+    const {raw, gzip} = parseWorkerSize(output)
+    const chunks = distFiles(outdir)
+      .map((file) => ({file: relative(outdir, file), gzip: gzipSync(readFileSync(file)).byteLength}))
+      .toSorted((a, b) => b.gzip - a.gzip)
+    return {size: {name: WORKER_NAME, raw, gzip, files: chunks.length}, chunks}
+  } finally {
+    rmSync(outdir, {recursive: true, force: true})
+  }
 }
 
 export function formatWorkerOverBudget(report: WorkerReport, limitKib: number): string {
@@ -107,10 +117,10 @@ export function formatWorkerOverBudget(report: WorkerReport, limitKib: number): 
     .slice(0, 10)
     .map((chunk) => `  ${(chunk.gzip / 1024).toFixed(1).padStart(8)} KiB  ${chunk.file}`)
   return [
-    `${WORKER_NAME} is ${gzipKib.toFixed(1)} KiB gzip, over the ${limitKib} KiB budget by ${over} KiB — the site will not deploy on this Cloudflare plan.`,
+    `${WORKER_NAME} is ${gzipKib.toFixed(1)} KiB gzip, over the ${limitKib} KiB budget by ${over} KiB. The site will not deploy on this Cloudflare plan.`,
     'Largest worker chunks (gzip):',
     ...lines,
-    'Fix: keep client-only libraries out of the server bundle — see trimServerBundle in apps/site/vite.config.ts.',
+    'Fix: keep client-only libraries out of the server bundle. See trimServerBundle in apps/site/vite.config.ts.',
   ].join('\n')
 }
 
