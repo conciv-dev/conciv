@@ -5,8 +5,9 @@
     "noEmit": true,
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"],
-    "jsx": "react-jsx",
-    "jsxImportSource": "react"
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
+  "exclude": ["test/host/**", "dist", "node_modules"]
 }

@@ -13,6 +13,7 @@
   "type": "module",
   "exports": {
     ".": "./src/get-extension-test-api.ts",
+    "./card-harness": "./src/card-harness.tsx",
     "./core-kit": "./src/core-kit.ts",
     "./widget-suite": "./src/widget-suite.ts"
   },

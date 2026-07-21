@@ -3,10 +3,10 @@ import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
 import {afterAll, beforeAll} from 'vitest'
 import {buildConcivHost, getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
-import tanstackExtension from '../../src/index.js'
+import tanstackExtension from '../../src/server.js'
 
 const hostDir = fileURLToPath(new URL('../host', import.meta.url))
-const clientEntry = fileURLToPath(new URL('../../src/index.ts', import.meta.url))
+const clientEntry = fileURLToPath(new URL('../../dist/client.js', import.meta.url))
 
 export type TanstackTestApi = {api: ExtensionTestApi; origin: string}
 
