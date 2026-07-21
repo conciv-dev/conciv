@@ -144,6 +144,22 @@ describe('embed boots the conciv app against a real core', () => {
     await page.close()
   })
 
+  it('opening and closing the panel leaves the host page scroll position untouched', async () => {
+    const page = await openPage()
+    await page.evaluate(() => {
+      document.body.style.minHeight = '4000px'
+      window.scrollTo(0, 1200)
+    })
+    await openPanel(page)
+    expect(await page.evaluate(() => window.scrollY)).toBe(1200)
+    await page.getByRole('textbox', {name: 'Message the conciv agent'}).press('Escape')
+    await expect
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
+      .toBe(false)
+    expect(await page.evaluate(() => window.scrollY)).toBe(1200)
+    await page.close()
+  })
+
   it('sends a message and renders the assistant reply from the fake harness', async () => {
     const page = await openPage()
     await openPanel(page)
