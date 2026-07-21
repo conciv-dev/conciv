@@ -176,6 +176,7 @@ git commit -m "feat(extensions): per-environment conditional exports for termina
   - `type ExtensionEntry = {extension: unknown; source: string}`
   - `type DedupeResult = {extensions: AnyExtension[]; dropped: Array<{source: string; reason: string}>}`
   - `function dedupeExtensions(entries: readonly ExtensionEntry[]): DedupeResult`
+  - `function toSortedEntries(mods: Record<string, unknown>): ExtensionEntry[]` — filters `.d.ts` keys, sorts by key, maps to `{extension: mod.default, source: key}`. Used by BOTH client call sites (generator + nextjs-widget) so client ordering is shared + tested.
   - `function isExtension(value: unknown): value is AnyExtension` (name-based guard)
   - `EXTENSION_GLOB = '/conciv/extensions/*.{ts,tsx,js,jsx}'` (const; drift-comparison only — call sites use the literal)
   - `loadServerExtensions(root, builtins)`: `Dirent.isFile()` + `.d.ts` exclusion + provenance dedup + fatal read/transform/eval/missing-default.
@@ -210,6 +211,18 @@ test('built-ins win over folder on name collision; deterministic order; provenan
     {source: '/app/conciv/extensions/broken.tsx', reason: 'invalid-extension'},
     {source: '/app/conciv/extensions/notext.tsx', reason: 'invalid-extension'},
   ])
+})
+
+test('toSortedEntries sorts glob keys, reads default, drops .d.ts (client ordering)', async () => {
+  const {toSortedEntries} = await import('../src/dedupe-extensions.js')
+  const entries = toSortedEntries({
+    '/conciv/extensions/z.tsx': {default: {name: 'z'}},
+    '/conciv/extensions/a.tsx': {default: {name: 'a'}},
+    '/conciv/extensions/types.d.ts': {default: {name: 'skip'}},
+  })
+  expect(entries.map((e) => e.source)).toEqual(['/conciv/extensions/a.tsx', '/conciv/extensions/z.tsx'])
+  const picked = dedupeExtensions(entries)
+  expect(picked.extensions.map((e) => e.name)).toEqual(['a', 'z'])
 })
 ```
 
@@ -258,6 +271,16 @@ export function dedupeExtensions(entries: readonly ExtensionEntry[]): DedupeResu
     extensions.push(extension)
   }
   return {extensions, dropped}
+}
+
+export function toSortedEntries(mods: Record<string, unknown>): ExtensionEntry[] {
+  return Object.entries(mods)
+    .filter(([key]) => !key.endsWith('.d.ts'))
+    .sort(([first], [second]) => (first < second ? -1 : first > second ? 1 : 0))
+    .map(([source, mod]) => ({
+      extension: mod && typeof mod === 'object' && 'default' in mod ? mod.default : undefined,
+      source,
+    }))
 }
 ```
 
@@ -382,9 +405,9 @@ Read/transform/eval failures already throw from `readFileSync`/`splitExtension`/
 
 In `extensionsModuleSource`, generate provenance entries + shared dedup (LITERAL glob):
 ```ts
-    `import {dedupeExtensions} from '@conciv/extension-compiler/dedupe'`,
+    `import {dedupeExtensions, toSortedEntries} from '@conciv/extension-compiler/dedupe'`,
     `const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx,js,jsx}', {eager: true})`,
-    `const folderEntries = Object.entries(mods).filter(([k]) => !k.endsWith('.d.ts')).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([source, m]) => ({extension: m && m.default, source}))`,
+    `const folderEntries = toSortedEntries(mods)`,
     `const builtinEntries = [${builtinNames.map((n, i) => `{extension: ${n}, source: 'builtin:${i}'}`).join(', ')}]`,
     `const picked = dedupeExtensions([...builtinEntries, ...folderEntries])`,
     `for (const d of picked.dropped) console.warn('conciv extension dropped:', d.source, d.reason)`,
@@ -453,18 +476,14 @@ Requires Task 0 = GO.
 ```ts
 /// <reference lib="dom" />
 import {mountConciv} from '@conciv/embed'
-import {dedupeExtensions} from '@conciv/extension-compiler/dedupe'
+import {dedupeExtensions, toSortedEntries} from '@conciv/extension-compiler/dedupe'
 
 const port = process.env.NEXT_PUBLIC_CONCIV_PORT
 
 function startWidget(): void {
   window.__CONCIV_API_BASE__ = `http://127.0.0.1:${port}`
   const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx,js,jsx}', {eager: true})
-  const entries = Object.entries(mods)
-    .filter(([key]) => !key.endsWith('.d.ts'))
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([source, mod]) => ({extension: mod && typeof mod === 'object' && 'default' in mod ? mod.default : undefined, source}))
-  const picked = dedupeExtensions(entries)
+  const picked = dedupeExtensions(toSortedEntries(mods))
   for (const drop of picked.dropped) console.warn('conciv extension dropped:', drop.source, drop.reason)
   mountConciv(picked.extensions)
 }
@@ -598,7 +617,11 @@ Expected: PASS on Turbopack, packed install.
 
 - [ ] **Step 4: Concrete client-graph assertion (no text-grep)**
 
-After `next build`, read `.next/diagnostics/route-bundle-stats.json`, collect the `/` route's `firstLoadChunkPaths`, and inspect ONLY those chunk files (do not text-grep the whole output). Assert the client half is present and the server half + Node builtins are absent from that reachable set. Because a bare export can be tree-shaken, make the sentinels **unavoidable runtime values actually used by each entry**: in the reference extension's client entry, a value that the widget renders/executes (e.g. embedded in the mounted card's text) — `CONCIV_TANSTACK_CLIENT_SENTINEL`; in the server entry, a value only the server path uses — `CONCIV_TANSTACK_SERVER_SENTINEL`. Assert the client sentinel string appears in the reachable chunk set and neither the server sentinel nor any `node:` specifier appears there. Add the sentinels as part of Task 1 (client) / server entries so they exist before this test.
+After `next build`, read `.next/diagnostics/route-bundle-stats.json`, collect the `/` route's `firstLoadChunkPaths`, and inspect ONLY those chunk files (never text-grep the whole `.next/`). Fail with a clear schema/version message if the file or `firstLoadChunkPaths` is absent (it is an internal Turbopack diagnostic artifact).
+
+**Primary assertion (no source changes):** the packed `@conciv/extension-tanstack/dist/client.js` module path appears in the reachable-chunk module set and `dist/server.js` + any `node:` specifier do NOT. If `route-bundle-stats.json` records resolved module paths per chunk, assert on those directly.
+
+**Fallback (only if the stats do not expose resolved module paths):** promote this to its own committed step BEFORE Step 3 — add unavoidable runtime sentinels to the reference extension: in `packages/extensions/tanstack/src/client.tsx` a `CONCIV_TANSTACK_CLIENT_SENTINEL` string the mounted card actually renders, and in `packages/extensions/tanstack/src/server.ts` a `CONCIV_TANSTACK_SERVER_SENTINEL` the server path actually uses; rebuild; then assert the client sentinel appears in the reachable chunk set and the server sentinel + `node:` do not. This sentinel step is explicitly owned here (not "part of Task 1"); commit `git add packages/extensions/tanstack/src/client.tsx packages/extensions/tanstack/src/server.ts`.
 
 - [ ] **Step 5: Commit**
 
