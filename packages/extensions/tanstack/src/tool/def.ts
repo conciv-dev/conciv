@@ -35,3 +35,44 @@ export const queryCacheDef = {
     "Read the running app's TanStack Query cache: each query's key, status (fresh/stale/fetching/error), observer count, and dehydrated data. Use it to see what data the app has fetched and cached.",
   inputSchema: QueryCacheInput,
 }
+
+export const NavigateInput = z.object({to: z.string(), replace: z.boolean().optional()})
+
+export const navigateDef = {
+  name: 'tanstack_navigate',
+  description: "Navigate the running app's TanStack Router to a path. Additive/navigational.",
+  inputSchema: NavigateInput,
+}
+
+export const RouterInvalidateInput = z.object({})
+
+export const routerInvalidateDef = {
+  name: 'tanstack_invalidate',
+  description: 'Invalidate the TanStack Router (re-run active loaders).',
+  inputSchema: RouterInvalidateInput,
+}
+
+export const BackInput = z.object({})
+
+export const backDef = {
+  name: 'tanstack_back',
+  description: "Navigate the running app's TanStack Router history back one entry. Navigational.",
+  inputSchema: BackInput,
+}
+
+export const QueryInvalidateInput = z.object({key: z.string()})
+
+export const queryInvalidateDef = {
+  name: 'tanstack_query_invalidate',
+  description:
+    'Invalidate a specific TanStack Query by its serialized key (JSON of the queryKey). Unknown keys are a no-op.',
+  inputSchema: QueryInvalidateInput,
+}
+
+export const QueryRefetchInput = z.object({key: z.string()})
+
+export const queryRefetchDef = {
+  name: 'tanstack_query_refetch',
+  description: 'Refetch a specific TanStack Query by its serialized key.',
+  inputSchema: QueryRefetchInput,
+}

@@ -45,3 +45,26 @@ export function InspectionCard(props: {
     </ToolCard>
   )
 }
+
+export function ActionCard(props: {card: ToolCardProps; Icon: Component; summary: string}): JSX.Element {
+  const error = () => readError(props.card)
+  const meta = () => (error() ? '' : isRunning(props.card) ? 'running…' : props.summary)
+  return (
+    <ToolCard
+      Icon={props.Icon}
+      title={props.card.part.name}
+      meta={meta()}
+      part={props.card.part}
+      result={props.card.result}
+      status={error() ? 'error' : undefined}
+    >
+      <Show when={error()}>
+        {(message) => (
+          <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
+            {message()}
+          </div>
+        )}
+      </Show>
+    </ToolCard>
+  )
+}

@@ -7,6 +7,8 @@ export type Fiber = any
 type TanstackRouter = {
   state: {matches: unknown[]; location: unknown}
   navigate: (input: unknown) => unknown
+  invalidate?: () => unknown
+  history?: {back?: () => unknown}
   routeTree?: unknown
   routesById?: unknown
 }
@@ -204,4 +206,25 @@ export function readLoaderData(routeId?: string): unknown {
   const router = requireRouter()
   const match = pickMatch(router.state.matches, routeId)
   return dehydrate(match?.loaderData)
+}
+
+export function navigateTo(input: {to: string; replace?: boolean}): {ok: true; to: string} {
+  const router = requireRouter()
+  router.navigate({to: input.to, replace: input.replace})
+  return {ok: true, to: input.to}
+}
+
+export function invalidateRouter(): {ok: true} {
+  const router = requireRouter()
+  if (typeof router.invalidate !== 'function') throw new Error('TanStack router invalidate is not available')
+  router.invalidate()
+  return {ok: true}
+}
+
+export function goBack(): {ok: true} {
+  const router = requireRouter()
+  const history = router.history
+  if (!history || typeof history.back !== 'function') throw new Error('TanStack router history.back is not available')
+  history.back()
+  return {ok: true}
 }

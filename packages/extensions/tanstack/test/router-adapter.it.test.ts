@@ -46,6 +46,7 @@ const cacheEntrySchema = z.object({
   state: z.enum(['fresh', 'stale', 'fetching', 'error']),
   status: z.string().nullable(),
   observers: z.number().nullable(),
+  updatedAt: z.number().nullable(),
 })
 
 const queryCacheSchema = z.object({queries: z.array(cacheEntrySchema), mutations: z.array(cacheEntrySchema)})
@@ -66,6 +67,62 @@ test('tanstack_query_cache extracts the live TanStack Query cache from the runni
   expect(demo).toBeDefined()
   expect(demo?.status).toBe('success')
   expect(demo?.observers).toBe(1)
+})
+
+test('tanstack_navigate drives real TanStack Router navigation on the running app', async () => {
+  const {api} = get()
+
+  await expect
+    .poll(() => api.page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
+    .toBe(true)
+
+  await api.callTool('tanstack_navigate', {to: '/form'})
+
+  await expect
+    .poll(async () => routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.pathname, {
+      timeout: 10_000,
+    })
+    .toBe('/form')
+  await expect.poll(() => api.page.getByRole('heading', {name: 'Form page'}).isVisible()).toBe(true)
+})
+
+test('tanstack_query_invalidate no-ops on unknown keys and refetches the real key on the running app', async () => {
+  const {api} = get()
+
+  await expect
+    .poll(() => api.page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
+    .toBe(true)
+
+  await api.page.getByRole('link', {name: 'About'}).click()
+  await expect.poll(() => api.page.getByRole('heading', {name: 'About this app'}).isVisible()).toBe(true)
+  await expect.poll(() => api.page.getByText('Query fetched: yes').isVisible(), {timeout: 10_000}).toBe(true)
+
+  const demoKey = JSON.stringify(['spike', 'demo'])
+  const readDemo = async () => {
+    const cache = queryCacheSchema.parse(await api.callTool('tanstack_query_cache', {}))
+    return cache.queries.find((entry) => entry.key === demoKey)
+  }
+
+  const before = await readDemo()
+  expect(before?.status).toBe('success')
+  expect(before?.updatedAt).not.toBeNull()
+
+  await api.callTool('tanstack_query_invalidate', {key: JSON.stringify(['nope', 'nope'])})
+  const afterUnknown = await readDemo()
+  expect(afterUnknown?.updatedAt).toBe(before?.updatedAt)
+  expect(afterUnknown?.state).toBe(before?.state)
+
+  await api.callTool('tanstack_query_invalidate', {key: demoKey})
+  await expect
+    .poll(
+      async () => {
+        const after = await readDemo()
+        if (!after || after.updatedAt === null || before?.updatedAt == null) return false
+        return after.updatedAt > before.updatedAt
+      },
+      {timeout: 10_000},
+    )
+    .toBe(true)
 })
 
 const truncationMarkerSchema = z.object({__conciv: z.literal('object'), preview: z.literal('{…}')}).loose()
