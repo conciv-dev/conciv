@@ -20,7 +20,9 @@ const CLIENT_ONLY_MODULE = [
 
 function isClientOnlyChunk(output: Rollup.OutputAsset | Rollup.OutputChunk): boolean {
   if (output.type !== 'chunk') return false
-  return Object.keys(output.modules).some((id) => CLIENT_ONLY_MODULE.some((re) => re.test(id)))
+  return Object.keys(output.modules).some((moduleId) =>
+    CLIENT_ONLY_MODULE.some((clientOnlyPattern) => clientOnlyPattern.test(moduleId)),
+  )
 }
 
 function isServerDroppable(fileName: string, output: Rollup.OutputAsset | Rollup.OutputChunk): boolean {

@@ -18,7 +18,6 @@ function argValue(flag: string): string | null {
 const outputPath = argValue('--output')
 const baselinePath = argValue('--baseline')
 const worker = measureWorker(process.cwd())
-if (!worker) throw new Error('site worker output is missing; build the site before measuring bundle sizes')
 const sizes = [worker.size, ...measureSizes(process.cwd())]
 if (outputPath !== null) writeFileSync(outputPath, `${JSON.stringify(sizes, null, 2)}\n`)
 const baseline =

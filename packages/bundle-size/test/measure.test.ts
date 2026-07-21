@@ -7,9 +7,11 @@ import {
   WORKER_NAME,
   formatWorkerOverBudget,
   measureSizes,
+  measureWorker,
   parseSizes,
   parseWorkerSize,
   renderSizes,
+  workerIsBuilt,
   type WorkerReport,
 } from '../src/measure.ts'
 
@@ -76,7 +78,7 @@ test('parseWorkerSize reads the raw and gzip totals from wrangler output', () =>
 })
 
 test('parseWorkerSize throws when the totals are absent or malformed', () => {
-  const bad = [
+  const malformedWranglerOutputs = [
     '',
     'gzip: 47 KiB',
     'Total Upload: 100 KiB',
@@ -84,7 +86,7 @@ test('parseWorkerSize throws when the totals are absent or malformed', () => {
     'Total Upload: 1.2.3 KiB / gzip: 4.5.6 KiB',
     'Total Upload: KiB / gzip: KiB',
   ]
-  for (const output of bad) {
+  for (const output of malformedWranglerOutputs) {
     expect(() => parseWorkerSize(output), output).toThrow(/could not read the worker size/)
   }
 })
@@ -96,6 +98,13 @@ const overBudget: WorkerReport = {
     {file: 'assets/mount-impl.js', gzip: 296 * 1024},
   ],
 }
+
+test('measureWorker refuses to silently skip when the site is not built', async () => {
+  const unbuilt = await mkdtemp(join(tmpdir(), 'conciv-unbuilt-'))
+  expect(workerIsBuilt(unbuilt)).toBe(false)
+  expect(() => measureWorker(unbuilt)).toThrow(/dist\/server is missing/)
+  await rm(unbuilt, {recursive: true, force: true})
+})
 
 test('formatWorkerOverBudget reports the overage and names the largest chunks', () => {
   const message = formatWorkerOverBudget(overBudget, WORKER_LIMIT_KIB)

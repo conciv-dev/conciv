@@ -91,22 +91,30 @@ export function parseWorkerSize(wranglerOutput: string): {raw: number; gzip: num
   return {raw: Math.round(raw * 1024), gzip: Math.round(gzip * 1024)}
 }
 
-export function measureWorker(root: string): WorkerReport | null {
-  if (!existsSync(join(root, SITE_SERVER_DIST))) return null
-  const outdir = mkdtempSync(join(tmpdir(), 'conciv-worker-size-'))
+export function workerIsBuilt(root: string): boolean {
+  return existsSync(join(root, SITE_SERVER_DIST))
+}
+
+export function measureWorker(root: string): WorkerReport {
+  if (!workerIsBuilt(root)) {
+    throw new Error(
+      `${SITE_SERVER_DIST} is missing, so the worker size cannot be measured. Build it first: pnpm exec turbo run build --filter=site`,
+    )
+  }
+  const outputDirectory = mkdtempSync(join(tmpdir(), 'conciv-worker-size-'))
   try {
     const output = execFileSync(
       'pnpm',
-      ['--filter', 'site', 'exec', 'wrangler', 'deploy', '--dry-run', '--outdir', outdir],
+      ['--filter', 'site', 'exec', 'wrangler', 'deploy', '--dry-run', '--outdir', outputDirectory],
       {cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']},
     )
     const {raw, gzip} = parseWorkerSize(output)
-    const chunks = distFiles(outdir)
-      .map((file) => ({file: relative(outdir, file), gzip: gzipSync(readFileSync(file)).byteLength}))
+    const chunks = distFiles(outputDirectory)
+      .map((file) => ({file: relative(outputDirectory, file), gzip: gzipSync(readFileSync(file)).byteLength}))
       .toSorted((a, b) => b.gzip - a.gzip)
     return {size: {name: WORKER_NAME, raw, gzip, files: chunks.length}, chunks}
   } finally {
-    rmSync(outdir, {recursive: true, force: true})
+    rmSync(outputDirectory, {recursive: true, force: true})
   }
 }
 
