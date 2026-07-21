@@ -12,7 +12,7 @@ repos:
         language: system
         pass_filenames: true
         files: '\.(m?[jt]sx?|c[jt]s|jsonc?|md)$'
-        exclude: '^(.*/)?(dist|build|\.turbo)/'
+        exclude: '^(.*/)?(dist|build|\.turbo)/|^packages/plugin/test/fixtures/'
       - id: oxlint
         name: oxlint (lint staged files)
         entry: bash -c 'pnpm exec oxlint --fix "$@" && git add -- "$@"' --

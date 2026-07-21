@@ -266,6 +266,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         sessions: serverSessions,
         harness: serverHarness,
         page: scopedPageCaller(extension.name, callPageVerb),
+        bundler: opts.bridge,
       })
       return assembleMounted(extension, result)
     } catch (error) {

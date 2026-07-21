@@ -141,6 +141,7 @@
     ".turbo",
     "**/*.gen.ts",
     "**/test-results",
+    "packages/plugin/test/fixtures/**",
     "e2e/*/src",
     "e2e/*/app"
   ]

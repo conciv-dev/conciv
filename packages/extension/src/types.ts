@@ -2,6 +2,7 @@ import type {Component, JSX} from 'solid-js'
 import type {z} from 'zod'
 import type {ContentPart} from '@tanstack/ai'
 import type {AnyRouter} from '@orpc/server'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
@@ -79,6 +80,7 @@ export type ServerApi<Config, Verbs extends PageVerbMap = Record<never, never>> 
   sessions: ServerSessions
   harness: ServerHarness
   page: PageCaller<Verbs>
+  bundler?: BundlerBridge
 }
 
 export type ServerResult<Context> = {

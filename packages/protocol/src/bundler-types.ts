@@ -16,6 +16,16 @@ export const ModuleNodeSchema = z.object({
 })
 export type ModuleNode = z.infer<typeof ModuleNodeSchema>
 
+export type BundlerDiagnostic =
+  | {
+      kind: 'build-error'
+      message: string
+      file: string | null
+      loc: {line: number; column: number} | null
+      timestamp: number
+    }
+  | {kind: 'hmr-update'; file: string; timestamp: number}
+
 export type BundlerBridge = {
   id: string
   config(): BundlerConfig
@@ -25,6 +35,7 @@ export type BundlerBridge = {
   urls(): {local: string[]; network: string[]}
   reload(file: string): Promise<void>
   restart(force?: boolean): Promise<void>
+  subscribe?(listener: (diagnostic: BundlerDiagnostic) => void): () => void
 }
 
 export function defineBundlerBridge<T extends BundlerBridge>(bridge: T): T {

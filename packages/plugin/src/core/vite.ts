@@ -1,7 +1,7 @@
 import {dirname, join} from 'node:path'
 import {readdirSync} from 'node:fs'
-import type {Plugin, ViteDevServer} from 'vite'
-import {defineBundlerBridge, type BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {ErrorPayload, Plugin, ViteDevServer} from 'vite'
+import {defineBundlerBridge, type BundlerBridge, type BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
@@ -21,7 +21,42 @@ import {
   transformConcivModule,
 } from '@conciv/extension-compiler/vite-plumbing'
 
-function makeViteBridge(server: ViteLike): BundlerBridge {
+function isErrorPayload(value: unknown): value is ErrorPayload {
+  return typeof value === 'object' && value !== null && 'type' in value && value.type === 'error' && 'err' in value
+}
+
+function makeDiagnosticSubscribe(server: ViteLike): (listener: (diagnostic: BundlerDiagnostic) => void) => () => void {
+  const listeners = new Set<(diagnostic: BundlerDiagnostic) => void>()
+  const emit = (diagnostic: BundlerDiagnostic): void => {
+    for (const listener of listeners) listener(diagnostic)
+  }
+  const clientHot = server.environments.client.hot
+  const forward = clientHot.send
+  clientHot.send = (...args: unknown[]): void => {
+    const [first] = args
+    if (isErrorPayload(first)) {
+      const err = first.err
+      const loc = err.loc
+      emit({
+        kind: 'build-error',
+        message: err.message,
+        file: typeof err.id === 'string' ? err.id : (loc?.file ?? null),
+        loc: loc ? {line: loc.line, column: loc.column} : null,
+        timestamp: Date.now(),
+      })
+    }
+    Reflect.apply(forward, clientHot, args)
+  }
+  server.watcher.on('change', (file) => emit({kind: 'hmr-update', file, timestamp: Date.now()}))
+  return (listener) => {
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
+  }
+}
+
+export function makeViteBridge(server: ViteLike): BundlerBridge {
   return defineBundlerBridge({
     id: 'vite',
     config: () => viteConfig(server),
@@ -36,6 +71,7 @@ function makeViteBridge(server: ViteLike): BundlerBridge {
     restart: async (force) => {
       await server.restart?.(force)
     },
+    subscribe: makeDiagnosticSubscribe(server),
   })
 }
 
