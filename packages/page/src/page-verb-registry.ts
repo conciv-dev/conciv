@@ -40,9 +40,21 @@ export async function dispatchExtVerb(
   const parsed = def.args.safeParse(raw)
   if (!parsed.success) return {error: {code: 'invalid-args', message: parsed.error.message}}
   try {
-    return {result: (await def.handler(parsed.data)) ?? null}
+    const result = (await def.handler(parsed.data)) ?? null
+    if (!isJsonSerializable(result)) {
+      return {error: {code: 'handler-error', message: `${extension}.${verb} returned a non-serializable result`}}
+    }
+    return {result}
   } catch (error) {
     return {error: {code: 'handler-error', message: error instanceof Error ? error.message : String(error)}}
+  }
+}
+
+function isJsonSerializable(value: unknown): boolean {
+  try {
+    return typeof JSON.stringify(value) === 'string'
+  } catch {
+    return false
   }
 }
 

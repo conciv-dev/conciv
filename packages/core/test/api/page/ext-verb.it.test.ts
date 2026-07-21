@@ -1,7 +1,14 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {tmpdir} from 'node:os'
 import {z} from 'zod'
-import {defineExtension, definePageVerbs, isPageVerbError, pageVerb, type PageCaller} from '@conciv/extension'
+import {
+  defineExtension,
+  definePageVerbs,
+  isPageVerbError,
+  pageVerb,
+  type PageCaller,
+  type PageVerbError,
+} from '@conciv/extension'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 
@@ -25,6 +32,16 @@ function seenQuery(query: unknown): SeenQuery | null {
   return parsed.success ? parsed.data : null
 }
 
+async function expectPageVerbError(call: Promise<unknown>): Promise<PageVerbError> {
+  const failure = await call.then(
+    () => null,
+    (error: unknown) => error,
+  )
+  expect(isPageVerbError(failure)).toBe(true)
+  if (!isPageVerbError(failure)) throw new Error('expected a PageVerbError')
+  return failure
+}
+
 async function connectWidget(kit: Kit, replyFor: ReplyFor): Promise<{seen: SeenQuery[]; end: () => void}> {
   const ctrl = new AbortController()
   const seen: SeenQuery[] = []
@@ -41,6 +58,20 @@ async function connectWidget(kit: Kit, replyFor: ReplyFor): Promise<{seen: SeenQ
   }
   void pump()
   return {seen, end: () => ctrl.abort()}
+}
+
+async function connectSilentWidget(kit: Kit): Promise<{end: () => void}> {
+  const ctrl = new AbortController()
+  const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
+  async function pump(): Promise<void> {
+    try {
+      for await (const frame of iterator) {
+        void frame
+      }
+    } catch {}
+  }
+  void pump()
+  return {end: () => ctrl.abort()}
 }
 
 describe('server.page.call end to end (IT, real core app + real page bus + real wire)', () => {
@@ -88,12 +119,7 @@ describe('server.page.call end to end (IT, real core app + real page bus + real 
   it('rejects with a PageVerbError code no-widget when nothing is connected', async () => {
     await boot()
     if (!state.page) throw new Error('server page caller not captured')
-    const failure = await state.page.call('ping', {n: 1}).then(
-      () => null,
-      (error: unknown) => error,
-    )
-    expect(isPageVerbError(failure)).toBe(true)
-    if (!isPageVerbError(failure)) throw new Error('expected a PageVerbError')
+    const failure = await expectPageVerbError(state.page.call('ping', {n: 1}))
     expect(failure.code).toBe('no-widget')
     expect(failure.extension).toBe('pinger')
     expect(failure.verb).toBe('ping')
@@ -103,12 +129,7 @@ describe('server.page.call end to end (IT, real core app + real page bus + real 
     const kit = await boot()
     state.widget = await connectWidget(kit, () => ({error: {code: 'unknown-verb', message: 'nope'}}))
     if (!state.page) throw new Error('server page caller not captured')
-    const failure = await state.page.call('ping', {n: 1}).then(
-      () => null,
-      (error: unknown) => error,
-    )
-    expect(isPageVerbError(failure)).toBe(true)
-    if (!isPageVerbError(failure)) throw new Error('expected a PageVerbError')
+    const failure = await expectPageVerbError(state.page.call('ping', {n: 1}))
     expect(failure.code).toBe('unknown-verb')
   })
 
@@ -116,12 +137,15 @@ describe('server.page.call end to end (IT, real core app + real page bus + real 
     const kit = await boot()
     state.widget = await connectWidget(kit, () => ({error: {code: 'weird-thing', message: 'boom'}}))
     if (!state.page) throw new Error('server page caller not captured')
-    const failure = await state.page.call('ping', {n: 1}).then(
-      () => null,
-      (error: unknown) => error,
-    )
-    expect(isPageVerbError(failure)).toBe(true)
-    if (!isPageVerbError(failure)) throw new Error('expected a PageVerbError')
+    const failure = await expectPageVerbError(state.page.call('ping', {n: 1}))
     expect(failure.code).toBe('handler-error')
   })
+
+  it('maps a connected-but-never-replying widget to a timeout PageVerbError (real bus timeout)', async () => {
+    const kit = await boot()
+    state.widget = await connectSilentWidget(kit)
+    if (!state.page) throw new Error('server page caller not captured')
+    const failure = await expectPageVerbError(state.page.call('ping', {n: 1}))
+    expect(failure.code).toBe('timeout')
+  }, 12_000)
 })

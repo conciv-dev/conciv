@@ -14,4 +14,28 @@ describe('ext verb dispatch', () => {
     expect(await dispatchExtVerb('demo', 'nope', '{}')).toMatchObject({error: {code: 'unknown-verb'}})
     expect(await dispatchExtVerb('demo', 'ping', '{"n":"x"}')).toMatchObject({error: {code: 'invalid-args'}})
   })
+  it('reports a throwing handler as handler-error', async () => {
+    registerExtensionPageVerbs('demo', {
+      boom: pageVerb(z.object({}), () => {
+        throw new Error('kaboom')
+      }),
+    })
+    expect(await dispatchExtVerb('demo', 'boom', '{}')).toMatchObject({
+      error: {code: 'handler-error', message: 'kaboom'},
+    })
+  })
+  it('falls back to empty args when argsJson is malformed and the schema allows it', async () => {
+    registerExtensionPageVerbs('demo', {ping: pageVerb(z.object({}).partial(), () => ({ok: true}))})
+    expect(await dispatchExtVerb('demo', 'ping', 'not json')).toEqual({result: {ok: true}})
+  })
+  it('reports a non-JSON-serializable handler result as handler-error', async () => {
+    registerExtensionPageVerbs('demo', {
+      circular: pageVerb(z.object({}), () => {
+        const node: Record<string, unknown> = {}
+        node.self = node
+        return node
+      }),
+    })
+    expect(await dispatchExtVerb('demo', 'circular', '{}')).toMatchObject({error: {code: 'handler-error'}})
+  })
 })
