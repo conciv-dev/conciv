@@ -546,29 +546,41 @@ Add `@conciv/extension-tanstack: workspace:*` to `e2e/tanstack-start/package.jso
 
 - [ ] **Step 2: Server half — non-vacuous, via the real engine `callTool`**
 
-`getExtensionTestApi(extension)` takes an extension object DIRECTLY — it does not run `loadServerExtensions`, so passing the tanstack extension straight in would prove registration but NOT folder discovery (codex). Thread discovery through the real loader: build a fixture root whose `conciv/extensions/tanstack.tsx` is the re-export, run the REAL `loadServerExtensions(fixtureRoot, [])`, and feed the DISCOVERED extension into the testkit. Add `packages/extensions/tanstack/test/folder-install.it.test.ts`:
+Thread discovery through the REAL loader, then boot the REAL engine with the DISCOVERED extensions and call a SERVER-side tool — mirroring the existing `packages/extensions/tanstack/test/server-tools.it.test.ts` `bootEngine` pattern (`start` from `@conciv/core/start`, `resolveSession` + `makeCallTool` from `@conciv/harness-testkit`). Copy the repo's `route-manifest-app` fixture and add the re-export so `tanstack_route_manifest` (a server-side tool, no browser needed) is callable. Add `packages/extensions/tanstack/test/folder-install.it.test.ts`:
 ```ts
 import {test, expect} from 'vitest'
-import {mkdtempSync, mkdirSync, writeFileSync} from 'node:fs'
+import {cpSync, mkdirSync, writeFileSync} from 'node:fs'
+import {mkdtemp, realpath} from 'node:fs/promises'
 import {join} from 'node:path'
 import {tmpdir} from 'node:os'
+import {fileURLToPath} from 'node:url'
+import {start} from '@conciv/core/start'
+import {makeCallTool, resolveSession} from '@conciv/harness-testkit'
 import {loadServerExtensions} from '@conciv/extension-compiler/extensions'
-import {getExtensionTestApi} from '@conciv/extension-testkit'
 
-test('a folder re-export is discovered, resolves to server.js, and its server tool runs', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'conciv-fi-'))
+test('a dropped re-export is discovered by loadServerExtensions and its server tool runs on the real engine', async () => {
+  const root = await realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-fi-')))
+  cpSync(fileURLToPath(new URL('./fixtures/route-manifest-app', import.meta.url)), root, {recursive: true})
   mkdirSync(join(root, 'conciv/extensions'), {recursive: true})
   writeFileSync(join(root, 'conciv/extensions/tanstack.tsx'), "export {default} from '@conciv/extension-tanstack'\n")
-  const discovered = await loadServerExtensions(root, [])
-  const tanstack = discovered.find((e) => e.name === 'tanstack')
-  expect(tanstack).toBeDefined()
-  const api = await getExtensionTestApi(tanstack)
-  const result = await api.callTool('tanstack_router_state', {})
-  expect(result).toBeDefined()
-  await api.close()
+
+  const extensions = await loadServerExtensions(root, [])
+  expect(extensions.map((extension) => extension.name)).toContain('tanstack')
+
+  const engine = await start({
+    options: {stateRoot: root, systemPrompt: false},
+    root,
+    launchEditor: () => {},
+    extensions,
+  })
+  const apiBase = `http://127.0.0.1:${engine.port}`
+  const callTool = makeCallTool(apiBase, await resolveSession(apiBase))
+  const routes = await callTool('tanstack_route_manifest', {})
+  expect(Array.isArray(routes)).toBe(true)
+  await engine.stop()
 })
 ```
-(Confirm `getExtensionTestApi`'s exact host/close signature against the existing tanstack server tests before writing; the shape above mirrors them.) Requires `@conciv/extension-tanstack` built (Task 1). Then the CLIENT half is a SEPARATE DOM assertion (Step 1).
+The `loadServerExtensions` assertion proves folder discovery + node-condition→`server.js`; booting the engine with the DISCOVERED extensions + a real `callTool` proves registration + execution — non-vacuous. The CLIENT half is the SEPARATE Playwright DOM assertion (Step 1). Requires `@conciv/extension-tanstack` + `@conciv/extension-compiler` built.
 ```bash
 pnpm turbo run build --filter=@conciv/extension-tanstack --filter=@conciv/extension-compiler
 pnpm --filter @conciv/extension-tanstack exec vitest run test/folder-install.it.test.ts
