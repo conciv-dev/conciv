@@ -26,6 +26,10 @@ export type RouteMatch = {
   isFetching: boolean
 }
 
+export type RouterLocation = {pathname: string; search: string; hash: string}
+
+export type RouterCurrent = {location: RouterLocation; matches: RouteMatch[]}
+
 export type RouteNodeKind = 'static' | 'dynamic' | 'catch-all' | 'layout' | 'index' | 'group'
 
 export type RouteNode = {
@@ -147,63 +151,65 @@ export type LogEntry = {
 export type Unsubscribe = () => void
 
 export type FrameworkClientCore = {
-  detect(): FrameworkInfo | null
+  detect(): Promise<FrameworkInfo | null>
   routes: {
-    current(): RouteMatch[]
-    tree(): RouteNode
+    current(): Promise<RouterCurrent>
+    tree(): Promise<RouteNode>
   }
   navigation: {
     navigate(input: NavigateInput): Promise<void>
-    back(): void
+    back(): Promise<void>
     refresh(): Promise<void>
   }
   data: {
-    entries(): CacheEntry[]
-    get(key: string): unknown
+    entries(): Promise<CacheEntry[]>
+    get(key: string): Promise<unknown>
     invalidate(key: string): Promise<void>
     refetch(key: string): Promise<void>
   }
   errors: {
-    snapshot(): AppError[]
-    subscribe(handler: (error: AppError) => void): Unsubscribe
+    snapshot(): Promise<AppError[]>
   }
 }
 
 export type FrameworkServerCore = {
   manifest: {
-    routes(): ServerRouteInfo[]
+    routes(): Promise<ServerRouteInfo[]>
+  }
+  errors: {
+    snapshot(): Promise<AppError[]>
   }
   events: {
     subscribe(handler: (event: FrameworkEvent) => void): Unsubscribe
   }
   logs: {
-    tail(count: number): LogEntry[]
+    tail(count: number): Promise<LogEntry[]>
   }
 }
 
 export type QueryCacheSurface = {
-  queries(): CacheEntry[]
-  mutations(): CacheEntry[]
+  queries(): Promise<CacheEntry[]>
+  mutations(): Promise<CacheEntry[]>
   invalidate(key: string): Promise<void>
   refetch(key: string): Promise<void>
 }
 
 export type PayloadSurface = {
-  snapshot(): HydrationSnapshot
+  snapshot(): Promise<HydrationSnapshot>
 }
 
 export type ServerFunctionsSurface = {
-  list(): ServerFnInfo[]
-  traces(count: number): ServerFnTrace[]
+  list(): Promise<ServerFnInfo[]>
+  traces(count: number): Promise<ServerFnTrace[]>
 }
 
 export type IsrSurface = {
-  entries(): IsrEntry[]
+  entries(): Promise<IsrEntry[]>
   revalidate(input: RevalidateInput): Promise<void>
 }
 
 export type MiddlewareSurface = {
-  list(): MiddlewareInfo[]
+  list(): Promise<MiddlewareInfo[]>
 }
 
 export type FrameworkCapabilities = {

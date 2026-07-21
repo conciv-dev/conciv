@@ -1,7 +1,5 @@
 import {defineTool} from '@conciv/extension'
-import type {PageCaller} from '@conciv/extension'
-import type {AppError, ServerFnInfo, ServerFnTrace, ServerRouteInfo} from '@conciv/protocol/framework-types'
-import type {tanstackVerbs} from '../client/verbs.js'
+import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
 import {
   BackInput,
   BuildErrorsInput,
@@ -29,62 +27,81 @@ import {
   serverFnTraceDef,
 } from './def.js'
 
-type ToolCtx = {page: PageCaller<typeof tanstackVerbs>}
+type ToolCtx = {adapter: FrameworkAdapter}
 
-type ServerReadCtx = {
-  buildErrors: () => AppError[]
-  routeManifest: () => Promise<ServerRouteInfo[]>
-}
-
-type ServerFnTraceCtx = {
-  serverFnTraces: (count?: number) => ServerFnTrace[]
-  serverFns: () => ServerFnInfo[]
-}
-
-export const routerStateServer = defineTool<typeof RouterStateInput, ToolCtx>(routerStateDef).server(
-  async (_input, ctx) => ctx.page.call('routerState', {}),
+export const routerStateServer = defineTool<typeof RouterStateInput, ToolCtx>(routerStateDef).server((_input, ctx) =>
+  ctx.adapter.client.routes.current(),
 )
 
-export const routeTreeServer = defineTool<typeof RouteTreeInput, ToolCtx>(routeTreeDef).server(async (_input, ctx) =>
-  ctx.page.call('routeTree', {}),
+export const routeTreeServer = defineTool<typeof RouteTreeInput, ToolCtx>(routeTreeDef).server((_input, ctx) =>
+  ctx.adapter.client.routes.tree(),
 )
 
-export const loaderDataServer = defineTool<typeof LoaderDataInput, ToolCtx>(loaderDataDef).server(async (input, ctx) =>
-  ctx.page.call('loaderData', {routeId: input.routeId}),
+export const loaderDataServer = defineTool<typeof LoaderDataInput, ToolCtx>(loaderDataDef).server(
+  async (input, ctx) => {
+    if (input.routeId !== undefined) return ctx.adapter.client.data.get(input.routeId)
+    const {matches} = await ctx.adapter.client.routes.current()
+    const leaf = matches.at(-1)
+    if (!leaf) return null
+    return ctx.adapter.client.data.get(leaf.routeId)
+  },
 )
 
-export const queryCacheServer = defineTool<typeof QueryCacheInput, ToolCtx>(queryCacheDef).server(async (_input, ctx) =>
-  ctx.page.call('queryCache', {}),
+export const queryCacheServer = defineTool<typeof QueryCacheInput, ToolCtx>(queryCacheDef).server(
+  async (_input, ctx) => {
+    const queryCache = ctx.adapter.queryCache
+    if (!queryCache) return {queries: [], mutations: []}
+    const [queries, mutations] = await Promise.all([queryCache.queries(), queryCache.mutations()])
+    return {queries, mutations}
+  },
 )
 
-export const navigateServer = defineTool<typeof NavigateInput, ToolCtx>(navigateDef).server(async (input, ctx) =>
-  ctx.page.call('navigate', {to: input.to, replace: input.replace}),
-)
+export const navigateServer = defineTool<typeof NavigateInput, ToolCtx>(navigateDef).server(async (input, ctx) => {
+  await ctx.adapter.client.navigation.navigate({to: input.to, replace: input.replace})
+  return {ok: true, to: input.to}
+})
 
 export const routerInvalidateServer = defineTool<typeof RouterInvalidateInput, ToolCtx>(routerInvalidateDef).server(
-  async (_input, ctx) => ctx.page.call('routerInvalidate', {}),
+  async (_input, ctx) => {
+    await ctx.adapter.client.navigation.refresh()
+    return {ok: true}
+  },
 )
 
-export const backServer = defineTool<typeof BackInput, ToolCtx>(backDef).server(async (_input, ctx) =>
-  ctx.page.call('back', {}),
-)
+export const backServer = defineTool<typeof BackInput, ToolCtx>(backDef).server(async (_input, ctx) => {
+  await ctx.adapter.client.navigation.back()
+  return {ok: true}
+})
 
 export const queryInvalidateServer = defineTool<typeof QueryInvalidateInput, ToolCtx>(queryInvalidateDef).server(
-  async (input, ctx) => ctx.page.call('queryInvalidate', {key: input.key}),
+  async (input, ctx) => {
+    await ctx.adapter.queryCache?.invalidate(input.key)
+    return {ok: true}
+  },
 )
 
 export const queryRefetchServer = defineTool<typeof QueryRefetchInput, ToolCtx>(queryRefetchDef).server(
-  async (input, ctx) => ctx.page.call('queryRefetch', {key: input.key}),
+  async (input, ctx) => {
+    await ctx.adapter.queryCache?.refetch(input.key)
+    return {ok: true}
+  },
 )
 
-export const buildErrorsServer = defineTool<typeof BuildErrorsInput, ServerReadCtx>(buildErrorsDef).server(
-  async (_input, ctx) => ctx.buildErrors(),
+export const buildErrorsServer = defineTool<typeof BuildErrorsInput, ToolCtx>(buildErrorsDef).server((_input, ctx) =>
+  ctx.adapter.server.errors.snapshot(),
 )
 
-export const routeManifestServer = defineTool<typeof RouteManifestInput, ServerReadCtx>(routeManifestDef).server(
-  async (_input, ctx) => ctx.routeManifest(),
+export const routeManifestServer = defineTool<typeof RouteManifestInput, ToolCtx>(routeManifestDef).server(
+  (_input, ctx) => ctx.adapter.server.manifest.routes(),
 )
 
-export const serverFnTraceServer = defineTool<typeof ServerFnTraceInput, ServerFnTraceCtx>(serverFnTraceDef).server(
-  async (input, ctx) => ({traces: ctx.serverFnTraces(input.count), functions: ctx.serverFns()}),
+export const serverFnTraceServer = defineTool<typeof ServerFnTraceInput, ToolCtx>(serverFnTraceDef).server(
+  async (input, ctx) => {
+    if (!ctx.adapter.serverFunctions) return {traces: [], functions: []}
+    const [traces, functions] = await Promise.all([
+      ctx.adapter.serverFunctions.traces(input.count ?? 0),
+      ctx.adapter.serverFunctions.list(),
+    ])
+    return {traces, functions}
+  },
 )

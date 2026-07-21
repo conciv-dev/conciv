@@ -18,6 +18,7 @@ function RootLayout() {
         <Link to="/">Home</Link>
         <Link to="/about">About</Link>
         <Link to="/form">Form</Link>
+        <Link to="/boom">Boom</Link>
       </nav>
       <main>
         <Outlet />
@@ -87,7 +88,27 @@ function FormPage() {
   )
 }
 
-const routeTree = rootRoute.addChildren([indexRoute, aboutRoute, formRoute])
+const boomRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/boom',
+  component: BoomPage,
+})
+
+function BoomPage() {
+  const trigger = () => {
+    throw new Error('boom-from-event-handler')
+  }
+  return (
+    <section>
+      <h1>Boom page</h1>
+      <button type="button" onClick={trigger}>
+        Trigger runtime error
+      </button>
+    </section>
+  )
+}
+
+const routeTree = rootRoute.addChildren([indexRoute, aboutRoute, formRoute, boomRoute])
 
 const router = createRouter({routeTree})
 

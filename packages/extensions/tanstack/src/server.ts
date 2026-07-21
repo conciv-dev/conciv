@@ -2,6 +2,7 @@ import {defineExtension} from '@conciv/extension'
 import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
 import {makeServerFnTraceRing} from './server/serverfn-trace.js'
 import {readRouteManifest} from './server/route-manifest.js'
+import {makeTanstackAdapter} from './server/adapter.js'
 import {
   backServer,
   buildErrorsServer,
@@ -40,14 +41,16 @@ export const tanstack = defineExtension({
     if (diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(diagnostic))
     serverFnRing.observe(diagnostic)
   })
+  const adapter = makeTanstackAdapter({
+    page: server.page,
+    buildErrors: () => ring.list(),
+    routeManifest: () => readRouteManifest(server.cwd),
+    serverFnTraces: (count) => serverFnRing.traces(count),
+    serverFns: () => serverFnRing.functions(),
+    bundlerSubscribe: (listener) => server.bundler?.subscribe?.(listener) ?? (() => {}),
+  })
   return {
-    context: {
-      page: server.page,
-      buildErrors: () => ring.list(),
-      routeManifest: () => readRouteManifest(server.cwd),
-      serverFnTraces: (count?: number) => serverFnRing.traces(count),
-      serverFns: () => serverFnRing.functions(),
-    },
+    context: {adapter},
     dispose: () => unsubscribe?.(),
   }
 })

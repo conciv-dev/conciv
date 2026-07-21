@@ -1,21 +1,29 @@
 import {dehydrate, rootFibers} from '@conciv/page'
-import type {RouteMatch, RouteNode, RouteNodeKind, RouteStatus} from '@conciv/protocol/framework-types'
+import type {
+  CacheEntry,
+  CacheEntryState,
+  FrameworkInfo,
+  RouteMatch,
+  RouteNode,
+  RouteNodeKind,
+  RouterCurrent,
+  RouterLocation,
+  RouteStatus,
+} from '@conciv/protocol/framework-types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
 export type Fiber = any
 
+type InvalidateOptions = {filter?: (match: unknown) => boolean}
+
 type TanstackRouter = {
   state: {matches: unknown[]; location: unknown}
   navigate: (input: unknown) => unknown
-  invalidate?: () => unknown
+  invalidate?: (options?: InvalidateOptions) => unknown
   history?: {back?: () => unknown}
   routeTree?: unknown
   routesById?: unknown
 }
-
-export type RouterLocation = {pathname: string; search: string; hash: string}
-
-export type RouterStateResult = {location: RouterLocation; matches: RouteMatch[]}
 
 const MAX_FIBER_NODES = 50_000
 const MAX_TREE_DEPTH = 20
@@ -134,9 +142,39 @@ function locationOf(router: TanstackRouter): RouterLocation {
   }
 }
 
-export function readRouterState(): RouterStateResult {
+export function readRouterState(): RouterCurrent {
   const router = requireRouter()
   return {location: locationOf(router), matches: router.state.matches.map(mapMatch)}
+}
+
+export function readDetect(): FrameworkInfo {
+  requireRouter()
+  return {name: 'tanstack-start', version: null, router: 'file-based', dev: true}
+}
+
+function matchCacheState(match: Record<string, unknown>): CacheEntryState {
+  if (match.isFetching === true) return 'fetching'
+  if (match.status === 'error') return 'error'
+  return 'fresh'
+}
+
+function matchToCacheEntry(match: unknown): CacheEntry {
+  if (!isObject(match))
+    return {key: '', state: 'fresh', status: null, value: null, updatedAt: null, error: null, observers: null}
+  return {
+    key: stringValue(match.routeId),
+    state: matchCacheState(match),
+    status: typeof match.status === 'string' ? match.status : null,
+    value: dehydrate(match.loaderData),
+    updatedAt: typeof match.updatedAt === 'number' ? match.updatedAt : null,
+    error: errorMessage(match.error),
+    observers: null,
+  }
+}
+
+export function readDataEntries(): CacheEntry[] {
+  const router = requireRouter()
+  return router.state.matches.map(matchToCacheEntry)
 }
 
 function childrenOf(value: unknown): unknown[] {
@@ -218,6 +256,13 @@ export function invalidateRouter(): {ok: true} {
   const router = requireRouter()
   if (typeof router.invalidate !== 'function') throw new Error('TanStack router invalidate is not available')
   router.invalidate()
+  return {ok: true}
+}
+
+export async function invalidateRouterMatch(routeId: string): Promise<{ok: true}> {
+  const router = requireRouter()
+  if (typeof router.invalidate !== 'function') throw new Error('TanStack router invalidate is not available')
+  await router.invalidate({filter: (match) => isObject(match) && match.routeId === routeId})
   return {ok: true}
 }
 

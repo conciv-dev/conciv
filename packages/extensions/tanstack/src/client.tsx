@@ -1,5 +1,6 @@
 import {defineExtension} from '@conciv/extension'
 import {tanstackVerbs} from './client/verbs.js'
+import {installRuntimeErrorListeners} from './client/error-ring.js'
 import {
   backClient,
   buildErrorsClient,
@@ -34,6 +35,7 @@ export const tanstack = defineExtension({
 }).client(() => ({
   value: {},
   pageVerbs: tanstackVerbs,
+  dispose: installRuntimeErrorListeners(),
 }))
 
 export default tanstack

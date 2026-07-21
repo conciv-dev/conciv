@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
 import {afterAll, beforeAll} from 'vitest'
 import {buildConcivHost, getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
+import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
 import tanstackExtension from '../../src/server.js'
 
 const hostDir = fileURLToPath(new URL('../host', import.meta.url))
@@ -34,4 +35,12 @@ export function useTanstackTestApi(): () => TanstackTestApi {
     if (!ctx.api || ctx.origin === undefined) throw new Error('testkit not booted')
     return {api: ctx.api, origin: ctx.origin}
   }
+}
+
+export function tanstackAdapter(api: ExtensionTestApi): FrameworkAdapter {
+  const context = api.serverContext
+  if (typeof context !== 'object' || context === null || !('adapter' in context)) {
+    throw new Error('tanstack adapter missing from server context')
+  }
+  return context.adapter as FrameworkAdapter
 }
