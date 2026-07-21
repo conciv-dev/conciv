@@ -1,5 +1,6 @@
 import {dirname, join} from 'node:path'
 import {readdirSync} from 'node:fs'
+import type {IncomingMessage, ServerResponse} from 'node:http'
 import type {ErrorPayload, Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge, type BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -48,6 +49,25 @@ function makeDiagnosticSubscribe(server: ViteLike): (listener: (diagnostic: Bund
     Reflect.apply(forward, clientHot, args)
   }
   server.watcher.on('change', (file) => emit({kind: 'hmr-update', file, timestamp: Date.now()}))
+  server.middlewares.stack.unshift({
+    route: '',
+    handle: (req: IncomingMessage, res: ServerResponse, next: (error?: unknown) => void): void => {
+      const startedAt = Date.now()
+      const method = req.method ?? 'GET'
+      const url = req.url ?? ''
+      res.once('finish', () =>
+        emit({
+          kind: 'request-trace',
+          method,
+          url,
+          status: res.statusCode,
+          durationMs: Date.now() - startedAt,
+          timestamp: Date.now(),
+        }),
+      )
+      next()
+    },
+  })
   return (listener) => {
     listeners.add(listener)
     return () => {

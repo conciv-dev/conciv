@@ -94,3 +94,12 @@ export const routeManifestDef = {
     "Read the app's route manifest from routeTree.gen (all defined routes, paths, dynamic segments). Use it to see what routes exist, not just the matched ones.",
   inputSchema: RouteManifestInput,
 }
+
+export const ServerFnTraceInput = z.object({count: z.number().int().positive().max(100).optional()})
+
+export const serverFnTraceDef = {
+  name: 'tanstack_server_fn_trace',
+  description:
+    'Read recent TanStack server-function calls: which server fn ran (file + export), duration, and status. Use it to see server-side data fetching triggered by the app.',
+  inputSchema: ServerFnTraceInput,
+}

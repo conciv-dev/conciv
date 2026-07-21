@@ -57,6 +57,17 @@ describe('BundlerBridge diagnostic stream (IT, real vite dev server)', () => {
     if (hmr.kind !== 'hmr-update') throw new Error('expected hmr-update diagnostic')
     expect(hmr.file).toContain('good.ts')
 
+    const body = await fetch(`${base}/good.ts`, {headers: {'sec-fetch-dest': 'script'}}).then((r) => r.text())
+    expect(body.length).toBeGreaterThan(0)
+    const trace = await waitFor(() =>
+      ring.find((diagnostic) => diagnostic.kind === 'request-trace' && diagnostic.url.startsWith('/good.ts')),
+    )
+    if (trace.kind !== 'request-trace') throw new Error('expected request-trace diagnostic')
+    expect(trace.method).toBe('GET')
+    expect(trace.status).toBeGreaterThan(0)
+    expect(trace.durationMs).toBeGreaterThanOrEqual(0)
+    expect(trace.timestamp).toBeGreaterThan(0)
+
     unsubscribe?.()
   })
 })

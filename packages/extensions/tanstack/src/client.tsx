@@ -12,6 +12,7 @@ import {
   routeTreeClient,
   routerInvalidateClient,
   routerStateClient,
+  serverFnTraceClient,
 } from './tool/client.js'
 
 export const tanstack = defineExtension({
@@ -28,6 +29,7 @@ export const tanstack = defineExtension({
     queryRefetchClient,
     buildErrorsClient,
     routeManifestClient,
+    serverFnTraceClient,
   ],
 }).client(() => ({
   value: {},

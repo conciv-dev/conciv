@@ -25,6 +25,7 @@ export type BundlerDiagnostic =
       timestamp: number
     }
   | {kind: 'hmr-update'; file: string; timestamp: number}
+  | {kind: 'request-trace'; method: string; url: string; status: number; durationMs: number; timestamp: number}
 
 export type BundlerBridge = {
   id: string

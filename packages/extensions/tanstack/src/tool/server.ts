@@ -1,6 +1,6 @@
 import {defineTool} from '@conciv/extension'
 import type {PageCaller} from '@conciv/extension'
-import type {AppError, ServerRouteInfo} from '@conciv/protocol/framework-types'
+import type {AppError, ServerFnInfo, ServerFnTrace, ServerRouteInfo} from '@conciv/protocol/framework-types'
 import type {tanstackVerbs} from '../client/verbs.js'
 import {
   BackInput,
@@ -14,6 +14,7 @@ import {
   RouteTreeInput,
   RouterInvalidateInput,
   RouterStateInput,
+  ServerFnTraceInput,
   backDef,
   buildErrorsDef,
   loaderDataDef,
@@ -25,6 +26,7 @@ import {
   routeTreeDef,
   routerInvalidateDef,
   routerStateDef,
+  serverFnTraceDef,
 } from './def.js'
 
 type ToolCtx = {page: PageCaller<typeof tanstackVerbs>}
@@ -32,6 +34,11 @@ type ToolCtx = {page: PageCaller<typeof tanstackVerbs>}
 type ServerReadCtx = {
   buildErrors: () => AppError[]
   routeManifest: () => Promise<ServerRouteInfo[]>
+}
+
+type ServerFnTraceCtx = {
+  serverFnTraces: (count?: number) => ServerFnTrace[]
+  serverFns: () => ServerFnInfo[]
 }
 
 export const routerStateServer = defineTool<typeof RouterStateInput, ToolCtx>(routerStateDef).server(
@@ -76,4 +83,8 @@ export const buildErrorsServer = defineTool<typeof BuildErrorsInput, ServerReadC
 
 export const routeManifestServer = defineTool<typeof RouteManifestInput, ServerReadCtx>(routeManifestDef).server(
   async (_input, ctx) => ctx.routeManifest(),
+)
+
+export const serverFnTraceServer = defineTool<typeof ServerFnTraceInput, ServerFnTraceCtx>(serverFnTraceDef).server(
+  async (input, ctx) => ({traces: ctx.serverFnTraces(input.count), functions: ctx.serverFns()}),
 )

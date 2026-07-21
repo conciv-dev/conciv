@@ -11,6 +11,7 @@ import {
   routeTreeDef,
   routerInvalidateDef,
   routerStateDef,
+  serverFnTraceDef,
 } from './def.js'
 import {BackCard} from './back-card.js'
 import {BuildErrorsCard} from './build-errors-card.js'
@@ -23,6 +24,7 @@ import {RouteManifestCard} from './route-manifest-card.js'
 import {RouterInvalidateCard} from './router-invalidate-card.js'
 import {RouterStateCard} from './router-state-card.js'
 import {RouteTreeCard} from './route-tree-card.js'
+import {ServerFnTraceCard} from './server-fn-trace-card.js'
 
 export const routerStateClient = defineTool(routerStateDef).render(RouterStateCard)
 
@@ -45,3 +47,5 @@ export const queryRefetchClient = defineTool(queryRefetchDef).render(QueryRefetc
 export const buildErrorsClient = defineTool(buildErrorsDef).render(BuildErrorsCard)
 
 export const routeManifestClient = defineTool(routeManifestDef).render(RouteManifestCard)
+
+export const serverFnTraceClient = defineTool(serverFnTraceDef).render(ServerFnTraceCard)
