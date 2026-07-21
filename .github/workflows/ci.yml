@@ -221,9 +221,11 @@ jobs:
           run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id') || true
           url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=bundle-size-baseline" --jq '.artifacts[0].archive_download_url') || true
           if [ -n "$url" ] && [ "$url" != "null" ]; then
-            curl -sL --max-filesize 10485760 -H "Authorization: Bearer ${GH_TOKEN}" -o bundle-size-baseline.zip "$url"
+            curl -fsL --max-filesize 10485760 -H "Authorization: Bearer ${GH_TOKEN}" -o bundle-size-baseline.zip "$url" || true
             unzip -p bundle-size-baseline.zip bundle-size.json > bundle-size-baseline.json || true
           fi
+          # An empty baseline is worse than none: it used to crash the size gate on a fetch miss.
+          [ -s bundle-size-baseline.json ] || rm -f bundle-size-baseline.json
       # Reports every package + the conciv.dev Cloudflare worker (Δ vs main), and fails only if the
       # worker exceeds its 3 MiB gzip free-plan limit (over it `wrangler deploy` fails with 10027).
       - run: pnpm exec conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json

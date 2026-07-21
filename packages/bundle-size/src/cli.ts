@@ -7,6 +7,7 @@ import {
   measureWorker,
   parseSizes,
   renderSizes,
+  workerIsOverBudget,
 } from './measure.ts'
 
 function argValue(flag: string): string | null {
@@ -27,7 +28,7 @@ const summaryPath = process.env.GITHUB_STEP_SUMMARY
 if (summaryPath) appendFileSync(summaryPath, output)
 if (!summaryPath) process.stdout.write(output)
 
-if (worker && worker.size.gzip > WORKER_LIMIT_KIB * 1024) {
+if (workerIsOverBudget(worker, WORKER_LIMIT_KIB)) {
   process.stderr.write(`\n${formatWorkerOverBudget(worker, WORKER_LIMIT_KIB)}\n`)
-  process.exit(1)
+  process.exitCode = 1
 }

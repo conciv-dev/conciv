@@ -63,8 +63,16 @@ export function measureSizes(root: string): PackageSize[] {
   return [...widget, ...packages.toSorted((a, b) => a.name.localeCompare(b.name))]
 }
 
+function parseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
 export function parseSizes(raw: string): PackageSize[] {
-  const parsed: unknown = JSON.parse(raw)
+  const parsed = parseJson(raw)
   if (!Array.isArray(parsed)) return []
   return parsed.filter(isRecord).flatMap((entry) => {
     if (typeof entry.name !== 'string') return []
@@ -79,16 +87,26 @@ export function parseSizes(raw: string): PackageSize[] {
   })
 }
 
-const KIB_TOTALS = /Total Upload:\s*(\d+(?:\.\d+)?)\s*KiB\s*\/\s*gzip:\s*(\d+(?:\.\d+)?)\s*KiB/
+const KIB_TOTALS = /^Total Upload:\s*(\d+(?:\.\d+)?)\s*KiB\s*\/\s*gzip:\s*(\d+(?:\.\d+)?)\s*KiB/gm
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
 
 export function parseWorkerSize(wranglerOutput: string): {raw: number; gzip: number} {
-  const match = wranglerOutput.match(KIB_TOTALS)
-  const raw = Number(match?.[1])
-  const gzip = Number(match?.[2])
+  const matches = [...wranglerOutput.replace(ANSI, '').matchAll(KIB_TOTALS)]
+  if (matches.length !== 1) {
+    throw new Error(
+      `expected exactly one wrangler size line, found ${matches.length}. Could not read the worker size from wrangler output`,
+    )
+  }
+  const raw = Number(matches[0]?.[1])
+  const gzip = Number(matches[0]?.[2])
   if (!Number.isFinite(raw) || !Number.isFinite(gzip)) {
     throw new Error('could not read the worker size from wrangler output')
   }
   return {raw: Math.round(raw * 1024), gzip: Math.round(gzip * 1024)}
+}
+
+export function workerIsOverBudget(report: WorkerReport, limitKib: number): boolean {
+  return report.size.gzip > limitKib * 1024
 }
 
 export function workerIsBuilt(root: string): boolean {
@@ -106,7 +124,13 @@ export function measureWorker(root: string): WorkerReport {
     const output = execFileSync(
       'pnpm',
       ['--filter', 'site', 'exec', 'wrangler', 'deploy', '--dry-run', '--outdir', outputDirectory],
-      {cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']},
+      {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        maxBuffer: 64 * 1024 * 1024,
+        env: {...process.env, FORCE_COLOR: '0', NO_COLOR: '1'},
+      },
     )
     const {raw, gzip} = parseWorkerSize(output)
     const chunks = distFiles(outputDirectory)
