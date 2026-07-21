@@ -36,7 +36,8 @@ function run(): void {
   const packages = (process.env.SHARD_PACKAGES ?? '').split(' ').filter((name) => name !== '')
   if (packages.length === 0) throw new Error('SHARD_PACKAGES is empty; nothing to run')
   const filters = packages.map((name) => `--filter=${name}`)
-  execFileSync('pnpm', ['exec', 'turbo', 'run', 'typecheck', 'lint', 'test', ...filters], {stdio: 'inherit'})
+  const args = ['exec', 'turbo', 'run', 'typecheck', 'lint', 'test', '--continue=dependencies-successful', ...filters]
+  execFileSync('pnpm', args, {stdio: 'inherit'})
 }
 
 function report(args: string[]): void {
