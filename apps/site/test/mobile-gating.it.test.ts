@@ -3,12 +3,17 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, devices, type Browser} from 'playwright'
 
 const SITE_PORT = 8788
+const INSPECTOR_PORT = 9788
 const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
 let site: ChildProcess
 let browser: Browser
 
 beforeAll(async () => {
-  site = spawn('pnpm', ['exec', 'wrangler', 'dev', '--port', String(SITE_PORT)], {cwd: import.meta.dirname + '/..'})
+  site = spawn(
+    'pnpm',
+    ['exec', 'wrangler', 'dev', '--port', String(SITE_PORT), '--inspector-port', String(INSPECTOR_PORT)],
+    {cwd: import.meta.dirname + '/..'},
+  )
   await new Promise<void>((resolve, reject) => {
     const output: string[] = []
     site.stdout?.on('data', (chunk: Buffer) => {
