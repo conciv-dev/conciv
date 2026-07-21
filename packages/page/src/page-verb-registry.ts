@@ -21,12 +21,14 @@ export function bindExtensionPageVerbs(
 ): () => void {
   if (verbs) registerExtensionPageVerbs(extension, verbs)
   return () => {
-    dispose?.()
-    if (verbs) unregisterExtensionPageVerbs(extension)
+    try {
+      dispose?.()
+    } finally {
+      if (verbs) unregisterExtensionPageVerbs(extension)
+    }
   }
 }
 
-type DispatchVerbDef = {args: PageVerbMap[string]['args']; handler: (args: unknown) => unknown}
 type Dispatch = {result: unknown} | {error: {code: string; message: string}}
 
 export async function dispatchExtVerb(
@@ -34,13 +36,13 @@ export async function dispatchExtVerb(
   verb: string,
   argsJson: string | undefined,
 ): Promise<Dispatch> {
-  const def = registry.get(extension)?.[verb] as DispatchVerbDef | undefined
+  const def = registry.get(extension)?.[verb]
   if (!def) return {error: {code: 'unknown-verb', message: `${extension}.${verb} is not registered`}}
   const raw = argsJson ? safeJson(argsJson) : {}
-  const parsed = def.args.safeParse(raw)
-  if (!parsed.success) return {error: {code: 'invalid-args', message: parsed.error.message}}
   try {
-    const result = (await def.handler(parsed.data)) ?? null
+    const outcome = await def.dispatch(raw)
+    if (!outcome.ok) return {error: {code: 'invalid-args', message: outcome.message}}
+    const result = outcome.value ?? null
     if (!isJsonSerializable(result)) {
       return {error: {code: 'handler-error', message: `${extension}.${verb} returned a non-serializable result`}}
     }
@@ -51,11 +53,20 @@ export async function dispatchExtVerb(
 }
 
 function isJsonSerializable(value: unknown): boolean {
-  try {
-    return typeof JSON.stringify(value) === 'string'
-  } catch {
-    return false
-  }
+  return isStructurallySerializable(value, new Set<object>())
+}
+
+function isStructurallySerializable(value: unknown, seen: Set<object>): boolean {
+  if (value === null) return true
+  if (typeof value === 'string' || typeof value === 'boolean') return true
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value !== 'object') return false
+  if (seen.has(value)) return false
+  seen.add(value)
+  const children = Array.isArray(value) ? value : Object.values(value)
+  const ok = children.every((child) => isStructurallySerializable(child, seen))
+  seen.delete(value)
+  return ok
 }
 
 function safeJson(text: string): unknown {

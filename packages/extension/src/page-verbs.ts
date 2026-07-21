@@ -1,18 +1,33 @@
 import type {z} from 'zod'
 
+export type PageVerbDispatchResult = {ok: true; value: unknown} | {ok: false; message: string}
+
 export type PageVerbDef<Schema extends z.ZodType, Result> = {
   args: Schema
   handler: (args: z.output<Schema>) => Result | Promise<Result>
+  dispatch: (raw: unknown) => Promise<PageVerbDispatchResult>
 }
 
-export type AnyPageVerbDef = {args: z.ZodType; handler: (args: never) => unknown}
+export type AnyPageVerbDef = {
+  args: z.ZodType
+  handler: (args: never) => unknown
+  dispatch: (raw: unknown) => Promise<PageVerbDispatchResult>
+}
 export type PageVerbMap = Record<string, AnyPageVerbDef>
 
 export function pageVerb<Schema extends z.ZodType, Result>(
   args: Schema,
   handler: (args: z.output<Schema>) => Result | Promise<Result>,
 ): PageVerbDef<Schema, Result> {
-  return {args, handler}
+  return {
+    args,
+    handler,
+    dispatch: async (raw) => {
+      const parsed = args.safeParse(raw)
+      if (!parsed.success) return {ok: false, message: parsed.error.message}
+      return {ok: true, value: await handler(parsed.data)}
+    },
+  }
 }
 
 export function definePageVerbs<M extends PageVerbMap>(verbs: M): M {

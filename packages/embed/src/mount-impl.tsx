@@ -4,7 +4,7 @@ import {makeDeferredRpcClient, makeRpcClient} from '@conciv/contract'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import type {AnyExtension} from '@conciv/extension'
 import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
-import {createConcivRouter} from 'conciv/router'
+import {createConcivRouter, disposeConcivRouter} from 'conciv/router'
 import {parseConcivSettings, type ConcivSettings} from 'conciv/settings'
 import {createShadowRoot} from 'conciv/shadow'
 import {resolveApiBase} from 'conciv/api-base'
@@ -76,6 +76,7 @@ async function bootNormal(
   const disposers = [
     () => plane.dispose(),
     disposeApp,
+    () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
   ]
@@ -114,6 +115,7 @@ function bootConnect(root: ShadowRoot, extensions: AnyExtension[], settings: Con
   const disposers = [
     () => planeDispose?.(),
     disposeApp,
+    () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
   ]

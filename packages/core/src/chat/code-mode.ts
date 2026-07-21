@@ -27,7 +27,7 @@ export function gatedToolRun(
     const callId = randomUUID()
     const emit = context?.emitCustomEvent ?? (() => {})
     emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name: tool.name, input: args})
-    const decision = await gate.decide(tool.name, args, request.sessionId, randomUUID())
+    const decision = await gate.decide(tool.name, args, request.sessionId, callId)
     if (decision === 'deny') {
       const refusal = `Tool "${tool.name}" was denied by the user`
       emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: refusal})

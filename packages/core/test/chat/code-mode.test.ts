@@ -231,6 +231,24 @@ describe('code mode per-tool call events', () => {
     expect(result?.value).toEqual({callId: call?.value.callId, result: 'drew'})
   })
 
+  test('gatedToolRun decides with the same id it stamps on the emitted call and result', async () => {
+    const {events, context} = capturingContext()
+    const decideIds: string[] = []
+    const dotted = tool('canvas.svg', undefined, async () => 'drew')
+    const run = gatedToolRun(dotted, request, {
+      decide: async (_toolName, _toolInput, _sessionId, toolUseId) => {
+        decideIds.push(toolUseId)
+        return 'allow' as const
+      },
+    })
+    await expect(run({shape: 'circle'}, context)).resolves.toBe('drew')
+    const call = events.find((event) => event.name === 'conciv:tool_call')
+    const result = events.find((event) => event.name === 'conciv:tool_result')
+    expect(decideIds).toHaveLength(1)
+    expect(decideIds[0]).toBe(call?.value.callId)
+    expect(result?.value.callId).toBe(call?.value.callId)
+  })
+
   test('gatedToolRun emits conciv:tool_error on deny', async () => {
     const db = testDb()
     const changes = makeChanges()

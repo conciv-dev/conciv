@@ -116,7 +116,14 @@ type CallPageVerb = (extension: string, verb: string, argsJson: string) => Promi
 function scopedPageCaller(extension: string, callPageVerb: CallPageVerb): PageCaller<PageVerbMap> {
   return {
     call(verb, args) {
-      return callPageVerb(extension, verb, JSON.stringify(args ?? {}))
+      let argsJson: string
+      try {
+        argsJson = JSON.stringify(args ?? {})
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return Promise.reject(pageVerbError('invalid-args', extension, verb, message))
+      }
+      return callPageVerb(extension, verb, argsJson)
     },
   }
 }

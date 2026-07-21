@@ -48,7 +48,11 @@ export function ToolCard(props: {
               </span>
             )}
           </Show>
-          <span class={`rounded-[var(--chat-radius-pill)] shrink-0 size-2 ${DOT[status()]}`} aria-label={status()} />
+          <span
+            class={`rounded-[var(--chat-radius-pill)] shrink-0 size-2 ${DOT[status()]}`}
+            role="img"
+            aria-label={status()}
+          />
         </>
       }
     >

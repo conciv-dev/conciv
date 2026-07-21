@@ -70,6 +70,16 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   })
 }
 
+export function disposeConcivRouter(router: ReturnType<typeof createConcivRouter>): void {
+  for (const instance of router.options.context.instances) {
+    try {
+      instance.dispose()
+    } catch (error) {
+      console.error('[conciv] extension instance teardown failed', error)
+    }
+  }
+}
+
 declare module '@tanstack/solid-router' {
   interface Register {
     router: ReturnType<typeof createConcivRouter>

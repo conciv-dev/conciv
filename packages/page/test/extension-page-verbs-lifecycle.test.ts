@@ -24,6 +24,21 @@ describe('extension pageVerbs mount lifecycle', () => {
     expect(await dispatchExtVerb('counter', 'bump', '{}')).toMatchObject({error: {code: 'unknown-verb'}})
   })
 
+  it('unregisters the verbs even when the client dispose throws', async () => {
+    const ext = defineExtension({name: 'throwing'}).client(() => ({
+      value: {},
+      pageVerbs: definePageVerbs({ping: pageVerb(z.object({}), () => ({ok: true}))}),
+    }))
+    const result = ext.__client?.()
+    const dispose = bindExtensionPageVerbs('throwing', result?.pageVerbs, () => {
+      throw new Error('client dispose blew up')
+    })
+
+    expect(await dispatchExtVerb('throwing', 'ping', '{}')).toEqual({result: {ok: true}})
+    expect(() => dispose()).toThrow('client dispose blew up')
+    expect(await dispatchExtVerb('throwing', 'ping', '{}')).toMatchObject({error: {code: 'unknown-verb'}})
+  })
+
   it('calls the client dispose even when no pageVerbs are present', async () => {
     let disposed = false
     const dispose = bindExtensionPageVerbs('bare', undefined, () => {

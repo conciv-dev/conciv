@@ -38,4 +38,27 @@ describe('ext verb dispatch', () => {
     })
     expect(await dispatchExtVerb('demo', 'circular', '{}')).toMatchObject({error: {code: 'handler-error'}})
   })
+
+  it('rejects results that JSON silently drops or converts', async () => {
+    const cases: Record<string, unknown> = {
+      nestedUndefined: {a: undefined},
+      nestedFunction: {fn: () => 1},
+      nestedSymbol: {sym: Symbol('x')},
+      nestedBigint: {big: 1n},
+      nestedNaN: {n: Number.NaN},
+      nestedInfinity: {n: Number.POSITIVE_INFINITY},
+      undefinedInArray: [1, undefined, 2],
+    }
+    for (const [name, result] of Object.entries(cases)) {
+      registerExtensionPageVerbs('demo', {[name]: pageVerb(z.object({}), () => result)})
+      expect(await dispatchExtVerb('demo', name, '{}')).toMatchObject({error: {code: 'handler-error'}})
+    }
+  })
+
+  it('accepts a nested object of serializable primitives', async () => {
+    registerExtensionPageVerbs('demo', {
+      deep: pageVerb(z.object({}), () => ({a: {b: [1, 'x', true, null], c: 2.5}})),
+    })
+    expect(await dispatchExtVerb('demo', 'deep', '{}')).toEqual({result: {a: {b: [1, 'x', true, null], c: 2.5}}})
+  })
 })

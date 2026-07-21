@@ -14,6 +14,7 @@ import {bootKit} from '../../helpers/boot.js'
 
 const pingVerbs = definePageVerbs({
   ping: pageVerb(z.object({n: z.number()}), (args) => ({pong: args.n + 1})),
+  serialize: pageVerb(z.object({big: z.bigint()}), (args) => ({big: args.big})),
 })
 
 const SeenQuerySchema = z.object({
@@ -114,6 +115,15 @@ describe('server.page.call end to end (IT, real core app + real page bus + real 
     if (!state.page) throw new Error('server page caller not captured')
     expect(await state.page.call('ping', {n: 41})).toEqual({pong: 42})
     expect(widget.seen).toContainEqual({kind: 'ext', extension: 'pinger', verb: 'ping', argsJson: '{"n":41}'})
+  })
+
+  it('rejects a non-serializable arg with a PageVerbError code invalid-args, not a raw TypeError', async () => {
+    await boot()
+    if (!state.page) throw new Error('server page caller not captured')
+    const failure = await expectPageVerbError(state.page.call('serialize', {big: 1n}))
+    expect(failure.code).toBe('invalid-args')
+    expect(failure.extension).toBe('pinger')
+    expect(failure.verb).toBe('serialize')
   })
 
   it('rejects with a PageVerbError code no-widget when nothing is connected', async () => {
