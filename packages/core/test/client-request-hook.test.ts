@@ -1,10 +1,14 @@
 import {test, expect} from 'vitest'
+import {mkdtempSync, rmSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {start} from '../src/start.js'
 
 test('onClientRequest fires once on the first token request', async () => {
   let fired = 0
+  const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-client-hook-'))
   const engine = await start({
-    options: {harnessBin: 'true'},
+    options: {harnessBin: 'true', stateRoot},
     root: process.cwd(),
     launchEditor: () => {},
     accessToken: 'tok-hook',
@@ -17,4 +21,5 @@ test('onClientRequest fires once on the first token request', async () => {
   await fetch(`http://127.0.0.1:${engine.port}/t/tok-hook/health`)
   expect(fired).toBe(1)
   await engine.stop()
+  rmSync(stateRoot, {recursive: true, force: true})
 })
