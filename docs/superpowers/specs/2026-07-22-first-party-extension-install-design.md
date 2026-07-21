@@ -28,6 +28,13 @@ Supported frameworks (`e2e/`): Vite-based (Vite, Astro, Solid Start, Svelte, Tan
 Therefore the folder mechanism needs **no virtual module, no unplugin, no generated/registry file** — both
 halves are native on every framework we support.
 
+**UNVERIFIED, go/no-go (codex r3):** `nextjs-widget` ships from `@conciv/plugin` (a `node_modules`
+dependency), not app source. It is NOT established that `import.meta.glob('/conciv/extensions/*')` from a
+dependency-owned file anchors to the *consumer's* app root under Turbopack (Turbopack has filesystem-root
+restrictions, configurable via `turbopack.root`). This assumption is the linchpin of the whole "no
+generated file" promise and MUST be proven by a packed-package prototype as the FIRST implementation step.
+If it fails, the fallback is an app-owned bootstrap / small generated app-local entry.
+
 ## Goal
 
 Install a non-built-in first-party extension by dropping **one re-export file** in `conciv/extensions/`;
@@ -141,9 +148,32 @@ real dev servers; NEVER add tests under `apps/examples/*`.
 unplugin/virtual-module/generated-registry client discovery; config-passing API; retiring built-ins;
 building the CLI now; a new split transform (conditional exports do the split); legacy `--webpack` support.
 
-## Open items for planning
+## What the implementation plan MUST nail (codex round 3)
+1. **GO/NO-GO FIRST STEP — packed-package Turbopack prototype.** Install `@conciv/plugin`/`@conciv/it` +
+   the reference extension as a REAL tarball (`npm pack` into a fixture's `node_modules`), not `workspace:*`.
+   Prove the dependency-owned `import.meta.glob` targets the consumer app root and works across: app-root +
+   nested-monorepo layouts; default + widened `turbopack.root`; initial discovery + add/remove/rename during
+   `next dev`; and both `next dev` (Turbopack) and `next build`. If it fails → switch to an app-owned entry
+   (accept a small generated app-local bootstrap) before any further work.
+2. **Next peer-range honesty.** `@conciv/plugin` + `@conciv/it` advertise `next: ^15.3.0 || ^16.0.0`; the
+   widget would ship syntax unsupported on 15.x–16.2. Raise/model the Next boundary precisely (folder
+   discovery requires ≥16.3) and audit EVERY Next consumer (`e2e/nextjs`, `e2e/nextjs-component`,
+   `apps/examples/nextjs-app`), not just one.
+3. **Packed e2e (not workspace:*).** At least one Next e2e installs packed `@conciv/it`/`@conciv/plugin` +
+   the extension into a fixture; assert the client resolved `client.js` (not just "some UI appeared"), plus
+   `next dev` runtime + `next build` chunk inspection + HMR add/remove/rename + a nested-monorepo fixture.
+4. **One deterministic dedup/validation primitive.** A single shared pure function (built-ins first,
+   first-registration-wins by non-empty `extension.name`, deterministic fs ordering) used before BOTH engine
+   registration and `mountConciv`; warnings name every discarded filename/entry.
+5. **Exact file matching.** `EXTENSION_RE` (`extensions.ts:43`) is not end-anchored — `bad.ts.bak` is
+   accepted. Anchor it and match files only; unify server + client to ONE extension set.
+6. **Fatal-error coverage incl. the currently-silent missing-default.** `loadServerExtensions` (`extensions.ts:68`)
+   silently drops a module with no `default` — conflicts with the malformed policy. Cover read/transform/
+   resolution failure + missing-default + malformed-default; surface stub filename + preserved cause.
+7. **Conditional-export map validated from packed tarballs** with `publint`, `attw`, Node/jiti, Vite,
+   Turbopack, and TypeScript (with and without `customConditions:["browser"]`).
+
+## Other open items
 - Exact `attw`/`publint`-safe conditional-export shape (finalize on a packed tarball).
-- `next@^16.3` bump surface (which nextjs apps/pins) + confirm Turbopack `import.meta.glob` in the bumped
-  version via the `e2e/nextjs` prototype.
-- Robust `import.meta.glob` pattern/root for a nested monorepo consumer.
+- 16.3 preview-vs-stable release policy (is `^16.3` GA at plan time?).
 - Docs IA placement of the install page.
