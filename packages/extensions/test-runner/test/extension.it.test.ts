@@ -88,8 +88,13 @@ describe('test-runner extension booted in the real engine (IT)', () => {
     }
   }, 30_000)
 
-  it('selects the configured runner: runner=jest (a stub) is rejected at mount', async () => {
-    await expect(boot({extensions: {'test-runner': {runner: 'jest'}}})).rejects.toThrow(/jest runner not implemented/)
+  it('skips a misconfigured runner (runner=jest stub) without aborting boot', async () => {
+    const {base, engine} = await boot({extensions: {'test-runner': {runner: 'jest'}}})
+    try {
+      await expect(runnerClient(base).status(undefined)).rejects.toThrow()
+    } finally {
+      await engine.stop()
+    }
   }, 30_000)
 
   it('rejects a non-loopback Origin on an extension rpc route with 403', async () => {
