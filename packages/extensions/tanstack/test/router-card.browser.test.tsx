@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {mountToolCard} from '@conciv/extension-testkit/card-harness'
 import {LoaderDataCard} from '../src/tool/loader-data-card.js'
+import {QueryCacheCard} from '../src/tool/query-cache-card.js'
 import {RouterStateCard} from '../src/tool/router-state-card.js'
 import {RouteTreeCard} from '../src/tool/route-tree-card.js'
 
@@ -74,6 +75,48 @@ describe('RouteTreeCard (real browser)', () => {
     })
     await page.getByRole('button', {name: /tanstack_route_tree/}).click()
     await expect.element(page.getByText('page verb timed out')).toBeVisible()
+  })
+})
+
+const QUERY_CACHE = JSON.stringify({
+  queries: [
+    {
+      key: '["spike","demo"]',
+      state: 'fresh',
+      status: 'success',
+      observers: 1,
+      updatedAt: Date.now(),
+      value: {fetched: true},
+      error: null,
+    },
+    {key: '["users"]', state: 'stale', status: 'success', observers: 0, updatedAt: Date.now(), value: [], error: null},
+  ],
+  mutations: [],
+})
+
+describe('QueryCacheCard (real browser)', () => {
+  it('renders a loading affordance while the tool is running', async () => {
+    mountToolCard(QueryCacheCard, {name: 'tanstack_query_cache'})
+    await expect.element(page.getByText('reading…')).toBeVisible()
+  })
+
+  it('shows the cached query keys and states on success', async () => {
+    mountToolCard(QueryCacheCard, {name: 'tanstack_query_cache', content: QUERY_CACHE})
+    await expect.element(page.getByText('2 queries')).toBeVisible()
+    await page.getByRole('button', {name: /tanstack_query_cache/}).click()
+    await expect.element(page.getByText('["spike","demo"]')).toBeVisible()
+    await expect.element(page.getByText('fresh')).toBeVisible()
+    await expect.element(page.getByText('stale')).toBeVisible()
+  })
+
+  it('renders the error message when the verb fails', async () => {
+    mountToolCard(QueryCacheCard, {
+      name: 'tanstack_query_cache',
+      content: JSON.stringify({code: 'handler-error', message: 'TanStack QueryClient not found on page'}),
+      state: 'error',
+    })
+    await page.getByRole('button', {name: /tanstack_query_cache/}).click()
+    await expect.element(page.getByText('TanStack QueryClient not found on page')).toBeVisible()
   })
 })
 

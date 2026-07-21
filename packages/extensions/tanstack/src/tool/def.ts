@@ -26,3 +26,12 @@ export const loaderDataDef = {
     'Read the dehydrated loader data for the current (or a named) TanStack route — the server/loader-fetched data the route is rendering. Use it to see the data behind what the user sees.',
   inputSchema: LoaderDataInput,
 }
+
+export const QueryCacheInput = z.object({})
+
+export const queryCacheDef = {
+  name: 'tanstack_query_cache',
+  description:
+    "Read the running app's TanStack Query cache: each query's key, status (fresh/stale/fetching/error), observer count, and dehydrated data. Use it to see what data the app has fetched and cached.",
+  inputSchema: QueryCacheInput,
+}

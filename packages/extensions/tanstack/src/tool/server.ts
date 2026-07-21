@@ -1,7 +1,16 @@
 import {defineTool} from '@conciv/extension'
 import type {PageCaller} from '@conciv/extension'
 import type {tanstackVerbs} from '../client/verbs.js'
-import {LoaderDataInput, RouteTreeInput, RouterStateInput, loaderDataDef, routeTreeDef, routerStateDef} from './def.js'
+import {
+  LoaderDataInput,
+  QueryCacheInput,
+  RouteTreeInput,
+  RouterStateInput,
+  loaderDataDef,
+  queryCacheDef,
+  routeTreeDef,
+  routerStateDef,
+} from './def.js'
 
 type ToolCtx = {page: PageCaller<typeof tanstackVerbs>}
 
@@ -15,4 +24,8 @@ export const routeTreeServer = defineTool<typeof RouteTreeInput, ToolCtx>(routeT
 
 export const loaderDataServer = defineTool<typeof LoaderDataInput, ToolCtx>(loaderDataDef).server(async (input, ctx) =>
   ctx.page.call('loaderData', {routeId: input.routeId}),
+)
+
+export const queryCacheServer = defineTool<typeof QueryCacheInput, ToolCtx>(queryCacheDef).server(async (_input, ctx) =>
+  ctx.page.call('queryCache', {}),
 )

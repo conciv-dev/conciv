@@ -41,6 +41,33 @@ test('callTool drives the fiber-walk adapter against the running TanStack app', 
   expect(ids.length).toBeGreaterThanOrEqual(4)
 })
 
+const cacheEntrySchema = z.object({
+  key: z.string(),
+  state: z.enum(['fresh', 'stale', 'fetching', 'error']),
+  status: z.string().nullable(),
+  observers: z.number().nullable(),
+})
+
+const queryCacheSchema = z.object({queries: z.array(cacheEntrySchema), mutations: z.array(cacheEntrySchema)})
+
+test('tanstack_query_cache extracts the live TanStack Query cache from the running app', async () => {
+  const {api} = get()
+
+  await expect
+    .poll(() => api.page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
+    .toBe(true)
+
+  await api.page.getByRole('link', {name: 'About'}).click()
+  await expect.poll(() => api.page.getByRole('heading', {name: 'About this app'}).isVisible()).toBe(true)
+  await expect.poll(() => api.page.getByText('Query fetched: yes').isVisible(), {timeout: 10_000}).toBe(true)
+
+  const cache = queryCacheSchema.parse(await api.callTool('tanstack_query_cache', {}))
+  const demo = cache.queries.find((entry) => entry.key === JSON.stringify(['spike', 'demo']))
+  expect(demo).toBeDefined()
+  expect(demo?.status).toBe('success')
+  expect(demo?.observers).toBe(1)
+})
+
 const truncationMarkerSchema = z.object({__conciv: z.literal('object'), preview: z.literal('{…}')}).loose()
 
 const loaderDataSchema = z.object({

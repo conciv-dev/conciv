@@ -2,7 +2,7 @@ import {dehydrate, rootFibers} from '@conciv/page'
 import type {RouteMatch, RouteNode, RouteNodeKind, RouteStatus} from '@conciv/protocol/framework-types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
-type Fiber = any
+export type Fiber = any
 
 type TanstackRouter = {
   state: {matches: unknown[]; location: unknown}
@@ -32,27 +32,31 @@ function routerFromFiber(fiber: Fiber): TanstackRouter | null {
   return isTanstackRouter(candidate) ? candidate : null
 }
 
-function walkForRouter(root: Fiber): TanstackRouter | null {
+function walkFromRoot<T>(root: Fiber, pick: (fiber: Fiber) => T | null): T | null {
   const stack: Fiber[] = [root]
   let count = 0
   while (stack.length > 0 && count < MAX_FIBER_NODES) {
     const fiber = stack.pop()
     count++
     if (!fiber) continue
-    const router = routerFromFiber(fiber)
-    if (router) return router
+    const picked = pick(fiber)
+    if (picked !== null) return picked
     if (fiber.child) stack.push(fiber.child)
     if (fiber.sibling) stack.push(fiber.sibling)
   }
   return null
 }
 
-function findRouter(): TanstackRouter | null {
+export function findInFibers<T>(pick: (fiber: Fiber) => T | null): T | null {
   for (const root of rootFibers()) {
-    const router = walkForRouter(root)
-    if (router) return router
+    const picked = walkFromRoot(root, pick)
+    if (picked !== null) return picked
   }
   return null
+}
+
+function findRouter(): TanstackRouter | null {
+  return findInFibers(routerFromFiber)
 }
 
 function requireRouter(): TanstackRouter {
