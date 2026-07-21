@@ -1,5 +1,25 @@
 # @conciv/try
 
+## 0.0.15
+
+### Patch Changes
+
+- Updated dependencies [[`7b075ac`](https://github.com/conciv-dev/conciv/commit/7b075aca0d634fbfa9893f34a1366c2a1af9e20d)]:
+  - @conciv/extension-terminal@0.0.15
+  - @conciv/core@0.0.15
+  - @conciv/harness@0.0.15
+  - @conciv/protocol@0.0.15
+
+## 0.0.14
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/core@0.0.14
+  - @conciv/extension-terminal@0.0.14
+  - @conciv/harness@0.0.14
+  - @conciv/protocol@0.0.14
+
 ## 0.0.13
 
 ### Patch Changes
@@ -38,7 +58,7 @@
 
 ### Patch Changes
 
-- [#69](https://github.com/conciv-dev/conciv/pull/69) [`a6a5e27`](https://github.com/conciv-dev/conciv/commit/a6a5e27e94e274a6bb711535996fb2b896bae08a) Thanks [@omridevk](https://github.com/omridevk)! - `npx @conciv/try --token <token>` — try conciv live on conciv.dev with the agent CLI already on your machine (token-gated, loopback-only core, CORS-locked to conciv.dev).
+- [#69](https://github.com/conciv-dev/conciv/pull/69) [`a6a5e27`](https://github.com/conciv-dev/conciv/commit/a6a5e27e94e274a6bb711535996fb2b896bae08a) Thanks [@omridevk](https://github.com/omridevk)! - `npx @conciv/try --token <token>`: try conciv live on conciv.dev with the agent CLI already on your machine (token-gated, loopback-only core, CORS-locked to conciv.dev).
 
 - Updated dependencies []:
   - @conciv/core@0.0.10

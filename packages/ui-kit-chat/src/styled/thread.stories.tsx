@@ -29,7 +29,7 @@ function ThreadApp(props: {theme?: string; expose: (chat: UseChatReturn) => void
       chunks: [
         ...createReasoningChunks('Searching the codebase'),
         ...createToolCallChunks('shell', WIDE_ARGS, {result: 'no matches'}),
-        ...createTextChunks('No matches — the symbol is unused and safe to delete.'),
+        ...createTextChunks('No matches: the symbol is unused and safe to delete.'),
       ],
       chunkDelay: 2,
     }),
@@ -69,7 +69,7 @@ function play(theme?: string): Story {
       await expect(c.getByText('Ask anything to begin.')).toBeVisible()
       await userEvent.click(c.getByText('ask'))
       await waitFor(() => expect(c.getByText('search for the symbol')).toBeVisible())
-      const reply = await waitFor(() => c.getByText(/No matches — the symbol is unused/), {timeout: 5000})
+      const reply = await waitFor(() => c.getByText(/No matches: the symbol is unused/), {timeout: 5000})
 
       const before = reply.getBoundingClientRect()
 

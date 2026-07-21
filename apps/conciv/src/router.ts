@@ -53,6 +53,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   return createRouter({
     routeTree,
     history: config.history,
+    scrollRestoration: () => false,
     context: {
       rpc: config.rpc,
       environment: config.environment,

@@ -1,6 +1,6 @@
 {
   "name": "@conciv/ui-kit-terminal",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). Compound SolidJS terminal components for conciv tty mode: a headless xterm.js model + primitives (Root/Screen/Banner) plus a styled terminal surface.",
   "keywords": [
     "conciv",

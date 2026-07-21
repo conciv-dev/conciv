@@ -1,6 +1,6 @@
 {
   "name": "@conciv/core",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv engine: a framework-free hono + @hono/node-server server exposing the /__pw HTTP surface, with a harness registry seam.",
   "keywords": [
     "ai",
@@ -64,7 +64,7 @@
     "@tanstack/ai": "^0.41.0",
     "@tanstack/ai-code-mode": "0.3.7",
     "@tanstack/ai-isolate-node": "0.1.46",
-    "@tanstack/ai-sandbox": "^0.2.3",
+    "@tanstack/ai-sandbox": "0.2.3",
     "@tanstack/ai-sandbox-local-process": "^0.2.0",
     "drizzle-orm": "1.0.0-rc.4",
     "get-port": "^7.1.0",
@@ -77,7 +77,8 @@
     "@conciv/vitest-config": "workspace:*",
     "@hono/node-server": "^2.0.8",
     "@jridgewell/gen-mapping": "^0.3.13",
-    "@tanstack/ai-mcp": "^0.2.3",
+    "@tanstack/ai-mcp": "0.2.4",
+    "@tanstack/ai-sandbox-local-process": "^0.2.0",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.8",

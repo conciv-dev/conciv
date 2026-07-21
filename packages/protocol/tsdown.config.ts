@@ -19,6 +19,7 @@ export default defineConfig({
     'src/state-types.ts',
   ],
   format: 'esm',
+  noExternal: [/^@tanstack\/ai(\/|$)/],
   fixedExtension: false,
-  dts: true,
+  dts: false,
 })

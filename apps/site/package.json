@@ -1,6 +1,6 @@
 {
   "name": "site",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "private": true,
   "homepage": "https://conciv.dev",
   "repository": {
@@ -76,6 +76,6 @@
     "twoslash": "^0.3.9",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8",
-    "wrangler": "^4.106.0"
+    "wrangler": "^4.112.0"
   }
 }

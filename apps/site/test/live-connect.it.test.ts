@@ -6,13 +6,18 @@ import {runConnect} from '@conciv/try'
 import type {Engine} from '@conciv/core/start'
 
 const SITE_PORT = 8787
+const INSPECTOR_PORT = 9787
 const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
 let site: ChildProcess
 let browser: Browser
 let engine: Engine | null = null
 
 beforeAll(async () => {
-  site = spawn('pnpm', ['exec', 'wrangler', 'dev', '--port', String(SITE_PORT)], {cwd: import.meta.dirname + '/..'})
+  site = spawn(
+    'pnpm',
+    ['exec', 'wrangler', 'dev', '--port', String(SITE_PORT), '--inspector-port', String(INSPECTOR_PORT)],
+    {cwd: import.meta.dirname + '/..'},
+  )
   await new Promise<void>((resolve, reject) => {
     const output: string[] = []
     site.stdout?.on('data', (chunk: Buffer) => {
@@ -60,7 +65,7 @@ describe('widget-native live connect on the built site', () => {
     )
     expect(sameNode).toBe(true)
     await expect
-      .poll(() => panel.getByText('Agent connected — it’s driving this page from your machine.').isVisible(), {
+      .poll(() => panel.getByText('Agent connected. It’s driving this page from your machine.').isVisible(), {
         timeout: 10_000,
       })
       .toBe(true)

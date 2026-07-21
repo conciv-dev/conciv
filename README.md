@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://conciv.dev">
-  <img src="./.github/assets/hero.png" alt="conciv — an AI dev agent that lives inside your running app" width="860">
+  <img src="./.github/assets/hero.png" alt="conciv: an AI dev agent that lives inside your running app" width="860">
 </a>
 
 <h1>✦&nbsp; conciv</h1>
@@ -11,7 +11,7 @@
   <br>
   <strong>An AI dev agent that lives inside your running app.</strong>
   <br>
-  Add one plugin. Then chat, let it drive the page, and run your tests —
+  Add one plugin. Then chat, let it drive the page, and run your tests,
   <br>
   without ever leaving the thing you're building.
 </p>
@@ -42,24 +42,24 @@
 
 **conciv** puts an AI dev agent inside the app you are already running. Add one build plugin,
 and a conciv button appears in your dev preview. Open it and you're talking to an agent that can
-**see the page you're building**, **drive it**, **edit your source**, and **run your tests** — all
+**see the page you're building**, **drive it**, **edit your source**, and **run your tests**, all
 in the same window, without a second terminal or a context switch.
 
-It's **dev-only** (never shipped to production) and **harness-agnostic** — it drives a real coding
+It's **dev-only** (never shipped to production) and **harness-agnostic**: it drives a real coding
 CLI under the hood (Claude Code today, Codex and others behind one interface), so the agent is as
 capable as the tool you already trust.
 
 ## Features
 
-- 💬 &nbsp;**Chat in-app** — talk to an agent that sees your running page, streams its reasoning, and calls tools live.
-- 🕹️ &nbsp;**Page control** — it grabs elements, clicks, fills, inspects React props/state, and live-edits the DOM to preview changes.
-- 🧪 &nbsp;**Live tests** — run Vitest and watch pass/fail result cards render right inside the app.
-- 🧩 &nbsp;**Extensions** — drop a `.tsx` file in `conciv/extensions/` and get a new agent tool with its own card and composer UI.
-- 🎨 &nbsp;**Shared whiteboard** — an Excalidraw canvas you and the AI draw on together, with source-anchored comments.
-- ✅ &nbsp;**Approvals** — risky or networked commands surface an Approve / Deny card before they run.
-- 🔌 &nbsp;**One plugin** — Vite, webpack, Rspack, Rollup, or esbuild. Dev-only, never in your production bundle.
-- 🤝 &nbsp;**Harness-agnostic** — Claude Code today; Codex and others behind a single capability interface.
-- 🌘 &nbsp;**Zero style leak** — the widget lives in an open Shadow DOM, isolated from your app's CSS.
+- 💬 &nbsp;**Chat in-app**: talk to an agent that sees your running page, streams its reasoning, and calls tools live.
+- 🕹️ &nbsp;**Page control**: it grabs elements, clicks, fills, inspects React props/state, and live-edits the DOM to preview changes.
+- 🧪 &nbsp;**Live tests**: run Vitest and watch pass/fail result cards render right inside the app.
+- 🧩 &nbsp;**Extensions**: drop a `.tsx` file in `conciv/extensions/` and get a new agent tool with its own card and composer UI.
+- 🎨 &nbsp;**Shared whiteboard**: an Excalidraw canvas you and the AI draw on together, with source-anchored comments.
+- ✅ &nbsp;**Approvals**: risky or networked commands surface an Approve / Deny card before they run.
+- 🔌 &nbsp;**One plugin**: Vite, webpack, Rspack, Rollup, or esbuild. Dev-only, never in your production bundle.
+- 🤝 &nbsp;**Harness-agnostic**: Claude Code today; Codex and others behind a single capability interface.
+- 🌘 &nbsp;**Zero style leak**: the widget lives in an open Shadow DOM, isolated from your app's CSS.
 
 ## How it works
 
@@ -70,7 +70,7 @@ capable as the tool you already trust.
 `@conciv/plugin` boots a framework-free **hono** engine (`@conciv/core`) behind a set of `/api/*`
 routes on its own dev port, spawns a headless harness (default `claude -p`), and injects a Solid
 widget into your previewed page. The widget probes `/api/chat/session` on load and only shows the
-conciv button when the dev routes are live — so it stays inert on a plain preview.
+conciv button when the dev routes are live, so it stays inert on a plain preview.
 
 ## Try it live
 
@@ -105,7 +105,7 @@ away: `@conciv/it/plugin/webpack`, `/rspack`, `/rollup`, `/esbuild`, `/nextjs`.
 ## Extensions
 
 Teach the agent new tricks with a single file. Drop a `.tsx` into `conciv/extensions/` and it's
-discovered automatically — one `defineTool` gives the agent a callable tool (`.server` runs in
+discovered automatically. One `defineTool` gives the agent a callable tool (`.server` runs in
 node), a rendered result card, and optional widget UI (`.render` + `useSlot`), all typed
 end-to-end with zod:
 
@@ -130,8 +130,8 @@ extension in a real browser against a real spawned server.
 
 Two built-ins show what the contract can do:
 
-- 🎨 &nbsp;[**Whiteboard**](./packages/extensions/whiteboard) — a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins on a self-hosted libSQL store (TanStack DB).
-- 🧪 &nbsp;[**Test runner**](./packages/extensions/test-runner) — runner-agnostic test execution (Vitest and Playwright) with live result cards in the thread.
+- 🎨 &nbsp;[**Whiteboard**](./packages/extensions/whiteboard): a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins on a self-hosted libSQL store (TanStack DB).
+- 🧪 &nbsp;[**Test runner**](./packages/extensions/test-runner): runner-agnostic test execution (Vitest and Playwright) with live result cards in the thread.
 
 ## Supported tools
 
@@ -143,7 +143,7 @@ Two built-ins show what the contract can do:
 
 ## Packages
 
-Install these — everything else on npm under `@conciv/*` is internal and comes in automatically:
+Install these. Everything else on npm under `@conciv/*` is internal and comes in automatically:
 
 | Package                                                     | What it is                                                                                                 |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -168,13 +168,13 @@ Under the hood (installed automatically by `@conciv/it`):
 ## Documentation
 
 Full docs live at **[conciv.dev](https://conciv.dev)** and in
-[`apps/site/content/docs`](./apps/site/content/docs) — quick-start guides per bundler, usage
+[`apps/site/content/docs`](./apps/site/content/docs): quick-start guides per bundler, usage
 (chat, page control, live tests, approvals), harness and test-runner configuration, and
 troubleshooting.
 
 ## Contributing
 
-Issues and PRs are welcome. This is a young project moving fast — the best first step is to run the
+Issues and PRs are welcome. This is a young project moving fast, so the best first step is to run the
 [example app](./apps/examples/tanstack-start), find something rough, and open an issue.
 
 ```sh
@@ -198,7 +198,7 @@ pnpm dev        # runs the tanstack-start example with conciv wired in
 
 <div align="center">
   <br>
-  <sub><strong>conciv</strong> · as in <code>@conciv/it</code> — say it out loud.</sub>
+  <sub><strong>conciv</strong> · as in <code>@conciv/it</code>. Say it out loud.</sub>
   <br>
   <sub>Built with hono, Solid, and a real coding agent living in the page.</sub>
 </div>

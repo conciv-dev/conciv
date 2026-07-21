@@ -91,7 +91,7 @@ export function HowItWorks() {
           <Step
             number="3"
             title="Meet the robot"
-            body="Start your dev server. The mascot appears in the corner when the engine is live — click it and start talking to your app."
+            body="Start your dev server. The mascot appears in the corner when the engine is live. Click it and start talking to your app."
           >
             <RobotFab />
           </Step>

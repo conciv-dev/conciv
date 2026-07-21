@@ -24,7 +24,7 @@ jobs:
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
           version: 11.7.0 # keep in sync with packageManager in package.json
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
           cache: pnpm
@@ -47,7 +47,7 @@ jobs:
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
-      - uses: fallow-rs/fallow@c9326d9395c0b46f4077290473060b3e950b6e8c
+      - uses: fallow-rs/fallow@6c3760fff5eb6d5853a2fca0180e491b5e2eef36
         with:
           command: audit
           fail-on-issues: 'true'

@@ -14,7 +14,7 @@ const COMMUNITY = [
 ]
 
 const INSTALL = [
-  {label: 'npm — @conciv/it', href: 'https://www.npmjs.com/package/@conciv/it'},
+  {label: 'npm: @conciv/it', href: 'https://www.npmjs.com/package/@conciv/it'},
   {label: 'Example app', href: 'https://github.com/conciv-dev/conciv/tree/main/apps/examples/tanstack-start'},
 ]
 

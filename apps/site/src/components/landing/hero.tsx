@@ -1,9 +1,14 @@
+import {Suspense, lazy} from 'react'
+import {ClientOnly} from '@tanstack/react-router'
 import {Badge} from '@/components/ui/badge'
+import {useIsMobile} from '@/lib/use-is-mobile'
 import {TryLiveButton} from './try-live-button'
-import {Demo} from './demo/demo'
 import {InstallChip} from './install-chip'
 
+const Demo = lazy(() => import('./demo/demo').then((module) => ({default: module.Demo})))
+
 export function Hero() {
+  const isMobile = useIsMobile()
   return (
     <header className="mx-auto grid max-w-[1180px] items-center gap-14 px-8 pb-12 pt-3 md:grid-cols-[1fr_1.02fr] md:pt-10">
       <div>
@@ -20,13 +25,21 @@ export function Hero() {
         <p className="mb-8 max-w-[30ch] text-[18px] text-muted-foreground">
           Add one plugin. Then <b className="font-semibold text-foreground">chat</b>, let it{' '}
           <b className="font-semibold text-foreground">drive the page</b>, and{' '}
-          <b className="font-semibold text-foreground">run your tests</b> — without ever leaving the thing you're
+          <b className="font-semibold text-foreground">run your tests</b>, without ever leaving the thing you're
           building.
         </p>
-        <InstallChip />
-        <TryLiveButton />
+        {!isMobile && (
+          <>
+            <InstallChip />
+            <TryLiveButton />
+          </>
+        )}
       </div>
-      <Demo />
+      <ClientOnly>
+        <Suspense>
+          <Demo />
+        </Suspense>
+      </ClientOnly>
     </header>
   )
 }

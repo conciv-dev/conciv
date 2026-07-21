@@ -1,6 +1,6 @@
 {
   "name": "@conciv/client",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). conciv client data layer: typed oRPC access, TanStack Query option factories, and the useChat connection bridge. Zero UI.",
   "keywords": [
     "client",
@@ -42,7 +42,7 @@
     "@orpc/client": "1.14.7",
     "@orpc/tanstack-query": "^1.14.7",
     "@tanstack/ai": "^0.41.0",
-    "@tanstack/ai-solid": "^0.15.0",
+    "@tanstack/ai-solid": "0.15.0",
     "@tanstack/pacer": "^0.21.1",
     "@tanstack/query-core": "^5.80.2",
     "solid-js": "^1.9.13"
@@ -51,7 +51,7 @@
     "@conciv/core": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
-    "@tanstack/ai-client": "^0.22.0",
+    "@tanstack/ai-client": "0.22.0",
     "@tanstack/solid-query": "^5.101.2",
     "@vitest/coverage-v8": "^4.1.8",
     "tsdown": "^0.22.4",

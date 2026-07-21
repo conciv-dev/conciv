@@ -1,6 +1,6 @@
 {
   "name": "@conciv/harness",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). Harness adapters (claude, codex, + stubs) behind the @conciv/protocol HarnessAdapter contract.",
   "keywords": [
     "ai",
@@ -61,17 +61,20 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.25.0",
     "@anthropic-ai/claude-agent-sdk": "^0.3.179",
     "@conciv/protocol": "workspace:^",
+    "@opencode-ai/sdk": "^1.17.4",
     "@tanstack/ai": "^0.41.0",
-    "@tanstack/ai-acp": "^0.2.2",
-    "@tanstack/ai-claude-code": "^0.2.2",
-    "@tanstack/ai-codex": "^0.2.2",
-    "@tanstack/ai-opencode": "^0.2.2",
+    "@tanstack/ai-sandbox": "0.2.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
+    "@tanstack/ai-acp": "0.2.2",
+    "@tanstack/ai-claude-code": "0.2.2",
+    "@tanstack/ai-codex": "0.2.2",
+    "@tanstack/ai-opencode": "0.2.2",
     "@types/node": "^22.19.21",
     "@vitest/coverage-v8": "^4.1.8",
     "tsdown": "^0.22.4",

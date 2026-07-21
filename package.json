@@ -2,7 +2,7 @@
   "name": "@conciv/monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "An embeddable AI dev agent for your running app — chat, page control, and live tests, injected into the page via a Vite plugin.",
+  "description": "An embeddable AI dev agent for your running app: chat, page control, and live tests, injected into the page via a Vite plugin.",
   "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {
@@ -26,7 +26,8 @@
     "release:version": "conciv-publish version",
     "release:check": "conciv-publish check",
     "release": "conciv-publish release",
-    "release:snapshot": "conciv-publish snapshot"
+    "release:snapshot": "conciv-publish snapshot",
+    "release:sync": "conciv-publish sync"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.3",

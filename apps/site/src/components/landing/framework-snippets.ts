@@ -48,7 +48,7 @@ export default defineConfig({
     href: '/docs/quick-start/nextjs',
     file: 'next.config.ts',
     lang: 'ts',
-    note: '+ two instrumentation one-liners — see the guide',
+    note: '+ two instrumentation one-liners (see the guide)',
     code: `import type {NextConfig} from 'next'
 import {withConciv} from '@conciv/it/plugin/nextjs'
 

@@ -1,5 +1,21 @@
 # @conciv/ui-kit-terminal
 
+## 0.0.15
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.15
+
+## 0.0.14
+
+### Patch Changes
+
+- [#95](https://github.com/conciv-dev/conciv/pull/95) [`d2c4867`](https://github.com/conciv-dev/conciv/commit/d2c48671ddf47815e6453c1f5997a07e0b7cbae7) Thanks [@omridevk](https://github.com/omridevk)! - Drop the test-only backdoors from the terminal public surface: `TerminalModel.__testReceiveControl` and the `HTMLDivElement.__concivTerminal` global augmentation are gone. Control-frame behaviour (exit, error, busy) is now covered by tests that drive a real WebSocket server through the normal socket path instead of injecting frames directly.
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.14
+
 ## 0.0.13
 
 ### Patch Changes
@@ -43,7 +59,7 @@
 
   The server stack moved from h3/srvx to hono behind one `@conciv/serve` wrapper for `@hono/node-server`, and the extension bundler was split out of the vite plugin into a standalone `@conciv/extension-compiler`.
 
-  The terminal gains a narrative activity rail — a resizable, open-by-default timeline of session activity — and the pty now spawns at the attaching client's fitted size instead of bouncing through a fixed geometry on every attach.
+  The terminal gains a narrative activity rail (a resizable, open-by-default timeline of session activity), and the pty now spawns at the attaching client's fitted size instead of bouncing through a fixed geometry on every attach.
 
 - Updated dependencies []:
   - @conciv/protocol@0.0.8

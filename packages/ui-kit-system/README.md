@@ -5,7 +5,7 @@ HoverCard, ScrollArea, Combobox, Progress) styled with the shared UnoCSS preset,
 surface looks and behaves identically. Each component is viewable in Storybook.
 
 Part of [conciv](https://github.com/conciv-dev/conciv). It ships as a dependency of the
-umbrella package — install that:
+umbrella package; install that:
 
 ```sh
 npm install -D @conciv/it

@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
       # Baseline artifacts are NOT ref-scoped like caches: any PR run can upload an
@@ -74,7 +74,7 @@ jobs:
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
           version: 11.7.0 # keep in sync with packageManager in package.json
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -159,7 +159,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -193,7 +193,7 @@ jobs:
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
           version: 11.7.0 # keep in sync with packageManager in package.json
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -207,7 +207,8 @@ jobs:
           mode: firewall-free
           firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*'
+      # Build the site too so bundle-size can measure the Cloudflare worker and gate it below.
+      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*' --filter=site
       # Bundle size: measure published dists, diff against the baseline saved by the
       # latest main run. PRs read the baseline; pushes to main publish a fresh one.
       # Pinned to a main-push run for the same artifact-poisoning reason as the
@@ -220,9 +221,13 @@ jobs:
           run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id') || true
           url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=bundle-size-baseline" --jq '.artifacts[0].archive_download_url') || true
           if [ -n "$url" ] && [ "$url" != "null" ]; then
-            curl -sL --max-filesize 10485760 -H "Authorization: Bearer ${GH_TOKEN}" -o bundle-size-baseline.zip "$url"
+            curl -fsL --max-filesize 10485760 -H "Authorization: Bearer ${GH_TOKEN}" -o bundle-size-baseline.zip "$url" || true
             unzip -p bundle-size-baseline.zip bundle-size.json > bundle-size-baseline.json || true
           fi
+          # An empty baseline is worse than none: it used to crash the size gate on a fetch miss.
+          [ -s bundle-size-baseline.json ] || rm -f bundle-size-baseline.json
+      # Reports every package + the conciv.dev Cloudflare worker (Δ vs main), and fails only if the
+      # worker exceeds its 3 MiB gzip free-plan limit (over it `wrangler deploy` fails with 10027).
       - run: pnpm exec conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: github.event_name == 'push'
@@ -261,7 +266,7 @@ jobs:
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
           version: 11.7.0 # keep in sync with packageManager in package.json
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -306,7 +311,7 @@ jobs:
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
           version: 11.7.0 # keep in sync with packageManager in package.json
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm

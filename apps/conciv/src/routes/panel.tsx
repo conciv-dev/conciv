@@ -1,6 +1,6 @@
 import {Outlet, createFileRoute, useRouter} from '@tanstack/solid-router'
 import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
-import {Show, createEffect, createSignal, onCleanup, type JSX} from 'solid-js'
+import {Show, createEffect, createSignal, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {useFabPosition, useLayers, useSuppressed} from '../app/context.js'
 import {setShutter} from '../lib/shutter.js'
@@ -37,20 +37,10 @@ function PanelLayout(): JSX.Element {
   const close = () => setShutter(router, false)
   const open = () => search().open ?? false
 
-  const [closing, setClosing] = createSignal(false)
-  let wasOpen = false
-  let closeTimer: ReturnType<typeof setTimeout> | undefined
+  const [mounted, setMounted] = createSignal(false)
   createEffect(() => {
-    const isOpen = open()
-    clearTimeout(closeTimer)
-    if (isOpen) setClosing(false)
-    else if (wasOpen) {
-      setClosing(true)
-      closeTimer = setTimeout(() => setClosing(false), 300)
-    }
-    wasOpen = isOpen
+    if (open()) setMounted(true)
   })
-  onCleanup(() => clearTimeout(closeTimer))
 
   const resizeY = createResizable({
     initial: 560,
@@ -68,8 +58,8 @@ function PanelLayout(): JSX.Element {
   })
 
   return (
-    <Show when={open() || closing()}>
-      <FocusTrap disabled={layers.anyOpen()}>
+    <Show when={mounted()}>
+      <FocusTrap disabled={!open() || layers.anyOpen()}>
         <section
           class={`${PANEL_BASE} ${PANEL_POS[position()]} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
           data-pw-panel
@@ -78,9 +68,6 @@ function PanelLayout(): JSX.Element {
           role="dialog"
           aria-label="conciv chat agent"
           id="pw-chat-panel"
-          onTransitionEnd={(event) => {
-            if (!open() && event.propertyName === 'opacity' && event.target === event.currentTarget) setClosing(false)
-          }}
         >
           <div
             class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}

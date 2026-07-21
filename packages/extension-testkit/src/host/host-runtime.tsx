@@ -11,7 +11,7 @@ import {FixtureElement} from './fixture-element.js'
 
 const attachDetail = z.object({name: z.string(), type: z.string(), text: z.string()})
 
-// oxlint-disable-next-line conciv/no-comments -- TODO(host-views): hand-rolled tabs diverge from the real app's panel view mounting — rethink
+// oxlint-disable-next-line conciv/no-comments -- TODO(host-views): hand-rolled tabs diverge from the real app's panel view mounting; rethink
 function MountedViews(props: {extension: AnyExtension; clientValue: object}): JSX.Element {
   const views = () => props.extension.views ?? []
   const [active, setActive] = createSignal<string | null>(null)

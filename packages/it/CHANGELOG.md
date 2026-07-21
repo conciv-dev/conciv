@@ -1,5 +1,36 @@
 # @conciv/it
 
+## 0.0.15
+
+### Patch Changes
+
+- [`5eaa498`](https://github.com/conciv-dev/conciv/commit/5eaa4984cc5e8f4c673bb6d2c9e70b2b40c1c1b2) Thanks [@omridevk](https://github.com/omridevk)! - Fix widget flicker on open, restore FAB hover, and drop the recorder from the builtin extensions.
+
+  The panel subtree was destroyed on close, so every open remounted the chat pane, opened a fresh session and SSE subscription, and rendered blank for ~100ms before replaying every message row's entrance at once. The panel now mounts on first open and stays mounted; closing only toggles its visibility classes.
+
+  Entrance shortcuts (`anim-fab`, `anim-pop`, `anim-presence-in`) carried `animation-fill-mode: both`. Since the keyframes end at the element's natural state, the forwards fill only served to pin `transform` after the animation finished, which outranked the FAB's hover lift and press states. `anim-rise`/`anim-rise-d` keep a fill as `backwards`, which is what their `animation-delay` actually needs.
+
+  `@conciv/extension-recorder` is no longer registered as a builtin: it started rrweb capture on every page load whether or not a recording was wanted, and the resulting flush traffic degraded widget responsiveness ([#114](https://github.com/conciv-dev/conciv/issues/114)). The package is still published and can be enabled explicitly.
+
+- Updated dependencies [[`7b075ac`](https://github.com/conciv-dev/conciv/commit/7b075aca0d634fbfa9893f34a1366c2a1af9e20d)]:
+  - @conciv/extension-terminal@0.0.15
+  - @conciv/embed@0.0.15
+  - @conciv/extension-test-runner@0.0.15
+  - @conciv/extension-whiteboard@0.0.15
+  - @conciv/plugin@0.0.15
+
+## 0.0.14
+
+### Patch Changes
+
+- Updated dependencies [[`32deb1c`](https://github.com/conciv-dev/conciv/commit/32deb1c4e25e5a8a8fb8ac1d0b089347433cc483)]:
+  - @conciv/extension-recorder@0.0.14
+  - @conciv/embed@0.0.14
+  - @conciv/extension-terminal@0.0.14
+  - @conciv/extension-test-runner@0.0.14
+  - @conciv/extension-whiteboard@0.0.14
+  - @conciv/plugin@0.0.14
+
 ## 0.0.13
 
 ### Patch Changes

@@ -50,7 +50,7 @@ export function ComposerActions(props: {
       }
       try {
         await navigator.clipboard.writeText(result.command)
-        props.notify('Command copied — paste it in your terminal.')
+        props.notify('Command copied. Paste it in your terminal.')
       } catch {
         props.notify(`Run in your terminal: ${result.command}`)
       }

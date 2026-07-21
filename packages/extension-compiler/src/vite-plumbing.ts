@@ -39,10 +39,14 @@ export function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly s
   }
 }
 
-export function dropIncludedFromExcludes(optimizeDeps: {include?: string[]; exclude?: string[]} | undefined): void {
+export function dropIncludedFromExcludes(
+  optimizeDeps: {include?: string[]; exclude?: string[]} | undefined,
+  managedIds: readonly string[],
+): void {
   if (!optimizeDeps?.exclude?.length) return
   const included = new Set(optimizeDeps.include ?? [])
-  optimizeDeps.exclude = optimizeDeps.exclude.filter((id) => !included.has(id))
+  const managed = new Set(managedIds)
+  optimizeDeps.exclude = optimizeDeps.exclude.filter((id) => !(managed.has(id) && included.has(id)))
 }
 
 export function resolveExtensionsModule(id: string): string | null {

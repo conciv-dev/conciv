@@ -1,5 +1,25 @@
 # @conciv/ui-kit-chat
 
+## 0.0.15
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.15
+  - @conciv/solid-streamdown@0.0.15
+  - @conciv/ui-kit-system@0.0.15
+
+## 0.0.14
+
+### Patch Changes
+
+- [#94](https://github.com/conciv-dev/conciv/pull/94) [`757071f`](https://github.com/conciv-dev/conciv/commit/757071f4bf394cb591b4f45c5bee9fc63c9afb41) Thanks [@omridevk](https://github.com/omridevk)! - Replace the custom busy-send queue with TanStack AI's native FIFO queue, queued-message controls, and interrupt steering.
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.14
+  - @conciv/solid-streamdown@0.0.14
+  - @conciv/ui-kit-system@0.0.14
+
 ## 0.0.13
 
 ### Patch Changes

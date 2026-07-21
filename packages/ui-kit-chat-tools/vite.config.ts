@@ -11,16 +11,7 @@ export default defineConfig({
       fileName: () => 'index.js',
     },
     rollupOptions: {
-      external: [
-        /^solid-js/,
-        /^zod/,
-        /^@conciv\//,
-        /^@pierre\/diffs/,
-        /^shiki/,
-        /^@shikijs\//,
-        /^js-beautify/,
-        /^lucide-solid/,
-      ],
+      external: [/^solid-js/, /^zod/, /^@conciv\//, /^@pierre\/diffs/, /^shiki/, /^@shikijs\//, /^lucide-solid/],
     },
     emptyOutDir: true,
     sourcemap: true,

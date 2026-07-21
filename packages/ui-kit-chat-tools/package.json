@@ -1,6 +1,6 @@
 {
   "name": "@conciv/ui-kit-chat-tools",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv tool-card vocabulary: concrete tool-call cards (Bash, Edit, Read, Search, Todo, apply_patch, page, ui, …) built on @conciv/ui-kit-chat's tool-building primitives + @conciv/ui-kit-system. ui-kit-chat stays tool-agnostic; this package knows the tools.",
   "keywords": [
     "ai-chat",
@@ -50,7 +50,7 @@
   "devDependencies": {
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@tanstack/ai-client": "^0.22.0",
+    "@tanstack/ai-client": "0.22.0",
     "@types/js-beautify": "^1.14.3",
     "@types/node": "^22.19.21",
     "@unocss/postcss": "^66.7.2",

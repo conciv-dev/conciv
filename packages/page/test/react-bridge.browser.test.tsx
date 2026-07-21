@@ -113,7 +113,7 @@ describe('override', () => {
     expect(hooksWithoutId).toEqual({error: 'hooks override requires hookId (from inspect → hooks[].id)'})
     const stateOnFunction = await override(leaf(), 'state', [], {})
     expect(stateOnFunction).toEqual({
-      error: 'state override targets class components; function-component state is a hook — use target=hooks',
+      error: 'state override targets class components; function-component state is a hook; use target=hooks',
     })
     const detached = document.createElement('div')
     document.body.appendChild(detached)

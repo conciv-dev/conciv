@@ -1,6 +1,6 @@
 {
   "name": "@conciv/harness-testkit",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "private": true,
   "homepage": "https://conciv.dev",
   "repository": {
@@ -23,7 +23,7 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@tanstack/ai": "^0.41.0",
-    "@tanstack/ai-mcp": "^0.2.3",
+    "@tanstack/ai-mcp": "0.2.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -74,7 +74,7 @@
 }
 
 /* @pierre/diffs (tool-card code blocks) resolves its dual theme via CSS `color-scheme`, but sets
-   `color-scheme: light dark` on its own shadow host inside `@layer base` — which would follow the OS.
+   `color-scheme: light dark` on its own shadow host inside `@layer base`, which would follow the OS.
    These unlayered rules beat that layered rule, pinning the diff theme to the chat theme instead. */
 diffs-container {
   color-scheme: light;

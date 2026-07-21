@@ -227,7 +227,7 @@ function overridePropsOn(composite: Fiber, path: (string | number)[], value: unk
 
 function overrideStateOn(composite: Fiber, path: (string | number)[], value: unknown): OverrideResult {
   if (!isClassComponent(composite))
-    return {error: 'state override targets class components; function-component state is a hook — use target=hooks'}
+    return {error: 'state override targets class components; function-component state is a hook; use target=hooks'}
   const inst = composite.stateNode
   if (path.length === 0) inst.state = value
   else setInPlace(inst.state, path, value)

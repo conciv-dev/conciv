@@ -1,6 +1,6 @@
 {
   "name": "@conciv/publish",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "private": true,
   "description": "Internal release tooling for the aidx monorepo: normalize package metadata, version, and publish via changesets. citty command tree.",
   "homepage": "https://conciv.dev",
@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "citty": "^0.2.2",
-    "execa": "^9.5.0"
+    "execa": "^9.5.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",

@@ -1,6 +1,6 @@
 {
   "name": "@conciv/tools",
-  "version": "0.0.13",
+  "version": "0.0.15",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). conciv agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
   "keywords": [
     "ai-tools",
