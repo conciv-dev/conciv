@@ -40,7 +40,8 @@ export const NavigateInput = z.object({to: z.string(), replace: z.boolean().opti
 
 export const navigateDef = {
   name: 'tanstack_navigate',
-  description: "Navigate the running app's TanStack Router to a path. Additive/navigational.",
+  description:
+    "Navigate the running app's TanStack Router to a path. This changes what the user is currently viewing but destroys nothing — no data is deleted and you can navigate back.",
   inputSchema: NavigateInput,
 }
 

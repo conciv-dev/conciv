@@ -124,7 +124,7 @@ function mapMatch(match: unknown): RouteMatch {
     routeId: stringValue(match.routeId),
     path: stringValue(match.fullPath),
     params: stringRecord(match.params),
-    search: unknownRecord(match.search),
+    search: unknownRecord(dehydrate(match.search)),
     status: toStatus(match.status),
     error: errorMessage(match.error),
     loaderData: dehydrate(match.loaderData),
@@ -243,7 +243,8 @@ function pickMatch(matches: unknown[], routeId?: string): Record<string, unknown
 export function readLoaderData(routeId?: string): unknown {
   const router = requireRouter()
   const match = pickMatch(router.state.matches, routeId)
-  return dehydrate(match?.loaderData)
+  if (!match) return null
+  return dehydrate(match.loaderData)
 }
 
 export function navigateTo(input: {to: string; replace?: boolean}): {ok: true; to: string} {

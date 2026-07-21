@@ -99,7 +99,7 @@ export const serverFnTraceServer = defineTool<typeof ServerFnTraceInput, ToolCtx
   async (input, ctx) => {
     if (!ctx.adapter.serverFunctions) return {traces: [], functions: []}
     const [traces, functions] = await Promise.all([
-      ctx.adapter.serverFunctions.traces(input.count ?? 0),
+      ctx.adapter.serverFunctions.traces(input.count ?? Number.MAX_SAFE_INTEGER),
       ctx.adapter.serverFunctions.list(),
     ])
     return {traces, functions}

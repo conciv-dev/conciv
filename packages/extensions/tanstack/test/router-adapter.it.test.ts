@@ -37,6 +37,25 @@ test('callTool drives the fiber-walk adapter against the running TanStack app', 
   expect(ids.length).toBeGreaterThanOrEqual(4)
 })
 
+const searchStateSchema = z.object({
+  matches: z.array(z.object({routeId: z.string(), search: z.record(z.string(), z.unknown())})),
+})
+
+test('tanstack_router_state redacts secret-keyed search params through dehydrate', async () => {
+  const {api} = get()
+
+  await waitForWidget(api.page)
+  await api.page.getByRole('link', {name: 'Token route'}).click()
+  await expect.poll(() => api.page.getByRole('heading', {name: 'Secret page'}).isVisible()).toBe(true)
+
+  const payload = await api.callTool('tanstack_router_state', {})
+  const state = searchStateSchema.parse(payload)
+  const secretMatch = state.matches.find((match) => match.routeId === '/secret')
+  expect(secretMatch).toBeDefined()
+  expect(secretMatch?.search.token).toBe('[redacted]')
+  expect(JSON.stringify(state.matches)).not.toContain('super-secret-value')
+})
+
 const cacheEntrySchema = z.object({
   key: z.string(),
   state: z.enum(['fresh', 'stale', 'fetching', 'error']),

@@ -19,6 +19,9 @@ function RootLayout() {
         <Link to="/about">About</Link>
         <Link to="/form">Form</Link>
         <Link to="/boom">Boom</Link>
+        <Link to="/secret" search={{token: 'super-secret-value'}}>
+          Token route
+        </Link>
       </nav>
       <main>
         <Outlet />
@@ -108,7 +111,24 @@ function BoomPage() {
   )
 }
 
-const routeTree = rootRoute.addChildren([indexRoute, aboutRoute, formRoute, boomRoute])
+const secretRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/secret',
+  validateSearch: (search: Record<string, unknown>): {token: string} => ({
+    token: typeof search.token === 'string' ? search.token : '',
+  }),
+  component: SecretPage,
+})
+
+function SecretPage() {
+  return (
+    <section>
+      <h1>Secret page</h1>
+    </section>
+  )
+}
+
+const routeTree = rootRoute.addChildren([indexRoute, aboutRoute, formRoute, boomRoute, secretRoute])
 
 const router = createRouter({routeTree})
 
