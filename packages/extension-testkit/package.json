@@ -15,6 +15,7 @@
     ".": "./src/get-extension-test-api.ts",
     "./card-harness": "./src/card-harness.tsx",
     "./core-kit": "./src/core-kit.ts",
+    "./framework-fake": "./src/framework-fake.ts",
     "./widget-suite": "./src/widget-suite.ts"
   },
   "scripts": {
