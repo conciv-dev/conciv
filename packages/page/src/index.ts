@@ -9,6 +9,11 @@ export {getReactGrabAdapter, type ReactGrabAdapter} from './react-grab/adapter.j
 export {describe, locate, installReactBridge} from './react-bridge.js'
 export {showToast} from './effect-toast.js'
 export {addRef, type Refs} from './page-snapshot.js'
+export {
+  registerExtensionPageVerbs,
+  unregisterExtensionPageVerbs,
+  clearExtensionPageVerbs,
+} from './page-verb-registry.js'
 export * as reactBridge from './react-bridge.js'
 
 async function sleep(ms: number, signal: AbortSignal): Promise<void> {
