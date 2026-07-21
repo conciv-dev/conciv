@@ -126,14 +126,14 @@ None needs new infrastructure — all hang off the existing `configureServer` + 
 
 Every capability in the §1 contract has a proven real source:
 
-| §1 surface | Source | Proven |
-| --- | --- | --- |
-| client routes/navigation/data/errors | `router` via fiber `memoizedProps.router` | live |
-| loaderData | `match.loaderData` (dehydrate before crossing) | live |
-| queryCache | `QueryClient` via fiber walk → `getQueryCache()` | live |
-| serverFunctions.list | `server-functions-plugin` manifest / functionId `{file,export}` | source |
-| serverFunctions.traces | `GET /_serverFn/*` RPC interception | live (200, 4ms) |
-| server manifest/events/logs | conciv `BundlerBridge` + additive vite hooks | seam exists |
+| §1 surface                           | Source                                                          | Proven          |
+| ------------------------------------ | --------------------------------------------------------------- | --------------- |
+| client routes/navigation/data/errors | `router` via fiber `memoizedProps.router`                       | live            |
+| loaderData                           | `match.loaderData` (dehydrate before crossing)                  | live            |
+| queryCache                           | `QueryClient` via fiber walk → `getQueryCache()`                | live            |
+| serverFunctions.list                 | `server-functions-plugin` manifest / functionId `{file,export}` | source          |
+| serverFunctions.traces               | `GET /_serverFn/*` RPC interception                             | live (200, 4ms) |
+| server manifest/events/logs          | conciv `BundlerBridge` + additive vite hooks                    | seam exists     |
 
 Next: write the §2 plan (task breakdown). Fixture note for the plan — the enrichment used here
 (loader + `createServerFn` + `QueryClientProvider` + `useQuery`) should become a committed test

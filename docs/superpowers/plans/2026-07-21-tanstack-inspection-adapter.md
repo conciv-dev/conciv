@@ -56,6 +56,7 @@ It ships: the generic `ext` page-query kind (the only core change, framework-agn
 Creates the package and its browser router reader, registered into Task 1's registry. Proven live in the spike.
 
 **Files:**
+
 - Create: `packages/extensions/tanstack/package.json`, `tsconfig.json`, `vitest.config.ts`, `src/index.ts`
 - Create: `packages/extensions/tanstack/src/client/router-adapter.ts` (fiber-walk reads), `src/client/verbs.ts` (`definePageVerbs` map)
 - Modify: `packages/publish/src/guards.ts` (add to `PUBLIC_PACKAGES`)
@@ -63,6 +64,7 @@ Creates the package and its browser router reader, registered into Task 1's regi
 - Test: `packages/extensions/tanstack/test/router-adapter.browser.test.ts`
 
 **Interfaces:**
+
 - Consumes: `definePageVerbs` (`@conciv/extension`, from the capability plan), `RouteMatch`/`RouteNode` (`@conciv/protocol/framework-types`), `dehydrate` (`@conciv/page`).
 - Produces: a `pageVerbs` map (`routerState`, `routeTree`) declared in the extension's `.client(...)`, each with a zod `args` schema and a fiber-walk handler; consumed by later tasks via `server.page.call('routerState', {})`.
 
@@ -76,10 +78,18 @@ Copy the shape of `packages/extensions/recorder`. `package.json` (fill deps from
   "version": "0.0.13",
   "type": "module",
   "homepage": "https://conciv.dev",
-  "repository": {"type": "git", "url": "git+https://github.com/conciv-dev/conciv.git", "directory": "packages/extensions/tanstack"},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/extensions/tanstack"
+  },
   "exports": {".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"}},
   "scripts": {"build": "tsdown", "typecheck": "tsc -p tsconfig.json --noEmit", "lint": "oxlint", "test": "vitest run"},
-  "dependencies": {"@conciv/extension": "workspace:*", "@conciv/protocol": "workspace:*", "@conciv/page": "workspace:*"},
+  "dependencies": {
+    "@conciv/extension": "workspace:*",
+    "@conciv/protocol": "workspace:*",
+    "@conciv/page": "workspace:*"
+  },
   "peerDependencies": {"@tanstack/react-router": ">=1.170.0"}
 }
 ```
@@ -89,12 +99,16 @@ Copy the shape of `packages/extensions/recorder`. `package.json` (fill deps from
 - [ ] **Step 2: Write the failing browser test against the fixture**
 
 First enrich the committed fixture `e2e/tanstack-start`:
+
 - Create `src/lib/server-fns.ts`:
+
 ```ts
 import {createServerFn} from '@tanstack/react-start'
 export const getGreeting = createServerFn({method: 'GET'}).handler(async () => ({greeting: 'hello', at: 1}))
 ```
+
 - In `src/routes/about.tsx` add a loader calling it and a `useQuery`:
+
 ```ts
 import {createFileRoute} from '@tanstack/react-router'
 import {useQuery} from '@tanstack/react-query'
@@ -109,6 +123,7 @@ function About() {
   return <main>{data.server.greeting}</main>
 }
 ```
+
 - In `src/routes/__root.tsx` wrap the app body in `QueryClientProvider` with a module `QueryClient` (add `@tanstack/react-query` to the fixture's `package.json` deps).
 
 Then the test (`test/router-adapter.browser.test.ts`) loads the running fixture, evaluates the registered client, and asserts extraction. Use the same page-eval fiber walk the spike proved. Assert: `routerState().location.pathname === '/about'`, a match with `routeId === '/about'` and `loaderData` truthy, and `routeTree()` has ≥4 route ids.
@@ -122,6 +137,7 @@ Then the test (`test/router-adapter.browser.test.ts`) loads the running fixture,
 - [ ] **Step 5: Declare the verbs (client)**
 
 `src/client/verbs.ts`:
+
 ```ts
 import {definePageVerbs} from '@conciv/extension'
 import {z} from 'zod'
@@ -132,6 +148,7 @@ export const tanstackVerbs = definePageVerbs({
   routeTree: {args: z.object({}), handler: () => readRouteTree()},
 })
 ```
+
 In `src/index.ts`, the extension's `.client(() => ({value: {}, pageVerbs: tanstackVerbs}))` registers them (mount handles registration per the capability plan). No `@conciv/page` registry import; no `boot.ts`.
 
 - [ ] **Step 6: Build the extension + fixture, run the browser test** → PASS. Run: `pnpm turbo run build --filter=@conciv/extension-tanstack` then `pnpm --filter @conciv/extension-tanstack test`.
@@ -152,11 +169,13 @@ git commit -m "feat(extension-tanstack): package scaffold + fiber-walk router ve
 First agent-facing slice: server tools that call the client verbs via `ctx.page.call`, with render cards. Proves the whole vertical (agent → tool → page bus → browser verb → card).
 
 **Files:**
+
 - Create: `packages/extensions/tanstack/src/tool/router-state.ts`, `route-tree.ts`, and `*-card.tsx`
 - Modify: `packages/extensions/tanstack/src/index.ts` (register tools)
 - Test: `packages/extensions/tanstack/test/router-tools.browser.test.tsx` (widget IT)
 
 **Interfaces:**
+
 - Consumes: `server.page.call` (from the capability plan) — the extension's `.server((server) => ({context: {page: server.page}}))` exposes the scoped, typed caller to its tools, so a tool's `ctx.page.call('routerState', {})` is fully typed against the `tanstackVerbs` map (Task 2).
 - Produces: tools `tanstack_router_state`, `tanstack_route_tree`.
 
@@ -173,7 +192,8 @@ import {RouterStateCard} from './router-state-card.js'
 
 export const routerState = defineTool({
   name: 'tanstack_router_state',
-  description: 'Read the running app\'s current TanStack Router state: matched routes, params, search, loader status. Use it to see what the user is looking at before acting.',
+  description:
+    "Read the running app's current TanStack Router state: matched routes, params, search, loader status. Use it to see what the user is looking at before acting.",
   inputSchema: z.object({}),
 })
   .server(async (_input, ctx) => ctx.page.call('routerState', {}))
@@ -236,10 +256,12 @@ export const routerState = defineTool({
 The server half reads the dev server. Transport already exists (conciv boots the engine in `configureServer` and hands it a `BundlerBridge`, `packages/plugin/src/core/vite.ts`); this task adds error/HMR capture + on-disk readers.
 
 **Files:**
+
 - Create: `packages/extensions/tanstack/src/server/bundler.ts` (error ring + readers), `src/tool/build-errors.ts`, `route-manifest.ts` + cards.
 - Modify: `packages/plugin/src/core/vite.ts` or add a sibling vite plugin the extension contributes, to capture transform/build errors and HMR events into the ring. (Confirm at implementation whether the extension server-context exposes the `BundlerBridge`; if not, thread it through the extension server registration — new wiring, note it in the commit.)
 
 **Interfaces:**
+
 - Consumes: `BundlerBridge` (`@conciv/protocol/bundler-types`: `moduleGraph`, `transform`, `config`), the vite dev server error/HMR stream.
 - Produces: tools `tanstack_build_errors` (recent transform/build errors), `tanstack_route_manifest` (parsed `routeTree.gen`).
 
@@ -272,25 +294,31 @@ Spike facts: each server fn's client call is `GET /_serverFn/<base64({file,expor
 Ties the adapter to the `FrameworkAdapter` contract, ships the testkit fake the spec calls for, and runs all gates.
 
 **Files:**
+
 - Create: `packages/extension-testkit/src/framework-fake.ts` + export it.
 - Modify: `packages/extensions/tanstack/src/index.ts` — assemble the full `FrameworkAdapter` via `defineFrameworkAdapter` with `capabilities: {queryCache: true, serverFunctions: true, rscPayload: false, isr: false, middleware: false}` and the client/server surfaces; confirm it type-checks against the contract.
 - Create: `.changeset/tanstack-inspection-adapter.md`.
 
-- [ ] **Step 1:** Write `makeFakeFrameworkAdapter(overrides)` returning a complete `FrameworkAdapter` (all core surfaces + `queryCache`/`serverFunctions` since a fake advertises them) with canned data; a unit test asserts it satisfies `defineFrameworkAdapter` and every method returns well-formed shapes.
-- [ ] **Step 2:** Run → PASS.
-- [ ] **Step 3:** In `src/index.ts`, construct the real `FrameworkAdapter` object (server-side surfaces from Tasks 7-8; client-side surfaces are reached via `server.page.call`, so the adapter's `client` methods on the server are thin typed `ctx.page.call(verb, args)` wrappers used by the tools). Assert `pnpm --filter @conciv/extension-tanstack typecheck` passes against the contract.
-- [ ] **Step 4:** Ensure the extension's tools carry their prose in `description` (lazy discovery reveals them) and register through the standard extension path so they ride lazy discovery + Code Mode (no per-tool `codeMode` flag needed — all extension tools are bound). No `approval: 'ask'` on any TanStack tool (reads + navigation only; confirm none destroy user content).
-- [ ] **Step 5:** Add the changeset:
+- [x] **Step 1:** Write `makeFakeFrameworkAdapter(overrides)` returning a complete `FrameworkAdapter` (all core surfaces + `queryCache`/`serverFunctions` since a fake advertises them) with canned data; a unit test asserts it satisfies `defineFrameworkAdapter` and every method returns well-formed shapes.
+- [x] **Step 2:** Run → PASS.
+- [x] **Step 3:** In `src/index.ts`, construct the real `FrameworkAdapter` object (server-side surfaces from Tasks 7-8; client-side surfaces are reached via `server.page.call`, so the adapter's `client` methods on the server are thin typed `ctx.page.call(verb, args)` wrappers used by the tools). Assert `pnpm --filter @conciv/extension-tanstack typecheck` passes against the contract.
+- [x] **Step 4:** Ensure the extension's tools carry their prose in `description` (lazy discovery reveals them) and register through the standard extension path so they ride lazy discovery + Code Mode (no per-tool `codeMode` flag needed — all extension tools are bound). No `approval: 'ask'` on any TanStack tool (reads + navigation only; confirm none destroy user content).
+- [x] **Step 5:** Add the changeset:
+
 ```md
 ---
 '@conciv/extension-tanstack': patch
 ---
+
 Add the TanStack Router/Start inspection adapter: agent tools for router state, route tree, loader data, query cache, navigation/invalidation, dev-server build errors, route manifest, and server-function traces, each with a render card.
 ```
-- [ ] **Step 6: Full gates.**
-Run: `pnpm typecheck && pnpm build && pnpm test`.
-Run: `pnpm exec fallow audit --changed-since main --format json` — fix anything INTRODUCED.
-- [ ] **Step 7: Commit** (`feat(extension-tanstack): framework-adapter contract wiring, testkit fake, changeset`).
+
+- [x] **Step 6: Full gates.**
+      Run: `pnpm typecheck && pnpm build && pnpm test`.
+      Run: `pnpm exec fallow audit --changed-since main --format json` — fix anything INTRODUCED.
+- [x] **Step 7: Commit** (`feat(extension-tanstack): framework-adapter contract wiring, testkit fake, changeset`).
+
+> **Task 9 executed as redefined:** the contract was asyncified (client core + surfaces), `client.errors.subscribe` was dropped (push delivery moved to a separate `FrameworkEvent`-pipeline plan), `routes.current()` became `RouterCurrent`, and `server.errors.snapshot()` was added. The adapter is assembled via `defineFrameworkAdapter` and all tools read through it; `makeFakeFrameworkAdapter` ships in `@conciv/extension-testkit`.
 
 ---
 

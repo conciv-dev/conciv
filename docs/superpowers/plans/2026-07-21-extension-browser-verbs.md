@@ -34,10 +34,12 @@
 ### Task 1: The `ext` page-query wire (protocol)
 
 **Files:**
+
 - Modify: `packages/protocol/src/page-types.ts`
 - Test: `packages/protocol/test/page-types.test.ts` (extend if present, else create)
 
 **Interfaces:**
+
 - Produces: page verb `{kind: 'ext', extension: string, verb: string, argsJson?: string}` on `PageQuerySchema`; reply is the existing `PageReply` (`{requestId, data}`). Consumed by every task below.
 
 - [ ] **Step 1: Write the failing schema test**
@@ -82,11 +84,13 @@ Do NOT add `ext` to `MUTATING_KINDS` or `MIRROR_KINDS` (verbs self-classify; the
 The public API extension authors touch. Pure types + tiny runtime helpers; no wiring yet.
 
 **Files:**
+
 - Create: `packages/extension/src/page-verbs.ts`
 - Modify: `packages/extension/src/index.ts` (export the surface)
 - Test: `packages/extension/test/page-verbs.test-d.ts` (type-level) + `packages/extension/test/page-verbs.test.ts` (runtime helpers)
 
 **Interfaces:**
+
 - Produces:
   - `PageVerbDef<Schema extends z.ZodType, Result>` = `{args: Schema; handler: (args: z.output<Schema>) => Result | Promise<Result>}`
   - `PageVerbMap = Record<string, PageVerbDef<z.ZodType, unknown>>`
@@ -154,7 +158,12 @@ export type PageVerbError = Error & {
   verb: string
 }
 
-export function pageVerbError(code: PageVerbErrorCode, extension: string, verb: string, message: string): PageVerbError {
+export function pageVerbError(
+  code: PageVerbErrorCode,
+  extension: string,
+  verb: string,
+  message: string,
+): PageVerbError {
   const error = new Error(message) as PageVerbError
   return Object.assign(error, {isPageVerbError: true as const, code, extension, verb})
 }
@@ -189,11 +198,13 @@ describe('pageVerbError', () => {
 ### Task 3: Browser registry + `ext` dispatch (page side)
 
 **Files:**
+
 - Create: `packages/page/src/page-verb-registry.ts`
 - Modify: `packages/page/src/page-handlers.ts`, `packages/page/src/index.ts` (export register/clear)
 - Test: `packages/page/test/page-verb-dispatch.test.ts`
 
 **Interfaces:**
+
 - Consumes: `PageVerbMap` (Task 2).
 - Produces: `registerExtensionPageVerbs(extension: string, verbs: PageVerbMap): void` (replaces the extension's prior entry, so a dev hot-reload re-mount never double-registers), `unregisterExtensionPageVerbs(extension: string): void` (called on client `dispose`), `clearExtensionPageVerbs(): void`, and an internal `dispatchExtVerb(extension, verb, argsJson): Promise<{result: unknown} | {error: {code, message}}>` used by the `ext` handler.
 
@@ -239,7 +250,11 @@ export function clearExtensionPageVerbs(): void {
 
 type Dispatch = {result: unknown} | {error: {code: string; message: string}}
 
-export async function dispatchExtVerb(extension: string, verb: string, argsJson: string | undefined): Promise<Dispatch> {
+export async function dispatchExtVerb(
+  extension: string,
+  verb: string,
+  argsJson: string | undefined,
+): Promise<Dispatch> {
   const def = registry.get(extension)?.[verb]
   if (!def) return {error: {code: 'unknown-verb', message: `${extension}.${verb} is not registered`}}
   const raw = argsJson ? safeJson(argsJson) : {}
@@ -274,10 +289,12 @@ Wire into `page-handlers.ts`: add an `ext` branch that calls `dispatchExtVerb(qu
 The client-side half: `pageVerbs` is a sibling of `value`/`dispose` in the client factory result (so it never pollutes the UI `useContext`); handlers are closures over the factory scope (they read the extension's own client state or the DOM/fiber directly — no injected context); the verb-map type flows to the server caller; mount registers, dispose unregisters.
 
 **Files:**
+
 - Modify: `packages/extension/src/types.ts` (`ClientFactoryResult` gains `pageVerbs?: Verbs`; add `Verbs` to `ServerApi`; `page: PageCaller<Verbs>`), `packages/extension/src/define-extension.ts` (capture `pageVerbs` from `.client`, thread its type to `.server`), `packages/extension/src/mount-extension.tsx` (register on mount, unregister on dispose).
 - Test: `packages/extension/test/extension-page-verbs.test-d.ts` + a client-lifecycle test.
 
 **Interfaces:**
+
 - Consumes: `definePageVerbs`/`PageCaller` (Task 2), `registerExtensionPageVerbs`/`unregisterExtensionPageVerbs` (Task 3).
 - Produces: `ClientFactoryResult<Value, Verbs> = {value: Value; pageVerbs?: Verbs; dispose?: () => void}`; `.client(() => ({value, pageVerbs}))` sets the builder's `Verbs`; `.server((server) => …)` sees `server.page: PageCaller<Verbs>`.
 
@@ -292,6 +309,7 @@ Lifecycle test (real Chromium) — mount an extension whose `pageVerbs.ping` clo
 - [ ] **Step 3: Implement the client shape + generic threading**
 
 Extend `ClientFactoryResult`:
+
 ```ts
 export type ClientFactoryResult<Value extends object, Verbs extends PageVerbMap = {}> = {
   value: Value
@@ -299,6 +317,7 @@ export type ClientFactoryResult<Value extends object, Verbs extends PageVerbMap 
   dispose?: () => void
 }
 ```
+
 Add `Verbs extends PageVerbMap = {}` to `ExtensionBuilder` and `ServerApi<Config, Verbs>` (`page: PageCaller<Verbs>`). `.client(factory)` infers `Verbs` from `factory().pageVerbs`; `.server(factory)` receives `ServerApi<Config, Verbs>`. Require `.client` before `.server` for inference (document it). In `mount-extension.tsx`: after building the client factory result, `registerExtensionPageVerbs(extensionName, result.pageVerbs ?? {})`; wrap `result.dispose` so it also calls `unregisterExtensionPageVerbs(extensionName)`.
 
 - [ ] **Step 4: Build embed + run both tests + `pnpm --filter @conciv/extension typecheck`** → PASS.
@@ -310,11 +329,13 @@ Add `Verbs extends PageVerbMap = {}` to `ExtensionBuilder` and `ServerApi<Config
 ### Task 5: Core wiring — `PageBus`-backed `server.page.call` end to end
 
 **Files:**
+
 - Modify: `packages/core/src/app.ts` (build a `callPageVerb` from `pageBus`), the extension server-host boot (`packages/plugin/src/core/vite.ts` `bootEngine` / `@conciv/core/start`) to inject `page.call` into each extension's `ServerApi`.
 - Modify: `packages/extension/src/define-extension.ts` server-side to implement `page.call` from the injected `callPageVerb`, mapping `PageBus` failures to `PageVerbError`.
 - Test: `packages/extension-testkit` round-trip in real Chromium — a tiny test extension registering a `ping` verb, a server call reaching the browser and returning.
 
 **Interfaces:**
+
 - Consumes: `pageBus.ask` (core), `pageVerbError` (Task 2), `registerExtensionPageVerbs` (Task 3).
 - Produces: a working `server.page.call(verb, args)` that resolves with the browser result or rejects with a typed `PageVerbError`.
 
@@ -325,6 +346,7 @@ Add `Verbs extends PageVerbMap = {}` to `ExtensionBuilder` and `ServerApi<Config
 - [ ] **Step 3: Implement the core injection**
 
 In `app.ts`, expose `callPageVerb(extension, verb, argsJson)`:
+
 ```ts
 const callPageVerb = async (extension: string, verb: string, argsJson: string): Promise<unknown> => {
   const reply = await pageBus.ask({kind: 'ext', extension, verb, argsJson})
@@ -333,6 +355,7 @@ const callPageVerb = async (extension: string, verb: string, argsJson: string): 
   return data.result
 }
 ```
+
 Thread `callPageVerb` into extension mounting so each extension's `ServerApi.page.call(verb, args)` becomes `callPageVerb(thisExtension, verb, JSON.stringify(args))`. Map `pageBus.ask` throws: HTTP 503 → `no-widget`, 504 → `timeout`. `mapCode` maps browser-reported codes (`unknown-verb`/`invalid-args`/`handler-error`) straight through.
 
 - [ ] **Step 4: Build embed + testkit, run the round-trip** → PASS (both the success and the `no-widget` rejection).
@@ -344,6 +367,7 @@ Thread `callPageVerb` into extension mounting so each extension's `ServerApi.pag
 ### Task 6: Robustness pass — timeout, loading contract, docs, gates
 
 **Files:**
+
 - Modify: `packages/extension/src/page-verbs.ts` (JSDoc-free but self-describing helper for tools to render loading/error from a call), tests for each error code.
 - Create: a short authoring note in the extension package README or `docs/` describing the `pageVerbs` + `server.page.call` pattern for third-party authors.
 - Modify: `.changeset/extension-browser-verbs.md`.
@@ -353,12 +377,15 @@ Thread `callPageVerb` into extension mounting so each extension's `ServerApi.pag
 - [ ] **Step 3: Close gaps** — ensure the handler-error path serializes safely, the timeout maps from the bus 504, and results are size-bounded (extensions dehydrate; the dispatch also guards against non-serializable returns by JSON round-tripping and reporting `handler-error` on failure).
 - [ ] **Step 4: Loading contract** — document + assert that a tool calling `server.page.call` surfaces its tool part as running until resolve/reject, so cards render loading then result/error (no green-on-failure). Add one widget assertion that a rejected call renders an error card.
 - [ ] **Step 5: Changeset**
+
 ```md
 ---
 '@conciv/extension': patch
 ---
+
 Extensions can declare typed, zod-validated browser `pageVerbs` in `.client(...)` and invoke them from `.server(...)` via a scoped, fully-typed `server.page.call(verb, args)`. Every failure path rejects with a typed `PageVerbError` (`no-widget` | `unknown-verb` | `invalid-args` | `handler-error` | `timeout`). Core gains one generic `ext` page-query kind; no framework-specific code.
 ```
+
 - [ ] **Step 6: Full gates** — `pnpm typecheck && pnpm build && pnpm test`; `pnpm exec fallow audit --changed-since main --format json` → fix anything INTRODUCED.
 - [ ] **Step 7: Commit** — `feat(extension): robustness pass — all page-verb error codes, loading contract, author docs`
 
