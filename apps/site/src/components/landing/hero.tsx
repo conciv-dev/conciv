@@ -1,8 +1,11 @@
+import {Suspense, lazy} from 'react'
+import {ClientOnly} from '@tanstack/react-router'
 import {Badge} from '@/components/ui/badge'
 import {useIsMobile} from '@/lib/use-is-mobile'
 import {TryLiveButton} from './try-live-button'
-import {Demo} from './demo/demo'
 import {InstallChip} from './install-chip'
+
+const Demo = lazy(() => import('./demo/demo').then((module) => ({default: module.Demo})))
 
 export function Hero() {
   const isMobile = useIsMobile()
@@ -32,7 +35,11 @@ export function Hero() {
           </>
         )}
       </div>
-      <Demo />
+      <ClientOnly>
+        <Suspense>
+          <Demo />
+        </Suspense>
+      </ClientOnly>
     </header>
   )
 }

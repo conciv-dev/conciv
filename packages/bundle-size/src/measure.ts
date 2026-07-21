@@ -1,4 +1,6 @@
-import {existsSync, readFileSync, readdirSync} from 'node:fs'
+import {execFileSync} from 'node:child_process'
+import {existsSync, mkdtempSync, readFileSync, readdirSync, rmSync} from 'node:fs'
+import {tmpdir} from 'node:os'
 import {join, relative} from 'node:path'
 import {gzipSync} from 'node:zlib'
 
@@ -7,6 +9,12 @@ export type PackageSize = {name: string; raw: number; gzip: number; files: numbe
 const PACKAGE_GROUPS = ['packages', 'packages/extensions']
 const BUNDLED_EXTENSIONS = ['.js', '.mjs', '.cjs', '.css']
 const WIDGET_BUNDLE = 'packages/embed/dist/conciv-widget.global.js'
+
+const SITE_SERVER_DIST = 'apps/site/dist/server'
+export const WORKER_NAME = 'conciv.dev worker (apps/site)'
+export const WORKER_LIMIT_KIB = 3 * 1024
+
+export type WorkerReport = {size: PackageSize; chunks: {file: string; gzip: number}[]}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -55,8 +63,16 @@ export function measureSizes(root: string): PackageSize[] {
   return [...widget, ...packages.toSorted((a, b) => a.name.localeCompare(b.name))]
 }
 
+function parseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
 export function parseSizes(raw: string): PackageSize[] {
-  const parsed: unknown = JSON.parse(raw)
+  const parsed = parseJson(raw)
   if (!Array.isArray(parsed)) return []
   return parsed.filter(isRecord).flatMap((entry) => {
     if (typeof entry.name !== 'string') return []
@@ -69,6 +85,75 @@ export function parseSizes(raw: string): PackageSize[] {
       },
     ]
   })
+}
+
+const KIB_TOTALS = /^Total Upload:\s*(\d+(?:\.\d+)?)\s*KiB\s*\/\s*gzip:\s*(\d+(?:\.\d+)?)\s*KiB/gm
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
+
+export function parseWorkerSize(wranglerOutput: string): {raw: number; gzip: number} {
+  const matches = [...wranglerOutput.replace(ANSI, '').matchAll(KIB_TOTALS)]
+  if (matches.length !== 1) {
+    throw new Error(
+      `expected exactly one wrangler size line, found ${matches.length}. Could not read the worker size from wrangler output`,
+    )
+  }
+  const raw = Number(matches[0]?.[1])
+  const gzip = Number(matches[0]?.[2])
+  if (!Number.isFinite(raw) || !Number.isFinite(gzip)) {
+    throw new Error('could not read the worker size from wrangler output')
+  }
+  return {raw: Math.round(raw * 1024), gzip: Math.round(gzip * 1024)}
+}
+
+export function workerIsOverBudget(report: WorkerReport, limitKib: number): boolean {
+  return report.size.gzip > limitKib * 1024
+}
+
+export function workerIsBuilt(root: string): boolean {
+  return existsSync(join(root, SITE_SERVER_DIST))
+}
+
+export function measureWorker(root: string): WorkerReport {
+  if (!workerIsBuilt(root)) {
+    throw new Error(
+      `${SITE_SERVER_DIST} is missing, so the worker size cannot be measured. Build it first: pnpm exec turbo run build --filter=site`,
+    )
+  }
+  const outputDirectory = mkdtempSync(join(tmpdir(), 'conciv-worker-size-'))
+  try {
+    const output = execFileSync(
+      'pnpm',
+      ['--filter', 'site', 'exec', 'wrangler', 'deploy', '--dry-run', '--outdir', outputDirectory],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        maxBuffer: 64 * 1024 * 1024,
+        env: {...process.env, FORCE_COLOR: '0', NO_COLOR: '1'},
+      },
+    )
+    const {raw, gzip} = parseWorkerSize(output)
+    const chunks = distFiles(outputDirectory)
+      .map((file) => ({file: relative(outputDirectory, file), gzip: gzipSync(readFileSync(file)).byteLength}))
+      .toSorted((a, b) => b.gzip - a.gzip)
+    return {size: {name: WORKER_NAME, raw, gzip, files: chunks.length}, chunks}
+  } finally {
+    rmSync(outputDirectory, {recursive: true, force: true})
+  }
+}
+
+export function formatWorkerOverBudget(report: WorkerReport, limitKib: number): string {
+  const gzipKib = report.size.gzip / 1024
+  const over = (gzipKib - limitKib).toFixed(1)
+  const lines = report.chunks
+    .slice(0, 10)
+    .map((chunk) => `  ${(chunk.gzip / 1024).toFixed(1).padStart(8)} KiB  ${chunk.file}`)
+  return [
+    `${WORKER_NAME} is ${gzipKib.toFixed(1)} KiB gzip, over the ${limitKib} KiB budget by ${over} KiB. The site will not deploy on this Cloudflare plan.`,
+    'Largest worker chunks (gzip):',
+    ...lines,
+    'Fix: keep client-only libraries out of the server bundle. See trimServerBundle in apps/site/vite.config.ts.',
+  ].join('\n')
 }
 
 function kb(bytes: number): string {

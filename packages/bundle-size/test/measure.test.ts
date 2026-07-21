@@ -2,7 +2,19 @@ import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, expect, test} from 'vitest'
-import {measureSizes, parseSizes, renderSizes} from '../src/measure.ts'
+import {
+  WORKER_LIMIT_KIB,
+  WORKER_NAME,
+  formatWorkerOverBudget,
+  measureSizes,
+  measureWorker,
+  parseSizes,
+  parseWorkerSize,
+  renderSizes,
+  workerIsBuilt,
+  workerIsOverBudget,
+  type WorkerReport,
+} from '../src/measure.ts'
 
 let root = ''
 
@@ -57,4 +69,94 @@ test('renderSizes diffs gzip sizes against a baseline', () => {
   expect(output).toContain('**3.0 kB gzip total** (+1.0 kB (+50.0%) vs main)')
   expect(renderSizes(current, null)).toContain('**3.0 kB gzip total**\n')
   expect(renderSizes(current, [])).toContain('| new |')
+})
+
+test('parseWorkerSize reads the raw and gzip totals from wrangler output', () => {
+  expect(parseWorkerSize('Total Upload: 10016.85 KiB / gzip: 2220.11 KiB\nNo bindings found.')).toEqual({
+    raw: Math.round(10016.85 * 1024),
+    gzip: Math.round(2220.11 * 1024),
+  })
+})
+
+test('parseWorkerSize throws when the totals are absent or malformed', () => {
+  const malformedWranglerOutputs = [
+    '',
+    'gzip: 47 KiB',
+    'Total Upload: 100 KiB',
+    'Total Upload: . KiB / gzip: . KiB',
+    'Total Upload: 1.2.3 KiB / gzip: 4.5.6 KiB',
+    'Total Upload: KiB / gzip: KiB',
+  ]
+  for (const output of malformedWranglerOutputs) {
+    expect(() => parseWorkerSize(output), output).toThrow(/could not read the worker size/i)
+  }
+})
+
+const overBudget: WorkerReport = {
+  size: {name: WORKER_NAME, raw: 26_000_000, gzip: 5190 * 1024, files: 3},
+  chunks: [
+    {file: 'assets/dist-transformers.js', gzip: 374 * 1024},
+    {file: 'assets/mount-impl.js', gzip: 296 * 1024},
+  ],
+}
+
+function reportOf(gzipKib: number): WorkerReport {
+  return {size: {name: WORKER_NAME, raw: gzipKib * 4096, gzip: gzipKib * 1024, files: 1}, chunks: []}
+}
+
+test('the worker budget is Cloudflare 3 MiB, in bytes', () => {
+  expect(WORKER_LIMIT_KIB * 1024).toBe(3 * 1024 * 1024)
+})
+
+test('workerIsOverBudget fires only past the limit', () => {
+  expect(workerIsOverBudget(reportOf(WORKER_LIMIT_KIB), WORKER_LIMIT_KIB)).toBe(false)
+  expect(workerIsOverBudget(reportOf(WORKER_LIMIT_KIB - 1), WORKER_LIMIT_KIB)).toBe(false)
+  expect(
+    workerIsOverBudget(
+      {...reportOf(WORKER_LIMIT_KIB), size: {...reportOf(WORKER_LIMIT_KIB).size, gzip: WORKER_LIMIT_KIB * 1024 + 1}},
+      WORKER_LIMIT_KIB,
+    ),
+  ).toBe(true)
+  expect(workerIsOverBudget(reportOf(5190), WORKER_LIMIT_KIB)).toBe(true)
+})
+
+test('parseWorkerSize reads the real total, not an earlier line that looks like one', () => {
+  const output = [
+    '| assets/Total Upload: 1 KiB / gzip: 1 KiB.js | esm | 12.00 KiB |',
+    'Total Upload: 10016.85 KiB / gzip: 5220.11 KiB',
+  ].join('\n')
+  expect(parseWorkerSize(output).gzip).toBe(Math.round(5220.11 * 1024))
+})
+
+test('parseWorkerSize reads colorized wrangler output', () => {
+  const escape = String.fromCharCode(27)
+  const output = `Total Upload: ${escape}[33m10016.85 KiB / gzip: 2220.11 KiB${escape}[39m`
+  expect(parseWorkerSize(output).gzip).toBe(Math.round(2220.11 * 1024))
+})
+
+test('parseWorkerSize refuses ambiguous output with more than one total', () => {
+  const output = ['Total Upload: 10 KiB / gzip: 5 KiB', 'Total Upload: 20 KiB / gzip: 9000 KiB'].join('\n')
+  expect(() => parseWorkerSize(output)).toThrow(/exactly one wrangler size line, found 2/)
+})
+
+test('parseSizes tolerates an unusable baseline instead of crashing the gate', () => {
+  expect(parseSizes('')).toEqual([])
+  expect(parseSizes('<!DOCTYPE html>404')).toEqual([])
+  expect(parseSizes('{"not": "an array"}')).toEqual([])
+})
+
+test('measureWorker refuses to silently skip when the site is not built', async () => {
+  const unbuilt = await mkdtemp(join(tmpdir(), 'conciv-unbuilt-'))
+  expect(workerIsBuilt(unbuilt)).toBe(false)
+  expect(() => measureWorker(unbuilt)).toThrow(/dist\/server is missing/)
+  await rm(unbuilt, {recursive: true, force: true})
+})
+
+test('formatWorkerOverBudget reports the overage and names the largest chunks', () => {
+  const message = formatWorkerOverBudget(overBudget, WORKER_LIMIT_KIB)
+  expect(message).toContain(WORKER_NAME)
+  expect(message).toContain('5190.0 KiB gzip')
+  expect(message).toContain(`over the ${WORKER_LIMIT_KIB} KiB budget`)
+  expect(message).toContain('assets/dist-transformers.js')
+  expect(message).toContain('trimServerBundle')
 })

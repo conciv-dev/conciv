@@ -9,7 +9,7 @@ test('onClientRequest fires once on the first token request', async () => {
   let fired = 0
   try {
     const engine = await start({
-      options: {harnessBin: 'true'},
+      options: {harnessBin: 'true', stateRoot: root},
       root,
       launchEditor: () => {},
       accessToken: 'tok-hook',

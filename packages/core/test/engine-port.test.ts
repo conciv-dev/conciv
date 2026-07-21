@@ -8,7 +8,7 @@ test('start boots on the requested fixed port', async () => {
   const root = mkdtempSync(join(tmpdir(), 'conciv-engine-port-'))
   try {
     const engine = await start({
-      options: {harnessBin: 'true'},
+      options: {harnessBin: 'true', stateRoot: root},
       root,
       launchEditor: () => {},
       port: 41799,
