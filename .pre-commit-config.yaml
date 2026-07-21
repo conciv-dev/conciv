@@ -15,7 +15,7 @@ repos:
         exclude: '^(.*/)?(dist|build|\.turbo)/'
       - id: oxlint
         name: oxlint (lint staged files)
-        entry: bash -c 'pnpm exec oxlint --fix "$@" && git add -- "$@"' --
+        entry: bash -c 'pnpm exec oxlint --fix --no-error-on-unmatched-pattern "$@" && git add -- "$@"' --
         language: system
         pass_filenames: true
         files: '\.(m?[jt]sx?|c[jt]s)$'
