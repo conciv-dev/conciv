@@ -1,14 +1,13 @@
-import type {Page} from 'playwright'
 import {expect, test} from 'vitest'
-import {tanstackAdapter, useTanstackTestApi} from './helpers/tanstack-test-api.js'
+import {
+  gotoAbout,
+  tanstackAdapter,
+  useTanstackTestApi,
+  waitForAboutQuery,
+  waitForWidget,
+} from './helpers/tanstack-test-api.js'
 
 const get = useTanstackTestApi()
-
-async function waitForWidget(page: Page): Promise<void> {
-  await expect
-    .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-    .toBe(true)
-}
 
 test('adapter.client.detect reports the running framework against the real app', async () => {
   const {api} = get()
@@ -21,9 +20,7 @@ test('adapter.client.detect reports the running framework against the real app',
 test('adapter.client.data surfaces the router loader cache for the real about route', async () => {
   const {api} = get()
   await waitForWidget(api.page)
-
-  await api.page.getByRole('link', {name: 'About'}).click()
-  await expect.poll(() => api.page.getByRole('heading', {name: 'About this app'}).isVisible()).toBe(true)
+  await gotoAbout(api.page)
 
   const adapter = tanstackAdapter(api)
   const entries = await adapter.client.data.entries()
@@ -39,9 +36,7 @@ test('adapter.client.data surfaces the router loader cache for the real about ro
 test('adapter.client.data.invalidate re-runs the real router loader', async () => {
   const {api} = get()
   await waitForWidget(api.page)
-
-  await api.page.getByRole('link', {name: 'About'}).click()
-  await expect.poll(() => api.page.getByRole('heading', {name: 'About this app'}).isVisible()).toBe(true)
+  await gotoAbout(api.page)
 
   const adapter = tanstackAdapter(api)
   const readUpdatedAt = async () => {
@@ -70,7 +65,7 @@ test('adapter.queryCache splits the live TanStack Query cache into queries and m
   await waitForWidget(api.page)
 
   await api.page.getByRole('link', {name: 'About'}).click()
-  await expect.poll(() => api.page.getByText('Query fetched: yes').isVisible(), {timeout: 10_000}).toBe(true)
+  await waitForAboutQuery(api.page)
 
   const adapter = tanstackAdapter(api)
   const [queries, mutations] = await Promise.all([adapter.queryCache?.queries(), adapter.queryCache?.mutations()])

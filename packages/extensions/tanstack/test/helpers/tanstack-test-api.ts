@@ -1,7 +1,8 @@
 import {rm} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
+import type {Page} from 'playwright'
 import react from '@vitejs/plugin-react'
-import {afterAll, beforeAll} from 'vitest'
+import {afterAll, beforeAll, expect} from 'vitest'
 import {buildConcivHost, getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
 import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
 import tanstackExtension from '../../src/server.js'
@@ -43,4 +44,19 @@ export function tanstackAdapter(api: ExtensionTestApi): FrameworkAdapter {
     throw new Error('tanstack adapter missing from server context')
   }
   return context.adapter as FrameworkAdapter
+}
+
+export async function waitForWidget(page: Page): Promise<void> {
+  await expect
+    .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
+    .toBe(true)
+}
+
+export async function gotoAbout(page: Page): Promise<void> {
+  await page.getByRole('link', {name: 'About'}).click()
+  await expect.poll(() => page.getByRole('heading', {name: 'About this app'}).isVisible()).toBe(true)
+}
+
+export async function waitForAboutQuery(page: Page): Promise<void> {
+  await expect.poll(() => page.getByText('Query fetched: yes').isVisible(), {timeout: 10_000}).toBe(true)
 }

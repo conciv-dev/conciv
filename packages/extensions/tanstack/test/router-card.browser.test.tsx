@@ -34,6 +34,22 @@ const LOADER_DATA = JSON.stringify({
   deep: {__conciv: 'object', size: 1, preview: '{…}'},
 })
 
+async function expectErrorCard(
+  Card: Parameters<typeof mountToolCard>[0],
+  name: string,
+  message: string,
+  options: {code?: string; args?: unknown} = {},
+): Promise<void> {
+  mountToolCard(Card, {
+    name,
+    args: options.args,
+    content: JSON.stringify({code: options.code ?? 'handler-error', message}),
+    state: 'error',
+  })
+  await page.getByRole('button', {name: new RegExp(name)}).click()
+  await expect.element(page.getByText(message)).toBeVisible()
+}
+
 describe('RouterStateCard (real browser)', () => {
   it('renders a loading affordance while the tool is running', async () => {
     mountToolCard(RouterStateCard, {name: 'tanstack_router_state'})
@@ -48,13 +64,7 @@ describe('RouterStateCard (real browser)', () => {
   })
 
   it('renders the error message when the verb fails', async () => {
-    mountToolCard(RouterStateCard, {
-      name: 'tanstack_router_state',
-      content: JSON.stringify({code: 'handler-error', message: 'TanStack router not found on page'}),
-      state: 'error',
-    })
-    await page.getByRole('button', {name: /tanstack_router_state/}).click()
-    await expect.element(page.getByText('TanStack router not found on page')).toBeVisible()
+    await expectErrorCard(RouterStateCard, 'tanstack_router_state', 'TanStack router not found on page')
   })
 })
 
@@ -73,13 +83,7 @@ describe('RouteTreeCard (real browser)', () => {
   })
 
   it('renders the error message when the verb fails', async () => {
-    mountToolCard(RouteTreeCard, {
-      name: 'tanstack_route_tree',
-      content: JSON.stringify({code: 'timeout', message: 'page verb timed out'}),
-      state: 'error',
-    })
-    await page.getByRole('button', {name: /tanstack_route_tree/}).click()
-    await expect.element(page.getByText('page verb timed out')).toBeVisible()
+    await expectErrorCard(RouteTreeCard, 'tanstack_route_tree', 'page verb timed out', {code: 'timeout'})
   })
 })
 
@@ -115,13 +119,7 @@ describe('QueryCacheCard (real browser)', () => {
   })
 
   it('renders the error message when the verb fails', async () => {
-    mountToolCard(QueryCacheCard, {
-      name: 'tanstack_query_cache',
-      content: JSON.stringify({code: 'handler-error', message: 'TanStack QueryClient not found on page'}),
-      state: 'error',
-    })
-    await page.getByRole('button', {name: /tanstack_query_cache/}).click()
-    await expect.element(page.getByText('TanStack QueryClient not found on page')).toBeVisible()
+    await expectErrorCard(QueryCacheCard, 'tanstack_query_cache', 'TanStack QueryClient not found on page')
   })
 })
 
@@ -141,13 +139,7 @@ describe('LoaderDataCard (real browser)', () => {
   })
 
   it('renders the error message when the verb fails', async () => {
-    mountToolCard(LoaderDataCard, {
-      name: 'tanstack_loader_data',
-      content: JSON.stringify({code: 'handler-error', message: 'TanStack router not found on page'}),
-      state: 'error',
-    })
-    await page.getByRole('button', {name: /tanstack_loader_data/}).click()
-    await expect.element(page.getByText('TanStack router not found on page')).toBeVisible()
+    await expectErrorCard(LoaderDataCard, 'tanstack_loader_data', 'TanStack router not found on page')
   })
 })
 
@@ -167,14 +159,7 @@ describe('NavigateCard (real browser)', () => {
   })
 
   it('renders the error message when the action fails', async () => {
-    mountToolCard(NavigateCard, {
-      name: 'tanstack_navigate',
-      args: {to: '/form'},
-      content: JSON.stringify({code: 'handler-error', message: 'TanStack router not found on page'}),
-      state: 'error',
-    })
-    await page.getByRole('button', {name: /tanstack_navigate/}).click()
-    await expect.element(page.getByText('TanStack router not found on page')).toBeVisible()
+    await expectErrorCard(NavigateCard, 'tanstack_navigate', 'TanStack router not found on page', {args: {to: '/form'}})
   })
 })
 
@@ -190,13 +175,7 @@ describe('RouterInvalidateCard (real browser)', () => {
   })
 
   it('renders the error message when the action fails', async () => {
-    mountToolCard(RouterInvalidateCard, {
-      name: 'tanstack_invalidate',
-      content: JSON.stringify({code: 'handler-error', message: 'TanStack router invalidate is not available'}),
-      state: 'error',
-    })
-    await page.getByRole('button', {name: /tanstack_invalidate/}).click()
-    await expect.element(page.getByText('TanStack router invalidate is not available')).toBeVisible()
+    await expectErrorCard(RouterInvalidateCard, 'tanstack_invalidate', 'TanStack router invalidate is not available')
   })
 })
 
@@ -223,14 +202,9 @@ describe('QueryInvalidateCard (real browser)', () => {
   })
 
   it('renders the error message when the action fails', async () => {
-    mountToolCard(QueryInvalidateCard, {
-      name: 'tanstack_query_invalidate',
+    await expectErrorCard(QueryInvalidateCard, 'tanstack_query_invalidate', 'TanStack QueryClient not found on page', {
       args: {key: '["spike","demo"]'},
-      content: JSON.stringify({code: 'handler-error', message: 'TanStack QueryClient not found on page'}),
-      state: 'error',
     })
-    await page.getByRole('button', {name: /tanstack_query_invalidate/}).click()
-    await expect.element(page.getByText('TanStack QueryClient not found on page')).toBeVisible()
   })
 })
 

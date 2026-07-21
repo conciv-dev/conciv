@@ -1,6 +1,6 @@
 import {expect, test} from 'vitest'
 import {z} from 'zod'
-import {useTanstackTestApi} from './helpers/tanstack-test-api.js'
+import {gotoAbout, useTanstackTestApi, waitForAboutQuery, waitForWidget} from './helpers/tanstack-test-api.js'
 
 const get = useTanstackTestApi()
 
@@ -22,13 +22,9 @@ function collectIds(node: RouteNodeShape): string[] {
 test('callTool drives the fiber-walk adapter against the running TanStack app', async () => {
   const {api} = get()
 
-  await expect
-    .poll(() => api.page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-    .toBe(true)
-
-  await api.page.getByRole('link', {name: 'About'}).click()
-  await expect.poll(() => api.page.getByRole('heading', {name: 'About this app'}).isVisible()).toBe(true)
-  await expect.poll(() => api.page.getByText('Query fetched: yes').isVisible(), {timeout: 10_000}).toBe(true)
+  await waitForWidget(api.page)
+  await gotoAbout(api.page)
+  await waitForAboutQuery(api.page)
 
   const state = routerStateSchema.parse(await api.callTool('tanstack_router_state', {}))
   expect(state.location.pathname).toBe('/about')
@@ -54,13 +50,9 @@ const queryCacheSchema = z.object({queries: z.array(cacheEntrySchema), mutations
 test('tanstack_query_cache extracts the live TanStack Query cache from the running app', async () => {
   const {api} = get()
 
-  await expect
-    .poll(() => api.page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-    .toBe(true)
-
-  await api.page.getByRole('link', {name: 'About'}).click()
-  await expect.poll(() => api.page.getByRole('heading', {name: 'About this app'}).isVisible()).toBe(true)
-  await expect.poll(() => api.page.getByText('Query fetched: yes').isVisible(), {timeout: 10_000}).toBe(true)
+  await waitForWidget(api.page)
+  await gotoAbout(api.page)
+  await waitForAboutQuery(api.page)
 
   const cache = queryCacheSchema.parse(await api.callTool('tanstack_query_cache', {}))
   const demo = cache.queries.find((entry) => entry.key === JSON.stringify(['spike', 'demo']))
@@ -72,9 +64,7 @@ test('tanstack_query_cache extracts the live TanStack Query cache from the runni
 test('tanstack_navigate drives real TanStack Router navigation on the running app', async () => {
   const {api} = get()
 
-  await expect
-    .poll(() => api.page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-    .toBe(true)
+  await waitForWidget(api.page)
 
   await api.callTool('tanstack_navigate', {to: '/form'})
 
@@ -89,13 +79,9 @@ test('tanstack_navigate drives real TanStack Router navigation on the running ap
 test('tanstack_query_invalidate no-ops on unknown keys and refetches the real key on the running app', async () => {
   const {api} = get()
 
-  await expect
-    .poll(() => api.page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-    .toBe(true)
-
-  await api.page.getByRole('link', {name: 'About'}).click()
-  await expect.poll(() => api.page.getByRole('heading', {name: 'About this app'}).isVisible()).toBe(true)
-  await expect.poll(() => api.page.getByText('Query fetched: yes').isVisible(), {timeout: 10_000}).toBe(true)
+  await waitForWidget(api.page)
+  await gotoAbout(api.page)
+  await waitForAboutQuery(api.page)
 
   const demoKey = JSON.stringify(['spike', 'demo'])
   const readDemo = async () => {
@@ -136,12 +122,8 @@ const loaderDataSchema = z.object({
 test('tanstack_loader_data returns dehydrated leaf loader data with depth truncation applied', async () => {
   const {api} = get()
 
-  await expect
-    .poll(() => api.page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-    .toBe(true)
-
-  await api.page.getByRole('link', {name: 'About'}).click()
-  await expect.poll(() => api.page.getByRole('heading', {name: 'About this app'}).isVisible()).toBe(true)
+  await waitForWidget(api.page)
+  await gotoAbout(api.page)
 
   const payload = await api.callTool('tanstack_loader_data', {})
   const loaderData = loaderDataSchema.parse(payload)
