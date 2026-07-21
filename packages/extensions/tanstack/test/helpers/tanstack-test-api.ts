@@ -1,0 +1,37 @@
+import {rm} from 'node:fs/promises'
+import {fileURLToPath} from 'node:url'
+import react from '@vitejs/plugin-react'
+import {afterAll, beforeAll} from 'vitest'
+import {buildConcivHost, getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
+import tanstackExtension from '../../src/index.js'
+
+const hostDir = fileURLToPath(new URL('../host', import.meta.url))
+const clientEntry = fileURLToPath(new URL('../../src/index.ts', import.meta.url))
+
+export type TanstackTestApi = {api: ExtensionTestApi; origin: string}
+
+export function useTanstackTestApi(): () => TanstackTestApi {
+  const ctx: {api?: ExtensionTestApi; origin?: string} = {}
+  beforeAll(async () => {
+    ctx.api = await getExtensionTestApi({
+      server: tanstackExtension,
+      host: async ({apiBase, session}) => {
+        const outDir = await buildConcivHost({root: hostDir, plugins: [react()], clientEntry})
+        const served = await serveDir(outDir, {apiBase, session})
+        ctx.origin = served.origin
+        return {
+          origin: served.origin,
+          close: async () => {
+            await served.close()
+            await rm(outDir, {recursive: true, force: true}).catch(() => {})
+          },
+        }
+      },
+    })
+  }, 120_000)
+  afterAll(async () => ctx.api?.dispose())
+  return () => {
+    if (!ctx.api || ctx.origin === undefined) throw new Error('testkit not booted')
+    return {api: ctx.api, origin: ctx.origin}
+  }
+}

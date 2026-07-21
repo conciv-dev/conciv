@@ -357,6 +357,10 @@ function reactRootFibers(): Fiber[] {
   return roots.length > 0 ? roots : scannedRootFibers()
 }
 
+export function rootFibers(): Fiber[] {
+  return reactRootFibers()
+}
+
 const isNamedComposite = (node: Fiber, name: string): boolean => isCompositeFiber(node) && getDisplayName(node) === name
 
 export function elementByName(name: string): Element | null {
