@@ -4,7 +4,7 @@
 
 **Goal:** Ship `@conciv/extension-tanstack` — a framework-inspection adapter that gives agents live, devtools-grade read + act access to a running TanStack Start app's router, loader data, query cache, server functions, and dev-server errors, implemented over the `FrameworkAdapter` contract from `@conciv/protocol/framework-types`.
 
-**Architecture:** The adapter is an extension with the standard client/server split. Its **client half** runs in the page (widget context) and reads live state by walking the React fiber tree for the router instance (`memoizedProps.router`) and the TanStack Query `QueryClient` (`getQueryCache`), returning dehydrated snapshots. Server-side agent tools reach the client half over the **existing** page channel: `ctx.page({kind: 'framework', adapter: 'tanstack', method, argsJson})` → `PageBus.ask` → SSE → a new page-side `framework` handler that dispatches to a browser registry the extension client populates on mount. The adapter's **server half** reads the dev server through the conciv `BundlerBridge` (module graph, transform) plus additive vite hooks for build/HMR errors, and reads `routeTree.gen` and the server-functions manifest off disk. All facts below were verified live in the spike (`docs/superpowers/plans/2026-07-21-tanstack-adapter-spike-findings.md`).
+**Architecture:** The adapter is an extension with the standard client/server split, built on the **extension browser-verb capability** (`docs/superpowers/plans/2026-07-21-extension-browser-verbs.md` — PREREQUISITE, land it first). Its **client half** declares `pageVerbs` in `.client(...)` — handlers that walk the React fiber tree for the router instance (`memoizedProps.router`) and the TanStack Query `QueryClient` (`getQueryCache`) and return dehydrated snapshots. Server-side agent tools read them via the typed, scoped `server.page.call(verb, args)` (no framework-specific core code — core only has the generic `ext` verb from the capability). The adapter's **server half** reads the dev server through the conciv `BundlerBridge` (module graph, transform) plus additive vite hooks for build/HMR errors, and reads `routeTree.gen` and the server-functions manifest off disk. All facts below were verified live in the spike (`docs/superpowers/plans/2026-07-21-tanstack-adapter-spike-findings.md`).
 
 **Tech Stack:** `@tanstack/react-router` 1.170 + `@tanstack/react-start` 1.168 + `@tanstack/react-query` 5.101 (workspace); `@conciv/extension` (`defineTool().render()`), `@conciv/protocol/framework-types` (Task-§1, shipped), `@conciv/page` (`dehydrate`, `react-bridge` fiber walk), the core `PageBus`, Playwright/Chromium for browser tests, vitest.
 
@@ -24,7 +24,7 @@
 ## File Structure
 
 - `packages/protocol/src/page-types.ts` (modify) — add the `framework` page-query kind + its fields.
-- `packages/page/src/framework-registry.ts` (create) — browser-side registry: `registerFrameworkAdapterClient(name, client)` / `getFrameworkAdapterClient(name)`; single responsibility, no framework specifics.
+- (no core/page files — the browser↔server mechanism is the extension browser-verb capability, its own plan.)
 - `packages/page/src/page-handlers.ts` (modify) — handle `kind: 'framework'` by dispatching to the registry.
 - `packages/extensions/tanstack/` (create) — the extension package. Mirrors `packages/extensions/recorder` layout:
   - `src/client/router-adapter.ts` — the fiber-walk `FrameworkClientCore` + query-cache reads (browser).
@@ -39,108 +39,15 @@
 
 ---
 
-### Task 1: The `framework` page-query bridge (protocol + page registry + dispatch)
+### Task 1: Prerequisite — the extension browser-verb capability
 
-Adds a single generic browser verb that routes to a per-framework client registered in the page. This is the load-bearing seam: every client-side read in later tasks rides it.
+This plan does NOT add any bridge to core. The browser↔server mechanism is the general, typed, declarative capability specified in its own plan:
 
-**Files:**
-- Modify: `packages/protocol/src/page-types.ts`
-- Create: `packages/page/src/framework-registry.ts`
-- Modify: `packages/page/src/page-handlers.ts`
-- Test: `packages/page/test/framework-registry.test.ts`
+**`docs/superpowers/plans/2026-07-21-extension-browser-verbs.md` — land it in full first.**
 
-**Interfaces:**
-- Produces: page verb `{kind: 'framework', adapter: string, method: string, argsJson?: string}` → reply `Record<string, unknown>`. Registry API: `registerFrameworkAdapterClient(name: string, client: FrameworkClientLike): void`, `getFrameworkAdapterClient(name: string): FrameworkClientLike | undefined`, where `FrameworkClientLike = Record<string, (args: unknown) => unknown | Promise<unknown>>`. Consumed by Task 2 (registration), Task 3+ (server tools call `ctx.page({kind:'framework', ...})`).
+It ships: the generic `ext` page-query kind (the only core change, framework-agnostic), the browser verb registry + zod-validated dispatch, `definePageVerbs` + the typed `PageCaller`/`PageVerbError` surface, the verb-map generic on `ExtensionBuilder`, and the `PageBus`-backed scoped `server.page.call(verb, args)`. Every client read in the tasks below is a `pageVerbs` handler (declared in `.client`) invoked via `server.page.call` (in `.server`).
 
-- [ ] **Step 1: Add the verb + fields to the page-query schema**
-
-In `packages/protocol/src/page-types.ts`, add `'framework'` to the `PAGE_QUERY_KINDS` array (append before the closing `]`), and add three optional fields to `PageQuerySchema`:
-
-```ts
-  adapter: z.string().optional().describe('framework adapter name, e.g. tanstack'),
-  method: z.string().optional().describe('framework adapter client method name'),
-  argsJson: z.string().optional().describe('JSON-encoded args for the framework method'),
-```
-
-`framework` is a read verb: do NOT add it to `MUTATING_KINDS` or `MIRROR_KINDS`.
-
-- [ ] **Step 2: Write the failing registry test**
-
-```ts
-import {describe, it, expect, beforeEach} from 'vitest'
-import {registerFrameworkAdapterClient, getFrameworkAdapterClient, clearFrameworkAdapterClients} from '../src/framework-registry.js'
-
-describe('framework adapter registry', () => {
-  beforeEach(() => clearFrameworkAdapterClients())
-  it('returns undefined for an unregistered adapter', () => {
-    expect(getFrameworkAdapterClient('tanstack')).toBeUndefined()
-  })
-  it('stores and retrieves a registered client', () => {
-    const client = {routerState: () => ({ok: true})}
-    registerFrameworkAdapterClient('tanstack', client)
-    expect(getFrameworkAdapterClient('tanstack')).toBe(client)
-  })
-})
-```
-
-- [ ] **Step 3: Run it, expect FAIL**
-
-Run: `pnpm --filter @conciv/page test -- framework-registry`
-Expected: FAIL (module `../src/framework-registry.js` not found).
-
-- [ ] **Step 4: Implement the registry**
-
-Create `packages/page/src/framework-registry.ts`:
-
-```ts
-export type FrameworkClientLike = Record<string, (args: unknown) => unknown | Promise<unknown>>
-
-const registry = new Map<string, FrameworkClientLike>()
-
-export function registerFrameworkAdapterClient(name: string, client: FrameworkClientLike): void {
-  registry.set(name, client)
-}
-
-export function getFrameworkAdapterClient(name: string): FrameworkClientLike | undefined {
-  return registry.get(name)
-}
-
-export function clearFrameworkAdapterClients(): void {
-  registry.clear()
-}
-```
-
-- [ ] **Step 5: Dispatch the verb in the page handler**
-
-In `packages/page/src/page-handlers.ts`, add a branch that handles `query.kind === 'framework'`: look up the client, call `client[query.method]` with the parsed `argsJson`, and return the result wrapped as the reply `data`. Add near the other verb branches:
-
-```ts
-import {getFrameworkAdapterClient} from './framework-registry.js'
-
-async function handleFramework(query: {adapter?: string; method?: string; argsJson?: string}): Promise<Record<string, unknown>> {
-  const client = query.adapter ? getFrameworkAdapterClient(query.adapter) : undefined
-  if (!client) return {error: `no framework adapter registered: ${query.adapter ?? '(none)'}`}
-  const fn = query.method ? client[query.method] : undefined
-  if (typeof fn !== 'function') return {error: `unknown framework method: ${query.method ?? '(none)'}`}
-  const args = query.argsJson ? (JSON.parse(query.argsJson) as unknown) : undefined
-  const result = await fn(args)
-  return {result: result ?? null}
-}
-```
-
-Wire `handleFramework(query)` into the handler's kind switch so `kind: 'framework'` returns its value.
-
-- [ ] **Step 6: Run tests + typecheck**
-
-Run: `pnpm --filter @conciv/page test -- framework-registry` → PASS.
-Run: `pnpm --filter @conciv/protocol typecheck && pnpm --filter @conciv/page typecheck` → PASS.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add packages/protocol/src/page-types.ts packages/page/src/framework-registry.ts packages/page/src/page-handlers.ts packages/page/test/framework-registry.test.ts
-git commit -m "feat(page): generic framework page-query verb + adapter client registry"
-```
+- [ ] **Step 1: Confirm the capability is landed** — `registerExtensionPageVerbs` exists in `@conciv/page`, `definePageVerbs`/`PageCaller`/`PageVerbError` export from `@conciv/extension`, and `ServerApi.page.call` type-checks. If not, execute the capability plan first. No commit in this task.
 
 ---
 
@@ -150,15 +57,14 @@ Creates the package and its browser router reader, registered into Task 1's regi
 
 **Files:**
 - Create: `packages/extensions/tanstack/package.json`, `tsconfig.json`, `vitest.config.ts`, `src/index.ts`
-- Create: `packages/extensions/tanstack/src/client/router-adapter.ts`
-- Create: `packages/extensions/tanstack/src/client/boot.ts`
+- Create: `packages/extensions/tanstack/src/client/router-adapter.ts` (fiber-walk reads), `src/client/verbs.ts` (`definePageVerbs` map)
 - Modify: `packages/publish/src/guards.ts` (add to `PUBLIC_PACKAGES`)
 - Modify: `e2e/tanstack-start/src/routes/about.tsx`, `src/routes/__root.tsx`, `src/lib/server-fns.ts` (create) — committed fixture
 - Test: `packages/extensions/tanstack/test/router-adapter.browser.test.ts`
 
 **Interfaces:**
-- Consumes: `registerFrameworkAdapterClient` (Task 1), `FrameworkClientCore` / `RouteMatch` / `RouteNode` (`@conciv/protocol/framework-types`), `dehydrate` (`@conciv/page`).
-- Produces: `makeTanstackRouterClient(): {routerState(): {matches: RouteMatch[]; location: {...}}, routeTree(): RouteNode, ...}` registered under the name `'tanstack'`.
+- Consumes: `definePageVerbs` (`@conciv/extension`, from the capability plan), `RouteMatch`/`RouteNode` (`@conciv/protocol/framework-types`), `dehydrate` (`@conciv/page`).
+- Produces: a `pageVerbs` map (`routerState`, `routeTree`) declared in the extension's `.client(...)`, each with a zod `args` schema and a fiber-walk handler; consumed by later tasks via `server.page.call('routerState', {})`.
 
 - [ ] **Step 1: Scaffold the package**
 
@@ -209,36 +115,24 @@ Then the test (`test/router-adapter.browser.test.ts`) loads the running fixture,
 
 - [ ] **Step 3: Run it, expect FAIL** (client module not implemented). Run: `pnpm --filter @conciv/extension-tanstack test`.
 
-- [ ] **Step 4: Implement the router client**
+- [ ] **Step 4: Implement the router reads**
 
-`src/client/router-adapter.ts` — port the proven spike extraction. Find the router via fiber walk (`memoizedProps.router` duck-typed by `state.matches` + `navigate`), map `state.matches` → `RouteMatch[]` (`id`, `routeId`, `fullPath`→`path`, `params`, `search`, `status`, `error`→`error?message`, `loaderData` via `dehydrate`, `isFetching`, `staleAt`←`updatedAt`), `routesById` → `RouteNode` tree, `state.location` → location. Reuse `packages/page/src/react-bridge.ts` root-fiber discovery (`scannedRootFibers`) rather than re-rolling the DOM-key walk. Every returned payload with user data goes through `dehydrate`.
+`src/client/router-adapter.ts` — port the proven spike extraction. Find the router via fiber walk (`memoizedProps.router` duck-typed by `state.matches` + `navigate`; reuse `packages/page/src/react-bridge.ts` `scannedRootFibers` for root discovery — do not re-roll the DOM-key walk); map `state.matches` → `RouteMatch[]` (`id`, `routeId`, `fullPath`→`path`, `params`, `search`, `status`, `error`→message, `loaderData` via `dehydrate`, `isFetching`, `staleAt`←`updatedAt`), `routesById` → `RouteNode` tree, `state.location` → location. Every payload with user data goes through `dehydrate`. Export pure functions `readRouterState()` / `readRouteTree()` that throw a typed error if the router is absent.
 
+- [ ] **Step 5: Declare the verbs (client)**
+
+`src/client/verbs.ts`:
 ```ts
-import {dehydrate} from '@conciv/page'
-import type {RouteMatch, RouteNode} from '@conciv/protocol/framework-types'
-// find router via fiber walk; then:
-export function makeTanstackRouterClient() {
-  function router() { /* fiber-walk lookup, throw a typed 'router not found' if absent */ }
-  return {
-    detect: () => ({name: 'tanstack-start', version: null, router: 'file-based', dev: true}),
-    routerState: () => ({matches: mapMatches(router().state.matches), location: mapLocation(router().state.location)}),
-    routeTree: () => mapTree(router()),
-    navigate: (args: {to: string; replace?: boolean}) => router().navigate({to: args.to, replace: args.replace}),
-    invalidate: () => router().invalidate(),
-    // back/refresh added in Task 6
-  }
-}
-```
+import {definePageVerbs} from '@conciv/extension'
+import {z} from 'zod'
+import {readRouterState, readRouteTree} from './router-adapter.js'
 
-- [ ] **Step 5: Register on boot**
-
-`src/client/boot.ts`:
-```ts
-import {registerFrameworkAdapterClient} from '@conciv/page'
-import {makeTanstackRouterClient} from './router-adapter.js'
-registerFrameworkAdapterClient('tanstack', makeTanstackRouterClient())
+export const tanstackVerbs = definePageVerbs({
+  routerState: {args: z.object({}), handler: () => readRouterState()},
+  routeTree: {args: z.object({}), handler: () => readRouteTree()},
+})
 ```
-Export `registerFrameworkAdapterClient`/`getFrameworkAdapterClient` from `@conciv/page`'s entry so the extension can import it (add to `packages/page/src/index.ts`).
+In `src/index.ts`, the extension's `.client(() => ({value: {}, pageVerbs: tanstackVerbs}))` registers them (mount handles registration per the capability plan). No `@conciv/page` registry import; no `boot.ts`.
 
 - [ ] **Step 6: Build the extension + fixture, run the browser test** → PASS. Run: `pnpm turbo run build --filter=@conciv/extension-tanstack` then `pnpm --filter @conciv/extension-tanstack test`.
 
@@ -247,15 +141,15 @@ Export `registerFrameworkAdapterClient`/`getFrameworkAdapterClient` from `@conci
 Add `@conciv/extension-tanstack` to `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts`.
 
 ```bash
-git add packages/extensions/tanstack packages/page/src/index.ts packages/publish/src/guards.ts e2e/tanstack-start
-git commit -m "feat(extension-tanstack): package scaffold + fiber-walk router client, committed fixture"
+git add packages/extensions/tanstack packages/publish/src/guards.ts e2e/tanstack-start
+git commit -m "feat(extension-tanstack): package scaffold + fiber-walk router verbs, committed fixture"
 ```
 
 ---
 
 ### Task 3: `tanstack_router_state` + `tanstack_route_tree` tools + cards
 
-First agent-facing slice: server tools that call the client over `ctx.page`, with render cards. Proves the whole vertical (agent → tool → page bus → browser → card).
+First agent-facing slice: server tools that call the client verbs via `ctx.page.call`, with render cards. Proves the whole vertical (agent → tool → page bus → browser verb → card).
 
 **Files:**
 - Create: `packages/extensions/tanstack/src/tool/router-state.ts`, `route-tree.ts`, and `*-card.tsx`
@@ -263,7 +157,7 @@ First agent-facing slice: server tools that call the client over `ctx.page`, wit
 - Test: `packages/extensions/tanstack/test/router-tools.browser.test.tsx` (widget IT)
 
 **Interfaces:**
-- Consumes: `ctx.page` (extension tool context — same `ConcivToolContext.page` shipped in `packages/core/src/app.ts`), the `'tanstack'` client (Task 2).
+- Consumes: `server.page.call` (from the capability plan) — the extension's `.server((server) => ({context: {page: server.page}}))` exposes the scoped, typed caller to its tools, so a tool's `ctx.page.call('routerState', {})` is fully typed against the `tanstackVerbs` map (Task 2).
 - Produces: tools `tanstack_router_state`, `tanstack_route_tree`.
 
 - [ ] **Step 1: Write the failing widget IT** asserting a turn that calls `tanstack_router_state` renders a card listing the current route path and match count (real Chromium, prebuilt embed).
@@ -282,18 +176,15 @@ export const routerState = defineTool({
   description: 'Read the running app\'s current TanStack Router state: matched routes, params, search, loader status. Use it to see what the user is looking at before acting.',
   inputSchema: z.object({}),
 })
-  .server(async (_input, ctx) => {
-    const reply = await ctx.page({kind: 'framework', adapter: 'tanstack', method: 'routerState', argsJson: '{}'})
-    return reply.result
-  })
+  .server(async (_input, ctx) => ctx.page.call('routerState', {}))
   .render(RouterStateCard)
 ```
 
-`route-tree.ts` follows the identical shape with `method: 'routeTree'` and `RouteTreeCard`.
+`ctx.page.call('routerState', {})` is typed against `tanstackVerbs` — verb name, args, and return type all checked; a `PageVerbError` (e.g. `no-widget`) propagates as a tool error. `route-tree.ts` is identical with `'routeTree'` and `RouteTreeCard`. The extension's `.server((server) => ({context: {page: server.page}}))` puts the scoped caller on the tool `ctx`.
 
-- [ ] **Step 4: Implement the cards** (`*-card.tsx`) — Solid components rendering the dehydrated result (route path, match list; tree as a nested list). Follow `packages/extensions/recorder/src/tool/card.tsx` for structure and the ui-kit-system primitives. No approval strip (reads).
+- [ ] **Step 4: Implement the cards** (`*-card.tsx`) — Solid components rendering loading (tool part running), the dehydrated result on success, and the `PageVerbError` code as an error state. Follow `packages/extensions/recorder/src/tool/card.tsx` for structure and the ui-kit-system primitives. No approval strip (reads).
 
-- [ ] **Step 5: Register in `src/index.ts`** via `defineExtension` (client entry = `boot.ts`, tools = `[routerState, routeTree, ...]`, server extension for later tasks).
+- [ ] **Step 5: Register in `src/index.ts`** via `defineExtension` — `.client(() => ({value: {}, pageVerbs: tanstackVerbs}))`, `.server((server) => ({context: {page: server.page}}))`, tools `[routerState, routeTree, ...]`.
 
 - [ ] **Step 6: Rebuild embed + extension, run the IT** → PASS. Run: `pnpm turbo run build --filter=@conciv/embed --filter=@conciv/extension-tanstack` then the IT.
 
@@ -303,11 +194,11 @@ export const routerState = defineTool({
 
 ### Task 4: `tanstack_loader_data` tool + card (dehydrate proof)
 
-**Files:** Create `src/tool/loader-data.ts` + `loader-data-card.tsx`; add a `loaderData(args: {routeId?: string})` method to the client; modify `src/index.ts`. Test: extend the browser test.
+**Files:** Create `src/tool/loader-data.ts` + `loader-data-card.tsx`; add a `loaderData` verb to `tanstackVerbs`; modify `src/index.ts`. Test: extend the browser test.
 
 - [ ] **Step 1:** Failing browser test — navigate to `/about`, call `tanstack_loader_data`, assert the reply contains the loader keys (`server`, `local`) and that a deeply nested value beyond the dehydrate depth cap is truncated (proves dehydrate ran).
 - [ ] **Step 2:** Run, expect FAIL.
-- [ ] **Step 3:** Add client method `loaderData: (a: {routeId?: string}) => dehydrate(pickMatch(router(), a.routeId)?.loaderData)`; add the tool (shape of Task 3, `method: 'loaderData'`, input `z.object({routeId: z.string().optional()})`).
+- [ ] **Step 3:** Add the verb `loaderData: {args: z.object({routeId: z.string().optional()}), handler: (a) => dehydrate(pickMatch(router(), a.routeId)?.loaderData)}` to `tanstackVerbs`; add the tool (shape of Task 3, `ctx.page.call('loaderData', {routeId})`).
 - [ ] **Step 4:** Card renders the dehydrated tree (reuse the page dehydrated-value renderer if one exists; else a keyed list).
 - [ ] **Step 5:** Rebuild, run → PASS.
 - [ ] **Step 6:** Commit (`feat(extension-tanstack): loader_data tool with dehydrate`).
@@ -320,7 +211,7 @@ export const routerState = defineTool({
 
 - [ ] **Step 1:** Failing browser test — on `/about`, `tanstack_query_cache` returns the `["spike","demo"]` entry with `status: 'success'`, `observers: 1`.
 - [ ] **Step 2:** Run, expect FAIL.
-- [ ] **Step 3:** Implement `query-adapter.ts`: fiber-walk for `typeof v.getQueryCache === 'function'` (on `memoizedProps.client`/`.value`), map each query to `CacheEntry` (`key`←`JSON.stringify(queryKey)`, `state`←`isStale()? 'stale':'fresh'` / `fetchStatus`, `status`, `value`←`dehydrate(state.data)`, `updatedAt`←`dataUpdatedAt`, `error`, `observers`←`getObserversCount()`); `mutations()`←`getMutationCache().getAll()`; `invalidate`/`refetch`←`queryClient.invalidateQueries`/`refetchQueries`. Register these methods on the `'tanstack'` client. Add the tool.
+- [ ] **Step 3:** Implement `query-adapter.ts`: fiber-walk for `typeof v.getQueryCache === 'function'` (on `memoizedProps.client`/`.value`), map each query to `CacheEntry` (`key`←`JSON.stringify(queryKey)`, `state`←`isStale()? 'stale':'fresh'` / `fetchStatus`, `status`, `value`←`dehydrate(state.data)`, `updatedAt`←`dataUpdatedAt`, `error`, `observers`←`getObserversCount()`); `mutations()`←`getMutationCache().getAll()`; `invalidate`/`refetch`←`queryClient.invalidateQueries`/`refetchQueries`. Add a `queryCache` verb (and `queryInvalidate`/`queryRefetch` action verbs) to `tanstackVerbs`. Add the tool calling `ctx.page.call('queryCache', {})`.
 - [ ] **Step 4:** Card — a table of queries (key, status, observers, age).
 - [ ] **Step 5:** Rebuild, run → PASS.
 - [ ] **Step 6:** Commit (`feat(extension-tanstack): query_cache surface, tool, card`).
@@ -333,7 +224,7 @@ export const routerState = defineTool({
 
 - [ ] **Step 1:** Failing browser test — `tanstack_navigate` with `{to: '/form'}` changes `routerState().location.pathname` to `/form`.
 - [ ] **Step 2:** Run, expect FAIL.
-- [ ] **Step 3:** Implement tools. `navigate` input `z.object({to: z.string(), replace: z.boolean().optional()})` → `method: 'navigate'`. `invalidate` input `z.object({})` → `method: 'invalidate'`. Add client `back: () => router().history.back()`, `refresh: () => router().invalidate()`. These are additive/navigational — leave unguarded (consistent with the approval audit: navigation is not destructive).
+- [ ] **Step 3:** Add verbs `navigate: {args: z.object({to: z.string(), replace: z.boolean().optional()}), handler: (a) => { router().navigate(a); return {ok: true} }}`, `invalidate: {args: z.object({}), handler: () => { router().invalidate(); return {ok: true} }}`, `back`/`refresh` to `tanstackVerbs`. Implement the tools calling `ctx.page.call('navigate', {to})` / `ctx.page.call('invalidate', {})`. Additive/navigational — leave unguarded (consistent with the approval audit: navigation is not destructive).
 - [ ] **Step 4:** Cards — a compact confirmation chip (target route / invalidated). No approval strip.
 - [ ] **Step 5:** Rebuild, run → PASS.
 - [ ] **Step 6:** Commit (`feat(extension-tanstack): navigate + invalidate action tools`).
@@ -387,7 +278,7 @@ Ties the adapter to the `FrameworkAdapter` contract, ships the testkit fake the 
 
 - [ ] **Step 1:** Write `makeFakeFrameworkAdapter(overrides)` returning a complete `FrameworkAdapter` (all core surfaces + `queryCache`/`serverFunctions` since a fake advertises them) with canned data; a unit test asserts it satisfies `defineFrameworkAdapter` and every method returns well-formed shapes.
 - [ ] **Step 2:** Run → PASS.
-- [ ] **Step 3:** In `src/index.ts`, construct the real `FrameworkAdapter` object (server-side surfaces from Tasks 7-8; client-side surfaces are reached over `ctx.page`, so the adapter's `client` methods on the server are thin `ctx.page` wrappers used by the tools). Assert `pnpm --filter @conciv/extension-tanstack typecheck` passes against the contract.
+- [ ] **Step 3:** In `src/index.ts`, construct the real `FrameworkAdapter` object (server-side surfaces from Tasks 7-8; client-side surfaces are reached via `server.page.call`, so the adapter's `client` methods on the server are thin typed `ctx.page.call(verb, args)` wrappers used by the tools). Assert `pnpm --filter @conciv/extension-tanstack typecheck` passes against the contract.
 - [ ] **Step 4:** Ensure the extension's tools carry their prose in `description` (lazy discovery reveals them) and register through the standard extension path so they ride lazy discovery + Code Mode (no per-tool `codeMode` flag needed — all extension tools are bound). No `approval: 'ask'` on any TanStack tool (reads + navigation only; confirm none destroy user content).
 - [ ] **Step 5:** Add the changeset:
 ```md
@@ -406,7 +297,7 @@ Run: `pnpm exec fallow audit --changed-since main --format json` — fix anythin
 ## Self-Review
 
 - **Spec coverage (design §2):** router state/tree/loader/query-cache reads (Tasks 3-5), navigate/invalidate/preload/reset actions (Task 6 — preload/reset-error can fold into Task 6 as extra client methods if wanted), server vite-plugin surface: routeTree.gen + build/HMR errors (Task 7), server-fn traces (Task 8). Contract + capabilities + fake (Tasks 1, 2, 9). Push events (design §5) are cross-framework and out of this plan — the HMR/error ring in Task 7 is the TanStack feeder; the unified `FrameworkEvent` delivery pipeline is a separate plan.
-- **Bridge:** every client read rides `ctx.page({kind:'framework',...})` (Task 1) — no undefined mechanism.
+- **Bridge:** every client read is a typed `pageVerbs` handler invoked via `ctx.page.call(verb, args)` from the extension browser-verb capability (Task 1 prerequisite) — no framework-specific core code, no undefined mechanism.
 - **Type consistency:** client method names (`routerState`, `routeTree`, `loaderData`, `navigate`, `invalidate`, query methods) are used identically in the client (Tasks 2,4,5,6) and the `method:` field of each tool. `CacheEntry`/`RouteMatch`/`RouteNode`/`AppError`/`ServerFnInfo`/`ServerFnTrace` come from `@conciv/protocol/framework-types` (§1, shipped).
 - **Open item flagged for implementation:** whether the extension server context exposes the `BundlerBridge` / vite server (Task 7 Step 3) — if not, that's new wiring to thread through extension server registration, called out rather than assumed.
 
