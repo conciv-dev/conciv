@@ -211,6 +211,7 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
   },
 
   effect: () => err('effects not initialized'),
+  ext: () => err('ext verbs not wired'),
   wait: ({query}) =>
     query.selector
       ? waitFor(query.selector, query.state ?? 'visible', query.timeout ?? 5000)
