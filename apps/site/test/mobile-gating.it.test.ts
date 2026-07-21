@@ -32,8 +32,8 @@ describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
 
     await expect.poll(() => page.locator('[data-conciv-root]').count(), {timeout: 20_000}).toBe(1)
-    expect(await page.getByRole('button', {name: 'Copy install command'}).isVisible()).toBe(true)
-    expect(await page.getByRole('button', {name: /Try it live/i}).isVisible()).toBe(true)
+    await expect.poll(() => page.getByRole('button', {name: 'Copy install command'}).isVisible()).toBe(true)
+    await expect.poll(() => page.getByRole('button', {name: /Try it live/i}).isVisible()).toBe(true)
 
     await page.close()
   }, 60_000)
@@ -44,8 +44,8 @@ describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
 
     await expect.poll(() => page.getByRole('button', {name: 'Copy install command'}).count(), {timeout: 20_000}).toBe(0)
-    expect(await page.getByRole('button', {name: /Try it live/i}).count()).toBe(0)
-    expect(await page.locator('[data-conciv-root]').count()).toBe(0)
+    await expect.poll(() => page.getByRole('button', {name: /Try it live/i}).count()).toBe(0)
+    await expect.poll(() => page.locator('[data-conciv-root]').count()).toBe(0)
 
     await context.close()
   }, 60_000)
