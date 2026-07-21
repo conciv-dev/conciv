@@ -28,7 +28,8 @@
   ```
   `browser` first; nested `types`; NO top-level `types`; NO root `default`.
 - Next.js folder discovery requires Turbopack ≥16.3; `next dev --webpack` is out of scope (documented).
-- **Dedup + validation are ONE shared primitive over entries carrying provenance** (`{extension, source}`), used before BOTH engine registration (server) and `mountConciv` (client): built-ins first (source `builtin:<i>`), then folder entries in deterministic sorted-filename order; first non-empty `name` wins; every dropped entry is reported with its `source` and reason.
+- **Dedup + validation are ONE shared primitive over entries carrying provenance** (`{extension, source}`), used before BOTH engine registration (server) and `mountConciv` (client): built-ins first (source `builtin:<i>`), then folder entries in **deterministic sorted-`source` order** (server sorts filenames; **client MUST sort `Object.entries(mods)` by key** before mapping); first non-empty `name` wins; every dropped entry is reported with its `source` and reason.
+- **Packing local packages for fixtures uses `pnpm pack`, never `npm pack`** — `npm pack` does not rewrite `workspace:^` protocols and installs fail with `EUNSUPPORTEDPROTOCOL`. After packing, assert the tarball's `package/package.json` contains no `workspace:` string, and install tarballs into a fixture via a generated `package.json` mapping each name to a `file:<abs>.tgz` dependency, then `pnpm install --ignore-workspace` (or plain `npm install`) in the fixture.
 
 ---
 
@@ -45,14 +46,15 @@ The whole "no generated file" design rests on one unproven assumption: `import.m
 
 - [ ] **Step 1: Build + pack a CLOSED local dependency set**
 
-Enumerate every workspace `@conciv/*` package in the transitive runtime graph of `@conciv/it` + `@conciv/plugin` + `@conciv/embed` + `@conciv/extension-tanstack` and `npm pack` all of them (not only the top four — else transitive deps resolve from the registry and the test is not reproducible):
+Enumerate every workspace `@conciv/*` package in the transitive runtime graph of `@conciv/it` + `@conciv/plugin` + `@conciv/embed` + `@conciv/extension-tanstack` and **`pnpm pack`** all of them (not only the top four — else transitive deps resolve from the registry and the test is not reproducible). `pnpm pack` rewrites `workspace:` protocols to concrete versions; `npm pack` does NOT (see Global Constraints):
 ```bash
 pnpm turbo run build
 mkdir -p /tmp/conciv-spike/tgz
-node -e "const {execSync}=require('node:child_process');const roots=['it','plugin','embed','core','extension','extension-compiler','protocol','contract','db','harness','page','storage-history','ui-kit-chat','ui-kit-system','ui-kit-tap','solid','tools','extensions/tanstack','extensions/terminal','extensions/test-runner','extensions/whiteboard'];for(const r of roots){try{execSync('npm pack --pack-destination /tmp/conciv-spike/tgz',{cwd:'packages/'+r,stdio:'ignore'})}catch(e){console.log('skip',r)}}"
+node -e "const {execSync}=require('node:child_process');const roots=['it','plugin','embed','core','extension','extension-compiler','protocol','contract','db','harness','page','storage-history','ui-kit-chat','ui-kit-system','ui-kit-tap','solid','tools','extensions/tanstack','extensions/terminal','extensions/test-runner','extensions/whiteboard'];for(const r of roots){try{execSync('pnpm pack --pack-destination /tmp/conciv-spike/tgz',{cwd:'packages/'+r,stdio:'ignore'})}catch(e){console.log('skip',r)}}"
 ls /tmp/conciv-spike/tgz | wc -l
+for t in /tmp/conciv-spike/tgz/*.tgz; do tar -xzOf "$t" package/package.json | grep -q '"workspace:' && { echo "WORKSPACE PROTOCOL LEAKED in $t"; exit 1; }; done; echo "no workspace: protocols in tarballs"
 ```
-Expected: a tarball per resolvable package. (Adjust `roots` to the actual transitive set discovered via `pnpm --filter @conciv/it... list` if a runtime import is missing.)
+Expected: a tarball per resolvable package; the workspace-protocol assertion passes. Install into the fixture via a generated `package.json` mapping each `@conciv/*` name to `file:<abs>.tgz`, then `npm install`. (Adjust `roots` to the actual transitive set discovered via `pnpm --filter @conciv/it... list` if a runtime import is missing.)
 
 - [ ] **Step 2: Author the exact final widget under test**
 
@@ -83,27 +85,26 @@ git commit -m "spike(nextjs): turbopack node_modules import.meta.glob 2x2 go/no-
 
 - [ ] **Step 1: Write a failing packed-resolution check**
 
-Create `packages/extensions/tanstack/test/packed-resolution.it.test.ts` that packs the built package into a temp dir and asserts Node resolves the SERVER entry and a Vite/browser resolver resolves the CLIENT entry:
+Create `packages/extensions/tanstack/test/packed-resolution.it.test.ts` that `pnpm pack`s the built package into a temp fixture and asserts Node (default conditions) resolves the SERVER entry. (The `browser`→client path is proven in Task 4's resolution matrix; this IT guards packability + no `workspace:` leak + the server default.)
 ```ts
 import {test, expect} from 'vitest'
 import {execFileSync} from 'node:child_process'
-import {mkdtempSync} from 'node:fs'
+import {mkdtempSync, writeFileSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {tmpdir} from 'node:os'
 
-test('packed package resolves server under node and client under browser condition', () => {
+test('packed package has no workspace protocol and resolves server under node', () => {
   const dir = mkdtempSync(join(tmpdir(), 'conciv-packed-'))
-  execFileSync('npm', ['pack', '--pack-destination', dir], {cwd: process.cwd()})
+  execFileSync('pnpm', ['pack', '--pack-destination', dir], {cwd: process.cwd()})
   const tgz = execFileSync('sh', ['-c', `ls ${dir}/*.tgz`]).toString().trim()
-  execFileSync('npm', ['init', '-y'], {cwd: dir})
-  execFileSync('npm', ['install', tgz], {cwd: dir})
+  const manifest = execFileSync('tar', ['-xzOf', tgz, 'package/package.json']).toString()
+  expect(manifest).not.toContain('workspace:')
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({name: 'fx', private: true, dependencies: {'@conciv/extension-tanstack': `file:${tgz}`}}))
+  execFileSync('npm', ['install', '--no-audit', '--no-fund'], {cwd: dir})
   const nodeName = execFileSync('node', ['--input-type=module', '-e', "import m from '@conciv/extension-tanstack'; process.stdout.write(m.name)"], {cwd: dir}).toString()
   expect(nodeName).toBe('tanstack')
-  const browserResolved = execFileSync('node', ['--input-type=module', '-e', "import {resolve} from 'node:module'; process.stdout.write(import.meta.resolve('@conciv/extension-tanstack', undefined))"], {cwd: dir, env: {...process.env}}).toString()
-  expect(browserResolved).toMatch(/server\.js$/)
 })
 ```
-(The browser-condition assertion is fully exercised by the resolution-matrix task; this IT just guards the server default + packability.)
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -304,11 +305,21 @@ test('a discovered module with no default export is fatal and names the file', a
 })
 
 test('built-in wins over a folder file of the same name', async () => {
-  const builtin = {name: 'terminal'} as never
+  const {defineExtension} = await import('@conciv/extension')
+  const builtin = defineExtension({name: 'terminal'})
   const root = fixture({'terminal.tsx': `${EXT}({name:'terminal'})`, 'a.tsx': `${EXT}({name:'a'})`})
   const out = await loadServerExtensions(root, [builtin])
   expect(out.filter((e) => e.name === 'terminal').length).toBe(1)
   expect(out[0]).toBe(builtin)
+})
+
+test('the same-name winner is the built-in regardless of folder enumeration order', async () => {
+  const {defineExtension} = await import('@conciv/extension')
+  const builtin = defineExtension({name: 'z'})
+  const root = fixture({'z.tsx': `${EXT}({name:'z'})`, 'a.tsx': `${EXT}({name:'a'})`})
+  const out = await loadServerExtensions(root, [builtin])
+  expect(out[0]).toBe(builtin)
+  expect(out.map((e) => e.name)).toEqual(['z', 'a'])
 })
 ```
 
@@ -361,11 +372,11 @@ export async function loadServerExtensions(
     folderEntries.push({extension: value, source: file})
   }
   const result = dedupeExtensions([...builtinEntries, ...folderEntries])
-  for (const drop of result.dropped) logError(`conciv extension dropped: ${drop.source} (${drop.reason})`)
+  for (const drop of result.dropped) console.error(`conciv extension dropped: ${drop.source} (${drop.reason})`)
   return result.extensions
 }
 ```
-Read/transform/eval failures already throw from `readFileSync`/`splitExtension`/`jiti.evalModule`; the file path is in scope via the loop (jiti errors carry the filename). Use the package's existing `logError` (import it; if none, `console.error`).
+Read/transform/eval failures already throw from `readFileSync`/`splitExtension`/`jiti.evalModule`; the file path is in scope via the loop (jiti errors carry the filename). `@conciv/extension-compiler` has no `logError` — use `console.error` (codex-confirmed).
 
 - [ ] **Step 8: Update the client generator + build entry + export**
 
@@ -373,7 +384,7 @@ In `extensionsModuleSource`, generate provenance entries + shared dedup (LITERAL
 ```ts
     `import {dedupeExtensions} from '@conciv/extension-compiler/dedupe'`,
     `const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx,js,jsx}', {eager: true})`,
-    `const folderEntries = Object.entries(mods).filter(([k]) => !k.endsWith('.d.ts')).map(([source, m]) => ({extension: m && m.default, source}))`,
+    `const folderEntries = Object.entries(mods).filter(([k]) => !k.endsWith('.d.ts')).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([source, m]) => ({extension: m && m.default, source}))`,
     `const builtinEntries = [${builtinNames.map((n, i) => `{extension: ${n}, source: 'builtin:${i}'}`).join(', ')}]`,
     `const picked = dedupeExtensions([...builtinEntries, ...folderEntries])`,
     `for (const d of picked.dropped) console.warn('conciv extension dropped:', d.source, d.reason)`,
@@ -451,6 +462,7 @@ function startWidget(): void {
   const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx,js,jsx}', {eager: true})
   const entries = Object.entries(mods)
     .filter(([key]) => !key.endsWith('.d.ts'))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([source, mod]) => ({extension: mod && typeof mod === 'object' && 'default' in mod ? mod.default : undefined, source}))
   const picked = dedupeExtensions(entries)
   for (const drop of picked.dropped) console.warn('conciv extension dropped:', drop.source, drop.reason)
@@ -534,12 +546,35 @@ Add `@conciv/extension-tanstack: workspace:*` to `e2e/tanstack-start/package.jso
 
 - [ ] **Step 2: Server half — non-vacuous, via the real engine `callTool`**
 
-Add an integration test (Node, real engine) using `@conciv/extension-testkit`'s host + `callTool` (the same path the tanstack server tests already use) against an app whose `conciv/extensions/` contains the re-export: assert `callTool('tanstack_router_state', {...})` returns a real result (proves `loadServerExtensions` loaded `server.js` and the engine registered the tool). This is a testkit IT in the owning package or `e2e` harness — NOT a client DOM assertion.
+`getExtensionTestApi(extension)` takes an extension object DIRECTLY — it does not run `loadServerExtensions`, so passing the tanstack extension straight in would prove registration but NOT folder discovery (codex). Thread discovery through the real loader: build a fixture root whose `conciv/extensions/tanstack.tsx` is the re-export, run the REAL `loadServerExtensions(fixtureRoot, [])`, and feed the DISCOVERED extension into the testkit. Add `packages/extensions/tanstack/test/folder-install.it.test.ts`:
+```ts
+import {test, expect} from 'vitest'
+import {mkdtempSync, mkdirSync, writeFileSync} from 'node:fs'
+import {join} from 'node:path'
+import {tmpdir} from 'node:os'
+import {loadServerExtensions} from '@conciv/extension-compiler/extensions'
+import {getExtensionTestApi} from '@conciv/extension-testkit'
+
+test('a folder re-export is discovered, resolves to server.js, and its server tool runs', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'conciv-fi-'))
+  mkdirSync(join(root, 'conciv/extensions'), {recursive: true})
+  writeFileSync(join(root, 'conciv/extensions/tanstack.tsx'), "export {default} from '@conciv/extension-tanstack'\n")
+  const discovered = await loadServerExtensions(root, [])
+  const tanstack = discovered.find((e) => e.name === 'tanstack')
+  expect(tanstack).toBeDefined()
+  const api = await getExtensionTestApi(tanstack)
+  const result = await api.callTool('tanstack_router_state', {})
+  expect(result).toBeDefined()
+  await api.close()
+})
+```
+(Confirm `getExtensionTestApi`'s exact host/close signature against the existing tanstack server tests before writing; the shape above mirrors them.) Requires `@conciv/extension-tanstack` built (Task 1). Then the CLIENT half is a SEPARATE DOM assertion (Step 1).
 ```bash
-pnpm --filter @conciv/extension-tanstack exec vitest run   # if the IT lives with the extension
+pnpm turbo run build --filter=@conciv/extension-tanstack --filter=@conciv/extension-compiler
+pnpm --filter @conciv/extension-tanstack exec vitest run test/folder-install.it.test.ts
 cd e2e/tanstack-start && CONCIV_E2E=1 pnpm exec playwright test
 ```
-Expected: server IT + client Playwright both PASS.
+Expected: server discovery IT + client Playwright both PASS.
 
 - [ ] **Step 3: Packed Next.js/Turbopack fixture (concrete pack + install + nested root)**
 
@@ -551,7 +586,7 @@ Expected: PASS on Turbopack, packed install.
 
 - [ ] **Step 4: Concrete client-graph assertion (no text-grep)**
 
-After `next build`, read the Turbopack build manifest / module trace (identify the exact JSON that records resolved module paths for the widget entry) and assert the packed extension's `dist/client.js` appears in the client graph and `dist/server.js` + any `node:` builtin do NOT. If the manifest does not expose resolved paths, add a test-only client sentinel export in the reference extension's client entry and a distinct server sentinel, and assert the client sentinel string is present in the widget's client chunk and the server sentinel is absent — scoped to chunks reachable from the widget entry.
+After `next build`, read `.next/diagnostics/route-bundle-stats.json`, collect the `/` route's `firstLoadChunkPaths`, and inspect ONLY those chunk files (do not text-grep the whole output). Assert the client half is present and the server half + Node builtins are absent from that reachable set. Because a bare export can be tree-shaken, make the sentinels **unavoidable runtime values actually used by each entry**: in the reference extension's client entry, a value that the widget renders/executes (e.g. embedded in the mounted card's text) — `CONCIV_TANSTACK_CLIENT_SENTINEL`; in the server entry, a value only the server path uses — `CONCIV_TANSTACK_SERVER_SENTINEL`. Assert the client sentinel string appears in the reachable chunk set and neither the server sentinel nor any `node:` specifier appears there. Add the sentinels as part of Task 1 (client) / server entries so they exist before this test.
 
 - [ ] **Step 5: Commit**
 
