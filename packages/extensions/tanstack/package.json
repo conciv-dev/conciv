@@ -44,7 +44,10 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/extension": "workspace:^"
+    "@conciv/extension": "workspace:^",
+    "@conciv/page": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@conciv/embed": "workspace:^",

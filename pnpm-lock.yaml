@@ -1779,6 +1779,15 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
+      '@conciv/page':
+        specifier: workspace:^
+        version: link:../../page
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../../protocol
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@conciv/embed':
         specifier: workspace:^
