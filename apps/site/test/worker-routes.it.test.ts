@@ -2,11 +2,16 @@ import {spawn, type ChildProcess} from 'node:child_process'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 
 const SITE_PORT = 8792
+const INSPECTOR_PORT = 9792
 const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
 let site: ChildProcess
 
 beforeAll(async () => {
-  site = spawn('pnpm', ['exec', 'wrangler', 'dev', '--port', String(SITE_PORT)], {cwd: import.meta.dirname + '/..'})
+  site = spawn(
+    'pnpm',
+    ['exec', 'wrangler', 'dev', '--port', String(SITE_PORT), '--inspector-port', String(INSPECTOR_PORT)],
+    {cwd: import.meta.dirname + '/..'},
+  )
   await new Promise<void>((resolve, reject) => {
     const output: string[] = []
     const watch = (chunk: Buffer) => {
