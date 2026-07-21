@@ -186,3 +186,18 @@ export function readRouteTree(): RouteNode {
   if (!root) throw new Error('TanStack router not found on page')
   return mapRoute(root, 0)
 }
+
+function pickMatch(matches: unknown[], routeId?: string): Record<string, unknown> | null {
+  if (routeId !== undefined) {
+    const named = matches.find((match) => isObject(match) && match.routeId === routeId)
+    return isObject(named) ? named : null
+  }
+  const leaf = matches[matches.length - 1]
+  return isObject(leaf) ? leaf : null
+}
+
+export function readLoaderData(routeId?: string): unknown {
+  const router = requireRouter()
+  const match = pickMatch(router.state.matches, routeId)
+  return dehydrate(match?.loaderData)
+}
