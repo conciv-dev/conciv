@@ -1,7 +1,7 @@
 import {expect, test} from 'vitest'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
-import {getExtensionTestApi} from '@conciv/extension-testkit'
+import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
 
 const clientEntry = '@conciv/extension-whiteboard/client'
 
@@ -11,7 +11,7 @@ const openCanvas = async (page: Page): Promise<void> => {
 }
 
 test('the thread card closes when its root comment is gone, leaving no empty header', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
+  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
   try {
     await openCanvas(api.page)
     const cid = crypto.randomUUID()
