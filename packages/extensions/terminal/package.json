@@ -1,7 +1,7 @@
 {
   "name": "@conciv/extension-terminal",
   "version": "0.0.15",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The terminal built-in extension: a live harness TUI panel view over a server pty — OSC 9;4 busy tracking, replay-first WebSocket wire, and session-token handoff with chat.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The terminal built-in extension: a live harness TUI panel view over a server pty: OSC 9;4 busy tracking, replay-first WebSocket wire, and session-token handoff with chat.",
   "keywords": [
     "conciv",
     "extension",

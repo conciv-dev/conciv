@@ -69,7 +69,7 @@ const SYSTEM =
   'You turn one instruction into the smallest possible change for a single element. ' +
   'Reply with ONLY a compact JSON object. Use camelCase CSS properties for styling, ' +
   'and a "text" key to replace the element\'s visible text. ' +
-  'Include ONLY what the instruction explicitly asks to change — never add anything the user did not mention. ' +
+  'Include ONLY what the instruction explicitly asks to change. Never add anything the user did not mention. ' +
   'Sizes are numbers in px. Colors are CSS color names or hex. No prose, no markdown.'
 
 const SHOTS = [

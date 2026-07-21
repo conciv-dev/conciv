@@ -1,12 +1,12 @@
 /* Element reset (box-sizing, border-style:solid default, full button/input normalize incl. transparent
-   button background), scoped to the shadow root via this stylesheet — no host leak. Lets utilities like
+   button background), scoped to the shadow root via this stylesheet, with no host leak. Lets utilities like
    `border-b` and bare buttons work with no per-element resets. tailwind.css (not -compat) because the
    widget owns all its elements; there's no host component-library button bg to preserve. First so tokens win. */
 @import '@unocss/reset/tailwind.css';
 @import '@conciv/solid-streamdown/styles.css';
 /* Shared design tokens (from the ui-kit-system design system): single source of truth, scoped
    :host,:root so they resolve in this shadow root and in Storybook alike. The widget owns no token
-   copy. The ui-kit packages ship JS only — the widget generates THEIR utilities too by scanning their
+   copy. The ui-kit packages ship JS only, so the widget generates THEIR utilities too by scanning their
    source (see uno.config.ts), so there's no per-package CSS to @import here. */
 @import '@conciv/ui-kit-system/tokens.css';
 /* Neutral chat tokens (--chat-*) + the conciv theme layer that maps them onto the widget's --pw-*.
@@ -17,14 +17,14 @@
 
 /* preview-widget styles, injected into the Shadow DOM root. Mirrors react-grab's
    design language (dark panel, magenta brand accent) so the comment UI reads as
-   native alongside react-grab. All colors/radii/motion flow from the tokens below
-   — change a token, not a literal.
+   native alongside react-grab. All colors/radii/motion flow from the tokens below:
+   change a token, not a literal.
 
    Palette philosophy: a single brand hue (--pw-hue, the react-grab magenta) tints
    every neutral, surface and shadow toward it, so the whole overlay feels cut from
    one material rather than "neutral gray + a neon accent". Colors are OKLCH so the
    text ramp is perceptually even; accent states are mixed off the one literal brand
-   hex (kept exact so it matches react-grab). No pure #000/#fff anywhere — both are
+   hex (kept exact so it matches react-grab). No pure #000/#fff anywhere; both are
    tinted toward the hue. The dark surface is a hard constraint (the widget overlays
    arbitrary, often light, preview pages and must read as a distinct tool layer next
    to react-grab), so depth comes from hue-tinted shadow, not from glow. */
@@ -40,7 +40,7 @@
 
 /* Visually hidden but available to screen readers (e.g. the agent's "thinking" status). */
 
-/* A single focus-visible treatment for every interactive control — a magenta ring
+/* A single focus-visible treatment for every interactive control: a magenta ring
    floated off the panel so it reads on any surface. (Inputs that already shift
    their border opt out via :focus styles below.) */
 :where(button, [role='button']):focus-visible {
@@ -87,7 +87,7 @@
   background-image: url('data:image/png;base64,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');
   transform-origin: 50% 32.8%; /* antenna base -> sway rotates about where it meets the head */
 }
-/* Working: a magenta glow pulse on the eyes. filter only — GSAP owns the transforms, so no clash. */
+/* Working: a magenta glow pulse on the eyes. filter only; GSAP owns the transforms, so no clash. */
 .pw-fab-rig[data-working='true'] .pw-rig-eyes {
   animation: pw-rig-glow 1.3s ease-in-out infinite;
 }
@@ -116,7 +116,7 @@
    now rides UnoCSS animate utilities plus the mascot's CSS glow, so one blanket
    reset is simpler and more complete than enumerating each animated element. Scoped to shadow
    descendants; :host{all:initial} blocks any ingress to the host page. (GSAP-driven mascot transforms
-   are JS, unaffected here — same as before.) */
+   are JS, unaffected here, same as before.) */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;

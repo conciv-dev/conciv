@@ -3,7 +3,7 @@ import {TOKENS} from '@conciv/ui-kit-system/tokens'
 const SLOTS = [
   {name: 'header', description: 'Above the message list (panel header region).'},
   {name: 'footer', description: 'Below the composer (panel footer region).'},
-  {name: 'composer', description: 'Inside the input toolbar — add buttons or actions.'},
+  {name: 'composer', description: 'Inside the input toolbar: add buttons or actions.'},
   {name: 'empty', description: 'The empty chat state (greeting + starters) shown before any messages.'},
   {name: 'status', description: 'A status line region.'},
   {name: 'widget', description: 'A free-form panel widget region.'},
@@ -149,7 +149,7 @@ export default extension
 function Component() {
   const slot = extension.useSlot()
   if (slot() !== 'empty') return null
-  return <div>Welcome — ask me anything.</div>
+  return <div>Welcome! Ask me anything.</div>
 }
 `,
   full: (name) => `import {z} from 'zod'

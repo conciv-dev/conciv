@@ -67,7 +67,7 @@ export function TerminalActions(): JSX.Element {
     navigator.clipboard.writeText(command).then(
       () => {
         leaveView()
-        toast('Command copied — paste it in your terminal.')
+        toast('Command copied. Paste it in your terminal.')
       },
       () => toast(`Run in your terminal: ${command}`),
     )

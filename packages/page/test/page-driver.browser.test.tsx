@@ -52,10 +52,10 @@ describe('target resolution', () => {
   })
 
   it('explains each way a target can be missing', async () => {
-    expect(await resultOf({kind: 'click', ref: 'v999'})).toEqual({error: 'stale ref v999 — re-run page snapshot'})
+    expect(await resultOf({kind: 'click', ref: 'v999'})).toEqual({error: 'stale ref v999; re-run page snapshot'})
     expect(await resultOf({kind: 'click', name: 'Nope'})).toEqual({error: 'no React component named "Nope" found'})
     expect(await resultOf({kind: 'click', selector: '#missing'})).toEqual({error: 'no element for selector #missing'})
-    expect(await resultOf({kind: 'click'})).toEqual({error: 'no target — pass --ref, --selector, or --name'})
+    expect(await resultOf({kind: 'click'})).toEqual({error: 'no target: pass --ref, --selector, or --name'})
   })
 })
 

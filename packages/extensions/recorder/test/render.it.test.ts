@@ -40,7 +40,7 @@ describe('chromium keyframe renderer (IT)', () => {
   it('renders a non-empty PNG at a requested timestamp', async () => {
     state.renderer = await createChromiumRenderer()
     if (!state.renderer)
-      throw new Error('chromium unavailable on this machine — run: pnpm exec playwright install chromium')
+      throw new Error('chromium unavailable on this machine; run: pnpm exec playwright install chromium')
     const frames = await state.renderer.render(events, [2000])
     expect(frames).toHaveLength(1)
     expect(frames[0]?.ts).toBe(2000)

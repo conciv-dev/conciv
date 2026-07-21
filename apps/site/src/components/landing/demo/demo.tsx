@@ -134,7 +134,7 @@ export function Demo() {
     dispatch({type: 'push', message: {kind: 'tool', label: 'patch', detail: scenario.patchDetail}})
     dispatch({type: 'patch'})
     applyPatch(el, scenario.apply)
-    dispatch({type: 'push', message: {kind: 'result', text: 'done — 1 element changed, saved to source'}})
+    dispatch({type: 'push', message: {kind: 'result', text: 'done: 1 element changed, saved to source'}})
   }
 
   const runLocal = async (text: string) => {
@@ -154,7 +154,7 @@ export function Demo() {
       message: {kind: 'think', text: downloading ? 'downloading the model (first run)…' : 'thinking locally…'},
     })
     await delay(300)
-    dispatch({type: 'push', message: {kind: 'agent', text: 'On it — editing right here in your browser.'}})
+    dispatch({type: 'push', message: {kind: 'agent', text: 'On it. Editing right here in your browser.'}})
     dispatch({type: 'push', message: {kind: 'tool', label: 'inspect', detail: selectorFor(el)}})
     try {
       const {patch, text: newText, ms} = await model.run(html, text)
@@ -169,7 +169,7 @@ export function Demo() {
       dispatch({type: 'patch'})
       if (newText) el.textContent = newText
       if (keys.length) applyPatch(el, patch)
-      dispatch({type: 'push', message: {kind: 'result', text: `done in ${Math.round(ms)}ms — ${changes} change(s)`}})
+      dispatch({type: 'push', message: {kind: 'result', text: `done in ${Math.round(ms)}ms, ${changes} change(s)`}})
     } catch {
       runCannedTail(scenario, el)
     }

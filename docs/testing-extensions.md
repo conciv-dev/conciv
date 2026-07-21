@@ -11,7 +11,7 @@ const {page, callTool, session, apiBase, dispose} = await getExtensionTestApi(wh
 Everything below is non-negotiable. The old whiteboard tests broke every one of these rules and
 rotted; that is why they were deleted.
 
-## Drive the UI as a user — accessibility locators ONLY
+## Drive the UI as a user: accessibility locators ONLY
 
 Use `getByRole`, `getByText`, `getByLabel`. The extension owns a11y-labelled controls; click those.
 
@@ -26,7 +26,7 @@ await expect(page.getByText('on it')).toBeVisible()
 ```
 
 ```ts
-// BANNED — never
+// BANNED, never
 page.locator('.excalidraw')                      // class selector
 page.locator('canvas')                            // tag selector
 page.locator('[aria-label="Reply"]')              // attribute selector
@@ -63,7 +63,7 @@ back from `getExtensionTestApi`. Drive behavior through the extension's real but
 
 ## The agent / MCP path goes through `callTool`
 
-Invoking the extension's tools (what the AI agent does) is a real external HTTP seam — allowed and
+Invoking the extension's tools (what the AI agent does) is a real external HTTP seam, allowed and
 correct:
 
 ```ts
@@ -71,14 +71,14 @@ await callTool('canvas.diagram', {mermaid: 'flowchart TD\n A-->B'})
 const read = (await callTool('canvas.read', {})) as {elements: {version: number}[]}
 ```
 
-This is NOT reaching into the page — it's the same `/api/mcp` the harness uses. Use it for AI-draw,
+This is NOT reaching into the page; it's the same `/api/mcp` the harness uses. Use it for AI-draw,
 agent comments, and for reading server state to assert against (e.g. element versions).
 
-## No mocks, no stubs, no fakes — ever
+## No mocks, no stubs, no fakes. Ever
 
 Real spawned server (real Jazz), real Chromium, real `grab`, real MCP. Do not mock a client, stub a
 tool result, or fake a session. If something can't be exercised for real, that is a design problem to
-raise — never paper over it with a fake.
+raise; never paper over it with a fake.
 
 ## Assertions
 
@@ -99,4 +99,4 @@ code and RED/GREEN is meaningless.
 ## TDD
 
 Failing test first. RUN it. Watch it fail for the right reason. Then write the code. Never patch the
-code and add a test after — a test that passes immediately proves nothing.
+code and add a test after; a test that passes immediately proves nothing.

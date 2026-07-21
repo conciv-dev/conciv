@@ -3,7 +3,7 @@ import {ExtensionSurface, type ExtensionInstance} from '../extension/extension-s
 import {useArrivedFromConnect} from '../app/context.js'
 
 const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
-const CONNECT_HEADLINE = 'Agent connected — it’s driving this page from your machine.'
+const CONNECT_HEADLINE = 'Agent connected. It’s driving this page from your machine.'
 const DEFAULT_HEADLINE = 'How can I help you today?'
 
 export function EmptyStateSlot(props: {

@@ -203,7 +203,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
 
   const compact = useMutation(() => ({
     mutationFn: () => rpc.sessions.compact({sessionId: props.sessionId}),
-    onError: () => notify('Compaction failed — the session may be busy. Try again in a moment.'),
+    onError: () => notify('Compaction failed. The session may be busy. Try again in a moment.'),
     onSettled: () => {
       appData.invalidateSessions()
       void markers.refetch()
@@ -352,7 +352,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     const hasContent = typeof content === 'string' ? text.length > 0 : content.content.length > 0
     if (!hasContent || compacting()) return
     if (typeof content !== 'string' && content.content.length > MAX_CONTENT_PARTS) {
-      notify('Too many attachments — remove some and send again.')
+      notify('Too many attachments. Remove some and send again.')
       return
     }
     if (chat.connectionStatus() !== 'connected') return
@@ -387,7 +387,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                 void rpc.sessions.stop({sessionId: props.sessionId}).catch(() => {})
               },
               onSteer: () => rpc.sessions.stop({sessionId: props.sessionId}),
-              onSteerError: () => notify('Steering failed — the message is still queued. Try again.'),
+              onSteerError: () => notify('Steering failed. The message is still queued. Try again.'),
             }}
           >
             <ComposerPrimitive.TriggerPopoverRoot>

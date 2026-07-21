@@ -72,7 +72,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
   const [openFailed, setOpenFailed] = createSignal<string | null>(null)
   const openError = (error: unknown): Error => {
     const busy = error instanceof ORPCError && error.code === 'BUSY'
-    return new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'Couldn’t open the terminal.')
+    return new Error(busy ? 'Session is busy. Wait for the current turn to finish.' : 'Couldn’t open the terminal.')
   }
   const openTerminal = async (cols: number, rows: number): Promise<void> => {
     const id = sessionId()

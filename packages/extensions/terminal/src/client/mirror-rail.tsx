@@ -64,7 +64,7 @@ function RailPlaceholder(props: {status: MirrorStatus}): JSX.Element {
   return (
     <p class={PLACEHOLDER}>
       <Switch>
-        <Match when={props.status === 'error'}>Can’t reach activity — retrying…</Match>
+        <Match when={props.status === 'error'}>Can’t reach activity, retrying…</Match>
         <Match when={props.status === 'connecting'}>Connecting…</Match>
         <Match when={props.status === 'open'}>
           Claude’s replies, reasoning and tool calls appear here as it works.

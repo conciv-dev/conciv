@@ -41,7 +41,7 @@ function selectedHarnesses(): [HarnessApp, number][] {
   if (!filter) return entries
   if (!isHarnessApp(filter)) {
     throw new Error(
-      `CONCIV_HARNESS="${filter}" is not a harness — pick one of ${Object.keys(HARNESS_E2E_PORTS).join(', ')}`,
+      `CONCIV_HARNESS="${filter}" is not a harness; pick one of ${Object.keys(HARNESS_E2E_PORTS).join(', ')}`,
     )
   }
   return entries.filter(([harness]) => harness === filter)

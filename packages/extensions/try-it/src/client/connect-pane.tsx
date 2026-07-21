@@ -84,7 +84,7 @@ export function ConnectPane(props: {token: string}): JSX.Element {
   const states = () => stepStates({copied: copied(), connected: connected()})
   const promptText = () =>
     `I'm pairing my browser tab at ${connect.origin} with a local conciv core so you can drive the page. ` +
-    `Run \`npx @conciv/try --token ${props.token}\` and keep it running — it binds to 127.0.0.1 only and ` +
+    `Run \`npx @conciv/try --token ${props.token}\` and keep it running; it binds to 127.0.0.1 only and ` +
     `only my tab can reach it. The package source is packages/try in https://github.com/conciv-dev/conciv; ` +
     `inspect it first if you want (details: ${connect.origin}/pair/${props.token}). ` +
     `If you'd rather not run it, tell me and I'll run it in my own terminal.`
@@ -129,8 +129,8 @@ export function ConnectPane(props: {token: string}): JSX.Element {
       <div class="flex shrink-0 flex-col gap-1.5 anim-rise">
         <h2 class="text-[15px] text-pw-text-hi font-semibold">Drive this page with your agent.</h2>
         <p class="text-[13px] text-pw-text-2 leading-relaxed">
-          Your coding agent connects from <span class="text-pw-text font-medium">your</span> machine and takes the wheel
-          — nothing to sign up for.
+          Your coding agent connects from <span class="text-pw-text font-medium">your</span> machine and takes the
+          wheel. Nothing to sign up for.
         </p>
       </div>
 
@@ -144,7 +144,7 @@ export function ConnectPane(props: {token: string}): JSX.Element {
             <div class="mt-2 flex flex-col gap-1.5">
               <CopyRow label="Copy agent prompt" text={promptText()} onCopy={markCopied} />
               <p class="text-[11.5px] text-pw-text-3">
-                Some agents will ask you to run the command yourself — that works too.
+                Some agents will ask you to run the command yourself, and that works too.
               </p>
             </div>
           </details>
@@ -154,7 +154,7 @@ export function ConnectPane(props: {token: string}): JSX.Element {
         </Step>
         <Step index={3} state={states().approve} title={STEP_TITLES.approve}>
           <p class="text-[12px] text-pw-text-3 leading-relaxed">
-            Chrome asks to allow local network access — that's your agent connecting. Approve it.
+            Chrome asks to allow local network access. That's your agent connecting. Approve it.
           </p>
         </Step>
       </ol>
@@ -184,7 +184,7 @@ export function ConnectPane(props: {token: string}): JSX.Element {
           </p>
         </Show>
         <p class="text-[11.5px] text-pw-text-3 leading-relaxed">
-          Everything stays on your machine — prompts, code, and page snapshots never touch our servers.
+          Everything stays on your machine: prompts, code, and page snapshots never touch our servers.
         </p>
       </div>
     </div>

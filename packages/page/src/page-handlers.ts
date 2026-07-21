@@ -159,7 +159,7 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
 
   locate: async ({el, refs}: PageContext) => {
     const result = el ? await react.locate(el, refs) : null
-    return result ?? err('no React fiber — element may be outside a React tree or not hydrated yet')
+    return result ?? err('no React fiber: element may be outside a React tree or not hydrated yet')
   },
   inspect: async ({el, query}: PageContext) => {
     const result = el ? await react.inspect(el) : null

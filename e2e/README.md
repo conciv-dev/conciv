@@ -9,7 +9,7 @@ suite (`tests/` + `playwright.config.ts`). Layout follows TanStack Router's `e2e
 The `@conciv/it` vite plugin serves `@conciv/*` packages from `src/` inside this monorepo
 (`concivSrcEntry` probe), so every in-repo app hides how the published `dist/` behaves in a
 consumer vite app. These suites run with `CONCIV_E2E=1`, which turns the src probe off
-(`packages/plugin/src/core/vite.ts`), so the widget is served from `dist/` — the real consumer
+(`packages/plugin/src/core/vite.ts`), so the widget is served from `dist/`, the real consumer
 path. Vite apps also run with `--force` (or a cleared cache) so every run is a cold
 dep-optimization start, which is where dist-only failures show up.
 

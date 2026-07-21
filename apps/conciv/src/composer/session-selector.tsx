@@ -266,7 +266,7 @@ export function SessionSelector(props: {
                       <Combobox.Item
                         item={s}
                         class="text-pw-text px-2 py-[0.4375rem] rounded-pw-sm flex gap-2 cursor-pointer items-center data-[highlighted]:text-pw-text-hi data-[highlighted]:bg-pw-fill-strong"
-                        aria-label={`${s.title} — ${metaLabel(s, now())}`}
+                        aria-label={`${s.title}, ${metaLabel(s, now())}`}
                       >
                         <div class="flex flex-1 flex-col gap-px min-w-0">
                           <span class="truncate" title={s.title}>
