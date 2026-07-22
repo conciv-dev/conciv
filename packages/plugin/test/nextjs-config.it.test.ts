@@ -7,7 +7,7 @@ import {withConciv} from '../src/core/nextjs.js'
 const SPECIFIER = '@conciv/app-extensions'
 const ENV_KEYS = ['NEXT_PUBLIC_CONCIV_PORT', 'CONCIV_OPTIONS'] as const
 
-type WebpackConfig = {resolve?: {alias?: Record<string, string>}}
+type WebpackConfig = {resolve?: {alias?: Record<string, string | false>}}
 
 const savedEnv: Record<string, string | undefined> = {}
 let originalCwd = ''
@@ -54,9 +54,8 @@ describe('withConciv bundler aliasing', () => {
     const config: WebpackConfig = {resolve: {alias: {}}}
     const out = cfg.webpack?.(config, {})
     const aliasValue = out?.resolve?.alias?.[SPECIFIER]
-    expect(aliasValue).toBeDefined()
-    expect(isAbsolute(aliasValue ?? '')).toBe(true)
     expect(aliasValue).toBe(generatedPath())
+    expect(isAbsolute(generatedPath())).toBe(true)
     expect(seen).toHaveLength(1)
     expect(seen[0]?.resolve?.alias?.[SPECIFIER]).toBe(generatedPath())
   })
@@ -66,6 +65,17 @@ describe('withConciv bundler aliasing', () => {
     const config: WebpackConfig = {}
     const out = cfg.webpack?.(config, {})
     expect(out?.resolve?.alias?.[SPECIFIER]).toBe(generatedPath())
+  })
+
+  it('stubs the engine register entries to false in the edge compilation so node-only code is never bundled for edge', () => {
+    const cfg = withConciv({})
+    const edge = cfg.webpack?.({resolve: {alias: {}}}, {nextRuntime: 'edge'})
+    expect(edge?.resolve?.alias?.['@conciv/it/plugin/nextjs']).toBe(false)
+    expect(edge?.resolve?.alias?.['@conciv/plugin/nextjs']).toBe(false)
+    expect(edge?.resolve?.alias?.[SPECIFIER]).toBe(generatedPath())
+    const node = cfg.webpack?.({resolve: {alias: {}}}, {nextRuntime: 'nodejs'})
+    expect(node?.resolve?.alias?.['@conciv/it/plugin/nextjs']).toBeUndefined()
+    expect(node?.resolve?.alias?.['@conciv/plugin/nextjs']).toBeUndefined()
   })
 
   it('generates the client entry file when enabled', () => {

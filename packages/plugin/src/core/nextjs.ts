@@ -7,8 +7,9 @@ const APP_EXTENSIONS_SPECIFIER = '@conciv/app-extensions'
 const ENTRY_RELATIVE = './.conciv/extensions-client.gen.tsx'
 
 type TurbopackConfig = {resolveAlias?: Record<string, unknown>; [key: string]: unknown}
-type WebpackConfig = {resolve?: {alias?: Record<string, string>}}
-type WebpackHook = (config: WebpackConfig, context: unknown) => WebpackConfig
+type WebpackConfig = {resolve?: {alias?: Record<string, string | false>}}
+type WebpackContext = {nextRuntime?: string}
+type WebpackHook = (config: WebpackConfig, context: WebpackContext) => WebpackConfig
 
 type ConfigWithEnv = {
   env?: Record<string, string | undefined>
@@ -25,6 +26,7 @@ type WithConcivResult<T> = Omit<T, 'env' | 'serverExternalPackages' | 'turbopack
 }
 
 const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/plugin', '@conciv/core', '@conciv/db', '@conciv/harness']
+const EDGE_REGISTER_ENTRIES = ['@conciv/it/plugin/nextjs', '@conciv/plugin/nextjs']
 
 export function withConciv<T extends object>(nextConfig: T = {} as T, options: ConcivConfig = {}): WithConcivResult<T> {
   const base = nextConfig as ConfigWithEnv
@@ -50,7 +52,9 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   const userWebpack = base.webpack
   const webpack: WebpackHook = (config, context) => {
     const resolveConfig = config.resolve ?? {}
-    resolveConfig.alias = {...resolveConfig.alias, [APP_EXTENSIONS_SPECIFIER]: generated.path}
+    const alias: Record<string, string | false> = {...resolveConfig.alias, [APP_EXTENSIONS_SPECIFIER]: generated.path}
+    if (context.nextRuntime === 'edge') for (const entry of EDGE_REGISTER_ENTRIES) alias[entry] = false
+    resolveConfig.alias = alias
     config.resolve = resolveConfig
     return userWebpack ? userWebpack(config, context) : config
   }
