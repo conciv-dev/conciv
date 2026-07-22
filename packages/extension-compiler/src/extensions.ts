@@ -4,6 +4,7 @@ import {pathToFileURL} from 'node:url'
 import {createJiti} from 'jiti'
 import type {AnyExtension} from '@conciv/extension'
 import {splitExtension} from './split-extension.js'
+import {dedupeExtensions, type ExtensionEntry} from './dedupe-extensions.js'
 
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:conciv-extensions'
 export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
@@ -32,9 +33,13 @@ export function extensionsModuleSource(
     `import {mountConciv} from ${JSON.stringify(embedEntry ?? '@conciv/embed')}`,
     ...imports,
     ...apiBaseLine,
-    "const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx}', {eager: true})",
-    'const userExtensions = Object.values(mods).map((m) => m && m.default).filter(Boolean)',
-    `mountConciv([${[...builtinNames, '...userExtensions'].join(', ')}])`,
+    `import {dedupeExtensions, toSortedEntries} from '@conciv/extension-compiler/dedupe'`,
+    `const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx,js,jsx}', {eager: true})`,
+    `const folderEntries = toSortedEntries(mods)`,
+    `const builtinEntries = [${builtinNames.map((n, i) => `{extension: ${n}, source: 'builtin:${i}'}`).join(', ')}]`,
+    `const picked = dedupeExtensions([...builtinEntries, ...folderEntries])`,
+    `for (const d of picked.dropped) console.warn('conciv extension dropped:', d.source, d.reason)`,
+    `mountConciv(picked.extensions)`,
     '',
   ].join('\n')
 }
@@ -42,13 +47,19 @@ export function extensionsModuleSource(
 const EXTENSION_DIR = 'conciv/extensions'
 const EXTENSION_RE = /\.(?:ts|tsx|js|jsx)$/
 
-function extensionFiles(root: string): string[] {
+function isMissingDirError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
+}
+
+export function listExtensionFiles(root: string): string[] {
   try {
-    return readdirSync(join(root, EXTENSION_DIR))
-      .filter((name) => EXTENSION_RE.test(name))
-      .map((name) => join(root, EXTENSION_DIR, name))
-  } catch {
-    return []
+    return readdirSync(join(root, EXTENSION_DIR), {withFileTypes: true})
+      .filter((entry) => entry.isFile() && EXTENSION_RE.test(entry.name) && !entry.name.endsWith('.d.ts'))
+      .map((entry) => entry.name)
+      .toSorted()
+  } catch (error) {
+    if (isMissingDirError(error)) return []
+    throw error
   }
 }
 
@@ -56,18 +67,25 @@ export async function loadServerExtensions(
   root: string,
   builtinServerExtensions: readonly AnyExtension[],
 ): Promise<AnyExtension[]> {
-  const files = extensionFiles(root)
-  if (files.length === 0) return [...builtinServerExtensions]
+  const builtinEntries: ExtensionEntry[] = builtinServerExtensions.map((extension, index) => ({
+    extension,
+    source: `builtin:${index}`,
+  }))
+  const files = listExtensionFiles(root).map((name) => join(root, EXTENSION_DIR, name))
+  if (files.length === 0) return dedupeExtensions(builtinEntries).extensions
   const jiti = createJiti(pathToFileURL(join(root, 'noop.js')).href, {
     jsx: {runtime: 'automatic', importSource: 'solid-js'},
   })
-  const builders: AnyExtension[] = []
+  const folderEntries: ExtensionEntry[] = []
   for (const file of files) {
     const source = readFileSync(file, 'utf8')
     const split = await splitExtension(source, file, 'node')
     const evaluated = await jiti.evalModule(split?.code ?? source, {filename: file})
-    const builder = (evaluated as {default?: AnyExtension}).default
-    if (builder) builders.push(builder)
+    const value = evaluated && typeof evaluated === 'object' && 'default' in evaluated ? evaluated.default : undefined
+    if (value === undefined) throw new Error(`conciv extension ${file} has no default export`)
+    folderEntries.push({extension: value, source: file})
   }
-  return [...builtinServerExtensions, ...builders]
+  const result = dedupeExtensions([...builtinEntries, ...folderEntries])
+  for (const drop of result.dropped) console.error(`conciv extension dropped: ${drop.source} (${drop.reason})`)
+  return result.extensions
 }

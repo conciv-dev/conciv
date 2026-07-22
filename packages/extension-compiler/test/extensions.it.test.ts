@@ -18,6 +18,9 @@ describe('generic extension wiring', () => {
     const source = extensionsModuleSource(['/abs/a/client.js', '/abs/b/client.js'])
     expect(source).toContain('import builtin0 from "/abs/a/client.js"')
     expect(source).toContain('import builtin1 from "/abs/b/client.js"')
-    expect(source).toContain('mountConciv([builtin0, builtin1, ...userExtensions])')
+    expect(source).toContain(
+      "const builtinEntries = [{extension: builtin0, source: 'builtin:0'}, {extension: builtin1, source: 'builtin:1'}]",
+    )
+    expect(source).toContain('mountConciv(picked.extensions)')
   })
 })
