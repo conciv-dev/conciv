@@ -50,7 +50,12 @@ export function makeTanstackAdapter(deps: TanstackAdapterDeps): FrameworkAdapter
       },
       navigation: {
         navigate: async (input) => {
-          await page.call('navigate', {to: input.to, replace: input.replace})
+          await page.call('navigate', {
+            to: input.to,
+            params: input.params,
+            search: input.search,
+            replace: input.replace,
+          })
         },
         back: async () => {
           await page.call('back', {})

@@ -252,9 +252,18 @@ export function readLoaderData(routeId?: string): unknown {
   return dehydrate(match.loaderData)
 }
 
-export async function navigateTo(input: {to: string; replace?: boolean}): Promise<{ok: true; to: string}> {
+export async function navigateTo(input: {
+  to: string
+  params?: Record<string, string>
+  search?: Record<string, unknown>
+  replace?: boolean
+}): Promise<{ok: true; to: string}> {
   const router = requireRouter()
-  await router.navigate({to: input.to, replace: input.replace})
+  const options: Record<string, unknown> = {to: input.to}
+  if (input.params !== undefined) options.params = input.params
+  if (input.search !== undefined) options.search = input.search
+  if (input.replace !== undefined) options.replace = input.replace
+  await router.navigate(options)
   return {ok: true, to: input.to}
 }
 

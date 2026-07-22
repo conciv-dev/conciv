@@ -1,6 +1,12 @@
 import {expect, test} from 'vitest'
 import {z} from 'zod'
-import {gotoAbout, useTanstackTestApi, waitForAboutQuery, waitForWidget} from './helpers/tanstack-test-api.js'
+import {
+  gotoAbout,
+  tanstackAdapter,
+  useTanstackTestApi,
+  waitForAboutQuery,
+  waitForWidget,
+} from './helpers/tanstack-test-api.js'
 
 const get = useTanstackTestApi()
 
@@ -93,6 +99,22 @@ test('tanstack_navigate drives real TanStack Router navigation on the running ap
     })
     .toBe('/form')
   await expect.poll(() => api.page.getByRole('heading', {name: 'Form page'}).isVisible()).toBe(true)
+})
+
+test('navigate threads search through the adapter into the running TanStack Router location', async () => {
+  const {api} = get()
+
+  await waitForWidget(api.page)
+
+  const adapter = tanstackAdapter(api)
+  await adapter.client.navigation.navigate({to: '/secret', search: {token: 'nav-applied'}})
+
+  await expect
+    .poll(async () => routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.search, {
+      timeout: 10_000,
+    })
+    .toContain('token=nav-applied')
+  await expect.poll(() => api.page.getByRole('heading', {name: 'Secret page'}).isVisible()).toBe(true)
 })
 
 test('tanstack_query_invalidate no-ops on unknown keys and refetches the real key on the running app', async () => {

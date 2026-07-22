@@ -26,7 +26,15 @@ export const tanstackVerbs = definePageVerbs({
   queryCache: pageVerb(z.object({}), () => ({queries: readQueryCache(), mutations: readMutations()})),
   queryInvalidate: pageVerb(z.object({key: z.string()}), (a) => invalidateQuery(a.key)),
   queryRefetch: pageVerb(z.object({key: z.string()}), (a) => refetchQuery(a.key)),
-  navigate: pageVerb(z.object({to: z.string(), replace: z.boolean().optional()}), (a) => navigateTo(a)),
+  navigate: pageVerb(
+    z.object({
+      to: z.string(),
+      params: z.record(z.string(), z.string()).optional(),
+      search: z.record(z.string(), z.unknown()).optional(),
+      replace: z.boolean().optional(),
+    }),
+    (a) => navigateTo(a),
+  ),
   routerInvalidate: pageVerb(z.object({}), () => invalidateRouter()),
   back: pageVerb(z.object({}), () => goBack()),
 })
