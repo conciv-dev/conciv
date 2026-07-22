@@ -841,6 +841,9 @@ importers:
 
   e2e/tanstack-start:
     dependencies:
+      '@conciv/extension-tanstack':
+        specifier: workspace:*
+        version: link:../../packages/extensions/tanstack
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it
