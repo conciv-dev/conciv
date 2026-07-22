@@ -14,7 +14,7 @@ export function Hero() {
       <div>
         <Badge
           variant="outline"
-          className="mb-4 gap-2 border-primary/30 font-mono text-[11.5px] uppercase tracking-[0.12em] text-primary"
+          className="mb-4 max-w-full gap-2 border-primary/30 font-mono text-[11.5px] uppercase tracking-[0.06em] text-primary sm:tracking-[0.12em]"
         >
           <span className="size-1.5 rounded-full bg-primary" /> Beta · Dev-only · Open source
         </Badge>
