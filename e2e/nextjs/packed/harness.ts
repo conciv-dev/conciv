@@ -30,6 +30,7 @@ function findWorkspaceRoot(): string {
 
 export const WORKSPACE_ROOT = findWorkspaceRoot()
 export const ENGINE_PORT = 41750
+const CONCIV_FALLBACK_PORT = 41700
 export const DEV_PORT = 41751
 export const CLOSURE_ROOTS = ['@conciv/it', '@conciv/extension-tanstack', '@conciv/extension-compiler']
 
@@ -286,10 +287,18 @@ export function startNext(appDir: string, options: {webpack: boolean; devPort: n
 }
 
 async function listeningSnapshot(): Promise<string> {
+  const defaultPortListening = await isListening(CONCIV_FALLBACK_PORT)
+  const snapshot = await lsofSnapshot()
+  return `engine default port ${CONCIV_FALLBACK_PORT} listening: ${defaultPortListening}\n${snapshot}`
+}
+
+async function lsofSnapshot(): Promise<string> {
   try {
     const {stdout} = await execFileAsync('lsof', ['-iTCP', '-sTCP:LISTEN', '-P', '-n'])
     return stdout
-  } catch {
+  } catch (error) {
+    const stdout = typeof error === 'object' && error !== null ? String(Reflect.get(error, 'stdout') ?? '') : ''
+    if (stdout !== '') return stdout
     return '(lsof snapshot unavailable)'
   }
 }
