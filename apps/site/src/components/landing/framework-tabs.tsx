@@ -301,7 +301,10 @@ function Code() {
       <div
         ref={attach}
         onScroll={refresh}
-        className="od-snippet relative overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7]"
+        tabIndex={0}
+        role="region"
+        aria-label={`${active.file ?? active.label} config`}
+        className="od-snippet relative overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         <ShikiMagicMovePrecompiled
           steps={MAGIC_MOVE_STEPS}
