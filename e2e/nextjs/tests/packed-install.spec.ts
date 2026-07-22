@@ -58,7 +58,12 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
   }
 
   async function gotoAndOpen(page: Page): Promise<void> {
-    await page.goto(`http://localhost:${DEV_PORT}/`, {waitUntil: 'domcontentloaded', timeout: 60_000})
+    try {
+      await page.goto(`http://localhost:${DEV_PORT}/`, {waitUntil: 'domcontentloaded', timeout: 60_000})
+    } catch (error) {
+      if (!String(error).includes('interrupted by another navigation')) throw error
+      await page.goto(`http://localhost:${DEV_PORT}/`, {waitUntil: 'domcontentloaded', timeout: 60_000})
+    }
     await openWidget(page)
   }
 
