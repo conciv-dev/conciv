@@ -168,7 +168,22 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
     join(appDir, 'next.config.ts'),
     `import {withConciv} from '@conciv/it/plugin/nextjs'\nexport default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}})\n`,
   )
-  writeFileSync(join(appDir, 'instrumentation.ts'), `export {register} from '@conciv/it/plugin/nextjs'\n`)
+  writeFileSync(
+    join(appDir, 'instrumentation.ts'),
+    [
+      `import {register as concivRegister} from '@conciv/it/plugin/nextjs'`,
+      `export async function register(): Promise<void> {`,
+      `  console.error('[fixture] register called', process.env.NEXT_RUNTIME, process.env.NODE_ENV, process.env.CONCIV_OPTIONS)`,
+      `  try {`,
+      `    await concivRegister()`,
+      `    console.error('[fixture] register resolved')`,
+      `  } catch (error) {`,
+      `    console.error('[fixture] register threw', error)`,
+      `  }`,
+      `}`,
+      ``,
+    ].join('\n'),
+  )
   writeFileSync(join(appDir, 'instrumentation-client.ts'), `import '@conciv/it/plugin/nextjs/widget'\n`)
   writeFileSync(
     join(appDir, 'tsconfig.json'),
