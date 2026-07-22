@@ -4,6 +4,7 @@ import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
 import {createContext, useCallback, useContext, useRef, useState, type ReactNode} from 'react'
 import '@shikijs/magic-move/style.css'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@/components/ui/hover-card'
+import {Select, SelectContent, SelectItem, SelectTrigger} from '@/components/ui/select'
 import {CopyButton} from './copy-button'
 import {cleanSnippet, type FrameworkSnippet} from './framework-snippets'
 import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from './framework-snippets.gen'
@@ -98,23 +99,58 @@ function List() {
   }, [])
 
   return (
-    <div className="relative mb-2.5 w-fit max-w-full">
-      <TabsPrimitive.List
-        ref={attach}
-        aria-label="Frameworks"
-        className="flex w-fit max-w-full gap-0.5 overflow-x-auto rounded-[10px] border bg-card p-[3px]"
+    <>
+      <FrameworkSelect />
+      <div className="relative mb-2.5 hidden w-fit max-w-full sm:block">
+        <TabsPrimitive.List
+          ref={attach}
+          aria-label="Frameworks"
+          className="flex w-fit max-w-full gap-0.5 overflow-x-auto rounded-[10px] border bg-card p-[3px]"
+        >
+          {snippets.map((snippet) => (
+            <Trigger key={snippet.id} snippet={snippet} />
+          ))}
+        </TabsPrimitive.List>
+        {clipped && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-[3px] right-[3px] w-8 rounded-r-[8px] bg-gradient-to-l from-card to-transparent"
+          />
+        )}
+      </div>
+    </>
+  )
+}
+
+function FrameworkSelect() {
+  const {snippets, active, select} = useFrameworkTabs()
+  return (
+    <Select value={active.id} onValueChange={select}>
+      <SelectTrigger
+        aria-label="Framework"
+        className="mb-2.5 h-auto w-full gap-2 rounded-[10px] border bg-card px-3 py-2 font-mono text-[12.5px] font-semibold sm:hidden"
       >
+        <span className="flex items-center gap-2">
+          <img src={active.icon} alt="" className="size-[15px]" />
+          {active.label}
+        </span>
+      </SelectTrigger>
+      <SelectContent position="popper" className="w-(--radix-select-trigger-width) font-mono text-[12.5px]">
         {snippets.map((snippet) => (
-          <Trigger key={snippet.id} snippet={snippet} />
+          <SelectItem key={snippet.id} value={snippet.id} disabled={snippet.soon} className="gap-2 font-mono">
+            <span className="flex items-center gap-2">
+              <img src={snippet.icon} alt="" className="size-[15px]" />
+              {snippet.label}
+              {snippet.soon && (
+                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[8.5px] uppercase tracking-[0.08em] text-accent-foreground">
+                  soon
+                </span>
+              )}
+            </span>
+          </SelectItem>
         ))}
-      </TabsPrimitive.List>
-      {clipped && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-[3px] right-[3px] w-8 rounded-r-[8px] bg-gradient-to-l from-card to-transparent"
-        />
-      )}
-    </div>
+      </SelectContent>
+    </Select>
   )
 }
 
