@@ -3,7 +3,8 @@ import {z} from 'zod'
 import {Waypoints} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload} from '@conciv/ui-kit-chat'
-import {InspectionCard} from './card-shared.js'
+import {ToolChip} from '@conciv/ui-kit-chat-tools'
+import {CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 type RouteRow = {path: string; kind: string; dynamic: boolean}
 
@@ -32,23 +33,19 @@ export function RouteManifestCard(props: ToolCardProps): JSX.Element {
     <InspectionCard card={props} Icon={ManifestIcon} summary={summary()}>
       <Show when={routes()}>
         {(list) => (
-          <div class="flex flex-col gap-0.5">
+          <CardRows>
             <For each={list()}>
               {(route) => (
-                <div class="text-[length:var(--chat-text-xs)] flex gap-2 [font-family:var(--chat-mono)] items-baseline">
+                <CardRow>
                   <span class="min-w-0 truncate [color:var(--chat-text-2)]">{route.path}</span>
-                  <span class="px-1.5 rounded-[var(--chat-radius-pill)] shrink-0 [background:var(--chat-sunken)] [color:var(--chat-text-3)]">
-                    {route.kind}
-                  </span>
+                  <ToolChip name={route.kind} />
                   <Show when={route.dynamic}>
-                    <span class="px-1.5 rounded-[var(--chat-radius-pill)] shrink-0 [background:var(--chat-sunken)] [color:var(--chat-text-3)]">
-                      dynamic
-                    </span>
+                    <ToolChip name="dynamic" />
                   </Show>
-                </div>
+                </CardRow>
               )}
             </For>
-          </div>
+          </CardRows>
         )}
       </Show>
     </InspectionCard>

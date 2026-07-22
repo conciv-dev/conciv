@@ -3,7 +3,9 @@ import {z} from 'zod'
 import {DatabaseZap} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload} from '@conciv/ui-kit-chat'
-import {InspectionCard} from './card-shared.js'
+import {ToolChip} from '@conciv/ui-kit-chat-tools'
+import {RelativeTime} from '@conciv/ui-kit-system'
+import {CardNote, CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 const EntrySchema = z
   .object({
@@ -27,32 +29,22 @@ function parseCache(props: ToolCardProps): {queries: Entry[]; mutations: Entry[]
   return parsed.success ? parsed.data : null
 }
 
-function ageOf(updatedAt: number | null): string {
-  if (updatedAt === null) return ''
-  const seconds = Math.max(0, Math.round((Date.now() - updatedAt) / 1000))
-  if (seconds < 60) return `${seconds}s`
-  return `${Math.round(seconds / 60)}m`
-}
-
 function QueryIcon(): JSX.Element {
   return <DatabaseZap size={14} />
 }
 
 function EntryRow(props: {entry: Entry}): JSX.Element {
-  const age = () => ageOf(props.entry.updatedAt)
   return (
-    <div class="text-[length:var(--chat-text-xs)] flex gap-2 [font-family:var(--chat-mono)] items-baseline">
+    <CardRow>
       <span class="min-w-0 truncate [color:var(--chat-text-2)]">{props.entry.key}</span>
-      <span class="px-1.5 rounded-[var(--chat-radius-pill)] shrink-0 [background:var(--chat-sunken)] [color:var(--chat-text-3)]">
-        {props.entry.state}
-      </span>
+      <ToolChip name={props.entry.state} />
       <Show when={props.entry.observers !== null}>
         <span class="shrink-0 [color:var(--chat-text-3)]">{props.entry.observers} obs</span>
       </Show>
-      <Show when={age()}>
-        <span class="shrink-0 [color:var(--chat-text-3)]">{age()}</span>
+      <Show when={props.entry.updatedAt !== null && props.entry.updatedAt}>
+        {(updatedAt) => <RelativeTime value={new Date(updatedAt())} class="shrink-0 [color:var(--chat-text-3)]" />}
       </Show>
-    </div>
+    </CardRow>
   )
 }
 
@@ -68,16 +60,16 @@ export function QueryCacheCard(props: ToolCardProps): JSX.Element {
     <InspectionCard card={props} Icon={QueryIcon} summary={summary()}>
       <Show when={cache()}>
         {(value) => (
-          <div class="flex flex-col gap-0.5">
+          <CardRows>
             <Show when={value().queries.length === 0 && value().mutations.length === 0}>
-              <div class="text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]">no cached queries</div>
+              <CardNote>no cached queries</CardNote>
             </Show>
             <For each={value().queries}>{(entry) => <EntryRow entry={entry} />}</For>
             <Show when={value().mutations.length > 0}>
-              <div class="text-[length:var(--chat-text-xs)] mt-1 [color:var(--chat-text-3)]">mutations</div>
+              <CardNote class="mt-1">mutations</CardNote>
               <For each={value().mutations}>{(entry) => <EntryRow entry={entry} />}</For>
             </Show>
-          </div>
+          </CardRows>
         )}
       </Show>
     </InspectionCard>

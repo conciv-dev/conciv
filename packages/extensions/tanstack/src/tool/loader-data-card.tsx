@@ -2,7 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {Database} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload} from '@conciv/ui-kit-chat'
-import {InspectionCard} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 type Entry = {key: string; preview: string}
 
@@ -48,16 +48,16 @@ export function LoaderDataCard(props: ToolCardProps): JSX.Element {
     <InspectionCard card={props} Icon={LoaderIcon} summary={summary()}>
       <Show when={entries()}>
         {(list) => (
-          <div class="flex flex-col gap-0.5">
+          <CardRows>
             <For each={list()}>
               {(entry) => (
-                <div class="text-[length:var(--chat-text-xs)] flex gap-2 [font-family:var(--chat-mono)] items-baseline">
+                <CardRow>
                   <span class="min-w-0 truncate [color:var(--chat-text-2)]">{entry.key}</span>
                   <span class="min-w-0 truncate [color:var(--chat-text-3)]">{entry.preview}</span>
-                </div>
+                </CardRow>
               )}
             </For>
-          </div>
+          </CardRows>
         )}
       </Show>
     </InspectionCard>

@@ -3,7 +3,8 @@ import {z} from 'zod'
 import {ServerCog} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload} from '@conciv/ui-kit-chat'
-import {InspectionCard} from './card-shared.js'
+import {ToolChip} from '@conciv/ui-kit-chat-tools'
+import {CardNote, CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 type TraceRow = {name: string; file: string | null; durationMs: number; status: string}
 
@@ -49,32 +50,21 @@ export function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
   }
   return (
     <InspectionCard card={props} Icon={TraceIcon} summary={summary()}>
-      <Show
-        when={traces()?.length}
-        fallback={<div class="text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]">No server-fn calls</div>}
-      >
-        <div class="flex flex-col gap-0.5">
+      <Show when={traces()?.length} fallback={<CardNote>No server-fn calls</CardNote>}>
+        <CardRows>
           <For each={traces()}>
             {(trace) => (
-              <div class="text-[length:var(--chat-text-xs)] flex gap-2 [font-family:var(--chat-mono)] items-baseline">
+              <CardRow>
                 <span class="min-w-0 truncate [color:var(--chat-text-2)]">{trace.name}</span>
                 <Show when={trace.file}>
                   {(file) => <span class="min-w-0 truncate [color:var(--chat-text-3)]">{file()}</span>}
                 </Show>
                 <span class="ml-auto shrink-0 [color:var(--chat-text-3)]">{trace.durationMs}ms</span>
-                <span
-                  class="px-1.5 rounded-[var(--chat-radius-pill)] shrink-0 [background:var(--chat-sunken)]"
-                  classList={{
-                    '[color:var(--chat-danger)]': trace.status === 'error',
-                    '[color:var(--chat-text-3)]': trace.status !== 'error',
-                  }}
-                >
-                  {trace.status}
-                </span>
-              </div>
+                <ToolChip name={trace.status} tone={trace.status === 'error' ? 'bad' : undefined} />
+              </CardRow>
             )}
           </For>
-        </div>
+        </CardRows>
       </Show>
     </InspectionCard>
   )

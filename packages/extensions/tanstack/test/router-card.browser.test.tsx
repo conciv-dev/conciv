@@ -94,7 +94,7 @@ const QUERY_CACHE = JSON.stringify({
       state: 'fresh',
       status: 'success',
       observers: 1,
-      updatedAt: Date.now(),
+      updatedAt: Date.now() - 5 * 60_000,
       value: {fetched: true},
       error: null,
     },
@@ -116,6 +116,7 @@ describe('QueryCacheCard (real browser)', () => {
     await expect.element(page.getByText('["spike","demo"]')).toBeVisible()
     await expect.element(page.getByText('fresh')).toBeVisible()
     await expect.element(page.getByText('stale')).toBeVisible()
+    await expect.element(page.getByText(/5m ago/)).toBeVisible()
   })
 
   it('renders the error message when the verb fails', async () => {

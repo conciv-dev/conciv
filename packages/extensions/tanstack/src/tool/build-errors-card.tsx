@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {TriangleAlert} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload} from '@conciv/ui-kit-chat'
-import {InspectionCard} from './card-shared.js'
+import {CardErrorBlock, CardNote, InspectionCard} from './card-shared.js'
 
 type BuildError = {message: string; where: string | null}
 
@@ -41,19 +41,16 @@ export function BuildErrorsCard(props: ToolCardProps): JSX.Element {
   }
   return (
     <InspectionCard card={props} Icon={ErrorsIcon} summary={summary()}>
-      <Show
-        when={errors()?.length}
-        fallback={<div class="text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]">No build errors</div>}
-      >
+      <Show when={errors()?.length} fallback={<CardNote>No build errors</CardNote>}>
         <div class="flex flex-col gap-1.5">
           <For each={errors()}>
             {(error) => (
-              <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] flex flex-col gap-0.5 [border:1px_solid_var(--chat-danger-line)]">
+              <CardErrorBlock>
                 <span class="[color:var(--chat-danger)] [font-family:var(--chat-mono)]">{error.message}</span>
                 <Show when={error.where}>
                   {(where) => <span class="[color:var(--chat-text-3)] [font-family:var(--chat-mono)]">{where()}</span>}
                 </Show>
-              </div>
+              </CardErrorBlock>
             )}
           </For>
         </div>

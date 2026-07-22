@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {Route} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload} from '@conciv/ui-kit-chat'
-import {InspectionCard} from './card-shared.js'
+import {CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 const MatchSchema = z.object({routeId: z.string(), path: z.string().default('')}).loose()
 
@@ -37,18 +37,18 @@ export function RouterStateCard(props: ToolCardProps): JSX.Element {
     <InspectionCard card={props} Icon={RouterIcon} summary={summary()}>
       <Show when={state()}>
         {(value) => (
-          <div class="flex flex-col gap-0.5">
+          <CardRows>
             <For each={value().matches}>
               {(match) => (
-                <div class="text-[length:var(--chat-text-xs)] flex gap-2 [font-family:var(--chat-mono)] items-baseline">
+                <CardRow>
                   <span class="min-w-0 truncate [color:var(--chat-text-2)]">{match.routeId}</span>
                   <Show when={match.path}>
                     <span class="shrink-0 [color:var(--chat-text-3)]">{match.path}</span>
                   </Show>
-                </div>
+                </CardRow>
               )}
             </For>
-          </div>
+          </CardRows>
         )}
       </Show>
     </InspectionCard>

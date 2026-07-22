@@ -1882,6 +1882,12 @@ importers:
       '@conciv/ui-kit-chat':
         specifier: workspace:*
         version: link:../../ui-kit-chat
+      '@conciv/ui-kit-chat-tools':
+        specifier: workspace:^
+        version: link:../../ui-kit-chat-tools
+      '@conciv/ui-kit-system':
+        specifier: workspace:^
+        version: link:../../ui-kit-system
       lucide-solid:
         specifier: ^1.18.0
         version: 1.18.0(solid-js@1.9.14)

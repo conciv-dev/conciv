@@ -17,6 +17,37 @@ function isRunning(props: ToolCardProps): boolean {
   return toolStatus(props.part, props.result) === 'running'
 }
 
+export function CardRows(props: {children: JSX.Element}): JSX.Element {
+  return <div class="flex flex-col gap-0.5">{props.children}</div>
+}
+
+export function CardRow(props: {children: JSX.Element; style?: JSX.CSSProperties}): JSX.Element {
+  return (
+    <div
+      class="text-[length:var(--chat-text-xs)] flex gap-2 [font-family:var(--chat-mono)] items-baseline"
+      style={props.style}
+    >
+      {props.children}
+    </div>
+  )
+}
+
+export function CardNote(props: {children: JSX.Element; class?: string}): JSX.Element {
+  return (
+    <div class={`text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] ${props.class ?? ''}`}>
+      {props.children}
+    </div>
+  )
+}
+
+export function CardErrorBlock(props: {children: JSX.Element}): JSX.Element {
+  return (
+    <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] flex flex-col gap-0.5 [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
+      {props.children}
+    </div>
+  )
+}
+
 export function InspectionCard(props: {
   card: ToolCardProps
   Icon: Component
@@ -34,13 +65,7 @@ export function InspectionCard(props: {
       result={props.card.result}
       status={error() ? 'error' : undefined}
     >
-      <Show when={error()}>
-        {(message) => (
-          <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
-            {message()}
-          </div>
-        )}
-      </Show>
+      <Show when={error()}>{(message) => <CardErrorBlock>{message()}</CardErrorBlock>}</Show>
       <Show when={!error() && !isRunning(props.card)}>{props.children}</Show>
     </ToolCard>
   )
@@ -58,13 +83,7 @@ export function ActionCard(props: {card: ToolCardProps; Icon: Component; summary
       result={props.card.result}
       status={error() ? 'error' : undefined}
     >
-      <Show when={error()}>
-        {(message) => (
-          <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
-            {message()}
-          </div>
-        )}
-      </Show>
+      <Show when={error()}>{(message) => <CardErrorBlock>{message()}</CardErrorBlock>}</Show>
     </ToolCard>
   )
 }
