@@ -173,10 +173,17 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
     [
       `import {register as concivRegister} from '@conciv/it/plugin/nextjs'`,
       `export async function register(): Promise<void> {`,
-      `  console.error('[fixture] register called', process.env.NEXT_RUNTIME, process.env.NODE_ENV, process.env.CONCIV_OPTIONS)`,
+      `  console.error('[fixture] register called pid', process.pid, process.env.NEXT_RUNTIME, process.env.NODE_ENV, process.env.CONCIV_OPTIONS)`,
+      `  process.on('exit', (code) => console.error('[fixture] pid', process.pid, 'exit', code))`,
+      `  const port = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}').port ?? 41700`,
+      `  const probe = setInterval(async () => {`,
+      `    const status = await fetch('http://127.0.0.1:' + port + '/').then((r) => r.status, (e) => 'ERR ' + e?.cause?.code)`,
+      `    console.error('[fixture] pid', process.pid, 'engine probe', status)`,
+      `  }, 10_000)`,
+      `  probe.unref()`,
       `  try {`,
       `    await concivRegister()`,
-      `    console.error('[fixture] register resolved')`,
+      `    console.error('[fixture] register resolved pid', process.pid)`,
       `  } catch (error) {`,
       `    console.error('[fixture] register threw', error)`,
       `  }`,
@@ -327,6 +334,24 @@ function logTail(handle: NextHandle): string {
 }
 
 async function isListening(port: number): Promise<boolean> {
+  const [socketReachable, processFound] = await Promise.all([canConnect(port), lsofFinds(port)])
+  return socketReachable || processFound
+}
+
+async function canConnect(port: number): Promise<boolean> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 3000)
+  try {
+    await fetch(`http://127.0.0.1:${port}/`, {signal: controller.signal})
+    return true
+  } catch {
+    return controller.signal.aborted
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function lsofFinds(port: number): Promise<boolean> {
   try {
     const {stdout} = await execFileAsync('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN'])
     return stdout.trim().length > 0
