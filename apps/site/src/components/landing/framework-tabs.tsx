@@ -128,7 +128,7 @@ function FrameworkSelect() {
     <Select value={active.id} onValueChange={select}>
       <SelectTrigger
         aria-label="Framework"
-        className="mb-2.5 h-auto w-full gap-2 rounded-[10px] border bg-card px-3 py-2 font-mono text-[12.5px] font-semibold sm:hidden"
+        className="mb-2.5 h-11 w-full gap-2 rounded-[10px] border bg-card px-3.5 font-mono text-[12.5px] font-semibold sm:hidden"
       >
         <span className="flex items-center gap-2">
           <img src={active.icon} alt="" className="size-[15px]" />
@@ -137,12 +137,12 @@ function FrameworkSelect() {
       </SelectTrigger>
       <SelectContent position="popper" className="w-(--radix-select-trigger-width) font-mono text-[12.5px]">
         {snippets.map((snippet) => (
-          <SelectItem key={snippet.id} value={snippet.id} disabled={snippet.soon} className="gap-2 font-mono">
+          <SelectItem key={snippet.id} value={snippet.id} disabled={snippet.soon} className="min-h-11 gap-2 font-mono">
             <span className="flex items-center gap-2">
               <img src={snippet.icon} alt="" className="size-[15px]" />
               {snippet.label}
               {snippet.soon && (
-                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[8.5px] uppercase tracking-[0.08em] text-accent-foreground">
+                <span className="rounded-full bg-accent px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-accent-foreground">
                   soon
                 </span>
               )}
@@ -189,7 +189,22 @@ function Trigger({snippet}: {snippet: FrameworkSnippet}) {
 }
 
 function Panel({children}: {children: ReactNode}) {
-  return <div className="overflow-hidden rounded-xl border bg-card">{children}</div>
+  const {snippets, active} = useFrameworkTabs()
+  return (
+    <>
+      <TabsPrimitive.Content
+        value={active.id}
+        className="overflow-hidden rounded-xl border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+      >
+        {children}
+      </TabsPrimitive.Content>
+      {snippets
+        .filter((snippet) => snippet.id !== active.id)
+        .map((snippet) => (
+          <TabsPrimitive.Content key={snippet.id} value={snippet.id} className="hidden" />
+        ))}
+    </>
+  )
 }
 
 function FileBar() {
