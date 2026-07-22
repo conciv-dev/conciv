@@ -176,9 +176,63 @@ function Copy() {
   )
 }
 
+type EdgeFade = {start: boolean; end: boolean}
+
+function readEdgeFade(el: HTMLElement): EdgeFade {
+  return {start: el.scrollLeft > 1, end: el.scrollLeft + el.clientWidth < el.scrollWidth - 1}
+}
+
+function useEdgeFade() {
+  const [fade, setFade] = useState<EdgeFade>({start: false, end: false})
+  const elRef = useRef<HTMLElement | null>(null)
+  const observerRef = useRef<ResizeObserver | null>(null)
+
+  const refresh = useCallback(() => {
+    const el = elRef.current
+    if (!el) return
+    const next = readEdgeFade(el)
+    setFade((prev) => (prev.start === next.start && prev.end === next.end ? prev : next))
+  }, [])
+
+  const watch = useCallback(
+    (el: HTMLElement | null) => {
+      observerRef.current?.disconnect()
+      observerRef.current = null
+      elRef.current = el
+      if (!el) return
+      observerRef.current = new ResizeObserver(refresh)
+      observerRef.current.observe(el)
+      requestAnimationFrame(refresh)
+    },
+    [refresh],
+  )
+
+  return {fade, watch, refresh}
+}
+
+function FadeEdges({fade}: {fade: EdgeFade}) {
+  return (
+    <>
+      {fade.start && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-card to-transparent"
+        />
+      )}
+      {fade.end && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card to-transparent"
+        />
+      )}
+    </>
+  )
+}
+
 function Code() {
   const {active} = useFrameworkTabs()
   const [anchors, setAnchors] = useState<Anchor[]>([])
+  const {fade, watch, refresh} = useEdgeFade()
   const containerRef = useRef<HTMLDivElement>(null)
   const activeIdRef = useRef(active.id)
   activeIdRef.current = active.id
@@ -192,66 +246,78 @@ function Code() {
     const container = containerRef.current
     if (!container) return
     setAnchors(twoslashRef.current ? measureAnchors(container, activeIdRef.current) : [])
+    refresh()
   }
   const settleRef = useRef(settle)
   settleRef.current = settle
 
-  const attach = useCallback((el: HTMLDivElement | null) => {
-    containerRef.current = el
-    if (el && twoslashRef.current) requestAnimationFrame(() => settleRef.current())
-  }, [])
+  const attach = useCallback(
+    (el: HTMLDivElement | null) => {
+      containerRef.current = el
+      watch(el)
+      if (el && twoslashRef.current) requestAnimationFrame(() => settleRef.current())
+    },
+    [watch],
+  )
 
   return (
-    <div ref={attach} className="od-snippet relative overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7]">
-      <ShikiMagicMovePrecompiled
-        steps={MAGIC_MOVE_STEPS}
-        step={step}
-        options={{duration: 500, stagger: 2, animateContainer: true, containerStyle: false}}
-        onStart={() => setAnchors([])}
-        onEnd={settle}
-      />
-      {anchors.map((anchor, index) => (
-        <HoverCard key={index} openDelay={150} closeDelay={250}>
-          <HoverCardTrigger asChild>
-            <span
-              className="od-hover-anchor"
-              style={{left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.height}}
+    <div className="relative">
+      <div
+        ref={attach}
+        onScroll={refresh}
+        className="od-snippet relative overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7]"
+      >
+        <ShikiMagicMovePrecompiled
+          steps={MAGIC_MOVE_STEPS}
+          step={step}
+          options={{duration: 500, stagger: 2, animateContainer: true, containerStyle: false}}
+          onStart={() => setAnchors([])}
+          onEnd={settle}
+        />
+        {anchors.map((anchor, index) => (
+          <HoverCard key={index} openDelay={150} closeDelay={250}>
+            <HoverCardTrigger asChild>
+              <span
+                className="od-hover-anchor"
+                style={{left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.height}}
+              >
+                {anchor.caret === true && <span className="od-caret" />}
+              </span>
+            </HoverCardTrigger>
+            <HoverCardContent
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              className="od-popup w-auto max-w-[min(440px,80vw)] px-3.5 py-2.5 font-mono text-[11.5px] leading-[1.6]"
             >
-              {anchor.caret === true && <span className="od-caret" />}
-            </span>
-          </HoverCardTrigger>
-          <HoverCardContent
-            side="bottom"
-            align="start"
-            sideOffset={6}
-            className="od-popup w-auto max-w-[min(440px,80vw)] px-3.5 py-2.5 font-mono text-[11.5px] leading-[1.6]"
-          >
-            {anchor.hover && (
-              <>
-                <code
-                  className="block overflow-x-auto whitespace-pre"
-                  dangerouslySetInnerHTML={{__html: anchor.hover.html}}
-                />
-                {anchor.hover.docs && (
-                  <p className="mt-1.5 border-t border-dashed pt-1.5 font-sans text-muted-foreground">
-                    {anchor.hover.docs}
-                  </p>
-                )}
-              </>
-            )}
-            {anchor.caret === true && completion && (
-              <ul className="flex flex-col gap-0.5">
-                {completion.items.map((name) => (
-                  <li key={name} className="rounded px-1.5 py-0.5 first:bg-accent">
-                    <span className="font-semibold text-primary">{completion.target}</span>
-                    <span className="text-muted-foreground">{name.slice(completion.target.length)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </HoverCardContent>
-        </HoverCard>
-      ))}
+              {anchor.hover && (
+                <>
+                  <code
+                    className="block overflow-x-auto whitespace-pre"
+                    dangerouslySetInnerHTML={{__html: anchor.hover.html}}
+                  />
+                  {anchor.hover.docs && (
+                    <p className="mt-1.5 border-t border-dashed pt-1.5 font-sans text-muted-foreground">
+                      {anchor.hover.docs}
+                    </p>
+                  )}
+                </>
+              )}
+              {anchor.caret === true && completion && (
+                <ul className="flex flex-col gap-0.5">
+                  {completion.items.map((name) => (
+                    <li key={name} className="rounded px-1.5 py-0.5 first:bg-accent">
+                      <span className="font-semibold text-primary">{completion.target}</span>
+                      <span className="text-muted-foreground">{name.slice(completion.target.length)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </HoverCardContent>
+          </HoverCard>
+        ))}
+      </div>
+      <FadeEdges fade={fade} />
     </div>
   )
 }

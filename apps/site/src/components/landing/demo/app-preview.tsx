@@ -3,7 +3,7 @@ import {cn} from '@/lib/utils'
 
 export function AppPreview({picking, onPick}: {picking: boolean; onPick: (id: string) => void}) {
   return (
-    <div className={cn('od-preview relative flex flex-col p-[18px]', picking && 'od-picking')}>
+    <div className={cn('od-preview relative flex min-h-[15rem] flex-col p-[18px] sm:min-h-0', picking && 'od-picking')}>
       <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">your live app</div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
