@@ -2408,6 +2408,9 @@ importers:
       '@conciv/embed':
         specifier: workspace:^
         version: link:../embed
+      '@conciv/extension-compiler':
+        specifier: workspace:^
+        version: link:../extension-compiler
       '@conciv/extension-terminal':
         specifier: workspace:^
         version: link:../extensions/terminal

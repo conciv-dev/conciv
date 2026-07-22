@@ -12,4 +12,5 @@ export const unplugin = createConcivUnplugin({
     fileURLToPath(import.meta.resolve('@conciv/extension-whiteboard/client')),
   ],
   embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
+  dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
 })

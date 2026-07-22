@@ -14,6 +14,7 @@ export type Builtins = {
   serverExtensions: readonly AnyExtension[]
   clientEntries: readonly string[]
   embedEntry?: string
+  dedupeEntry?: string
 }
 
 export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}
@@ -22,6 +23,7 @@ export function extensionsModuleSource(
   clientEntries: readonly string[],
   apiBase?: string,
   embedEntry?: string,
+  dedupeEntry?: string,
 ): string {
   const imports = clientEntries.map((entry, index) => `import builtin${index} from ${JSON.stringify(entry)}`)
   const builtinNames = clientEntries.map((_, index) => `builtin${index}`)
@@ -33,7 +35,7 @@ export function extensionsModuleSource(
     `import {mountConciv} from ${JSON.stringify(embedEntry ?? '@conciv/embed')}`,
     ...imports,
     ...apiBaseLine,
-    `import {dedupeExtensions, toSortedEntries} from '@conciv/extension-compiler/dedupe'`,
+    `import {dedupeExtensions, toSortedEntries} from ${JSON.stringify(dedupeEntry ?? '@conciv/extension-compiler/dedupe')}`,
     `const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx,js,jsx}', {eager: true})`,
     `const folderEntries = toSortedEntries(mods)`,
     `const builtinEntries = [${builtinNames.map((n, i) => `{extension: ${n}, source: 'builtin:${i}'}`).join(', ')}]`,
