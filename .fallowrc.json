@@ -66,6 +66,7 @@
     "unist-util-visit-parents",
     "@conciv/client",
     "@conciv/embed",
+    "@conciv/extension-compiler",
     "@conciv/grab",
     "@conciv/mascot",
     "@conciv/solid-diffs",
