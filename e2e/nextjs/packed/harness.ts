@@ -27,6 +27,32 @@ export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
 type PackageInfo = {dir: string; deps: Record<string, string>}
 
+type ParsedManifest = {
+  name?: string
+  dependencies?: Record<string, string>
+  peerDependencies?: Record<string, string>
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  if (typeof value !== 'object' || value === null) return false
+  return Object.values(value).every((entry) => typeof entry === 'string')
+}
+
+function parseManifest(raw: unknown, manifestPath: string): ParsedManifest {
+  if (typeof raw !== 'object' || raw === null) throw new Error(`invalid manifest at ${manifestPath}`)
+  const name = 'name' in raw ? raw.name : undefined
+  if (name !== undefined && typeof name !== 'string') throw new Error(`invalid manifest name at ${manifestPath}`)
+  const dependencies = 'dependencies' in raw ? raw.dependencies : undefined
+  if (dependencies !== undefined && !isStringRecord(dependencies)) {
+    throw new Error(`invalid manifest dependencies at ${manifestPath}`)
+  }
+  const peerDependencies = 'peerDependencies' in raw ? raw.peerDependencies : undefined
+  if (peerDependencies !== undefined && !isStringRecord(peerDependencies)) {
+    throw new Error(`invalid manifest peerDependencies at ${manifestPath}`)
+  }
+  return {name, dependencies, peerDependencies}
+}
+
 function readWorkspacePackages(): Map<string, PackageInfo> {
   const listing = readdirSync(join(WORKSPACE_ROOT, 'packages'), {withFileTypes: true})
   const roots: string[] = []
@@ -41,11 +67,7 @@ function readWorkspacePackages(): Map<string, PackageInfo> {
   for (const dir of roots) {
     const manifestPath = join(dir, 'package.json')
     if (!existsSync(manifestPath)) continue
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-      name?: string
-      dependencies?: Record<string, string>
-      peerDependencies?: Record<string, string>
-    }
+    const manifest = parseManifest(JSON.parse(readFileSync(manifestPath, 'utf8')), manifestPath)
     if (!manifest.name?.startsWith('@conciv/')) continue
     byName.set(manifest.name, {dir, deps: {...manifest.dependencies, ...manifest.peerDependencies}})
   }
@@ -75,7 +97,7 @@ async function run(command: string, args: string[], cwd: string): Promise<void> 
   } catch (error) {
     const stdout = typeof error === 'object' && error !== null ? String(Reflect.get(error, 'stdout') ?? '') : ''
     const stderr = typeof error === 'object' && error !== null ? String(Reflect.get(error, 'stderr') ?? '') : ''
-    throw new Error(`${command} ${args.join(' ')} failed in ${cwd}\n${stdout}\n${stderr}`, { cause: error })
+    throw new Error(`${command} ${args.join(' ')} failed in ${cwd}\n${stdout}\n${stderr}`, {cause: error})
   }
 }
 
@@ -333,13 +355,26 @@ export async function buildProd(appDir: string): Promise<void> {
 
 type RouteBundleEntry = {route: string; firstLoadChunkPaths?: string[]}
 
+function isRouteBundleEntry(value: unknown): value is RouteBundleEntry {
+  if (typeof value !== 'object' || value === null || !('route' in value) || typeof value.route !== 'string')
+    return false
+  if (!('firstLoadChunkPaths' in value)) return true
+  const paths = value.firstLoadChunkPaths
+  return Array.isArray(paths) && paths.every((item) => typeof item === 'string')
+}
+
 export function prodConcivChunkHits(appDir: string, markers: string[]): string[] {
   const statsPath = join(appDir, '.next/diagnostics/route-bundle-stats.json')
   if (!existsSync(statsPath)) {
     throw new Error(`missing Turbopack diagnostic ${statsPath}; route-bundle-stats schema may have changed`)
   }
-  const stats = JSON.parse(readFileSync(statsPath, 'utf8')) as Record<string, RouteBundleEntry>
-  const entry = Object.values(stats).find((candidate) => candidate.route === '/')
+  const stats: unknown = JSON.parse(readFileSync(statsPath, 'utf8'))
+  if (typeof stats !== 'object' || stats === null) {
+    throw new Error(`route-bundle-stats.json is not an object; schema may have changed`)
+  }
+  const entry = Object.values(stats).find(
+    (candidate): candidate is RouteBundleEntry => isRouteBundleEntry(candidate) && candidate.route === '/',
+  )
   if (entry === undefined || entry.firstLoadChunkPaths === undefined) {
     throw new Error('route-bundle-stats.json has no "/" route firstLoadChunkPaths; schema may have changed')
   }
