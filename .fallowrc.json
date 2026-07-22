@@ -38,6 +38,7 @@
   },
   "ignoreDependencies": [
     "collections",
+    "@conciv/app-extensions",
     "@conciv/cli",
     "jazz-napi",
     "@oxlint/plugins",
