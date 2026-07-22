@@ -4,7 +4,7 @@ import {pathToFileURL} from 'node:url'
 import {createJiti} from 'jiti'
 import type {AnyExtension} from '@conciv/extension'
 import {splitExtension} from './split-extension.js'
-import {dedupeExtensions, type ExtensionEntry} from './dedupe-extensions.js'
+import {dedupeExtensions, EXTENSION_GLOB, type ExtensionEntry} from './dedupe-extensions.js'
 
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:conciv-extensions'
 export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
@@ -36,7 +36,7 @@ export function extensionsModuleSource(
     ...imports,
     ...apiBaseLine,
     `import {dedupeExtensions, toSortedEntries} from ${JSON.stringify(dedupeEntry ?? '@conciv/extension-compiler/dedupe')}`,
-    `const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx,js,jsx}', {eager: true})`,
+    `const mods = import.meta.glob(${JSON.stringify(EXTENSION_GLOB)}, {eager: true})`,
     `const folderEntries = toSortedEntries(mods)`,
     `const builtinEntries = [${builtinNames.map((n, i) => `{extension: ${n}, source: 'builtin:${i}'}`).join(', ')}]`,
     `const picked = dedupeExtensions([...builtinEntries, ...folderEntries])`,

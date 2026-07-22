@@ -21,6 +21,7 @@ describe('generic extension wiring', () => {
     expect(source).toContain(
       "const builtinEntries = [{extension: builtin0, source: 'builtin:0'}, {extension: builtin1, source: 'builtin:1'}]",
     )
+    expect(source).toContain('import.meta.glob("/conciv/extensions/*.{ts,tsx,js,jsx}", {eager: true})')
     expect(source).toContain('mountConciv(picked.extensions)')
   })
 
@@ -41,6 +42,6 @@ describe('generic extension wiring', () => {
     expect(source).toContain(
       'import {dedupeExtensions, toSortedEntries} from "/abs/pkg/dist/dedupe-extensions.js"',
     )
-    expect(source).not.toContain("from '@conciv/extension-compiler/dedupe'")
+    expect(source).not.toContain('@conciv/extension-compiler/dedupe')
   })
 })
