@@ -177,3 +177,46 @@ building the CLI now; a new split transform (conditional exports do the split); 
 - Exact `attw`/`publint`-safe conditional-export shape (finalize on a packed tarball).
 - 16.3 preview-vs-stable release policy (is `^16.3` GA at plan time?).
 - Docs IA placement of the install page.
+
+---
+
+## v4 amendment (post Task 0 NO-GO) — Next.js client discovery = generated app-local entry
+
+Status: approved (user decision 2026-07-22). Supersedes §3's Next.js/Turbopack bullet and item 2 of
+"What the implementation plan MUST nail".
+
+**Task 0 finding** (docs/superpowers/plans/2026-07-22-first-party-extension-install-task0-turbopack-glob-finding.md,
+commit 484787ac): the `import.meta.glob`-from-node_modules design is dead on Next. Two independent fatal
+blockers: (1) Next 16.3 (first Turbopack `import.meta.glob`) is not GA — latest is 16.2.11, and GA 16.2
+compiles the glob to a stub that throws at runtime; (2) even on 16.3-preview, Turbopack resolves glob
+patterns RELATIVE TO THE CALLING FILE (no project-root leading-slash form), so a fixed literal in a
+published node_modules file can never reach the consumer app root (the `../` depth is unknowable at
+publish time under pnpm/npm layouts).
+
+**Replacement mechanism (Next.js, Turbopack AND webpack):** fs-generated app-local entry.
+- `withConciv` (runs in the consumer's `next.config.ts`, Node, app root, every config load) fs-reads
+  `conciv/extensions/` (the same file set: `.ts/.tsx/.js/.jsx`, minus `.d.ts`, files only) and writes
+  `.conciv/extensions-client.gen.tsx` — static extensionless imports of each stub + an exported
+  provenance `entries` array (sorted filenames). Codegen via **knitwork** (unjs; `genImport` +
+  `genSafeVariableName`; already in the lockfile transitively). Idempotent: rewrite only when content
+  differs. `.conciv/` is already gitignored repo-wide (runtime-state dir).
+- `withConciv` wires the widget to the entry via bundler alias: `turbopack.resolveAlias` for Turbopack
+  plus an alias-only `webpack()` hook (`config.resolve.alias`) for `next dev --webpack` — webpack
+  support is now IN scope (user decision). `register()` remains the sole engine owner; the webpack hook
+  must not boot anything.
+- `nextjs-widget` dynamic-imports the aliased specifier + `@conciv/embed` + the shared dedupe INSIDE
+  `startWidget` (preserving the existing lazy pattern so the prod client bundle stays clean), then
+  `mountConciv(dedupeExtensions(entries).extensions)`.
+- Dev freshness: `register()` (dev-only) watches `conciv/extensions/` and regenerates the entry on
+  add/remove/rename; the bundler hot-reloads the generated module natively (user decision: watcher, not
+  restart-only).
+- Consequences: the Next peer range stays `^15.3.0 || ^16.0.0` (no 16.3 requirement — the mechanism is
+  bundler-agnostic); the "no generated file" promise is dropped for Next.js only; Vite keeps the native
+  `import.meta.glob` virtual-module path unchanged; the `--webpack` follow-up issue is absorbed into
+  scope.
+- New GO/NO-GO (cheap, before build-out): prove on a packed closed install that a bare specifier
+  imported (dynamically) from node_modules-resident `@conciv/plugin/dist/nextjs-widget.js` is remapped
+  by `turbopack.resolveAlias`/webpack `resolve.alias` to the app-local generated file, on GA Next
+  (16.2.x), app-root + nested layouts, dev + build. Fallback if alias fails: the app-owned
+  `instrumentation-client.ts` imports the generated entry directly (one templated line — still no
+  hand-written plumbing beyond the existing instrumentation file).

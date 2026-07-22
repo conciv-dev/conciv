@@ -1,14 +1,14 @@
-# First-party extension install convention — Implementation Plan
+# First-party extension install convention — Implementation Plan (v3, post Task 0 NO-GO)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let an end user install a non-built-in first-party conciv extension by dropping one re-export file in `conciv/extensions/`, loading both the server and client halves on every supported framework (Vite, Astro, Solid Start, Svelte, TanStack Start, and Next.js on Turbopack).
+**Goal:** Let an end user install a non-built-in first-party conciv extension by dropping one re-export file in `conciv/extensions/`, loading both the server and client halves on every supported framework (Vite, Astro, Solid Start, Svelte, TanStack Start, and Next.js — Turbopack AND `--webpack`).
 
-**Architecture:** The split between halves is package.json **conditional exports** (`browser`→client, `import`→server) — bundler-native, no conciv transform. Discovery is native **`import.meta.glob('/conciv/extensions/*.{ts,tsx,js,jsx}')`** (Vite + Turbopack ≥16.3) — no virtual module, unplugin, or generated file. Server discovery already exists (`loadServerExtensions`, fs + jiti). The only new client wiring is Next.js (`nextjs-widget` runs the glob).
+**Architecture (v3):** The split between halves is package.json **conditional exports** (`browser`→client, `import`→server) — bundler-native, no conciv transform. Client discovery is **per-bundler**: Vite keeps the native **`import.meta.glob('/conciv/extensions/*.{ts,tsx,js,jsx}')`** virtual-module path (unchanged); Next.js uses a **generated app-local entry** — `withConciv` fs-reads `conciv/extensions/` at config load and writes `.conciv/extensions-client.gen.tsx` (static imports via **knitwork**), wired to `nextjs-widget` through a bundler alias (`turbopack.resolveAlias` + alias-only `webpack()` hook), regenerated live by a dev watcher in `register()`. Server discovery already exists (`loadServerExtensions`, fs + jiti). Task 0 (commit 484787ac) proved `import.meta.glob` from node_modules is IMPOSSIBLE under Turbopack (calling-file-relative + 16.3 not GA) — see the finding file; do not revisit that design.
 
-**Tech Stack:** pnpm workspace + turbo; `@conciv/extension-compiler` (discovery), `@conciv/plugin` (unplugin integration), `@conciv/it` (integration-test plugin with baked builtins), `@conciv/extension-testkit` (real-engine `callTool`), Solid client / Node server, Playwright real-browser e2e, publint + attw.
+**Tech Stack:** pnpm workspace + turbo; `@conciv/extension-compiler` (discovery), `@conciv/plugin` (unplugin integration + Next entry generation), knitwork (unjs codegen), `@conciv/it` (integration-test plugin with baked builtins), `@conciv/extension-testkit` (real-engine `callTool`), Solid client / Node server, Playwright real-browser e2e, publint + attw.
 
-**Spec:** `docs/superpowers/specs/2026-07-22-first-party-extension-install-design.md`. **Codex plan review (all folded here):** `.superpowers/sdd/codex-plan-review-findings.md`.
+**Spec:** `docs/superpowers/specs/2026-07-22-first-party-extension-install-design.md` (incl. the v4 amendment). **Codex plan review (v2 rounds, still-applicable findings folded):** `.superpowers/sdd/codex-plan-review-findings.md`. **Task 0 finding:** `docs/superpowers/plans/2026-07-22-first-party-extension-install-task0-turbopack-glob-finding.md`.
 
 ## Global Constraints
 
@@ -17,62 +17,58 @@
 - Never add tests under `apps/examples/*`. e2e lives in `e2e/*`.
 - Commit with explicit pathspec. prek `lock.lock` abort → `pnpm format` then `git commit --no-verify`.
 - **Published extensions in scope (5):** `@conciv/extension-tanstack`, `-terminal`, `-test-runner`, `-whiteboard`, **`-recorder`** (all in `PUBLIC_PACKAGES`, `packages/publish/src/guards.ts`).
-- **Discovery file set is identical server + client:** `.ts,.tsx,.js,.jsx`, **excluding `*.d.ts`**, files only (not directories).
-- **`import.meta.glob` must be a string LITERAL** in each call site (static-glob APIs require literals; a shared const is only for drift-comparison in tests). The literal is exactly `'/conciv/extensions/*.{ts,tsx,js,jsx}'`.
-- Conditional-export map (final; attw/publint-verified on a PACKED tarball in Task 1) for every published extension `.`:
-  ```json
-  ".": {
-    "browser": { "types": "./dist/client.d.ts", "default": "./dist/client.js" },
-    "import":  { "types": "./dist/server.d.ts", "default": "./dist/server.js" }
-  }
-  ```
-  `browser` first; nested `types`; NO top-level `types`; NO root `default`.
-- Next.js folder discovery requires Turbopack ≥16.3; `next dev --webpack` is out of scope (documented).
-- **Dedup + validation are ONE shared primitive over entries carrying provenance** (`{extension, source}`), used before BOTH engine registration (server) and `mountConciv` (client): built-ins first (source `builtin:<i>`), then folder entries in **deterministic sorted-`source` order** (server sorts filenames; **client MUST sort `Object.entries(mods)` by key** before mapping); first non-empty `name` wins; every dropped entry is reported with its `source` and reason.
-- **Packing local packages for fixtures uses `pnpm pack`, never `npm pack`** — `npm pack` does not rewrite `workspace:^` protocols and installs fail with `EUNSUPPORTEDPROTOCOL`. After packing, assert the tarball's `package/package.json` contains no `workspace:` string, and install tarballs into a fixture via a generated `package.json` mapping each name to a `file:<abs>.tgz` dependency, then `pnpm install --ignore-workspace` (or plain `npm install`) in the fixture.
+- **Discovery file set is identical server + client + generator:** `.ts,.tsx,.js,.jsx`, **excluding `*.d.ts`**, files only (not directories). ONE exported primitive (`listExtensionFiles`, Task 3) owns the fs variant.
+- **`import.meta.glob` is Vite-only** now. It must be a string LITERAL in the Vite generator call site (static-glob APIs require literals; the shared const is only for drift-comparison in tests). The literal is exactly `'/conciv/extensions/*.{ts,tsx,js,jsx}'`. It NEVER appears in `nextjs-widget` (Task 0 proved it dead there).
+- **Generated Next entry:** path `.conciv/extensions-client.gen.tsx` (`.conciv/` is already gitignored repo-wide); static **extensionless** relative imports (`../conciv/extensions/<name>`); provenance `source` values are `/conciv/extensions/<filename>` (same shape as Vite glob keys, so dedupe reporting is uniform); filenames sorted; codegen via knitwork `genImport` + `genSafeVariableName`; **idempotent write** (compare, write only on change — watcher + config reload must not touch-loop); one `// generated by conciv — do not edit` header line is allowed (the file lives in the USER'S app, outside repo lint scope).
+- **`register()` stays the SOLE Next engine owner.** The new `webpack()` hook in `withConciv` is alias-only (`config.resolve.alias`) — it must not construct plugins or boot anything.
+- **Dedup + validation are ONE shared primitive over entries carrying provenance** (`{extension, source}`), used before BOTH engine registration (server) and `mountConciv` (client): built-ins first (source `builtin:<i>`), then folder entries in **deterministic sorted-`source` order** (server sorts filenames; Vite client MUST sort `Object.entries(mods)` by key via `toSortedEntries`; the Next generator emits pre-sorted entries); first non-empty `name` wins; every dropped entry is reported with its `source` and reason.
+- **`nextjs-widget` stays lazy:** everything heavier than the env check is `import()`ed INSIDE `startWidget` (today's pattern) so the production client bundle stays clean — the generated entry, `@conciv/embed`, and the dedupe module are all dynamic imports behind the `NODE_ENV !== 'production'` guard.
+- **Packing local packages for fixtures uses `pnpm pack`, never `npm pack`** — `npm pack` does not rewrite `workspace:^` protocols and installs fail with `EUNSUPPORTEDPROTOCOL`. After packing, assert the tarball's `package/package.json` contains no `workspace:` string, and install tarballs into a fixture closed via `pnpm.overrides` mapping every `@conciv/*` name to `file:<abs>.tgz` + `pnpm install --ignore-workspace` (a plain `file:` direct-dep install silently resolves transitive `@conciv/*` ranges from the registry — the 0.0.x line IS published).
+- Next peer ranges are UNCHANGED (`^15.3.0 || ^16.0.0`) — the generated-entry mechanism is bundler-agnostic and needs no 16.3.
 
 ---
 
-## Task 0: GO/NO-GO — packed Turbopack discovery prototype (hard gate)
+## Task 0: GO/NO-GO — packed Turbopack glob prototype ✅ COMPLETE — **NO-GO**
 
-The whole "no generated file" design rests on one unproven assumption: `import.meta.glob('/conciv/extensions/*')` executed from `@conciv/plugin/nextjs-widget` (which lives in the consumer's `node_modules`, not app source) resolves to the **consumer app root** under Turbopack, from a **packed** install. Prove it, testing the **exact final module graph** (Task 5's widget, which imports the Task 3 primitives). **If any MUST cell fails, STOP — do not start Task 1; the plan is rewritten around an app-local entry.**
+Done (commit `484787ac`). Verdict NO-GO on two independent grounds: Next 16.3 not GA (GA 16.2 compiles the glob to a runtime-throwing stub), and Turbopack resolves `import.meta.glob` relative to the CALLING FILE (a leading-slash literal from node_modules matches nothing; no `turbopack.root` value rescues it). Full per-cell evidence: `docs/superpowers/plans/2026-07-22-first-party-extension-install-task0-turbopack-glob-finding.md`. Tasks 0b–9 below are the approved pivot (spec v4 amendment).
+
+---
+
+## Task 0b: GO/NO-GO — packed alias→generated-entry prototype (hard gate)
+
+The pivot rests on one unproven assumption of its own: that a bare specifier **dynamically imported from node_modules-resident** `@conciv/plugin/dist/nextjs-widget.js` is remapped by `turbopack.resolveAlias` (and webpack `resolve.alias`) to an **app-local file**, on GA Next, dev + build, app-root + nested layouts. Prove it on the exact final module graph before building Tasks 5–7. **If the GO rule fails, STOP — the fallback is the app-owned `instrumentation-client.ts` importing the generated entry directly (spec v4 fallback), and Tasks 5–7 must be revised first.**
 
 **Files:**
-- Create (throwaway under `/tmp`, NOT committed): a packed nested-monorepo Next fixture.
-- Commit only: `.superpowers/sdd/task0-turbopack-glob-finding.md`.
+- Throwaway under `/tmp/conciv-spike2` (NOT committed) — reuse the Task 0 harness (`/tmp/conciv-spike/tgz` tarballs + fixture scripts) if still present; rebuild per Task 0 Step 1 otherwise.
+- Commit only: `docs/superpowers/plans/2026-07-22-first-party-extension-install-task0b-alias-entry-finding.md`.
 
-**Interfaces:**
-- Produces: the go/no-go finding file. GO → proceed. NO-GO → stop and rewrite the plan.
+**Interfaces:** Produces the go/no-go finding + the CHOSEN alias specifier (consumed by Tasks 5–7). GO → proceed. NO-GO → stop and revise.
 
-- [ ] **Step 1: Build + pack a CLOSED local dependency set**
+- [ ] **Step 1: Fixture = packed closed install on GA Next**
 
-Enumerate every workspace `@conciv/*` package in the transitive runtime graph of `@conciv/it` + `@conciv/plugin` + `@conciv/embed` + `@conciv/extension-tanstack` and **`pnpm pack`** all of them (not only the top four — else transitive deps resolve from the registry and the test is not reproducible). `pnpm pack` rewrites `workspace:` protocols to concrete versions; `npm pack` does NOT (see Global Constraints):
-```bash
-pnpm turbo run build
-mkdir -p /tmp/conciv-spike/tgz
-node -e "const {execSync}=require('node:child_process');const roots=['it','plugin','embed','core','extension','extension-compiler','protocol','contract','db','harness','page','storage-history','ui-kit-chat','ui-kit-system','ui-kit-tap','solid','tools','extensions/tanstack','extensions/terminal','extensions/test-runner','extensions/whiteboard'];for(const r of roots){try{execSync('pnpm pack --pack-destination /tmp/conciv-spike/tgz',{cwd:'packages/'+r,stdio:'ignore'})}catch(e){console.log('skip',r)}}"
-ls /tmp/conciv-spike/tgz | wc -l
-for t in /tmp/conciv-spike/tgz/*.tgz; do tar -xzOf "$t" package/package.json | grep -q '"workspace:' && { echo "WORKSPACE PROTOCOL LEAKED in $t"; exit 1; }; done; echo "no workspace: protocols in tarballs"
-```
-Expected: a tarball per resolvable package; the workspace-protocol assertion passes. Install into the fixture via a generated `package.json` mapping each `@conciv/*` name to `file:<abs>.tgz`, then `npm install`. (Adjust `roots` to the actual transitive set discovered via `pnpm --filter @conciv/it... list` if a runtime import is missing.)
+Same closed-tarball recipe as Task 0 (pnpm pack, no-`workspace:` assertion, `pnpm.overrides` closure). Next version = the CURRENT GA line the repo's e2e apps pin (16.2.x) — NOT a canary/preview. Patch installed node_modules: `@conciv/extension-compiler` gains the dedupe module + `./dedupe` export (Task 0 supplement §B code); `@conciv/extension-tanstack` gains the browser/import conditional map (§C).
 
-- [ ] **Step 2: Author the exact final widget under test**
+- [ ] **Step 2: Author the exact final graph**
 
-In the fixture, install the tarballs and overwrite the installed `@conciv/plugin/dist/nextjs-widget.js` with the Task 5 final implementation (literal glob + typed guard + `dedupeExtensions` import from `@conciv/extension-compiler/dedupe` + `mountConciv`). This proves the real import graph, not a toy glob (per codex H-11).
+(a) Hand-write the app-local generated entry `.conciv/extensions-client.gen.tsx` exactly as Task 5's generator will emit it (header line, extensionless imports of `../conciv/extensions/tanstack`, sorted, `export const entries = [{extension: …, source: '/conciv/extensions/tanstack.tsx'}]`). (b) Overwrite installed `@conciv/plugin/dist/nextjs-widget.js` with the Task 6 final widget shape: env check at top level; inside `startWidget`, `await Promise.all([import('<SPECIFIER>'), import('@conciv/embed'), import('@conciv/extension-compiler/dedupe')])`, then dedupe + fixture-only `console.log('conciv picked:', …)` + `mountConciv`. (c) Wire `next.config.ts` with `turbopack: {resolveAlias: {'<SPECIFIER>': './.conciv/extensions-client.gen.tsx'}}` and `webpack: (config) => {config.resolve.alias['<SPECIFIER>'] = <abs path>; return config}`.
 
-- [ ] **Step 3: Run the explicit 2×2 matrix**
+Specifier candidates, in order: `@conciv/app-extensions` (scoped, unpublished — alias must intercept before any registry/node resolution; failure mode is a loud module-not-found), then `#conciv/app-extensions` (beware Node subpath-imports `#` semantics resolve against the IMPORTING package's `imports` field — likely conflicts), then a plain `conciv-app-extensions`. Record which works in BOTH bundlers.
 
-Cells = **layout** {app-root, nested-monorepo (app under `packages/app/`)} × **`turbopack.root`** {default, widened}. For each, `next dev` (Turbopack) + browser-check the tanstack client card renders, add/remove/rename a stub during dev (HMR), then `next build`.
+- [ ] **Step 3: Run the matrix**
 
-- [ ] **Step 4: Apply the support rule + write the finding**
+Cells: {app-root, nested-monorepo} × {`next dev` (Turbopack), `next dev --webpack`}, plus `next build` (Turbopack default) on both layouts. Per dev cell (real Chromium via the worktree's Playwright, `browser.newPage()`, `domcontentloaded` + console capture, NEVER `networkidle`): assert the `conciv picked:` line contains `tanstack`, and no compile/runtime error mentions `dist/server.js` or a `node:` specifier (browser condition must have selected `client.js`). Per build cell: build succeeds AND the alias resolved (no module-not-found).
 
-**GO rule:** `app-root × default` MUST pass AND `nested × widened` MUST pass. `nested × default` MAY be unsupported (documented, requires `turbopack.root`). `app-root × widened` should pass. Record per-cell PASS/FAIL, the exact `turbopack.root` the nested case needs, and whether `withConciv` can auto-supply it. Write `.superpowers/sdd/task0-turbopack-glob-finding.md` with a single GO or NO-GO. NO-GO ⇒ stop; the follow-up is a plan rewrite around an app-local entry generated at `withConciv` config time (outside the globbed dir, aliased via `turbopack.resolveAlias`), which is out of this plan's scope.
+- [ ] **Step 4: Regeneration viability**
 
-- [ ] **Step 5: Commit the finding**
+In one Turbopack dev cell: while `next dev` runs, overwrite the generated entry to add a second stub import (simulating the Task 6 watcher) → assert the browser (after the bundler's own reload) reports both names; then restore → one name. Record whether the update is HMR or full reload.
+
+- [ ] **Step 5: Apply the GO rule + write the finding + commit**
+
+**GO rule:** `app-root × turbopack` MUST pass AND `app-root × webpack` MUST pass AND `nested × turbopack` MUST pass AND both `next build` cells MUST pass. (`nested × webpack` should pass; document if not.) Write the finding (per-cell evidence quoted, chosen specifier, regeneration behavior, any simplification) with a single GO or NO-GO.
 
 ```bash
-git add .superpowers/sdd/task0-turbopack-glob-finding.md
-git commit -m "spike(nextjs): turbopack node_modules import.meta.glob 2x2 go/no-go finding"
+git add docs/superpowers/plans/2026-07-22-first-party-extension-install-task0b-alias-entry-finding.md
+git commit -m "spike(nextjs): alias-to-generated-entry go/no-go finding (turbopack + webpack, packed)"
 ```
 
 ---
@@ -81,7 +77,14 @@ git commit -m "spike(nextjs): turbopack node_modules import.meta.glob 2x2 go/no-
 
 **Files:** Modify `packages/extensions/tanstack/package.json`. Verify via a packed-install fixture.
 
-**Interfaces:** Produces the canonical export-map shape (reused by Task 2).
+**Interfaces:** Produces the canonical export-map shape (reused by Task 2). The map for `.`:
+```json
+".": {
+  "browser": { "types": "./dist/client.d.ts", "default": "./dist/client.js" },
+  "import":  { "types": "./dist/server.d.ts", "default": "./dist/server.js" }
+}
+```
+`browser` first; nested `types`; NO top-level `types`; NO root `default`.
 
 - [ ] **Step 1: Write a failing packed-resolution check**
 
@@ -89,7 +92,7 @@ Create `packages/extensions/tanstack/test/packed-resolution.it.test.ts` that `pn
 ```ts
 import {test, expect} from 'vitest'
 import {execFileSync} from 'node:child_process'
-import {mkdtempSync, writeFileSync, readFileSync} from 'node:fs'
+import {mkdtempSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {tmpdir} from 'node:os'
 
@@ -113,7 +116,7 @@ Expected: FAIL (until the map + build are correct).
 
 - [ ] **Step 3: Write the export map**
 
-Set `exports` in `packages/extensions/tanstack/package.json` to the Global-Constraints map for `.`, plus `"./client"`, `"./server"`, `"./package.json"`.
+Set `exports` in `packages/extensions/tanstack/package.json` to the map above for `.`, plus `"./client"`, `"./server"`, `"./package.json"`.
 
 - [ ] **Step 4: Build + run the IT + publint + attw**
 
@@ -146,7 +149,7 @@ In `packages/extensions/whiteboard/package.json` `scripts`, add `"publint": "pub
 
 - [ ] **Step 2: Apply the `.` map + `./server` to all four**
 
-Apply the Global-Constraints `.` map + `"./server"` to `terminal`, `test-runner`, `whiteboard`, `recorder`. Leave `test-runner`'s runner subpaths untouched.
+Apply the Task 1 `.` map + `"./server"` to `terminal`, `test-runner`, `whiteboard`, `recorder`. Leave `test-runner`'s runner subpaths untouched.
 
 - [ ] **Step 3: Build + publint + attw all four**
 
@@ -164,7 +167,7 @@ git commit -m "feat(extensions): per-environment conditional exports for termina
 
 ---
 
-## Task 3: Discovery primitives — provenance dedup/validation, exact file matching, fatal errors
+## Task 3: Discovery primitives — provenance dedup/validation, exact file matching, fatal errors, shared file-listing
 
 **Files:**
 - Create: `packages/extension-compiler/src/dedupe-extensions.ts`, `packages/extension-compiler/src/extension-guard.ts`
@@ -176,10 +179,11 @@ git commit -m "feat(extensions): per-environment conditional exports for termina
   - `type ExtensionEntry = {extension: unknown; source: string}`
   - `type DedupeResult = {extensions: AnyExtension[]; dropped: Array<{source: string; reason: string}>}`
   - `function dedupeExtensions(entries: readonly ExtensionEntry[]): DedupeResult`
-  - `function toSortedEntries(mods: Record<string, unknown>): ExtensionEntry[]` — filters `.d.ts` keys, sorts by key, maps to `{extension: mod.default, source: key}`. Used by BOTH client call sites (generator + nextjs-widget) so client ordering is shared + tested.
+  - `function toSortedEntries(mods: Record<string, unknown>): ExtensionEntry[]` — filters `.d.ts` keys, sorts by key, maps to `{extension: mod.default, source: key}`. Used by the Vite generator client call site.
   - `function isExtension(value: unknown): value is AnyExtension` (name-based guard)
   - `EXTENSION_GLOB = '/conciv/extensions/*.{ts,tsx,js,jsx}'` (const; drift-comparison only — call sites use the literal)
-  - `loadServerExtensions(root, builtins)`: `Dirent.isFile()` + `.d.ts` exclusion + provenance dedup + fatal read/transform/eval/missing-default.
+  - **`function listExtensionFiles(root: string): string[]`** (exported from `extensions.ts`) — sorted basenames, `Dirent.isFile()` + extension-set match + `.d.ts` exclusion, `[]` when the dir is missing. Used by `loadServerExtensions` AND by Task 5's Next entry generator (ONE fs primitive).
+  - `loadServerExtensions(root, builtins)`: `listExtensionFiles` + provenance dedup + fatal read/transform/eval/missing-default.
 
 - [ ] **Step 1: Write failing tests for the guard + dedup provenance**
 
@@ -289,7 +293,7 @@ export function toSortedEntries(mods: Record<string, unknown>): ExtensionEntry[]
 Run: `pnpm --filter @conciv/extension-compiler exec vitest run test/dedupe-extensions.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Write failing loader tests (dirs, .d.ts, missing-default, collision, read/eval failure)**
+- [ ] **Step 5: Write failing loader tests (dirs, .d.ts, missing-default, collision, read/eval failure, listExtensionFiles)**
 
 `packages/extension-compiler/test/load-server-extensions.test.ts` drives the REAL loader against temp dirs:
 ```ts
@@ -297,7 +301,7 @@ import {test, expect} from 'vitest'
 import {mkdtempSync, writeFileSync, mkdirSync} from 'node:fs'
 import {join} from 'node:path'
 import {tmpdir} from 'node:os'
-import {loadServerExtensions} from '../src/extensions.js'
+import {loadServerExtensions, listExtensionFiles} from '../src/extensions.js'
 
 const EXT = "import {defineExtension} from '@conciv/extension'\nexport default defineExtension"
 
@@ -309,6 +313,12 @@ function fixture(files: Record<string, string>, dirs: string[] = []): string {
   for (const [name, body] of Object.entries(files)) writeFileSync(join(base, name), body)
   return root
 }
+
+test('listExtensionFiles: sorted basenames, files only, .d.ts and non-matching excluded, [] on missing dir', () => {
+  const root = fixture({'b.tsx': '', 'a.ts': '', 'types.d.ts': '', 'notes.md': '', 'bad.ts.bak': ''}, ['nested.ts'])
+  expect(listExtensionFiles(root)).toEqual(['a.ts', 'b.tsx'])
+  expect(listExtensionFiles(join(root, 'nowhere'))).toEqual([])
+})
 
 test('ignores a directory whose name matches the extension pattern', async () => {
   const root = fixture({'a.tsx': `${EXT}({name:'a'})`}, ['nested.ts'])
@@ -349,7 +359,7 @@ test('the same-name winner is the built-in regardless of folder enumeration orde
 - [ ] **Step 6: Run to verify it fails**
 
 Run: `pnpm --filter @conciv/extension-compiler exec vitest run test/load-server-extensions.test.ts`
-Expected: FAIL — directory + `.d.ts` currently pass the regex; missing-default is silent; no dedup.
+Expected: FAIL — directory + `.d.ts` currently pass the regex; missing-default is silent; no dedup; no `listExtensionFiles` export.
 
 - [ ] **Step 7: Rewrite the loader in `extensions.ts`**
 
@@ -360,13 +370,12 @@ import {dedupeExtensions, type ExtensionEntry} from './dedupe-extensions.js'
 
 const EXTENSION_RE = /\.(?:ts|tsx|js|jsx)$/
 
-function extensionFiles(root: string): string[] {
+export function listExtensionFiles(root: string): string[] {
   try {
     return readdirSync(join(root, EXTENSION_DIR), {withFileTypes: true})
       .filter((entry) => entry.isFile() && EXTENSION_RE.test(entry.name) && !entry.name.endsWith('.d.ts'))
       .map((entry) => entry.name)
       .sort()
-      .map((name) => join(root, EXTENSION_DIR, name))
   } catch {
     return []
   }
@@ -380,7 +389,7 @@ export async function loadServerExtensions(
     extension,
     source: `builtin:${index}`,
   }))
-  const files = extensionFiles(root)
+  const files = listExtensionFiles(root).map((name) => join(root, EXTENSION_DIR, name))
   if (files.length === 0) return dedupeExtensions(builtinEntries).extensions
   const jiti = createJiti(pathToFileURL(join(root, 'noop.js')).href, {
     jsx: {runtime: 'automatic', importSource: 'solid-js'},
@@ -401,7 +410,7 @@ export async function loadServerExtensions(
 ```
 Read/transform/eval failures already throw from `readFileSync`/`splitExtension`/`jiti.evalModule`; the file path is in scope via the loop (jiti errors carry the filename). `@conciv/extension-compiler` has no `logError` — use `console.error` (codex-confirmed).
 
-- [ ] **Step 8: Update the client generator + build entry + export**
+- [ ] **Step 8: Update the Vite client generator + build entry + export**
 
 In `extensionsModuleSource`, generate provenance entries + shared dedup (LITERAL glob):
 ```ts
@@ -428,14 +437,14 @@ Expected: all PASS/clean; `dist/dedupe-extensions.js` emitted.
 
 ```bash
 git add packages/extension-compiler/src/dedupe-extensions.ts packages/extension-compiler/src/extension-guard.ts packages/extension-compiler/src/extensions.ts packages/extension-compiler/tsdown.config.ts packages/extension-compiler/package.json packages/extension-compiler/test/dedupe-extensions.test.ts packages/extension-compiler/test/load-server-extensions.test.ts
-git commit -m "feat(extension-compiler): provenance dedup/validation, Dirent file matching, .d.ts exclusion, fatal missing-default"
+git commit -m "feat(extension-compiler): provenance dedup/validation, shared listExtensionFiles, .d.ts exclusion, fatal missing-default"
 ```
 
 ---
 
 ## Task 4: Resolution matrix — packed fixtures proving every condition path
 
-Dedicated task (codex M9). Proves, with executable fixtures, that the conditional exports resolve correctly across Node/jiti, Vite, and TypeScript.
+Proves, with executable fixtures, that the conditional exports resolve correctly across Node/jiti, Vite, and TypeScript.
 
 **Files:**
 - Create: `packages/extensions/tanstack/test/resolution-matrix.it.test.ts` (drives real resolvers against a packed install + the workspace)
@@ -463,101 +472,87 @@ git commit -m "test(extension-tanstack): resolution matrix across node/vite-clie
 
 ---
 
-## Task 5: Next.js client discovery via literal `import.meta.glob` (register() stays sole engine owner)
+## Task 5: Next entry generator in `@conciv/plugin` (knitwork codegen, idempotent)
 
-Requires Task 0 = GO.
+Requires Task 0b = GO (consumes its chosen specifier only indirectly — this task is pure generation).
 
-**Files:** Modify `packages/plugin/src/nextjs-widget.ts`. Reference `packages/plugin/src/core/nextjs.ts` (do NOT add a webpack plugin).
+**Files:**
+- Create: `packages/plugin/src/core/extensions-entry.ts`, `packages/plugin/test/extensions-entry.test.ts`
+- Modify: `packages/plugin/package.json` (add `knitwork` to `dependencies` — user-approved unjs pick, already in the lockfile transitively)
 
-**Interfaces:** Consumes `dedupeExtensions` (`@conciv/extension-compiler/dedupe`), `mountConciv` (`@conciv/embed`).
+**Interfaces:**
+- Consumes: `listExtensionFiles` from `@conciv/extension-compiler/extensions` (Task 3).
+- Produces:
+  - `function generateExtensionsEntrySource(files: readonly string[]): string` — pure; knitwork `genImport`/`genSafeVariableName`; header line `// generated by conciv — do not edit`; one extensionless default import per file (`../conciv/extensions/<basename-without-extension>`); `export const entries = [...]` where each element is `{extension: <ident>, source: '/conciv/extensions/<filename>'}` in sorted-filename order; empty input → `export const entries = []`.
+  - `function writeExtensionsEntry(root: string): {path: string; changed: boolean}` — lists via `listExtensionFiles(root)`, ensures `.conciv/`, writes `.conciv/extensions-client.gen.tsx` ONLY when content differs, returns whether it wrote.
 
-- [ ] **Step 1: Rewrite `nextjs-widget.ts` (literal glob, typed guard, no `as`)**
+- [ ] **Step 1: Write failing tests (real fs temp dirs, no mocks)**
 
-```ts
-/// <reference lib="dom" />
-import {mountConciv} from '@conciv/embed'
-import {dedupeExtensions, toSortedEntries} from '@conciv/extension-compiler/dedupe'
+Cover: (a) generated source contains sorted imports + provenance sources for a mixed dir (`b.tsx`, `a.ts`, `types.d.ts`, a subdirectory `nested.ts/`, `notes.md`) — only `a.ts` + `b.tsx` appear, in that order; (b) identifier safety — a stub named `deploy-button.tsx` yields a valid identifier (knitwork `genSafeVariableName`) and the import specifier `../conciv/extensions/deploy-button`; (c) empty/missing dir → `entries = []` source, file still written; (d) idempotency — first `writeExtensionsEntry` returns `changed: true`, second returns `changed: false` and the file's `mtimeMs` is unchanged; (e) content updates when a stub is added (`changed: true` again).
 
-const port = process.env.NEXT_PUBLIC_CONCIV_PORT
-
-function startWidget(): void {
-  window.__CONCIV_API_BASE__ = `http://127.0.0.1:${port}`
-  const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx,js,jsx}', {eager: true})
-  const picked = dedupeExtensions(toSortedEntries(mods))
-  for (const drop of picked.dropped) console.warn('conciv extension dropped:', drop.source, drop.reason)
-  mountConciv(picked.extensions)
-}
-
-if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'production') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startWidget, {once: true})
-  } else {
-    startWidget()
-  }
-}
-
-declare global {
-  interface Window {
-    __CONCIV_API_BASE__?: string
-  }
-}
-
-export {}
-```
-
-- [ ] **Step 2: Verify register() is the only engine boot; no webpack plugin added**
-
-Read `packages/plugin/src/core/nextjs.ts` — `register()` uses `makeEngineBooter(..., NO_BUILTINS)`. Confirm `withConciv` adds no `unplugin.webpack`. No change beyond verification.
-
-- [ ] **Step 3: Typecheck + lint**
+- [ ] **Step 2: Run to verify it fails, implement, re-run to green**
 
 ```bash
+pnpm --filter @conciv/plugin exec vitest run test/extensions-entry.test.ts
+```
+
+- [ ] **Step 3: Build + typecheck + lint**
+
+```bash
+pnpm turbo run build --filter=@conciv/plugin
 pnpm --filter @conciv/plugin typecheck && (cd packages/plugin && npx oxlint)
 ```
-Expected: clean (no `as`).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/plugin/src/nextjs-widget.ts
-git commit -m "feat(plugin): Next.js loads folder client extensions via literal import.meta.glob (Turbopack)"
+git add packages/plugin/src/core/extensions-entry.ts packages/plugin/test/extensions-entry.test.ts packages/plugin/package.json pnpm-lock.yaml
+git commit -m "feat(plugin): fs-generated Next client-extensions entry (knitwork codegen, idempotent write)"
 ```
 
 ---
 
-## Task 6: Next.js version boundary — peer ranges + app pins
+## Task 6: Next wiring — `withConciv` aliases, `register()` watcher, lazy `nextjs-widget`
 
-**Files:** Modify `packages/plugin/package.json`, `packages/it/package.json` (peer), `e2e/nextjs/package.json`, `e2e/nextjs-component/package.json`, `apps/examples/nextjs-app/package.json` (pins).
+Requires Tasks 0b (specifier), 3 (dedupe export), 5 (generator).
 
-- [ ] **Step 1: Raise the Next peer range (bounded)**
+**Files:**
+- Modify: `packages/plugin/src/core/nextjs.ts`, `packages/plugin/src/nextjs-widget.ts`
+- Create: `packages/plugin/src/core/app-extensions.d.ts` (ambient module declaration for the chosen specifier), `packages/plugin/test/nextjs-config.test.ts`, `packages/plugin/test/extensions-watch.test.ts`
 
-Change the Next peer in `@conciv/plugin` and `@conciv/it` from `^15.3.0 || ^16.0.0` to `>=16.3.0 <17` (folder discovery needs Turbopack 16.3; bounded per codex L-17). If 16.3 is not GA at implementation time, record the decision in the Task 0 finding and gate.
+**Interfaces:**
+- `withConciv(nextConfig, options)` additionally: calls `writeExtensionsEntry(process.cwd())`; merges `turbopack.resolveAlias[<SPECIFIER>] = './.conciv/extensions-client.gen.tsx'` (preserving any user `turbopack` config); composes an alias-only `webpack(config, context)` hook that sets `config.resolve.alias[<SPECIFIER>]` to the ABSOLUTE generated path and then calls the user's own `webpack` hook if present (user hook runs on the already-aliased config). `enabled: false` skips generation and aliasing entirely.
+- `register()` additionally (dev, nodejs runtime, enabled): starts `watchExtensionsDir(root)` — a small exported function using `fs.watch` on `conciv/extensions/` that calls `writeExtensionsEntry(root)` on events (debounced trivially by the idempotent write); if the dir does not exist at boot, watch the app root non-recursively and begin watching the dir once it appears. Returns a disposer.
+- `nextjs-widget.ts`: keeps today's top-level shape (env check, `DOMContentLoaded` gate, `NODE_ENV !== 'production'`); inside `startWidget`, `await Promise.all([import('<SPECIFIER>'), import('@conciv/embed'), import('@conciv/extension-compiler/dedupe')])`, then `dedupeExtensions(entries)`, `console.warn` each dropped entry with source + reason, `mountConciv(picked.extensions)`. NO `import.meta.glob`. No `as` — the ambient d.ts types `entries` as `ExtensionEntry[]`.
 
-- [ ] **Step 2: Bump every Next consumer pin + install**
+- [ ] **Step 1: Failing tests**
 
-Set `next` to `^16.3.0` in `e2e/nextjs`, `e2e/nextjs-component`, `apps/examples/nextjs-app`; `pnpm install`.
+`nextjs-config.test.ts` (pure, real fs temp cwd via `process.chdir` or a `root` parameter — prefer threading a root parameter over chdir): withConciv output contains the turbopack alias + a webpack hook that aliases and still invokes a user-supplied webpack fn (assert both effects on a real config object); `enabled: false` leaves config untouched and writes nothing; the generated file exists after the call. `extensions-watch.test.ts` (real fs, real watcher): create temp root + `conciv/extensions/`, start `watchExtensionsDir`, add a stub file, poll (tight timeout) until the generated entry contains the new import; remove the stub → entry updates; dispose ends watching. Also: root without the dir → creating the dir + a stub later still triggers generation.
 
-- [ ] **Step 3: Verify a Next app builds**
+- [ ] **Step 2: Implement, re-run to green**
 
 ```bash
-pnpm install && cd e2e/nextjs && pnpm exec next build 2>&1 | tail -5
+pnpm --filter @conciv/plugin exec vitest run test/nextjs-config.test.ts test/extensions-watch.test.ts
 ```
-Expected: install resolves; build succeeds.
+
+- [ ] **Step 3: Verify engine ownership unchanged**
+
+Read the final `nextjs.ts`: `register()` remains the only engine boot; the `webpack` hook contains ONLY alias wiring. `pnpm --filter @conciv/plugin exec vitest run` (whole package) + `pnpm turbo run build --filter=@conciv/plugin` + typecheck + oxlint clean.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/plugin/package.json packages/it/package.json e2e/nextjs/package.json e2e/nextjs-component/package.json apps/examples/nextjs-app/package.json pnpm-lock.yaml
-git commit -m "chore(nextjs): require Next >=16.3 <17 (Turbopack import.meta.glob) for folder discovery"
+git add packages/plugin/src/core/nextjs.ts packages/plugin/src/core/app-extensions.d.ts packages/plugin/src/nextjs-widget.ts packages/plugin/test/nextjs-config.test.ts packages/plugin/test/extensions-watch.test.ts
+git commit -m "feat(plugin): Next folder client extensions via generated entry + bundler aliases + dev watcher"
 ```
 
 ---
 
-## Task 7: e2e — both halves proven on Vite + packed Next.js/Turbopack
+## Task 7: e2e — both halves proven on Vite + packed Next.js (Turbopack + webpack)
 
-**Files:** Modify `e2e/tanstack-start/*`, `e2e/nextjs/*`; create a packed-fixture harness under `e2e/nextjs/`.
+**Files:** Modify `e2e/tanstack-start/*`, `e2e/nextjs/*`; create a packed-fixture harness under `e2e/nextjs/`; create `packages/extensions/tanstack/test/folder-install.it.test.ts`.
 
-**Interfaces:** Consumes packed `@conciv/*` + the reference extension; uses `@conciv/extension-testkit` `callTool` for the server-half proof.
+**Interfaces:** Consumes packed `@conciv/*` + the reference extension; uses the real engine (`start` + `resolveSession`/`makeCallTool`) for the server-half proof.
 
 - [ ] **Step 1: Vite — client half (red first)**
 
@@ -607,13 +602,13 @@ cd e2e/tanstack-start && CONCIV_E2E=1 pnpm exec playwright test
 ```
 Expected: server discovery IT + client Playwright both PASS.
 
-- [ ] **Step 3: Packed Next.js/Turbopack fixture (concrete pack + install + nested root)**
+- [ ] **Step 3: Packed Next.js fixture — Turbopack + webpack cells (concrete pack + install + nested root)**
 
-In `e2e/nextjs`, add a script/fixture that: builds + `pnpm pack`s the closed local set (as Task 0 Step 1), creates a temp **nested-monorepo** fixture, installs the tarballs (no `workspace:*`), drops `conciv/extensions/tanstack.tsx`, runs `next dev` (Turbopack), and — via Playwright — asserts the tanstack client card renders. Then an add/remove/rename HMR assertion. Then `next build`.
+In `e2e/nextjs`, add a script/fixture that: builds + `pnpm pack`s the closed local set (Task 0b Step 1 recipe: `pnpm.overrides` closure), creates a temp **nested-monorepo** fixture on the GA Next pin, drops `conciv/extensions/tanstack.tsx`, and — via Playwright — asserts the tanstack client card renders under (a) `next dev` (Turbopack) and (b) `next dev --webpack`. Then a live add/remove assertion (drop a second stub while dev runs → the `register()` watcher regenerates the entry → the bundler reloads → the new extension appears; remove → gone). Then `next build`.
 ```bash
 cd e2e/nextjs && CONCIV_E2E=1 pnpm exec playwright test
 ```
-Expected: PASS on Turbopack, packed install.
+Expected: PASS on both bundlers, packed install.
 
 - [ ] **Step 4: Concrete client-graph assertion (no text-grep)**
 
@@ -623,11 +618,13 @@ After `next build`, read `.next/diagnostics/route-bundle-stats.json`, collect th
 
 **Fallback (only if the stats do not expose resolved module paths):** promote this to its own committed step BEFORE Step 3 — add unavoidable runtime sentinels to the reference extension: in `packages/extensions/tanstack/src/client.tsx` a `CONCIV_TANSTACK_CLIENT_SENTINEL` string the mounted card actually renders, and in `packages/extensions/tanstack/src/server.ts` a `CONCIV_TANSTACK_SERVER_SENTINEL` the server path actually uses; rebuild; then assert the client sentinel appears in the reachable chunk set and the server sentinel + `node:` do not. This sentinel step is explicitly owned here (not "part of Task 1"); commit `git add packages/extensions/tanstack/src/client.tsx packages/extensions/tanstack/src/server.ts`.
 
+**Note:** the widget itself is dev-only (`NODE_ENV !== 'production'` + dynamic imports), so the prod `/` route may legitimately exclude the extension client chunk. If the primary assertion set is empty for that reason, run the chunk assertion against the DEV compilation output instead (Turbopack dev writes chunk artifacts) or assert on the dev-served module graph — document which variant was used in the test.
+
 - [ ] **Step 5: Commit**
 
 ```bash
-git add e2e/tanstack-start e2e/nextjs pnpm-lock.yaml
-git commit -m "test(e2e): folder-installed extension proves both halves on Vite + packed Next.js/Turbopack"
+git add e2e/tanstack-start e2e/nextjs packages/extensions/tanstack/test/folder-install.it.test.ts pnpm-lock.yaml
+git commit -m "test(e2e): folder-installed extension proves both halves on Vite + packed Next.js (turbopack + webpack)"
 ```
 
 ---
@@ -638,7 +635,7 @@ git commit -m "test(e2e): folder-installed extension proves both halves on Vite 
 
 - [ ] **Step 1: Write the guide**
 
-Cover: `pnpm add @conciv/extension-<name>`; the one-line `conciv/extensions/<name>.tsx` re-export; that both halves wire via conditional exports + `import.meta.glob`; supported frameworks incl. **Next.js on Turbopack (≥16.3)** and that `--webpack` is unsupported; that built-ins need no install; that stub files are `.ts/.tsx/.js/.jsx` (not `.d.ts`). Author section: publish the Task 1 conditional-export map; the TS caveat (`customConditions:["browser"]` needed for browser-context editor types).
+Cover: `pnpm add @conciv/extension-<name>`; the one-line `conciv/extensions/<name>.tsx` re-export; that both halves wire via conditional exports (+ `import.meta.glob` on Vite, a generated `.conciv/extensions-client.gen.tsx` entry on Next.js — auto-created by `withConciv`, already gitignored, do not edit); supported frameworks incl. Next.js on BOTH Turbopack and `--webpack`; that built-ins need no install; that stub files are `.ts/.tsx/.js/.jsx` (not `.d.ts`); that on Next.js adds/removes during `next dev` are picked up by the watcher. Author section: publish the Task 1 conditional-export map; the TS caveat (`customConditions:["browser"]` needed for browser-context editor types).
 
 - [ ] **Step 2: Build the docs site**
 
@@ -664,15 +661,15 @@ git commit -m "docs(site): install a first-party extension (folder re-export, al
 gh issue create --title "conciv extensions add <name> — shadcn-style CLI to install first-party extensions" --body "Resolve name->package; install with the detected package manager; scaffold conciv/extensions/<name>.tsx; respect config; idempotent; list/remove later. Depends on spec 2026-07-22-first-party-extension-install-design.md. 🤖 Generated with [Claude Code](https://claude.com/claude-code)"
 ```
 
-- [ ] **Step 2: Deferred-scope issues**
+- [ ] **Step 2: Deferred-scope issue**
 
-`gh issue create` for (a) baked builtins on Next.js (today `NO_BUILTINS`), (b) legacy `next dev --webpack` folder-install.
+`gh issue create` for baked builtins on Next.js (today `NO_BUILTINS`). (The `--webpack` folder-install issue from v2 is absorbed into scope — do not file it.)
 
 - [ ] **Step 3: Link issue numbers in the spec follow-ups + commit**
 
 ```bash
 git add docs/superpowers/specs/2026-07-22-first-party-extension-install-design.md
-git commit -m "docs(spec): link filed follow-up issues (CLI, next builtins, webpack)"
+git commit -m "docs(spec): link filed follow-up issues (CLI, next builtins)"
 ```
 
 ---
@@ -684,7 +681,7 @@ git commit -m "docs(spec): link filed follow-up issues (CLI, next builtins, webp
 - [ ] `pnpm exec fallow audit --changed-since main --format json` — fix INTRODUCED
 - [ ] `pnpm turbo run publint attw --filter='@conciv/extension-*' --filter=@conciv/plugin --filter=@conciv/extension-compiler`
 - [ ] A changeset naming the 5 published extensions + plugin + extension-compiler (conditional exports = public-API change)
-- [ ] Full e2e green in CI (Vite + Next.js/Turbopack)
+- [ ] Full e2e green in CI (Vite + Next.js Turbopack/webpack)
 
-## Self-review (spec coverage)
-- Split (conditional exports) → Tasks 1, 2 (incl. recorder). Resolution paths → Task 4 (packed matrix) + Task 7. Server-discovery build-first + provenance/dedup/fatal → Task 3. Client discovery: Vite (Task 3 generator) + Next literal glob (Task 5). Turbopack go/no-go → Task 0 (2×2, closed dep set, final graph). Peer ranges → Task 6. Both-halves cross-bundler e2e, server via `callTool`, client via manifest/sentinel → Task 7. Docs → Task 8. CLI + deferred → Task 9. Non-goals (unplugin/registry/config-option/webpack-legacy) not built.
+## Self-review (spec coverage, v4)
+- Split (conditional exports) → Tasks 1, 2 (incl. recorder). Resolution paths → Task 4 (packed matrix) + Task 7. Server-discovery build-first + provenance/dedup/fatal + shared file-listing → Task 3. Client discovery: Vite glob (Task 3 generator) + Next generated entry (Tasks 5–6). Alias go/no-go → Task 0b (packed, GA Next, both bundlers, nested). Glob-from-node_modules disproven → Task 0 (complete, NO-GO). Peer ranges unchanged (no 16.3). Both-halves cross-bundler e2e, server via `callTool`, client via manifest/sentinel, live watcher add/remove → Task 7. Docs (incl. generated-entry + webpack) → Task 8. CLI + Next-builtins follow-ups → Task 9. Non-goals (unplugin/registry/config-option) not built; webpack now IN scope per user decision.
