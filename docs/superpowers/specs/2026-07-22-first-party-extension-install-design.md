@@ -104,9 +104,11 @@ the sole Next.js engine owner.** Next.js gains only the client-side `import.meta
 
 ### Out of scope → follow-ups (file as GitHub issues)
 - **CLI `@conciv/extensions add "<name>"` (shadcn-style)** — resolve name→package, install with the
-  detected package manager, scaffold the re-export, respect config, idempotent. NOT built now.
-- Baked builtins on Next.js (NO_BUILTINS today).
-- Legacy `next dev --webpack` folder-install support.
+  detected package manager, scaffold the re-export, respect config, idempotent. NOT built now. (#136)
+- Baked builtins on Next.js (NO_BUILTINS today). (#137)
+- Detection-gated tool/surface visibility — only advertise framework tools (and render the composer
+  chip) when the adapter's `detect` verb finds the framework, building on the FrameworkAdapter
+  capability flags. (#138)
 - `conciv({extensions})` config option; retiring built-ins.
 
 ## Codex findings — disposition (2 review rounds)
