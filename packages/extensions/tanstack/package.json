@@ -64,6 +64,7 @@
   "devDependencies": {
     "@conciv/core": "workspace:^",
     "@conciv/embed": "workspace:^",
+    "@conciv/extension-compiler": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
