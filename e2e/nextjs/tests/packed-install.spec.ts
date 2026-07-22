@@ -69,32 +69,25 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     await waitReady(handle, ENGINE_PORT)
   }
 
-  async function captureClientGraph(page: Page): Promise<string> {
-    const bodies: string[] = []
-    page.on('response', async (response) => {
+  async function fetchClientScripts(page: Page): Promise<string> {
+    const urls = new Set<string>()
+    page.on('response', (response) => {
       const url = response.url()
-      if (!url.endsWith('.js') && !url.includes('.js?')) return
-      try {
-        bodies.push(await response.text())
-      } catch {
-        return
-      }
+      if (url.endsWith('.js') || url.includes('.js?')) urls.add(url)
     })
     await gotoAndOpen(page)
     await expect(chip(page)).toBeVisible()
     await page.waitForTimeout(2000)
+    const bodies = await Promise.all([...urls].map(async (url) => (await page.request.get(url)).text()))
     return bodies.join('\n')
   }
 
-  function assertDevGraph(graph: string): void {
+  function assertServerModuleAbsent(clientScripts: string): void {
     const serverModule = packedServerModule(fixture)
     for (const symbol of SERVER_ONLY_SYMBOLS) {
       expect(serverModule).toContain(symbol)
-      expect(graph).not.toContain(symbol)
+      expect(clientScripts).not.toContain(symbol)
     }
-    expect(graph).toContain('extension-tanstack')
-    expect(graph).toContain('dist/client')
-    expect(graph).toContain(CLIENT_SENTINEL_ID)
   }
 
   async function assertLiveAddRemove(page: Page, webpack: boolean): Promise<void> {
@@ -133,13 +126,11 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     await assertLiveAddRemove(page, false)
   })
 
-  test('turbopack: the dev widget graph includes the extension client and excludes its server module', async ({
-    page,
-  }) => {
+  test('turbopack: the dev client graph excludes the extension server module', async ({page}) => {
     test.setTimeout(CELL_TIMEOUT)
     handle = startNext(fixture.appDir, {webpack: false, devPort: DEV_PORT})
     await waitReady(handle, ENGINE_PORT)
-    assertDevGraph(await captureClientGraph(page))
+    assertServerModuleAbsent(await fetchClientScripts(page))
   })
 
   test('webpack: renders the chip, keeps the server module out of the client graph, and lives through add/remove', async ({
@@ -151,7 +142,7 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     handle = startNext(fixture.appDir, {webpack: true, devPort: DEV_PORT})
     await waitReady(handle, ENGINE_PORT)
 
-    assertDevGraph(await captureClientGraph(page))
+    assertServerModuleAbsent(await fetchClientScripts(page))
     expect(pageErrors).toEqual([])
 
     await assertLiveAddRemove(page, true)

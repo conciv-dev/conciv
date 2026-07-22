@@ -1,6 +1,16 @@
 import {spawn, type ChildProcess} from 'node:child_process'
 import {execFile} from 'node:child_process'
-import {mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync, existsSync} from 'node:fs'
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {promisify} from 'node:util'
@@ -256,15 +266,31 @@ export function teardownFixture(fixture: Fixture): void {
   rmSync(fixture.tgzDir, {recursive: true, force: true})
 }
 
-export type NextHandle = {child: ChildProcess; devPort: number}
+export type NextHandle = {child: ChildProcess; devPort: number; logPath: string}
 
 export function startNext(appDir: string, options: {webpack: boolean; devPort: number}): NextHandle {
   rmSync(join(appDir, '.next'), {recursive: true, force: true})
   rmSync(join(appDir, '.conciv'), {recursive: true, force: true})
   const args = ['exec', 'next', 'dev', '--port', String(options.devPort)]
   if (options.webpack) args.push('--webpack')
-  const child = spawn('pnpm', args, {cwd: appDir, detached: true, stdio: 'ignore', env: NON_INTERACTIVE_ENV})
-  return {child, devPort: options.devPort}
+  const logPath = join(appDir, 'next-dev.log')
+  const log = openSync(logPath, 'w')
+  const child = spawn('pnpm', args, {
+    cwd: appDir,
+    detached: true,
+    stdio: ['ignore', log, log],
+    env: NON_INTERACTIVE_ENV,
+  })
+  closeSync(log)
+  return {child, devPort: options.devPort, logPath}
+}
+
+function logTail(handle: NextHandle): string {
+  try {
+    return readFileSync(handle.logPath, 'utf8').slice(-6000)
+  } catch {
+    return '(no next dev log captured)'
+  }
 }
 
 async function isListening(port: number): Promise<boolean> {
@@ -298,8 +324,18 @@ export async function waitFor(predicate: () => Promise<boolean>, timeoutMs: numb
 }
 
 export async function waitReady(handle: NextHandle, enginePort: number): Promise<void> {
-  await waitFor(async () => (await httpStatus(`http://localhost:${handle.devPort}/`)) === 200, 180_000)
-  await waitFor(() => isListening(enginePort), 180_000)
+  try {
+    await waitFor(async () => (await httpStatus(`http://localhost:${handle.devPort}/`)) === 200, 180_000)
+  } catch (error) {
+    throw new Error(`next dev never served / 200\n--- next dev output ---\n${logTail(handle)}`, {cause: error})
+  }
+  try {
+    await waitFor(() => isListening(enginePort), 180_000)
+  } catch (error) {
+    throw new Error(`conciv engine never listened on ${enginePort}\n--- next dev output ---\n${logTail(handle)}`, {
+      cause: error,
+    })
+  }
 }
 
 export async function killPort(port: number): Promise<void> {
