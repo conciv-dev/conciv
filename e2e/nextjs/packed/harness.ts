@@ -285,6 +285,15 @@ export function startNext(appDir: string, options: {webpack: boolean; devPort: n
   return {child, devPort: options.devPort, logPath}
 }
 
+async function listeningSnapshot(): Promise<string> {
+  try {
+    const {stdout} = await execFileAsync('lsof', ['-iTCP', '-sTCP:LISTEN', '-P', '-n'])
+    return stdout
+  } catch {
+    return '(lsof snapshot unavailable)'
+  }
+}
+
 function logTail(handle: NextHandle): string {
   try {
     return readFileSync(handle.logPath, 'utf8').slice(-6000)
@@ -332,9 +341,10 @@ export async function waitReady(handle: NextHandle, enginePort: number): Promise
   try {
     await waitFor(() => isListening(enginePort), 180_000)
   } catch (error) {
-    throw new Error(`conciv engine never listened on ${enginePort}\n--- next dev output ---\n${logTail(handle)}`, {
-      cause: error,
-    })
+    throw new Error(
+      `conciv engine never listened on ${enginePort}\n--- listening ports ---\n${await listeningSnapshot()}\n--- next dev output ---\n${logTail(handle)}`,
+      {cause: error},
+    )
   }
 }
 
