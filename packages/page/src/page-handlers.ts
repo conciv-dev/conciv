@@ -3,6 +3,7 @@ import {buildSnapshot, describeElement, DOM_CAP, type Refs} from './page-snapsho
 import {dehydrate, navigatePath} from './dehydrate.js'
 import * as react from './react-bridge.js'
 import {startTracking, stopTracking, report as trackReport} from './render-tracker.js'
+import {dispatchExtVerb} from './page-verb-registry.js'
 
 export type ConsoleEntry = {level: string; ts: number; text: string}
 
@@ -211,6 +212,7 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
   },
 
   effect: () => err('effects not initialized'),
+  ext: ({query}) => dispatchExtVerb(query.extension ?? '', query.verb ?? '', query.argsJson),
   wait: ({query}) =>
     query.selector
       ? waitFor(query.selector, query.state ?? 'visible', query.timeout ?? 5000)

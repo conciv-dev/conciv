@@ -1,9 +1,7 @@
 import {mkdtemp} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {fileURLToPath} from 'node:url'
-import {build, type Plugin} from 'vite'
-import solid from 'vite-plugin-solid'
+import {build, type Plugin, type PluginOption} from 'vite'
 import {
   concivSolidConfig,
   loadExtensionsModule,
@@ -14,7 +12,6 @@ import {type Builtins, NO_BUILTINS} from '@conciv/extension-compiler/extensions'
 
 const VIRTUAL_ID = 'virtual:conciv-extension-under-test'
 const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_ID}`
-const hostDir = fileURLToPath(new URL('./host', import.meta.url))
 
 function concivBuildPlugin(builtins: Builtins): Plugin {
   let root = process.cwd()
@@ -28,7 +25,7 @@ function concivBuildPlugin(builtins: Builtins): Plugin {
       deferToTsd = config.plugins.some((plugin) => plugin.name === '@tanstack/devtools:inject-source')
     },
     resolveId: (id) => resolveExtensionsModule(id),
-    load: (id) => loadExtensionsModule(id, builtins.clientEntries, undefined, builtins.embedEntry),
+    load: (id) => loadExtensionsModule(id, builtins.clientEntries, undefined, builtins.embedEntry, builtins.dedupeEntry),
     transform(code, id, opts) {
       return transformConcivModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
     },
@@ -43,14 +40,22 @@ function extensionUnderTestPlugin(clientEntry: string): Plugin {
   }
 }
 
-export async function buildHost(clientEntry: string): Promise<string> {
+export type BuildConcivHostOptions = {
+  root: string
+  input?: string
+  plugins: PluginOption[]
+  clientEntry: string
+}
+
+export async function buildConcivHost(options: BuildConcivHostOptions): Promise<string> {
   const outDir = await mkdtemp(join(tmpdir(), 'conciv-testkit-host-'))
+  const input = options.input ?? join(options.root, 'index.html')
   await build({
-    root: hostDir,
+    root: options.root,
     configFile: false,
     logLevel: 'silent',
-    plugins: [concivBuildPlugin(NO_BUILTINS), extensionUnderTestPlugin(clientEntry), solid()],
-    build: {outDir, emptyOutDir: true, rollupOptions: {input: join(hostDir, 'index.html')}},
+    plugins: [concivBuildPlugin(NO_BUILTINS), extensionUnderTestPlugin(options.clientEntry), ...options.plugins],
+    build: {outDir, emptyOutDir: true, rollupOptions: {input}},
   })
   return outDir
 }

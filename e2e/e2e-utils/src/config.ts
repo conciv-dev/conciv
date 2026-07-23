@@ -17,13 +17,17 @@ function serverEntry(command: string, port: number) {
   }
 }
 
-export function e2eConfig(app: E2EApp, opts: {command: (port: number) => string}): ReturnType<typeof defineConfig> {
+export function e2eConfig(
+  app: E2EApp,
+  opts: {command: (port: number) => string; timeout?: number},
+): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
+  const timeout = opts.timeout ?? 90_000
   return defineConfig({
     testDir: './tests',
     workers: 1,
-    timeout: 90_000,
-    expect: {timeout: 90_000},
+    timeout,
+    expect: {timeout},
     reporter: reporters(),
     use: {baseURL: `http://localhost:${port}`},
     webServer: serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),

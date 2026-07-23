@@ -20,6 +20,7 @@
       "warn",
       {
         "allow": [
+          "__conciv",
           "__CONCIV__",
           "__CONCIV_API_BASE__",
           "__CONCIV_PAGE_DRIVER__",
@@ -139,8 +140,12 @@
     "build",
     "node_modules",
     ".turbo",
+    ".conciv",
     "**/*.gen.ts",
+    "**/*.gen.tsx",
     "**/test-results",
+    "packages/plugin/test/fixtures/**",
+    "packages/extensions/tanstack/test/fixtures/**",
     "e2e/*/src",
     "e2e/*/app"
   ]

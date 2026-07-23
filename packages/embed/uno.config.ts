@@ -15,6 +15,7 @@ export default defineConfig({
       '../extensions/whiteboard/src/**/*.{ts,tsx}',
       '../extensions/recorder/src/**/*.{ts,tsx}',
       '../extensions/try-it/src/**/*.{ts,tsx}',
+      '../extensions/tanstack/src/**/*.{ts,tsx}',
     ],
   },
 

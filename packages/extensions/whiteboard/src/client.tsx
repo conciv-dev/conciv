@@ -4,6 +4,7 @@ import {defineExtension, getHostApi} from '@conciv/extension'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
 import {WhiteboardSurface, type CommentPick, type SurfaceState} from './client/overlay.js'
+import {whiteboardToolClients} from './tool/client.js'
 
 type PickPhase = 'idle' | 'picking' | 'composing'
 
@@ -40,7 +41,7 @@ function Surface(): JSX.Element {
 
 const whiteboard = defineExtension({
   name: WHITEBOARD_NAME,
-  tools: [],
+  tools: whiteboardToolClients,
   systemPrompt: WHITEBOARD_PROMPT,
   Component,
   Surface,

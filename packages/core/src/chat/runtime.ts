@@ -1,4 +1,4 @@
-import {toolDefinition, type AnyTool} from '@tanstack/ai'
+import {toolDefinition, type AnyTool, type ServerTool} from '@tanstack/ai'
 import type {SandboxDefinition} from '@tanstack/ai-sandbox'
 import type {z} from 'zod'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -20,6 +20,8 @@ export type ChatDeps = {
   changes: Changes
   risky: ReadonlySet<string>
   tools: (sessionId: string) => AnyTool[]
+  toolNames: ReadonlySet<string>
+  extensionServerTools: () => ExtensionServerTool[]
   attachmentExpanders: AttachmentExpanders
   onRunStart?: (sessionId: string) => void
   onRunEnd?: (sessionId: string) => Promise<void>
@@ -30,10 +32,17 @@ export type ChatEnv = {Variables: {chat: ChatDeps}}
 
 type Registrable = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
 
-type ToolRun = (args: unknown) => Promise<unknown>
+export type ToolRunContext = {emitCustomEvent?: (eventName: string, value: Record<string, unknown>) => void}
 
-export function toChatTool(tool: Registrable, run: ToolRun): AnyTool {
-  return toolDefinition({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(run)
+type ToolRun = (args: unknown, context?: ToolRunContext) => Promise<unknown>
+
+export function toChatTool(tool: Registrable, run: ToolRun, opts?: {lazy?: boolean}): ServerTool {
+  return toolDefinition({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    lazy: opts?.lazy,
+  }).server(run)
 }
 
 export function buildChatTools(
@@ -46,7 +55,7 @@ export function buildChatTools(
     const request: ToolRequest = {sessionId, model: sessionModel(sessionId)}
     return [
       ...concivTools(ctx).map((tool) => toChatTool(tool, (args) => tool.execute(args))),
-      ...extensionTools.map((tool) => toChatTool(tool, (args) => tool.execute(args, request))),
+      ...extensionTools.map((tool) => toChatTool(tool, (args) => tool.execute(args, request), {lazy: true})),
     ]
   }
 }

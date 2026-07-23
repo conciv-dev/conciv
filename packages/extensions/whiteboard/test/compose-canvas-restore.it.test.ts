@@ -1,7 +1,7 @@
 import {expect, test} from 'vitest'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
-import {getExtensionTestApi} from '@conciv/extension-testkit'
+import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
 import {clientEntry, openCanvas} from './canvas-it-helpers.js'
 
 const canvasToolbar = (page: Page) => page.getByRole('radio', {name: 'Rectangle'})
@@ -17,7 +17,7 @@ const pickAndCompose = async (page: Page, text: string): Promise<void> => {
 }
 
 test('picking hides an open canvas and adding the comment restores it', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
+  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
   try {
     await openCanvas(api.page)
     await api.page
@@ -42,7 +42,7 @@ test('picking hides an open canvas and adding the comment restores it', async ()
 })
 
 test('a comment picked while the canvas is closed leaves it closed and toasts', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
+  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
   try {
     await pickAndCompose(api.page, 'silent note')
     await api.page.getByText('Comment added to the whiteboard').waitFor({timeout: 30_000})
@@ -54,7 +54,7 @@ test('a comment picked while the canvas is closed leaves it closed and toasts', 
 })
 
 test('cancelling the compose restores the canvas', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
+  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
   try {
     await openCanvas(api.page)
     await api.page

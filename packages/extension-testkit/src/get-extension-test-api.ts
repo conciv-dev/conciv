@@ -1,16 +1,16 @@
-import {rm} from 'node:fs/promises'
 import type {Page} from 'playwright'
 import type {AnyExtension} from '@conciv/extension'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {bootExtensionServer} from './boot-server.js'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
-import {buildHost} from './build-host.js'
-import {serveDir} from './serve.js'
 import {launch} from './launch.js'
+
+export type HostEngine = {apiBase: string; session: string}
+export type HostHandle = {origin: string; close: () => Promise<void>}
 
 export type ExtensionUnderTest = {
   server: AnyExtension
-  clientEntry: string
+  host: (engine: HostEngine) => Promise<HostHandle>
   harness?: HarnessAdapter
 }
 
@@ -27,14 +27,17 @@ export type ExtensionTestApi = {
   dispose: () => Promise<void>
 }
 
+export {serveDir} from './serve.js'
+export {buildConcivHost, type BuildConcivHostOptions} from './build-host.js'
+export {fixtureHost} from './fixture-host.js'
+
 export async function getExtensionTestApi(extension: ExtensionUnderTest): Promise<ExtensionTestApi> {
   const {apiBase, extensionContexts, stop} = await bootExtensionServer(extension.server, {
     harness: extension.harness,
   })
   const session = await resolveSession(apiBase)
-  const outDir = await buildHost(extension.clientEntry)
-  const host = await serveDir(outDir, {apiBase, session})
-  const {page, context, close} = await launch(host.origin)
+  const {origin, close} = await extension.host({apiBase, session})
+  const {page, context, close: closeBrowser} = await launch(origin)
   return {
     page,
     callTool: makeCallTool(apiBase, session),
@@ -43,14 +46,13 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
     serverContext: extensionContexts[extension.server.name],
     secondClient: async () => {
       const second = await context.newPage()
-      await second.goto(host.origin, {waitUntil: 'domcontentloaded'})
+      await second.goto(origin, {waitUntil: 'domcontentloaded'})
       return {page: second, close: () => second.close()}
     },
     dispose: async () => {
+      await closeBrowser()
       await close()
-      await host.close()
       await stop()
-      await rm(outDir, {recursive: true, force: true}).catch(() => {})
     },
   }
 }

@@ -39,6 +39,10 @@
     "./split-extension": {
       "types": "./dist/split-extension.d.ts",
       "import": "./dist/split-extension.js"
+    },
+    "./dedupe": {
+      "types": "./dist/dedupe-extensions.d.ts",
+      "import": "./dist/dedupe-extensions.js"
     }
   },
   "publishConfig": {

@@ -23,12 +23,22 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/server.d.ts",
-      "import": "./dist/server.js"
+      "browser": {
+        "types": "./dist/client.d.ts",
+        "default": "./dist/client.js"
+      },
+      "import": {
+        "types": "./dist/server.d.ts",
+        "default": "./dist/server.js"
+      }
     },
     "./client": {
       "types": "./dist/client.d.ts",
       "import": "./dist/client.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
     },
     "./package.json": "./package.json"
   },
@@ -45,6 +55,7 @@
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/server": "^1.14.7",
@@ -64,6 +75,7 @@
     "@conciv/uno-preset": "workspace:*",
     "@tanstack/ai-mcp": "^0.2.3",
     "@types/node": "^22.19.21",
+    "@vitest/browser-playwright": "4.1.10",
     "solid-js": "^1.9.13",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3",

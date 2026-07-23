@@ -18,6 +18,10 @@ describe('/api/mcp extension tools', () => {
     const {base, cleanup: close} = kit
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
+      const initial = (await mcp.tools()).map((t) => t.name)
+      expect(initial).toEqual(expect.arrayContaining(['conciv_ui', 'conciv_discover_tools']))
+      expect(initial).not.toContain('acme_draw')
+      await mcp.callTool('conciv_discover_tools', {names: ['acme_draw']})
       const tools = await mcp.tools()
       expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['acme_draw', 'conciv_ui']))
       const drawTool = tools.find((t) => t.name === 'acme_draw')

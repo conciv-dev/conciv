@@ -7,6 +7,7 @@
     "**/*.d.ts",
     "**/*.generated.ts",
     "packages/aidx/**",
+    "packages/extensions/tanstack/test/fixtures/**",
     "apps/examples/**",
     "e2e/astro/**",
     "e2e/nextjs/**",
@@ -37,6 +38,7 @@
   },
   "ignoreDependencies": [
     "collections",
+    "@conciv/app-extensions",
     "@conciv/cli",
     "jazz-napi",
     "@oxlint/plugins",
@@ -64,6 +66,7 @@
     "unist-util-visit-parents",
     "@conciv/client",
     "@conciv/embed",
+    "@conciv/extension-compiler",
     "@conciv/grab",
     "@conciv/mascot",
     "@conciv/solid-diffs",
@@ -110,5 +113,9 @@
       "exports": ["*"]
     }
   ],
-  "entry": ["packages/extension-testkit/src/host/host-entry.tsx", "e2e/harnesses/vite.*.config.ts"]
+  "entry": [
+    "packages/extension-testkit/src/host/host-entry.tsx",
+    "packages/extensions/tanstack/test/host/main.tsx",
+    "e2e/harnesses/vite.*.config.ts"
+  ]
 }

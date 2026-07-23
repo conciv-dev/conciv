@@ -21,9 +21,10 @@ export function ToolCard(props: {
   meta?: string
   durationMs?: number
   defaultOpen?: boolean
+  status?: ToolStatus
   children?: JSX.Element
 }): JSX.Element {
-  const status = () => toolStatus(props.part, props.result)
+  const status = () => props.status ?? toolStatus(props.part, props.result)
   const ambientDuration = useToolCallDuration()
   const duration = () => formatDuration(props.durationMs ?? ambientDuration())
   return (
@@ -47,7 +48,11 @@ export function ToolCard(props: {
               </span>
             )}
           </Show>
-          <span class={`rounded-[var(--chat-radius-pill)] shrink-0 size-2 ${DOT[status()]}`} aria-hidden="true" />
+          <span
+            class={`rounded-[var(--chat-radius-pill)] shrink-0 size-2 ${DOT[status()]}`}
+            role="img"
+            aria-label={status()}
+          />
         </>
       }
     >

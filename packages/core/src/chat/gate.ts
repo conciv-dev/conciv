@@ -163,8 +163,14 @@ const APPROVAL_TIMEOUT_MS = 120_000
 
 const BashInputSchema = z.object({command: z.string()})
 
+const MCP_PREFIX = /^mcp__[a-z0-9-]+__/i
+
+export function riskyMatches(risky: ReadonlySet<string>, toolName: string): boolean {
+  return risky.has(toolName.replace(MCP_PREFIX, ''))
+}
+
 function needsApproval(toolName: string, toolInput: unknown, risky: ReadonlySet<string>): boolean {
-  if (risky.has(toolName)) return true
+  if (riskyMatches(risky, toolName)) return true
   if (toolName !== 'Bash') return false
   const parsed = BashInputSchema.safeParse(toolInput)
   return classifyCommand(parsed.success ? parsed.data.command : '') !== 'allow'
