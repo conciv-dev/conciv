@@ -1523,6 +1523,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/solid-diffs':
+        specifier: workspace:^
+        version: link:../solid-diffs
       '@conciv/solid-streamdown':
         specifier: workspace:^
         version: link:../solid-streamdown
