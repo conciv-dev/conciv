@@ -69,7 +69,7 @@ function renderPart(part: unknown, key: string, ctx: ToolViewCtx): JSX.Element {
     <SolidCodeBlock
       class="text-[0.6875rem] rounded-pw-sm block overflow-auto"
       options={CODE_OPTIONS}
-      file={{name: 'part.txt', contents: JSON.stringify(part)}}
+      file={{name: 'part.txt', lang: 'text', contents: JSON.stringify(part)}}
     />
   )
 }

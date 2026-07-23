@@ -67,3 +67,19 @@ export const Running: Story = {
       <BashCard part={part({command: 'sleep 5'}, 'input-complete')} result={undefined} ctx={ctx} />,
     ),
 }
+
+const ANSI_STDOUT = '\x1b[32m✓ passed\x1b[0m\n\x1b[31m✗ failed\x1b[0m\n\x1b[1;34mINFO\x1b[0m building...'
+
+export const AnsiOutput: Story = {
+  render: () =>
+    frame(
+      'chat-theme-dark',
+      <BashCard part={part({command: 'pnpm test'})} result={result({stdout: ANSI_STDOUT, exitCode: 0})} ctx={ctx} />,
+    ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await userEvent.click(c.getByRole('button'))
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('passed'), {timeout: 5000})
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('building'))
+  },
+}

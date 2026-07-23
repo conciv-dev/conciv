@@ -152,7 +152,11 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
   return (
     <Switch
       fallback={
-        <SolidCodeBlock class={OUT_CLASS} options={OUT_OPTIONS} file={{name: 'result.txt', contents: pretty()}} />
+        <SolidCodeBlock
+          class={OUT_CLASS}
+          options={OUT_OPTIONS}
+          file={{name: 'result.txt', lang: 'text', contents: pretty()}}
+        />
       }
     >
       <Match when={nodes()}>
@@ -192,7 +196,11 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
         )}
       </Match>
       <Match when={text() !== undefined}>
-        <SolidCodeBlock class={OUT_CLASS} options={OUT_OPTIONS} file={{name: 'result.txt', contents: text() ?? ''}} />
+        <SolidCodeBlock
+          class={OUT_CLASS}
+          options={OUT_OPTIONS}
+          file={{name: 'result.txt', lang: 'text', contents: text() ?? ''}}
+        />
       </Match>
       <Match when={value() !== undefined}>
         <code class={ELCHIP}>{value()}</code>
@@ -233,7 +241,11 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
             </Show>
             <Show when={evalCode()}>
               {(code) => (
-                <SolidCodeBlock class={OUT_CLASS} options={OUT_OPTIONS} file={{name: 'script.ts', contents: code()}} />
+                <SolidCodeBlock
+                  class={OUT_CLASS}
+                  options={OUT_OPTIONS}
+                  file={{name: 'script.ts', lang: 'ts', contents: code()}}
+                />
               )}
             </Show>
             <Show when={showMirror()}>

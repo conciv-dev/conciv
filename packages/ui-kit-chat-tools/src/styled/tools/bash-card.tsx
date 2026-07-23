@@ -49,7 +49,11 @@ function Body(): JSX.Element {
           </Show>
           <Show when={bash.output().stdout}>
             {(stdout) => (
-              <SolidCodeBlock class={OUT_CLASS} options={OUT_OPTIONS} file={{name: 'output.txt', contents: stdout()}} />
+              <SolidCodeBlock
+                class={OUT_CLASS}
+                options={OUT_OPTIONS}
+                file={{name: 'output.txt', lang: 'ansi', contents: stdout()}}
+              />
             )}
           </Show>
           <Show when={bash.output().stderr}>
@@ -57,7 +61,7 @@ function Body(): JSX.Element {
               <SolidCodeBlock
                 class={`${OUT_CLASS}${bash.output().stdout ? ' mt-2' : ''}`}
                 options={OUT_OPTIONS}
-                file={{name: 'stderr.txt', contents: stderr()}}
+                file={{name: 'stderr.txt', lang: 'ansi', contents: stderr()}}
               />
             )}
           </Show>

@@ -77,7 +77,7 @@ function Confirm(props: {spec: UiInput; onAnswer: (value: UiAnswerValue) => void
           <SolidCodeBlock
             class={DETAIL_CLASS}
             options={DETAIL_OPTIONS}
-            file={{name: 'detail.txt', contents: detail()}}
+            file={{name: 'detail.txt', lang: 'text', contents: detail()}}
           />
         )}
       </Show>

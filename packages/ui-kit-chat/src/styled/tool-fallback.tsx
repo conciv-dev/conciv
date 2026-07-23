@@ -102,7 +102,11 @@ function Args(): JSX.Element {
   return (
     <Show when={tool.argsText()}>
       {(text) => (
-        <SolidCodeBlock class={CODE_CLASS} options={CODE_OPTIONS} file={{name: 'args.txt', contents: text()}} />
+        <SolidCodeBlock
+          class={CODE_CLASS}
+          options={CODE_OPTIONS}
+          file={{name: 'args.txt', lang: 'text', contents: text()}}
+        />
       )}
     </Show>
   )
@@ -117,7 +121,7 @@ function Result(): JSX.Element {
         <SolidCodeBlock
           class={`mt-1 ${CODE_CLASS}`}
           options={CODE_OPTIONS}
-          file={{name: 'result.txt', contents: tool.resultText()}}
+          file={{name: 'result.txt', lang: 'text', contents: tool.resultText()}}
         />
       </div>
     </Show>

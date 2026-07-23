@@ -29,7 +29,11 @@ function Body(): JSX.Element {
       meta={search.meta()}
     >
       <Show when={search.count() > 0}>
-        <SolidCodeBlock class={OUT_CLASS} options={OUT_OPTIONS} file={{name: 'results.txt', contents: search.text()}} />
+        <SolidCodeBlock
+          class={OUT_CLASS}
+          options={OUT_OPTIONS}
+          file={{name: 'results.txt', lang: 'text', contents: search.text()}}
+        />
       </Show>
     </ToolCard>
   )

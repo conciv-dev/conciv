@@ -68,7 +68,7 @@ function ConsoleLogs(props: {logs: string[]}): JSX.Element {
       <SolidCodeBlock
         class={CONSOLE_CLASS}
         options={CONSOLE_OPTIONS}
-        file={{name: 'console.txt', contents: props.logs.join('\n')}}
+        file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}}
       />
     </>
   )
