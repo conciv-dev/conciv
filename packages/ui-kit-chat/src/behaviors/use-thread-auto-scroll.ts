@@ -110,10 +110,11 @@ export function useThreadAutoScroll(
   }
 
   const viewportMoved = (mutations: MutationRecord[], div: HTMLElement): boolean =>
-    div.isConnected && !holding() && mutations.some((mutation) => movesViewport(mutation, div))
+    div.isConnected && mutations.some((mutation) => movesViewport(mutation, div))
 
   const reassertScroll = (div: HTMLElement) => {
     if (div.scrollTop !== last.scrollTop) div.scrollTop = last.scrollTop
+    if (holding()) return
     if (opts.autoScroll() && isAtBottom()) scrollToBottom('instant')
   }
 

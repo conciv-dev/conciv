@@ -38,7 +38,7 @@ import {HostApiProvider} from '@conciv/extension'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
-import {clearPaneSnapshot, pageLoadToken, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
+import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
 
 const GRAB_PREVIEW_MAX_W = 280
 const MAX_CONTENT_PARTS = 16
@@ -114,7 +114,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const disconnected = () => chat.connectionStatus() !== 'connected'
 
   let inputEl: HTMLTextAreaElement | undefined
-  let viewportEl: HTMLElement | undefined
   const composerApi = {current: null as ComposerStateApi | null}
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId: props.sessionId}}))
@@ -277,17 +276,16 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
         selectionStart: inputEl?.selectionStart ?? 0,
         selectionEnd: inputEl?.selectionEnd ?? 0,
         focused: isInputFocused(),
-        scrollTop: viewportEl?.scrollTop ?? null,
       }),
     {wait: 150},
   )
 
   const draftQuery = useQuery(() => appData.utils.drafts.get.queryOptions({input: {sessionId: props.sessionId}}))
-  const [restored, setRestored] = createSignal(false)
+  const restored = {done: false}
   const maybeRestore = () => {
     const api = composerApi.current
-    if (!api || restored() || !draftQuery.isSuccess) return
-    setRestored(true)
+    if (!api || restored.done || !draftQuery.isSuccess) return
+    restored.done = true
     const row = draftQuery.data
     if (row) {
       api.setText(row.text)
@@ -304,20 +302,9 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     if (!draftQuery.isSuccess) return
     maybeRestore()
   })
-  const [scrollRestored, setScrollRestored] = createSignal(false)
-  createEffect(() => {
-    if (!restored() || scrollRestored() || chat.messages().length === 0) return
-    setScrollRestored(true)
-    const snapshot = readPaneSnapshot(props.sessionId)
-    if (snapshot?.scrollTop == null || snapshot.pageToken === pageLoadToken) return
-    const target = snapshot.scrollTop
-    requestAnimationFrame(() => {
-      if (viewportEl) viewportEl.scrollTop = target
-    })
-  })
   createEffect(() => {
     const row = draftQuery.data
-    if (!row || !restored() || isInputFocused()) return
+    if (!row || !restored.done || isInputFocused()) return
     const api = composerApi.current
     if (api && api.text() !== row.text) api.setText(row.text)
   })
@@ -329,9 +316,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     }
     const inputEvents: string[] = ['input', 'select', 'keyup', 'click', 'focus', 'blur']
     const target = inputEl
-    const viewport = viewportEl
     if (target) for (const event of inputEvents) target.addEventListener(event, schedule)
-    if (viewport) viewport.addEventListener('scroll', () => persistSnapshot.maybeExecute())
     const onPageHide = () => persistSnapshot.flush()
     window.addEventListener('pagehide', onPageHide)
     onCleanup(() => {
@@ -413,9 +398,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                   components={{ToolFallback: ToolFallbackCard}}
                   turnPrefix={renderTurnPrefix}
                   scroll={{scrollToBottomOnInitialize: true, scrollToBottomOnThreadSwitch: true}}
-                  viewportRef={(el) => {
-                    viewportEl = el
-                  }}
                   viewportFooter={
                     <>
                       <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
