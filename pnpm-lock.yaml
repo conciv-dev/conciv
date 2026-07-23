@@ -109,6 +109,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../packages/protocol
+      '@conciv/solid-diffs':
+        specifier: workspace:^
+        version: link:../../packages/solid-diffs
       '@conciv/solid-streamdown':
         specifier: workspace:^
         version: link:../../packages/solid-streamdown
@@ -1520,6 +1523,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/solid-diffs':
+        specifier: workspace:^
+        version: link:../solid-diffs
       '@conciv/solid-streamdown':
         specifier: workspace:^
         version: link:../solid-streamdown
@@ -2201,6 +2207,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
+      '@conciv/solid-diffs':
+        specifier: workspace:^
+        version: link:../../solid-diffs
       '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../../ui-kit-chat
@@ -3041,6 +3050,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/solid-diffs':
+        specifier: workspace:^
+        version: link:../solid-diffs
       '@conciv/solid-streamdown':
         specifier: workspace:^
         version: link:../solid-streamdown

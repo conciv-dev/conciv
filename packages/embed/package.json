@@ -47,6 +47,7 @@
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/storage-history": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",

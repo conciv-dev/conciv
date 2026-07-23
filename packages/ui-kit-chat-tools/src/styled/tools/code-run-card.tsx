@@ -1,9 +1,19 @@
 import {Show, type JSX} from 'solid-js'
 import {Code} from 'lucide-solid'
 import {z} from 'zod'
+import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Markdown, parseInput, parseResultPayload, ToolCard, toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 import {truncate} from '../../primitives/tools/inline-tool.js'
+
+const CONSOLE_OPTIONS: FileOptions<undefined> = {
+  theme: {light: 'github-light', dark: 'github-dark'},
+  themeType: 'system',
+  disableFileHeader: true,
+  disableLineNumbers: true,
+}
+const CONSOLE_CLASS =
+  'block overflow-x-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border-left:2px_solid_var(--chat-line)]'
 
 const Input = z.object({typescriptCode: z.string()})
 const CodeError = z.object({message: z.string(), name: z.string().optional(), line: z.number().optional()})
@@ -55,9 +65,11 @@ function ConsoleLogs(props: {logs: string[]}): JSX.Element {
   return (
     <>
       <span class="text-[color:var(--chat-text-3)] text-[length:0.625rem] tracking-[0.08em] uppercase">console</span>
-      <pre class="text-[length:var(--chat-text-xs)] m-0 p-2 rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border-left:2px_solid_var(--chat-line)] [font-family:var(--chat-mono)] overflow-x-auto">
-        {props.logs.join('\n')}
-      </pre>
+      <SolidCodeBlock
+        class={CONSOLE_CLASS}
+        options={CONSOLE_OPTIONS}
+        file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}}
+      />
     </>
   )
 }

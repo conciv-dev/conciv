@@ -37,6 +37,12 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
   return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
 }
 
+async function codeText(root: HTMLElement): Promise<string> {
+  return Array.from(root.querySelectorAll('diffs-container'))
+    .map((host) => host.shadowRoot?.textContent ?? '')
+    .join('\n')
+}
+
 export const Running: Story = {
   render: () => frame('chat-theme-dark', <CodeRunCard part={part('input-complete')} result={undefined} ctx={ctx} />),
   play: async ({canvasElement}) => {
@@ -55,8 +61,8 @@ export const Success: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
-    await waitFor(() => expect(c.getByText('committed ["el_9f2"]')).toBeVisible())
-    await expect(c.getByText('["el_9f2"]')).toBeVisible()
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('committed ["el_9f2"]'), {timeout: 5000})
+    await waitFor(() => expect(c.getByText('["el_9f2"]')).toBeVisible())
     await expect(c.queryByText(/SyntaxError/)).toBeNull()
     await expect(c.queryByLabelText('error')).toBeNull()
     await expect(c.getByLabelText('complete')).toBeInTheDocument()
