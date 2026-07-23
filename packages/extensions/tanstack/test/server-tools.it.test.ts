@@ -3,13 +3,14 @@ import {mkdtemp, realpath} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {createServer, type ViteDevServer} from 'vite'
+import {type ViteDevServer} from 'vite'
 import {z} from 'zod'
 import {start, type Engine} from '@conciv/core/start'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
 import {makeViteBridge} from '@conciv/plugin/vite'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import tanstackServer from '../src/server.js'
+import {startViteFixtureServer} from './helpers/vite-fixture-server.js'
 
 const BUILD_APP = fileURLToPath(new URL('./fixtures/build-errors-app', import.meta.url))
 const MANIFEST_APP = fileURLToPath(new URL('./fixtures/route-manifest-app', import.meta.url))
@@ -57,17 +58,8 @@ describe('tanstack server-half read tools (IT, real engine)', () => {
   })
 
   it('tanstack_build_errors surfaces a real vite transform error through the bundler stream', async () => {
-    const vite = await createServer({
-      root: BUILD_APP,
-      configFile: false,
-      logLevel: 'silent',
-      server: {host: '127.0.0.1', port: 0},
-    })
+    const {vite, viteBase} = await startViteFixtureServer(BUILD_APP)
     state.vite = vite
-    await vite.listen()
-    const address = vite.httpServer?.address()
-    const port = typeof address === 'object' && address ? address.port : 0
-    const viteBase = `http://127.0.0.1:${port}`
 
     const bridge = makeViteBridge(vite)
     const {engine, callTool} = await bootEngine(BUILD_APP, bridge)
@@ -108,6 +100,10 @@ describe('tanstack server-half read tools (IT, real engine)', () => {
     const about = routes.find((route) => route.path === '/about')
     expect(about?.kind).toBe('page')
     expect(about?.dynamic).toBe(false)
+    expect(about?.file?.endsWith('.tsx')).toBe(true)
+
+    const form = routes.find((route) => route.path === '/form')
+    expect(form?.file?.endsWith('routes/form')).toBe(true)
   })
 
   it('tanstack_route_manifest parses a double-quoted generated routeTree with a $param dynamic route', async () => {

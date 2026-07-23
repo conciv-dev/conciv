@@ -3,13 +3,14 @@ import {mkdtemp, realpath} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {createServer, type ViteDevServer} from 'vite'
+import {type ViteDevServer} from 'vite'
 import {z} from 'zod'
 import {start, type Engine} from '@conciv/core/start'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
 import {makeViteBridge} from '@conciv/plugin/vite'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import tanstackServer from '../src/server.js'
+import {startViteFixtureServer} from './helpers/vite-fixture-server.js'
 
 const SERVERFN_APP = fileURLToPath(new URL('./fixtures/serverfn-app', import.meta.url))
 
@@ -33,6 +34,9 @@ const PayloadSchema = z.object({
 
 const SERVER_FN = {file: '/src/x.ts', export: 'getThing_createServerFn_handler'}
 const SERVER_FN_ID = Buffer.from(JSON.stringify(SERVER_FN)).toString('base64')
+
+const BASEPATH_FN = {file: '/src/y.ts', export: 'getUnderBase_createServerFn_handler'}
+const BASEPATH_FN_ID = Buffer.from(JSON.stringify(BASEPATH_FN)).toString('base64')
 
 async function makeStateRoot(): Promise<string> {
   return realpath(await mkdtemp(join(await realpath(tmpdir()), 'conciv-ts-serverfn-')))
@@ -61,17 +65,8 @@ describe('tanstack server_fn_trace (IT, real vite dev server + real HTTP request
   })
 
   it('captures a real /_serverFn/ request through the generic request-trace stream and decodes it', async () => {
-    const vite = await createServer({
-      root: SERVERFN_APP,
-      configFile: false,
-      logLevel: 'silent',
-      server: {host: '127.0.0.1', port: 0},
-    })
+    const {vite, viteBase} = await startViteFixtureServer(SERVERFN_APP)
     state.vite = vite
-    await vite.listen()
-    const address = vite.httpServer?.address()
-    const port = typeof address === 'object' && address ? address.port : 0
-    const viteBase = `http://127.0.0.1:${port}`
 
     const bridge = makeViteBridge(vite)
     const {engine, callTool} = await bootEngine(SERVERFN_APP, bridge)
@@ -101,5 +96,35 @@ describe('tanstack server_fn_trace (IT, real vite dev server + real HTTP request
     expect(fn?.route).toBeNull()
 
     expect(payload.traces.every((t) => t.name === SERVER_FN.export)).toBe(true)
+  })
+
+  it('captures a /_serverFn/ request served under an app basepath', async () => {
+    const {vite, viteBase} = await startViteFixtureServer(SERVERFN_APP)
+    state.vite = vite
+
+    const bridge = makeViteBridge(vite)
+    const {engine, callTool} = await bootEngine(SERVERFN_APP, bridge)
+    state.engine = engine
+
+    await fetch(`${viteBase}/app/_serverFn/${BASEPATH_FN_ID}`).catch(() => undefined)
+
+    await expect
+      .poll(
+        async () => {
+          const payload = PayloadSchema.parse(await callTool('tanstack_server_fn_trace', {}))
+          return payload.traces.some((t) => t.name === BASEPATH_FN.export)
+        },
+        {timeout: 10_000},
+      )
+      .toBe(true)
+
+    const payload = PayloadSchema.parse(await callTool('tanstack_server_fn_trace', {}))
+    const trace = payload.traces.find((t) => t.name === BASEPATH_FN.export)
+    expect(trace).toBeDefined()
+    expect(trace?.id).toBe(BASEPATH_FN_ID)
+
+    const fn = payload.functions.find((f) => f.name === BASEPATH_FN.export)
+    expect(fn?.file).toBe(BASEPATH_FN.file)
+    expect(fn?.route).toBeNull()
   })
 })

@@ -1,6 +1,9 @@
+import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {dirname, join, resolve} from 'node:path'
 import type {ServerRouteInfo, ServerRouteKind} from '@conciv/protocol/framework-types'
+
+const FILE_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js'] as const
 
 type ImportMap = Map<string, string>
 
@@ -21,7 +24,13 @@ function collectImports(source: string): ImportMap {
 
 function resolveFile(baseDir: string, spec: string | undefined): string | null {
   if (!spec) return null
-  return resolve(baseDir, spec)
+  const resolved = resolve(baseDir, spec)
+  if (existsSync(resolved)) return resolved
+  for (const extension of FILE_EXTENSIONS) {
+    const candidate = `${resolved}${extension}`
+    if (existsSync(candidate)) return candidate
+  }
+  return resolved
 }
 
 function classify(id: string, path: string | null): ServerRouteKind {

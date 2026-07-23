@@ -19,8 +19,9 @@ function isRequestTrace(diagnostic: BundlerDiagnostic): diagnostic is RequestTra
 }
 
 function encodedSegment(url: string): string | null {
-  if (!url.startsWith(SERVER_FN_PREFIX)) return null
-  const rest = url.slice(SERVER_FN_PREFIX.length)
+  const prefixAt = url.indexOf(SERVER_FN_PREFIX)
+  if (prefixAt === -1) return null
+  const rest = url.slice(prefixAt + SERVER_FN_PREFIX.length)
   const end = rest.search(/[/?#]/)
   const segment = end === -1 ? rest : rest.slice(0, end)
   return segment.length > 0 ? segment : null
