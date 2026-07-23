@@ -6,7 +6,7 @@ export function makePaneGrabApi(store: PaneGrabStore): GrabApi {
   return {
     ...pageGrabApi,
     stage: store.stage,
-    staged: () => store.grabs().flatMap((entry) => ('snapshot' in entry ? [entry] : [])),
+    staged: () => store.grabs().flatMap((entry) => ('preview' in entry ? [entry] : [])),
     clear: store.clear,
   }
 }

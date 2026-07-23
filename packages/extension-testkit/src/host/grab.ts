@@ -30,7 +30,7 @@ function toGrab(element: Element): Grab {
   const parts = sourceOf(element)
   return {
     text: element.textContent ?? '',
-    snapshot: {node: element.cloneNode(true) as HTMLElement, width: box.width, height: box.height},
+    preview: {kind: 'dom', node: element.cloneNode(true) as HTMLElement, width: box.width, height: box.height},
     source: parts ? toElementSource(parts) : null,
     rect: {x: box.x, y: box.y, width: box.width, height: box.height},
   }

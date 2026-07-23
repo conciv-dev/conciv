@@ -1,12 +1,12 @@
-import type {ElementSnapshot} from '@conciv/grab'
+import type {DomPreview} from '@conciv/grab'
 
-export function captureElement(el: Element): Promise<ElementSnapshot> {
+export function captureElement(el: Element): Promise<DomPreview> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve(captureSync(el)))
   })
 }
 
-function captureSync(el: Element): ElementSnapshot {
+function captureSync(el: Element): DomPreview {
   const rect = el.getBoundingClientRect()
   const clone = el.cloneNode(true) as HTMLElement
   const rules: string[] = []
@@ -22,7 +22,7 @@ function captureSync(el: Element): ElementSnapshot {
     node.appendChild(style)
   }
   node.appendChild(clone)
-  return {node, width: rect.width, height: rect.height}
+  return {kind: 'dom', node, width: rect.width, height: rect.height}
 }
 
 const SKIP_PROPS = new Set(['cursor', 'pointer-events', 'user-select', '-webkit-user-select'])

@@ -1,32 +1,43 @@
 import {Show, type JSX} from 'solid-js'
 import {X} from 'lucide-solid'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
-import type {ElementSnapshot, ElementSource, Grab} from '@conciv/grab'
+import type {GrabPreview, ElementSource, Grab} from '@conciv/grab'
 
 function fitScale(width: number, maxWidth: number): number {
   if (width <= 0) return 1
   return Math.min(1, maxWidth / width)
 }
 
-function ScaledSnapshot(props: {snapshot: ElementSnapshot; maxWidth: number}): JSX.Element {
-  const scale = () => fitScale(props.snapshot.width, props.maxWidth)
+function ScaledSnapshot(props: {preview: GrabPreview; maxWidth: number}): JSX.Element {
+  const scale = () => fitScale(props.preview.width, props.maxWidth)
   return (
     <div
       class="inline-flex max-w-full cursor-default overflow-hidden"
       style={{
-        width: `${Math.ceil(props.snapshot.width * scale())}px`,
-        height: `${Math.ceil(props.snapshot.height * scale())}px`,
+        width: `${Math.ceil(props.preview.width * scale())}px`,
+        height: `${Math.ceil(props.preview.height * scale())}px`,
       }}
     >
       <div
         class="flex-none pointer-events-none origin-top-left"
         data-pw-grab-scale
         style={{
-          width: `${props.snapshot.width}px`,
-          height: `${props.snapshot.height}px`,
+          width: `${props.preview.width}px`,
+          height: `${props.preview.height}px`,
           transform: `scale(${scale()})`,
         }}
-        ref={(el) => el.appendChild(props.snapshot.node.cloneNode(true))}
+        ref={(el) => {
+          const preview = props.preview
+          if (preview.kind === 'dom') {
+            el.appendChild(preview.node.cloneNode(true))
+            return
+          }
+          const img = document.createElement('img')
+          img.src = preview.dataUrl
+          img.width = preview.width
+          img.height = preview.height
+          el.appendChild(img)
+        }}
       />
     </div>
   )
@@ -38,7 +49,7 @@ function sourceLabel(source: ElementSource): string {
 }
 
 function stagedGrab(grab: Grab | {text: string}): Grab | null {
-  return 'snapshot' in grab ? grab : null
+  return 'preview' in grab ? grab : null
 }
 
 export function GrabReference(props: {
@@ -64,7 +75,7 @@ export function GrabReference(props: {
       >
         {(grab) => (
           <>
-            <ScaledSnapshot snapshot={grab().snapshot} maxWidth={props.maxWidth} />
+            <ScaledSnapshot preview={grab().preview} maxWidth={props.maxWidth} />
             <Show when={grab().source}>
               {(source) => (
                 <span class="text-pw-text-2 flex gap-1.5 [word-break:break-all] items-center">
