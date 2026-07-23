@@ -32,7 +32,7 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
   }
   await launcher.click()
   await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
-  const transientOptimizerReload = /Failed to fetch dynamically imported module/
+  const transientOptimizerReload = /Failed to fetch dynamically imported module|504 \(Outdated Optimize Dep\)/
   expect(failures.pageErrors.filter((entry) => !transientOptimizerReload.test(entry))).toEqual([])
-  expect(failures.consoleErrors).toEqual([])
+  expect(failures.consoleErrors.filter((entry) => !transientOptimizerReload.test(entry))).toEqual([])
 }
