@@ -1,5 +1,17 @@
 # conciv-storybook
 
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies [[`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
+  - @conciv/ui-kit-chat@0.0.16
+  - @conciv/ui-kit-chat-tools@0.0.16
+  - @conciv/solid-diffs@0.0.16
+  - @conciv/solid-streamdown@0.0.16
+  - @conciv/ui-kit-system@0.0.16
+  - @conciv/ui-kit-tap@0.0.16
+
 ## 0.0.5
 
 ### Patch Changes

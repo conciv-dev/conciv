@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-tanstack",
-  "version": "0.0.13",
+  "version": "0.0.16",
   "description": "Internal conciv.dev extension: framework-inspection adapter for TanStack Router/Start apps, surfacing router state, loader data, and query cache to the widget.",
   "keywords": [
     "conciv",

@@ -1,5 +1,20 @@
 # @conciv/extension-testkit
 
+## 0.0.16
+
+### Patch Changes
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
+  - @conciv/extension@0.0.16
+  - @conciv/extension-compiler@0.0.16
+  - @conciv/protocol@0.0.16
+  - @conciv/ui-kit-chat@0.0.16
+  - @conciv/core@0.0.16
+  - @conciv/contract@0.0.16
+  - @conciv/harness-testkit@0.0.16
+  - @conciv/grab@0.0.16
+  - @conciv/ui-kit-system@0.0.16
+
 ## 0.0.15
 
 ### Patch Changes
