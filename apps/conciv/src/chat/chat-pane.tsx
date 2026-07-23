@@ -38,7 +38,7 @@ import {HostApiProvider} from '@conciv/extension'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
-import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
+import {clearPaneSnapshot, pageLoadToken, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
 
 const GRAB_PREVIEW_MAX_W = 280
 const MAX_CONTENT_PARTS = 16
@@ -283,11 +283,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   )
 
   const draftQuery = useQuery(() => appData.utils.drafts.get.queryOptions({input: {sessionId: props.sessionId}}))
-  const restored = {done: false}
+  const [restored, setRestored] = createSignal(false)
   const maybeRestore = () => {
     const api = composerApi.current
-    if (!api || restored.done || !draftQuery.isSuccess) return
-    restored.done = true
+    if (!api || restored() || !draftQuery.isSuccess) return
+    setRestored(true)
     const row = draftQuery.data
     if (row) {
       api.setText(row.text)
@@ -295,7 +295,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     }
     const snapshot = readPaneSnapshot(props.sessionId)
     requestAnimationFrame(() => {
-      if (snapshot?.scrollTop != null && viewportEl) viewportEl.scrollTop = snapshot.scrollTop
       if (!inputEl) return
       if (row) inputEl.setSelectionRange(row.selectionStart, row.selectionEnd)
       if (snapshot?.focused ?? true) inputEl.focus()
@@ -305,9 +304,20 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     if (!draftQuery.isSuccess) return
     maybeRestore()
   })
+  const [scrollRestored, setScrollRestored] = createSignal(false)
+  createEffect(() => {
+    if (!restored() || scrollRestored() || chat.messages().length === 0) return
+    setScrollRestored(true)
+    const snapshot = readPaneSnapshot(props.sessionId)
+    if (snapshot?.scrollTop == null || snapshot.pageToken === pageLoadToken) return
+    const target = snapshot.scrollTop
+    requestAnimationFrame(() => {
+      if (viewportEl) viewportEl.scrollTop = target
+    })
+  })
   createEffect(() => {
     const row = draftQuery.data
-    if (!row || !restored.done || isInputFocused()) return
+    if (!row || !restored() || isInputFocused()) return
     const api = composerApi.current
     if (api && api.text() !== row.text) api.setText(row.text)
   })
@@ -402,6 +412,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                   attachmentCards={attachments().cards}
                   components={{ToolFallback: ToolFallbackCard}}
                   turnPrefix={renderTurnPrefix}
+                  scroll={{scrollToBottomOnInitialize: true, scrollToBottomOnThreadSwitch: true}}
                   viewportRef={(el) => {
                     viewportEl = el
                   }}
