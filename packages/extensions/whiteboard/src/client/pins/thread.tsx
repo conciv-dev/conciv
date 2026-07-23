@@ -1,5 +1,6 @@
 import {For, Show, createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ToolCallCard, type ToolCallCardProps} from '@conciv/ui-kit-chat'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
@@ -14,6 +15,13 @@ import {
 import {MentionField, type MentionFieldApi} from '@conciv/ui-kit-tap'
 import {useComments, type Comment} from '../model/comments.js'
 import {Avatar, Menu, MenuItem, Tooltip} from '../ui.js'
+
+const CODE_OPTIONS: FileOptions<undefined> = {
+  theme: {light: 'github-light', dark: 'github-dark'},
+  themeType: 'system',
+  disableFileHeader: true,
+  disableLineNumbers: true,
+}
 
 const HEADER_BTN =
   'inline-flex size-7 items-center justify-center rounded-pw-sm text-pw-text-2 [outline:none] hover:bg-pw-fill focus-ring'
@@ -57,7 +65,13 @@ function renderPart(part: unknown, key: string, ctx: ToolViewCtx): JSX.Element {
     )
   const tool = ToolPart.safeParse(part)
   if (tool.success) return renderToolPart(tool.data, key, ctx)
-  return <pre class="text-[0.6875rem] text-pw-text-3 overflow-auto">{JSON.stringify(part)}</pre>
+  return (
+    <SolidCodeBlock
+      class="text-[0.6875rem] rounded-pw-sm block overflow-auto"
+      options={CODE_OPTIONS}
+      file={{name: 'part.txt', contents: JSON.stringify(part)}}
+    />
+  )
 }
 
 function CommentRow(props: {comment: Comment}): JSX.Element {

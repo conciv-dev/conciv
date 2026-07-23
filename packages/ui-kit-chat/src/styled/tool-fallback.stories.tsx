@@ -21,6 +21,12 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
   return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
 }
 
+async function codeText(root: HTMLElement): Promise<string> {
+  return Array.from(root.querySelectorAll('diffs-container'))
+    .map((host) => host.shadowRoot?.textContent ?? '')
+    .join('\n')
+}
+
 export const Complete: Story = {
   render: () =>
     frame(
@@ -32,8 +38,8 @@ export const Complete: Story = {
     await expect(c.getByText('mcp__weather__forecast')).toBeVisible()
     await expect(c.getByText('4.2s')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
-    await waitFor(() => expect(c.getByText(/tempC/)).toBeVisible())
-    await expect(c.getByText('Result:')).toBeVisible()
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('tempC'), {timeout: 5000})
+    await waitFor(() => expect(c.getByText('Result:')).toBeVisible())
   },
 }
 

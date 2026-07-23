@@ -8,6 +8,14 @@ import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-type
 import {formatHtml} from '../page-format.js'
 
 const CODE_OPTIONS: FileOptions<undefined> = {theme: {light: 'github-light', dark: 'github-dark'}, themeType: 'system'}
+const OUT_OPTIONS: FileOptions<undefined> = {
+  theme: {light: 'github-light', dark: 'github-dark'},
+  themeType: 'system',
+  disableFileHeader: true,
+  disableLineNumbers: true,
+}
+const OUT_CLASS =
+  'block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
 
 function readInput(props: ToolCardProps): ReturnType<typeof parseInput<typeof PageInput>> {
   return parseInput(PageInput, props.part)
@@ -131,9 +139,6 @@ function asNodes(value: unknown): SnapNode[] | undefined {
 
 const ELCHIP =
   'inline-flex items-center gap-1.25 max-w-full min-w-0 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-accent-link)] [background:color-mix(in_oklch,var(--chat-accent)_10%,transparent)] [border:1px_solid_color-mix(in_oklch,var(--chat-accent)_42%,transparent)] rounded-[var(--chat-radius-pill)] py-0.5 px-2.25'
-const PAGE_OUT =
-  'm-0 w-full max-h-[13.75rem] overflow-auto [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-2)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] rounded-[var(--chat-radius-sm)] py-2 px-2.5 whitespace-pre'
-
 function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
   const record = () => asRecord(props.payload)
   const nodes = () => asNodes(record()?.nodes)
@@ -145,7 +150,11 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
   }
   const pretty = () => (props.payload === undefined ? props.raw : JSON.stringify(props.payload, null, 2))
   return (
-    <Switch fallback={<pre class={PAGE_OUT}>{pretty()}</pre>}>
+    <Switch
+      fallback={
+        <SolidCodeBlock class={OUT_CLASS} options={OUT_OPTIONS} file={{name: 'result.txt', contents: pretty()}} />
+      }
+    >
       <Match when={nodes()}>
         {(list) => (
           <ul class="m-0 p-0 list-none rounded-[var(--chat-radius-sm)] max-h-[13.75rem] w-full [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-auto">
@@ -183,7 +192,7 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
         )}
       </Match>
       <Match when={text() !== undefined}>
-        <pre class={PAGE_OUT}>{text()}</pre>
+        <SolidCodeBlock class={OUT_CLASS} options={OUT_OPTIONS} file={{name: 'result.txt', contents: text() ?? ''}} />
       </Match>
       <Match when={value() !== undefined}>
         <code class={ELCHIP}>{value()}</code>
@@ -223,7 +232,9 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
               </span>
             </Show>
             <Show when={evalCode()}>
-              <pre class={PAGE_OUT}>{evalCode()}</pre>
+              {(code) => (
+                <SolidCodeBlock class={OUT_CLASS} options={OUT_OPTIONS} file={{name: 'script.ts', contents: code()}} />
+              )}
             </Show>
             <Show when={showMirror()}>
               <div class="text-[length:var(--chat-text-xs)] flex gap-1.5 [color:var(--chat-accent-link)] items-center">

@@ -22,6 +22,12 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
   return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
 }
 
+async function codeText(root: HTMLElement): Promise<string> {
+  return Array.from(root.querySelectorAll('diffs-container'))
+    .map((host) => host.shadowRoot?.textContent ?? '')
+    .join('\n')
+}
+
 export const Complete: Story = {
   render: () =>
     frame(
@@ -37,8 +43,8 @@ export const Complete: Story = {
     await expect(c.getByText('bash')).toBeVisible()
     await expect(c.getByText('Run the unit tests')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
-    await waitFor(() => expect(c.getByText(/42 passed/)).toBeVisible())
-    await expect(c.getByText('$ pnpm test')).toBeVisible()
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('42 passed'), {timeout: 5000})
+    await waitFor(() => expect(c.getByText('$ pnpm test')).toBeVisible())
   },
 }
 

@@ -1,8 +1,18 @@
 import {Show, type JSX} from 'solid-js'
 import {Terminal} from 'lucide-solid'
+import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Bash, useBash} from '../../primitives/tools/bash.js'
 import {CollapsibleCard} from '@conciv/ui-kit-chat'
+
+const OUT_OPTIONS: FileOptions<undefined> = {
+  theme: {light: 'github-light', dark: 'github-dark'},
+  themeType: 'system',
+  disableFileHeader: true,
+  disableLineNumbers: true,
+  overflow: 'wrap',
+}
+const OUT_CLASS = 'block max-w-full overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)]'
 
 function Header(): JSX.Element {
   const bash = useBash()
@@ -38,17 +48,18 @@ function Body(): JSX.Element {
             <div class="text-[color:var(--chat-text-3)] mb-2 [overflow-wrap:anywhere]">$ {bash.command()}</div>
           </Show>
           <Show when={bash.output().stdout}>
-            <pre class="text-[color:var(--chat-text)] whitespace-pre-wrap [margin:0] [overflow-wrap:anywhere]">
-              {bash.output().stdout}
-            </pre>
+            {(stdout) => (
+              <SolidCodeBlock class={OUT_CLASS} options={OUT_OPTIONS} file={{name: 'output.txt', contents: stdout()}} />
+            )}
           </Show>
           <Show when={bash.output().stderr}>
-            <pre
-              class="text-[color:var(--chat-danger)] whitespace-pre-wrap [margin:0] [overflow-wrap:anywhere]"
-              classList={{'mt-2': Boolean(bash.output().stdout)}}
-            >
-              {bash.output().stderr}
-            </pre>
+            {(stderr) => (
+              <SolidCodeBlock
+                class={`${OUT_CLASS}${bash.output().stdout ? ' mt-2' : ''}`}
+                options={OUT_OPTIONS}
+                file={{name: 'stderr.txt', contents: stderr()}}
+              />
+            )}
           </Show>
         </div>
       </Show>
