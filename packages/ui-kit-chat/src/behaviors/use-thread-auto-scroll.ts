@@ -104,6 +104,26 @@ export function useThreadAutoScroll(
     handleScroll()
   }
 
+  const movesViewport = (mutation: MutationRecord, div: HTMLElement): boolean => {
+    const nodes = [...mutation.addedNodes, ...mutation.removedNodes]
+    return nodes.some((node) => node === div || node.contains(div))
+  }
+
+  const viewportMoved = (mutations: MutationRecord[], div: HTMLElement): boolean =>
+    div.isConnected && mutations.some((mutation) => movesViewport(mutation, div))
+
+  const reassertScroll = (div: HTMLElement) => {
+    if (div.scrollTop !== last.scrollTop) div.scrollTop = last.scrollTop
+    if (holding()) return
+    if (opts.autoScroll() && isAtBottom()) scrollToBottom('instant')
+  }
+
+  const restoreAfterReinsert = (mutations: MutationRecord[]) => {
+    const div = viewport()
+    if (!div || !viewportMoved(mutations, div)) return
+    reassertScroll(div)
+  }
+
   createEffect(() => {
     const div = viewport()
     if (!div) return
@@ -121,12 +141,15 @@ export function useThreadAutoScroll(
     })
     resizeObserver.observe(div)
     mutationObserver.observe(div, {childList: true, subtree: true, attributes: true, characterData: true})
+    const hostObserver = new MutationObserver(restoreAfterReinsert)
+    hostObserver.observe(div.getRootNode(), {childList: true, subtree: true})
     handleScroll()
     onCleanup(() => {
       div.removeEventListener('scroll', handleScroll)
       div.removeEventListener('pointerdown', cancelIntent)
       resizeObserver.disconnect()
       mutationObserver.disconnect()
+      hostObserver.disconnect()
     })
   })
 

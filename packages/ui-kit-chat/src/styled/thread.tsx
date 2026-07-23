@@ -17,6 +17,7 @@ import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protoc
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
+import type {ThreadScrollOptions} from '../behaviors/use-thread-scroll.js'
 import {Message} from '../primitives/message/message.js'
 import {useMessage} from '../primitives/message/message-context.js'
 import {groupSegments, type Segment, type Turn} from '../store/grouping.js'
@@ -47,6 +48,8 @@ export type ThreadProps = {
   viewportFooter?: JSX.Element
 
   viewportRef?: (element: HTMLElement) => void
+
+  scroll?: ThreadScrollOptions
 
   overlay?: JSX.Element
 
@@ -250,6 +253,7 @@ export function Thread(props: ThreadProps): JSX.Element {
         class={`flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)] ${props.class ?? ''}`}
       >
         <ThreadPrimitive.Viewport
+          {...(props.scroll ?? {})}
           ref={props.viewportRef}
           class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 relative overflow-y-auto"
           role="log"

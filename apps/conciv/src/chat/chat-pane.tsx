@@ -114,7 +114,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const disconnected = () => chat.connectionStatus() !== 'connected'
 
   let inputEl: HTMLTextAreaElement | undefined
-  let viewportEl: HTMLElement | undefined
   const composerApi = {current: null as ComposerStateApi | null}
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId: props.sessionId}}))
@@ -277,7 +276,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
         selectionStart: inputEl?.selectionStart ?? 0,
         selectionEnd: inputEl?.selectionEnd ?? 0,
         focused: isInputFocused(),
-        scrollTop: viewportEl?.scrollTop ?? null,
       }),
     {wait: 150},
   )
@@ -295,7 +293,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     }
     const snapshot = readPaneSnapshot(props.sessionId)
     requestAnimationFrame(() => {
-      if (snapshot?.scrollTop != null && viewportEl) viewportEl.scrollTop = snapshot.scrollTop
       if (!inputEl) return
       if (row) inputEl.setSelectionRange(row.selectionStart, row.selectionEnd)
       if (snapshot?.focused ?? true) inputEl.focus()
@@ -319,9 +316,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     }
     const inputEvents: string[] = ['input', 'select', 'keyup', 'click', 'focus', 'blur']
     const target = inputEl
-    const viewport = viewportEl
     if (target) for (const event of inputEvents) target.addEventListener(event, schedule)
-    if (viewport) viewport.addEventListener('scroll', () => persistSnapshot.maybeExecute())
     const onPageHide = () => persistSnapshot.flush()
     window.addEventListener('pagehide', onPageHide)
     onCleanup(() => {
@@ -402,9 +397,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                   attachmentCards={attachments().cards}
                   components={{ToolFallback: ToolFallbackCard}}
                   turnPrefix={renderTurnPrefix}
-                  viewportRef={(el) => {
-                    viewportEl = el
-                  }}
+                  scroll={{scrollToBottomOnInitialize: true, scrollToBottomOnThreadSwitch: true}}
                   viewportFooter={
                     <>
                       <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
