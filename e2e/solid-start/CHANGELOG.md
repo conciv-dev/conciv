@@ -1,5 +1,12 @@
 # conciv-e2e-solid-start
 
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
+  - @conciv/it@0.0.16
+
 ## 0.0.7
 
 ### Patch Changes

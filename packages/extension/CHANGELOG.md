@@ -1,5 +1,19 @@
 # @conciv/extension
 
+## 0.0.16
+
+### Patch Changes
+
+- [#126](https://github.com/conciv-dev/conciv/pull/126) [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b) Thanks [@omridevk](https://github.com/omridevk)! - Extensions can declare typed, zod-validated browser `pageVerbs` in `.client(...)` and invoke them from `.server(...)` via a scoped, fully-typed `server.page.call(verb, args)`. Every failure path rejects with a typed `PageVerbError` (`no-widget` | `unknown-verb` | `invalid-args` | `handler-error` | `timeout`). Core gains one generic `ext` page-query kind; no framework-specific code.
+
+  Supporting plumbing lands in sibling packages: `@conciv/page` exports the extension page-verb registry (`registerExtensionPageVerbs`/`unregisterExtensionPageVerbs`/`clearExtensionPageVerbs`/`bindExtensionPageVerbs`), the `rootFibers` React-tree walker, and the `dehydrate` serializer (depth/size caps plus secret-key redaction) that every browser verb runs untrusted values through. `@conciv/plugin` exports `makeViteBridge` (from `@conciv/plugin/vite`), a `BundlerBridge` whose `subscribe` emits the generic build/HMR/request-trace diagnostic stream that server-side inspection tools consume.
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
+  - @conciv/protocol@0.0.16
+  - @conciv/contract@0.0.16
+  - @conciv/grab@0.0.16
+  - @conciv/ui-kit-system@0.0.16
+
 ## 0.0.15
 
 ### Patch Changes

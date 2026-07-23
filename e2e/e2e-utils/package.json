@@ -1,6 +1,6 @@
 {
   "name": "@conciv/e2e-utils",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "private": true,
   "description": "Shared helpers for the repo-wide e2e apps: playwright config factory, widget boot assertions, port registry.",
   "type": "module",
