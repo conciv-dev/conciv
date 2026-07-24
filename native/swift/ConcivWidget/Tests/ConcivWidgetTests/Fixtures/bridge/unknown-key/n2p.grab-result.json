@@ -1,0 +1,52 @@
+{
+  "v": 1,
+  "seq": 5,
+  "type": "grabResult",
+  "requestId": "req-1",
+  "grab": {
+    "text": "Payroll Deposit · Acme Corp · Today · +$3,120.00",
+    "preview": {
+      "kind": "image",
+      "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+      "width": 361,
+      "height": 72
+    },
+    "rect": {
+      "x": 16,
+      "y": 232,
+      "width": 361,
+      "height": 72
+    },
+    "source": {
+      "componentName": "PaymentCardCell",
+      "filePath": "",
+      "lineNumber": null
+    },
+    "subtree": {
+      "class": "PaymentCardCell",
+      "a11yId": "PaymentsScreen/payrollRow",
+      "text": "Payroll Deposit",
+      "rect": {
+        "x": 16,
+        "y": 232,
+        "width": 361,
+        "height": 72
+      },
+      "children": [
+        {
+          "class": "UILabel",
+          "a11yId": null,
+          "text": "Payroll Deposit",
+          "rect": {
+            "x": 28,
+            "y": 240,
+            "width": 180,
+            "height": 20
+          },
+          "children": []
+        }
+      ]
+    }
+  },
+  "durationMs": 12
+}

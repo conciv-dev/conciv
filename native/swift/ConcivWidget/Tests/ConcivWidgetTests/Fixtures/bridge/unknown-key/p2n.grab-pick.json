@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "type": "grab.pick",
+  "requestId": "req-1",
+  "mode": "comment",
+  "origin": "fab"
+}
