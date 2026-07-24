@@ -187,7 +187,7 @@ export async function runBuild(ctx: IosToolContext, input: {clean?: boolean}): P
 
 type SimDevice = {udid?: string; name?: string; state?: string}
 
-export async function resolveUdid(ctx: IosToolContext, config: IosConfig): Promise<string | null> {
+async function resolveUdid(ctx: IosToolContext, config: IosConfig): Promise<string | null> {
   const listed = await ctx.runner.run('xcrun', ['simctl', 'list', '-j', 'devices'], {env: developerEnv(config)})
   if (listed.code !== 0) return null
   let parsed: unknown

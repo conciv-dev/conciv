@@ -56,3 +56,32 @@ Same-core port drift self-heals without relaunch: when the current base stops
 responding, the SDK re-discovers and, if the pairing-file `pid` is unchanged (the same
 core process), re-sends the handshake so the page rebinds in place. A different `pid`
 is a fresh mount at the new origin.
+
+## Manual verification protocol
+
+There is no macOS simulator lane in CI (slow, flaky, expensive), so this written
+protocol is the v1 acceptance gate for the native path. Run it on a Mac with Xcode,
+capturing a screenshot at each step as the evidence bundle (the spike stored
+`last-pick.jpg`/`.json`; keep that debug-evidence habit behind an env flag, never in
+shipped source).
+
+1. `pnpm turbo run build --filter=@conciv/embed` (fresh bundle).
+2. Start the dev core on the pinned port for a native project (or the spike demo app in
+   `swiftc` mode).
+3. From the agent panel, run `ios.build` then `ios.run`; confirm no bash approval
+   prompts, the app boots in the sim, and the transparent overlay plus FAB appear over
+   the native screen.
+4. Tap a native control with the panel closed; it responds (hitTest passthrough).
+5. Tap the FAB; the panel opens (single open, no flicker or retry). Tap grab, pick a
+   native view, and confirm the staged image preview, text, and class appear in the
+   composer.
+6. Ask the agent about the grabbed view; it uses the subtree folded into `grab.text`
+   plus `source` and grep to locate the Swift and can act. Run `ios.screenshot` (returns
+   an `imageResult` image) to verify a change after `ios.build`/`ios.run`. There is no
+   `ios.viewHierarchy` tool in v1.
+7. Restart the **same** core on a new port; confirm re-handshake re-binds without
+   relaunching the app, with nav and session preserved (same-core drift). Point the SDK
+   at a **different** core; confirm it fresh-mounts (no stale nav or session). Kill the
+   WebView content process; confirm reload then fresh handshake with no blank overlay.
+8. On a real device: type in the composer; the keyboard raises without covering it and
+   the safe-area insets are correct.

@@ -2,7 +2,7 @@ import {z} from 'zod'
 
 export {IOS_NAME} from './name.js'
 
-export const DEFAULT_SIMULATOR = 'iPhone 17 Pro'
+const DEFAULT_SIMULATOR = 'iPhone 17 Pro'
 export const DEFAULT_DEVELOPER_DIR = '/Applications/Xcode.app/Contents/Developer'
 
 const FullIosConfigSchema = z.object({
