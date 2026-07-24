@@ -12,6 +12,7 @@ const FullIosConfigSchema = z.object({
   simulator: z.string().default(DEFAULT_SIMULATOR),
   developerDir: z.string().optional(),
   buildMode: z.enum(['xcodebuild', 'swiftc']).default('xcodebuild'),
+  concivUrl: z.string().url().optional(),
 })
 
 function emptyToUndefined(raw: unknown): unknown {

@@ -47,5 +47,5 @@ export default defineExtension({
   tools: [buildTool, runTool, screenshotTool, logsTool],
   systemPrompt: IOS_SYSTEM_PROMPT,
 }).server((server) => ({
-  context: {config: server.config, runner: makeExecRunner(), cwd: server.cwd, concivUrl: process.env.CONCIV_URL},
+  context: {config: server.config, runner: makeExecRunner(), cwd: server.cwd, nativeUrl: server.nativeUrl},
 }))

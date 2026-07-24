@@ -93,6 +93,7 @@ export async function startTerminalServer(harness: ServerHarness = bashHarness):
     stateDir: concivStateDir(process.cwd()),
     sessions,
     harness,
+    nativeUrl: () => undefined,
   }
   const result = await terminalExtension.__server?.(api)
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')

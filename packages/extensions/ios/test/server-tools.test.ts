@@ -158,15 +158,20 @@ describe('parseXcodebuildAppPath', () => {
   })
 })
 
+function launchScenario(): {root: string; runner: SimctlRunner; calls: Call[]} {
+  const root = tempSwiftProject()
+  const {runner, calls} = fakeRunner([
+    {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
+    {when: (call) => has(call, 'launch'), reply: {stdout: 'dev.conciv.pay: 4210'}},
+  ])
+  return {root, runner, calls}
+}
+
 describe('ios.run', () => {
   it('resolves the booted udid, drives boot/install/terminate/launch, and passes SIMCTL_CHILD env', async () => {
-    const root = tempSwiftProject()
-    const {runner, calls} = fakeRunner([
-      {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
-      {when: (call) => has(call, 'launch'), reply: {stdout: 'dev.conciv.pay: 4210'}},
-    ])
+    const {root, runner, calls} = launchScenario()
     const result = await runRun(
-      {config: swiftcConfig(root), runner, cwd: root, concivUrl: 'http://127.0.0.1:8891/native'},
+      {config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => 'http://127.0.0.1:8891/native'},
       {autoshow: true},
     )
     if ('error' in result) throw new Error('unexpected not-configured')
@@ -185,13 +190,31 @@ describe('ios.run', () => {
     expect(launch?.opts?.env?.SIMCTL_CHILD_CONCIV_AUTOSHOW).toBe('1')
   })
 
+  it('prefers an explicit config concivUrl override over the core native url', async () => {
+    const {root, runner, calls} = launchScenario()
+    await runRun(
+      {
+        config: swiftcConfig(root, {concivUrl: 'http://127.0.0.1:4599/native'}),
+        runner,
+        cwd: root,
+        nativeUrl: () => 'http://127.0.0.1:8891/native',
+      },
+      {},
+    )
+    const launch = calls.find((call) => has(call, 'launch'))
+    expect(launch?.opts?.env?.SIMCTL_CHILD_CONCIV_URL).toBe('http://127.0.0.1:4599/native')
+  })
+
+  it('omits the conciv url env when neither a config override nor a core native url resolves', async () => {
+    const {root, runner, calls} = launchScenario()
+    await runRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => undefined}, {})
+    const launch = calls.find((call) => has(call, 'launch'))
+    expect(launch?.opts?.env?.SIMCTL_CHILD_CONCIV_URL).toBeUndefined()
+  })
+
   it('omits the autoshow env when not requested', async () => {
-    const root = tempSwiftProject()
-    const {runner, calls} = fakeRunner([
-      {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
-      {when: (call) => has(call, 'launch'), reply: {stdout: 'dev.conciv.pay: 4210'}},
-    ])
-    await runRun({config: swiftcConfig(root), runner, cwd: root, concivUrl: 'http://core'}, {})
+    const {root, runner, calls} = launchScenario()
+    await runRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => 'http://core'}, {})
     const launch = calls.find((call) => has(call, 'launch'))
     expect(launch?.opts?.env?.SIMCTL_CHILD_CONCIV_AUTOSHOW).toBeUndefined()
   })

@@ -36,24 +36,30 @@ final class OverlayController: NSObject {
   let webView: WKWebView
   private let fab = UIButton(type: .system)
   private let bridge: BridgeHandler
-  private let apiBase: URL
   private let pageUrl: URL
-  private let apiBaseOrigin: String
-  private let token: String?
+  private var apiBaseOrigin: String
+  private var token: String?
   private weak var hostWindow: UIWindow?
+
+  private(set) var endpoint: ConcivEndpoint
+  // Fired when the current base is unrecoverable from inside this controller (a stale
+  // token surfaced through the re-pair prompt). The owner re-discovers and decides
+  // rebind (same core) vs fresh mount (different core).
+  var onEndpointLost: (() -> Void)?
 
   private var launcher: ConcivLauncher = .native
   private var panelOpen = false
   private var pickOverlay: PickOverlayView?
   private var pickRequestId: String?
   private var highlight: UIView?
+  private var repairPrompt: UIView?
 
-  init(hostWindow: UIWindow, apiBase: URL, token: String?, launcher: ConcivLauncher) {
+  init(hostWindow: UIWindow, endpoint: ConcivEndpoint, launcher: ConcivLauncher) {
     self.hostWindow = hostWindow
-    self.apiBase = apiBase
-    self.pageUrl = apiBase.appendingPathComponent("native")
-    self.apiBaseOrigin = OverlayController.originString(apiBase)
-    self.token = token
+    self.endpoint = endpoint
+    self.pageUrl = ConcivDiscovery.pageURL(for: endpoint.apiBase)
+    self.apiBaseOrigin = ConcivDiscovery.origin(of: endpoint.apiBase)
+    self.token = endpoint.token
     self.launcher = launcher
 
     let configuration = WKWebViewConfiguration()
@@ -76,7 +82,7 @@ final class OverlayController: NSObject {
     if #available(iOS 16.4, *) { webView.isInspectable = true }
     #endif
 
-    bridge = BridgeHandler(webView: webView, coreOrigin: apiBase)
+    bridge = BridgeHandler(webView: webView, coreOrigin: endpoint.apiBase)
     super.init()
 
     container.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -90,16 +96,22 @@ final class OverlayController: NSObject {
     webView.load(URLRequest(url: pageUrl))
   }
 
-  private static func originString(_ url: URL) -> String {
-    guard let scheme = url.scheme, let host = url.host else { return url.absoluteString }
-    if let port = url.port { return "\(scheme)://\(host):\(port)" }
-    return "\(scheme)://\(host)"
-  }
-
   func detach() {
     bridge.detach()
     NotificationCenter.default.removeObserver(self)
     container.removeFromSuperview()
+  }
+
+  // Same-core port drift (06 D8): keep the live document, re-point its data plane by
+  // re-sending the handshake with the new origin. The origin pin is unchanged because
+  // the loaded document is still same-origin; only a different core (fresh mount)
+  // rebuilds this controller with a new pin.
+  func rebind(to endpoint: ConcivEndpoint) {
+    self.endpoint = endpoint
+    self.apiBaseOrigin = ConcivDiscovery.origin(of: endpoint.apiBase)
+    self.token = endpoint.token
+    hideRepairPrompt()
+    bridge.sendHandshake(apiBase: apiBaseOrigin, token: token)
   }
 
   // MARK: FAB (launcher: native)
@@ -141,6 +153,63 @@ final class OverlayController: NSObject {
     bridge.onGrabCancel = { [weak self] cancel in self?.cancelPick(cancel.requestId) }
     bridge.onPanelToggled = { [weak self] toggled in self?.handlePanelToggled(toggled) }
     bridge.onCrashRecovery = { [weak self] in self?.resolvePick(requestId: self?.pickRequestId, grab: nil) }
+    bridge.onStaleToken = { [weak self] in self?.showRepairPrompt() }
+  }
+
+  // MARK: re-pair prompt (SDK-owned, 06 D13)
+
+  // A stale token (401/404) means the paired core moved to a new /t/<newtoken> mount.
+  // There is no silent refresh, so surface a visible prompt; tapping it re-discovers.
+  private func showRepairPrompt() {
+    guard repairPrompt == nil else { return }
+    let banner = UIView(frame: repairPromptFrame())
+    banner.autoresizingMask = [.flexibleWidth, .flexibleBottomMargin]
+    banner.backgroundColor = UIColor(red: 0.50, green: 0.11, blue: 0.11, alpha: 1)
+
+    let label = UILabel()
+    label.text = "conciv lost the dev core. Tap to re-pair."
+    label.textColor = .white
+    label.font = .systemFont(ofSize: 14, weight: .medium)
+    label.numberOfLines = 0
+
+    let button = UIButton(type: .system)
+    button.setTitle("Re-pair", for: .normal)
+    button.setTitleColor(.white, for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+    button.addTarget(self, action: #selector(repairTapped), for: .touchUpInside)
+
+    let stack = UIStackView(arrangedSubviews: [label, button])
+    stack.axis = .horizontal
+    stack.alignment = .center
+    stack.spacing = 12
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    banner.addSubview(stack)
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: banner.leadingAnchor, constant: 16),
+      stack.trailingAnchor.constraint(equalTo: banner.trailingAnchor, constant: -16),
+      stack.centerYAnchor.constraint(equalTo: banner.centerYAnchor),
+    ])
+
+    container.addSubview(banner)
+    container.panelOpen = true
+    repairPrompt = banner
+  }
+
+  private func hideRepairPrompt() {
+    repairPrompt?.removeFromSuperview()
+    repairPrompt = nil
+    container.panelOpen = panelOpen
+  }
+
+  private func repairPromptFrame() -> CGRect {
+    let height: CGFloat = 64
+    let top = container.safeAreaInsets.top
+    return CGRect(x: 0, y: top, width: container.bounds.width, height: height)
+  }
+
+  @objc private func repairTapped() {
+    hideRepairPrompt()
+    onEndpointLost?()
   }
 
   private func handleHello(_ hello: HandshakeHello) {

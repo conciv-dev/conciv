@@ -10,7 +10,7 @@ export type IosToolContext = {
   config: IosConfig | undefined
   runner: SimctlRunner
   cwd: string
-  concivUrl?: string
+  nativeUrl?: () => string | undefined
 }
 
 export type NotConfigured = {ok: false; error: string}
@@ -212,9 +212,14 @@ async function resolveAppPath(ctx: IosToolContext, config: IosConfig): Promise<s
   return resolveXcodebuildAppPath(ctx, config)
 }
 
+function resolveConcivUrl(config: IosConfig, ctx: IosToolContext): string | undefined {
+  return config.concivUrl ?? ctx.nativeUrl?.()
+}
+
 function launchEnv(config: IosConfig, ctx: IosToolContext, autoshow: boolean): Record<string, string> {
   const env: Record<string, string> = {...developerEnv(config)}
-  if (ctx.concivUrl) env.SIMCTL_CHILD_CONCIV_URL = ctx.concivUrl
+  const concivUrl = resolveConcivUrl(config, ctx)
+  if (concivUrl) env.SIMCTL_CHILD_CONCIV_URL = concivUrl
   if (autoshow) env.SIMCTL_CHILD_CONCIV_AUTOSHOW = '1'
   return env
 }

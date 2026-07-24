@@ -75,6 +75,7 @@ export type ServerApi<Config> = {
   stateDir: string
   sessions: ServerSessions
   harness: ServerHarness
+  nativeUrl: () => string | undefined
 }
 
 export type ServerResult<Context> = {

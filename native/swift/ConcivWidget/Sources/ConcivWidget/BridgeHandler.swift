@@ -89,6 +89,7 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
   var onPanelToggled: ((HostPanelToggled) -> Void)?
   var onLog: ((HostLog) -> Void)?
   var onCrashRecovery: (() -> Void)?
+  var onStaleToken: (() -> Void)?
 
   init(webView: WKWebView, coreOrigin: URL) {
     self.webView = webView
@@ -257,6 +258,20 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
       return
     }
     decisionHandler(originMatches(url: url) ? .allow : .cancel)
+  }
+
+  // A 401/404 on the token-scoped native page = stale token (the core restarted onto
+  // a fresh /t/<newtoken> mount, 06 D13). The status never carries the token, so this
+  // path logs nothing.
+  func webView(
+    _ webView: WKWebView,
+    decidePolicyFor navigationResponse: WKNavigationResponse,
+    decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+  ) {
+    if let http = navigationResponse.response as? HTTPURLResponse, ConcivDiscovery.isStaleToken(status: http.statusCode) {
+      onStaleToken?()
+    }
+    decisionHandler(.allow)
   }
 
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {

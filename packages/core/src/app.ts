@@ -67,6 +67,8 @@ export type MakeAppOpts = {
   firstChunkTimeoutMs?: number
 
   nativePageDir?: string
+
+  nativeUrl?: () => string | undefined
 }
 
 export function slug(name: string): string {
@@ -192,6 +194,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const seenTools = new Set<string>()
   const seenNames = new Set<string>()
+  const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
   const mounted = await Promise.all(
     (opts.extensions ?? []).map(async (extension) => {
       if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
@@ -202,6 +205,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         cwd: opts.cwd,
         sessions: serverSessions,
         harness: serverHarness,
+        nativeUrl,
       })
       const context = result?.context
       return {
