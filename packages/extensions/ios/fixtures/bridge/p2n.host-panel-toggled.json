@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "type": "host.panelToggled",
+  "open": true,
+  "connected": true,
+  "mascotRect": {
+    "x": 300,
+    "y": 640,
+    "width": 64,
+    "height": 64
+  }
+}

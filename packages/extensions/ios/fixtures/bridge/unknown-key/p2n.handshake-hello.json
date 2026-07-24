@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "type": "handshake.hello",
+  "minV": 1,
+  "maxV": 1,
+  "clientId": "client-abc",
+  "bundleReady": true,
+  "platform": "ios"
+}

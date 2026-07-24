@@ -80,6 +80,7 @@
     "@conciv/core",
     "@conciv/embed",
     "@conciv/extension",
+    "@conciv/extension-ios",
     "@conciv/extension-test-runner",
     "@conciv/extension-whiteboard",
     "@conciv/grab",
