@@ -64,6 +64,18 @@ final class DiscoveryTests: XCTestCase {
     XCTAssertFalse(ConcivDiscovery.isSameCore(previous: a, discovered: probed))
   }
 
+  func testPageUrlAppendsNativeOnceToATokenlessBase() {
+    let apiBase = url("http://127.0.0.1:8891")
+    XCTAssertEqual(ConcivDiscovery.pageURL(for: apiBase), url("http://127.0.0.1:8891/native"))
+  }
+
+  func testShouldAutoShowOnlyWhenEnvFlagIsExactlyOne() {
+    XCTAssertTrue(ConcivDiscovery.shouldAutoShow(environment: ["CONCIV_AUTOSHOW": "1"]))
+    XCTAssertFalse(ConcivDiscovery.shouldAutoShow(environment: ["CONCIV_AUTOSHOW": "0"]))
+    XCTAssertFalse(ConcivDiscovery.shouldAutoShow(environment: ["CONCIV_AUTOSHOW": "true"]))
+    XCTAssertFalse(ConcivDiscovery.shouldAutoShow(environment: [:]))
+  }
+
   func testDefaultPairingFileUsesSimulatorHostHomeWhenPresent() {
     let simUrl = ConcivDiscovery.defaultPairingFileURL(environment: ["SIMULATOR_HOST_HOME": "/Users/dev"])
     XCTAssertEqual(simUrl, URL(fileURLWithPath: "/Users/dev/.conciv/dev-endpoint.json"))

@@ -50,7 +50,7 @@ export type BridgeClient = {
 }
 
 const DEFAULT_READY_INTERVAL_MS = 300
-const DEFAULT_PICK_TIMEOUT_MS = 60_000
+const DEFAULT_PICK_TIMEOUT_MS = 10_000
 const SUBTREE_MAX_DEPTH = 3
 const SUBTREE_MAX_NODES = 40
 
@@ -87,11 +87,16 @@ function neutralGrabToGrab(neutral: NeutralGrab): Grab {
 type PendingPick = {
   requestId: string
   resolve: (grab: Grab | null) => void
+  reject: (error: Error) => void
   timeout: number
 }
 
 function trimBase(base: string): string {
   return base.endsWith('/') ? base.slice(0, -1) : base
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
 export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
@@ -146,19 +151,27 @@ export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
     stopReadyLoopIfSettled()
   }
 
-  function resolvePending(grab: Grab | null): void {
+  function settlePending(settle: (pick: PendingPick) => void): void {
     if (pending === null) return
     config.scheduler.clearTimeout(pending.timeout)
-    const resolve = pending.resolve
+    const current = pending
     pending = null
-    resolve(grab)
+    settle(current)
+  }
+
+  function resolvePending(grab: Grab | null): void {
+    settlePending((pick) => pick.resolve(grab))
+  }
+
+  function rejectPending(error: Error): void {
+    settlePending((pick) => pick.reject(error))
   }
 
   function onPickTimeout(requestId: string): void {
     if (pending === null || pending.requestId !== requestId) return
     log('warn', `grab pick ${requestId} timed out`)
     post({v: agreedVersion, type: 'grab.cancel', requestId})
-    resolvePending(null)
+    rejectPending(new Error(`grab pick ${requestId} timed out`))
   }
 
   function handleHandshake(message: NativeToPageMessage & {type: 'handshake'}): void {
@@ -177,7 +190,11 @@ export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
       log('warn', `dropping stale grabResult for ${message.requestId}`)
       return
     }
-    resolvePending(message.grab === null ? null : neutralGrabToGrab(message.grab))
+    if (message.grab === null) {
+      if (message.reason === 'cancelled') return resolvePending(null)
+      return rejectPending(new Error(`grab pick ${message.requestId} failed`))
+    }
+    resolvePending(neutralGrabToGrab(message.grab))
   }
 
   function dispatch(message: NativeToPageMessage): void {
@@ -191,11 +208,20 @@ export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
     grabbableState = message.grabbable
   }
 
+  function looksLikeGrabResultForPending(raw: unknown): boolean {
+    if (pending === null) return false
+    if (!isRecord(raw)) return false
+    return raw.type === 'grabResult' && raw.requestId === pending.requestId
+  }
+
   function handleNativeCall(raw: unknown): void {
     if (disposed) return
     const parsed = NativeToPageSchema.safeParse(raw)
     if (!parsed.success) {
       log('warn', 'dropping unparseable native call')
+      if (looksLikeGrabResultForPending(raw)) {
+        rejectPending(new Error('grab pick failed on an unparseable result'))
+      }
       return
     }
     const message = parsed.data
@@ -217,9 +243,9 @@ export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
     resolvePending(null)
     requestCounter += 1
     const requestId = `${config.clientId}-pick-${requestCounter}`
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const timeout = config.scheduler.setTimeout(() => onPickTimeout(requestId), pickTimeoutMs)
-      pending = {requestId, resolve, timeout}
+      pending = {requestId, resolve, reject, timeout}
       post({v: agreedVersion, type: 'grab.pick', requestId, mode})
     })
   }

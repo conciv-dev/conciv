@@ -7,6 +7,8 @@ export const BRIDGE_MAX_VERSION = 1
 const VersionSchema = z.number().int()
 const SeqSchema = z.number().int()
 
+const nullish = <Schema extends z.ZodType>(schema: Schema) => schema.nullish().transform((value) => value ?? null)
+
 export const RectSchema = z.object({
   x: z.number(),
   y: z.number(),
@@ -15,9 +17,9 @@ export const RectSchema = z.object({
 }) satisfies z.ZodType<ElementRect>
 
 export const SourceSchema = z.object({
-  componentName: z.string().nullable(),
+  componentName: nullish(z.string()),
   filePath: z.string(),
-  lineNumber: z.number().nullable(),
+  lineNumber: nullish(z.number()),
 }) satisfies z.ZodType<ElementSource>
 
 export const GrabImagePreviewSchema = z.object({
@@ -38,8 +40,8 @@ export type ViewNode = {
 export const ViewNodeSchema: z.ZodType<ViewNode> = z.lazy(() =>
   z.object({
     class: z.string(),
-    a11yId: z.string().nullable(),
-    text: z.string().nullable(),
+    a11yId: nullish(z.string()),
+    text: nullish(z.string()),
     rect: RectSchema,
     children: z.array(ViewNodeSchema),
   }),
@@ -48,8 +50,8 @@ export const ViewNodeSchema: z.ZodType<ViewNode> = z.lazy(() =>
 export const NeutralGrabSchema = z.object({
   text: z.string(),
   preview: GrabImagePreviewSchema,
-  rect: RectSchema.nullable(),
-  source: SourceSchema.nullable(),
+  rect: nullish(RectSchema),
+  source: nullish(SourceSchema),
   subtree: ViewNodeSchema.optional(),
 })
 
@@ -59,6 +61,9 @@ export type NeutralGrabAsGrab = Omit<NeutralGrab, 'subtree'>
 
 export const GrabModeSchema = z.enum(['activate', 'comment'])
 export type GrabMode = z.infer<typeof GrabModeSchema>
+
+export const GrabResultReasonSchema = z.enum(['cancelled', 'failed'])
+export type GrabResultReason = z.infer<typeof GrabResultReasonSchema>
 
 export const BridgeReadySchema = z.object({
   v: VersionSchema,
@@ -141,7 +146,8 @@ export const GrabResultSchema = z.object({
   seq: SeqSchema,
   type: z.literal('grabResult'),
   requestId: z.string(),
-  grab: NeutralGrabSchema.nullable(),
+  grab: nullish(NeutralGrabSchema),
+  reason: nullish(GrabResultReasonSchema),
 })
 
 export const GrabCapabilitySchema = z.object({

@@ -77,8 +77,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   }
   const nativeUrl = (): string | undefined => {
     if (!opts.nativePageDir) return undefined
-    const base = tokenScopedBase()
-    return base ? `${base}/native` : undefined
+    return tokenScopedBase()
   }
 
   const appOpts: MakeAppOpts = {

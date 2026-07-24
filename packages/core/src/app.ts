@@ -40,7 +40,7 @@ import {
 } from './chat/run.js'
 import {modelOf, openDb, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
-import {makeNativePageApp} from './api/native-page.js'
+import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makePageBus} from './page-bus.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
@@ -385,7 +385,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     opts.onShutdown,
   )
 
-  if (opts.nativePageDir) app.route('/native', makeNativePageApp(opts.nativePageDir))
+  if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))
 
   mounted.forEach((entry) => {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)

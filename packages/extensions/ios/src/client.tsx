@@ -90,6 +90,7 @@ function ensureBridge(): BridgeClient | null {
     ensureClose: () => dispatch('conciv:close-panel'),
     onRebind: (apiBase) => dispatch('conciv:rebind', {apiBase}),
     onIncompatible: (info) => setIncompatible(info),
+    onLog: (level, message) => console[level]('conciv bridge:', message),
   })
   bridge.start()
   window.addEventListener('conciv:panel-toggled', onPanelToggled)
@@ -102,10 +103,12 @@ export function makeNativeGrabProvider(): GrabProvider {
   const doPick = async (mode: GrabMode) => {
     if (!engine) return null
     active = true
+    dispatch('conciv:close-panel')
     try {
       return await engine.pick(mode)
     } finally {
       active = false
+      dispatch('conciv:open-panel')
     }
   }
   const actions: GrabActions = {

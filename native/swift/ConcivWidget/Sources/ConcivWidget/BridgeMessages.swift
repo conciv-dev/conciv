@@ -101,6 +101,11 @@ public enum GrabMode: String, Codable {
   case comment
 }
 
+public enum GrabResultReason: String, Codable {
+  case cancelled
+  case failed
+}
+
 public enum LogLevel: String, Codable {
   case info
   case warn
@@ -269,13 +274,15 @@ public struct GrabResult: Codable, Equatable {
   public var type: String
   public var requestId: String
   public var grab: NeutralGrab?
+  public var reason: GrabResultReason?
 
-  public init(v: Int, seq: Int, requestId: String, grab: NeutralGrab?, type: String = "grabResult") {
+  public init(v: Int, seq: Int, requestId: String, grab: NeutralGrab?, reason: GrabResultReason? = nil, type: String = "grabResult") {
     self.v = v
     self.seq = seq
     self.type = type
     self.requestId = requestId
     self.grab = grab
+    self.reason = reason
   }
 }
 

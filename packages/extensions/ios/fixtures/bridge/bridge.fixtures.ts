@@ -157,6 +157,22 @@ export const bridgeFixtures: BridgeFixture[] = [
   },
   {
     direction: 'n2p',
+    type: 'grabResult',
+    file: 'n2p.grab-result-cancelled',
+    valid: {v: 1, seq: 5, type: 'grabResult', requestId: 'req-1', reason: 'cancelled'},
+    invalid: {v: 1, seq: 5, type: 'grabResult', requestId: 'req-1', reason: 'bogus'},
+    unknownKey: {v: 1, seq: 5, type: 'grabResult', requestId: 'req-1', reason: 'cancelled', dismissedBy: 'user'},
+  },
+  {
+    direction: 'n2p',
+    type: 'grabResult',
+    file: 'n2p.grab-result-failed',
+    valid: {v: 1, seq: 5, type: 'grabResult', requestId: 'req-1', reason: 'failed'},
+    invalid: {v: 1, seq: 5, type: 'grabResult', requestId: 'req-1', reason: 7},
+    unknownKey: {v: 1, seq: 5, type: 'grabResult', requestId: 'req-1', reason: 'failed', cause: 'noView'},
+  },
+  {
+    direction: 'n2p',
     type: 'grabCapability',
     file: 'n2p.grab-capability',
     valid: {v: 1, seq: 6, type: 'grabCapability', grabbable: true},

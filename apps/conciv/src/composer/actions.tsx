@@ -24,6 +24,7 @@ export function ComposerActions(props: {
   const appData = useAppData()
   const rpc = useRpc()
   const grab = getHostApi().useGrab()
+  const toast = getHostApi().useToast()
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
   const harnessName = () => meta.data?.harness.name ?? 'the harness'
 
@@ -35,6 +36,8 @@ export function ComposerActions(props: {
     try {
       const picked = await grab.pick()
       if (picked) props.onStageGrab(picked)
+    } catch {
+      toast('Couldn’t grab that element. Try again.', 'error')
     } finally {
       setPicking(false)
     }

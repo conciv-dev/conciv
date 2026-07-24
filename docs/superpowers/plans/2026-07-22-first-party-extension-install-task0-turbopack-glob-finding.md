@@ -37,10 +37,10 @@ require an unreleased Next version. This alone blocks the plan as written until 
 Confirmed 16.3-only. Minimal probe (`/tmp/glob-probe`, a node_modules-resident ESM file calling the
 glob), driven with a real Chromium (Playwright, `domcontentloaded`, console capture):
 
-| Next version        | `next build` (Turbopack) | Browser runtime                                                        |
-| ------------------- | ------------------------ | ---------------------------------------------------------------------- |
-| `16.2.10` (GA)      | compiles "successfully"  | **throws**: `__TURBOPACK__import$2e$meta__.glob is not a function`      |
-| `16.3.0-preview.7`  | compiles                 | `import.meta.glob` **is** a function (feature present)                 |
+| Next version       | `next build` (Turbopack) | Browser runtime                                                    |
+| ------------------ | ------------------------ | ------------------------------------------------------------------ |
+| `16.2.10` (GA)     | compiles "successfully"  | **throws**: `__TURBOPACK__import$2e$meta__.glob is not a function` |
+| `16.3.0-preview.7` | compiles                 | `import.meta.glob` **is** a function (feature present)             |
 
 So GA 16.2.x silently compiles the glob to a **broken stub**. The 16.3 requirement is real.
 
@@ -49,18 +49,18 @@ So GA 16.2.x silently compiles the glob to a **broken stub**. The 16.3 requireme
 Probes from a node_modules-resident file (`node_modules/fake-glob/index.js`) and from app source,
 files present at the app root under `globtest/` and `conciv/extensions/`:
 
-| Invocation (from calling file)                                        | Result                                              |
-| --------------------------------------------------------------------- | --------------------------------------------------- |
-| `import.meta.glob('./sib/*.js', {eager:true})` (self-subtree)         | ✅ matched `./sib/a.js`, `./sib/b.js`               |
-| `import.meta.glob('/globtest/*.js', {eager:true})` (leading slash)    | ❌ `[]` (even with `turbopack.root` set)            |
-| `import.meta.glob('/app/*.tsx', {eager:true})` (exists at proj root)  | ❌ `[]` — leading `/` is **not** the project root   |
-| `import.meta.glob('../../conciv/extensions/*', {eager:true})` (`..`)  | ❌ `[]` — parent traversal in the pattern unsupported |
+| Invocation (from calling file)                                        | Result                                                  |
+| --------------------------------------------------------------------- | ------------------------------------------------------- |
+| `import.meta.glob('./sib/*.js', {eager:true})` (self-subtree)         | ✅ matched `./sib/a.js`, `./sib/b.js`                   |
+| `import.meta.glob('/globtest/*.js', {eager:true})` (leading slash)    | ❌ `[]` (even with `turbopack.root` set)                |
+| `import.meta.glob('/app/*.tsx', {eager:true})` (exists at proj root)  | ❌ `[]` — leading `/` is **not** the project root       |
+| `import.meta.glob('../../conciv/extensions/*', {eager:true})` (`..`)  | ❌ `[]` — parent traversal in the pattern unsupported   |
 | `import.meta.glob('*', {base:'/abs/path/globtest', eager:true})`      | ❌ ignored abs base; matched calling dir (`./index.js`) |
-| `import.meta.glob('*', {base:'../../conciv/extensions', eager:true})` | ✅ matched `../../conciv/extensions/tanstack.js`    |
+| `import.meta.glob('*', {base:'../../conciv/extensions', eager:true})` | ✅ matched `../../conciv/extensions/tanstack.js`        |
 
 Consistent with the Turbopack docs (vercel/next.js
-`docs/01-app/03-api-reference/08-turbopack.mdx`): *"keys are file paths **relative to the calling
-file**"*, plus a `base` option "to override the base path" (relative base only; the `as` option and
+`docs/01-app/03-api-reference/08-turbopack.mdx`): _"keys are file paths **relative to the calling
+file**"_, plus a `base` option "to override the base path" (relative base only; the `as` option and
 `import.meta.globEager()` are unsupported).
 
 **Implication.** The only form that reaches the app root from a node_modules file is a **relative
@@ -92,12 +92,12 @@ App wiring mirrors `e2e/nextjs` (`withConciv` in `next.config.ts`, `instrumentat
 `@conciv/it/plugin/nextjs/widget`). Driven with real Chromium; pass signal per the brief is the
 `conciv picked:` console line containing `tanstack`.
 
-| Cell                          | turbopack.root | Result             | Evidence                                                                 |
-| ----------------------------- | -------------- | ------------------ | ------------------------------------------------------------------------ |
-| **app-root × default (MUST)** | inferred       | **FAIL**           | `conciv picked: []` — real engine (`register()`) booted, clean compile, `tanstack.tsx` present at app root yet not discovered |
-| app-root × widened            | set to parent  | **N/A / FAIL**     | Widening `turbopack.root` relocates Next's `[project]` base → instrumentation/app discovery breaks (`Could not parse module '[project]/instrumentation.ts', file not found`); the glob is unaffected and still `[]` by the calling-file rule |
-| nested × default              | inferred       | **FAIL**           | `conciv picked: []` — root inference succeeded (pnpm-workspace.yaml present, no widening needed), glob still empty |
-| **nested × widened (MUST)**   | monorepo root  | **FAIL**           | `conciv picked: []` (app under `packages/app/`, `turbopack.root = path.resolve('../..')`) |
+| Cell                          | turbopack.root | Result         | Evidence                                                                                                                                                                                                                                     |
+| ----------------------------- | -------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **app-root × default (MUST)** | inferred       | **FAIL**       | `conciv picked: []` — real engine (`register()`) booted, clean compile, `tanstack.tsx` present at app root yet not discovered                                                                                                                |
+| app-root × widened            | set to parent  | **N/A / FAIL** | Widening `turbopack.root` relocates Next's `[project]` base → instrumentation/app discovery breaks (`Could not parse module '[project]/instrumentation.ts', file not found`); the glob is unaffected and still `[]` by the calling-file rule |
+| nested × default              | inferred       | **FAIL**       | `conciv picked: []` — root inference succeeded (pnpm-workspace.yaml present, no widening needed), glob still empty                                                                                                                           |
+| **nested × widened (MUST)**   | monorepo root  | **FAIL**       | `conciv picked: []` (app under `packages/app/`, `turbopack.root = path.resolve('../..')`)                                                                                                                                                    |
 
 Additional checks (app-root × default):
 
@@ -142,7 +142,7 @@ published widget" design does not work under Turbopack.
   engine boot and produced `conciv picked: []`. For the widened/nested cells `register()` was stubbed
   to a no-op to isolate the **client** widget module graph from server-side engine-boot noise (the
   brief explicitly permits this: the widget graph `nextjs-widget → extension-compiler/dedupe → embed
-  mountConciv → glob` remained fully real and packed). `withConciv` still supplied
+mountConciv → glob` remained fully real and packed). `withConciv` still supplied
   `NEXT_PUBLIC_CONCIV_PORT`, so the widget executed. The glob result is client-side and independent of
   the engine.
 - **`FAB_COUNT 0`** was observed and **not** used as a pass/fail signal. The gate is glob discovery,

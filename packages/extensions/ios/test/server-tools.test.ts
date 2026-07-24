@@ -171,7 +171,7 @@ describe('ios.run', () => {
   it('resolves the booted udid, drives boot/install/terminate/launch, and passes SIMCTL_CHILD env', async () => {
     const {root, runner, calls} = launchScenario()
     const result = await runRun(
-      {config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => 'http://127.0.0.1:8891/native'},
+      {config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => 'http://127.0.0.1:8891'},
       {autoshow: true},
     )
     if ('error' in result) throw new Error('unexpected not-configured')
@@ -186,23 +186,32 @@ describe('ios.run', () => {
     expect(calls.some((call) => has(call, 'install') && has(call, udid))).toBe(true)
     expect(calls.some((call) => has(call, 'terminate') && has(call, udid))).toBe(true)
     const launch = calls.find((call) => has(call, 'launch'))
-    expect(launch?.opts?.env?.SIMCTL_CHILD_CONCIV_URL).toBe('http://127.0.0.1:8891/native')
+    expect(launch?.opts?.env?.SIMCTL_CHILD_CONCIV_URL).toBe('http://127.0.0.1:8891')
     expect(launch?.opts?.env?.SIMCTL_CHILD_CONCIV_AUTOSHOW).toBe('1')
+  })
+
+  it('exports the api base without the native page path so the swift sdk appends it once', async () => {
+    const {root, runner, calls} = launchScenario()
+    await runRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => 'http://127.0.0.1:8891'}, {})
+    const launch = calls.find((call) => has(call, 'launch'))
+    const url = launch?.opts?.env?.SIMCTL_CHILD_CONCIV_URL
+    expect(url).toBe('http://127.0.0.1:8891')
+    expect(url?.endsWith('/native')).toBe(false)
   })
 
   it('prefers an explicit config concivUrl override over the core native url', async () => {
     const {root, runner, calls} = launchScenario()
     await runRun(
       {
-        config: swiftcConfig(root, {concivUrl: 'http://127.0.0.1:4599/native'}),
+        config: swiftcConfig(root, {concivUrl: 'http://127.0.0.1:4599'}),
         runner,
         cwd: root,
-        nativeUrl: () => 'http://127.0.0.1:8891/native',
+        nativeUrl: () => 'http://127.0.0.1:8891',
       },
       {},
     )
     const launch = calls.find((call) => has(call, 'launch'))
-    expect(launch?.opts?.env?.SIMCTL_CHILD_CONCIV_URL).toBe('http://127.0.0.1:4599/native')
+    expect(launch?.opts?.env?.SIMCTL_CHILD_CONCIV_URL).toBe('http://127.0.0.1:4599')
   })
 
   it('omits the conciv url env when neither a config override nor a core native url resolves', async () => {

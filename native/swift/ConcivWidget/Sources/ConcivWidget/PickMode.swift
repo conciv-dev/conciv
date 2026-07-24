@@ -128,6 +128,17 @@ func pickNeutralGrab(fromAnchor anchor: ConcivAnchorRegistry.Anchor, registry: C
   )
 }
 
+// The selection-mode pill sits on the pick overlay. It swallows its own touches so a tap
+// on the pill body never falls through the responder chain to the overlay's onSelect and
+// picks the element underneath; its close button, a subview, still receives touches via
+// hit-testing and drives cancel.
+final class PickBannerView: UIView {
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {}
+  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {}
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {}
+  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {}
+}
+
 final class PickOverlayView: UIView {
   var onMove: ((CGPoint) -> Void)?
   var onSelect: ((CGPoint) -> Void)?

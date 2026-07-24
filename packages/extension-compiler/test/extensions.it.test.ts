@@ -27,9 +27,7 @@ describe('generic extension wiring', () => {
 
   it('imports dedupe from the bare specifier when no resolved entry is threaded', () => {
     const source = extensionsModuleSource(['/abs/a/client.js'])
-    expect(source).toContain(
-      'import {dedupeExtensions, toSortedEntries} from "@conciv/extension-compiler/dedupe"',
-    )
+    expect(source).toContain('import {dedupeExtensions, toSortedEntries} from "@conciv/extension-compiler/dedupe"')
   })
 
   it('imports dedupe from the resolved absolute entry so consumer apps resolve it in dist mode', () => {
@@ -39,9 +37,7 @@ describe('generic extension wiring', () => {
       '/abs/embed/mount.js',
       '/abs/pkg/dist/dedupe-extensions.js',
     )
-    expect(source).toContain(
-      'import {dedupeExtensions, toSortedEntries} from "/abs/pkg/dist/dedupe-extensions.js"',
-    )
+    expect(source).toContain('import {dedupeExtensions, toSortedEntries} from "/abs/pkg/dist/dedupe-extensions.js"')
     expect(source).not.toContain('@conciv/extension-compiler/dedupe')
   })
 })

@@ -168,6 +168,8 @@ function RootChrome(props: {
   const sessions = useQuery(() => ({...data.utils.sessions.list.queryOptions(), enabled: connected()}))
   const working = () => (sessions.data ?? []).some((session) => session.running)
 
+  const [, setOpenIntent] = createSignal(false)
+
   let fabEl: HTMLButtonElement | undefined
 
   const latestSessionId = async (): Promise<string | null> => {
@@ -184,35 +186,65 @@ function RootChrome(props: {
     const rect = fabEl?.getBoundingClientRect()
     return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
   }
-  const dispatchToggled = (open: boolean) =>
+  const reportPanelState = () => {
+    const open = panelOpen()
     window.dispatchEvent(
-      new CustomEvent('conciv:panel-toggled', {detail: {open, connected: connected(), mascotRect: mascotRect()}}),
+      new CustomEvent('conciv:panel-toggled', {
+        detail: {open, connected: connected(), mascotRect: open ? null : mascotRect()},
+      }),
     )
+  }
   const openPanel = async () => {
     if (panelMatch() || connectMatch()) {
+      setOpenIntent(true)
       setShutter(router, true)
-      dispatchToggled(true)
       return
     }
     const sessionId = await latestSessionId()
     if (!sessionId) return
+    setOpenIntent(true)
     void router.navigate({
       to: '/panel/$sessionId',
       params: {sessionId},
       search: {open: true},
       replace: Boolean(quickMatch()),
     })
-    dispatchToggled(true)
   }
   const closePanel = () => {
+    setOpenIntent(false)
     setShutter(router, false)
-    dispatchToggled(false)
     fabEl?.focus()
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
 
+  createEffect(() => {
+    panelOpen()
+    connected()
+    launcherVisible()
+    let lastKey = ''
+    let stableFrames = 0
+    let frame = 0
+    const tick = () => {
+      const rect = mascotRect()
+      const key = panelOpen() ? 'open' : rect ? [rect.x, rect.y, rect.width, rect.height].join(':') : 'none'
+      if (key === lastKey) {
+        stableFrames += 1
+      }
+      if (key !== lastKey) {
+        lastKey = key
+        stableFrames = 0
+        reportPanelState()
+      }
+      if (stableFrames < 6) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    onCleanup(() => cancelAnimationFrame(frame))
+  })
+
   onMount(() => {
     if (settings.defaultOpen && closedMatch()) void openPanel()
+    window.addEventListener('resize', reportPanelState)
+    onCleanup(() => window.removeEventListener('resize', reportPanelState))
     const openFromHost = () => void openPanel()
     const closeFromHost = () => {
       if (panelOpen()) closePanel()

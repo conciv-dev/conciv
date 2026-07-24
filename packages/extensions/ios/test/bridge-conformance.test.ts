@@ -3,7 +3,12 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it} from 'vitest'
 import type {Grab} from '@conciv/grab'
-import {BridgeMessageSchema, bridgeMessageSchemasByType, type NeutralGrabAsGrab} from '../src/shared/bridge.js'
+import {
+  BridgeMessageSchema,
+  bridgeMessageSchemasByType,
+  NativeToPageSchema,
+  type NeutralGrabAsGrab,
+} from '../src/shared/bridge.js'
 import {bridgeFixtures} from '../fixtures/bridge/bridge.fixtures.js'
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'bridge')
@@ -107,6 +112,45 @@ describe('committed JSON matches the fixture table', () => {
     expect(valid).toEqual(fixture.valid)
     expect(invalid).toEqual(fixture.invalid)
     expect(unknownKey).toEqual(fixture.unknownKey)
+  })
+})
+
+describe('tolerates the swift encoder omitting nil optional keys', () => {
+  const preview = {kind: 'image', dataUrl: 'data:image/jpeg;base64,AA==', width: 10, height: 10}
+
+  it('normalizes absent grab keys to null on a successful pick', () => {
+    const result = NativeToPageSchema.safeParse({
+      v: 1,
+      seq: 5,
+      type: 'grabResult',
+      requestId: 'req-1',
+      grab: {
+        text: 'Payroll Deposit',
+        preview,
+        source: {componentName: 'UILabel', filePath: ''},
+        subtree: {class: 'UILabel', rect: {x: 0, y: 0, width: 10, height: 10}, children: []},
+      },
+    })
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    if (result.data.type !== 'grabResult' || result.data.grab === null) throw new Error('expected a grab')
+    expect(result.data.grab.rect).toBeNull()
+    expect(result.data.grab.source).toEqual({componentName: 'UILabel', filePath: '', lineNumber: null})
+    expect(result.data.grab.subtree).toEqual({
+      class: 'UILabel',
+      a11yId: null,
+      text: null,
+      rect: {x: 0, y: 0, width: 10, height: 10},
+      children: [],
+    })
+  })
+
+  it('accepts a grabResult with no grab key and yields null', () => {
+    const result = NativeToPageSchema.safeParse({v: 1, seq: 5, type: 'grabResult', requestId: 'req-1'})
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    if (result.data.type !== 'grabResult') throw new Error('expected grabResult')
+    expect(result.data.grab).toBeNull()
   })
 })
 

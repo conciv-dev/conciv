@@ -9,9 +9,13 @@ declare global {
 
 const root = document.querySelector<HTMLElement>('[data-conciv-native-root]') ?? document.body
 
+function readLauncher(search: string): 'native' | 'mascot' {
+  return new URLSearchParams(search).get('launcher') === 'mascot' ? 'mascot' : 'native'
+}
+
 const handle = createConciv({
   extensions: [iosClient],
-  settings: {launcher: 'native'},
+  settings: {launcher: readLauncher(window.location.search)},
   apiBase: nativePageBase(window.location),
   grabProvider: makeNativeGrabProvider(),
 })

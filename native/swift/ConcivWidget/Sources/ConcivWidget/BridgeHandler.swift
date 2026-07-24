@@ -126,8 +126,8 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     enqueue(.close(Close(v: bridgeMaxVersion, seq: takeSeq())))
   }
 
-  func sendGrabResult(requestId: String, grab: NeutralGrab?) {
-    enqueue(.grabResult(GrabResult(v: bridgeMaxVersion, seq: takeSeq(), requestId: requestId, grab: grab)))
+  func sendGrabResult(requestId: String, grab: NeutralGrab?, reason: GrabResultReason?) {
+    enqueue(.grabResult(GrabResult(v: bridgeMaxVersion, seq: takeSeq(), requestId: requestId, grab: grab, reason: reason)))
   }
 
   func sendGrabCapability(_ grabbable: Bool) {

@@ -159,6 +159,13 @@ describe('bridge client grab pick engine', () => {
     return message.requestId
   }
 
+  function activatePick() {
+    const {wire, client} = setup()
+    client.start()
+    const pending = client.pick('activate')
+    return {wire, pending, currentId: pickRequestId(wire.posted, 0)}
+  }
+
   it('resolves the prior pick with null when a new pick supersedes it', async () => {
     const {wire, client} = setup()
     client.start()
@@ -176,15 +183,30 @@ describe('bridge client grab pick engine', () => {
     const pending = client.pick('activate')
     wire.emit({v: 1, seq: 1, type: 'grabResult', requestId: 'stale-id', grab: imageGrab})
     const currentId = pickRequestId(wire.posted, 0)
-    wire.emit({v: 1, seq: 2, type: 'grabResult', requestId: currentId, grab: null})
+    wire.emit({v: 1, seq: 2, type: 'grabResult', requestId: currentId, grab: null, reason: 'cancelled'})
     await expect(pending).resolves.toBeNull()
   })
 
+  it('resolves null for a grabResult carrying reason cancelled', async () => {
+    const {wire, pending, currentId} = activatePick()
+    wire.emit({v: 1, seq: 1, type: 'grabResult', requestId: currentId, grab: null, reason: 'cancelled'})
+    await expect(pending).resolves.toBeNull()
+  })
+
+  it('rejects a grabResult with a null grab and no reason', async () => {
+    const {wire, pending, currentId} = activatePick()
+    wire.emit({v: 1, seq: 1, type: 'grabResult', requestId: currentId, grab: null})
+    await expect(pending).rejects.toThrow()
+  })
+
+  it('rejects immediately when an unparseable grabResult targets the pending pick', async () => {
+    const {wire, pending, currentId} = activatePick()
+    wire.emit({type: 'grabResult', requestId: currentId, grab: {bogus: true}})
+    await expect(pending).rejects.toThrow()
+  })
+
   it('folds a grab subtree into grab.text', async () => {
-    const {wire, client} = setup()
-    client.start()
-    const pending = client.pick('activate')
-    const currentId = pickRequestId(wire.posted, 0)
+    const {wire, pending, currentId} = activatePick()
     const withSubtree = {
       ...imageGrab,
       subtree: {
@@ -201,13 +223,44 @@ describe('bridge client grab pick engine', () => {
     expect(grab?.text).toContain('PaymentCardCell #PaymentsScreen/payrollRow')
   })
 
-  it('resolves null and posts grab.cancel on pick timeout', async () => {
+  it('resolves a pick from a swift-encoded grabResult that omits nil optional keys', async () => {
+    const {wire, pending, currentId} = activatePick()
+    wire.emit({
+      v: 1,
+      seq: 1,
+      type: 'grabResult',
+      requestId: currentId,
+      grab: {
+        text: 'Payroll Deposit',
+        preview: {kind: 'image', dataUrl: 'data:image/jpeg;base64,AA==', width: 10, height: 10},
+        source: {componentName: 'UILabel', filePath: ''},
+        subtree: {class: 'UILabel', rect: {x: 0, y: 0, width: 10, height: 10}, children: []},
+      },
+    })
+    const grab = await pending
+    expect(grab).not.toBeNull()
+    expect(grab?.rect).toBeNull()
+    expect(grab?.source).toEqual({componentName: 'UILabel', filePath: '', lineNumber: null})
+  })
+
+  it('rejects and posts grab.cancel on pick timeout', async () => {
     const {sched, client, countOf} = setup()
     client.start()
     const pending = client.pick('activate')
     sched.advance(1000)
-    await expect(pending).resolves.toBeNull()
+    await expect(pending).rejects.toThrow()
     expect(countOf('grab.cancel')).toBe(1)
+  })
+
+  it('defaults the pick timeout to 10 seconds', async () => {
+    const {sched, client, countOf} = setup({pickTimeoutMs: undefined})
+    client.start()
+    const pending = client.pick('activate')
+    sched.advance(9999)
+    expect(countOf('grab.cancel')).toBe(0)
+    sched.advance(1)
+    expect(countOf('grab.cancel')).toBe(1)
+    await expect(pending).rejects.toThrow()
   })
 
   it('cancel is idempotent and posts a single grab.cancel', async () => {

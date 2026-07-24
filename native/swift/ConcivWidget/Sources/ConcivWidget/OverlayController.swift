@@ -2,32 +2,20 @@
 import UIKit
 import WebKit
 
-public enum ConcivLauncher {
-  case native
-  case mascot
-}
-
 // A passthrough overlay view: touches outside the live region fall through to the
 // app's own UI (04 section 1). The live region is the native FAB when closed
 // (launcher: native), the reported mascot frame when closed (launcher: mascot),
-// or the whole panel when open (modal-when-open).
+// or the whole panel when open (modal-when-open). Capture is derived from the
+// state's open flag via liveRegion(), never from whichever rect was written last.
 final class PassthroughContainerView: UIView {
   var pickActive = false
-  var panelOpen = false
-  var launcher: ConcivLauncher = .native
-  var fabRect: CGRect = .zero
-  var mascotRect: CGRect = .zero
+  var state = LiveRegionState()
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-    guard shouldCapture(point) else { return nil }
+    let region = liveRegion(state, pickActive: pickActive)
+    let captured = region.captures(point)
+    guard captured else { return nil }
     return super.hitTest(point, with: event)
-  }
-
-  private func shouldCapture(_ point: CGPoint) -> Bool {
-    if pickActive { return true }
-    if panelOpen { return true }
-    if launcher == .native { return fabRect.contains(point) }
-    return mascotRect.contains(point)
   }
 }
 
@@ -50,13 +38,17 @@ final class OverlayController: NSObject {
   private var pickOverlay: PickOverlayView?
   private var pickRequestId: String?
   private var highlight: UIView?
+  private var pickBanner: UIView?
+  private var pickBorder: UIView?
+  private var selectionInFlight = false
   private var repairPrompt: UIView?
+  private var autoShowPending = ConcivDiscovery.shouldAutoShow()
 
   init(hostWindow: UIWindow, endpoint: ConcivEndpoint, launcher: ConcivLauncher) {
     self.hostWindow = hostWindow
     self.endpoint = endpoint
-    self.pageUrl = ConcivDiscovery.pageURL(for: endpoint.apiBase)
     self.launcher = launcher
+    self.pageUrl = OverlayController.makePageURL(for: endpoint.apiBase, launcher: launcher)
 
     let configuration = WKWebViewConfiguration()
     configuration.allowsInlineMediaPlayback = true
@@ -65,7 +57,7 @@ final class OverlayController: NSObject {
     let bounds = hostWindow.bounds
     container = PassthroughContainerView(frame: bounds)
     container.backgroundColor = .clear
-    container.launcher = launcher
+    container.state.launcher = launcher
 
     webView = WKWebView(frame: bounds, configuration: configuration)
     webView.isOpaque = false
@@ -98,6 +90,17 @@ final class OverlayController: NSObject {
     container.removeFromSuperview()
   }
 
+  // The launcher choice reaches the served page as a query param: the native page's
+  // entry reads ?launcher=mascot and renders the web ShellFab mascot instead of
+  // deferring to the native FAB. Native mode loads the page with no query.
+  private static func makePageURL(for apiBase: URL, launcher: ConcivLauncher) -> URL {
+    let base = ConcivDiscovery.pageURL(for: apiBase)
+    guard launcher == .mascot else { return base }
+    guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return base }
+    components.queryItems = [URLQueryItem(name: "launcher", value: "mascot")]
+    return components.url ?? base
+  }
+
   // Same-core port drift (06 D8): keep the live document, re-point its data plane by
   // re-sending the handshake with the new base. The base carries the /t/<token> prefix
   // when token-scoped so it matches the page's own bound base and RPC/SSE stay path
@@ -126,7 +129,7 @@ final class OverlayController: NSObject {
     fab.frame = fabFrame()
     fab.autoresizingMask = [.flexibleTopMargin, .flexibleLeftMargin]
     fab.addTarget(self, action: #selector(fabTapped), for: .touchUpInside)
-    container.fabRect = fab.frame
+    container.state.fabRect = fab.frame
   }
 
   private func fabFrame() -> CGRect {
@@ -153,7 +156,7 @@ final class OverlayController: NSObject {
     bridge.onGrabPick = { [weak self] pick in self?.startPick(pick) }
     bridge.onGrabCancel = { [weak self] cancel in self?.cancelPick(cancel.requestId) }
     bridge.onPanelToggled = { [weak self] toggled in self?.handlePanelToggled(toggled) }
-    bridge.onCrashRecovery = { [weak self] in self?.resolvePick(requestId: self?.pickRequestId, grab: nil) }
+    bridge.onCrashRecovery = { [weak self] in self?.resolvePick(requestId: self?.pickRequestId, grab: nil, reason: .failed) }
     bridge.onStaleToken = { [weak self] in self?.showRepairPrompt() }
   }
 
@@ -192,14 +195,14 @@ final class OverlayController: NSObject {
     ])
 
     container.addSubview(banner)
-    container.panelOpen = true
+    container.state.panelOpen = true
     repairPrompt = banner
   }
 
   private func hideRepairPrompt() {
     repairPrompt?.removeFromSuperview()
     repairPrompt = nil
-    container.panelOpen = panelOpen
+    container.state.panelOpen = panelOpen
   }
 
   private func repairPromptFrame() -> CGRect {
@@ -217,24 +220,32 @@ final class OverlayController: NSObject {
     let overlaps = hello.minV <= bridgeMaxVersion && bridgeMinVersion <= hello.maxV
     if overlaps {
       sendHandshake()
+      autoShowIfRequested()
     } else {
       bridge.sendIncompatible(nativeMinV: bridgeMinVersion, nativeMaxV: bridgeMaxVersion)
     }
   }
 
+  // ios.run --autoshow drives the panel open once the handshake has settled. The open is
+  // enqueued after the handshake so it reaches the page in order, and the one-shot flag
+  // keeps a later reload or rebind from re-opening a panel the user has since closed.
+  private func autoShowIfRequested() {
+    guard autoShowPending, !panelOpen else { return }
+    autoShowPending = false
+    bridge.sendOpen()
+  }
+
   private func handlePanelToggled(_ toggled: HostPanelToggled) {
     panelOpen = toggled.open
-    container.panelOpen = toggled.open
-    if let rect = toggled.mascotRect {
-      container.mascotRect = CGRect(x: rect.x, y: rect.y, width: rect.width, height: rect.height)
-    }
+    let incoming = toggled.mascotRect.map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
+    container.state = applyPanelToggle(container.state, open: toggled.open, mascotRect: incoming)
     fab.isHidden = launcher != .native
   }
 
   // MARK: pick mode
 
   private func startPick(_ pick: GrabPick) {
-    resolvePick(requestId: pickRequestId, grab: nil)
+    resolvePick(requestId: pickRequestId, grab: nil, reason: .cancelled)
     pickRequestId = pick.requestId
     let overlay = PickOverlayView(frame: container.bounds)
     overlay.backgroundColor = UIColor.black.withAlphaComponent(0.001)
@@ -244,19 +255,79 @@ final class OverlayController: NSObject {
     container.addSubview(overlay)
     container.pickActive = true
     pickOverlay = overlay
+    installPickChrome(on: overlay)
   }
 
   private func cancelPick(_ requestId: String) {
     guard pickRequestId == requestId else { return }
-    resolvePick(requestId: requestId, grab: nil)
+    resolvePick(requestId: requestId, grab: nil, reason: .cancelled)
+  }
+
+  @objc private func pickCancelTapped() {
+    resolvePick(requestId: pickRequestId, grab: nil, reason: .cancelled)
   }
 
   private func exitPick() {
     highlight?.removeFromSuperview()
     highlight = nil
+    pickBanner = nil
+    pickBorder = nil
+    selectionInFlight = false
     pickOverlay?.removeFromSuperview()
     pickOverlay = nil
     container.pickActive = false
+  }
+
+  // Selection-mode chrome (05 D9): a full-screen accent border and a top pill both make
+  // clear the user is picking, not driving the app. Both live on the pick overlay so
+  // exitPick tears them down with the overlay. The border is non-interactive; the pill
+  // swallows its own touches (PickBannerView) so tapping it never picks the element
+  // underneath, and its close button reaches through the overlay's tap layer.
+  private func installPickChrome(on overlay: PickOverlayView) {
+    let border = UIView(frame: overlay.bounds)
+    border.isUserInteractionEnabled = false
+    border.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    border.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.8).cgColor
+    border.layer.borderWidth = 3
+    overlay.addSubview(border)
+    pickBorder = border
+
+    let banner = PickBannerView()
+    banner.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1)
+    banner.layer.cornerRadius = 18
+    banner.translatesAutoresizingMaskIntoConstraints = false
+
+    let label = UILabel()
+    label.text = "Tap an element to attach"
+    label.textColor = .white
+    label.font = .systemFont(ofSize: 14, weight: .medium)
+
+    let close = UIButton(type: .system)
+    close.setTitle("✕", for: .normal)
+    close.setTitleColor(.white, for: .normal)
+    close.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
+    close.addTarget(self, action: #selector(pickCancelTapped), for: .touchUpInside)
+    close.setContentHuggingPriority(.required, for: .horizontal)
+
+    let stack = UIStackView(arrangedSubviews: [label, close])
+    stack.axis = .horizontal
+    stack.alignment = .center
+    stack.spacing = 12
+    stack.isLayoutMarginsRelativeArrangement = true
+    stack.layoutMargins = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 12)
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    banner.addSubview(stack)
+    overlay.addSubview(banner)
+
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: banner.leadingAnchor),
+      stack.trailingAnchor.constraint(equalTo: banner.trailingAnchor),
+      stack.topAnchor.constraint(equalTo: banner.topAnchor),
+      stack.bottomAnchor.constraint(equalTo: banner.bottomAnchor),
+      banner.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+      banner.topAnchor.constraint(equalTo: overlay.safeAreaLayoutGuide.topAnchor, constant: 12),
+    ])
+    pickBanner = banner
   }
 
   private func hostRootView() -> UIView? {
@@ -268,36 +339,50 @@ final class OverlayController: NSObject {
   }
 
   private func performPick(at point: CGPoint) {
+    guard !selectionInFlight else { return }
     let requestId = pickRequestId
     if !Capture.isActiveForCapture() {
-      resolvePick(requestId: requestId, grab: nil)
+      resolvePick(requestId: requestId, grab: nil, reason: .failed)
       return
     }
     if let anchor = ConcivAnchorRegistry.shared.hitTest(point) {
       let image = Capture.renderHostView(hostRootView() ?? container, cropTo: anchor.frame)
       let grab = pickNeutralGrab(fromAnchor: anchor, registry: ConcivAnchorRegistry.shared, image: image)
-      resolvePick(requestId: requestId, grab: grab)
+      flashThenResolve(requestId: requestId, grab: grab, frame: anchor.frame)
       return
     }
     guard let root = hostRootView(),
           let picked = pickSearch(from: root, at: point, isExcluded: { [weak self] in self?.isExcluded($0) ?? false })
     else {
-      resolvePick(requestId: requestId, grab: nil)
+      resolvePick(requestId: requestId, grab: nil, reason: .failed)
       return
     }
     let image = Capture.renderView(picked)
     let grab = pickNeutralGrab(fromUIView: picked, isExcluded: { [weak self] in self?.isExcluded($0) ?? false }, image: image)
-    resolvePick(requestId: requestId, grab: grab)
+    flashThenResolve(requestId: requestId, grab: grab, frame: pickFrameInWindow(picked))
   }
 
-  private func resolvePick(requestId: String?, grab: NeutralGrab?) {
+  // Confirmation flash (05 D9): the highlight rect over the picked element blinks for a
+  // beat before the result is sent, so the tap reads as a deliberate selection. The flash
+  // lives on the pick overlay, never in the captured image (capture already ran against
+  // the host view above). selectionInFlight ignores a second tap until the pick exits.
+  private func flashThenResolve(requestId: String?, grab: NeutralGrab, frame: CGRect) {
+    selectionInFlight = true
+    let box = highlight ?? makeHighlight()
+    box.frame = frame
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+      self?.resolvePick(requestId: requestId, grab: grab, reason: nil)
+    }
+  }
+
+  private func resolvePick(requestId: String?, grab: NeutralGrab?, reason: GrabResultReason?) {
     guard let requestId, requestId == pickRequestId else {
       exitPick()
       return
     }
     pickRequestId = nil
     exitPick()
-    bridge.sendGrabResult(requestId: requestId, grab: grab)
+    bridge.sendGrabResult(requestId: requestId, grab: grab, reason: reason)
   }
 
   private func updateHighlight(at point: CGPoint) {
@@ -342,6 +427,10 @@ final class OverlayController: NSObject {
   @objc private func keyboardWillHide(_ note: Notification) {
     webView.scrollView.contentInset.bottom = 0
     webView.scrollView.verticalScrollIndicatorInsets.bottom = 0
+    // The keyboard push can leave the scroll view offset even though the page never
+    // scrolls natively (the panel scrolls in CSS). A stale offset shifts the whole
+    // rendered page, hiding fixed-position UI like the mascot launcher.
+    webView.scrollView.setContentOffset(.zero, animated: false)
   }
 }
 #endif

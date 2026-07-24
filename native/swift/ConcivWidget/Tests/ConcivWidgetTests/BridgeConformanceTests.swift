@@ -97,4 +97,24 @@ final class BridgeConformanceTests: XCTestCase {
     XCTAssertEqual(grab.subtree?.children.first?.className, "UILabel")
     XCTAssertNil(grab.subtree?.children.first?.a11yId)
   }
+
+  func testGrabResultReasonDecodesAndRoundtrips() throws {
+    let decoder = JSONDecoder()
+    let encoder = JSONEncoder()
+    let cases: [(String, GrabResultReason)] = [
+      ("n2p.grab-result-cancelled.json", .cancelled),
+      ("n2p.grab-result-failed.json", .failed),
+    ]
+    for (file, expected) in cases {
+      let data = try Data(contentsOf: try bridgeDir().appendingPathComponent(file))
+      let message = try decoder.decode(BridgeMessage.self, from: data)
+      guard case .grabResult(let result) = message else {
+        return XCTFail("expected a grabResult for \(file)")
+      }
+      XCTAssertNil(result.grab, "\(file) should carry no grab")
+      XCTAssertEqual(result.reason, expected)
+      let reDecoded = try decoder.decode(BridgeMessage.self, from: try encoder.encode(message))
+      XCTAssertEqual(message, reDecoded, "reason roundtrip mismatch for \(file)")
+    }
+  }
 }

@@ -3,16 +3,17 @@ import {join} from 'node:path'
 import {Hono} from 'hono'
 import {z} from 'zod'
 
+export const NATIVE_PAGE_PATH = '/native'
 const NATIVE_BUNDLE = 'conciv-widget-native.global.js'
 const NativeFileSchema = z.enum([NATIVE_BUNDLE, `${NATIVE_BUNDLE}.map`])
 
-function hostDocument(): string {
+export function hostDocument(): string {
   return [
     '<!doctype html>',
     '<html>',
     '<head>',
     '<meta charset="utf-8">',
-    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">',
     '<title>conciv</title>',
     '<style>',
     ':root{color-scheme:dark}',

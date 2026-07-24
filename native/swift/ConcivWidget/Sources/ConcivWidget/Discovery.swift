@@ -79,6 +79,15 @@ public enum ConcivDiscovery {
     return previousPid == discoveredPid
   }
 
+  // simctl launches the app with SIMCTL_CHILD_CONCIV_AUTOSHOW, which the child process
+  // sees as CONCIV_AUTOSHOW. When set to "1" (ios.run --autoshow) the SDK opens the panel
+  // once after the first handshake settles, so a driven run lands with the panel visible.
+  public static func shouldAutoShow(
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> Bool {
+    environment["CONCIV_AUTOSHOW"] == "1"
+  }
+
   // The simulator exposes the host home via SIMULATOR_HOST_HOME; fall back to the
   // process home so the pure default is still meaningful off-simulator.
   public static func defaultPairingFileURL(

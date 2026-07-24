@@ -6,8 +6,10 @@ description: Add a published extension with one dependency and a one-line re-exp
 Some extensions ship as their own package: the [TanStack inspector](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/tanstack),
 the terminal, and the recorder. Installing one is two steps that work the same on every framework.
 
-<Callout>The whiteboard and test runner are [built-ins](/docs/extending/built-ins): on by
-default, no install. This page is for the extensions you opt into.</Callout>
+<Callout>
+  The whiteboard and test runner are [built-ins](/docs/extending/built-ins): on by default, no install. This page is for
+  the extensions you opt into.
+</Callout>
 
 <Steps>
 
@@ -125,7 +127,8 @@ The `browser` condition is the client half the widget bundles; `import` is the s
 loads in node. Keep `./client` and `./server` subpaths by convention so tooling and tests can reach
 each half directly.
 
-<Callout type="warn">Editors resolve the `import` (server) types by default, so a browser-context
-file may see the wrong side of the export map. When you author the client half, set
-`customConditions: ["browser"]` in that project's `tsconfig.json` so the editor resolves the
-browser types.</Callout>
+<Callout type="warn">
+  Editors resolve the `import` (server) types by default, so a browser-context file may see the wrong side of the export
+  map. When you author the client half, set `customConditions: ["browser"]` in that project's `tsconfig.json` so the
+  editor resolves the browser types.
+</Callout>

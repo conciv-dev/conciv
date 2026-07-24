@@ -18,7 +18,18 @@ export default defineConfig(async () => {
       tailwindcss(),
       tanstackStart(),
       viteReact(),
-      conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}}),
+      conciv({
+        port: 4599,
+        widget: {quickTerminal: {hotkey: 'Alt+k'}},
+        extensions: {
+          ios: {
+            projectRoot: '/Users/omrikatz/Public/web/aidx-wt-ios-m0-grab-contract/native/swift/ConcivDemo',
+            bundleId: 'dev.conciv.ConcivDemo',
+            simulator: 'iPhone 17 Pro',
+            buildMode: 'swiftc',
+          },
+        },
+      }),
     ],
   }
 })
