@@ -4,6 +4,9 @@ import type {ElementRect, ElementSource, ImagePreview} from '@conciv/grab'
 export const BRIDGE_MIN_VERSION = 1
 export const BRIDGE_MAX_VERSION = 1
 
+export const SUBTREE_MAX_DEPTH = 3
+export const SUBTREE_MAX_NODES = 40
+
 const VersionSchema = z.number().int()
 const SeqSchema = z.number().int()
 
@@ -47,12 +50,27 @@ export const ViewNodeSchema: z.ZodType<ViewNode> = z.lazy(() =>
   }),
 )
 
+function subtreeWithinLimits(node: ViewNode, depth: number, budget: {count: number}): boolean {
+  if (depth > SUBTREE_MAX_DEPTH) return false
+  budget.count += 1
+  if (budget.count > SUBTREE_MAX_NODES) return false
+  return node.children.every((child) => subtreeWithinLimits(child, depth + 1, budget))
+}
+
+export const BoundedViewNodeSchema = ViewNodeSchema.superRefine((node, ctx) => {
+  if (subtreeWithinLimits(node, 0, {count: 0})) return
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: `subtree exceeds the wire bounds (depth ${SUBTREE_MAX_DEPTH}, nodes ${SUBTREE_MAX_NODES})`,
+  })
+})
+
 export const NeutralGrabSchema = z.object({
   text: z.string(),
   preview: GrabImagePreviewSchema,
   rect: nullish(RectSchema),
   source: nullish(SourceSchema),
-  subtree: ViewNodeSchema.optional(),
+  subtree: BoundedViewNodeSchema.optional(),
 })
 
 export type NeutralGrab = z.infer<typeof NeutralGrabSchema>

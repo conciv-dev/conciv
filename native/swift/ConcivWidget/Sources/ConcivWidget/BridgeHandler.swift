@@ -71,7 +71,7 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
   private static let ackTimeout: TimeInterval = 1
 
   private weak var webView: WKWebView?
-  private let coreOrigin: URL
+  private var coreOrigin: URL
   private let encoder = JSONEncoder()
 
   private(set) var state: BridgeState = .loading
@@ -104,6 +104,12 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     queue.removeAll()
     unacked.removeAll()
     webView?.configuration.userContentController.removeScriptMessageHandler(forName: Self.handlerName)
+  }
+
+  // Same-core port drift moves the core to a new origin. Re-pin so the origin gate accepts
+  // messages from the document reloaded at the new base and rejects the stale one.
+  func rebind(to origin: URL) {
+    coreOrigin = origin
   }
 
   // MARK: outbound helpers (set-state, seq-tagged)

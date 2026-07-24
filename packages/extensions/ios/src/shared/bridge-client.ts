@@ -7,6 +7,8 @@ import {
   NativeToPageSchema,
   type NeutralGrab,
   type PageToNativeMessage,
+  SUBTREE_MAX_DEPTH,
+  SUBTREE_MAX_NODES,
   type ViewNode,
 } from './bridge.js'
 
@@ -34,6 +36,7 @@ export type BridgeClientConfig = {
   onRebind?: (apiBase: string) => void
   onIncompatible?: (info: {nativeMinV: number; nativeMaxV: number}) => void
   onHandshake?: (info: {v: number; apiBase: string; token: string | null}) => void
+  onGrabbableChanged?: (grabbable: boolean) => void
   ensureOpen?: () => void
   ensureClose?: () => void
   onLog?: (level: BridgeLogLevel, message: string) => void
@@ -51,8 +54,6 @@ export type BridgeClient = {
 
 const DEFAULT_READY_INTERVAL_MS = 300
 const DEFAULT_PICK_TIMEOUT_MS = 10_000
-const SUBTREE_MAX_DEPTH = 3
-const SUBTREE_MAX_NODES = 40
 
 function formatViewNode(node: ViewNode, depth: number, budget: {remaining: number}, lines: string[]): void {
   if (depth > SUBTREE_MAX_DEPTH) return
@@ -175,6 +176,11 @@ export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
   }
 
   function handleHandshake(message: NativeToPageMessage & {type: 'handshake'}): void {
+    if (message.v < BRIDGE_MIN_VERSION || message.v > BRIDGE_MAX_VERSION) {
+      log('warn', `native handshake version ${message.v} is outside ${BRIDGE_MIN_VERSION}..${BRIDGE_MAX_VERSION}`)
+      config.onIncompatible?.({nativeMinV: message.v, nativeMaxV: message.v})
+      return
+    }
     handshakeDone = true
     agreedVersion = message.v
     config.onHandshake?.({v: message.v, apiBase: message.apiBase, token: message.token})
@@ -205,7 +211,13 @@ export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
     if (message.type === 'open') return config.ensureOpen?.()
     if (message.type === 'close') return config.ensureClose?.()
     if (message.type === 'grabResult') return handleGrabResult(message)
-    grabbableState = message.grabbable
+    setGrabbable(message.grabbable)
+  }
+
+  function setGrabbable(next: boolean): void {
+    if (grabbableState === next) return
+    grabbableState = next
+    config.onGrabbableChanged?.(next)
   }
 
   function looksLikeGrabResultForPending(raw: unknown): boolean {

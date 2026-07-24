@@ -2,7 +2,13 @@ import {test, expect} from 'vitest'
 import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {assembleMirrorTree, assertBareSemver, readSwiftSdkVersion} from '../src/swift-mirror.ts'
+import {
+  assembleMirrorTree,
+  assertBareSemver,
+  fingerprintTree,
+  readSwiftSdkVersion,
+  treesMatch,
+} from '../src/swift-mirror.ts'
 
 async function scaffold(
   version: string,
@@ -56,6 +62,34 @@ test('assembleMirrorTree is idempotent: a second run leaves no stale files', asy
   const tree = await assembleMirrorTree({sourceDir, templateDir, destDir})
   expect(tree.version).toBe('2.0.1')
   await expect(readFile(join(destDir, 'Sources', 'ConcivWidget', 'Stale.swift'), 'utf8')).rejects.toThrow()
+  await rm(root, {recursive: true, force: true})
+})
+
+test('treesMatch is true for two identical assembled trees and false after a source edit', async () => {
+  const first = await scaffold('4.0.0')
+  const secondDest = join(first.root, 'dest2')
+  await assembleMirrorTree({sourceDir: first.sourceDir, templateDir: first.templateDir, destDir: first.destDir})
+  await assembleMirrorTree({sourceDir: first.sourceDir, templateDir: first.templateDir, destDir: secondDest})
+  expect(await treesMatch(first.destDir, secondDest)).toBe(true)
+
+  await writeFile(
+    join(first.sourceDir, 'Sources', 'ConcivWidget', 'ConcivWidget.swift'),
+    'public struct ConcivWidget { let v = 2 }\n',
+  )
+  const driftedDest = join(first.root, 'dest3')
+  await assembleMirrorTree({sourceDir: first.sourceDir, templateDir: first.templateDir, destDir: driftedDest})
+  expect(await treesMatch(first.destDir, driftedDest)).toBe(false)
+  await rm(first.root, {recursive: true, force: true})
+})
+
+test('fingerprintTree ignores a .git directory so a clone compares equal to the assembled tree', async () => {
+  const {sourceDir, templateDir, destDir, root} = await scaffold('4.1.0')
+  await assembleMirrorTree({sourceDir, templateDir, destDir})
+  const withGit = join(root, 'withGit')
+  await assembleMirrorTree({sourceDir, templateDir, destDir: withGit})
+  await mkdir(join(withGit, '.git'), {recursive: true})
+  await writeFile(join(withGit, '.git', 'HEAD'), 'ref: refs/heads/main\n')
+  expect(await fingerprintTree(destDir)).toBe(await fingerprintTree(withGit))
   await rm(root, {recursive: true, force: true})
 })
 

@@ -10,6 +10,8 @@ import UIKit
 // real screen using .concivGrab(id:) returns the anchor id, label, and crop frame.
 @MainActor
 final class PickSelectionTests: XCTestCase {
+  private let stubPreview = ImagePreview(dataUrl: "data:image/jpeg;base64,AA==", width: 10, height: 10)
+
   override func setUp() {
     super.setUp()
     ConcivAnchorRegistry.shared.reset()
@@ -40,7 +42,7 @@ final class PickSelectionTests: XCTestCase {
     let picked = pickSearch(from: root.view, at: point, isExcluded: { _ in false })
     XCTAssertTrue(picked === label, "expected the deepest interesting view")
 
-    let grab = pickNeutralGrab(fromUIView: label, isExcluded: { _ in false }, image: nil)
+    let grab = pickNeutralGrab(fromUIView: label, isExcluded: { _ in false }, preview: stubPreview)
     XCTAssertEqual(grab.text, "Payroll Deposit")
     XCTAssertEqual(grab.source?.componentName, "UILabel")
     XCTAssertEqual(grab.rect, rectToBridge(pickFrameInWindow(label)))
@@ -92,7 +94,7 @@ final class PickSelectionTests: XCTestCase {
     let hit = ConcivAnchorRegistry.shared.hitTest(CGPoint(x: anchor.frame.midX, y: anchor.frame.midY))
     XCTAssertEqual(hit?.id, "payrollRow")
 
-    let grab = pickNeutralGrab(fromAnchor: anchor, registry: ConcivAnchorRegistry.shared, image: nil)
+    let grab = pickNeutralGrab(fromAnchor: anchor, registry: ConcivAnchorRegistry.shared, preview: stubPreview)
     XCTAssertEqual(grab.source?.componentName, "payrollRow")
     XCTAssertEqual(grab.text, "Payroll Deposit")
     XCTAssertEqual(grab.rect, rectToBridge(anchor.frame))
@@ -109,7 +111,7 @@ final class PickSelectionTests: XCTestCase {
     guard let container = waitForAnchor("row"), waitForAnchor("amount") != nil else {
       return XCTFail("expected both anchors to register")
     }
-    let grab = pickNeutralGrab(fromAnchor: container, registry: ConcivAnchorRegistry.shared, image: nil)
+    let grab = pickNeutralGrab(fromAnchor: container, registry: ConcivAnchorRegistry.shared, preview: stubPreview)
     let childIds = grab.subtree?.children.map { $0.a11yId } ?? []
     XCTAssertTrue(childIds.contains("amount"), "nested anchor should appear in the subtree")
   }

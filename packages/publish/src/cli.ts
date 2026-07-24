@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import {mkdtemp} from 'node:fs/promises'
+import {chmod, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineCommand, runMain} from 'citty'
@@ -7,7 +7,7 @@ import {execa} from 'execa'
 import {findRoot} from './workspace-root.ts'
 import {PUBLIC_PACKAGES, assertBootstrappable, assertPublicSet, assertValidTag, assertVersioned} from './guards.ts'
 import {registryState} from './registry.ts'
-import {assembleMirrorTree} from './swift-mirror.ts'
+import {assembleMirrorTree, treesMatch} from './swift-mirror.ts'
 
 const REPOSITORY = 'conciv-dev/conciv'
 const RELEASE_WORKFLOW = 'release.yml'
@@ -138,26 +138,73 @@ const sync = defineCommand({
   },
 })
 
-function mirrorUrl(token: string): string {
-  return `https://x-access-token:${token}@github.com/${MIRROR_REPOSITORY}.git`
+const MIRROR_URL = `https://x-access-token@github.com/${MIRROR_REPOSITORY}.git`
+
+const mirrorGit = async (env: NodeJS.ProcessEnv, args: string[], workdir?: string): Promise<{stdout: string}> => {
+  const result = await execa('git', workdir ? ['-C', workdir, ...args] : args, {
+    env,
+    stdio: workdir ? 'inherit' : 'pipe',
+  })
+  return {stdout: typeof result.stdout === 'string' ? result.stdout : ''}
 }
 
-async function mirrorTagExists(url: string, tag: string): Promise<boolean> {
-  const {stdout} = await execa('git', ['ls-remote', '--tags', url, `refs/tags/${tag}`])
+async function withMirrorAuth<T>(
+  run: (git: (args: string[], workdir?: string) => Promise<{stdout: string}>) => Promise<T>,
+): Promise<T> {
+  const token = process.env.GH_MIRROR_TOKEN
+  if (!token) {
+    throw new Error(
+      'GH_MIRROR_TOKEN is required to publish the conciv-swift mirror (a PAT with push access to conciv-dev/conciv-swift)',
+    )
+  }
+  const askpassDir = await mkdtemp(join(tmpdir(), 'conciv-askpass-'))
+  const askpass = join(askpassDir, 'askpass.sh')
+  await writeFile(askpass, `#!/bin/sh\nprintf '%s' "$GH_MIRROR_TOKEN"\n`)
+  await chmod(askpass, 0o700)
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    GH_MIRROR_TOKEN: token,
+    GIT_ASKPASS: askpass,
+    GIT_TERMINAL_PROMPT: '0',
+  }
+  try {
+    return await run((args, workdir) => mirrorGit(env, args, workdir))
+  } finally {
+    await rm(askpassDir, {recursive: true, force: true})
+  }
+}
+
+async function mirrorTagExists(
+  git: (args: string[], workdir?: string) => Promise<{stdout: string}>,
+  tag: string,
+): Promise<boolean> {
+  const {stdout} = await git(['ls-remote', '--tags', MIRROR_URL, `refs/tags/${tag}`])
   return stdout.trim().length > 0
 }
 
-async function pushMirror(workdir: string, url: string, tag: string): Promise<void> {
-  const git = (...args: string[]) => execa('git', ['-C', workdir, ...args], {stdio: 'inherit'})
-  await git('init', '-q')
-  await git('checkout', '-q', '-B', 'main')
-  await git('remote', 'add', 'origin', url)
-  await git('add', '-A')
+async function cloneTaggedTree(
+  git: (args: string[], workdir?: string) => Promise<{stdout: string}>,
+  tag: string,
+  into: string,
+): Promise<void> {
+  await git(['clone', '--quiet', '--depth', '1', '--branch', tag, MIRROR_URL, into])
+}
+
+async function pushMirror(
+  git: (args: string[], workdir?: string) => Promise<{stdout: string}>,
+  workdir: string,
+  tag: string,
+): Promise<void> {
+  const run = (...args: string[]) => git(args, workdir)
+  await run('init', '-q')
+  await run('checkout', '-q', '-B', 'main')
+  await run('remote', 'add', 'origin', MIRROR_URL)
+  await run('add', '-A')
   const author = ['-c', `user.name=${MIRROR_COMMIT_NAME}`, '-c', `user.email=${MIRROR_COMMIT_EMAIL}`]
-  await git(...author, 'commit', '-q', '-m', `chore: release ConcivWidget ${tag}`)
-  await git('tag', tag)
-  await git('push', '--force', 'origin', 'main')
-  await git('push', 'origin', tag)
+  await run(...author, 'commit', '-q', '-m', `chore: release ConcivWidget ${tag}`)
+  await run('tag', tag)
+  await run('push', '--force', 'origin', 'main')
+  await run('push', 'origin', tag)
 }
 
 const swiftMirror = defineCommand({
@@ -178,27 +225,50 @@ const swiftMirror = defineCommand({
     const sourceDir = join(cwd, MIRROR_SOURCE)
     const templateDir = join(cwd, MIRROR_TEMPLATE)
     const destDir = await mkdtemp(join(tmpdir(), 'conciv-swift-'))
-    const tree = await assembleMirrorTree({sourceDir, templateDir, destDir})
-    console.log(`assembled conciv-swift ${tree.version} at ${destDir}: ${tree.files.join(', ')}`)
-    if (args['dry-run']) {
-      console.log(`dry run: skipping tag lookup and push for ${MIRROR_REPOSITORY}`)
-      return
+    try {
+      const tree = await assembleMirrorTree({sourceDir, templateDir, destDir})
+      console.log(`assembled conciv-swift ${tree.version} at ${destDir}: ${tree.files.join(', ')}`)
+      if (args['dry-run']) {
+        console.log(`dry run: skipping tag lookup and push for ${MIRROR_REPOSITORY}`)
+        return
+      }
+      await withMirrorAuth((git) => publishMirror(git, destDir, tree.version))
+    } finally {
+      await rm(destDir, {recursive: true, force: true})
     }
-    const token = process.env.GH_MIRROR_TOKEN
-    if (!token) {
-      throw new Error(
-        'GH_MIRROR_TOKEN is required to publish the conciv-swift mirror (a PAT with push access to conciv-dev/conciv-swift)',
-      )
-    }
-    const url = mirrorUrl(token)
-    if (await mirrorTagExists(url, tree.version)) {
-      console.log(`conciv-swift ${tree.version} already tagged on ${MIRROR_REPOSITORY}; nothing to publish`)
-      return
-    }
-    await pushMirror(destDir, url, tree.version)
-    console.log(`published conciv-swift ${tree.version} to ${MIRROR_REPOSITORY}`)
   },
 })
+
+async function publishMirror(
+  git: (args: string[], workdir?: string) => Promise<{stdout: string}>,
+  destDir: string,
+  sdkVersion: string,
+): Promise<void> {
+  if (await mirrorTagExists(git, sdkVersion)) {
+    await assertTaggedTreeMatches(git, destDir, sdkVersion)
+    console.log(`conciv-swift ${sdkVersion} already tagged on ${MIRROR_REPOSITORY} and identical; nothing to publish`)
+    return
+  }
+  await pushMirror(git, destDir, sdkVersion)
+  console.log(`published conciv-swift ${sdkVersion} to ${MIRROR_REPOSITORY}`)
+}
+
+async function assertTaggedTreeMatches(
+  git: (args: string[], workdir?: string) => Promise<{stdout: string}>,
+  destDir: string,
+  sdkVersion: string,
+): Promise<void> {
+  const tagDir = await mkdtemp(join(tmpdir(), 'conciv-swift-tag-'))
+  try {
+    await cloneTaggedTree(git, sdkVersion, tagDir)
+    if (await treesMatch(destDir, tagDir)) return
+    throw new Error(
+      `conciv-swift ${sdkVersion} is already tagged but the assembled tree differs; bump SWIFT_SDK_VERSION before releasing`,
+    )
+  } finally {
+    await rm(tagDir, {recursive: true, force: true})
+  }
+}
 
 const main = defineCommand({
   meta: {name: 'conciv-publish', description: 'Release tooling for the aidx monorepo'},

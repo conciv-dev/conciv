@@ -52,7 +52,7 @@ final class OverlayController: NSObject {
   let webView: WKWebView
   private let fab = UIButton(type: .system)
   private let bridge: BridgeHandler
-  private let pageUrl: URL
+  private var pageUrl: URL
   private weak var hostWindow: UIWindow?
 
   private(set) var endpoint: ConcivEndpoint
@@ -115,6 +115,7 @@ final class OverlayController: NSObject {
   }
 
   func detach() {
+    if ConcivAnchorRegistry.shared.onChange != nil { ConcivAnchorRegistry.shared.onChange = nil }
     bridge.detach()
     NotificationCenter.default.removeObserver(self)
     container.removeFromSuperview()
@@ -131,15 +132,17 @@ final class OverlayController: NSObject {
     return components.url ?? base
   }
 
-  // Same-core port drift (06 D8): keep the live document, re-point its data plane by
-  // re-sending the handshake with the new base. The base carries the /t/<token> prefix
-  // when token-scoped so it matches the page's own bound base and RPC/SSE stay path
-  // scoped. The origin pin is unchanged because the loaded document is still
-  // same-origin; only a different core (fresh mount) rebuilds this controller.
+  // Same-core port drift (06 D8): the core moved to a new base, so re-point the document
+  // plane at it. Recompute the page URL and re-pin the bridge origin to the new base (the
+  // base carries the /t/<token> prefix when token-scoped), then reload so the document is
+  // served from, and its bridge messages are accepted at, the live origin. The reload's
+  // hello drives a fresh handshake; a different core (fresh mount) rebuilds this controller.
   func rebind(to endpoint: ConcivEndpoint) {
     self.endpoint = endpoint
+    self.pageUrl = OverlayController.makePageURL(for: endpoint.apiBase, launcher: launcher)
+    bridge.rebind(to: endpoint.apiBase)
     hideRepairPrompt()
-    sendHandshake()
+    webView.load(URLRequest(url: pageUrl))
   }
 
   // The handshake apiBase is the full base (origin plus any /t/<token> prefix), which
@@ -194,6 +197,30 @@ final class OverlayController: NSObject {
     bridge.onCrashRecovery = { [weak self] in self?.resolvePick(requestId: self?.pickRequestId, grab: nil, reason: .failed) }
     bridge.onStaleToken = { [weak self] in self?.showRepairPrompt() }
     bridge.onLog = { log in Swift.print("[conciv] \(log.level.rawValue): \(log.message)") }
+    ConcivAnchorRegistry.shared.onChange = { [weak self] in self?.sendGrabCapability() }
+  }
+
+  // Grab is available when the screen has something to select: any SwiftUI anchor, or any
+  // interesting UIKit view under the host. Sent once the handshake settles and again each
+  // time the anchor set changes.
+  private func sendGrabCapability() {
+    bridge.sendGrabCapability(hostHasPickableContent())
+  }
+
+  private func hostHasPickableContent() -> Bool {
+    if !ConcivAnchorRegistry.shared.all.isEmpty { return true }
+    guard let root = hostRootView() else { return false }
+    return containsInterestingView(root)
+  }
+
+  private func containsInterestingView(_ view: UIView) -> Bool {
+    for child in view.subviews {
+      if child.isHidden || child.alpha < 0.02 { continue }
+      if isExcluded(child) { continue }
+      if pickIsInteresting(child) { return true }
+      if containsInterestingView(child) { return true }
+    }
+    return false
   }
 
   // MARK: re-pair prompt (SDK-owned, 06 D13)
@@ -256,6 +283,7 @@ final class OverlayController: NSObject {
     let overlaps = hello.minV <= bridgeMaxVersion && bridgeMinVersion <= hello.maxV
     if overlaps {
       sendHandshake()
+      sendGrabCapability()
       autoShowIfRequested()
     } else {
       bridge.sendIncompatible(nativeMinV: bridgeMinVersion, nativeMaxV: bridgeMaxVersion)
@@ -389,7 +417,11 @@ final class OverlayController: NSObject {
     }
     if let anchor = ConcivAnchorRegistry.shared.hitTest(point) {
       let image = Capture.renderHostView(hostRootView() ?? container, cropTo: anchor.frame)
-      let grab = pickNeutralGrab(fromAnchor: anchor, registry: ConcivAnchorRegistry.shared, image: image)
+      guard let preview = Capture.imagePreview(image) else {
+        resolvePick(requestId: requestId, grab: nil, reason: .failed)
+        return
+      }
+      let grab = pickNeutralGrab(fromAnchor: anchor, registry: ConcivAnchorRegistry.shared, preview: preview)
       flashThenResolve(requestId: requestId, grab: grab, frame: anchor.frame)
       return
     }
@@ -399,8 +431,11 @@ final class OverlayController: NSObject {
       resolvePick(requestId: requestId, grab: nil, reason: .failed)
       return
     }
-    let image = Capture.renderView(picked)
-    let grab = pickNeutralGrab(fromUIView: picked, isExcluded: { [weak self] in self?.isExcluded($0) ?? false }, image: image)
+    guard let preview = Capture.imagePreview(Capture.renderView(picked)) else {
+      resolvePick(requestId: requestId, grab: nil, reason: .failed)
+      return
+    }
+    let grab = pickNeutralGrab(fromUIView: picked, isExcluded: { [weak self] in self?.isExcluded($0) ?? false }, preview: preview)
     flashThenResolve(requestId: requestId, grab: grab, frame: pickFrameInWindow(picked))
   }
 

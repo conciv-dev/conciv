@@ -8,6 +8,8 @@ import {
   bridgeMessageSchemasByType,
   NativeToPageSchema,
   type NeutralGrabAsGrab,
+  SUBTREE_MAX_DEPTH,
+  SUBTREE_MAX_NODES,
 } from '../src/shared/bridge.js'
 import {bridgeFixtures, nativeEncodeFixtures} from '../fixtures/bridge/bridge.fixtures.js'
 
@@ -40,10 +42,13 @@ const unknownKeyByType = byType(unknownKeyFixtures)
 
 const unionTypes = BridgeMessageSchema.options.map((option) => option.shape.type.value)
 
+function isKnownMessageType(type: string): type is keyof typeof bridgeMessageSchemasByType {
+  return type in bridgeMessageSchemasByType
+}
+
 function strictSchemaFor(type: string) {
-  const schema = bridgeMessageSchemasByType[type as keyof typeof bridgeMessageSchemasByType]
-  if (schema === undefined) throw new Error(`no schema registered for ${type}`)
-  return schema.strict()
+  if (!isKnownMessageType(type)) throw new Error(`no schema registered for ${type}`)
+  return bridgeMessageSchemasByType[type].strict()
 }
 
 describe('bridge message union exhaustiveness', () => {
@@ -173,6 +178,43 @@ describe('tolerates the swift encoder omitting nil optional keys', () => {
     if (!result.success) return
     if (result.data.type !== 'grabResult') throw new Error('expected grabResult')
     expect(result.data.grab).toBeNull()
+  })
+})
+
+describe('the bounded subtree is enforced at the protocol boundary', () => {
+  const rect = {x: 0, y: 0, width: 1, height: 1}
+  const preview = {kind: 'image', dataUrl: 'data:image/jpeg;base64,AA==', width: 1, height: 1}
+  const node = (children: unknown[]): Record<string, unknown> => ({
+    class: 'N',
+    a11yId: null,
+    text: null,
+    rect,
+    children,
+  })
+  const chain = (levels: number): Record<string, unknown> => {
+    let current = node([])
+    for (let index = 0; index < levels; index += 1) current = node([current])
+    return current
+  }
+  const grabResult = (subtree: unknown) => ({
+    v: 1,
+    seq: 5,
+    type: 'grabResult',
+    requestId: 'req-1',
+    grab: {text: 'x', preview, subtree},
+  })
+
+  it('accepts a subtree at the depth limit', () => {
+    expect(NativeToPageSchema.safeParse(grabResult(chain(SUBTREE_MAX_DEPTH))).success).toBe(true)
+  })
+
+  it('rejects a subtree deeper than the depth limit', () => {
+    expect(NativeToPageSchema.safeParse(grabResult(chain(SUBTREE_MAX_DEPTH + 2))).success).toBe(false)
+  })
+
+  it('rejects a subtree whose node count exceeds the wire budget', () => {
+    const wide = node(Array.from({length: SUBTREE_MAX_NODES + 1}, () => node([])))
+    expect(NativeToPageSchema.safeParse(grabResult(wide)).success).toBe(false)
   })
 })
 

@@ -1,4 +1,5 @@
-import {cp, mkdir, readFile, rm} from 'node:fs/promises'
+import {createHash} from 'node:crypto'
+import {cp, mkdir, readFile, readdir, rm} from 'node:fs/promises'
 import {join} from 'node:path'
 
 const BARE_SEMVER = /^\d+\.\d+\.\d+$/
@@ -52,4 +53,28 @@ export async function assembleMirrorTree(layout: MirrorLayout): Promise<MirrorTr
     await cp(from, join(layout.destDir, to), {recursive: true, filter: (src) => !isSkipped(src)})
   }
   return {version, files: MIRROR_ENTRIES}
+}
+
+async function walkTree(dir: string, rel: string, out: string[]): Promise<void> {
+  for (const entry of await readdir(join(dir, rel), {withFileTypes: true})) {
+    const childRel = rel === '' ? entry.name : `${rel}/${entry.name}`
+    if (isSkipped(`/${childRel}`)) continue
+    if (entry.isDirectory()) {
+      await walkTree(dir, childRel, out)
+      continue
+    }
+    const content = await readFile(join(dir, childRel))
+    out.push(`${childRel}\0${createHash('sha256').update(content).digest('hex')}`)
+  }
+}
+
+export async function fingerprintTree(dir: string): Promise<string> {
+  const entries: string[] = []
+  await walkTree(dir, '', entries)
+  return entries.toSorted().join('\n')
+}
+
+export async function treesMatch(a: string, b: string): Promise<boolean> {
+  const [left, right] = await Promise.all([fingerprintTree(a), fingerprintTree(b)])
+  return left === right
 }

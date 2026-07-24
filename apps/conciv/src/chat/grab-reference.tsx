@@ -37,6 +37,7 @@ function ScaledSnapshot(props: {preview: GrabPreview; maxWidth: number}): JSX.El
           img.src = preview.dataUrl
           img.width = preview.width
           img.height = preview.height
+          img.alt = ''
           el.appendChild(img)
         }}
       />
@@ -74,12 +75,16 @@ export function GrabReference(props: {
             <ScaledSnapshot preview={grab().preview} maxWidth={props.maxWidth} />
             <Show when={grab().source}>
               {(source) => (
-                <span class="text-pw-text-2 flex gap-1.5 [word-break:break-all] items-center">
-                  <span class="text-pw-accent" aria-hidden="true">
-                    ↳
-                  </span>{' '}
-                  in {sourceLabel(source())}
-                </span>
+                <Show when={sourceLabel(source())}>
+                  {(label) => (
+                    <span class="text-pw-text-2 flex gap-1.5 [word-break:break-all] items-center">
+                      <span class="text-pw-accent" aria-hidden="true">
+                        ↳
+                      </span>{' '}
+                      in {label()}
+                    </span>
+                  )}
+                </Show>
               )}
             </Show>
           </>

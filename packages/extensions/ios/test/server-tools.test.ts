@@ -3,7 +3,6 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it} from 'vitest'
-import type {ContentPart} from '@conciv/extension'
 import {
   parseXcodebuildAppPath,
   runBuild,
@@ -70,6 +69,16 @@ function tempSwiftProject(): string {
   return root
 }
 
+async function runFailingSwiftcBuild(scripts: Script[]) {
+  const root = tempSwiftProject()
+  const {runner, calls} = fakeRunner(scripts)
+  const result = await runBuild({config: swiftcConfig(root), runner, cwd: root}, {})
+  if ('error' in result) throw new Error('unexpected not-configured')
+  expect(result.ok).toBe(false)
+  expect(result.appPath).toBeNull()
+  return {diagnostics: result.diagnostics, calls}
+}
+
 describe('ios tools when the extension is not configured', () => {
   const ctx: IosToolContext = {config: undefined, runner: fakeRunner([]).runner, cwd: '/tmp'}
 
@@ -83,16 +92,11 @@ describe('ios tools when the extension is not configured', () => {
 
 describe('ios.build swiftc mode', () => {
   it('parses a real swiftc error transcript into diagnostics and reports failure', async () => {
-    const root = tempSwiftProject()
-    const {runner, calls} = fakeRunner([
+    const {diagnostics, calls} = await runFailingSwiftcBuild([
       {when: (call) => has(call, '--show-sdk-path'), reply: {stdout: '/sdk/iphonesimulator'}},
       {when: (call) => has(call, 'swiftc'), reply: {code: 1, stderr: transcript('swiftc-error.txt')}},
     ])
-    const result = await runBuild({config: swiftcConfig(root), runner, cwd: root}, {})
-    if ('error' in result) throw new Error('unexpected not-configured')
-    expect(result.ok).toBe(false)
-    expect(result.appPath).toBeNull()
-    const typeError = result.diagnostics.find((d) => d.message.includes("cannot convert value of type 'String'"))
+    const typeError = diagnostics.find((d) => d.message.includes("cannot convert value of type 'String'"))
     expect(typeError?.severity).toBe('error')
     expect(typeError?.line).toBe(2)
     expect(typeError?.file.endsWith('Broken.swift')).toBe(true)
@@ -229,6 +233,60 @@ describe('ios.run', () => {
   })
 })
 
+describe('ios.build packaging steps are checked', () => {
+  it('fails the build with diagnostics when plutil conversion fails', async () => {
+    const {calls} = await runFailingSwiftcBuild([
+      {when: (call) => has(call, '--show-sdk-path'), reply: {stdout: '/sdk/iphonesimulator'}},
+      {when: (call) => call.cmd === 'plutil', reply: {code: 1, stderr: 'plutil: Info.plist is not a valid plist'}},
+    ])
+    expect(calls.some((call) => call.cmd === 'codesign')).toBe(false)
+  })
+
+  it('fails the build when codesign fails', async () => {
+    await runFailingSwiftcBuild([
+      {when: (call) => has(call, '--show-sdk-path'), reply: {stdout: '/sdk/iphonesimulator'}},
+      {when: (call) => call.cmd === 'codesign', reply: {code: 1, stderr: 'codesign: bundle format unrecognized'}},
+    ])
+  })
+})
+
+describe('ios.run install and device selection', () => {
+  it('fails without terminating or launching when simctl install fails', async () => {
+    const root = tempSwiftProject()
+    const {runner, calls} = fakeRunner([
+      {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
+      {when: (call) => has(call, 'install'), reply: {code: 1, stderr: 'Failed to install the requested application'}},
+    ])
+    const result = await runRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => undefined}, {})
+    if ('error' in result) throw new Error('unexpected not-configured')
+    expect(result.ok).toBe(false)
+    expect(calls.some((call) => has(call, 'terminate'))).toBe(false)
+    expect(calls.some((call) => has(call, 'launch'))).toBe(false)
+  })
+
+  it('skips an unavailable duplicate-named runtime and picks the available simulator', async () => {
+    const root = tempSwiftProject()
+    const devices = {
+      devices: {
+        'com.apple.CoreSimulator.SimRuntime.iOS-17-0': [
+          {udid: 'UNAVAILABLE-UDID', name: 'iPhone 17 Pro', state: 'Shutdown', isAvailable: false},
+        ],
+        'com.apple.CoreSimulator.SimRuntime.iOS-26-5': [
+          {udid: 'GOOD-UDID', name: 'iPhone 17 Pro', state: 'Shutdown', isAvailable: true},
+        ],
+      },
+    }
+    const {runner, calls} = fakeRunner([
+      {when: (call) => has(call, 'list'), reply: {stdout: JSON.stringify(devices)}},
+      {when: (call) => has(call, 'launch'), reply: {stdout: 'dev.conciv.pay: 4210'}},
+    ])
+    const result = await runRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => undefined}, {})
+    if ('error' in result) throw new Error('unexpected not-configured')
+    expect(result.udid).toBe('GOOD-UDID')
+    expect(calls.some((call) => has(call, 'install') && has(call, 'GOOD-UDID'))).toBe(true)
+  })
+})
+
 describe('ios.screenshot', () => {
   it('returns an imageResult with png dimensions parsed from the byte stream', async () => {
     const png = Buffer.from(PNG_RED_4x4_BASE64, 'base64')
@@ -236,7 +294,8 @@ describe('ios.screenshot', () => {
       {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
       {when: (call) => has(call, 'screenshot'), reply: {stdout: png}},
     ])
-    const result = (await runScreenshot({config: swiftcConfig('/tmp'), runner, cwd: '/tmp'})) as ContentPart[]
+    const result = await runScreenshot({config: swiftcConfig('/tmp'), runner, cwd: '/tmp'})
+    if (!Array.isArray(result)) throw new Error('expected an image result, got a not-configured response')
     expect(result).toEqual([
       {type: 'image', source: {type: 'data', value: PNG_RED_4x4_BASE64, mimeType: 'image/png'}},
       {type: 'text', content: JSON.stringify({width: 4, height: 4})},

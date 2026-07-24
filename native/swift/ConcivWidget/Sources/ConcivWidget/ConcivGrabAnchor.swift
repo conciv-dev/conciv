@@ -19,18 +19,27 @@ public final class ConcivAnchorRegistry {
 
   private var anchors: [String: Anchor] = [:]
 
+  // Fired only when the anchor SET changes (add/remove), never on a frame update, so a
+  // scroll that re-registers existing ids does not spam the grab-capability signal.
+  public var onChange: (() -> Void)?
+
   public init() {}
 
   public func register(id: String, label: String?, frame: CGRect) {
+    let isNew = anchors[id] == nil
     anchors[id] = Anchor(id: id, label: label, frame: frame)
+    if isNew { onChange?() }
   }
 
   public func unregister(id: String) {
-    anchors.removeValue(forKey: id)
+    guard anchors.removeValue(forKey: id) != nil else { return }
+    onChange?()
   }
 
   public func reset() {
+    guard !anchors.isEmpty else { return }
     anchors.removeAll()
+    onChange?()
   }
 
   public func anchor(for id: String) -> Anchor? {

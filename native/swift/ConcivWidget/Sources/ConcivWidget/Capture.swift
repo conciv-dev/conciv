@@ -48,18 +48,19 @@ enum Capture {
   }
 
   // The scale cap keeps typical previews small; this is the hard backstop. A dataUrl over
-  // the ceiling is dropped to an empty preview rather than shipped, so an oversized payload
-  // never rides the bridge into an evaluateJavaScript source string.
+  // the ceiling returns nil so the pick fails rather than shipping a blank preview, and an
+  // oversized payload never rides the bridge into an evaluateJavaScript source string.
   static func jpegDataUrl(_ image: UIImage) -> String? {
     guard let data = image.jpegData(compressionQuality: jpegQuality) else { return nil }
     let dataUrl = "data:image/jpeg;base64,\(data.base64EncodedString())"
     return dataUrl.utf8.count <= maxDataUrlBytes ? dataUrl : nil
   }
 
-  static func imagePreview(_ image: UIImage?) -> ImagePreview {
-    guard let image, let dataUrl = jpegDataUrl(image) else {
-      return ImagePreview(dataUrl: "", width: 0, height: 0)
-    }
+  // A pick without a visual is a failed pick: when rendering or the data-url ceiling
+  // yields no image, return nil so the caller resolves the pick failed rather than
+  // shipping a blank preview.
+  static func imagePreview(_ image: UIImage?) -> ImagePreview? {
+    guard let image, let dataUrl = jpegDataUrl(image) else { return nil }
     return ImagePreview(dataUrl: dataUrl, width: image.size.width, height: image.size.height)
   }
 }

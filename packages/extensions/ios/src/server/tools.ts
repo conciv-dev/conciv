@@ -47,18 +47,19 @@ function stdoutText(result: RunResult): string {
   return result.stdout.toString('utf8')
 }
 
+function walkSwiftSources(dir: string): string[] {
+  return readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) return walkSwiftSources(full)
+    if (entry.name.endsWith('.swift')) return [full]
+    return []
+  })
+}
+
 function collectSwiftSources(root: string): string[] {
-  const sources: string[] = []
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir, {withFileTypes: true})) {
-      const full = join(dir, entry.name)
-      if (entry.isDirectory()) walk(full)
-      else if (entry.name.endsWith('.swift')) sources.push(full)
-    }
-  }
   const sourcesDir = join(root, 'Sources')
-  if (existsSync(sourcesDir)) walk(sourcesDir)
-  return sources.toSorted()
+  if (!existsSync(sourcesDir)) return []
+  return walkSwiftSources(sourcesDir).toSorted()
 }
 
 function swiftTarget(): string {
@@ -162,20 +163,32 @@ async function buildSwiftc(ctx: IosToolContext, config: IosConfig, clean: boolea
     ],
     {cwd: root, env},
   )
-  const durationMs = Date.now() - started
   const diagnostics = parseDiagnostics(`${stdoutText(compile)}\n${compile.stderr}`)
-  if (compile.code !== 0) return {ok: false, appPath: null, durationMs, diagnostics}
+  if (compile.code !== 0) return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics}
 
   const infoPlist = join(root, 'Info.plist')
   if (existsSync(infoPlist)) {
-    await ctx.runner.run('plutil', ['-convert', 'binary1', '-o', join(appDir, 'Info.plist'), infoPlist], {
+    const plist = await ctx.runner.run('plutil', ['-convert', 'binary1', '-o', join(appDir, 'Info.plist'), infoPlist], {
       cwd: root,
       env,
     })
+    if (plist.code !== 0) {
+      return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics: packagingDiagnostics(plist)}
+    }
     writeFileSync(join(appDir, 'PkgInfo'), 'APPL????')
-    await ctx.runner.run('codesign', ['--force', '--sign', '-', '--timestamp=none', appDir], {cwd: root, env})
+    const signed = await ctx.runner.run('codesign', ['--force', '--sign', '-', '--timestamp=none', appDir], {
+      cwd: root,
+      env,
+    })
+    if (signed.code !== 0) {
+      return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics: packagingDiagnostics(signed)}
+    }
   }
-  return {ok: true, appPath: appDir, durationMs, diagnostics}
+  return {ok: true, appPath: appDir, durationMs: Date.now() - started, diagnostics}
+}
+
+function packagingDiagnostics(result: RunResult): Diagnostic[] {
+  return parseDiagnostics(`${stdoutText(result)}\n${result.stderr}`)
 }
 
 export async function runBuild(ctx: IosToolContext, input: {clean?: boolean}): Promise<BuildOutput> {
@@ -185,26 +198,35 @@ export async function runBuild(ctx: IosToolContext, input: {clean?: boolean}): P
   return buildXcodebuild(ctx, ctx.config, clean)
 }
 
-type SimDevice = {udid?: string; name?: string; state?: string}
+type SimDevice = {udid: string; name: string; state?: string; isAvailable?: boolean}
+
+function parseSimDevice(value: unknown): SimDevice | null {
+  if (!isRecord(value)) return null
+  const {udid, name} = value
+  if (typeof udid !== 'string' || typeof name !== 'string') return null
+  return {
+    udid,
+    name,
+    state: typeof value.state === 'string' ? value.state : undefined,
+    isAvailable: typeof value.isAvailable === 'boolean' ? value.isAvailable : undefined,
+  }
+}
+
+function parseSimDevices(parsed: unknown): SimDevice[] {
+  if (!isRecord(parsed) || !isRecord(parsed.devices)) return []
+  return Object.values(parsed.devices).flatMap((group) =>
+    Array.isArray(group) ? group.flatMap((entry) => parseSimDevice(entry) ?? []) : [],
+  )
+}
 
 async function resolveUdid(ctx: IosToolContext, config: IosConfig): Promise<string | null> {
   const listed = await ctx.runner.run('xcrun', ['simctl', 'list', '-j', 'devices'], {env: developerEnv(config)})
   if (listed.code !== 0) return null
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(stdoutText(listed))
-  } catch {
-    return null
-  }
-  const devices =
-    parsed && typeof parsed === 'object' ? (parsed as {devices?: Record<string, SimDevice[]>}).devices : undefined
-  if (!devices) return null
-  const all = Object.values(devices).flat()
+  const available = parseSimDevices(safeJson(stdoutText(listed))).filter((device) => device.isAvailable !== false)
   const wanted = config.simulator
-  const matches = all.filter((device) => device.udid === wanted || device.name === wanted)
+  const matches = available.filter((device) => device.udid === wanted || device.name === wanted)
   const booted = matches.find((device) => device.state === 'Booted')
-  const chosen = booted ?? matches[0]
-  return chosen?.udid ?? null
+  return (booted ?? matches[0])?.udid ?? null
 }
 
 async function resolveAppPath(ctx: IosToolContext, config: IosConfig): Promise<string | null> {
@@ -239,7 +261,8 @@ export async function runRun(ctx: IosToolContext, input: {autoshow?: boolean}): 
   await ctx.runner.run('xcrun', ['simctl', 'boot', udid], {env})
   const appPath = await resolveAppPath(ctx, config)
   if (!appPath) return {ok: false, udid, bundleId: config.bundleId}
-  await ctx.runner.run('xcrun', ['simctl', 'install', udid, appPath], {env})
+  const installed = await ctx.runner.run('xcrun', ['simctl', 'install', udid, appPath], {env})
+  if (installed.code !== 0) return {ok: false, udid, bundleId: config.bundleId}
   await ctx.runner.run('xcrun', ['simctl', 'terminate', udid, config.bundleId], {env})
   const launched = await ctx.runner.run('xcrun', ['simctl', 'launch', udid, config.bundleId], {
     env: launchEnv(config, ctx, input.autoshow ?? false),

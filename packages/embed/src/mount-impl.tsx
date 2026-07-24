@@ -13,10 +13,15 @@ import {resolveApiBase} from 'conciv/api-base'
 import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit} from './mount.js'
 
+type RebindDetail = {apiBase?: string}
+
 declare global {
   interface Window {
     __CONCIV_PAGE_DRIVER__?: PageDriver
     __CONCIV_REACT_BRIDGE__?: typeof reactBridge
+  }
+  interface WindowEventMap {
+    'conciv:rebind': CustomEvent<RebindDetail>
   }
 }
 
@@ -192,8 +197,8 @@ export function mountImpl(
     if (disposed) return
     rebindBoot?.(apiBase)
   }
-  const onRebind = (event: Event): void => {
-    const detail = (event as CustomEvent<{apiBase?: string}>).detail
+  const onRebind = (event: WindowEventMap['conciv:rebind']): void => {
+    const detail = event.detail
     if (detail?.apiBase) void rebind(detail.apiBase)
   }
   window.addEventListener('conciv:rebind', onRebind)

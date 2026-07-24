@@ -125,14 +125,28 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
   if (opts.nativePageDir && base) {
-    writeDevEndpoint(endpointDir, {apiBase: base, token: opts.accessToken ?? null, pid: process.pid})
+    try {
+      writeDevEndpoint(endpointDir, {apiBase: base, token: opts.accessToken ?? null, pid: process.pid})
+    } catch (error) {
+      await dispose()
+      await close()
+      throw error
+    }
+  }
+  const clearEndpoint = (): void => {
+    if (!opts.nativePageDir) return
+    try {
+      removeDevEndpoint(endpointDir, process.pid)
+    } catch (error) {
+      console.error('conciv: failed to remove the dev endpoint file', error)
+    }
   }
   return {
     port,
     cfg,
     extensionContexts,
     stop: async () => {
-      if (opts.nativePageDir) removeDevEndpoint(endpointDir, process.pid)
+      clearEndpoint()
       await dispose()
       await close()
     },

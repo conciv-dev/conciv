@@ -19,16 +19,22 @@ type NativeApi = {
   grabCapability: NativeCall
 }
 
+type PanelToggledDetail = {open?: boolean; connected?: boolean; mascotRect?: ElementRect | null}
+
 declare global {
   interface Window {
     webkit?: {messageHandlers?: {concivBridge?: {postMessage: (message: unknown) => void}}}
     __concivNative?: NativeApi
+  }
+  interface WindowEventMap {
+    'conciv:panel-toggled': CustomEvent<PanelToggledDetail>
   }
 }
 
 type Incompatible = {nativeMinV: number; nativeMaxV: number}
 
 const [incompatible, setIncompatible] = createSignal<Incompatible | null>(null)
+const [grabbable, setGrabbable] = createSignal(false)
 
 let bridge: BridgeClient | null = null
 
@@ -64,18 +70,20 @@ function makeWebkitTransport(): BridgeTransport {
   }
 }
 
-type PanelToggledDetail = {open?: boolean; connected?: boolean; mascotRect?: ElementRect | null}
-
-function onPanelToggled(event: Event): void {
+function onPanelToggled(event: WindowEventMap['conciv:panel-toggled']): void {
   if (!bridge) return
-  const detail = (event as CustomEvent<PanelToggledDetail>).detail
+  const detail = event.detail
   if (!detail) return
   bridge.panelToggled(detail.open === true, detail.connected === true, detail.mascotRect ?? null)
 }
 
+function nativeHandlerPresent(): boolean {
+  return typeof window !== 'undefined' && window.webkit?.messageHandlers?.concivBridge !== undefined
+}
+
 function ensureBridge(): BridgeClient | null {
   if (bridge) return bridge
-  if (typeof window === 'undefined') return null
+  if (!nativeHandlerPresent()) return null
   bridge = createBridgeClient({
     transport: makeWebkitTransport(),
     scheduler: {
@@ -90,33 +98,39 @@ function ensureBridge(): BridgeClient | null {
     ensureClose: () => dispatch('conciv:close-panel'),
     onRebind: (apiBase) => dispatch('conciv:rebind', {apiBase}),
     onIncompatible: (info) => setIncompatible(info),
+    onGrabbableChanged: (value) => setGrabbable(value),
     onLog: (level, message) => console[level]('conciv bridge:', message),
   })
   bridge.start()
+  setGrabbable(bridge.grabbable())
   window.addEventListener('conciv:panel-toggled', onPanelToggled)
   return bridge
 }
 
 export function makeNativeGrabProvider(): GrabProvider {
   const engine = ensureBridge()
-  let active = false
+  let requestSeq = 0
+  let activeRequest = 0
   const doPick = async (mode: GrabMode) => {
     if (!engine) return null
-    active = true
+    const token = ++requestSeq
+    activeRequest = token
     dispatch('conciv:close-panel')
     try {
       return await engine.pick(mode)
     } finally {
-      active = false
-      dispatch('conciv:open-panel')
+      if (activeRequest === token) {
+        activeRequest = 0
+        dispatch('conciv:open-panel')
+      }
     }
   }
   const actions: GrabActions = {
     pick: () => doPick('activate'),
     comment: () => doPick('comment'),
     cancel: () => engine?.cancelActive(),
-    isActive: () => active,
-    grabbable: () => engine?.grabbable() ?? false,
+    isActive: () => activeRequest !== 0,
+    grabbable: () => grabbable(),
   }
   return () => actions
 }

@@ -281,6 +281,32 @@ describe('bridge client grab pick engine', () => {
     wire.emit({v: 1, seq: 1, type: 'grabCapability', grabbable: false})
     expect(client.grabbable()).toBe(false)
   })
+
+  it('fires onGrabbableChanged only when the capability flips', () => {
+    const onGrabbableChanged = vi.fn()
+    const {wire, client} = setup({onGrabbableChanged})
+    client.start()
+    wire.emit({v: 1, seq: 1, type: 'grabCapability', grabbable: true})
+    expect(onGrabbableChanged).not.toHaveBeenCalled()
+    wire.emit({v: 1, seq: 2, type: 'grabCapability', grabbable: false})
+    expect(onGrabbableChanged).toHaveBeenCalledTimes(1)
+    expect(onGrabbableChanged).toHaveBeenCalledWith(false)
+    expect(client.grabbable()).toBe(false)
+    wire.emit({v: 1, seq: 3, type: 'grabCapability', grabbable: false})
+    expect(onGrabbableChanged).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('bridge client version negotiation', () => {
+  it('treats a handshake outside the supported range as incompatible and does not rebind', () => {
+    const onIncompatible = vi.fn()
+    const onRebind = vi.fn()
+    const {wire, client} = setup({onIncompatible, onRebind})
+    client.start()
+    wire.emit({v: 2, seq: 1, type: 'handshake', apiBase: 'http://127.0.0.1:9999', token: null})
+    expect(onIncompatible).toHaveBeenCalledWith({nativeMinV: 2, nativeMaxV: 2})
+    expect(onRebind).not.toHaveBeenCalled()
+  })
 })
 
 describe('bridge client disposal', () => {

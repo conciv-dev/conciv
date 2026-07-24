@@ -84,7 +84,7 @@ func pickBuildViewNode(_ view: UIView, isExcluded: (UIView) -> Bool, depth: Int,
   )
 }
 
-func pickNeutralGrab(fromUIView view: UIView, isExcluded: (UIView) -> Bool, image: UIImage?) -> NeutralGrab {
+func pickNeutralGrab(fromUIView view: UIView, isExcluded: (UIView) -> Bool, preview: ImagePreview) -> NeutralGrab {
   let texts = pickCollectTexts(view)
   var budget = subtreeMaxNodes
   let subtree = pickBuildViewNode(view, isExcluded: isExcluded, depth: 0, budget: &budget)
@@ -92,14 +92,14 @@ func pickNeutralGrab(fromUIView view: UIView, isExcluded: (UIView) -> Bool, imag
   let componentName = (identifier?.isEmpty ?? true) ? pickClassLabel(view) : identifier
   return NeutralGrab(
     text: texts.joined(separator: " · "),
-    preview: Capture.imagePreview(image),
+    preview: preview,
     rect: rectToBridge(pickFrameInWindow(view)),
     source: Source(componentName: componentName, filePath: "", lineNumber: nil),
     subtree: subtree
   )
 }
 
-func pickNeutralGrab(fromAnchor anchor: ConcivAnchorRegistry.Anchor, registry: ConcivAnchorRegistry, image: UIImage?) -> NeutralGrab {
+func pickNeutralGrab(fromAnchor anchor: ConcivAnchorRegistry.Anchor, registry: ConcivAnchorRegistry, preview: ImagePreview) -> NeutralGrab {
   let descendants = registry.descendants(of: anchor)
     .sorted { ($0.frame.width * $0.frame.height) > ($1.frame.width * $1.frame.height) }
     .prefix(subtreeMaxNodes - 1)
@@ -121,7 +121,7 @@ func pickNeutralGrab(fromAnchor anchor: ConcivAnchorRegistry.Anchor, registry: C
   )
   return NeutralGrab(
     text: anchor.label ?? anchor.id,
-    preview: Capture.imagePreview(image),
+    preview: preview,
     rect: rectToBridge(anchor.frame),
     source: Source(componentName: anchor.id, filePath: "", lineNumber: nil),
     subtree: subtree
