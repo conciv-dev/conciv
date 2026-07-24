@@ -1,0 +1,1 @@
+export const CONCIV_TANSTACK_CLIENT_SENTINEL = 'TanStack'

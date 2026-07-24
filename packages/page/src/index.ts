@@ -6,9 +6,16 @@ export {makeDomPageDriver, type PageDriver} from './page-driver.js'
 export {grabApi} from './grab-api.js'
 export {picking, cancelPick} from './react-grab/picking.js'
 export {getReactGrabAdapter, type ReactGrabAdapter} from './react-grab/adapter.js'
-export {describe, locate, installReactBridge} from './react-bridge.js'
+export {describe, locate, installReactBridge, rootFibers} from './react-bridge.js'
+export {dehydrate, type DehydrateOptions} from './dehydrate.js'
 export {showToast} from './effect-toast.js'
 export {addRef, type Refs} from './page-snapshot.js'
+export {
+  registerExtensionPageVerbs,
+  unregisterExtensionPageVerbs,
+  clearExtensionPageVerbs,
+  bindExtensionPageVerbs,
+} from './page-verb-registry.js'
 export * as reactBridge from './react-bridge.js'
 
 async function sleep(ms: number, signal: AbortSignal): Promise<void> {

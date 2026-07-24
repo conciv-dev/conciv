@@ -45,6 +45,7 @@ export const claude = defineHarness({
     mcp: 'http',
     slashCommands: 'live',
     imageInput: 'fileRef',
+    codeMode: true,
   },
   chatConfig: claudeChatConfig,
   commands: claudeSdkCommands,

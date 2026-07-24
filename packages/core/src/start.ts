@@ -48,19 +48,15 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
+export function composeSystemPrompt(base: string | undefined, extensions: readonly AnyExtension[]): string {
+  return [base, ...extensions.map((extension) => extension.systemPrompt)].filter(Boolean).join('\n\n')
+}
+
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
 
-  const systemPrompt = [
-    cfg.systemPrompt,
-    ...(opts.extensions ?? []).flatMap((ext) => [
-      ...(ext.tools ?? []).map((tool) => tool.promptSnippet),
-      ext.systemPrompt,
-    ]),
-  ]
-    .filter(Boolean)
-    .join('\n\n')
+  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, opts.extensions ?? [])
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
   const openInEditor = makeEditorOpener(

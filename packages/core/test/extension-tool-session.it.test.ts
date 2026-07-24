@@ -20,6 +20,7 @@ describe('/api/mcp threads the request session into extension tool execute', () 
       transport: {type: 'http', url: `${server.base}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: 'conciv_x'}},
     })
     try {
+      await mcp.callTool('conciv_discover_tools', {names: ['acme_echo_session']})
       const echoTool = (await mcp.tools()).find((tool) => tool.name === 'acme_echo_session')
       if (!echoTool?.execute) throw new Error('acme_echo_session not registered on /api/mcp')
       const result = JSON.stringify(await echoTool.execute({}))

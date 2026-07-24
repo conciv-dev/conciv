@@ -56,6 +56,7 @@ describe('test-runner extension booted in the real engine (IT)', () => {
     const {base, engine} = await boot()
     try {
       const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+      await mcp.callTool('conciv_discover_tools', {names: ['test_runner']})
       const tool = (await mcp.tools()).find((candidate) => candidate.name === 'test_runner')
       if (!tool?.execute) throw new Error('test_runner not registered')
 
@@ -87,8 +88,13 @@ describe('test-runner extension booted in the real engine (IT)', () => {
     }
   }, 30_000)
 
-  it('selects the configured runner: runner=jest (a stub) is rejected at mount', async () => {
-    await expect(boot({extensions: {'test-runner': {runner: 'jest'}}})).rejects.toThrow(/jest runner not implemented/)
+  it('skips a misconfigured runner (runner=jest stub) without aborting boot', async () => {
+    const {base, engine} = await boot({extensions: {'test-runner': {runner: 'jest'}}})
+    try {
+      await expect(runnerClient(base).status(undefined)).rejects.toThrow()
+    } finally {
+      await engine.stop()
+    }
   }, 30_000)
 
   it('rejects a non-loopback Origin on an extension rpc route with 403', async () => {

@@ -28,6 +28,13 @@ describe('codex chatConfig', () => {
     expect(codex.chatConfig(deps({resumeSessionId: 'thread-9'})).modelOptions).toEqual({sessionId: 'thread-9'})
   })
 
+  it('auto-approves the bridged MCP server only when tools ride the run', () => {
+    const bridged = JSON.stringify(codex.chatConfig(deps({hasTools: true})).adapter)
+    expect(bridged).toContain('mcp_servers.tanstack.default_tools_approval_mode')
+    const bare = JSON.stringify(codex.chatConfig(deps()).adapter)
+    expect(bare).not.toContain('mcp_servers.tanstack')
+  })
+
   it('keeps the terminal launch flow', async () => {
     const result = await codex.launch?.({
       cwd: '/tmp',

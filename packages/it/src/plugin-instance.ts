@@ -18,4 +18,5 @@ export const unplugin = createConcivUnplugin({
   ],
   embedEntry,
   nativePageDir: dirname(embedEntry),
+  dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
 })

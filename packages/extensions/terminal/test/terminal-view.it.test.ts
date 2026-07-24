@@ -1,6 +1,6 @@
 import {expect, test} from 'vitest'
 import terminal from '../src/server.js'
-import {getExtensionTestApi} from '@conciv/extension-testkit'
+import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import type {Page} from 'playwright'
 
@@ -20,7 +20,7 @@ async function openTerminalView(page: Page): Promise<void> {
 test('a remounted terminal view replays the pty output it left behind', async () => {
   const api = await getExtensionTestApi({
     server: terminal,
-    clientEntry: '@conciv/extension-terminal/client',
+    host: fixtureHost('@conciv/extension-terminal/client'),
     harness: createFakeHarness({id: 'fake-terminal', text: 'ok', tty: bashTty}),
   })
   try {

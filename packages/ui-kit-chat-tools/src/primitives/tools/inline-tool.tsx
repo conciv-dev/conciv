@@ -29,3 +29,15 @@ export function inlineValue(part: ToolCallPart, argKeys: readonly string[]): str
 }
 
 export const SUMMARY_KEYS = ['file_path', 'path', 'pattern', 'command', 'query', 'glob', 'url'] as const
+
+const EXTENSIONS_TITLES: Record<string, string> = {
+  catalog: 'Extension catalog',
+  scaffold: 'Extension scaffold',
+  validate: 'Extension check',
+}
+
+export function extensionsSummary(part: ToolCallPart): {label: string; detail: string} {
+  const verb = inlineValue(part, ['verb'])
+  const detail = [inlineValue(part, ['kind']), inlineValue(part, ['name'])].filter(Boolean).join(' ')
+  return {label: EXTENSIONS_TITLES[verb] ?? part.name, detail: truncate(detail)}
+}

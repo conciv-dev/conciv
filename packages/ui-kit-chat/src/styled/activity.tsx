@@ -15,10 +15,18 @@ import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolUIComponent, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {Collapsible} from '@conciv/ui-kit-system'
 import {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from '../primitives/activity/activity.js'
-import {groupSegments, type ChainSegment, type Segment, type Turn} from '../store/grouping.js'
+import {
+  childCallsFor,
+  groupSegments,
+  parentToolCallIdOf,
+  type ChainSegment,
+  type Segment,
+  type Turn,
+} from '../store/grouping.js'
 import {toolStatus, type ToolStatus} from '../primitives/tools/tool-status.js'
 import {useThreadAutoScroll} from '../behaviors/use-thread-auto-scroll.js'
 import {ToolCallCard} from './tools/tool-call-card.js'
+import {ToolGroup} from './tool-group.js'
 import {ToolFallback} from './tool-fallback.js'
 import {Markdown} from './markdown.js'
 import {NowLine} from './now-line.js'
@@ -116,7 +124,7 @@ function StepShell(
   )
 }
 
-function ToolStep(props: {part: ToolCallPart}): JSX.Element {
+function ToolStep(props: {part: ToolCallPart; subCalls?: ToolCallPart[]}): JSX.Element {
   const activity = useActivity()
   const config = useContext(ActivityConfigContext)
   const result = () => activity.resultFor(props.part.id)
@@ -135,7 +143,29 @@ function ToolStep(props: {part: ToolCallPart}): JSX.Element {
         tools={config.tools}
         fallback={config.fallback()}
       />
+      <SubCallGroup parent={props.part} subCalls={props.subCalls ?? []} />
     </StepShell>
+  )
+}
+
+function SubCallGroup(props: {parent: ToolCallPart; subCalls: ToolCallPart[]}): JSX.Element {
+  const activity = useActivity()
+  const [userOpen, setUserOpen] = createSignal<boolean | undefined>(undefined)
+  const attention = () =>
+    props.subCalls.some((call) => {
+      const status = toolStatus(call, activity.resultFor(call.id))
+      return status === 'running' || status === 'approval'
+    })
+  const parentRunning = () => toolStatus(props.parent, activity.resultFor(props.parent.id)) === 'running'
+  const open = () => userOpen() ?? (parentRunning() || attention())
+  return (
+    <Show when={props.subCalls.length > 0}>
+      <div class="mt-1.5">
+        <ToolGroup count={props.subCalls.length} active={parentRunning()} open={open()} onOpenChange={setUserOpen}>
+          <Index each={props.subCalls}>{(call) => <ToolStep part={call()} />}</Index>
+        </ToolGroup>
+      </div>
+    </Show>
   )
 }
 
@@ -154,7 +184,12 @@ const GROUP_CHEVRON =
   'size-3 shrink-0 ml-auto [transition:rotate_150ms_var(--chat-ease)] group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0'
 
 function stepIndices(turn: Turn, chain: ChainSegment): number[] {
-  return chain.indices.filter((index) => asToolCall(turn.parts[index]) ?? asThinking(turn.parts[index]))
+  return chain.indices.filter((index) => {
+    const part = turn.parts[index]
+    const call = asToolCall(part)
+    if (call) return parentToolCallIdOf(call) === null
+    return asThinking(part) !== null
+  })
 }
 
 function StepGroup(props: {turn: Turn; chain: ChainSegment; liveSegment: boolean}): JSX.Element {
@@ -162,7 +197,7 @@ function StepGroup(props: {turn: Turn; chain: ChainSegment; liveSegment: boolean
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(undefined)
   const steps = () => stepIndices(props.turn, props.chain)
   const hasApproval = () =>
-    steps().some((index) => {
+    props.chain.indices.some((index) => {
       const call = asToolCall(props.turn.parts[index])
       return call !== null && toolStatus(call, activity.resultFor(call.id)) === 'approval'
     })
@@ -188,7 +223,9 @@ function StepGroup(props: {turn: Turn; chain: ChainSegment; liveSegment: boolean
           <Index each={steps()}>
             {(partIndex) => (
               <Switch>
-                <Match when={asToolCall(props.turn.parts[partIndex()])}>{(part) => <ToolStep part={part()} />}</Match>
+                <Match when={asToolCall(props.turn.parts[partIndex()])}>
+                  {(part) => <ToolStep part={part()} subCalls={childCallsFor(props.turn.parts, part().id)} />}
+                </Match>
                 <Match when={asThinking(props.turn.parts[partIndex()])}>
                   {(part) => <ThinkingStep part={part()} />}
                 </Match>

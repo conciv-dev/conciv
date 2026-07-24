@@ -7,6 +7,8 @@ export default defineConfig({
     'src/inject-source.ts',
     'src/compile-extension.ts',
     'src/split-extension.ts',
+    'src/dedupe-extensions.ts',
+    'src/extension-guard.ts',
   ],
   format: 'esm',
   fixedExtension: false,

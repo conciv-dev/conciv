@@ -1,8 +1,15 @@
 import {Show, type JSX} from 'solid-js'
 import {Check, CircleAlert, CircleX, LoaderCircle} from 'lucide-solid'
-import type {ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
-import {basename, inlineValue, shortenPath, SUMMARY_KEYS, truncate} from '../../primitives/tools/inline-tool.js'
+import {
+  basename,
+  extensionsSummary,
+  inlineValue,
+  shortenPath,
+  SUMMARY_KEYS,
+  truncate,
+} from '../../primitives/tools/inline-tool.js'
 
 function StatusIcon(props: {status: ToolStatus}): JSX.Element {
   return (
@@ -46,24 +53,27 @@ function Shell(props: {name: string; status: ToolStatus; children?: JSX.Element}
   )
 }
 
+function InlineRow(props: {label: string; status: ToolStatus; value: string}): JSX.Element {
+  return (
+    <Shell name={props.label} status={props.status}>
+      <Show when={props.value}>
+        <span class="text-[color:var(--chat-text-3)] truncate">{props.value}</span>
+      </Show>
+    </Shell>
+  )
+}
+
 export function inlineTool(
   argKeys: string | readonly string[],
   format: (value: string) => string = truncate,
 ): ToolUIComponent {
   const keys = Array.isArray(argKeys) ? argKeys : [argKeys as string]
   return (props: ToolCardProps) => {
-    const status = () => toolStatus(props.part, props.result)
     const value = () => {
       const raw = inlineValue(props.part, keys)
       return raw ? format(raw) : ''
     }
-    return (
-      <Shell name={props.part.name} status={status()}>
-        <Show when={value()}>
-          <span class="text-[color:var(--chat-text-3)] truncate">{value()}</span>
-        </Show>
-      </Shell>
-    )
+    return <InlineRow label={props.part.name} status={toolStatus(props.part, props.result)} value={value()} />
   }
 }
 
@@ -76,3 +86,10 @@ export const WebSearchInline = inlineTool('query')
 export const WebFetchInline = inlineTool('url')
 
 export const ToolCallInline = inlineTool(SUMMARY_KEYS, truncate)
+
+export function ExtensionsInline(props: ToolCardProps): JSX.Element {
+  const summary = () => extensionsSummary(props.part)
+  return <InlineRow label={summary().label} status={toolStatus(props.part, props.result)} value={summary().detail} />
+}
+
+export const extensionsTool: ToolCardEntry = {names: ['conciv_extensions'], render: ExtensionsInline}

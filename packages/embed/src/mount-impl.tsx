@@ -6,7 +6,7 @@ import {createWebStorageHistory} from '@conciv/storage-history'
 import type {AnyExtension} from '@conciv/extension'
 import type {GrabProvider} from '@conciv/grab'
 import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
-import {createConcivRouter} from 'conciv/router'
+import {createConcivRouter, disposeConcivRouter} from 'conciv/router'
 import {parseConcivSettings, type ConcivSettings} from 'conciv/settings'
 import {createShadowRoot} from 'conciv/shadow'
 import {resolveApiBase} from 'conciv/api-base'
@@ -98,6 +98,7 @@ async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
   const disposers = [
     () => plane.dispose(),
     disposeApp,
+    () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
   ]
@@ -144,6 +145,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
   const disposers = [
     () => planeDispose?.(),
     disposeApp,
+    () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
   ]

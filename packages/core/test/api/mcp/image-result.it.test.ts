@@ -21,6 +21,7 @@ describe('/api/mcp image results', () => {
     const {base, cleanup: close} = kit
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
+      await mcp.callTool('conciv_discover_tools', {names: ['probe_snap']})
       const tool = (await mcp.tools()).find((entry) => entry.name === 'probe_snap')
       if (!tool?.execute) throw new Error('probe_snap not registered on /api/mcp')
       const result = await tool.execute({})

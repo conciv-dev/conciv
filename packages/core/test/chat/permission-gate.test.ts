@@ -9,7 +9,7 @@ const fixture = (timeoutMs?: number) => {
   const db = testDb()
   const changes = makeChanges()
   const processor = new StreamProcessor({events: {}})
-  const risky = new Set(['mcp__conciv__canvas.delete'])
+  const risky = new Set(['canvas.delete'])
   const gate = makeRunGate({
     sessionId: 'conciv_x',
     processor,
@@ -29,14 +29,42 @@ describe('run gate on awaitReply', () => {
     expect(processor.getMessages().flatMap((message) => message.parts)).toEqual([])
   })
 
-  it('does not gate the unprefixed tool name (locks the prefixed-name form)', async () => {
-    const {gate} = fixture()
-    expect(await gate.decide('canvas.delete', {id: 'r1'}, 'conciv_x', 'tu2')).toBe('allow')
+  it('gates a risky tool by bare name across every mcp prefix', async () => {
+    const bare = fixture(30)
+    expect(await bare.gate.decide('canvas.delete', {id: 'r1'}, 'conciv_x', 'tu2a')).toBe('deny')
+    const conciv = fixture(30)
+    expect(await conciv.gate.decide('mcp__conciv__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu2b')).toBe('deny')
+    const tanstack = fixture(30)
+    expect(await tanstack.gate.decide('mcp__tanstack__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu2c')).toBe('deny')
+  })
+
+  it('allows a non-risky tool in every mcp prefix form', async () => {
+    const bare = fixture()
+    expect(await bare.gate.decide('canvas.read', {id: 'r1'}, 'conciv_x', 'tu2d')).toBe('allow')
+    const conciv = fixture()
+    expect(await conciv.gate.decide('mcp__conciv__canvas.read', {id: 'r1'}, 'conciv_x', 'tu2e')).toBe('allow')
+    const tanstack = fixture()
+    expect(await tanstack.gate.decide('mcp__tanstack__canvas.read', {id: 'r1'}, 'conciv_x', 'tu2f')).toBe('allow')
   })
 
   it('risky tool times out to deny when nobody replies', async () => {
     const {gate} = fixture(30)
     expect(await gate.decide('mcp__conciv__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu3')).toBe('deny')
+  })
+
+  it('fires an approval request for a bridge-visible risky tool name (does not execute silently)', async () => {
+    const {gate, db, changes, processor} = fixture(5_000)
+    const pending = gate.decide('mcp__tanstack__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu3b')
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    const parts = processor.getMessages().flatMap((message) => message.parts)
+    const toolPart = parts.find((part) => part.type === 'tool-call')
+    expect(toolPart).toBeDefined()
+    const approvalId = toolPart && 'approval' in toolPart && toolPart.approval ? toolPart.approval.id : undefined
+    expect(approvalId).toBeDefined()
+    if (approvalId === undefined) throw new Error('no approval id')
+    writeReply(db, 'conciv_x', approvalId, false)
+    changes.notify()
+    expect(await pending).toBe('deny')
   })
 
   it('risky tool with no folded part gets a synthetic part, annotated with the approval, and an approve reply allows', async () => {

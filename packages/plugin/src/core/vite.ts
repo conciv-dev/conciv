@@ -1,7 +1,8 @@
 import {dirname, join} from 'node:path'
 import {readdirSync} from 'node:fs'
-import type {Plugin, ViteDevServer} from 'vite'
-import {defineBundlerBridge, type BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {IncomingMessage, ServerResponse} from 'node:http'
+import type {ErrorPayload, Plugin, ViteDevServer} from 'vite'
+import {defineBundlerBridge, type BundlerBridge, type BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
@@ -21,7 +22,67 @@ import {
   transformConcivModule,
 } from '@conciv/extension-compiler/vite-plumbing'
 
-function makeViteBridge(server: ViteLike): BundlerBridge {
+function isErrorPayload(value: unknown): value is ErrorPayload {
+  return typeof value === 'object' && value !== null && 'type' in value && value.type === 'error' && 'err' in value
+}
+
+function makeDiagnosticSubscribe(server: ViteLike): (listener: (diagnostic: BundlerDiagnostic) => void) => () => void {
+  const listeners = new Set<(diagnostic: BundlerDiagnostic) => void>()
+  const emit = (diagnostic: BundlerDiagnostic): void => {
+    for (const listener of listeners) listener(diagnostic)
+  }
+  let installed = false
+  const install = (): void => {
+    if (installed) return
+    installed = true
+    const clientHot = server.environments.client.hot
+    const forward = clientHot.send
+    clientHot.send = (...args: unknown[]): void => {
+      const [first] = args
+      if (isErrorPayload(first)) {
+        const err = first.err
+        const loc = err.loc
+        emit({
+          kind: 'build-error',
+          message: err.message,
+          file: typeof err.id === 'string' ? err.id : (loc?.file ?? null),
+          loc: loc ? {line: loc.line, column: loc.column} : null,
+          timestamp: Date.now(),
+        })
+      }
+      Reflect.apply(forward, clientHot, args)
+    }
+    server.watcher.on('change', (file) => emit({kind: 'hmr-update', file, timestamp: Date.now()}))
+    server.middlewares.stack.unshift({
+      route: '',
+      handle: (req: IncomingMessage, res: ServerResponse, next: (error?: unknown) => void): void => {
+        const startedAt = Date.now()
+        const method = req.method ?? 'GET'
+        const url = req.url ?? ''
+        res.once('finish', () =>
+          emit({
+            kind: 'request-trace',
+            method,
+            url,
+            status: res.statusCode,
+            durationMs: Date.now() - startedAt,
+            timestamp: Date.now(),
+          }),
+        )
+        next()
+      },
+    })
+  }
+  return (listener) => {
+    install()
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
+  }
+}
+
+export function makeViteBridge(server: ViteLike): BundlerBridge {
   return defineBundlerBridge({
     id: 'vite',
     config: () => viteConfig(server),
@@ -36,6 +97,7 @@ function makeViteBridge(server: ViteLike): BundlerBridge {
     restart: async (force) => {
       await server.restart?.(force)
     },
+    subscribe: makeDiagnosticSubscribe(server),
   })
 }
 
@@ -127,7 +189,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       return concivSrcEntry(resolved.id)
     },
     load(id) {
-      return loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry)
+      return loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry, builtins.dedupeEntry)
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
