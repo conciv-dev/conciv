@@ -49,6 +49,7 @@ export const typography = presetTypography({
       padding: '1px 5px',
       'border-radius': '5px',
       'font-weight': '400',
+      'overflow-wrap': 'anywhere',
     },
     'pre code': {'background-color': 'transparent', padding: '0', 'font-size': 'inherit'},
   },
