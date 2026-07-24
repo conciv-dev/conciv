@@ -2,7 +2,6 @@ import {Show, createSignal, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {Crosshair, FoldVertical, SquarePen, SquareTerminal} from 'lucide-solid'
-import {getReactGrabAdapter} from '@conciv/page'
 import {getHostApi} from '@conciv/extension'
 import type {Grab} from '@conciv/grab'
 import {useAppData, useRpc} from '../app/context.js'
@@ -34,8 +33,8 @@ export function ComposerActions(props: {
   const pick = async () => {
     setPicking(true)
     try {
-      const adapter = await getReactGrabAdapter()
-      adapter.activate((picked) => props.onStageGrab(picked))
+      const picked = await grab.pick()
+      if (picked) props.onStageGrab(picked)
     } finally {
       setPicking(false)
     }
