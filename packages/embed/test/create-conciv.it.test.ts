@@ -5,16 +5,6 @@ import {handleHostPage, serveHost} from './helpers/host.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
 
-type Handle = {mount: (el: HTMLElement) => Promise<void>; unmount: () => void}
-
-declare global {
-  interface Window {
-    ConcivHandle: {makeHandle: (apiBase: string) => Handle}
-    concivTestHandle: Handle
-    concivTestElement: HTMLElement
-  }
-}
-
 let browser: Browser
 let kit: EmbedKit
 let host: {base: string; close: () => Promise<void>}

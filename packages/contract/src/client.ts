@@ -29,3 +29,16 @@ export function makeDeferredRpcClient(): DeferredRpcClient {
     bound: () => base !== null,
   }
 }
+
+export type RebindableRpcClient = {rpc: RpcClient; rebind: (apiBase: string) => void}
+
+export function makeRebindableRpcClient(apiBase: string): RebindableRpcClient {
+  let base = apiBase
+  const link = new RPCLink({url: () => `${base}/rpc`})
+  return {
+    rpc: createORPCClient(link),
+    rebind: (nextApiBase) => {
+      base = nextApiBase
+    },
+  }
+}

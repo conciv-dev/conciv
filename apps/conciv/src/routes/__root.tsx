@@ -108,6 +108,8 @@ function RootComponent() {
     connectBind,
     connectMode: app.connectMode,
     disconnect: app.disconnect,
+    grabProvider: app.grabProvider,
+    connectionGeneration: app.connectionGeneration,
   }
 
   createEffect(() => {
@@ -165,13 +167,24 @@ function RootChrome(props: {
 
   let fabEl: HTMLButtonElement | undefined
 
-  const latestSessionId = async (): Promise<string> => {
-    const rows = await queryClient.ensureQueryData(data.utils.sessions.list.queryOptions())
-    const latest = rows.toSorted((a, b) => b.updatedAt - a.updatedAt)[0]
-    return (await rpc.sessions.resolve(latest ? {id: latest.id} : {})).sessionId
+  const latestSessionId = async (): Promise<string | null> => {
+    try {
+      const rows = await queryClient.ensureQueryData(data.utils.sessions.list.queryOptions())
+      const latest = rows.toSorted((a, b) => b.updatedAt - a.updatedAt)[0]
+      return (await rpc.sessions.resolve(latest ? {id: latest.id} : {})).sessionId
+    } catch {
+      return null
+    }
+  }
+  const mascotRect = (): {x: number; y: number; width: number; height: number} | null => {
+    if (settings.launcher !== 'mascot') return null
+    const rect = fabEl?.getBoundingClientRect()
+    return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
   }
   const dispatchToggled = (open: boolean) =>
-    window.dispatchEvent(new CustomEvent('conciv:panel-toggled', {detail: {open, connected: connected()}}))
+    window.dispatchEvent(
+      new CustomEvent('conciv:panel-toggled', {detail: {open, connected: connected(), mascotRect: mascotRect()}}),
+    )
   const openPanel = async () => {
     if (panelMatch() || connectMatch()) {
       setShutter(router, true)
@@ -179,6 +192,7 @@ function RootChrome(props: {
       return
     }
     const sessionId = await latestSessionId()
+    if (!sessionId) return
     void router.navigate({
       to: '/panel/$sessionId',
       params: {sessionId},
@@ -197,8 +211,18 @@ function RootChrome(props: {
   onMount(() => {
     if (settings.defaultOpen && closedMatch()) void openPanel()
     const openFromHost = () => void openPanel()
+    const closeFromHost = () => {
+      if (panelOpen()) closePanel()
+    }
+    const toggleFromHost = () => togglePanel()
     window.addEventListener('conciv:open-panel', openFromHost)
-    onCleanup(() => window.removeEventListener('conciv:open-panel', openFromHost))
+    window.addEventListener('conciv:close-panel', closeFromHost)
+    window.addEventListener('conciv:toggle-panel', toggleFromHost)
+    onCleanup(() => {
+      window.removeEventListener('conciv:open-panel', openFromHost)
+      window.removeEventListener('conciv:close-panel', closeFromHost)
+      window.removeEventListener('conciv:toggle-panel', toggleFromHost)
+    })
   })
 
   let rootEl: HTMLDivElement | undefined
@@ -235,7 +259,7 @@ function RootChrome(props: {
       onKeyDown={onKeyDown}
     >
       <Outlet />
-      <Show when={settings.modal.enabled}>
+      <Show when={settings.launcher === 'mascot' && settings.modal.enabled}>
         <ShellFab
           ref={(el) => {
             fabEl = el

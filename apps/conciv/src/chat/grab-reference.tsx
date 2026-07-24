@@ -1,7 +1,8 @@
 import {Show, type JSX} from 'solid-js'
 import {X} from 'lucide-solid'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
-import type {GrabPreview, ElementSource, Grab} from '@conciv/grab'
+import type {GrabPreview, Grab} from '@conciv/grab'
+import {sourceLabel} from './grab-source-label.js'
 
 function fitScale(width: number, maxWidth: number): number {
   if (width <= 0) return 1
@@ -41,11 +42,6 @@ function ScaledSnapshot(props: {preview: GrabPreview; maxWidth: number}): JSX.El
       />
     </div>
   )
-}
-
-function sourceLabel(source: ElementSource): string {
-  const where = source.lineNumber === null ? source.filePath : `${source.filePath}:${source.lineNumber}`
-  return source.componentName ? `${source.componentName} at ${where}` : where
 }
 
 function stagedGrab(grab: Grab | {text: string}): Grab | null {

@@ -16,6 +16,8 @@ export interface WidgetConfig {
 
 export interface ConcivSettingsInit extends WidgetConfig {
   defaultOpen?: boolean
+
+  launcher?: 'native' | 'mascot' | false
 }
 
 export interface ExtensionConfigRegistry {}

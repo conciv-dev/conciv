@@ -245,7 +245,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     pane.grabStore.stage(grab)
     focusInput()
   }
-  const paneGrab = makePaneGrabApi(pane.grabStore)
+  const paneGrab = makePaneGrabApi(pane.grabStore, pane.grabProvider)
 
   const dividersAt = (count: number): MarkerRow[] => (markers.data ?? []).filter((row) => row.afterTurn === count)
   const dividersInRange = (start: number, end: number): MarkerRow[] =>

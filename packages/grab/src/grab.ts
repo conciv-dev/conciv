@@ -45,3 +45,7 @@ export type GrabApi = {
   staged: () => readonly Grab[]
   clear: () => void
 }
+
+export type GrabActions = Pick<GrabApi, 'pick' | 'comment' | 'cancel' | 'isActive' | 'grabbable'>
+
+export type GrabProvider = () => GrabActions
