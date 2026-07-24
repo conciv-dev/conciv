@@ -1,5 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {Grab} from '@conciv/grab'
+import type {Grab, GrabProvider} from '@conciv/grab'
 
 export type StagedGrab = Grab | {text: string}
 
@@ -24,6 +24,7 @@ export type PaneContextValue = {
   slideClass: Accessor<string>
   resetSlide: () => void
   grabStore: PaneGrabStore
+  grabProvider?: GrabProvider
   attachments: PendingAttachmentQueue
 }
 

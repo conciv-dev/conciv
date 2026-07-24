@@ -6,7 +6,7 @@ import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Grab} from '@conciv/grab'
 import {isSessionId} from '@conciv/protocol/chat-types'
-import {useAnnounce, useAppData, useDisconnect, useInstances, useRpc} from '../app/context.js'
+import {useAnnounce, useAppData, useDisconnect, useGrabProvider, useInstances, useRpc} from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {setShutter} from '../lib/shutter.js'
@@ -33,6 +33,7 @@ function PanelSession(): JSX.Element {
   const announce = useAnnounce()
   const instances = useInstances()
   const {connectMode, disconnect} = useDisconnect()
+  const grabProvider = useGrabProvider()
   const router = useRouter()
   const matchRoute = useMatchRoute()
   const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
@@ -96,6 +97,7 @@ function PanelSession(): JSX.Element {
     slideClass,
     resetSlide: () => setSlideDir(null),
     grabStore,
+    grabProvider,
     attachments: makePendingAttachmentQueue(),
   }
 

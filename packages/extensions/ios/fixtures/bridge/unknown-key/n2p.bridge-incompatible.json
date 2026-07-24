@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "seq": 2,
+  "type": "bridge.incompatible",
+  "nativeMinV": 2,
+  "nativeMaxV": 3,
+  "hint": "update the SDK"
+}

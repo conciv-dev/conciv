@@ -52,7 +52,7 @@ function PanelView(): JSX.Element {
       {(active) => (
         <HostApiProvider
           sessionId={() => params().sessionId}
-          grab={makePaneGrabApi(pane.grabStore)}
+          grab={makePaneGrabApi(pane.grabStore, pane.grabProvider)}
           insert={(text) => void appendDraft(text).catch(() => {})}
           attach={(file) => pane.attachments.enqueue(file)}
           newSession={newSession}

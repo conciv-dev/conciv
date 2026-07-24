@@ -1,10 +1,13 @@
 import {z} from 'zod'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 
+export type Launcher = 'native' | 'mascot' | false
+
 export type ConcivSettings = {
   modal: {enabled: boolean; position: TriggerPosition}
   quickTerminal: {enabled: boolean; hotkeys: string[]}
   defaultOpen: boolean
+  launcher: Launcher
 }
 
 const DEFAULT_HOTKEYS = ['Mod+`']
@@ -20,6 +23,12 @@ function positionOf(modal: unknown): TriggerPosition {
   if (!isRecord(modal)) return DEFAULT_POSITION
   const parsed = PositionSchema.safeParse(modal.position)
   return parsed.success ? parsed.data : DEFAULT_POSITION
+}
+
+function launcherOf(launcher: unknown): Launcher {
+  if (launcher === false) return false
+  if (launcher === 'native') return 'native'
+  return 'mascot'
 }
 
 function hotkeysOf(quickTerminal: unknown): string[] {
@@ -46,5 +55,6 @@ export function parseConcivSettings(raw: string): ConcivSettings {
     modal: {enabled: modal !== false, position: positionOf(modal)},
     quickTerminal: {enabled: quickTerminal !== false, hotkeys: hotkeysOf(quickTerminal)},
     defaultOpen: cfg.defaultOpen === true,
+    launcher: launcherOf(cfg.launcher),
   }
 }

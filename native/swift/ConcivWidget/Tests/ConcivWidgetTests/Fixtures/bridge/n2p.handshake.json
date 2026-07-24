@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "seq": 1,
+  "type": "handshake",
+  "apiBase": "http://127.0.0.1:5311",
+  "token": null
+}

@@ -40,6 +40,7 @@ import {
 } from './chat/run.js'
 import {modelOf, openDb, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
+import {makeNativePageApp} from './api/native-page.js'
 import {makePageBus} from './page-bus.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
@@ -71,6 +72,10 @@ export type MakeAppOpts = {
   onShutdown?: () => void
 
   firstChunkTimeoutMs?: number
+
+  nativePageDir?: string
+
+  nativeUrl?: () => string | undefined
 }
 
 export function slug(name: string): string {
@@ -249,6 +254,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const seenTools = new Set<string>()
   const seenNames = new Set<string>()
+  const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
 
   function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
     const context = result?.context
@@ -274,6 +280,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         harness: serverHarness,
         page: scopedPageCaller(extension.name, callPageVerb),
         bundler: opts.bridge,
+        nativeUrl,
       })
       return assembleMounted(extension, result)
     } catch (error) {
@@ -377,6 +384,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     rpc,
     opts.onShutdown,
   )
+
+  if (opts.nativePageDir) app.route('/native', makeNativePageApp(opts.nativePageDir))
 
   mounted.forEach((entry) => {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)

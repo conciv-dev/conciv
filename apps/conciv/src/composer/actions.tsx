@@ -2,7 +2,7 @@ import {Show, createSignal, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {Crosshair, FoldVertical, SquarePen, SquareTerminal} from 'lucide-solid'
-import {getReactGrabAdapter} from '@conciv/page'
+import {getHostApi} from '@conciv/extension'
 import type {Grab} from '@conciv/grab'
 import {useAppData, useRpc} from '../app/context.js'
 
@@ -23,15 +23,18 @@ export function ComposerActions(props: {
 }): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
+  const grab = getHostApi().useGrab()
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
   const harnessName = () => meta.data?.harness.name ?? 'the harness'
+
+  const grabDisabled = () => (grab.grabbable ? !grab.grabbable() : false)
 
   const [picking, setPicking] = createSignal(false)
   const pick = async () => {
     setPicking(true)
     try {
-      const adapter = await getReactGrabAdapter()
-      adapter.activate((grab) => props.onStageGrab(grab))
+      const picked = await grab.pick()
+      if (picked) props.onStageGrab(picked)
     } finally {
       setPicking(false)
     }
@@ -61,8 +64,9 @@ export function ComposerActions(props: {
   return (
     <>
       <TooltipIconButton
-        tooltip="Select an element from the page"
+        tooltip={grabDisabled() ? 'Nothing on this screen to select' : 'Select an element from the page'}
         class={busyClass(picking())}
+        disabled={grabDisabled()}
         onClick={() => void pick()}
       >
         <Crosshair class="size-5 block" />

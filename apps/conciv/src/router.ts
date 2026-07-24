@@ -2,6 +2,7 @@ import {createRouter} from '@tanstack/solid-router'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient} from '@tanstack/solid-query'
 import type {RpcClient} from '@conciv/contract'
+import type {GrabProvider} from '@conciv/grab'
 import type {AnyExtension} from '@conciv/extension'
 import {bindExtensionPageVerbs} from '@conciv/page'
 import {routeTree} from './routeTree.gen'
@@ -24,6 +25,8 @@ export type ConcivRouterContext = {
   connectMode: boolean
   bindApiBase?: (apiBase: string) => void
   disconnect?: () => void
+  grabProvider?: GrabProvider
+  connectionGeneration: () => number
 }
 
 export type ConcivRouterConfig = {
@@ -36,6 +39,8 @@ export type ConcivRouterConfig = {
   connectMode?: boolean
   bindApiBase?: (apiBase: string) => void
   disconnect?: () => void
+  grabProvider?: GrabProvider
+  connectionGeneration?: () => number
 }
 
 function createInstances(extensions: AnyExtension[]): ExtensionInstance[] {
@@ -66,6 +71,8 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       connectMode: config.connectMode ?? false,
       bindApiBase: config.bindApiBase,
       disconnect: config.disconnect,
+      grabProvider: config.grabProvider,
+      connectionGeneration: config.connectionGeneration ?? (() => 0),
     },
   })
 }

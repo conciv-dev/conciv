@@ -1,6 +1,7 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {QueryClient} from '@tanstack/solid-query'
 import type {RpcClient} from '@conciv/contract'
+import type {GrabProvider} from '@conciv/grab'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import type {AppData} from '../data/app-data.js'
 import type {ConcivSettings} from '../data/settings.js'
@@ -24,6 +25,8 @@ export type AppContextValue = {
   connectBind: (apiBase: string) => Promise<string>
   connectMode: boolean
   disconnect?: () => void
+  grabProvider?: GrabProvider
+  connectionGeneration: () => number
 }
 
 export const AppContext = createContext<AppContextValue>()
@@ -84,4 +87,12 @@ export function useConnectBinding(): {bind: (apiBase: string) => Promise<string>
 
 export function useDisconnect(): {connectMode: boolean; disconnect?: () => void} {
   return useAppScope('useDisconnect', (app) => ({connectMode: app.connectMode, disconnect: app.disconnect}))
+}
+
+export function useGrabProvider(): GrabProvider | undefined {
+  return useAppScope('useGrabProvider', (app) => app.grabProvider)
+}
+
+export function useConnectionGeneration(): () => number {
+  return useAppScope('useConnectionGeneration', (app) => app.connectionGeneration)
 }

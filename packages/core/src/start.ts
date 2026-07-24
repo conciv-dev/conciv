@@ -11,6 +11,7 @@ import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
+import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint} from './lib/dev-endpoint.js'
 
 export type StartOpts = {
   options: ConcivConfig
@@ -27,6 +28,8 @@ export type StartOpts = {
 
   extensions?: AnyExtension[]
   harness?: HarnessAdapter
+  nativePageDir?: string
+  devEndpointDir?: string
 }
 
 export type Engine = {
@@ -67,6 +70,16 @@ export async function start(opts: StartOpts): Promise<Engine> {
     const baseEnv = opts.childEnv ? opts.childEnv(portRef.port) : process.env
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }
+  const tokenScopedBase = (): string | undefined => {
+    if (portRef.port === 0) return undefined
+    const prefix = opts.accessToken ? `/t/${opts.accessToken}` : ''
+    return `http://127.0.0.1:${portRef.port}${prefix}`
+  }
+  const nativeUrl = (): string | undefined => {
+    if (!opts.nativePageDir) return undefined
+    const base = tokenScopedBase()
+    return base ? `${base}/native` : undefined
+  }
 
   const appOpts: MakeAppOpts = {
     cfg,
@@ -81,6 +94,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
     onShutdown: opts.onShutdown,
+    nativePageDir: opts.nativePageDir,
+    nativeUrl,
   }
   const {app, disposers, extensionContexts, closeDb} = await makeApp(appOpts)
 
@@ -107,11 +122,18 @@ export async function start(opts: StartOpts): Promise<Engine> {
   }
   const {port, close} = serving
   portRef.port = port
+
+  const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
+  const base = tokenScopedBase()
+  if (opts.nativePageDir && base) {
+    writeDevEndpoint(endpointDir, {apiBase: base, token: opts.accessToken ?? null, pid: process.pid})
+  }
   return {
     port,
     cfg,
     extensionContexts,
     stop: async () => {
+      if (opts.nativePageDir) removeDevEndpoint(endpointDir, process.pid)
       await dispose()
       await close()
     },

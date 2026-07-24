@@ -25,16 +25,26 @@ export function handleHostPage(): string {
   </body></html>`
 }
 
-export async function serveHost(html: () => string): Promise<{base: string; close: () => Promise<void>}> {
-  const server: Server = createServer((_req, res) => {
-    res.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
-    res.end(html())
-  })
+export async function listenLocal(server: Server): Promise<{base: string; port: number; close: () => Promise<void>}> {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   const port = typeof address === 'object' && address !== null ? address.port : 0
   return {
     base: `http://127.0.0.1:${port}`,
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    port,
+    close: () =>
+      new Promise((resolve) => {
+        server.closeAllConnections?.()
+        server.close(() => resolve())
+      }),
   }
+}
+
+export async function serveHost(html: () => string): Promise<{base: string; close: () => Promise<void>}> {
+  const server: Server = createServer((_req, res) => {
+    res.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
+    res.end(html())
+  })
+  const {base, close} = await listenLocal(server)
+  return {base, close}
 }

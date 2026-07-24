@@ -101,11 +101,13 @@ export function TerminalActions(): JSX.Element {
       if (picked) grab.stage(picked)
     } catch {}
   }
+  const grabDisabled = () => (grab.grabbable ? !grab.grabbable() : false)
   return (
     <>
       <TooltipIconButton
-        tooltip="Select an element from the page"
+        tooltip={grabDisabled() ? 'Nothing on this screen to select' : 'Select an element from the page'}
         class="shrink-0 size-7"
+        disabled={grabDisabled()}
         onClick={() => void pickElement()}
       >
         <Crosshair class="size-4 block" aria-hidden="true" />
