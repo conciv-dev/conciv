@@ -1,4 +1,4 @@
-import type {Grab} from '@conciv/grab'
+import type {ElementRect, Grab} from '@conciv/grab'
 import {
   BRIDGE_MAX_VERSION,
   BRIDGE_MIN_VERSION,
@@ -43,6 +43,8 @@ export type BridgeClient = {
   start: () => void
   pick: (mode: GrabMode) => Promise<Grab | null>
   cancel: (requestId: string) => void
+  cancelActive: () => void
+  panelToggled: (open: boolean, connected: boolean, mascotRect: ElementRect | null) => void
   grabbable: () => boolean
   dispose: () => void
 }
@@ -224,6 +226,20 @@ export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
     resolvePending(null)
   }
 
+  function cancelActive(): void {
+    if (pending === null) return
+    post({v: agreedVersion, type: 'grab.cancel', requestId: pending.requestId})
+    resolvePending(null)
+  }
+
+  function panelToggled(open: boolean, connected: boolean, mascotRect: ElementRect | null): void {
+    post(
+      mascotRect === null
+        ? {v: agreedVersion, type: 'host.panelToggled', open, connected}
+        : {v: agreedVersion, type: 'host.panelToggled', open, connected, mascotRect},
+    )
+  }
+
   function grabbable(): boolean {
     return grabbableState
   }
@@ -238,5 +254,5 @@ export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
     resolvePending(null)
   }
 
-  return {start, pick, cancel, grabbable, dispose}
+  return {start, pick, cancel, cancelActive, panelToggled, grabbable, dispose}
 }

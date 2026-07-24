@@ -33,6 +33,7 @@ import {
 } from './chat/run.js'
 import {modelOf, openDb, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
+import {makeNativePageApp} from './api/native-page.js'
 import {makePageBus} from './page-bus.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
@@ -64,6 +65,8 @@ export type MakeAppOpts = {
   onShutdown?: () => void
 
   firstChunkTimeoutMs?: number
+
+  nativePageDir?: string
 }
 
 export function slug(name: string): string {
@@ -298,6 +301,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     rpc,
     opts.onShutdown,
   )
+
+  if (opts.nativePageDir) app.route('/native', makeNativePageApp(opts.nativePageDir))
 
   mounted.forEach((entry) => {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)

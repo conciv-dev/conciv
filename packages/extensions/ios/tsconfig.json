@@ -4,7 +4,9 @@
     "rootDir": ".",
     "noEmit": true,
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["node"]
+    "types": ["node"],
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js"
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "fixtures/bridge/bridge.fixtures.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "fixtures/bridge/bridge.fixtures.ts"]
 }

@@ -13,6 +13,7 @@ export type Builtins = {
   serverExtensions: readonly AnyExtension[]
   clientEntries: readonly string[]
   embedEntry?: string
+  nativePageDir?: string
 }
 
 export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}

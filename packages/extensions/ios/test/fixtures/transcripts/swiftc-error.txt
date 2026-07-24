@@ -1,0 +1,20 @@
+/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/24f848aa-34f8-4250-b580-e646c4f80eb7/scratchpad/Broken.swift:3:14: error: expected parameter name followed by ':'
+1 | import Foundation
+2 | let x: Int = "not an int"
+3 | func broken( {
+  |              `- error: expected parameter name followed by ':'
+4 | 
+
+/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/24f848aa-34f8-4250-b580-e646c4f80eb7/scratchpad/Broken.swift:2:14: error: cannot convert value of type 'String' to specified type 'Int'
+1 | import Foundation
+2 | let x: Int = "not an int"
+  |              `- error: cannot convert value of type 'String' to specified type 'Int'
+3 | func broken( {
+4 | 
+
+/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/24f848aa-34f8-4250-b580-e646c4f80eb7/scratchpad/Broken.swift:3:6: error: expected '{' in body of function declaration
+1 | import Foundation
+2 | let x: Int = "not an int"
+3 | func broken( {
+  |      `- error: expected '{' in body of function declaration
+4 | 

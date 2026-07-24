@@ -1,0 +1,3 @@
+/Users/dev/PayApp/Sources/PaymentsViewController.swift:42:18: error: cannot find 'PayrollRow' in scope
+/Users/dev/PayApp/Sources/PaymentsViewController.swift:55:9: warning: result of call to 'layoutIfNeeded()' is unused
+** BUILD FAILED **

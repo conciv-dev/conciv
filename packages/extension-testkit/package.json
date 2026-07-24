@@ -14,6 +14,7 @@
   "exports": {
     ".": "./src/get-extension-test-api.ts",
     "./core-kit": "./src/core-kit.ts",
+    "./host/grab": "./src/host/grab.ts",
     "./widget-suite": "./src/widget-suite.ts"
   },
   "scripts": {

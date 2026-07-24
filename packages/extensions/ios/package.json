@@ -24,12 +24,20 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/bridge.d.ts",
-      "import": "./dist/bridge.js"
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./bridge": {
+      "types": "./dist/shared/bridge.d.ts",
+      "import": "./dist/shared/bridge.js"
     },
     "./bridge-client": {
-      "types": "./dist/bridge-client.d.ts",
-      "import": "./dist/bridge-client.js"
+      "types": "./dist/shared/bridge-client.d.ts",
+      "import": "./dist/shared/bridge-client.js"
     },
     "./package.json": "./package.json"
   },
@@ -37,7 +45,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "gen:fixtures": "node fixtures/bridge/gen.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
@@ -46,14 +54,21 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
+    "solid-js": "^1.9.13",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
   }
 }

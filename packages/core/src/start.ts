@@ -27,6 +27,7 @@ export type StartOpts = {
 
   extensions?: AnyExtension[]
   harness?: HarnessAdapter
+  nativePageDir?: string
 }
 
 export type Engine = {
@@ -85,6 +86,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
     onShutdown: opts.onShutdown,
+    nativePageDir: opts.nativePageDir,
   }
   const {app, disposers, extensionContexts, closeDb} = await makeApp(appOpts)
 

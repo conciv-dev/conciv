@@ -36,6 +36,15 @@ function toGrab(element: Element): Grab {
   }
 }
 
+export function makeImageHostGrab(dataUrl: string): Grab {
+  return {
+    text: 'Payroll Deposit\n\n[view]\nPaymentCardCell #PaymentsScreen/payrollRow (16,232 361x72)',
+    preview: {kind: 'image', dataUrl, width: 361, height: 72},
+    source: {componentName: 'PaymentCardCell', filePath: '', lineNumber: null},
+    rect: {x: 16, y: 232, width: 361, height: 72},
+  }
+}
+
 export function makeHostGrab(doc: Document): GrabApi {
   let teardown: (() => void) | null = null
   const stagedGrabs: Grab[] = []
