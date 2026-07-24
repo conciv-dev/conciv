@@ -172,11 +172,11 @@ describe('ios.run', () => {
     if ('error' in result) throw new Error('unexpected not-configured')
     expect(result).toEqual({
       ok: true,
-      udid: '1111AAAA-0000-0000-0000-000000000001',
+      udid: 'CB0AA214-8029-4708-BB3A-1453676E70F9',
       bundleId: 'dev.conciv.pay',
       pid: 4210,
     })
-    const udid = '1111AAAA-0000-0000-0000-000000000001'
+    const udid = 'CB0AA214-8029-4708-BB3A-1453676E70F9'
     expect(calls.some((call) => has(call, 'boot') && has(call, udid))).toBe(true)
     expect(calls.some((call) => has(call, 'install') && has(call, udid))).toBe(true)
     expect(calls.some((call) => has(call, 'terminate') && has(call, udid))).toBe(true)
