@@ -90,6 +90,10 @@ type PendingPick = {
   timeout: number
 }
 
+function trimBase(base: string): string {
+  return base.endsWith('/') ? base.slice(0, -1) : base
+}
+
 export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
   const readyIntervalMs = config.readyIntervalMs ?? DEFAULT_READY_INTERVAL_MS
   const pickTimeoutMs = config.pickTimeoutMs ?? DEFAULT_PICK_TIMEOUT_MS
@@ -161,7 +165,7 @@ export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
     handshakeDone = true
     agreedVersion = message.v
     config.onHandshake?.({v: message.v, apiBase: message.apiBase, token: message.token})
-    if (message.apiBase !== boundApiBase) {
+    if (trimBase(message.apiBase) !== trimBase(boundApiBase)) {
       boundApiBase = message.apiBase
       config.onRebind?.(message.apiBase)
     }

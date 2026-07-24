@@ -4,6 +4,9 @@ import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
 import {createBridgeClient, type BridgeClient, type BridgeTransport} from './shared/bridge-client.js'
 import type {GrabMode} from './shared/bridge.js'
 import {IOS_NAME} from './shared/name.js'
+import {nativePageBase} from './shared/page-base.js'
+
+export {nativePageBase} from './shared/page-base.js'
 
 type NativeCall = (message: Record<string, unknown>) => void
 
@@ -82,7 +85,7 @@ function ensureBridge(): BridgeClient | null {
       clearTimeout: (handle) => window.clearTimeout(handle),
     },
     clientId: makeClientId(),
-    boundApiBase: window.location.origin,
+    boundApiBase: nativePageBase(window.location),
     ensureOpen: () => dispatch('conciv:open-panel'),
     ensureClose: () => dispatch('conciv:close-panel'),
     onRebind: (apiBase) => dispatch('conciv:rebind', {apiBase}),

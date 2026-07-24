@@ -1,4 +1,4 @@
-import iosClient, {makeNativeGrabProvider} from '@conciv/extension-ios/client'
+import iosClient, {makeNativeGrabProvider, nativePageBase} from '@conciv/extension-ios/client'
 import {createConciv} from './mount.js'
 
 declare global {
@@ -12,7 +12,7 @@ const root = document.querySelector<HTMLElement>('[data-conciv-native-root]') ??
 const handle = createConciv({
   extensions: [iosClient],
   settings: {launcher: 'native'},
-  apiBase: window.location.origin,
+  apiBase: nativePageBase(window.location),
   grabProvider: makeNativeGrabProvider(),
 })
 

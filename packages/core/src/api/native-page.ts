@@ -22,7 +22,7 @@ function hostDocument(): string {
     '</head>',
     '<body>',
     '<div data-conciv-native-root></div>',
-    `<script src="/native/${NATIVE_BUNDLE}"></script>`,
+    `<script src="native/${NATIVE_BUNDLE}"></script>`,
     '</body>',
     '</html>',
   ].join('')

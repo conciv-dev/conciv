@@ -37,8 +37,6 @@ final class OverlayController: NSObject {
   private let fab = UIButton(type: .system)
   private let bridge: BridgeHandler
   private let pageUrl: URL
-  private var apiBaseOrigin: String
-  private var token: String?
   private weak var hostWindow: UIWindow?
 
   private(set) var endpoint: ConcivEndpoint
@@ -58,8 +56,6 @@ final class OverlayController: NSObject {
     self.hostWindow = hostWindow
     self.endpoint = endpoint
     self.pageUrl = ConcivDiscovery.pageURL(for: endpoint.apiBase)
-    self.apiBaseOrigin = ConcivDiscovery.origin(of: endpoint.apiBase)
-    self.token = endpoint.token
     self.launcher = launcher
 
     let configuration = WKWebViewConfiguration()
@@ -103,15 +99,20 @@ final class OverlayController: NSObject {
   }
 
   // Same-core port drift (06 D8): keep the live document, re-point its data plane by
-  // re-sending the handshake with the new origin. The origin pin is unchanged because
-  // the loaded document is still same-origin; only a different core (fresh mount)
-  // rebuilds this controller with a new pin.
+  // re-sending the handshake with the new base. The base carries the /t/<token> prefix
+  // when token-scoped so it matches the page's own bound base and RPC/SSE stay path
+  // scoped. The origin pin is unchanged because the loaded document is still
+  // same-origin; only a different core (fresh mount) rebuilds this controller.
   func rebind(to endpoint: ConcivEndpoint) {
     self.endpoint = endpoint
-    self.apiBaseOrigin = ConcivDiscovery.origin(of: endpoint.apiBase)
-    self.token = endpoint.token
     hideRepairPrompt()
-    bridge.sendHandshake(apiBase: apiBaseOrigin, token: token)
+    sendHandshake()
+  }
+
+  // The handshake apiBase is the full base (origin plus any /t/<token> prefix), which
+  // equals the served page's own bound base so no spurious rebind fires.
+  private func sendHandshake() {
+    bridge.sendHandshake(apiBase: endpoint.apiBase.absoluteString, token: endpoint.token)
   }
 
   // MARK: FAB (launcher: native)
@@ -215,7 +216,7 @@ final class OverlayController: NSObject {
   private func handleHello(_ hello: HandshakeHello) {
     let overlaps = hello.minV <= bridgeMaxVersion && bridgeMinVersion <= hello.maxV
     if overlaps {
-      bridge.sendHandshake(apiBase: apiBaseOrigin, token: token)
+      sendHandshake()
     } else {
       bridge.sendIncompatible(nativeMinV: bridgeMinVersion, nativeMaxV: bridgeMaxVersion)
     }
