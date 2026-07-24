@@ -2,7 +2,7 @@ import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
-import {openPanel} from './helpers/panel.js'
+import {openPanel, sendMessage} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
 const HOST_HEADING = 'Deployment checklist'
@@ -191,10 +191,7 @@ describe('embed boots the conciv app against a real core', () => {
   it('sends a message and renders the assistant reply from the fake harness', async () => {
     const page = await openPage()
     await openPanel(page)
-    const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await input.fill('hi there')
-    await page.getByRole('button', {name: 'Send message'}).click()
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
+    await sendMessage(page, 'hi there', ASSISTANT_TEXT)
     await page.close()
   })
 
@@ -278,6 +275,27 @@ describe('embed boots the conciv app against a real core', () => {
     expect(await input.inputValue()).toBe('')
     const announced = await page.getByRole('alert').allTextContents()
     expect(announced.every((text) => text.trim() === '')).toBe(true)
+    await page.close()
+  })
+})
+
+describe('embed at a phone viewport', () => {
+  it('opens as a full-screen sheet with the launcher hidden and the composer reachable', async () => {
+    const page = await browser.newPage({viewport: {width: 393, height: 800}})
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await expect
+      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
+      .toBe(true)
+    await openPanel(page)
+    await expect.poll(() => page.getByRole('button', {name: 'Open conciv chat'}).count(), {timeout: 30_000}).toBe(0)
+    await sendMessage(page, 'hi there', ASSISTANT_TEXT)
+    await page.getByRole('button', {name: 'Close chat'}).click()
+    await expect
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
+      .toBe(false)
+    await expect
+      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
+      .toBe(true)
     await page.close()
   })
 })
