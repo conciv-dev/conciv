@@ -13,10 +13,17 @@ on:
 permissions:
   contents: read
 
+# turbo.json caps local turbo runs at 50% concurrency so the workstation stays
+# usable during builds. CI runners are dedicated, so every workflow that drives
+# turbo re-uncaps it here: env beats the config file, keeping shards fully parallel.
+env:
+  TURBO_CONCURRENCY: '100%'
+
 jobs:
   # Package suites are sharded across runners so the big whiteboard IT suite and
   # the real-browser suites stop starving each other on one 4-vCPU runner, with
-  # every shard fully uncapped (no --concurrency, no VITEST_MAX_WORKERS). The
+  # every shard fully uncapped (TURBO_CONCURRENCY=100% at the workflow env level
+  # overrides turbo.json's local 50% default; no VITEST_MAX_WORKERS). The
   # planner derives the matrix instead of a hand-maintained package list: it
   # enumerates workspace packages, weighs each by its measured suite duration
   # from the ci-test-timings artifact (published by the last main push; unknown

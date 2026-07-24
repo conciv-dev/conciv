@@ -10,6 +10,10 @@ concurrency:
 permissions:
   contents: read
 
+# CI runners are dedicated; re-uncap turbo (turbo.json caps local runs at 50%).
+env:
+  TURBO_CONCURRENCY: '100%'
+
 jobs:
   fallow:
     name: Fallow audit

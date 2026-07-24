@@ -17,6 +17,12 @@ concurrency:
 permissions:
   contents: read
 
+# CI runners are dedicated; re-uncap turbo (turbo.json caps local runs at 50%).
+# The called ci.yml sets its own TURBO_CONCURRENCY; this covers the release job's
+# own turbo run (build publint attw via conciv-publish).
+env:
+  TURBO_CONCURRENCY: '100%'
+
 jobs:
   # A called workflow can never hold more than the caller grants, so this must
   # cover every permission ci.yml's own jobs ask for — actions: read is how the
