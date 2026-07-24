@@ -9,6 +9,8 @@ import UIKit
 enum Capture {
   static let jpegQuality: CGFloat = 0.6
   static let renderScale: CGFloat = 2
+  static let maxPreviewPointEdge: CGFloat = 1024
+  static let maxDataUrlBytes = 2 * 1024 * 1024
 
   // drawHierarchy(afterScreenUpdates:) can capture blank/stale content if the app
   // is not foreground-active mid-pick (04 m-A18). Callers must resolve the pick null
@@ -17,11 +19,19 @@ enum Capture {
     UIApplication.shared.applicationState == .active
   }
 
+  // A big view (a full scroll surface, a tall list row) would otherwise render at 2x
+  // into a multi-megabyte base64 string interpolated into JS. Bound the long edge so the
+  // rendered pixel size stays capped, dropping the scale below 2x only for large views.
+  static func effectiveScale(forLongEdge longEdge: CGFloat) -> CGFloat {
+    guard longEdge > maxPreviewPointEdge else { return renderScale }
+    return renderScale * maxPreviewPointEdge / longEdge
+  }
+
   static func renderView(_ target: UIView) -> UIImage? {
     let bounds = target.bounds
     if bounds.width < 1 || bounds.height < 1 { return nil }
     let format = UIGraphicsImageRendererFormat.default()
-    format.scale = renderScale
+    format.scale = effectiveScale(forLongEdge: max(bounds.width, bounds.height))
     return UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
       target.drawHierarchy(in: bounds, afterScreenUpdates: true)
     }
@@ -31,15 +41,19 @@ enum Capture {
     let bounds = frameInHost.intersection(host.bounds)
     if bounds.width < 1 || bounds.height < 1 { return nil }
     let format = UIGraphicsImageRendererFormat.default()
-    format.scale = renderScale
+    format.scale = effectiveScale(forLongEdge: max(bounds.width, bounds.height))
     return UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
       host.drawHierarchy(in: host.bounds, afterScreenUpdates: true)
     }
   }
 
+  // The scale cap keeps typical previews small; this is the hard backstop. A dataUrl over
+  // the ceiling is dropped to an empty preview rather than shipped, so an oversized payload
+  // never rides the bridge into an evaluateJavaScript source string.
   static func jpegDataUrl(_ image: UIImage) -> String? {
     guard let data = image.jpegData(compressionQuality: jpegQuality) else { return nil }
-    return "data:image/jpeg;base64,\(data.base64EncodedString())"
+    let dataUrl = "data:image/jpeg;base64,\(data.base64EncodedString())"
+    return dataUrl.utf8.count <= maxDataUrlBytes ? dataUrl : nil
   }
 
   static func imagePreview(_ image: UIImage?) -> ImagePreview {

@@ -9,6 +9,104 @@ export type BridgeFixture = {
   unknownKey: unknown
 }
 
+export type NativeEncodeFixture = {
+  file: string
+  json: Record<string, unknown>
+}
+
+const encodeApiBase = 'http://127.0.0.1:5311'
+const encodePreview = {kind: 'image', dataUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==', width: 361, height: 72}
+const encodeRect = {x: 16, y: 232, width: 361, height: 72}
+const encodeLabelRect = {x: 28, y: 240, width: 180, height: 20}
+
+export const nativeEncodeFixtures: NativeEncodeFixture[] = [
+  {
+    file: 'n2p.encode.handshake-token',
+    json: {v: 1, seq: 1, type: 'handshake', apiBase: encodeApiBase, token: 'pair-xyz'},
+  },
+  {file: 'n2p.encode.handshake-tokenless', json: {v: 1, seq: 1, type: 'handshake', apiBase: encodeApiBase}},
+  {
+    file: 'n2p.encode.bridge-incompatible',
+    json: {v: 1, seq: 2, type: 'bridge.incompatible', nativeMinV: 2, nativeMaxV: 3},
+  },
+  {file: 'n2p.encode.open', json: {v: 1, seq: 3, type: 'open'}},
+  {file: 'n2p.encode.close', json: {v: 1, seq: 4, type: 'close'}},
+  {file: 'n2p.encode.grab-capability', json: {v: 1, seq: 6, type: 'grabCapability', grabbable: true}},
+  {
+    file: 'n2p.encode.grab-result-full',
+    json: {
+      v: 1,
+      seq: 5,
+      type: 'grabResult',
+      requestId: 'req-1',
+      grab: {
+        text: 'Payroll Deposit',
+        preview: encodePreview,
+        rect: encodeRect,
+        source: {componentName: 'PaymentCardCell', filePath: '', lineNumber: 42},
+        subtree: {
+          class: 'PaymentCardCell',
+          a11yId: 'PaymentsScreen/payrollRow',
+          text: 'Payroll Deposit',
+          rect: encodeRect,
+          children: [
+            {
+              class: 'UILabel',
+              a11yId: 'PaymentsScreen/amount',
+              text: '+$3,120.00',
+              rect: encodeLabelRect,
+              children: [],
+            },
+          ],
+        },
+      },
+    },
+  },
+  {
+    file: 'n2p.encode.grab-result-minimal-grab',
+    json: {
+      v: 1,
+      seq: 5,
+      type: 'grabResult',
+      requestId: 'req-1',
+      grab: {text: 'Payroll Deposit', preview: encodePreview},
+    },
+  },
+  {
+    file: 'n2p.encode.grab-result-source-nils',
+    json: {
+      v: 1,
+      seq: 5,
+      type: 'grabResult',
+      requestId: 'req-1',
+      grab: {text: 'Payroll Deposit', preview: encodePreview, source: {filePath: ''}},
+    },
+  },
+  {
+    file: 'n2p.encode.grab-result-viewnode-nils',
+    json: {
+      v: 1,
+      seq: 5,
+      type: 'grabResult',
+      requestId: 'req-1',
+      grab: {
+        text: 'Payroll Deposit',
+        preview: encodePreview,
+        subtree: {class: 'UILabel', rect: encodeRect, children: []},
+      },
+    },
+  },
+  {
+    file: 'n2p.encode.grab-result-cancelled',
+    json: {v: 1, seq: 5, type: 'grabResult', requestId: 'req-1', reason: 'cancelled'},
+  },
+  {
+    file: 'n2p.encode.grab-result-failed',
+    json: {v: 1, seq: 5, type: 'grabResult', requestId: 'req-1', reason: 'failed'},
+  },
+  {file: 'n2p.encode.grab-result-bare', json: {v: 1, seq: 5, type: 'grabResult', requestId: 'req-1'}},
+]
+
 const neutralGrab = {
   text: 'Payroll Deposit · Acme Corp · Today · +$3,120.00',
   preview: {kind: 'image', dataUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==', width: 361, height: 72},

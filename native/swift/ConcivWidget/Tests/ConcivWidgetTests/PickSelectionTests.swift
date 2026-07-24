@@ -48,6 +48,19 @@ final class PickSelectionTests: XCTestCase {
     XCTAssertEqual(grab.subtree?.className, "UILabel")
   }
 
+  func testPickOverlayCancelledGestureEndsPickWithoutSelecting() {
+    let overlay = PickOverlayView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+    var selectedAt: CGPoint?
+    var cancelled = false
+    overlay.onSelect = { selectedAt = $0 }
+    overlay.onCancel = { cancelled = true }
+
+    overlay.touchesCancelled(Set<UITouch>(), with: nil)
+
+    XCTAssertTrue(cancelled, "a system-cancelled gesture must end the pick as cancelled")
+    XCTAssertNil(selectedAt, "a cancelled gesture must not report a selection")
+  }
+
   func testUIKitExcludedOverlayIsSkipped() {
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
     let root = UIViewController()

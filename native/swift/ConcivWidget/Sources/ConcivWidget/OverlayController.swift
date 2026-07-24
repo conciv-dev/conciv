@@ -10,6 +10,7 @@ import WebKit
 final class PassthroughContainerView: UIView {
   var pickActive = false
   var state = LiveRegionState()
+  var onLayout: (() -> Void)?
 
   override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
     let region = liveRegion(state, pickActive: pickActive)
@@ -17,6 +18,33 @@ final class PassthroughContainerView: UIView {
     guard captured else { return nil }
     return super.hitTest(point, with: event)
   }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    onLayout?()
+  }
+
+  override func safeAreaInsetsDidChange() {
+    super.safeAreaInsetsDidChange()
+    onLayout?()
+  }
+}
+
+// The FAB frame is a pure function of the container geometry so it can be recomputed
+// on every layout pass (the safe-area insets are zero until the container is attached
+// to a window) and pinned in a test.
+func fabFrame(in bounds: CGRect, safeArea: UIEdgeInsets, size: CGFloat = 56, inset: CGFloat = 20) -> CGRect {
+  let x = bounds.width - size - inset - safeArea.right
+  let y = bounds.height - size - inset - safeArea.bottom
+  return CGRect(x: x, y: y, width: size, height: size)
+}
+
+// Keyboard overlap for the web scroll view, computed once the keyboard frame is in the
+// container's own coordinate space. The intersection height is the amount the keyboard
+// covers the container, zero when they do not overlap.
+func keyboardOverlap(keyboardInContainer: CGRect, containerBounds: CGRect) -> CGFloat {
+  let intersection = keyboardInContainer.intersection(containerBounds)
+  return intersection.isNull ? 0 : intersection.height
 }
 
 final class OverlayController: NSObject {
@@ -37,6 +65,7 @@ final class OverlayController: NSObject {
   private var panelOpen = false
   private var pickOverlay: PickOverlayView?
   private var pickRequestId: String?
+  private var flashWork: DispatchWorkItem?
   private var highlight: UIView?
   private var pickBanner: UIView?
   private var pickBorder: UIView?
@@ -77,6 +106,7 @@ final class OverlayController: NSObject {
     container.addSubview(webView)
     configureFab()
     container.addSubview(fab)
+    container.onLayout = { [weak self] in self?.layoutFab() }
     hostWindow.addSubview(container)
 
     wireBridge()
@@ -126,19 +156,24 @@ final class OverlayController: NSObject {
     fab.setTitleColor(.white, for: .normal)
     fab.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1)
     fab.layer.cornerRadius = 28
-    fab.frame = fabFrame()
+    fab.frame = currentFabFrame()
     fab.autoresizingMask = [.flexibleTopMargin, .flexibleLeftMargin]
     fab.addTarget(self, action: #selector(fabTapped), for: .touchUpInside)
     container.state.fabRect = fab.frame
   }
 
-  private func fabFrame() -> CGRect {
-    let size: CGFloat = 56
-    let inset: CGFloat = 20
-    let safe = container.safeAreaInsets
-    let x = container.bounds.width - size - inset - safe.right
-    let y = container.bounds.height - size - inset - safe.bottom
-    return CGRect(x: x, y: y, width: size, height: size)
+  private func currentFabFrame() -> CGRect {
+    fabFrame(in: container.bounds, safeArea: container.safeAreaInsets)
+  }
+
+  // Re-seat the FAB and its recorded live-region rect from a layout pass: at init the
+  // container is not yet in a window so its safe-area insets are zero, which would leave
+  // the FAB in the home-indicator strip and the LiveRegion hit rect diverging from the
+  // button after rotation or a safe-area change.
+  private func layoutFab() {
+    let frame = currentFabFrame()
+    fab.frame = frame
+    container.state.fabRect = frame
   }
 
   @objc private func fabTapped() {
@@ -158,6 +193,7 @@ final class OverlayController: NSObject {
     bridge.onPanelToggled = { [weak self] toggled in self?.handlePanelToggled(toggled) }
     bridge.onCrashRecovery = { [weak self] in self?.resolvePick(requestId: self?.pickRequestId, grab: nil, reason: .failed) }
     bridge.onStaleToken = { [weak self] in self?.showRepairPrompt() }
+    bridge.onLog = { log in Swift.print("[conciv] \(log.level.rawValue): \(log.message)") }
   }
 
   // MARK: re-pair prompt (SDK-owned, 06 D13)
@@ -245,13 +281,17 @@ final class OverlayController: NSObject {
   // MARK: pick mode
 
   private func startPick(_ pick: GrabPick) {
+    flashWork?.cancel()
+    flashWork = nil
     resolvePick(requestId: pickRequestId, grab: nil, reason: .cancelled)
-    pickRequestId = pick.requestId
+    let requestId = pick.requestId
+    pickRequestId = requestId
     let overlay = PickOverlayView(frame: container.bounds)
     overlay.backgroundColor = UIColor.black.withAlphaComponent(0.001)
     overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     overlay.onMove = { [weak self] point in self?.updateHighlight(at: point) }
     overlay.onSelect = { [weak self] point in self?.performPick(at: point) }
+    overlay.onCancel = { [weak self] in self?.resolvePick(requestId: requestId, grab: nil, reason: .cancelled) }
     container.addSubview(overlay)
     container.pickActive = true
     pickOverlay = overlay
@@ -268,6 +308,8 @@ final class OverlayController: NSObject {
   }
 
   private func exitPick() {
+    flashWork?.cancel()
+    flashWork = nil
     highlight?.removeFromSuperview()
     highlight = nil
     pickBanner = nil
@@ -370,9 +412,9 @@ final class OverlayController: NSObject {
     selectionInFlight = true
     let box = highlight ?? makeHighlight()
     box.frame = frame
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-      self?.resolvePick(requestId: requestId, grab: grab, reason: nil)
-    }
+    let work = DispatchWorkItem { [weak self] in self?.resolvePick(requestId: requestId, grab: grab, reason: nil) }
+    flashWork = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
   }
 
   private func resolvePick(requestId: String?, grab: NeutralGrab?, reason: GrabResultReason?) {
@@ -418,8 +460,8 @@ final class OverlayController: NSObject {
   // rather than resizing the panel container.
   @objc private func keyboardWillShow(_ note: Notification) {
     guard let frameValue = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue else { return }
-    let keyboardFrame = frameValue.cgRectValue
-    let overlap = max(0, container.bounds.maxY - keyboardFrame.origin.y)
+    let keyboardInContainer = container.convert(frameValue.cgRectValue, from: nil)
+    let overlap = keyboardOverlap(keyboardInContainer: keyboardInContainer, containerBounds: container.bounds)
     webView.scrollView.contentInset.bottom = overlap
     webView.scrollView.verticalScrollIndicatorInsets.bottom = overlap
   }

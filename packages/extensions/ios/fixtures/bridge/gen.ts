@@ -1,7 +1,7 @@
 import {mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {bridgeFixtures} from './bridge.fixtures.ts'
+import {bridgeFixtures, nativeEncodeFixtures} from './bridge.fixtures.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -31,10 +31,25 @@ function emit(tree: Tree): void {
   }
 }
 
+function makeEncodeDir(root: string): string {
+  const dir = join(root, 'encode')
+  rmSync(dir, {recursive: true, force: true})
+  mkdirSync(dir, {recursive: true})
+  return dir
+}
+
+function emitEncode(dir: string): void {
+  for (const fixture of nativeEncodeFixtures) write(dir, fixture.file, fixture.json)
+}
+
 const canonical = makeTree(here)
 emit(canonical)
+emitEncode(makeEncodeDir(here))
 
 const swiftCopy = makeTree(swiftFixtureDir)
 emit(swiftCopy)
+emitEncode(makeEncodeDir(swiftFixtureDir))
 
-process.stdout.write(`wrote ${bridgeFixtures.length} bridge fixture triples to canonical + swift committed copy\n`)
+process.stdout.write(
+  `wrote ${bridgeFixtures.length} bridge fixture triples + ${nativeEncodeFixtures.length} native encode fixtures to canonical + swift committed copy\n`,
+)

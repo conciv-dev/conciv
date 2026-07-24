@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "seq": 5,
+  "type": "grabResult",
+  "requestId": "req-1",
+  "grab": {
+    "text": "Payroll Deposit",
+    "preview": {
+      "kind": "image",
+      "dataUrl": "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+      "width": 361,
+      "height": 72
+    }
+  }
+}

@@ -19,7 +19,7 @@ export const RectSchema = z.object({
 export const SourceSchema = z.object({
   componentName: nullish(z.string()),
   filePath: z.string(),
-  lineNumber: nullish(z.number()),
+  lineNumber: nullish(z.number().int()),
 }) satisfies z.ZodType<ElementSource>
 
 export const GrabImagePreviewSchema = z.object({
@@ -118,7 +118,7 @@ export const HandshakeSchema = z.object({
   seq: SeqSchema,
   type: z.literal('handshake'),
   apiBase: z.string(),
-  token: z.string().nullable(),
+  token: nullish(z.string()),
 })
 
 export const BridgeIncompatibleSchema = z.object({

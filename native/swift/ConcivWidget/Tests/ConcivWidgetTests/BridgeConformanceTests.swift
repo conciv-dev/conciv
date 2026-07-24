@@ -117,4 +117,77 @@ final class BridgeConformanceTests: XCTestCase {
       XCTAssertEqual(message, reDecoded, "reason roundtrip mismatch for \(file)")
     }
   }
+
+  // The encode-direction conformance suite (the nil-key drift class). Each variant is
+  // built as a real struct, encoded with JSONEncoder, and its produced JSON object
+  // asserted equal (key-set + values, order-independent) to the committed fixture the TS
+  // NativeToPageSchema also validates. A nil Swift optional omits its key, so the
+  // tokenless handshake fixture pins that the omission is exactly what the page accepts.
+  private static func encodeVariants() -> [(file: String, message: BridgeMessage)] {
+    let apiBase = "http://127.0.0.1:5311"
+    let preview = ImagePreview(dataUrl: "data:image/jpeg;base64,/9j/4AAQSkZJRg==", width: 361, height: 72)
+    let rect = Rect(x: 16, y: 232, width: 361, height: 72)
+    let labelRect = Rect(x: 28, y: 240, width: 180, height: 20)
+    let fullSubtree = ViewNode(
+      className: "PaymentCardCell",
+      a11yId: "PaymentsScreen/payrollRow",
+      text: "Payroll Deposit",
+      rect: rect,
+      children: [
+        ViewNode(className: "UILabel", a11yId: "PaymentsScreen/amount", text: "+$3,120.00", rect: labelRect, children: []),
+      ]
+    )
+    let fullGrab = NeutralGrab(
+      text: "Payroll Deposit",
+      preview: preview,
+      rect: rect,
+      source: Source(componentName: "PaymentCardCell", filePath: "", lineNumber: 42),
+      subtree: fullSubtree
+    )
+    let minimalGrab = NeutralGrab(text: "Payroll Deposit", preview: preview, rect: nil, source: nil, subtree: nil)
+    let sourceNilsGrab = NeutralGrab(
+      text: "Payroll Deposit",
+      preview: preview,
+      rect: nil,
+      source: Source(componentName: nil, filePath: "", lineNumber: nil),
+      subtree: nil
+    )
+    let viewNodeNilsGrab = NeutralGrab(
+      text: "Payroll Deposit",
+      preview: preview,
+      rect: nil,
+      source: nil,
+      subtree: ViewNode(className: "UILabel", a11yId: nil, text: nil, rect: rect, children: [])
+    )
+    return [
+      ("n2p.encode.handshake-token", .handshake(Handshake(v: 1, seq: 1, apiBase: apiBase, token: "pair-xyz"))),
+      ("n2p.encode.handshake-tokenless", .handshake(Handshake(v: 1, seq: 1, apiBase: apiBase, token: nil))),
+      ("n2p.encode.bridge-incompatible", .bridgeIncompatible(BridgeIncompatible(v: 1, seq: 2, nativeMinV: 2, nativeMaxV: 3))),
+      ("n2p.encode.open", .open(Open(v: 1, seq: 3))),
+      ("n2p.encode.close", .close(Close(v: 1, seq: 4))),
+      ("n2p.encode.grab-capability", .grabCapability(GrabCapability(v: 1, seq: 6, grabbable: true))),
+      ("n2p.encode.grab-result-full", .grabResult(GrabResult(v: 1, seq: 5, requestId: "req-1", grab: fullGrab))),
+      ("n2p.encode.grab-result-minimal-grab", .grabResult(GrabResult(v: 1, seq: 5, requestId: "req-1", grab: minimalGrab))),
+      ("n2p.encode.grab-result-source-nils", .grabResult(GrabResult(v: 1, seq: 5, requestId: "req-1", grab: sourceNilsGrab))),
+      ("n2p.encode.grab-result-viewnode-nils", .grabResult(GrabResult(v: 1, seq: 5, requestId: "req-1", grab: viewNodeNilsGrab))),
+      ("n2p.encode.grab-result-cancelled", .grabResult(GrabResult(v: 1, seq: 5, requestId: "req-1", grab: nil, reason: .cancelled))),
+      ("n2p.encode.grab-result-failed", .grabResult(GrabResult(v: 1, seq: 5, requestId: "req-1", grab: nil, reason: .failed))),
+      ("n2p.encode.grab-result-bare", .grabResult(GrabResult(v: 1, seq: 5, requestId: "req-1", grab: nil))),
+    ]
+  }
+
+  func testNativeEncodeVariantsMatchCommittedFixtures() throws {
+    let dir = try bridgeDir().appendingPathComponent("encode")
+    let encoder = JSONEncoder()
+    let variants = Self.encodeVariants()
+    for (file, message) in variants {
+      let url = dir.appendingPathComponent("\(file).json")
+      let expected = try JSONSerialization.jsonObject(with: try Data(contentsOf: url)) as? NSDictionary
+      let produced = try JSONSerialization.jsonObject(with: try encoder.encode(message)) as? NSDictionary
+      XCTAssertNotNil(expected, "committed fixture \(file) is not a JSON object")
+      XCTAssertEqual(produced, expected, "encode mismatch for \(file)")
+    }
+    let committed = Set(try jsonFiles(in: dir).map { $0.deletingPathExtension().lastPathComponent })
+    XCTAssertEqual(committed, Set(variants.map { $0.file }), "encode variants must match committed fixtures 1:1")
+  }
 }

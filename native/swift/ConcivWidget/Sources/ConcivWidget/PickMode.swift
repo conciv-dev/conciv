@@ -142,6 +142,7 @@ final class PickBannerView: UIView {
 final class PickOverlayView: UIView {
   var onMove: ((CGPoint) -> Void)?
   var onSelect: ((CGPoint) -> Void)?
+  var onCancel: (() -> Void)?
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
     touches.first.map { onMove?($0.location(in: self)) }
@@ -156,7 +157,7 @@ final class PickOverlayView: UIView {
   }
 
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-    onSelect?(.zero)
+    onCancel?()
   }
 }
 #endif

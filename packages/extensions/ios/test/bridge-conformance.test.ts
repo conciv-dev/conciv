@@ -9,7 +9,7 @@ import {
   NativeToPageSchema,
   type NeutralGrabAsGrab,
 } from '../src/shared/bridge.js'
-import {bridgeFixtures} from '../fixtures/bridge/bridge.fixtures.js'
+import {bridgeFixtures, nativeEncodeFixtures} from '../fixtures/bridge/bridge.fixtures.js'
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'bridge')
 
@@ -112,6 +112,28 @@ describe('committed JSON matches the fixture table', () => {
     expect(valid).toEqual(fixture.valid)
     expect(invalid).toEqual(fixture.invalid)
     expect(unknownKey).toEqual(fixture.unknownKey)
+  })
+})
+
+describe('native encode direction covers every nil-optional combination', () => {
+  it.each(nativeEncodeFixtures)('$file committed JSON equals the authored payload', (fixture) => {
+    const onDisk = JSON.parse(readFileSync(join(fixturesDir, 'encode', `${fixture.file}.json`), 'utf8'))
+    expect(onDisk).toEqual(fixture.json)
+  })
+
+  it.each(nativeEncodeFixtures)('$file payload validates against NativeToPageSchema', (fixture) => {
+    expect(NativeToPageSchema.safeParse(fixture.json).success).toBe(true)
+  })
+
+  it('a handshake with no token key still parses and yields token null', () => {
+    const tokenless = nativeEncodeFixtures.find((fixture) => fixture.file === 'n2p.encode.handshake-tokenless')
+    if (tokenless === undefined) throw new Error('missing tokenless handshake encode fixture')
+    expect('token' in tokenless.json).toBe(false)
+    const result = NativeToPageSchema.safeParse(tokenless.json)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    if (result.data.type !== 'handshake') throw new Error('expected handshake')
+    expect(result.data.token).toBeNull()
   })
 })
 

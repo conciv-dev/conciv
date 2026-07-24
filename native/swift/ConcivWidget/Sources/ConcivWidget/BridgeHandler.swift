@@ -165,8 +165,19 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     }
     unacked[call.seq] = call
     let script = "window.__concivNative && window.__concivNative.\(call.method)(\(payload))"
-    webView.evaluateJavaScript(script, completionHandler: nil)
+    webView.evaluateJavaScript(script) { [weak self] _, error in
+      guard let self, let error else { return }
+      self.reportDispatchFailure(call, error: error)
+    }
     scheduleRetry(for: call.seq)
+  }
+
+  // A grabResult that never reaches the page leaves the pending pick unresolved: the
+  // page-side pick timeout is the backstop, but the delivery failure must not be
+  // swallowed. Surface it as a host log so the failed delivery is visible.
+  private func reportDispatchFailure(_ call: Outbound, error: Error) {
+    guard case .grabResult = call else { return }
+    onLog?(HostLog(v: bridgeMaxVersion, level: .error, message: "grabResult delivery failed for seq \(call.seq): \(error.localizedDescription)"))
   }
 
   private func scheduleRetry(for seq: Int) {
