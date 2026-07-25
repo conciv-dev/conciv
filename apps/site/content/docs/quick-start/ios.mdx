@@ -1,0 +1,166 @@
+---
+title: iOS
+description: Attach conciv to a native iOS app running in the simulator.
+---
+
+<Callout type="warn">
+  Early alpha. The iOS SDK is on the `0.0.x` line, so the bridge protocol and public API can change
+  without notice. The iOS simulator is the only supported target today. Match the SwiftPM version to
+  the `@conciv/*` npm version you run.
+</Callout>
+
+conciv drives a native iOS app the same way it drives a web app: a transparent overlay and launcher
+sit above your own UI, and the agent reads and acts through them. The Swift SDK loads the widget from
+your dev core, so the native side stays thin and everything routes through the same engine.
+
+<Steps>
+<Step>
+
+### Add the Swift package
+
+Add the SwiftPM mirror to your app. In `Package.swift`:
+
+```swift title="Package.swift"
+dependencies: [
+  .package(url: "https://github.com/conciv-dev/conciv-swift.git", from: "0.0.1"),
+],
+```
+
+Then add the product to the target that shows your UI:
+
+```swift title="Package.swift"
+.product(name: "ConcivWidget", package: "conciv-swift"),
+```
+
+In an Xcode project, use File > Add Package Dependencies and paste the same URL.
+
+</Step>
+<Step>
+
+### Attach from your scene delegate
+
+Call `ConcivWidget.attach` once you have a key window. It reads the endpoint from the
+`CONCIV_URL` environment variable, and falls back to auto-discovery when the variable is unset.
+
+```swift title="SceneDelegate.swift"
+import UIKit
+import ConcivWidget
+
+final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+  var window: UIWindow?
+
+  func scene(
+    _ scene: UIScene,
+    willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions
+  ) {
+    guard let windowScene = scene as? UIWindowScene else { return }
+    let window = UIWindow(windowScene: windowScene)
+    window.rootViewController = RootViewController()
+    window.makeKeyAndVisible()
+    self.window = window
+
+    #if DEBUG
+    if let override = ProcessInfo.processInfo.environment["CONCIV_URL"],
+       let apiBase = URL(string: override) {
+      ConcivWidget.attach(to: window, apiBase: apiBase)
+    } else {
+      ConcivWidget.attach(to: window)
+    }
+    #endif
+  }
+}
+```
+
+<Callout type="warn">
+  `attach` is compiled only inside `#if DEBUG`. In a Release build it is a no-op: no overlay, no
+  WebView, no dev-core URL is ever instantiated. That is deliberate, so nothing conciv ships to
+  TestFlight or the App Store, but it also means a Release build shows nothing. Run a Debug build to
+  see the widget.
+</Callout>
+
+</Step>
+<Step>
+
+### Enable the extension in your dev core
+
+The widget is served by a running conciv dev core, so a vite host with the plugin has to be up. Turn
+on the `ios` extension and point it at your native project:
+
+```ts title="vite.config.ts"
+import {fileURLToPath} from 'node:url'
+import {defineConfig} from 'vite'
+import conciv from '@conciv/it/plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    conciv({
+      port: 4599,
+      extensions: {
+        ios: {
+          projectRoot: fileURLToPath(new URL('./ios', import.meta.url)),
+          bundleId: 'dev.conciv.YourApp',
+          simulator: 'iPhone 17 Pro',
+        },
+      },
+    }),
+  ],
+})
+```
+
+Pin `port` so the simulator always loads the same URL across restarts. From the agent panel you then
+run `ios.build` and `ios.run` to build and launch the app in the simulator.
+
+</Step>
+<Step>
+
+### Point the app at the core
+
+The endpoint is the core API base with no `/native` suffix, for example `http://127.0.0.1:4599`. The
+SDK appends `/native` itself, so a URL that already ends in `/native` would load `/native/native`.
+
+`ios.run` injects it for you as `SIMCTL_CHILD_CONCIV_URL`, which the app reads as `CONCIV_URL`. To
+launch by hand, pass it the same way:
+
+```bash
+SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 \
+  xcrun simctl launch booted dev.conciv.YourApp
+```
+
+If you leave `CONCIV_URL` unset, the SDK discovers the core from the pairing file a freshly started
+dev core writes at `~/.conciv/dev-endpoint.json`. The simulator shares the host filesystem, so this is
+the zero-config path. The file only exists while a dev core is running, so restart the core if
+discovery finds nothing.
+
+</Step>
+</Steps>
+
+## What it looks like
+
+<ImageZoom
+  src="/screenshots/ios-launcher.png"
+  alt="The conciv launcher floating over a native iOS app in the simulator"
+  width={1290}
+  height={2796}
+/>
+
+<ImageZoom
+  src="/screenshots/ios-panel.png"
+  alt="The conciv agent panel open over the native app with a conversation in progress"
+  width={1290}
+  height={2796}
+/>
+
+<ImageZoom
+  src="/screenshots/ios-pick.png"
+  alt="Native pick mode highlighting a selected view in the running iOS app"
+  width={1290}
+  height={2796}
+/>
+
+## Next
+
+The agent works the native app the same way it works a web page: grab a view, ask about it, and let it
+find and edit the Swift. See [Usage](/docs/usage) for what the agent can do, and
+[`@conciv/extension-ios`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/ios) for
+the transport tiers, pairing, and re-pair behavior behind the native path.
