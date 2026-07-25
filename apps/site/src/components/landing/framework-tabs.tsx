@@ -146,6 +146,11 @@ function FrameworkSelect() {
                   soon
                 </span>
               )}
+              {snippet.alpha && (
+                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-primary">
+                  alpha
+                </span>
+              )}
             </span>
           </SelectItem>
         ))}
@@ -182,6 +187,11 @@ function Trigger({snippet}: {snippet: FrameworkSnippet}) {
       {snippet.soon && (
         <span className="relative z-10 rounded-full bg-accent px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-accent-foreground">
           soon
+        </span>
+      )}
+      {snippet.alpha && (
+        <span className="relative z-10 rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-primary">
+          alpha
         </span>
       )}
     </TabsPrimitive.Trigger>

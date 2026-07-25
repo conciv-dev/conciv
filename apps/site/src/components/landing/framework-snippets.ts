@@ -12,11 +12,12 @@ export type FrameworkSnippet = {
   icon: string
   href: string
   file?: string
-  lang?: 'ts' | 'js'
+  lang?: 'ts' | 'js' | 'swift'
   twoslash?: boolean
   code?: string
   note?: string
   soon?: boolean
+  alpha?: boolean
 }
 
 export const FRAMEWORK_SNIPPETS: FrameworkSnippet[] = [
@@ -81,6 +82,18 @@ module.exports = {
 module.exports = {
   plugins: [conciv.default()],
 }`,
+  },
+  {
+    id: 'ios',
+    label: 'iOS',
+    icon: '/icons/apple.svg',
+    href: '/docs/quick-start/ios',
+    file: 'Package.swift',
+    lang: 'swift',
+    alpha: true,
+    note: 'The .package line goes in dependencies, the .product line in your target. Simulator only for now.',
+    code: `.package(url: "https://github.com/conciv-dev/conciv-swift.git", from: "0.0.1"),
+.product(name: "ConcivWidget", package: "conciv-swift"),`,
   },
   {id: 'rollup', label: 'Rollup', icon: '/icons/rollup.svg', href: '/docs/quick-start/rollup', soon: true},
   {id: 'esbuild', label: 'esbuild', icon: '/icons/esbuild.svg', href: '/docs/quick-start/esbuild', soon: true},
