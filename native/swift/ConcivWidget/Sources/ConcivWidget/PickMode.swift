@@ -46,7 +46,7 @@ func pickSearch(from node: UIView, at windowPoint: CGPoint, isExcluded: (UIView)
 
 func pickOwnText(_ view: UIView) -> String? {
   if let label = view as? UILabel, let text = label.text, !text.isEmpty { return text }
-  if let field = view as? UITextField, let text = field.text, !text.isEmpty { return text }
+  if let field = view as? UITextField, !field.isSecureTextEntry, let text = field.text, !text.isEmpty { return text }
   return nil
 }
 
@@ -88,8 +88,7 @@ func pickNeutralGrab(fromUIView view: UIView, isExcluded: (UIView) -> Bool, prev
   let texts = pickCollectTexts(view)
   var budget = subtreeMaxNodes
   let subtree = pickBuildViewNode(view, isExcluded: isExcluded, depth: 0, budget: &budget)
-  let identifier = view.accessibilityIdentifier
-  let componentName = (identifier?.isEmpty ?? true) ? pickClassLabel(view) : identifier
+  let componentName = pickClassLabel(view)
   return NeutralGrab(
     text: texts.joined(separator: " · "),
     preview: preview,
