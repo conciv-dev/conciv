@@ -2,18 +2,19 @@ export type Diagnostic = {file: string; line: number; message: string; severity:
 
 const DIAGNOSTIC_LINE = /^(.*?):(\d+):(?:\d+): (error|warning): (.*)$/
 
+function parseDiagnosticLine(raw: string): Diagnostic | null {
+  const match = DIAGNOSTIC_LINE.exec(raw)
+  if (!match) return null
+  const [, file, line, severity, message] = match
+  if (file === undefined || line === undefined || severity === undefined || message === undefined) return null
+  return {file, line: Number(line), message, severity: severity === 'warning' ? 'warning' : 'error'}
+}
+
+function diagnosticKey(diagnostic: Diagnostic): string {
+  return `${diagnostic.file}:${diagnostic.line}:${diagnostic.severity}:${diagnostic.message}`
+}
+
 export function parseDiagnostics(output: string): Diagnostic[] {
-  const diagnostics: Diagnostic[] = []
-  const seen = new Set<string>()
-  for (const raw of output.split('\n')) {
-    const match = DIAGNOSTIC_LINE.exec(raw)
-    if (!match) continue
-    const [, file, line, severity, message] = match
-    if (file === undefined || line === undefined || severity === undefined || message === undefined) continue
-    const key = `${file}:${line}:${severity}:${message}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    diagnostics.push({file, line: Number(line), message, severity: severity === 'warning' ? 'warning' : 'error'})
-  }
-  return diagnostics
+  const parsed = output.split('\n').flatMap((raw) => parseDiagnosticLine(raw) ?? [])
+  return [...new Map(parsed.map((diagnostic) => [diagnosticKey(diagnostic), diagnostic])).values()]
 }

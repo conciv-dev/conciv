@@ -153,6 +153,8 @@ async function buildSwiftc(ctx: IosToolContext, config: IosConfig, clean: boolea
       '-module-name',
       module,
       '-O',
+      '-D',
+      'DEBUG',
       '-framework',
       'UIKit',
       '-framework',
@@ -259,6 +261,8 @@ export async function runRun(ctx: IosToolContext, input: {autoshow?: boolean}): 
   if (!udid) return {ok: false, udid: '', bundleId: config.bundleId}
   const env = developerEnv(config)
   await ctx.runner.run('xcrun', ['simctl', 'boot', udid], {env})
+  const booted = await ctx.runner.run('xcrun', ['simctl', 'bootstatus', udid, '-b'], {env})
+  if (booted.code !== 0) return {ok: false, udid, bundleId: config.bundleId}
   const appPath = await resolveAppPath(ctx, config)
   if (!appPath) return {ok: false, udid, bundleId: config.bundleId}
   const installed = await ctx.runner.run('xcrun', ['simctl', 'install', udid, appPath], {env})
@@ -301,8 +305,18 @@ export async function runLogs(
   const udid = await resolveUdid(ctx, config)
   if (!udid) return {ok: false, lines: []}
   const sinceSeconds = input.sinceSeconds ?? 60
-  const args = ['simctl', 'spawn', udid, 'log', 'show', '--style', 'compact', '--last', `${sinceSeconds}s`]
-  if (input.predicate) args.push('--predicate', input.predicate)
+  const args = [
+    'simctl',
+    'spawn',
+    udid,
+    'log',
+    'show',
+    '--style',
+    'compact',
+    '--last',
+    `${sinceSeconds}s`,
+    ...(input.predicate ? ['--predicate', input.predicate] : []),
+  ]
   const logged = await ctx.runner.run('xcrun', args, {env: developerEnv(config)})
   if (logged.code !== 0) return {ok: false, lines: []}
   const lines = stdoutText(logged)

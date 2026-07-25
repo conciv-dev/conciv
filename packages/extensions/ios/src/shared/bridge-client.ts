@@ -55,24 +55,21 @@ export type BridgeClient = {
 const DEFAULT_READY_INTERVAL_MS = 300
 const DEFAULT_PICK_TIMEOUT_MS = 10_000
 
-function formatViewNode(node: ViewNode, depth: number, budget: {remaining: number}, lines: string[]): void {
-  if (depth > SUBTREE_MAX_DEPTH) return
-  if (budget.remaining <= 0) return
+function formatViewNode(node: ViewNode, depth: number, budget: {remaining: number}): string[] {
+  if (depth > SUBTREE_MAX_DEPTH) return []
+  if (budget.remaining <= 0) return []
   budget.remaining -= 1
   const indent = '  '.repeat(depth)
   const anchor = node.a11yId === null ? '' : ` #${node.a11yId}`
   const label = node.text === null ? '' : ` "${node.text}"`
   const rect = `(${node.rect.x},${node.rect.y} ${node.rect.width}x${node.rect.height})`
-  lines.push(`${indent}${node.class}${anchor}${label} ${rect}`)
-  for (const child of node.children) {
-    formatViewNode(child, depth + 1, budget, lines)
-  }
+  const line = `${indent}${node.class}${anchor}${label} ${rect}`
+  return [line, ...node.children.flatMap((child) => formatViewNode(child, depth + 1, budget))]
 }
 
 function foldSubtreeIntoText(text: string, subtree: ViewNode | undefined): string {
   if (subtree === undefined) return text
-  const lines: string[] = []
-  formatViewNode(subtree, 0, {remaining: SUBTREE_MAX_NODES}, lines)
+  const lines = formatViewNode(subtree, 0, {remaining: SUBTREE_MAX_NODES})
   return `${text}\n\n[view]\n${lines.join('\n')}`
 }
 
