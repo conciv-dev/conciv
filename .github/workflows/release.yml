@@ -102,22 +102,24 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       # Run only when the @conciv/extension-ios version changed between the previous main
-      # commit and this one. First push (empty/zero before-sha) always runs. A missing
-      # manifest at either end reads as an empty version, so an add or a differing value
-      # both trip run=true; an unchanged version is a no-op.
+      # commit and this one AND both commits already carried the manifest. A zero/empty
+      # before-sha (first push, force-push) or a missing manifest at either end reads as an
+      # empty version and yields run=false: newly adding the manifest never tags a version
+      # npm's lockstep line never contained. The first real bump (before and head both
+      # present and differing) fires correctly.
       - id: detect
         env:
           BEFORE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
         run: |
           if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           manifest="packages/extensions/ios/package.json"
           before_version=$(git show "$BEFORE_SHA:$manifest" 2>/dev/null | jq -r '.version // empty')
           head_version=$(git show "$HEAD_SHA:$manifest" 2>/dev/null | jq -r '.version // empty')
-          if [ "$before_version" != "$head_version" ]; then
+          if [ -n "$before_version" ] && [ -n "$head_version" ] && [ "$before_version" != "$head_version" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
