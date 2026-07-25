@@ -10,6 +10,18 @@ Early alpha: the iOS SDK is on the `0.0.x` line. The bridge protocol and the pub
 API change without notice while `0.0.x` lasts, and the iOS simulator is the only
 supported target today.
 
+## Versioning and the Swift SDK
+
+This package is the bridge-protocol peer of the native Swift SDK (`ConcivWidget`,
+published as the [conciv-dev/conciv-swift](https://github.com/conciv-dev/conciv-swift)
+SwiftPM mirror). The two ship in lockstep: this package's `version` is the source of
+truth for the mirror tag, so the Swift tag `N.N.N` is generated from the same monorepo
+commit that published `@conciv/*@N.N.N` to npm. Match the SwiftPM version to the
+`@conciv/*` npm version you run. Release CI regenerates and tags the mirror whenever
+this package's version changes (changesets bumps every `@conciv/*` package together on
+each release); the `native/swift/ConcivWidget/` source no longer carries a hand-edited
+version file.
+
 ## Transport tiers
 
 The core binds `127.0.0.1` only. How the in-app WebView reaches it depends on the

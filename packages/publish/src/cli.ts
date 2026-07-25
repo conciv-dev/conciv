@@ -14,6 +14,7 @@ const RELEASE_WORKFLOW = 'release.yml'
 const MIRROR_REPOSITORY = 'conciv-dev/conciv-swift'
 const MIRROR_SOURCE = 'native/swift/ConcivWidget'
 const MIRROR_TEMPLATE = 'native/swift/mirror'
+const BRIDGE_MANIFEST = 'packages/extensions/ios/package.json'
 const MIRROR_COMMIT_NAME = 'conciv-swift-mirror'
 const MIRROR_COMMIT_EMAIL = 'noreply@conciv.dev'
 
@@ -211,7 +212,7 @@ const swiftMirror = defineCommand({
   meta: {
     name: 'swift-mirror',
     description:
-      'Regenerate the conciv-swift SDK mirror from native/swift/ConcivWidget and tag it with SWIFT_SDK_VERSION. Idempotent: skips if the tag already exists.',
+      'Regenerate the conciv-swift SDK mirror from native/swift/ConcivWidget and tag it with the @conciv/extension-ios version. Idempotent: skips if the tag already exists.',
   },
   args: {
     'dry-run': {
@@ -224,9 +225,10 @@ const swiftMirror = defineCommand({
     const cwd = await findRoot(process.cwd())
     const sourceDir = join(cwd, MIRROR_SOURCE)
     const templateDir = join(cwd, MIRROR_TEMPLATE)
+    const bridgeManifestPath = join(cwd, BRIDGE_MANIFEST)
     const destDir = await mkdtemp(join(tmpdir(), 'conciv-swift-'))
     try {
-      const tree = await assembleMirrorTree({sourceDir, templateDir, destDir})
+      const tree = await assembleMirrorTree({sourceDir, templateDir, destDir, bridgeManifestPath})
       console.log(`assembled conciv-swift ${tree.version} at ${destDir}: ${tree.files.join(', ')}`)
       if (args['dry-run']) {
         console.log(`dry run: skipping tag lookup and push for ${MIRROR_REPOSITORY}`)
@@ -263,7 +265,7 @@ async function assertTaggedTreeMatches(
     await cloneTaggedTree(git, sdkVersion, tagDir)
     if (await treesMatch(destDir, tagDir)) return
     throw new Error(
-      `conciv-swift ${sdkVersion} is already tagged but the assembled tree differs; bump SWIFT_SDK_VERSION before releasing`,
+      `conciv-swift ${sdkVersion} is already tagged but the assembled tree differs: the mirror source changed without a @conciv/extension-ios version bump. Check the release flow (changesets should bump the version on every release).`,
     )
   } finally {
     await rm(tagDir, {recursive: true, force: true})

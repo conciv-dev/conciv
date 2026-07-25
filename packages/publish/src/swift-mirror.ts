@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto'
 import {cp, mkdir, readFile, readdir, rm} from 'node:fs/promises'
 import {join} from 'node:path'
+import {z} from 'zod'
 
 const BARE_SEMVER = /^\d+\.\d+\.\d+$/
 
@@ -8,15 +9,17 @@ const SKIP_SEGMENTS = ['.build', '.git', '.DS_Store']
 
 const MIRROR_ENTRIES = ['Package.swift', 'Sources', 'Tests', 'README.md', 'RELEASE_HYGIENE.md']
 
+const bridgeManifestSchema = z.object({version: z.string()})
+
 export function assertBareSemver(version: string): void {
   if (!BARE_SEMVER.test(version)) {
     throw new Error(`invalid swift sdk version ${JSON.stringify(version)}: must match /^\\d+\\.\\d+\\.\\d+$/`)
   }
 }
 
-export async function readSwiftSdkVersion(sourceDir: string): Promise<string> {
-  const raw = await readFile(join(sourceDir, 'SWIFT_SDK_VERSION'), 'utf8')
-  const version = raw.trim()
+export async function readBridgeVersion(manifestPath: string): Promise<string> {
+  const raw = await readFile(manifestPath, 'utf8')
+  const {version} = bridgeManifestSchema.parse(JSON.parse(raw))
   assertBareSemver(version)
   return version
 }
@@ -29,6 +32,7 @@ export type MirrorLayout = {
   sourceDir: string
   templateDir: string
   destDir: string
+  bridgeManifestPath: string
 }
 
 export type MirrorTree = {
@@ -37,7 +41,7 @@ export type MirrorTree = {
 }
 
 export async function assembleMirrorTree(layout: MirrorLayout): Promise<MirrorTree> {
-  const version = await readSwiftSdkVersion(layout.sourceDir)
+  const version = await readBridgeVersion(layout.bridgeManifestPath)
   for (const entry of MIRROR_ENTRIES) {
     await rm(join(layout.destDir, entry), {recursive: true, force: true})
   }

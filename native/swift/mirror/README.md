@@ -27,21 +27,30 @@ Then reference the product from your target:
 .product(name: "ConcivWidget", package: "conciv-swift")
 ```
 
-## Versioning: Swift SDK to bridge protocol to npm
+## Versioning: Swift SDK, bridge protocol, and npm
 
-The Swift tag tracks **bridge protocol** compatibility, not the npm package version. While the SDK is on
-the `0.0.x` line there is no stability guarantee: any release may change `BRIDGE_MAX_VERSION`, the wire
-schema, or the public `attach` API and break compatibility without notice. A given Swift release speaks
-one bridge protocol version and interoperates with any `@conciv/extension-ios` whose advertised bridge
-range includes it.
+The Swift SDK ships in **lockstep with the npm packages**. Every `@conciv/*` package shares one version
+(changesets bumps the whole set together on each release), and the Swift tag `N.N.N` is generated from
+the exact same monorepo commit that published `@conciv/*@N.N.N` to npm. Match your SwiftPM version to
+the `@conciv/*` npm version you run: if your app talks to a core built from `@conciv/*@N.N.N`, pin
+ConcivWidget to `N.N.N`.
 
-| ConcivWidget (Swift) | Bridge protocol | Minimum `@conciv/extension-ios` |
-| -------------------- | --------------- | ------------------------------- |
-| `0.0.x`              | v1              | `>= 0.0.15`                     |
+The lockstep tags begin with the next release. The only tag published so far is `0.0.1` (the initial
+native-only cut); the first tag generated from a matching npm release will be the next `0.0.x`. Because
+SwiftPM's `from:` resolves forward, `from: "0.0.1"` picks up those later tags automatically.
+
+While the SDK is on the `0.0.x` line there is no stability guarantee: any release may change
+`BRIDGE_MAX_VERSION`, the wire schema, or the public `attach` API and break compatibility without notice.
+A given Swift release speaks one bridge protocol version and interoperates with any `@conciv/extension-ios`
+whose advertised bridge range includes it.
+
+| ConcivWidget (Swift) | Bridge protocol | Matching `@conciv/*` npm |
+| -------------------- | --------------- | ------------------------ |
+| `0.0.x`              | v1              | same `0.0.x`             |
 
 When the page and native ends disagree on the protocol, the page sends `bridge.incompatible` and the
 overlay surfaces a visible error rather than failing silently. Keep the Swift SDK and the installed
-`@conciv/extension-ios` within a compatible row of this table.
+`@conciv/*` on the same version.
 
 ## Release-build hygiene
 
