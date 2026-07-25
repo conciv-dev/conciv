@@ -72,6 +72,7 @@ private struct ConcivGrabModifier: ViewModifier {
   let label: String?
 
   func body(content: Content) -> some View {
+    #if DEBUG
     content.background(
       GeometryReader { proxy in
         Color.clear
@@ -86,6 +87,9 @@ private struct ConcivGrabModifier: ViewModifier {
           }
       }
     )
+    #else
+    content
+    #endif
   }
 }
 

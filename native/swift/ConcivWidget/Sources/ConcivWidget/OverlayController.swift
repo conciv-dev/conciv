@@ -156,6 +156,7 @@ final class OverlayController: NSObject {
   private func configureFab() {
     fab.isHidden = launcher != .native
     fab.setTitle("AI", for: .normal)
+    fab.accessibilityLabel = "Open conciv chat"
     fab.setTitleColor(.white, for: .normal)
     fab.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1)
     fab.layer.cornerRadius = 28
@@ -304,6 +305,7 @@ final class OverlayController: NSObject {
     let incoming = toggled.mascotRect.map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
     container.state = applyPanelToggle(container.state, open: toggled.open, mascotRect: incoming)
     fab.isHidden = launcher != .native
+    fab.accessibilityLabel = toggled.open ? "Minimize conciv chat" : "Open conciv chat"
   }
 
   // MARK: pick mode

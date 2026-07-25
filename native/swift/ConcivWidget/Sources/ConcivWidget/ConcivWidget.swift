@@ -1,9 +1,11 @@
 #if canImport(UIKit)
 import UIKit
 
-// Public entry point. Everything is #if DEBUG so no bridge code, WebView, or the
-// dev-core URL compiles into a Release build (04 D14/M-A10). In Release, attach is
-// a no-op; ship a Release configuration for any TestFlight/App Store build.
+// Public entry point. In a Release build attach/detach are no-ops: no OverlayController,
+// BridgeHandler, WebView, or dev-core URL is ever instantiated, and .concivGrab is inert
+// (its modifier body is #if DEBUG, 04 D14/M-A10). The supporting UIKit types still compile
+// behind canImport(UIKit) but stay unreachable. Ship a Release configuration for any
+// TestFlight/App Store build.
 public enum ConcivWidget {
   #if DEBUG
   private static var controller: OverlayController?
