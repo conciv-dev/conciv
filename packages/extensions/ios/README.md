@@ -41,11 +41,13 @@ Pin a stable core port so the simulator always loads the same URL. `ConcivConfig
 already accepts a `port`; the ios dev loop pins `4599` by default. With a pinned
 port, restarting the same core needs no change in the app.
 
-`ios.run` injects the core native page URL into the launched app as
-`SIMCTL_CHILD_CONCIV_URL` (the app reads it as `CONCIV_URL`). The value defaults to
-the core's own apiBase plus the `/native` route, and carries the `/t/<token>` prefix
-when the core minted an access token. Set `concivUrl` in the ios extension config to
-override it.
+`ios.run` injects the core API base into the launched app as
+`SIMCTL_CHILD_CONCIV_URL` (the app reads it as `CONCIV_URL`). The value is the core's
+own apiBase with no `/native` suffix: the Swift SDK's `ConcivWidget.attach(apiBase:)`
+appends the `/native` route itself, so passing a URL that already ends in `/native`
+would load `/native/native`. It carries the `/t/<token>` prefix when the core minted an
+access token. Set `concivUrl` in the ios extension config to override it, again as the
+API base without `/native`.
 
 ## Pairing file and discovery
 
@@ -99,5 +101,6 @@ shipped source).
    relaunching the app, with nav and session preserved (same-core drift). Point the SDK
    at a **different** core; confirm it fresh-mounts (no stale nav or session). Kill the
    WebView content process; confirm reload then fresh handshake with no blank overlay.
-8. On a real device: type in the composer; the keyboard raises without covering it and
-   the safe-area insets are correct.
+8. In the simulator (physical-device transport is deferred past v1): raise the software
+   keyboard with Cmd+K, type in the composer, and confirm the keyboard does not cover it
+   and the safe-area insets are correct.
