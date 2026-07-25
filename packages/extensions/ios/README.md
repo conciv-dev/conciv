@@ -6,6 +6,10 @@ tools (`build`, `run`, `screenshot`, `logs`), and the transport plumbing that po
 the in-app WebView at the dev core. Installed automatically by `@conciv/it`; do not
 install directly.
 
+Early alpha: the iOS SDK is on the `0.0.x` line. The bridge protocol and the public
+API change without notice while `0.0.x` lasts, and the iOS simulator is the only
+supported target today.
+
 ## Transport tiers
 
 The core binds `127.0.0.1` only. How the in-app WebView reaches it depends on the

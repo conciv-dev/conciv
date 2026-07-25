@@ -5,6 +5,10 @@ panel over a running native app: a transparent WKWebView overlay plus a launcher
 (grab) that hands a selected view back to the agent, and the origin-pinned page-native bridge that talks
 to a conciv dev core.
 
+> **Early alpha.** The iOS SDK is early alpha on the `0.0.x` line. The bridge protocol and the public
+> API change without notice while `0.0.x` lasts, and the iOS simulator is the only supported target
+> today.
+
 > This repository is a **published mirror**. The source of truth lives in the conciv monorepo at
 > `native/swift/ConcivWidget/`. Release CI regenerates this repository from that tree and tags it; nobody
 > edits it by hand. Open issues and pull requests against the monorepo, not here.
@@ -14,7 +18,7 @@ to a conciv dev core.
 Add the package with Swift Package Manager (mirror URL only):
 
 ```swift
-.package(url: "https://github.com/conciv-dev/conciv-swift.git", from: "1.0.0")
+.package(url: "https://github.com/conciv-dev/conciv-swift.git", from: "0.0.1")
 ```
 
 Then reference the product from your target:
@@ -25,14 +29,15 @@ Then reference the product from your target:
 
 ## Versioning: Swift SDK to bridge protocol to npm
 
-The Swift tag tracks **bridge protocol** compatibility, not the npm package version. Bump the Swift major
-or minor when `BRIDGE_MAX_VERSION`, the wire schema, or the public `attach` API changes; the two cadences
-are independent. A given Swift release speaks one bridge protocol version and interoperates with any
-`@conciv/extension-ios` whose advertised bridge range includes it.
+The Swift tag tracks **bridge protocol** compatibility, not the npm package version. While the SDK is on
+the `0.0.x` line there is no stability guarantee: any release may change `BRIDGE_MAX_VERSION`, the wire
+schema, or the public `attach` API and break compatibility without notice. A given Swift release speaks
+one bridge protocol version and interoperates with any `@conciv/extension-ios` whose advertised bridge
+range includes it.
 
 | ConcivWidget (Swift) | Bridge protocol | Minimum `@conciv/extension-ios` |
 | -------------------- | --------------- | ------------------------------- |
-| `1.x`                | v1              | `>= 0.0.15`                     |
+| `0.0.x`              | v1              | `>= 0.0.15`                     |
 
 When the page and native ends disagree on the protocol, the page sends `bridge.incompatible` and the
 overlay surfaces a visible error rather than failing silently. Keep the Swift SDK and the installed
