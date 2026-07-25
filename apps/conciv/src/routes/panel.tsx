@@ -4,6 +4,7 @@ import {Show, createEffect, createSignal, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {useFabPosition, useLayers, useSuppressed} from '../app/context.js'
 import {setShutter} from '../lib/shutter.js'
+import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 
 const PANEL_POS: Record<TriggerPosition, string> = {
   'top-left': 'top-21 left-5 [transform-origin:top_left]',
@@ -14,7 +15,10 @@ const PANEL_POS: Record<TriggerPosition, string> = {
   'bottom-right': 'bottom-21 right-5 [transform-origin:bottom_right]',
 }
 const PANEL_BASE =
-  'fixed w-120 max-w-[calc(100vw-2.5rem)] h-140 max-h-[calc(100vh-7.5rem)] flex flex-col bg-pw-glass border border-pw-line-soft rounded-pw-lg shadow-pw-lg text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden'
+  'fixed flex flex-col bg-pw-glass text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden'
+const PANEL_CARD =
+  'w-120 max-w-[calc(100vw-2.5rem)] h-140 max-h-[calc(100vh-7.5rem)] border border-pw-line-soft rounded-pw-lg shadow-pw-lg'
+const PANEL_SHEET = 'inset-0 w-full h-full rounded-none pad-safe'
 const PANEL_OPEN =
   'pointer-events-auto visible trans-pop-in opacity-100 [transform:none] starting:opacity-0 starting:[transform:translateY(8px)_scale(0.98)]'
 const PANEL_CLOSING = 'pointer-events-none invisible trans-pop-out opacity-0 [transform:translateY(8px)_scale(0.98)]'
@@ -32,6 +36,7 @@ function PanelLayout(): JSX.Element {
   const router = useRouter()
   const search = Route.useSearch()
   const position = fabPosition
+  const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const anchoredBottom = () => position().startsWith('bottom')
   const anchoredRight = () => position().endsWith('right')
   const close = () => setShutter(router, false)
@@ -61,36 +66,38 @@ function PanelLayout(): JSX.Element {
     <Show when={mounted()}>
       <FocusTrap disabled={!open() || layers.anyOpen()}>
         <section
-          class={`${PANEL_BASE} ${PANEL_POS[position()]} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
+          class={`${PANEL_BASE} ${phone() ? PANEL_SHEET : `${PANEL_CARD} ${PANEL_POS[position()]}`} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
           data-pw-panel
           data-pw-suppressed={suppressed()}
-          style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
+          style={phone() ? undefined : {height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
           role="dialog"
           aria-label="conciv chat agent"
           id="pw-chat-panel"
         >
-          <div
-            class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="Resize chat height"
-            aria-valuemin={240}
-            aria-valuenow={Math.round(resizeY.size())}
-            tabindex={0}
-            onPointerDown={resizeY.onPointerDown}
-            onKeyDown={resizeY.onKeyDown}
-          />
-          <div
-            class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize chat width"
-            aria-valuemin={300}
-            aria-valuenow={Math.round(resizeX.size())}
-            tabindex={0}
-            onPointerDown={resizeX.onPointerDown}
-            onKeyDown={resizeX.onKeyDown}
-          />
+          <Show when={!phone()}>
+            <div
+              class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize chat height"
+              aria-valuemin={240}
+              aria-valuenow={Math.round(resizeY.size())}
+              tabindex={0}
+              onPointerDown={resizeY.onPointerDown}
+              onKeyDown={resizeY.onKeyDown}
+            />
+            <div
+              class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize chat width"
+              aria-valuemin={300}
+              aria-valuenow={Math.round(resizeX.size())}
+              tabindex={0}
+              onPointerDown={resizeX.onPointerDown}
+              onKeyDown={resizeX.onKeyDown}
+            />
+          </Show>
           <Outlet />
         </section>
       </FocusTrap>

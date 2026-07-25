@@ -35,6 +35,7 @@ import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
 import {setShutter} from '../lib/shutter.js'
+import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import '../styles.css'
 
 export const Route = createRootRouteWithContext<ConcivRouterContext>()({
@@ -157,8 +158,10 @@ function RootChrome(props: {
   const quickMatch = matchRoute({to: '/quick'})
   const closedMatch = matchRoute({to: '/'})
   const rootSearch = Route.useSearch()
+  const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const shutterOpen = () => rootSearch().open === true
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
+  const launcherVisible = () => settings.modal.enabled && !(phone() && panelOpen())
 
   const sessions = useQuery(() => ({...data.utils.sessions.list.queryOptions(), enabled: connected()}))
   const working = () => (sessions.data ?? []).some((session) => session.running)
@@ -235,7 +238,7 @@ function RootChrome(props: {
       onKeyDown={onKeyDown}
     >
       <Outlet />
-      <Show when={settings.modal.enabled}>
+      <Show when={launcherVisible()}>
         <ShellFab
           ref={(el) => {
             fabEl = el
