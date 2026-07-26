@@ -51,6 +51,14 @@ describe('createConciv lifecycle', () => {
     await page.close()
   })
 
+  it('threads the mounted api base to extension surfaces when the host page has no pw-api-base meta', async () => {
+    const page = await openPage()
+    await mountHandle(page, kit.base)
+    const probe = page.getByRole('status', {name: 'host api base probe'})
+    await expect.poll(() => probe.textContent(), {timeout: 30_000}).toBe(kit.base)
+    await page.close()
+  })
+
   it('a second mount on an already-mounted handle is a no-op', async () => {
     const page = await openPage()
     await page.evaluate((base) => {

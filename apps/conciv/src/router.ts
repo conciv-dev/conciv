@@ -26,6 +26,7 @@ export type ConcivRouterContext = {
   bindApiBase?: (apiBase: string) => void
   disconnect?: () => void
   grabProvider?: GrabProvider
+  apiBase: () => string
   connectionGeneration: () => number
 }
 
@@ -40,6 +41,7 @@ export type ConcivRouterConfig = {
   bindApiBase?: (apiBase: string) => void
   disconnect?: () => void
   grabProvider?: GrabProvider
+  apiBase?: () => string
   connectionGeneration?: () => number
 }
 
@@ -72,6 +74,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       bindApiBase: config.bindApiBase,
       disconnect: config.disconnect,
       grabProvider: config.grabProvider,
+      apiBase: config.apiBase ?? (() => ''),
       connectionGeneration: config.connectionGeneration ?? (() => 0),
     },
   })

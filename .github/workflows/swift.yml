@@ -91,9 +91,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - env:
+          DETECT_RESULT: ${{ needs.detect.result }}
           DETECT_RUN: ${{ needs.detect.outputs.run }}
           SWIFT_RESULT: ${{ needs.swift.result }}
         run: |
+          # Fail closed: a failed/cancelled detect job produces an empty `run` output,
+          # which must NOT be read as "not required". Only a successful detect that
+          # reported run=false is a legitimate skip.
+          if [ "$DETECT_RESULT" != "success" ]; then
+            echo "detect job did not succeed (result=$DETECT_RESULT); failing conformance gate closed"
+            exit 1
+          fi
           if [ "$DETECT_RUN" != "true" ]; then
             echo "no packages/extensions/ios or native/swift changes; conformance gate not required"
             exit 0

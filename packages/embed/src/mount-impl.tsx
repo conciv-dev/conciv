@@ -68,7 +68,7 @@ async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
   window.__CONCIV_PAGE_DRIVER__ = driver
 
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
-  let currentApiBase = config.apiBase
+  const [apiBase, setApiBase] = createSignal(config.apiBase)
 
   const storage = await makeNavigationStorage(rpc)
   const hostRouter = window.__TSR_ROUTER__
@@ -80,8 +80,9 @@ async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
     extensions: config.extensions,
     connected: () => true,
     connectMode: config.connectMode,
-    disconnect: config.connectMode ? makeDisconnect(() => currentApiBase) : undefined,
+    disconnect: config.connectMode ? makeDisconnect(apiBase) : undefined,
     grabProvider: config.grabProvider,
+    apiBase,
     connectionGeneration,
   })
   window.__TSR_ROUTER__ = hostRouter
@@ -94,7 +95,7 @@ async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
   const rebind = (nextApiBase: string): void => {
     plane.dispose()
     rebindClient(nextApiBase)
-    currentApiBase = nextApiBase
+    setApiBase(nextApiBase)
     plane = startPagePlane({rpc, document, driver})
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)
@@ -124,9 +125,11 @@ function bootConnect(config: BootConnectConfig): BootResult {
 
   let boundApiBase: string | undefined
   let planeDispose: (() => void) | undefined
-  const bindApiBase = (apiBase: string) => {
-    boundApiBase = apiBase
-    deferred.bind(apiBase)
+  const [apiBase, setApiBase] = createSignal('')
+  const bindApiBase = (nextApiBase: string) => {
+    boundApiBase = nextApiBase
+    deferred.bind(nextApiBase)
+    setApiBase(nextApiBase)
     planeDispose = startPagePlane({rpc: deferred.rpc, document, driver}).dispose
   }
   const hostRouter = window.__TSR_ROUTER__
@@ -141,6 +144,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     bindApiBase,
     disconnect: makeDisconnect(() => boundApiBase),
     grabProvider: config.grabProvider,
+    apiBase,
   })
   window.__TSR_ROUTER__ = hostRouter
 

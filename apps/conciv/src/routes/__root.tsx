@@ -30,7 +30,6 @@ import {ShellFab} from '../shell/fab.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
 import {makeThemeApplier} from '../lib/theme.js'
-import {resolveApiBase} from '../lib/api-base.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
@@ -124,7 +123,7 @@ function RootComponent() {
         <AppContext.Provider value={value}>
           <HostApiProvider
             rpc={app.rpc}
-            apiBase={resolveApiBase()}
+            apiBase={app.apiBase()}
             toast={showToast}
             openEditor={(file, line) => void app.rpc.editor.open({file, line}).catch(() => {})}
             registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
