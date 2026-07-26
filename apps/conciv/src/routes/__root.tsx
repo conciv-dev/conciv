@@ -123,7 +123,7 @@ function RootComponent() {
         <AppContext.Provider value={value}>
           <HostApiProvider
             rpc={app.rpc}
-            apiBase={app.apiBase()}
+            apiBase={app.apiBase}
             toast={showToast}
             openEditor={(file, line) => void app.rpc.editor.open({file, line}).catch(() => {})}
             registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}

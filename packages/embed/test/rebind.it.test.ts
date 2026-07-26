@@ -69,6 +69,9 @@ describe('handle.rebind survives same-core port drift', () => {
       .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).isVisible(), {timeout: 30_000})
       .toBe(true)
 
+    const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
+    await expect.poll(() => apiBaseProbe.textContent(), {timeout: 30_000}).toBe(proxyA.base)
+
     await sendTurn(page, 'first message before the drift')
     await expect.poll(() => page.getByText(ASSISTANT_TEXT).count(), {timeout: 30_000}).toBe(1)
     await expect.poll(() => panelSession(), {timeout: 30_000}).not.toBeNull()
@@ -85,6 +88,8 @@ describe('handle.rebind survives same-core port drift', () => {
     await expect
       .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).isVisible(), {timeout: 30_000})
       .toBe(true)
+
+    await expect.poll(() => apiBaseProbe.textContent(), {timeout: 30_000}).toBe(proxyB.base)
 
     await sendTurn(page, 'second message after the drift')
     await expect.poll(() => page.getByText(ASSISTANT_TEXT).count(), {timeout: 30_000}).toBe(1)

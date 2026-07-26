@@ -35,7 +35,7 @@ function RecorderPanel(): JSX.Element {
   const leaveView = host.useLeaveView()
   const toast = host.useToast()
   const store = useRecorderContext((context) => context.store)
-  const rpc = makeExtRpcClient<RecorderRouter>(apiBase, RECORDER_NAME)
+  const rpc = makeExtRpcClient<RecorderRouter>(apiBase(), RECORDER_NAME)
   const utils = createTanstackQueryUtils(rpc)
   const queryClient = useQueryClient()
   const viewerId = crypto.randomUUID()

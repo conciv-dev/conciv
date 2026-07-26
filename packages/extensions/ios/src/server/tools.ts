@@ -25,11 +25,17 @@ export type RunFailure = {ok: false; udid: string; bundleId: string; stage: RunS
 
 export type RunOutput = NotConfigured | {ok: true; udid: string; bundleId: string; pid?: number} | RunFailure
 
-export type LogsOutput = NotConfigured | {ok: boolean; lines: string[]}
+export type LogsSuccess = {ok: true; lines: string[]}
+
+export type LogsFailure = {ok: false; lines: string[]; error: string}
+
+export type LogsOutput = NotConfigured | LogsSuccess | LogsFailure
 
 const NOT_CONFIGURED: NotConfigured = {ok: false, error: 'ios extension not configured'}
 
 const DEFAULT_LOG_LINES = 500
+
+const ERROR_TAIL_LINES = 40
 
 function developerEnv(config: IosConfig): Record<string, string> {
   return {DEVELOPER_DIR: config.developerDir ?? DEFAULT_DEVELOPER_DIR}
@@ -128,8 +134,9 @@ async function buildXcodebuild(ctx: IosToolContext, config: IosConfig, clean: bo
     {cwd: projectDir(config, ctx.cwd), env: developerEnv(config)},
   )
   const durationMs = Date.now() - started
-  const diagnostics = parseDiagnostics(`${stdoutText(result)}\n${result.stderr}`)
+  const parsed = parseDiagnostics(`${stdoutText(result)}\n${result.stderr}`)
   const ok = result.code === 0
+  const diagnostics = reportedDiagnostics(parsed, ok, result, 'xcodebuild failed')
   const appPath = ok ? await resolveXcodebuildAppPath(ctx, config) : null
   return {ok, appPath, durationMs, diagnostics}
 }
@@ -145,7 +152,8 @@ async function buildSwiftc(ctx: IosToolContext, config: IosConfig, clean: boolea
 
   const sdk = await ctx.runner.run('xcrun', ['--sdk', 'iphonesimulator', '--show-sdk-path'], {cwd: root, env})
   if (sdk.code !== 0) {
-    return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics: parseDiagnostics(sdk.stderr)}
+    const diagnostics = reportedDiagnostics(parseDiagnostics(sdk.stderr), false, sdk, 'xcrun --show-sdk-path failed')
+    return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics}
   }
   const sdkPath = stdoutText(sdk).trim()
   const sources = collectSwiftSources(root)
@@ -291,6 +299,26 @@ function commandError(result: RunResult, fallback: string): string {
   return stdout.length > 0 ? stdout : fallback
 }
 
+function boundedCommandError(result: RunResult, fallback: string): string {
+  const message = commandError(result, fallback)
+  const lines = message.split('\n')
+  return lines.length <= ERROR_TAIL_LINES ? message : lines.slice(-ERROR_TAIL_LINES).join('\n')
+}
+
+function commandDiagnostic(result: RunResult, fallback: string): Diagnostic {
+  return {file: '', line: 0, severity: 'error', message: boundedCommandError(result, fallback)}
+}
+
+function reportedDiagnostics(
+  diagnostics: Diagnostic[],
+  ok: boolean,
+  result: RunResult,
+  fallback: string,
+): Diagnostic[] {
+  if (ok || diagnostics.length > 0) return diagnostics
+  return [commandDiagnostic(result, fallback)]
+}
+
 export async function runRun(ctx: IosToolContext, input: {autoshow?: boolean}): Promise<RunOutput> {
   if (!ctx.config) return NOT_CONFIGURED
   const config = ctx.config
@@ -354,7 +382,7 @@ export async function runLogs(
   if (!ctx.config) return NOT_CONFIGURED
   const config = ctx.config
   const udid = await resolveUdid(ctx, config)
-  if (!udid) return {ok: false, lines: []}
+  if (!udid) return {ok: false, lines: [], error: 'no matching simulator for ios.logs'}
   const sinceSeconds = input.sinceSeconds ?? 60
   const args = [
     'simctl',
@@ -369,7 +397,7 @@ export async function runLogs(
     ...(input.predicate ? ['--predicate', input.predicate] : []),
   ]
   const logged = await ctx.runner.run('xcrun', args, {env: developerEnv(config)})
-  if (logged.code !== 0) return {ok: false, lines: []}
+  if (logged.code !== 0) return {ok: false, lines: [], error: boundedCommandError(logged, 'log show failed')}
   const lines = stdoutText(logged)
     .split('\n')
     .filter((line) => line.length > 0)

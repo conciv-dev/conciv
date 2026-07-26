@@ -10,7 +10,7 @@ function ApiBaseProbe(): JSX.Element {
       aria-label="host api base probe"
       style={{position: 'fixed', bottom: '0', left: '0', 'pointer-events': 'none', opacity: '0'}}
     >
-      {apiBase}
+      {apiBase()}
     </output>
   )
 }

@@ -7,7 +7,7 @@ export function CaptureDriver(props: {store: RecorderStore}): JSX.Element {
   const host = getHostApi()
   const apiBase = host.useApiBase()
   onMount(() => {
-    const dispose = bootRecorder(apiBase, props.store)
+    const dispose = bootRecorder(apiBase(), props.store)
     onCleanup(dispose)
   })
   return <></>

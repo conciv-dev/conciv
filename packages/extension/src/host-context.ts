@@ -14,7 +14,7 @@ export type PopoverParts = {
 
 export type HostWiring = {
   rpc: RpcClient
-  apiBase: string
+  apiBase: () => string
   toast: Toast
   openEditor: (file: string, line?: number) => void
   registerLayer: (isOpen: () => boolean, hides: boolean) => () => void

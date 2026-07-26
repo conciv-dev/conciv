@@ -10,6 +10,7 @@ import {
   runRun,
   runScreenshot,
   type IosToolContext,
+  type LogsFailure,
   type RunFailure,
 } from '../src/server/tools.js'
 import type {IosConfig} from '../src/shared/meta.js'
@@ -131,6 +132,26 @@ describe('ios.build xcodebuild mode', () => {
     expect(result.ok).toBe(false)
     expect(result.appPath).toBeNull()
     expect(result.diagnostics.map((d) => d.severity)).toEqual(['error', 'warning'])
+    expect(calls.some((call) => has(call, '-showBuildSettings'))).toBe(false)
+  })
+
+  it('carries the raw command stderr as a diagnostic when the failure has no canonical error lines', async () => {
+    const {runner, calls} = fakeRunner([
+      {
+        when: (call) => has(call, 'build'),
+        reply: {
+          code: 1,
+          stderr:
+            "xcode-select: error: tool 'xcodebuild' requires Xcode, but active developer directory is a CLT instance",
+        },
+      },
+    ])
+    const result = await runBuild({config: xcodebuildConfig(), runner, cwd: '/tmp'}, {})
+    if ('error' in result) throw new Error('unexpected not-configured')
+    expect(result.ok).toBe(false)
+    expect(result.diagnostics).toHaveLength(1)
+    expect(result.diagnostics[0]?.severity).toBe('error')
+    expect(result.diagnostics[0]?.message).toContain('requires Xcode')
     expect(calls.some((call) => has(call, '-showBuildSettings'))).toBe(false)
   })
 
@@ -413,6 +434,12 @@ describe('ios.screenshot', () => {
   })
 })
 
+async function failedLogs(ctx: IosToolContext, input: {predicate?: string} = {}): Promise<LogsFailure> {
+  const result = await runLogs(ctx, input)
+  if (result.ok || !('lines' in result)) throw new Error('expected a logs failure')
+  return result
+}
+
 describe('ios.logs', () => {
   it('returns recent lines and honors the limit', async () => {
     const {runner, calls} = fakeRunner([
@@ -428,7 +455,24 @@ describe('ios.logs', () => {
     expect(logShow?.args).toContain('120s')
 
     const limited = await runLogs({config: swiftcConfig('/tmp'), runner, cwd: '/tmp'}, {limit: 1})
-    if ('error' in limited) throw new Error('unexpected not-configured')
+    if (!limited.ok) throw new Error('expected a logs success')
     expect(limited.lines).toEqual(['2026-07-24 10:15:03.010 PayApp[4210:99] overlay attached'])
+  })
+
+  it('reports an error when no simulator matches instead of a silent empty result', async () => {
+    const {runner} = fakeRunner([{when: (call) => has(call, 'list'), reply: {stdout: JSON.stringify({devices: {}})}}])
+    const result = await failedLogs({config: swiftcConfig('/tmp'), runner, cwd: '/tmp'})
+    expect(result.lines).toEqual([])
+    expect(result.error).toContain('ios.logs')
+  })
+
+  it('surfaces the log show stderr on failure so an invalid predicate is diagnosable', async () => {
+    const {runner} = fakeRunner([
+      {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
+      {when: (call) => has(call, 'show'), reply: {code: 1, stderr: 'log: Invalid predicate: unknown identifier "bad"'}},
+    ])
+    const result = await failedLogs({config: swiftcConfig('/tmp'), runner, cwd: '/tmp'}, {predicate: 'bad'})
+    expect(result.lines).toEqual([])
+    expect(result.error).toContain('Invalid predicate')
   })
 })

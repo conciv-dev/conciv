@@ -41,7 +41,7 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
   const apiBase = host.useApiBase()
   const toast = host.useToast()
   const Dialog = host.useDialog()
-  const utils = createTanstackQueryUtils(makeExtRpcClient<RecorderRouter>(apiBase, RECORDER_NAME))
+  const utils = createTanstackQueryUtils(makeExtRpcClient<RecorderRouter>(apiBase(), RECORDER_NAME))
   const [ref] = createResource(() => resolveRef(attachment))
   const [open, setOpen] = createSignal(false)
   const recording = useQuery(() => ({
