@@ -14,15 +14,42 @@ describe('start pairing file', () => {
         options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
         root,
         launchEditor: () => {},
-        port: 41811,
         accessToken: 'paired-token',
         nativePageDir: root,
         devEndpointDir: endpointDir,
       })
       const endpoint = readDevEndpoint(endpointDir)
       expect(endpoint).toEqual({
-        apiBase: 'http://127.0.0.1:41811/t/paired-token',
+        apiBase: `http://127.0.0.1:${engine.port}/t/paired-token`,
         token: 'paired-token',
+        pid: process.pid,
+      })
+      await engine.stop()
+      expect(readDevEndpoint(endpointDir)).toBeNull()
+    } finally {
+      rmSync(root, {recursive: true, force: true})
+      rmSync(endpointDir, {recursive: true, force: true})
+    }
+  })
+
+  it('serves /native and writes a tokenless endpoint with no ios config (the zero-config widget path)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-start-endpoint-'))
+    const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-endpoint-dir-'))
+    try {
+      const engine = await start({
+        options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
+        root,
+        launchEditor: () => {},
+        nativePageDir: root,
+        devEndpointDir: endpointDir,
+      })
+      const page = await fetch(`http://127.0.0.1:${engine.port}/native`)
+      expect(page.status).toBe(200)
+      expect(await page.text()).toContain('data-conciv-native-root')
+
+      expect(readDevEndpoint(endpointDir)).toEqual({
+        apiBase: `http://127.0.0.1:${engine.port}`,
+        token: null,
         pid: process.pid,
       })
       await engine.stop()
@@ -41,7 +68,6 @@ describe('start pairing file', () => {
         options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
         root,
         launchEditor: () => {},
-        port: 41812,
         devEndpointDir: endpointDir,
       })
       expect(readDevEndpoint(endpointDir)).toBeNull()
