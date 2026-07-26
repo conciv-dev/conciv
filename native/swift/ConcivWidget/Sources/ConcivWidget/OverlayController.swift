@@ -56,10 +56,20 @@ final class OverlayController: NSObject {
   private weak var hostWindow: UIWindow?
 
   private(set) var endpoint: ConcivEndpoint
-  // Fired when the current base is unrecoverable from inside this controller (a stale
-  // token surfaced through the re-pair prompt). The owner re-discovers and decides
-  // rebind (same core) vs fresh mount (different core).
-  var onEndpointLost: (() -> Void)?
+  // Runs one discovery pass off the main thread and reports the resolved endpoint (or
+  // nil) back on the main thread. Injected by the owner so it reuses the same discoverer
+  // as the initial attach; the controller decides rebind vs fresh-mount from the result.
+  var onDiscover: ((@escaping (ConcivEndpoint?) -> Void) -> Void)?
+  // A different core (changed pid) was rediscovered: the owner tears this controller down
+  // and mounts a fresh one at the new endpoint (never a rebind, 06 D8).
+  var onDifferentCore: ((ConcivEndpoint) -> Void)?
+
+  // Bounded exponential backoff for the rediscovery loop (04): 1s, 2s, 4s, 8s, 8s, then
+  // give up auto-retry (the prompt stays for a manual Re-pair). Overridable in tests.
+  var recoveryDelays: [TimeInterval] = [1, 2, 4, 8, 8]
+  private var recovering = false
+  private var recoveryAttempt = 0
+  private var recoveryWork: DispatchWorkItem?
 
   private var launcher: ConcivLauncher = .native
   private var panelOpen = false
@@ -71,6 +81,7 @@ final class OverlayController: NSObject {
   private var pickBorder: UIView?
   private var selectionInFlight = false
   private var repairPrompt: UIView?
+  private var repairLabel: UILabel?
   private var autoShowPending = ConcivDiscovery.shouldAutoShow()
 
   init(hostWindow: UIWindow, endpoint: ConcivEndpoint, launcher: ConcivLauncher) {
@@ -115,6 +126,7 @@ final class OverlayController: NSObject {
   }
 
   func detach() {
+    stopRecoveryLoop()
     if ConcivAnchorRegistry.shared.onChange != nil { ConcivAnchorRegistry.shared.onChange = nil }
     bridge.detach()
     NotificationCenter.default.removeObserver(self)
@@ -138,6 +150,7 @@ final class OverlayController: NSObject {
   // served from, and its bridge messages are accepted at, the live origin. The reload's
   // hello drives a fresh handshake; a different core (fresh mount) rebuilds this controller.
   func rebind(to endpoint: ConcivEndpoint) {
+    stopRecoveryLoop()
     self.endpoint = endpoint
     self.pageUrl = OverlayController.makePageURL(for: endpoint.apiBase, launcher: launcher)
     bridge.rebind(to: endpoint.apiBase)
@@ -196,7 +209,9 @@ final class OverlayController: NSObject {
     bridge.onGrabCancel = { [weak self] cancel in self?.cancelPick(cancel.requestId) }
     bridge.onPanelToggled = { [weak self] toggled in self?.handlePanelToggled(toggled) }
     bridge.onCrashRecovery = { [weak self] in self?.resolvePick(requestId: self?.pickRequestId, grab: nil, reason: .failed) }
-    bridge.onStaleToken = { [weak self] in self?.showRepairPrompt() }
+    bridge.onStaleToken = { [weak self] in self?.startRecoveryLoop() }
+    bridge.onConnectionLost = { [weak self] in self?.startRecoveryLoop() }
+    bridge.onReady = { [weak self] in self?.handleBridgeReady() }
     bridge.onLog = { log in Swift.print("[conciv] \(log.level.rawValue): \(log.message)") }
     ConcivAnchorRegistry.shared.onChange = { [weak self] in self?.sendGrabCapability() }
   }
@@ -224,18 +239,107 @@ final class OverlayController: NSObject {
     return false
   }
 
-  // MARK: re-pair prompt (SDK-owned, 06 D13)
+  // MARK: re-pair prompt + bounded rediscovery (SDK-owned, 04/06 D13)
 
-  // A stale token (401/404) means the paired core moved to a new /t/<newtoken> mount.
-  // There is no silent refresh, so surface a visible prompt; tapping it re-discovers.
-  private func showRepairPrompt() {
-    guard repairPrompt == nil else { return }
+  enum RepairPromptState {
+    case searching
+    case unreachable
+    case gaveUp
+
+    var message: String {
+      switch self {
+      case .searching: return "conciv lost the dev core. Reconnecting…"
+      case .unreachable: return "Still can't reach the dev core. Retrying…"
+      case .gaveUp: return "Still can't reach the dev core. Tap to retry."
+      }
+    }
+  }
+
+  var isRepairPromptVisible: Bool { repairPrompt != nil }
+
+  // A stale token (401/404) or a connection refusal means the current base is dead. Start
+  // one bounded rediscovery loop: surface a visible prompt (never a silent brick) and
+  // retry discovery on exponential backoff. A live loop is not restarted so overlapping
+  // triggers (stale token then a nav failure) collapse into one.
+  private func startRecoveryLoop() {
+    guard !recovering else { return }
+    recovering = true
+    recoveryAttempt = 0
+    showRepairPrompt(state: .searching)
+    scheduleRecoveryAttempt()
+  }
+
+  private func stopRecoveryLoop() {
+    recovering = false
+    recoveryAttempt = 0
+    recoveryWork?.cancel()
+    recoveryWork = nil
+  }
+
+  private func scheduleRecoveryAttempt() {
+    guard recovering, !recoveryDelays.isEmpty else { return }
+    let index = min(recoveryAttempt, recoveryDelays.count - 1)
+    let work = DispatchWorkItem { [weak self] in self?.runRecoveryAttempt() }
+    recoveryWork = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + recoveryDelays[index], execute: work)
+  }
+
+  private func runRecoveryAttempt() {
+    guard recovering else { return }
+    recoveryAttempt += 1
+    updateRepairPrompt(state: .searching)
+    onDiscover? { [weak self] discovered in
+      guard let self, self.recovering else { return }
+      guard let discovered else {
+        self.handleRecoveryUnreachable()
+        return
+      }
+      // Same core (pid unchanged) re-points the live page (D8 rebind); a different core is
+      // a fresh mount at the new origin. rebind() stops this loop; the fresh mount detaches
+      // this controller, so its loop stops via detach().
+      if ConcivDiscovery.isSameCore(previous: self.endpoint, discovered: discovered) {
+        self.rebind(to: discovered)
+      } else {
+        self.stopRecoveryLoop()
+        self.onDifferentCore?(discovered)
+      }
+    }
+  }
+
+  // No reachable core this attempt: keep the prompt visible (no dead-end). Retry until the
+  // backoff budget is spent, then leave the prompt in a tappable "tap to retry" state so a
+  // manual Re-pair restarts the loop.
+  private func handleRecoveryUnreachable() {
+    guard recovering else { return }
+    guard recoveryAttempt < recoveryDelays.count else {
+      recovering = false
+      recoveryWork?.cancel()
+      recoveryWork = nil
+      updateRepairPrompt(state: .gaveUp)
+      return
+    }
+    updateRepairPrompt(state: .unreachable)
+    scheduleRecoveryAttempt()
+  }
+
+  // A fresh bridge is up (initial load, or a completed rebind/remount reload): recovery
+  // succeeded, so stop retrying and drop the prompt. Idempotent on a normal first load.
+  private func handleBridgeReady() {
+    stopRecoveryLoop()
+    hideRepairPrompt()
+  }
+
+  private func showRepairPrompt(state: RepairPromptState) {
+    guard repairPrompt == nil else {
+      updateRepairPrompt(state: state)
+      return
+    }
     let banner = UIView(frame: repairPromptFrame())
     banner.autoresizingMask = [.flexibleWidth, .flexibleBottomMargin]
     banner.backgroundColor = UIColor(red: 0.50, green: 0.11, blue: 0.11, alpha: 1)
 
     let label = UILabel()
-    label.text = "conciv lost the dev core. Tap to re-pair."
+    label.text = state.message
     label.textColor = .white
     label.font = .systemFont(ofSize: 14, weight: .medium)
     label.numberOfLines = 0
@@ -261,11 +365,17 @@ final class OverlayController: NSObject {
     container.addSubview(banner)
     container.state.panelOpen = true
     repairPrompt = banner
+    repairLabel = label
+  }
+
+  private func updateRepairPrompt(state: RepairPromptState) {
+    repairLabel?.text = state.message
   }
 
   private func hideRepairPrompt() {
     repairPrompt?.removeFromSuperview()
     repairPrompt = nil
+    repairLabel = nil
     container.state.panelOpen = panelOpen
   }
 
@@ -275,20 +385,22 @@ final class OverlayController: NSObject {
     return CGRect(x: 0, y: top, width: container.bounds.width, height: height)
   }
 
+  // Manual Re-pair: restart the bounded loop from the first backoff step. The prompt stays
+  // visible until recovery completes or the fresh bridge readies.
   @objc private func repairTapped() {
-    hideRepairPrompt()
-    onEndpointLost?()
+    stopRecoveryLoop()
+    startRecoveryLoop()
   }
 
   private func handleHello(_ hello: HandshakeHello) {
-    let overlaps = hello.minV <= bridgeMaxVersion && bridgeMinVersion <= hello.maxV
-    if overlaps {
-      sendHandshake()
-      sendGrabCapability()
-      autoShowIfRequested()
-    } else {
+    guard let agreed = BridgeNegotiation.negotiatedVersion(helloMinV: hello.minV, helloMaxV: hello.maxV) else {
       bridge.sendIncompatible(nativeMinV: bridgeMinVersion, nativeMaxV: bridgeMaxVersion)
+      return
     }
+    bridge.setNegotiatedVersion(agreed)
+    sendHandshake()
+    sendGrabCapability()
+    autoShowIfRequested()
   }
 
   // ios.run --autoshow drives the panel open once the handshake has settled. The open is

@@ -8,8 +8,19 @@ import UIKit
 // TestFlight/App Store build.
 public enum ConcivWidget {
   #if DEBUG
-  private static var controller: OverlayController?
+  static private(set) var controller: OverlayController?
   private static let discoverer = ConcivDiscoveryRuntime.makeDiscoverer()
+
+  // Every attach/detach bumps the attachment generation; an async discovery pass captures
+  // the generation it started under and no-ops if a newer attach or a detach superseded it,
+  // so a late completion can never mount a stale endpoint over the caller's newer action.
+  private static var attachGeneration = 0
+
+  // The discovery driver seam: production runs the FileManager + URLSession pass off the
+  // main thread; tests inject a driver whose completion they fire on demand to interleave
+  // detach/attach against an in-flight discovery.
+  static var discoverDriver: (ConcivDiscoverer, @escaping (ConcivEndpoint?) -> Void) -> Void =
+    ConcivDiscoveryRuntime.discover
 
   // Explicit endpoint. apiBase is the core-served native page origin
   // (http://127.0.0.1:<port>, plus /t/<token> when the core minted a token); the SDK
@@ -22,6 +33,7 @@ public enum ConcivWidget {
     token: String? = nil,
     launcher: ConcivLauncher = .native
   ) {
+    attachGeneration += 1
     mount(to: window, endpoint: ConcivEndpoint(apiBase: apiBase, token: token, pid: nil), launcher: launcher)
   }
 
@@ -33,14 +45,17 @@ public enum ConcivWidget {
     to window: UIWindow,
     launcher: ConcivLauncher = .native
   ) {
-    ConcivDiscoveryRuntime.discover(using: discoverer) { endpoint in
-      guard let endpoint else { return }
+    attachGeneration += 1
+    let generation = attachGeneration
+    discoverDriver(discoverer) { endpoint in
+      guard generation == attachGeneration, let endpoint else { return }
       mount(to: window, endpoint: endpoint, launcher: launcher)
     }
   }
 
   @MainActor
   public static func detach() {
+    attachGeneration += 1
     controller?.detach()
     controller = nil
   }
@@ -49,19 +64,12 @@ public enum ConcivWidget {
   private static func mount(to window: UIWindow, endpoint: ConcivEndpoint, launcher: ConcivLauncher) {
     detach()
     let overlay = OverlayController(hostWindow: window, endpoint: endpoint, launcher: launcher)
-    overlay.onEndpointLost = { [weak window, weak overlay] in
-      guard let window, let overlay else { return }
-      let previous = overlay.endpoint
-      ConcivDiscoveryRuntime.discover(using: discoverer) { discovered in
-        guard let discovered, controller === overlay else { return }
-        // Same core (pid unchanged) re-points the live page (D8 rebind); a different
-        // core is a fresh mount at the new origin, never a rebind.
-        if ConcivDiscovery.isSameCore(previous: previous, discovered: discovered) {
-          overlay.rebind(to: discovered)
-        } else {
-          mount(to: window, endpoint: discovered, launcher: launcher)
-        }
-      }
+    // The recovery loop asks for a rediscovery pass; the controller decides rebind (same
+    // core) vs handing a different core back here for a fresh mount at the new origin (D8).
+    overlay.onDiscover = { completion in discoverDriver(discoverer, completion) }
+    overlay.onDifferentCore = { [weak window, weak overlay] discovered in
+      guard let window, controller === overlay else { return }
+      mount(to: window, endpoint: discovered, launcher: launcher)
     }
     controller = overlay
   }
