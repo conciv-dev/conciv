@@ -168,9 +168,10 @@ function RootChrome(props: {
   const sessions = useQuery(() => ({...data.utils.sessions.list.queryOptions(), enabled: connected()}))
   const working = () => (sessions.data ?? []).some((session) => session.running)
 
-  const [, setOpenIntent] = createSignal(false)
+  const [openIntent, setOpenIntent] = createSignal(false)
 
   let fabEl: HTMLButtonElement | undefined
+  let pendingFabFocus = false
 
   const latestSessionId = async (): Promise<string | null> => {
     try {
@@ -200,9 +201,10 @@ function RootChrome(props: {
       setShutter(router, true)
       return
     }
+    setOpenIntent(true)
     const sessionId = await latestSessionId()
     if (!sessionId) return
-    setOpenIntent(true)
+    if (!openIntent()) return
     void router.navigate({
       to: '/panel/$sessionId',
       params: {sessionId},
@@ -213,7 +215,11 @@ function RootChrome(props: {
   const closePanel = () => {
     setOpenIntent(false)
     setShutter(router, false)
-    fabEl?.focus()
+    if (fabEl?.isConnected) {
+      fabEl.focus()
+      return
+    }
+    pendingFabFocus = true
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
 
@@ -221,6 +227,7 @@ function RootChrome(props: {
     panelOpen()
     connected()
     launcherVisible()
+    props.fab.position()
     let lastKey = ''
     let stableFrames = 0
     let frame = 0
@@ -247,7 +254,11 @@ function RootChrome(props: {
     onCleanup(() => window.removeEventListener('resize', reportPanelState))
     const openFromHost = () => void openPanel()
     const closeFromHost = () => {
-      if (panelOpen()) closePanel()
+      if (panelOpen()) {
+        closePanel()
+        return
+      }
+      setOpenIntent(false)
     }
     const toggleFromHost = () => togglePanel()
     window.addEventListener('conciv:open-panel', openFromHost)
@@ -298,6 +309,9 @@ function RootChrome(props: {
         <ShellFab
           ref={(el) => {
             fabEl = el
+            if (!pendingFabFocus) return
+            pendingFabFocus = false
+            el.focus()
           }}
           open={panelOpen}
           working={working}
