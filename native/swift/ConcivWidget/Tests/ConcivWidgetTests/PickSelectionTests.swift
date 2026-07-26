@@ -50,6 +50,15 @@ final class PickSelectionTests: XCTestCase {
     XCTAssertEqual(grab.subtree?.className, "UILabel")
   }
 
+  func testPickClassLabelStripsModuleQualifierForSwiftSubclass() {
+    let cell = FixturePaymentCardCell(frame: CGRect(x: 0, y: 0, width: 100, height: 40))
+    XCTAssertEqual(pickClassLabel(cell), "FixturePaymentCardCell")
+
+    let grab = pickNeutralGrab(fromUIView: cell, isExcluded: { _ in false }, preview: stubPreview)
+    XCTAssertEqual(grab.source?.componentName, "FixturePaymentCardCell")
+    XCTAssertEqual(grab.subtree?.className, "FixturePaymentCardCell")
+  }
+
   func testPickOverlayCancelledGestureEndsPickWithoutSelecting() {
     let overlay = PickOverlayView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
     var selectedAt: CGPoint?
@@ -125,6 +134,8 @@ final class PickSelectionTests: XCTestCase {
     return ConcivAnchorRegistry.shared.anchor(for: id)
   }
 }
+
+private final class FixturePaymentCardCell: UIView {}
 
 private struct AnchoredRow: View {
   var body: some View {

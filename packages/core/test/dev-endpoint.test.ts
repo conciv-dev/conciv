@@ -1,4 +1,4 @@
-import {mkdtempSync, rmSync, statSync, writeFileSync} from 'node:fs'
+import {mkdtempSync, readdirSync, rmSync, statSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
@@ -37,6 +37,13 @@ describe('dev endpoint pairing file', () => {
     expect(readDevEndpoint(dir)).toBeNull()
     writeFileSync(join(dir, 'dev-endpoint.json'), JSON.stringify({apiBase: '', token: null, pid: -1}))
     expect(readDevEndpoint(dir)).toBeNull()
+  })
+
+  it('replaces the file atomically without leaving a temp artifact behind', () => {
+    writeDevEndpoint(dir, {apiBase: 'http://127.0.0.1:1/native', token: 'first', pid: 1})
+    writeDevEndpoint(dir, {apiBase: 'http://127.0.0.1:4599', token: 'second', pid: 2})
+    expect(readdirSync(dir)).toEqual(['dev-endpoint.json'])
+    expect(readDevEndpoint(dir)).toEqual({apiBase: 'http://127.0.0.1:4599', token: 'second', pid: 2})
   })
 
   it('removes the file only when the pid matches the owner', () => {

@@ -15,7 +15,7 @@ func rectToBridge(_ rect: CGRect) -> Rect {
 }
 
 func pickClassLabel(_ view: UIView) -> String {
-  NSStringFromClass(type(of: view))
+  String(describing: type(of: view))
 }
 
 func pickFrameInWindow(_ view: UIView) -> CGRect {

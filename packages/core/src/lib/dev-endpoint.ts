@@ -1,4 +1,5 @@
-import {chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {randomUUID} from 'node:crypto'
+import {chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync} from 'node:fs'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
@@ -26,8 +27,15 @@ export function writeDevEndpoint(dir: string, endpoint: DevEndpoint): void {
   const validated = DevEndpointSchema.parse(endpoint)
   mkdirSync(dir, {recursive: true})
   const path = endpointPath(dir)
-  writeFileSync(path, JSON.stringify(validated), {mode: FILE_MODE})
-  chmodSync(path, FILE_MODE)
+  const tempPath = join(dir, `${FILE_NAME}.${process.pid}.${randomUUID()}.tmp`)
+  try {
+    writeFileSync(tempPath, JSON.stringify(validated), {mode: FILE_MODE})
+    chmodSync(tempPath, FILE_MODE)
+    renameSync(tempPath, path)
+  } catch (error) {
+    rmSync(tempPath, {force: true})
+    throw error
+  }
 }
 
 export function readDevEndpoint(dir: string): DevEndpoint | null {

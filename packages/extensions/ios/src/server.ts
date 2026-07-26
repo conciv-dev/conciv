@@ -8,9 +8,9 @@ const BuildInput = z.object({clean: z.boolean().optional()})
 const RunInput = z.object({autoshow: z.boolean().optional()})
 const ScreenshotInput = z.object({})
 const LogsInput = z.object({
-  sinceSeconds: z.number().int().positive().optional(),
-  predicate: z.string().optional(),
-  limit: z.number().int().positive().optional(),
+  sinceSeconds: z.number().int().positive().max(3600).optional(),
+  predicate: z.string().max(2000).optional(),
+  limit: z.number().int().positive().max(5000).optional(),
 })
 
 const buildTool = defineTool<typeof BuildInput, IosToolContext>({

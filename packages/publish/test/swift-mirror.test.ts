@@ -29,6 +29,7 @@ async function scaffold(
   await writeFile(join(sourceDir, '.build', 'build.db'), 'binary-artifact\n')
   await writeFile(join(templateDir, 'README.md'), '# ConcivWidget\n')
   await writeFile(join(templateDir, 'RELEASE_HYGIENE.md'), '# hygiene\n')
+  await writeFile(join(templateDir, 'LICENSE'), 'MIT License\n')
   return {sourceDir, templateDir, destDir, bridgeManifestPath, root}
 }
 
@@ -46,6 +47,8 @@ test('assembleMirrorTree promotes the nested tree, copies templates, and returns
   ).toBe('{}\n')
   expect(await readFile(join(destDir, 'README.md'), 'utf8')).toBe('# ConcivWidget\n')
   expect(await readFile(join(destDir, 'RELEASE_HYGIENE.md'), 'utf8')).toBe('# hygiene\n')
+  expect(tree.files).toContain('LICENSE')
+  expect(await readFile(join(destDir, 'LICENSE'), 'utf8')).toBe('MIT License\n')
   await rm(root, {recursive: true, force: true})
 })
 

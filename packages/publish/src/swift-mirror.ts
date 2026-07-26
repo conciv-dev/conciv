@@ -7,7 +7,7 @@ const BARE_SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 
 const SKIP_SEGMENTS = ['.build', '.git', '.DS_Store']
 
-const MIRROR_ENTRIES = ['Package.swift', 'Sources', 'Tests', 'README.md', 'RELEASE_HYGIENE.md']
+const MIRROR_ENTRIES = ['Package.swift', 'Sources', 'Tests', 'README.md', 'RELEASE_HYGIENE.md', 'LICENSE']
 
 const bridgeManifestSchema = z.object({version: z.string()})
 
@@ -52,6 +52,7 @@ export async function assembleMirrorTree(layout: MirrorLayout): Promise<MirrorTr
     {from: join(layout.sourceDir, 'Tests'), to: 'Tests'},
     {from: join(layout.templateDir, 'README.md'), to: 'README.md'},
     {from: join(layout.templateDir, 'RELEASE_HYGIENE.md'), to: 'RELEASE_HYGIENE.md'},
+    {from: join(layout.templateDir, 'LICENSE'), to: 'LICENSE'},
   ]
   await Promise.all(
     plan.map(({from, to}) => cp(from, join(layout.destDir, to), {recursive: true, filter: (src) => !isSkipped(src)})),

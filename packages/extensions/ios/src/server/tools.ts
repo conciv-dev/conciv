@@ -29,6 +29,8 @@ export type LogsOutput = NotConfigured | {ok: boolean; lines: string[]}
 
 const NOT_CONFIGURED: NotConfigured = {ok: false, error: 'ios extension not configured'}
 
+const DEFAULT_LOG_LINES = 500
+
 function developerEnv(config: IosConfig): Record<string, string> {
   return {DEVELOPER_DIR: config.developerDir ?? DEFAULT_DEVELOPER_DIR}
 }
@@ -371,6 +373,6 @@ export async function runLogs(
   const lines = stdoutText(logged)
     .split('\n')
     .filter((line) => line.length > 0)
-  const limit = input.limit
-  return {ok: true, lines: limit && limit > 0 ? lines.slice(-limit) : lines}
+  const limit = input.limit && input.limit > 0 ? input.limit : DEFAULT_LOG_LINES
+  return {ok: true, lines: lines.slice(-limit)}
 }
