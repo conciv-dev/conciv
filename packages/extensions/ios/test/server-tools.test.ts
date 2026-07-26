@@ -147,18 +147,50 @@ describe('ios.build xcodebuild mode', () => {
 })
 
 describe('parseXcodebuildAppPath', () => {
-  it('joins TARGET_BUILD_DIR and WRAPPER_NAME from real build settings', () => {
-    expect(parseXcodebuildAppPath(transcript('xcodebuild-settings.json'))).toBe(
+  it('selects the .app target matching the bundle id, skipping the framework entry', () => {
+    expect(parseXcodebuildAppPath(transcript('xcodebuild-settings.json'), 'dev.conciv.pay')).toBe(
       '/Users/dev/Library/Developer/Xcode/DerivedData/PayApp/Build/Products/Debug-iphonesimulator/PayApp.app',
     )
   })
 
-  it('returns null for invalid json, a non-array, an empty array, or missing settings', () => {
-    expect(parseXcodebuildAppPath('not json')).toBeNull()
-    expect(parseXcodebuildAppPath('{"buildSettings": {}}')).toBeNull()
-    expect(parseXcodebuildAppPath('[]')).toBeNull()
-    expect(parseXcodebuildAppPath('[{"buildSettings": {"TARGET_BUILD_DIR": "/only/dir"}}]')).toBeNull()
-    expect(parseXcodebuildAppPath('[{}]')).toBeNull()
+  it('picks the matching app even when it is not the first entry', () => {
+    const settings = JSON.stringify([
+      {
+        buildSettings: {
+          TARGET_BUILD_DIR: '/d',
+          WRAPPER_NAME: 'PayAppTests.xctest',
+          PRODUCT_BUNDLE_IDENTIFIER: 'dev.conciv.pay.tests',
+        },
+      },
+      {
+        buildSettings: {
+          TARGET_BUILD_DIR: '/d',
+          WRAPPER_NAME: 'PayApp.app',
+          PRODUCT_BUNDLE_IDENTIFIER: 'dev.conciv.pay',
+        },
+      },
+    ])
+    expect(parseXcodebuildAppPath(settings, 'dev.conciv.pay')).toBe('/d/PayApp.app')
+  })
+
+  it('returns null for invalid json, a non-array, an unmatched bundle id, or a non-app wrapper', () => {
+    expect(parseXcodebuildAppPath('not json', 'dev.conciv.pay')).toBeNull()
+    expect(parseXcodebuildAppPath('{"buildSettings": {}}', 'dev.conciv.pay')).toBeNull()
+    expect(parseXcodebuildAppPath('[]', 'dev.conciv.pay')).toBeNull()
+    expect(
+      parseXcodebuildAppPath('[{"buildSettings": {"TARGET_BUILD_DIR": "/only/dir"}}]', 'dev.conciv.pay'),
+    ).toBeNull()
+    expect(parseXcodebuildAppPath('[{}]', 'dev.conciv.pay')).toBeNull()
+    const framework = JSON.stringify([
+      {
+        buildSettings: {
+          TARGET_BUILD_DIR: '/d',
+          WRAPPER_NAME: 'PayKit.framework',
+          PRODUCT_BUNDLE_IDENTIFIER: 'dev.conciv.pay',
+        },
+      },
+    ])
+    expect(parseXcodebuildAppPath(framework, 'dev.conciv.pay')).toBeNull()
   })
 })
 

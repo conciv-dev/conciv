@@ -77,15 +77,20 @@ function stringField(source: Record<string, unknown> | undefined, key: string): 
   return typeof value === 'string' ? value : undefined
 }
 
-export function parseXcodebuildAppPath(text: string): string | null {
-  const parsed = safeJson(text)
-  if (!Array.isArray(parsed)) return null
-  const first = parsed[0]
-  const settings = isRecord(first) && isRecord(first.buildSettings) ? first.buildSettings : undefined
+function appTargetPath(entry: unknown, bundleId: string): string | null {
+  if (!isRecord(entry) || !isRecord(entry.buildSettings)) return null
+  const settings = entry.buildSettings
+  if (stringField(settings, 'PRODUCT_BUNDLE_IDENTIFIER') !== bundleId) return null
   const dir = stringField(settings, 'TARGET_BUILD_DIR')
   const wrapper = stringField(settings, 'WRAPPER_NAME')
-  if (dir === undefined || wrapper === undefined) return null
+  if (dir === undefined || wrapper === undefined || !wrapper.endsWith('.app')) return null
   return join(dir, wrapper)
+}
+
+export function parseXcodebuildAppPath(text: string, bundleId: string): string | null {
+  const parsed = safeJson(text)
+  if (!Array.isArray(parsed)) return null
+  return parsed.map((entry) => appTargetPath(entry, bundleId)).find((path) => path !== null) ?? null
 }
 
 function safeJson(text: string): unknown {
@@ -104,7 +109,7 @@ async function resolveXcodebuildAppPath(ctx: IosToolContext, config: IosConfig):
     {cwd: projectDir(config, ctx.cwd), env: developerEnv(config)},
   )
   if (settings.code !== 0) return null
-  return parseXcodebuildAppPath(stdoutText(settings))
+  return parseXcodebuildAppPath(stdoutText(settings), config.bundleId)
 }
 
 async function buildXcodebuild(ctx: IosToolContext, config: IosConfig, clean: boolean): Promise<BuildOutput> {

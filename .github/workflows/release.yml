@@ -82,17 +82,18 @@ jobs:
   # in this repo, distribution is the conciv-dev/conciv-swift mirror (root Package.swift
   # + bare-semver tags SwiftPM can resolve). The mirror ships in lockstep with npm: the
   # tag is the @conciv/extension-ios version (its bridge-protocol peer), which changesets
-  # bumps in lockstep with every @conciv/* release. So the trigger is a change to that
-  # version field between the previous and current main commit, NOT a source path glob:
-  # a mid-cycle push that edits the Swift source without a version bump must NOT attempt
-  # a mirror publish (it would hit the tree-differs guard and fail), and the actual
-  # mirror publish rides the changesets version commit that lands the bump. The mirror
-  # push uses GH_MIRROR_TOKEN (a PAT with push access to the mirror repo), NOT this repo's
-  # GITHUB_TOKEN, so this job never needs contents: write here and never shares the release
-  # job's id-token. swift-mirror is idempotent: it skips when the version tag already
-  # exists, so a re-run or an unrelated push is a no-op.
+  # bumps in lockstep with every @conciv/* release. npm is the lockstep authority: the
+  # mirror only tags a version npm has ALREADY published (see the detect step), so it can
+  # never expose a Swift version whose npm peer does not exist. `needs: [test, release]`
+  # sequences this AFTER the npm publish; the detect check then recovers a tag missed when
+  # a run was superseded by concurrency, without consulting the adjacent commit diff.
+  # The mirror push uses GH_MIRROR_TOKEN (a PAT with push access to the mirror repo), NOT
+  # this repo's GITHUB_TOKEN, so this job never needs contents: write here and never shares
+  # the release job's id-token. swift-mirror is idempotent: it skips when the version tag
+  # already exists, so a re-run or an unrelated push is a no-op. The whole job is dormant
+  # until GH_MIRROR_TOKEN is provisioned (detect reads run=false without it).
   swift-mirror:
-    needs: test
+    needs: [test, release]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -101,25 +102,29 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      # Run only when the @conciv/extension-ios version changed between the previous main
-      # commit and this one AND both commits already carried the manifest. A zero/empty
-      # before-sha (first push, force-push) or a missing manifest at either end reads as an
-      # empty version and yields run=false: newly adding the manifest never tags a version
-      # npm's lockstep line never contained. The first real bump (before and head both
-      # present and differing) fires correctly.
+      # Publish a mirror tag only for an @conciv/extension-ios version npm has ALREADY
+      # published: npm is the lockstep authority, so a mid-cycle manifest edit that never
+      # rode a release is not on npm and never tags, and the version-diff between adjacent
+      # commits is never consulted (a run superseded by concurrency before it pushed is
+      # recovered on the next push, since npm still holds the version and the idempotent
+      # publish skips a tag that already exists). Gate on GH_MIRROR_TOKEN so the job is a
+      # no-op until the mirror repo and its push token are provisioned.
       - id: detect
         env:
-          BEFORE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
+          MIRROR_TOKEN: ${{ secrets.GH_MIRROR_TOKEN }}
         run: |
-          if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+          if [ -z "$MIRROR_TOKEN" ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           manifest="packages/extensions/ios/package.json"
-          before_version=$(git show "$BEFORE_SHA:$manifest" 2>/dev/null | jq -r '.version // empty')
           head_version=$(git show "$HEAD_SHA:$manifest" 2>/dev/null | jq -r '.version // empty')
-          if [ -n "$before_version" ] && [ -n "$head_version" ] && [ "$before_version" != "$head_version" ]; then
+          if [ -z "$head_version" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if npm view "@conciv/extension-ios@$head_version" version >/dev/null 2>&1; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"

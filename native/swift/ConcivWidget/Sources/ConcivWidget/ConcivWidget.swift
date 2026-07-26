@@ -74,6 +74,7 @@ public enum ConcivWidget {
     controller = overlay
   }
   #else
+  @MainActor
   public static func attach(
     to window: UIWindow,
     apiBase: URL,
@@ -81,11 +82,13 @@ public enum ConcivWidget {
     launcher: ConcivLauncher = .native
   ) {}
 
+  @MainActor
   public static func attach(
     to window: UIWindow,
     launcher: ConcivLauncher = .native
   ) {}
 
+  @MainActor
   public static func detach() {}
   #endif
 }
