@@ -137,26 +137,41 @@ discovery finds nothing.
 
 ## What it looks like
 
-<ImageZoom
-  src="/screenshots/ios-launcher.png"
-  alt="The conciv launcher floating over a native iOS app in the simulator"
-  width={1290}
-  height={2796}
-/>
-
-<ImageZoom
-  src="/screenshots/ios-panel.png"
-  alt="The conciv agent panel open over the native app with a conversation in progress"
-  width={1290}
-  height={2796}
-/>
-
-<ImageZoom
-  src="/screenshots/ios-pick.png"
-  alt="Native pick mode highlighting a selected view in the running iOS app"
-  width={1290}
-  height={2796}
-/>
+<div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+  <figure className="m-0">
+    <ImageZoom
+      src="/screenshots/ios-launcher-focus.png"
+      alt="The conciv launcher floating over a native iOS app in the simulator"
+      width={1206}
+      height={2622}
+    />
+    <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">
+      attach adds the floating launcher
+    </figcaption>
+  </figure>
+  <figure className="m-0">
+    <ImageZoom
+      src="/screenshots/ios-panel.png"
+      alt="The conciv agent panel open over the native app with a conversation in progress"
+      width={1206}
+      height={2622}
+    />
+    <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">
+      The agent panel over your app
+    </figcaption>
+  </figure>
+  <figure className="m-0">
+    <ImageZoom
+      src="/screenshots/ios-pick-focus.png"
+      alt="Native pick mode highlighting a selected view in the running iOS app"
+      width={1206}
+      height={2622}
+    />
+    <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">
+      Pick hands a native view to the agent
+    </figcaption>
+  </figure>
+</div>
 
 ## Next
 
