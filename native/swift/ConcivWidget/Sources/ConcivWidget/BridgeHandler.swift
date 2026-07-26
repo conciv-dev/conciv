@@ -15,7 +15,7 @@ enum BridgeState {
   case tornDown
 }
 
-private enum Outbound {
+enum Outbound {
   case handshake(Handshake)
   case incompatible(BridgeIncompatible)
   case open(Open)
@@ -31,6 +31,17 @@ private enum Outbound {
     case .close(let m): return m.seq
     case .grabResult(let m): return m.seq
     case .grabCapability(let m): return m.seq
+    }
+  }
+
+  var version: Int {
+    switch self {
+    case .handshake(let m): return m.v
+    case .incompatible(let m): return m.v
+    case .open(let m): return m.v
+    case .close(let m): return m.v
+    case .grabResult(let m): return m.v
+    case .grabCapability(let m): return m.v
     }
   }
 
@@ -66,6 +77,14 @@ private enum Outbound {
   }
 }
 
+// Queued/unacked calls carry the handshake epoch they were minted under, so a fresh
+// handshake can drop every message from prior epochs (02 M-A5, supersede) before the
+// stale rebind base is ever re-dispatched.
+struct PendingOutbound {
+  let call: Outbound
+  let epoch: Int
+}
+
 final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   static let handlerName = "concivBridge"
   private static let ackTimeout: TimeInterval = 1
@@ -76,8 +95,16 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
 
   private(set) var state: BridgeState = .loading
   private var nextSeq = 1
-  private var queue: [Outbound] = []
-  private var unacked: [Int: Outbound] = [:]
+  private(set) var queue: [PendingOutbound] = []
+  private(set) var unacked: [Int: PendingOutbound] = [:]
+
+  // The version stamped on every outbound message once the hello settles. Defaults to
+  // our max so a pre-handshake incompatible reply still carries a sane version; the
+  // negotiated value (min(hello.maxV, ourMaxV)) replaces it via setNegotiatedVersion.
+  private(set) var negotiatedVersion = bridgeMaxVersion
+  // Bumped on every new handshake; queued/unacked calls from an older epoch are dropped
+  // so a lost-ack retry can never resurrect the previous endpoint base.
+  private(set) var handshakeEpoch = 0
 
   private var latestHandshake: Handshake?
   private var latestCapability: GrabCapability?
@@ -90,6 +117,10 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
   var onLog: ((HostLog) -> Void)?
   var onCrashRecovery: (() -> Void)?
   var onStaleToken: (() -> Void)?
+  // A provisional/committed navigation failed with a connection-refused/timeout class
+  // error: the core stopped answering at the current base (same-core port drift or a
+  // dead process). The owner starts bounded rediscovery (04 recovery loop).
+  var onConnectionLost: (() -> Void)?
 
   init(webView: WKWebView, coreOrigin: URL) {
     self.webView = webView
@@ -112,32 +143,49 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     coreOrigin = origin
   }
 
+  // The agreed version from hello negotiation (min(hello.maxV, ourMaxV)); every
+  // subsequent outbound message is stamped with it instead of our own max (02 D3).
+  func setNegotiatedVersion(_ version: Int) {
+    negotiatedVersion = version
+  }
+
   // MARK: outbound helpers (set-state, seq-tagged)
 
   func sendHandshake(apiBase: String, token: String?) {
-    let message = Handshake(v: bridgeMaxVersion, seq: takeSeq(), apiBase: apiBase, token: token)
+    handshakeEpoch += 1
+    dropSupersededEpochs()
+    let message = Handshake(v: negotiatedVersion, seq: takeSeq(), apiBase: apiBase, token: token)
     latestHandshake = message
     enqueue(.handshake(message))
   }
 
+  // A new handshake supersedes the previous one: drop every queued/unacked call minted
+  // under an earlier epoch so a lost-ack retry cannot re-send a dead endpoint base after
+  // the new hello (02 M-A5; the rebind-ordering hazard). The latest capability is
+  // re-enqueued fresh by the handshake settle path, so nothing durable is lost.
+  private func dropSupersededEpochs() {
+    queue.removeAll { $0.epoch < handshakeEpoch }
+    unacked = unacked.filter { $0.value.epoch >= handshakeEpoch }
+  }
+
   func sendIncompatible(nativeMinV: Int, nativeMaxV: Int) {
-    enqueue(.incompatible(BridgeIncompatible(v: bridgeMaxVersion, seq: takeSeq(), nativeMinV: nativeMinV, nativeMaxV: nativeMaxV)))
+    enqueue(.incompatible(BridgeIncompatible(v: negotiatedVersion, seq: takeSeq(), nativeMinV: nativeMinV, nativeMaxV: nativeMaxV)))
   }
 
   func sendOpen() {
-    enqueue(.open(Open(v: bridgeMaxVersion, seq: takeSeq())))
+    enqueue(.open(Open(v: negotiatedVersion, seq: takeSeq())))
   }
 
   func sendClose() {
-    enqueue(.close(Close(v: bridgeMaxVersion, seq: takeSeq())))
+    enqueue(.close(Close(v: negotiatedVersion, seq: takeSeq())))
   }
 
   func sendGrabResult(requestId: String, grab: NeutralGrab?, reason: GrabResultReason?) {
-    enqueue(.grabResult(GrabResult(v: bridgeMaxVersion, seq: takeSeq(), requestId: requestId, grab: grab, reason: reason)))
+    enqueue(.grabResult(GrabResult(v: negotiatedVersion, seq: takeSeq(), requestId: requestId, grab: grab, reason: reason)))
   }
 
   func sendGrabCapability(_ grabbable: Bool) {
-    let message = GrabCapability(v: bridgeMaxVersion, seq: takeSeq(), grabbable: grabbable)
+    let message = GrabCapability(v: negotiatedVersion, seq: takeSeq(), grabbable: grabbable)
     latestCapability = message
     enqueue(.grabCapability(message))
   }
@@ -150,7 +198,7 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
 
   private func enqueue(_ call: Outbound) {
     guard state != .tornDown else { return }
-    queue.append(call)
+    queue.append(PendingOutbound(call: call, epoch: handshakeEpoch))
     if state == .ready { flush() }
   }
 
@@ -158,18 +206,19 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     guard state == .ready else { return }
     let pending = queue
     queue.removeAll()
-    for call in pending { dispatch(call) }
+    for entry in pending { dispatch(entry) }
   }
 
-  private func dispatch(_ call: Outbound) {
+  private func dispatch(_ entry: PendingOutbound) {
     guard state == .ready, let webView else { return }
+    let call = entry.call
     let payload: String
     do {
       payload = try call.jsonPayload(encoder: encoder)
     } catch {
       return
     }
-    unacked[call.seq] = call
+    unacked[call.seq] = entry
     let script = "window.__concivNative && window.__concivNative.\(call.method)(\(payload))"
     webView.evaluateJavaScript(script) { [weak self] _, error in
       guard let self, let error else { return }
@@ -183,14 +232,14 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
   // swallowed. Surface it as a host log so the failed delivery is visible.
   private func reportDispatchFailure(_ call: Outbound, error: Error) {
     guard case .grabResult = call else { return }
-    onLog?(HostLog(v: bridgeMaxVersion, level: .error, message: "grabResult delivery failed for seq \(call.seq): \(error.localizedDescription)"))
+    onLog?(HostLog(v: negotiatedVersion, level: .error, message: "grabResult delivery failed for seq \(call.seq): \(error.localizedDescription)"))
   }
 
   private func scheduleRetry(for seq: Int) {
     DispatchQueue.main.asyncAfter(deadline: .now() + Self.ackTimeout) { [weak self] in
-      guard let self, self.state == .ready, let call = self.unacked[seq] else { return }
-      if call.isCritical {
-        self.dispatch(call)
+      guard let self, self.state == .ready, let entry = self.unacked[seq] else { return }
+      if entry.call.isCritical {
+        self.dispatch(entry)
       } else {
         self.unacked.removeValue(forKey: seq)
       }
@@ -225,20 +274,22 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
   func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
     guard message.name == Self.handlerName else { return }
     guard message.frameInfo.isMainFrame else {
-      onLog?(HostLog(v: bridgeMaxVersion, level: .warn, message: "dropped non-main-frame bridge message"))
+      onLog?(HostLog(v: negotiatedVersion, level: .warn, message: "dropped non-main-frame bridge message"))
       return
     }
     guard originMatches(message.frameInfo) else {
-      onLog?(HostLog(v: bridgeMaxVersion, level: .warn, message: "dropped off-origin bridge message"))
+      onLog?(HostLog(v: negotiatedVersion, level: .warn, message: "dropped off-origin bridge message"))
       return
     }
     guard let raw = jsonData(from: message.body), let decoded = try? JSONDecoder().decode(BridgeMessage.self, from: raw) else {
       return
     }
-    handle(decoded)
+    receive(decoded)
   }
 
-  private func handle(_ message: BridgeMessage) {
+  // Transport-agnostic entry: the WKScriptMessage path decodes then hands the message
+  // here, so the ready/queue/ack/handshake logic is exercisable without a live WebView.
+  func receive(_ message: BridgeMessage) {
     switch message {
     case .bridgeReady:
       enterReady()
@@ -278,17 +329,58 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
   }
 
   // A 401/404 on the token-scoped native page = stale token (the core restarted onto
-  // a fresh /t/<newtoken> mount, 06 D13). The status never carries the token, so this
-  // path logs nothing.
+  // a fresh /t/<newtoken> mount, 06 D13). CANCEL the response so the error page never
+  // commits over the live native bundle: the current bridge-capable document stays
+  // alive and the owner surfaces the re-pair prompt + rediscovery (04). The status
+  // never carries the token, so this path logs nothing.
   func webView(
     _ webView: WKWebView,
     decidePolicyFor navigationResponse: WKNavigationResponse,
     decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
   ) {
-    if let http = navigationResponse.response as? HTTPURLResponse, ConcivDiscovery.isStaleToken(status: http.statusCode) {
-      onStaleToken?()
+    guard let http = navigationResponse.response as? HTTPURLResponse, ConcivDiscovery.isStaleToken(status: http.statusCode) else {
+      decisionHandler(.allow)
+      return
     }
-    decisionHandler(.allow)
+    decisionHandler(.cancel)
+    onStaleToken?()
+  }
+
+  // A connection refusal/timeout never produces the 401/404 response above: the core
+  // simply stopped answering at the current base (same-core port drift or a dead
+  // process). Provisional failures leave the committed document intact (no WKWebView
+  // error page), so keep it and hand off to bounded rediscovery instead of reloading a
+  // dead URL. Cancellations (our own .cancel policy, or a superseding load) are ignored.
+  func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+    handleNavigationFailure(error)
+  }
+
+  func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+    handleNavigationFailure(error)
+  }
+
+  private func handleNavigationFailure(_ error: Error) {
+    guard state != .tornDown, Self.isConnectionFailure(error) else { return }
+    enterLoading()
+    onConnectionLost?()
+  }
+
+  // Connection-refused / timeout class URLErrors mean the base is unreachable; an
+  // NSURLErrorCancelled (our own response cancel, or a load superseded by a rebind) is
+  // not a loss and must not trigger a redundant rediscovery.
+  static func isConnectionFailure(_ error: Error) -> Bool {
+    let ns = error as NSError
+    guard ns.domain == NSURLErrorDomain else { return false }
+    let connectionFailures: Set<Int> = [
+      NSURLErrorCannotConnectToHost,
+      NSURLErrorTimedOut,
+      NSURLErrorNetworkConnectionLost,
+      NSURLErrorCannotFindHost,
+      NSURLErrorNotConnectedToInternet,
+      NSURLErrorDNSLookupFailed,
+      NSURLErrorResourceUnavailable,
+    ]
+    return connectionFailures.contains(ns.code)
   }
 
   func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
