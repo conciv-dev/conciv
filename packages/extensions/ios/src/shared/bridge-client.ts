@@ -110,7 +110,7 @@ export function createBridgeClient(config: BridgeClientConfig): BridgeClient {
   let readyTimer: number | null = null
   let requestCounter = 0
   let pending: PendingPick | null = null
-  let grabbableState = true
+  let grabbableState = false
 
   function log(level: BridgeLogLevel, message: string): void {
     config.onLog?.(level, message)

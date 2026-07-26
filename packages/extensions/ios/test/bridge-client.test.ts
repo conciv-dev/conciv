@@ -274,25 +274,25 @@ describe('bridge client grab pick engine', () => {
     expect(countOf('grab.cancel')).toBe(1)
   })
 
-  it('grabCapability drives the grabbable accessor', () => {
+  it('starts fail-closed and flips grabbable when the capability arrives', () => {
     const {wire, client} = setup()
     client.start()
-    expect(client.grabbable()).toBe(true)
-    wire.emit({v: 1, seq: 1, type: 'grabCapability', grabbable: false})
     expect(client.grabbable()).toBe(false)
+    wire.emit({v: 1, seq: 1, type: 'grabCapability', grabbable: true})
+    expect(client.grabbable()).toBe(true)
   })
 
   it('fires onGrabbableChanged only when the capability flips', () => {
     const onGrabbableChanged = vi.fn()
     const {wire, client} = setup({onGrabbableChanged})
     client.start()
-    wire.emit({v: 1, seq: 1, type: 'grabCapability', grabbable: true})
+    wire.emit({v: 1, seq: 1, type: 'grabCapability', grabbable: false})
     expect(onGrabbableChanged).not.toHaveBeenCalled()
-    wire.emit({v: 1, seq: 2, type: 'grabCapability', grabbable: false})
+    wire.emit({v: 1, seq: 2, type: 'grabCapability', grabbable: true})
     expect(onGrabbableChanged).toHaveBeenCalledTimes(1)
-    expect(onGrabbableChanged).toHaveBeenCalledWith(false)
-    expect(client.grabbable()).toBe(false)
-    wire.emit({v: 1, seq: 3, type: 'grabCapability', grabbable: false})
+    expect(onGrabbableChanged).toHaveBeenCalledWith(true)
+    expect(client.grabbable()).toBe(true)
+    wire.emit({v: 1, seq: 3, type: 'grabCapability', grabbable: true})
     expect(onGrabbableChanged).toHaveBeenCalledTimes(1)
   })
 })

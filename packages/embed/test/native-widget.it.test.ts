@@ -115,12 +115,13 @@ describe('native widget bridge', () => {
     await callNative(page, 'open', {v: 1, seq: 1})
     await expect.poll(() => composerBox(page).isVisible(), {timeout: 30_000}).toBe(true)
 
+    await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
     await grabButton(page).click()
     await expect.poll(() => outbound(page).then((m) => countType(m, 'grab.pick')), {timeout: 30_000}).toBe(1)
     const pick = (await outbound(page)).find((message) => message.type === 'grab.pick')
     expect(pick?.requestId).toBeTruthy()
 
-    await callNative(page, 'grabResult', {v: 1, seq: 2, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
+    await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
     await expect.poll(() => page.locator(`img[src="${IMAGE_DATA_URL}"]`).count(), {timeout: 30_000}).toBe(1)
     await expect
       .poll(() => rpcBodies.some((body) => body.includes('[view]') && body.includes('PaymentCardCell')), {
@@ -134,10 +135,11 @@ describe('native widget bridge', () => {
     const page = await openNative()
     await callNative(page, 'open', {v: 1, seq: 1})
     await expect.poll(() => composerBox(page).isVisible(), {timeout: 30_000}).toBe(true)
+    await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
     await grabButton(page).click()
     await expect.poll(() => outbound(page).then((m) => countType(m, 'grab.pick')), {timeout: 30_000}).toBe(1)
 
-    await callNative(page, 'grabResult', {v: 1, seq: 2, requestId: 'not-the-pending-one', grab: NEUTRAL_GRAB})
+    await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: 'not-the-pending-one', grab: NEUTRAL_GRAB})
     await new Promise((resolve) => setTimeout(resolve, 500))
     expect(await page.locator(`img[src="${IMAGE_DATA_URL}"]`).count()).toBe(0)
     await page.close()
