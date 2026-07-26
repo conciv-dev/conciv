@@ -168,6 +168,7 @@ final class BridgeRecoveryTests: XCTestCase {
     ConcivAnchorRegistry.shared.reset()
     ConcivWidget.detach()
     ConcivWidget.discoverDriver = ConcivDiscoveryRuntime.discover
+    ConcivWidget.keyWindowProvider = ConcivWidget.defaultKeyWindowProvider
     super.tearDown()
   }
 
@@ -257,6 +258,56 @@ final class BridgeRecoveryTests: XCTestCase {
     pending?(ConcivEndpoint(apiBase: url("http://127.0.0.1:59990"), token: nil, pid: 1))
 
     XCTAssertNotNil(ConcivWidget.controller, "an in-generation completion mounts the overlay")
+    ConcivWidget.detach()
+  }
+
+  // MARK: windowless attach (zero-config one-liner)
+
+  private func makeWindow() -> UIWindow {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+    window.isHidden = false
+    return window
+  }
+
+  // ConcivWidget.attach() before a key window exists (SceneDelegate before makeKeyAndVisible,
+  // SwiftUI App.init) must defer and mount once a window becomes key.
+  func testWindowlessAttachDefersUntilAKeyWindowActivates() {
+    var provided: UIWindow?
+    ConcivWidget.keyWindowProvider = { provided }
+    ConcivWidget.discoverDriver = { _, completion in
+      completion(ConcivEndpoint(apiBase: self.url("http://127.0.0.1:59990"), token: nil, pid: 1))
+    }
+
+    ConcivWidget.attach()
+    XCTAssertNil(ConcivWidget.controller, "no key window at call time must defer the mount")
+
+    let window = makeWindow()
+    provided = window
+    NotificationCenter.default.post(name: UIWindow.didBecomeKeyNotification, object: window)
+
+    XCTAssertNotNil(ConcivWidget.controller, "window activation must resolve the deferred attach and mount")
+    ConcivWidget.detach()
+  }
+
+  // A second attach supersedes a still-deferred first one: only one overlay mounts, and a
+  // late activation never remounts over the live controller.
+  func testWindowlessAttachGuardsAgainstADoubleMount() {
+    var provided: UIWindow?
+    ConcivWidget.keyWindowProvider = { provided }
+    ConcivWidget.discoverDriver = { _, completion in
+      completion(ConcivEndpoint(apiBase: self.url("http://127.0.0.1:59990"), token: nil, pid: 1))
+    }
+
+    ConcivWidget.attach()
+    let window = makeWindow()
+    provided = window
+    ConcivWidget.attach()
+
+    let mounted = ConcivWidget.controller
+    XCTAssertNotNil(mounted, "the second attach resolves the now-present key window and mounts")
+
+    NotificationCenter.default.post(name: UIWindow.didBecomeKeyNotification, object: window)
+    XCTAssertTrue(ConcivWidget.controller === mounted, "a superseded deferred attach must not remount")
     ConcivWidget.detach()
   }
 }

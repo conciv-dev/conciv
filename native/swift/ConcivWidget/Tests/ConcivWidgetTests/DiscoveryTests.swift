@@ -83,6 +83,18 @@ final class DiscoveryTests: XCTestCase {
     XCTAssertEqual(ConcivDiscovery.pageURL(for: apiBase), url("http://127.0.0.1:8891/native"))
   }
 
+  func testEnvApiBaseParsesAValidBaseRejectsMalformedAndTreatsUnsetAsDiscovery() {
+    let valid = ConcivDiscovery.envApiBase(environment: ["CONCIV_URL": "http://127.0.0.1:4599"])
+    XCTAssertEqual(valid, url("http://127.0.0.1:4599"))
+    let tokenScoped = ConcivDiscovery.envApiBase(environment: ["CONCIV_URL": "http://127.0.0.1:4599/t/secret"])
+    XCTAssertEqual(tokenScoped, url("http://127.0.0.1:4599/t/secret"))
+
+    XCTAssertNil(ConcivDiscovery.envApiBase(environment: [:]))
+    XCTAssertNil(ConcivDiscovery.envApiBase(environment: ["CONCIV_URL": ""]))
+    XCTAssertNil(ConcivDiscovery.envApiBase(environment: ["CONCIV_URL": "127.0.0.1:4599"]))
+    XCTAssertNil(ConcivDiscovery.envApiBase(environment: ["CONCIV_URL": "not a url"]))
+  }
+
   func testShouldAutoShowOnlyWhenEnvFlagIsExactlyOne() {
     XCTAssertTrue(ConcivDiscovery.shouldAutoShow(environment: ["CONCIV_AUTOSHOW": "1"]))
     XCTAssertFalse(ConcivDiscovery.shouldAutoShow(environment: ["CONCIV_AUTOSHOW": "0"]))

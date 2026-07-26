@@ -95,6 +95,23 @@ public enum ConcivDiscovery {
     return previousPid == discoveredPid
   }
 
+  // The env-injected api base. ios.run launches the app with SIMCTL_CHILD_CONCIV_URL,
+  // which the child process reads as CONCIV_URL: a bare core api base with no /native
+  // suffix (the SDK appends /native itself). A missing, empty, or malformed value falls
+  // back to auto-discovery rather than crashing, so attach() is safe with no env at all.
+  // A usable base carries both a scheme and a host; a scheme-less relative string (a
+  // typo like "127.0.0.1:4599") is rejected as malformed and routed to discovery.
+  public static func envApiBase(
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> URL? {
+    guard let raw = environment["CONCIV_URL"], !raw.isEmpty,
+          let url = URL(string: raw),
+          url.scheme != nil,
+          url.host != nil
+    else { return nil }
+    return url
+  }
+
   // simctl launches the app with SIMCTL_CHILD_CONCIV_AUTOSHOW, which the child process
   // sees as CONCIV_AUTOSHOW. When set to "1" (ios.run --autoshow) the SDK opens the panel
   // once after the first handshake settles, so a driven run lands with the panel visible.
