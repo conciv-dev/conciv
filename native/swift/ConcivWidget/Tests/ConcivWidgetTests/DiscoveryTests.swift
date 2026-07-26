@@ -46,6 +46,20 @@ final class DiscoveryTests: XCTestCase {
     XCTAssertEqual(ConcivDiscovery.defaultPort, 4599)
   }
 
+  func testHealthResponseRequiresTheCoreBodyShape() {
+    XCTAssertTrue(ConcivDiscovery.isHealthyResponse(Data(#"{"ok":true,"harness":"claude"}"#.utf8)))
+    XCTAssertTrue(ConcivDiscovery.isHealthyResponse(Data(#"{"ok":true,"harness":"codex","extra":1}"#.utf8)))
+  }
+
+  func testHealthResponseRejectsNonConcivTwoHundredBodies() {
+    XCTAssertFalse(ConcivDiscovery.isHealthyResponse(Data(#"{"status":"running"}"#.utf8)))
+    XCTAssertFalse(ConcivDiscovery.isHealthyResponse(Data("OK".utf8)))
+    XCTAssertFalse(ConcivDiscovery.isHealthyResponse(Data("<!doctype html><title>vite</title>".utf8)))
+    XCTAssertFalse(ConcivDiscovery.isHealthyResponse(Data(#"{"ok":false,"harness":"claude"}"#.utf8)))
+    XCTAssertFalse(ConcivDiscovery.isHealthyResponse(Data(#"{"ok":true,"harness":""}"#.utf8)))
+    XCTAssertFalse(ConcivDiscovery.isHealthyResponse(Data(#"{"ok":true}"#.utf8)))
+  }
+
   func testStaleTokenIsOnlyUnauthorizedOrNotFound() {
     XCTAssertTrue(ConcivDiscovery.isStaleToken(status: 401))
     XCTAssertTrue(ConcivDiscovery.isStaleToken(status: 404))

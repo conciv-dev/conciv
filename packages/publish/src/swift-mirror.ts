@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto'
 import {cp, mkdir, readFile, readdir, rm} from 'node:fs/promises'
 import {join} from 'node:path'
+import {execa} from 'execa'
 import {z} from 'zod'
 
 const BARE_SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
@@ -24,6 +25,44 @@ export async function readBridgeVersion(manifestPath: string): Promise<string> {
   const {version} = bridgeManifestSchema.parse(JSON.parse(raw))
   assertBareSemver(version)
   return version
+}
+
+function versionFieldNeedle(version: string): string {
+  return `"version": "${version}"`
+}
+
+export async function resolveVersionCommit(cwd: string, manifestRelPath: string, version: string): Promise<string> {
+  const {stdout} = await execa('git', [
+    '-C',
+    cwd,
+    'log',
+    '-1',
+    '--format=%H',
+    '-S',
+    versionFieldNeedle(version),
+    '--',
+    manifestRelPath,
+  ])
+  const commit = stdout.trim()
+  if (!commit) {
+    throw new Error(
+      `could not find the commit that set ${manifestRelPath} version to ${version}: the mirror tree must be anchored to the release commit, so full history is required (checkout with fetch-depth: 0)`,
+    )
+  }
+  return commit
+}
+
+export async function extractCommitSubtree(
+  cwd: string,
+  commit: string,
+  subpath: string,
+  destDir: string,
+): Promise<void> {
+  await mkdir(destDir, {recursive: true})
+  const {stdout} = await execa('git', ['-C', cwd, 'archive', '--format=tar', `${commit}:${subpath}`], {
+    encoding: 'buffer',
+  })
+  await execa('tar', ['-x', '-f', '-', '-C', destDir], {input: stdout})
 }
 
 function isSkipped(path: string): boolean {

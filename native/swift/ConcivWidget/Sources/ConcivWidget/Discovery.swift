@@ -28,6 +28,13 @@ struct DevEndpointFile: Codable {
   let pid: Int
 }
 
+// Codable mirror of the core /health payload (packages/core/src/app.ts):
+// {"ok": true, "harness": "<id>"}. Extra keys are ignored so the shape can grow.
+struct HealthPayload: Codable {
+  let ok: Bool
+  let harness: String
+}
+
 public enum ConcivDiscovery {
   // The ios dev loop pins this port (documented default). Probed first so the common
   // pinned-port case resolves in one attempt; the rest cover a moved port.
@@ -51,6 +58,15 @@ public enum ConcivDiscovery {
   // GET apiBase/health, token-scoped when apiBase carries /t/<token>.
   public static func healthURL(for apiBase: URL) -> URL {
     apiBase.appendingPathComponent("health")
+  }
+
+  // A 2xx alone is not proof of a conciv core: an unrelated localhost service on a
+  // candidate port (the shared fallback 3000 especially) also answers 200, and mounting
+  // its page leaves the overlay blank. Require the core /health body shape (ok == true
+  // with a non-empty harness id) before accepting a base.
+  public static func isHealthyResponse(_ data: Data) -> Bool {
+    guard let payload = try? JSONDecoder().decode(HealthPayload.self, from: data) else { return false }
+    return payload.ok && !payload.harness.isEmpty
   }
 
   // Origin pin stays scheme://host:port regardless of the /t/<token> path.

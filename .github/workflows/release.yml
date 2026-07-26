@@ -86,7 +86,11 @@ jobs:
   # mirror only tags a version npm has ALREADY published (see the detect step), so it can
   # never expose a Swift version whose npm peer does not exist. `needs: [test, release]`
   # sequences this AFTER the npm publish; the detect check then recovers a tag missed when
-  # a run was superseded by concurrency, without consulting the adjacent commit diff.
+  # a run was superseded by concurrency. Recovery is safe because conciv-publish anchors the
+  # mirror tree to the RELEASE COMMIT (the commit that set the manifest to that version), not
+  # to HEAD: a later feature commit that edits Swift while the manifest still holds the
+  # published version can never leak its source into that version's tag, and re-runs on any
+  # later HEAD assemble the identical tree, so the tag can never describe post-release source.
   # The mirror push uses GH_MIRROR_TOKEN (a PAT with push access to the mirror repo), NOT
   # this repo's GITHUB_TOKEN, so this job never needs contents: write here and never shares
   # the release job's id-token. swift-mirror is idempotent: it skips when the version tag
@@ -104,11 +108,13 @@ jobs:
           persist-credentials: false
       # Publish a mirror tag only for an @conciv/extension-ios version npm has ALREADY
       # published: npm is the lockstep authority, so a mid-cycle manifest edit that never
-      # rode a release is not on npm and never tags, and the version-diff between adjacent
-      # commits is never consulted (a run superseded by concurrency before it pushed is
-      # recovered on the next push, since npm still holds the version and the idempotent
-      # publish skips a tag that already exists). Gate on GH_MIRROR_TOKEN so the job is a
-      # no-op until the mirror repo and its push token are provisioned.
+      # rode a release is not on npm and never tags. HEAD only supplies the version to
+      # publish; conciv-publish then anchors the actual Swift tree to the commit that set
+      # the manifest to that version (see swift-mirror), so a run superseded by concurrency
+      # is recovered on a later push without ever tagging that later HEAD's diverged source.
+      # Gate on GH_MIRROR_TOKEN so the job is a no-op until the mirror repo and its push
+      # token are provisioned. fetch-depth: 0 above gives the pickaxe the full history it
+      # needs to locate the release commit.
       - id: detect
         env:
           HEAD_SHA: ${{ github.sha }}
@@ -151,8 +157,9 @@ jobs:
         if: steps.detect.outputs.run == 'true'
       - run: git diff --exit-code
         if: steps.detect.outputs.run == 'true'
-      # Regenerate the mirror tree from native/swift/ConcivWidget, tag it with the
-      # @conciv/extension-ios version, and push (skipped when that tag already exists).
+      # Regenerate the mirror tree from the release commit's native/swift, tag it with the
+      # @conciv/extension-ios version, and push (skipped when that tag already exists; on an
+      # existing tag it re-asserts the assembled tree matches what was published).
       - run: pnpm exec conciv-publish swift-mirror
         if: steps.detect.outputs.run == 'true'
         env:

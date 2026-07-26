@@ -2,11 +2,14 @@ import {test, expect} from 'vitest'
 import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {execa} from 'execa'
 import {
   assembleMirrorTree,
   assertBareSemver,
+  extractCommitSubtree,
   fingerprintTree,
   readBridgeVersion,
+  resolveVersionCommit,
   treesMatch,
 } from '../src/swift-mirror.ts'
 
@@ -124,6 +127,61 @@ test('readBridgeVersion rejects a manifest whose version is not bare semver', as
   await writeFile(bridgeManifestPath, `${JSON.stringify({name: '@conciv/extension-ios', version: '0.0.15-beta.1'})}\n`)
   await expect(readBridgeVersion(bridgeManifestPath)).rejects.toThrow(/invalid swift sdk version/)
   await rm(root, {recursive: true, force: true})
+})
+
+const MANIFEST_REL = 'packages/extensions/ios/package.json'
+const SOURCE_REL = 'native/swift/ConcivWidget'
+
+async function initRepo(): Promise<{repo: string; git: (...args: string[]) => Promise<unknown>}> {
+  const repo = await mkdtemp(join(tmpdir(), 'swift-mirror-repo-'))
+  const git = (...args: string[]) => execa('git', ['-C', repo, ...args])
+  await git('init', '-q')
+  await git('config', 'user.email', 'mirror@conciv.dev')
+  await git('config', 'user.name', 'mirror-test')
+  await git('config', 'commit.gpgsign', 'false')
+  return {repo, git}
+}
+
+async function commitVersion(
+  repo: string,
+  git: (...args: string[]) => Promise<unknown>,
+  version: string,
+  swiftBody: string,
+  message: string,
+): Promise<void> {
+  await mkdir(join(repo, 'packages', 'extensions', 'ios'), {recursive: true})
+  await mkdir(join(repo, 'native', 'swift', 'ConcivWidget', 'Sources'), {recursive: true})
+  await writeFile(join(repo, MANIFEST_REL), `${JSON.stringify({name: '@conciv/extension-ios', version}, null, 2)}\n`)
+  await writeFile(join(repo, 'native', 'swift', 'ConcivWidget', 'Sources', 'W.swift'), swiftBody)
+  await git('add', '-A')
+  await git('commit', '-qm', message)
+}
+
+test('resolveVersionCommit + extractCommitSubtree anchor the tree to the release commit, not HEAD', async () => {
+  const {repo, git} = await initRepo()
+  await commitVersion(repo, git, '1.0.0', 'let a = 1\n', 'release 1.0.0')
+  await commitVersion(repo, git, '2.0.0', 'let b = 2\n', 'release 2.0.0')
+  await writeFile(join(repo, 'native', 'swift', 'ConcivWidget', 'Sources', 'W.swift'), 'let c = 3\n')
+  await git('add', '-A')
+  await git('commit', '-qm', 'post-release swift edit, manifest still 2.0.0')
+
+  const commit = await resolveVersionCommit(repo, MANIFEST_REL, '2.0.0')
+  const head = await execa('git', ['-C', repo, 'rev-parse', 'HEAD'])
+  expect(commit).not.toBe(head.stdout.trim())
+
+  const dest = join(repo, '_extract')
+  await extractCommitSubtree(repo, commit, SOURCE_REL, dest)
+  const extracted = await readFile(join(dest, 'Sources', 'W.swift'), 'utf8')
+  expect(extracted).toBe('let b = 2\n')
+  expect(extracted).not.toBe('let c = 3\n')
+  await rm(repo, {recursive: true, force: true})
+})
+
+test('resolveVersionCommit throws when the version was never set in history', async () => {
+  const {repo, git} = await initRepo()
+  await commitVersion(repo, git, '1.0.0', 'let a = 1\n', 'release 1.0.0')
+  await expect(resolveVersionCommit(repo, MANIFEST_REL, '9.9.9')).rejects.toThrow(/could not find the commit/)
+  await rm(repo, {recursive: true, force: true})
 })
 
 test('assertBareSemver rejects scoped tags, prefixes, and ranges', () => {

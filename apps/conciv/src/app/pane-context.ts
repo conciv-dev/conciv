@@ -24,7 +24,7 @@ export type PaneContextValue = {
   slideClass: Accessor<string>
   resetSlide: () => void
   grabStore: PaneGrabStore
-  grabProvider?: GrabProvider
+  grabProvider: GrabProvider | undefined
   attachments: PendingAttachmentQueue
 }
 

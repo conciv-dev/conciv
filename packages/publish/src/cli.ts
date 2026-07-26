@@ -7,13 +7,20 @@ import {execa} from 'execa'
 import {findRoot} from './workspace-root.ts'
 import {PUBLIC_PACKAGES, assertBootstrappable, assertPublicSet, assertValidTag, assertVersioned} from './guards.ts'
 import {registryState} from './registry.ts'
-import {assembleMirrorTree, treesMatch} from './swift-mirror.ts'
+import {
+  assembleMirrorTree,
+  extractCommitSubtree,
+  readBridgeVersion,
+  resolveVersionCommit,
+  treesMatch,
+} from './swift-mirror.ts'
 
 const REPOSITORY = 'conciv-dev/conciv'
 const RELEASE_WORKFLOW = 'release.yml'
 const MIRROR_REPOSITORY = 'conciv-dev/conciv-swift'
-const MIRROR_SOURCE = 'native/swift/ConcivWidget'
-const MIRROR_TEMPLATE = 'native/swift/mirror'
+const MIRROR_TREE = 'native/swift'
+const MIRROR_SOURCE_SUBDIR = 'ConcivWidget'
+const MIRROR_TEMPLATE_SUBDIR = 'mirror'
 const BRIDGE_MANIFEST = 'packages/extensions/ios/package.json'
 const MIRROR_COMMIT_NAME = 'conciv-swift-mirror'
 const MIRROR_COMMIT_EMAIL = 'noreply@conciv.dev'
@@ -223,19 +230,29 @@ const swiftMirror = defineCommand({
   },
   async run({args}) {
     const cwd = await findRoot(process.cwd())
-    const sourceDir = join(cwd, MIRROR_SOURCE)
-    const templateDir = join(cwd, MIRROR_TEMPLATE)
     const bridgeManifestPath = join(cwd, BRIDGE_MANIFEST)
+    const bridgeVersion = await readBridgeVersion(bridgeManifestPath)
+    const releaseCommit = await resolveVersionCommit(cwd, BRIDGE_MANIFEST, bridgeVersion)
+    const treeDir = await mkdtemp(join(tmpdir(), 'conciv-swift-src-'))
     const destDir = await mkdtemp(join(tmpdir(), 'conciv-swift-'))
     try {
-      const tree = await assembleMirrorTree({sourceDir, templateDir, destDir, bridgeManifestPath})
-      console.log(`assembled conciv-swift ${tree.version} at ${destDir}: ${tree.files.join(', ')}`)
+      await extractCommitSubtree(cwd, releaseCommit, MIRROR_TREE, treeDir)
+      const tree = await assembleMirrorTree({
+        sourceDir: join(treeDir, MIRROR_SOURCE_SUBDIR),
+        templateDir: join(treeDir, MIRROR_TEMPLATE_SUBDIR),
+        destDir,
+        bridgeManifestPath,
+      })
+      console.log(
+        `assembled conciv-swift ${tree.version} from ${releaseCommit.slice(0, 12)} at ${destDir}: ${tree.files.join(', ')}`,
+      )
       if (args['dry-run']) {
         console.log(`dry run: skipping tag lookup and push for ${MIRROR_REPOSITORY}`)
         return
       }
       await withMirrorAuth((git) => publishMirror(git, destDir, tree.version))
     } finally {
+      await rm(treeDir, {recursive: true, force: true})
       await rm(destDir, {recursive: true, force: true})
     }
   },

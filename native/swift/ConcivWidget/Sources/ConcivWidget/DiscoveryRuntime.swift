@@ -19,8 +19,9 @@ enum ConcivDiscoveryRuntime {
     request.cachePolicy = .reloadIgnoringLocalCacheData
     let semaphore = DispatchSemaphore(value: 0)
     var healthy = false
-    let task = URLSession.shared.dataTask(with: request) { _, response, _ in
-      if let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) {
+    let task = URLSession.shared.dataTask(with: request) { data, response, _ in
+      if let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode),
+         let data, ConcivDiscovery.isHealthyResponse(data) {
         healthy = true
       }
       semaphore.signal()
