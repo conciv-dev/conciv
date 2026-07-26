@@ -46,3 +46,12 @@ func liveRegion(_ state: LiveRegionState, pickActive: Bool) -> LiveRegion {
   if state.launcher == .native { return .rect(state.fabRect) }
   return .rect(state.mascotRect)
 }
+
+// The native FAB shows only in native-launcher mode and only while the panel is
+// closed: an open panel would leave the button covering the composer, so it hides
+// until the page's own close control fires a closed panel-toggle. Mascot mode never
+// shows the native FAB, since the web ShellFab owns the launcher there.
+func fabHidden(launcher: ConcivLauncher, panelOpen: Bool) -> Bool {
+  if launcher != .native { return true }
+  return panelOpen
+}

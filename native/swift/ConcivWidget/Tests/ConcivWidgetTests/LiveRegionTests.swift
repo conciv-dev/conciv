@@ -74,4 +74,14 @@ final class LiveRegionTests: XCTestCase {
     XCTAssertEqual(region, .fullPanel)
     XCTAssertTrue(region.captures(panelPoint))
   }
+
+  func testNativeFabVisibleWhenClosedHiddenWhenOpen() {
+    XCTAssertFalse(fabHidden(launcher: .native, panelOpen: false))
+    XCTAssertTrue(fabHidden(launcher: .native, panelOpen: true))
+  }
+
+  func testMascotLauncherNeverShowsNativeFab() {
+    XCTAssertTrue(fabHidden(launcher: .mascot, panelOpen: false))
+    XCTAssertTrue(fabHidden(launcher: .mascot, panelOpen: true))
+  }
 }

@@ -167,7 +167,7 @@ final class OverlayController: NSObject {
   // MARK: FAB (launcher: native)
 
   private func configureFab() {
-    fab.isHidden = launcher != .native
+    fab.isHidden = fabHidden(launcher: launcher, panelOpen: panelOpen)
     fab.setTitle("AI", for: .normal)
     fab.accessibilityLabel = "Open conciv chat"
     fab.setTitleColor(.white, for: .normal)
@@ -416,7 +416,7 @@ final class OverlayController: NSObject {
     panelOpen = toggled.open
     let incoming = toggled.mascotRect.map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
     container.state = applyPanelToggle(container.state, open: toggled.open, mascotRect: incoming)
-    fab.isHidden = launcher != .native
+    fab.isHidden = fabHidden(launcher: launcher, panelOpen: toggled.open)
     fab.accessibilityLabel = toggled.open ? "Minimize conciv chat" : "Open conciv chat"
   }
 
