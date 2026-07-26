@@ -12,6 +12,25 @@ import Foundation
 public let bridgeMinVersion = 1
 public let bridgeMaxVersion = 1
 
+// In-band version negotiation (02 D3/B-A2). The page advertises its supported range
+// {minV, maxV} in handshake.hello; native picks the effective version and rejects a
+// non-overlapping range. Pure so it is exercised by the Foundation-host swift test.
+public enum BridgeNegotiation {
+  // Effective version = min(theirMaxV, ourMaxV); a nil result means the ranges do not
+  // overlap (effective < max(theirMinV, ourMinV)) and the connection must be rejected
+  // with bridge.incompatible. With bridgeMin == bridgeMax == 1 this provably yields 1.
+  public static func negotiatedVersion(
+    helloMinV: Int,
+    helloMaxV: Int,
+    ourMinV: Int = bridgeMinVersion,
+    ourMaxV: Int = bridgeMaxVersion
+  ) -> Int? {
+    let effective = Swift.min(helloMaxV, ourMaxV)
+    let floor = Swift.max(helloMinV, ourMinV)
+    return effective < floor ? nil : effective
+  }
+}
+
 public struct Rect: Codable, Equatable {
   public var x: Double
   public var y: Double

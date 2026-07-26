@@ -307,6 +307,17 @@ describe('bridge client version negotiation', () => {
     expect(onIncompatible).toHaveBeenCalledWith({nativeMinV: 2, nativeMaxV: 2})
     expect(onRebind).not.toHaveBeenCalled()
   })
+
+  it('adopts the negotiated version and stamps it on every subsequent message (yields 1 for current peers)', () => {
+    const {wire, client} = setup()
+    client.start()
+    wire.emit({v: 1, seq: 1, type: 'handshake', apiBase: API_BASE, token: null})
+    client.panelToggled(true, true, null)
+    const toggle = wire.posted.find((message) => message.type === 'host.panelToggled')
+    const ack = wire.posted.find((message) => message.type === 'bridge.ack')
+    expect(toggle?.v).toBe(1)
+    expect(ack?.v).toBe(1)
+  })
 })
 
 describe('bridge client disposal', () => {

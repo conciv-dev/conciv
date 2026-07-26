@@ -131,4 +131,22 @@ final class DiscoveryTests: XCTestCase {
     )
     XCTAssertNil(discoverer.discover())
   }
+
+  // Version negotiation (02 D3). With bridgeMin == bridgeMax == 1 the negotiated version
+  // is provably 1 for every current peer, so the wire is unchanged; the general min/max
+  // rule is pinned for future ranges.
+  func testNegotiatedVersionIsOneForCurrentPeers() {
+    XCTAssertEqual(BridgeNegotiation.negotiatedVersion(helloMinV: 1, helloMaxV: 1), 1)
+  }
+
+  func testNegotiatedVersionPicksTheOverlapMinimum() {
+    XCTAssertEqual(BridgeNegotiation.negotiatedVersion(helloMinV: 1, helloMaxV: 3, ourMinV: 1, ourMaxV: 2), 2)
+    XCTAssertEqual(BridgeNegotiation.negotiatedVersion(helloMinV: 2, helloMaxV: 4, ourMinV: 1, ourMaxV: 3), 3)
+    XCTAssertEqual(BridgeNegotiation.negotiatedVersion(helloMinV: 1, helloMaxV: 2, ourMinV: 2, ourMaxV: 5), 2)
+  }
+
+  func testNegotiatedVersionRejectsNonOverlappingRanges() {
+    XCTAssertNil(BridgeNegotiation.negotiatedVersion(helloMinV: 2, helloMaxV: 3, ourMinV: 1, ourMaxV: 1))
+    XCTAssertNil(BridgeNegotiation.negotiatedVersion(helloMinV: 1, helloMaxV: 1, ourMinV: 2, ourMaxV: 4))
+  }
 }
