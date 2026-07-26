@@ -5,5 +5,7 @@ declare global {
     ConcivHandle: {makeHandle: (apiBase: string) => ConcivHandle}
     concivTestHandle: ConcivHandle
     concivTestElement: HTMLElement
+    __p2n: unknown[]
+    __rebinds: {apiBase?: string}[]
   }
 }

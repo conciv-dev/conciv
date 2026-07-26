@@ -2,11 +2,13 @@ import {fileURLToPath} from 'node:url'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
+import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
 
 const nativeDistDir = fileURLToPath(new URL('../dist/', import.meta.url))
 
-type Rect = {x: number; y: number; width: number; height: number}
-type Toggle = {type: string; open?: boolean; connected?: boolean; mascotRect?: Rect}
+type NativeMethod = keyof NonNullable<Window['__concivNative']>
+type PanelToggled = Extract<PageToNativeMessage, {type: 'host.panelToggled'}>
+type Rect = NonNullable<PanelToggled['mascotRect']>
 
 let browser: Browser
 let kit: CoreKit
@@ -24,30 +26,29 @@ afterAll(async () => {
 async function openMascotNative(): Promise<Page> {
   const page = await browser.newPage({viewport: {width: 1280, height: 900}})
   await page.addInitScript(() => {
-    const w = window as unknown as {__p2n: unknown[]; webkit: unknown}
-    w.__p2n = []
-    w.webkit = {messageHandlers: {concivBridge: {postMessage: (message: unknown) => w.__p2n.push(message)}}}
+    window.__p2n = []
+    window.webkit = {messageHandlers: {concivBridge: {postMessage: (message) => window.__p2n.push(message)}}}
   })
   await page.goto(`${kit.base}/native?launcher=mascot`, {waitUntil: 'domcontentloaded'})
-  await page.waitForFunction(() => typeof (window as unknown as {__concivNative?: unknown}).__concivNative === 'object')
+  await page.waitForFunction(() => typeof window.__concivNative === 'object')
   return page
 }
 
-const toggles = (page: Page): Promise<Toggle[]> =>
-  page.evaluate(() =>
-    (window as unknown as {__p2n: Toggle[]}).__p2n.filter((message) => message.type === 'host.panelToggled'),
-  )
+const toggles = async (page: Page): Promise<PanelToggled[]> => {
+  const raw = await page.evaluate(() => window.__p2n)
+  return raw.flatMap((entry) => {
+    const parsed = PageToNativeSchema.safeParse(entry)
+    return parsed.success && parsed.data.type === 'host.panelToggled' ? [parsed.data] : []
+  })
+}
 
-function callNative(page: Page, method: string, arg: Record<string, unknown>): Promise<void> {
-  return page.evaluate(
-    ([m, a]) => (window as unknown as {__concivNative: Record<string, (x: unknown) => void>}).__concivNative[m]?.(a),
-    [method, arg] as const,
-  )
+function callNative(page: Page, method: NativeMethod, arg: Record<string, unknown>): Promise<void> {
+  return page.evaluate((call) => window.__concivNative?.[call.method]?.(call.arg), {method, arg})
 }
 
 const composerBox = (page: Page) => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
-const closedRects = (all: Toggle[]): Rect[] =>
+const closedRects = (all: PanelToggled[]): Rect[] =>
   all.flatMap((toggle) => (toggle.open === false && toggle.mascotRect ? [toggle.mascotRect] : []))
 
 async function openFromHost(page: Page): Promise<void> {

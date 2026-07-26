@@ -2,6 +2,9 @@ import {fileURLToPath} from 'node:url'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
+import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
+
+type NativeMethod = keyof NonNullable<Window['__concivNative']>
 
 const nativeDistDir = fileURLToPath(new URL('../dist/', import.meta.url))
 
@@ -43,35 +46,44 @@ afterAll(async () => {
   await kit.cleanup()
 })
 
-type P2n = {type: string; requestId?: string}
-
 async function openNative(): Promise<Page> {
   const page = await browser.newPage()
   await page.addInitScript(() => {
-    const w = window as unknown as {__p2n: unknown[]; __rebinds: unknown[]; webkit: unknown}
-    w.__p2n = []
-    w.__rebinds = []
-    w.webkit = {messageHandlers: {concivBridge: {postMessage: (message: unknown) => w.__p2n.push(message)}}}
-    window.addEventListener('conciv:rebind', (event) => w.__rebinds.push((event as CustomEvent).detail))
+    window.__p2n = []
+    window.__rebinds = []
+    window.webkit = {messageHandlers: {concivBridge: {postMessage: (message) => window.__p2n.push(message)}}}
+    window.addEventListener('conciv:rebind', (event) => window.__rebinds.push(event.detail))
   })
   await page.goto(`${kit.base}/native`, {waitUntil: 'domcontentloaded'})
-  await page.waitForFunction(() => typeof (window as unknown as {__concivNative?: unknown}).__concivNative === 'object')
+  await page.waitForFunction(() => typeof window.__concivNative === 'object')
   return page
 }
 
-const outbound = (page: Page): Promise<P2n[]> => page.evaluate(() => (window as unknown as {__p2n: P2n[]}).__p2n)
+const outbound = async (page: Page): Promise<PageToNativeMessage[]> => {
+  const raw = await page.evaluate(() => window.__p2n)
+  return raw.flatMap((entry) => {
+    const parsed = PageToNativeSchema.safeParse(entry)
+    return parsed.success ? [parsed.data] : []
+  })
+}
 
-const countType = (messages: P2n[], type: string): number => messages.filter((message) => message.type === type).length
+const countType = (messages: PageToNativeMessage[], type: PageToNativeMessage['type']): number =>
+  messages.filter((message) => message.type === type).length
 
-function callNative(page: Page, method: string, arg: Record<string, unknown>): Promise<void> {
-  return page.evaluate(
-    ([m, a]) => (window as unknown as {__concivNative: Record<string, (x: unknown) => void>}).__concivNative[m]?.(a),
-    [method, arg] as const,
-  )
+const findByType = <Type extends PageToNativeMessage['type']>(
+  messages: PageToNativeMessage[],
+  type: Type,
+): Extract<PageToNativeMessage, {type: Type}> | undefined =>
+  messages.find((message): message is Extract<PageToNativeMessage, {type: Type}> => message.type === type)
+
+function callNative(page: Page, method: NativeMethod, arg: Record<string, unknown>): Promise<void> {
+  return page.evaluate((call) => window.__concivNative?.[call.method]?.(call.arg), {method, arg})
 }
 
 const composerBox = (page: Page) => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const grabButton = (page: Page) => page.getByRole('button', {name: 'Select an element from the page'})
+const panel = (page: Page) => page.getByRole('dialog', {name: 'conciv chat agent'})
+const grabPreview = (page: Page) => panel(page).locator('img')
 
 describe('native widget bridge', () => {
   it('installs the native bridge, re-posts readiness, and settles after the first acked call and handshake', async () => {
@@ -118,11 +130,12 @@ describe('native widget bridge', () => {
     await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
     await grabButton(page).click()
     await expect.poll(() => outbound(page).then((m) => countType(m, 'grab.pick')), {timeout: 30_000}).toBe(1)
-    const pick = (await outbound(page)).find((message) => message.type === 'grab.pick')
+    const pick = findByType(await outbound(page), 'grab.pick')
     expect(pick?.requestId).toBeTruthy()
 
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
-    await expect.poll(() => page.locator(`img[src="${IMAGE_DATA_URL}"]`).count(), {timeout: 30_000}).toBe(1)
+    await expect.poll(() => panel(page).getByText('PaymentCardCell').isVisible(), {timeout: 30_000}).toBe(true)
+    expect(await grabPreview(page).getAttribute('src')).toBe(IMAGE_DATA_URL)
     await expect
       .poll(() => rpcBodies.some((body) => body.includes('[view]') && body.includes('PaymentCardCell')), {
         timeout: 30_000,
@@ -141,7 +154,8 @@ describe('native widget bridge', () => {
 
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: 'not-the-pending-one', grab: NEUTRAL_GRAB})
     await new Promise((resolve) => setTimeout(resolve, 500))
-    expect(await page.locator(`img[src="${IMAGE_DATA_URL}"]`).count()).toBe(0)
+    expect(await panel(page).getByText('PaymentCardCell').count()).toBe(0)
+    expect(await grabPreview(page).count()).toBe(0)
     await page.close()
   })
 
@@ -158,7 +172,7 @@ describe('native widget bridge', () => {
     const page = await openNative()
     await callNative(page, 'handshake', {v: 1, seq: 1, apiBase: 'http://127.0.0.1:1/moved', token: null})
     await expect
-      .poll(() => page.evaluate(() => (window as unknown as {__rebinds: {apiBase?: string}[]}).__rebinds), {
+      .poll(() => page.evaluate(() => window.__rebinds), {
         timeout: 30_000,
       })
       .toEqual([{apiBase: 'http://127.0.0.1:1/moved'}])
