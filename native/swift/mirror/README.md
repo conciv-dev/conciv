@@ -27,6 +27,23 @@ Then reference the product from your target:
 .product(name: "ConcivWidget", package: "conciv-swift")
 ```
 
+## Usage
+
+The whole integration is one line, from a scene delegate or a SwiftUI `App` init:
+
+```swift
+import ConcivWidget
+
+ConcivWidget.attach()
+```
+
+`attach()` finds the key window itself (immediately, or on the next window/scene activation, so it is
+safe before `makeKeyAndVisible` or from `App.init`), reads the core api base from the `CONCIV_URL`
+environment variable, and falls back to pairing-file auto-discovery when it is unset. It compiles to a
+no-op in Release builds, so nothing conciv reaches TestFlight or the App Store. For hosts that supply
+an explicit endpoint or own their window lifecycle, `attach(apiBase:)` and `attach(to:apiBase:)` take
+the base (and window) directly.
+
 ## Versioning: Swift SDK, bridge protocol, and npm
 
 The Swift SDK ships in **lockstep with the npm packages**. Every `@conciv/*` package shares one version

@@ -16,7 +16,7 @@ your dev core, so the native side stays thin and everything routes through the s
 <Steps>
 <Step>
 
-### Add the Swift package
+### Add the package
 
 Add the SwiftPM mirror to your app. In `Package.swift`:
 
@@ -37,55 +37,53 @@ In an Xcode project, use File > Add Package Dependencies and paste the same URL.
 </Step>
 <Step>
 
-### Attach from your scene delegate
+### Attach
 
-Call `ConcivWidget.attach` once you have a key window. It reads the endpoint from the
-`CONCIV_URL` environment variable, and falls back to auto-discovery when the variable is unset.
+Call `ConcivWidget.attach()` once, from your scene delegate or your SwiftUI `App` init. It finds the
+key window itself, reads the core endpoint from the `CONCIV_URL` environment variable, and falls back
+to auto-discovery when the variable is unset. That one line is the whole integration.
 
 ```swift title="SceneDelegate.swift"
-import UIKit
 import ConcivWidget
 
-final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
-  var window: UIWindow?
+// inside scene(_:willConnectTo:options:)
+ConcivWidget.attach()
+```
 
-  func scene(
-    _ scene: UIScene,
-    willConnectTo session: UISceneSession,
-    options connectionOptions: UIScene.ConnectionOptions
-  ) {
-    guard let windowScene = scene as? UIWindowScene else { return }
-    let window = UIWindow(windowScene: windowScene)
-    window.rootViewController = RootViewController()
-    window.makeKeyAndVisible()
-    self.window = window
+```swift title="App.swift"
+import ConcivWidget
 
-    #if DEBUG
-    if let override = ProcessInfo.processInfo.environment["CONCIV_URL"],
-       let apiBase = URL(string: override) {
-      ConcivWidget.attach(to: window, apiBase: apiBase)
-    } else {
-      ConcivWidget.attach(to: window)
-    }
-    #endif
+@main
+struct MyApp: App {
+  init() {
+    ConcivWidget.attach()
   }
+  // ...
 }
 ```
 
+Then run your dev server (a vite host with the conciv plugin) and launch the app in the simulator. The
+transparent overlay and launcher appear over your own UI.
+
 <Callout type="warn">
-  `attach` is compiled only inside `#if DEBUG`. In a Release build it is a no-op: no overlay, no
-  WebView, no dev-core URL is ever instantiated. That is deliberate, so nothing conciv ships to
-  TestFlight or the App Store, but it also means a Release build shows nothing. Run a Debug build to
+  `attach()` compiles to a no-op in a Release build: no overlay, no WebView, no dev-core URL. Nothing
+  conciv ships to TestFlight or the App Store, so a Release build shows nothing. Run a Debug build to
   see the widget.
 </Callout>
 
 </Step>
-<Step>
+</Steps>
 
-### Enable the extension in your dev core
+## Let the agent build and run the app
 
-The widget is served by a running conciv dev core, so a vite host with the plugin has to be up. Turn
-on the `ios` extension and point it at your native project:
+Everything above is all you need to see the widget. Optionally, give the agent the `ios` extension so
+it can build, launch, and screenshot the app for you (via the `ios.build` and `ios.run` tools) instead
+of you rebuilding by hand.
+
+<Accordions type="single">
+<Accordion title="Configure the ios extension">
+
+Point the extension at your native project in the vite config:
 
 ```ts title="vite.config.ts"
 import {fileURLToPath} from 'node:url'
@@ -109,31 +107,23 @@ export default defineConfig({
 ```
 
 Pin `port` so the simulator always loads the same URL across restarts. From the agent panel you then
-run `ios.build` and `ios.run` to build and launch the app in the simulator.
+run `ios.build` and `ios.run` to build and launch the app. Without this block the widget still works;
+only the `ios.*` build tools are unavailable.
 
-</Step>
-<Step>
+</Accordion>
+</Accordions>
 
-### Point the app at the core
+## How the app finds the core
 
-The endpoint is the core API base with no `/native` suffix, for example `http://127.0.0.1:4599`. The
-SDK appends `/native` itself, so a URL that already ends in `/native` would load `/native/native`.
+`attach()` needs the core's API base, the origin with no `/native` suffix (for example
+`http://127.0.0.1:4599`). The SDK appends `/native` itself. It resolves the base in this order:
 
-`ios.run` injects it for you as `SIMCTL_CHILD_CONCIV_URL`, which the app reads as `CONCIV_URL`. To
-launch by hand, pass it the same way:
-
-```bash
-SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 \
-  xcrun simctl launch booted dev.conciv.YourApp
-```
-
-If you leave `CONCIV_URL` unset, the SDK discovers the core from the pairing file a freshly started
-dev core writes at `~/.conciv/dev-endpoint.json`. The simulator shares the host filesystem, so this is
-the zero-config path. The file only exists while a dev core is running, so restart the core if
-discovery finds nothing.
-
-</Step>
-</Steps>
+- `CONCIV_URL` if set. `ios.run` injects it for you as `SIMCTL_CHILD_CONCIV_URL`, which the app reads
+  as `CONCIV_URL`; to launch by hand pass `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl
+  launch booted dev.conciv.YourApp`.
+- Otherwise the pairing file a freshly started dev core writes at `~/.conciv/dev-endpoint.json`. The
+  simulator shares the host filesystem, so this is the zero-config path. The file only exists while a
+  dev core is running, so restart the core if discovery finds nothing.
 
 ## What it looks like
 

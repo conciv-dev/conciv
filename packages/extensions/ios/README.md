@@ -10,6 +10,24 @@ Early alpha: the iOS SDK is on the `0.0.x` line. The bridge protocol and the pub
 API change without notice while `0.0.x` lasts, and the iOS simulator is the only
 supported target today.
 
+## SDK entry point
+
+The whole consumer integration is one line, from a scene delegate or a SwiftUI `App`
+init:
+
+```swift
+import ConcivWidget
+
+ConcivWidget.attach()
+```
+
+`attach()` resolves the key window itself (immediately, or on the next window/scene
+activation, so it is safe before `makeKeyAndVisible` or from `App.init`), reads the core
+api base from `CONCIV_URL`, and falls back to pairing-file auto-discovery when that is
+unset or malformed. It is a no-op in Release builds. Advanced overloads
+(`attach(apiBase:)`, `attach(to:apiBase:)`) exist for hosts that supply an explicit
+endpoint or own their window lifecycle.
+
 ## Versioning and the Swift SDK
 
 This package is the bridge-protocol peer of the native Swift SDK (`ConcivWidget`,
@@ -42,12 +60,12 @@ already accepts a `port`; the ios dev loop pins `4599` by default. With a pinned
 port, restarting the same core needs no change in the app.
 
 `ios.run` injects the core API base into the launched app as
-`SIMCTL_CHILD_CONCIV_URL` (the app reads it as `CONCIV_URL`). The value is the core's
-own apiBase with no `/native` suffix: the Swift SDK's `ConcivWidget.attach(apiBase:)`
-appends the `/native` route itself, so passing a URL that already ends in `/native`
-would load `/native/native`. It carries the `/t/<token>` prefix when the core minted an
-access token. Set `concivUrl` in the ios extension config to override it, again as the
-API base without `/native`.
+`SIMCTL_CHILD_CONCIV_URL` (the app reads it as `CONCIV_URL`, which `ConcivWidget.attach()`
+picks up). The value is the core's own apiBase with no `/native` suffix: the SDK appends
+the `/native` route itself, so passing a URL that already ends in `/native` would load
+`/native/native`. It carries the `/t/<token>` prefix when the core minted an access
+token. Set `concivUrl` in the ios extension config to override it, again as the API base
+without `/native`.
 
 ## Pairing file and discovery
 
