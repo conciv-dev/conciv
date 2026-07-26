@@ -147,13 +147,16 @@ final class OverlayController: NSObject {
   // Same-core port drift (06 D8): the core moved to a new base, so re-point the document
   // plane at it. Recompute the page URL and re-pin the bridge origin to the new base (the
   // base carries the /t/<token> prefix when token-scoped), then reload so the document is
-  // served from, and its bridge messages are accepted at, the live origin. The reload's
-  // hello drives a fresh handshake; a different core (fresh mount) rebuilds this controller.
+  // served from, and its bridge messages are accepted at, the live origin. Restage the
+  // stored handshake at the new base before the load so the reload's bridge.ready resend
+  // carries the live base, not the dead one; the fresh hello then re-confirms it. A
+  // different core (fresh mount) rebuilds this controller.
   func rebind(to endpoint: ConcivEndpoint) {
     stopRecoveryLoop()
     self.endpoint = endpoint
     self.pageUrl = OverlayController.makePageURL(for: endpoint.apiBase, launcher: launcher)
     bridge.rebind(to: endpoint.apiBase)
+    bridge.restageHandshake(apiBase: endpoint.apiBase.absoluteString, token: endpoint.token)
     hideRepairPrompt()
     webView.load(URLRequest(url: pageUrl))
   }

@@ -159,6 +159,19 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     enqueue(.handshake(message))
   }
 
+  // A reload re-points the document at a new base (same-core port drift, see
+  // OverlayController.rebind). The reloaded page posts bridge.ready before handshake.hello,
+  // so enterReady's resendCriticalState would otherwise replay the pre-drift handshake and
+  // bounce the page's RPC/SSE onto the dead base for one round-trip before the fresh hello
+  // corrects it. Restage the stored handshake at the live base under a new epoch BEFORE the
+  // load: the ready-time resend then carries the live base, and every prior-epoch queued or
+  // unacked call is superseded so a lost-ack retry can never resurrect the dead base.
+  func restageHandshake(apiBase: String, token: String?) {
+    handshakeEpoch += 1
+    dropSupersededEpochs()
+    latestHandshake = Handshake(v: negotiatedVersion, seq: takeSeq(), apiBase: apiBase, token: token)
+  }
+
   // A new handshake supersedes the previous one: drop every queued/unacked call minted
   // under an earlier epoch so a lost-ack retry cannot re-send a dead endpoint base after
   // the new hello (02 M-A5; the rebind-ordering hazard). The latest capability is

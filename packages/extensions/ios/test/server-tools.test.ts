@@ -10,6 +10,7 @@ import {
   runRun,
   runScreenshot,
   type IosToolContext,
+  type RunFailure,
 } from '../src/server/tools.js'
 import type {IosConfig} from '../src/shared/meta.js'
 import type {RunOptions, RunResult, SimctlRunner} from '../src/server/simctl-runner.js'
@@ -280,6 +281,22 @@ describe('ios.build packaging steps are checked', () => {
       {when: (call) => call.cmd === 'codesign', reply: {code: 1, stderr: 'codesign: bundle format unrecognized'}},
     ])
   })
+
+  it('fails the build when Info.plist is missing rather than reporting an uninstallable bundle', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-ios-'))
+    mkdirSync(join(root, 'Sources'), {recursive: true})
+    writeFileSync(join(root, 'Sources', 'App.swift'), 'let value = 1\n')
+    const {runner, calls} = fakeRunner([
+      {when: (call) => has(call, '--show-sdk-path'), reply: {stdout: '/sdk/iphonesimulator'}},
+    ])
+    const result = await runBuild({config: swiftcConfig(root), runner, cwd: root}, {})
+    if ('error' in result) throw new Error('unexpected not-configured')
+    expect(result.ok).toBe(false)
+    expect(result.appPath).toBeNull()
+    expect(result.diagnostics.some((d) => d.message.includes('Info.plist not found'))).toBe(true)
+    expect(calls.some((call) => call.cmd === 'plutil')).toBe(false)
+    expect(calls.some((call) => call.cmd === 'codesign')).toBe(false)
+  })
 })
 
 describe('ios.run install and device selection', () => {
@@ -290,7 +307,7 @@ describe('ios.run install and device selection', () => {
       {when: (call) => has(call, 'install'), reply: {code: 1, stderr: 'Failed to install the requested application'}},
     ])
     const result = await runRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => undefined}, {})
-    if ('error' in result) throw new Error('unexpected not-configured')
+    if (!('stage' in result)) throw new Error('expected a run failure')
     expect(result.ok).toBe(false)
     expect(calls.some((call) => has(call, 'terminate'))).toBe(false)
     expect(calls.some((call) => has(call, 'launch'))).toBe(false)
@@ -316,6 +333,67 @@ describe('ios.run install and device selection', () => {
     if ('error' in result) throw new Error('unexpected not-configured')
     expect(result.udid).toBe('GOOD-UDID')
     expect(calls.some((call) => has(call, 'install') && has(call, 'GOOD-UDID'))).toBe(true)
+  })
+})
+
+async function failedRun(ctx: IosToolContext): Promise<RunFailure> {
+  const result = await runRun(ctx, {})
+  if (!('stage' in result)) throw new Error('expected a run failure')
+  return result
+}
+
+describe('ios.run failure stages are diagnosable', () => {
+  it('reports the resolve-simulator stage when no simulator matches', async () => {
+    const root = tempSwiftProject()
+    const {runner} = fakeRunner([{when: (call) => has(call, 'list'), reply: {stdout: JSON.stringify({devices: {}})}}])
+    const result = await failedRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => undefined})
+    expect(result.stage).toBe('resolve-simulator')
+    expect(result.error).toContain('iPhone 17 Pro')
+  })
+
+  it('reports the boot stage with the command stderr when bootstatus fails', async () => {
+    const root = tempSwiftProject()
+    const {runner} = fakeRunner([
+      {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
+      {when: (call) => has(call, 'bootstatus'), reply: {code: 1, stderr: 'Unable to boot device in current state'}},
+    ])
+    const result = await failedRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => undefined})
+    expect(result.stage).toBe('boot')
+    expect(result.error).toContain('Unable to boot device')
+  })
+
+  it('reports the artifact stage when no built .app resolves', async () => {
+    const {runner} = fakeRunner([
+      {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
+      {when: (call) => has(call, '-showBuildSettings'), reply: {code: 1, stderr: 'no build settings'}},
+    ])
+    const result = await failedRun({config: xcodebuildConfig(), runner, cwd: '/tmp', nativeUrl: () => undefined})
+    expect(result.stage).toBe('artifact')
+    expect(result.error).toContain('ios.build')
+  })
+
+  it('reports the install stage with the command stderr and stops before terminate/launch', async () => {
+    const root = tempSwiftProject()
+    const {runner, calls} = fakeRunner([
+      {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
+      {when: (call) => has(call, 'install'), reply: {code: 1, stderr: 'Failed to install the requested application'}},
+    ])
+    const result = await failedRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => undefined})
+    expect(result.stage).toBe('install')
+    expect(result.error).toContain('Failed to install')
+    expect(calls.some((call) => has(call, 'terminate'))).toBe(false)
+    expect(calls.some((call) => has(call, 'launch'))).toBe(false)
+  })
+
+  it('reports the launch stage with the command stderr when simctl launch fails', async () => {
+    const root = tempSwiftProject()
+    const {runner} = fakeRunner([
+      {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
+      {when: (call) => has(call, 'launch'), reply: {code: 1, stderr: 'The request to launch was denied'}},
+    ])
+    const result = await failedRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => undefined})
+    expect(result.stage).toBe('launch')
+    expect(result.error).toContain('launch was denied')
   })
 })
 

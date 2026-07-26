@@ -19,7 +19,11 @@ export type BuildOutput =
   | NotConfigured
   | {ok: boolean; appPath: string | null; durationMs: number; diagnostics: Diagnostic[]}
 
-export type RunOutput = NotConfigured | {ok: boolean; udid: string; bundleId: string; pid?: number}
+export type RunStage = 'resolve-simulator' | 'boot' | 'artifact' | 'install' | 'launch'
+
+export type RunFailure = {ok: false; udid: string; bundleId: string; stage: RunStage; error: string}
+
+export type RunOutput = NotConfigured | {ok: true; udid: string; bundleId: string; pid?: number} | RunFailure
 
 export type LogsOutput = NotConfigured | {ok: boolean; lines: string[]}
 
@@ -174,28 +178,43 @@ async function buildSwiftc(ctx: IosToolContext, config: IosConfig, clean: boolea
   if (compile.code !== 0) return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics}
 
   const infoPlist = join(root, 'Info.plist')
-  if (existsSync(infoPlist)) {
-    const plist = await ctx.runner.run('plutil', ['-convert', 'binary1', '-o', join(appDir, 'Info.plist'), infoPlist], {
-      cwd: root,
-      env,
-    })
-    if (plist.code !== 0) {
-      return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics: packagingDiagnostics(plist)}
+  if (!existsSync(infoPlist)) {
+    return {
+      ok: false,
+      appPath: null,
+      durationMs: Date.now() - started,
+      diagnostics: [...diagnostics, missingPlistDiagnostic(infoPlist)],
     }
-    writeFileSync(join(appDir, 'PkgInfo'), 'APPL????')
-    const signed = await ctx.runner.run('codesign', ['--force', '--sign', '-', '--timestamp=none', appDir], {
-      cwd: root,
-      env,
-    })
-    if (signed.code !== 0) {
-      return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics: packagingDiagnostics(signed)}
-    }
+  }
+  const plist = await ctx.runner.run('plutil', ['-convert', 'binary1', '-o', join(appDir, 'Info.plist'), infoPlist], {
+    cwd: root,
+    env,
+  })
+  if (plist.code !== 0) {
+    return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics: packagingDiagnostics(plist)}
+  }
+  writeFileSync(join(appDir, 'PkgInfo'), 'APPL????')
+  const signed = await ctx.runner.run('codesign', ['--force', '--sign', '-', '--timestamp=none', appDir], {
+    cwd: root,
+    env,
+  })
+  if (signed.code !== 0) {
+    return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics: packagingDiagnostics(signed)}
   }
   return {ok: true, appPath: appDir, durationMs: Date.now() - started, diagnostics}
 }
 
 function packagingDiagnostics(result: RunResult): Diagnostic[] {
   return parseDiagnostics(`${stdoutText(result)}\n${result.stderr}`)
+}
+
+function missingPlistDiagnostic(path: string): Diagnostic {
+  return {
+    file: path,
+    line: 0,
+    severity: 'error',
+    message: 'Info.plist not found: swiftc mode cannot assemble an installable .app bundle without it',
+  }
 }
 
 export async function runBuild(ctx: IosToolContext, input: {clean?: boolean}): Promise<BuildOutput> {
@@ -259,24 +278,49 @@ function parseLaunchedPid(result: RunResult): number | undefined {
   return pid ? Number(pid) : undefined
 }
 
+function runFailure(udid: string, bundleId: string, stage: RunStage, error: string): RunFailure {
+  return {ok: false, udid, bundleId, stage, error}
+}
+
+function commandError(result: RunResult, fallback: string): string {
+  const stderr = result.stderr.trim()
+  if (stderr.length > 0) return stderr
+  const stdout = stdoutText(result).trim()
+  return stdout.length > 0 ? stdout : fallback
+}
+
 export async function runRun(ctx: IosToolContext, input: {autoshow?: boolean}): Promise<RunOutput> {
   if (!ctx.config) return NOT_CONFIGURED
   const config = ctx.config
   const udid = await resolveUdid(ctx, config)
-  if (!udid) return {ok: false, udid: '', bundleId: config.bundleId}
+  if (!udid) {
+    return runFailure('', config.bundleId, 'resolve-simulator', `no available simulator matching ${config.simulator}`)
+  }
   const env = developerEnv(config)
   await ctx.runner.run('xcrun', ['simctl', 'boot', udid], {env})
   const booted = await ctx.runner.run('xcrun', ['simctl', 'bootstatus', udid, '-b'], {env})
-  if (booted.code !== 0) return {ok: false, udid, bundleId: config.bundleId}
+  if (booted.code !== 0)
+    return runFailure(udid, config.bundleId, 'boot', commandError(booted, 'simulator failed to boot'))
   const appPath = await resolveAppPath(ctx, config)
-  if (!appPath) return {ok: false, udid, bundleId: config.bundleId}
+  if (!appPath) {
+    return runFailure(udid, config.bundleId, 'artifact', 'no built .app found: run ios.build before ios.run')
+  }
   const installed = await ctx.runner.run('xcrun', ['simctl', 'install', udid, appPath], {env})
-  if (installed.code !== 0) return {ok: false, udid, bundleId: config.bundleId}
+  if (installed.code !== 0) {
+    return runFailure(udid, config.bundleId, 'install', commandError(installed, `simctl install failed for ${appPath}`))
+  }
   await ctx.runner.run('xcrun', ['simctl', 'terminate', udid, config.bundleId], {env})
   const launched = await ctx.runner.run('xcrun', ['simctl', 'launch', udid, config.bundleId], {
     env: launchEnv(config, ctx, input.autoshow ?? false),
   })
-  if (launched.code !== 0) return {ok: false, udid, bundleId: config.bundleId}
+  if (launched.code !== 0) {
+    return runFailure(
+      udid,
+      config.bundleId,
+      'launch',
+      commandError(launched, `simctl launch failed for ${config.bundleId}`),
+    )
+  }
   const pid = parseLaunchedPid(launched)
   return pid === undefined
     ? {ok: true, udid, bundleId: config.bundleId}

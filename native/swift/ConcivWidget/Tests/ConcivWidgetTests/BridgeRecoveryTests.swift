@@ -83,6 +83,27 @@ final class BridgeRecoveryTests: XCTestCase {
     )
   }
 
+  // The reload's bridge.ready arrives before the fresh hello: without a restage the
+  // resendCriticalState replay would dispatch the pre-drift base to the new page and bounce
+  // its RPC/SSE onto the dead core. Restaging before the load must make that resend carry
+  // the live base only.
+  func testRestagedHandshakeResendsLiveBaseAfterReload() {
+    let (bridge, webView) = makeBridge()
+    bridge.setNegotiatedVersion(1)
+    bridge.receive(.bridgeReady(BridgeReady(v: 1)))
+    bridge.sendHandshake(apiBase: "http://127.0.0.1:4599", token: nil)
+
+    bridge.restageHandshake(apiBase: "http://127.0.0.1:5200", token: nil)
+    bridge.webView(webView, didStartProvisionalNavigation: nil)
+    bridge.receive(.bridgeReady(BridgeReady(v: 1)))
+
+    XCTAssertEqual(
+      handshakes(in: bridge).map { $0.apiBase },
+      ["http://127.0.0.1:5200"],
+      "the reload's ready resend must carry the restaged live base, never the dead pre-drift base"
+    )
+  }
+
   // MARK: navigation-failure classification (item 3)
 
   func testConnectionRefusalTriggersConnectionLost() {
@@ -148,6 +169,26 @@ final class BridgeRecoveryTests: XCTestCase {
     ConcivWidget.detach()
     ConcivWidget.discoverDriver = ConcivDiscoveryRuntime.discover
     super.tearDown()
+  }
+
+  // Wiring guard: rebind itself must restage the handshake at the rediscovered base so the
+  // reload's bridge.ready resend never replays the dead pre-drift base (see restageHandshake).
+  func testRebindRestagesHandshakeAtTheRediscoveredBase() {
+    let (overlay, _) = makeOverlay(pid: 100, port: 59990)
+    guard let bridge = overlay.webView.navigationDelegate as? BridgeHandler else {
+      return XCTFail("expected the bridge to be the navigation delegate")
+    }
+    let moved = ConcivEndpoint(apiBase: url("http://127.0.0.1:59991"), token: nil, pid: 100)
+
+    overlay.rebind(to: moved)
+    bridge.receive(.bridgeReady(BridgeReady(v: 1)))
+
+    XCTAssertEqual(
+      handshakes(in: bridge).map { $0.apiBase },
+      ["http://127.0.0.1:59991"],
+      "rebind must restage the handshake so the reload's ready resends the live base"
+    )
+    overlay.detach()
   }
 
   func testConnectionLossRediscoversAndRebindsSameCore() {
