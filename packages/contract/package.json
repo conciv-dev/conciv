@@ -1,6 +1,6 @@
 {
   "name": "@conciv/contract",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). conciv oRPC contract: procedures and zod schemas shared by core and clients.",
   "keywords": [
     "conciv",

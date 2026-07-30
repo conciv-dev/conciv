@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-recorder",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The recorder built-in extension: rrweb session recording of the host page with a server-side sliding window, agent tools returning a distilled action log plus keyframes, and a replay panel.",
   "keywords": [
     "conciv",

@@ -1,5 +1,17 @@
 # @conciv/ui-kit-chat
 
+## 0.0.16
+
+### Patch Changes
+
+- [#141](https://github.com/conciv-dev/conciv/pull/141) [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4) Thanks [@omridevk](https://github.com/omridevk)! - Render code and tool output through SolidCodeBlock instead of hand-rolled pre blocks, with explicit languages: plaintext for payloads, TypeScript for eval'd page code, and ANSI for terminal streams so command colors render natively.
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
+  - @conciv/protocol@0.0.16
+  - @conciv/solid-diffs@0.0.16
+  - @conciv/solid-streamdown@0.0.16
+  - @conciv/ui-kit-system@0.0.16
+
 ## 0.0.15
 
 ### Patch Changes

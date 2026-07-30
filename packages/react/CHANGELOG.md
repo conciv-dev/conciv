@@ -1,5 +1,12 @@
 # @conciv/react
 
+## 0.0.16
+
+### Patch Changes
+
+- Updated dependencies [[`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`1019e21`](https://github.com/conciv-dev/conciv/commit/1019e213fc99b84d0931a50cffa2cd602fd31e0e), [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4), [`7627eba`](https://github.com/conciv-dev/conciv/commit/7627eba4ffaddd6e85289724759f41d75b5c2e7b)]:
+  - @conciv/embed@0.0.16
+
 ## 0.0.15
 
 ### Patch Changes

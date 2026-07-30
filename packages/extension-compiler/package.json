@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-compiler",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The vite build plumbing for conciv extension code: client/server splitting, Solid TSX compilation, JSX source stamping, and the extensions virtual module.",
   "keywords": [
     "conciv",

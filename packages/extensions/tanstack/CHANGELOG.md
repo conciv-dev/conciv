@@ -1,4 +1,4 @@
-# @conciv/extension-recorder
+# @conciv/extension-tanstack
 
 ## 0.0.16
 
@@ -10,28 +10,12 @@
 
   Next.js support (Turbopack and `next dev --webpack`, current GA line): `withConciv` generates an app-local `.conciv/extensions-client.gen.tsx` entry (knitwork static imports, idempotent) and wires it to the widget via `turbopack.resolveAlias`/webpack alias as `@conciv/app-extensions`; `register()` runs a chokidar watcher that regenerates the entry live on add/remove. The widget stays lazy (dynamic imports behind the dev-only guard), the engine register entrypoints are stubbed out of Next edge-runtime compilations, and the generated client module now threads a resolved dedupe entry so dist-mode consumers boot. The tanstack extension renders a mount-time composer chip as its client-active surface and degrades gracefully in apps without a TanStack router.
 
-- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4)]:
+- [#126](https://github.com/conciv-dev/conciv/pull/126) [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b) Thanks [@omridevk](https://github.com/omridevk)! - Add the TanStack Router/Start inspection adapter: agent tools for router state, route tree, loader data, query cache, navigation/invalidation, dev-server build errors, route manifest, and server-function traces, each with a render card, all reading through a FrameworkAdapter contract object.
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
   - @conciv/extension@0.0.16
   - @conciv/protocol@0.0.16
   - @conciv/ui-kit-chat@0.0.16
+  - @conciv/ui-kit-chat-tools@0.0.16
+  - @conciv/page@0.0.16
   - @conciv/ui-kit-system@0.0.16
-
-## 0.0.15
-
-### Patch Changes
-
-- Updated dependencies []:
-  - @conciv/extension@0.0.15
-  - @conciv/ui-kit-chat@0.0.15
-  - @conciv/ui-kit-system@0.0.15
-
-## 0.0.14
-
-### Patch Changes
-
-- [#86](https://github.com/conciv-dev/conciv/pull/86) [`32deb1c`](https://github.com/conciv-dev/conciv/commit/32deb1c4e25e5a8a8fb8ac1d0b089347433cc483) Thanks [@omridevk](https://github.com/omridevk)! - New recorder extension: always-on rrweb session recording of the host page with agent tools (recording_start/stop/pull) that return a distilled action log plus keyframe screenshots, and a replay panel with send-to-agent.
-
-- Updated dependencies [[`8370fd9`](https://github.com/conciv-dev/conciv/commit/8370fd9ef1156296236d4a9e22f5453ca817d9f3), [`757071f`](https://github.com/conciv-dev/conciv/commit/757071f4bf394cb591b4f45c5bee9fc63c9afb41)]:
-  - @conciv/extension@0.0.14
-  - @conciv/ui-kit-chat@0.0.14
-  - @conciv/ui-kit-system@0.0.14
