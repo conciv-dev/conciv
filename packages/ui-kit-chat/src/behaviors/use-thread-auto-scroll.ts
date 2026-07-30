@@ -4,6 +4,11 @@ export const POSITION_HOLD_MS = 350
 const SCROLL_HOLD_ATTR = 'data-scroll-hold'
 const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'])
 
+function isAtBottomNow(div: HTMLElement): boolean {
+  const withinTolerance = Math.abs(div.scrollHeight - div.scrollTop - div.clientHeight) <= 1
+  return withinTolerance || div.scrollHeight <= div.clientHeight
+}
+
 export type ThreadAutoScroll = {
   isAtBottom: Accessor<boolean>
   scrollToBottom: (behavior?: ScrollBehavior) => void
@@ -54,16 +59,49 @@ export function useThreadAutoScroll(
     }
   }
 
+  const rememberPosition = (div: HTMLElement) => {
+    last.scrollTop = div.scrollTop
+    last.scrollHeight = div.scrollHeight
+  }
+
+  const publishAtBottom = (nowAtBottom: boolean) => {
+    if (nowAtBottom) gesture.userDetached = false
+    if (nowAtBottom === isAtBottom()) return
+    setIsAtBottom(nowAtBottom)
+  }
+
   const recomputeIsAtBottom = () => {
     const div = viewport()
     if (!div) return
-    const wasAtBottom = isAtBottom()
-    const newIsAtBottom =
-      Math.abs(div.scrollHeight - div.scrollTop - div.clientHeight) <= 1 || div.scrollHeight <= div.clientHeight
-    if (newIsAtBottom) gesture.userDetached = false
-    if (newIsAtBottom !== wasAtBottom) setIsAtBottom(newIsAtBottom)
-    last.scrollTop = div.scrollTop
-    last.scrollHeight = div.scrollHeight
+    publishAtBottom(isAtBottomNow(div))
+    rememberPosition(div)
+  }
+
+  const isMomentumScroll = (div: HTMLElement, nowAtBottom: boolean) =>
+    !gesture.touching && !nowAtBottom && last.scrollTop < div.scrollTop
+
+  const isDraggedUpward = (div: HTMLElement) => last.scrollTop > div.scrollTop && last.scrollHeight === div.scrollHeight
+
+  const clearIntentForScroll = (div: HTMLElement, nowAtBottom: boolean) => {
+    if (nowAtBottom) {
+      if (div.scrollHeight > div.clientHeight + 1) intent.behavior = null
+      return
+    }
+    if (isDraggedUpward(div)) intent.behavior = null
+  }
+
+  const settleAtBottom = (nowAtBottom: boolean) => {
+    if (!nowAtBottom && intent.behavior !== null) return
+    publishAtBottom(nowAtBottom)
+  }
+
+  const applyScroll = (div: HTMLElement) => {
+    const nowAtBottom = isAtBottomNow(div)
+    if (!isMomentumScroll(div, nowAtBottom)) {
+      clearIntentForScroll(div, nowAtBottom)
+      settleAtBottom(nowAtBottom)
+    }
+    rememberPosition(div)
   }
 
   const handleScroll = () => {
@@ -73,43 +111,41 @@ export function useThreadAutoScroll(
       recomputeIsAtBottom()
       return
     }
-    const wasAtBottom = isAtBottom()
-    const newIsAtBottom =
-      Math.abs(div.scrollHeight - div.scrollTop - div.clientHeight) <= 1 || div.scrollHeight <= div.clientHeight
-    if (newIsAtBottom) gesture.userDetached = false
-    const isInFlightDownwardScroll = !gesture.touching && !newIsAtBottom && last.scrollTop < div.scrollTop
-    if (!isInFlightDownwardScroll) {
-      if (newIsAtBottom) {
-        if (div.scrollHeight > div.clientHeight + 1) intent.behavior = null
-      } else if (last.scrollTop > div.scrollTop && last.scrollHeight === div.scrollHeight) {
-        intent.behavior = null
-      }
-      const shouldUpdate = newIsAtBottom || intent.behavior === null
-      if (shouldUpdate && newIsAtBottom !== wasAtBottom) setIsAtBottom(newIsAtBottom)
-    }
-    last.scrollTop = div.scrollTop
-    last.scrollHeight = div.scrollHeight
+    applyScroll(div)
   }
+
+  const hasStreamingFollow = () => opts.autoScroll() && isAtBottom() && !gesture.userDetached
+
+  const releasesTopAnchor = (behavior: ScrollBehavior | null) =>
+    behavior !== null && (opts.hasActiveTopAnchor?.() ?? false)
+
+  const applyResize = () => {
+    const behavior = intent.behavior
+    if (releasesTopAnchor(behavior)) {
+      intent.behavior = null
+      return
+    }
+    if (behavior) {
+      pinToBottom(behavior)
+      return
+    }
+    if (hasStreamingFollow()) pinToBottom('instant')
+  }
+
+  const hasNewDimensions = (div: HTMLElement) =>
+    div.scrollHeight !== last.observedScrollHeight || div.clientHeight !== last.observedClientHeight
 
   const handleResize = () => {
     const div = viewport()
     if (!div) return
-    const {scrollHeight, clientHeight} = div
-    if (scrollHeight === last.observedScrollHeight && clientHeight === last.observedClientHeight) return
-    last.observedScrollHeight = scrollHeight
-    last.observedClientHeight = clientHeight
+    if (!hasNewDimensions(div)) return
+    last.observedScrollHeight = div.scrollHeight
+    last.observedClientHeight = div.clientHeight
     if (holding()) {
       recomputeIsAtBottom()
       return
     }
-    const behavior = intent.behavior
-    if (behavior && opts.hasActiveTopAnchor?.()) {
-      intent.behavior = null
-    } else if (behavior) {
-      pinToBottom(behavior)
-    } else if (opts.autoScroll() && isAtBottom() && !gesture.userDetached) {
-      pinToBottom('instant')
-    }
+    applyResize()
     handleScroll()
   }
 
@@ -123,6 +159,9 @@ export function useThreadAutoScroll(
     const detach = () => {
       intent.behavior = null
       gesture.userDetached = true
+    }
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) detach()
     }
     const handleKeyDown = (event: KeyboardEvent) => {
       if (SCROLL_KEYS.has(event.key)) detach()
@@ -140,7 +179,7 @@ export function useThreadAutoScroll(
     const passive = {passive: true}
     div.addEventListener('scroll', handleScroll)
     div.addEventListener('pointerdown', cancelIntent)
-    div.addEventListener('wheel', detach, passive)
+    div.addEventListener('wheel', handleWheel, passive)
     div.addEventListener('touchstart', handleTouchStart, passive)
     div.addEventListener('touchmove', detach, passive)
     div.addEventListener('touchend', handleTouchEnd, passive)
@@ -159,7 +198,7 @@ export function useThreadAutoScroll(
     onCleanup(() => {
       div.removeEventListener('scroll', handleScroll)
       div.removeEventListener('pointerdown', cancelIntent)
-      div.removeEventListener('wheel', detach)
+      div.removeEventListener('wheel', handleWheel)
       div.removeEventListener('touchstart', handleTouchStart)
       div.removeEventListener('touchmove', detach)
       div.removeEventListener('touchend', handleTouchEnd)

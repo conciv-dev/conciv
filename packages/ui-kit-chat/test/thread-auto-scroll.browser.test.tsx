@@ -79,13 +79,33 @@ describe('thread auto-scroll user detach', () => {
     expect(harness.scroll.isAtBottom()).toBe(false)
   })
 
-  it('stops re-pinning to the bottom after a wheel gesture', async () => {
+  it('stops re-pinning to the bottom after an upward wheel gesture', async () => {
     const harness = await streamedWhilePinned()
     harness.viewport.dispatchEvent(new WheelEvent('wheel', {bubbles: true, deltaY: -40}))
     const detachedAt = harness.viewport.scrollTop
     harness.stream()
     await settle()
     expect(harness.viewport.scrollTop).toBe(detachedAt)
+  })
+
+  it('keeps following the stream through a downward wheel gesture at the bottom', async () => {
+    const harness = await streamedWhilePinned()
+    harness.viewport.dispatchEvent(new WheelEvent('wheel', {bubbles: true, deltaY: 40}))
+    harness.stream()
+    await settle()
+    expect(distanceFromBottom(harness.viewport)).toBeLessThanOrEqual(1)
+    expect(harness.scroll.isAtBottom()).toBe(true)
+  })
+
+  it('follows the stream again when a touch drag ends at the bottom', async () => {
+    const harness = await streamedWhilePinned()
+    touch(harness.viewport, 'touchstart')
+    touch(harness.viewport, 'touchmove')
+    touch(harness.viewport, 'touchend')
+    harness.stream()
+    await settle()
+    expect(distanceFromBottom(harness.viewport)).toBeLessThanOrEqual(1)
+    expect(harness.scroll.isAtBottom()).toBe(true)
   })
 
   it('stops re-pinning to the bottom after a scroll key', async () => {
