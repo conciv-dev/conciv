@@ -1,35 +1,22 @@
-import {spawn, type ChildProcess} from 'node:child_process'
 import {afterAll, beforeAll, describe, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, devices, type Browser} from 'playwright'
+import {startWranglerDev, type WranglerDev} from './wrangler-dev'
 
 const SITE_PORT = 8788
 const INSPECTOR_PORT = 9788
 const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
-let site: ChildProcess
+let site: WranglerDev
 let browser: Browser
 
 beforeAll(async () => {
-  site = spawn(
-    'pnpm',
-    ['exec', 'wrangler', 'dev', '--port', String(SITE_PORT), '--inspector-port', String(INSPECTOR_PORT)],
-    {cwd: import.meta.dirname + '/..'},
-  )
-  await new Promise<void>((resolve, reject) => {
-    const output: string[] = []
-    site.stdout?.on('data', (chunk: Buffer) => {
-      output.push(String(chunk))
-      if (String(chunk).includes('Ready')) resolve()
-    })
-    site.stderr?.on('data', (chunk: Buffer) => output.push(String(chunk)))
-    site.on('exit', () => reject(new Error(`wrangler dev exited:\n${output.join('')}`)))
-  })
+  site = await startWranglerDev({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
   browser = await chromium.launch()
 }, 120_000)
 
 afterAll(async () => {
   await browser?.close()
-  site?.kill()
+  await site?.stop()
 })
 
 describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
