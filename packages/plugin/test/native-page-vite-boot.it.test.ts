@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {createServer, type ViteDevServer} from 'vite'
@@ -29,7 +29,8 @@ describe('dev core booted through the vite plugin', () => {
   it('serves /native because configureServer threads the native page dir into the engine', async () => {
     const root = mkdtempSync(join(tmpdir(), 'conciv-vite-root-'))
     const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-vite-native-'))
-    state.dirs = [root, nativeDir]
+    const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-vite-endpoint-'))
+    state.dirs = [root, nativeDir, endpointDir]
     writeFileSync(join(nativeDir, NATIVE_BUNDLE), 'globalThis.__conciv_native_loaded = true')
 
     const server = await createServer({
@@ -40,7 +41,7 @@ describe('dev core booted through the vite plugin', () => {
       plugins: [
         makeViteHook(
           {enabled: true, stateRoot: root, widget: false},
-          {serverExtensions: [], clientEntries: [], nativePageDir: nativeDir},
+          {serverExtensions: [], clientEntries: [], nativePageDir: nativeDir, devEndpointDir: endpointDir},
         ),
       ],
     })
@@ -53,5 +54,6 @@ describe('dev core booted through the vite plugin', () => {
     const html = await page.text()
     expect(html).toContain('data-conciv-native-root')
     expect(html).toContain(`native/${NATIVE_BUNDLE}`)
+    expect(existsSync(join(endpointDir, 'dev-endpoint.json'))).toBe(true)
   }, 30_000)
 })
