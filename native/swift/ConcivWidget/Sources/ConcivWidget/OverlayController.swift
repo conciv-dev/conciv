@@ -82,7 +82,11 @@ final class OverlayController: NSObject {
   private var selectionInFlight = false
   private var repairPrompt: UIView?
   private var repairLabel: UILabel?
-  private var autoShowPending = ConcivDiscovery.shouldAutoShow()
+  // The one-shot --autoshow open, and the two facts that must both be true before it can
+  // reach a listener. Settable so the simulator tests drive it without a process env.
+  var autoShowPending = ConcivDiscovery.shouldAutoShow()
+  private var handshakeSettled = false
+  private var panelStateReported = false
 
   init(hostWindow: UIWindow, endpoint: ConcivEndpoint, launcher: ConcivLauncher) {
     self.hostWindow = hostWindow
@@ -409,26 +413,36 @@ final class OverlayController: NSObject {
       return
     }
     bridge.setNegotiatedVersion(agreed)
+    handshakeSettled = true
     sendHandshake()
     sendGrabCapability()
     autoShowIfRequested()
   }
 
-  // ios.run --autoshow drives the panel open once the handshake has settled. The open is
-  // enqueued after the handshake so it reaches the page in order, and the one-shot flag
-  // keeps a later reload or rebind from re-opening a panel the user has since closed.
+  // ios.run --autoshow drives the panel open once. The page turns `open` into a
+  // conciv:open-panel window event, and the widget shell only starts listening for it
+  // when its root mounts: the page posts handshake.hello from its bridge client before
+  // that, so an open sent straight back from the hello lands with nobody listening and
+  // is lost with no retry (the one-shot is already spent). host.panelToggled is the
+  // page's own report of its panel state, which only the mounted shell sends, so it is
+  // the proof that the listener exists. Wait for both it and the settled handshake, then
+  // open exactly once; a panel already open when the page reports in spends the one-shot
+  // without a redundant open.
   private func autoShowIfRequested() {
-    guard autoShowPending, !panelOpen else { return }
+    guard autoShowPending, handshakeSettled, panelStateReported else { return }
     autoShowPending = false
+    guard !panelOpen else { return }
     bridge.sendOpen()
   }
 
   private func handlePanelToggled(_ toggled: HostPanelToggled) {
     panelOpen = toggled.open
+    panelStateReported = true
     let incoming = toggled.mascotRect.map { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height) }
     container.state = applyPanelToggle(container.state, open: toggled.open, mascotRect: incoming)
     fab.isHidden = fabHidden(launcher: launcher, panelOpen: toggled.open)
     fab.accessibilityLabel = toggled.open ? "Minimize conciv chat" : "Open conciv chat"
+    autoShowIfRequested()
   }
 
   // MARK: pick mode
@@ -534,6 +548,20 @@ final class OverlayController: NSObject {
     view === container || view.isDescendant(of: container)
   }
 
+  private func resolvePickedView(at point: CGPoint, root: UIView?) -> UIView? {
+    root.flatMap { pickSearch(from: $0, at: point, isExcluded: { [weak self] in self?.isExcluded($0) ?? false }) }
+  }
+
+  // One selection rule for both the highlight and the pick itself: an anchor under the
+  // point wins, then an anchor sitting inside the view the hit-test walk resolved (a tap
+  // in a SwiftUI row's padding lands on the cell, whose anchored content is what the
+  // author opted in).
+  private func resolveAnchor(at point: CGPoint, picked: UIView?) -> ConcivAnchorRegistry.Anchor? {
+    if let anchor = ConcivAnchorRegistry.shared.hitTest(point) { return anchor }
+    guard let picked else { return nil }
+    return pickAnchorSnap(from: picked, registry: ConcivAnchorRegistry.shared)
+  }
+
   private func performPick(at point: CGPoint) {
     guard !selectionInFlight else { return }
     let requestId = pickRequestId
@@ -541,8 +569,10 @@ final class OverlayController: NSObject {
       resolvePick(requestId: requestId, grab: nil, reason: .failed)
       return
     }
-    if let anchor = ConcivAnchorRegistry.shared.hitTest(point) {
-      let image = Capture.renderHostView(hostRootView() ?? container, cropTo: anchor.frame)
+    let root = hostRootView()
+    let picked = resolvePickedView(at: point, root: root)
+    if let anchor = resolveAnchor(at: point, picked: picked) {
+      let image = Capture.renderHostView(root ?? container, cropTo: anchor.frame)
       guard let preview = Capture.imagePreview(image) else {
         resolvePick(requestId: requestId, grab: nil, reason: .failed)
         return
@@ -551,9 +581,7 @@ final class OverlayController: NSObject {
       flashThenResolve(requestId: requestId, grab: grab, frame: anchor.frame)
       return
     }
-    guard let root = hostRootView(),
-          let picked = pickSearch(from: root, at: point, isExcluded: { [weak self] in self?.isExcluded($0) ?? false })
-    else {
+    guard let picked else {
       resolvePick(requestId: requestId, grab: nil, reason: .failed)
       return
     }
@@ -589,10 +617,10 @@ final class OverlayController: NSObject {
   }
 
   private func updateHighlight(at point: CGPoint) {
-    guard let root = hostRootView() else { return }
-    let anchorFrame = ConcivAnchorRegistry.shared.hitTest(point)?.frame
-    let viewFrame = pickSearch(from: root, at: point, isExcluded: { [weak self] in self?.isExcluded($0) ?? false }).map { pickFrameInWindow($0) }
-    guard let frame = anchorFrame ?? viewFrame else { return }
+    let root = hostRootView()
+    let picked = resolvePickedView(at: point, root: root)
+    let anchorFrame = resolveAnchor(at: point, picked: picked)?.frame
+    guard let frame = anchorFrame ?? picked.map({ pickFrameInWindow($0) }) else { return }
     let box = highlight ?? makeHighlight()
     box.frame = frame
   }
