@@ -5,6 +5,7 @@ import {codex} from '../src/codex/index.js'
 
 const connectContext = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
   cwd: '/tmp',
+  stateDir: '/tmp/.conciv/codex',
   concivSessionId: SessionId.parse('conciv_codex_test'),
   harnessSessionId: null,
   resume: false,

@@ -80,6 +80,7 @@ const state = {home: ''}
 
 const context = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
   cwd: PROJECT,
+  stateDir: '/tmp/.conciv/pi',
   concivSessionId: SessionId.parse('conciv_pi_test'),
   harnessSessionId: null,
   resume: false,
