@@ -59,9 +59,12 @@ jobs:
           run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id') || true
           url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=ci-test-timings" --jq '.artifacts[0].archive_download_url') || true
           if [ -n "$url" ] && [ "$url" != "null" ]; then
-            curl -sL --max-filesize 1048576 -H "Authorization: Bearer ${GH_TOKEN}" -o ci-test-timings.zip "$url"
+            curl -fsL --max-filesize 1048576 -H "Authorization: Bearer ${GH_TOKEN}" -o ci-test-timings.zip "$url" || true
             unzip -p ci-test-timings.zip ci-test-timings.json > ci-test-timings.json || true
           fi
+          # An empty baseline is worse than none: without -f curl writes the HTTP error
+          # body, unzip then leaves a 0-byte file, and JSON.parse('') fails the plan job.
+          [ -s ci-test-timings.json ] || rm -f ci-test-timings.json
       - id: plan
         run: node packages/vitest-config/src/ci-shards.ts plan --timings ci-test-timings.json
 
@@ -308,9 +311,58 @@ jobs:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
 
-  e2e:
-    name: e2e consumer apps
+  # The e2e consumer apps are sharded by the same timing-driven LPT planner as the
+  # package suites, just with a different pool (every e2e/* and apps/* package that
+  # actually declares a test:e2e script) and bigger bins: each e2e shard repays
+  # ~3 minutes of setup (install, chromium, dependency builds), so packing them too
+  # thin costs more than it saves. Weights come from the e2e-test-timings artifact
+  # published by the last main push; because playwright json only reports per-case
+  # durations (server boot is invisible to it) the planner also charges every app a
+  # fixed overhead, otherwise a 15-app pool would look nearly free and collapse to
+  # the minimum two shards.
+  plan-e2e:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # download the e2e-test-timings artifact from the latest main run
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      # Same artifact-poisoning posture as the package planner: artifacts are NOT
+      # ref-scoped, so resolve the baseline from the latest successful main-push run
+      # of this workflow instead of a repo-wide latest-by-name lookup, and bound the
+      # download (scheduling data only, a few KB).
+      - name: Fetch e2e shard timings baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id') || true
+          url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=e2e-test-timings" --jq '.artifacts[0].archive_download_url') || true
+          if [ -n "$url" ] && [ "$url" != "null" ]; then
+            curl -fsL --max-filesize 1048576 -H "Authorization: Bearer ${GH_TOKEN}" -o e2e-test-timings.zip "$url" || true
+            unzip -p e2e-test-timings.zip e2e-test-timings.json > e2e-test-timings.json || true
+          fi
+          # An empty baseline is worse than none: without -f curl writes the HTTP error
+          # body, unzip then leaves a 0-byte file, and JSON.parse('') fails the plan job.
+          [ -s e2e-test-timings.json ] || rm -f e2e-test-timings.json
+      - id: plan
+        run: node packages/vitest-config/src/ci-shards.ts plan --task e2e --timings e2e-test-timings.json
+
+  e2e:
+    name: e2e consumer apps (${{ matrix.shard }})
+    needs: plan-e2e
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan-e2e.outputs.matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -323,8 +375,9 @@ jobs:
           node-version: 22
           cache: pnpm
       # Same cache-poisoning posture as the build job: exact lockfile-hash key for
-      # browsers, turbo cache scoped within a lockfile generation. The extra
-      # turbo restore-key falls back to the build job's cache so package builds
+      # browsers, turbo cache scoped within a lockfile generation. matrix.shard is in
+      # the save key so the shards don't race to save the same immutable key. The
+      # extra turbo restore-key falls back to the build job's cache so package builds
       # (embed, plugin, ...) restore instead of rebuilding.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -333,7 +386,7 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo
-          key: turbo-e2e-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          key: turbo-e2e-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ matrix.shard }}-${{ github.sha }}-${{ github.run_attempt }}
           restore-keys: |
             turbo-e2e-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
             turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
@@ -345,13 +398,75 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       # Real harness CLIs for the e2e/harnesses turn matrix: unauthenticated turns must
       # surface a visible error (proving spawn + stream + error plumbing), never hang or
-      # vanish. pi is a stub harness and never spawns its binary.
+      # vanish. pi is a stub harness and never spawns its binary. Only the shard that
+      # owns conciv-e2e-harnesses pays for this install.
       - run: sfw npm install -g @anthropic-ai/claude-code@2.1.212 @openai/codex@0.144.5 @google/gemini-cli@0.51.0 opencode-ai@1.18.3
-      # Consumer-shape suites: dist widget in 8 CLI-scaffolded apps (root e2e/).
-      # test:e2e is cache:false in turbo.json, so every run exercises the real servers.
-      - run: pnpm e2e
-      - run: pnpm exec conciv-ci-summary --details --title 'E2e consumer apps' e2e apps/site
+        if: matrix.harnesses
+      # Consumer-shape suites: dist widget in CLI-scaffolded apps (root e2e/) plus the
+      # site's own e2e suite. test:e2e is cache:false in turbo.json, so every run
+      # exercises the real servers; --concurrency=1 keeps a shard's apps serial because
+      # they bind fixed ports.
+      - run: pnpm exec conciv-ci-shards run --task e2e
+        env:
+          SHARD_PACKAGES: ${{ matrix.packages }}
+      # Collapse this shard's playwright/vitest reports into ONE file and upload it by
+      # literal name; never glob e2e/** here, the upload action would walk every
+      # node_modules in the workspace.
+      - run: pnpm exec conciv-ci-shards report --task e2e --output "e2e-report-${SHARD_NAME}.json"
         if: always()
+        env:
+          SHARD_NAME: ${{ matrix.shard }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: e2e-results-${{ matrix.shard }}
+          path: e2e-report-${{ matrix.shard }}.json
+
+  # One merged e2e table for the whole shard matrix, and on main pushes the
+  # e2e-test-timings baseline the next plan-e2e run feeds on (push-only, so a PR
+  # can never become the baseline). Runs from source with no install.
+  e2e-summary:
+    name: e2e summary
+    needs: e2e
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: e2e-results-*
+          merge-multiple: true
+          path: e2e-reports
+      - run: node packages/vitest-config/src/ci-shards.ts summarize --task e2e e2e-reports
+        if: github.event_name == 'pull_request'
+      - run: node packages/vitest-config/src/ci-shards.ts summarize --task e2e e2e-reports --timings e2e-test-timings.json
+        if: github.event_name == 'push'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'push'
+        with:
+          name: e2e-test-timings
+          path: e2e-test-timings.json
+
+  # The branch ruleset requires the exact context "e2e consumer apps"; this gate
+  # keeps that context alive over the planner + shard matrix, like build-gate does
+  # for "build + test". always() so a failed or cancelled dependency fails the gate
+  # instead of skipping it.
+  e2e-gate:
+    name: e2e consumer apps
+    needs: [plan-e2e, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          test "${{ needs.plan-e2e.result }}" = "success"
+          test "${{ needs.e2e.result }}" = "success"
 
   zizmor:
     runs-on: ubuntu-latest
