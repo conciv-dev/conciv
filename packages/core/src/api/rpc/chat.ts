@@ -5,6 +5,15 @@ import {SESSION_ATTACHED} from '../../chat/adopt.js'
 import {pendingUiCallIds, sessionForApproval} from '../../chat/gate.js'
 import {os, type RpcDeps} from './mount.js'
 
+type SendErrors = {BUSY: () => Error; SESSION_ATTACHED: () => Error}
+
+function sendFailure(error: unknown, errors: SendErrors): unknown {
+  if (!(error instanceof Error)) return error
+  if (error.message === SESSION_BUSY) return errors.BUSY()
+  if (error.message === SESSION_ATTACHED) return errors.SESSION_ATTACHED()
+  return error
+}
+
 export function chatRouter(deps: RpcDeps) {
   const chat = deps.chat
   return {
@@ -14,14 +23,10 @@ export function chatRouter(deps: RpcDeps) {
     send: os.chat.send.handler(async ({input, errors}) => {
       const verdict = deps.beforeSend(input.sessionId, {force: input.force ?? false})
       if (!verdict.allow) throw errors.EXTERNAL_ACTIVE({message: verdict.message})
-      try {
-        const runId = await deps.send(input.sessionId, input.content ?? input.text ?? '')
-        return {ok: true as const, runId}
-      } catch (error) {
-        if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
-        if (error instanceof Error && error.message === SESSION_ATTACHED) throw errors.SESSION_ATTACHED()
-        throw error
-      }
+      const runId = await deps.send(input.sessionId, input.content ?? input.text ?? '').catch((error: unknown) => {
+        throw sendFailure(error, errors)
+      })
+      return {ok: true as const, runId}
     }),
     permissionDecision: os.chat.permissionDecision.handler(({input}) => {
       const sessionId = sessionForApproval(chat.db, input.approvalId)
