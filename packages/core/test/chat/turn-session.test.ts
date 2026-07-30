@@ -72,8 +72,9 @@ describe('turn session helpers', () => {
   })
 
   it('resumableToken trusts the token when the harness has no transcript history', async () => {
-    const stub = getHarness('pi')
-    if (!stub) throw new Error('pi stub not registered')
+    const stub = getHarness('gemini-cli')
+    if (!stub) throw new Error('gemini-cli harness not registered')
+    expect(stub.history).toBeUndefined()
     expect(await resumableToken(testDb(), stub, '/app', 'tok-1')).toBe('tok-1')
   })
 })

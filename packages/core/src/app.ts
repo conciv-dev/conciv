@@ -216,6 +216,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     transcriptExists: transcriptPath
       ? async (token) => existsSync(transcriptPath(await cwdForToken(token), token, opts.claudeHome))
       : undefined,
+    transcriptStat: history
+      ? async (token) => history.transcriptStat(await cwdForToken(token), token, opts.claudeHome)
+      : undefined,
     transcriptMessages: history
       ? async (token) => history.messages(await cwdForToken(token), token, opts.claudeHome)
       : undefined,

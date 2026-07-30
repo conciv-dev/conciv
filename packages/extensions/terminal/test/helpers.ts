@@ -6,22 +6,38 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveApp} from '@conciv/harness-testkit'
 import {makeExtRpcClient, type ServerApi, type ServerHarness, type ServerSessions} from '@conciv/extension'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
+import type {SendVerdict} from '@conciv/protocol/chat-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
 
 export type FakeSessions = ServerSessions & {
   tokens: Map<string, string>
   busy: Set<string>
+  changes: {count: number}
   fireChatTurn: (sessionId: string) => void
+  fireMcpRequest: (sessionId: string) => void
+  runSend: (sessionId: string, force: boolean) => SendVerdict
 }
 
 function fakeSessions(): FakeSessions {
   const tokens = new Map<string, string>()
   const busy = new Set<string>()
-  const listeners: ((sessionId: string) => void)[] = []
+  const changes = {count: 0}
+  const turnListeners: ((sessionId: string) => void)[] = []
+  const mcpListeners: ((sessionId: string) => void)[] = []
+  const vetoes: ((sessionId: string, opts: {force: boolean}) => SendVerdict)[] = []
   return {
     tokens,
     busy,
-    fireChatTurn: (sessionId) => listeners.forEach((listener) => listener(sessionId)),
+    changes,
+    fireChatTurn: (sessionId) => turnListeners.forEach((listener) => listener(sessionId)),
+    fireMcpRequest: (sessionId) => mcpListeners.forEach((listener) => listener(sessionId)),
+    runSend: (sessionId, force) => {
+      for (const veto of vetoes) {
+        const verdict = veto(sessionId, {force})
+        if (!verdict.allow) return verdict
+      }
+      return {allow: true}
+    },
     resumeToken: (sessionId) => Promise.resolve(tokens.get(sessionId) ?? null),
     recordToken: (sessionId, token) => {
       tokens.set(sessionId, token)
@@ -29,10 +45,18 @@ function fakeSessions(): FakeSessions {
     },
     chatBusy: (sessionId) => busy.has(sessionId),
     model: () => Promise.resolve(null),
-    onChatTurn: (listener) => listeners.push(listener),
-    beforeSend: () => () => {},
-    onMcpRequest: () => () => {},
-    notifyChange: () => {},
+    onChatTurn: (listener) => turnListeners.push(listener),
+    beforeSend: (check) => {
+      vetoes.push(check)
+      return () => {}
+    },
+    onMcpRequest: (listener) => {
+      mcpListeners.push(listener)
+      return () => {}
+    },
+    notifyChange: () => {
+      changes.count += 1
+    },
   }
 }
 

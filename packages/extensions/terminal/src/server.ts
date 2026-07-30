@@ -4,14 +4,19 @@ import {upgradeWebSocket} from '@hono/node-server'
 import {eventIterator, os} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, subscriptionIterator, type ServerApi} from '@conciv/extension'
-import {isSessionId, type SessionId, type UIMessage} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, isSessionId, type SessionId, type UIMessage} from '@conciv/protocol/chat-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
 import {makeTranscriptMirror} from '@conciv/session-presence/transcript-mirror'
+import type {PresenceSnapshot} from '@conciv/session-presence/presence'
 import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
+import {createTerminalPresence, type TerminalPresence} from './server/presence.js'
 import {
+  HookBodySchema,
+  PresenceSnapshotSchema,
   TERMINAL_NAME,
   TerminalOpenRequestSchema,
   TerminalStateSchema,
+  type HookBody,
   type TerminalOpenRequest,
   type TerminalState,
 } from './shared/protocol.js'
@@ -21,6 +26,7 @@ const ESCAPE_KEY = String.fromCharCode(27)
 type TerminalRuntime = {
   server: ServerApi<Record<never, never>>
   tty: ReturnType<typeof createTtySessions>
+  presence: TerminalPresence
 }
 
 type TerminalEnv = {Variables: {terminal: TerminalRuntime}}
@@ -144,54 +150,91 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
           signal,
         )
       }),
+    presence: terminalOs
+      .input(SessionInputSchema)
+      .output(eventIterator(PresenceSnapshotSchema))
+      .handler(async function* ({input, signal}) {
+        const {presence} = runtime
+        yield presence.snapshot(input.sessionId)
+        yield* subscriptionIterator<PresenceSnapshot>((emit) => presence.subscribe(input.sessionId, emit), signal)
+      }),
+    launched: terminalOs
+      .input(SessionInputSchema)
+      .output(PresenceSnapshotSchema)
+      .handler(({input}) => {
+        runtime.presence.report(input.sessionId, {kind: 'launched'})
+        return runtime.presence.snapshot(input.sessionId)
+      }),
   })
 }
 
 export type TerminalRouter = ReturnType<typeof makeTerminalRouter>
 
-const app = new Hono<TerminalEnv>().get(
-  '/tty',
-  upgradeWebSocket((c) => {
-    const {tty} = c.var.terminal
-    const url = new URL(c.req.url)
-    const sessionOf = () => tty.get(url.searchParams.get('session') ?? '')
-    let detach: (() => void) | null = null
-    return {
-      onOpen(_event, ws) {
-        const session = sessionOf()
-        if (!session) {
-          ws.close(4404, 'no terminal for session')
-          return
-        }
-        const cols = Number(url.searchParams.get('cols'))
-        const rows = Number(url.searchParams.get('rows'))
-        if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1) session.resize(cols, rows)
-        const sink: TtySink = {
-          data: (chunk) => ws.send(Buffer.from(chunk)),
-          control: (frame) => ws.send(JSON.stringify(frame)),
-        }
-        detach = session.attach(sink)
-      },
-      onMessage(event) {
-        const session = sessionOf()
-        if (!session) return
-        const text = typeof event.data === 'string' ? event.data : ''
-        if (text && !applyControl(session, parseControl(text), text)) session.write(text)
-      },
-      onClose() {
-        detach?.()
-        detach = null
-      },
-    }
-  }),
-)
+async function applyHookReport(runtime: TerminalRuntime, sessionId: SessionId, body: HookBody): Promise<void> {
+  const {presence, server} = runtime
+  presence.report(sessionId, {kind: 'hook', event: body.hook_event_name})
+  if (body.hook_event_name !== 'SessionStart') return
+  const known = await server.sessions.resumeToken(sessionId)
+  if (known !== body.session_id) await server.sessions.recordToken(sessionId, body.session_id)
+}
+
+const app = new Hono<TerminalEnv>()
+  .post('/hook', async (c) => {
+    const runtime = c.var.terminal
+    const sessionId = c.req.header(CONCIV_SESSION_HEADER)
+    if (!isSessionId(sessionId)) return c.json({})
+    const parsed = HookBodySchema.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return c.json({error: 'invalid hook payload'}, 400)
+    await applyHookReport(runtime, sessionId, parsed.data)
+    return c.json({})
+  })
+  .get(
+    '/tty',
+    upgradeWebSocket((c) => {
+      const {tty} = c.var.terminal
+      const url = new URL(c.req.url)
+      const sessionOf = () => tty.get(url.searchParams.get('session') ?? '')
+      let detach: (() => void) | null = null
+      return {
+        onOpen(_event, ws) {
+          const session = sessionOf()
+          if (!session) {
+            ws.close(4404, 'no terminal for session')
+            return
+          }
+          const cols = Number(url.searchParams.get('cols'))
+          const rows = Number(url.searchParams.get('rows'))
+          if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1) session.resize(cols, rows)
+          const sink: TtySink = {
+            data: (chunk) => ws.send(Buffer.from(chunk)),
+            control: (frame) => ws.send(JSON.stringify(frame)),
+          }
+          detach = session.attach(sink)
+        },
+        onMessage(event) {
+          const session = sessionOf()
+          if (!session) return
+          const text = typeof event.data === 'string' ? event.data : ''
+          if (text && !applyControl(session, parseControl(text), text)) session.write(text)
+        },
+        onClose() {
+          detach?.()
+          detach = null
+        },
+      }
+    }),
+  )
 
 export type TerminalAppType = typeof app
 
 export default defineExtension({name: TERMINAL_NAME}).server((server) => {
   const tty = createTtySessions()
   server.sessions.onChatTurn((sessionId) => tty.close(sessionId))
-  const runtime: TerminalRuntime = {server, tty}
+  const presence = createTerminalPresence(server)
+  server.sessions.onMcpRequest((sessionId) => presence.report(sessionId, {kind: 'mcp'}))
+  server.sessions.beforeSend((sessionId, {force}) => presence.sendVerdict(sessionId, force))
+  presence.start()
+  const runtime: TerminalRuntime = {server, tty, presence}
   return {
     context: {},
     router: makeTerminalRouter(runtime),
@@ -201,7 +244,10 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
         await next()
       })
       .route('/', app),
-    dispose: () => tty.shutdown(),
+    dispose: () => {
+      presence.dispose()
+      tty.shutdown()
+    },
   }
 })
 
