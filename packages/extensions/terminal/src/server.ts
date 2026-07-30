@@ -6,8 +6,8 @@ import {z} from 'zod'
 import {defineExtension, subscriptionIterator, type ServerApi} from '@conciv/extension'
 import {isSessionId, type SessionId, type UIMessage} from '@conciv/protocol/chat-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
+import {makeTranscriptMirror} from '@conciv/session-presence/transcript-mirror'
 import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
-import {watchMirror} from './server/mirror.js'
 import {
   TERMINAL_NAME,
   TerminalOpenRequestSchema,
@@ -96,6 +96,9 @@ const noTty = {NO_TTY: {message: 'harness has no terminal mode'}}
 const busy = {BUSY: {message: 'session busy'}}
 
 function makeTerminalRouter(runtime: TerminalRuntime) {
+  const mirror = makeTranscriptMirror({
+    messages: (token) => runtime.server.harness.transcriptMessages?.(token) ?? Promise.resolve([]),
+  })
   return terminalOs.router({
     open: terminalOs
       .errors({...noTty, ...busy})
@@ -135,10 +138,9 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .handler(async function* ({input, signal, errors}) {
         const {server} = runtime
         const token = await server.sessions.resumeToken(input.sessionId)
-        const transcriptMessages = server.harness.transcriptMessages
-        if (!token || !transcriptMessages) throw errors.NO_TRANSCRIPT()
+        if (!token || !server.harness.transcriptMessages) throw errors.NO_TRANSCRIPT()
         yield* subscriptionIterator<{messages: UIMessage[]}>(
-          (emit) => watchMirror({messages: () => transcriptMessages(token)}, emit),
+          (emit) => mirror.subscribe(token, (messages) => emit({messages})),
           signal,
         )
       }),
