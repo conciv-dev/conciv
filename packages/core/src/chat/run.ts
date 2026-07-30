@@ -27,7 +27,7 @@ import {
   type ConcivDb,
 } from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
-import {createSession, sessionById, toModelMessages} from './session.js'
+import {createSession, sessionById, toModelMessages, transcriptCwdFor} from './session.js'
 import {mergedMessages, runIdFor, transcriptMessages} from './attach.js'
 import {makeRunGate, withConcivGate, withConcivSandbox} from './gate.js'
 import {harnessDebug, logError} from '../lib/debug.js'
@@ -45,6 +45,7 @@ export const resumeTokenFor = async (db: ConcivDb, id: string): Promise<string |
   (await sessionById(db, id))?.harnessSessionId ?? null
 
 export async function resumableToken(
+  db: ConcivDb,
   harness: HarnessAdapter,
   cwd: string,
   token: string | null,
@@ -53,7 +54,8 @@ export async function resumableToken(
   if (!token) return null
   const history = harness.history
   if (!history) return token
-  return (await history.transcriptStat(cwd, token, home)) ? token : null
+  const transcriptCwd = (await transcriptCwdFor(db, token)) ?? cwd
+  return (await history.transcriptStat(transcriptCwd, token, home)) ? token : null
 }
 
 export const recordMintedToken = (db: ConcivDb, id: string, token: string): Promise<unknown> =>
@@ -108,7 +110,7 @@ async function buildRunStream(
   abort: AbortController,
 ): Promise<AsyncIterable<StreamChunk>> {
   const resumeSessionId = deps.harness.capabilities.resume
-    ? await resumableToken(deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome)
+    ? await resumableToken(deps.db, deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome)
     : null
   const gate = makeRunGate({sessionId, processor, db: deps.db, changes: deps.changes, risky: deps.risky})
   const config = deps.harness.chatConfig({
@@ -271,7 +273,7 @@ async function contextOccupancyFor(deps: ChatDeps, sessionId: string): Promise<n
   if (!history?.contextTokens || !history.transcriptPath) return undefined
   const record = await sessionById(deps.db, sessionId)
   if (!record?.harnessSessionId) return undefined
-  const path = history.transcriptPath(deps.cwd, record.harnessSessionId, deps.claudeHome)
+  const path = history.transcriptPath(record.transcriptCwd ?? deps.cwd, record.harnessSessionId, deps.claudeHome)
   if (!existsSync(path)) return undefined
   return history.contextTokens(readFileSync(path, 'utf8'))
 }
@@ -354,7 +356,13 @@ async function composeUserContent(db: ConcivDb, sessionId: string, content: User
 async function historyFor(deps: ChatDeps, sessionId: string): Promise<ChatMessage[]> {
   const resumable =
     deps.harness.capabilities.resume &&
-    (await resumableToken(deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome)) !== null
+    (await resumableToken(
+      deps.db,
+      deps.harness,
+      deps.cwd,
+      await resumeTokenFor(deps.db, sessionId),
+      deps.claudeHome,
+    )) !== null
   if (resumable) return []
   return (await mergedMessages(deps, sessionId)).map((message) => ChatMessageSchema.parse(message))
 }

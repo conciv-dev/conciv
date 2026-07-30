@@ -149,7 +149,7 @@ describe('terminal extension routes', () => {
 
   it('injects a resumed marker when reopening an existing transcript', async () => {
     const {harness} = recordingHarness()
-    const dedicated = await startTerminalServer({...harness, transcriptExists: () => true})
+    const dedicated = await startTerminalServer({...harness, transcriptExists: () => Promise.resolve(true)})
     try {
       dedicated.sessions.tokens.set(sessionId, randomUUID())
       expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})

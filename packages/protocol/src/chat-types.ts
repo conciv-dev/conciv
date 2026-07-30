@@ -86,6 +86,9 @@ export const SessionRecordSchema = z.object({
   model: z.string().nullable(),
   usage: UsageSnapshotSchema.nullable(),
   cwd: z.string(),
+  transcriptCwd: z.string().nullable().default(null),
+  attachedPid: z.number().int().nullable().default(null),
+  attachedAt: z.number().int().nullable().default(null),
   createdAt: z.number(),
   updatedAt: z.number(),
 })

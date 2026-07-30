@@ -47,6 +47,7 @@ describe('turn session helpers', () => {
   })
 
   it('resumableToken drops a token whose transcript does not exist (terminal pre-mints ids before claude writes one)', async () => {
+    const db = testDb()
     const dir = mkdtempSync(join(tmpdir(), 'conciv-resume-'))
     writeFileSync(join(dir, 'tok-live.jsonl'), '')
     const claude = requireClaude()
@@ -64,15 +65,15 @@ describe('turn session helpers', () => {
         list: () => Promise.resolve([]),
       },
     }
-    expect(await resumableToken(harness, dir, 'tok-live')).toBe('tok-live')
-    expect(await resumableToken(harness, dir, 'tok-ghost')).toBeNull()
-    expect(await resumableToken(harness, dir, null)).toBeNull()
+    expect(await resumableToken(db, harness, dir, 'tok-live')).toBe('tok-live')
+    expect(await resumableToken(db, harness, dir, 'tok-ghost')).toBeNull()
+    expect(await resumableToken(db, harness, dir, null)).toBeNull()
     rmSync(dir, {recursive: true, force: true})
   })
 
   it('resumableToken trusts the token when the harness has no transcript history', async () => {
     const stub = getHarness('pi')
     if (!stub) throw new Error('pi stub not registered')
-    expect(await resumableToken(stub, '/app', 'tok-1')).toBe('tok-1')
+    expect(await resumableToken(testDb(), stub, '/app', 'tok-1')).toBe('tok-1')
   })
 })

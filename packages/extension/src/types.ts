@@ -66,7 +66,7 @@ export type ServerHarness = {
   id: string
   ttyCommand?: (ctx: HarnessConnectContext) => TtyCommand
   release?: (sessionId: string) => void
-  transcriptExists?: (token: string) => boolean
+  transcriptExists?: (token: string) => Promise<boolean>
   transcriptMessages?: (token: string) => Promise<UIMessage[]>
 }
 

@@ -1,19 +1,26 @@
-import {integer, sqliteTable, text} from 'drizzle-orm/sqlite-core'
+import {integer, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
 import type {NavigationEntry} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
-export const sessions = sqliteTable('sessions', {
-  id: text('id').primaryKey(),
-  harnessSessionId: text('harness_session_id'),
-  harnessKind: text('harness_kind').notNull(),
-  origin: text('origin', {enum: ['chat', 'agent', 'external']}).notNull(),
-  title: text('title'),
-  model: text('model'),
-  usage: text('usage', {mode: 'json'}).$type<UsageSnapshot>(),
-  cwd: text('cwd').notNull(),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-})
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    id: text('id').primaryKey(),
+    harnessSessionId: text('harness_session_id'),
+    harnessKind: text('harness_kind').notNull(),
+    origin: text('origin', {enum: ['chat', 'agent', 'external']}).notNull(),
+    title: text('title'),
+    model: text('model'),
+    usage: text('usage', {mode: 'json'}).$type<UsageSnapshot>(),
+    cwd: text('cwd').notNull(),
+    transcriptCwd: text('transcript_cwd'),
+    attachedPid: integer('attached_pid'),
+    attachedAt: integer('attached_at'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [uniqueIndex('sessions_harness_session_id_unique').on(table.harnessSessionId)],
+)
 
 export const drafts = sqliteTable('drafts', {
   sessionId: text('session_id').primaryKey(),

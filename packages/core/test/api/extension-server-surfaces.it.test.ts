@@ -38,7 +38,7 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
 
     expect(server.harness.id).toBe('claude')
     expect(typeof server.harness.ttyCommand).toBe('function')
-    expect(server.harness.transcriptExists?.('no-such-token')).toBe(false)
+    expect(await server.harness.transcriptExists?.('no-such-token')).toBe(false)
 
     expect(await server.harness.transcriptMessages?.('no-such-token')).toEqual([])
     const token = `surfaces-${process.pid}-${Math.random().toString(36).slice(2)}`

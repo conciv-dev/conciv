@@ -1,6 +1,8 @@
-import {mkdtempSync} from 'node:fs'
+import {mkdtempSync, readFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {DatabaseSync} from 'node:sqlite'
+import {fileURLToPath} from 'node:url'
 import {eq} from 'drizzle-orm'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
@@ -27,6 +29,68 @@ const record = (id: string) => ({
   cwd: '/w',
   createdAt: 1,
   updatedAt: 1,
+})
+
+const PRE_MIGRATION_SESSIONS = `CREATE TABLE \`sessions\` (
+	\`id\` text PRIMARY KEY,
+	\`harness_session_id\` text,
+	\`harness_kind\` text NOT NULL,
+	\`origin\` text NOT NULL,
+	\`title\` text,
+	\`model\` text,
+	\`usage\` text,
+	\`cwd\` text NOT NULL,
+	\`created_at\` integer NOT NULL,
+	\`updated_at\` integer NOT NULL
+);`
+
+const migrationUrl = new URL('../drizzle/20260730123834_transcript_cwd/migration.sql', import.meta.url)
+
+describe('transcript cwd migration', () => {
+  it('drops duplicate harness session ids before enforcing uniqueness', () => {
+    const client = new DatabaseSync(':memory:')
+    client.exec(PRE_MIGRATION_SESSIONS)
+    const insert = client.prepare(
+      'INSERT INTO sessions (id, harness_session_id, harness_kind, origin, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
+    insert.run('conciv_1', 'tok', 'claude', 'chat', '/w', 1, 1)
+    insert.run('conciv_2', 'tok', 'claude', 'chat', '/w', 2, 2)
+    insert.run('conciv_3', 'tok', 'claude', 'chat', '/w', 3, 3)
+    insert.run('conciv_4', null, 'claude', 'chat', '/w', 4, 4)
+    insert.run('conciv_5', null, 'claude', 'chat', '/w', 5, 5)
+
+    const sql = readFileSync(fileURLToPath(migrationUrl), 'utf8')
+    for (const statement of sql.split('--> statement-breakpoint')) client.exec(statement)
+
+    expect(client.prepare('SELECT id FROM sessions WHERE harness_session_id = ?').all('tok')).toEqual([
+      {id: 'conciv_1'},
+    ])
+    expect(client.prepare('SELECT count(*) AS n FROM sessions WHERE harness_session_id IS NULL').get()).toEqual({n: 4})
+    const indexes = client
+      .prepare("PRAGMA index_list('sessions')")
+      .all()
+      .map((row) => row.name)
+    expect(indexes).toContain('sessions_harness_session_id_unique')
+    expect(() => insert.run('conciv_6', 'tok', 'claude', 'chat', '/w', 6, 6)).toThrow()
+    client.close()
+  })
+
+  it('boots a fresh db with the attach columns and rejects a duplicate token', () => {
+    const db = openDb(mkdtempSync(join(tmpdir(), 'conciv-db-cwd-')))
+    db.insert(sessions)
+      .values({...record('conciv_a'), harnessSessionId: 'tok', transcriptCwd: '/other', attachedPid: 42, attachedAt: 7})
+      .run()
+    const row = db.select().from(sessions).all()[0]
+    expect(row?.transcriptCwd).toBe('/other')
+    expect(row?.attachedPid).toBe(42)
+    expect(row?.attachedAt).toBe(7)
+    expect(() =>
+      db
+        .insert(sessions)
+        .values({...record('conciv_b'), harnessSessionId: 'tok'})
+        .run(),
+    ).toThrow()
+  })
 })
 
 describe('openDb', () => {

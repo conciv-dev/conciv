@@ -14,6 +14,7 @@ import type {
   ChatMessage,
   ChatSessionMeta,
   SessionRecord,
+  SessionRecordInput,
 } from '@conciv/protocol/chat-types'
 import {isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
@@ -38,9 +39,13 @@ export async function sessionByHarnessId(db: ConcivDb, harnessSessionId: string)
   return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
 }
 
+export async function transcriptCwdFor(db: ConcivDb, token: string): Promise<string | null> {
+  return (await sessionByHarnessId(db, token))?.transcriptCwd ?? null
+}
+
 export async function createSession(
   db: ConcivDb,
-  input: Omit<SessionRecord, 'createdAt' | 'updatedAt' | 'id'> & {id: string},
+  input: Omit<SessionRecordInput, 'createdAt' | 'updatedAt'>,
 ): Promise<SessionRecord> {
   const now = Date.now()
   const record = SessionRecordSchema.parse({...input, createdAt: now, updatedAt: now})

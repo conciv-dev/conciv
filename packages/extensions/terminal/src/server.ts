@@ -54,7 +54,7 @@ async function resolveHarnessSession(
   const existing = await server.sessions.resumeToken(sessionId)
   const harnessSessionId = existing ?? randomUUID()
   if (!existing) await server.sessions.recordToken(sessionId, harnessSessionId)
-  const resume = Boolean(existing) && (server.harness.transcriptExists?.(harnessSessionId) ?? true)
+  const resume = Boolean(existing) && ((await server.harness.transcriptExists?.(harnessSessionId)) ?? true)
   return {harnessSessionId, resume}
 }
 

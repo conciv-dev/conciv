@@ -17,7 +17,7 @@ import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
-import {ensureAgentRecord, sweepEmptyChatRecords} from './chat/session.js'
+import {ensureAgentRecord, sweepEmptyChatRecords, transcriptCwdFor} from './chat/session.js'
 import {buildChatTools, type ChatDeps} from './chat/runtime.js'
 import {makeChanges} from './chat/attach.js'
 import {askUi, makeConcivSandbox} from './chat/gate.js'
@@ -175,13 +175,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const history = harness.history
   const transcriptPath = history?.transcriptPath
+  const cwdForToken = async (token: string): Promise<string> => (await transcriptCwdFor(db, token)) ?? opts.cwd
   const serverHarness: ServerHarness = {
     id: harness.id,
     ttyCommand: harness.tty?.command,
     transcriptExists: transcriptPath
-      ? (token) => existsSync(transcriptPath(opts.cwd, token, opts.claudeHome))
+      ? async (token) => existsSync(transcriptPath(await cwdForToken(token), token, opts.claudeHome))
       : undefined,
-    transcriptMessages: history ? (token) => history.messages(opts.cwd, token, opts.claudeHome) : undefined,
+    transcriptMessages: history
+      ? async (token) => history.messages(await cwdForToken(token), token, opts.claudeHome)
+      : undefined,
   }
   const basePath = opts.basePath ?? ''
   const seenTools = new Set<string>()

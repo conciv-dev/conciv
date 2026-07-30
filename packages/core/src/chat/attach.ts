@@ -70,7 +70,7 @@ export async function transcriptMessages(deps: ChatDeps, sessionId: string): Pro
   if (!deps.harness.capabilities.transcriptHistory || !history) return []
   const record = await sessionById(deps.db, sessionId)
   if (!record?.harnessSessionId) return []
-  return history.messages(deps.cwd, record.harnessSessionId, deps.claudeHome)
+  return history.messages(record.transcriptCwd ?? deps.cwd, record.harnessSessionId, deps.claudeHome)
 }
 
 const isLive = (status: RunStatus): boolean => status !== 'idle'
