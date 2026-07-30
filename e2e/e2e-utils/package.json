@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./config": "./src/config.ts",
+    "./dev-endpoint": "./src/dev-endpoint.ts",
     "./ports": "./src/ports.ts",
     "./widget": "./src/widget.ts"
   },

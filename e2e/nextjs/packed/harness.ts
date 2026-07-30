@@ -36,6 +36,8 @@ export const CLOSURE_ROOTS = ['@conciv/it', '@conciv/extension-tanstack', '@conc
 
 export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
+const DEV_ENDPOINT_DIR = join(tmpdir(), 'conciv-it-dev-endpoint')
+
 type PackageInfo = {dir: string; deps: Record<string, string>}
 
 type ParsedManifest = {
@@ -166,7 +168,11 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
   writeFileSync(join(appDir, 'package.json'), JSON.stringify(appManifest, null, 2))
   writeFileSync(
     join(appDir, 'next.config.ts'),
-    `import {withConciv} from '@conciv/it/plugin/nextjs'\nexport default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}})\n`,
+    [
+      `import {withConciv} from '@conciv/it/plugin/nextjs'`,
+      `export default withConciv({typescript: {ignoreBuildErrors: true}}, {port: ${ENGINE_PORT}, devEndpointDir: ${JSON.stringify(DEV_ENDPOINT_DIR)}})`,
+      ``,
+    ].join('\n'),
   )
   writeFileSync(
     join(appDir, 'instrumentation.ts'),

@@ -36,6 +36,8 @@ export interface ConcivConfig {
 
   port?: number
 
+  devEndpointDir?: string
+
   systemPrompt?: string | boolean
   claudePath?: string
   claudeSessionId?: string

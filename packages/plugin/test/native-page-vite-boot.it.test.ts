@@ -40,8 +40,8 @@ describe('dev core booted through the vite plugin', () => {
       server: {host: '127.0.0.1', port: 0},
       plugins: [
         makeViteHook(
-          {enabled: true, stateRoot: root, widget: false},
-          {serverExtensions: [], clientEntries: [], nativePageDir: nativeDir, devEndpointDir: endpointDir},
+          {enabled: true, stateRoot: root, widget: false, devEndpointDir: endpointDir},
+          {serverExtensions: [], clientEntries: [], nativePageDir: nativeDir},
         ),
       ],
     })

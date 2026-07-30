@@ -33,6 +33,11 @@ conciv({
     sessionId: {type: 'string', default: 'none', description: 'Resume an existing thread.'},
     port: {type: 'number', default: 'auto', description: 'Fixed engine port. Used by the Next.js integration.'},
     stateRoot: {type: 'string', default: 'process.cwd()', description: 'Root holding the .conciv state directory.'},
+    devEndpointDir: {
+      type: 'string',
+      default: '~/.conciv',
+      description: 'Directory holding dev-endpoint.json, the pairing file the iOS SDK reads.',
+    },
     widget: {
       type: 'object',
       default: 'both layouts on',

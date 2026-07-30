@@ -1,5 +1,4 @@
-import {tmpdir} from 'node:os'
-import {dirname, join} from 'node:path'
+import {dirname} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createConcivUnplugin} from '@conciv/plugin'
 import terminal from '@conciv/extension-terminal'
@@ -19,6 +18,5 @@ export const unplugin = createConcivUnplugin({
   ],
   embedEntry,
   nativePageDir: dirname(embedEntry),
-  devEndpointDir: join(tmpdir(), 'conciv-it-dev-endpoint'),
   dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
 })
