@@ -6,7 +6,7 @@ import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import {isContentPartArray, type ContentPart} from '@tanstack/ai'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import {HTTPException} from 'hono/http-exception'
-import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {logError} from '../lib/debug.js'
 
 export function sessionIdFromHeaders(headers: Headers): string | null {
@@ -67,11 +67,20 @@ export type McpVars = {
     extensionTools: ExtensionServerTool[]
     sessionModel: (sessionId: string) => string | null
     onRequest: (sessionId: string) => void
+    sessionForHarnessId: (harnessSessionId: string) => Promise<string | null>
   }
 }
 
+async function requestSessionId(headers: Headers, vars: McpVars['mcp']): Promise<string> {
+  const owned = sessionIdFromHeaders(headers)
+  if (owned) return owned
+  const claudeSessionId = headers.get(CONCIV_CLAUDE_SESSION_HEADER)?.trim()
+  if (!claudeSessionId) return ''
+  return (await vars.sessionForHarnessId(claudeSessionId)) ?? ''
+}
+
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
-  const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? ''
+  const sessionId = await requestSessionId(c.req.raw.headers, c.var.mcp)
   if (sessionId !== '') c.var.mcp.onRequest(sessionId)
   const ctx = c.var.mcp.makeCtx(sessionId)
   const request: ToolRequest = {sessionId, model: c.var.mcp.sessionModel(sessionId)}

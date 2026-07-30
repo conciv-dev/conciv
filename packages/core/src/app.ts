@@ -22,6 +22,7 @@ import {
   ensureChatRecord,
   recordMintedToken,
   resumeTokenFor,
+  sessionByHarnessId,
   sweepEmptyChatRecords,
   transcriptCwdFor,
 } from './chat/session.js'
@@ -176,6 +177,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       await ensureChatRecord(db, sessionId, harness.id, opts.cwd)
       await recordMintedToken(db, sessionId, token)
     },
+    sessionForHarnessId: async (harnessSessionId) => (await sessionByHarnessId(db, harnessSessionId))?.id ?? null,
     chatBusy: (sessionId) => statusOf(db, sessionId) !== 'idle',
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
@@ -334,7 +336,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       chat: chatDeps,
-      mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel, onRequest: notifyMcpRequest},
+      mcp: {
+        makeCtx: makeToolCtx,
+        extensionTools,
+        sessionModel,
+        onRequest: notifyMcpRequest,
+        sessionForHarnessId: serverSessions.sessionForHarnessId,
+      },
     },
     rpc,
     opts.onShutdown,

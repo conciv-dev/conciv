@@ -17,10 +17,10 @@ const SESSION_END_TIMEOUT_SECONDS = 1
 
 export type ClaudeHooksPluginOptions = {stateDir: string; concivSessionId: string; hookUrl: string}
 
-export type ClaudeHooksManifestOptions = {concivSessionId: string; hookUrl: string}
+export type ClaudeHooksManifestOptions = {concivSessionId?: string; hookUrl: string}
 
 export function claudeHooksManifest(opts: ClaudeHooksManifestOptions): string {
-  const headers = {[CONCIV_SESSION_HEADER]: opts.concivSessionId}
+  const headers = opts.concivSessionId ? {headers: {[CONCIV_SESSION_HEADER]: opts.concivSessionId}} : {}
   const hooks = Object.fromEntries(
     CLAUDE_HOOK_EVENTS.map((event) => [
       event,
@@ -30,7 +30,7 @@ export function claudeHooksManifest(opts: ClaudeHooksManifestOptions): string {
             {
               type: 'http',
               url: opts.hookUrl,
-              headers,
+              ...headers,
               timeout: event === 'SessionEnd' ? SESSION_END_TIMEOUT_SECONDS : HOOK_TIMEOUT_SECONDS,
             },
           ],

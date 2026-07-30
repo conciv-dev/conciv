@@ -1,11 +1,11 @@
 import {realpathSync} from 'node:fs'
 import {isAbsolute, relative, resolve} from 'node:path'
 import {eq, isNotNull} from 'drizzle-orm'
-import {CONCIV_HOOK_PATH, SessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_HOOK_PATH, type UIMessage} from '@conciv/protocol/chat-types'
 import type {HarnessLiveSession} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {sessions, type ConcivDb} from '@conciv/db'
-import type {LiveSession} from '@conciv/contract'
+import type {LiveSession, LiveSessionTurn} from '@conciv/contract'
 import {apiBaseFrom} from '../lib/api-base.js'
 import {logError} from '../lib/debug.js'
 import {mcpUrlFor, resolveSession, sessionById} from './session.js'
@@ -36,10 +36,52 @@ export function cwdRelation(candidateCwd: string, engineCwd: string): CwdRelatio
   return 'disjoint'
 }
 
-function toWire(session: HarnessLiveSession, engineCwd: string): LiveSession[] {
-  const relation = cwdRelation(session.cwd, engineCwd)
+const TAIL_TURNS = 6
+const TAIL_CHARS = 120
+
+function turnText(message: UIMessage): string {
+  const text = message.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => ('content' in part && typeof part.content === 'string' ? part.content : ''))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return text.length > TAIL_CHARS ? `${text.slice(0, TAIL_CHARS)}…` : text
+}
+
+function tailOf(messages: UIMessage[]): LiveSessionTurn[] {
+  const turns: LiveSessionTurn[] = []
+  for (const message of messages) {
+    if (message.role !== 'user' && message.role !== 'assistant') continue
+    const text = turnText(message)
+    if (text.length === 0) continue
+    turns.push({role: message.role, text})
+  }
+  return turns.slice(-TAIL_TURNS)
+}
+
+type SessionPreview = Pick<LiveSession, 'title' | 'messageCount' | 'updatedAt' | 'tail'>
+
+const EMPTY_PREVIEW: SessionPreview = {title: null, messageCount: 0, updatedAt: 0, tail: []}
+
+async function previewOf(deps: ChatDeps, session: HarnessLiveSession): Promise<SessionPreview> {
+  const history = deps.harness.history
+  if (!history) return {...EMPTY_PREVIEW, updatedAt: session.startedAt ?? 0}
+  const meta = await history.meta?.(session.cwd, session.sessionId, deps.claudeHome).catch(() => null)
+  const messages = await history.messages(session.cwd, session.sessionId, deps.claudeHome).catch(() => [])
+  const title = meta?.derivedTitle ?? ''
+  return {
+    title: title.length > 0 ? title : null,
+    messageCount: meta?.messageCount ?? messages.length,
+    updatedAt: meta?.updatedAt ?? session.startedAt ?? 0,
+    tail: tailOf(messages),
+  }
+}
+
+async function toWire(deps: ChatDeps, session: HarnessLiveSession): Promise<LiveSession[]> {
+  const relation = cwdRelation(session.cwd, deps.cwd)
   if (relation === 'disjoint') return []
-  return [{...session, relation}]
+  return [{...session, relation, ...(await previewOf(deps, session))}]
 }
 
 export async function liveCandidates(deps: ChatDeps): Promise<LiveSession[]> {
@@ -49,7 +91,8 @@ export async function liveCandidates(deps: ChatDeps): Promise<LiveSession[]> {
     logError(`[core] listing live ${deps.harness.id} sessions failed: ${String(error)}`)
     return []
   })
-  return found.flatMap((session) => toWire(session, deps.cwd))
+  const wired = await Promise.all(found.map((session) => toWire(deps, session)))
+  return wired.flat().toSorted((a, b) => b.updatedAt - a.updatedAt)
 }
 
 export type AdoptRequest = {harnessSessionId: string; pid: number; force: boolean; requestUrl: string}
@@ -84,7 +127,6 @@ export async function adoptLiveSession(deps: ChatDeps, request: AdoptRequest): P
     root: deps.cwd,
     stateDir: concivStateDir(deps.stateRoot),
     mcpUrl: mcpUrlFor(deps, request.requestUrl),
-    concivSessionId: SessionId.parse(sessionId),
     hookUrl: `${apiBaseFrom(request.requestUrl, deps.basePath)}${CONCIV_HOOK_PATH}`,
   })
   if (!installed.ok) {
@@ -102,9 +144,14 @@ async function clearAttachment(db: ConcivDb, sessionId: string): Promise<void> {
     .where(eq(sessions.id, sessionId))
 }
 
+async function attachedCount(db: ConcivDb): Promise<number> {
+  return (await db.select({id: sessions.id}).from(sessions).where(isNotNull(sessions.attachedPid))).length
+}
+
 export async function detachLiveSession(deps: ChatDeps, sessionId: string): Promise<void> {
   await clearAttachment(deps.db, sessionId)
   deps.changes.notify()
+  if ((await attachedCount(deps.db)) > 0) return
   await deps.harness.attach
     ?.uninstall({root: deps.cwd, stateDir: concivStateDir(deps.stateRoot)})
     .catch((error: unknown) => logError(`[core] detach failed: ${String(error)}`))

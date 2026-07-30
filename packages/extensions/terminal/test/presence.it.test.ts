@@ -68,6 +68,32 @@ afterEach(async () => {
   await Promise.all(servers.map((server) => server.close()))
 })
 
+describe('hooks that carry no conciv header', () => {
+  it('routes the hook to the session that owns that claude session id', async () => {
+    const server = await startServer()
+    const sessionId = `conciv_${randomUUID()}`
+    const harnessSessionId = randomUUID()
+    await server.sessions.recordToken(sessionId, harnessSessionId)
+    const watch = await watchPresence(server, sessionId)
+
+    expect((await hook(server, 'UserPromptSubmit', {harnessSessionId})).status).toBe(200)
+    await until(() => watch.seen.at(-1)?.state === 'working')
+
+    await watch.stop()
+  }, 20_000)
+
+  it('ignores a hook whose claude session belongs to nobody', async () => {
+    const server = await startServer()
+    const sessionId = `conciv_${randomUUID()}`
+    const watch = await watchPresence(server, sessionId)
+
+    expect((await hook(server, 'UserPromptSubmit', {harnessSessionId: randomUUID()})).status).toBe(200)
+    expect(watch.seen.map((snapshot) => snapshot.state)).toEqual(['idle'])
+
+    await watch.stop()
+  }, 20_000)
+})
+
 describe('terminal presence', () => {
   it('starts idle and follows the claude hook lifecycle', async () => {
     const server = await startServer()

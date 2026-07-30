@@ -34,9 +34,9 @@ through unexpanded, i.e. undefined. `CLAUDE_SESSION_ID` does not exist at all;
 Everything an `http` MCP server sees, across `initialize`, `notifications/initialized`,
 `tools/list` and `tools/call`:
 
-- `user-agent: claude-code/2.1.220 (sdk-cli)` — version only, no session.
-- `initialize` params `clientInfo`: `{name: "claude-code", title, version, description, websiteUrl}` — no session.
-- `tools/call` params `_meta`: `{"claudecode/toolUseId": "toolu_…", "progressToken": 2}` — per-call, not per-session.
+- `user-agent: claude-code/2.1.220 (sdk-cli)` - version only, no session.
+- `initialize` params `clientInfo`: `{name: "claude-code", title, version, description, websiteUrl}` - no session.
+- `tools/call` params `_meta`: `{"claudecode/toolUseId": "toolu_…", "progressToken": 2}` - per-call, not per-session.
 
 The child's real session id (`d0673620-…`, reported by `claude -p --output-format json`)
 appeared ZERO times in the whole captured request log.

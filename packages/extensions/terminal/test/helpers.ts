@@ -43,6 +43,10 @@ function fakeSessions(): FakeSessions {
       tokens.set(sessionId, token)
       return Promise.resolve()
     },
+    sessionForHarnessId: (harnessSessionId) => {
+      const owner = [...tokens.entries()].find(([, token]) => token === harnessSessionId)
+      return Promise.resolve(owner?.[0] ?? null)
+    },
     chatBusy: (sessionId) => busy.has(sessionId),
     model: () => Promise.resolve(null),
     onChatTurn: (listener) => turnListeners.push(listener),

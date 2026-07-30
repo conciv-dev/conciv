@@ -1,5 +1,5 @@
 import {spawn} from 'node:child_process'
-import {chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {delimiter, join} from 'node:path'
 import {eq} from 'drizzle-orm'
@@ -124,6 +124,44 @@ describe('adopting a running terminal session', () => {
     expect(again.sessionId).toBe(first.sessionId)
     const all = await db.select().from(sessions)
     expect(all.filter((record) => record.harnessSessionId === HARNESS_SESSION)).toHaveLength(1)
+  }, 30_000)
+
+  it('keeps both sessions independent when a second terminal is adopted', async () => {
+    const kit = await boot()
+    const second = '0f5b6a41-1c2d-4a3e-9f10-8b7c6d5e4f30'
+    writeAgents([liveSession(kit.stateRoot), liveSession(kit.stateRoot, {sessionId: second, name: 'other'})])
+
+    const one = await kit.rpc.sessions.attachAdopt({harnessSessionId: HARNESS_SESSION, pid: process.pid})
+    const mcpPath = join(connectDir(kit), 'conciv-connect', '.mcp.json')
+    const afterFirst = readFileSync(mcpPath, 'utf8')
+    const two = await kit.rpc.sessions.attachAdopt({harnessSessionId: second, pid: process.pid})
+
+    expect(two.sessionId).not.toBe(one.sessionId)
+    expect(readFileSync(mcpPath, 'utf8')).toBe(afterFirst)
+    expect(afterFirst).not.toContain(one.sessionId)
+    expect(afterFirst).not.toContain(two.sessionId)
+
+    const db = openDb(kit.stateRoot)
+    expect(await attachedRow(db, one.sessionId)).toMatchObject({
+      harnessSessionId: HARNESS_SESSION,
+      attachedPid: process.pid,
+    })
+    expect(await attachedRow(db, two.sessionId)).toMatchObject({harnessSessionId: second, attachedPid: process.pid})
+  }, 30_000)
+
+  it('keeps the plugin installed for the sessions that are still attached', async () => {
+    const kit = await boot()
+    const second = '0f5b6a41-1c2d-4a3e-9f10-8b7c6d5e4f30'
+    writeAgents([liveSession(kit.stateRoot), liveSession(kit.stateRoot, {sessionId: second, name: 'other'})])
+    const one = await kit.rpc.sessions.attachAdopt({harnessSessionId: HARNESS_SESSION, pid: process.pid})
+    const two = await kit.rpc.sessions.attachAdopt({harnessSessionId: second, pid: process.pid})
+
+    await kit.rpc.sessions.attachDetach({sessionId: one.sessionId})
+    expect(existsSync(connectDir(kit))).toBe(true)
+    expect((await attachedRow(openDb(kit.stateRoot), two.sessionId)).attachedPid).toBe(process.pid)
+
+    await kit.rpc.sessions.attachDetach({sessionId: two.sessionId})
+    expect(existsSync(connectDir(kit))).toBe(false)
   }, 30_000)
 
   it('refuses a session running outside this project', async () => {

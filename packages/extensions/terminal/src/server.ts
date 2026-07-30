@@ -173,6 +173,16 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
 
 export type TerminalRouter = ReturnType<typeof makeTerminalRouter>
 
+async function hookSessionId(
+  {server}: TerminalRuntime,
+  header: string | undefined,
+  body: HookBody,
+): Promise<SessionId | null> {
+  if (isSessionId(header)) return header
+  const owner = await server.sessions.sessionForHarnessId(body.session_id)
+  return isSessionId(owner) ? owner : null
+}
+
 async function applyHookReport(runtime: TerminalRuntime, sessionId: SessionId, body: HookBody): Promise<void> {
   const {presence, server} = runtime
   presence.report(sessionId, {kind: 'hook', event: body.hook_event_name})
@@ -188,10 +198,10 @@ async function applyHookReport(runtime: TerminalRuntime, sessionId: SessionId, b
 const app = new Hono<TerminalEnv>()
   .post('/hook', async (c) => {
     const runtime = c.var.terminal
-    const sessionId = c.req.header(CONCIV_SESSION_HEADER)
-    if (!isSessionId(sessionId)) return c.json({})
     const parsed = HookBodySchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return c.json({error: 'invalid hook payload'}, 400)
+    const sessionId = await hookSessionId(runtime, c.req.header(CONCIV_SESSION_HEADER), parsed.data)
+    if (!sessionId) return c.json({})
     await applyHookReport(runtime, sessionId, parsed.data)
     return c.json({})
   })

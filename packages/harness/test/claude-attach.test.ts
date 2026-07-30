@@ -2,7 +2,7 @@ import {chmodSync, mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileSy
 import {tmpdir} from 'node:os'
 import {delimiter, join} from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
-import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import {
   claudeConnectDir,
   claudeConnectPluginFiles,
@@ -11,6 +11,7 @@ import {
   parseLiveSessions,
   CLAUDE_RELOAD_COMMAND,
 } from '../src/claude/attach.js'
+import {CLAUDE_CONNECT_BRIDGE_FILE} from '../src/claude/connect-bridge.js'
 import {claude} from '../src/claude/index.js'
 import {claudeHooksManifest} from '../src/claude/hooks-plugin.js'
 
@@ -127,12 +128,7 @@ describe('claude reload version floor', () => {
 })
 
 describe('claude connect plugin files', () => {
-  const files = claudeConnectPluginFiles({
-    stateDir: '/state/.conciv',
-    concivSessionId: CONCIV_SESSION,
-    mcpUrl: MCP_URL,
-    hookUrl: HOOK_URL,
-  })
+  const files = claudeConnectPluginFiles({stateDir: '/state/.conciv', mcpUrl: MCP_URL, hookUrl: HOOK_URL})
   const root = claudeConnectDir('/state/.conciv')
   const contentsAt = (path: string): string => {
     const file = files.find((candidate) => candidate.path === path)
@@ -144,6 +140,7 @@ describe('claude connect plugin files', () => {
     expect(files.map((file) => file.path)).toEqual([
       join(root, '.claude-plugin', 'marketplace.json'),
       join(root, 'conciv-connect', '.claude-plugin', 'plugin.json'),
+      join(root, 'conciv-connect', 'bin', CLAUDE_CONNECT_BRIDGE_FILE),
       join(root, 'conciv-connect', '.mcp.json'),
       join(root, 'conciv-connect', 'hooks', 'hooks.json'),
     ])
@@ -153,19 +150,40 @@ describe('claude connect plugin files', () => {
     })
   })
 
-  it('points the plugin mcp server at our minted conciv session, never the claude one', () => {
+  it('carries no session id at all, so one plugin serves every adopted session', () => {
+    for (const file of files) {
+      expect(file.contents).not.toContain(CONCIV_SESSION)
+      expect(file.contents).not.toContain(CONCIV_SESSION_HEADER)
+    }
+  })
+
+  it('dials our mcp route through a bridge that reports the calling claude session', () => {
     const parsed = JSON.parse(contentsAt(join(root, 'conciv-connect', '.mcp.json')))
     expect(parsed).toEqual({
       mcpServers: {
-        conciv: {type: 'http', url: MCP_URL, headers: {[CONCIV_SESSION_HEADER]: CONCIV_SESSION}},
+        conciv: {
+          type: 'stdio',
+          command: 'node',
+          args: [`\${CLAUDE_PLUGIN_ROOT}/bin/${CLAUDE_CONNECT_BRIDGE_FILE}`],
+          env: {CONCIV_MCP_URL: MCP_URL},
+        },
       },
     })
+    const bridge = contentsAt(join(root, 'conciv-connect', 'bin', CLAUDE_CONNECT_BRIDGE_FILE))
+    expect(bridge).toContain('CLAUDE_CODE_SESSION_ID')
+    expect(bridge).toContain(CONCIV_CLAUDE_SESSION_HEADER)
+    expect(bridge).toContain('CONCIV_MCP_URL')
   })
 
-  it('reuses the same hooks manifest the launched plugin writes', () => {
-    expect(contentsAt(join(root, 'conciv-connect', 'hooks', 'hooks.json'))).toBe(
-      claudeHooksManifest({concivSessionId: CONCIV_SESSION, hookUrl: HOOK_URL}),
-    )
+  it('writes hooks that identify their session from the hook body alone', () => {
+    const hooks = contentsAt(join(root, 'conciv-connect', 'hooks', 'hooks.json'))
+    expect(hooks).toBe(claudeHooksManifest({hookUrl: HOOK_URL}))
+    expect(JSON.parse(hooks).hooks.SessionStart[0].hooks[0].headers).toBeUndefined()
+  })
+
+  it('still lets the launched per-process plugin pin its own session header', () => {
+    const owned = JSON.parse(claudeHooksManifest({concivSessionId: CONCIV_SESSION, hookUrl: HOOK_URL}))
+    expect(owned.hooks.SessionStart[0].hooks[0].headers).toEqual({[CONCIV_SESSION_HEADER]: CONCIV_SESSION})
   })
 })
 
@@ -174,7 +192,6 @@ describe('claude attach install', () => {
     root: scratch.dir,
     stateDir: join(scratch.dir, '.conciv'),
     mcpUrl: MCP_URL,
-    concivSessionId: CONCIV_SESSION,
     hookUrl: HOOK_URL,
   })
 
@@ -186,10 +203,21 @@ describe('claude attach install', () => {
     expect(result).toEqual({ok: true, reloadCommand: CLAUDE_RELOAD_COMMAND})
     const root = claudeConnectDir(installOptions().stateDir)
     const mcp = JSON.parse(readFileSync(join(root, 'conciv-connect', '.mcp.json'), 'utf8'))
-    expect(mcp.mcpServers.conciv.headers[CONCIV_SESSION_HEADER]).toBe(CONCIV_SESSION)
+    expect(mcp.mcpServers.conciv.type).toBe('stdio')
+    expect(existsSync(join(root, 'conciv-connect', 'bin', CLAUDE_CONNECT_BRIDGE_FILE))).toBe(true)
     const calls = readFileSync(log, 'utf8')
     expect(calls).toContain(`plugin marketplace add ${root}`)
     expect(calls).toContain('plugin install conciv-connect@conciv --scope local')
+  })
+
+  it('leaves an already-installed plugin byte-identical when a second session adopts', async () => {
+    fakeClaude('#!/bin/sh\n[ "$1" = --version ] && echo "2.1.220 (Claude Code)"\nexit 0\n')
+    const mcpPath = join(claudeConnectDir(installOptions().stateDir), 'conciv-connect', '.mcp.json')
+    await attachOf().install(installOptions())
+    const first = readFileSync(mcpPath, 'utf8')
+    await attachOf().install(installOptions())
+
+    expect(readFileSync(mcpPath, 'utf8')).toBe(first)
   })
 
   it('refuses to install against a cli without the forced reload', async () => {

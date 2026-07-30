@@ -72,7 +72,6 @@ export type HarnessAttachInstall = {
   root: string
   stateDir: string
   mcpUrl: string
-  concivSessionId: SessionId
   hookUrl: string
 }
 

@@ -10,8 +10,8 @@ import type {
   HarnessConnectFile,
   HarnessLiveSession,
 } from '@conciv/protocol/harness-types'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {claudeHooksManifest} from './hooks-plugin.js'
+import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE, CLAUDE_CONNECT_BRIDGE_URL_VAR} from './connect-bridge.js'
 import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './connect-names.js'
 
 export const CLAUDE_RELOAD_COMMAND = '/reload-plugins --force'
@@ -160,14 +160,15 @@ function pluginManifest(): string {
   )}\n`
 }
 
-function mcpManifest(opts: {mcpUrl: string; concivSessionId: string}): string {
+function mcpManifest(opts: {mcpUrl: string}): string {
   return `${JSON.stringify(
     {
       mcpServers: {
         [CLAUDE_CONNECT_MCP_SERVER]: {
-          type: 'http',
-          url: opts.mcpUrl,
-          headers: {[CONCIV_SESSION_HEADER]: opts.concivSessionId},
+          type: 'stdio',
+          command: 'node',
+          args: [`\${CLAUDE_PLUGIN_ROOT}/bin/${CLAUDE_CONNECT_BRIDGE_FILE}`],
+          env: {[CLAUDE_CONNECT_BRIDGE_URL_VAR]: opts.mcpUrl},
         },
       },
     },
@@ -176,9 +177,10 @@ function mcpManifest(opts: {mcpUrl: string; concivSessionId: string}): string {
   )}\n`
 }
 
+const BRIDGE_FILE_MODE = 0o700
+
 export function claudeConnectPluginFiles(opts: {
   stateDir: string
-  concivSessionId: string
   mcpUrl: string
   hookUrl: string
 }): HarnessConnectFile[] {
@@ -187,11 +189,13 @@ export function claudeConnectPluginFiles(opts: {
   return [
     {path: join(root, '.claude-plugin', 'marketplace.json'), contents: marketplaceManifest()},
     {path: join(plugin, '.claude-plugin', 'plugin.json'), contents: pluginManifest()},
-    {path: join(plugin, '.mcp.json'), contents: mcpManifest(opts)},
     {
-      path: join(plugin, 'hooks', 'hooks.json'),
-      contents: claudeHooksManifest({concivSessionId: opts.concivSessionId, hookUrl: opts.hookUrl}),
+      path: join(plugin, 'bin', CLAUDE_CONNECT_BRIDGE_FILE),
+      contents: claudeConnectBridgeSource(),
+      mode: BRIDGE_FILE_MODE,
     },
+    {path: join(plugin, '.mcp.json'), contents: mcpManifest(opts)},
+    {path: join(plugin, 'hooks', 'hooks.json'), contents: claudeHooksManifest({hookUrl: opts.hookUrl})},
   ]
 }
 
@@ -221,14 +225,7 @@ async function install(opts: HarnessAttachInstall): Promise<HarnessAttachResult>
   if (!meetsReloadFloor(version))
     return failure(`claude ${version} lacks ${CLAUDE_RELOAD_COMMAND} (needs ${CLAUDE_RELOAD_MIN_VERSION}+)`)
   const root = claudeConnectDir(opts.stateDir)
-  writeConnectFiles(
-    claudeConnectPluginFiles({
-      stateDir: opts.stateDir,
-      concivSessionId: opts.concivSessionId,
-      mcpUrl: opts.mcpUrl,
-      hookUrl: opts.hookUrl,
-    }),
-  )
+  writeConnectFiles(claudeConnectPluginFiles({stateDir: opts.stateDir, mcpUrl: opts.mcpUrl, hookUrl: opts.hookUrl}))
   const added = await runClaude(['plugin', 'marketplace', 'add', root], {cwd: opts.root, timeoutMs: PLUGIN_TIMEOUT_MS})
   if (added.code !== 0) return failure(commandDetail('marketplace add', added))
   const installed = await runClaude(

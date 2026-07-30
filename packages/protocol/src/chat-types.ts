@@ -5,6 +5,8 @@ export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
+export const CONCIV_CLAUDE_SESSION_HEADER = 'conciv-claude-session'
+
 export const CONCIV_HOOK_PATH = '/api/ext/terminal/hook'
 
 const MAX_ATTACHMENT_BASE64_LENGTH = 27_962_028
