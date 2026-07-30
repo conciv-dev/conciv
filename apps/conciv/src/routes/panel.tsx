@@ -14,11 +14,10 @@ const PANEL_POS: Record<TriggerPosition, string> = {
   'bottom-left': 'bottom-21 left-5 [transform-origin:bottom_left]',
   'bottom-right': 'bottom-21 right-5 [transform-origin:bottom_right]',
 }
-const PANEL_BASE =
-  'fixed flex flex-col bg-pw-glass text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden'
+const PANEL_BASE = 'fixed flex flex-col text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden'
 const PANEL_CARD =
-  'w-120 max-w-[calc(100vw-2.5rem)] h-140 max-h-[calc(100vh-7.5rem)] border border-pw-line-soft rounded-pw-lg shadow-pw-lg'
-const PANEL_SHEET = 'inset-0 w-full h-full rounded-none pad-safe'
+  'bg-pw-glass w-120 max-w-[calc(100vw-2.5rem)] h-140 max-h-[calc(100vh-7.5rem)] border border-pw-line-soft rounded-pw-lg shadow-pw-lg'
+const PANEL_SHEET = 'bg-pw-panel inset-0 w-full h-full rounded-none pad-safe'
 const PANEL_OPEN =
   'pointer-events-auto visible trans-pop-in opacity-100 [transform:none] starting:opacity-0 starting:[transform:translateY(8px)_scale(0.98)]'
 const PANEL_CLOSING = 'pointer-events-none invisible trans-pop-out opacity-0 [transform:translateY(8px)_scale(0.98)]'
