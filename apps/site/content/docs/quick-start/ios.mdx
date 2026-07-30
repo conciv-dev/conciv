@@ -65,6 +65,25 @@ struct MyApp: App {
 Then run your dev server (a vite host with the conciv plugin) and launch the app in the simulator. The
 transparent overlay and launcher appear over your own UI.
 
+By default the launcher is a dark round `AI` button in the bottom-right corner (`launcher: .native`).
+Pass `.mascot` for the animated mascot the screenshots below show:
+
+```swift title="App.swift"
+ConcivWidget.attach(launcher: .mascot)
+```
+
+<Callout type="info">
+  No `Info.plist` changes. The app reaches the dev core over `http://127.0.0.1`, and App Transport
+  Security does not apply to the loopback address, so plain HTTP works with no
+  `NSAppTransportSecurity` keys. The local-network privacy prompt skips loopback too, so no usage
+  string either. Point an app at a Mac by LAN address instead (a physical device over Wi-Fi, which
+  conciv does not support yet) and the two keys answer different questions:
+  `NSLocalNetworkUsageDescription` is the purpose string iOS shows before letting the app reach other
+  devices on the network, whatever the protocol, and `NSAllowsLocalNetworking` is the ATS exception
+  that permits plain HTTP to those hosts. That setup needs the usage string, and the ATS exception on
+  top only while the URL stays `http://`.
+</Callout>
+
 <Callout type="warn">
   `attach()` compiles to a no-op in a Release build: no overlay, no WebView, no dev-core URL. Nothing
   conciv ships to TestFlight or the App Store, so a Release build shows nothing. Run a Debug build to
@@ -106,9 +125,10 @@ export default defineConfig({
 })
 ```
 
-Pin `port` so the simulator always loads the same URL across restarts. From the agent panel you then
-run `ios.build` and `ios.run` to build and launch the app. Without this block the widget still works;
-only the `ios.*` build tools are unavailable.
+`port` is optional. The app finds a core on any port through the pairing file below; pinning it only
+keeps the URL stable across restarts, which matters if you launch the app by hand with `CONCIV_URL`.
+From the agent panel you then run `ios.build` and `ios.run` to build and launch the app. Without this
+block the widget still works; only the `ios.*` build tools are unavailable.
 
 </Accordion>
 </Accordions>
@@ -121,9 +141,21 @@ only the `ios.*` build tools are unavailable.
 - `CONCIV_URL` if set. `ios.run` injects it for you as `SIMCTL_CHILD_CONCIV_URL`, which the app reads
   as `CONCIV_URL`; to launch by hand pass `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl
   launch booted dev.conciv.YourApp`.
-- Otherwise the pairing file a freshly started dev core writes at `~/.conciv/dev-endpoint.json`. The
-  simulator shares the host filesystem, so this is the zero-config path. The file only exists while a
-  dev core is running, so restart the core if discovery finds nothing.
+- Otherwise the pairing file at `~/.conciv/dev-endpoint.json`. A dev core that serves the native page
+  writes it on startup and deletes it on shutdown, and the simulator reads the host home directory, so
+  this is the zero-config path.
+- Whenever that file is missing, unreadable, malformed, or its `apiBase` fails `GET /health`, the SDK
+  probes `http://127.0.0.1` on ports 4599, 8787, and 3000 and takes the first one that answers as a
+  conciv core. That covers a stale file from a crashed core as well as no file at all, and a core on
+  any other port is still found through the pairing file, so the probe is the recovery path rather
+  than the usual one.
+
+If discovery finds nothing, check that the dev server is still running, then that it is not running
+under a test environment. With `CONCIV_E2E` or `VITEST` set, the core writes the pairing file to a
+temporary directory instead of `~/.conciv`. The SDK only ever reads `~/.conciv/dev-endpoint.json`, so
+the app cannot see that core; it drops to the port probe, and if a different dev core left a healthy
+`~/.conciv/dev-endpoint.json` behind, the app pairs with that one instead. Set `CONCIV_URL` when you
+need to be sure which core the app talks to.
 
 ## What it looks like
 
@@ -136,7 +168,7 @@ only the `ios.*` build tools are unavailable.
       height={2622}
     />
     <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">
-      attach adds the floating launcher
+      The mascot launcher, from <code>attach(launcher: .mascot)</code>
     </figcaption>
   </figure>
   <figure className="m-0">

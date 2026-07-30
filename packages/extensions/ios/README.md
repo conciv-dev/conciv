@@ -55,9 +55,9 @@ follow-on milestones.
 
 ## Dev loop and port
 
-Pin a stable core port so the simulator always loads the same URL. `ConcivConfig`
-already accepts a `port`; the ios dev loop pins `4599` by default. With a pinned
-port, restarting the same core needs no change in the app.
+Pinning a stable core port is optional: discovery reads the pairing file, so a core
+on any port is found. `ConcivConfig` accepts a `port`, and the ios dev loop documents
+`4599`. With a pinned port an explicit `CONCIV_URL` stays valid across restarts.
 
 `ios.run` injects the core API base into the launched app as
 `SIMCTL_CHILD_CONCIV_URL` (the app reads it as `CONCIV_URL`, which `ConcivWidget.attach()`
@@ -77,6 +77,17 @@ SDK reads that file to discover the core deterministically, validates it with
 `127.0.0.1` (the pinned `4599` first). `apiBase` already carries `/t/<token>` when the
 core is token-scoped, so the WebView loads `<apiBase>/native` token-scoped with no
 extra work. The origin pin stays `scheme://host:port`.
+
+The port probe runs whenever the pairing file does not yield a live core: the file is
+missing or unreadable, its JSON is malformed, or its `apiBase` fails the health check.
+That last case is how a stale file from a crashed core recovers. It is the recovery
+path, not the primary one: a core on any port is found through the file.
+
+The SDK reads the fixed path `SIMULATOR_HOST_HOME/.conciv/dev-endpoint.json`. A host
+that runs its dev server under a test environment (`CONCIV_E2E` or `VITEST`) writes to
+a temporary directory instead, so the app never sees that core's file: it drops to the
+port probe, and it pairs with a different dev core if that one left a healthy file at
+the global path. Set `CONCIV_URL` to pin the core explicitly.
 
 ## Auth and re-pair
 
