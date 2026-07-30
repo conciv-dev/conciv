@@ -55,22 +55,30 @@ ConcivWidget.attach(launcher: .mascot)
 
 With `CONCIV_URL` unset, `attach()` resolves the api base in this order:
 
-1. The pairing file at `~/.conciv/dev-endpoint.json`. A dev core that serves the native page writes it
-   on startup and removes it on shutdown. The simulator reads the host home directory, so this is the
-   zero-config path.
+1. The pairing file at `~/.conciv/dev-endpoint.json`, accepted only when its `apiBase` answers
+   `GET /health` as a conciv core. A dev core that serves the native page writes the file on startup and
+   removes it on shutdown. The simulator reads the host home directory, so this is the zero-config path.
 2. A probe of `http://127.0.0.1` on ports 4599, 8787, and 3000, taking the first one whose `/health`
-   answers as a conciv core. This is the fallback for when no pairing file is readable.
+   answers as a conciv core. The probe runs whenever step 1 does not yield a live core: no file, an
+   unreadable or malformed file, or a readable file whose endpoint fails the health check, which is how
+   a stale file from a crashed core recovers.
 
-A host running its dev server under a test environment (`CONCIV_E2E` or `VITEST`) writes the pairing
-file to a temporary directory instead, so only the port probe applies there.
+The SDK always reads `~/.conciv/dev-endpoint.json`; the path is fixed. A host that runs its dev server
+under a test environment (`CONCIV_E2E` or `VITEST`) writes the pairing file to a temporary directory
+instead, so the SDK never sees that core's file. It then falls to the port probe, or pairs with a
+different dev core if that one left a healthy file at the global path. Pass `CONCIV_URL` to pin the
+core explicitly.
 
 ## App Transport Security
 
 Talking to the dev core over `http://127.0.0.1` needs no `Info.plist` changes: App Transport Security
-does not apply to the loopback address. `NSAllowsLocalNetworking` and `NSLocalNetworkUsageDescription`
-are for plain HTTP to other machines on the local network, which the SDK does not use today. If you
-add them for a LAN setup of your own, keep them out of Release builds
-([RELEASE_HYGIENE.md](./RELEASE_HYGIENE.md)).
+does not apply to the loopback address, and the local-network privacy prompt does not cover loopback
+either. The two keys people reach for solve different problems, and neither is needed here:
+`NSLocalNetworkUsageDescription` is the purpose string for reaching other devices on the local network,
+whatever the protocol, and `NSAllowsLocalNetworking` is the ATS exception for plain HTTP to local hosts
+(`.local` names, single-label hostnames, private IPv4 and IPv6 ranges). A LAN setup of your own needs
+the usage string, plus the ATS exception while the URL stays `http://`. Keep whichever you add out of
+Release builds ([RELEASE_HYGIENE.md](./RELEASE_HYGIENE.md)).
 
 ## Versioning: Swift SDK, bridge protocol, and npm
 

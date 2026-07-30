@@ -78,10 +78,16 @@ SDK reads that file to discover the core deterministically, validates it with
 core is token-scoped, so the WebView loads `<apiBase>/native` token-scoped with no
 extra work. The origin pin stays `scheme://host:port`.
 
-The port probe is the fallback for when no pairing file is readable, not the primary
-path. A host that runs its dev server under a test environment (`CONCIV_E2E` or
-`VITEST`) writes the pairing file to a temporary directory instead of `~/.conciv`, so
-the app there resolves through the port probe or an explicit `CONCIV_URL`.
+The port probe runs whenever the pairing file does not yield a live core: the file is
+missing or unreadable, its JSON is malformed, or its `apiBase` fails the health check.
+That last case is how a stale file from a crashed core recovers. It is the recovery
+path, not the primary one: a core on any port is found through the file.
+
+The SDK reads the fixed path `SIMULATOR_HOST_HOME/.conciv/dev-endpoint.json`. A host
+that runs its dev server under a test environment (`CONCIV_E2E` or `VITEST`) writes to
+a temporary directory instead, so the app never sees that core's file: it drops to the
+port probe, and it pairs with a different dev core if that one left a healthy file at
+the global path. Set `CONCIV_URL` to pin the core explicitly.
 
 ## Auth and re-pair
 

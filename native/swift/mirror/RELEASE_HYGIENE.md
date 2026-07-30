@@ -11,11 +11,15 @@ through this list before shipping an app that embeds ConcivWidget.
   loopback address, so plain HTTP to the core works with **no** `NSAppTransportSecurity` keys, in the
   simulator and on device alike. The local-network privacy prompt (iOS 14+) also exempts loopback, so
   `NSLocalNetworkUsageDescription` is not needed either. The cleanest release story is to add neither key.
-- `NSAllowsLocalNetworking` and `NSLocalNetworkUsageDescription` are for plain HTTP to **other** machines
-  on the network: private IPv4 and IPv6 ranges, `.local` names, and single-label hostnames. Only a setup
-  that points the app at a Mac by LAN address needs them, and conciv does not ship that transport today.
+- The two keys are not interchangeable, and a LAN setup of your own may need one or both:
+  - `NSLocalNetworkUsageDescription` is the **privacy purpose string** iOS shows before the app may reach
+    other devices on the local network. It applies to that access whatever the protocol, HTTPS included.
+  - `NSAllowsLocalNetworking` is the **ATS exception** that permits insecure (`http://`) loads of local
+    resources: private IPv4 and IPv6 ranges, `.local` names, and single-label hostnames. An `https://` LAN
+    URL does not need it.
+- conciv ships no LAN transport today, so an app that only uses the SDK needs neither key.
 
-## Any ATS key you do add is Debug-only by configuration
+## Any such key you do add is Debug-only by configuration
 
 - If your own dev setup needs `NSAppTransportSecurity` or `NSLocalNetworkUsageDescription`, put them in a
   **Debug-only** `xcconfig` or per-build-configuration `Info.plist`, so a Release or App Store build carries
@@ -31,6 +35,6 @@ through this list before shipping an app that embeds ConcivWidget.
 ## Verify before submission
 
 - Audit that no SDK code path or `isInspectable` compiles into the Release build, and that the Release
-  `Info.plist` carries no ATS or `NSLocalNetworkUsageDescription` key: a `#if DEBUG` code audit plus a
-  per-configuration plist audit.
+  `Info.plist` carries neither an `NSAppTransportSecurity` exception nor `NSLocalNetworkUsageDescription`:
+  a `#if DEBUG` code audit plus a per-configuration plist audit.
 - Confirm the Release build does not resolve or contact a dev-core URL.
