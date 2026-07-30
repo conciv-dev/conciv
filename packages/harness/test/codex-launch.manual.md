@@ -125,7 +125,7 @@ The isolated `CODEX_HOME` run listed both servers, so the override did not displ
 - Do hooks fire? SessionEnd fired with `session_id`, `transcript_path`, `cwd`, `hook_event_name` and
   `reason`, and the launching environment is visible to the hook process. SessionStart never ran,
   because `async = true` hooks are rejected outright in 0.145.0 with the message `async hooks are not
-  supported yet`. Dropping `async` is required for a hook to install at all.
+supported yet`. Dropping `async` is required for a hook to install at all.
 - Trust friction: two prompts on a fresh directory, one for the directory and one for the hooks. Both
   are interactive with no bypass flag used here. The hook trust is content-hashed and stored per
   source, so changing the hook command re-triggers review. A command-line hook is attributed to the

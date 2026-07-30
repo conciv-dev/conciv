@@ -28,6 +28,7 @@ its hooks, without restarting the session?
 
    Both printed success and needed no prompt. The marketplace registration lands in user settings;
    the install landed in the scratch project's local settings.
+
 5. In the running TUI: `/reload-plugins --force`, then `/mcp`, then a prompt asking the model to call
    the new tool, then `/exit`.
 
@@ -93,8 +94,14 @@ Sample UserPromptSubmit body:
 `claude agents --json` listed the tmux session while it ran:
 
 ```json
-{"pid":45279,"cwd":"/private/tmp/.../scratchpad/spikeA","kind":"interactive",
- "sessionId":"758f3da1-2759-42e1-9b49-524139cea6cf","name":"spikea-fe","status":"idle"}
+{
+  "pid": 45279,
+  "cwd": "/private/tmp/.../scratchpad/spikeA",
+  "kind": "interactive",
+  "sessionId": "758f3da1-2759-42e1-9b49-524139cea6cf",
+  "name": "spikea-fe",
+  "status": "idle"
+}
 ```
 
 ## Verdicts
