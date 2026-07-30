@@ -1,5 +1,6 @@
 import {spawn} from 'node:child_process'
-import {mkdirSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {homedir} from 'node:os'
 import {dirname, isAbsolute, join, relative, resolve} from 'node:path'
 import {z} from 'zod'
 import type {
@@ -147,11 +148,13 @@ function marketplaceManifest(): string {
   )}\n`
 }
 
+const CLAUDE_CONNECT_PLUGIN_VERSION = '0.0.0'
+
 function pluginManifest(): string {
   return `${JSON.stringify(
     {
       name: CLAUDE_CONNECT_PLUGIN,
-      version: '0.0.0',
+      version: CLAUDE_CONNECT_PLUGIN_VERSION,
       description: 'Connects a running claude session to the conciv widget.',
       author: {name: 'conciv'},
     },
@@ -219,13 +222,96 @@ function writeConnectFiles(files: HarnessConnectFile[]): void {
   }
 }
 
+function claudeConfigDir(): string {
+  const override = process.env.CLAUDE_CONFIG_DIR
+  return override === undefined || override.length === 0 ? join(homedir(), '.claude') : override
+}
+
+function pluginCacheDir(): string {
+  return join(
+    claudeConfigDir(),
+    'plugins',
+    'cache',
+    CLAUDE_CONNECT_MARKETPLACE,
+    CLAUDE_CONNECT_PLUGIN,
+    CLAUDE_CONNECT_PLUGIN_VERSION,
+  )
+}
+
+function readTextOrNull(path: string): string | null {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+function readJsonFile(path: string): unknown {
+  const raw = readTextOrNull(path)
+  return raw === null ? null : safeJson(raw)
+}
+
+function cachedCopyMatches(files: HarnessConnectFile[], stateDir: string): boolean {
+  const pluginRoot = join(claudeConnectDir(stateDir), CLAUDE_CONNECT_PLUGIN)
+  const cacheRoot = pluginCacheDir()
+  const owned = files.filter((file) => inside(pluginRoot, file.path))
+  if (owned.length === 0) return false
+  return owned.every((file) => readTextOrNull(join(cacheRoot, relative(pluginRoot, file.path))) === file.contents)
+}
+
+const InstalledPluginsSchema = z.object({
+  plugins: z.record(
+    z.string(),
+    z.array(z.object({scope: z.string(), installPath: z.string(), projectPath: z.string().optional()})),
+  ),
+})
+
+type InstalledPluginRecord = z.infer<typeof InstalledPluginsSchema>['plugins'][string][number]
+
+function samePath(left: string, right: string): boolean {
+  return realpathOrSelf(left) === realpathOrSelf(right)
+}
+
+function recordCoversProject(record: InstalledPluginRecord, root: string): boolean {
+  if (record.scope !== 'local') return false
+  if (record.projectPath === undefined) return false
+  return samePath(record.projectPath, root) && samePath(record.installPath, pluginCacheDir())
+}
+
+function installRecorded(root: string): boolean {
+  const parsed = InstalledPluginsSchema.safeParse(
+    readJsonFile(join(claudeConfigDir(), 'plugins', 'installed_plugins.json')),
+  )
+  if (!parsed.success) return false
+  const records = parsed.data.plugins[`${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`] ?? []
+  return records.some((record) => recordCoversProject(record, root))
+}
+
+const KnownMarketplacesSchema = z.record(z.string(), z.unknown())
+const MarketplaceEntrySchema = z.object({installLocation: z.string()})
+
+function marketplaceRegistered(stateDir: string): boolean {
+  const listed = KnownMarketplacesSchema.safeParse(
+    readJsonFile(join(claudeConfigDir(), 'plugins', 'known_marketplaces.json')),
+  )
+  if (!listed.success) return false
+  const entry = MarketplaceEntrySchema.safeParse(listed.data[CLAUDE_CONNECT_MARKETPLACE])
+  return entry.success && samePath(entry.data.installLocation, claudeConnectDir(stateDir))
+}
+
+function alreadyServing(files: HarnessConnectFile[], opts: HarnessAttachInstall): boolean {
+  return marketplaceRegistered(opts.stateDir) && installRecorded(opts.root) && cachedCopyMatches(files, opts.stateDir)
+}
+
 async function install(opts: HarnessAttachInstall): Promise<HarnessAttachResult> {
   const version = await claudeVersion()
   if (version === null) return failure('claude is not installed or did not report a version')
   if (!meetsReloadFloor(version))
     return failure(`claude ${version} lacks ${CLAUDE_RELOAD_COMMAND} (needs ${CLAUDE_RELOAD_MIN_VERSION}+)`)
   const root = claudeConnectDir(opts.stateDir)
-  writeConnectFiles(claudeConnectPluginFiles({stateDir: opts.stateDir, mcpUrl: opts.mcpUrl, hookUrl: opts.hookUrl}))
+  const files = claudeConnectPluginFiles({stateDir: opts.stateDir, mcpUrl: opts.mcpUrl, hookUrl: opts.hookUrl})
+  writeConnectFiles(files)
+  if (alreadyServing(files, opts)) return {ok: true, reloadCommand: CLAUDE_RELOAD_COMMAND}
   const added = await runClaude(['plugin', 'marketplace', 'add', root], {cwd: opts.root, timeoutMs: PLUGIN_TIMEOUT_MS})
   if (added.code !== 0) return failure(commandDetail('marketplace add', added))
   await runClaude(

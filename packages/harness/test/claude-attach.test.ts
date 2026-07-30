@@ -1,6 +1,6 @@
-import {chmodSync, mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileSync} from 'node:fs'
+import {chmodSync, mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {delimiter, join} from 'node:path'
+import {delimiter, dirname, join, relative} from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import {
@@ -38,7 +38,7 @@ const AGENTS_JSON_WITH_PIDLESS_BACKGROUND = JSON.stringify([
   {pid: 45280, cwd: '/repo', kind: 'interactive', sessionId: 'parent-session', name: 'root', status: 'idle'},
 ])
 
-const scratch = {dir: '', path: ''}
+const scratch = {dir: '', path: '', configDir: ''}
 
 function fakeClaude(script: string): void {
   const bin = join(scratch.dir, 'bin')
@@ -47,6 +47,50 @@ function fakeClaude(script: string): void {
   writeFileSync(file, script)
   chmodSync(file, 0o755)
   process.env.PATH = `${bin}${delimiter}${scratch.path}`
+}
+
+function claudePluginsDir(): string {
+  return join(process.env.CLAUDE_CONFIG_DIR ?? '', 'plugins')
+}
+
+function pluginCacheDir(): string {
+  return join(claudePluginsDir(), 'cache', 'conciv', 'conciv-connect', '0.0.0')
+}
+
+type InstallOptions = {root: string; stateDir: string; mcpUrl: string; hookUrl: string}
+
+function seedCachedPlugin(options: InstallOptions): void {
+  const pluginRoot = join(claudeConnectDir(options.stateDir), 'conciv-connect')
+  for (const file of claudeConnectPluginFiles(options)) {
+    const step = relative(pluginRoot, file.path)
+    if (step.startsWith('..')) continue
+    const target = join(pluginCacheDir(), step)
+    mkdirSync(dirname(target), {recursive: true})
+    writeFileSync(target, file.contents)
+  }
+}
+
+function seedInstalledState(options: InstallOptions): void {
+  seedCachedPlugin(options)
+  const marketplaceRoot = claudeConnectDir(options.stateDir)
+  mkdirSync(claudePluginsDir(), {recursive: true})
+  writeFileSync(
+    join(claudePluginsDir(), 'installed_plugins.json'),
+    JSON.stringify({
+      version: 2,
+      plugins: {
+        'conciv-connect@conciv': [
+          {scope: 'local', installPath: pluginCacheDir(), version: '0.0.0', projectPath: options.root},
+        ],
+      },
+    }),
+  )
+  writeFileSync(
+    join(claudePluginsDir(), 'known_marketplaces.json'),
+    JSON.stringify({
+      conciv: {source: {source: 'directory', path: marketplaceRoot}, installLocation: marketplaceRoot},
+    }),
+  )
 }
 
 function attachOf() {
@@ -58,10 +102,14 @@ function attachOf() {
 beforeEach(() => {
   scratch.dir = mkdtempSync(join(tmpdir(), 'conciv-claude-attach-'))
   scratch.path = process.env.PATH ?? ''
+  scratch.configDir = process.env.CLAUDE_CONFIG_DIR ?? ''
+  process.env.CLAUDE_CONFIG_DIR = join(scratch.dir, 'claude-config')
 })
 
 afterEach(() => {
   process.env.PATH = scratch.path
+  if (scratch.configDir === '') delete process.env.CLAUDE_CONFIG_DIR
+  else process.env.CLAUDE_CONFIG_DIR = scratch.configDir
 })
 
 describe('claude live session discovery', () => {
@@ -253,6 +301,36 @@ describe('claude attach install', () => {
 
     expect(result.ok).toBe(false)
     expect(result.detail).toContain('marketplace exists')
+  })
+
+  it('skips every plugin subcommand when claude already caches the same files', async () => {
+    const log = join(scratch.dir, 'calls.log')
+    seedInstalledState(installOptions())
+    fakeClaude(`#!/bin/sh\necho "$@" >> ${log}\n[ "$1" = --version ] && echo "2.1.220 (Claude Code)"\nexit 0\n`)
+    const result = await attachOf().install(installOptions())
+
+    expect(result).toEqual({ok: true, reloadCommand: CLAUDE_RELOAD_COMMAND})
+    expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual(['--version'])
+  })
+
+  it('reinstalls when the cached copy differs from the files we want', async () => {
+    const log = join(scratch.dir, 'calls.log')
+    seedInstalledState(installOptions())
+    writeFileSync(join(pluginCacheDir(), '.mcp.json'), '{"mcpServers":{}}\n')
+    fakeClaude(`#!/bin/sh\necho "$@" >> ${log}\n[ "$1" = --version ] && echo "2.1.220 (Claude Code)"\nexit 0\n`)
+    await attachOf().install(installOptions())
+
+    expect(readFileSync(log, 'utf8')).toContain('plugin install conciv-connect@conciv --scope local')
+  })
+
+  it('reinstalls when claude has no local install record for this project', async () => {
+    const log = join(scratch.dir, 'calls.log')
+    seedInstalledState(installOptions())
+    rmSync(join(claudePluginsDir(), 'installed_plugins.json'))
+    fakeClaude(`#!/bin/sh\necho "$@" >> ${log}\n[ "$1" = --version ] && echo "2.1.220 (Claude Code)"\nexit 0\n`)
+    await attachOf().install(installOptions())
+
+    expect(readFileSync(log, 'utf8')).toContain('plugin install conciv-connect@conciv --scope local')
   })
 
   it('removes the generated tree on uninstall', async () => {
