@@ -26,6 +26,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const chat: ChatDeps = {
     cwd: stateRoot,
     stateRoot,
+    basePath: '',
     harness,
     systemText: '',
     sandbox: makeConcivSandbox(stateRoot),

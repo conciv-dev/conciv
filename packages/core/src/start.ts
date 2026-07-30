@@ -75,6 +75,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const appOpts: MakeAppOpts = {
     cfg,
     cwd: opts.root,
+    basePath: opts.accessToken ? `/t/${opts.accessToken}` : '',
     bridge: opts.bridge,
     openInEditor,
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,

@@ -83,13 +83,17 @@ function isRouter(candidate: unknown): candidate is AnyRouter {
   return typeof candidate === 'object' && candidate !== null
 }
 
-export async function startTerminalServer(harness: ServerHarness = bashHarness): Promise<TerminalTestServer> {
+export async function startTerminalServer(
+  harness: ServerHarness = bashHarness,
+  basePath = '',
+): Promise<TerminalTestServer> {
   const app = new Hono()
   app.use(cors())
   const sessions = fakeSessions()
   const api: ServerApi<Record<never, never>> = {
     config: {},
     cwd: process.cwd(),
+    basePath,
     stateDir: concivStateDir(process.cwd()),
     sessions,
     harness,

@@ -114,7 +114,7 @@ export function makeRpcRouter(deps: RpcDeps) {
         }
       }),
       commands: os.meta.commands.handler(({input, context}) =>
-        listCommands(chat, {sessionId: input.sessionId, origin: new URL(context.request.url).origin}),
+        listCommands(chat, {sessionId: input.sessionId, requestUrl: context.request.url}),
       ),
       tools: os.meta.tools.handler(() => ({tools: deps.tools})),
     },

@@ -44,6 +44,7 @@ import type {OpenInEditor} from './editor/open.js'
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
   cwd: string
+  basePath?: string
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
   systemPromptFile?: string
@@ -187,6 +188,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         }
       : undefined,
   }
+  const basePath = opts.basePath ?? ''
   const seenTools = new Set<string>()
   const seenNames = new Set<string>()
   const mounted = await Promise.all(
@@ -197,6 +199,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         stateDir: concivStateDir(opts.cfg.stateRoot),
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
+        basePath,
         sessions: serverSessions,
         harness: serverHarness,
       })
@@ -249,6 +252,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const chatDeps: ChatDeps = {
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
+    basePath,
     harness,
     harnessEnv: opts.harnessEnv,
     claudeHome: opts.claudeHome,

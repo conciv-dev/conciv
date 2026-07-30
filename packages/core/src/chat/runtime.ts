@@ -11,6 +11,7 @@ import type {AttachmentExpanders} from './run.js'
 export type ChatDeps = {
   cwd: string
   stateRoot: string
+  basePath: string
   systemText: string
   claudeHome?: string
   harness: HarnessAdapter

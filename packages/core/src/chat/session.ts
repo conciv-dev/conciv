@@ -18,6 +18,7 @@ import type {
 import {isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX, type HarnessLaunchContext, type HarnessLaunchResult} from '@conciv/protocol/harness-types'
 import {sessions, type ConcivDb} from '@conciv/db'
+import {apiBaseFrom} from '../lib/api-base.js'
 import type {ChatDeps} from './runtime.js'
 
 export type ResolveDeps = {
@@ -136,10 +137,13 @@ export async function buildSessionList(args: {
   return [...ours, ...unwrapped].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }
 
-export async function listCommands(deps: ChatDeps, opts: {sessionId?: string; origin: string}): Promise<ChatCommands> {
+export async function listCommands(
+  deps: ChatDeps,
+  opts: {sessionId?: string; requestUrl: string},
+): Promise<ChatCommands> {
   const commands = deps.harness.commands
   if (!commands) return {commands: []}
-  const mcpUrl = deps.harness.capabilities.mcp === 'http' ? `${opts.origin}/api/mcp` : undefined
+  const mcpUrl = deps.harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.requestUrl) : undefined
   const list = await commands({cwd: deps.cwd, sessionId: opts.sessionId, mcpUrl})
   return {
     commands: list.map((command) => ({
@@ -225,9 +229,13 @@ export function toModelMessages(messages: ChatMessage[]): ModelMessage[] {
   return messages.map((m) => ({role: modelRole(m.role), content: modelContent(m)}))
 }
 
+function mcpUrlFor(deps: ChatDeps, requestUrl: string): string {
+  return `${apiBaseFrom(requestUrl, deps.basePath)}/api/mcp`
+}
+
 export async function launchHarness(
   deps: ChatDeps,
-  opts: {sessionId: string | null; model?: string; origin: string},
+  opts: {sessionId: string | null; model?: string; requestUrl: string},
 ): Promise<ChatLaunch> {
   if (!deps.harness.launch) return {supported: false, opened: false, command: null}
   const token = opts.sessionId ? ((await sessionById(deps.db, opts.sessionId))?.harnessSessionId ?? null) : null
@@ -235,7 +243,7 @@ export async function launchHarness(
     cwd: deps.cwd,
     sessionId: token || null,
     model: opts.model ?? null,
-    mcpUrl: deps.harness.capabilities.mcp === 'http' ? `${opts.origin}/api/mcp` : null,
+    mcpUrl: deps.harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.requestUrl) : null,
     openTerminal: (argv) => openTerminal(argv, deps.cwd),
     openUrl: (url) => openUrl(url),
   }

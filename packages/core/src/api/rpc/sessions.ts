@@ -56,7 +56,7 @@ export function sessionsRouter(deps: RpcDeps) {
       launchHarness(chat, {
         sessionId: input.sessionId,
         model: input.model,
-        origin: new URL(context.request.url).origin,
+        requestUrl: context.request.url,
       }),
     ),
     rename: os.sessions.rename.handler(async ({input, errors}) => {

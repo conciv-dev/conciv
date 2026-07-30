@@ -70,7 +70,7 @@ async function openTtySession(
   const {harnessSessionId, resume} = await resolveHarnessSession(runtime, sessionId)
   const model = size.model ?? (await server.sessions.model(sessionId))
   server.harness.release?.(sessionId)
-  const mcpUrl = `${origin}/api/mcp`
+  const mcpUrl = `${origin}${server.basePath}/api/mcp`
   const session = tty.open(
     sessionId,
     ttyCommand({cwd: server.cwd, harnessSessionId, resume, model, mcpUrl, concivSessionId: sessionId}),

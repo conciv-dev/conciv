@@ -136,6 +136,17 @@ describe('terminal extension routes', () => {
     }
   })
 
+  it('spawns with an mcp url that carries the app base path', async () => {
+    const {harness, captured} = recordingHarness()
+    const dedicated = await startTerminalServer(harness, '/t/tok-terminal')
+    try {
+      expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
+      expect(captured[0]?.mcpUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/t\/tok-terminal\/api\/mcp$/)
+    } finally {
+      await dedicated.close()
+    }
+  })
+
   it('injects a resumed marker when reopening an existing transcript', async () => {
     const {harness} = recordingHarness()
     const dedicated = await startTerminalServer({...harness, transcriptExists: () => true})
