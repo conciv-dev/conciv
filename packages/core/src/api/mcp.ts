@@ -67,14 +67,16 @@ export type McpVars = {
     extensionTools: ExtensionServerTool[]
     sessionModel: (sessionId: string) => string | null
     onRequest: (sessionId: string) => void
+    onHarnessDial: (harnessSessionId: string) => void
     sessionForHarnessId: (harnessSessionId: string) => Promise<string | null>
   }
 }
 
 async function requestSessionId(headers: Headers, vars: McpVars['mcp']): Promise<string> {
+  const claudeSessionId = headers.get(CONCIV_CLAUDE_SESSION_HEADER)?.trim()
+  if (claudeSessionId) vars.onHarnessDial(claudeSessionId)
   const owned = sessionIdFromHeaders(headers)
   if (owned) return owned
-  const claudeSessionId = headers.get(CONCIV_CLAUDE_SESSION_HEADER)?.trim()
   if (!claudeSessionId) return ''
   return (await vars.sessionForHarnessId(claudeSessionId)) ?? ''
 }

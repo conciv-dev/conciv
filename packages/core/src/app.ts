@@ -27,6 +27,7 @@ import {
   transcriptCwdFor,
 } from './chat/session.js'
 import {buildChatTools, type ChatDeps} from './chat/runtime.js'
+import {makeDialLog} from './chat/dial-log.js'
 import {makeChanges} from './chat/attach.js'
 import {askUi, makeConcivSandbox} from './chat/gate.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
@@ -287,6 +288,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ),
   ]
 
+  const dialLog = makeDialLog()
+
   const chatDeps: ChatDeps = {
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
@@ -301,6 +304,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sandbox: makeConcivSandbox(opts.cwd),
     db,
     changes,
+    dialed: dialLog.seen,
     risky,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     attachmentExpanders,
@@ -341,6 +345,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         extensionTools,
         sessionModel,
         onRequest: notifyMcpRequest,
+        onHarnessDial: dialLog.note,
         sessionForHarnessId: serverSessions.sessionForHarnessId,
       },
     },

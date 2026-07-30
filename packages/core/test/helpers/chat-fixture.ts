@@ -32,6 +32,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     sandbox: makeConcivSandbox(stateRoot),
     db,
     changes: makeChanges(),
+    dialed: () => false,
     risky: new Set<string>(),
     tools: () => [],
     attachmentExpanders: {},

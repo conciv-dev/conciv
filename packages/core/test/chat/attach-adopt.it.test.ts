@@ -92,16 +92,15 @@ describe('adopting a running terminal session', () => {
   it('lists the live sessions that cover this project', async () => {
     const kit = await boot()
     const found = await kit.rpc.sessions.attachCandidates()
-    expect(found).toEqual([
-      {
-        sessionId: HARNESS_SESSION,
-        pid: process.pid,
-        cwd: kit.stateRoot,
-        name: 'terminal',
-        status: 'idle',
-        relation: 'same',
-      },
-    ])
+    expect(found).toHaveLength(1)
+    expect(found[0]).toMatchObject({
+      sessionId: HARNESS_SESSION,
+      pid: process.pid,
+      cwd: kit.stateRoot,
+      name: 'terminal',
+      status: 'idle',
+      relation: 'same',
+    })
   }, 30_000)
 
   it('wraps the terminal session once and remembers where it runs', async () => {

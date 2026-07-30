@@ -19,6 +19,7 @@ export type ChatDeps = {
   sandbox: SandboxDefinition
   db: ConcivDb
   changes: Changes
+  dialed: (harnessSessionId: string) => boolean
   risky: ReadonlySet<string>
   tools: (sessionId: string) => AnyTool[]
   attachmentExpanders: AttachmentExpanders

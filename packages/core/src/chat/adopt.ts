@@ -9,6 +9,7 @@ import type {LiveSession} from '@conciv/contract'
 import {apiBaseFrom} from '../lib/api-base.js'
 import {logError} from '../lib/debug.js'
 import {mcpUrlFor, resolveSession, sessionById} from './session.js'
+import {transcriptTail} from './transcript-tail.js'
 import type {ChatDeps} from './runtime.js'
 
 export const SESSION_ATTACHED = 'session attached'
@@ -36,10 +37,24 @@ export function cwdRelation(candidateCwd: string, engineCwd: string): CwdRelatio
   return 'disjoint'
 }
 
-function toWire(session: HarnessLiveSession, engineCwd: string): LiveSession[] {
-  const relation = cwdRelation(session.cwd, engineCwd)
+async function toWire(deps: ChatDeps, session: HarnessLiveSession): Promise<LiveSession[]> {
+  const relation = cwdRelation(session.cwd, deps.cwd)
   if (relation === 'disjoint') return []
-  return [{...session, relation}]
+  const history = deps.harness.history
+  const meta = await history?.meta?.(session.cwd, session.sessionId, deps.claudeHome).catch(() => null)
+  const messages = (await history?.messages(session.cwd, session.sessionId, deps.claudeHome).catch(() => [])) ?? []
+  return [
+    {
+      ...session,
+      relation,
+      ready: deps.dialed(session.sessionId),
+      title: meta?.derivedTitle ?? '',
+      messageCount: meta?.messageCount ?? messages.length,
+      lastActivityAt: meta?.updatedAt ?? session.startedAt ?? 0,
+      working: session.status === 'busy',
+      tail: transcriptTail(messages),
+    },
+  ]
 }
 
 export async function liveCandidates(deps: ChatDeps): Promise<LiveSession[]> {
@@ -49,7 +64,8 @@ export async function liveCandidates(deps: ChatDeps): Promise<LiveSession[]> {
     logError(`[core] listing live ${deps.harness.id} sessions failed: ${String(error)}`)
     return []
   })
-  return found.flatMap((session) => toWire(session, deps.cwd))
+  const wired = await Promise.all(found.map((session) => toWire(deps, session)))
+  return wired.flat().toSorted((left, right) => right.lastActivityAt - left.lastActivityAt)
 }
 
 export type AdoptRequest = {harnessSessionId: string; pid: number; force: boolean; requestUrl: string}
