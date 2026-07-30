@@ -18,6 +18,7 @@ const context = (over: Partial<HarnessConnectContext> = {}): HarnessConnectConte
   concivSessionId: CONCIV_SESSION,
   harnessSessionId: 'tok-1',
   resume: false,
+  owned: true,
   model: null,
   mcpUrl: null,
   hookUrl: null,

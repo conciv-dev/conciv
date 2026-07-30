@@ -9,6 +9,7 @@ const connectContext = (over: Partial<HarnessConnectContext> = {}): HarnessConne
   concivSessionId: SessionId.parse('conciv_codex_test'),
   harnessSessionId: null,
   resume: false,
+  owned: true,
   model: null,
   mcpUrl: null,
   hookUrl: null,

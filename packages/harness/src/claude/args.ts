@@ -8,13 +8,18 @@ export function mcpServerConfig(mcpUrl: string, sessionId?: string): {conciv: Mc
   return {conciv: sessionId ? {...conciv, headers: {[CONCIV_SESSION_HEADER]: sessionId}} : conciv}
 }
 
+export function claudeMcpArgsPermissive(mcpUrl: string, sessionId?: string): string[] {
+  return ['--mcp-config', JSON.stringify({mcpServers: mcpServerConfig(mcpUrl, sessionId)})]
+}
+
 export function claudeMcpArgs(mcpUrl: string, sessionId?: string): string[] {
-  return ['--mcp-config', JSON.stringify({mcpServers: mcpServerConfig(mcpUrl, sessionId)}), '--strict-mcp-config']
+  return [...claudeMcpArgsPermissive(mcpUrl, sessionId), '--strict-mcp-config']
 }
 
 export function claudeConnectArgs(ctx: HarnessConnectContext): string[] {
   const session = ctx.harnessSessionId ? [ctx.resume ? '--resume' : '--session-id', ctx.harnessSessionId] : []
   const model = ctx.model ? ['--model', ctx.model] : []
-  const mcp = ctx.mcpUrl ? claudeMcpArgs(ctx.mcpUrl, ctx.concivSessionId) : []
+  const mcpArgs = ctx.owned ? claudeMcpArgs : claudeMcpArgsPermissive
+  const mcp = ctx.mcpUrl ? mcpArgs(ctx.mcpUrl, ctx.concivSessionId) : []
   return [...session, ...model, ...mcp]
 }

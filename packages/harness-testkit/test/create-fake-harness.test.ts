@@ -9,6 +9,7 @@ const context: HarnessConnectContext = {
   concivSessionId: SessionId.parse('conciv_fake_harness'),
   harnessSessionId: 's',
   resume: false,
+  owned: true,
   model: null,
   mcpUrl: null,
   hookUrl: null,

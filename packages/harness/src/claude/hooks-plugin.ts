@@ -17,7 +17,9 @@ const SESSION_END_TIMEOUT_SECONDS = 1
 
 export type ClaudeHooksPluginOptions = {stateDir: string; concivSessionId: string; hookUrl: string}
 
-function hooksManifest(opts: ClaudeHooksPluginOptions): string {
+export type ClaudeHooksManifestOptions = {concivSessionId: string; hookUrl: string}
+
+export function claudeHooksManifest(opts: ClaudeHooksManifestOptions): string {
   const headers = {[CONCIV_SESSION_HEADER]: opts.concivSessionId}
   const hooks = Object.fromEntries(
     CLAUDE_HOOK_EVENTS.map((event) => [
@@ -56,6 +58,6 @@ export function claudeHooksPluginFiles(opts: ClaudeHooksPluginOptions): HarnessC
   const dir = concivHooksPluginDir(opts.stateDir, opts.concivSessionId)
   return [
     {path: join(dir, '.claude-plugin', 'plugin.json'), contents: pluginManifest()},
-    {path: join(dir, 'hooks', 'hooks.json'), contents: hooksManifest(opts)},
+    {path: join(dir, 'hooks', 'hooks.json'), contents: claudeHooksManifest(opts)},
   ]
 }

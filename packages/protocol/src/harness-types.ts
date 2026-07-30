@@ -43,6 +43,7 @@ export type HarnessConnectContext = {
   concivSessionId: SessionId
   harnessSessionId: string | null
   resume: boolean
+  owned: boolean
   model: string | null
   mcpUrl: string | null
   hookUrl: string | null
@@ -57,6 +58,33 @@ export type HarnessConnectPlan = {
 }
 
 export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPlan}
+
+export type HarnessLiveSession = {
+  sessionId: string
+  pid: number
+  cwd: string
+  name: string
+  status: 'idle' | 'busy' | 'shell'
+  startedAt?: number
+}
+
+export type HarnessAttachInstall = {
+  root: string
+  stateDir: string
+  mcpUrl: string
+  concivSessionId: SessionId
+  hookUrl: string
+}
+
+export type HarnessAttachResult = {ok: boolean; reloadCommand: string; detail?: string}
+
+export type HarnessAttachRemoval = {root: string; stateDir: string}
+
+export type HarnessAttach = {
+  candidates(cwd: string, home?: string): Promise<HarnessLiveSession[]>
+  install(opts: HarnessAttachInstall): Promise<HarnessAttachResult>
+  uninstall(opts: HarnessAttachRemoval): Promise<void>
+}
 
 export type HarnessChatDeps = {
   cwd: string
@@ -107,6 +135,7 @@ type HarnessAdapterBase = {
   displayName?: string
 
   connect?: HarnessConnect
+  attach?: HarnessAttach
   chatConfig: (deps: HarnessChatDeps) => HarnessChatConfig
 
   models?: HarnessModels
