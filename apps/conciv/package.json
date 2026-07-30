@@ -32,7 +32,6 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
-    "@conciv/ui-kit-terminal": "workspace:^",
     "@fontsource-variable/roboto-mono": "^5.2.9",
     "@fontsource-variable/wix-madefor-text": "^5.2.8",
     "@tanstack/ai-client": "0.22.0",
