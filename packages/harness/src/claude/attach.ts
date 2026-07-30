@@ -70,12 +70,15 @@ function realpathOrSelf(path: string): string {
   }
 }
 
-export function coversCwd(sessionCwd: string, cwd: string): boolean {
+function inside(parent: string, child: string): boolean {
+  const step = relative(parent, child)
+  return step.length > 0 && !step.startsWith('..') && !isAbsolute(step)
+}
+
+export function relatedCwd(sessionCwd: string, cwd: string): boolean {
   const from = realpathOrSelf(sessionCwd)
   const to = realpathOrSelf(cwd)
-  if (from === to) return true
-  const step = relative(from, to)
-  return step.length > 0 && !step.startsWith('..') && !isAbsolute(step)
+  return from === to || inside(from, to) || inside(to, from)
 }
 
 export function parseLiveSessions(raw: string): HarnessLiveSession[] {
@@ -195,7 +198,7 @@ async function claudeVersion(): Promise<string | null> {
 async function candidates(cwd: string): Promise<HarnessLiveSession[]> {
   const listed = await runClaude(['agents', '--json'], {timeoutMs: AGENTS_TIMEOUT_MS})
   if (listed.code !== 0) return []
-  return parseLiveSessions(listed.stdout).filter((session) => coversCwd(session.cwd, cwd))
+  return parseLiveSessions(listed.stdout).filter((session) => relatedCwd(session.cwd, cwd))
 }
 
 const CONNECT_FILE_MODE = 0o600

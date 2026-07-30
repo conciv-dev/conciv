@@ -1,6 +1,7 @@
 import {writeReply} from '@conciv/db'
 import {attachLive} from '../../chat/attach.js'
 import {SESSION_BUSY} from '../../chat/run.js'
+import {SESSION_ATTACHED} from '../../chat/adopt.js'
 import {pendingUiCallIds, sessionForApproval} from '../../chat/gate.js'
 import {os, type RpcDeps} from './mount.js'
 
@@ -18,6 +19,7 @@ export function chatRouter(deps: RpcDeps) {
         return {ok: true as const, runId}
       } catch (error) {
         if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
+        if (error instanceof Error && error.message === SESSION_ATTACHED) throw errors.SESSION_ATTACHED()
         throw error
       }
     }),

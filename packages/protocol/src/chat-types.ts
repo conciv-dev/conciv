@@ -136,6 +136,7 @@ export const ChatModelsSchema = z.object({
     id: z.string(),
     name: z.string(),
     canLaunch: z.boolean(),
+    canAttach: z.boolean(),
     imageInput: z.union([z.literal('native'), z.literal('fileRef'), z.literal(false)]),
   }),
 })

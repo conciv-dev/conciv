@@ -36,6 +36,7 @@ import {
   toModelMessages,
 } from './session.js'
 import {mergedMessages, runIdFor, transcriptMessages} from './attach.js'
+import {attachedElsewhere, SESSION_ATTACHED} from './adopt.js'
 import {makeRunGate, withConcivGate, withConcivSandbox} from './gate.js'
 import {harnessDebug, logError} from '../lib/debug.js'
 
@@ -342,6 +343,7 @@ async function historyFor(deps: ChatDeps, sessionId: string): Promise<ChatMessag
 
 export function makeSend(deps: ChatDeps): (sessionId: string, content: UserContent) => Promise<string> {
   return async (sessionId, content) => {
+    if (await attachedElsewhere(deps, sessionId)) throw new Error(SESSION_ATTACHED)
     const epoch = claimRun(deps.db, sessionId, 'chat')
     if (epoch === null) throw new Error(SESSION_BUSY)
     deps.changes.notify()

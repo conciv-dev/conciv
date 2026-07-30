@@ -5,6 +5,7 @@ import {resolveHarnessModels} from '@conciv/harness'
 import {clearRunState, drafts, markers, requestStop, sessions, statusOf, type RunStatus} from '@conciv/db'
 import {buildSessionList, ensureChatRecord, launchHarness, resolveSession, sessionById} from '../../chat/session.js'
 import {SESSION_BUSY} from '../../chat/run.js'
+import {adoptLiveSession, detachLiveSession, liveCandidates} from '../../chat/adopt.js'
 import {os, type RpcDeps} from './mount.js'
 
 function wireStatus(status: RunStatus): 'idle' | 'running' | 'compacting' {
@@ -61,6 +62,31 @@ export function sessionsRouter(deps: RpcDeps) {
         requestUrl: context.request.url,
       })
     }),
+    connectCommand: os.sessions.connectCommand.handler(({input, context}) =>
+      launchHarness(chat, {
+        sessionId: input.sessionId,
+        model: input.model,
+        open: false,
+        owned: false,
+        requestUrl: context.request.url,
+      }),
+    ),
+    attachCandidates: os.sessions.attachCandidates.handler(() => liveCandidates(chat)),
+    attachAdopt: os.sessions.attachAdopt.handler(async ({input, context, errors}) => {
+      const outcome = await adoptLiveSession(chat, {
+        harnessSessionId: input.harnessSessionId,
+        pid: input.pid,
+        force: input.force ?? false,
+        requestUrl: context.request.url,
+      })
+      if (outcome.ok) return {sessionId: outcome.sessionId, reloadCommand: outcome.reloadCommand}
+      if (outcome.code === 'CWD_MISMATCH') throw errors.CWD_MISMATCH({message: outcome.detail})
+      throw errors.INSTALL_FAILED({message: outcome.detail})
+    }),
+    attachDetach: os.sessions.attachDetach.handler(async ({input}) => {
+      await detachLiveSession(chat, input.sessionId)
+      return {ok: true as const}
+    }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
       if (!(await sessionById(db, input.sessionId))) throw errors.NOT_FOUND()
       const title = cleanTitle(input.title)
@@ -112,6 +138,7 @@ export function harnessMetaOf(deps: RpcDeps) {
     id: deps.chat.harness.id,
     name: deps.chat.harness.displayName ?? deps.chat.harness.id,
     canLaunch: Boolean(deps.chat.harness.connect),
+    canAttach: Boolean(deps.chat.harness.attach),
     imageInput: deps.chat.harness.capabilities.imageInput,
   }
 }

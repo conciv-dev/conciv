@@ -6,7 +6,7 @@ import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import {
   claudeConnectDir,
   claudeConnectPluginFiles,
-  coversCwd,
+  relatedCwd,
   meetsReloadFloor,
   parseLiveSessions,
   CLAUDE_RELOAD_COMMAND,
@@ -59,8 +59,8 @@ afterEach(() => {
 })
 
 describe('claude live session discovery', () => {
-  it('keeps interactive sessions whose cwd contains the requested one', () => {
-    const sessions = parseLiveSessions(AGENTS_JSON).filter((session) => coversCwd(session.cwd, '/repo/app'))
+  it('keeps interactive sessions whose cwd is related to the requested one', () => {
+    const sessions = parseLiveSessions(AGENTS_JSON).filter((session) => relatedCwd(session.cwd, '/repo/app'))
     expect(sessions.map((session) => session.sessionId)).toEqual([
       '758f3da1-2759-42e1-9b49-524139cea6cf',
       'parent-session',
@@ -68,10 +68,11 @@ describe('claude live session discovery', () => {
     expect(sessions[0]).toMatchObject({pid: 45279, name: 'spikea-fe', status: 'idle', cwd: '/repo/app'})
   })
 
-  it('rejects sibling and descendant directories', () => {
-    expect(coversCwd('/repo/app', '/repo')).toBe(false)
-    expect(coversCwd('/repo/app', '/repo/other')).toBe(false)
-    expect(coversCwd('/repo/app', '/repo/app')).toBe(true)
+  it('keeps directories above and below, and drops siblings', () => {
+    expect(relatedCwd('/repo/app', '/repo')).toBe(true)
+    expect(relatedCwd('/repo', '/repo/app')).toBe(true)
+    expect(relatedCwd('/repo/app', '/repo/other')).toBe(false)
+    expect(relatedCwd('/repo/app', '/repo/app')).toBe(true)
   })
 
   it('returns nothing for unparsable output', () => {

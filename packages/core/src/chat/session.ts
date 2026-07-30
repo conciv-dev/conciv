@@ -267,11 +267,17 @@ export function toModelMessages(messages: ChatMessage[]): ModelMessage[] {
   return messages.map((m) => ({role: modelRole(m.role), content: modelContent(m)}))
 }
 
-function mcpUrlFor(deps: ChatDeps, requestUrl: string): string {
+export function mcpUrlFor(deps: ChatDeps, requestUrl: string): string {
   return `${apiBaseFrom(requestUrl, deps.basePath)}/api/mcp`
 }
 
-export type LaunchOptions = {sessionId: string; model?: string; open?: boolean; requestUrl: string}
+export type LaunchOptions = {
+  sessionId: string
+  model?: string
+  open?: boolean
+  owned?: boolean
+  requestUrl: string
+}
 
 async function harnessToken(deps: ChatDeps, sessionId: string): Promise<{token: string; resume: boolean}> {
   const existing = await resumeTokenFor(deps.db, sessionId)
@@ -296,6 +302,7 @@ export async function connectPlanFor(deps: ChatDeps, opts: LaunchOptions): Promi
     concivSessionId: sessionId,
     harnessSessionId: token,
     resume,
+    owned: opts.owned ?? true,
     model: opts.model ?? null,
     mcpUrl: deps.harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.requestUrl) : null,
     hookUrl: `${apiBaseFrom(opts.requestUrl, deps.basePath)}${CONCIV_HOOK_PATH}`,

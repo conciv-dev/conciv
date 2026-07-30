@@ -20,7 +20,7 @@ import {
   PageRunResultSchema,
 } from '@conciv/protocol/page-types'
 import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
-import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
+import {DraftRowSchema, LiveSessionSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
 
@@ -56,6 +56,16 @@ export const contract = {
       .errors(busy)
       .input(SessionIdInput.extend({model: z.string().optional(), open: z.boolean().optional()}))
       .output(ChatLaunchSchema),
+    connectCommand: oc.input(SessionIdInput.extend({model: z.string().optional()})).output(ChatLaunchSchema),
+    attachCandidates: oc.output(z.array(LiveSessionSchema)),
+    attachAdopt: oc
+      .errors({
+        CWD_MISMATCH: {message: 'that session runs in a different directory'},
+        INSTALL_FAILED: {message: 'could not install the conciv plugin'},
+      })
+      .input(z.object({harnessSessionId: z.string(), pid: z.number().int(), force: z.boolean().optional()}))
+      .output(z.object({sessionId: z.string(), reloadCommand: z.string()})),
+    attachDetach: oc.input(SessionIdInput).output(Ok),
   },
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
@@ -71,7 +81,11 @@ export const contract = {
   chat: {
     attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
     send: oc
-      .errors({...busy, EXTERNAL_ACTIVE: {message: 'an external session owns this conversation'}})
+      .errors({
+        ...busy,
+        EXTERNAL_ACTIVE: {message: 'an external session owns this conversation'},
+        SESSION_ATTACHED: {message: 'this session is driven from your terminal'},
+      })
       .input(ChatSendInput)
       .output(SendAccepted),
     permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),

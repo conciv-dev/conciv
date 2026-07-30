@@ -29,6 +29,7 @@ import {buildChatTools, type ChatDeps} from './chat/runtime.js'
 import {makeChanges} from './chat/attach.js'
 import {askUi, makeConcivSandbox} from './chat/gate.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
+import {detachAllAttached} from './chat/adopt.js'
 import {modelOf, openDb, requestStop, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {makePageBus} from './page-bus.js'
@@ -348,5 +349,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       )
   })
 
-  return {app, disposers, extensionContexts, closeDb: () => db.$client.close()}
+  return {
+    app,
+    disposers: [...disposers, () => detachAllAttached(chatDeps)],
+    extensionContexts,
+    closeDb: () => db.$client.close(),
+  }
 }

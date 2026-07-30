@@ -20,6 +20,17 @@ export const SessionMetaSchema = z.object({
 })
 export type SessionMeta = z.infer<typeof SessionMetaSchema>
 
+export const LiveSessionSchema = z.object({
+  sessionId: z.string(),
+  pid: z.number().int(),
+  cwd: z.string(),
+  name: z.string(),
+  status: z.enum(['idle', 'busy', 'shell']),
+  startedAt: z.number().optional(),
+  relation: z.enum(['same', 'ancestor', 'descendant']),
+})
+export type LiveSession = z.infer<typeof LiveSessionSchema>
+
 export const DraftRowSchema = z.object({
   sessionId: z.string(),
   text: z.string(),
