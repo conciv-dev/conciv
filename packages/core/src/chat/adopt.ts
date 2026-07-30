@@ -45,7 +45,10 @@ function toWire(session: HarnessLiveSession, engineCwd: string): LiveSession[] {
 export async function liveCandidates(deps: ChatDeps): Promise<LiveSession[]> {
   const attach = deps.harness.attach
   if (!attach) return []
-  const found = await attach.candidates(deps.cwd, deps.claudeHome).catch(() => [])
+  const found = await attach.candidates(deps.cwd, deps.claudeHome).catch((error: unknown) => {
+    logError(`[core] listing live ${deps.harness.id} sessions failed: ${String(error)}`)
+    return []
+  })
   return found.flatMap((session) => toWire(session, deps.cwd))
 }
 

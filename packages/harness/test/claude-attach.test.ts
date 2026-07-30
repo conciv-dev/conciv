@@ -32,6 +32,11 @@ const AGENTS_JSON = JSON.stringify([
   {pid: 45282, cwd: '/repo/app', kind: 'background', sessionId: 'bg-session', name: 'bg', status: 'idle'},
 ])
 
+const AGENTS_JSON_WITH_PIDLESS_BACKGROUND = JSON.stringify([
+  {id: '5bf339d2', cwd: '/repo', kind: 'background', sessionId: 'bg-no-pid', name: 'nightly review', state: 'blocked'},
+  {pid: 45280, cwd: '/repo', kind: 'interactive', sessionId: 'parent-session', name: 'root', status: 'idle'},
+])
+
 const scratch = {dir: '', path: ''}
 
 function fakeClaude(script: string): void {
@@ -73,6 +78,11 @@ describe('claude live session discovery', () => {
     expect(relatedCwd('/repo', '/repo/app')).toBe(true)
     expect(relatedCwd('/repo/app', '/repo/other')).toBe(false)
     expect(relatedCwd('/repo/app', '/repo/app')).toBe(true)
+  })
+
+  it('keeps interactive sessions when a background agent carries no pid', () => {
+    const sessions = parseLiveSessions(AGENTS_JSON_WITH_PIDLESS_BACKGROUND)
+    expect(sessions.map((session) => session.sessionId)).toEqual(['parent-session'])
   })
 
   it('returns nothing for unparsable output', () => {

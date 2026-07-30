@@ -33,8 +33,8 @@ const LiveSessionSchema = z.object({
 })
 
 const AgentsOutputSchema = z.union([
-  z.array(LiveSessionSchema),
-  z.object({agents: z.array(LiveSessionSchema)}).transform((value) => value.agents),
+  z.array(z.unknown()),
+  z.object({agents: z.array(z.unknown())}).transform((value) => value.agents),
 ])
 
 type SpawnResult = {code: number; stdout: string; stderr: string}
@@ -82,18 +82,24 @@ export function relatedCwd(sessionCwd: string, cwd: string): boolean {
 }
 
 export function parseLiveSessions(raw: string): HarnessLiveSession[] {
-  const parsed = AgentsOutputSchema.safeParse(safeJson(raw))
-  if (!parsed.success) return []
-  return parsed.data
-    .filter((entry) => entry.kind === 'interactive')
-    .map((entry) => ({
-      sessionId: entry.sessionId,
-      pid: entry.pid,
-      cwd: entry.cwd,
-      name: entry.name ?? entry.sessionId.slice(0, 8),
-      status: entry.status ?? 'idle',
-      ...(entry.startedAt === undefined ? {} : {startedAt: entry.startedAt}),
-    }))
+  const listed = AgentsOutputSchema.safeParse(safeJson(raw))
+  if (!listed.success) return []
+  return listed.data.flatMap((value) => {
+    const parsed = LiveSessionSchema.safeParse(value)
+    if (!parsed.success) return []
+    const entry = parsed.data
+    if (entry.kind !== 'interactive') return []
+    return [
+      {
+        sessionId: entry.sessionId,
+        pid: entry.pid,
+        cwd: entry.cwd,
+        name: entry.name ?? entry.sessionId.slice(0, 8),
+        status: entry.status ?? 'idle',
+        ...(entry.startedAt === undefined ? {} : {startedAt: entry.startedAt}),
+      },
+    ]
+  })
 }
 
 function safeJson(raw: string): unknown {
