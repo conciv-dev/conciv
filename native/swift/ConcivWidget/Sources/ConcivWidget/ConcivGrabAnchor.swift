@@ -58,6 +58,14 @@ public final class ConcivAnchorRegistry {
       .min { lhs, rhs in (lhs.frame.width * lhs.frame.height) < (rhs.frame.width * rhs.frame.height) }
   }
 
+  // Anchors whose frame lies inside the given frame. A SwiftUI anchor wraps only a
+  // row's content, never the cell padding or its separator, so a tap in that padding
+  // misses hitTest; the pick then asks which anchors live inside the view the hit-test
+  // walk resolved and snaps to one (pickAnchorSnap).
+  public func anchors(within frame: CGRect) -> [Anchor] {
+    anchors.values.filter { frame.contains($0.frame) }
+  }
+
   // Anchors strictly inside the given anchor's frame, used to build the bounded
   // grab-attached subtree for a SwiftUI selection.
   public func descendants(of anchor: Anchor) -> [Anchor] {

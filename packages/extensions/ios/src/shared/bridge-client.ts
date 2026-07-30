@@ -55,6 +55,10 @@ export type BridgeClient = {
 const DEFAULT_READY_INTERVAL_MS = 300
 const DEFAULT_PICK_TIMEOUT_MS = 10_000
 
+function formatRect(rect: ElementRect): string {
+  return `(${Math.round(rect.x)},${Math.round(rect.y)} ${Math.round(rect.width)}x${Math.round(rect.height)})`
+}
+
 function formatViewNode(node: ViewNode, depth: number, budget: {remaining: number}): string[] {
   if (depth > SUBTREE_MAX_DEPTH) return []
   if (budget.remaining <= 0) return []
@@ -62,8 +66,7 @@ function formatViewNode(node: ViewNode, depth: number, budget: {remaining: numbe
   const indent = '  '.repeat(depth)
   const anchor = node.a11yId === null ? '' : ` #${node.a11yId}`
   const label = node.text === null ? '' : ` "${node.text}"`
-  const rect = `(${node.rect.x},${node.rect.y} ${node.rect.width}x${node.rect.height})`
-  const line = `${indent}${node.class}${anchor}${label} ${rect}`
+  const line = `${indent}${node.class}${anchor}${label} ${formatRect(node.rect)}`
   return [line, ...node.children.flatMap((child) => formatViewNode(child, depth + 1, budget))]
 }
 

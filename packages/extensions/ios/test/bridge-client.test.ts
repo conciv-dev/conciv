@@ -223,6 +223,24 @@ describe('bridge client grab pick engine', () => {
     expect(grab?.text).toContain('PaymentCardCell #PaymentsScreen/payrollRow')
   })
 
+  it('folds view rects as whole points, never raw layout floats', async () => {
+    const {wire, pending, currentId} = activatePick()
+    const withFloatRect = {
+      ...imageGrab,
+      subtree: {
+        class: 'PaymentCardCell',
+        a11yId: null,
+        text: null,
+        rect: {x: -16, y: 330.0000000000333, width: 421.6, height: 51.5},
+        children: [],
+      },
+    }
+    wire.emit({v: 1, seq: 1, type: 'grabResult', requestId: currentId, grab: withFloatRect})
+    const grab = await pending
+    expect(grab?.text).toContain('(-16,330 422x52)')
+    expect(grab?.text).not.toContain('330.0000000000333')
+  })
+
   it('resolves a pick from a swift-encoded grabResult that omits nil optional keys', async () => {
     const {wire, pending, currentId} = activatePick()
     wire.emit({

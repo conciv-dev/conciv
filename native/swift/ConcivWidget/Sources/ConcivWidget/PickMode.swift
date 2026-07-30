@@ -10,12 +10,49 @@ import UIKit
 let subtreeMaxDepth = 3
 let subtreeMaxNodes = 40
 
+// Layout math produces frames like y = 330.000000000033; the rect is folded into the
+// grab text the agent (and the staged-grab chip) reads, so a raw float there is noise
+// with no meaning. Pick geometry is point-precise by nature, so round on the way out.
 func rectToBridge(_ rect: CGRect) -> Rect {
-  Rect(x: rect.origin.x, y: rect.origin.y, width: rect.size.width, height: rect.size.height)
+  Rect(
+    x: rect.origin.x.rounded(),
+    y: rect.origin.y.rounded(),
+    width: rect.size.width.rounded(),
+    height: rect.size.height.rounded()
+  )
 }
 
 func pickClassLabel(_ view: UIView) -> String {
   String(describing: type(of: view))
+}
+
+// Private UIKit chrome: decoration views, separators, system background views, swipe
+// containers, and SwiftUI's mangled internal hosts all carry a leading underscore. They
+// are implementation detail with no meaning to the agent (a section-background
+// decoration spans the whole section and crops to a blank image), so they are never pick
+// candidates; the walk keeps unwinding to the nearest non-private interesting ancestor.
+func pickIsPrivateChrome(_ view: UIView) -> Bool {
+  pickClassLabel(view).hasPrefix("_")
+}
+
+// A class name fit to show a human: generic parameters dropped, leading underscores
+// dropped, and a Swift-mangled name (_TtGC7SwiftUI...) rejected outright.
+func pickCleanedClassName(_ raw: String) -> String? {
+  let withoutGenerics = raw.prefix { $0 != "<" }
+  let withoutUnderscores = withoutGenerics.drop { $0 == "_" }
+  guard !withoutUnderscores.isEmpty, !withoutUnderscores.hasPrefix("Tt") else { return nil }
+  return String(withoutUnderscores)
+}
+
+// The source label the staged grab chip shows. A cleaned class name is the most useful
+// answer (UILabel, PaymentCardCell); when the class name is unusable the accessibility
+// strings are the only human text left, and "View" is the last resort. A mangled or
+// underscore-prefixed class name never reaches the chip.
+func pickSourceLabel(_ view: UIView) -> String {
+  if let cleaned = pickCleanedClassName(pickClassLabel(view)) { return cleaned }
+  if let identifier = view.accessibilityIdentifier, !identifier.isEmpty { return identifier }
+  if let label = view.accessibilityLabel, !label.isEmpty { return label }
+  return "View"
 }
 
 func pickFrameInWindow(_ view: UIView) -> CGRect {
@@ -36,6 +73,7 @@ func pickIsInteresting(_ view: UIView) -> Bool {
   if let image = view as? UIImageView { return image.image != nil }
   if view is UIControl { return true }
   if view is UITableViewCell { return true }
+  if view is UICollectionViewCell { return true }
   let background = view.backgroundColor
   let hasFill = background != nil && background != .clear && (background?.cgColor.alpha ?? 0) > 0.01
   return hasFill && view.bounds.width > 24 && view.bounds.height > 24
@@ -48,7 +86,37 @@ func pickSearch(from node: UIView, at windowPoint: CGPoint, isExcluded: (UIView)
     let localPoint = child.convert(windowPoint, from: nil)
     if !child.bounds.contains(localPoint) { continue }
     if let deeper = pickSearch(from: child, at: windowPoint, isExcluded: isExcluded) { return deeper }
+    if pickIsPrivateChrome(child) { continue }
     if pickIsInteresting(child) { return child }
+  }
+  return nil
+}
+
+// An anchor must cover this much of the view it is snapped to. A SwiftUI row anchor
+// fills most of its cell, while the same anchor inside the whole collection view or a
+// section-background decoration covers a sliver of it: the ratio is what separates
+// "this view IS the anchored row" from "this view merely contains anchored rows".
+let pickAnchorSnapMinCoverage: CGFloat = 0.2
+
+private func pickArea(_ rect: CGRect) -> CGFloat {
+  rect.width * rect.height
+}
+
+// Anchored-ancestor snap. A SwiftUI `.concivGrab` anchor wraps the row's content only,
+// so a tap in the cell's padding (or on its separator) misses the point hit-test and the
+// UIKit walk resolves an unanchored chrome view instead. Walk the resolved view's
+// ancestor chain and snap to the anchor that fills it: the anchored row wins over
+// whatever view happened to win the raw hit-test.
+func pickAnchorSnap(from view: UIView, registry: ConcivAnchorRegistry, root: UIView?) -> ConcivAnchorRegistry.Anchor? {
+  var node: UIView? = view
+  while let current = node {
+    let frame = pickFrameInWindow(current)
+    let candidate = registry.anchors(within: frame).max { pickArea($0.frame) < pickArea($1.frame) }
+    if let candidate, pickArea(frame) > 0, pickArea(candidate.frame) / pickArea(frame) >= pickAnchorSnapMinCoverage {
+      return candidate
+    }
+    if current === root { return nil }
+    node = current.superview
   }
   return nil
 }
@@ -86,7 +154,7 @@ func pickBuildViewNode(_ view: UIView, isExcluded: (UIView) -> Bool, depth: Int,
     children.append(node)
   }
   return ViewNode(
-    className: pickClassLabel(view),
+    className: pickSourceLabel(view),
     a11yId: (identifier?.isEmpty ?? true) ? nil : identifier,
     text: pickOwnText(view),
     rect: rectToBridge(pickFrameInWindow(view)),
@@ -98,7 +166,7 @@ func pickNeutralGrab(fromUIView view: UIView, isExcluded: (UIView) -> Bool, prev
   let texts = pickCollectTexts(view)
   var budget = subtreeMaxNodes
   let subtree = pickBuildViewNode(view, isExcluded: isExcluded, depth: 0, budget: &budget)
-  let componentName = pickClassLabel(view)
+  let componentName = pickSourceLabel(view)
   return NeutralGrab(
     text: texts.joined(separator: " · "),
     preview: preview,

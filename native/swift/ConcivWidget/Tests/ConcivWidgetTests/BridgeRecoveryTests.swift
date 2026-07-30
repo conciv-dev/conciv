@@ -35,6 +35,15 @@ final class BridgeRecoveryTests: XCTestCase {
     }
   }
 
+  // Sent-or-still-queued opens. A failed page load flips the bridge back to loading and
+  // clears the unacked table, so counting deliveries needs both sides.
+  private func allOpens(in bridge: BridgeHandler) -> [Open] {
+    (bridge.queue + Array(bridge.unacked.values)).compactMap { entry in
+      guard case .open(let open) = entry.call else { return nil }
+      return open
+    }
+  }
+
   // MARK: negotiation (item 1b)
 
   func testNegotiatedVersionStampsSubsequentSends() {
@@ -277,6 +286,69 @@ final class BridgeRecoveryTests: XCTestCase {
     XCTAssertTrue(overlay.isRepairPromptVisible, "no reachable core must keep the prompt, never a dead end")
     RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.2))
     XCTAssertTrue(overlay.isRepairPromptVisible, "the prompt stays while the bounded loop retries")
+    overlay.detach()
+  }
+
+  // MARK: --autoshow one-shot
+
+  private func hello() -> BridgeMessage {
+    .handshakeHello(HandshakeHello(v: 1, minV: 1, maxV: 1, clientId: "test", bundleReady: true))
+  }
+
+  private func panelToggled(open: Bool) -> BridgeMessage {
+    .hostPanelToggled(HostPanelToggled(v: 1, open: open, connected: true, mascotRect: nil))
+  }
+
+  private func bridge(of overlay: OverlayController) -> BridgeHandler? {
+    overlay.webView.navigationDelegate as? BridgeHandler
+  }
+
+  // The page turns `open` into a window event the widget shell only listens for once its
+  // root mounts, and the shell's first host.panelToggled is the proof that it has. An open
+  // sent straight back from the hello lands before that and is lost with no retry.
+  func testAutoShowWaitsForThePageToReportItsPanelState() {
+    let (overlay, _) = makeOverlay(pid: 100, port: 59990)
+    guard let bridge = bridge(of: overlay) else { return XCTFail("expected the bridge") }
+    overlay.autoShowPending = true
+    bridge.receive(.bridgeReady(BridgeReady(v: 1)))
+
+    bridge.receive(hello())
+    XCTAssertEqual(allOpens(in: bridge).count, 0, "a hello alone reaches the page before the shell listens")
+
+    bridge.receive(panelToggled(open: false))
+    XCTAssertEqual(allOpens(in: bridge).count, 1, "the shell reporting its panel state must drive the one-shot open")
+
+    bridge.receive(panelToggled(open: true))
+    bridge.receive(panelToggled(open: false))
+    XCTAssertEqual(allOpens(in: bridge).count, 1, "autoshow is a one-shot, never a re-open")
+    overlay.detach()
+  }
+
+  func testAutoShowStaysSilentWithoutTheFlag() {
+    let (overlay, _) = makeOverlay(pid: 100, port: 59990)
+    guard let bridge = bridge(of: overlay) else { return XCTFail("expected the bridge") }
+    overlay.autoShowPending = false
+    bridge.receive(.bridgeReady(BridgeReady(v: 1)))
+
+    bridge.receive(hello())
+    bridge.receive(panelToggled(open: false))
+
+    XCTAssertEqual(allOpens(in: bridge).count, 0, "no --autoshow flag must never open the panel")
+    overlay.detach()
+  }
+
+  // A panel the page reports as already open spends the one-shot without a redundant open.
+  func testAutoShowSpendsItsOneShotOnAnAlreadyOpenPanel() {
+    let (overlay, _) = makeOverlay(pid: 100, port: 59990)
+    guard let bridge = bridge(of: overlay) else { return XCTFail("expected the bridge") }
+    overlay.autoShowPending = true
+    bridge.receive(.bridgeReady(BridgeReady(v: 1)))
+
+    bridge.receive(hello())
+    bridge.receive(panelToggled(open: true))
+    bridge.receive(panelToggled(open: false))
+
+    XCTAssertEqual(allOpens(in: bridge).count, 0, "an already-open panel needs no open, and the one-shot is spent")
     overlay.detach()
   }
 

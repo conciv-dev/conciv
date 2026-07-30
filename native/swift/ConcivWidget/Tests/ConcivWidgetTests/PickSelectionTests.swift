@@ -125,6 +125,104 @@ final class PickSelectionTests: XCTestCase {
     XCTAssertTrue(childIds.contains("amount"), "nested anchor should appear in the subtree")
   }
 
+  // Private UIKit chrome (leading-underscore class names: list decoration views, cell
+  // separators, system background views) is implementation detail: a decoration view
+  // spans a whole section and crops to a blank image, so it must never win a pick. The
+  // walk unwinds past it to the nearest non-private interesting ancestor.
+  func testPrivateChromeIsNeverAPickCandidate() {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+    let root = UIViewController()
+    window.rootViewController = root
+    window.isHidden = false
+
+    let card = UIView(frame: CGRect(x: 16, y: 200, width: 358, height: 120))
+    card.backgroundColor = .white
+    root.view.addSubview(card)
+
+    let decoration = _FixtureDecorationView(frame: card.bounds)
+    decoration.backgroundColor = .systemGray
+    card.addSubview(decoration)
+    root.view.layoutIfNeeded()
+
+    let point = CGPoint(x: card.frame.midX, y: card.frame.midY)
+    let picked = pickSearch(from: root.view, at: point, isExcluded: { _ in false })
+
+    XCTAssertFalse(picked is _FixtureDecorationView, "private chrome must never be a pick candidate")
+    XCTAssertTrue(picked === card, "the walk must unwind to the nearest non-private interesting ancestor")
+  }
+
+  // A SwiftUI `.concivGrab` anchor wraps the row content only, never the cell padding or
+  // its separator, so a tap in that padding misses the point hit-test and the UIKit walk
+  // lands on unanchored cell chrome. The anchored ancestor must still win.
+  func testAnchoredAncestorWinsOverADeeperUnanchoredHit() {
+    let host = UIHostingController(rootView: AnchoredList())
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+    window.rootViewController = host
+    window.isHidden = false
+    window.makeKeyAndVisible()
+    host.view.layoutIfNeeded()
+
+    guard let anchor = waitForAnchor("listRow1") else {
+      return XCTFail("expected the list row anchor to register")
+    }
+    let padding = CGPoint(x: anchor.frame.midX, y: anchor.frame.minY - 8)
+    XCTAssertNil(ConcivAnchorRegistry.shared.hitTest(padding), "the tap must land outside the anchor's own frame")
+
+    guard let picked = pickSearch(from: host.view, at: padding, isExcluded: { _ in false }) else {
+      return XCTFail("expected the hit-test walk to resolve cell chrome")
+    }
+    let snapped = pickAnchorSnap(from: picked, registry: ConcivAnchorRegistry.shared, root: host.view)
+
+    XCTAssertEqual(snapped?.id, "listRow1", "the anchored ancestor must win over the deeper unanchored hit")
+    XCTAssertEqual(snapped?.label, "First row")
+  }
+
+  // The whole collection view contains every row anchor but is not any of them: snapping
+  // there would attach the entire list for a tap on empty space below the last row.
+  func testAnchorSnapIgnoresAContainerThatMerelyHoldsAnchors() {
+    let host = UIHostingController(rootView: AnchoredList())
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+    window.rootViewController = host
+    window.isHidden = false
+    window.makeKeyAndVisible()
+    host.view.layoutIfNeeded()
+
+    guard waitForAnchor("listRow1") != nil else { return XCTFail("expected the list row anchor to register") }
+    let snapped = pickAnchorSnap(from: host.view, registry: ConcivAnchorRegistry.shared, root: host.view)
+
+    XCTAssertNil(snapped, "a container that merely holds anchors must not be snapped to one of them")
+  }
+
+  // A mangled or private class name is meaningless to the human reading the staged grab
+  // chip, so the source label is always something readable.
+  func testFallbackLabelNeverSurfacesAPrivateClassName() {
+    let decoration = _FixtureDecorationView(frame: CGRect(x: 0, y: 0, width: 100, height: 40))
+    let grab = pickNeutralGrab(fromUIView: decoration, isExcluded: { _ in false }, preview: stubPreview)
+
+    XCTAssertEqual(grab.source?.componentName, "FixtureDecorationView")
+    XCTAssertFalse(grab.source?.componentName?.hasPrefix("_") ?? true, "a leading-underscore class name must never reach the chip")
+    XCTAssertEqual(grab.subtree?.className, "FixtureDecorationView")
+
+    XCTAssertNil(pickCleanedClassName("_TtGC7SwiftUI19UIHostingViewBaseVS_7AnyView"), "a Swift-mangled name is not a label")
+    XCTAssertEqual(pickCleanedClassName("CellHostingView<ModifiedContent<Row, Modifier>>"), "CellHostingView")
+  }
+
+  func testFallbackLabelUsesAccessibilityWhenTheClassNameIsUnusable() {
+    let view = _FixtureDecorationView(frame: CGRect(x: 0, y: 0, width: 100, height: 40))
+    XCTAssertEqual(pickSourceLabel(view), "FixtureDecorationView")
+
+    let unnamed = UIView(frame: .zero)
+    XCTAssertEqual(pickSourceLabel(unnamed), "UIView")
+  }
+
+  // Layout math produces frames like y = 330.000000000033; that rect is folded into the
+  // grab text the agent reads, so it leaves the SDK as whole points.
+  func testGrabRectIsRoundedToWholePoints() {
+    let rect = rectToBridge(CGRect(x: -16.4, y: 330.000000000033, width: 421.6, height: 51.5))
+
+    XCTAssertEqual(rect, Rect(x: -16, y: 330, width: 422, height: 52))
+  }
+
   private func waitForAnchor(_ id: String, timeout: TimeInterval = 3) -> ConcivAnchorRegistry.Anchor? {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
@@ -136,6 +234,32 @@ final class PickSelectionTests: XCTestCase {
 }
 
 private final class FixturePaymentCardCell: UIView {}
+
+// Stands in for UIKit's private chrome (_UICollectionViewListLayoutSectionBackgroundColor
+// DecorationView, _UICollectionViewListSeparatorView, _UISystemBackgroundView): the
+// leading underscore is the marker the pick walk keys on.
+private final class _FixtureDecorationView: UIView {}
+
+private struct AnchoredList: View {
+  var body: some View {
+    List {
+      Section("Recent") {
+        HStack {
+          Text("First row")
+          Spacer()
+          Text("$1.00")
+        }
+        .concivGrab(id: "listRow1", label: "First row")
+        HStack {
+          Text("Second row")
+          Spacer()
+          Text("$2.00")
+        }
+        .concivGrab(id: "listRow2", label: "Second row")
+      }
+    }
+  }
+}
 
 private struct AnchoredRow: View {
   var body: some View {
