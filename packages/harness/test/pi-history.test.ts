@@ -1,5 +1,5 @@
 import {mkdir, mkdtemp, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {homedir, tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {beforeAll, describe, expect, it} from 'vitest'
 import {SessionId} from '@conciv/protocol/chat-types'
@@ -10,6 +10,7 @@ import {encodeSessionDir, parseHistory, sessionsDir} from '../src/pi/history.js'
 const PROJECT = '/workspace/pi.demo'
 const SESSION = '39a461cc-ceb9-495a-891b-b11fe6a03c55'
 const FILE = `2026-07-30T09-45-14-653Z_${SESSION}.jsonl`
+const CONCIV_NAMED = 'conciv-sess-1'
 
 const LINES = [
   {type: 'session', version: 3, id: SESSION, timestamp: '2026-07-30T09:45:14.653Z', cwd: PROJECT},
@@ -101,6 +102,7 @@ beforeAll(async () => {
   const dir = sessionsDir(PROJECT, state.home)
   await mkdir(dir, {recursive: true})
   await writeFile(join(dir, FILE), jsonl(LINES), 'utf8')
+  await writeFile(join(dir, `${CONCIV_NAMED}.jsonl`), jsonl(LINES), 'utf8')
 })
 
 describe('pi session directory encoding', () => {
@@ -134,10 +136,17 @@ describe('pi transcript parsing', () => {
 })
 
 describe('pi history sidecar', () => {
+  it('identifies both pi-named and conciv-named transcripts by their file name', async () => {
+    const sessions = await history().list(PROJECT, state.home)
+    expect(sessions.map((session) => session.id).toSorted()).toEqual([CONCIV_NAMED, SESSION].toSorted())
+    const messages = await history().messages(PROJECT, CONCIV_NAMED, state.home)
+    expect(messages.map((message) => message.role)).toEqual(['user', 'assistant', 'assistant'])
+  })
+
   it('lists the sessions stored under the cwd directory', async () => {
     const sessions = await history().list(PROJECT, state.home)
-    expect(sessions).toHaveLength(1)
-    expect(sessions[0]).toMatchObject({
+    const found = sessions.find((session) => session.id === SESSION)
+    expect(found).toMatchObject({
       id: SESSION,
       derivedTitle: 'count the files',
       lastMessage: 'One file.',
@@ -162,9 +171,15 @@ describe('pi history sidecar', () => {
 })
 
 describe('pi connect.plan', () => {
-  it('pins the session id and the model when both are known', () => {
-    expect(pi.connect?.plan(context({harnessSessionId: 'sess-1', model: 'anthropic/claude-opus-4-6'}))).toEqual({
-      argv: ['pi', '--session-id', 'sess-1', '--model', 'anthropic/claude-opus-4-6'],
+  it('names the session file itself so the transcript is findable again', () => {
+    expect(pi.connect?.plan(context({harnessSessionId: 'conciv-sess-1', model: 'anthropic/claude-opus-4-6'}))).toEqual({
+      argv: [
+        'pi',
+        '--session',
+        join(sessionsDir(PROJECT, homedir()), 'conciv-sess-1.jsonl'),
+        '--model',
+        'anthropic/claude-opus-4-6',
+      ],
       env: {},
       files: [],
     })

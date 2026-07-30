@@ -198,6 +198,12 @@ function headerOf(raw: string): z.infer<typeof HeaderSchema> | null {
   return parsed.success ? parsed.data : null
 }
 
+export function sessionIdFromFile(fileName: string): string {
+  const stem = fileName.replace(/\.jsonl$/, '')
+  const separator = stem.indexOf('_')
+  return separator === -1 ? stem : stem.slice(separator + 1)
+}
+
 function namesIn(dir: string): string[] {
   try {
     return readdirSync(dir)
@@ -241,7 +247,7 @@ function sessionMeta(fileName: string, raw: string, mtimeMs: number): HarnessSes
   const header = headerOf(raw)
   const messages = parseHistory(raw)
   return {
-    id: header?.id ?? fileName.replace(/\.jsonl$/, ''),
+    id: sessionIdFromFile(fileName),
     derivedTitle: condense(sessionName(raw) ?? firstUserText(messages), MAX_TITLE),
     updatedAt: Math.round(mtimeMs),
     messageCount: messages.length,
