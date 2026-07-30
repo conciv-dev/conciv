@@ -57,6 +57,7 @@
   "packageManager": "pnpm@11.7.0",
   "intent": {
     "skills": [
+      "workspace:@conciv/client",
       "@tanstack/ai",
       "@tanstack/ai-sandbox",
       "@tanstack/db",
