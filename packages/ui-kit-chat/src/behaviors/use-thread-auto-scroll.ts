@@ -2,6 +2,7 @@ import {createEffect, createSignal, onCleanup, type Accessor} from 'solid-js'
 
 export const POSITION_HOLD_MS = 350
 const SCROLL_HOLD_ATTR = 'data-scroll-hold'
+const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'])
 
 export type ThreadAutoScroll = {
   isAtBottom: Accessor<boolean>
@@ -16,13 +17,19 @@ export function useThreadAutoScroll(
   const [isAtBottom, setIsAtBottom] = createSignal(true)
   const intent = {behavior: null as ScrollBehavior | null}
   const last = {scrollTop: 0, scrollHeight: 0, observedScrollHeight: 0, observedClientHeight: 0}
+  const gesture = {userDetached: false, touching: false}
   const holding = () => viewport()?.hasAttribute(SCROLL_HOLD_ATTR) ?? false
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+  const pinToBottom = (behavior: ScrollBehavior) => {
     const div = viewport()
     if (!div) return
     intent.behavior = behavior
     div.scrollTo({top: div.scrollHeight, behavior})
+  }
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    gesture.userDetached = false
+    pinToBottom(behavior)
   }
 
   let releaseHold: (() => void) | undefined
@@ -53,6 +60,7 @@ export function useThreadAutoScroll(
     const wasAtBottom = isAtBottom()
     const newIsAtBottom =
       Math.abs(div.scrollHeight - div.scrollTop - div.clientHeight) <= 1 || div.scrollHeight <= div.clientHeight
+    if (newIsAtBottom) gesture.userDetached = false
     if (newIsAtBottom !== wasAtBottom) setIsAtBottom(newIsAtBottom)
     last.scrollTop = div.scrollTop
     last.scrollHeight = div.scrollHeight
@@ -68,7 +76,8 @@ export function useThreadAutoScroll(
     const wasAtBottom = isAtBottom()
     const newIsAtBottom =
       Math.abs(div.scrollHeight - div.scrollTop - div.clientHeight) <= 1 || div.scrollHeight <= div.clientHeight
-    const isInFlightDownwardScroll = !newIsAtBottom && last.scrollTop < div.scrollTop
+    if (newIsAtBottom) gesture.userDetached = false
+    const isInFlightDownwardScroll = !gesture.touching && !newIsAtBottom && last.scrollTop < div.scrollTop
     if (!isInFlightDownwardScroll) {
       if (newIsAtBottom) {
         if (div.scrollHeight > div.clientHeight + 1) intent.behavior = null
@@ -97,9 +106,9 @@ export function useThreadAutoScroll(
     if (behavior && opts.hasActiveTopAnchor?.()) {
       intent.behavior = null
     } else if (behavior) {
-      scrollToBottom(behavior)
-    } else if (opts.autoScroll() && isAtBottom()) {
-      scrollToBottom('instant')
+      pinToBottom(behavior)
+    } else if (opts.autoScroll() && isAtBottom() && !gesture.userDetached) {
+      pinToBottom('instant')
     }
     handleScroll()
   }
@@ -111,8 +120,33 @@ export function useThreadAutoScroll(
     const cancelIntent = () => {
       intent.behavior = null
     }
+    const detach = () => {
+      intent.behavior = null
+      gesture.userDetached = true
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (SCROLL_KEYS.has(event.key)) detach()
+    }
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (SCROLL_KEYS.has(event.key)) recomputeIsAtBottom()
+    }
+    const handleTouchStart = () => {
+      gesture.touching = true
+    }
+    const handleTouchEnd = () => {
+      gesture.touching = false
+      recomputeIsAtBottom()
+    }
+    const passive = {passive: true}
     div.addEventListener('scroll', handleScroll)
     div.addEventListener('pointerdown', cancelIntent)
+    div.addEventListener('wheel', detach, passive)
+    div.addEventListener('touchstart', handleTouchStart, passive)
+    div.addEventListener('touchmove', detach, passive)
+    div.addEventListener('touchend', handleTouchEnd, passive)
+    div.addEventListener('touchcancel', handleTouchEnd, passive)
+    div.addEventListener('keydown', handleKeyDown)
+    div.addEventListener('keyup', handleKeyUp)
     const resizeObserver = new ResizeObserver(handleResize)
     const mutationObserver = new MutationObserver((mutations) => {
       if (mutations.some((mutation) => mutation.type !== 'attributes' || mutation.attributeName !== 'style')) {
@@ -125,6 +159,13 @@ export function useThreadAutoScroll(
     onCleanup(() => {
       div.removeEventListener('scroll', handleScroll)
       div.removeEventListener('pointerdown', cancelIntent)
+      div.removeEventListener('wheel', detach)
+      div.removeEventListener('touchstart', handleTouchStart)
+      div.removeEventListener('touchmove', detach)
+      div.removeEventListener('touchend', handleTouchEnd)
+      div.removeEventListener('touchcancel', handleTouchEnd)
+      div.removeEventListener('keydown', handleKeyDown)
+      div.removeEventListener('keyup', handleKeyUp)
       resizeObserver.disconnect()
       mutationObserver.disconnect()
     })
