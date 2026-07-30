@@ -79,15 +79,20 @@ enum Outbound {
 
 // Queued/unacked calls carry the handshake epoch they were minted under, so a fresh
 // handshake can drop every message from prior epochs (02 M-A5, supersede) before the
-// stale rebind base is ever re-dispatched.
+// stale rebind base is ever re-dispatched. attempts counts deliveries of this same seq so
+// a lost ack gets a bounded retry instead of an immediate silent drop.
 struct PendingOutbound {
   let call: Outbound
   let epoch: Int
+  var attempts = 0
 }
 
 final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
   static let handlerName = "concivBridge"
   private static let ackTimeout: TimeInterval = 1
+  // Re-deliveries of an unacked non-critical call before it is dropped. A transient
+  // evaluateJavaScript hiccup must not lose a grabResult on the first missed ack.
+  private static let maxAckRetries = 2
 
   private weak var webView: WKWebView?
   private var coreOrigin: URL
@@ -235,27 +240,43 @@ final class BridgeHandler: NSObject, WKScriptMessageHandler, WKNavigationDelegat
     let script = "window.__concivNative && window.__concivNative.\(call.method)(\(payload))"
     webView.evaluateJavaScript(script) { [weak self] _, error in
       guard let self, let error else { return }
-      self.reportDispatchFailure(call, error: error)
+      self.reportDispatchFailure(call, detail: error.localizedDescription)
     }
     scheduleRetry(for: call.seq)
   }
 
   // A grabResult that never reaches the page leaves the pending pick unresolved: the
   // page-side pick timeout is the backstop, but the delivery failure must not be
-  // swallowed. Surface it as a host log so the failed delivery is visible.
-  private func reportDispatchFailure(_ call: Outbound, error: Error) {
+  // swallowed. Surface it as a host log so the failed delivery is visible, whether it
+  // failed in evaluateJavaScript or ran out of ack retries.
+  private func reportDispatchFailure(_ call: Outbound, detail: String) {
     guard case .grabResult = call else { return }
-    onLog?(HostLog(v: negotiatedVersion, level: .error, message: "grabResult delivery failed for seq \(call.seq): \(error.localizedDescription)"))
+    onLog?(HostLog(v: negotiatedVersion, level: .error, message: "grabResult delivery failed for seq \(call.seq): \(detail)"))
   }
 
+  // The ack never arrived. A superseded epoch drops immediately (never retry a call minted
+  // against a dead endpoint base across a rebind/reload); the handshake retries forever
+  // because it carries the live base; every other call gets maxAckRetries re-deliveries and
+  // is only then dropped, reported so a lost grabResult is observable.
   private func scheduleRetry(for seq: Int) {
     DispatchQueue.main.asyncAfter(deadline: .now() + Self.ackTimeout) { [weak self] in
       guard let self, self.state == .ready, let entry = self.unacked[seq] else { return }
+      guard entry.epoch >= self.handshakeEpoch else {
+        self.unacked.removeValue(forKey: seq)
+        return
+      }
       if entry.call.isCritical {
         self.dispatch(entry)
-      } else {
-        self.unacked.removeValue(forKey: seq)
+        return
       }
+      guard entry.attempts < Self.maxAckRetries else {
+        self.unacked.removeValue(forKey: seq)
+        self.reportDispatchFailure(entry.call, detail: "no ack after \(entry.attempts + 1) deliveries")
+        return
+      }
+      var retry = entry
+      retry.attempts += 1
+      self.dispatch(retry)
     }
   }
 

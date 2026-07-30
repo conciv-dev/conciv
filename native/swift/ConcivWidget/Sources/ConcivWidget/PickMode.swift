@@ -22,6 +22,15 @@ func pickFrameInWindow(_ view: UIView) -> CGRect {
   view.convert(view.bounds, to: nil)
 }
 
+// The one visibility rule every pick walk shares (hit-test, text collection, subtree
+// build, capability probe). A reused table-view cell keeps hidden labels populated, so a
+// walk that skips this leaks stale text into the grab the agent reads.
+let pickMinVisibleAlpha: CGFloat = 0.02
+
+func pickIsVisible(_ view: UIView) -> Bool {
+  !view.isHidden && view.alpha >= pickMinVisibleAlpha
+}
+
 func pickIsInteresting(_ view: UIView) -> Bool {
   if let label = view as? UILabel { return !(label.text?.isEmpty ?? true) }
   if let image = view as? UIImageView { return image.image != nil }
@@ -34,7 +43,7 @@ func pickIsInteresting(_ view: UIView) -> Bool {
 
 func pickSearch(from node: UIView, at windowPoint: CGPoint, isExcluded: (UIView) -> Bool) -> UIView? {
   for child in node.subviews.reversed() {
-    if child.isHidden || child.alpha < 0.02 { continue }
+    if !pickIsVisible(child) { continue }
     if isExcluded(child) { continue }
     let localPoint = child.convert(windowPoint, from: nil)
     if !child.bounds.contains(localPoint) { continue }
@@ -53,6 +62,7 @@ func pickOwnText(_ view: UIView) -> String? {
 func pickCollectTexts(_ view: UIView) -> [String] {
   var texts: [String] = []
   func walk(_ node: UIView) {
+    guard pickIsVisible(node) else { return }
     if let text = pickOwnText(node) { texts.append(text) }
     for child in node.subviews { walk(child) }
   }
@@ -67,7 +77,7 @@ func pickBuildViewNode(_ view: UIView, isExcluded: (UIView) -> Bool, depth: Int,
   let identifier = view.accessibilityIdentifier
   var children: [ViewNode] = []
   for child in view.subviews {
-    if child.isHidden || child.alpha < 0.02 { continue }
+    if !pickIsVisible(child) { continue }
     if isExcluded(child) { continue }
     guard let node = pickBuildViewNode(child, isExcluded: isExcluded, depth: depth + 1, budget: &budget) else {
       if budget <= 0 { break }

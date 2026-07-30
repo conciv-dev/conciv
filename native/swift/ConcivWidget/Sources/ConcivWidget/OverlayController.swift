@@ -117,7 +117,7 @@ final class OverlayController: NSObject {
     container.addSubview(webView)
     configureFab()
     container.addSubview(fab)
-    container.onLayout = { [weak self] in self?.layoutFab() }
+    container.onLayout = { [weak self] in self?.layoutChrome() }
     hostWindow.addSubview(container)
 
     wireBridge()
@@ -186,14 +186,18 @@ final class OverlayController: NSObject {
     fabFrame(in: container.bounds, safeArea: container.safeAreaInsets)
   }
 
-  // Re-seat the FAB and its recorded live-region rect from a layout pass: at init the
-  // container is not yet in a window so its safe-area insets are zero, which would leave
-  // the FAB in the home-indicator strip and the LiveRegion hit rect diverging from the
-  // button after rotation or a safe-area change.
-  private func layoutFab() {
+  // Re-seat the overlay's own chrome and its recorded live-region rects from a layout pass:
+  // at init the container is not yet in a window so its safe-area insets are zero, which
+  // would leave the FAB in the home-indicator strip and the LiveRegion hit rects diverging
+  // from the button and the re-pair banner after rotation or a safe-area change.
+  private func layoutChrome() {
     let frame = currentFabFrame()
     fab.frame = frame
     container.state.fabRect = frame
+    guard let banner = repairPrompt else { return }
+    let bannerFrame = repairPromptFrame()
+    banner.frame = bannerFrame
+    container.state.bannerRect = bannerFrame
   }
 
   @objc private func fabTapped() {
@@ -234,7 +238,7 @@ final class OverlayController: NSObject {
 
   private func containsInterestingView(_ view: UIView) -> Bool {
     for child in view.subviews {
-      if child.isHidden || child.alpha < 0.02 { continue }
+      if !pickIsVisible(child) { continue }
       if isExcluded(child) { continue }
       if pickIsInteresting(child) { return true }
       if containsInterestingView(child) { return true }
@@ -332,6 +336,10 @@ final class OverlayController: NSObject {
     hideRepairPrompt()
   }
 
+  // The prompt gets its own bounded hit region (bannerRect), never the whole-panel one: a
+  // prompt that survives a spent backoff budget would otherwise make the transparent
+  // WKWebView swallow every touch in the window and brick the host app. Touches outside the
+  // banner frame keep falling through to the app while the prompt stays tappable.
   private func showRepairPrompt(state: RepairPromptState) {
     guard repairPrompt == nil else {
       updateRepairPrompt(state: state)
@@ -366,7 +374,7 @@ final class OverlayController: NSObject {
     ])
 
     container.addSubview(banner)
-    container.state.panelOpen = true
+    container.state.bannerRect = banner.frame
     repairPrompt = banner
     repairLabel = label
   }
@@ -379,7 +387,7 @@ final class OverlayController: NSObject {
     repairPrompt?.removeFromSuperview()
     repairPrompt = nil
     repairLabel = nil
-    container.state.panelOpen = panelOpen
+    container.state.bannerRect = nil
   }
 
   private func repairPromptFrame() -> CGRect {
@@ -491,6 +499,7 @@ final class OverlayController: NSObject {
 
     let close = UIButton(type: .system)
     close.setTitle("✕", for: .normal)
+    close.accessibilityLabel = "Cancel selection"
     close.setTitleColor(.white, for: .normal)
     close.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
     close.addTarget(self, action: #selector(pickCancelTapped), for: .touchUpInside)

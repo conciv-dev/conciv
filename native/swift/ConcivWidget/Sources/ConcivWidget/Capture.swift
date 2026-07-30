@@ -27,24 +27,42 @@ enum Capture {
     return renderScale * maxPreviewPointEdge / longEdge
   }
 
+  // drawHierarchy returns false when UIKit could not snapshot the hierarchy, and the
+  // renderer still hands back a valid-looking UIImage of blank pixels. Discarding that
+  // Bool would ship a blank JPEG as a successful preview, so both renderers fail closed
+  // on a reported render failure and the pick resolves failed instead.
   static func renderView(_ target: UIView) -> UIImage? {
     let bounds = target.bounds
     if bounds.width < 1 || bounds.height < 1 { return nil }
     let format = UIGraphicsImageRendererFormat.default()
     format.scale = effectiveScale(forLongEdge: max(bounds.width, bounds.height))
-    return UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
-      target.drawHierarchy(in: bounds, afterScreenUpdates: true)
+    var rendered = false
+    let image = UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
+      rendered = target.drawHierarchy(in: bounds, afterScreenUpdates: true)
     }
+    guard rendered else { return nil }
+    return image
+  }
+
+  // The SwiftUI anchor path renders the whole host and keeps the anchor frame: the crop is
+  // the part of that frame the host actually covers, and a crop disjoint from the host (a
+  // stale anchor frame) is no crop at all. Pure so the clamp is pinned without a render.
+  static func cropBounds(_ frameInHost: CGRect, in hostBounds: CGRect) -> CGRect? {
+    let bounds = frameInHost.intersection(hostBounds)
+    if bounds.width < 1 || bounds.height < 1 { return nil }
+    return bounds
   }
 
   static func renderHostView(_ host: UIView, cropTo frameInHost: CGRect) -> UIImage? {
-    let bounds = frameInHost.intersection(host.bounds)
-    if bounds.width < 1 || bounds.height < 1 { return nil }
+    guard let bounds = cropBounds(frameInHost, in: host.bounds) else { return nil }
     let format = UIGraphicsImageRendererFormat.default()
     format.scale = effectiveScale(forLongEdge: max(bounds.width, bounds.height))
-    return UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
-      host.drawHierarchy(in: host.bounds, afterScreenUpdates: true)
+    var rendered = false
+    let image = UIGraphicsImageRenderer(bounds: bounds, format: format).image { _ in
+      rendered = host.drawHierarchy(in: host.bounds, afterScreenUpdates: true)
     }
+    guard rendered else { return nil }
+    return image
   }
 
   // The scale cap keeps typical previews small; this is the hard backstop. A dataUrl over

@@ -66,6 +66,22 @@ final class LiveRegionTests: XCTestCase {
     XCTAssertFalse(region.captures(panelPoint))
   }
 
+  // The re-pair banner must be tappable without making the overlay modal: a prompt left up
+  // by a spent rediscovery budget would otherwise brick the host app permanently.
+  func testRepairBannerCapturesOnlyItsOwnRect() {
+    let banner = CGRect(x: 0, y: 48, width: 390, height: 64)
+    var state = LiveRegionState()
+    state.launcher = .native
+    state.fabRect = fab
+    state = applyPanelToggle(state, open: false, mascotRect: nil)
+    state.bannerRect = banner
+    let region = liveRegion(state, pickActive: false)
+    XCTAssertEqual(region, .rects([fab, banner]))
+    XCTAssertTrue(region.captures(CGPoint(x: banner.midX, y: banner.midY)), "the banner stays tappable")
+    XCTAssertTrue(region.captures(CGPoint(x: fab.midX, y: fab.midY)), "the launcher stays live under the banner")
+    XCTAssertFalse(region.captures(panelPoint), "a touch outside the banner must fall through to the host app")
+  }
+
   func testPickModeCapturesEverythingWhenClosed() {
     var state = LiveRegionState()
     state.launcher = .mascot

@@ -104,6 +104,53 @@ final class BridgeRecoveryTests: XCTestCase {
     )
   }
 
+  // MARK: bounded ack retry
+
+  private func grabResults(in bridge: BridgeHandler) -> [PendingOutbound] {
+    bridge.unacked.values.filter { entry in
+      guard case .grabResult = entry.call else { return false }
+      return true
+    }
+  }
+
+  // An unresponsive page that acks on a later delivery must still receive the grabResult: a
+  // transient evaluateJavaScript hiccup used to drop it at the first ack timeout and leave
+  // the page-side pick promise hanging until its own timeout.
+  func testUnackedGrabResultIsRedeliveredBeforeBeingDropped() {
+    let (bridge, _) = makeBridge()
+    bridge.setNegotiatedVersion(1)
+    bridge.receive(.bridgeReady(BridgeReady(v: 1)))
+    bridge.sendGrabResult(requestId: "req-1", grab: nil, reason: .failed)
+    guard let seq = grabResults(in: bridge).first?.call.seq else {
+      return XCTFail("expected the grabResult to be unacked after the first dispatch")
+    }
+
+    spin(until: { self.grabResults(in: bridge).first?.attempts == 1 })
+    XCTAssertEqual(grabResults(in: bridge).first?.attempts, 1, "the first missed ack must re-deliver, not drop")
+
+    bridge.receive(.bridgeAck(BridgeAck(v: 1, seq: seq)))
+    XCTAssertTrue(grabResults(in: bridge).isEmpty, "the ack on the second delivery settles the call")
+  }
+
+  // Retries are bounded: after the budget is spent the call is dropped, and the drop is
+  // reported so a lost grabResult is observable instead of silent.
+  func testExhaustedAckRetriesDropAndReportTheGrabResult() {
+    let (bridge, _) = makeBridge()
+    var drops: [String] = []
+    bridge.onLog = { log in drops.append(log.message) }
+    bridge.setNegotiatedVersion(1)
+    bridge.receive(.bridgeReady(BridgeReady(v: 1)))
+    bridge.sendGrabResult(requestId: "req-1", grab: nil, reason: .failed)
+
+    spin(until: { drops.contains { $0.contains("no ack after") } }, timeout: 8)
+
+    XCTAssertTrue(grabResults(in: bridge).isEmpty, "an exhausted call must not linger unacked")
+    XCTAssertTrue(
+      drops.contains { $0.contains("no ack after 3 deliveries") },
+      "the timeout-exhausted drop must be reported, got \(drops)"
+    )
+  }
+
   // MARK: navigation-failure classification (item 3)
 
   func testConnectionRefusalTriggersConnectionLost() {

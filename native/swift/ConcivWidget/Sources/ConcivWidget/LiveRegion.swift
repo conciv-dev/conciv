@@ -8,24 +8,31 @@ public enum ConcivLauncher {
 // The passthrough overlay's live region: the area where the overlay swallows a
 // touch instead of letting it fall through to the host app. Interactivity is
 // derived from the open flag, never from whichever rect was written last. Open =>
-// the whole panel is live; closed => only the launcher (FAB or mascot) is live.
+// the whole panel is live; closed => only the launcher (FAB or mascot) is live,
+// plus the re-pair banner's own frame while that banner is showing.
 enum LiveRegion: Equatable {
   case fullPanel
   case rect(CGRect)
+  case rects([CGRect])
 
   func captures(_ point: CGPoint) -> Bool {
     switch self {
     case .fullPanel: return true
     case .rect(let frame): return frame.contains(point)
+    case .rects(let frames): return frames.contains { $0.contains(point) }
     }
   }
 }
 
+// bannerRect is the re-pair prompt's frame while it is on screen. The prompt must be
+// tappable without making the whole overlay modal: a prompt that outlives the bounded
+// rediscovery loop would otherwise leave the host app permanently non-interactive.
 struct LiveRegionState: Equatable {
   var panelOpen = false
   var launcher: ConcivLauncher = .native
   var fabRect: CGRect = .zero
   var mascotRect: CGRect = .zero
+  var bannerRect: CGRect?
 }
 
 // Open wins on every event: a stale or duplicate closed-shape rect that lands while
@@ -43,8 +50,9 @@ func applyPanelToggle(_ state: LiveRegionState, open: Bool, mascotRect: CGRect?)
 func liveRegion(_ state: LiveRegionState, pickActive: Bool) -> LiveRegion {
   if pickActive { return .fullPanel }
   if state.panelOpen { return .fullPanel }
-  if state.launcher == .native { return .rect(state.fabRect) }
-  return .rect(state.mascotRect)
+  let launcherRect = state.launcher == .native ? state.fabRect : state.mascotRect
+  guard let bannerRect = state.bannerRect else { return .rect(launcherRect) }
+  return .rects([launcherRect, bannerRect])
 }
 
 // The native FAB shows only in native-launcher mode and only while the panel is
