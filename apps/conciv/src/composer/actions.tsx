@@ -4,8 +4,11 @@ import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {Crosshair, FoldVertical, SquarePen} from 'lucide-solid'
 import {getReactGrabAdapter} from '@conciv/page'
 import type {Grab} from '@conciv/grab'
+import type {LiveSession} from '@conciv/contract'
 import {useAppData, useRpc} from '../app/context.js'
+import {errorMessageFor} from '../chat/external-session.js'
 import {LaunchMenu} from './launch-menu.js'
+import {ConnectSessionDialog, type ConnectStep} from './connect-dialog.js'
 
 const ACT =
   'size-8.5 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
@@ -49,6 +52,46 @@ export function ComposerActions(props: {
     }
   }
 
+  const [connectStep, setConnectStep] = createSignal<ConnectStep | null>(null)
+
+  const connect = useMutation(() => ({
+    mutationFn: () => rpc.sessions.attachCandidates(),
+    onSuccess: (candidates: LiveSession[]) => setConnectStep({step: 'picking', candidates}),
+    onError: () => props.notify(`Couldn’t look for running ${harnessName()} sessions.`),
+  }))
+
+  const showSnippet = async (detail: string): Promise<void> => {
+    const fallback = await rpc.sessions.connectCommand({sessionId: props.sessionId})
+    if (!fallback.command) {
+      props.notify(detail)
+      setConnectStep(null)
+      return
+    }
+    setConnectStep({step: 'snippet', command: fallback.command, detail})
+  }
+
+  const adopt = useMutation(() => ({
+    mutationFn: (session: LiveSession) =>
+      rpc.sessions.attachAdopt({
+        harnessSessionId: session.sessionId,
+        pid: session.pid,
+        force: session.relation === 'descendant',
+      }),
+    onSuccess: (result: {sessionId: string; reloadCommand: string}) => {
+      appData.invalidateSessions()
+      setConnectStep({step: 'connected', reloadCommand: result.reloadCommand})
+    },
+    onError: (error: unknown) => {
+      const install = errorMessageFor(error, 'INSTALL_FAILED')
+      if (install !== null) {
+        void showSnippet(install)
+        return
+      }
+      props.notify(errorMessageFor(error, 'CWD_MISMATCH') ?? `Couldn’t connect that ${harnessName()} session.`)
+      setConnectStep(null)
+    },
+  }))
+
   const launch = useMutation(() => ({
     mutationFn: (open: boolean) => rpc.sessions.launch({sessionId: props.sessionId, open}),
     onSuccess: async (result: LaunchResult, open: boolean) => {
@@ -87,11 +130,19 @@ export function ComposerActions(props: {
       <Show when={meta.data?.harness.canLaunch}>
         <LaunchMenu
           harnessName={harnessName()}
-          class={busyClass(launch.isPending)}
+          class={busyClass(launch.isPending || connect.isPending || adopt.isPending)}
+          canConnect={meta.data?.harness.canAttach}
           onOpen={() => launch.mutate(true)}
           onCopy={() => launch.mutate(false)}
+          onConnect={() => connect.mutate()}
         />
       </Show>
+      <ConnectSessionDialog
+        state={connectStep()}
+        onPick={(session) => adopt.mutate(session)}
+        onCopy={(text) => void copyCommand(text, props.notify)}
+        onClose={() => setConnectStep(null)}
+      />
     </>
   )
 }

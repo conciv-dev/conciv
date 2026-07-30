@@ -8,7 +8,7 @@ afterEach(() => {
   for (const dispose of disposers.splice(0)) dispose()
 })
 
-function mountMenu(chosen: string[]): void {
+function mountMenu(chosen: string[], canConnect = false): void {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const dispose = render(
@@ -16,8 +16,10 @@ function mountMenu(chosen: string[]): void {
       <LaunchMenu
         harnessName="Claude"
         class="size-8"
+        canConnect={canConnect}
         onOpen={() => chosen.push('open')}
         onCopy={() => chosen.push('copy')}
+        onConnect={() => chosen.push('connect')}
       />
     ),
     host,
@@ -44,4 +46,14 @@ test('offers opening the terminal or copying the command', async () => {
   await trigger.click()
   await page.getByRole('menuitem', {name: 'Copy command'}).click()
   await expect.poll(() => chosen).toEqual(['open', 'copy'])
+  expect(document.body.textContent).not.toContain('Connect a running session')
+})
+
+test('offers connecting a running session only when the harness can attach', async () => {
+  const chosen: string[] = []
+  mountMenu(chosen, true)
+
+  await page.getByRole('button', {name: 'Open in Claude'}).click()
+  await page.getByRole('menuitem', {name: 'Connect a running session'}).click()
+  await expect.poll(() => chosen).toEqual(['connect'])
 })

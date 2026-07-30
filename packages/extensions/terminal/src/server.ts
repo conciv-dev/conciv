@@ -86,6 +86,7 @@ async function openTtySession(
       concivSessionId: sessionId,
       harnessSessionId,
       resume,
+      owned: true,
       model,
       mcpUrl,
       hookUrl: null,

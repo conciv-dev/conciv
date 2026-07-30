@@ -36,7 +36,7 @@ import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {HostApiProvider} from '@conciv/extension'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
-import {ExternalSessionConfirm, externalActiveMessage} from './external-session.js'
+import {ExternalSessionConfirm, externalActiveMessage, sessionAttachedMessage} from './external-session.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
@@ -108,6 +108,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const pane = usePane()
   const router = useRouter()
   const [externalActive, setExternalActive] = createSignal<string | null>(null)
+  const [attachedActive, setAttachedActive] = createSignal<string | null>(null)
   const [forceSend, setForceSend] = createSignal(false)
   const lastAttempt: {content: string | MultimodalContent | null} = {content: null}
   const chat = useChatSession({
@@ -115,10 +116,24 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     sessionId: props.sessionId,
     connection: {force: () => forceSend()},
     onError: (error) => {
+      if (lastAttempt.content === null) return
+      const attached = sessionAttachedMessage(error)
+      if (attached !== null) {
+        setAttachedActive(attached)
+        return
+      }
       const message = externalActiveMessage(error)
-      if (message !== null && lastAttempt.content !== null) setExternalActive(message)
+      if (message !== null) setExternalActive(message)
     },
   })
+
+  const takeOver = async (): Promise<void> => {
+    const content = lastAttempt.content
+    setAttachedActive(null)
+    await rpc.sessions.attachDetach({sessionId: props.sessionId}).catch(() => {})
+    appData.invalidateSessions()
+    if (content !== null) await send(content)
+  }
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
@@ -392,6 +407,13 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
       attach={attach}
       newSession={() => void newSession()}
     >
+      <ExternalSessionConfirm
+        message={attachedActive()}
+        question="Take the session back from your terminal?"
+        confirmLabel="Take over"
+        onCancel={() => setAttachedActive(null)}
+        onSendAnyway={() => void takeOver()}
+      />
       <ExternalSessionConfirm
         message={externalActive()}
         onCancel={() => setExternalActive(null)}
