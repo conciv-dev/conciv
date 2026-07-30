@@ -58,16 +58,12 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
   }
 
   async function gotoAndOpen(page: Page): Promise<void> {
-    try {
-      await page.goto(`http://localhost:${DEV_PORT}/`, {waitUntil: 'domcontentloaded', timeout: 60_000})
-    } catch (error) {
-      if (!String(error).includes('interrupted by another navigation')) throw error
-      await page.goto(`http://localhost:${DEV_PORT}/`, {waitUntil: 'domcontentloaded', timeout: 60_000})
-    }
+    await page.goto(`http://localhost:${DEV_PORT}/`, {waitUntil: 'domcontentloaded', timeout: 60_000})
     await openWidget(page)
   }
 
-  async function restartFresh(webpack: boolean): Promise<void> {
+  async function restartFresh(page: Page, webpack: boolean): Promise<void> {
+    await page.goto('about:blank')
     if (handle !== undefined) await stopNext(handle, ENGINE_PORT)
     await killPort(ENGINE_PORT)
     handle = startNext(fixture.appDir, {webpack, devPort: DEV_PORT})
@@ -99,12 +95,12 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     expect(await page.getByText(SECOND_SENTINEL).count()).toBe(0)
     writeSecondExtension(fixture.appDir)
     await waitFor(async () => readGeneratedEntry(fixture.appDir).includes('second'), 30_000)
-    await restartFresh(webpack)
+    await restartFresh(page, webpack)
     await gotoAndOpen(page)
     await expect(page.getByText(SECOND_SENTINEL).first()).toBeVisible({timeout: 60_000})
     removeSecondExtension(fixture.appDir)
     await waitFor(async () => !readGeneratedEntry(fixture.appDir).includes('second'), 30_000)
-    await restartFresh(webpack)
+    await restartFresh(page, webpack)
     await gotoAndOpen(page)
     await expect(chip(page)).toBeVisible()
     expect(await page.getByText(SECOND_SENTINEL).count()).toBe(0)
