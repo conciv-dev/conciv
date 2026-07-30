@@ -4,6 +4,7 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 export type StatePaths = {
   dir: string
   systemPrompt: string
+  server: string
 }
 
 export function statePaths(stateRoot: string): StatePaths {
@@ -11,5 +12,6 @@ export function statePaths(stateRoot: string): StatePaths {
   return {
     dir,
     systemPrompt: join(dir, 'chat-system-prompt.txt'),
+    server: join(dir, 'server.json'),
   }
 }
