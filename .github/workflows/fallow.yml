@@ -51,7 +51,7 @@ jobs:
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
-      - uses: fallow-rs/fallow@6c3760fff5eb6d5853a2fca0180e491b5e2eef36
+      - uses: fallow-rs/fallow@5988b978230134388b89060a39707a501211085a
         with:
           command: audit
           fail-on-issues: 'true'
