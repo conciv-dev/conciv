@@ -39,10 +39,38 @@ ConcivWidget.attach()
 
 `attach()` finds the key window itself (immediately, or on the next window/scene activation, so it is
 safe before `makeKeyAndVisible` or from `App.init`), reads the core api base from the `CONCIV_URL`
-environment variable, and falls back to pairing-file auto-discovery when it is unset. It compiles to a
-no-op in Release builds, so nothing conciv reaches TestFlight or the App Store. For hosts that supply
-an explicit endpoint or own their window lifecycle, `attach(apiBase:)` and `attach(to:apiBase:)` take
-the base (and window) directly.
+environment variable, and falls back to auto-discovery when it is unset. It compiles to a no-op in
+Release builds, so nothing conciv reaches TestFlight or the App Store. For hosts that supply an
+explicit endpoint or own their window lifecycle, `attach(apiBase:)` and `attach(to:apiBase:)` take the
+base (and window) directly.
+
+The launcher defaults to a dark round `AI` button (`launcher: .native`). Pass `launcher: .mascot` for
+the animated mascot instead; every `attach` overload takes the argument.
+
+```swift
+ConcivWidget.attach(launcher: .mascot)
+```
+
+## Finding the core
+
+With `CONCIV_URL` unset, `attach()` resolves the api base in this order:
+
+1. The pairing file at `~/.conciv/dev-endpoint.json`. A dev core that serves the native page writes it
+   on startup and removes it on shutdown. The simulator reads the host home directory, so this is the
+   zero-config path.
+2. A probe of `http://127.0.0.1` on ports 4599, 8787, and 3000, taking the first one whose `/health`
+   answers as a conciv core. This is the fallback for when no pairing file is readable.
+
+A host running its dev server under a test environment (`CONCIV_E2E` or `VITEST`) writes the pairing
+file to a temporary directory instead, so only the port probe applies there.
+
+## App Transport Security
+
+Talking to the dev core over `http://127.0.0.1` needs no `Info.plist` changes: App Transport Security
+does not apply to the loopback address. `NSAllowsLocalNetworking` and `NSLocalNetworkUsageDescription`
+are for plain HTTP to other machines on the local network, which the SDK does not use today. If you
+add them for a LAN setup of your own, keep them out of Release builds
+([RELEASE_HYGIENE.md](./RELEASE_HYGIENE.md)).
 
 ## Versioning: Swift SDK, bridge protocol, and npm
 
@@ -71,9 +99,10 @@ overlay surfaces a visible error rather than failing silently. Keep the Swift SD
 
 ## Release-build hygiene
 
-Before submitting an app that embeds ConcivWidget, follow [RELEASE_HYGIENE.md](./RELEASE_HYGIENE.md): the
-dev-core connection surface (ATS local-networking exception, local-network usage description, inspectable
-WebView) must be Debug-only by build configuration, never present in a Release or App Store build.
+Before submitting an app that embeds ConcivWidget, follow [RELEASE_HYGIENE.md](./RELEASE_HYGIENE.md):
+the inspectable WebView and the dev-core URL are already `#if DEBUG`, and any ATS or local-network
+`Info.plist` key you added for your own dev setup must be Debug-only by build configuration, never
+present in a Release or App Store build.
 
 ## License
 
