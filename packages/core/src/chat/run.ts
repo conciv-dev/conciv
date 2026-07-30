@@ -27,7 +27,14 @@ import {
   type ConcivDb,
 } from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
-import {createSession, sessionById, toModelMessages, transcriptCwdFor} from './session.js'
+import {
+  ensureChatRecord,
+  recordMintedToken,
+  resumableToken,
+  resumeTokenFor,
+  sessionById,
+  toModelMessages,
+} from './session.js'
 import {mergedMessages, runIdFor, transcriptMessages} from './attach.js'
 import {makeRunGate, withConcivGate, withConcivSandbox} from './gate.js'
 import {harnessDebug, logError} from '../lib/debug.js'
@@ -40,40 +47,6 @@ export type RunRequest = {
 }
 
 export const SESSION_BUSY = 'session busy'
-
-export const resumeTokenFor = async (db: ConcivDb, id: string): Promise<string | null> =>
-  (await sessionById(db, id))?.harnessSessionId ?? null
-
-export async function resumableToken(
-  db: ConcivDb,
-  harness: HarnessAdapter,
-  cwd: string,
-  token: string | null,
-  home?: string,
-): Promise<string | null> {
-  if (!token) return null
-  const history = harness.history
-  if (!history) return token
-  const transcriptCwd = (await transcriptCwdFor(db, token)) ?? cwd
-  return (await history.transcriptStat(transcriptCwd, token, home)) ? token : null
-}
-
-export const recordMintedToken = (db: ConcivDb, id: string, token: string): Promise<unknown> =>
-  db.update(sessions).set({harnessSessionId: token, updatedAt: Date.now()}).where(eq(sessions.id, id))
-
-export const ensureChatRecord = async (db: ConcivDb, id: string, harnessKind: string, cwd: string): Promise<void> => {
-  if (await sessionById(db, id)) return
-  await createSession(db, {
-    id,
-    harnessSessionId: null,
-    harnessKind,
-    origin: 'chat',
-    title: null,
-    model: null,
-    usage: null,
-    cwd,
-  })
-}
 
 const COMPACT_FALLBACK_PROMPT =
   'Summarize our conversation so far as concisely as you can: the key decisions, the current state, and any open threads, so we can continue with less context.'

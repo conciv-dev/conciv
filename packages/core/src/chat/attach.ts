@@ -6,12 +6,17 @@ import {imageHistoryFor, lastErrorForEpoch, runEpochOf, runMessagesFor, statusOf
 import type {ChatDeps} from './runtime.js'
 import {sessionById, settledMessages, userText} from './session.js'
 
-export type Changes = {emitter: EventEmitter; notify: () => void}
+export type Changes = {
+  emitter: EventEmitter
+  notify: () => void
+  externalRev: () => number
+  bumpExternal: () => void
+}
 
 export function makeChanges(): Changes {
   const emitter = new EventEmitter()
   emitter.setMaxListeners(0)
-  const state = {queued: false}
+  const state = {queued: false, externalRev: 0}
   const notify = (): void => {
     if (state.queued) return
     state.queued = true
@@ -20,7 +25,11 @@ export function makeChanges(): Changes {
       emitter.emit('change')
     })
   }
-  return {emitter, notify}
+  const bumpExternal = (): void => {
+    state.externalRev += 1
+    notify()
+  }
+  return {emitter, notify, externalRev: () => state.externalRev, bumpExternal}
 }
 
 export function nextChange(changes: Changes, signal: AbortSignal): Promise<void> {
@@ -101,7 +110,8 @@ async function snapshotKey(deps: ChatDeps, sessionId: string): Promise<string> {
   const row = runMessagesFor(deps.db, sessionId)
   const imageRow = imageHistoryFor(deps.db, sessionId)
   const record = await sessionById(deps.db, sessionId)
-  return `${row?.updatedAt ?? 0}:${imageRow?.updatedAt ?? 0}:${record?.updatedAt ?? 0}:${record?.harnessSessionId ?? ''}`
+  const stored = `${row?.updatedAt ?? 0}:${imageRow?.updatedAt ?? 0}:${record?.updatedAt ?? 0}`
+  return `${stored}:${record?.harnessSessionId ?? ''}:${deps.changes.externalRev()}`
 }
 
 export function runIdFor(sessionId: string, epoch: number): string {

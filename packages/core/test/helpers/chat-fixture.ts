@@ -6,7 +6,7 @@ import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {makeChanges} from '../../src/chat/attach.js'
 import {makeConcivSandbox} from '../../src/chat/gate.js'
-import {ensureChatRecord} from '../../src/chat/run.js'
+import {ensureChatRecord} from '../../src/chat/session.js'
 import type {ChatDeps} from '../../src/chat/runtime.js'
 
 export type ChatFixture = {

@@ -8,7 +8,7 @@ import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {testDb} from '../helpers/memory-store.js'
 import {createSession, sessionById} from '../../src/chat/session.js'
 import {requireClaude} from '../helpers/adapters.js'
-import {resumeTokenFor, recordMintedToken, ensureChatRecord, resumableToken} from '../../src/chat/run.js'
+import {resumeTokenFor, recordMintedToken, ensureChatRecord, resumableToken} from '../../src/chat/session.js'
 
 describe('turn session helpers', () => {
   it('resumeTokenFor returns the stored harness token (null when new)', async () => {

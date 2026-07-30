@@ -1,8 +1,4 @@
-import {spawn} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
-import {writeFileSync, chmodSync} from 'node:fs'
-import {platform, tmpdir} from 'node:os'
-import {join} from 'node:path'
 import {and, eq, isNull} from 'drizzle-orm'
 import {withoutTrailingSlash} from 'ufo'
 import type {ContentPart, ModelMessage} from '@tanstack/ai'
@@ -18,8 +14,11 @@ import type {
 } from '@conciv/protocol/chat-types'
 import {isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter, HarnessConnectPlan} from '@conciv/protocol/harness-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {sessions, type ConcivDb} from '@conciv/db'
 import {apiBaseFrom} from '../lib/api-base.js'
+import {executeConnectPlan} from './connect-exec.js'
 import type {ChatDeps} from './runtime.js'
 
 export type ResolveDeps = {
@@ -41,6 +40,40 @@ export async function sessionByHarnessId(db: ConcivDb, harnessSessionId: string)
 
 export async function transcriptCwdFor(db: ConcivDb, token: string): Promise<string | null> {
   return (await sessionByHarnessId(db, token))?.transcriptCwd ?? null
+}
+
+export const resumeTokenFor = async (db: ConcivDb, id: string): Promise<string | null> =>
+  (await sessionById(db, id))?.harnessSessionId ?? null
+
+export async function resumableToken(
+  db: ConcivDb,
+  harness: HarnessAdapter,
+  cwd: string,
+  token: string | null,
+  home?: string,
+): Promise<string | null> {
+  if (!token) return null
+  const history = harness.history
+  if (!history) return token
+  const transcriptCwd = (await transcriptCwdFor(db, token)) ?? cwd
+  return (await history.transcriptStat(transcriptCwd, token, home)) ? token : null
+}
+
+export const recordMintedToken = (db: ConcivDb, id: string, token: string): Promise<unknown> =>
+  db.update(sessions).set({harnessSessionId: token, updatedAt: Date.now()}).where(eq(sessions.id, id))
+
+export const ensureChatRecord = async (db: ConcivDb, id: string, harnessKind: string, cwd: string): Promise<void> => {
+  if (await sessionById(db, id)) return
+  await createSession(db, {
+    id,
+    harnessSessionId: null,
+    harnessKind,
+    origin: 'chat',
+    title: null,
+    model: null,
+    usage: null,
+    cwd,
+  })
 }
 
 export async function createSession(
@@ -238,87 +271,44 @@ function mcpUrlFor(deps: ChatDeps, requestUrl: string): string {
   return `${apiBaseFrom(requestUrl, deps.basePath)}/api/mcp`
 }
 
-export async function launchHarness(
-  deps: ChatDeps,
-  opts: {sessionId: string; model?: string; requestUrl: string},
-): Promise<ChatLaunch> {
+export type LaunchOptions = {sessionId: string; model?: string; requestUrl: string}
+
+async function harnessToken(deps: ChatDeps, sessionId: string): Promise<{token: string; resume: boolean}> {
+  const existing = await resumeTokenFor(deps.db, sessionId)
+  if (!existing) {
+    const minted = randomUUID()
+    await recordMintedToken(deps.db, sessionId, minted)
+    return {token: minted, resume: false}
+  }
+  const resumable = await resumableToken(deps.db, deps.harness, deps.cwd, existing, deps.claudeHome)
+  return {token: existing, resume: resumable !== null}
+}
+
+export async function connectPlanFor(deps: ChatDeps, opts: LaunchOptions): Promise<HarnessConnectPlan | null> {
   const connect = deps.harness.connect
-  if (!connect) return {supported: false, opened: false, command: null}
-  if (!isSessionId(opts.sessionId)) return {supported: true, opened: false, command: null}
-  const harnessSessionId = (await sessionById(deps.db, opts.sessionId))?.harnessSessionId ?? null
-  const plan = connect.plan({
+  if (!connect || !isSessionId(opts.sessionId)) return null
+  const sessionId = opts.sessionId
+  await ensureChatRecord(deps.db, sessionId, deps.harness.id, deps.cwd)
+  const {token, resume} = await harnessToken(deps, sessionId)
+  return connect.plan({
     cwd: deps.cwd,
-    concivSessionId: opts.sessionId,
-    harnessSessionId,
-    resume: Boolean(harnessSessionId),
+    concivSessionId: sessionId,
+    harnessSessionId: token,
+    resume,
     model: opts.model ?? null,
     mcpUrl: deps.harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.requestUrl) : null,
     hookUrl: null,
   })
-  if (plan.files.length > 0 || Object.keys(plan.env).length > 0) {
-    throw new Error(`harness "${deps.harness.id}" connect plan needs env/files, which the terminal launcher cannot run`)
-  }
-  const {opened, command} = await openTerminal(plan.argv, deps.cwd)
-  return {supported: true, opened, command}
 }
 
-async function openTerminal(argv: string[], cwd: string): Promise<{opened: boolean; command: string}> {
-  const command = `cd ${shellQuote(cwd)} && ${argv.map(shellQuote).join(' ')}`
-  const opened = await spawnTerminal(command)
-  return {opened, command}
-}
-
-async function spawnTerminal(command: string): Promise<boolean> {
-  switch (platform()) {
-    case 'darwin': {
-      const file = join(tmpdir(), `conciv-launch-${randomUUID()}.command`)
-
-      writeFileSync(file, `#!/bin/bash\n${command}\nexec $SHELL\n`)
-      chmodSync(file, 0o755)
-      const terminalApp = macTerminalApp(process.env.TERM_PROGRAM)
-      return spawnDetached('open', terminalApp ? ['-a', terminalApp, file] : [file])
-    }
-    case 'win32':
-      return spawnDetached('cmd', ['/c', 'start', 'cmd', '/k', command])
-    case 'linux':
-      return spawnDetached('x-terminal-emulator', ['-e', 'bash', '-lc', `${command}; exec bash`])
-    default:
-      return false
-  }
-}
-
-function macTerminalApp(termProgram: string | undefined): string | null {
-  switch (termProgram) {
-    case 'iTerm.app':
-      return 'iTerm'
-    case 'Apple_Terminal':
-      return 'Terminal'
-    case 'WarpTerminal':
-      return 'Warp'
-    case 'WezTerm':
-      return 'WezTerm'
-    case 'ghostty':
-      return 'Ghostty'
-    case 'Hyper':
-      return 'Hyper'
-    case 'kitty':
-      return 'kitty'
-    default:
-      return null
-  }
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`
-}
-
-function spawnDetached(bin: string, args: string[]): Promise<boolean> {
-  return new Promise((resolve) => {
-    const child = spawn(bin, args, {detached: true, stdio: 'ignore'})
-    child.once('spawn', () => {
-      child.unref()
-      resolve(true)
-    })
-    child.once('error', () => resolve(false))
+export async function launchHarness(deps: ChatDeps, opts: LaunchOptions): Promise<ChatLaunch> {
+  if (!deps.harness.connect) return {supported: false, opened: false, command: null}
+  const plan = await connectPlanFor(deps, opts)
+  if (!plan) return {supported: true, opened: false, command: null}
+  const {opened, command} = await executeConnectPlan(plan, {
+    cwd: deps.cwd,
+    stateDir: concivStateDir(deps.stateRoot),
+    open: true,
   })
+  return {supported: true, opened, command}
 }
