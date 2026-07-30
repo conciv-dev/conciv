@@ -126,7 +126,6 @@ async function bootEngine(
   agentPath: string,
   extensions: AnyExtension[],
   nativePageDir: string | undefined,
-  devEndpointDir: string | undefined,
 ): Promise<Engine> {
   const {start} = await import('@conciv/core/start')
   return start({
@@ -138,7 +137,7 @@ async function bootEngine(
     allowedOrigins: devOrigins(server),
     extensions,
     nativePageDir,
-    devEndpointDir,
+    devEndpointDir: options.devEndpointDir,
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
 }
@@ -218,7 +217,6 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         installConcivBinShim(concivStateDir(cfg.stateRoot)),
         extensions,
         builtins.nativePageDir,
-        builtins.devEndpointDir,
       )
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
