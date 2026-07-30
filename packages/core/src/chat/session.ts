@@ -12,9 +12,9 @@ import type {
   SessionRecord,
   SessionRecordInput,
 } from '@conciv/protocol/chat-types'
-import {CONCIV_HOOK_PATH, isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
+import {CONCIV_HOOK_PATH, isHarnessSessionId, isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
-import type {HarnessAdapter, HarnessConnectPlan} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter, HarnessConnectPlan, HarnessHistory} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {sessions, type ConcivDb} from '@conciv/db'
 import {apiBaseFrom} from '../lib/api-base.js'
@@ -45,6 +45,16 @@ export async function transcriptCwdFor(db: ConcivDb, token: string): Promise<str
 export const resumeTokenFor = async (db: ConcivDb, id: string): Promise<string | null> =>
   (await sessionById(db, id))?.harnessSessionId ?? null
 
+export function transcriptTokenAllowed(
+  history: HarnessHistory | undefined,
+  cwd: string,
+  token: string,
+  home?: string,
+): boolean {
+  if (!isHarnessSessionId(token)) return false
+  return history?.withinProject?.(cwd, token, home) ?? true
+}
+
 export async function resumableToken(
   db: ConcivDb,
   harness: HarnessAdapter,
@@ -56,11 +66,14 @@ export async function resumableToken(
   const history = harness.history
   if (!history) return token
   const transcriptCwd = (await transcriptCwdFor(db, token)) ?? cwd
+  if (!transcriptTokenAllowed(history, transcriptCwd, token, home)) return null
   return (await history.transcriptStat(transcriptCwd, token, home)) ? token : null
 }
 
-export const recordMintedToken = (db: ConcivDb, id: string, token: string): Promise<unknown> =>
-  db.update(sessions).set({harnessSessionId: token, updatedAt: Date.now()}).where(eq(sessions.id, id))
+export const recordMintedToken = async (db: ConcivDb, id: string, token: string): Promise<void> => {
+  if (!isHarnessSessionId(token)) throw new Error(`refusing to record an unusable harness session id: "${token}"`)
+  await db.update(sessions).set({harnessSessionId: token, updatedAt: Date.now()}).where(eq(sessions.id, id))
+}
 
 export const ensureChatRecord = async (db: ConcivDb, id: string, harnessKind: string, cwd: string): Promise<void> => {
   if (await sessionById(db, id)) return

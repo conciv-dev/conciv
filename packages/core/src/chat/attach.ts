@@ -4,7 +4,7 @@ import {ChatHistorySchema, type ChatHistory} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {imageHistoryFor, lastErrorForEpoch, runEpochOf, runMessagesFor, statusOf, type RunStatus} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
-import {sessionById, settledMessages, userText} from './session.js'
+import {sessionById, settledMessages, transcriptTokenAllowed, userText} from './session.js'
 
 export type Changes = {
   emitter: EventEmitter
@@ -79,7 +79,9 @@ export async function transcriptMessages(deps: ChatDeps, sessionId: string): Pro
   if (!deps.harness.capabilities.transcriptHistory || !history) return []
   const record = await sessionById(deps.db, sessionId)
   if (!record?.harnessSessionId) return []
-  return history.messages(record.transcriptCwd ?? deps.cwd, record.harnessSessionId, deps.claudeHome)
+  const cwd = record.transcriptCwd ?? deps.cwd
+  if (!transcriptTokenAllowed(history, cwd, record.harnessSessionId, deps.claudeHome)) return []
+  return history.messages(cwd, record.harnessSessionId, deps.claudeHome)
 }
 
 const isLive = (status: RunStatus): boolean => status !== 'idle'

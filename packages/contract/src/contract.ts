@@ -7,8 +7,10 @@ import {
   ChatLaunchSchema,
   ChatModelsSchema,
   ChatToolsSchema,
+  HarnessSessionId,
   NavigationStateSchema,
   PermissionDecisionSchema,
+  SessionId,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
 import {
@@ -63,9 +65,9 @@ export const contract = {
         CWD_MISMATCH: {message: 'that session runs in a different directory'},
         INSTALL_FAILED: {message: 'could not install the conciv plugin'},
       })
-      .input(z.object({harnessSessionId: z.string(), pid: z.number().int(), force: z.boolean().optional()}))
+      .input(z.object({harnessSessionId: HarnessSessionId, pid: z.number().int(), force: z.boolean().optional()}))
       .output(z.object({sessionId: z.string(), reloadCommand: z.string()})),
-    attachDetach: oc.input(SessionIdInput).output(Ok),
+    attachDetach: oc.input(z.object({sessionId: SessionId})).output(Ok),
   },
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),

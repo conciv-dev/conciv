@@ -2,17 +2,17 @@ import {describe, expect, it} from 'vitest'
 import {StreamProcessor} from '@tanstack/ai'
 import {writeReply} from '@conciv/db'
 import {makeChanges} from '../../src/chat/attach.js'
-import {makeRunGate} from '../../src/chat/gate.js'
+import {makeRunGate, processorAsk} from '../../src/chat/gate.js'
 import {testDb} from '../helpers/memory-store.js'
 
 const fixture = (timeoutMs?: number) => {
   const db = testDb()
   const changes = makeChanges()
   const processor = new StreamProcessor({events: {}})
-  const risky = new Set(['mcp__conciv__canvas.delete'])
+  const risky = new Set(['canvas.delete'])
   const gate = makeRunGate({
     sessionId: 'conciv_x',
-    processor,
+    ask: processorAsk(processor),
     db,
     changes,
     risky,
@@ -29,14 +29,19 @@ describe('run gate on awaitReply', () => {
     expect(processor.getMessages().flatMap((message) => message.parts)).toEqual([])
   })
 
-  it('does not gate the unprefixed tool name (locks the prefixed-name form)', async () => {
-    const {gate} = fixture()
-    expect(await gate.decide('canvas.delete', {id: 'r1'}, 'conciv_x', 'tu2')).toBe('allow')
+  it.each([
+    'canvas.delete',
+    'mcp__conciv__canvas.delete',
+    'mcp__plugin_conciv-connect_conciv__canvas.delete',
+    'mcp__conciv__canvas_delete',
+  ])('gates %s: every caller path names the same risky tool', async (name) => {
+    const {gate} = fixture(30)
+    expect(await gate.decide(name, {id: 'r1'}, 'conciv_x', 'tu2')).toBe('deny')
   })
 
-  it('risky tool times out to deny when nobody replies', async () => {
+  it('leaves a same-prefix non-risky tool alone', async () => {
     const {gate} = fixture(30)
-    expect(await gate.decide('mcp__conciv__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu3')).toBe('deny')
+    expect(await gate.decide('mcp__conciv__canvas.draw', {id: 'r1'}, 'conciv_x', 'tu3')).toBe('allow')
   })
 
   it('risky tool with no folded part gets a synthetic part, annotated with the approval, and an approve reply allows', async () => {

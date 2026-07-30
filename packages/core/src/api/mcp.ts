@@ -43,8 +43,16 @@ function toContent(result: unknown): (TextContent | ImageContent)[] {
   return [{type: 'text', text: safeStringify(result, 'tool result')}]
 }
 
-function registerTool(server: McpServer, tool: RegistrableTool, run: (args: unknown) => Promise<unknown>): void {
+type ToolDecider = (toolName: string, input: unknown) => Promise<'allow' | 'deny'>
+
+function registerTool(
+  server: McpServer,
+  tool: RegistrableTool,
+  run: (args: unknown) => Promise<unknown>,
+  decide: ToolDecider,
+): void {
   server.registerTool(tool.name, {description: tool.description, inputSchema: tool.inputSchema.shape}, async (args) => {
+    if ((await decide(tool.name, args)) === 'deny') throw new Error(`Tool "${tool.name}" was denied by the user`)
     try {
       return {content: toContent(await run(args))}
     } catch (error) {
@@ -54,10 +62,15 @@ function registerTool(server: McpServer, tool: RegistrableTool, run: (args: unkn
   })
 }
 
-function buildServer(ctx: ConcivToolContext, extensionTools: ExtensionServerTool[], request: ToolRequest): McpServer {
+function buildServer(
+  ctx: ConcivToolContext,
+  extensionTools: ExtensionServerTool[],
+  request: ToolRequest,
+  decide: ToolDecider,
+): McpServer {
   const server = new McpServer({name: 'conciv', version: '0.0.0'})
-  for (const tool of concivTools(ctx)) registerTool(server, tool, (args) => tool.execute(args))
-  for (const tool of extensionTools) registerTool(server, tool, (args) => tool.execute(args, request))
+  for (const tool of concivTools(ctx)) registerTool(server, tool, (args) => tool.execute(args), decide)
+  for (const tool of extensionTools) registerTool(server, tool, (args) => tool.execute(args, request), decide)
   return server
 }
 
@@ -69,6 +82,7 @@ export type McpVars = {
     onRequest: (sessionId: string) => void
     onHarnessDial: (harnessSessionId: string) => void
     sessionForHarnessId: (harnessSessionId: string) => Promise<string | null>
+    decide: (sessionId: string, toolName: string, input: unknown) => Promise<'allow' | 'deny'>
   }
 }
 
@@ -90,7 +104,8 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   })
-  await buildServer(ctx, c.var.mcp.extensionTools, request).connect(transport)
+  const decide = (toolName: string, input: unknown) => c.var.mcp.decide(sessionId, toolName, input)
+  await buildServer(ctx, c.var.mcp.extensionTools, request, decide).connect(transport)
   return transport.handleRequest(c.req.raw)
 })
 

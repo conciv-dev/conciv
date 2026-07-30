@@ -357,6 +357,7 @@ export const claudeHistory: HarnessHistory = {
   messages: transcriptMessages,
   transcriptStat,
   transcriptPath,
+  withinProject,
   nameFromTranscript,
   contextTokens: contextTokensFromTranscript,
   list: listSessions,

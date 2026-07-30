@@ -11,5 +11,22 @@ export const openCanvas = async (page: Page): Promise<{cx: number; cy: number}> 
 
 export type ToolCaller = {callTool: (name: string, input: unknown) => Promise<unknown>}
 
+export const createFloatingComment = (api: ToolCaller, seed: {cid: string; text: string}): Promise<unknown> =>
+  api.callTool('comment.create', {
+    cid: seed.cid,
+    kind: 'floating',
+    parts: [{type: 'text', text: seed.text}],
+    x: 240,
+    y: 240,
+    authorKind: 'ai',
+  })
+
+export const openThreadPin = async (page: Page): Promise<void> => {
+  const pin = page.getByRole('button', {name: /comment, open/})
+  await pin.waitFor({timeout: 30_000})
+  await pin.focus()
+  await pin.press('Enter')
+}
+
 export const readCanvas = async (api: ToolCaller, scope: string): Promise<unknown[]> =>
   ((await api.callTool('canvas.read', {scope})) as {elements: unknown[]}).elements

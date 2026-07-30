@@ -41,6 +41,17 @@ function partsOf(all: StreamChunk[], role?: string): unknown[] {
   })
 }
 
+const ApprovalPartSchema = z
+  .object({type: z.literal('tool-call'), approval: z.object({id: z.string()}).loose()})
+  .loose()
+
+export function approvalIds(chunk: StreamChunk): string[] {
+  return partsOf([chunk]).flatMap((part) => {
+    const parsed = ApprovalPartSchema.safeParse(part)
+    return parsed.success ? [parsed.data.approval.id] : []
+  })
+}
+
 export function collectToolCalls(all: StreamChunk[], name?: string): SeenToolCall[] {
   return partsOf(all)
     .flatMap((part) => {

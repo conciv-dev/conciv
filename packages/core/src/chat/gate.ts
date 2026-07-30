@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {defineChatMiddleware, EventType, type AnyTool, type StreamProcessor} from '@tanstack/ai'
+import {defineChatMiddleware, EventType, StreamProcessor, type AnyTool, type StreamChunk} from '@tanstack/ai'
 import {
   defineSandbox,
   defineSandboxPolicy,
@@ -17,7 +17,7 @@ import {
 } from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {aguiApprovalRequestedFor, UiAnswerValueSchema, type UiAnswer} from '@conciv/protocol/ui-types'
-import {replyFor, runMessagesFor, runSessions, type ConcivDb} from '@conciv/db'
+import {replyFor, runMessagesFor, runSessions, setRunMessages, type ConcivDb} from '@conciv/db'
 import {nextChange, type Changes} from './attach.js'
 
 export type CommandPolicy = 'allow' | 'ask'
@@ -163,16 +163,52 @@ const APPROVAL_TIMEOUT_MS = 120_000
 
 const BashInputSchema = z.object({command: z.string()})
 
-function needsApproval(toolName: string, toolInput: unknown, risky: ReadonlySet<string>): boolean {
-  if (risky.has(toolName)) return true
+const MCP_PREFIX = /^mcp__.*?__/
+const SEPARATORS = /[._-]+/g
+
+export function canonicalToolName(name: string): string {
+  return name.replace(MCP_PREFIX, '').replace(SEPARATORS, '.')
+}
+
+export function needsApproval(toolName: string, toolInput: unknown, risky: ReadonlySet<string>): boolean {
+  if (risky.has(canonicalToolName(toolName))) return true
   if (toolName !== 'Bash') return false
   const parsed = BashInputSchema.safeParse(toolInput)
   return classifyCommand(parsed.success ? parsed.data.command : '') !== 'allow'
 }
 
+export function riskyToolNames(names: readonly string[]): ReadonlySet<string> {
+  return new Set(names.map(canonicalToolName))
+}
+
+export type AskChannel = {
+  toolCalls: () => {id: string; name: string}[]
+  emit: (chunk: StreamChunk) => void
+}
+
+export function processorAsk(processor: StreamProcessor): AskChannel {
+  return {
+    toolCalls: () => toolCallParts(processor.getMessages()),
+    emit: (chunk) => processor.processChunk(chunk),
+  }
+}
+
+export function sessionAsk(db: ConcivDb, changes: Changes, sessionId: string): AskChannel {
+  const settled = runMessagesFor(db, sessionId)?.messages ?? []
+  const processor = new StreamProcessor({
+    events: {
+      onMessagesChange: (messages) => {
+        setRunMessages(db, sessionId, [...settled, ...messages])
+        changes.notify()
+      },
+    },
+  })
+  return processorAsk(processor)
+}
+
 export type RunGateDeps = {
   sessionId: string
-  processor: StreamProcessor
+  ask: AskChannel
   db: ConcivDb
   changes: Changes
   risky: ReadonlySet<string>
@@ -183,7 +219,7 @@ export type RunGateDeps = {
 async function ensureToolCallPart(deps: RunGateDeps, toolName: string, toolUseId: string): Promise<void> {
   const deadline = Date.now() + (deps.partWaitMs ?? PART_WAIT_TIMEOUT_MS)
   const abort = new AbortController()
-  const folded = () => toolCallParts(deps.processor.getMessages()).some((part) => part.id === toolUseId)
+  const folded = () => deps.ask.toolCalls().some((part) => part.id === toolUseId)
   try {
     while (!folded() && Date.now() < deadline) {
       await Promise.race([
@@ -195,13 +231,13 @@ async function ensureToolCallPart(deps: RunGateDeps, toolName: string, toolUseId
     abort.abort()
   }
   if (folded()) return
-  deps.processor.processChunk({
+  deps.ask.emit({
     type: EventType.TOOL_CALL_START,
     toolCallId: toolUseId,
     toolCallName: toolName,
     toolName,
   })
-  deps.processor.processChunk({type: EventType.TOOL_CALL_END, toolCallId: toolUseId})
+  deps.ask.emit({type: EventType.TOOL_CALL_END, toolCallId: toolUseId})
 }
 
 export function makeRunGate(deps: RunGateDeps): PermissionGate {
@@ -210,9 +246,7 @@ export function makeRunGate(deps: RunGateDeps): PermissionGate {
       if (!needsApproval(toolName, toolInput, deps.risky)) return 'allow'
       const approvalId = randomUUID()
       await ensureToolCallPart(deps, toolName, toolUseId)
-      deps.processor.processChunk(
-        aguiApprovalRequestedFor({toolCallId: toolUseId, toolName, input: toolInput, approvalId}),
-      )
+      deps.ask.emit(aguiApprovalRequestedFor({toolCallId: toolUseId, toolName, input: toolInput, approvalId}))
       const approved = await awaitReply(
         {db: deps.db, changes: deps.changes},
         deps.sessionId,

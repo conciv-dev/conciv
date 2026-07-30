@@ -1,14 +1,14 @@
 import {realpathSync} from 'node:fs'
 import {isAbsolute, relative, resolve} from 'node:path'
 import {eq, isNotNull} from 'drizzle-orm'
-import {CONCIV_HOOK_PATH} from '@conciv/protocol/chat-types'
+import {CONCIV_HOOK_PATH, isHarnessSessionId} from '@conciv/protocol/chat-types'
 import type {HarnessLiveSession} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {sessions, type ConcivDb} from '@conciv/db'
 import type {LiveSession} from '@conciv/contract'
 import {apiBaseFrom} from '../lib/api-base.js'
 import {logError} from '../lib/debug.js'
-import {mcpUrlFor, resolveSession, sessionById} from './session.js'
+import {mcpUrlFor, resolveSession, sessionById, transcriptTokenAllowed} from './session.js'
 import {transcriptTail} from './transcript-tail.js'
 import type {ChatDeps} from './runtime.js'
 
@@ -39,9 +39,19 @@ export function cwdRelation(candidateCwd: string, engineCwd: string): CwdRelatio
 
 type CandidateFacts = Pick<LiveSession, 'title' | 'messageCount' | 'lastActivityAt' | 'tail'>
 
+function blankFacts(session: HarnessLiveSession): CandidateFacts {
+  return {title: '', messageCount: 0, lastActivityAt: session.startedAt ?? 0, tail: []}
+}
+
+function readableTranscript(deps: ChatDeps, session: HarnessLiveSession): boolean {
+  const history = deps.harness.history
+  if (!history) return false
+  return transcriptTokenAllowed(history, session.cwd, session.sessionId, deps.claudeHome)
+}
+
 async function candidateFacts(deps: ChatDeps, session: HarnessLiveSession): Promise<CandidateFacts> {
   const history = deps.harness.history
-  const blank: CandidateFacts = {title: '', messageCount: 0, lastActivityAt: session.startedAt ?? 0, tail: []}
+  const blank = blankFacts(session)
   if (!history) return blank
   const meta = await history.meta?.(session.cwd, session.sessionId, deps.claudeHome).catch(() => null)
   const messages = await history.messages(session.cwd, session.sessionId, deps.claudeHome).catch(() => [])
@@ -56,7 +66,7 @@ async function candidateFacts(deps: ChatDeps, session: HarnessLiveSession): Prom
 async function toWire(deps: ChatDeps, session: HarnessLiveSession): Promise<LiveSession[]> {
   const relation = cwdRelation(session.cwd, deps.cwd)
   if (relation === 'disjoint') return []
-  const facts = await candidateFacts(deps, session)
+  const facts = readableTranscript(deps, session) ? await candidateFacts(deps, session) : blankFacts(session)
   const ready = deps.dialed(session.sessionId)
   return [{...session, ...facts, relation, ready, working: session.status === 'busy'}]
 }
@@ -83,6 +93,8 @@ function pickCandidate(all: LiveSession[], request: AdoptRequest): LiveSession |
 }
 
 export async function adoptLiveSession(deps: ChatDeps, request: AdoptRequest): Promise<AdoptOutcome> {
+  if (!isHarnessSessionId(request.harnessSessionId))
+    return {ok: false, code: 'CWD_MISMATCH', detail: 'that is not a valid session id'}
   const attach = deps.harness.attach
   if (!attach) return {ok: false, code: 'INSTALL_FAILED', detail: `${deps.harness.id} cannot connect to a live session`}
   const candidate = pickCandidate(await liveCandidates(deps), request)

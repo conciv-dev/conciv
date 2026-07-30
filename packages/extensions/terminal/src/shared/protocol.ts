@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {HarnessSessionId} from '@conciv/protocol/chat-types'
 
 export const TERMINAL_NAME = 'terminal'
 
@@ -24,7 +25,7 @@ export const HOOK_EVENT_NAMES = [
 
 export const HookBodySchema = z
   .object({
-    session_id: z.string(),
+    session_id: HarnessSessionId,
     transcript_path: z.string().optional(),
     cwd: z.string().optional(),
     hook_event_name: z.enum(HOOK_EVENT_NAMES),

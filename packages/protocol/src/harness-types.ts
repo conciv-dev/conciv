@@ -120,6 +120,8 @@ export type HarnessHistory = {
 
   transcriptPath?(cwd: string, sessionId: string, home?: string): string
 
+  withinProject?(cwd: string, sessionId: string, home?: string): boolean
+
   nameFromTranscript?(raw: string): string | null
 
   contextTokens?(raw: string): number | undefined

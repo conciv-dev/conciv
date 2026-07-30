@@ -34,10 +34,11 @@ import {
   resumeTokenFor,
   sessionById,
   toModelMessages,
+  transcriptTokenAllowed,
 } from './session.js'
 import {mergedMessages, runIdFor, transcriptMessages} from './attach.js'
 import {attachedElsewhere, SESSION_ATTACHED} from './adopt.js'
-import {makeRunGate, withConcivGate, withConcivSandbox} from './gate.js'
+import {makeRunGate, processorAsk, withConcivGate, withConcivSandbox} from './gate.js'
 import {harnessDebug, logError} from '../lib/debug.js'
 
 export type RunRequest = {
@@ -86,7 +87,13 @@ async function buildRunStream(
   const resumeSessionId = deps.harness.capabilities.resume
     ? await resumableToken(deps.db, deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome)
     : null
-  const gate = makeRunGate({sessionId, processor, db: deps.db, changes: deps.changes, risky: deps.risky})
+  const gate = makeRunGate({
+    sessionId,
+    ask: processorAsk(processor),
+    db: deps.db,
+    changes: deps.changes,
+    risky: deps.risky,
+  })
   const config = deps.harness.chatConfig({
     cwd: deps.cwd,
     sessionId,
@@ -247,7 +254,9 @@ async function contextOccupancyFor(deps: ChatDeps, sessionId: string): Promise<n
   if (!history?.contextTokens || !history.transcriptPath) return undefined
   const record = await sessionById(deps.db, sessionId)
   if (!record?.harnessSessionId) return undefined
-  const path = history.transcriptPath(record.transcriptCwd ?? deps.cwd, record.harnessSessionId, deps.claudeHome)
+  const transcriptCwd = record.transcriptCwd ?? deps.cwd
+  if (!transcriptTokenAllowed(history, transcriptCwd, record.harnessSessionId, deps.claudeHome)) return undefined
+  const path = history.transcriptPath(transcriptCwd, record.harnessSessionId, deps.claudeHome)
   if (!existsSync(path)) return undefined
   return history.contextTokens(readFileSync(path, 'utf8'))
 }

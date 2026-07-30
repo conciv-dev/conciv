@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
@@ -16,7 +17,7 @@ import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
-import type {ChatTool, SendVerdict} from '@conciv/protocol/chat-types'
+import {isSessionId, type ChatTool, type SendVerdict} from '@conciv/protocol/chat-types'
 import {
   ensureAgentRecord,
   ensureChatRecord,
@@ -25,11 +26,12 @@ import {
   sessionByHarnessId,
   sweepEmptyChatRecords,
   transcriptCwdFor,
+  transcriptTokenAllowed,
 } from './chat/session.js'
 import {buildChatTools, type ChatDeps} from './chat/runtime.js'
 import {makeDialLog} from './chat/dial-log.js'
 import {makeChanges} from './chat/attach.js'
-import {askUi, makeConcivSandbox} from './chat/gate.js'
+import {askUi, makeConcivSandbox, makeRunGate, needsApproval, riskyToolNames, sessionAsk} from './chat/gate.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
 import {detachAllAttached} from './chat/adopt.js'
 import {modelOf, openDb, requestStop, statusOf} from '@conciv/db'
@@ -159,11 +161,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const db = openDb(opts.cfg.stateRoot)
   const changes = makeChanges()
-  const risky = new Set(
+  const risky = riskyToolNames(
     (opts.extensions ?? [])
       .flatMap((extension) => extension.tools ?? [])
       .filter((tool) => tool.approval === 'ask')
-      .map((tool) => `mcp__conciv__${tool.name}`),
+      .map((tool) => tool.name),
   )
 
   const runStartListeners: ((sessionId: string) => void)[] = []
@@ -218,13 +220,25 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       if (requestStop(db, sessionId)) changes.notify()
     },
     transcriptExists: transcriptPath
-      ? async (token) => existsSync(transcriptPath(await cwdForToken(token), token, opts.claudeHome))
+      ? async (token) => {
+          const cwd = await cwdForToken(token)
+          if (!transcriptTokenAllowed(history, cwd, token, opts.claudeHome)) return false
+          return existsSync(transcriptPath(cwd, token, opts.claudeHome))
+        }
       : undefined,
     transcriptStat: history
-      ? async (token) => history.transcriptStat(await cwdForToken(token), token, opts.claudeHome)
+      ? async (token) => {
+          const cwd = await cwdForToken(token)
+          if (!transcriptTokenAllowed(history, cwd, token, opts.claudeHome)) return null
+          return history.transcriptStat(cwd, token, opts.claudeHome)
+        }
       : undefined,
     transcriptMessages: history
-      ? async (token) => history.messages(await cwdForToken(token), token, opts.claudeHome)
+      ? async (token) => {
+          const cwd = await cwdForToken(token)
+          if (!transcriptTokenAllowed(history, cwd, token, opts.claudeHome)) return []
+          return history.messages(cwd, token, opts.claudeHome)
+        }
       : undefined,
   }
   const basePath = opts.basePath ?? ''
@@ -280,6 +294,20 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     open: (file, line) => opts.openInEditor(file, line),
   })
   const sessionModel = (sessionId: string): string | null => modelOf(db, sessionId)
+
+  const decideMcpTool = async (sessionId: string, toolName: string, input: unknown): Promise<'allow' | 'deny'> => {
+    if (!needsApproval(toolName, input, risky)) return 'allow'
+    if (!isSessionId(sessionId)) return 'deny'
+    const gate = makeRunGate({
+      sessionId,
+      ask: sessionAsk(db, changes, sessionId),
+      db,
+      changes,
+      risky,
+      partWaitMs: 0,
+    })
+    return gate.decide(toolName, input, sessionId, randomUUID())
+  }
 
   const toolList: ChatTool[] = [
     ...concivTools(makeToolCtx('')).map((tool) => ({name: tool.name, description: tool.description})),
@@ -347,6 +375,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         onRequest: notifyMcpRequest,
         onHarnessDial: dialLog.note,
         sessionForHarnessId: serverSessions.sessionForHarnessId,
+        decide: decideMcpTool,
       },
     },
     rpc,
