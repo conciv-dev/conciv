@@ -1,5 +1,5 @@
 import {afterEach, expect, test} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import {render} from 'solid-js/web'
 import {createSignal} from 'solid-js'
 import type {LiveSession} from '@conciv/contract'
@@ -20,13 +20,19 @@ const session = (over: Partial<LiveSession> = {}): LiveSession => ({
   ...over,
 })
 
-type Mounted = {state: (next: ConnectStep | null) => void; picked: LiveSession[]; copied: string[]; closed: number[]}
+type Mounted = {
+  state: (next: ConnectStep | null) => void
+  picked: LiveSession[]
+  copied: string[]
+  closed: number[]
+  launched: number[]
+}
 
 function mountDialog(): Mounted {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const [state, setState] = createSignal<ConnectStep | null>(null)
-  const mounted: Mounted = {state: setState, picked: [], copied: [], closed: []}
+  const mounted: Mounted = {state: setState, picked: [], copied: [], closed: [], launched: []}
   const dispose = render(
     () => (
       <ConnectSessionDialog
@@ -34,6 +40,7 @@ function mountDialog(): Mounted {
         onPick={(value) => mounted.picked.push(value)}
         onCopy={(text) => mounted.copied.push(text)}
         onClose={() => mounted.closed.push(1)}
+        onLaunch={() => mounted.launched.push(1)}
       />
     ),
     host,
@@ -65,10 +72,53 @@ test('picks a running session and annotates the ones that are not ready', async 
   expect(dialog.picked.map((value) => value.sessionId)).toEqual(['sess-1'])
 })
 
-test('says so when nothing is running', async () => {
+test('says so when nothing is running and points at the way forward', async () => {
   const dialog = mountDialog()
   dialog.state({step: 'picking', candidates: []})
   await expect.element(page.getByText('No claude session is running in this project.')).toBeVisible()
+
+  await expect.element(page.getByRole('button', {name: 'Open a new session'})).toBeVisible()
+  await page.getByRole('button', {name: 'Open a new session'}).click()
+  expect(dialog.launched).toHaveLength(1)
+
+  await page.getByRole('button', {name: 'Cancel'}).click()
+  expect(dialog.closed).toHaveLength(1)
+})
+
+test('escape leaves the empty picker', async () => {
+  const dialog = mountDialog()
+  dialog.state({step: 'picking', candidates: []})
+  await expect.element(page.getByText('No claude session is running in this project.')).toBeVisible()
+
+  await userEvent.keyboard('{Escape}')
+  await expect.poll(() => dialog.closed.length).toBe(1)
+})
+
+async function clickBehindTheDialog(): Promise<void> {
+  const content = page.getByRole('alertdialog').element()
+  const positioner = content.parentElement
+  if (!(positioner instanceof HTMLElement)) throw new Error('the dialog content has no layer around it')
+  const away = content.getBoundingClientRect().bottom + 40
+  await userEvent.click(page.elementLocator(positioner), {position: {x: 8, y: away}, force: true})
+}
+
+test('clicking away leaves the empty picker', async () => {
+  const dialog = mountDialog()
+  dialog.state({step: 'picking', candidates: []})
+  await expect.element(page.getByText('No claude session is running in this project.')).toBeVisible()
+
+  await clickBehindTheDialog()
+  await expect.poll(() => dialog.closed.length).toBe(1)
+})
+
+test('every step keeps a visible way out', async () => {
+  const dialog = mountDialog()
+  dialog.state({step: 'picking', candidates: [session()]})
+  await expect.element(page.getByRole('button', {name: 'Cancel'})).toBeVisible()
+
+  dialog.state({step: 'snippet', command: 'claude --resume tok-1', detail: 'too old'})
+  await page.getByRole('button', {name: 'Close'}).click()
+  expect(dialog.closed).toHaveLength(1)
 })
 
 test('shows the reload command and the cost of re-reading the conversation', async () => {

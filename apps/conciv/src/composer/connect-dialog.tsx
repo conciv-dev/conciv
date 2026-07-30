@@ -33,10 +33,16 @@ export function ConnectSessionDialog(props: {
   onPick: (session: LiveSession) => void
   onCopy: (text: string) => void
   onClose: () => void
+  onLaunch: () => void
 }): JSX.Element {
-  const [local] = splitProps(props, ['state', 'onPick', 'onCopy', 'onClose'])
+  const [local] = splitProps(props, ['state', 'onPick', 'onCopy', 'onClose', 'onLaunch'])
   return (
-    <Dialog open={local.state !== null} onOpenChange={() => local.onClose()} label="Connect a running session">
+    <Dialog
+      open={local.state !== null}
+      onOpenChange={() => local.onClose()}
+      dismissable
+      label="Connect a running session"
+    >
       <Show when={local.state}>
         {(state) => (
           <div class="flex flex-col gap-3">
@@ -49,7 +55,14 @@ export function ConnectSessionDialog(props: {
                     </p>
                     <Show
                       when={value().candidates.length > 0}
-                      fallback={<p class="text-pw-text text-sm">No claude session is running in this project.</p>}
+                      fallback={
+                        <>
+                          <p class="text-pw-text text-sm">No claude session is running in this project.</p>
+                          <p class="text-pw-text-3 text-xs leading-normal">
+                            Open a new connected session instead, and this panel follows it from the start.
+                          </p>
+                        </>
+                      }
                     >
                       <ul class="flex flex-col gap-1 list-none m-0 p-0">
                         <For each={value().candidates}>
@@ -65,6 +78,16 @@ export function ConnectSessionDialog(props: {
                         </For>
                       </ul>
                     </Show>
+                    <div class="flex justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => local.onClose()}>
+                        Cancel
+                      </Button>
+                      <Show when={value().candidates.length === 0}>
+                        <Button size="sm" onClick={() => local.onLaunch()}>
+                          Open a new session
+                        </Button>
+                      </Show>
+                    </div>
                   </>
                 )}
               </Match>
@@ -98,8 +121,11 @@ export function ConnectSessionDialog(props: {
                     </p>
                     <code class={CODE}>{value().command}</code>
                     <div class="flex justify-end gap-2">
-                      <Button size="sm" onClick={() => local.onCopy(value().command)}>
+                      <Button variant="ghost" size="sm" onClick={() => local.onCopy(value().command)}>
                         Copy command
+                      </Button>
+                      <Button size="sm" onClick={() => local.onClose()}>
+                        Close
                       </Button>
                     </div>
                   </>

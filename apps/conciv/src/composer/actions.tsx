@@ -142,6 +142,10 @@ export function ComposerActions(props: {
         onPick={(session) => adopt.mutate(session)}
         onCopy={(text) => void copyCommand(text, props.notify)}
         onClose={() => setConnectStep(null)}
+        onLaunch={() => {
+          setConnectStep(null)
+          launch.mutate(true)
+        }}
       />
     </>
   )
