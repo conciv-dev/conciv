@@ -16,15 +16,31 @@ export function transcriptPath(cwd: string, sessionId: string, home: string = ho
 
 const INTERNAL_MARKERS = ['VIBE_PROGRESS_TICK', 'NEEDS_INFO:', '<system-reminder>']
 
+const SYNTHETIC_MARKERS = [
+  '[Request interrupted by user]',
+  '[Request interrupted by user for tool use]',
+  'No response requested.',
+]
+
+const MACHINERY_XML_BLOCK = /<([a-z][\w-]*)(?:\s[^>]*)?>[\s\S]*?<\/\1>\n?/g
+
+const OriginSchema = z.object({kind: z.string()}).loose()
+
 const TranscriptRecordSchema = z
   .object({
     type: z.string(),
+    isMeta: z.boolean().optional(),
+    isCompactSummary: z.boolean().optional(),
+    interruptedMessageId: z.string().optional(),
+    origin: z.unknown().optional(),
     message: z
       .object({id: z.string().optional(), content: z.union([z.string(), z.array(z.unknown())]).optional()})
       .loose()
       .optional(),
   })
   .loose()
+
+type TranscriptRecord = z.infer<typeof TranscriptRecordSchema>
 
 function partsFrom(content: unknown): MessagePart[] {
   if (typeof content === 'string') return content ? [{type: 'text', content}] : []
@@ -66,15 +82,46 @@ function partsFrom(content: unknown): MessagePart[] {
   return out
 }
 
-function isInternal(parts: MessagePart[]): boolean {
-  const text = parts
+function textOf(parts: MessagePart[]): string {
+  return parts
     .filter((p) => p.type === 'text')
     .map((p) => ('content' in p ? p.content : ''))
     .join('\n')
+}
+
+function isInternal(parts: MessagePart[]): boolean {
+  const text = textOf(parts)
   return INTERNAL_MARKERS.some((m) => text.includes(m))
 }
 
-function parseRecord(line: string): z.infer<typeof TranscriptRecordSchema> | null {
+function isSyntheticText(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed) return false
+  if (SYNTHETIC_MARKERS.includes(trimmed)) return true
+  return trimmed.replace(MACHINERY_XML_BLOCK, '').trim() === ''
+}
+
+function isFromMachinery(record: TranscriptRecord): boolean {
+  if (record.isMeta === true || record.isCompactSummary === true) return true
+  if (record.interruptedMessageId !== undefined) return true
+  const origin = OriginSchema.safeParse(record.origin)
+  return origin.success && origin.data.kind !== 'human'
+}
+
+function humanMessageParts(record: TranscriptRecord): MessagePart[] | null {
+  if (isFromMachinery(record)) return null
+  const parts = partsFrom(record.message?.content).filter((p) => p.type !== 'tool-result')
+  if (parts.length === 0 || isInternal(parts) || isSyntheticText(textOf(parts))) return null
+  return parts
+}
+
+function firstText(parts: MessagePart[]): string | null {
+  const text = parts.find((p) => p.type === 'text')
+  if (!text || text.type !== 'text' || typeof text.content !== 'string') return null
+  return text.content
+}
+
+function parseRecord(line: string): TranscriptRecord | null {
   try {
     const result = TranscriptRecordSchema.safeParse(JSON.parse(line))
     return result.success ? result.data : null
@@ -98,10 +145,10 @@ export function parseHistory(jsonl: string): UIMessage[] {
     if (parts.length === 0 || isInternal(parts)) continue
     if (e.type === 'user') {
       const results = parts.filter((p) => p.type === 'tool-result')
-      const rest = parts.filter((p) => p.type !== 'tool-result')
       const lastAssistant = out.findLast((m) => m.role === 'assistant')
       if (lastAssistant) lastAssistant.parts.push(...results)
-      if (rest.length === 0) continue
+      const rest = humanMessageParts(e)
+      if (!rest) continue
       openAssistantId = null
       idState.n += 1
       out.push({id: `h${idState.n}`, role: 'user', parts: rest})
@@ -195,11 +242,10 @@ function lastMessageFrom(jsonl: string): string | null {
     if (!t) continue
     const rec = parseRecord(t)
     if (!rec || (rec.type !== 'user' && rec.type !== 'assistant')) continue
-    const parts = partsFrom(rec.message?.content)
-    if (isInternal(parts)) continue
-    const text = parts.find((p) => p.type === 'text')
-    if (text && text.type === 'text' && typeof text.content === 'string')
-      last = text.content.replace(/\s+/g, ' ').trim().slice(0, 200)
+    const parts = rec.type === 'user' ? humanMessageParts(rec) : partsFrom(rec.message?.content)
+    if (!parts || isInternal(parts)) continue
+    const text = firstText(parts)
+    if (text !== null) last = text.replace(/\s+/g, ' ').trim().slice(0, 200)
   }
   return last
 }
@@ -248,10 +294,9 @@ function titleFromHead(raw: string): string {
     if (!t) continue
     const rec = parseRecord(t)
     if (rec?.type === 'user') {
-      const parts = partsFrom(rec.message?.content)
-      const text = parts.find((p) => p.type === 'text')
-      if (text && text.type === 'text' && typeof text.content === 'string')
-        return text.content.replace(/\s+/g, ' ').trim().slice(0, 80)
+      const parts = humanMessageParts(rec)
+      const text = parts ? firstText(parts) : null
+      if (text !== null) return text.replace(/\s+/g, ' ').trim().slice(0, 80)
     }
   }
   return ''
