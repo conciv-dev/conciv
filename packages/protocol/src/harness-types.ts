@@ -39,6 +39,7 @@ export type HarnessCommands = (ctx: HarnessCommandsContext) => Promise<HarnessCo
 
 export type HarnessConnectContext = {
   cwd: string
+  stateDir: string
   concivSessionId: SessionId
   harnessSessionId: string | null
   resume: boolean

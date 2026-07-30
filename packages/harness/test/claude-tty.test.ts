@@ -5,6 +5,7 @@ import {claudeTtyCommand} from '../src/claude/tty.js'
 
 const context = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
   cwd: '/tmp/p',
+  stateDir: '/state/.conciv',
   concivSessionId: SessionId.parse('conciv_tty_test'),
   harnessSessionId: 'abc-123',
   resume: false,

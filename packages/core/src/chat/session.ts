@@ -12,7 +12,7 @@ import type {
   SessionRecord,
   SessionRecordInput,
 } from '@conciv/protocol/chat-types'
-import {isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
+import {CONCIV_HOOK_PATH, isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
 import type {HarnessAdapter, HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -292,12 +292,13 @@ export async function connectPlanFor(deps: ChatDeps, opts: LaunchOptions): Promi
   const {token, resume} = await harnessToken(deps, sessionId)
   return connect.plan({
     cwd: deps.cwd,
+    stateDir: concivStateDir(deps.stateRoot),
     concivSessionId: sessionId,
     harnessSessionId: token,
     resume,
     model: opts.model ?? null,
     mcpUrl: deps.harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.requestUrl) : null,
-    hookUrl: null,
+    hookUrl: `${apiBaseFrom(opts.requestUrl, deps.basePath)}${CONCIV_HOOK_PATH}`,
   })
 }
 

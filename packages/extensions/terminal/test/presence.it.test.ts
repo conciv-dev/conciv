@@ -1,6 +1,10 @@
 import {randomUUID} from 'node:crypto'
+import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {concivHooksPluginDir} from '@conciv/protocol/state-types'
 import type {TranscriptStat} from '@conciv/protocol/harness-types'
 import {until} from '@conciv/harness-testkit'
 import {bashHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
@@ -12,9 +16,11 @@ type Snapshot = {state: string; source: string; lastSeenAt: number}
 
 const open: {servers: TerminalTestServer[]} = {servers: []}
 
-async function startServer(stat?: () => TranscriptStat | null): Promise<TerminalTestServer> {
+async function startServer(stat?: () => TranscriptStat | null, stateDir?: string): Promise<TerminalTestServer> {
   const server = await startTerminalServer(
     stat ? {...bashHarness, transcriptStat: () => Promise.resolve(stat())} : bashHarness,
+    '',
+    stateDir,
   )
   open.servers.push(server)
   return server
@@ -154,6 +160,22 @@ describe('terminal presence', () => {
     expect(watch.seen.at(-1)?.state).toBe('connected')
     expect(server.sessions.changes.count).toBeGreaterThan(beforeChanges)
     await watch.stop()
+  })
+
+  it('deletes the generated hooks plugin when claude reports SessionEnd', async () => {
+    const stateDir = mkdtempSync(join(tmpdir(), 'conciv-hooks-'))
+    const server = await startServer(undefined, stateDir)
+    const sessionId = `conciv_${randomUUID()}`
+    const pluginDir = concivHooksPluginDir(stateDir, sessionId)
+    mkdirSync(join(pluginDir, 'hooks'), {recursive: true})
+    writeFileSync(join(pluginDir, 'hooks', 'hooks.json'), '{}')
+
+    await hook(server, 'SessionStart', {sessionId})
+    expect(existsSync(pluginDir)).toBe(true)
+
+    await hook(server, 'SessionEnd', {sessionId})
+    expect(existsSync(pluginDir)).toBe(false)
+    rmSync(stateDir, {recursive: true, force: true})
   })
 
   it('marks a session as launching over rpc', async () => {

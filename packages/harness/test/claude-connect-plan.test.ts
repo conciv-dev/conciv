@@ -8,6 +8,7 @@ const CONCIV_SESSION = SessionId.parse('conciv_plan_test')
 
 const context = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
   cwd: '/workspace',
+  stateDir: '/state/.conciv',
   concivSessionId: CONCIV_SESSION,
   harnessSessionId: 'tok-1',
   resume: false,

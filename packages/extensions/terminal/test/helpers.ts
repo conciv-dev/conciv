@@ -113,6 +113,7 @@ function isRouter(candidate: unknown): candidate is AnyRouter {
 export async function startTerminalServer(
   harness: ServerHarness = bashHarness,
   basePath = '',
+  stateDir = concivStateDir(process.cwd()),
 ): Promise<TerminalTestServer> {
   const app = new Hono()
   app.use(cors())
@@ -121,7 +122,7 @@ export async function startTerminalServer(
     config: {},
     cwd: process.cwd(),
     basePath,
-    stateDir: concivStateDir(process.cwd()),
+    stateDir,
     sessions,
     harness,
   }

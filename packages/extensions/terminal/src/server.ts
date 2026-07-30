@@ -10,6 +10,7 @@ import {makeTranscriptMirror} from '@conciv/session-presence/transcript-mirror'
 import type {PresenceSnapshot} from '@conciv/session-presence/presence'
 import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
 import {createTerminalPresence, type TerminalPresence} from './server/presence.js'
+import {removeHooksPlugin, sweepHooksPlugins} from './server/hooks-cleanup.js'
 import {
   HookBodySchema,
   PresenceSnapshotSchema,
@@ -81,6 +82,7 @@ async function openTtySession(
     sessionId,
     ttyCommand({
       cwd: server.cwd,
+      stateDir: server.stateDir,
       concivSessionId: sessionId,
       harnessSessionId,
       resume,
@@ -173,6 +175,10 @@ export type TerminalRouter = ReturnType<typeof makeTerminalRouter>
 async function applyHookReport(runtime: TerminalRuntime, sessionId: SessionId, body: HookBody): Promise<void> {
   const {presence, server} = runtime
   presence.report(sessionId, {kind: 'hook', event: body.hook_event_name})
+  if (body.hook_event_name === 'SessionEnd') {
+    await removeHooksPlugin(server.stateDir, sessionId)
+    return
+  }
   if (body.hook_event_name !== 'SessionStart') return
   const known = await server.sessions.resumeToken(sessionId)
   if (known !== body.session_id) await server.sessions.recordToken(sessionId, body.session_id)
@@ -234,6 +240,7 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
   server.sessions.onMcpRequest((sessionId) => presence.report(sessionId, {kind: 'mcp'}))
   server.sessions.beforeSend((sessionId, {force}) => presence.sendVerdict(sessionId, force))
   presence.start()
+  void sweepHooksPlugins(server.stateDir, Date.now())
   const runtime: TerminalRuntime = {server, tty, presence}
   return {
     context: {},

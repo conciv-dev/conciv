@@ -5,6 +5,7 @@ import {createFakeHarness} from '../src/create-fake-harness.js'
 
 const context: HarnessConnectContext = {
   cwd: '/',
+  stateDir: '/state/.conciv',
   concivSessionId: SessionId.parse('conciv_fake_harness'),
   harnessSessionId: 's',
   resume: false,
