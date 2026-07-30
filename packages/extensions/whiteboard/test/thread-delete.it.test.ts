@@ -1,4 +1,5 @@
 import {expect, test} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {bootWhiteboard, createFloatingComment, openCanvas} from './helpers/whiteboard-test-api.js'
 
 test('deleting a thread root removes its replies and pin', async () => {
@@ -14,7 +15,7 @@ test('deleting a thread root removes its replies and pin', async () => {
 
     await api.callTool('comment.delete', {cid})
 
-    await expect.poll(async () => pin.count(), {timeout: 30_000, interval: 200}).toBe(0)
+    await expectLocator(pin).toHaveCount(0, {timeout: 30_000})
     expect(await api.page.getByText('thread to delete').count()).toBe(0)
     expect(await api.page.getByText('a reply that should also go').count()).toBe(0)
   } finally {

@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {useRecorderTestApi} from './helpers/test-api.js'
 import {addMarker} from './helpers/fixtures.js'
 
@@ -14,9 +15,9 @@ describe('panel replay does not mutate solid stores (real browser)', () => {
     const label = await addMarker(page)
     await page.getByRole('tab', {name: 'Recorder'}).click()
     await page.getByRole('button', {name: 'Send to agent'}).waitFor({state: 'visible', timeout: 20_000})
-    await expect
-      .poll(() => page.frameLocator('iframe').getByText(label, {exact: true}).count(), {timeout: 30_000})
-      .toBeGreaterThan(0)
+    await expectLocator(page.frameLocator('iframe').getByText(label, {exact: true}).first()).toBeAttached({
+      timeout: 30_000,
+    })
     await page.waitForTimeout(1_500)
     await addMarker(page)
     await page.waitForTimeout(1_500)

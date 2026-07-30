@@ -2,7 +2,8 @@ import {rm} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import type {Page} from 'playwright'
 import react from '@vitejs/plugin-react'
-import {afterAll, beforeAll, expect} from 'vitest'
+import {afterAll, beforeAll} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {buildConcivHost, getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
 import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
 import tanstackExtension from '../../src/server.js'
@@ -47,16 +48,14 @@ export function tanstackAdapter(api: ExtensionTestApi): FrameworkAdapter {
 }
 
 export async function waitForWidget(page: Page): Promise<void> {
-  await expect
-    .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-    .toBe(true)
+  await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
 }
 
 export async function gotoAbout(page: Page): Promise<void> {
   await page.getByRole('link', {name: 'About'}).click()
-  await expect.poll(() => page.getByRole('heading', {name: 'About this app'}).isVisible()).toBe(true)
+  await expectLocator(page.getByRole('heading', {name: 'About this app'})).toBeVisible()
 }
 
 export async function waitForAboutQuery(page: Page): Promise<void> {
-  await expect.poll(() => page.getByText('Query fetched: yes').isVisible(), {timeout: 10_000}).toBe(true)
+  await expectLocator(page.getByText('Query fetched: yes')).toBeVisible({timeout: 10_000})
 }

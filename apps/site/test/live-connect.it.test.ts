@@ -1,5 +1,6 @@
 import {spawn, type ChildProcess} from 'node:child_process'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser} from 'playwright'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import {runConnect} from '@conciv/try'
@@ -41,9 +42,7 @@ describe('widget-native live connect on the built site', () => {
     const page = await browser.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
     const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
-    await expect
-      .poll(() => panel.getByText('Drive this page with your agent.').isVisible(), {timeout: 20_000})
-      .toBe(true)
+    await expectLocator(panel.getByText('Drive this page with your agent.')).toBeVisible({timeout: 20_000})
 
     const command = await panel.getByText(/^npx @conciv\/try --token \S+$/).textContent()
     const token = command?.match(/--token (\S+)/)?.[1] ?? ''
@@ -57,26 +56,24 @@ describe('widget-native live connect on the built site', () => {
     })
 
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await expect.poll(() => input.isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(input).toBeVisible({timeout: 30_000})
 
     const sameNode = await page.evaluate(
       (node) => node === document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('[data-pw-panel]'),
       before,
     )
     expect(sameNode).toBe(true)
-    await expect
-      .poll(() => panel.getByText('Agent connected. It’s driving this page from your machine.').isVisible(), {
-        timeout: 10_000,
-      })
-      .toBe(true)
+    await expectLocator(panel.getByText('Agent connected. It’s driving this page from your machine.')).toBeVisible({
+      timeout: 10_000,
+    })
 
     await input.fill('hello')
     await input.press('Enter')
-    await expect.poll(() => page.getByText('hello from e2e').first().isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(page.getByText('hello from e2e').first()).toBeVisible({timeout: 30_000})
 
     await page.reload({waitUntil: 'domcontentloaded'})
     const inputAfterReload = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await expect.poll(() => inputAfterReload.isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(inputAfterReload).toBeVisible({timeout: 30_000})
     await page.close()
 
     await engine.stop()
@@ -87,23 +84,17 @@ describe('widget-native live connect on the built site', () => {
     const page = await browser.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
     const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
-    await expect
-      .poll(() => panel.getByText('Drive this page with your agent.').isVisible(), {timeout: 20_000})
-      .toBe(true)
+    await expectLocator(panel.getByText('Drive this page with your agent.')).toBeVisible({timeout: 20_000})
 
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
-    await expect.poll(() => panel.isVisible(), {timeout: 10_000}).toBe(false)
+    await expectLocator(panel).toBeHidden({timeout: 10_000})
 
     await page.reload({waitUntil: 'domcontentloaded'})
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 20_000})
-      .toBe(true)
+    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 20_000})
     expect(await panel.isVisible()).toBe(false)
 
     await page.goto(`${ORIGIN}/?try=1`, {waitUntil: 'domcontentloaded'})
-    await expect
-      .poll(() => panel.getByText('Drive this page with your agent.').isVisible(), {timeout: 20_000})
-      .toBe(true)
+    await expectLocator(panel.getByText('Drive this page with your agent.')).toBeVisible({timeout: 20_000})
     await page.close()
   }, 90_000)
 })

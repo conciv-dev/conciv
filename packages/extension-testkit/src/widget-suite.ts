@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {createServer, type Server} from 'node:http'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
 
@@ -65,28 +66,26 @@ export function widgetComponentSuite(opts: {id: string; distDir: string}): void 
   describe('ConcivWidget component', () => {
     it('mounts exactly one widget', async () => {
       const page = await openPage()
-      await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(1)
+      await expectLocator(fab(page)).toHaveCount(1, {timeout: 30_000})
       expect(await fab(page).count()).toBe(1)
       await page.close()
     })
 
     it('removing the component removes the widget, re-adding restores it', async () => {
       const page = await openPage()
-      await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
+      await expectLocator(fab(page)).toBeVisible({timeout: 30_000})
       await page.getByRole('button', {name: 'toggle widget'}).click()
-      await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(0)
+      await expectLocator(fab(page)).toHaveCount(0, {timeout: 30_000})
       await page.getByRole('button', {name: 'toggle widget'}).click()
-      await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
+      await expectLocator(fab(page)).toBeVisible({timeout: 30_000})
       await page.close()
     })
 
     it('a settings prop change remounts the widget with the new configuration', async () => {
       const page = await openPage()
-      await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
+      await expectLocator(fab(page)).toBeVisible({timeout: 30_000})
       await page.getByRole('button', {name: 'open by default'}).click()
-      await expect
-        .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
-        .toBe(true)
+      await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
       expect(await page.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(1)
       await page.close()
     })

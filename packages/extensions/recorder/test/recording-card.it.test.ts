@@ -1,4 +1,5 @@
-import {describe, expect, it} from 'vitest'
+import {describe, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {makeExtRpcClient} from '@conciv/extension'
 import {type RecorderRouter} from '../src/server.js'
 import {RECORDER_MIME, RECORDER_NAME, recordingRefJson} from '../src/shared/protocol.js'
@@ -34,11 +35,9 @@ describe('recording card in the testkit host (real chips, real store)', () => {
     await play.click()
     const modal = api().page.getByRole('alertdialog', {name: 'Screen recording replay'})
     await modal.waitFor({state: 'visible', timeout: 15_000})
-    await expect
-      .poll(() => api().page.frameLocator('iframe').getByText('Comment target', {exact: true}).count(), {
-        timeout: 15_000,
-      })
-      .toBeGreaterThan(0)
+    await expectLocator(
+      api().page.frameLocator('iframe').getByText('Comment target', {exact: true}).first(),
+    ).toBeAttached({timeout: 15_000})
     await modal.getByRole('button', {name: 'Close'}).click()
     await modal.waitFor({state: 'hidden', timeout: 15_000})
 

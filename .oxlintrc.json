@@ -4,7 +4,7 @@
   "jsPlugins": [
     {"name": "unocss", "specifier": "@unocss/eslint-plugin"},
     {"name": "playwright", "specifier": "eslint-plugin-playwright"},
-    {"name": "conciv", "specifier": "./tools/oxlint/no-comments.js"}
+    {"name": "conciv", "specifier": "./tools/oxlint/plugin.js"}
   ],
   "categories": {
     "correctness": "error",
@@ -12,6 +12,7 @@
   },
   "rules": {
     "conciv/no-comments": "error",
+    "conciv/no-locator-poll": "error",
     "unicorn/consistent-function-scoping": "off",
     "unicorn/require-module-specifiers": "off",
     "react/react-in-jsx-scope": "off",
@@ -122,7 +123,14 @@
         "playwright/no-raw-locators": "error",
         "playwright/no-eval": "error",
         "playwright/no-element-handle": "error",
-        "playwright/prefer-native-locators": "error"
+        "playwright/prefer-native-locators": "error",
+        "playwright/prefer-web-first-assertions": "error"
+      }
+    },
+    {
+      "files": ["packages/embed/test/**", "packages/extension-testkit/src/**"],
+      "rules": {
+        "playwright/prefer-web-first-assertions": "error"
       }
     },
     {

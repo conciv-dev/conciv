@@ -1,5 +1,6 @@
 import {fileURLToPath} from 'node:url'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
@@ -111,10 +112,10 @@ describe('native widget bridge', () => {
     const page = await openNative()
     await callNative(page, 'open', {v: 1, seq: 1})
     await callNative(page, 'open', {v: 1, seq: 2})
-    await expect.poll(() => composerBox(page).count(), {timeout: 30_000}).toBe(1)
-    expect(await composerBox(page).isVisible()).toBe(true)
+    await expectLocator(composerBox(page)).toHaveCount(1, {timeout: 30_000})
+    await expectLocator(composerBox(page)).toBeVisible()
     await callNative(page, 'close', {v: 1, seq: 3})
-    await expect.poll(() => composerBox(page).isVisible(), {timeout: 30_000}).toBe(false)
+    await expectLocator(composerBox(page)).toBeHidden({timeout: 30_000})
     await page.close()
   })
 
@@ -125,7 +126,7 @@ describe('native widget bridge', () => {
       if (request.url().includes('/rpc/')) rpcBodies.push(request.postData() ?? '')
     })
     await callNative(page, 'open', {v: 1, seq: 1})
-    await expect.poll(() => composerBox(page).isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(composerBox(page)).toBeVisible({timeout: 30_000})
 
     await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
     await grabButton(page).click()
@@ -134,8 +135,8 @@ describe('native widget bridge', () => {
     expect(pick?.requestId).toBeTruthy()
 
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
-    await expect.poll(() => panel(page).getByText('PaymentCardCell').isVisible(), {timeout: 30_000}).toBe(true)
-    expect(await grabPreview(page).getAttribute('src')).toBe(IMAGE_DATA_URL)
+    await expectLocator(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
+    await expectLocator(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
     await expect
       .poll(() => rpcBodies.some((body) => body.includes('[view]') && body.includes('PaymentCardCell')), {
         timeout: 30_000,
@@ -147,7 +148,7 @@ describe('native widget bridge', () => {
   it('ignores a grabResult whose requestId does not match the pending pick', async () => {
     const page = await openNative()
     await callNative(page, 'open', {v: 1, seq: 1})
-    await expect.poll(() => composerBox(page).isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(composerBox(page)).toBeVisible({timeout: 30_000})
     await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
     await grabButton(page).click()
     await expect.poll(() => outbound(page).then((m) => countType(m, 'grab.pick')), {timeout: 30_000}).toBe(1)
@@ -162,9 +163,7 @@ describe('native widget bridge', () => {
   it('surfaces a visible error when native reports an incompatible bridge version', async () => {
     const page = await openNative()
     await callNative(page, 'bridgeIncompatible', {v: 1, seq: 1, nativeMinV: 2, nativeMaxV: 3})
-    await expect
-      .poll(() => page.getByText('Update the conciv widget', {exact: false}).isVisible(), {timeout: 30_000})
-      .toBe(true)
+    await expectLocator(page.getByText('Update the conciv widget', {exact: false})).toBeVisible({timeout: 30_000})
     await page.close()
   })
 

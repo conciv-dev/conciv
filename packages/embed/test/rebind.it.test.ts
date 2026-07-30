@@ -1,4 +1,5 @@
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
@@ -40,9 +41,9 @@ async function sendTurn(page: Page, text: string): Promise<void> {
 async function openPanelTabs(page: Page): Promise<void> {
   const dialog = page.getByRole('dialog', {name: 'conciv chat agent'})
   const opener = page.getByRole('button', {name: 'Open conciv chat'})
-  await expect.poll(async () => (await dialog.isVisible()) || (await opener.isVisible()), {timeout: 30_000}).toBe(true)
+  await expectLocator(dialog.or(opener)).toBeVisible({timeout: 30_000})
   if (!(await dialog.isVisible())) await opener.click()
-  await expect.poll(() => page.getByRole('tab', {name: 'Mount probe'}).isVisible(), {timeout: 30_000}).toBe(true)
+  await expectLocator(page.getByRole('tab', {name: 'Mount probe'})).toBeVisible({timeout: 30_000})
 }
 
 async function panelSession(): Promise<string | null> {
@@ -73,15 +74,13 @@ describe('handle.rebind survives same-core port drift', () => {
 
     await mountHandle(page, proxyA.base)
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    await expect
-      .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
+    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
 
     const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
-    await expect.poll(() => apiBaseProbe.textContent(), {timeout: 30_000}).toBe(proxyA.base)
+    await expectLocator(apiBaseProbe).toHaveText(proxyA.base, {timeout: 30_000})
 
     await sendTurn(page, 'first message before the drift')
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).count(), {timeout: 30_000}).toBe(1)
+    await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
     await expect.poll(() => panelSession(), {timeout: 30_000}).not.toBeNull()
     const sessionBefore = await panelSession()
 
@@ -89,18 +88,14 @@ describe('handle.rebind survives same-core port drift', () => {
     await page.evaluate((base) => window.concivTestHandle.rebind(base), proxyB.base)
     await proxyA.close()
 
-    await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).count(), {timeout: 30_000}).toBe(0)
-    await expect
-      .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
+    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
+    await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(0, {timeout: 30_000})
+    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
 
-    await expect.poll(() => apiBaseProbe.textContent(), {timeout: 30_000}).toBe(proxyB.base)
+    await expectLocator(apiBaseProbe).toHaveText(proxyB.base, {timeout: 30_000})
 
     await sendTurn(page, 'second message after the drift')
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).count(), {timeout: 30_000}).toBe(1)
+    await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
 
     expect(proxyB.requestCount()).toBeGreaterThan(beforeB)
     expect(await panelSession()).toBe(sessionBefore)
@@ -134,19 +129,19 @@ describe('handle.rebind remounts extension surfaces on the new core', () => {
 
     const surfaceProbe = page.getByRole('status', {name: 'surface mount api base'})
     const viewProbe = page.getByRole('status', {name: 'view mount api base'})
-    await expect.poll(() => surfaceProbe.textContent(), {timeout: 30_000}).toBe(proxyC.base)
+    await expectLocator(surfaceProbe).toHaveText(proxyC.base, {timeout: 30_000})
 
     const probeTab = page.getByRole('tab', {name: 'Mount probe'})
     await probeTab.click()
-    await expect.poll(() => viewProbe.textContent(), {timeout: 30_000}).toBe(proxyC.base)
+    await expectLocator(viewProbe).toHaveText(proxyC.base, {timeout: 30_000})
 
     const beforeD = proxyD.requestCount()
     await page.evaluate((base) => window.concivTestHandle.rebind(base), proxyD.base)
     await proxyC.close()
 
-    await expect.poll(() => surfaceProbe.textContent(), {timeout: 15_000}).toBe(proxyD.base)
-    await expect.poll(() => viewProbe.textContent(), {timeout: 15_000}).toBe(proxyD.base)
-    await expect.poll(() => probeTab.getAttribute('aria-selected'), {timeout: 15_000}).toBe('true')
+    await expectLocator(surfaceProbe).toHaveText(proxyD.base, {timeout: 15_000})
+    await expectLocator(viewProbe).toHaveText(proxyD.base, {timeout: 15_000})
+    await expectLocator(probeTab).toHaveAttribute('aria-selected', 'true', {timeout: 15_000})
     expect(proxyD.requestCount()).toBeGreaterThan(beforeD)
     expect(pageErrors).toEqual([])
     await page.close()

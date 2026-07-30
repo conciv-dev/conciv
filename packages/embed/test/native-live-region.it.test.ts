@@ -1,5 +1,6 @@
 import {fileURLToPath} from 'node:url'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
@@ -53,7 +54,7 @@ const closedRects = (all: PanelToggled[]): Rect[] =>
 
 async function openFromHost(page: Page): Promise<void> {
   await callNative(page, 'open', {v: 1, seq: 1})
-  await expect.poll(() => composerBox(page).isVisible(), {timeout: 30_000}).toBe(true)
+  await expectLocator(composerBox(page)).toBeVisible({timeout: 30_000})
 }
 
 describe('native live region reporting', () => {

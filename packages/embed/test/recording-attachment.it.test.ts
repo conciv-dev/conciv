@@ -1,4 +1,5 @@
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser} from 'playwright'
 import {makeExtRpcClient} from '@conciv/extension'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
@@ -55,7 +56,7 @@ describe('recording attachment end to end in the real widget', () => {
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('here is what I did')
     await page.getByRole('button', {name: 'Send message'}).click()
-    await expect.poll(() => page.getByText('Recording received').first().isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(page.getByText('Recording received').first()).toBeVisible({timeout: 30_000})
 
     const sessions = await kit.rpc.sessions.list()
     const chatSession = sessions[0]?.id
@@ -79,9 +80,7 @@ describe('recording attachment end to end in the real widget', () => {
     expect(await page.getByRole('img').count()).toBe(0)
 
     await page.reload({waitUntil: 'domcontentloaded'})
-    await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
+    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
     await page
       .getByRole('log')
       .getByText(/Screen recording · \d+ action/)
@@ -94,12 +93,10 @@ describe('recording attachment end to end in the real widget', () => {
     await modal.waitFor({state: 'visible', timeout: 15_000})
     await modal.getByRole('button', {name: 'Close'}).click()
     await modal.waitFor({state: 'hidden', timeout: 15_000})
-    await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
+    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
     const composerAfterModal = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await composerAfterModal.fill('still alive after replay')
-    expect(await composerAfterModal.inputValue()).toBe('still alive after replay')
+    await expectLocator(composerAfterModal).toHaveValue('still alive after replay')
     await page.close()
   }, 120_000)
 })
