@@ -5,14 +5,18 @@ const BACKDROP = 'fixed inset-0 z-[2147483646] bg-[rgba(0,0,0,0.55)] [backdrop-f
 const POSITIONER = 'fixed inset-0 z-[2147483647] flex items-center justify-center p-4'
 const CONTENT_BASE =
   'max-w-[calc(100vw-2rem)] rounded-pw-lg bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg p-4 focus-visible:outline-none data-[state=open]:anim-rise data-[state=closed]:anim-presence-out'
-const CONTENT_SIZE = {md: 'w-90', xl: 'w-[min(75rem,calc(100vw-2rem))]'}
+const CONTENT_SIZE = {
+  md: 'w-90',
+  lg: 'w-[min(34rem,calc(100vw-2rem))]',
+  xl: 'w-[min(75rem,calc(100vw-2rem))]',
+}
 
 export function Dialog(props: {
   open: boolean
   onOpenChange?: (open: boolean) => void
   label?: string
   dismissable?: boolean
-  size?: 'md' | 'xl'
+  size?: 'md' | 'lg' | 'xl'
   layer?: 'page' | 'inline'
   children: JSX.Element
 }): JSX.Element {
