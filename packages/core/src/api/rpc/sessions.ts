@@ -3,7 +3,16 @@ import {eq} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
 import {resolveHarnessModels} from '@conciv/harness'
 import {clearRunState, drafts, markers, requestStop, sessions, statusOf, type RunStatus} from '@conciv/db'
-import {buildSessionList, ensureChatRecord, launchHarness, resolveSession, sessionById} from '../../chat/session.js'
+import type {HarnessRow} from '../../chat/session.js'
+import {
+  buildSessionList,
+  ensureChatRecord,
+  launchHarness,
+  resolveSession,
+  sameCwd,
+  sessionById,
+} from '../../chat/session.js'
+import type {ChatDeps} from '../../chat/runtime.js'
 import {SESSION_BUSY} from '../../chat/run.js'
 import {adoptLiveSession, detachLiveSession, liveCandidates} from '../../chat/adopt.js'
 import {os, type RpcDeps} from './mount.js'
@@ -13,6 +22,21 @@ function wireStatus(status: RunStatus): 'idle' | 'running' | 'compacting' {
   return status === 'idle' ? 'idle' : 'running'
 }
 
+async function foreignTranscriptRows(chat: ChatDeps): Promise<HarnessRow[]> {
+  const meta = chat.harness.history?.meta
+  if (!meta) return []
+  const rows = await chat.db
+    .select({harnessSessionId: sessions.harnessSessionId, transcriptCwd: sessions.transcriptCwd, cwd: sessions.cwd})
+    .from(sessions)
+  const foreign = rows.flatMap((row) =>
+    row.harnessSessionId && row.transcriptCwd && sameCwd(row.cwd, chat.cwd) && !sameCwd(row.transcriptCwd, chat.cwd)
+      ? [{token: row.harnessSessionId, cwd: row.transcriptCwd}]
+      : [],
+  )
+  const metas = await Promise.all(foreign.map((row) => meta(row.cwd, row.token, chat.claudeHome)))
+  return metas.filter((row) => row !== null)
+}
+
 export async function rpcSessionList(deps: RpcDeps): Promise<SessionMeta[]> {
   const chat = deps.chat
   const hist = chat.harness.history
@@ -20,7 +44,7 @@ export async function rpcSessionList(deps: RpcDeps): Promise<SessionMeta[]> {
     chat.harness.capabilities.transcriptHistory && hist ? await hist.list(chat.cwd, chat.claudeHome) : []
   const metas = await buildSessionList({
     db: chat.db,
-    harnessList,
+    harnessList: [...harnessList, ...(await foreignTranscriptRows(chat))],
     running: (sessionId) => wireStatus(statusOf(chat.db, sessionId)) === 'running',
     cwd: chat.cwd,
   })

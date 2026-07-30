@@ -126,6 +126,8 @@ export type HarnessHistory = {
   contextTokens?(raw: string): number | undefined
 
   list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
+
+  meta?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionMeta | null>
 }
 
 type HarnessAdapterBase = {

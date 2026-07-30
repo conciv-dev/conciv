@@ -285,6 +285,14 @@ export async function listSessions(cwd: string, home: string = homedir()): Promi
   )
 }
 
+export async function sessionMeta(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionMeta | null> {
+  const path = transcriptPath(cwd, sessionId, home)
+  const info = await stat(path).catch(() => null)
+  if (!info) return null
+  const raw = await readFile(path, 'utf8').catch(() => '')
+  return raw ? parseSessionMeta(sessionId, raw, info.mtimeMs) : null
+}
+
 export function withinProject(cwd: string, sessionId: string, home: string = homedir()): boolean {
   const root = resolve(join(home, '.claude', 'projects', encodeProjectDir(cwd)))
   return resolve(transcriptPath(cwd, sessionId, home)).startsWith(root + sep)
@@ -307,4 +315,5 @@ export const claudeHistory: HarnessHistory = {
   nameFromTranscript,
   contextTokens: contextTokensFromTranscript,
   list: listSessions,
+  meta: sessionMeta,
 }

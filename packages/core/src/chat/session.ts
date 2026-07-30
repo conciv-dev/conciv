@@ -125,7 +125,7 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
   })
 }
 
-const sameCwd = (a: string, b: string): boolean => withoutTrailingSlash(a) === withoutTrailingSlash(b)
+export const sameCwd = (a: string, b: string): boolean => withoutTrailingSlash(a) === withoutTrailingSlash(b)
 
 export async function sweepEmptyChatRecords(db: ConcivDb): Promise<void> {
   await db
