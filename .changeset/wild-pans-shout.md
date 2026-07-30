@@ -9,5 +9,5 @@ the `.concivGrab` anchor on the tapped row even when the tap lands in the cell p
 outside the anchor's own frame. Grab source labels never surface a mangled or
 underscore-prefixed class name, and view rects are reported as whole points instead of raw
 layout floats. `ios.run --autoshow` waits for the page to report its panel state before
-sending its single open, so the open no longer races the widget shell's listener and get
+sending its single open, so the open no longer races the widget shell's listener or gets
 lost.

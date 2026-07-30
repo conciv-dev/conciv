@@ -102,23 +102,24 @@ private func pickArea(_ rect: CGRect) -> CGFloat {
   rect.width * rect.height
 }
 
-// Anchored-ancestor snap. A SwiftUI `.concivGrab` anchor wraps the row's content only,
-// so a tap in the cell's padding (or on its separator) misses the point hit-test and the
-// UIKit walk resolves an unanchored chrome view instead. Walk the resolved view's
-// ancestor chain and snap to the anchor that fills it: the anchored row wins over
-// whatever view happened to win the raw hit-test.
-func pickAnchorSnap(from view: UIView, registry: ConcivAnchorRegistry, root: UIView?) -> ConcivAnchorRegistry.Anchor? {
-  var node: UIView? = view
-  while let current = node {
-    let frame = pickFrameInWindow(current)
-    let candidate = registry.anchors(within: frame).max { pickArea($0.frame) < pickArea($1.frame) }
-    if let candidate, pickArea(frame) > 0, pickArea(candidate.frame) / pickArea(frame) >= pickAnchorSnapMinCoverage {
-      return candidate
-    }
-    if current === root { return nil }
-    node = current.superview
-  }
-  return nil
+// Anchored-content snap. A SwiftUI `.concivGrab` anchor wraps the row's content only, so
+// a tap in the cell's padding (or on its separator) misses the point hit-test and the
+// UIKit walk resolves the unanchored cell chrome instead. The anchor is nonetheless the
+// author's opt-in for that view: the resolved view IS the anchored row, dressed in
+// padding.
+//
+// The relationship checked is descendant-of-the-resolved-view, and only that view, never
+// its ancestors. Ascending would let a tap on an unanchored sibling reach a shared
+// container and snap to the sibling's anchor, which the tap never went near. The
+// point-containment case (a tap inside the anchor, or on a view nested within it) is
+// already answered by ConcivAnchorRegistry.hitTest before this runs.
+func pickAnchorSnap(from view: UIView, registry: ConcivAnchorRegistry) -> ConcivAnchorRegistry.Anchor? {
+  let frame = pickFrameInWindow(view)
+  guard pickArea(frame) > 0 else { return nil }
+  guard let candidate = registry.anchors(within: frame).max(by: { pickArea($0.frame) < pickArea($1.frame) })
+  else { return nil }
+  guard pickArea(candidate.frame) / pickArea(frame) >= pickAnchorSnapMinCoverage else { return nil }
+  return candidate
 }
 
 func pickOwnText(_ view: UIView) -> String? {

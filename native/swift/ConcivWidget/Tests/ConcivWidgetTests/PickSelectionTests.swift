@@ -171,7 +171,7 @@ final class PickSelectionTests: XCTestCase {
     guard let picked = pickSearch(from: host.view, at: padding, isExcluded: { _ in false }) else {
       return XCTFail("expected the hit-test walk to resolve cell chrome")
     }
-    let snapped = pickAnchorSnap(from: picked, registry: ConcivAnchorRegistry.shared, root: host.view)
+    let snapped = pickAnchorSnap(from: picked, registry: ConcivAnchorRegistry.shared)
 
     XCTAssertEqual(snapped?.id, "listRow1", "the anchored ancestor must win over the deeper unanchored hit")
     XCTAssertEqual(snapped?.label, "First row")
@@ -188,9 +188,43 @@ final class PickSelectionTests: XCTestCase {
     host.view.layoutIfNeeded()
 
     guard waitForAnchor("listRow1") != nil else { return XCTFail("expected the list row anchor to register") }
-    let snapped = pickAnchorSnap(from: host.view, registry: ConcivAnchorRegistry.shared, root: host.view)
+    let snapped = pickAnchorSnap(from: host.view, registry: ConcivAnchorRegistry.shared)
 
     XCTAssertNil(snapped, "a container that merely holds anchors must not be snapped to one of them")
+  }
+
+  // The snap must never reach past the view the walk resolved. A card holding an anchored
+  // child next to an unanchored sibling would otherwise hand a tap on the sibling the
+  // neighbour's anchor, which the tap never went near.
+  func testAnchorSnapDoesNotReachAnUnanchoredSiblingsNeighbour() {
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+    let root = UIViewController()
+    window.rootViewController = root
+    window.isHidden = false
+
+    let card = UIView(frame: CGRect(x: 16, y: 200, width: 358, height: 120))
+    card.backgroundColor = .white
+    root.view.addSubview(card)
+
+    let anchored = UIView(frame: CGRect(x: 0, y: 0, width: 179, height: 120))
+    anchored.backgroundColor = .systemTeal
+    card.addSubview(anchored)
+
+    let sibling = UIView(frame: CGRect(x: 179, y: 0, width: 179, height: 120))
+    sibling.backgroundColor = .systemPink
+    card.addSubview(sibling)
+    root.view.layoutIfNeeded()
+
+    ConcivAnchorRegistry.shared.register(id: "anchoredHalf", label: "Anchored half", frame: pickFrameInWindow(anchored))
+    let point = CGPoint(x: sibling.frame.midX + card.frame.minX, y: card.frame.midY)
+    let picked = pickSearch(from: root.view, at: point, isExcluded: { _ in false })
+
+    XCTAssertTrue(picked === sibling, "the tap must resolve the unanchored sibling")
+    XCTAssertNil(ConcivAnchorRegistry.shared.hitTest(point), "the tap must land outside the anchor")
+    XCTAssertNil(
+      pickAnchorSnap(from: sibling, registry: ConcivAnchorRegistry.shared),
+      "an unanchored sibling must never snap to its neighbour's anchor"
+    )
   }
 
   // A mangled or private class name is meaningless to the human reading the staged grab
@@ -207,12 +241,23 @@ final class PickSelectionTests: XCTestCase {
     XCTAssertEqual(pickCleanedClassName("CellHostingView<ModifiedContent<Row, Modifier>>"), "CellHostingView")
   }
 
+  // A Swift-mangled runtime class name carries no readable text at all, so the label
+  // falls through to the accessibility strings and finally to a generic word.
   func testFallbackLabelUsesAccessibilityWhenTheClassNameIsUnusable() {
-    let view = _FixtureDecorationView(frame: CGRect(x: 0, y: 0, width: 100, height: 40))
-    XCTAssertEqual(pickSourceLabel(view), "FixtureDecorationView")
+    let view = _TtGC7FixtureMangledView(frame: CGRect(x: 0, y: 0, width: 100, height: 40))
+    XCTAssertNil(pickCleanedClassName(pickClassLabel(view)), "the fixture's class name must be unusable")
 
-    let unnamed = UIView(frame: .zero)
-    XCTAssertEqual(pickSourceLabel(unnamed), "UIView")
+    view.accessibilityIdentifier = "PaymentsScreen/payrollRow"
+    view.accessibilityLabel = "Payroll row"
+    XCTAssertEqual(pickSourceLabel(view), "PaymentsScreen/payrollRow")
+
+    view.accessibilityIdentifier = nil
+    XCTAssertEqual(pickSourceLabel(view), "Payroll row")
+
+    view.accessibilityLabel = nil
+    XCTAssertEqual(pickSourceLabel(view), "View")
+
+    XCTAssertEqual(pickSourceLabel(UIView(frame: .zero)), "UIView")
   }
 
   // Layout math produces frames like y = 330.000000000033; that rect is folded into the
@@ -239,6 +284,10 @@ private final class FixturePaymentCardCell: UIView {}
 // DecorationView, _UICollectionViewListSeparatorView, _UISystemBackgroundView): the
 // leading underscore is the marker the pick walk keys on.
 private final class _FixtureDecorationView: UIView {}
+
+// Stands in for a Swift-mangled runtime class name (_TtGC7SwiftUI...): nothing readable
+// survives the cleaner, so the source label must fall through to accessibility.
+private final class _TtGC7FixtureMangledView: UIView {}
 
 private struct AnchoredList: View {
   var body: some View {

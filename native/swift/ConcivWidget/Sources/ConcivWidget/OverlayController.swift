@@ -553,12 +553,13 @@ final class OverlayController: NSObject {
   }
 
   // One selection rule for both the highlight and the pick itself: an anchor under the
-  // point wins, then an anchor the hit-test walk landed inside (a tap in a SwiftUI row's
-  // padding lands on the cell, whose anchored content is what the author opted in).
-  private func resolveAnchor(at point: CGPoint, picked: UIView?, root: UIView?) -> ConcivAnchorRegistry.Anchor? {
+  // point wins, then an anchor sitting inside the view the hit-test walk resolved (a tap
+  // in a SwiftUI row's padding lands on the cell, whose anchored content is what the
+  // author opted in).
+  private func resolveAnchor(at point: CGPoint, picked: UIView?) -> ConcivAnchorRegistry.Anchor? {
     if let anchor = ConcivAnchorRegistry.shared.hitTest(point) { return anchor }
     guard let picked else { return nil }
-    return pickAnchorSnap(from: picked, registry: ConcivAnchorRegistry.shared, root: root)
+    return pickAnchorSnap(from: picked, registry: ConcivAnchorRegistry.shared)
   }
 
   private func performPick(at point: CGPoint) {
@@ -570,7 +571,7 @@ final class OverlayController: NSObject {
     }
     let root = hostRootView()
     let picked = resolvePickedView(at: point, root: root)
-    if let anchor = resolveAnchor(at: point, picked: picked, root: root) {
+    if let anchor = resolveAnchor(at: point, picked: picked) {
       let image = Capture.renderHostView(root ?? container, cropTo: anchor.frame)
       guard let preview = Capture.imagePreview(image) else {
         resolvePick(requestId: requestId, grab: nil, reason: .failed)
@@ -618,7 +619,7 @@ final class OverlayController: NSObject {
   private func updateHighlight(at point: CGPoint) {
     let root = hostRootView()
     let picked = resolvePickedView(at: point, root: root)
-    let anchorFrame = resolveAnchor(at: point, picked: picked, root: root)?.frame
+    let anchorFrame = resolveAnchor(at: point, picked: picked)?.frame
     guard let frame = anchorFrame ?? picked.map({ pickFrameInWindow($0) }) else { return }
     let box = highlight ?? makeHighlight()
     box.frame = frame
