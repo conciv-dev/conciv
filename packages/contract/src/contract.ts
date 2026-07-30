@@ -28,6 +28,7 @@ const SessionIdInput = z.object({sessionId: z.string()})
 const ChatSendInput = SessionIdInput.extend({
   text: z.string().min(1).optional(),
   content: z.union([z.string().min(1), z.array(ChatContentPartSchema).min(1).max(16)]).optional(),
+  force: z.boolean().optional(),
 }).refine((input) => input.text !== undefined || input.content !== undefined)
 const Ok = z.object({ok: z.literal(true)})
 const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
@@ -51,7 +52,10 @@ export const contract = {
       .output(z.object({model: z.string()})),
     compact: oc.errors(busy).input(SessionIdInput).output(Ok),
     stop: oc.input(SessionIdInput).output(Ok),
-    launch: oc.input(SessionIdInput.extend({model: z.string().optional()})).output(ChatLaunchSchema),
+    launch: oc
+      .errors(busy)
+      .input(SessionIdInput.extend({model: z.string().optional()}))
+      .output(ChatLaunchSchema),
   },
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
@@ -66,7 +70,10 @@ export const contract = {
   },
   chat: {
     attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    send: oc.errors(busy).input(ChatSendInput).output(SendAccepted),
+    send: oc
+      .errors({...busy, EXTERNAL_ACTIVE: {message: 'an external session owns this conversation'}})
+      .input(ChatSendInput)
+      .output(SendAccepted),
     permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
     uiReply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})

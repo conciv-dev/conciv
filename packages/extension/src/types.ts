@@ -5,7 +5,7 @@ import type {AnyRouter} from '@orpc/server'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
-import type {UIMessage} from '@conciv/protocol/chat-types'
+import type {SendVerdict, UIMessage} from '@conciv/protocol/chat-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -60,6 +60,9 @@ export type ServerSessions = {
   chatBusy(sessionId: string): boolean
   model(sessionId: string): Promise<string | null>
   onChatTurn(listener: (sessionId: string) => void): void
+  beforeSend(check: (sessionId: string, opts: {force: boolean}) => SendVerdict): () => void
+  onMcpRequest(listener: (sessionId: string) => void): () => void
+  notifyChange(): void
 }
 
 export type ServerHarness = {

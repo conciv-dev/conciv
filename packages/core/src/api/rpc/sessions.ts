@@ -52,13 +52,14 @@ export function sessionsRouter(deps: RpcDeps) {
       const {sessionId} = await resolveSession(scope, input)
       return {sessionId}
     }),
-    launch: os.sessions.launch.handler(({input, context}) =>
-      launchHarness(chat, {
+    launch: os.sessions.launch.handler(({input, context, errors}) => {
+      if (statusOf(db, input.sessionId) !== 'idle') throw errors.BUSY()
+      return launchHarness(chat, {
         sessionId: input.sessionId,
         model: input.model,
         requestUrl: context.request.url,
-      }),
-    ),
+      })
+    }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
       if (!(await sessionById(db, input.sessionId))) throw errors.NOT_FOUND()
       const title = cleanTitle(input.title)

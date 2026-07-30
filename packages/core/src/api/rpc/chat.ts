@@ -11,6 +11,8 @@ export function chatRouter(deps: RpcDeps) {
       yield* attachLive(chat, input.sessionId, signal ?? new AbortController().signal)
     }),
     send: os.chat.send.handler(async ({input, errors}) => {
+      const verdict = deps.beforeSend(input.sessionId, {force: input.force ?? false})
+      if (!verdict.allow) throw errors.EXTERNAL_ACTIVE({message: verdict.message})
       try {
         const runId = await deps.send(input.sessionId, input.content ?? input.text ?? '')
         return {ok: true as const, runId}

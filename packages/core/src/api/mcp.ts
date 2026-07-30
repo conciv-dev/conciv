@@ -66,11 +66,13 @@ export type McpVars = {
     makeCtx: (sessionId: string) => ConcivToolContext
     extensionTools: ExtensionServerTool[]
     sessionModel: (sessionId: string) => string | null
+    onRequest: (sessionId: string) => void
   }
 }
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? ''
+  if (sessionId !== '') c.var.mcp.onRequest(sessionId)
   const ctx = c.var.mcp.makeCtx(sessionId)
   const request: ToolRequest = {sessionId, model: c.var.mcp.sessionModel(sessionId)}
   const transport = new WebStandardStreamableHTTPServerTransport({

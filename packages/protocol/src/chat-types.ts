@@ -75,6 +75,8 @@ export function isSessionId(id: unknown): id is SessionId {
   return SessionId.safeParse(id).success
 }
 
+export type SendVerdict = {allow: true} | {allow: false; code: 'EXTERNAL_ACTIVE'; message: string}
+
 export const HarnessSessionId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 
 export const SessionRecordSchema = z.object({

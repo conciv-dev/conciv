@@ -16,7 +16,7 @@ import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
-import type {ChatTool} from '@conciv/protocol/chat-types'
+import type {ChatTool, SendVerdict} from '@conciv/protocol/chat-types'
 import {
   ensureAgentRecord,
   ensureChatRecord,
@@ -29,7 +29,7 @@ import {buildChatTools, type ChatDeps} from './chat/runtime.js'
 import {makeChanges} from './chat/attach.js'
 import {askUi, makeConcivSandbox} from './chat/gate.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
-import {modelOf, openDb, statusOf} from '@conciv/db'
+import {modelOf, openDb, requestStop, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {makePageBus} from './page-bus.js'
 import {openSourceFromFrames} from './editor/open-source.js'
@@ -70,6 +70,11 @@ export function slug(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
+}
+
+function removeListener<Listener>(listeners: Listener[], listener: Listener): void {
+  const index = listeners.indexOf(listener)
+  if (index >= 0) listeners.splice(index, 1)
 }
 
 function requireHarness(id: string): HarnessAdapter {
@@ -159,6 +164,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
 
   const runStartListeners: ((sessionId: string) => void)[] = []
+  const sendVetoes: ((sessionId: string, opts: {force: boolean}) => SendVerdict)[] = []
+  const mcpRequestListeners: ((sessionId: string) => void)[] = []
 
   const pageBus = makePageBus()
 
@@ -171,6 +178,31 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     chatBusy: (sessionId) => statusOf(db, sessionId) !== 'idle',
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
+    beforeSend: (check) => {
+      sendVetoes.push(check)
+      return () => removeListener(sendVetoes, check)
+    },
+    onMcpRequest: (listener) => {
+      mcpRequestListeners.push(listener)
+      return () => removeListener(mcpRequestListeners, listener)
+    },
+    notifyChange: () => changes.bumpExternal(),
+  }
+  const runSendVetoes = (sessionId: string, sendOpts: {force: boolean}): SendVerdict => {
+    for (const check of sendVetoes) {
+      const verdict = check(sessionId, sendOpts)
+      if (!verdict.allow) return verdict
+    }
+    return {allow: true}
+  }
+  const notifyMcpRequest = (sessionId: string): void => {
+    for (const listener of mcpRequestListeners) {
+      try {
+        listener(sessionId)
+      } catch (error) {
+        logError(`[core] mcp-request listener failed: ${String(error)}`)
+      }
+    }
   }
   const history = harness.history
   const transcriptPath = history?.transcriptPath
@@ -178,6 +210,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const serverHarness: ServerHarness = {
     id: harness.id,
     ttyCommand: harness.tty?.command,
+    release: (sessionId) => {
+      if (requestStop(db, sessionId)) changes.notify()
+    },
     transcriptExists: transcriptPath
       ? async (token) => existsSync(transcriptPath(await cwdForToken(token), token, opts.claudeHome))
       : undefined,
@@ -284,6 +319,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     tools: toolList,
     compactor,
     send,
+    beforeSend: runSendVetoes,
     openInEditor: opts.openInEditor,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     page: pageEnv,
@@ -294,7 +330,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       chat: chatDeps,
-      mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel},
+      mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel, onRequest: notifyMcpRequest},
     },
     rpc,
     opts.onShutdown,

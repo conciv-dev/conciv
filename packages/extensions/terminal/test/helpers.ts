@@ -30,6 +30,9 @@ function fakeSessions(): FakeSessions {
     chatBusy: (sessionId) => busy.has(sessionId),
     model: () => Promise.resolve(null),
     onChatTurn: (listener) => listeners.push(listener),
+    beforeSend: () => () => {},
+    onMcpRequest: () => () => {},
+    notifyChange: () => {},
   }
 }
 

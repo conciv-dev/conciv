@@ -2,7 +2,7 @@ import {implement, type AnyRouter} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/fetch'
 import type {MiddlewareHandler} from 'hono'
 import {contract} from '@conciv/contract'
-import type {ChatTool} from '@conciv/protocol/chat-types'
+import type {ChatTool, SendVerdict} from '@conciv/protocol/chat-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ChatDeps} from '../../chat/runtime.js'
 import type {Compactor, UserContent} from '../../chat/run.js'
@@ -18,6 +18,7 @@ export type RpcDeps = {
   tools: ChatTool[]
   compactor: Compactor
   send: (sessionId: string, content: UserContent) => Promise<string>
+  beforeSend: (sessionId: string, opts: {force: boolean}) => SendVerdict
   openInEditor: OpenInEditor
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   page: PageEnv
