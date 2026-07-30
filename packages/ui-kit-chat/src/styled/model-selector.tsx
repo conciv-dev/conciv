@@ -11,7 +11,7 @@ import {
 } from '../primitives/model-selector/model-selector.js'
 
 const TRIGGER =
-  'text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] pl-2.5 pr-[0.4375rem] h-7 max-w-42 gap-1 inline-flex items-center cursor-pointer rounded-[var(--chat-radius-pill)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)]'
+  'text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] pl-2.5 pr-[0.4375rem] h-7 max-w-42 min-w-0 shrink gap-1 inline-flex items-center cursor-pointer rounded-[var(--chat-radius-pill)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)]'
 const VALUE =
   'min-w-0 inline-flex items-center gap-1.5 [&_[data-model-name]]:truncate [&_[data-model-effort]]:[color:var(--chat-text-3)]'
 const CONTENT =

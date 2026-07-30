@@ -1,6 +1,7 @@
 import {createFakeHarness, createTestkit, type FakeHarness, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {AnyExtension} from '@conciv/extension'
+import type {HarnessModel} from '@conciv/protocol/harness-types'
 
 export type CoreKit = Kit & {harness: FakeHarness}
 
@@ -8,9 +9,10 @@ export async function bootCoreKit(opts: {
   id: string
   text?: string
   extensions?: AnyExtension[]
+  models?: HarnessModel[]
   nativePageDir?: string
 }): Promise<CoreKit> {
-  const harness = createFakeHarness({id: opts.id, text: opts.text ?? 'Hello from conciv'})
+  const harness = createFakeHarness({id: opts.id, text: opts.text ?? 'Hello from conciv', models: opts.models})
   const kit = await createTestkit(harness, async (env) => {
     const {app, disposers} = await makeApp({
       cfg: {
