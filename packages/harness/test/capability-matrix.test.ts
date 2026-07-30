@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {listHarnesses} from '../src/registry.js'
 
-const STUB_IDS = new Set(['gemini-cli', 'opencode'])
+const STUB_IDS = new Set(['gemini-cli'])
 
 describe('harness capability matrix', () => {
   for (const adapter of listHarnesses().filter((a) => !STUB_IDS.has(a.id))) {
