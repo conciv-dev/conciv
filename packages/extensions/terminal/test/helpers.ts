@@ -5,7 +5,7 @@ import type {AnyRouter} from '@orpc/server'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveApp} from '@conciv/harness-testkit'
 import {makeExtRpcClient, type ServerApi, type ServerHarness, type ServerSessions} from '@conciv/extension'
-import type {TtyCommandOpts} from '@conciv/protocol/terminal-types'
+import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
 
 export type FakeSessions = ServerSessions & {
@@ -55,8 +55,8 @@ export const bashHarness: ServerHarness = {
   release: () => {},
 }
 
-export function recordingHarness(): {harness: ServerHarness; captured: TtyCommandOpts[]} {
-  const captured: TtyCommandOpts[] = []
+export function recordingHarness(): {harness: ServerHarness; captured: HarnessConnectContext[]} {
+  const captured: HarnessConnectContext[] = []
   const command = bashHarness.ttyCommand
   if (!command) throw new Error('bash harness has no tty command')
   return {

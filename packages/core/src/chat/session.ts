@@ -16,7 +16,7 @@ import type {
   SessionRecord,
 } from '@conciv/protocol/chat-types'
 import {isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
-import {FILE_REF_PREFIX, type HarnessLaunchContext, type HarnessLaunchResult} from '@conciv/protocol/harness-types'
+import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
 import {sessions, type ConcivDb} from '@conciv/db'
 import {apiBaseFrom} from '../lib/api-base.js'
 import type {ChatDeps} from './runtime.js'
@@ -235,32 +235,32 @@ function mcpUrlFor(deps: ChatDeps, requestUrl: string): string {
 
 export async function launchHarness(
   deps: ChatDeps,
-  opts: {sessionId: string | null; model?: string; requestUrl: string},
+  opts: {sessionId: string; model?: string; requestUrl: string},
 ): Promise<ChatLaunch> {
-  if (!deps.harness.launch) return {supported: false, opened: false, command: null}
-  const token = opts.sessionId ? ((await sessionById(deps.db, opts.sessionId))?.harnessSessionId ?? null) : null
-  const ctx: HarnessLaunchContext = {
+  const connect = deps.harness.connect
+  if (!connect) return {supported: false, opened: false, command: null}
+  if (!isSessionId(opts.sessionId)) return {supported: true, opened: false, command: null}
+  const harnessSessionId = (await sessionById(deps.db, opts.sessionId))?.harnessSessionId ?? null
+  const plan = connect.plan({
     cwd: deps.cwd,
-    sessionId: token || null,
+    concivSessionId: opts.sessionId,
+    harnessSessionId,
+    resume: Boolean(harnessSessionId),
     model: opts.model ?? null,
     mcpUrl: deps.harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.requestUrl) : null,
-    openTerminal: (argv) => openTerminal(argv, deps.cwd),
-    openUrl: (url) => openUrl(url),
+    hookUrl: null,
+  })
+  if (plan.files.length > 0 || Object.keys(plan.env).length > 0) {
+    throw new Error(`harness "${deps.harness.id}" connect plan needs env/files, which the terminal launcher cannot run`)
   }
-  const result = await deps.harness.launch(ctx)
-  return {supported: true, opened: result.opened, command: result.command}
+  const {opened, command} = await openTerminal(plan.argv, deps.cwd)
+  return {supported: true, opened, command}
 }
 
-async function openTerminal(argv: string[], cwd: string): Promise<HarnessLaunchResult> {
+async function openTerminal(argv: string[], cwd: string): Promise<{opened: boolean; command: string}> {
   const command = `cd ${shellQuote(cwd)} && ${argv.map(shellQuote).join(' ')}`
   const opened = await spawnTerminal(command)
   return {opened, command}
-}
-
-async function openUrl(url: string): Promise<HarnessLaunchResult> {
-  const invocation = urlOpener(url)
-  const opened = invocation ? await spawnDetached(invocation[0], invocation[1]) : false
-  return {opened, command: url}
 }
 
 async function spawnTerminal(command: string): Promise<boolean> {
@@ -298,19 +298,6 @@ function macTerminalApp(termProgram: string | undefined): string | null {
       return 'Hyper'
     case 'kitty':
       return 'kitty'
-    default:
-      return null
-  }
-}
-
-function urlOpener(url: string): [string, string[]] | null {
-  switch (platform()) {
-    case 'darwin':
-      return ['open', [url]]
-    case 'win32':
-      return ['cmd', ['/c', 'start', '', url]]
-    case 'linux':
-      return ['xdg-open', [url]]
     default:
       return null
   }

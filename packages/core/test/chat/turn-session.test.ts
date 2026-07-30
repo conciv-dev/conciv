@@ -1,5 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {stat} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
@@ -45,7 +46,7 @@ describe('turn session helpers', () => {
     expect((await sessionById(db, 'conciv_b'))?.harnessSessionId).toBe('tok-1')
   })
 
-  it('resumableToken drops a token whose transcript does not exist (terminal pre-mints ids before claude writes one)', () => {
+  it('resumableToken drops a token whose transcript does not exist (terminal pre-mints ids before claude writes one)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-resume-'))
     writeFileSync(join(dir, 'tok-live.jsonl'), '')
     const claude = requireClaude()
@@ -54,17 +55,24 @@ describe('turn session helpers', () => {
       ...claude,
       capabilities: {...claude.capabilities, transcriptHistory: true, slashCommands: 'live'},
       commands: claude.commands,
-      history: {transcriptPath: (cwd, sessionId) => join(cwd, `${sessionId}.jsonl`), parse: () => []},
+      history: {
+        messages: () => Promise.resolve([]),
+        transcriptStat: async (cwd, sessionId) => {
+          const info = await stat(join(cwd, `${sessionId}.jsonl`)).catch(() => null)
+          return info ? {mtimeMs: info.mtimeMs, size: info.size} : null
+        },
+        list: () => Promise.resolve([]),
+      },
     }
-    expect(resumableToken(harness, dir, 'tok-live')).toBe('tok-live')
-    expect(resumableToken(harness, dir, 'tok-ghost')).toBeNull()
-    expect(resumableToken(harness, dir, null)).toBeNull()
+    expect(await resumableToken(harness, dir, 'tok-live')).toBe('tok-live')
+    expect(await resumableToken(harness, dir, 'tok-ghost')).toBeNull()
+    expect(await resumableToken(harness, dir, null)).toBeNull()
     rmSync(dir, {recursive: true, force: true})
   })
 
-  it('resumableToken trusts the token when the harness has no transcript history', () => {
+  it('resumableToken trusts the token when the harness has no transcript history', async () => {
     const stub = getHarness('pi')
     if (!stub) throw new Error('pi stub not registered')
-    expect(resumableToken(stub, '/app', 'tok-1')).toBe('tok-1')
+    expect(await resumableToken(stub, '/app', 'tok-1')).toBe('tok-1')
   })
 })

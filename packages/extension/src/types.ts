@@ -3,7 +3,8 @@ import type {z} from 'zod'
 import type {ContentPart} from '@tanstack/ai'
 import type {AnyRouter} from '@orpc/server'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
+import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
+import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
@@ -63,7 +64,7 @@ export type ServerSessions = {
 
 export type ServerHarness = {
   id: string
-  ttyCommand?: (opts: TtyCommandOpts) => TtyCommand
+  ttyCommand?: (ctx: HarnessConnectContext) => TtyCommand
   release?: (sessionId: string) => void
   transcriptExists?: (token: string) => boolean
   transcriptMessages?: (token: string) => Promise<UIMessage[]>

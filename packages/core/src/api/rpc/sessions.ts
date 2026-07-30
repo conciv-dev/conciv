@@ -16,7 +16,7 @@ export async function rpcSessionList(deps: RpcDeps): Promise<SessionMeta[]> {
   const chat = deps.chat
   const hist = chat.harness.history
   const harnessList =
-    chat.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(chat.cwd, chat.claudeHome) : []
+    chat.harness.capabilities.transcriptHistory && hist ? await hist.list(chat.cwd, chat.claudeHome) : []
   const metas = await buildSessionList({
     db: chat.db,
     harnessList,
@@ -109,7 +109,7 @@ export function harnessMetaOf(deps: RpcDeps) {
   return {
     id: deps.chat.harness.id,
     name: deps.chat.harness.displayName ?? deps.chat.harness.id,
-    canLaunch: Boolean(deps.chat.harness.launch),
+    canLaunch: Boolean(deps.chat.harness.connect),
     imageInput: deps.chat.harness.capabilities.imageInput,
   }
 }

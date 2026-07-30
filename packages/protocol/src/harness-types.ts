@@ -1,5 +1,6 @@
 import type {AnyTextAdapter, ModelMessage, UIMessage} from '@tanstack/ai'
-import type {TtyCommand, TtyCommandOpts} from './terminal-types.js'
+import type {SessionId} from './chat-types.js'
+import type {TtyCommand} from './terminal-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -36,17 +37,25 @@ export type HarnessCommandsContext = {cwd: string; sessionId?: string; mcpUrl?: 
 
 export type HarnessCommands = (ctx: HarnessCommandsContext) => Promise<HarnessCommand[]>
 
-export type HarnessLaunchResult = {opened: boolean; command: string}
-export type HarnessLaunchContext = {
+export type HarnessConnectContext = {
   cwd: string
-  sessionId: string | null
+  concivSessionId: SessionId
+  harnessSessionId: string | null
+  resume: boolean
   model: string | null
   mcpUrl: string | null
-
-  openTerminal(argv: string[]): Promise<HarnessLaunchResult>
-  openUrl(url: string): Promise<HarnessLaunchResult>
+  hookUrl: string | null
 }
-export type HarnessLaunch = (ctx: HarnessLaunchContext) => HarnessLaunchResult | Promise<HarnessLaunchResult>
+
+export type HarnessConnectFile = {path: string; contents: string; mode?: number}
+
+export type HarnessConnectPlan = {
+  argv: string[]
+  env: Record<string, string>
+  files: HarnessConnectFile[]
+}
+
+export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPlan}
 
 export type HarnessChatDeps = {
   cwd: string
@@ -75,15 +84,19 @@ export type HarnessSessionMeta = {
   createdAt?: number
 }
 
+export type TranscriptStat = {mtimeMs: number; size: number}
+
 export type HarnessHistory = {
-  transcriptPath(cwd: string, sessionId: string, home?: string): string
-  parse(raw: string): UIMessage[]
+  messages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]>
+  transcriptStat(cwd: string, sessionId: string, home?: string): Promise<TranscriptStat | null>
+
+  transcriptPath?(cwd: string, sessionId: string, home?: string): string
 
   nameFromTranscript?(raw: string): string | null
 
   contextTokens?(raw: string): number | undefined
 
-  list?(cwd: string, home?: string): HarnessSessionMeta[] | Promise<HarnessSessionMeta[]>
+  list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
 }
 
 type HarnessAdapterBase = {
@@ -92,13 +105,13 @@ type HarnessAdapterBase = {
 
   displayName?: string
 
-  launch?: HarnessLaunch
+  connect?: HarnessConnect
   chatConfig: (deps: HarnessChatDeps) => HarnessChatConfig
 
   models?: HarnessModels
   defaultModel?: string
 
-  tty?: {command(opts: TtyCommandOpts): TtyCommand}
+  tty?: {command(ctx: HarnessConnectContext): TtyCommand}
 }
 
 export type HarnessAdapter = HarnessAdapterBase &

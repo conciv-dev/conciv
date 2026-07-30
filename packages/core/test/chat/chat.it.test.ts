@@ -7,7 +7,7 @@ import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {countType, runTurn} from '../helpers/turns.js'
-import {requireClaude} from '../helpers/adapters.js'
+import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 
 const claude = requireClaude()
 
@@ -107,8 +107,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const kit = await setup({argvFile}, claudeHome)
     const id = await kit.session()
     await runTurn(kit, 'hi', id)
-    const transcript = claude.history?.transcriptPath(kit.stateRoot, 'sess-fake', claudeHome)
-    if (!transcript) throw new Error('claude harness lacks history')
+    const transcript = requireTranscriptPath(claude)(kit.stateRoot, 'sess-fake', claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
     writeFileSync(transcript, '')
     await runTurn(kit, 'more', id)
@@ -122,8 +121,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const kit = await setup({}, claudeHome)
     const id = await kit.session()
     await runTurn(kit, 'hi', id)
-    const transcript = claude.history?.transcriptPath(kit.stateRoot, 'sess-fake', claudeHome)
-    if (!transcript) throw new Error('claude harness lacks history')
+    const transcript = requireTranscriptPath(claude)(kit.stateRoot, 'sess-fake', claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
     const rec = (usage: Record<string, number>) =>
       JSON.stringify({type: 'assistant', message: {role: 'assistant', content: [{type: 'text', text: 'ok'}], usage}})

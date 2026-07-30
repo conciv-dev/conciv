@@ -4,7 +4,7 @@ import {upgradeWebSocket} from '@hono/node-server'
 import {eventIterator, os} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, subscriptionIterator, type ServerApi} from '@conciv/extension'
-import {isSessionId, type UIMessage} from '@conciv/protocol/chat-types'
+import {isSessionId, type SessionId, type UIMessage} from '@conciv/protocol/chat-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
 import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
 import {watchMirror} from './server/mirror.js'
@@ -49,7 +49,7 @@ function applyControl(session: TtySession, control: TtyClientControl | null, tex
 
 async function resolveHarnessSession(
   {server}: TerminalRuntime,
-  sessionId: string,
+  sessionId: SessionId,
 ): Promise<{harnessSessionId: string; resume: boolean}> {
   const existing = await server.sessions.resumeToken(sessionId)
   const harnessSessionId = existing ?? randomUUID()
@@ -60,7 +60,7 @@ async function resolveHarnessSession(
 
 async function openTtySession(
   runtime: TerminalRuntime,
-  sessionId: string,
+  sessionId: SessionId,
   size: TerminalOpenRequest,
   origin: string,
 ): Promise<void> {
@@ -73,7 +73,15 @@ async function openTtySession(
   const mcpUrl = `${origin}${server.basePath}/api/mcp`
   const session = tty.open(
     sessionId,
-    ttyCommand({cwd: server.cwd, harnessSessionId, resume, model, mcpUrl, concivSessionId: sessionId}),
+    ttyCommand({
+      cwd: server.cwd,
+      concivSessionId: sessionId,
+      harnessSessionId,
+      resume,
+      model,
+      mcpUrl,
+      hookUrl: null,
+    }),
     server.cwd,
   )
   if (size.cols && size.rows) session.resize(size.cols, size.rows)

@@ -28,10 +28,15 @@ export const codex = defineHarness({
   chatConfig: codexChatConfig,
   models: ['gpt-5.5', ...CODEX_MODELS].map((id) => ({id, name: id, group: 'Codex'})),
   defaultModel: 'gpt-5.5',
-  launch: (ctx) => {
-    const argv = ['codex']
-    if (ctx.sessionId) argv.push('resume', ctx.sessionId)
-    if (ctx.model) argv.push('-m', ctx.model)
-    return ctx.openTerminal(argv)
+  connect: {
+    plan: (ctx) => ({
+      argv: [
+        'codex',
+        ...(ctx.harnessSessionId ? ['resume', ctx.harnessSessionId] : []),
+        ...(ctx.model ? ['-m', ctx.model] : []),
+      ],
+      env: {},
+      files: [],
+    }),
   },
 })

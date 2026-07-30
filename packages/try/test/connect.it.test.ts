@@ -5,7 +5,7 @@ import {afterAll, describe, expect, it} from 'vitest'
 import {createFakeHarness, harnessAvailable, until} from '@conciv/harness-testkit'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {TerminalRouter} from '@conciv/extension-terminal'
-import type {TtyCommandOpts} from '@conciv/protocol/terminal-types'
+import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {claude} from '@conciv/harness/claude'
 import {runConnect, type ConnectEvent} from '../src/connect.js'
 import type {Engine} from '@conciv/core/start'
@@ -99,7 +99,7 @@ describe('conciv connect', () => {
   })
 
   it('opens a live pty rooted in the throwaway workspace for a tty-capable harness', async () => {
-    const captured: TtyCommandOpts[] = []
+    const captured: HarnessConnectContext[] = []
     const engine = await runConnect({
       token: 'tok-tty',
       harnessAdapter: createFakeHarness({

@@ -23,7 +23,7 @@ function mcpEchoHarness(): HarnessAdapter {
       slashCommands: 'none',
       imageInput: false,
     },
-    launch: (ctx) => ({opened: false, command: ctx.mcpUrl ?? 'no-mcp-url'}),
+    connect: {plan: (ctx) => ({argv: [ctx.mcpUrl ?? 'no-mcp-url'], env: {}, files: []})},
   })
 }
 
@@ -51,10 +51,10 @@ async function launchCommand(accessToken?: string): Promise<string | null> {
 
 describe('harness-facing mcp url', () => {
   it('carries the access-token base path when the app is mounted behind one', async () => {
-    expect(await launchCommand('tok-base-path')).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/t\/tok-base-path\/api\/mcp$/)
+    expect(await launchCommand('tok-base-path')).toMatch(/&& 'http:\/\/127\.0\.0\.1:\d+\/t\/tok-base-path\/api\/mcp'$/)
   })
 
   it('has no token prefix when there is no access token', async () => {
-    expect(await launchCommand()).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/api\/mcp$/)
+    expect(await launchCommand()).toMatch(/&& 'http:\/\/127\.0\.0\.1:\d+\/api\/mcp'$/)
   })
 })

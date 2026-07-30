@@ -105,7 +105,7 @@ README.md; this file is the non-obvious operational rules.
 ## Harness & runner adapters
 
 - A harness is `chatConfig(deps)` returning a published `@tanstack/ai-*` text adapter (+ optional
-  `modelOptions`/`prepareMessages`) plus sidecars (`models`, `history`, `launch`, `tty`, `commands`).
+  `modelOptions`/`prepareMessages`) plus sidecars (`models`, `history`, `connect`, `tty`, `commands`).
   Turns run through `chat()` with the conciv sandbox + permission-gate middleware; never spawn or
   decode a CLI yourself, and never special-case a CLI in core/widget.
 - `HarnessAdapter` is capability-typed (`packages/protocol/src/harness-types.ts`): `transcriptHistory:

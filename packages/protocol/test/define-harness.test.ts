@@ -63,8 +63,12 @@ describe('defineHarness (generic typed factory; history↔transcriptHistory enfo
         slashCommands: 'none',
         imageInput: false,
       },
-      history: {transcriptPath: () => '/p', parse: () => []},
+      history: {
+        messages: () => Promise.resolve([]),
+        transcriptStat: () => Promise.resolve(null),
+        list: () => Promise.resolve([]),
+      },
     })
-    expect(typeof adapter.history?.transcriptPath).toBe('function')
+    expect(typeof adapter.history?.messages).toBe('function')
   })
 })

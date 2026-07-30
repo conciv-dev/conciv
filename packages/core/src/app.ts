@@ -1,5 +1,4 @@
 import {existsSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
 import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -175,18 +174,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
   const history = harness.history
+  const transcriptPath = history?.transcriptPath
   const serverHarness: ServerHarness = {
     id: harness.id,
     ttyCommand: harness.tty?.command,
-    transcriptExists: history
-      ? (token) => existsSync(history.transcriptPath(opts.cwd, token, opts.claudeHome))
+    transcriptExists: transcriptPath
+      ? (token) => existsSync(transcriptPath(opts.cwd, token, opts.claudeHome))
       : undefined,
-    transcriptMessages: history
-      ? async (token) => {
-          const raw = await readFile(history.transcriptPath(opts.cwd, token, opts.claudeHome), 'utf8').catch(() => '')
-          return raw ? history.parse(raw) : []
-        }
-      : undefined,
+    transcriptMessages: history ? (token) => history.messages(opts.cwd, token, opts.claudeHome) : undefined,
   }
   const basePath = opts.basePath ?? ''
   const seenTools = new Set<string>()

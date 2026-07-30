@@ -8,8 +8,8 @@ describe('harness capability matrix', () => {
     describe(adapter.id, () => {
       it('transcriptHistory <=> a history implementation is present', () => {
         if (adapter.capabilities.transcriptHistory) {
-          expect(typeof adapter.history?.transcriptPath).toBe('function')
-          expect(typeof adapter.history?.parse).toBe('function')
+          expect(typeof adapter.history?.messages).toBe('function')
+          expect(typeof adapter.history?.transcriptStat).toBe('function')
         } else {
           expect(adapter.history).toBeUndefined()
         }

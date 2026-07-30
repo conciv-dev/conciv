@@ -44,16 +44,16 @@ export const SESSION_BUSY = 'session busy'
 export const resumeTokenFor = async (db: ConcivDb, id: string): Promise<string | null> =>
   (await sessionById(db, id))?.harnessSessionId ?? null
 
-export function resumableToken(
+export async function resumableToken(
   harness: HarnessAdapter,
   cwd: string,
   token: string | null,
   home?: string,
-): string | null {
+): Promise<string | null> {
   if (!token) return null
   const history = harness.history
   if (!history) return token
-  return existsSync(history.transcriptPath(cwd, token, home)) ? token : null
+  return (await history.transcriptStat(cwd, token, home)) ? token : null
 }
 
 export const recordMintedToken = (db: ConcivDb, id: string, token: string): Promise<unknown> =>
@@ -108,7 +108,7 @@ async function buildRunStream(
   abort: AbortController,
 ): Promise<AsyncIterable<StreamChunk>> {
   const resumeSessionId = deps.harness.capabilities.resume
-    ? resumableToken(deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome)
+    ? await resumableToken(deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome)
     : null
   const gate = makeRunGate({sessionId, processor, db: deps.db, changes: deps.changes, risky: deps.risky})
   const config = deps.harness.chatConfig({
@@ -268,7 +268,7 @@ function contextWindowFor(harness: HarnessAdapter, modelId: string | null): numb
 
 async function contextOccupancyFor(deps: ChatDeps, sessionId: string): Promise<number | undefined> {
   const history = deps.harness.history
-  if (!history?.contextTokens) return undefined
+  if (!history?.contextTokens || !history.transcriptPath) return undefined
   const record = await sessionById(deps.db, sessionId)
   if (!record?.harnessSessionId) return undefined
   const path = history.transcriptPath(deps.cwd, record.harnessSessionId, deps.claudeHome)
@@ -354,7 +354,7 @@ async function composeUserContent(db: ConcivDb, sessionId: string, content: User
 async function historyFor(deps: ChatDeps, sessionId: string): Promise<ChatMessage[]> {
   const resumable =
     deps.harness.capabilities.resume &&
-    resumableToken(deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome) !== null
+    (await resumableToken(deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome)) !== null
   if (resumable) return []
   return (await mergedMessages(deps, sessionId)).map((message) => ChatMessageSchema.parse(message))
 }

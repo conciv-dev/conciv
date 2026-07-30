@@ -1,6 +1,18 @@
 import {describe, expect, it} from 'vitest'
-import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {SessionId} from '@conciv/protocol/chat-types'
+import type {HarnessChatDeps, HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {codex} from '../src/codex/index.js'
+
+const connectContext = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
+  cwd: '/tmp',
+  concivSessionId: SessionId.parse('conciv_codex_test'),
+  harnessSessionId: null,
+  resume: false,
+  model: null,
+  mcpUrl: null,
+  hookUrl: null,
+  ...over,
+})
 
 const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   cwd: '/tmp/codex-test',
@@ -28,15 +40,15 @@ describe('codex chatConfig', () => {
     expect(codex.chatConfig(deps({resumeSessionId: 'thread-9'})).modelOptions).toEqual({sessionId: 'thread-9'})
   })
 
-  it('keeps the terminal launch flow', async () => {
-    const result = await codex.launch?.({
-      cwd: '/tmp',
-      sessionId: 'thread-9',
-      model: 'gpt-5.1',
-      mcpUrl: null,
-      openTerminal: async (argv) => ({opened: true, command: argv.join(' ')}),
-      openUrl: async () => ({opened: false, command: ''}),
+  it('plans a resume invocation for an existing harness session', () => {
+    expect(codex.connect?.plan(connectContext({harnessSessionId: 'thread-9', model: 'gpt-5.1'}))).toEqual({
+      argv: ['codex', 'resume', 'thread-9', '-m', 'gpt-5.1'],
+      env: {},
+      files: [],
     })
-    expect(result).toEqual({opened: true, command: 'codex resume thread-9 -m gpt-5.1'})
+  })
+
+  it('plans a bare invocation when there is no harness session and no model', () => {
+    expect(codex.connect?.plan(connectContext({}))).toEqual({argv: ['codex'], env: {}, files: []})
   })
 })

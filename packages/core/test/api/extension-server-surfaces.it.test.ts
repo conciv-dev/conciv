@@ -6,6 +6,7 @@ import {defineExtension, type ServerApi} from '@conciv/extension'
 import {createTestHarness, createTestkit, until} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {runTurn} from '../helpers/turns.js'
+import {requireTranscriptPath} from '../helpers/adapters.js'
 
 test('extension server api exposes sessions + harness surfaces backed by the real store', async () => {
   const captured: {server?: ServerApi<Record<never, never>>} = {}
@@ -41,9 +42,7 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
 
     expect(await server.harness.transcriptMessages?.('no-such-token')).toEqual([])
     const token = `surfaces-${process.pid}-${Math.random().toString(36).slice(2)}`
-    const history = claude.history
-    if (!history) throw new Error('claude adapter has no history surface')
-    const transcript = history.transcriptPath(server.cwd, token)
+    const transcript = requireTranscriptPath(claude)(server.cwd, token)
     mkdirSync(dirname(transcript), {recursive: true})
     writeFileSync(
       transcript,

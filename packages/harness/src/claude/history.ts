@@ -3,7 +3,7 @@ import {homedir} from 'node:os'
 import {join, resolve, sep} from 'node:path'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
-import type {HarnessHistory, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import type {HarnessHistory, HarnessSessionMeta, TranscriptStat} from '@conciv/protocol/harness-types'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
 export function encodeProjectDir(cwd: string): string {
@@ -290,9 +290,20 @@ export function withinProject(cwd: string, sessionId: string, home: string = hom
   return resolve(transcriptPath(cwd, sessionId, home)).startsWith(root + sep)
 }
 
+export async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]> {
+  const raw = await readFile(transcriptPath(cwd, sessionId, home), 'utf8').catch(() => '')
+  return raw ? parseHistory(raw) : []
+}
+
+export async function transcriptStat(cwd: string, sessionId: string, home?: string): Promise<TranscriptStat | null> {
+  const info = await stat(transcriptPath(cwd, sessionId, home)).catch(() => null)
+  return info ? {mtimeMs: info.mtimeMs, size: info.size} : null
+}
+
 export const claudeHistory: HarnessHistory = {
+  messages: transcriptMessages,
+  transcriptStat,
   transcriptPath,
-  parse: parseHistory,
   nameFromTranscript,
   contextTokens: contextTokensFromTranscript,
   list: listSessions,
