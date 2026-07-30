@@ -2,15 +2,63 @@
 import {execFileSync} from 'node:child_process'
 import {appendFileSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {parseTimings, planShards, plannedPackages} from './shards.ts'
-import {loadSummaries, mergeSummaries, type PackageSummary, parseSummaries, renderSummary} from './summary.ts'
+import {
+  e2ePackages,
+  type E2eShardPlan,
+  parseTimings,
+  planE2eShards,
+  planShards,
+  plannedPackages,
+  type ShardPlan,
+} from './shards.ts'
+import {
+  loadSummaries,
+  mergeSummaries,
+  type PackageSummary,
+  parseSummaries,
+  type RenderOptions,
+  renderSummary,
+} from './summary.ts'
 
-const SUMMARY_ROOTS = ['packages', 'apps']
+const VALUE_FLAGS = ['--timings', '--task', '--output']
+
+type TaskConfig = {
+  turboTasks: string[]
+  reportRoots: string[]
+  render: Partial<RenderOptions>
+  plan: (rootDir: string, timings: Record<string, number>) => (ShardPlan | E2eShardPlan)[]
+}
+
+const TASKS: Record<string, TaskConfig> = {
+  test: {
+    turboTasks: ['typecheck', 'lint', 'test', '--continue=dependencies-successful'],
+    reportRoots: ['packages', 'apps'],
+    render: {},
+    plan: (rootDir, timings) => planShards(plannedPackages(rootDir), timings),
+  },
+  e2e: {
+    turboTasks: ['test:e2e', '--continue', '--concurrency=1'],
+    reportRoots: ['e2e', 'apps/site'],
+    render: {title: 'E2e consumer apps', details: true},
+    plan: (rootDir, timings) => planE2eShards(e2ePackages(rootDir), timings),
+  },
+}
 
 function argValue(args: string[], flag: string): string | null {
   const index = args.indexOf(flag)
   if (index === -1 || index + 1 >= args.length) return null
   return args[index + 1] ?? null
+}
+
+function taskConfig(args: string[]): TaskConfig {
+  const requested = argValue(args, '--task') ?? 'test'
+  const config = TASKS[requested]
+  if (config === undefined) throw new Error(`unknown --task ${requested}; expected ${Object.keys(TASKS).join(' or ')}`)
+  return config
+}
+
+function positionals(args: string[]): string[] {
+  return args.filter((arg, index) => !arg.startsWith('--') && !VALUE_FLAGS.includes(args[index - 1] ?? ''))
 }
 
 const MAX_TIMINGS_BYTES = 1_000_000
@@ -24,7 +72,7 @@ function readBoundedTimings(path: string | null): Record<string, number> {
 
 function plan(args: string[]): void {
   const baseline = readBoundedTimings(argValue(args, '--timings'))
-  const shards = planShards(plannedPackages(process.cwd()), baseline)
+  const shards = taskConfig(args).plan(process.cwd(), baseline)
   const include = shards.map((shard) => ({...shard, packages: shard.packages.join(' ')}))
   const matrix = JSON.stringify({include})
   const outputPath = process.env.GITHUB_OUTPUT
@@ -32,17 +80,16 @@ function plan(args: string[]): void {
   process.stdout.write(`${matrix}\n`)
 }
 
-function run(): void {
+function run(args: string[]): void {
   const packages = (process.env.SHARD_PACKAGES ?? '').split(' ').filter((name) => name !== '')
   if (packages.length === 0) throw new Error('SHARD_PACKAGES is empty; nothing to run')
   const filters = packages.map((name) => `--filter=${name}`)
-  const args = ['exec', 'turbo', 'run', 'typecheck', 'lint', 'test', '--continue=dependencies-successful', ...filters]
-  execFileSync('pnpm', args, {stdio: 'inherit'})
+  execFileSync('pnpm', ['exec', 'turbo', 'run', ...taskConfig(args).turboTasks, ...filters], {stdio: 'inherit'})
 }
 
 function report(args: string[]): void {
   const outputPath = argValue(args, '--output') ?? 'shard-report.json'
-  writeFileSync(outputPath, `${JSON.stringify(loadSummaries(SUMMARY_ROOTS))}\n`)
+  writeFileSync(outputPath, `${JSON.stringify(loadSummaries(taskConfig(args).reportRoots))}\n`)
 }
 
 const MAX_REPORT_BYTES = 20_000_000
@@ -62,10 +109,9 @@ function readReports(dir: string): PackageSummary[] {
 }
 
 function summarize(args: string[]): void {
-  const inputs = args.filter((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--timings')
-  const merged = mergeSummaries(inputs.flatMap(readReports))
+  const merged = mergeSummaries(positionals(args).flatMap(readReports))
   const summaryPath = process.env.GITHUB_STEP_SUMMARY
-  const rendered = renderSummary(merged)
+  const rendered = renderSummary(merged, taskConfig(args).render)
   if (summaryPath === undefined) process.stdout.write(rendered)
   if (summaryPath !== undefined) appendFileSync(summaryPath, rendered)
   const timingsPath = argValue(args, '--timings')
@@ -80,10 +126,10 @@ function summarize(args: string[]): void {
 
 const [command, ...rest] = process.argv.slice(2)
 if (command === 'plan') plan(rest)
-if (command === 'run') run()
+if (command === 'run') run(rest)
 if (command === 'report') report(rest)
 if (command === 'summarize') summarize(rest)
 if (command !== 'plan' && command !== 'run' && command !== 'report' && command !== 'summarize') {
-  process.stderr.write('usage: conciv-ci-shards <plan|run|report|summarize>\n')
+  process.stderr.write('usage: conciv-ci-shards <plan|run|report|summarize> [--task test|e2e]\n')
   process.exitCode = 2
 }
