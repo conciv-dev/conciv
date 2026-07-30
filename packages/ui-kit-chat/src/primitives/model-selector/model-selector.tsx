@@ -149,6 +149,7 @@ function Root(props: ModelSelectorRootProps): JSX.Element {
       }}
     >
       <Combobox.Root
+        class="shrink min-w-0"
         collection={collection()}
         value={selection()}
         inputValue={query()}
@@ -185,7 +186,7 @@ export type ModelSelectorTriggerProps = JSX.ButtonHTMLAttributes<HTMLButtonEleme
 function Trigger(props: ModelSelectorTriggerProps): JSX.Element {
   const [local, rest] = splitProps(props, ['variant', 'size', 'children'])
   return (
-    <Combobox.Control class="inline-flex">
+    <Combobox.Control class="inline-flex shrink max-w-full min-w-0">
       <Combobox.Trigger data-variant={local.variant ?? 'outline'} data-size={local.size ?? 'default'} {...rest}>
         <Show when={local.children} fallback={<Value />}>
           {local.children}

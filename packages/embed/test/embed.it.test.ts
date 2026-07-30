@@ -6,6 +6,10 @@ import {hostPage, serveHost} from './helpers/host.js'
 import {openPanel, sendMessage} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
+const HARNESS_MODELS = [
+  {id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5'},
+  {id: 'claude-opus-4-1', name: 'Claude Opus 4.1'},
+]
 const HOST_HEADING = 'Deployment checklist'
 const LONG_HOST_BODY = `<h1>Host site</h1>${Array.from(
   {length: 60},
@@ -22,7 +26,7 @@ let longHost: {base: string; close: () => Promise<void>}
 
 beforeAll(async () => {
   browser = await chromium.launch()
-  kit = await bootEmbedKit({text: ASSISTANT_TEXT})
+  kit = await bootEmbedKit({text: ASSISTANT_TEXT, models: HARNESS_MODELS})
   host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
   longHost = await serveHost(() =>
     hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: LONG_HOST_BODY}),
@@ -264,6 +268,24 @@ describe('embed at a phone viewport', () => {
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
     await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
+    await page.close()
+  })
+
+  it('keeps Stop and Send inside the sheet on a narrow phone while a run streams', async () => {
+    const page = await browser.newPage({viewport: {width: 320, height: 800}})
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await openPanel(page)
+    kit.harness.script.hold()
+    const send = page.getByRole('button', {name: 'Send message'})
+    const stop = page.getByRole('button', {name: 'Stop generating'})
+    await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('a question that keeps running')
+    await send.click()
+    await expectLocator(stop).toBeVisible({timeout: 30_000})
+    await expectLocator(page.getByRole('button', {name: 'Select model'})).toBeInViewport({ratio: 1, timeout: 5_000})
+    await expectLocator(stop).toBeInViewport({ratio: 1, timeout: 5_000})
+    await expectLocator(send).toBeInViewport({ratio: 1, timeout: 5_000})
+    kit.harness.script.release()
+    await expectLocator(stop).toBeHidden({timeout: 30_000})
     await page.close()
   })
 })
