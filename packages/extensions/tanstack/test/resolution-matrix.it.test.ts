@@ -9,18 +9,6 @@ import {afterAll, beforeAll, describe, expect, test} from 'vitest'
 
 const workspaceRoot = fileURLToPath(new URL('../../../../', import.meta.url))
 
-const concivPackageDirs = [
-  'packages/extensions/tanstack',
-  'packages/extension',
-  'packages/contract',
-  'packages/grab',
-  'packages/page',
-  'packages/protocol',
-  'packages/solid-streamdown',
-  'packages/ui-kit-chat',
-  'packages/ui-kit-system',
-]
-
 const rootPackage = '@conciv/extension-tanstack'
 
 type PackedPackage = {name: string; version: string; tarball: string}
@@ -39,6 +27,28 @@ function readManifest(dir: string): {name: string; version: string} {
   return {name, version}
 }
 
+function closureEntryDir(entry: unknown): string {
+  if (typeof entry !== 'object' || entry === null || !('path' in entry)) {
+    throw new Error('pnpm listed a closure entry without a path')
+  }
+  const {path} = entry
+  if (typeof path !== 'string') throw new Error('pnpm listed a closure entry whose path is not a string')
+  return path
+}
+
+function prodClosureDirs(): string[] {
+  const output = execFileSync('pnpm', ['--filter-prod', `${rootPackage}...`, 'ls', '--depth', '-1', '--json'], {
+    cwd: workspaceRoot,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).toString()
+  if (output.trim().length === 0) throw new Error(`pnpm reported no production closure for ${rootPackage}`)
+  const parsed: unknown = JSON.parse(output)
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error(`pnpm reported an empty production closure for ${rootPackage}`)
+  }
+  return parsed.map(closureEntryDir)
+}
+
 function tarballSlug(name: string, version: string): string {
   return `${name.replace('@', '').replace('/', '-')}-${version}.tgz`
 }
@@ -49,8 +59,7 @@ function escapeRegExp(value: string): string {
 
 function packWorkspaceClosure(packDir: string): PackedPackage[] {
   const packed: PackedPackage[] = []
-  for (const relative of concivPackageDirs) {
-    const packageDir = join(workspaceRoot, relative)
+  for (const packageDir of prodClosureDirs()) {
     const {name, version} = readManifest(packageDir)
     execFileSync('pnpm', ['pack', '--pack-destination', packDir], {cwd: packageDir, stdio: 'pipe'})
     const slug = tarballSlug(name, version)
