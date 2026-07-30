@@ -41,14 +41,29 @@ describe('codex chatConfig', () => {
   })
 
   it('plans a resume invocation for an existing harness session', () => {
-    expect(codex.connect?.plan(connectContext({harnessSessionId: 'thread-9', model: 'gpt-5.1'}))).toEqual({
-      argv: ['codex', 'resume', 'thread-9', '-m', 'gpt-5.1'],
-      env: {},
-      files: [],
-    })
+    expect(codex.connect?.plan(connectContext({resume: true, harnessSessionId: 'thread-9', model: 'gpt-5.1'}))).toEqual(
+      {
+        argv: ['codex', 'resume', 'thread-9', '-m', 'gpt-5.1'],
+        env: {},
+        files: [],
+      },
+    )
   })
 
   it('plans a bare invocation when there is no harness session and no model', () => {
     expect(codex.connect?.plan(connectContext({}))).toEqual({argv: ['codex'], env: {}, files: []})
+  })
+
+  it('leaves the session to codex when a known session is not being resumed', () => {
+    expect(codex.connect?.plan(connectContext({harnessSessionId: 'thread-9'})).argv).toEqual(['codex'])
+  })
+
+  it('passes the conciv mcp server as a whole-table toml override', () => {
+    const argv = codex.connect?.plan(connectContext({mcpUrl: 'http://127.0.0.1:4321/api/mcp'})).argv ?? []
+    expect(argv).toEqual([
+      'codex',
+      '-c',
+      'mcp_servers={conciv={url="http://127.0.0.1:4321/api/mcp",http_headers={"conciv-session-id"="conciv_codex_test"},startup_timeout_sec=30}}',
+    ])
   })
 })
