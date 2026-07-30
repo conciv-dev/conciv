@@ -68,10 +68,14 @@ function walkSwiftSources(dir: string): string[] {
   })
 }
 
-function collectSwiftSources(root: string): string[] {
-  const sourcesDir = join(root, 'Sources')
-  if (!existsSync(sourcesDir)) return []
-  return walkSwiftSources(sourcesDir).toSorted()
+function resolveSourceRoot(root: string, dir: string): string {
+  return dir.startsWith('/') ? dir : join(root, dir)
+}
+
+function collectSwiftSources(root: string, extraSourceDirs: string[]): string[] {
+  const roots = [join(root, 'Sources'), ...extraSourceDirs.map((dir) => resolveSourceRoot(root, dir))]
+  const files = roots.filter((dir) => existsSync(dir)).flatMap(walkSwiftSources)
+  return [...new Set(files)].toSorted()
 }
 
 function swiftTarget(): string {
@@ -156,7 +160,7 @@ async function buildSwiftc(ctx: IosToolContext, config: IosConfig, clean: boolea
     return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics}
   }
   const sdkPath = stdoutText(sdk).trim()
-  const sources = collectSwiftSources(root)
+  const sources = collectSwiftSources(root, config.extraSourceDirs ?? [])
   mkdirSync(appDir, {recursive: true})
 
   const compile = await ctx.runner.run(
@@ -185,7 +189,14 @@ async function buildSwiftc(ctx: IosToolContext, config: IosConfig, clean: boolea
     {cwd: root, env},
   )
   const diagnostics = parseDiagnostics(`${stdoutText(compile)}\n${compile.stderr}`)
-  if (compile.code !== 0) return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics}
+  if (compile.code !== 0) {
+    return {
+      ok: false,
+      appPath: null,
+      durationMs: Date.now() - started,
+      diagnostics: commandFailureDiagnostics(compile, 'swiftc failed'),
+    }
+  }
 
   const infoPlist = join(root, 'Info.plist')
   if (!existsSync(infoPlist)) {
@@ -201,7 +212,12 @@ async function buildSwiftc(ctx: IosToolContext, config: IosConfig, clean: boolea
     env,
   })
   if (plist.code !== 0) {
-    return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics: packagingDiagnostics(plist)}
+    return {
+      ok: false,
+      appPath: null,
+      durationMs: Date.now() - started,
+      diagnostics: commandFailureDiagnostics(plist, 'plutil failed to convert Info.plist'),
+    }
   }
   writeFileSync(join(appDir, 'PkgInfo'), 'APPL????')
   const signed = await ctx.runner.run('codesign', ['--force', '--sign', '-', '--timestamp=none', appDir], {
@@ -209,13 +225,19 @@ async function buildSwiftc(ctx: IosToolContext, config: IosConfig, clean: boolea
     env,
   })
   if (signed.code !== 0) {
-    return {ok: false, appPath: null, durationMs: Date.now() - started, diagnostics: packagingDiagnostics(signed)}
+    return {
+      ok: false,
+      appPath: null,
+      durationMs: Date.now() - started,
+      diagnostics: commandFailureDiagnostics(signed, 'codesign failed'),
+    }
   }
   return {ok: true, appPath: appDir, durationMs: Date.now() - started, diagnostics}
 }
 
-function packagingDiagnostics(result: RunResult): Diagnostic[] {
-  return parseDiagnostics(`${stdoutText(result)}\n${result.stderr}`)
+function commandFailureDiagnostics(result: RunResult, fallback: string): Diagnostic[] {
+  const parsed = parseDiagnostics(`${stdoutText(result)}\n${result.stderr}`)
+  return reportedDiagnostics(parsed, false, result, fallback)
 }
 
 function missingPlistDiagnostic(path: string): Diagnostic {
@@ -265,9 +287,22 @@ async function resolveUdid(ctx: IosToolContext, config: IosConfig): Promise<stri
   return (booted ?? matches[0])?.udid ?? null
 }
 
-async function resolveAppPath(ctx: IosToolContext, config: IosConfig): Promise<string | null> {
-  if (config.buildMode === 'swiftc') return join(projectDir(config, ctx.cwd), 'build', `${moduleName(config)}.app`)
-  return resolveXcodebuildAppPath(ctx, config)
+type AppArtifact = {ok: true; appPath: string} | {ok: false; error: string}
+
+function missingArtifact(path: string, mode: IosConfig['buildMode']): AppArtifact {
+  return {ok: false, error: `no built .app at ${path} (${mode} build mode): run ios.build before ios.run`}
+}
+
+async function resolveAppPath(ctx: IosToolContext, config: IosConfig): Promise<AppArtifact> {
+  if (config.buildMode === 'swiftc') {
+    const appPath = join(projectDir(config, ctx.cwd), 'build', `${moduleName(config)}.app`)
+    return existsSync(appPath) ? {ok: true, appPath} : missingArtifact(appPath, 'swiftc')
+  }
+  const resolved = await resolveXcodebuildAppPath(ctx, config)
+  if (resolved === null) {
+    return {ok: false, error: 'no built .app found in the xcodebuild settings: run ios.build before ios.run'}
+  }
+  return existsSync(resolved) ? {ok: true, appPath: resolved} : missingArtifact(resolved, 'xcodebuild')
 }
 
 function resolveConcivUrl(config: IosConfig, ctx: IosToolContext): string | undefined {
@@ -331,13 +366,16 @@ export async function runRun(ctx: IosToolContext, input: {autoshow?: boolean}): 
   const booted = await ctx.runner.run('xcrun', ['simctl', 'bootstatus', udid, '-b'], {env})
   if (booted.code !== 0)
     return runFailure(udid, config.bundleId, 'boot', commandError(booted, 'simulator failed to boot'))
-  const appPath = await resolveAppPath(ctx, config)
-  if (!appPath) {
-    return runFailure(udid, config.bundleId, 'artifact', 'no built .app found: run ios.build before ios.run')
-  }
-  const installed = await ctx.runner.run('xcrun', ['simctl', 'install', udid, appPath], {env})
+  const artifact = await resolveAppPath(ctx, config)
+  if (!artifact.ok) return runFailure(udid, config.bundleId, 'artifact', artifact.error)
+  const installed = await ctx.runner.run('xcrun', ['simctl', 'install', udid, artifact.appPath], {env})
   if (installed.code !== 0) {
-    return runFailure(udid, config.bundleId, 'install', commandError(installed, `simctl install failed for ${appPath}`))
+    return runFailure(
+      udid,
+      config.bundleId,
+      'install',
+      commandError(installed, `simctl install failed for ${artifact.appPath}`),
+    )
   }
   await ctx.runner.run('xcrun', ['simctl', 'terminate', udid, config.bundleId], {env})
   const launched = await ctx.runner.run('xcrun', ['simctl', 'launch', udid, config.bundleId], {

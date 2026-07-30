@@ -71,6 +71,24 @@ function tempSwiftProject(): string {
   return root
 }
 
+function tempTwoRootSwiftProject(): {root: string; extraSourceDir: string} {
+  const parent = mkdtempSync(join(tmpdir(), 'conciv-ios-roots-'))
+  const root = join(parent, 'ConcivDemo')
+  mkdirSync(join(root, 'Sources'), {recursive: true})
+  writeFileSync(join(root, 'Sources', 'App.swift'), 'let app = 1\n')
+  writeFileSync(join(root, 'Info.plist'), '<plist></plist>')
+  const extraSourceDir = join(parent, 'ConcivWidget', 'Sources', 'ConcivWidget')
+  mkdirSync(extraSourceDir, {recursive: true})
+  writeFileSync(join(extraSourceDir, 'Overlay.swift'), 'let overlay = 1\n')
+  return {root, extraSourceDir}
+}
+
+function tempBuiltSwiftProject(): string {
+  const root = tempSwiftProject()
+  mkdirSync(join(root, 'build', 'pay.app'), {recursive: true})
+  return root
+}
+
 async function runFailingSwiftcBuild(scripts: Script[]) {
   const root = tempSwiftProject()
   const {runner, calls} = fakeRunner(scripts)
@@ -106,6 +124,33 @@ describe('ios.build swiftc mode', () => {
     expect(compile?.args).toContain('-target')
     expect(compile?.args.some((arg) => arg.endsWith('Broken.swift'))).toBe(true)
     expect(compile?.opts?.env?.DEVELOPER_DIR).toBe('/Applications/Xcode.app/Contents/Developer')
+  })
+
+  it('reports the raw swiftc stderr as a diagnostic when the failure has no canonical error lines', async () => {
+    const {diagnostics} = await runFailingSwiftcBuild([
+      {when: (call) => has(call, '--show-sdk-path'), reply: {stdout: '/sdk/iphonesimulator'}},
+      {
+        when: (call) => has(call, 'swiftc'),
+        reply: {code: 1, stderr: "error: unable to load standard library for target 'arm64-apple-ios17.0-simulator'"},
+      },
+    ])
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]?.severity).toBe('error')
+    expect(diagnostics[0]?.message).toContain('unable to load standard library')
+  })
+
+  it('compiles the project Sources tree together with the configured extra source roots', async () => {
+    const {root, extraSourceDir} = tempTwoRootSwiftProject()
+    const {runner, calls} = fakeRunner([
+      {when: (call) => has(call, '--show-sdk-path'), reply: {stdout: '/sdk/iphonesimulator'}},
+    ])
+    const config = swiftcConfig(root, {extraSourceDirs: ['../ConcivWidget/Sources/ConcivWidget']})
+    const result = await runBuild({config, runner, cwd: root}, {})
+    if ('error' in result) throw new Error('unexpected not-configured')
+    expect(result.ok).toBe(true)
+    const compile = calls.find((call) => has(call, 'swiftc'))
+    expect(compile?.args).toContain(join(root, 'Sources', 'App.swift'))
+    expect(compile?.args).toContain(join(extraSourceDir, 'Overlay.swift'))
   })
 
   it('returns ok and the assembled .app path on a clean compile, honoring developerDir override', async () => {
@@ -217,7 +262,7 @@ describe('parseXcodebuildAppPath', () => {
 })
 
 function launchScenario(): {root: string; runner: SimctlRunner; calls: Call[]} {
-  const root = tempSwiftProject()
+  const root = tempBuiltSwiftProject()
   const {runner, calls} = fakeRunner([
     {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
     {when: (call) => has(call, 'launch'), reply: {stdout: 'dev.conciv.pay: 4210'}},
@@ -289,18 +334,23 @@ describe('ios.run', () => {
 
 describe('ios.build packaging steps are checked', () => {
   it('fails the build with diagnostics when plutil conversion fails', async () => {
-    const {calls} = await runFailingSwiftcBuild([
+    const {calls, diagnostics} = await runFailingSwiftcBuild([
       {when: (call) => has(call, '--show-sdk-path'), reply: {stdout: '/sdk/iphonesimulator'}},
       {when: (call) => call.cmd === 'plutil', reply: {code: 1, stderr: 'plutil: Info.plist is not a valid plist'}},
     ])
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]?.message).toContain('is not a valid plist')
     expect(calls.some((call) => call.cmd === 'codesign')).toBe(false)
   })
 
-  it('fails the build when codesign fails', async () => {
-    await runFailingSwiftcBuild([
+  it('fails the build with the codesign stderr as a diagnostic when codesign fails', async () => {
+    const {diagnostics} = await runFailingSwiftcBuild([
       {when: (call) => has(call, '--show-sdk-path'), reply: {stdout: '/sdk/iphonesimulator'}},
       {when: (call) => call.cmd === 'codesign', reply: {code: 1, stderr: 'codesign: bundle format unrecognized'}},
     ])
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]?.severity).toBe('error')
+    expect(diagnostics[0]?.message).toContain('bundle format unrecognized')
   })
 
   it('fails the build when Info.plist is missing rather than reporting an uninstallable bundle', async () => {
@@ -322,7 +372,7 @@ describe('ios.build packaging steps are checked', () => {
 
 describe('ios.run install and device selection', () => {
   it('fails without terminating or launching when simctl install fails', async () => {
-    const root = tempSwiftProject()
+    const root = tempBuiltSwiftProject()
     const {runner, calls} = fakeRunner([
       {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
       {when: (call) => has(call, 'install'), reply: {code: 1, stderr: 'Failed to install the requested application'}},
@@ -335,7 +385,7 @@ describe('ios.run install and device selection', () => {
   })
 
   it('skips an unavailable duplicate-named runtime and picks the available simulator', async () => {
-    const root = tempSwiftProject()
+    const root = tempBuiltSwiftProject()
     const devices = {
       devices: {
         'com.apple.CoreSimulator.SimRuntime.iOS-17-0': [
@@ -393,8 +443,21 @@ describe('ios.run failure stages are diagnosable', () => {
     expect(result.error).toContain('ios.build')
   })
 
-  it('reports the install stage with the command stderr and stops before terminate/launch', async () => {
+  it('reports the artifact stage naming the missing bundle when the project was never built', async () => {
     const root = tempSwiftProject()
+    const {runner, calls} = fakeRunner([
+      {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
+    ])
+    const result = await failedRun({config: swiftcConfig(root), runner, cwd: root, nativeUrl: () => undefined})
+    expect(result.stage).toBe('artifact')
+    expect(result.error).toContain(join(root, 'build', 'pay.app'))
+    expect(result.error).toContain('swiftc')
+    expect(result.error).toContain('ios.build')
+    expect(calls.some((call) => has(call, 'install'))).toBe(false)
+  })
+
+  it('reports the install stage with the command stderr and stops before terminate/launch', async () => {
+    const root = tempBuiltSwiftProject()
     const {runner, calls} = fakeRunner([
       {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
       {when: (call) => has(call, 'install'), reply: {code: 1, stderr: 'Failed to install the requested application'}},
@@ -407,7 +470,7 @@ describe('ios.run failure stages are diagnosable', () => {
   })
 
   it('reports the launch stage with the command stderr when simctl launch fails', async () => {
-    const root = tempSwiftProject()
+    const root = tempBuiltSwiftProject()
     const {runner} = fakeRunner([
       {when: (call) => has(call, 'list'), reply: {stdout: transcript('simctl-list.json')}},
       {when: (call) => has(call, 'launch'), reply: {code: 1, stderr: 'The request to launch was denied'}},

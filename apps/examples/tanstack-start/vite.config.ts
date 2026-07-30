@@ -28,6 +28,7 @@ export default defineConfig(async () => {
             bundleId: 'dev.conciv.ConcivDemo',
             simulator: 'iPhone 17 Pro',
             buildMode: 'swiftc',
+            extraSourceDirs: ['../ConcivWidget/Sources/ConcivWidget'],
           },
         },
       }),

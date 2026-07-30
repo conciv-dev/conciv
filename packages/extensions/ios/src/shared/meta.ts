@@ -5,6 +5,30 @@ export {IOS_NAME} from './name.js'
 const DEFAULT_SIMULATOR = 'iPhone 17 Pro'
 export const DEFAULT_DEVELOPER_DIR = '/Applications/Xcode.app/Contents/Developer'
 
+const NATIVE_SUFFIX = '/native'
+
+const CONCIV_URL_RULE =
+  'concivUrl must be the core api base with no page path (an optional /t/<token> prefix is allowed): the swift sdk appends /native itself, see packages/extensions/ios/README.md'
+
+function withoutTrailingSlashes(raw: string): string {
+  return raw.replace(/\/+$/, '')
+}
+
+function stripNativeSuffix(raw: string): string {
+  const trimmed = withoutTrailingSlashes(raw)
+  return trimmed.endsWith(NATIVE_SUFFIX) ? withoutTrailingSlashes(trimmed.slice(0, -NATIVE_SUFFIX.length)) : trimmed
+}
+
+function isBareApiBase(raw: string): boolean {
+  try {
+    return /^(\/t\/[^/]+)?$/.test(withoutTrailingSlashes(new URL(raw).pathname))
+  } catch {
+    return false
+  }
+}
+
+const ConcivUrlSchema = z.string().url().transform(stripNativeSuffix).refine(isBareApiBase, {message: CONCIV_URL_RULE})
+
 const FullIosConfigSchema = z.object({
   projectRoot: z.string().min(1),
   scheme: z.string().min(1).optional(),
@@ -12,7 +36,8 @@ const FullIosConfigSchema = z.object({
   simulator: z.string().default(DEFAULT_SIMULATOR),
   developerDir: z.string().optional(),
   buildMode: z.enum(['xcodebuild', 'swiftc']).default('xcodebuild'),
-  concivUrl: z.string().url().optional(),
+  extraSourceDirs: z.array(z.string()).optional(),
+  concivUrl: ConcivUrlSchema.optional(),
 })
 
 function emptyToUndefined(raw: unknown): unknown {
@@ -42,12 +67,6 @@ export const IOS_SYSTEM_PROMPT = [
   'accessibility identifiers map to Swift files: a class name like PaymentCardCell lives in a Swift',
   'file, so grep for "class PaymentCardCell" under the project root to find and edit it.',
   'After you edit Swift, verify with the loop: ios.build, then ios.run, then ios.screenshot.',
-  'One workspace needs a different rebuild: the conciv demo app, recognizable by a build.sh next to a',
-  'run.sh under native/swift/ConcivDemo. It compiles the app together with the live ConcivWidget SDK',
-  'source tree, which the ios.build swiftc path does not include, so ios.build alone tests stale SDK code',
-  'there. When those scripts are present, rebuild with ./native/swift/ConcivDemo/build.sh (a single-module',
-  'swiftc of the app plus the SDK tree that exports its own DEVELOPER_DIR) and relaunch with',
-  './native/swift/ConcivDemo/run.sh; a normal iOS project has no such scripts and uses the ios.* loop above.',
   'SwiftUI views are only pickable when the developer anchors them with the .concivGrab(id:) modifier.',
   'Unanchored SwiftUI content is not pickable, so if a grab returns nothing there, ask the developer to',
   'add a .concivGrab(id:) anchor rather than assuming the view is missing.',
