@@ -2,6 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process'
 import {mkdtemp, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {until} from '@conciv/harness-testkit/until'
 
 export type WranglerDev = {
   stop: () => Promise<void>
@@ -9,12 +10,14 @@ export type WranglerDev = {
 
 const SITE_ROOT = join(import.meta.dirname, '..')
 const FORCE_KILL_DELAY = 5_000
+const GROUP_EXIT_TIMEOUT = 20_000
 
-function signalGroup(groupId: number, signal: NodeJS.Signals): void {
+function signalGroup(groupId: number, signal: NodeJS.Signals | 0): boolean {
   try {
     process.kill(-groupId, signal)
+    return true
   } catch {
-    return
+    return false
   }
 }
 
@@ -29,8 +32,12 @@ async function stopProcessTree(site: ChildProcess): Promise<void> {
   const exited = whenExited(site)
   signalGroup(groupId, 'SIGTERM')
   const forceKill = setTimeout(() => signalGroup(groupId, 'SIGKILL'), FORCE_KILL_DELAY)
-  await exited
-  clearTimeout(forceKill)
+  try {
+    await exited
+    await until(() => signalGroup(groupId, 0) === false, {hangGuardMs: GROUP_EXIT_TIMEOUT, intervalMs: 50})
+  } finally {
+    clearTimeout(forceKill)
+  }
 }
 
 function whenReady(site: ChildProcess): Promise<void> {
@@ -63,11 +70,15 @@ export async function startWranglerDev(options: {port: number; inspectorPort: nu
     ],
     {cwd: SITE_ROOT, detached: true},
   )
-  await whenReady(site)
-  return {
-    stop: async () => {
-      await stopProcessTree(site)
-      await rm(persistDirectory, {recursive: true, force: true})
-    },
+  const stop = async () => {
+    await stopProcessTree(site)
+    await rm(persistDirectory, {recursive: true, force: true})
   }
+  try {
+    await whenReady(site)
+  } catch (error) {
+    await stop()
+    throw error
+  }
+  return {stop}
 }
