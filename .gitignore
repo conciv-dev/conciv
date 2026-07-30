@@ -16,6 +16,7 @@ coverage/
 .aidx/
 # Claude Code local worktrees (git worktrees created under the repo)
 .claude/worktrees/
+.claude-worktrees/
 
 *storybook.log
 storybook-static
@@ -51,3 +52,4 @@ e2e/*/src/routeTree.gen.ts
 .build/
 .swiftpm/
 *.xcresult
+
