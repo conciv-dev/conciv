@@ -17,6 +17,23 @@ function ApiBaseProbe(): JSX.Element {
 
 const apiBaseProbe = defineExtension({name: 'api-base-probe', Surface: ApiBaseProbe}).client(() => ({value: {}}))
 
+function mountBaseProbe(label: string): () => JSX.Element {
+  return () => {
+    const mountedBase = getHostApi().useApiBase()()
+    return (
+      <output aria-label={label} style={{position: 'fixed', bottom: '0', right: '0', opacity: '0'}}>
+        {mountedBase}
+      </output>
+    )
+  }
+}
+
+const mountProbe = defineExtension({
+  name: 'mount-probe',
+  Surface: mountBaseProbe('surface mount api base'),
+  views: [{id: 'mount-probe', label: 'Mount probe', Component: mountBaseProbe('view mount api base')}],
+}).client(() => ({value: {}}))
+
 export function makeHandle(apiBase: string): ConcivHandle {
-  return createConciv({extensions: [terminal, apiBaseProbe], apiBase})
+  return createConciv({extensions: [terminal, apiBaseProbe, mountProbe], apiBase})
 }

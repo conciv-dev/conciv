@@ -37,6 +37,14 @@ async function sendTurn(page: Page, text: string): Promise<void> {
   await page.getByRole('button', {name: 'Send message'}).click()
 }
 
+async function openPanelTabs(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog', {name: 'conciv chat agent'})
+  const opener = page.getByRole('button', {name: 'Open conciv chat'})
+  await expect.poll(async () => (await dialog.isVisible()) || (await opener.isVisible()), {timeout: 30_000}).toBe(true)
+  if (!(await dialog.isVisible())) await opener.click()
+  await expect.poll(() => page.getByRole('tab', {name: 'Mount probe'}).isVisible(), {timeout: 30_000}).toBe(true)
+}
+
 async function panelSession(): Promise<string | null> {
   const state = await kit.rpc.navigation.get(undefined)
   const entry = state?.entries.find((row) => row.href.startsWith('/panel/'))
@@ -97,6 +105,49 @@ describe('handle.rebind survives same-core port drift', () => {
     expect(proxyB.requestCount()).toBeGreaterThan(beforeB)
     expect(await panelSession()).toBe(sessionBefore)
     expect(sessionBefore).not.toBeNull()
+    expect(pageErrors).toEqual([])
+    await page.close()
+  })
+})
+
+describe('handle.rebind remounts extension surfaces on the new core', () => {
+  let proxyC: ProxyCore
+  let proxyD: ProxyCore
+
+  beforeAll(async () => {
+    proxyC = await proxyTo(kit.base)
+    proxyD = await proxyTo(kit.base)
+  })
+
+  afterAll(async () => {
+    await proxyD.close()
+  })
+
+  it('rebuilds the global surface and the open extension view against the new base', async () => {
+    const page = await browser.newPage()
+    const pageErrors: string[] = []
+    page.on('pageerror', (error) => pageErrors.push(String(error)))
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+
+    await mountHandle(page, proxyC.base)
+    await openPanelTabs(page)
+
+    const surfaceProbe = page.getByRole('status', {name: 'surface mount api base'})
+    const viewProbe = page.getByRole('status', {name: 'view mount api base'})
+    await expect.poll(() => surfaceProbe.textContent(), {timeout: 30_000}).toBe(proxyC.base)
+
+    const probeTab = page.getByRole('tab', {name: 'Mount probe'})
+    await probeTab.click()
+    await expect.poll(() => viewProbe.textContent(), {timeout: 30_000}).toBe(proxyC.base)
+
+    const beforeD = proxyD.requestCount()
+    await page.evaluate((base) => window.concivTestHandle.rebind(base), proxyD.base)
+    await proxyC.close()
+
+    await expect.poll(() => surfaceProbe.textContent(), {timeout: 15_000}).toBe(proxyD.base)
+    await expect.poll(() => viewProbe.textContent(), {timeout: 15_000}).toBe(proxyD.base)
+    await expect.poll(() => probeTab.getAttribute('aria-selected'), {timeout: 15_000}).toBe('true')
+    expect(proxyD.requestCount()).toBeGreaterThan(beforeD)
     expect(pageErrors).toEqual([])
     await page.close()
   })

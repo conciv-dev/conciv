@@ -2,7 +2,7 @@ import {createFileRoute, useBlocker, useRouter} from '@tanstack/solid-router'
 import {For, Show, createMemo, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension'
 import {MountedView} from '@conciv/extension/client'
-import {useAppData, useInstances, useRpc} from '../app/context.js'
+import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
@@ -19,9 +19,14 @@ function PanelView(): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
+  const generation = useConnectionGeneration()
 
   const views = createMemo(() => collectViews(instances))
   const view = () => views().find((candidate) => candidate.id === params().view)
+  const mountKey = () => {
+    const active = view()
+    return active ? {view: active, generation: generation()} : undefined
+  }
 
   useBlocker({
     shouldBlockFn: ({current, next}) =>
@@ -48,8 +53,8 @@ function PanelView(): JSX.Element {
   }
 
   return (
-    <Show when={view()}>
-      {(active) => (
+    <Show when={mountKey()} keyed>
+      {(mount) => (
         <HostApiProvider
           sessionId={() => params().sessionId}
           grab={makePaneGrabApi(pane.grabStore, pane.grabProvider)}
@@ -80,7 +85,7 @@ function PanelView(): JSX.Element {
                 </For>
               </div>
             </Show>
-            <MountedView view={active()} clientValue={active().instance.clientValue} />
+            <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
           </div>
         </HostApiProvider>
       )}
