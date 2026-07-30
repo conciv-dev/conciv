@@ -2,7 +2,7 @@ import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
 import {installReactBridge} from '../src/react-bridge.js'
 import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
 import {createRoot, type Root} from 'react-dom/client'
-import {FixtureApp} from './fixtures/react-app.js'
+import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 
 let container: HTMLElement
 let reactRoot: Root
@@ -18,7 +18,6 @@ beforeAll(async () => {
   container = document.createElement('div')
   container.innerHTML = `
     <input id="field" type="text" />
-    <input id="box" type="checkbox" />
     <form id="frm"><button id="inner" type="button">inner</button></form>
     <p id="prose">hello page</p>
   `
@@ -26,7 +25,12 @@ beforeAll(async () => {
   const mount = document.createElement('div')
   container.appendChild(mount)
   reactRoot = createRoot(mount)
-  reactRoot.render(<FixtureApp />)
+  reactRoot.render(
+    <>
+      <FixtureApp />
+      <ControlledForm />
+    </>,
+  )
   driver = makeDomPageDriver()
   await vi.waitFor(() => {
     if (!document.querySelector('[data-fixture="leaf"]')) throw new Error('fixture not rendered yet')
@@ -66,14 +70,36 @@ describe('dom verbs', () => {
     expect(document.querySelector('[data-conciv-cursor]')).not.toBeNull()
   })
 
-  it('fills, checks, and unchecks form fields with native events', async () => {
+  it('fills form fields with native events', async () => {
     expect(await resultOf({kind: 'fill', selector: '#field', value: 'typed'})).toEqual({ok: true, value: 'typed'})
     expect(await resultOf({kind: 'value', selector: '#field'})).toEqual({value: 'typed'})
-    expect(await resultOf({kind: 'check', selector: '#box'})).toEqual({ok: true, checked: true})
-    expect(await resultOf({kind: 'uncheck', selector: '#box'})).toEqual({ok: true, checked: false})
     expect(await resultOf({kind: 'fill', selector: '#prose', value: 'x'})).toEqual({
       error: 'fill target is not an input/textarea/select',
     })
+  })
+
+  it('drives React-controlled checkboxes and radios so component state follows', async () => {
+    const formState = (): string => document.body.textContent ?? ''
+
+    expect(await resultOf({kind: 'check', selector: '#subscribe'})).toEqual({ok: true, checked: true})
+    await expect.poll(formState).toContain('subscribed: true')
+
+    expect(await resultOf({kind: 'check', selector: '#subscribe'})).toEqual({ok: true, checked: true})
+    await expect.poll(formState).toContain('subscribed: true')
+
+    expect(await resultOf({kind: 'uncheck', selector: '#subscribe'})).toEqual({ok: true, checked: false})
+    await expect.poll(formState).toContain('subscribed: false')
+
+    expect(await resultOf({kind: 'check', selector: '#plan-pro'})).toEqual({ok: true, checked: true})
+    await expect.poll(formState).toContain('plan: pro')
+
+    expect(await resultOf({kind: 'uncheck', selector: '#plan-pro'})).toEqual({
+      error: 'cannot uncheck a radio; check another radio in the same group instead',
+    })
+    await expect.poll(formState).toContain('plan: pro')
+
+    expect(await resultOf({kind: 'check', selector: '#plan-free'})).toEqual({ok: true, checked: true})
+    await expect.poll(formState).toContain('plan: free')
   })
 
   it('mutates attributes, classes, styles, text, and structure', async () => {
@@ -96,7 +122,7 @@ describe('dom verbs', () => {
     expect(route.pathname).toBe(location.pathname)
     expect(await resultOf({kind: 'exists', selector: '#frm'})).toEqual({exists: true, count: 1})
     const query = await resultOf({kind: 'query', selector: 'input'})
-    expect(query.count).toBe(2)
+    expect(query.count).toBe(4)
   })
 
   it('waits for visibility and times out with an explanation', async () => {

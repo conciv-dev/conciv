@@ -94,6 +94,15 @@ function isField(el: Element): el is HTMLInputElement | HTMLSelectElement | HTML
   return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
 }
 
+function toggleChecked(el: Element, desired: boolean, verb: 'check' | 'uncheck'): PageResult {
+  if (!(el instanceof HTMLInputElement)) return err(`${verb} target is not an input`)
+  if (el.checked === desired) return ok({checked: desired})
+  if (el.type === 'radio' && !desired)
+    return err('cannot uncheck a radio; check another radio in the same group instead')
+  el.click()
+  return ok({checked: el.checked})
+}
+
 function onEl(fn: (el: Element, query: PageQuery) => PageResult): PageHandler {
   return ({el, query}) => (el ? fn(el, query) : err('no target element'))
 }
@@ -252,18 +261,8 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     fireInput(el)
     return ok({value: el.value})
   }),
-  check: onEl((el) => {
-    if (!(el instanceof HTMLInputElement)) return err('check target is not an input')
-    setNative(el, 'checked', true)
-    fireInput(el)
-    return ok({checked: true})
-  }),
-  uncheck: onEl((el) => {
-    if (!(el instanceof HTMLInputElement)) return err('uncheck target is not an input')
-    setNative(el, 'checked', false)
-    fireInput(el)
-    return ok({checked: false})
-  }),
+  check: onEl((el) => toggleChecked(el, true, 'check')),
+  uncheck: onEl((el) => toggleChecked(el, false, 'uncheck')),
   press: onEl((el, query) => {
     const key = query.key ?? ''
     el.dispatchEvent(new KeyboardEvent('keydown', {key, bubbles: true}))
