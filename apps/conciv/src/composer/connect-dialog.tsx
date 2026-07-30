@@ -1,31 +1,191 @@
 import {For, Match, Show, Switch, splitProps, type JSX} from 'solid-js'
-import {Button, Dialog} from '@conciv/ui-kit-system'
+import {Button, Dialog, RelativeTime} from '@conciv/ui-kit-system'
+import {TerminalPreview} from '@conciv/ui-kit-terminal'
 import type {LiveSession} from '@conciv/contract'
+import {PREVIEW_COLS, renderTranscriptTail} from './transcript-tail-ansi.js'
 
 export type PickingStep = {step: 'picking'; candidates: LiveSession[]}
-export type ConnectedStep = {step: 'connected'; reloadCommand: string}
+export type ReloadStep = {step: 'reload'; session: LiveSession; command: string; candidates: LiveSession[]}
 export type SnippetStep = {step: 'snippet'; command: string; detail: string}
 
-export type ConnectStep = PickingStep | ConnectedStep | SnippetStep
+export type ConnectStep = PickingStep | ReloadStep | SnippetStep
 
-const ROW =
-  'flex flex-col gap-0.5 items-start w-full text-left py-2 px-2.5 rounded-pw-md [border:none] bg-transparent text-pw-text cursor-pointer trans-color-bg hover:bg-pw-fill-strong'
+export const UNTITLED_SESSION = 'Untitled, just started'
+export const ONE_TIME_SETUP = 'one-time setup'
+
+const ROW = 'flex flex-col gap-1.5 list-none'
+const ROW_HEAD =
+  'flex flex-col gap-1 items-start w-full text-left py-2 px-2.5 rounded-pw-md [border:none] bg-transparent text-pw-text cursor-pointer trans-color-bg hover:bg-pw-fill-strong'
+const TITLE_LINE = 'flex items-center gap-2 w-full min-w-0'
+const TITLE = 'text-sm font-semibold truncate min-w-0'
+const META = 'text-pw-text-3 text-xs'
+const DOT_IDLE = 'size-2 rounded-pw-pill bg-pw-text-3 shrink-0'
+const DOT_WORKING = 'size-2 rounded-pw-pill bg-pw-success shrink-0 anim-pulse'
+const BADGE =
+  'shrink-0 px-1.5 py-0.5 rounded-pw-pill text-[0.625rem] font-semibold uppercase tracking-wide text-pw-warn bg-pw-warn-20 border border-pw-warn'
+const PREVIEW = 'rounded-pw-sm bg-pw-sunken border border-pw-line-soft p-2 overflow-hidden'
 const CODE = 'font-mono text-xs text-pw-text bg-pw-fill rounded-pw-sm py-1.5 px-2 break-all'
+const LINK =
+  'self-start [border:none] bg-transparent p-0 text-xs text-pw-accent-link cursor-pointer underline underline-offset-2'
+const WAITING = 'flex items-center gap-2 text-pw-text-3 text-xs'
+const SPINNER = 'size-2 rounded-pw-pill bg-pw-accent anim-pulse shrink-0'
+const CONNECTED = 'flex items-center gap-2 text-pw-success text-xs m-0'
+const CONNECTED_DOT = 'size-2 rounded-pw-pill bg-pw-success shrink-0'
 
-function statusHint(session: LiveSession): string {
-  if (session.status === 'busy') return 'Working now. Let the current turn finish first.'
-  if (session.status === 'shell') return 'In a shell. Exit the ! shell first.'
-  return 'Idle and ready.'
+const PREVIEW_THEME = {background: '#000000', foreground: '#d6d6de'}
+
+export function candidateTitle(session: LiveSession): string {
+  return session.title.trim() === '' ? UNTITLED_SESSION : session.title
 }
 
-function cwdHint(session: LiveSession): string {
-  if (session.relation === 'ancestor') return `Started higher up, in ${session.cwd}.`
-  if (session.relation === 'descendant') return `Started in a subfolder, ${session.cwd}.`
-  return session.cwd
+function metaLine(session: LiveSession): string {
+  const activity = session.working ? 'working' : 'idle'
+  const plural = session.messageCount === 1 ? 'message' : 'messages'
+  return `${session.name} · ${activity} · ${session.messageCount} ${plural} · active`
+}
+
+function subtitle(count: number): string {
+  const noun = count === 1 ? 'Claude session is' : 'Claude sessions are'
+  return `${count} ${noun} running in this project. Pick the one this panel should follow.`
+}
+
+function CandidateRow(props: {session: LiveSession; onPick: (session: LiveSession) => void}): JSX.Element {
+  return (
+    <li class={ROW}>
+      <button type="button" class={ROW_HEAD} onClick={() => props.onPick(props.session)}>
+        <span class={TITLE_LINE}>
+          <span class={props.session.working ? DOT_WORKING : DOT_IDLE} />
+          <span class={TITLE}>{candidateTitle(props.session)}</span>
+          <Show when={!props.session.ready}>
+            <span class={BADGE}>{ONE_TIME_SETUP}</span>
+          </Show>
+        </span>
+        <span class={META}>
+          {metaLine(props.session)} <RelativeTime value={new Date(props.session.lastActivityAt)} />
+          <Show when={!props.session.ready}>
+            <span> · needs one reload in that terminal</span>
+          </Show>
+        </span>
+      </button>
+      <div class={PREVIEW}>
+        <TerminalPreview
+          content={renderTranscriptTail(props.session.tail, {working: props.session.working})}
+          cols={PREVIEW_COLS}
+          theme={PREVIEW_THEME}
+        />
+      </div>
+    </li>
+  )
+}
+
+function PickingView(props: {
+  candidates: LiveSession[]
+  onPick: (session: LiveSession) => void
+  onClose: () => void
+  onLaunch: () => void
+}): JSX.Element {
+  return (
+    <>
+      <p class="text-pw-text-3 text-xs leading-normal">{subtitle(props.candidates.length)}</p>
+      <Show
+        when={props.candidates.length > 0}
+        fallback={
+          <>
+            <p class="text-pw-text text-sm">No claude session is running in this project.</p>
+            <p class="text-pw-text-3 text-xs leading-normal">
+              Open a new connected session instead, and this panel follows it from the start.
+            </p>
+          </>
+        }
+      >
+        <ul class="flex flex-col gap-3 list-none m-0 p-0 max-h-[26rem] overflow-y-auto">
+          <For each={props.candidates}>{(session) => <CandidateRow session={session} onPick={props.onPick} />}</For>
+        </ul>
+      </Show>
+      <div class="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={() => props.onClose()}>
+          Cancel
+        </Button>
+        <Show when={props.candidates.length === 0}>
+          <Button size="sm" onClick={() => props.onLaunch()}>
+            Open a new session
+          </Button>
+        </Show>
+      </div>
+    </>
+  )
+}
+
+function ReloadView(props: {
+  state: ReloadStep
+  connected: boolean
+  onCopy: (text: string) => void
+  onBack: () => void
+  onDone: () => void
+}): JSX.Element {
+  return (
+    <>
+      <p class="text-pw-text text-sm leading-normal">
+        Following <strong>{candidateTitle(props.state.session)}</strong>.
+      </p>
+      <p class="text-pw-text-3 text-xs leading-normal">
+        That session started before conciv was installed, so one step happens in the terminal. Run this there once, and
+        never again in this project.
+      </p>
+      <code class={CODE}>{props.state.command}</code>
+      <div class="flex justify-between items-center gap-2">
+        <button type="button" class={LINK} onClick={() => props.onBack()}>
+          Back to the list
+        </button>
+        <Button variant="ghost" size="sm" onClick={() => props.onCopy(props.state.command)}>
+          Copy command
+        </Button>
+      </div>
+      <Show
+        when={props.connected}
+        fallback={
+          <p class={WAITING} role="status">
+            <span class={SPINNER} />
+            Waiting for the session to dial in. This flips by itself.
+          </p>
+        }
+      >
+        <div class="flex justify-between items-center gap-2">
+          <p class={CONNECTED} role="status">
+            <span class={CONNECTED_DOT} />
+            Connected. Keep talking in either place.
+          </p>
+          <Button size="sm" onClick={() => props.onDone()}>
+            Done
+          </Button>
+        </div>
+      </Show>
+    </>
+  )
+}
+
+function SnippetView(props: {state: SnippetStep; onCopy: (text: string) => void; onClose: () => void}): JSX.Element {
+  return (
+    <>
+      <p class="text-pw-text text-sm leading-normal">{props.state.detail}</p>
+      <p class="text-pw-text-3 text-xs leading-normal">
+        Quit that session and start it again with this command instead.
+      </p>
+      <code class={CODE}>{props.state.command}</code>
+      <div class="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={() => props.onCopy(props.state.command)}>
+          Copy command
+        </Button>
+        <Button size="sm" onClick={() => props.onClose()}>
+          Close
+        </Button>
+      </div>
+    </>
+  )
 }
 
 const picking = (state: ConnectStep): PickingStep | undefined => (state.step === 'picking' ? state : undefined)
-const connected = (state: ConnectStep): ConnectedStep | undefined => (state.step === 'connected' ? state : undefined)
+const reloading = (state: ConnectStep): ReloadStep | undefined => (state.step === 'reload' ? state : undefined)
 const snippet = (state: ConnectStep): SnippetStep | undefined => (state.step === 'snippet' ? state : undefined)
 
 export function ConnectSessionDialog(props: {
@@ -34,102 +194,56 @@ export function ConnectSessionDialog(props: {
   onCopy: (text: string) => void
   onClose: () => void
   onLaunch: () => void
+  onBack: (candidates: LiveSession[]) => void
+  onDone: (session: LiveSession) => void
+  connected: boolean
 }): JSX.Element {
-  const [local] = splitProps(props, ['state', 'onPick', 'onCopy', 'onClose', 'onLaunch'])
+  const [local] = splitProps(props, [
+    'state',
+    'onPick',
+    'onCopy',
+    'onClose',
+    'onLaunch',
+    'onBack',
+    'onDone',
+    'connected',
+  ])
   return (
     <Dialog
       open={local.state !== null}
       onOpenChange={() => local.onClose()}
       dismissable
+      size="lg"
       label="Connect a running session"
     >
       <Show when={local.state}>
         {(state) => (
           <div class="flex flex-col gap-3">
+            <h2 class="text-pw-text-hi text-sm font-semibold m-0">Connect a running session</h2>
             <Switch>
               <Match when={picking(state())}>
                 {(value) => (
-                  <>
-                    <p class="text-pw-text-3 text-xs leading-normal">
-                      Pick the terminal session you want this panel to follow.
-                    </p>
-                    <Show
-                      when={value().candidates.length > 0}
-                      fallback={
-                        <>
-                          <p class="text-pw-text text-sm">No claude session is running in this project.</p>
-                          <p class="text-pw-text-3 text-xs leading-normal">
-                            Open a new connected session instead, and this panel follows it from the start.
-                          </p>
-                        </>
-                      }
-                    >
-                      <ul class="flex flex-col gap-1 list-none m-0 p-0">
-                        <For each={value().candidates}>
-                          {(session) => (
-                            <li>
-                              <button type="button" class={ROW} onClick={() => local.onPick(session)}>
-                                <span class="text-sm font-semibold">{session.name}</span>
-                                <span class="text-pw-text-3 text-xs">{statusHint(session)}</span>
-                                <span class="text-pw-text-3 text-xs">{cwdHint(session)}</span>
-                              </button>
-                            </li>
-                          )}
-                        </For>
-                      </ul>
-                    </Show>
-                    <div class="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => local.onClose()}>
-                        Cancel
-                      </Button>
-                      <Show when={value().candidates.length === 0}>
-                        <Button size="sm" onClick={() => local.onLaunch()}>
-                          Open a new session
-                        </Button>
-                      </Show>
-                    </div>
-                  </>
+                  <PickingView
+                    candidates={value().candidates}
+                    onPick={local.onPick}
+                    onClose={local.onClose}
+                    onLaunch={local.onLaunch}
+                  />
                 )}
               </Match>
-              <Match when={connected(state())}>
+              <Match when={reloading(state())}>
                 {(value) => (
-                  <>
-                    <p class="text-pw-text text-sm leading-normal">
-                      Run this in that terminal, then keep talking in either place.
-                    </p>
-                    <code class={CODE}>{value().reloadCommand}</code>
-                    <p class="text-pw-text-3 text-xs leading-normal">
-                      Your next message re-reads the whole conversation, so the first reply costs more than usual.
-                    </p>
-                    <div class="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => local.onCopy(value().reloadCommand)}>
-                        Copy command
-                      </Button>
-                      <Button size="sm" onClick={() => local.onClose()}>
-                        Done
-                      </Button>
-                    </div>
-                  </>
+                  <ReloadView
+                    state={value()}
+                    connected={local.connected}
+                    onCopy={local.onCopy}
+                    onBack={() => local.onBack(value().candidates)}
+                    onDone={() => local.onDone(value().session)}
+                  />
                 )}
               </Match>
               <Match when={snippet(state())}>
-                {(value) => (
-                  <>
-                    <p class="text-pw-text text-sm leading-normal">{value().detail}</p>
-                    <p class="text-pw-text-3 text-xs leading-normal">
-                      Quit that session and start it again with this command instead.
-                    </p>
-                    <code class={CODE}>{value().command}</code>
-                    <div class="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => local.onCopy(value().command)}>
-                        Copy command
-                      </Button>
-                      <Button size="sm" onClick={() => local.onClose()}>
-                        Close
-                      </Button>
-                    </div>
-                  </>
-                )}
+                {(value) => <SnippetView state={value()} onCopy={local.onCopy} onClose={local.onClose} />}
               </Match>
             </Switch>
           </div>

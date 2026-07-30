@@ -1,4 +1,4 @@
-import {Show, createSignal, type JSX} from 'solid-js'
+import {Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {Crosshair, FoldVertical, SquarePen} from 'lucide-solid'
@@ -7,11 +7,14 @@ import type {Grab} from '@conciv/grab'
 import type {LiveSession} from '@conciv/contract'
 import {useAppData, useRpc} from '../app/context.js'
 import {errorMessageFor} from '../chat/external-session.js'
+import type {Notify} from '../chat/notify.js'
 import {LaunchMenu} from './launch-menu.js'
-import {ConnectSessionDialog, type ConnectStep} from './connect-dialog.js'
+import {ConnectSessionDialog, candidateTitle, type ConnectStep} from './connect-dialog.js'
 
 const ACT =
   'size-8.5 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
+
+const READY_POLL_MS = 1500
 
 function busyClass(busy: boolean): string {
   return busy ? `${ACT} opacity-60 cursor-progress` : ACT
@@ -19,7 +22,7 @@ function busyClass(busy: boolean): string {
 
 type LaunchResult = {supported: boolean; opened: boolean; command: string | null}
 
-async function copyCommand(command: string, notify: (message: string) => void): Promise<void> {
+async function copyCommand(command: string, notify: Notify): Promise<void> {
   try {
     await navigator.clipboard.writeText(command)
     notify('Command copied. Paste it in your terminal.')
@@ -34,7 +37,7 @@ export function ComposerActions(props: {
   onCompact: () => void
   onNewSession: () => void
   onStageGrab: (grab: Grab) => void
-  notify: (message: string) => void
+  notify: Notify
 }): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
@@ -54,9 +57,52 @@ export function ComposerActions(props: {
 
   const [connectStep, setConnectStep] = createSignal<ConnectStep | null>(null)
 
+  const awaitedSession = createMemo(() => {
+    const step = connectStep()
+    return step?.step === 'reload' ? step.session.sessionId : null
+  })
+
+  const readiness = useQuery(() => ({
+    queryKey: ['attach-readiness', awaitedSession()],
+    queryFn: () => rpc.sessions.attachCandidates(),
+    enabled: awaitedSession() !== null,
+    refetchInterval: READY_POLL_MS,
+  }))
+
+  const dialedIn = createMemo(() => {
+    const awaited = awaitedSession()
+    if (awaited === null) return false
+    return readiness.data?.some((session) => session.sessionId === awaited && session.ready) ?? false
+  })
+
+  const detach = () => {
+    void rpc.sessions
+      .attachDetach({sessionId: props.sessionId})
+      .then(() => appData.invalidateSessions())
+      .catch(() => props.notify('Could not hand the session back. Try the terminal menu again.'))
+  }
+
+  const announceConnected = (session: LiveSession) => {
+    props.notify(`Connected: ${candidateTitle(session)}`, {label: 'Undo', run: detach})
+  }
+
+  const candidatesNow = (fallback: LiveSession): LiveSession[] => {
+    const step = connectStep()
+    if (step?.step === 'picking') return step.candidates
+    if (step?.step === 'reload') return step.candidates
+    return [fallback]
+  }
+
   const connect = useMutation(() => ({
     mutationFn: () => rpc.sessions.attachCandidates(),
-    onSuccess: (candidates: LiveSession[]) => setConnectStep({step: 'picking', candidates}),
+    onSuccess: (candidates: LiveSession[]) => {
+      const only = candidates.length === 1 ? candidates[0] : undefined
+      if (only?.ready) {
+        adopt.mutate(only)
+        return
+      }
+      setConnectStep({step: 'picking', candidates})
+    },
     onError: () => props.notify(`Couldn’t look for running ${harnessName()} sessions.`),
   }))
 
@@ -77,9 +123,14 @@ export function ComposerActions(props: {
         pid: session.pid,
         force: session.relation === 'descendant',
       }),
-    onSuccess: (result: {sessionId: string; reloadCommand: string}) => {
+    onSuccess: (result: {sessionId: string; reloadCommand: string}, session: LiveSession) => {
       appData.invalidateSessions()
-      setConnectStep({step: 'connected', reloadCommand: result.reloadCommand})
+      if (session.ready) {
+        setConnectStep(null)
+        announceConnected(session)
+        return
+      }
+      setConnectStep({step: 'reload', session, command: result.reloadCommand, candidates: candidatesNow(session)})
     },
     onError: (error: unknown) => {
       const install = errorMessageFor(error, 'INSTALL_FAILED')
@@ -107,6 +158,12 @@ export function ComposerActions(props: {
     },
     onError: () => props.notify(`Couldn’t open ${harnessName()}.`),
   }))
+
+  const finishReload = (session: LiveSession) => {
+    setConnectStep(null)
+    appData.invalidateSessions()
+    announceConnected(session)
+  }
 
   return (
     <>
@@ -139,9 +196,12 @@ export function ComposerActions(props: {
       </Show>
       <ConnectSessionDialog
         state={connectStep()}
+        connected={dialedIn()}
         onPick={(session) => adopt.mutate(session)}
         onCopy={(text) => void copyCommand(text, props.notify)}
         onClose={() => setConnectStep(null)}
+        onBack={(candidates) => setConnectStep({step: 'picking', candidates})}
+        onDone={finishReload}
         onLaunch={() => {
           setConnectStep(null)
           launch.mutate(true)

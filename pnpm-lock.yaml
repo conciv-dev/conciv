@@ -121,6 +121,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../packages/ui-kit-system
+      '@conciv/ui-kit-terminal':
+        specifier: workspace:^
+        version: link:../../packages/ui-kit-terminal
       '@fontsource-variable/roboto-mono':
         specifier: ^5.2.9
         version: 5.2.9
@@ -1514,6 +1517,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
+      '@conciv/ui-kit-terminal':
+        specifier: workspace:^
+        version: link:../ui-kit-terminal
       '@tanstack/solid-router':
         specifier: ^1.170.17
         version: 1.170.17(solid-js@1.9.14)

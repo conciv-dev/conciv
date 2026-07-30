@@ -38,6 +38,7 @@ import {HostApiProvider} from '@conciv/extension'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ExternalSessionConfirm, externalActiveMessage, sessionAttachedMessage} from './external-session.js'
 import {ComposerActions} from '../composer/actions.js'
+import type {Notice, Notify} from './notify.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
 
@@ -49,6 +50,10 @@ const RECONNECT = 'flex gap-2 items-center text-pw-text-2 text-[0.75rem] anim-ms
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
 const DOT = 'w-1.5 h-1.5 rounded-[50%] bg-pw-text-2'
+const NOTICE =
+  'flex items-center gap-2 text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]'
+const NOTICE_ACTION =
+  'shrink-0 [border:none] bg-transparent p-0 text-[0.75rem] font-semibold text-pw-accent-link cursor-pointer underline underline-offset-2'
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {
@@ -147,13 +152,13 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId: props.sessionId}}))
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
 
-  const [notice, setNotice] = createSignal('')
+  const [notice, setNotice] = createSignal<Notice | null>(null)
   let noticeTimer: ReturnType<typeof setTimeout> | undefined
-  const notify = (message: string) => {
-    setNotice(message)
+  const notify: Notify = (message, action) => {
+    setNotice({message, action: action ?? null})
     announce(message)
     if (noticeTimer) clearTimeout(noticeTimer)
-    noticeTimer = setTimeout(() => setNotice(''), 5000)
+    noticeTimer = setTimeout(() => setNotice(null), 5000)
   }
   onCleanup(() => {
     if (noticeTimer) clearTimeout(noticeTimer)
@@ -489,9 +494,25 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                         </div>
                       </Show>
                       <Show when={notice()}>
-                        <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
-                          {notice()}
-                        </div>
+                        {(current) => (
+                          <div class={NOTICE}>
+                            <span class="flex-1">{current().message}</span>
+                            <Show when={current().action}>
+                              {(action) => (
+                                <button
+                                  type="button"
+                                  class={NOTICE_ACTION}
+                                  onClick={() => {
+                                    setNotice(null)
+                                    action().run()
+                                  }}
+                                >
+                                  {action().label}
+                                </button>
+                              )}
+                            </Show>
+                          </div>
+                        )}
                       </Show>
                       <For each={pane.grabStore.grabs()}>
                         {(grab) => (
