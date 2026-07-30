@@ -36,6 +36,7 @@ import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {HostApiProvider} from '@conciv/extension'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
+import {ExternalSessionConfirm, externalActiveMessage} from './external-session.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
@@ -106,7 +107,18 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
-  const chat = useChatSession({rpc, sessionId: props.sessionId})
+  const [externalActive, setExternalActive] = createSignal<string | null>(null)
+  const [forceSend, setForceSend] = createSignal(false)
+  const lastAttempt: {content: string | MultimodalContent | null} = {content: null}
+  const chat = useChatSession({
+    rpc,
+    sessionId: props.sessionId,
+    connection: {force: () => forceSend()},
+    onError: (error) => {
+      const message = externalActiveMessage(error)
+      if (message !== null && lastAttempt.content !== null) setExternalActive(message)
+    },
+  })
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
@@ -330,8 +342,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     })
   })
 
-  const send = async (content: string | MultimodalContent) => {
-    const sending = chat.sendMessage(content)
+  const send = async (content: string | MultimodalContent, force = false) => {
+    lastAttempt.content = content
+    setForceSend(force)
+    const sending = chat.sendMessage(content).finally(() => setForceSend(false))
     await rpc.drafts
       .set({
         sessionId: props.sessionId,
@@ -356,6 +370,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
       return
     }
     if (chat.connectionStatus() !== 'connected') return
+    setExternalActive(null)
     void send(typeof content === 'string' ? text : content)
   }
 
@@ -377,6 +392,15 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
       attach={attach}
       newSession={() => void newSession()}
     >
+      <ExternalSessionConfirm
+        message={externalActive()}
+        onCancel={() => setExternalActive(null)}
+        onSendAnyway={() => {
+          const content = lastAttempt.content
+          setExternalActive(null)
+          if (content !== null) void send(content, true)
+        }}
+      />
       <ChatProvider chat={chat}>
         <ToolProvider value={toolCtx}>
           <ComposerHandlersProvider

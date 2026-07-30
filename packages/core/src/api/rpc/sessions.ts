@@ -57,6 +57,7 @@ export function sessionsRouter(deps: RpcDeps) {
       return launchHarness(chat, {
         sessionId: input.sessionId,
         model: input.model,
+        open: input.open ?? true,
         requestUrl: context.request.url,
       })
     }),

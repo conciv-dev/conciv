@@ -1283,6 +1283,9 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit

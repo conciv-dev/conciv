@@ -54,7 +54,7 @@ export const contract = {
     stop: oc.input(SessionIdInput).output(Ok),
     launch: oc
       .errors(busy)
-      .input(SessionIdInput.extend({model: z.string().optional()}))
+      .input(SessionIdInput.extend({model: z.string().optional(), open: z.boolean().optional()}))
       .output(ChatLaunchSchema),
   },
   drafts: {

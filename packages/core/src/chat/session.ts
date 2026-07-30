@@ -271,7 +271,7 @@ function mcpUrlFor(deps: ChatDeps, requestUrl: string): string {
   return `${apiBaseFrom(requestUrl, deps.basePath)}/api/mcp`
 }
 
-export type LaunchOptions = {sessionId: string; model?: string; requestUrl: string}
+export type LaunchOptions = {sessionId: string; model?: string; open?: boolean; requestUrl: string}
 
 async function harnessToken(deps: ChatDeps, sessionId: string): Promise<{token: string; resume: boolean}> {
   const existing = await resumeTokenFor(deps.db, sessionId)
@@ -309,7 +309,7 @@ export async function launchHarness(deps: ChatDeps, opts: LaunchOptions): Promis
   const {opened, command} = await executeConnectPlan(plan, {
     cwd: deps.cwd,
     stateDir: concivStateDir(deps.stateRoot),
-    open: true,
+    open: opts.open ?? true,
   })
   return {supported: true, opened, command}
 }

@@ -3,7 +3,7 @@ import {join} from 'node:path'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {CONCIV_HOOKS_PLUGIN_ROOT, concivHooksPluginDir} from '@conciv/protocol/state-types'
 
-export const HOOKS_PLUGIN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const HOOKS_PLUGIN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 export async function removeHooksPlugin(stateDir: string, concivSessionId: string): Promise<void> {
   if (!isSessionId(concivSessionId)) return

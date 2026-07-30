@@ -8,6 +8,7 @@ export type ChatConnectionOptions = {
   retryDelayMs?: number
   busyTimeoutMs?: number
   onRetry?: (error: unknown) => void
+  force?: () => boolean
 }
 
 function textOf(message: UIMessage | ModelMessage): string {
@@ -278,7 +279,8 @@ export function chatConnection(
     subscribe: (abortSignal) => bridgedAttachLoop(rpc, sessionId, options, bridge, abortSignal),
     send: async (messages, _data, abortSignal) => {
       const content = lastUserContent(messages)
-      const input = typeof content === 'string' ? {sessionId, text: content} : {sessionId, content}
+      const base = typeof content === 'string' ? {sessionId, text: content} : {sessionId, content}
+      const input = options.force?.() === true ? {...base, force: true} : base
       await sendWhenAvailable(rpc, input, options, bridge, abortSignal)
     },
   }

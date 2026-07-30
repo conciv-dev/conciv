@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",
+    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@tanstack/ai-client": "0.22.0",
