@@ -125,6 +125,25 @@ function partsFrom(content: unknown): MessagePart[] {
   })
 }
 
+function spokenMessage(raw: unknown): {role: 'user' | 'assistant'; parts: MessagePart[]} | null {
+  const user = UserMessageSchema.safeParse(raw)
+  if (user.success) return {role: 'user', parts: partsFrom(user.data.content)}
+  const assistant = AssistantMessageSchema.safeParse(raw)
+  if (assistant.success) return {role: 'assistant', parts: partsFrom(assistant.data.content)}
+  return null
+}
+
+function toolResultPart(raw: unknown): MessagePart | null {
+  const result = ToolResultMessageSchema.safeParse(raw)
+  if (!result.success) return null
+  return {
+    type: 'tool-result',
+    toolCallId: result.data.toolCallId,
+    content: blockText(result.data.content),
+    state: result.data.isError ? 'error' : 'complete',
+  }
+}
+
 export function parseHistory(raw: string): UIMessage[] {
   const out: UIMessage[] = []
   const idState = {n: 0}
@@ -134,26 +153,13 @@ export function parseHistory(raw: string): UIMessage[] {
   }
 
   for (const entry of activePath(entriesOf(raw))) {
-    const user = UserMessageSchema.safeParse(entry.message)
-    if (user.success) {
-      const parts = partsFrom(user.data.content)
-      if (parts.length > 0) open('user', parts)
+    const spoken = spokenMessage(entry.message)
+    if (spoken) {
+      if (spoken.parts.length > 0) open(spoken.role, spoken.parts)
       continue
     }
-    const assistant = AssistantMessageSchema.safeParse(entry.message)
-    if (assistant.success) {
-      const parts = partsFrom(assistant.data.content)
-      if (parts.length > 0) open('assistant', parts)
-      continue
-    }
-    const result = ToolResultMessageSchema.safeParse(entry.message)
-    if (!result.success) continue
-    const part: MessagePart = {
-      type: 'tool-result',
-      toolCallId: result.data.toolCallId,
-      content: blockText(result.data.content),
-      state: result.data.isError ? 'error' : 'complete',
-    }
+    const part = toolResultPart(entry.message)
+    if (!part) continue
     const owner = out.findLast((message) => message.role === 'assistant')
     if (owner) owner.parts.push(part)
     else open('assistant', [part])
@@ -216,20 +222,32 @@ export async function transcriptStat(cwd: string, sessionId: string, home?: stri
   return info ? {mtimeMs: info.mtimeMs, size: info.size} : null
 }
 
+function firstUserText(messages: UIMessage[]): string {
+  const first = messages.find((message) => message.role === 'user')
+  return first ? textOf(first) : ''
+}
+
+function lastText(messages: UIMessage[]): string | null {
+  const last = messages.at(-1)
+  return last ? condense(textOf(last), MAX_PREVIEW) || null : null
+}
+
+function startedAt(timestamp: string | undefined): number | undefined {
+  const parsed = timestamp ? Date.parse(timestamp) : NaN
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
 function sessionMeta(fileName: string, raw: string, mtimeMs: number): HarnessSessionMeta {
   const header = headerOf(raw)
   const messages = parseHistory(raw)
-  const firstUser = messages.find((message) => message.role === 'user')
-  const last = messages.at(-1)
-  const created = header?.timestamp ? Date.parse(header.timestamp) : NaN
   return {
     id: header?.id ?? fileName.replace(/\.jsonl$/, ''),
-    derivedTitle: condense(sessionName(raw) ?? (firstUser ? textOf(firstUser) : ''), MAX_TITLE),
+    derivedTitle: condense(sessionName(raw) ?? firstUserText(messages), MAX_TITLE),
     updatedAt: Math.round(mtimeMs),
     messageCount: messages.length,
     model: sessionModel(raw),
-    lastMessage: last ? condense(textOf(last), MAX_PREVIEW) || null : null,
-    createdAt: Number.isNaN(created) ? undefined : created,
+    lastMessage: lastText(messages),
+    createdAt: startedAt(header?.timestamp),
   }
 }
 

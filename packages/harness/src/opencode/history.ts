@@ -76,13 +76,7 @@ function parseJson(raw: string): unknown {
   }
 }
 
-function partsFrom(data: unknown): MessagePart[] {
-  const text = TextPartSchema.safeParse(data)
-  if (text.success) return text.data.text ? [{type: 'text', content: text.data.text}] : []
-
-  const reasoning = ReasoningPartSchema.safeParse(data)
-  if (reasoning.success) return reasoning.data.text ? [{type: 'thinking', content: reasoning.data.text}] : []
-
+function toolParts(data: unknown): MessagePart[] {
   const tool = ToolPartSchema.safeParse(data)
   if (!tool.success) return []
   const call: MessagePart = {
@@ -93,12 +87,19 @@ function partsFrom(data: unknown): MessagePart[] {
     state: 'input-complete',
   }
   const failed = tool.data.state.status === 'error'
-  const output = tool.data.state.output ?? tool.data.state.error
   if (!failed && tool.data.state.status !== 'completed') return [call]
-  return [
-    call,
-    {type: 'tool-result', toolCallId: tool.data.callID, content: output ?? '', state: failed ? 'error' : 'complete'},
-  ]
+  const content = (failed ? tool.data.state.error : tool.data.state.output) ?? ''
+  return [call, {type: 'tool-result', toolCallId: tool.data.callID, content, state: failed ? 'error' : 'complete'}]
+}
+
+function partsFrom(data: unknown): MessagePart[] {
+  const text = TextPartSchema.safeParse(data)
+  if (text.success) return text.data.text ? [{type: 'text', content: text.data.text}] : []
+
+  const reasoning = ReasoningPartSchema.safeParse(data)
+  if (reasoning.success) return reasoning.data.text ? [{type: 'thinking', content: reasoning.data.text}] : []
+
+  return toolParts(data)
 }
 
 const SESSION_BY_ID = 'select * from session where id = ? limit 1'

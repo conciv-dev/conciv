@@ -45,7 +45,18 @@ const PARTS = [
     },
   },
   {id: 'prt_4', message: 'msg_2', data: {type: 'reasoning', text: ''}},
-  {id: 'prt_5', message: 'msg_2', data: {type: 'text', text: 'One match.'}},
+  {
+    id: 'prt_5',
+    message: 'msg_2',
+    data: {type: 'tool', callID: 'toolu_02', tool: 'bash', state: {status: 'error', error: 'command not found'}},
+  },
+  {
+    id: 'prt_6',
+    message: 'msg_2',
+    data: {type: 'tool', callID: 'toolu_03', tool: 'edit', state: {status: 'running', input: {filePath: 'a.ts'}}},
+  },
+  {id: 'prt_7', message: 'msg_2', data: {type: 'reasoning', text: 'checking the matches'}},
+  {id: 'prt_8', message: 'msg_2', data: {type: 'text', text: 'One match.'}},
 ]
 
 const state = {home: ''}
@@ -123,6 +134,16 @@ describe('opencode history sidecar', () => {
             state: 'input-complete',
           },
           {type: 'tool-result', toolCallId: 'toolu_01E8', content: 'Found 1 matches', state: 'complete'},
+          {type: 'tool-call', id: 'toolu_02', name: 'bash', arguments: '{}', state: 'input-complete'},
+          {type: 'tool-result', toolCallId: 'toolu_02', content: 'command not found', state: 'error'},
+          {
+            type: 'tool-call',
+            id: 'toolu_03',
+            name: 'edit',
+            arguments: JSON.stringify({filePath: 'a.ts'}),
+            state: 'input-complete',
+          },
+          {type: 'thinking', content: 'checking the matches'},
           {type: 'text', content: 'One match.'},
         ],
       },

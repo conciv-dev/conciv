@@ -150,75 +150,112 @@ function hasCall(message: UIMessage, callId: string): boolean {
   return message.parts.some((part) => part.type === 'tool-call' && part.id === callId)
 }
 
-export function parseHistory(raw: string): UIMessage[] {
-  const out: UIMessage[] = []
-  const idState = {n: 0}
-  const open = (role: 'user' | 'assistant', parts: MessagePart[]): void => {
-    idState.n += 1
-    out.push({id: `h${idState.n}`, role, parts})
-  }
-  const appendAssistant = (part: MessagePart): void => {
-    const last = out.at(-1)
-    if (last?.role === 'assistant') last.parts.push(part)
-    else open('assistant', [part])
-  }
+type SpineEvent =
+  | {kind: 'user'; text: string}
+  | {kind: 'assistant'; text: string}
+  | {kind: 'call'; part: MessagePart}
+  | {kind: 'output'; callId: string; part: MessagePart}
 
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
-    const payload = payloadOf(trimmed)
-    if (!payload) continue
+function spineEvent(payload: unknown): SpineEvent | null {
+  const user = UserMessagePayloadSchema.safeParse(payload)
+  if (user.success) return {kind: 'user', text: user.data.message}
 
-    const user = UserMessagePayloadSchema.safeParse(payload)
-    if (user.success) {
-      if (user.data.message.trim()) open('user', [{type: 'text', content: user.data.message}])
-      continue
-    }
+  const agent = AgentMessagePayloadSchema.safeParse(payload)
+  if (agent.success) return {kind: 'assistant', text: agent.data.message}
 
-    const agent = AgentMessagePayloadSchema.safeParse(payload)
-    if (agent.success) {
-      if (agent.data.message.trim()) appendAssistant({type: 'text', content: agent.data.message})
-      continue
-    }
-
-    const call = FunctionCallPayloadSchema.safeParse(payload)
-    if (call.success) {
-      appendAssistant({
+  const call = FunctionCallPayloadSchema.safeParse(payload)
+  if (call.success) {
+    return {
+      kind: 'call',
+      part: {
         type: 'tool-call',
         id: call.data.call_id,
         name: toolName(call.data.name, call.data.namespace),
         arguments: call.data.arguments ?? '{}',
         state: 'input-complete',
-      })
-      continue
+      },
     }
+  }
 
-    const custom = CustomToolCallPayloadSchema.safeParse(payload)
-    if (custom.success) {
-      appendAssistant({
+  const custom = CustomToolCallPayloadSchema.safeParse(payload)
+  if (custom.success) {
+    return {
+      kind: 'call',
+      part: {
         type: 'tool-call',
         id: custom.data.call_id,
         name: custom.data.name,
         arguments: JSON.stringify({input: custom.data.input ?? ''}),
         state: 'input-complete',
-      })
-      continue
-    }
-
-    const output = ToolOutputPayloadSchema.safeParse(payload)
-    if (output.success) {
-      const part: MessagePart = {
-        type: 'tool-result',
-        toolCallId: output.data.call_id,
-        content: outputText(output.data.output),
-        state: 'complete',
-      }
-      const owner = out.findLast((message) => hasCall(message, output.data.call_id))
-      if (owner) owner.parts.push(part)
-      else appendAssistant(part)
+      },
     }
   }
-  return out
+
+  const output = ToolOutputPayloadSchema.safeParse(payload)
+  if (!output.success) return null
+  return {
+    kind: 'output',
+    callId: output.data.call_id,
+    part: {
+      type: 'tool-result',
+      toolCallId: output.data.call_id,
+      content: outputText(output.data.output),
+      state: 'complete',
+    },
+  }
+}
+
+function spineEvents(raw: string): SpineEvent[] {
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(payloadOf)
+    .flatMap((payload) => {
+      const event = payload ? spineEvent(payload) : null
+      return event ? [event] : []
+    })
+}
+
+type Spine = {messages: UIMessage[]; opened: number}
+
+function openMessage(spine: Spine, role: 'user' | 'assistant', parts: MessagePart[]): void {
+  spine.opened += 1
+  spine.messages.push({id: `h${spine.opened}`, role, parts})
+}
+
+function appendAssistant(spine: Spine, part: MessagePart): void {
+  const last = spine.messages.at(-1)
+  if (last?.role === 'assistant') last.parts.push(part)
+  else openMessage(spine, 'assistant', [part])
+}
+
+function attachOutput(spine: Spine, callId: string, part: MessagePart): void {
+  const owner = spine.messages.findLast((message) => hasCall(message, callId))
+  if (owner) owner.parts.push(part)
+  else appendAssistant(spine, part)
+}
+
+function applyEvent(spine: Spine, event: SpineEvent): void {
+  if (event.kind === 'user') {
+    if (event.text.trim()) openMessage(spine, 'user', [{type: 'text', content: event.text}])
+    return
+  }
+  if (event.kind === 'assistant') {
+    if (event.text.trim()) appendAssistant(spine, {type: 'text', content: event.text})
+    return
+  }
+  if (event.kind === 'call') {
+    appendAssistant(spine, event.part)
+    return
+  }
+  attachOutput(spine, event.callId, event.part)
+}
+
+export function parseHistory(raw: string): UIMessage[] {
+  const spine: Spine = {messages: [], opened: 0}
+  for (const event of spineEvents(raw)) applyEvent(spine, event)
+  return spine.messages
 }
 
 export function contextTokensFromTranscript(raw: string): number | undefined {
