@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "seq": 5,
+  "type": "grabResult",
+  "requestId": "req-1",
+  "reason": "failed"
+}

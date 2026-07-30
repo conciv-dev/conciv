@@ -7,7 +7,7 @@ export default defineConfig({
   define: {'define.amd': 'false', 'process.env.NODE_ENV': '"production"'},
   build: {
     lib: {
-      entry: fileURLToPath(new URL('test/fixtures/handle-entry.ts', import.meta.url)),
+      entry: fileURLToPath(new URL('test/fixtures/handle-entry.tsx', import.meta.url)),
       formats: ['iife'],
       name: 'ConcivHandle',
       fileName: () => 'conciv-handle.global.js',

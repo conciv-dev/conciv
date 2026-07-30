@@ -46,6 +46,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/extension-testkit": "workspace:^",
     "@conciv/storage-history": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

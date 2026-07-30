@@ -15,6 +15,8 @@ export type Builtins = {
   clientEntries: readonly string[]
   embedEntry?: string
   dedupeEntry?: string
+  nativePageDir?: string
+  devEndpointDir?: string
 }
 
 export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}

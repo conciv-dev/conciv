@@ -1,4 +1,5 @@
 import {expect, test} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {bootWhiteboard, createFloatingComment, openCanvas} from './helpers/whiteboard-test-api.js'
 
 test('the thread card closes when its root comment is gone, leaving no empty header', async () => {
@@ -16,9 +17,7 @@ test('the thread card closes when its root comment is gone, leaving no empty hea
 
     await api.callTool('comment.delete', {cid})
 
-    await expect
-      .poll(async () => api.page.getByRole('button', {name: 'Close thread'}).count(), {timeout: 30_000})
-      .toBe(0)
+    await expectLocator(api.page.getByRole('button', {name: 'Close thread'})).toHaveCount(0, {timeout: 30_000})
     expect(await api.page.getByRole('button', {name: 'Resolve thread'}).count()).toBe(0)
   } finally {
     await api.dispose()

@@ -46,3 +46,8 @@ e2e/*/src/routeTree.gen.ts
 .tanstack-mcp-bridge-*.json
 
 .migration-stash/
+
+# Swift SDK build artifacts (native/swift/ConcivWidget)
+.build/
+.swiftpm/
+*.xcresult

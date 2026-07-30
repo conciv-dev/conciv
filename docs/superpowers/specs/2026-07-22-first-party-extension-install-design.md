@@ -18,6 +18,7 @@ Supported frameworks (`e2e/`): Vite-based (Vite, Astro, Solid Start, Svelte, Tan
 `mountConciv([])` — zero client extensions.
 
 ## Key enabling facts (verified)
+
 - **Turbopack (Next.js ≥16.3) natively supports `import.meta.glob`** — the same Vite-compatible API we
   already use — and it handles add/remove/rename invalidation itself. (Installed apps are on 16.2.x → a
   `next@^16.3` bump is required.)
@@ -30,7 +31,7 @@ halves are native on every framework we support.
 
 **UNVERIFIED, go/no-go (codex r3):** `nextjs-widget` ships from `@conciv/plugin` (a `node_modules`
 dependency), not app source. It is NOT established that `import.meta.glob('/conciv/extensions/*')` from a
-dependency-owned file anchors to the *consumer's* app root under Turbopack (Turbopack has filesystem-root
+dependency-owned file anchors to the _consumer's_ app root under Turbopack (Turbopack has filesystem-root
 restrictions, configurable via `turbopack.root`). This assumption is the linchpin of the whole "no
 generated file" promise and MUST be proven by a packed-package prototype as the FIRST implementation step.
 If it fails, the fallback is an app-owned bootstrap / small generated app-local entry.
@@ -43,12 +44,14 @@ it loads BOTH halves on Vite, Astro, Solid Start, Svelte, TanStack Start, and Ne
 ## Approach
 
 ### 1. Split = package.json conditional exports (bundler-native)
+
 ```json
 ".": {
   "browser": { "types": "./dist/client.d.ts", "default": "./dist/client.js" },
   "import":  { "types": "./dist/server.d.ts", "default": "./dist/server.js" }
 }
 ```
+
 `browser` first → client entry; `import` → server entry; nested `types` per condition. Vite and Turbopack
 select `browser`→`client.js` in a real client graph and `import`→`server.js` under Node. Keep `./client`
 and add a `./server` explicit subpath for direct/test use. Do NOT claim "every bundler" — the guarantee is
@@ -56,12 +59,14 @@ for the tested configurations (Vite client/ssr + Turbopack client/Node). Retain 
 no `node:` import reaches the browser output.
 
 Install stub (one file):
+
 ```ts
 // conciv/extensions/tanstack.tsx
 export {default} from '@conciv/extension-tanstack'
 ```
 
 ### 2. Server discovery — already cross-bundler
+
 `loadServerExtensions` fs-reads `conciv/extensions/` + jiti-evals under Node conditions → `server.js`. Runs
 for Vite (`configureServer`) and Next.js (`register`). **Correction (codex):** in workspace dev the server
 loads the built `dist/server.js` (jiti resolves the package via Node conditions; it does NOT pass through
@@ -69,6 +74,7 @@ Vite's `concivSrcEntry`), while the Vite client maps `dist/client.js`→`src/cli
 package must be built before its server half loads in workspace dev**; tests gate on a prior build.
 
 ### 3. Client discovery = native `import.meta.glob`
+
 - **Vite** (unchanged): the served virtual module (`extensionsModuleSource`) uses
   `import.meta.glob('/conciv/extensions/*')` → `mountConciv([...builtins, ...folder])`.
 - **Next.js/Turbopack**: `nextjs-widget.ts` uses the same `import.meta.glob('/conciv/extensions/*')`
@@ -81,6 +87,7 @@ package must be built before its server half loads in workspace dev**; tests gat
   bare re-export (it contains no `.server()`/`.client()` to split).
 
 ### 4. Engine ownership on Next.js (codex #2)
+
 Do NOT register the conciv unplugin webpack plugin in `withConciv` (its `webpack()` hook boots an engine —
 would contend with `register()` for port 41700, and Turbopack ignores it anyway). **`register()` remains
 the sole Next.js engine owner.** Next.js gains only the client-side `import.meta.glob` in `nextjs-widget`.
@@ -88,6 +95,7 @@ the sole Next.js engine owner.** Next.js gains only the client-side `import.meta
 ## Scope
 
 ### In scope
+
 1. **Conditional exports on ALL published extensions** (tanstack, terminal, test-runner, whiteboard) so any
    is folder-installable. `.` export map (nested per-env `types`) + a `./server` subpath. `publint`+`attw`
    (esm-only) MUST pass with the packed shape — finalize the exact map via those tools.
@@ -103,6 +111,7 @@ the sole Next.js engine owner.** Next.js gains only the client-side `import.meta
    — without it editors resolve server types).
 
 ### Out of scope → follow-ups (file as GitHub issues)
+
 - **CLI `@conciv/extensions add "<name>"` (shadcn-style)** — resolve name→package, install with the
   detected package manager, scaffold the re-export, respect config, idempotent. NOT built now. (#136)
 - Baked builtins on Next.js (NO_BUILTINS today). (#137)
@@ -112,6 +121,7 @@ the sole Next.js engine owner.** Next.js gains only the client-side `import.meta
 - `conciv({extensions})` config option; retiring built-ins.
 
 ## Codex findings — disposition (2 review rounds)
+
 - **[HIGH] cross-bundler / Turbopack** — RESOLVED natively: Turbopack ≥16.3 supports `import.meta.glob` +
   `browser` condition; no unplugin, no virtual module, no generated registry.
 - **[HIGH] Next double-boot / lost builtins** — RESOLVED: do not add the webpack plugin; `register()` is the
@@ -129,6 +139,7 @@ the sole Next.js engine owner.** Next.js gains only the client-side `import.meta
   pattern matches the server `extensionFiles` set; docs state the same set (no `.ts/.tsx`-only contradiction).
 
 ## Testing — REAL e2e suites MUST cover this (hard requirement)
+
 Per repo rules: drive the REAL app, no mocks of the unit under test, no jsdom, real browser for widget UI,
 real dev servers; NEVER add tests under `apps/examples/*`.
 
@@ -147,10 +158,12 @@ real dev servers; NEVER add tests under `apps/examples/*`.
 - `publint`+`attw` per changed published package.
 
 ## Non-goals
+
 unplugin/virtual-module/generated-registry client discovery; config-passing API; retiring built-ins;
 building the CLI now; a new split transform (conditional exports do the split); legacy `--webpack` support.
 
 ## What the implementation plan MUST nail (codex round 3)
+
 1. **GO/NO-GO FIRST STEP — packed-package Turbopack prototype.** Install `@conciv/plugin`/`@conciv/it` +
    the reference extension as a REAL tarball (`npm pack` into a fixture's `node_modules`), not `workspace:*`.
    Prove the dependency-owned `import.meta.glob` targets the consumer app root and works across: app-root +
@@ -161,7 +174,7 @@ building the CLI now; a new split transform (conditional exports do the split); 
    widget would ship syntax unsupported on 15.x–16.2. Raise/model the Next boundary precisely (folder
    discovery requires ≥16.3) and audit EVERY Next consumer (`e2e/nextjs`, `e2e/nextjs-component`,
    `apps/examples/nextjs-app`), not just one.
-3. **Packed e2e (not workspace:*).** At least one Next e2e installs packed `@conciv/it`/`@conciv/plugin` +
+3. **Packed e2e (not workspace:\*).** At least one Next e2e installs packed `@conciv/it`/`@conciv/plugin` +
    the extension into a fixture; assert the client resolved `client.js` (not just "some UI appeared"), plus
    `next dev` runtime + `next build` chunk inspection + HMR add/remove/rename + a nested-monorepo fixture.
 4. **One deterministic dedup/validation primitive.** A single shared pure function (built-ins first,
@@ -176,6 +189,7 @@ building the CLI now; a new split transform (conditional exports do the split); 
    Turbopack, and TypeScript (with and without `customConditions:["browser"]`).
 
 ## Other open items
+
 - Exact `attw`/`publint`-safe conditional-export shape (finalize on a packed tarball).
 - 16.3 preview-vs-stable release policy (is `^16.3` GA at plan time?).
 - Docs IA placement of the install page.
@@ -196,6 +210,7 @@ published node_modules file can never reach the consumer app root (the `../` dep
 publish time under pnpm/npm layouts).
 
 **Replacement mechanism (Next.js, Turbopack AND webpack):** fs-generated app-local entry.
+
 - `withConciv` (runs in the consumer's `next.config.ts`, Node, app root, every config load) fs-reads
   `conciv/extensions/` (the same file set: `.ts/.tsx/.js/.jsx`, minus `.d.ts`, files only) and writes
   `.conciv/extensions-client.gen.tsx` — static extensionless imports of each stub + an exported

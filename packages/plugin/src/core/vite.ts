@@ -125,15 +125,20 @@ async function bootEngine(
   options: ConcivConfig,
   agentPath: string,
   extensions: AnyExtension[],
+  nativePageDir: string | undefined,
+  devEndpointDir: string | undefined,
 ): Promise<Engine> {
   const {start} = await import('@conciv/core/start')
   return start({
     options,
     root: server.config.root,
+    port: options.port,
     bridge: makeViteBridge(server),
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
     extensions,
+    nativePageDir,
+    devEndpointDir,
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
 }
@@ -207,7 +212,14 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
       const extensions = await loadServerExtensions(server.config.root, builtins.serverExtensions)
-      engine = await bootEngine(server, options, installConcivBinShim(concivStateDir(cfg.stateRoot)), extensions)
+      engine = await bootEngine(
+        server,
+        options,
+        installConcivBinShim(concivStateDir(cfg.stateRoot)),
+        extensions,
+        builtins.nativePageDir,
+        builtins.devEndpointDir,
+      )
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
       mountWidget(server, apiBase, options.widget)

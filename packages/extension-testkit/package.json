@@ -16,6 +16,7 @@
     "./card-harness": "./src/card-harness.tsx",
     "./core-kit": "./src/core-kit.ts",
     "./framework-fake": "./src/framework-fake.ts",
+    "./host/grab": "./src/host/grab.ts",
     "./widget-suite": "./src/widget-suite.ts"
   },
   "scripts": {

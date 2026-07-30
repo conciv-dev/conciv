@@ -1,4 +1,5 @@
 import {expect, test} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
@@ -48,7 +49,7 @@ test('the inbox lists threads, marks all read, and opens a thread', async () => 
     const markAll = api.page.getByRole('button', {name: 'Mark all as read'})
     await markAll.focus()
     await markAll.press('Enter')
-    await expect.poll(async () => api.page.getByRole('button', {name: /unread/}).count(), {timeout: 30_000}).toBe(0)
+    await expectLocator(api.page.getByRole('button', {name: /unread/})).toHaveCount(0, {timeout: 30_000})
 
     const item = api.page.getByRole('button', {name: /^Opus/})
     await item.focus()

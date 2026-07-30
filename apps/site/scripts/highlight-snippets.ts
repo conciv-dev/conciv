@@ -7,7 +7,7 @@ import {cleanSnippet, FRAMEWORK_SNIPPETS} from '../src/components/landing/framew
 
 const THEMES = {light: 'github-light', dark: 'github-dark'} as const
 
-const highlighter = await createHighlighter({themes: Object.values(THEMES), langs: ['ts', 'js']})
+const highlighter = await createHighlighter({themes: Object.values(THEMES), langs: ['ts', 'js', 'swift']})
 
 const withCode = FRAMEWORK_SNIPPETS.flatMap((snippet) =>
   snippet.code === undefined ? [] : [{...snippet, code: snippet.code}],

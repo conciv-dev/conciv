@@ -1,4 +1,5 @@
 import {expect, test} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {z} from 'zod'
 import {
   gotoAbout,
@@ -52,7 +53,7 @@ test('tanstack_router_state redacts secret-keyed search params through dehydrate
 
   await waitForWidget(api.page)
   await api.page.getByRole('link', {name: 'Token route'}).click()
-  await expect.poll(() => api.page.getByRole('heading', {name: 'Secret page'}).isVisible()).toBe(true)
+  await expectLocator(api.page.getByRole('heading', {name: 'Secret page'})).toBeVisible()
 
   const payload = await api.callTool('tanstack_router_state', {})
   const state = searchStateSchema.parse(payload)
@@ -98,7 +99,7 @@ test('tanstack_navigate drives real TanStack Router navigation on the running ap
       timeout: 10_000,
     })
     .toBe('/form')
-  await expect.poll(() => api.page.getByRole('heading', {name: 'Form page'}).isVisible()).toBe(true)
+  await expectLocator(api.page.getByRole('heading', {name: 'Form page'})).toBeVisible()
 })
 
 test('navigate threads search through the adapter into the running TanStack Router location', async () => {
@@ -114,7 +115,7 @@ test('navigate threads search through the adapter into the running TanStack Rout
       timeout: 10_000,
     })
     .toContain('token=nav-applied')
-  await expect.poll(() => api.page.getByRole('heading', {name: 'Secret page'}).isVisible()).toBe(true)
+  await expectLocator(api.page.getByRole('heading', {name: 'Secret page'})).toBeVisible()
 })
 
 test('tanstack_query_invalidate no-ops on unknown keys and refetches the real key on the running app', async () => {

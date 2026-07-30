@@ -100,6 +100,7 @@ export async function startTerminalServer(harness: ServerHarness = bashHarness):
     sessions,
     harness,
     page: noWidgetPageCaller('terminal'),
+    nativeUrl: () => undefined,
   }
   const result = await terminalExtension.__server?.(api)
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')

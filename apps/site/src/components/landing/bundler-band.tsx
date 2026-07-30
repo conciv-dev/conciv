@@ -7,15 +7,16 @@ const BUNDLERS = [
   {icon: '/icons/rspack.svg', name: 'Rspack', href: '/docs/quick-start/rspack'},
   {icon: '/icons/rollup.svg', name: 'Rollup', href: '/docs/quick-start/rollup'},
   {icon: '/icons/esbuild.svg', name: 'esbuild', href: '/docs/quick-start/esbuild'},
+  {icon: '/icons/apple.svg', name: 'iOS', href: '/docs/quick-start/ios', iconClassName: 'size-4 translate-y-[-0.5px]'},
 ]
 
-const LOGOS: LogoItem[] = BUNDLERS.map(({icon, name, href}) => ({
+const LOGOS: LogoItem[] = BUNDLERS.map(({icon, name, href, iconClassName}) => ({
   href,
   title: name,
   ariaLabel: name,
   node: (
     <span className="inline-flex items-center gap-2.5 font-mono text-sm font-semibold text-muted-foreground opacity-70 grayscale transition-[opacity,filter,color] duration-200 hover:text-foreground hover:opacity-100 hover:grayscale-0">
-      <img src={icon} alt="" className="size-[18px]" loading="lazy" />
+      <img src={icon} alt="" className={iconClassName ?? 'size-[18px]'} loading="lazy" />
       {name}
     </span>
   ),

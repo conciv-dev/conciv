@@ -1,0 +1,6 @@
+{
+  "v": 1,
+  "type": "host.log",
+  "level": "debug",
+  "message": "widget mounted"
+}

@@ -1,4 +1,5 @@
-import {expect, test} from 'vitest'
+import {test} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {bootWhiteboard, createFloatingComment, openCanvas} from './helpers/whiteboard-test-api.js'
 
 test('an agent comment is unread until the dev opens it', async () => {
@@ -13,7 +14,7 @@ test('an agent comment is unread until the dev opens it', async () => {
     await unread.focus()
     await unread.press('Enter')
 
-    await expect.poll(async () => api.page.getByRole('button', {name: /unread/}).count(), {timeout: 30_000}).toBe(0)
+    await expectLocator(api.page.getByRole('button', {name: /unread/})).toHaveCount(0, {timeout: 30_000})
     await api.page.getByRole('button', {name: /comment, open/}).waitFor()
   } finally {
     await api.dispose()

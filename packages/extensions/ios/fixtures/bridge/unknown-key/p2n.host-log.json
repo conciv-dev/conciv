@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "type": "host.log",
+  "level": "error",
+  "message": "boom",
+  "stack": "at boot"
+}

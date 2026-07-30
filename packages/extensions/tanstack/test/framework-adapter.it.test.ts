@@ -1,4 +1,5 @@
 import {expect, test} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {
   gotoAbout,
   tanstackAdapter,
@@ -79,7 +80,7 @@ test('adapter.client.errors.snapshot captures a real runtime error thrown in an 
   await waitForWidget(api.page)
 
   await api.page.getByRole('link', {name: 'Boom'}).click()
-  await expect.poll(() => api.page.getByRole('heading', {name: 'Boom page'}).isVisible()).toBe(true)
+  await expectLocator(api.page.getByRole('heading', {name: 'Boom page'})).toBeVisible()
   await api.page.getByRole('button', {name: 'Trigger runtime error'}).click()
 
   const adapter = tanstackAdapter(api)

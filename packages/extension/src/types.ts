@@ -81,6 +81,7 @@ export type ServerApi<Config, Verbs extends PageVerbMap = Record<never, never>> 
   harness: ServerHarness
   page: PageCaller<Verbs>
   bundler?: BundlerBridge
+  nativeUrl: () => string | undefined
 }
 
 export type ServerResult<Context> = {

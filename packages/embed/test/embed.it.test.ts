@@ -1,4 +1,5 @@
 import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
@@ -48,9 +49,7 @@ async function openPage(): Promise<Page> {
 async function sendAndRevealThought(page: Page, message: string): Promise<void> {
   await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(message)
   await page.getByRole('button', {name: 'Send message'}).click()
-  await expect
-    .poll(() => page.getByRole('button', {name: 'Stop generating'}).isVisible(), {timeout: 30_000})
-    .toBe(false)
+  await expectLocator(page.getByRole('button', {name: 'Stop generating'})).toBeHidden({timeout: 30_000})
   await page.getByText('Chain of Thought').last().click()
 }
 
@@ -78,17 +77,15 @@ describe('embed boots the conciv app against a real core', () => {
     const page = await openPage()
     await openPanel(page)
     await page.getByRole('tab', {name: 'Terminal'}).click()
-    await expect
-      .poll(() => page.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 30_000})
-      .toBe('true')
+    await expectLocator(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
+      timeout: 30_000,
+    })
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
-    await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
-      .toBe(false)
+    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    await expect
-      .poll(() => page.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 30_000})
-      .toBe('true')
+    await expectLocator(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
+      timeout: 30_000,
+    })
     await expect
       .poll(
         async () => {
@@ -116,12 +113,10 @@ describe('embed boots the conciv app against a real core', () => {
       .toMatch(/\/terminal\?.*open=true/)
     await first.close()
     const second = await openPage()
-    await expect
-      .poll(() => second.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
-    await expect
-      .poll(() => second.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 30_000})
-      .toBe('true')
+    await expectLocator(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
+    await expectLocator(second.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
+      timeout: 30_000,
+    })
     await second.close()
   })
 
@@ -149,20 +144,16 @@ describe('embed boots the conciv app against a real core', () => {
       .not.toContain('open=true')
     await first.close()
     const second = await openPage()
-    await expect
-      .poll(() => second.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
+    await expectLocator(second.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
     expect(await second.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
     await second.close()
   })
 
   it('renders the fab instantly and opens the panel', async () => {
     const page = await openPage()
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
+    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
     await openPanel(page)
-    await expect.poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible()).toBe(true)
+    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible()
     await page.close()
   })
 
@@ -181,9 +172,7 @@ describe('embed boots the conciv app against a real core', () => {
     expect(await headingTop()).toBe(readerPosition)
 
     await page.getByRole('textbox', {name: 'Message the conciv agent'}).press('Escape')
-    await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
-      .toBe(false)
+    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
     expect(await headingTop()).toBe(readerPosition)
     await page.close()
   })
@@ -202,15 +191,11 @@ describe('embed boots the conciv app against a real core', () => {
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('long question')
     await page.getByRole('button', {name: 'Send message'}).click()
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Stop generating'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
+    await expectLocator(page.getByRole('button', {name: 'Stop generating'})).toBeVisible({timeout: 30_000})
     await input.fill('still typing while it runs')
-    expect(await input.inputValue()).toBe('still typing while it runs')
+    await expectLocator(input).toHaveValue('still typing while it runs')
     kit.harness.script.release()
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Stop generating'}).isVisible(), {timeout: 30_000})
-      .toBe(false)
+    await expectLocator(page.getByRole('button', {name: 'Stop generating'})).toBeHidden({timeout: 30_000})
     await page.close()
   })
 
@@ -218,10 +203,8 @@ describe('embed boots the conciv app against a real core', () => {
     const page = await openPage()
     await openPanel(page)
     await page.getByRole('textbox', {name: 'Message the conciv agent'}).press('Escape')
-    await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
-      .toBe(false)
-    await expect.poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible()).toBe(true)
+    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
+    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible()
     await page.close()
   })
 
@@ -232,9 +215,9 @@ describe('embed boots the conciv app against a real core', () => {
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('ask me something')
     await page.getByRole('button', {name: 'Send message'}).click()
-    await expect.poll(() => page.getByText('Proceed with the change?').isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(page.getByText('Proceed with the change?')).toBeVisible({timeout: 30_000})
     await page.getByRole('button', {name: 'Approve'}).click()
-    await expect.poll(() => page.getByText('Answered.').isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(page.getByText('Answered.')).toBeVisible({timeout: 30_000})
     await page.close()
   })
 
@@ -246,7 +229,7 @@ describe('embed boots the conciv app against a real core', () => {
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('discover and run some tools')
     await page.getByRole('button', {name: 'Send message'}).click()
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
     const announced = await page.getByRole('alert').allTextContents()
     expect(announced.every((text) => text.trim() === '')).toBe(true)
     await page.close()
@@ -259,20 +242,11 @@ describe('embed boots the conciv app against a real core', () => {
     kit.harness.script.scriptToolCall('__lazy__tool__discovery__', {query: 'weather'}, {blocking: false})
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await sendAndRevealThought(page, 'run some code')
-    await expect.poll(() => page.getByText('run code').isVisible(), {timeout: 30_000}).toBe(true)
-    await expect.poll(() => page.getByText('return 1').first().isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(page.getByText('run code')).toBeVisible({timeout: 30_000})
+    await expectLocator(page.getByText('return 1').first()).toBeVisible({timeout: 30_000})
     await sendAndRevealThought(page, 'now load some tools')
-    await expect
-      .poll(
-        () =>
-          page
-            .getByText(/Loaded \d+ tools?/)
-            .last()
-            .isVisible(),
-        {timeout: 30_000},
-      )
-      .toBe(true)
-    expect(await input.inputValue()).toBe('')
+    await expectLocator(page.getByText(/Loaded \d+ tools?/).last()).toBeVisible({timeout: 30_000})
+    await expectLocator(input).toHaveValue('')
     const announced = await page.getByRole('alert').allTextContents()
     expect(announced.every((text) => text.trim() === '')).toBe(true)
     await page.close()
@@ -283,19 +257,13 @@ describe('embed at a phone viewport', () => {
   it('opens as a full-screen sheet with the launcher hidden and the composer reachable', async () => {
     const page = await browser.newPage({viewport: {width: 393, height: 800}})
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
+    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
     await openPanel(page)
-    await expect.poll(() => page.getByRole('button', {name: 'Open conciv chat'}).count(), {timeout: 30_000}).toBe(0)
+    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toHaveCount(0, {timeout: 30_000})
     await sendMessage(page, 'hi there', ASSISTANT_TEXT)
     await page.getByRole('button', {name: 'Close chat'}).click()
-    await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
-      .toBe(false)
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
-      .toBe(true)
+    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
+    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
     await page.close()
   })
 })

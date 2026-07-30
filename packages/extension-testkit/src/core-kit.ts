@@ -4,7 +4,12 @@ import type {AnyExtension} from '@conciv/extension'
 
 export type CoreKit = Kit & {harness: FakeHarness}
 
-export async function bootCoreKit(opts: {id: string; text?: string; extensions?: AnyExtension[]}): Promise<CoreKit> {
+export async function bootCoreKit(opts: {
+  id: string
+  text?: string
+  extensions?: AnyExtension[]
+  nativePageDir?: string
+}): Promise<CoreKit> {
   const harness = createFakeHarness({id: opts.id, text: opts.text ?? 'Hello from conciv'})
   const kit = await createTestkit(harness, async (env) => {
     const {app, disposers} = await makeApp({
@@ -22,6 +27,7 @@ export async function bootCoreKit(opts: {id: string; text?: string; extensions?:
       openInEditor: () => {},
       harness: env.harness,
       extensions: opts.extensions,
+      nativePageDir: opts.nativePageDir,
     })
     return {
       fetch: app.fetch,

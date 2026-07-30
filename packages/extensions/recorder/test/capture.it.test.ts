@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {z} from 'zod'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {RecorderRouter} from '../src/server.js'
@@ -64,10 +65,8 @@ describe('recorder end to end (real browser, real engine)', () => {
     const send = api().page.getByRole('button', {name: 'Send to agent'})
     await send.waitFor({state: 'visible', timeout: 15_000})
     const replay = api().page.frameLocator('iframe')
-    await expect
-      .poll(() => replay.getByText('Comment target', {exact: true}).count(), {timeout: 30_000})
-      .toBeGreaterThan(0)
+    await expectLocator(replay.getByText('Comment target', {exact: true}).first()).toBeAttached({timeout: 30_000})
     const label = await addMarker(api().page)
-    await expect.poll(() => replay.getByText(label, {exact: true}).count(), {timeout: 30_000}).toBeGreaterThan(0)
+    await expectLocator(replay.getByText(label, {exact: true}).first()).toBeAttached({timeout: 30_000})
   }, 120_000)
 })

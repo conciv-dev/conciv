@@ -30,7 +30,6 @@ import {ShellFab} from '../shell/fab.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
 import {makeThemeApplier} from '../lib/theme.js'
-import {resolveApiBase} from '../lib/api-base.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
@@ -109,6 +108,8 @@ function RootComponent() {
     connectBind,
     connectMode: app.connectMode,
     disconnect: app.disconnect,
+    grabProvider: app.grabProvider,
+    connectionGeneration: app.connectionGeneration,
   }
 
   createEffect(() => {
@@ -122,7 +123,7 @@ function RootComponent() {
         <AppContext.Provider value={value}>
           <HostApiProvider
             rpc={app.rpc}
-            apiBase={resolveApiBase()}
+            apiBase={app.apiBase}
             toast={showToast}
             openEditor={(file, line) => void app.rpc.editor.open({file, line}).catch(() => {})}
             registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
@@ -161,47 +162,112 @@ function RootChrome(props: {
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const shutterOpen = () => rootSearch().open === true
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
-  const launcherVisible = () => settings.modal.enabled && !(phone() && panelOpen())
+  const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
 
   const sessions = useQuery(() => ({...data.utils.sessions.list.queryOptions(), enabled: connected()}))
   const working = () => (sessions.data ?? []).some((session) => session.running)
 
-  let fabEl: HTMLButtonElement | undefined
+  const [openIntent, setOpenIntent] = createSignal(false)
 
-  const latestSessionId = async (): Promise<string> => {
-    const rows = await queryClient.ensureQueryData(data.utils.sessions.list.queryOptions())
-    const latest = rows.toSorted((a, b) => b.updatedAt - a.updatedAt)[0]
-    return (await rpc.sessions.resolve(latest ? {id: latest.id} : {})).sessionId
+  let fabEl: HTMLButtonElement | undefined
+  let pendingFabFocus = false
+
+  const latestSessionId = async (): Promise<string | null> => {
+    try {
+      const rows = await queryClient.ensureQueryData(data.utils.sessions.list.queryOptions())
+      const latest = rows.toSorted((a, b) => b.updatedAt - a.updatedAt)[0]
+      return (await rpc.sessions.resolve(latest ? {id: latest.id} : {})).sessionId
+    } catch {
+      return null
+    }
   }
-  const dispatchToggled = (open: boolean) =>
-    window.dispatchEvent(new CustomEvent('conciv:panel-toggled', {detail: {open, connected: connected()}}))
+  const mascotRect = (): {x: number; y: number; width: number; height: number} | null => {
+    if (settings.launcher !== 'mascot') return null
+    const rect = fabEl?.getBoundingClientRect()
+    return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
+  }
+  const reportPanelState = () => {
+    const open = panelOpen()
+    window.dispatchEvent(
+      new CustomEvent('conciv:panel-toggled', {
+        detail: {open, connected: connected(), mascotRect: open ? null : mascotRect()},
+      }),
+    )
+  }
   const openPanel = async () => {
     if (panelMatch() || connectMatch()) {
+      setOpenIntent(true)
       setShutter(router, true)
-      dispatchToggled(true)
       return
     }
+    setOpenIntent(true)
     const sessionId = await latestSessionId()
+    if (!sessionId) return
+    if (!openIntent()) return
     void router.navigate({
       to: '/panel/$sessionId',
       params: {sessionId},
       search: {open: true},
       replace: Boolean(quickMatch()),
     })
-    dispatchToggled(true)
   }
   const closePanel = () => {
+    setOpenIntent(false)
     setShutter(router, false)
-    dispatchToggled(false)
-    fabEl?.focus()
+    if (fabEl?.isConnected) {
+      fabEl.focus()
+      return
+    }
+    pendingFabFocus = true
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
 
+  createEffect(() => {
+    panelOpen()
+    connected()
+    launcherVisible()
+    props.fab.position()
+    let lastKey = ''
+    let stableFrames = 0
+    let frame = 0
+    const tick = () => {
+      const rect = mascotRect()
+      const key = panelOpen() ? 'open' : rect ? [rect.x, rect.y, rect.width, rect.height].join(':') : 'none'
+      if (key === lastKey) {
+        stableFrames += 1
+      }
+      if (key !== lastKey) {
+        lastKey = key
+        stableFrames = 0
+        reportPanelState()
+      }
+      if (stableFrames < 6) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    onCleanup(() => cancelAnimationFrame(frame))
+  })
+
   onMount(() => {
     if (settings.defaultOpen && closedMatch()) void openPanel()
+    window.addEventListener('resize', reportPanelState)
+    onCleanup(() => window.removeEventListener('resize', reportPanelState))
     const openFromHost = () => void openPanel()
+    const closeFromHost = () => {
+      if (panelOpen()) {
+        closePanel()
+        return
+      }
+      setOpenIntent(false)
+    }
+    const toggleFromHost = () => togglePanel()
     window.addEventListener('conciv:open-panel', openFromHost)
-    onCleanup(() => window.removeEventListener('conciv:open-panel', openFromHost))
+    window.addEventListener('conciv:close-panel', closeFromHost)
+    window.addEventListener('conciv:toggle-panel', toggleFromHost)
+    onCleanup(() => {
+      window.removeEventListener('conciv:open-panel', openFromHost)
+      window.removeEventListener('conciv:close-panel', closeFromHost)
+      window.removeEventListener('conciv:toggle-panel', toggleFromHost)
+    })
   })
 
   let rootEl: HTMLDivElement | undefined
@@ -242,6 +308,9 @@ function RootChrome(props: {
         <ShellFab
           ref={(el) => {
             fabEl = el
+            if (!pendingFabFocus) return
+            pendingFabFocus = false
+            el.focus()
           }}
           open={panelOpen}
           working={working}
