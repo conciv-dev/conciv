@@ -70,6 +70,41 @@ describe('parseHistory', () => {
     expect(assistants[0]?.parts.map((p) => p.type)).toEqual(['thinking', 'tool-call', 'tool-result'])
     expect(assistants[1]?.parts.map((p) => p.type)).toEqual(['text'])
   })
+
+  it('strips the plugin-scoped conciv namespace adopted sessions use', () => {
+    const jsonl = JSON.stringify({
+      type: 'assistant',
+      message: {
+        id: 'msg_C',
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu_2',
+            name: 'mcp__plugin_conciv-connect_conciv__conciv_page',
+            input: {verb: 'snapshot'},
+          },
+        ],
+      },
+    })
+
+    const call = parseHistory(jsonl)[0]?.parts[0]
+    expect(call).toMatchObject({type: 'tool-call', name: 'conciv_page'})
+  })
+
+  it('leaves other plugin servers fully qualified', () => {
+    const jsonl = JSON.stringify({
+      type: 'assistant',
+      message: {
+        id: 'msg_D',
+        role: 'assistant',
+        content: [{type: 'tool_use', id: 'toolu_3', name: 'mcp__plugin_context7_context7__query-docs', input: {}}],
+      },
+    })
+
+    const call = parseHistory(jsonl)[0]?.parts[0]
+    expect(call).toMatchObject({type: 'tool-call', name: 'mcp__plugin_context7_context7__query-docs'})
+  })
 })
 
 describe('contextTokensFromTranscript', () => {

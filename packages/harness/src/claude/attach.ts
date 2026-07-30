@@ -12,12 +12,11 @@ import type {
 } from '@conciv/protocol/harness-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {claudeHooksManifest} from './hooks-plugin.js'
+import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './connect-names.js'
 
 export const CLAUDE_RELOAD_COMMAND = '/reload-plugins --force'
 export const CLAUDE_RELOAD_MIN_VERSION = '2.1.163'
 export const CLAUDE_CONNECT_ROOT = 'claude-connect'
-export const CLAUDE_CONNECT_MARKETPLACE = 'conciv'
-export const CLAUDE_CONNECT_PLUGIN = 'conciv-connect'
 
 const AGENTS_TIMEOUT_MS = 2_000
 const PLUGIN_TIMEOUT_MS = 20_000
@@ -165,7 +164,7 @@ function mcpManifest(opts: {mcpUrl: string; concivSessionId: string}): string {
   return `${JSON.stringify(
     {
       mcpServers: {
-        conciv: {
+        [CLAUDE_CONNECT_MCP_SERVER]: {
           type: 'http',
           url: opts.mcpUrl,
           headers: {[CONCIV_SESSION_HEADER]: opts.concivSessionId},
