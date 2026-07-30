@@ -10,7 +10,7 @@ export type SnippetStep = {step: 'snippet'; command: string; detail: string}
 
 export type ConnectStep = PickingStep | ReloadStep | SnippetStep
 
-export const UNTITLED_SESSION = 'Untitled, just started'
+const UNTITLED_SESSION = 'Untitled, just started'
 export const ONE_TIME_SETUP = 'one-time setup'
 
 const ROW = 'flex flex-col gap-1.5 list-none'

@@ -37,24 +37,28 @@ export function cwdRelation(candidateCwd: string, engineCwd: string): CwdRelatio
   return 'disjoint'
 }
 
+type CandidateFacts = Pick<LiveSession, 'title' | 'messageCount' | 'lastActivityAt' | 'tail'>
+
+async function candidateFacts(deps: ChatDeps, session: HarnessLiveSession): Promise<CandidateFacts> {
+  const history = deps.harness.history
+  const blank: CandidateFacts = {title: '', messageCount: 0, lastActivityAt: session.startedAt ?? 0, tail: []}
+  if (!history) return blank
+  const meta = await history.meta?.(session.cwd, session.sessionId, deps.claudeHome).catch(() => null)
+  const messages = await history.messages(session.cwd, session.sessionId, deps.claudeHome).catch(() => [])
+  return {
+    title: meta?.derivedTitle ?? blank.title,
+    messageCount: meta?.messageCount ?? messages.length,
+    lastActivityAt: meta?.updatedAt ?? blank.lastActivityAt,
+    tail: transcriptTail(messages),
+  }
+}
+
 async function toWire(deps: ChatDeps, session: HarnessLiveSession): Promise<LiveSession[]> {
   const relation = cwdRelation(session.cwd, deps.cwd)
   if (relation === 'disjoint') return []
-  const history = deps.harness.history
-  const meta = await history?.meta?.(session.cwd, session.sessionId, deps.claudeHome).catch(() => null)
-  const messages = (await history?.messages(session.cwd, session.sessionId, deps.claudeHome).catch(() => [])) ?? []
-  return [
-    {
-      ...session,
-      relation,
-      ready: deps.dialed(session.sessionId),
-      title: meta?.derivedTitle ?? '',
-      messageCount: meta?.messageCount ?? messages.length,
-      lastActivityAt: meta?.updatedAt ?? session.startedAt ?? 0,
-      working: session.status === 'busy',
-      tail: transcriptTail(messages),
-    },
-  ]
+  const facts = await candidateFacts(deps, session)
+  const ready = deps.dialed(session.sessionId)
+  return [{...session, ...facts, relation, ready, working: session.status === 'busy'}]
 }
 
 export async function liveCandidates(deps: ChatDeps): Promise<LiveSession[]> {
