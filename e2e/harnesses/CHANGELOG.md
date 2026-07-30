@@ -1,5 +1,12 @@
 # conciv-e2e-harnesses
 
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
+  - @conciv/it@0.0.16
+
 ## 0.0.5
 
 ### Patch Changes

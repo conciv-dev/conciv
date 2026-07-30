@@ -1,6 +1,6 @@
 {
   "name": "conciv-e2e-vite-solid-component",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "private": true,
   "type": "module",
   "scripts": {

@@ -1,6 +1,6 @@
 {
   "name": "@conciv/solid",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "Solid component for the conciv widget: render <ConcivWidget /> to mount the conciv dev agent in any Solid app.",
   "keywords": [
     "ai",

@@ -1,5 +1,11 @@
 # @conciv/grab
 
+## 0.0.16
+
+### Patch Changes
+
+- [#143](https://github.com/conciv-dev/conciv/pull/143) [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e) Thanks [@omridevk](https://github.com/omridevk)! - Make the grab contract host-neutral: replace `StagedGrab.snapshot: ElementSnapshot` with `preview: GrabPreview`, a `dom | image` discriminated union so non-web hosts can emit a grab without a live `HTMLElement`, and add optional `GrabApi.grabbable`.
+
 ## 0.0.15
 
 ## 0.0.14
