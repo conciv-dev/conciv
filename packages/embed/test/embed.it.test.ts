@@ -10,8 +10,6 @@ const HARNESS_MODELS = [
   {id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5'},
   {id: 'claude-opus-4-1', name: 'Claude Opus 4.1'},
 ]
-const LIGHT_HOST_BACKDROP = 'repeating-linear-gradient(45deg, #ffffff 0 14px, #ff0000 14px 28px)'
-const DARK_HOST_BACKDROP = 'repeating-linear-gradient(45deg, #000000 0 14px, #0000ff 14px 28px)'
 const HOST_HEADING = 'Deployment checklist'
 const LONG_HOST_BODY = `<h1>Host site</h1>${Array.from(
   {length: 60},
@@ -29,7 +27,9 @@ let longHost: {base: string; close: () => Promise<void>}
 beforeAll(async () => {
   browser = await chromium.launch()
   kit = await bootEmbedKit({text: ASSISTANT_TEXT, models: HARNESS_MODELS})
-  host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
+  host = await serveHost((url) =>
+    hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', backdrop: url.searchParams.get('backdrop')}),
+  )
   longHost = await serveHost(() =>
     hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: LONG_HOST_BODY}),
   )
@@ -50,14 +50,6 @@ async function openPage(): Promise<Page> {
   const page = await browser.newPage()
   await page.goto(host.base, {waitUntil: 'domcontentloaded'})
   return page
-}
-
-async function shootOverHostBackdrop(page: Page, backdrop: string): Promise<Buffer> {
-  await page.evaluate((value) => {
-    document.body.style.setProperty('background', value)
-    document.body.style.setProperty('min-height', '100vh')
-  }, backdrop)
-  return page.screenshot({animations: 'disabled'})
 }
 
 async function sendAndRevealThought(page: Page, message: string): Promise<void> {
@@ -270,12 +262,16 @@ describe('embed boots the conciv app against a real core', () => {
 describe('embed at a phone viewport', () => {
   it('paints an opaque sheet so the host page never shows through', async () => {
     const page = await browser.newPage({viewport: {width: 393, height: 800}})
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await openPanel(page)
-    const patterned = await shootOverHostBackdrop(page, LIGHT_HOST_BACKDROP)
-    const repeated = await shootOverHostBackdrop(page, LIGHT_HOST_BACKDROP)
+    const shootOver = async (backdrop: string): Promise<Buffer> => {
+      await kit.rpc.navigation.set({entries: [{href: '/'}], index: 0})
+      await page.goto(`${host.base}/?backdrop=${backdrop}`, {waitUntil: 'domcontentloaded'})
+      await openPanel(page)
+      return page.screenshot({animations: 'disabled'})
+    }
+    const patterned = await shootOver('light-stripes')
+    const repeated = await shootOver('light-stripes')
     expect(repeated.equals(patterned)).toBe(true)
-    const inverted = await shootOverHostBackdrop(page, DARK_HOST_BACKDROP)
+    const inverted = await shootOver('dark-stripes')
     expect(inverted.equals(patterned)).toBe(true)
     await page.close()
   })
