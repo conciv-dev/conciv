@@ -69,6 +69,8 @@ export function ComposerActions(props: {
     refetchInterval: READY_POLL_MS,
   }))
 
+  const contactLost = createMemo(() => awaitedSession() !== null && readiness.isError)
+
   const dialedIn = createMemo(() => {
     const awaited = awaitedSession()
     if (awaited === null) return false
@@ -93,24 +95,33 @@ export function ComposerActions(props: {
     return [fallback]
   }
 
+  const listed = (candidates: LiveSession[]): void => {
+    setConnectStep({step: 'picking', candidates, error: null, retry: null})
+  }
+
+  const failed = (message: string, candidates: LiveSession[], retry: LiveSession | null): void => {
+    setConnectStep({step: 'picking', candidates, error: message, retry})
+  }
+
   const connect = useMutation(() => ({
     mutationFn: () => rpc.sessions.attachCandidates(),
     onSuccess: (candidates: LiveSession[]) => {
+      listed(candidates)
       const only = candidates.length === 1 ? candidates[0] : undefined
-      if (only?.ready) {
-        adopt.mutate(only)
-        return
-      }
-      setConnectStep({step: 'picking', candidates})
+      if (only?.ready) adopt.mutate(only)
     },
-    onError: () => props.notify(`Couldn’t look for running ${harnessName()} sessions.`),
+    onError: () => failed(`Couldn’t look for running ${harnessName()} sessions.`, [], null),
   }))
 
-  const showSnippet = async (detail: string): Promise<void> => {
-    const fallback = await rpc.sessions.connectCommand({sessionId: props.sessionId})
-    if (!fallback.command) {
-      props.notify(detail)
-      setConnectStep(null)
+  const lookForSessions = (): void => {
+    setConnectStep({step: 'looking'})
+    connect.mutate()
+  }
+
+  const showSnippet = async (detail: string, session: LiveSession): Promise<void> => {
+    const fallback = await rpc.sessions.connectCommand({sessionId: props.sessionId}).catch(() => null)
+    if (!fallback?.command) {
+      failed(detail, candidatesNow(session), session)
       return
     }
     setConnectStep({step: 'snippet', command: fallback.command, detail})
@@ -132,16 +143,29 @@ export function ComposerActions(props: {
       }
       setConnectStep({step: 'reload', session, command: result.reloadCommand, candidates: candidatesNow(session)})
     },
-    onError: (error: unknown) => {
+    onError: (error: unknown, session: LiveSession) => {
       const install = errorMessageFor(error, 'INSTALL_FAILED')
       if (install !== null) {
-        void showSnippet(install)
+        void showSnippet(install, session)
         return
       }
-      props.notify(errorMessageFor(error, 'CWD_MISMATCH') ?? `Couldn’t connect that ${harnessName()} session.`)
-      setConnectStep(null)
+      const message = errorMessageFor(error, 'CWD_MISMATCH') ?? `Couldn’t connect that ${harnessName()} session.`
+      failed(message, candidatesNow(session), session)
     },
   }))
+
+  const connectingSession = createMemo(() => (adopt.isPending ? (adopt.variables?.sessionId ?? null) : null))
+
+  const retryConnect = (): void => {
+    const step = connectStep()
+    const session = step?.step === 'picking' ? step.retry : null
+    if (session === null) {
+      lookForSessions()
+      return
+    }
+    listed(candidatesNow(session))
+    adopt.mutate(session)
+  }
 
   const launch = useMutation(() => ({
     mutationFn: (open: boolean) => rpc.sessions.launch({sessionId: props.sessionId, open}),
@@ -191,16 +215,19 @@ export function ComposerActions(props: {
           canConnect={meta.data?.harness.canAttach}
           onOpen={() => launch.mutate(true)}
           onCopy={() => launch.mutate(false)}
-          onConnect={() => connect.mutate()}
+          onConnect={() => lookForSessions()}
         />
       </Show>
       <ConnectSessionDialog
         state={connectStep()}
         connected={dialedIn()}
+        connecting={connectingSession()}
+        contactLost={contactLost()}
         onPick={(session) => adopt.mutate(session)}
         onCopy={(text) => void copyCommand(text, props.notify)}
         onClose={() => setConnectStep(null)}
-        onBack={(candidates) => setConnectStep({step: 'picking', candidates})}
+        onRetry={() => retryConnect()}
+        onBack={(candidates) => listed(candidates)}
         onDone={finishReload}
         onLaunch={() => {
           setConnectStep(null)

@@ -1,21 +1,32 @@
 import {For, Match, Show, Switch, splitProps, type JSX} from 'solid-js'
 import {Button, Dialog, RelativeTime} from '@conciv/ui-kit-system'
-import {TerminalPreview} from '@conciv/ui-kit-terminal'
 import type {LiveSession} from '@conciv/contract'
-import {PREVIEW_COLS, renderTranscriptTail} from './transcript-tail-ansi.js'
+import {TranscriptTailPreview} from './transcript-tail-preview.js'
 
-export type PickingStep = {step: 'picking'; candidates: LiveSession[]}
+export type LookingStep = {step: 'looking'}
+export type PickingStep = {
+  step: 'picking'
+  candidates: LiveSession[]
+  error: string | null
+  retry: LiveSession | null
+}
 export type ReloadStep = {step: 'reload'; session: LiveSession; command: string; candidates: LiveSession[]}
 export type SnippetStep = {step: 'snippet'; command: string; detail: string}
 
-export type ConnectStep = PickingStep | ReloadStep | SnippetStep
+export type ConnectStep = LookingStep | PickingStep | ReloadStep | SnippetStep
 
 const UNTITLED_SESSION = 'Untitled, just started'
 export const ONE_TIME_SETUP = 'one-time setup'
+export const CONNECTING_LABEL = 'Connecting…'
+export const LOOKING_LABEL = 'Looking for running sessions…'
+export const RETRY_LABEL = 'Try again'
+export const CONTACT_LOST = 'Lost contact with the server. Still trying.'
 
 const ROW = 'flex flex-col gap-1.5 list-none'
 const ROW_HEAD =
-  'flex flex-col gap-1 items-start w-full text-left py-2 px-2.5 rounded-pw-md [border:none] bg-transparent text-pw-text cursor-pointer trans-color-bg hover:bg-pw-fill-strong'
+  'flex flex-col gap-1 items-start w-full text-left py-2 px-2.5 rounded-pw-md [border:none] bg-transparent text-pw-text trans-color-bg'
+const ROW_HEAD_IDLE = `${ROW_HEAD} cursor-pointer hover:bg-pw-fill-strong`
+const ROW_HEAD_BUSY = `${ROW_HEAD} opacity-60 cursor-progress`
 const TITLE_LINE = 'flex items-center gap-2 w-full min-w-0'
 const TITLE = 'text-sm font-semibold truncate min-w-0'
 const META = 'text-pw-text-3 text-xs'
@@ -23,7 +34,6 @@ const DOT_IDLE = 'size-2 rounded-pw-pill bg-pw-text-3 shrink-0'
 const DOT_WORKING = 'size-2 rounded-pw-pill bg-pw-success shrink-0 anim-pulse'
 const BADGE =
   'shrink-0 px-1.5 py-0.5 rounded-pw-pill text-[0.625rem] font-semibold uppercase tracking-wide text-pw-warn bg-pw-warn-20 border border-pw-warn'
-const PREVIEW = 'rounded-pw-sm bg-pw-sunken border border-pw-line-soft p-2 overflow-hidden'
 const CODE = 'font-mono text-xs text-pw-text bg-pw-fill rounded-pw-sm py-1.5 px-2 break-all'
 const LINK =
   'self-start [border:none] bg-transparent p-0 text-xs text-pw-accent-link cursor-pointer underline underline-offset-2'
@@ -31,8 +41,12 @@ const WAITING = 'flex items-center gap-2 text-pw-text-3 text-xs'
 const SPINNER = 'size-2 rounded-pw-pill bg-pw-accent anim-pulse shrink-0'
 const CONNECTED = 'flex items-center gap-2 text-pw-success text-xs m-0'
 const CONNECTED_DOT = 'size-2 rounded-pw-pill bg-pw-success shrink-0'
-
-const PREVIEW_THEME = {background: '#000000', foreground: '#d6d6de'}
+const CONNECTING = 'flex items-center gap-2 text-pw-accent text-xs'
+const FAILURE =
+  'flex items-center justify-between gap-2 rounded-pw-sm border border-pw-danger-line bg-pw-danger-10 text-pw-danger text-xs p-2'
+const SKELETON = 'flex flex-col gap-3 list-none m-0 p-0'
+const SKELETON_ROW = 'h-16 rounded-pw-md bg-pw-fill-soft anim-pulse list-none'
+const SKELETON_ROWS = [0, 1]
 
 export function candidateTitle(session: LiveSession): string {
   return session.title.trim() === '' ? UNTITLED_SESSION : session.title
@@ -49,10 +63,21 @@ function subtitle(count: number): string {
   return `${count} ${noun} running in this project. Pick the one this panel should follow.`
 }
 
-function CandidateRow(props: {session: LiveSession; onPick: (session: LiveSession) => void}): JSX.Element {
+function CandidateRow(props: {
+  session: LiveSession
+  connecting: string | null
+  onPick: (session: LiveSession) => void
+}): JSX.Element {
+  const busy = () => props.connecting !== null
+  const picked = () => props.connecting === props.session.sessionId
   return (
     <li class={ROW}>
-      <button type="button" class={ROW_HEAD} onClick={() => props.onPick(props.session)}>
+      <button
+        type="button"
+        class={busy() ? ROW_HEAD_BUSY : ROW_HEAD_IDLE}
+        disabled={busy()}
+        onClick={() => props.onPick(props.session)}
+      >
         <span class={TITLE_LINE}>
           <span class={props.session.working ? DOT_WORKING : DOT_IDLE} />
           <span class={TITLE}>{candidateTitle(props.session)}</span>
@@ -66,47 +91,81 @@ function CandidateRow(props: {session: LiveSession; onPick: (session: LiveSessio
             <span> · needs one reload in that terminal</span>
           </Show>
         </span>
+        <Show when={picked()}>
+          <span class={CONNECTING} role="status">
+            <span class={SPINNER} />
+            {CONNECTING_LABEL}
+          </span>
+        </Show>
       </button>
-      <div class={PREVIEW}>
-        <TerminalPreview
-          content={renderTranscriptTail(props.session.tail, {working: props.session.working})}
-          cols={PREVIEW_COLS}
-          theme={PREVIEW_THEME}
-        />
-      </div>
+      <TranscriptTailPreview tail={props.session.tail} working={props.session.working} />
     </li>
   )
 }
 
+function LookingView(props: {onClose: () => void}): JSX.Element {
+  return (
+    <>
+      <p class={WAITING} role="status">
+        <span class={SPINNER} />
+        {LOOKING_LABEL}
+      </p>
+      <ul class={SKELETON} aria-hidden="true">
+        <For each={SKELETON_ROWS}>{() => <li class={SKELETON_ROW} />}</For>
+      </ul>
+      <div class="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={() => props.onClose()}>
+          Cancel
+        </Button>
+      </div>
+    </>
+  )
+}
+
+function Failure(props: {message: string; onRetry: () => void}): JSX.Element {
+  return (
+    <div class={FAILURE} role="alert">
+      <span>{props.message}</span>
+      <Button variant="ghost" size="sm" onClick={() => props.onRetry()}>
+        {RETRY_LABEL}
+      </Button>
+    </div>
+  )
+}
+
 function PickingView(props: {
-  candidates: LiveSession[]
+  state: PickingStep
+  connecting: string | null
   onPick: (session: LiveSession) => void
+  onRetry: () => void
   onClose: () => void
   onLaunch: () => void
 }): JSX.Element {
+  const empty = () => props.state.candidates.length === 0
   return (
     <>
-      <p class="text-pw-text-3 text-xs leading-normal">{subtitle(props.candidates.length)}</p>
-      <Show
-        when={props.candidates.length > 0}
-        fallback={
-          <>
-            <p class="text-pw-text text-sm">No claude session is running in this project.</p>
-            <p class="text-pw-text-3 text-xs leading-normal">
-              Open a new connected session instead, and this panel follows it from the start.
-            </p>
-          </>
-        }
-      >
+      <Show when={props.state.error === null}>
+        <p class="text-pw-text-3 text-xs leading-normal">{subtitle(props.state.candidates.length)}</p>
+      </Show>
+      <Show when={props.state.error}>{(message) => <Failure message={message()} onRetry={props.onRetry} />}</Show>
+      <Show when={!empty()}>
         <ul class="flex flex-col gap-3 list-none m-0 p-0 max-h-[26rem] overflow-y-auto">
-          <For each={props.candidates}>{(session) => <CandidateRow session={session} onPick={props.onPick} />}</For>
+          <For each={props.state.candidates}>
+            {(session) => <CandidateRow session={session} connecting={props.connecting} onPick={props.onPick} />}
+          </For>
         </ul>
+      </Show>
+      <Show when={empty() && props.state.error === null}>
+        <p class="text-pw-text text-sm">No claude session is running in this project.</p>
+        <p class="text-pw-text-3 text-xs leading-normal">
+          Open a new connected session instead, and this panel follows it from the start.
+        </p>
       </Show>
       <div class="flex justify-end gap-2">
         <Button variant="ghost" size="sm" onClick={() => props.onClose()}>
           Cancel
         </Button>
-        <Show when={props.candidates.length === 0}>
+        <Show when={empty() && props.state.error === null}>
           <Button size="sm" onClick={() => props.onLaunch()}>
             Open a new session
           </Button>
@@ -119,6 +178,7 @@ function PickingView(props: {
 function ReloadView(props: {
   state: ReloadStep
   connected: boolean
+  contactLost: boolean
   onCopy: (text: string) => void
   onBack: () => void
   onDone: () => void
@@ -141,25 +201,30 @@ function ReloadView(props: {
           Copy command
         </Button>
       </div>
-      <Show
-        when={props.connected}
-        fallback={
+      <Switch>
+        <Match when={props.connected}>
+          <div class="flex justify-between items-center gap-2">
+            <p class={CONNECTED} role="status">
+              <span class={CONNECTED_DOT} />
+              Connected. Keep talking in either place.
+            </p>
+            <Button size="sm" onClick={() => props.onDone()}>
+              Done
+            </Button>
+          </div>
+        </Match>
+        <Match when={props.contactLost}>
+          <p class="text-pw-danger text-xs m-0" role="alert">
+            {CONTACT_LOST}
+          </p>
+        </Match>
+        <Match when={!props.connected}>
           <p class={WAITING} role="status">
             <span class={SPINNER} />
             Waiting for the session to dial in. This flips by itself.
           </p>
-        }
-      >
-        <div class="flex justify-between items-center gap-2">
-          <p class={CONNECTED} role="status">
-            <span class={CONNECTED_DOT} />
-            Connected. Keep talking in either place.
-          </p>
-          <Button size="sm" onClick={() => props.onDone()}>
-            Done
-          </Button>
-        </div>
-      </Show>
+        </Match>
+      </Switch>
     </>
   )
 }
@@ -184,6 +249,7 @@ function SnippetView(props: {state: SnippetStep; onCopy: (text: string) => void;
   )
 }
 
+const looking = (state: ConnectStep): LookingStep | undefined => (state.step === 'looking' ? state : undefined)
 const picking = (state: ConnectStep): PickingStep | undefined => (state.step === 'picking' ? state : undefined)
 const reloading = (state: ConnectStep): ReloadStep | undefined => (state.step === 'reload' ? state : undefined)
 const snippet = (state: ConnectStep): SnippetStep | undefined => (state.step === 'snippet' ? state : undefined)
@@ -196,7 +262,10 @@ export function ConnectSessionDialog(props: {
   onLaunch: () => void
   onBack: (candidates: LiveSession[]) => void
   onDone: (session: LiveSession) => void
+  onRetry: () => void
   connected: boolean
+  connecting: string | null
+  contactLost: boolean
 }): JSX.Element {
   const [local] = splitProps(props, [
     'state',
@@ -206,7 +275,10 @@ export function ConnectSessionDialog(props: {
     'onLaunch',
     'onBack',
     'onDone',
+    'onRetry',
     'connected',
+    'connecting',
+    'contactLost',
   ])
   return (
     <Dialog
@@ -221,11 +293,16 @@ export function ConnectSessionDialog(props: {
           <div class="flex flex-col gap-3">
             <h2 class="text-pw-text-hi text-sm font-semibold m-0">Connect a running session</h2>
             <Switch>
+              <Match when={looking(state())}>
+                <LookingView onClose={local.onClose} />
+              </Match>
               <Match when={picking(state())}>
                 {(value) => (
                   <PickingView
-                    candidates={value().candidates}
+                    state={value()}
+                    connecting={local.connecting}
                     onPick={local.onPick}
+                    onRetry={local.onRetry}
                     onClose={local.onClose}
                     onLaunch={local.onLaunch}
                   />
@@ -236,6 +313,7 @@ export function ConnectSessionDialog(props: {
                   <ReloadView
                     state={value()}
                     connected={local.connected}
+                    contactLost={local.contactLost}
                     onCopy={local.onCopy}
                     onBack={() => local.onBack(value().candidates)}
                     onDone={() => local.onDone(value().session)}

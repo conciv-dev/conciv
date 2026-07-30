@@ -3,7 +3,16 @@ import {page, userEvent} from 'vitest/browser'
 import {render} from 'solid-js/web'
 import {createSignal} from 'solid-js'
 import type {LiveSession} from '@conciv/contract'
-import {ConnectSessionDialog, ONE_TIME_SETUP, type ConnectStep} from '../src/composer/connect-dialog.js'
+import {
+  ConnectSessionDialog,
+  CONNECTING_LABEL,
+  CONTACT_LOST,
+  LOOKING_LABEL,
+  ONE_TIME_SETUP,
+  RETRY_LABEL,
+  type ConnectStep,
+  type PickingStep,
+} from '../src/composer/connect-dialog.js'
 
 const disposers: (() => void)[] = []
 afterEach(() => {
@@ -29,9 +38,20 @@ const session = (over: Partial<LiveSession> = {}): LiveSession => ({
   ...over,
 })
 
+const pickingStep = (candidates: LiveSession[], over: Partial<PickingStep> = {}): PickingStep => ({
+  step: 'picking',
+  candidates,
+  error: null,
+  retry: null,
+  ...over,
+})
+
 type Mounted = {
   state: (next: ConnectStep | null) => void
   connected: (next: boolean) => void
+  connecting: (next: string | null) => void
+  contactLost: (next: boolean) => void
+  retried: number[]
   picked: LiveSession[]
   copied: string[]
   closed: number[]
@@ -40,14 +60,19 @@ type Mounted = {
   done: LiveSession[]
 }
 
-function mountDialog(): Mounted {
+function mountDialog(react: (session: LiveSession) => void = () => {}): Mounted {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const [state, setState] = createSignal<ConnectStep | null>(null)
   const [connected, setConnected] = createSignal(false)
+  const [connecting, setConnecting] = createSignal<string | null>(null)
+  const [contactLost, setContactLost] = createSignal(false)
   const mounted: Mounted = {
     state: setState,
     connected: setConnected,
+    connecting: setConnecting,
+    contactLost: setContactLost,
+    retried: [],
     picked: [],
     copied: [],
     closed: [],
@@ -60,7 +85,13 @@ function mountDialog(): Mounted {
       <ConnectSessionDialog
         state={state()}
         connected={connected()}
-        onPick={(value) => mounted.picked.push(value)}
+        connecting={connecting()}
+        contactLost={contactLost()}
+        onRetry={() => mounted.retried.push(1)}
+        onPick={(value) => {
+          mounted.picked.push(value)
+          react(value)
+        }}
         onCopy={(text) => mounted.copied.push(text)}
         onClose={() => mounted.closed.push(1)}
         onLaunch={() => mounted.launched.push(1)}
@@ -77,15 +108,66 @@ function mountDialog(): Mounted {
   return mounted
 }
 
+test('opens on a looking state before the sessions arrive, and can be left there', async () => {
+  const dialog = mountDialog()
+  dialog.state({step: 'looking'})
+
+  await expect.element(page.getByText(LOOKING_LABEL)).toBeVisible()
+  await page.getByRole('button', {name: 'Cancel'}).click()
+  expect(dialog.closed).toHaveLength(1)
+
+  dialog.state(pickingStep([session()]))
+  await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeVisible()
+  expect(page.getByText(LOOKING_LABEL).elements()).toHaveLength(0)
+})
+
+test('shows a failed lookup in the dialog with a way to try again', async () => {
+  const dialog = mountDialog()
+  dialog.state(pickingStep([], {error: 'Couldn’t look for running claude sessions.'}))
+
+  await expect.element(page.getByText('Couldn’t look for running claude sessions.')).toBeVisible()
+  expect(page.getByText('No claude session is running in this project.').elements()).toHaveLength(0)
+
+  await page.getByRole('button', {name: RETRY_LABEL}).click()
+  expect(dialog.retried).toHaveLength(1)
+})
+
+test('leaves the rows clickable after a failed connect and offers the retry', async () => {
+  const only = session()
+  const dialog = mountDialog()
+  dialog.state(pickingStep([only], {error: 'Couldn’t connect that claude session.', retry: only}))
+
+  await expect.element(page.getByText('Couldn’t connect that claude session.')).toBeVisible()
+  await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeEnabled()
+  expect(page.getByText(CONNECTING_LABEL).elements()).toHaveLength(0)
+
+  await page.getByRole('button', {name: RETRY_LABEL}).click()
+  expect(dialog.retried).toHaveLength(1)
+
+  await page.getByRole('button', {name: /rename the widget package/}).click()
+  expect(dialog.picked.map((value) => value.sessionId)).toEqual(['sess-1'])
+})
+
+test('says when the readiness poll lost the server instead of spinning forever', async () => {
+  const dialog = mountDialog()
+  const older = session({ready: false})
+  dialog.state({step: 'reload', session: older, command: '/reload-plugins --force', candidates: [older]})
+  await expect.element(page.getByText(/Waiting for the session to dial in/)).toBeVisible()
+
+  dialog.contactLost(true)
+
+  await expect.element(page.getByText(CONTACT_LOST)).toBeVisible()
+  expect(page.getByText(/Waiting for the session to dial in/).elements()).toHaveLength(0)
+})
+
 test('lists the running sessions with their first message and their state', async () => {
   const dialog = mountDialog()
-  dialog.state({
-    step: 'picking',
-    candidates: [
+  dialog.state(
+    pickingStep([
       session(),
       session({sessionId: 'sess-2', name: 'terminal-2', title: 'fix the flaky test', working: true, status: 'busy'}),
-    ],
-  })
+    ]),
+  )
 
   await expect.element(page.getByText('Connect a running session')).toBeVisible()
   await expect.element(page.getByText(/2 Claude sessions are running in this project/)).toBeVisible()
@@ -95,12 +177,45 @@ test('lists the running sessions with their first message and their state', asyn
   await expect.element(page.getByText(/terminal-2 · working/)).toBeVisible()
 })
 
+test('previews what each session was last doing', async () => {
+  const dialog = mountDialog()
+  dialog.state(pickingStep([session({working: true})]))
+
+  await expect.element(page.getByText('Looking at the manifests now.')).toBeVisible()
+  await expect.element(page.getByText('Read', {exact: true})).toBeVisible()
+  await expect.element(page.getByText('package.json read')).toBeVisible()
+  await expect.element(page.getByText('Thinking…')).toBeVisible()
+})
+
+test('holds the list still while the picked session is being connected', async () => {
+  const adopt: {land: () => void} = {land: () => {}}
+  const landed = new Promise<void>((resolve) => {
+    adopt.land = resolve
+  })
+  const dialog = mountDialog((picked) => {
+    dialog.connecting(picked.sessionId)
+    void landed.then(() => dialog.connecting(null))
+  })
+  dialog.state(pickingStep([session(), session({sessionId: 'sess-2', title: 'fix the flaky test'})]))
+
+  await page.getByRole('button', {name: /fix the flaky test/}).click()
+
+  await expect.element(page.getByText(CONNECTING_LABEL)).toBeVisible()
+  await expect.element(page.getByRole('button', {name: /fix the flaky test/})).toBeDisabled()
+  await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeDisabled()
+  await expect.element(page.getByRole('button', {name: 'Cancel'})).toBeEnabled()
+  expect(page.getByText(CONNECTING_LABEL).elements()).toHaveLength(1)
+
+  adopt.land()
+  await landed
+
+  await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeEnabled()
+  expect(page.getByText(CONNECTING_LABEL).elements()).toHaveLength(0)
+})
+
 test('badges only the session that started before conciv was installed', async () => {
   const dialog = mountDialog()
-  dialog.state({
-    step: 'picking',
-    candidates: [session(), session({sessionId: 'sess-2', title: 'the older one', ready: false})],
-  })
+  dialog.state(pickingStep([session(), session({sessionId: 'sess-2', title: 'the older one', ready: false})]))
 
   await expect.element(page.getByRole('button', {name: new RegExp(ONE_TIME_SETUP)})).toBeVisible()
   expect(page.getByText(ONE_TIME_SETUP).elements()).toHaveLength(1)
@@ -109,17 +224,14 @@ test('badges only the session that started before conciv was installed', async (
 
 test('falls back to a placeholder title for a session with nothing said yet', async () => {
   const dialog = mountDialog()
-  dialog.state({step: 'picking', candidates: [session({title: '', messageCount: 0, tail: []})]})
+  dialog.state(pickingStep([session({title: '', messageCount: 0, tail: []})]))
 
   await expect.element(page.getByRole('button', {name: /Untitled, just started/})).toBeVisible()
 })
 
 test('picks the session the row belongs to', async () => {
   const dialog = mountDialog()
-  dialog.state({
-    step: 'picking',
-    candidates: [session(), session({sessionId: 'sess-2', title: 'fix the flaky test'})],
-  })
+  dialog.state(pickingStep([session(), session({sessionId: 'sess-2', title: 'fix the flaky test'})]))
 
   await page.getByRole('button', {name: /fix the flaky test/}).click()
   expect(dialog.picked.map((value) => value.sessionId)).toEqual(['sess-2'])
@@ -127,7 +239,7 @@ test('picks the session the row belongs to', async () => {
 
 test('says so when nothing is running and points at the way forward', async () => {
   const dialog = mountDialog()
-  dialog.state({step: 'picking', candidates: []})
+  dialog.state(pickingStep([]))
   await expect.element(page.getByText('No claude session is running in this project.')).toBeVisible()
 
   await expect.element(page.getByRole('button', {name: 'Open a new session'})).toBeVisible()
@@ -140,7 +252,7 @@ test('says so when nothing is running and points at the way forward', async () =
 
 test('escape leaves the empty picker', async () => {
   const dialog = mountDialog()
-  dialog.state({step: 'picking', candidates: []})
+  dialog.state(pickingStep([]))
   await expect.element(page.getByText('No claude session is running in this project.')).toBeVisible()
 
   await userEvent.keyboard('{Escape}')
@@ -157,7 +269,7 @@ async function clickBehindTheDialog(): Promise<void> {
 
 test('clicking away leaves the empty picker', async () => {
   const dialog = mountDialog()
-  dialog.state({step: 'picking', candidates: []})
+  dialog.state(pickingStep([]))
   await expect.element(page.getByText('No claude session is running in this project.')).toBeVisible()
 
   await clickBehindTheDialog()
