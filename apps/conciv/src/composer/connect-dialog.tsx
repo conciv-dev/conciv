@@ -29,7 +29,7 @@ const ROW_HEAD_IDLE = `${ROW_HEAD} cursor-pointer hover:bg-pw-fill-strong`
 const ROW_HEAD_BUSY = `${ROW_HEAD} opacity-60 cursor-progress`
 const TITLE_LINE = 'flex items-center gap-2 w-full min-w-0'
 const TITLE = 'text-sm font-semibold truncate min-w-0'
-const META = 'text-pw-text-3 text-xs'
+const META = 'text-pw-text-3 text-xs w-full truncate'
 const DOT_IDLE = 'size-2 rounded-pw-pill bg-pw-text-3 shrink-0'
 const DOT_WORKING = 'size-2 rounded-pw-pill bg-pw-success shrink-0 anim-pulse'
 const BADGE =
@@ -37,13 +37,16 @@ const BADGE =
 const CODE = 'font-mono text-xs text-pw-text bg-pw-fill rounded-pw-sm py-1.5 px-2 break-all'
 const LINK =
   'self-start [border:none] bg-transparent p-0 text-xs text-pw-accent-link cursor-pointer underline underline-offset-2'
-const WAITING = 'flex items-center gap-2 text-pw-text-3 text-xs'
+const WAITING = 'flex items-center gap-2 text-pw-text-3 text-xs m-0'
+const LOST = 'flex items-center gap-2 text-pw-danger text-xs m-0'
+const LOST_DOT = 'size-2 rounded-pw-pill bg-pw-danger shrink-0'
 const SPINNER = 'size-2 rounded-pw-pill bg-pw-accent anim-pulse shrink-0'
 const CONNECTED = 'flex items-center gap-2 text-pw-success text-xs m-0'
 const CONNECTED_DOT = 'size-2 rounded-pw-pill bg-pw-success shrink-0'
 const CONNECTING = 'flex items-center gap-2 text-pw-accent text-xs'
 const FAILURE =
-  'flex items-center justify-between gap-2 rounded-pw-sm border border-pw-danger-line bg-pw-danger-10 text-pw-danger text-xs p-2'
+  'flex items-start justify-between gap-2 rounded-pw-sm border border-pw-danger-line bg-pw-danger-10 text-pw-danger text-xs p-2'
+const FAILURE_TEXT = 'min-w-0 break-words leading-normal'
 const SKELETON = 'flex flex-col gap-3 list-none m-0 p-0'
 const SKELETON_ROW = 'h-16 rounded-pw-md bg-pw-fill-soft anim-pulse list-none'
 const SKELETON_ROWS = [0, 1]
@@ -125,8 +128,8 @@ function LookingView(props: {onClose: () => void}): JSX.Element {
 function Failure(props: {message: string; onRetry: () => void}): JSX.Element {
   return (
     <div class={FAILURE} role="alert">
-      <span>{props.message}</span>
-      <Button variant="ghost" size="sm" onClick={() => props.onRetry()}>
+      <span class={FAILURE_TEXT}>{props.message}</span>
+      <Button variant="ghost" size="sm" class="shrink-0" onClick={() => props.onRetry()}>
         {RETRY_LABEL}
       </Button>
     </div>
@@ -214,7 +217,8 @@ function ReloadView(props: {
           </div>
         </Match>
         <Match when={props.contactLost}>
-          <p class="text-pw-danger text-xs m-0" role="alert">
+          <p class={LOST} role="alert">
+            <span class={LOST_DOT} />
             {CONTACT_LOST}
           </p>
         </Match>

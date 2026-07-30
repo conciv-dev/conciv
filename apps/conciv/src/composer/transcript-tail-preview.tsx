@@ -22,8 +22,9 @@ const PROMPT_BOX = 'mt-1.5 flex items-center gap-1.5 rounded-pw-sm border border
 const CURSOR = 'inline-block w-1 h-3 bg-pw-text-3 shrink-0'
 
 function clip(text: string): string {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  return flat.length <= PREVIEW_CHARS ? flat : `${flat.slice(0, PREVIEW_CHARS - 1)}…`
+  const glyphs = Array.from(text.replace(/\s+/g, ' ').trim())
+  if (glyphs.length <= PREVIEW_CHARS) return glyphs.join('')
+  return `${glyphs.slice(0, PREVIEW_CHARS - 1).join('')}…`
 }
 
 function TailLine(props: {mark: string; text: string; tone: string; indent?: boolean}): JSX.Element {
