@@ -95,6 +95,53 @@ Nothing in the generated plugin depends on which conciv session adopted, so the 
 installed plugin serves every adopted session and re-adopting never rewrites another
 session's routing.
 
+## Question 5: does re-writing the plugin files reach claude?
+
+No. `claude plugin install` SNAPSHOTS the plugin into
+`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, and our `plugin.json` pins
+`version` forever, so the cache key never changes. With the source `.mcp.json` edited to a
+new url:
+
+| command                                  | cached `.mcp.json`              |
+| ---------------------------------------- | ------------------------------- |
+| `plugin marketplace add <dir>`           | unchanged (`already on disk`)   |
+| `plugin install <p>@<m> --scope local`   | unchanged (`already installed`) |
+| `plugin marketplace update <m>`          | unchanged (reports success)     |
+| `plugin uninstall` then `plugin install` | REFRESHED                       |
+
+Only uninstall-then-install refreshes it. `install()` therefore always uninstalls first, so
+the copy claude reads matches the files we just wrote. Without that, a conciv server on a new
+port would keep being dialled at the old one, and nobody who already had the http-era plugin
+would ever receive the stdio one.
+
+Note `${CLAUDE_PLUGIN_ROOT}` resolves to the marketplace SOURCE directory for a local-path
+marketplace, so the bridge script itself is read live; it is the `.mcp.json` that goes stale.
+
+## Question 6: can the bridge run requests concurrently?
+
+Yes, and it must. An earlier version drained a queue with one in-flight fetch, which
+serialised every tool call in a session. Driving the bridge with three `tools/call` lines at
+once, against a sink that sleeps 1500ms per call:
+
+```
+sink_alpha start +0ms
+sink_beta  start +3ms
+sink_gamma start +13ms
+```
+
+All three responses came back correctly framed with matching ids. Node's `Writable` keeps
+each `write()` chunk contiguous, so independent writes cannot interleave, and JSON-RPC
+responses are matched by id rather than by arrival order. Serialising bought nothing and cost
+3x wall time on parallel tool batches.
+
+## Cost at N sessions
+
+One plugin and one install regardless of session count - that is the whole point. The cost is
+one node bridge process per adopted claude session, measured at ~42 MB RSS each (~420 MB for
+10). For scale, claude itself measured 501 MB RSS, so the bridge adds roughly 8% on top of a
+session that already exists. Server side, `sessionForHarnessId` is a lookup on
+`sessions_harness_session_id_unique`, so resolution does not degrade with session count.
+
 ## Residual risk
 
 `CLAUDE_CODE_SESSION_ID` is frozen at bridge-spawn time. If claude changes its session id

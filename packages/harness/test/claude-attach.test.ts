@@ -210,6 +210,21 @@ describe('claude attach install', () => {
     expect(calls).toContain('plugin install conciv-connect@conciv --scope local')
   })
 
+  it('reinstalls so claude refreshes its cached copy of the plugin', async () => {
+    const log = join(scratch.dir, 'calls.log')
+    fakeClaude(`#!/bin/sh\necho "$@" >> ${log}\n[ "$1" = --version ] && echo "2.1.220 (Claude Code)"\nexit 0\n`)
+    await attachOf().install(installOptions())
+
+    const steps = readFileSync(log, 'utf8')
+      .split('\n')
+      .filter((line) => line.startsWith('plugin '))
+    expect(steps).toEqual([
+      `plugin marketplace add ${claudeConnectDir(installOptions().stateDir)}`,
+      'plugin uninstall conciv-connect@conciv --scope local',
+      'plugin install conciv-connect@conciv --scope local',
+    ])
+  })
+
   it('leaves an already-installed plugin byte-identical when a second session adopts', async () => {
     fakeClaude('#!/bin/sh\n[ "$1" = --version ] && echo "2.1.220 (Claude Code)"\nexit 0\n')
     const mcpPath = join(claudeConnectDir(installOptions().stateDir), 'conciv-connect', '.mcp.json')

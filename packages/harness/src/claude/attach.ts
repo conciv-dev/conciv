@@ -228,6 +228,13 @@ async function install(opts: HarnessAttachInstall): Promise<HarnessAttachResult>
   writeConnectFiles(claudeConnectPluginFiles({stateDir: opts.stateDir, mcpUrl: opts.mcpUrl, hookUrl: opts.hookUrl}))
   const added = await runClaude(['plugin', 'marketplace', 'add', root], {cwd: opts.root, timeoutMs: PLUGIN_TIMEOUT_MS})
   if (added.code !== 0) return failure(commandDetail('marketplace add', added))
+  await runClaude(
+    ['plugin', 'uninstall', `${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`, '--scope', 'local'],
+    {
+      cwd: opts.root,
+      timeoutMs: PLUGIN_TIMEOUT_MS,
+    },
+  )
   const installed = await runClaude(
     ['plugin', 'install', `${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`, '--scope', 'local'],
     {cwd: opts.root, timeoutMs: PLUGIN_TIMEOUT_MS},

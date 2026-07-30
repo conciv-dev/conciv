@@ -11,8 +11,6 @@ export function claudeConnectBridgeSource(): string {
 
 const url = process.env.${CLAUDE_CONNECT_BRIDGE_URL_VAR} ?? ''
 const claudeSessionId = process.env.${CLAUDE_SESSION_VAR} ?? ''
-const pending = []
-let draining = false
 
 function idOf(line) {
   try {
@@ -56,20 +54,9 @@ async function forward(line) {
   if (text.length > 0) process.stdout.write(\`\${text}\\n\`)
 }
 
-async function drain() {
-  if (draining) return
-  draining = true
-  while (pending.length > 0) {
-    const line = pending.shift()
-    await forward(line).catch((error) => failed(line, String(error)))
-  }
-  draining = false
-}
-
 createInterface({input: process.stdin}).on('line', (line) => {
   if (line.trim().length === 0) return
-  pending.push(line)
-  void drain()
+  void forward(line).catch((error) => failed(line, String(error)))
 })
 `
 }
