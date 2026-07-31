@@ -12,6 +12,7 @@ import type {
   RequiredContext,
   ServerApi,
   ServerResult,
+  SystemPromptFactory,
 } from './types.js'
 import type {PageVerbMap} from './page-verbs.js'
 import {useExtensionValue} from './host-context.js'
@@ -32,7 +33,7 @@ export type ExtensionMeta<
   views?: readonly ExtensionView[]
   Component?: Component
   Surface?: Component
-  systemPrompt?: string
+  systemPrompt?: string | SystemPromptFactory<ConfigOf<Schema>>
   theme?: ThemeTokens
   connectGate?: ConnectGate
 }
@@ -49,7 +50,7 @@ export type ExtensionBuilder<
   configSchema?: Schema
   Component?: Component
   Surface?: Component
-  systemPrompt?: string
+  systemPrompt?: string | SystemPromptFactory<ConfigOf<Schema>>
   theme?: ThemeTokens
   connectGate?: ConnectGate
   tools?: Tools

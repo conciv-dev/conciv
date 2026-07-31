@@ -27,6 +27,7 @@ export type {
   ConnectGate,
   ExtensionAttachment,
   ExtensionCommand,
+  ExtensionPromptContext,
   ExtensionServerTool,
   ExtensionSlot,
   ExtensionTool,
@@ -36,6 +37,7 @@ export type {
   ServerHarness,
   ServerSessions,
   ServerResult,
+  SystemPromptFactory,
   ToolRenderer,
   ToolRequest,
 } from './types.js'

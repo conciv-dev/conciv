@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {IOS_NAME, IOS_SYSTEM_PROMPT, IosConfigSchema} from './shared/meta.js'
+import {IOS_NAME, IosConfigSchema} from './shared/meta.js'
+import {iosSystemPrompt} from './server/prompt.js'
 import {makeExecRunner} from './server/simctl-runner.js'
 import {runBuild, runLogs, runRun, runScreenshot, type IosToolContext} from './server/tools.js'
 
@@ -45,7 +46,7 @@ export default defineExtension({
   name: IOS_NAME,
   configSchema: IosConfigSchema,
   tools: [buildTool, runTool, screenshotTool, logsTool],
-  systemPrompt: IOS_SYSTEM_PROMPT,
+  systemPrompt: iosSystemPrompt,
 }).server((server) => ({
   context: {config: server.config, runner: makeExecRunner(), cwd: server.cwd, nativeUrl: server.nativeUrl},
 }))

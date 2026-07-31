@@ -47,7 +47,7 @@ function moduleName(config: IosConfig): string {
   return tail.replace(/[^A-Za-z0-9_]/g, '')
 }
 
-function projectDir(config: IosConfig, cwd: string): string {
+export function projectDir(config: IosConfig, cwd: string): string {
   return config.projectRoot.startsWith('/') ? config.projectRoot : join(cwd, config.projectRoot)
 }
 

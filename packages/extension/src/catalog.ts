@@ -55,7 +55,8 @@ const SERVER_SURFACES = [
   },
   {
     method: 'systemPrompt / promptSnippet',
-    description: "Append agent guidance via the systemPrompt field or a tool's promptSnippet.",
+    description:
+      "Append agent guidance via the systemPrompt field or a tool's promptSnippet. systemPrompt also takes (config, {cwd}) => string, so the prompt can name the real paths and targets this session works on.",
   },
 ] as const
 
