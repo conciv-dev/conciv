@@ -1,7 +1,7 @@
 import {spawn} from 'node:child_process'
-import {mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {homedir} from 'node:os'
-import {dirname, isAbsolute, join, relative, resolve} from 'node:path'
+import {dirname, isAbsolute, join, relative} from 'node:path'
 import {z} from 'zod'
 import type {
   HarnessAttach,
@@ -11,6 +11,7 @@ import type {
   HarnessConnectFile,
   HarnessLiveSession,
 } from '@conciv/protocol/harness-types'
+import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {claudeHooksManifest} from './hooks-plugin.js'
 import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE, CLAUDE_CONNECT_BRIDGE_URL_VAR} from './connect-bridge.js'
 import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './connect-names.js'
@@ -85,14 +86,6 @@ function runClaude(argv: string[], opts: {cwd?: string; timeoutMs: number}): Pro
       settle({status: 'ok', code: code ?? -1, stdout: out.join(''), stderr: err.join('')})
     })
   })
-}
-
-function realpathOrSelf(path: string): string {
-  try {
-    return realpathSync(path)
-  } catch {
-    return resolve(path)
-  }
 }
 
 function inside(parent: string, child: string): boolean {
@@ -305,14 +298,10 @@ const InstalledPluginsSchema = z.object({
 
 type InstalledPluginRecord = z.infer<typeof InstalledPluginsSchema>['plugins'][string][number]
 
-function samePath(left: string, right: string): boolean {
-  return realpathOrSelf(left) === realpathOrSelf(right)
-}
-
 function recordCoversProject(record: InstalledPluginRecord, root: string): boolean {
   if (record.scope !== 'local') return false
   if (record.projectPath === undefined) return false
-  return samePath(record.projectPath, root) && samePath(record.installPath, pluginCacheDir())
+  return sameCwd(record.projectPath, root) && sameCwd(record.installPath, pluginCacheDir())
 }
 
 function installedRecords(): InstalledPluginRecord[] {
@@ -336,7 +325,7 @@ function marketplaceRegistered(stateDir: string): boolean {
   )
   if (!listed.success) return false
   const entry = MarketplaceEntrySchema.safeParse(listed.data[CLAUDE_CONNECT_MARKETPLACE])
-  return entry.success && samePath(entry.data.installLocation, claudeConnectDir(stateDir))
+  return entry.success && sameCwd(entry.data.installLocation, claudeConnectDir(stateDir))
 }
 
 function alreadyServing(files: HarnessConnectFile[], opts: HarnessAttachInstall): boolean {

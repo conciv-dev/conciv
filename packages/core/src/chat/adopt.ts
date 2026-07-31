@@ -1,11 +1,11 @@
-import {realpathSync} from 'node:fs'
-import {isAbsolute, relative, resolve} from 'node:path'
+import {isAbsolute, relative} from 'node:path'
 import {and, eq, isNotNull} from 'drizzle-orm'
 import {CONCIV_HOOK_PATH, isHarnessSessionId} from '@conciv/protocol/chat-types'
 import type {HarnessHistory, HarnessLiveSession, HarnessSessionSummary} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {sessions, type ConcivDb} from '@conciv/db'
 import type {LiveSession} from '@conciv/contract'
+import {realpathOrSelf} from '@conciv/harness/cwd'
 import {apiBaseFrom} from '../lib/api-base.js'
 import {logError} from '../lib/debug.js'
 import {mcpUrlFor, resolveSession, sessionById, transcriptRevision, transcriptTokenAllowed} from './session.js'
@@ -15,14 +15,6 @@ import type {ChatDeps, ProcessLiveness} from './runtime.js'
 export const SESSION_ATTACHED = 'session attached'
 
 export type CwdRelation = 'same' | 'ancestor' | 'descendant' | 'disjoint'
-
-function realpathOrSelf(path: string): string {
-  try {
-    return realpathSync(path)
-  } catch {
-    return resolve(path)
-  }
-}
 
 export function cwdRelation(candidateCwd: string, engineCwd: string): CwdRelation {
   const from = realpathOrSelf(candidateCwd)
