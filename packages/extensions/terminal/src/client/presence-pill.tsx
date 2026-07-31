@@ -72,8 +72,8 @@ export function TerminalPresencePill(): JSX.Element {
             class="rounded-full size-1.75"
             classList={{
               'bg-pw-success': !stale() && current().state === 'connected',
-              'bg-pw-accent anim-pulse motion-reduce:animate-none': !stale() && current().state === 'working',
-              'bg-pw-text-3 anim-pulse motion-reduce:animate-none': !stale() && current().state === 'launching',
+              'bg-pw-accent anim-pulse': !stale() && current().state === 'working',
+              'bg-pw-text-3 anim-pulse': !stale() && current().state === 'launching',
               'bg-pw-text-3': stale(),
             }}
             aria-hidden="true"

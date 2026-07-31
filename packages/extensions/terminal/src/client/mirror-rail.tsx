@@ -56,7 +56,7 @@ function statusDotClass(status: MirrorStatus): Record<string, boolean> {
   return {
     'bg-pw-success': status === 'open',
     'bg-pw-danger': status === 'error',
-    'bg-pw-text-3 anim-pulse motion-reduce:animate-none': status === 'connecting',
+    'bg-pw-text-3 anim-pulse': status === 'connecting',
   }
 }
 

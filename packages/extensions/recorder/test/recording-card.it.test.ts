@@ -32,7 +32,7 @@ describe('recording card in the testkit host (real chips, real store)', () => {
     const play = api().page.getByRole('button', {name: 'Play', exact: true})
     await play.waitFor({state: 'visible', timeout: 15_000})
     await play.click()
-    const modal = api().page.getByRole('alertdialog', {name: 'Screen recording replay'})
+    const modal = api().page.getByRole('dialog', {name: 'Screen recording replay'})
     await modal.waitFor({state: 'visible', timeout: 15_000})
     await expect
       .poll(() => api().page.frameLocator('iframe').getByText('Comment target', {exact: true}).count(), {
@@ -51,7 +51,7 @@ describe('recording card in the testkit host (real chips, real store)', () => {
     await deadPlay.waitFor({state: 'visible', timeout: 15_000})
     await deadPlay.click()
     await api()
-      .page.getByRole('alertdialog', {name: 'Screen recording replay'})
+      .page.getByRole('dialog', {name: 'Screen recording replay'})
       .getByText('Recording expired.')
       .waitFor({state: 'visible', timeout: 15_000})
   }, 120_000)

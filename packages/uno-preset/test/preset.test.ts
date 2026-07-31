@@ -34,6 +34,14 @@ describe('shortcuts', () => {
   })
 })
 
+describe('reduced motion', () => {
+  it.each(['anim-pulse', 'anim-skel'])('%s stops animating under prefers-reduced-motion', async (name) => {
+    const {css} = await generate(name)
+    const reduced = css.split('@media (prefers-reduced-motion: reduce)')[1] ?? ''
+    expect(reduced).toContain(`.${name}{animation:none;}`)
+  })
+})
+
 describe('keyframes', () => {
   const referenced = [
     ...new Set(

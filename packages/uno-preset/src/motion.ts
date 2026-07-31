@@ -28,8 +28,8 @@ export const motion = {
   'anim-tab-right':
     'animate-pw-slide-in-right animate-duration-[200ms] animate-ease-pw-expo motion-reduce:animate-none',
   'anim-tab-left': 'animate-pw-slide-in-left animate-duration-[200ms] animate-ease-pw-expo motion-reduce:animate-none',
-  'anim-pulse': 'animate-pulse animate-duration-[1.4s]',
-  'anim-skel': 'animate-pulse animate-duration-[1.2s]',
+  'anim-pulse': 'animate-pulse animate-duration-[1.4s] motion-reduce:animate-none',
+  'anim-skel': 'animate-pulse animate-duration-[1.2s] motion-reduce:animate-none',
   'anim-test-rot': 'animate-spin animate-duration-[0.7s]',
   'anim-tool-spin': 'animate-spin animate-duration-[0.7s]',
   'anim-think-shimmer':

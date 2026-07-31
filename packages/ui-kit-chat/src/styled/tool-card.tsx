@@ -7,7 +7,7 @@ import {useToolCallDuration} from '../primitives/tools/tool-duration.js'
 import {CollapsibleCard} from './collapsible-card.js'
 
 const DOT: Record<ToolStatus, string> = {
-  running: '[background:var(--chat-accent)] anim-pulse motion-reduce:[animation:none]',
+  running: '[background:var(--chat-accent)] anim-pulse',
   complete: '[background:var(--chat-success)]',
   error: '[background:var(--chat-danger)]',
   approval: '[background:var(--chat-accent)]',

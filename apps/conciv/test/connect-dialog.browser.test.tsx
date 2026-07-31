@@ -260,7 +260,7 @@ test('escape leaves the empty picker', async () => {
 })
 
 async function clickBehindTheDialog(): Promise<void> {
-  const content = page.getByRole('alertdialog').element()
+  const content = page.getByRole('dialog').element()
   const positioner = content.parentElement
   if (!(positioner instanceof HTMLElement)) throw new Error('the dialog content has no layer around it')
   const away = content.getBoundingClientRect().bottom + 40
