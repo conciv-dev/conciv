@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest'
+import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
 import {
   candidateTitle,
   checkedLabel,
@@ -27,6 +28,31 @@ describe('the title a row carries', () => {
     const unreadable = liveSession({title: '', messageCount: 0, historyStatus: 'unavailable'})
     expect(candidateTitle(unreadable)).toBe('terminal-1')
     expect(candidateTitle(unreadable)).not.toBe(UNTITLED_SESSION)
+  })
+
+  it('drops the image placeholder the cli writes in front of a pasted screenshot', () => {
+    expect(candidateTitle(liveSession({title: '[Image #1] can barely see the composer'}))).toBe(
+      'can barely see the composer',
+    )
+  })
+
+  it('drops every image placeholder, wherever the cli put them', () => {
+    expect(candidateTitle(liveSession({title: '[Image #1] compare this to [Image #2] please'}))).toBe(
+      'compare this to please',
+    )
+  })
+
+  it('drops the attached-image block conciv appends for harnesses that read files', () => {
+    const withRefs = `look at this${FILE_REF_PREFIX} /repo/.conciv/images/a.png`
+    expect(candidateTitle(liveSession({title: withRefs}))).toBe('look at this')
+  })
+
+  it('falls back to the untitled wording when the first message was nothing but a screenshot', () => {
+    expect(candidateTitle(liveSession({title: '[Image #1]'}))).toBe(UNTITLED_SESSION)
+  })
+
+  it('names the terminal when a screenshot-only first message came from an unreadable transcript', () => {
+    expect(candidateTitle(liveSession({title: '[Image #1]', historyStatus: 'unavailable'}))).toBe('terminal-1')
   })
 })
 

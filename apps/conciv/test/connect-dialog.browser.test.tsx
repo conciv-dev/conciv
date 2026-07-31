@@ -18,8 +18,10 @@ import {
   ONE_TIME_SETUP,
   PREVIEW_EMPTY,
   PREVIEW_UNAVAILABLE,
+  REFRESH_LABEL,
   RETRY_LABEL,
   SELECT_COMMAND_LABEL,
+  SHOW_NEW_LABEL,
   STALE_NOTICE,
   TRANSCRIPT_UNAVAILABLE,
   UNTITLED_SESSION,
@@ -56,6 +58,7 @@ afterEach(() => {
 type View = {
   step: Setter<ConnectStep>
   candidates: Setter<LiveSession[] | undefined>
+  arrived: Setter<number>
   loading: Setter<boolean>
   refreshing: Setter<boolean>
   failure: Setter<string | null>
@@ -82,6 +85,7 @@ function mount(initial: LiveSession[] | undefined = undefined, harnessName = 'Cl
   document.body.appendChild(host)
   const [step, setStep] = createSignal<ConnectStep>({kind: 'closed'})
   const [candidates, setCandidates] = createSignal<LiveSession[] | undefined>(initial)
+  const [arrived, setArrived] = createSignal(0)
   const [loading, setLoading] = createSignal(false)
   const [refreshing, setRefreshing] = createSignal(false)
   const [failure, setFailure] = createSignal<string | null>(null)
@@ -93,6 +97,7 @@ function mount(initial: LiveSession[] | undefined = undefined, harnessName = 'Cl
   const view: View = {
     step: setStep,
     candidates: setCandidates,
+    arrived: setArrived,
     loading: setLoading,
     refreshing: setRefreshing,
     failure: setFailure,
@@ -117,7 +122,7 @@ function mount(initial: LiveSession[] | undefined = undefined, harnessName = 'Cl
         step={step()}
         harnessName={harnessName}
         candidates={candidates()}
-        arrived={0}
+        arrived={arrived()}
         loading={loading()}
         refreshing={refreshing()}
         failure={failure()}
@@ -507,6 +512,48 @@ test('a list that stopped refreshing stops animating, so staleness reads at a gl
 
   await expect.element(page.getByText(new RegExp(STALE_NOTICE))).toBeVisible()
   expect(loopingAnimations(page.getByRole('button', {name: /rename the widget package/}).element())).toEqual([])
+})
+
+const footerRefresh = () => page.getByRole('button', {name: REFRESH_LABEL})
+
+test('a list with nothing wrong offers the one way to check again in the footer', async () => {
+  mount([liveSession()])
+
+  await expect.element(footerRefresh()).toBeVisible()
+  expect(page.getByRole('button', {name: RETRY_LABEL}).elements()).toHaveLength(0)
+  expect(page.getByRole('button', {name: CHECK_AGAIN_LABEL}).elements()).toHaveLength(0)
+})
+
+test('a list that stopped refreshing asks once, in the cell that explains why', async () => {
+  const view = mount([liveSession()])
+  view.stale(true)
+
+  await expect.element(page.getByText(new RegExp(STALE_NOTICE))).toBeVisible()
+  await expect.element(page.getByRole('button', {name: RETRY_LABEL})).toBeVisible()
+  expect(footerRefresh().elements()).toHaveLength(0)
+})
+
+test('an empty picker asks once, next to the way forward', async () => {
+  mount([])
+
+  await expect.element(page.getByRole('button', {name: CHECK_AGAIN_LABEL})).toBeVisible()
+  expect(footerRefresh().elements()).toHaveLength(0)
+})
+
+test('newly arrived sessions ask once, in the cell that announced them', async () => {
+  const view = mount([liveSession()])
+  view.arrived(2)
+
+  await expect.element(page.getByRole('button', {name: SHOW_NEW_LABEL})).toBeVisible()
+  expect(footerRefresh().elements()).toHaveLength(0)
+})
+
+test('a check that failed outright asks once, in the alert that reports it', async () => {
+  const view = mount(undefined)
+  view.failure('the server hung up')
+
+  await expect.element(page.getByRole('button', {name: RETRY_LABEL})).toBeVisible()
+  expect(footerRefresh().elements()).toHaveLength(0)
 })
 
 test('nothing the picker puts on screen blurs what is behind it', async () => {

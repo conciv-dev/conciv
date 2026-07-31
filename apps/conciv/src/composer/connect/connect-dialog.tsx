@@ -16,8 +16,10 @@ import {
   checkedLabel,
 } from './connect-copy.js'
 
-const FRESHNESS = 'flex items-center gap-1.5 text-pw-text-3 text-xs'
-const REFRESH = 'size-11'
+const FRESHNESS = 'inline-flex items-center gap-1 text-pw-text-3 text-xs min-w-0'
+const REFRESH = 'size-11 shrink-0 focus-ring-always'
+const REFRESH_ICON = 'size-3.5 block'
+const SPINNING_ICON = `${REFRESH_ICON} anim-tool-spin`
 const TOUCH = 'min-h-11 px-3'
 
 function pickingOf(step: ConnectStep): {error: string | null; retryId: string | null} | undefined {
@@ -85,6 +87,14 @@ export function ConnectDialog(props: {
     'onClose',
   ])
   const checked = () => checkedLabel(local.checkedAt)
+  const listAlreadyAsks = () => {
+    if (local.step.kind !== 'picking') return false
+    if (local.loading) return false
+    if (local.arrived > 0) return true
+    if (local.failure !== null) return true
+    if (local.stale) return true
+    return (local.candidates ?? []).length === 0
+  }
   const [target, setTarget] = createSignal<HTMLElement | null>(null)
   let focusedKind = ''
   let alreadyOpen = false
@@ -105,7 +115,7 @@ export function ConnectDialog(props: {
     const handedOverAtOpen = !alreadyOpen
     focusedKind = kind
     alreadyOpen = true
-    if (!handedOverAtOpen) element.focus()
+    if (!handedOverAtOpen) element.focus({focusVisible: true})
   })
   return (
     <Dialog
@@ -116,25 +126,27 @@ export function ConnectDialog(props: {
       title={DIALOG_TITLE}
       initialFocus={() => target()}
       footer={
-        <div class="flex justify-between items-center gap-2">
+        <div class="flex justify-between items-center gap-2 flex-wrap">
           <Show when={checked()}>
             {(at) => (
               <span class={FRESHNESS}>
+                <Show when={!listAlreadyAsks()}>
+                  <TooltipIconButton
+                    tooltip={REFRESH_LABEL}
+                    class={REFRESH}
+                    aria-busy={local.refreshing}
+                    disabled={local.refreshing}
+                    onClick={() => local.onRefresh()}
+                  >
+                    <RotateCw class={local.refreshing ? SPINNING_ICON : REFRESH_ICON} />
+                  </TooltipIconButton>
+                </Show>
                 <Show when={local.refreshing} fallback={<span>{CHECKED_PREFIX}</span>}>
                   <span>{CHECKING_LABEL}</span>
                 </Show>
                 <Show when={!local.refreshing}>
                   <RelativeTime value={at()} />
                 </Show>
-                <TooltipIconButton
-                  tooltip={REFRESH_LABEL}
-                  class={REFRESH}
-                  aria-busy={local.refreshing}
-                  disabled={local.refreshing}
-                  onClick={() => local.onRefresh()}
-                >
-                  <RotateCw class="size-3.5 block" />
-                </TooltipIconButton>
               </span>
             )}
           </Show>

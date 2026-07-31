@@ -15,7 +15,7 @@ export function SnippetCard(props: {
 }): JSX.Element {
   const [local] = splitProps(props, ['command', 'detail', 'focusRef', 'onClose'])
   return (
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-3 anim-now">
       <p class={LEAD}>{local.detail}</p>
       <p class={HINT}>{SNIPPET_HINT}</p>
       <CopyCommand command={local.command} focusRef={local.focusRef} />

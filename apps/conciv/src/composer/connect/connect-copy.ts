@@ -1,4 +1,5 @@
 import type {LiveSession} from '@conciv/contract'
+import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
 
 export const DIALOG_TITLE = 'Connect a running session'
 export const CONNECTING_LABEL = 'Connecting…'
@@ -62,8 +63,23 @@ function messageCount(count: number): string {
   return `${counts.format(count)} ${noun}`
 }
 
+const WHITESPACE_RUNS = /\s+/g
+const IMAGE_PLACEHOLDER = /\[Image #\d+\]/g
+const ATTACHED_IMAGES_NOTE = FILE_REF_PREFIX.replace(WHITESPACE_RUNS, ' ').trim()
+
+function flatten(text: string): string {
+  return text.replace(WHITESPACE_RUNS, ' ').trim()
+}
+
+function withoutAttachmentMarkers(title: string): string {
+  const flat = flatten(title)
+  const noteAt = flat.indexOf(ATTACHED_IMAGES_NOTE)
+  const spoken = noteAt === -1 ? flat : flat.slice(0, noteAt)
+  return flatten(spoken.replace(IMAGE_PLACEHOLDER, ' '))
+}
+
 export function candidateTitle(session: LiveSession): string {
-  const title = session.title.trim()
+  const title = withoutAttachmentMarkers(session.title)
   if (title !== '') return title
   return session.historyStatus === 'unavailable' ? session.name : UNTITLED_SESSION
 }
@@ -119,11 +135,10 @@ export function connectFailed(harnessName: string): string {
 }
 
 const TITLE_BUDGET = 48
-const RUNS_OF_SPACE = /\s+/g
 const TRAILING_PUNCTUATION = /[\s,.;:!?—–-]+$/
 
 export function clampTitle(title: string): string {
-  const flat = title.trim().replace(RUNS_OF_SPACE, ' ')
+  const flat = flatten(title)
   if (flat.length <= TITLE_BUDGET) return flat
   const cut = flat.slice(0, TITLE_BUDGET - 1)
   const lastSpace = cut.lastIndexOf(' ')

@@ -14,7 +14,7 @@ export function LeaveConfirm(props: {
 }): JSX.Element {
   const [local] = splitProps(props, ['title', 'focusRef', 'onKeepWaiting', 'onHandBack'])
   return (
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-3 anim-now">
       <p class={LEAD}>{LEAVING_UNRELOADED}</p>
       <p class={HINT}>
         <strong>{local.title}</strong> goes back to running on its own. {LEAVING_HINT}
@@ -26,7 +26,7 @@ export function LeaveConfirm(props: {
         <Button
           ref={(element: HTMLElement) => local.focusRef(element)}
           size="sm"
-          class={TOUCH}
+          class={`${TOUCH} focus-ring-always`}
           onClick={() => local.onKeepWaiting()}
         >
           {KEEP_WAITING_LABEL}

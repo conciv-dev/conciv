@@ -2,6 +2,8 @@ import type {StaticShortcutMap} from 'unocss'
 
 export const effects = {
   'focus-ring': 'focus-visible:[outline:0.125rem_solid_var(--pw-accent)] focus-visible:[outline-offset:0.125rem]',
+  'focus-ring-always': 'focus:[outline:0.125rem_solid_var(--pw-accent)] focus:[outline-offset:0.125rem]',
+  'focus-ring-inset-always': 'focus:[outline:0.125rem_solid_var(--pw-accent)] focus:[outline-offset:-0.125rem]',
   'ring-accent': '[box-shadow:0_0_0_0.1875rem_var(--pw-accent-08)]',
   'ring-inset-accent': '[box-shadow:inset_0_0_0_0.0625rem_var(--pw-accent)]',
   'skel-bg':

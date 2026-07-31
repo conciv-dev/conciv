@@ -12,15 +12,15 @@ import {
 } from './connect-copy.js'
 
 const CARD =
-  'w-full text-start rounded-pw-md border border-pw-line-soft bg-transparent text-pw-text p-3 pb-3.5 flex flex-col gap-2.5 trans-cbb focus-ring [contain:layout_paint_style]'
+  'w-full text-start rounded-pw-md border border-pw-line-soft bg-transparent text-pw-text p-3 pb-3.5 flex flex-col gap-2.5 trans-cbb focus-ring-inset-always [contain:layout_paint_style]'
 const CARD_IDLE = `${CARD} cursor-pointer hover:border-pw-accent-line hover:bg-pw-fill`
 const CARD_BUSY = `${CARD} opacity-70 cursor-progress`
 const HEAD = 'flex items-center gap-2 min-w-0 w-full'
-const TITLE = 'text-sm font-semibold truncate min-w-0'
-const META = 'text-pw-text-3 text-xs w-full truncate tabular-nums'
+const TITLE = 'text-sm font-semibold truncate min-w-0 flex-1'
+const META = 'text-pw-text-3 text-xs w-full min-w-0 tabular-nums leading-normal [overflow-wrap:anywhere]'
 const NOTE = 'text-pw-warn'
 const BADGE =
-  'shrink-0 ms-auto px-1.5 py-0.5 rounded-pw-pill text-[0.625rem] font-semibold uppercase tracking-wide text-pw-warn bg-pw-warn-20 border border-pw-warn'
+  'shrink-0 px-1.5 py-0.5 rounded-pw-pill text-[0.625rem] font-medium tracking-wide text-pw-warn bg-pw-warn-20 border border-pw-warn-line'
 const CONNECTING = 'flex items-center gap-2 text-pw-accent text-xs'
 
 export function CandidateRow(props: {

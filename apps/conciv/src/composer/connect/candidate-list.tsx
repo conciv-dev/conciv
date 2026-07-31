@@ -18,21 +18,21 @@ import {
   subtitle,
 } from './connect-copy.js'
 
-const COLUMN = 'flex flex-col gap-3'
+const COLUMN = 'flex flex-col gap-3 anim-now'
 const SUBTITLE = 'text-pw-text-3 text-xs leading-normal m-0'
 const SCROLLER = 'flex flex-col gap-3 list-none m-0 p-0 max-h-[26rem] overflow-y-auto -mx-1.5 px-1.5'
 const SKELETON = 'flex flex-col gap-3 list-none m-0 p-0'
 const SKELETON_ROW = 'min-h-[10.5rem] rounded-pw-md bg-pw-fill-soft anim-skel list-none'
 const SKELETON_ROWS = [0, 1]
 const WAITING = 'flex items-center gap-2 text-pw-text-3 text-xs m-0'
-const CELL = 'flex items-start justify-between gap-2 rounded-pw-sm text-xs p-2'
-const DANGER = `${CELL} border border-pw-danger-line bg-pw-danger-10 text-pw-danger`
-const WARN = `${CELL} border border-pw-warn bg-pw-warn-20 text-pw-warn`
-const NEWS =
-  'flex items-center justify-between gap-2 rounded-pw-sm text-xs p-2 border border-pw-line-soft bg-pw-fill-soft text-pw-text-3'
+const CELL = 'flex items-center justify-between gap-2 rounded-pw-sm text-xs p-2 border'
+const DANGER = `${CELL} border-pw-danger-line bg-pw-danger-10 text-pw-danger`
+const WARN = `${CELL} border-pw-warn-line bg-pw-warn-20 text-pw-warn`
+const NEWS = `${CELL} border-pw-line-soft bg-pw-fill-soft text-pw-text-3`
 const CELL_TEXT = 'min-w-0 break-words leading-normal'
 const EMPTY_TITLE = 'text-pw-text text-sm m-0'
 const TOUCH = 'min-h-11 px-3'
+const TOUCH_FOCUSED = `${TOUCH} focus-ring-always`
 
 const MAX_ROWS = 8
 
@@ -118,7 +118,7 @@ export function CandidateList(props: {
               ref={(element: HTMLElement) => local.focusRef(element)}
               variant="ghost"
               size="sm"
-              class={`shrink-0 ${TOUCH}`}
+              class={`shrink-0 ${TOUCH_FOCUSED}`}
               onClick={() => local.onRefresh()}
             >
               {RETRY_LABEL}
@@ -134,7 +134,7 @@ export function CandidateList(props: {
             <Button
               ref={(element: HTMLElement) => local.focusRef(element)}
               size="sm"
-              class={TOUCH}
+              class={TOUCH_FOCUSED}
               onClick={() => local.onLaunch()}
             >
               {OPEN_NEW_LABEL}

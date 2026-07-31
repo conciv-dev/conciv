@@ -41,7 +41,7 @@ export function ReloadCard(props: {
     'onDone',
   ])
   return (
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-3 anim-now">
       <p class={LEAD}>
         Following <strong>{local.adopted.title}</strong>.
       </p>

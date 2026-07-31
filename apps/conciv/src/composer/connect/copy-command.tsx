@@ -86,7 +86,7 @@ export function CopyCommand(props: {
             ref={(element: HTMLElement) => local.focusRef?.(element)}
             variant="ghost"
             size="sm"
-            class={TOUCH}
+            class={`${TOUCH} focus-ring-always`}
             onClick={() => void run()}
           >
             <Show when={blocked()} fallback={COPY_LABEL}>
