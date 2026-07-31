@@ -148,7 +148,9 @@ function PickingView(props: {
   return (
     <>
       <Show when={props.state.error === null}>
-        <p class="text-pw-text-3 text-xs leading-normal">{subtitle(props.state.candidates.length)}</p>
+        <p class="text-pw-text-3 text-xs leading-normal" role="status">
+          {subtitle(props.state.candidates.length)}
+        </p>
       </Show>
       <Show when={props.state.error}>{(message) => <Failure message={message()} onRetry={props.onRetry} />}</Show>
       <Show when={!empty()}>
@@ -159,7 +161,9 @@ function PickingView(props: {
         </ul>
       </Show>
       <Show when={empty() && props.state.error === null}>
-        <p class="text-pw-text text-sm">No claude session is running in this project.</p>
+        <p class="text-pw-text text-sm" role="status">
+          No claude session is running in this project.
+        </p>
         <p class="text-pw-text-3 text-xs leading-normal">
           Open a new connected session instead, and this panel follows it from the start.
         </p>
@@ -290,12 +294,11 @@ export function ConnectSessionDialog(props: {
       onOpenChange={() => local.onClose()}
       dismissable
       size="lg"
-      label="Connect a running session"
+      title="Connect a running session"
     >
       <Show when={local.state}>
         {(state) => (
           <div class="flex flex-col gap-3">
-            <h2 class="text-pw-text-hi text-sm font-semibold m-0">Connect a running session</h2>
             <Switch>
               <Match when={looking(state())}>
                 <LookingView onClose={local.onClose} />

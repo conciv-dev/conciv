@@ -330,3 +330,30 @@ test('falls back to a restart snippet when the cli is too old', async () => {
   await page.getByRole('button', {name: 'Close'}).click()
   expect(dialog.closed).toHaveLength(1)
 })
+
+test('takes its name from the one visible heading instead of a second copy of the string', async () => {
+  const dialog = mountDialog()
+  dialog.state({step: 'looking'})
+
+  const heading = page.getByRole('heading', {name: 'Connect a running session'})
+  await expect.element(heading).toBeVisible()
+  expect(page.getByText('Connect a running session').elements()).toHaveLength(1)
+
+  const modal = page.getByRole('dialog', {name: 'Connect a running session'})
+  await expect.element(modal).toHaveAttribute('aria-labelledby', heading.element().id)
+  await expect.element(modal).not.toHaveAttribute('aria-label')
+})
+
+test('says out loud when the search finishes, instead of swapping the body silently', async () => {
+  const dialog = mountDialog()
+  dialog.state({step: 'looking'})
+  await expect.element(page.getByText(LOOKING_LABEL)).toBeVisible()
+
+  dialog.state(pickingStep([session()]))
+  await expect.element(page.getByText(/1 Claude session is running/)).toHaveAttribute('role', 'status')
+
+  dialog.state(pickingStep([]))
+  await expect
+    .element(page.getByText('No claude session is running in this project.'))
+    .toHaveAttribute('role', 'status')
+})

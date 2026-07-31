@@ -4,8 +4,19 @@ import {afterAll, beforeAll, it} from 'vitest'
 import {createGenerator} from 'unocss'
 import {presetConciv} from '@conciv/uno-preset'
 
-const MARKUP =
-  '<button type="button" class="anim-pulse">Working</button><button type="button" class="anim-skel">Loading</button>'
+const LOOPING: [string, string][] = [
+  ['Waiting', 'anim-dot1'],
+  ['Switching model', 'anim-switching'],
+  ['Compacting', 'anim-compact'],
+  ['Recording', 'anim-fab-ring'],
+  ['Working', 'anim-pulse'],
+  ['Loading', 'anim-skel'],
+  ['Running tests', 'anim-test-rot'],
+  ['Running a tool', 'anim-tool-spin'],
+  ['Thinking', 'anim-think-shimmer'],
+]
+
+const MARKUP = LOOPING.map(([name, token]) => `<button type="button" class="${token}">${name}</button>`).join('')
 
 const uno = await createGenerator({presets: [presetConciv()]})
 const {css} = await uno.generate(MARKUP)
@@ -21,20 +32,20 @@ afterAll(async () => {
   await browser.close()
 })
 
-it('keeps the pulse and the skeleton shimmering when motion is welcome', async () => {
+it('keeps every looping shortcut animating when motion is welcome', async () => {
   const page = await browser.newPage({reducedMotion: 'no-preference'})
   await page.setContent(PAGE)
 
-  await expectLocator(page.getByRole('button', {name: 'Working'})).toHaveCSS('animation-name', 'pulse')
-  await expectLocator(page.getByRole('button', {name: 'Loading'})).toHaveCSS('animation-name', 'pulse')
+  for (const [name] of LOOPING)
+    await expectLocator(page.getByRole('button', {name})).not.toHaveCSS('animation-name', 'none')
   await page.close()
 })
 
-it('stops the pulse and the skeleton when the reader asks for reduced motion', async () => {
+it('stops every looping shortcut when the reader asks for reduced motion', async () => {
   const page = await browser.newPage({reducedMotion: 'reduce'})
   await page.setContent(PAGE)
 
-  await expectLocator(page.getByRole('button', {name: 'Working'})).toHaveCSS('animation-name', 'none')
-  await expectLocator(page.getByRole('button', {name: 'Loading'})).toHaveCSS('animation-name', 'none')
+  for (const [name] of LOOPING)
+    await expectLocator(page.getByRole('button', {name})).toHaveCSS('animation-name', 'none')
   await page.close()
 })

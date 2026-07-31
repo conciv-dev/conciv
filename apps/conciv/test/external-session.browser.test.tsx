@@ -1,5 +1,6 @@
 import {afterEach, expect, test} from 'vitest'
 import {render} from 'solid-js/web'
+import {page, userEvent} from 'vitest/browser'
 import {createSignal} from 'solid-js'
 import {ExternalSessionConfirm, externalActiveMessage} from '../src/chat/external-session.js'
 
@@ -54,4 +55,21 @@ test('asks before sending into a live terminal session', async () => {
 
   button('Cancel')?.click()
   expect(seen).toEqual(['send', 'cancel'])
+})
+
+test('interrupts the send as an alertdialog, not a passive dialog', async () => {
+  const dialog = mountConfirm([])
+  dialog.message('Claude is open in your terminal.')
+
+  await expect.element(page.getByRole('alertdialog', {name: 'Terminal session is active'})).toBeVisible()
+})
+
+test('escape cancels the interrupt instead of trapping the writer in it', async () => {
+  const seen: string[] = []
+  const dialog = mountConfirm(seen)
+  dialog.message('Claude is open in your terminal.')
+  await expect.element(page.getByRole('alertdialog', {name: 'Terminal session is active'})).toBeVisible()
+
+  await userEvent.keyboard('{Escape}')
+  await expect.poll(() => seen).toEqual(['cancel'])
 })

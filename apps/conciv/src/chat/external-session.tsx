@@ -40,7 +40,13 @@ export function ExternalSessionConfirm(props: {
 }): JSX.Element {
   const [local] = splitProps(props, ['message', 'question', 'confirmLabel', 'onCancel', 'onSendAnyway'])
   return (
-    <Dialog open={local.message !== null} onOpenChange={() => local.onCancel()} label="Terminal session is active">
+    <Dialog
+      open={local.message !== null}
+      onOpenChange={() => local.onCancel()}
+      dismissable
+      role="alertdialog"
+      label="Terminal session is active"
+    >
       <Show when={local.message}>
         {(message) => (
           <div class="flex flex-col gap-3">

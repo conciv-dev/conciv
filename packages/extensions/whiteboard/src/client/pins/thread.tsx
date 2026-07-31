@@ -194,12 +194,15 @@ export function ThreadPopover(): JSX.Element {
           aria-label="Comment thread"
         >
           <ThreadHeader onRequestDelete={() => setConfirmDelete(true)} />
-          <Dialog open={confirmDelete()} onOpenChange={setConfirmDelete} dismissable label="Delete this thread?">
+          <Dialog
+            open={confirmDelete()}
+            onOpenChange={setConfirmDelete}
+            dismissable
+            role="alertdialog"
+            title="Delete this thread?"
+          >
             <div class="flex flex-col gap-3">
-              <div class="flex flex-col gap-1">
-                <strong class="text-pw-text">Delete this thread?</strong>
-                <p class="text-[0.8125rem] text-pw-text-2">This removes the comment, all its replies, and its pin.</p>
-              </div>
+              <p class="text-[0.8125rem] text-pw-text-2">This removes the comment, all its replies, and its pin.</p>
               <div class="flex gap-2 justify-end">
                 <Button variant="ghost" size="md" aria-label="Cancel" onClick={() => setConfirmDelete(false)}>
                   Cancel

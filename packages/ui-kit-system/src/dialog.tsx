@@ -16,20 +16,22 @@ const CONTENT_SIZE = {
   xl: 'w-[min(75rem,calc(100vw-2rem))]',
 }
 
-export function Dialog(props: {
-  open: boolean
-  onOpenChange?: (open: boolean) => void
-  label?: string
-  title?: string
-  footer?: JSX.Element
-  role?: 'dialog' | 'alertdialog'
-  initialFocus?: () => HTMLElement | null
-  restoreFocus?: boolean
-  dismissable?: boolean
-  size?: 'md' | 'lg' | 'xl'
-  layer?: 'page' | 'inline'
-  children: JSX.Element
-}): JSX.Element {
+type DialogName = {title: string; label?: never} | {label: string; title?: never}
+
+export function Dialog(
+  props: DialogName & {
+    open: boolean
+    onOpenChange?: (open: boolean) => void
+    footer?: JSX.Element
+    role?: 'dialog' | 'alertdialog'
+    initialFocus?: () => HTMLElement | null
+    restoreFocus?: boolean
+    dismissable?: boolean
+    size?: 'md' | 'lg' | 'xl'
+    layer?: 'page' | 'inline'
+    children: JSX.Element
+  },
+): JSX.Element {
   return (
     <Ark.Root
       open={props.open}

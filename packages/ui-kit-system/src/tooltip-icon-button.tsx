@@ -49,10 +49,11 @@ export type TooltipIconButtonSlotProps = {
 
 export function TooltipIconButtonSlot(props: TooltipIconButtonSlotProps): JSX.Element {
   const [local] = splitProps(props, ['tooltip', 'side', 'variant', 'class', 'children'])
-  const buttonProps = (): JSX.ButtonHTMLAttributes<HTMLButtonElement> => ({
+  const buttonProps = (describedBy: string | undefined): JSX.ButtonHTMLAttributes<HTMLButtonElement> => ({
     type: 'button',
     class: iconButtonClass(local.variant, local.class),
     'aria-label': local.tooltip,
+    'aria-describedby': describedBy,
   })
   return (
     <Tooltip.Root positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}>
@@ -63,10 +64,10 @@ export function TooltipIconButtonSlot(props: TooltipIconButtonSlotProps): JSX.El
               <span
                 {...triggerProps()}
                 class="inline-flex"
-                onFocusIn={() => api().setOpen(true)}
+                onFocusIn={(event) => event.target.matches(':focus-visible') && api().setOpen(true)}
                 onFocusOut={() => api().setOpen(false)}
               >
-                {local.children(buttonProps)}
+                {local.children(() => buttonProps(triggerProps()['aria-describedby']))}
               </span>
             )}
           />

@@ -46,8 +46,7 @@ const DOT_STATE: Record<TestState | 'running', string> = {
   pass: 'size-2.25 bg-pw-success',
   fail: 'size-2.25 bg-pw-danger',
   skip: 'size-2.25 bg-pw-warn',
-  running:
-    'size-2.75 bg-transparent border-2 border-t-transparent border-x-pw-accent border-b-pw-accent anim-test-rot motion-reduce:animate-none',
+  running: 'size-2.75 bg-transparent border-2 border-t-transparent border-x-pw-accent border-b-pw-accent anim-test-rot',
 }
 const ERR =
   'mt-0 mr-3 mb-2 ml-9 py-2 px-2.5 bg-pw-sunken border-l-2 border-l-pw-danger rounded text-pw-danger text-[0.71875rem]'
