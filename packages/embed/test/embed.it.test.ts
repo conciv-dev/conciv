@@ -27,7 +27,9 @@ let longHost: {base: string; close: () => Promise<void>}
 beforeAll(async () => {
   browser = await chromium.launch()
   kit = await bootEmbedKit({text: ASSISTANT_TEXT, models: HARNESS_MODELS})
-  host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
+  host = await serveHost((url) =>
+    hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', backdrop: url.searchParams.get('backdrop')}),
+  )
   longHost = await serveHost(() =>
     hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: LONG_HOST_BODY}),
   )
@@ -258,6 +260,22 @@ describe('embed boots the conciv app against a real core', () => {
 })
 
 describe('embed at a phone viewport', () => {
+  it('paints an opaque sheet so the host page never shows through', async () => {
+    const page = await browser.newPage({viewport: {width: 393, height: 800}})
+    const shootOver = async (backdrop: string): Promise<Buffer> => {
+      await kit.rpc.navigation.set({entries: [{href: '/'}], index: 0})
+      await page.goto(`${host.base}/?backdrop=${backdrop}`, {waitUntil: 'domcontentloaded'})
+      await openPanel(page)
+      return page.screenshot({animations: 'disabled'})
+    }
+    const patterned = await shootOver('light-stripes')
+    const repeated = await shootOver('light-stripes')
+    expect(repeated.equals(patterned)).toBe(true)
+    const inverted = await shootOver('dark-stripes')
+    expect(inverted.equals(patterned)).toBe(true)
+    await page.close()
+  })
+
   it('opens as a full-screen sheet with the launcher hidden and the composer reachable', async () => {
     const page = await browser.newPage({viewport: {width: 393, height: 800}})
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
