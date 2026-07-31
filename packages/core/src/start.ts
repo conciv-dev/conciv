@@ -48,25 +48,6 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
-const SKIP_EXTENSION = Symbol('conciv.extension.unconfigured')
-
-function extensionConfig(extension: AnyExtension, raw: unknown): unknown {
-  try {
-    const parsed = extension.parseConfig(raw)
-    return parsed === undefined ? SKIP_EXTENSION : parsed
-  } catch {
-    return SKIP_EXTENSION
-  }
-}
-
-function extensionPrompt(extension: AnyExtension, raw: unknown, context: ExtensionPromptContext): string | undefined {
-  const config = extensionConfig(extension, raw)
-  if (config === SKIP_EXTENSION) return undefined
-  const prompt = extension.systemPrompt
-  if (typeof prompt !== 'function') return prompt
-  return prompt(config, context)
-}
-
 export type ComposePromptOpts = ExtensionPromptContext & {extensions?: Record<string, unknown>}
 
 export function composeSystemPrompt(
@@ -74,7 +55,7 @@ export function composeSystemPrompt(
   extensions: readonly AnyExtension[],
   opts: ComposePromptOpts,
 ): string {
-  const prompts = extensions.map((extension) => extensionPrompt(extension, opts.extensions?.[extension.name], opts))
+  const prompts = extensions.map((extension) => extension.systemPrompt?.(opts.extensions?.[extension.name], opts))
   return [base, ...prompts].filter(Boolean).join('\n\n')
 }
 

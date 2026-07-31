@@ -28,9 +28,9 @@ function schemePhrase(config: IosConfig): string {
 }
 
 function extraSourcePhrase(config: IosConfig): string {
-  const dirs = config.extraSourceDirs ?? []
-  if (dirs.length === 0) return ''
-  return ` Extra Swift sources for this app also live in ${dirs.join(', ')} (relative to the project root).`
+  const sourceDirectories = config.extraSourceDirs ?? []
+  if (sourceDirectories.length === 0) return ''
+  return ` Extra Swift sources for this app also live in ${sourceDirectories.join(', ')} (relative to the project root).`
 }
 
 function groundingRules(config: IosConfig, context: ExtensionPromptContext): string {
@@ -47,7 +47,6 @@ function groundingRules(config: IosConfig, context: ExtensionPromptContext): str
   ].join(' ')
 }
 
-export function iosSystemPrompt(config: IosConfig | undefined, context: ExtensionPromptContext): string {
-  if (!config) return OVERLAY_RULES
+export function iosSystemPrompt(config: IosConfig, context: ExtensionPromptContext): string {
   return `${OVERLAY_RULES} ${groundingRules(config, context)}`
 }

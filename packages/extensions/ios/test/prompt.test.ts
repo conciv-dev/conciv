@@ -13,7 +13,7 @@ function prompt(overrides: Partial<IosConfig> = {}, cwd = '/Users/dev/pay'): str
   return iosSystemPrompt({...config, ...overrides}, {cwd})
 }
 
-describe('ios system prompt', () => {
+describe('iOS system prompt', () => {
   it('keeps steering the agent to ios.build instead of a demo build script', () => {
     expect(prompt()).not.toContain('build.sh')
     expect(prompt()).toContain('ios.build')
@@ -48,10 +48,8 @@ describe('ios system prompt', () => {
     expect(prompt()).not.toContain('Extra Swift sources')
   })
 
-  it('still describes the native overlay when the extension has no config', () => {
-    const text = iosSystemPrompt(undefined, {cwd: '/Users/dev/pay'})
-    expect(text).toContain('transparent WebView')
-    expect(text).not.toContain('Your working directory is')
+  it('still describes the native overlay the widget renders into', () => {
+    expect(prompt()).toContain('transparent WebView')
   })
 
   it('explains that swift edits need a build and a run, not hot reload', () => {

@@ -37,8 +37,20 @@ const configuredExtension = defineExtension({
 
 const groundedExtension = defineExtension({
   name: 'ios',
-  systemPrompt: (config, context) => `project ${config?.projectRoot ?? 'none'} under ${context.cwd}`,
+  systemPrompt: (config, context) => `project ${config.projectRoot} under ${context.cwd}`,
   configSchema: z.preprocess(emptyToUndefined, z.object({projectRoot: z.string()}).optional()),
+})
+
+const transformedExtension = defineExtension({
+  name: 'ios',
+  systemPrompt: (config) => `simulator ${config.simulator} in ${config.projectRoot}`,
+  configSchema: z.preprocess(
+    emptyToUndefined,
+    z
+      .object({projectRoot: z.string(), simulator: z.string().default('iPhone 17 Pro')})
+      .transform((config) => ({...config, projectRoot: config.projectRoot.replace(/\/+$/, '')}))
+      .optional(),
+  ),
 })
 
 test('an extension whose config is absent contributes no systemPrompt', () => {
@@ -66,6 +78,14 @@ test('an extension can ground its prompt in its own config and the working direc
     extensions: {ios: {projectRoot: '/app'}},
   })
   expect(prompt).toContain('project /app under /repo')
+})
+
+test('a prompt factory receives the parsed config, not the raw options', () => {
+  const prompt = composeSystemPrompt(undefined, [transformedExtension], {
+    cwd: '/repo',
+    extensions: {ios: {projectRoot: '/app/'}},
+  })
+  expect(prompt).toBe('simulator iPhone 17 Pro in /app')
 })
 
 test('a prompt factory never runs for an unconfigured extension', () => {

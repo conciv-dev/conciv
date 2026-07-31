@@ -96,9 +96,9 @@ export type ConfigOf<Schema> = [Schema] extends [z.ZodNever] ? Record<never, nev
 
 export type ExtensionPromptContext = {cwd: string}
 
-export type SystemPromptFactory<Config> = {
-  build(config: Config, context: ExtensionPromptContext): string
-}['build']
+export type SystemPromptFactory<Config> = (config: Config, context: ExtensionPromptContext) => string
+
+export type SystemPromptResolver = (config: unknown, context: ExtensionPromptContext) => string | undefined
 
 export type UnionToIntersection<Union> = (Union extends unknown ? (incoming: Union) => void : never) extends (
   merged: infer Intersection,

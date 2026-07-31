@@ -38,6 +38,7 @@ export type {
   ServerSessions,
   ServerResult,
   SystemPromptFactory,
+  SystemPromptResolver,
   ToolRenderer,
   ToolRequest,
 } from './types.js'
