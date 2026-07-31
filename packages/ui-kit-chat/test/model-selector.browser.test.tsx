@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {createSignal, type JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
 import {afterEach, expect, it} from 'vitest'
-import {ModelSelector} from '../src/primitives/model-selector/model-selector.js'
+import {ModelSelector, type ModelOption} from '../src/primitives/model-selector/model-selector.js'
 import {ModelSelector as StyledModelSelector} from '../src/styled/model-selector.js'
 import {cleanupSelectors, HARNESS_MODELS, mountSelector} from './model-selector-harness.js'
 
@@ -55,6 +55,43 @@ it('keeps a keystroke typed in the same turn as a touch tap on the trigger', asy
 
   await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).toBeVisible()
   await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).not.toBeInTheDocument()
+})
+
+function mountLateSelector(): (models: readonly ModelOption[]) => void {
+  const [models, setModels] = createSignal<readonly ModelOption[]>([])
+  mountSelector(() => (
+    <ModelSelector.Root models={models()}>
+      <ModelSelector.Trigger aria-label="Select model" />
+      <ModelSelector.Content>
+        <ModelSelector.Search />
+        <ModelSelector.List />
+      </ModelSelector.Content>
+    </ModelSelector.Root>
+  ))
+  return (next) => setModels(next)
+}
+
+it('lists models that arrive after mount', async () => {
+  const deliverModels = mountLateSelector()
+
+  await expect.element(page.getByRole('button', {name: 'Select model'}), {timeout: 2000}).toBeVisible()
+  deliverModels(HARNESS_MODELS)
+  await userEvent.click(page.getByRole('button', {name: 'Select model'}))
+
+  await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).toBeVisible()
+})
+
+it('filters models that arrive after mount', async () => {
+  const deliverModels = mountLateSelector()
+
+  await expect.element(page.getByRole('button', {name: 'Select model'}), {timeout: 2000}).toBeVisible()
+  deliverModels(HARNESS_MODELS)
+  await userEvent.click(page.getByRole('button', {name: 'Select model'}))
+  await userEvent.keyboard('sonnet')
+
+  await expect.element(page.getByText('Claude Sonnet 4.6'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByText('Claude Haiku 4.5'), {timeout: 2000}).not.toBeInTheDocument()
 })
 
 it('hides the styled model list until the selector is opened', async () => {

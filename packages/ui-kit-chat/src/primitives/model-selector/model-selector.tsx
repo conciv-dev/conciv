@@ -1,5 +1,6 @@
 import {
   createContext,
+  createEffect,
   createSignal,
   For,
   Show,
@@ -99,8 +100,8 @@ export type ModelSelectorRootProps = ParentProps<{
 }>
 
 function Root(props: ModelSelectorRootProps): JSX.Element {
-  const {collection, filter} = useListCollection<ModelOption>({
-    initialItems: props.models.slice(),
+  const {collection, filter, set} = useListCollection<ModelOption>({
+    initialItems: [],
     filter: (_text, query, item) => matches(item, query),
     itemToValue: (model) => model.id,
     itemToString: (model) => model.name,
@@ -117,6 +118,10 @@ function Root(props: ModelSelectorRootProps): JSX.Element {
     onChange: (next) => props.onEffortChange?.(next),
   })
   const [query, setQuery] = createSignal('')
+  createEffect(() => {
+    set(props.models.slice())
+    if (query()) filter(query())
+  })
   const resetSearch = () => {
     setQuery('')
     filter('')
