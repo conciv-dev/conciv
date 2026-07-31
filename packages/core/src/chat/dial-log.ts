@@ -3,12 +3,35 @@ export type DialLog = {
   seen(harnessSessionId: string): boolean
 }
 
-export function makeDialLog(): DialLog {
-  const dialed = new Set<string>()
+export const DIAL_TTL_MS = 60_000
+
+export const DIAL_MAX_ENTRIES = 512
+
+export function makeDialLog(now: () => number = Date.now): DialLog {
+  const dialed = new Map<string, number>()
+  const forgetExpired = (at: number): void => {
+    for (const [id, dialedAt] of dialed) {
+      if (at - dialedAt >= DIAL_TTL_MS) dialed.delete(id)
+    }
+  }
+  const evictOldest = (): void => {
+    for (const id of dialed.keys()) {
+      if (dialed.size <= DIAL_MAX_ENTRIES) return
+      dialed.delete(id)
+    }
+  }
   return {
     note: (harnessSessionId) => {
-      if (harnessSessionId) dialed.add(harnessSessionId)
+      if (!harnessSessionId) return
+      const at = now()
+      forgetExpired(at)
+      dialed.delete(harnessSessionId)
+      dialed.set(harnessSessionId, at)
+      evictOldest()
     },
-    seen: (harnessSessionId) => dialed.has(harnessSessionId),
+    seen: (harnessSessionId) => {
+      const dialedAt = dialed.get(harnessSessionId)
+      return dialedAt !== undefined && now() - dialedAt < DIAL_TTL_MS
+    },
   }
 }

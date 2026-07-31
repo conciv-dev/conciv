@@ -46,24 +46,33 @@ const PRE_MIGRATION_SESSIONS = `CREATE TABLE \`sessions\` (
 
 const migrationUrl = new URL('../drizzle/20260730123834_transcript_cwd/migration.sql', import.meta.url)
 
+function atPreviousMigration(): DatabaseSync {
+  const client = new DatabaseSync(':memory:')
+  client.exec(PRE_MIGRATION_SESSIONS)
+  return client
+}
+
+function runTranscriptCwdMigration(client: DatabaseSync): void {
+  const sql = readFileSync(fileURLToPath(migrationUrl), 'utf8')
+  for (const statement of sql.split('--> statement-breakpoint')) client.exec(statement)
+}
+
 describe('transcript cwd migration', () => {
-  it('drops duplicate harness session ids before enforcing uniqueness', () => {
-    const client = new DatabaseSync(':memory:')
-    client.exec(PRE_MIGRATION_SESSIONS)
+  it('keeps the most recently updated row when a harness session id is duplicated', () => {
+    const client = atPreviousMigration()
     const insert = client.prepare(
       'INSERT INTO sessions (id, harness_session_id, harness_kind, origin, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
-    insert.run('conciv_1', 'tok', 'claude', 'chat', '/w', 1, 1)
-    insert.run('conciv_2', 'tok', 'claude', 'chat', '/w', 2, 2)
-    insert.run('conciv_3', 'tok', 'claude', 'chat', '/w', 3, 3)
-    insert.run('conciv_4', null, 'claude', 'chat', '/w', 4, 4)
-    insert.run('conciv_5', null, 'claude', 'chat', '/w', 5, 5)
+    insert.run('conciv_1', 'tok', 'claude', 'chat', '/w', 1, 10)
+    insert.run('conciv_2', 'tok', 'claude', 'chat', '/w', 2, 30)
+    insert.run('conciv_3', 'tok', 'claude', 'chat', '/w', 3, 20)
+    insert.run('conciv_4', null, 'claude', 'chat', '/w', 4, 40)
+    insert.run('conciv_5', null, 'claude', 'chat', '/w', 5, 50)
 
-    const sql = readFileSync(fileURLToPath(migrationUrl), 'utf8')
-    for (const statement of sql.split('--> statement-breakpoint')) client.exec(statement)
+    runTranscriptCwdMigration(client)
 
     expect(client.prepare('SELECT id FROM sessions WHERE harness_session_id = ?').all('tok')).toEqual([
-      {id: 'conciv_1'},
+      {id: 'conciv_2'},
     ])
     expect(client.prepare('SELECT count(*) AS n FROM sessions WHERE harness_session_id IS NULL').get()).toEqual({n: 4})
     const indexes = client
@@ -71,7 +80,40 @@ describe('transcript cwd migration', () => {
       .all()
       .map((row) => row.name)
     expect(indexes).toContain('sessions_harness_session_id_unique')
-    expect(() => insert.run('conciv_6', 'tok', 'claude', 'chat', '/w', 6, 6)).toThrow()
+    expect(() => insert.run('conciv_6', 'tok', 'claude', 'chat', '/w', 6, 60)).toThrow()
+    client.close()
+  })
+
+  it('breaks an updated-at tie on the newest row', () => {
+    const client = atPreviousMigration()
+    const insert = client.prepare(
+      'INSERT INTO sessions (id, harness_session_id, harness_kind, origin, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
+    insert.run('conciv_1', 'tok', 'claude', 'chat', '/w', 1, 10)
+    insert.run('conciv_2', 'tok', 'claude', 'chat', '/w', 2, 10)
+
+    runTranscriptCwdMigration(client)
+
+    expect(client.prepare('SELECT id FROM sessions WHERE harness_session_id = ?').all('tok')).toEqual([
+      {id: 'conciv_2'},
+    ])
+    client.close()
+  })
+
+  it('leaves distinct harness session ids alone', () => {
+    const client = atPreviousMigration()
+    const insert = client.prepare(
+      'INSERT INTO sessions (id, harness_session_id, harness_kind, origin, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
+    insert.run('conciv_1', 'tok-a', 'claude', 'chat', '/w', 1, 10)
+    insert.run('conciv_2', 'tok-b', 'claude', 'chat', '/w', 2, 5)
+
+    runTranscriptCwdMigration(client)
+
+    expect(client.prepare('SELECT id, harness_session_id FROM sessions ORDER BY id').all()).toEqual([
+      {id: 'conciv_1', harness_session_id: 'tok-a'},
+      {id: 'conciv_2', harness_session_id: 'tok-b'},
+    ])
     client.close()
   })
 

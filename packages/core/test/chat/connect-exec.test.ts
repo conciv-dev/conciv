@@ -1,10 +1,17 @@
-import {mkdtempSync, readFileSync, rmSync, statSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync} from 'node:fs'
+import {writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {afterEach, describe, expect, it} from 'vitest'
+import {afterEach, describe, expect, it, vi} from 'vitest'
 import type {HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import {createRecordingTerminalOpener} from '@conciv/harness-testkit'
-import {executeConnectPlan, renderConnectCommand} from '../../src/chat/connect-exec.js'
+import {
+  executeConnectPlan,
+  renderBashScript,
+  renderCmdScript,
+  renderConnectCommand,
+  sweepLaunchScripts,
+} from '../../src/chat/connect-exec.js'
 
 const dirs: string[] = []
 
@@ -39,9 +46,104 @@ describe('renderConnectCommand', () => {
   })
 })
 
+describe('renderCmdScript', () => {
+  it('doubles every percent so cmd cannot expand a variable out of a value', () => {
+    const script = renderCmdScript(
+      plan({env: {CONCIV_MCP_URL: 'http://127.0.0.1:1/a%20b', PATHY: '%USERPROFILE%'}}),
+      String.raw`C:\work\100% done`,
+    )
+    expect(script).toContain('set "CONCIV_MCP_URL=http://127.0.0.1:1/a%%20b"')
+    expect(script).toContain('set "PATHY=%%USERPROFILE%%"')
+    expect(script).toContain(String.raw`cd /d "C:\work\100%% done"`)
+    expect(script).not.toMatch(/(^|[^%])%[A-Za-z_][A-Za-z0-9_]*%/m)
+  })
+
+  it('doubles percent inside arguments too', () => {
+    expect(renderCmdScript(plan({argv: ['claude', '--resume', '50%']}), 'C:\\w')).toContain('"50%%"')
+  })
+})
+
+describe('renderBashScript', () => {
+  it('sets each environment value once, scoped to the command it launches', () => {
+    const url = 'http://127.0.0.1:5173/api/mcp'
+    const script = renderBashScript(plan({env: {CONCIV_MCP_URL: url}}), '/w')
+    expect(script.split(url)).toHaveLength(2)
+    expect(script).not.toContain('export ')
+  })
+
+  it('escapes single quotes in environment values', () => {
+    expect(renderBashScript(plan({env: {Q: "it's"}}), '/w')).toContain(`Q='it'\\''s'`)
+  })
+})
+
+describe('sweepLaunchScripts', () => {
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, {recursive: true, force: true})
+  })
+
+  it('removes launch scripts older than an hour and keeps the fresh ones', async () => {
+    const stateDir = tmp('conciv-connect-sweep-')
+    const launch = join(stateDir, 'launch')
+    mkdirSync(launch, {recursive: true})
+    const stale = join(launch, 'stale.command')
+    const fresh = join(launch, 'fresh.command')
+    writeFileSync(stale, 'old')
+    writeFileSync(fresh, 'new')
+    const now = Date.now()
+    utimesSync(stale, new Date(now - 2 * 60 * 60 * 1000), new Date(now - 2 * 60 * 60 * 1000))
+    await sweepLaunchScripts(stateDir, now)
+    expect(existsSync(stale)).toBe(false)
+    expect(existsSync(fresh)).toBe(true)
+  })
+
+  it('is a no-op when no launch directory exists', async () => {
+    const stateDir = tmp('conciv-connect-sweep-empty-')
+    await expect(sweepLaunchScripts(stateDir, Date.now())).resolves.toBeUndefined()
+  })
+})
+
 describe('executeConnectPlan', () => {
   afterEach(() => {
     for (const dir of dirs.splice(0)) rmSync(dir, {recursive: true, force: true})
+  })
+
+  it('builds the windows command without leaving a script behind when it is not opening', async () => {
+    const stateDir = tmp('conciv-connect-win-')
+    const result = await executeConnectPlan(plan({env: {A: 'b'}}), {
+      cwd: 'C:\\work',
+      stateDir,
+      open: false,
+      openTerminal: createRecordingTerminalOpener().open,
+      platform: () => 'win32',
+    })
+    expect(result.opened).toBe(false)
+    expect(result.command).toBe(String.raw`cd /d "C:\work" && set "A=b" && "claude" "--resume" "tok-1"`)
+    expect(existsSync(join(stateDir, 'launch'))).toBe(false)
+  })
+
+  it('hands the opener an owner-only script and removes it once the terminal has read it', async () => {
+    vi.useFakeTimers()
+    try {
+      const stateDir = tmp('conciv-connect-mode-')
+      const seen: {path: string; mode: number}[] = []
+      const result = await executeConnectPlan(plan(), {
+        cwd: '/w',
+        stateDir,
+        open: true,
+        openTerminal: (command) => {
+          const path = command.args.at(-1) ?? ''
+          seen.push({path, mode: statSync(path).mode & 0o777})
+          return Promise.resolve(true)
+        },
+        platform: () => 'darwin',
+      })
+      expect(result.opened).toBe(true)
+      expect(seen[0]?.mode).toBe(0o700)
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(readdirSync(join(stateDir, 'launch'))).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('writes plan files under new parent directories with owner-only permissions', async () => {

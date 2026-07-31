@@ -6,7 +6,12 @@ import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import {isContentPartArray, type ContentPart} from '@tanstack/ai'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import {HTTPException} from 'hono/http-exception'
-import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
+import {
+  CONCIV_CLAUDE_SESSION_HEADER,
+  CONCIV_SESSION_HEADER,
+  isHarnessSessionId,
+  isSessionId,
+} from '@conciv/protocol/chat-types'
 import {logError} from '../lib/debug.js'
 
 export function sessionIdFromHeaders(headers: Headers): string | null {
@@ -86,8 +91,15 @@ export type McpVars = {
   }
 }
 
+function harnessSessionIdFromHeaders(headers: Headers): string | null {
+  const raw = headers.get(CONCIV_CLAUDE_SESSION_HEADER)?.trim()
+  if (!raw) return null
+  if (!isHarnessSessionId(raw)) throw new HTTPException(400, {message: 'invalid harness session id'})
+  return raw
+}
+
 async function requestSessionId(headers: Headers, vars: McpVars['mcp']): Promise<string> {
-  const claudeSessionId = headers.get(CONCIV_CLAUDE_SESSION_HEADER)?.trim()
+  const claudeSessionId = harnessSessionIdFromHeaders(headers)
   if (claudeSessionId) vars.onHarnessDial(claudeSessionId)
   const owned = sessionIdFromHeaders(headers)
   if (owned) return owned

@@ -4,6 +4,7 @@ import {join} from 'node:path'
 import {eq} from 'drizzle-orm'
 import {afterEach, describe, expect, it} from 'vitest'
 import {sessions} from '@conciv/db'
+import {CONCIV_CLAUDE_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {Kit} from '@conciv/harness-testkit'
 import {adoptLiveSession} from '../../src/chat/adopt.js'
 import {transcriptMessages} from '../../src/chat/attach.js'
@@ -56,6 +57,22 @@ describe('hostile session ids', () => {
       .then(() => 'accepted')
       .catch((error: unknown) => String(error))
     expect(outcome).toContain('alidation')
+  })
+
+  it('the mcp route refuses a hostile harness session header', async () => {
+    const kit = await bootKit()
+    opened.push(kit)
+    const response = await fetch(`${kit.base}/api/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        [CONCIV_CLAUDE_SESSION_HEADER]: HOSTILE,
+      },
+      body: JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/list'}),
+    })
+    expect(response.status).toBe(400)
+    expect(await response.text()).toContain('invalid harness session id')
   })
 
   it('never reads a transcript outside the project directory', async () => {

@@ -30,6 +30,7 @@ import {
 } from './chat/session.js'
 import {buildChatTools, type ChatDeps} from './chat/runtime.js'
 import {makeDialLog} from './chat/dial-log.js'
+import {sweepLaunchScripts} from './chat/connect-exec.js'
 import {makeChanges} from './chat/attach.js'
 import {askUi, makeConcivSandbox, makeRunGate, needsApproval, riskyToolNames, sessionAsk} from './chat/gate.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
@@ -360,6 +361,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     void ensureAgentRecord({db, harnessKind: harness.id, cwd: opts.cwd}, opts.cfg.sessionId).catch(() => {})
   }
   void sweepEmptyChatRecords(db).catch(() => {})
+  void sweepLaunchScripts(concivStateDir(opts.cfg.stateRoot), Date.now())
 
   const compactor = makeCompactor(chatDeps)
 
