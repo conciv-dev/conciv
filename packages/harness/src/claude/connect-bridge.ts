@@ -4,7 +4,11 @@ export const CLAUDE_CONNECT_BRIDGE_FILE = 'conciv-mcp-bridge.mjs'
 
 export const CLAUDE_CONNECT_BRIDGE_URL_VAR = 'CONCIV_MCP_URL'
 
+export const CLAUDE_CONNECT_BRIDGE_TIMEOUT_VAR = 'CONCIV_MCP_TIMEOUT_MS'
+
 const CLAUDE_SESSION_VAR = 'CLAUDE_CODE_SESSION_ID'
+
+const BRIDGE_TIMEOUT_MS = 180_000
 
 export function claudeConnectBridgeSource(): string {
   return `import {createInterface} from 'node:readline'
@@ -31,16 +35,40 @@ function failed(line, reason) {
   reply({jsonrpc: '2.0', id, error: {code: -32000, message: \`conciv bridge: \${reason}\`}})
 }
 
-function unwrap(contentType, text) {
-  if (!contentType.includes('text/event-stream')) return text
-  return text
-    .split('\\n')
-    .filter((row) => row.startsWith('data:'))
-    .map((row) => row.slice(5).trim())
-    .join('')
+function timeoutMs() {
+  const configured = Number(process.env.${CLAUDE_CONNECT_BRIDGE_TIMEOUT_VAR})
+  if (Number.isFinite(configured) && configured > 0) return configured
+  return ${BRIDGE_TIMEOUT_MS}
 }
 
-async function forward(line) {
+function eventsOf(text) {
+  return text
+    .replace(/\\r\\n/g, '\\n')
+    .split(/\\n\\n+/)
+    .flatMap((block) => {
+      const data = block
+        .split('\\n')
+        .filter((row) => row.startsWith('data:'))
+        .map((row) => row.slice(5).replace(/^ /, ''))
+      return data.length === 0 ? [] : [data.join('\\n')]
+    })
+}
+
+function framesOf(contentType, body) {
+  if (contentType.includes('text/event-stream')) return eventsOf(body)
+  const text = body.trim()
+  return text.length === 0 ? [] : [text]
+}
+
+function parsed(text) {
+  try {
+    return {ok: true, value: JSON.parse(text)}
+  } catch {
+    return {ok: false, value: null}
+  }
+}
+
+async function send(line) {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -49,14 +77,31 @@ async function forward(line) {
       '${CONCIV_CLAUDE_SESSION_HEADER}': claudeSessionId,
     },
     body: line,
+    signal: AbortSignal.timeout(timeoutMs()),
   })
-  const text = unwrap(response.headers.get('content-type') ?? '', await response.text()).trim()
-  if (text.length > 0) process.stdout.write(\`\${text}\\n\`)
+  if (!response.ok) return failed(line, \`http \${response.status}\`)
+  const body = await response.text()
+  const texts = framesOf(response.headers.get('content-type') ?? '', body)
+  if (texts.length === 0) return failed(line, 'empty response')
+  for (const text of texts) {
+    const frame = parsed(text)
+    if (!frame.ok) return failed(line, 'non-json response')
+    reply(frame.value)
+  }
+}
+
+async function forward(line) {
+  try {
+    await send(line)
+  } catch (error) {
+    const timedOut = error instanceof Error && error.name === 'TimeoutError'
+    failed(line, timedOut ? 'timed out' : String(error))
+  }
 }
 
 createInterface({input: process.stdin}).on('line', (line) => {
   if (line.trim().length === 0) return
-  void forward(line).catch((error) => failed(line, String(error)))
+  void forward(line)
 })
 `
 }
