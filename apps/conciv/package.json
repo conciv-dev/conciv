@@ -55,6 +55,7 @@
     "@unocss/reset": "^66.7.2",
     "@vitest/browser-playwright": "4.1.10",
     "@vitest/coverage-v8": "^4.1.8",
+    "axe-core": "^4.12.1",
     "typescript": "^6.0.3",
     "unocss": "^66.7.2",
     "vite": "^8.0.16",
