@@ -148,17 +148,33 @@ describe('claude live session discovery', () => {
     ])
   })
 
-  it('reports no candidates when the cli fails or is missing', async () => {
-    fakeClaude('#!/bin/sh\nexit 3\n')
-    expect(await attachOf().candidates('/repo/app')).toEqual([])
-    process.env.PATH = join(scratch.dir, 'empty')
+  it('reports an empty list only when a working cli lists nothing', async () => {
+    fakeClaude('#!/bin/sh\necho "[]"\nexit 0\n')
     expect(await attachOf().candidates('/repo/app')).toEqual([])
   })
 
-  it('gives up on a hanging cli', async () => {
+  it('refuses to pass a failed listing off as no running sessions', async () => {
+    fakeClaude('#!/bin/sh\necho "agents unavailable" >&2\nexit 3\n')
+    await expect(attachOf().candidates('/repo/app')).rejects.toThrow(/claude agents exited with code 3/)
+  })
+
+  it('refuses to pass a missing cli off as no running sessions', async () => {
+    process.env.PATH = join(scratch.dir, 'empty')
+    await expect(attachOf().candidates('/repo/app')).rejects.toThrow(/not installed/)
+  })
+
+  it('gives up on a hanging cli and says it timed out', async () => {
     fakeClaude('#!/bin/sh\nsleep 30\n')
-    expect(await attachOf().candidates('/repo/app')).toEqual([])
-  }, 6_000)
+    await expect(attachOf().candidates('/repo/app')).rejects.toThrow(/timed out/)
+  }, 10_000)
+
+  it('kills the whole process group, so helpers a hanging cli spawned die with it', async () => {
+    const marker = join(scratch.dir, 'grandchild.txt')
+    fakeClaude(`#!/bin/sh\nsh -c 'sleep 8; echo alive > ${marker}' &\nsleep 30\n`)
+    await expect(attachOf().candidates('/repo/app')).rejects.toThrow(/timed out/)
+    await new Promise((resolve) => setTimeout(resolve, 6_000))
+    expect(existsSync(marker)).toBe(false)
+  }, 20_000)
 })
 
 describe('claude reload version floor', () => {
@@ -340,5 +356,62 @@ describe('claude attach install', () => {
 
     await attachOf().uninstall({root: scratch.dir, stateDir: installOptions().stateDir})
     expect(existsSync(claudeConnectDir(installOptions().stateDir))).toBe(false)
+  })
+
+  it('says the cli timed out rather than blaming a missing install', async () => {
+    fakeClaude('#!/bin/sh\nsleep 12\n')
+    const result = await attachOf().install(installOptions())
+
+    expect(result.ok).toBe(false)
+    expect(result.detail).toMatch(/timed out/)
+    expect(result.detail).not.toMatch(/not installed/)
+  }, 20_000)
+
+  it('says claude is not installed when nothing answers on the path', async () => {
+    process.env.PATH = join(scratch.dir, 'empty')
+    const result = await attachOf().install(installOptions())
+
+    expect(result.ok).toBe(false)
+    expect(result.detail).toMatch(/not installed/)
+    expect(result.detail).not.toMatch(/timed out/)
+  })
+})
+
+describe('claude attach uninstall', () => {
+  const removalOptions = () => ({root: scratch.dir, stateDir: join(scratch.dir, '.conciv')})
+
+  function recordedCalls(log: string): string[] {
+    return readFileSync(log, 'utf8')
+      .split('\n')
+      .filter((line) => line.startsWith('plugin '))
+  }
+
+  function seedInstalledRecords(records: unknown[]): void {
+    mkdirSync(claudePluginsDir(), {recursive: true})
+    writeFileSync(
+      join(claudePluginsDir(), 'installed_plugins.json'),
+      JSON.stringify({version: 2, plugins: {'conciv-connect@conciv': records}}),
+    )
+  }
+
+  it('unregisters this project without touching the shared marketplace', async () => {
+    const log = join(scratch.dir, 'calls.log')
+    fakeClaude(`#!/bin/sh\necho "$@" >> ${log}\nexit 0\n`)
+    seedInstalledRecords([{scope: 'local', installPath: pluginCacheDir(), projectPath: '/somewhere/else'}])
+    await attachOf().uninstall(removalOptions())
+
+    expect(recordedCalls(log)).toEqual(['plugin uninstall conciv-connect@conciv --scope local'])
+  })
+
+  it('drops the marketplace only once claude records no conciv install anywhere', async () => {
+    const log = join(scratch.dir, 'calls.log')
+    fakeClaude(`#!/bin/sh\necho "$@" >> ${log}\nexit 0\n`)
+    seedInstalledRecords([])
+    await attachOf().uninstall(removalOptions())
+
+    expect(recordedCalls(log)).toEqual([
+      'plugin uninstall conciv-connect@conciv --scope local',
+      'plugin marketplace remove conciv',
+    ])
   })
 })

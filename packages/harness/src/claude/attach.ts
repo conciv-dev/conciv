@@ -19,8 +19,10 @@ export const CLAUDE_RELOAD_COMMAND = '/reload-plugins --force'
 export const CLAUDE_RELOAD_MIN_VERSION = '2.1.163'
 export const CLAUDE_CONNECT_ROOT = 'claude-connect'
 
-const AGENTS_TIMEOUT_MS = 2_000
+const VERSION_TIMEOUT_MS = 10_000
+const AGENTS_TIMEOUT_MS = 5_000
 const PLUGIN_TIMEOUT_MS = 20_000
+const SIGKILL_ESCALATION_MS = 2_000
 
 const LiveSessionSchema = z.object({
   pid: z.number().int(),
@@ -37,27 +39,50 @@ const AgentsOutputSchema = z.union([
   z.object({agents: z.array(z.unknown())}).transform((value) => value.agents),
 ])
 
-type SpawnResult = {code: number; stdout: string; stderr: string}
+type SpawnOutcome =
+  | {status: 'ok'; code: number; stdout: string; stderr: string}
+  | {status: 'timeout'; detail: string}
+  | {status: 'error'; detail: string}
 
-function runClaude(argv: string[], opts: {cwd?: string; timeoutMs: number}): Promise<SpawnResult> {
+function killGroup(pid: number | undefined, signal: NodeJS.Signals): boolean {
+  if (pid === undefined) return false
+  try {
+    process.kill(-pid, signal)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function startFailure(argv: string[], error: NodeJS.ErrnoException): string {
+  if (error.code === 'ENOENT') return 'claude is not installed'
+  return `claude ${argv[0] ?? ''} could not start: ${error.message}`
+}
+
+function runClaude(argv: string[], opts: {cwd?: string; timeoutMs: number}): Promise<SpawnOutcome> {
   return new Promise((settle) => {
-    const child = spawn('claude', argv, {cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe']})
+    const child = spawn('claude', argv, {cwd: opts.cwd, stdio: ['ignore', 'pipe', 'pipe'], detached: true})
     const out: string[] = []
     const err: string[] = []
     const timer = setTimeout(() => {
-      child.kill('SIGKILL')
-      settle({code: -1, stdout: '', stderr: 'timed out'})
+      killGroup(child.pid, 'SIGTERM')
+      const escalate = setTimeout(() => killGroup(child.pid, 'SIGKILL'), SIGKILL_ESCALATION_MS)
+      escalate.unref?.()
+      settle({
+        status: 'timeout',
+        detail: `claude ${argv[0] ?? ''} timed out after ${Math.round(opts.timeoutMs / 1000)}s`,
+      })
     }, opts.timeoutMs)
     timer.unref?.()
     child.stdout.on('data', (chunk: Buffer) => out.push(chunk.toString()))
     child.stderr.on('data', (chunk: Buffer) => err.push(chunk.toString()))
-    child.once('error', (error: Error) => {
+    child.once('error', (error: NodeJS.ErrnoException) => {
       clearTimeout(timer)
-      settle({code: -1, stdout: '', stderr: error.message})
+      settle({status: 'error', detail: startFailure(argv, error)})
     })
     child.once('close', (code) => {
       clearTimeout(timer)
-      settle({code: code ?? -1, stdout: out.join(''), stderr: err.join('')})
+      settle({status: 'ok', code: code ?? -1, stdout: out.join(''), stderr: err.join('')})
     })
   })
 }
@@ -202,15 +227,27 @@ export function claudeConnectPluginFiles(opts: {
   ]
 }
 
-async function claudeVersion(): Promise<string | null> {
-  const probe = await runClaude(['--version'], {timeoutMs: AGENTS_TIMEOUT_MS})
-  return probe.code === 0 ? probe.stdout.trim() : null
+type VersionProbe = {status: 'ok'; version: string} | {status: 'failed'; detail: string}
+
+async function claudeVersion(): Promise<VersionProbe> {
+  const probe = await runClaude(['--version'], {timeoutMs: VERSION_TIMEOUT_MS})
+  if (probe.status !== 'ok') return {status: 'failed', detail: probe.detail}
+  const version = probe.stdout.trim()
+  if (probe.code !== 0 || version.length === 0)
+    return {status: 'failed', detail: 'claude is not installed or did not report a version'}
+  return {status: 'ok', version}
 }
 
 async function candidates(cwd: string): Promise<HarnessLiveSession[]> {
   const listed = await runClaude(['agents', '--json'], {timeoutMs: AGENTS_TIMEOUT_MS})
-  if (listed.code !== 0) return []
+  if (listed.status !== 'ok') throw new Error(listed.detail)
+  if (listed.code !== 0) throw new Error(`claude agents exited with code ${listed.code}${reasonSuffix(listed)}`)
   return parseLiveSessions(listed.stdout).filter((session) => relatedCwd(session.cwd, cwd))
+}
+
+function reasonSuffix(result: {stdout: string; stderr: string}): string {
+  const reason = result.stderr.trim() || result.stdout.trim()
+  return reason.length === 0 ? '' : `: ${reason}`
 }
 
 const CONNECT_FILE_MODE = 0o600
@@ -278,13 +315,16 @@ function recordCoversProject(record: InstalledPluginRecord, root: string): boole
   return samePath(record.projectPath, root) && samePath(record.installPath, pluginCacheDir())
 }
 
-function installRecorded(root: string): boolean {
+function installedRecords(): InstalledPluginRecord[] {
   const parsed = InstalledPluginsSchema.safeParse(
     readJsonFile(join(claudeConfigDir(), 'plugins', 'installed_plugins.json')),
   )
-  if (!parsed.success) return false
-  const records = parsed.data.plugins[`${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`] ?? []
-  return records.some((record) => recordCoversProject(record, root))
+  if (!parsed.success) return []
+  return parsed.data.plugins[`${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`] ?? []
+}
+
+function installRecorded(root: string): boolean {
+  return installedRecords().some((record) => recordCoversProject(record, root))
 }
 
 const KnownMarketplacesSchema = z.record(z.string(), z.unknown())
@@ -304,16 +344,19 @@ function alreadyServing(files: HarnessConnectFile[], opts: HarnessAttachInstall)
 }
 
 async function install(opts: HarnessAttachInstall): Promise<HarnessAttachResult> {
-  const version = await claudeVersion()
-  if (version === null) return failure('claude is not installed or did not report a version')
-  if (!meetsReloadFloor(version))
-    return failure(`claude ${version} lacks ${CLAUDE_RELOAD_COMMAND} (needs ${CLAUDE_RELOAD_MIN_VERSION}+)`)
+  const probe = await claudeVersion()
+  if (probe.status === 'failed') return failure(probe.detail)
+  if (!meetsReloadFloor(probe.version))
+    return failure(`claude ${probe.version} lacks ${CLAUDE_RELOAD_COMMAND} (needs ${CLAUDE_RELOAD_MIN_VERSION}+)`)
   const root = claudeConnectDir(opts.stateDir)
   const files = claudeConnectPluginFiles({stateDir: opts.stateDir, mcpUrl: opts.mcpUrl, hookUrl: opts.hookUrl})
   writeConnectFiles(files)
   if (alreadyServing(files, opts)) return {ok: true, reloadCommand: CLAUDE_RELOAD_COMMAND}
-  const added = await runClaude(['plugin', 'marketplace', 'add', root], {cwd: opts.root, timeoutMs: PLUGIN_TIMEOUT_MS})
-  if (added.code !== 0) return failure(commandDetail('marketplace add', added))
+  const added = stepFailure(
+    'marketplace add',
+    await runClaude(['plugin', 'marketplace', 'add', root], {cwd: opts.root, timeoutMs: PLUGIN_TIMEOUT_MS}),
+  )
+  if (added !== null) return failure(added)
   await runClaude(
     ['plugin', 'uninstall', `${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`, '--scope', 'local'],
     {
@@ -321,17 +364,24 @@ async function install(opts: HarnessAttachInstall): Promise<HarnessAttachResult>
       timeoutMs: PLUGIN_TIMEOUT_MS,
     },
   )
-  const installed = await runClaude(
-    ['plugin', 'install', `${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`, '--scope', 'local'],
-    {cwd: opts.root, timeoutMs: PLUGIN_TIMEOUT_MS},
+  const installed = stepFailure(
+    'plugin install',
+    await runClaude(
+      ['plugin', 'install', `${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`, '--scope', 'local'],
+      {
+        cwd: opts.root,
+        timeoutMs: PLUGIN_TIMEOUT_MS,
+      },
+    ),
   )
-  if (installed.code !== 0) return failure(commandDetail('plugin install', installed))
+  if (installed !== null) return failure(installed)
   return {ok: true, reloadCommand: CLAUDE_RELOAD_COMMAND}
 }
 
-function commandDetail(step: string, result: SpawnResult): string {
-  const reason = result.stderr.trim() || result.stdout.trim() || `exit ${result.code}`
-  return `claude ${step} failed: ${reason}`
+function stepFailure(step: string, outcome: SpawnOutcome): string | null {
+  if (outcome.status !== 'ok') return outcome.detail
+  if (outcome.code === 0) return null
+  return `claude ${step} failed: ${outcome.stderr.trim() || outcome.stdout.trim() || `exit ${outcome.code}`}`
 }
 
 function failure(detail: string): HarnessAttachResult {
@@ -346,11 +396,12 @@ async function uninstall(opts: HarnessAttachRemoval): Promise<void> {
       timeoutMs: PLUGIN_TIMEOUT_MS,
     },
   )
+  rmSync(claudeConnectDir(opts.stateDir), {recursive: true, force: true})
+  if (installedRecords().length > 0) return
   await runClaude(['plugin', 'marketplace', 'remove', CLAUDE_CONNECT_MARKETPLACE], {
     cwd: opts.root,
     timeoutMs: PLUGIN_TIMEOUT_MS,
   })
-  rmSync(claudeConnectDir(opts.stateDir), {recursive: true, force: true})
 }
 
 export const claudeAttach: HarnessAttach = {candidates: (cwd) => candidates(cwd), install, uninstall}
