@@ -8,6 +8,8 @@ import type {ConcivDb} from '@conciv/db'
 import type {Changes} from './attach.js'
 import type {AttachmentExpanders} from './run.js'
 
+export type ProcessLiveness = 'alive' | 'foreign' | 'dead'
+
 export type ChatDeps = {
   cwd: string
   stateRoot: string
@@ -21,7 +23,7 @@ export type ChatDeps = {
   db: ConcivDb
   changes: Changes
   dialed: (harnessSessionId: string) => boolean
-  processAlive?: (pid: number) => boolean
+  processLiveness?: (pid: number) => ProcessLiveness
   risky: ReadonlySet<string>
   tools: (sessionId: string) => AnyTool[]
   attachmentExpanders: AttachmentExpanders

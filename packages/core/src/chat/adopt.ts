@@ -10,7 +10,7 @@ import {apiBaseFrom} from '../lib/api-base.js'
 import {logError} from '../lib/debug.js'
 import {mcpUrlFor, resolveSession, sessionById, transcriptRevision, transcriptTokenAllowed} from './session.js'
 import {transcriptTail} from './transcript-tail.js'
-import type {ChatDeps} from './runtime.js'
+import type {ChatDeps, ProcessLiveness} from './runtime.js'
 
 export const SESSION_ATTACHED = 'session attached'
 
@@ -164,12 +164,12 @@ function pickCandidate(all: LiveSession[], request: AdoptRequest): LiveSession |
 type ClaimOutcome = {ok: true} | {ok: false; code: 'ATTACH_CONFLICT' | 'ATTACH_FAILED'; detail: string}
 
 function claimAttachment(deps: ChatDeps, sessionId: string, candidate: LiveSession): ClaimOutcome {
-  const alive = deps.processAlive ?? processAlive
+  const liveness = deps.processLiveness ?? processLiveness
   try {
     return deps.db.transaction((tx): ClaimOutcome => {
       const rows = tx.select({attachedPid: sessions.attachedPid}).from(sessions).where(eq(sessions.id, sessionId)).all()
       const held = rows[0]?.attachedPid ?? null
-      if (held !== null && held !== candidate.pid && alive(held))
+      if (held !== null && held !== candidate.pid && liveness(held) !== 'dead')
         return {ok: false, code: 'ATTACH_CONFLICT', detail: `another terminal (pid ${held}) already drives this chat`}
       const now = Date.now()
       tx.update(sessions)
@@ -251,12 +251,16 @@ export async function detachLiveSession(deps: ChatDeps, sessionId: string): Prom
   return true
 }
 
-export function processAlive(pid: number): boolean {
+function deniedByOwner(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'EPERM'
+}
+
+export function processLiveness(pid: number): ProcessLiveness {
   try {
     process.kill(pid, 0)
-    return true
+    return 'alive'
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM'
+    return deniedByOwner(error) ? 'foreign' : 'dead'
   }
 }
 
@@ -275,8 +279,9 @@ export async function attachedElsewhere(deps: ChatDeps, sessionId: string): Prom
   const record = await sessionById(deps.db, sessionId)
   const pid = record?.attachedPid ?? null
   if (pid === null) return false
-  const alive = deps.processAlive ?? processAlive
-  if (alive(pid) && (await stillListed(deps, pid, record?.harnessSessionId ?? null))) return true
+  const liveness = (deps.processLiveness ?? processLiveness)(pid)
+  if (liveness === 'foreign') return true
+  if (liveness === 'alive' && (await stillListed(deps, pid, record?.harnessSessionId ?? null))) return true
   await clearAttachment(deps.db, sessionId)
   deps.changes.notify()
   return false

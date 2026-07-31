@@ -3,8 +3,8 @@ import {eq} from 'drizzle-orm'
 import {afterEach, describe, expect, it} from 'vitest'
 import {sessions, type ConcivDb} from '@conciv/db'
 import type {HarnessAdapter, HarnessAttachResult, HarnessLiveSession} from '@conciv/protocol/harness-types'
-import {adoptLiveSession, attachedElsewhere, detachLiveSession, processAlive} from '../../src/chat/adopt.js'
-import type {ChatDeps} from '../../src/chat/runtime.js'
+import {adoptLiveSession, attachedElsewhere, detachLiveSession, processLiveness} from '../../src/chat/adopt.js'
+import type {ChatDeps, ProcessLiveness} from '../../src/chat/runtime.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
 
 const HARNESS_SESSION = '9f1c2b3a-4d5e-4f60-8a71-b2c3d4e5f607'
@@ -22,7 +22,7 @@ type AttachSpy = {uninstalls: number}
 type AttachOverrides = {
   install?: () => Promise<HarnessAttachResult>
   candidates?: () => Promise<HarnessLiveSession[]>
-  processAlive?: (pid: number) => boolean
+  processLiveness?: (pid: number) => ProcessLiveness
   db?: ConcivDb
 }
 
@@ -47,7 +47,7 @@ function wire(base: ChatFixture, over: AttachOverrides = {}): {deps: ChatDeps; s
     },
   }
   const harness: HarnessAdapter = Object.assign({}, base.chat.harness, {attach})
-  const deps: ChatDeps = {...base.chat, harness, db: over.db ?? base.chat.db, processAlive: over.processAlive}
+  const deps: ChatDeps = {...base.chat, harness, db: over.db ?? base.chat.db, processLiveness: over.processLiveness}
   return {deps, spy}
 }
 
@@ -127,7 +127,7 @@ describe('adopting a live session is all or nothing', () => {
 
   it('refuses to steal a conversation another live terminal already drives', async () => {
     const base = await fixture()
-    const {deps, spy} = wire(base, {processAlive: () => true})
+    const {deps, spy} = wire(base, {processLiveness: () => 'alive'})
     const first = await adopt(deps)
     if (!first.ok) throw new Error(`first adopt failed: ${first.detail}`)
     await base.db.update(sessions).set({attachedPid: OTHER_PID}).where(eq(sessions.id, first.sessionId))
@@ -141,13 +141,28 @@ describe('adopting a live session is all or nothing', () => {
 })
 
 describe('the liveness probe', () => {
-  it('reads a permission error as a live process', () => {
-    expect(processAlive(1)).toBe(true)
+  it('reads a permission error as a process we do not own', () => {
+    expect(processLiveness(1)).toBe('foreign')
+  })
+
+  it('keeps the attachment for a terminal another user owns, which we can never list', async () => {
+    const base = await fixture()
+    const owned = {value: true}
+    const {deps} = wire(base, {
+      processLiveness: () => (owned.value ? 'alive' : 'foreign'),
+      candidates: () => Promise.resolve(owned.value ? [liveSession(base.chat.cwd, process.pid)] : []),
+    })
+    const adopted = await adopt(deps)
+    if (!adopted.ok) throw new Error(`adopt failed: ${adopted.detail}`)
+    owned.value = false
+
+    expect(await attachedElsewhere(deps, adopted.sessionId)).toBe(true)
+    expect((await rowFor(base.db, adopted.sessionId)).attachedPid).toBe(process.pid)
   })
 
   it('keeps the attachment while the probe says the terminal is alive', async () => {
     const base = await fixture()
-    const {deps} = wire(base, {processAlive: () => true})
+    const {deps} = wire(base, {processLiveness: () => 'alive'})
     const adopted = await adopt(deps)
     if (!adopted.ok) throw new Error(`adopt failed: ${adopted.detail}`)
 
@@ -159,7 +174,7 @@ describe('the liveness probe', () => {
     const base = await fixture()
     const listed = {value: true}
     const {deps} = wire(base, {
-      processAlive: () => true,
+      processLiveness: () => 'alive',
       candidates: () => Promise.resolve(listed.value ? [liveSession(base.chat.cwd, process.pid)] : []),
     })
     const adopted = await adopt(deps)
