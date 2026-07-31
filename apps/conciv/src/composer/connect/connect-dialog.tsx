@@ -40,6 +40,7 @@ export function ConnectDialog(props: {
   step: ConnectStep
   harnessName: string
   candidates: LiveSession[] | undefined
+  arrived: number
   loading: boolean
   refreshing: boolean
   failure: string | null
@@ -63,6 +64,7 @@ export function ConnectDialog(props: {
     'step',
     'harnessName',
     'candidates',
+    'arrived',
     'loading',
     'refreshing',
     'failure',
@@ -147,6 +149,7 @@ export function ConnectDialog(props: {
           {(picking) => (
             <CandidateList
               sessions={local.candidates}
+              arrived={local.arrived}
               harnessName={local.harnessName}
               loading={local.loading}
               failure={local.failure}

@@ -121,6 +121,7 @@ export function ComposerActions(props: {
         step={connect.step()}
         harnessName={harnessName()}
         candidates={connect.candidates()}
+        arrived={connect.arrived()}
         loading={connect.loading()}
         refreshing={connect.refreshing()}
         failure={connect.failure()}

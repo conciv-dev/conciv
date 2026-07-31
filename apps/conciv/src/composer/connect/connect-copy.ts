@@ -6,6 +6,7 @@ export const LOOKING_LABEL = 'Looking for running sessions…'
 export const CHECKING_LABEL = 'Checking…'
 export const RETRY_LABEL = 'Try again'
 export const CHECK_AGAIN_LABEL = 'Check again'
+export const SHOW_NEW_LABEL = 'Refresh'
 export const REFRESH_LABEL = 'Check for running sessions again'
 export const CANCEL_LABEL = 'Cancel'
 export const OPEN_NEW_LABEL = 'Open a new session'
@@ -89,6 +90,17 @@ export function subtitle(count: number, harnessName: string): string | null {
   return `${counts.format(count)} ${harnessName} ${verb} running in this project. Pick the one this panel should follow.`
 }
 
+export function newSessionsLabel(count: number): string {
+  const noun = plurals.select(count) === 'one' ? 'session' : 'sessions'
+  return `${counts.format(count)} new ${noun}`
+}
+
+export function newSessionsAnnounce(count: number): string {
+  const started = plurals.select(count) === 'one' ? 'has' : 'have'
+  const them = plurals.select(count) === 'one' ? 'it' : 'them'
+  return `${newSessionsLabel(count)} ${started} started. Refresh to add ${them} to the list.`
+}
+
 export function showAllLabel(count: number): string {
   const noun = plurals.select(count) === 'one' ? 'session' : 'sessions'
   return `Show all ${counts.format(count)} ${noun}`
@@ -106,8 +118,22 @@ export function connectFailed(harnessName: string): string {
   return `Couldn’t connect that ${harnessName} session.`
 }
 
+const TITLE_BUDGET = 48
+const RUNS_OF_SPACE = /\s+/g
+const TRAILING_PUNCTUATION = /[\s,.;:!?—–-]+$/
+
+export function clampTitle(title: string): string {
+  const flat = title.trim().replace(RUNS_OF_SPACE, ' ')
+  if (flat.length <= TITLE_BUDGET) return flat
+  const cut = flat.slice(0, TITLE_BUDGET - 1)
+  const lastSpace = cut.lastIndexOf(' ')
+  const whole = lastSpace > 0 ? cut.slice(0, lastSpace) : cut
+  const tidy = whole.replace(TRAILING_PUNCTUATION, '')
+  return `${tidy === '' ? whole : tidy}…`
+}
+
 export function nowFollowing(title: string): string {
-  return `Now following ${title}.`
+  return `Now following ${clampTitle(title)}.`
 }
 
 export function isStale(dataUpdatedAt: number, now: number): boolean {

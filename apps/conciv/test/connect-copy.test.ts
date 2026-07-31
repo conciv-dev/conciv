@@ -5,6 +5,7 @@ import {
   isStale,
   metaLine,
   nothingRunning,
+  nowFollowing,
   optionsUnavailable,
   showAllLabel,
   subtitle,
@@ -103,4 +104,29 @@ it('counts the sessions it is hiding in the reader’s own grammar', () => {
 
 it('names the harness in front of it when its options cannot be read', () => {
   expect(optionsUnavailable('Codex')).toBe('Terminal options unavailable for Codex')
+})
+
+const PARAGRAPH_TITLE =
+  'add a connected external terminal to the conciv repo and make the picker freeze its order while the dialog is open so the rows never move under the reader'
+
+describe('the notice that says which session the panel now follows', () => {
+  const followed = (title: string) => nowFollowing(title).slice('Now following '.length, -1)
+
+  it('leaves a title that already reads in one line alone', () => {
+    expect(nowFollowing('rename the widget package')).toBe('Now following rename the widget package.')
+  })
+
+  it('cuts a paragraph-long title back to a readable phrase', () => {
+    expect(followed(PARAGRAPH_TITLE).length).toBeLessThanOrEqual(52)
+  })
+
+  it('ends the cut on a whole word and marks it with a single ellipsis', () => {
+    const shown = followed(PARAGRAPH_TITLE)
+    expect(shown.endsWith('…')).toBe(true)
+    expect(PARAGRAPH_TITLE.split(' ')).toContain(shown.slice(0, -1).split(' ').at(-1))
+  })
+
+  it('folds the line breaks a pasted first message leaves behind', () => {
+    expect(followed('rename\n  the widget\tpackage')).toBe('rename the widget package')
+  })
 })

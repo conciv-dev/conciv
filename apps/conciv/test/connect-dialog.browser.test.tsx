@@ -117,6 +117,7 @@ function mount(initial: LiveSession[] | undefined = undefined, harnessName = 'Cl
         step={step()}
         harnessName={harnessName}
         candidates={candidates()}
+        arrived={0}
         loading={loading()}
         refreshing={refreshing()}
         failure={failure()}

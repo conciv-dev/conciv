@@ -17,7 +17,10 @@ import {
   LEAVING_UNRELOADED,
   LOOKING_LABEL,
   LOOKUP_FAILED,
+  newSessionsAnnounce,
+  newSessionsLabel,
   RELOAD_ANNOUNCE,
+  SHOW_NEW_LABEL,
   STILL_CONNECTED,
   UNDO_LABEL,
 } from '../src/composer/connect/connect-copy.js'
@@ -124,6 +127,7 @@ function mountFlow(server: Server): Mounted {
           step={flow.step()}
           harnessName="Claude"
           candidates={flow.candidates()}
+          arrived={flow.arrived()}
           loading={flow.loading()}
           refreshing={flow.refreshing()}
           failure={flow.failure()}
@@ -389,6 +393,105 @@ test('leaving the reload card is said out loud before anything is handed back', 
 
   expect(spoken(mounted)).toContain(LEAVING_UNRELOADED)
   expect(detachCalls(mounted)).toHaveLength(0)
+})
+
+const RENAME = 'rename the widget package'
+const FLAKY = 'fix the flaky test'
+const PICKER = 'ship the new picker'
+const TITLES = new RegExp(`${RENAME}|${FLAKY}|${PICKER}`)
+
+const LONG_AGO = Date.now() - 600_000
+const RECENTLY = Date.now() - 60_000
+
+const rowOrder = (): string[] =>
+  page
+    .getByRole('button', {name: TITLES})
+    .elements()
+    .map((element) => element.textContent?.match(TITLES)?.[0] ?? '')
+
+function openPair(): LiveSession[] {
+  return [
+    liveSession({sessionId: 'sess-1', title: RENAME, lastActivityAt: RECENTLY}),
+    liveSession({sessionId: 'sess-2', title: FLAKY, lastActivityAt: LONG_AGO}),
+  ]
+}
+
+async function backgroundCheck(mounted: Mounted, next: LiveSession[]): Promise<void> {
+  mounted.server.candidates = {value: next}
+  await mounted.queryClient.invalidateQueries({
+    queryKey: makeQueryUtils(makeRpcClient(BASE)).sessions.attachCandidates.key(),
+  })
+}
+
+async function openedPicker(candidates: LiveSession[]): Promise<Mounted> {
+  const mounted = mountFlow({
+    candidates: {value: candidates},
+    adopt: {value: {sessionId: 'conciv_adopted', reloadCommand: '/reload-plugins --force'}},
+    calls: [],
+  })
+  await trigger().click()
+  await expect.poll(rowOrder).toEqual([RENAME, FLAKY])
+  return mounted
+}
+
+test('the rows keep the order they had when the dialog opened, however the sessions behind them move', async () => {
+  const mounted = await openedPicker(openPair())
+
+  await backgroundCheck(mounted, [
+    liveSession({sessionId: 'sess-1', title: RENAME, lastActivityAt: LONG_AGO}),
+    liveSession({sessionId: 'sess-2', title: FLAKY, lastActivityAt: Date.now(), messageCount: 99}),
+  ])
+
+  await expect.element(page.getByRole('button', {name: /99 messages/})).toBeVisible()
+  await expect.poll(rowOrder).toEqual([RENAME, FLAKY])
+})
+
+test('a session that starts while the dialog is open waits behind a refresh instead of landing under the pointer', async () => {
+  const mounted = await openedPicker(openPair())
+
+  await backgroundCheck(mounted, [
+    ...openPair(),
+    liveSession({sessionId: 'sess-3', title: PICKER, lastActivityAt: Date.now()}),
+  ])
+
+  await expect.element(page.getByText(newSessionsLabel(1))).toBeVisible()
+  expect(page.getByRole('button', {name: TITLES}).elements()).toHaveLength(2)
+
+  await page.getByRole('button', {name: SHOW_NEW_LABEL, exact: true}).click()
+
+  await expect.poll(rowOrder).toEqual([PICKER, RENAME, FLAKY])
+  expect(page.getByText(newSessionsLabel(1)).elements()).toHaveLength(0)
+})
+
+test('a session that drops out of the listing keeps its row and stops claiming to be working', async () => {
+  const mounted = await openedPicker([
+    liveSession({sessionId: 'sess-1', title: RENAME, lastActivityAt: RECENTLY}),
+    liveSession({sessionId: 'sess-2', title: FLAKY, lastActivityAt: LONG_AGO, working: true}),
+  ])
+  await expect.element(page.getByRole('button', {name: /fix the flaky test.*· working ·/})).toBeVisible()
+
+  await backgroundCheck(mounted, [
+    liveSession({sessionId: 'sess-1', title: RENAME, lastActivityAt: RECENTLY, messageCount: 99}),
+  ])
+
+  await expect.element(page.getByRole('button', {name: /99 messages/})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: /fix the flaky test.*· idle ·/})).toBeVisible()
+  expect(rowOrder()).toEqual([RENAME, FLAKY])
+})
+
+test('the sessions waiting behind the refresh are offered once, not on every background check', async () => {
+  const mounted = await openedPicker(openPair())
+  const arrival = [...openPair(), liveSession({sessionId: 'sess-3', title: PICKER, lastActivityAt: Date.now()})]
+
+  await backgroundCheck(mounted, arrival)
+  await expect.poll(() => spoken(mounted)).toContain(newSessionsAnnounce(1))
+  await backgroundCheck(mounted, arrival)
+  await backgroundCheck(mounted, arrival)
+
+  await expect
+    .poll(() => mounted.server.calls.filter((call) => call.path === 'attachCandidates').length)
+    .toBeGreaterThan(3)
+  expect(spoken(mounted).filter((line) => line === newSessionsAnnounce(1))).toHaveLength(1)
 })
 
 test('a background check that finds the same sessions is not read out again', async () => {

@@ -9,6 +9,7 @@ import {
   dialInPollMs,
   dialogIsOpen,
   GIVE_UP_AFTER_FAILURES,
+  orderCandidates,
   stepOnAdoptFailed,
   stepOnAdopted,
   stepOnBack,
@@ -21,6 +22,7 @@ import {
 import {
   candidateTitle,
   CANNOT_TELL,
+  clampTitle,
   connectFailed,
   CONNECTING_LABEL,
   CONTACT_LOST,
@@ -32,6 +34,7 @@ import {
   nothingRunning,
   LOOKING_LABEL,
   LOOKUP_FAILED,
+  newSessionsAnnounce,
   nowFollowing,
   RELOAD_ANNOUNCE,
   STILL_CONNECTED,
@@ -60,6 +63,7 @@ export type ConnectFlowDeps = {
 export type ConnectFlow = {
   step: Accessor<ConnectStep>
   candidates: Accessor<LiveSession[] | undefined>
+  arrived: Accessor<number>
   loading: Accessor<boolean>
   refreshing: Accessor<boolean>
   failure: Accessor<string | null>
@@ -98,6 +102,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
   const [connected, setConnected] = createSignal(false)
   const [now, setNow] = createSignal(Date.now())
   const [failures, setFailures] = createSignal(0)
+  const [held, setHeld] = createSignal<LiveSession[] | null>(null)
 
   const tick = setInterval(() => {
     if (requested()) setNow(Date.now())
@@ -137,6 +142,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     setEpoch((count) => count + 1)
     setUndecided(false)
     setRequested(false)
+    setHeld(null)
     setStep(CLOSED)
   }
 
@@ -165,7 +171,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
       const next: Adopted = {
         concivSessionId: result.sessionId,
         harnessSessionId: session.sessionId,
-        title: candidateTitle(session),
+        title: clampTitle(candidateTitle(session)),
         reloadCommand: result.reloadCommand,
       }
       setAdopted(next)
@@ -235,6 +241,32 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     ),
   )
 
+  const stamp = (list: LiveSession[] | undefined): void => {
+    if (!list) return
+    setHeld(orderCandidates(list))
+  }
+
+  const liveById = (): Map<string, LiveSession> =>
+    new Map((candidates.data ?? []).map((session) => [session.sessionId, session]))
+
+  const rows = (): LiveSession[] | undefined => {
+    const frozen = held()
+    if (!frozen) return candidates.data === undefined ? undefined : orderCandidates(candidates.data)
+    const live = liveById()
+    return frozen.map((row) => live.get(row.sessionId) ?? {...row, working: false})
+  }
+
+  const arrived = (): number => {
+    const frozen = held()
+    if (!frozen) return 0
+    const known = new Set(frozen.map((row) => row.sessionId))
+    return (candidates.data ?? []).filter((session) => !known.has(session.sessionId)).length
+  }
+
+  const refresh = (): void => {
+    void candidates.refetch().then((settled) => stamp(settled.data))
+  }
+
   const startAdopt = (session: LiveSession): void => {
     setFlight(epoch())
     adopt.mutate(session)
@@ -252,6 +284,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     const list = candidates.data
     if (!list) return
     setUndecided(false)
+    stamp(list)
     decide(list)
   })
 
@@ -277,9 +310,11 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     const cached = candidates.data
     if (cached) {
       setUndecided(false)
+      stamp(cached)
       decide(cached)
       return
     }
+    setHeld(null)
     setUndecided(true)
     setStep({kind: 'picking', error: null, retryId: null})
   }
@@ -319,7 +354,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     const retryId = current.kind === 'picking' ? current.retryId : null
     const again = candidates.data?.find((session) => session.sessionId === retryId)
     if (!again) {
-      void candidates.refetch()
+      refresh()
       return
     }
     pick(again)
@@ -337,8 +372,10 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
   }
 
   const listLine = (): Spoken => {
-    const list = candidates.data
+    const list = rows()
     if (!list) return {message: LOOKING_LABEL, assertive: false}
+    const waiting = arrived()
+    if (waiting > 0) return {message: newSessionsAnnounce(waiting), assertive: false}
     const heading = subtitle(list.length, deps.harnessName()) ?? nothingRunning(deps.harnessName())
     return {message: heading, assertive: false}
   }
@@ -377,7 +414,8 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
 
   return {
     step,
-    candidates: () => candidates.data,
+    candidates: rows,
+    arrived,
     loading: () => candidates.isLoading,
     refreshing: () => candidates.isFetching && candidates.data !== undefined,
     failure: () => (candidates.isError ? reasonOf(candidates.error) : null),
@@ -393,7 +431,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     close,
     pick,
     retry,
-    refresh: () => void candidates.refetch(),
+    refresh,
     back: () => setStep(stepOnBack()),
     done,
     keepWaiting,
