@@ -116,8 +116,6 @@ export type HarnessSessionMeta = {
   createdAt?: number
 }
 
-export type TranscriptStat = {mtimeMs: number; size: number}
-
 export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: UIMessage[]}
 
 export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
@@ -144,8 +142,6 @@ export type TranscriptHandle = {
 
 export type HarnessHistory = {
   messages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]>
-  transcriptStat(cwd: string, sessionId: string, home?: string): Promise<TranscriptStat | null>
-
   observe(cwd: string, sessionId: string, home?: string): TranscriptHandle
 
   transcriptPath?(cwd: string, sessionId: string, home?: string): string

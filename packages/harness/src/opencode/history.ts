@@ -11,7 +11,6 @@ import type {
   TranscriptFailure,
   TranscriptHandle,
   TranscriptRevision,
-  TranscriptStat,
 } from '@conciv/protocol/harness-types'
 import {transcriptFailure} from '../_shared/jsonl-handle.js'
 
@@ -155,20 +154,6 @@ async function transcriptMessages(cwd: string, sessionId: string, home: string =
   })
 }
 
-async function transcriptStat(
-  cwd: string,
-  sessionId: string,
-  home: string = homedir(),
-): Promise<TranscriptStat | null> {
-  return withDatabase<TranscriptStat | null>(home, null, (db) => {
-    const session = sessionRow(db, sessionId)
-    if (!session || session.directory !== cwd) return null
-    const stat = rowsOf(StatRowSchema, db.prepare(STAT_OF).all(sessionId, sessionId)).at(0)
-    const latest = Math.max(session.time_updated ?? 0, stat?.latest ?? 0)
-    return {mtimeMs: latest, size: stat?.parts ?? 0}
-  })
-}
-
 function messageCounts(db: DatabaseSync, ids: string[]): Map<string, number> {
   if (ids.length === 0) return new Map()
   const placeholders = ids.map(() => '?').join(',')
@@ -284,7 +269,6 @@ function observeTranscript(cwd: string, sessionId: string, home: string = homedi
 
 export const opencodeHistory: HarnessHistory = {
   messages: transcriptMessages,
-  transcriptStat,
   observe: observeTranscript,
   list: listSessions,
 }

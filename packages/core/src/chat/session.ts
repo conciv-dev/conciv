@@ -14,7 +14,13 @@ import type {
 } from '@conciv/protocol/chat-types'
 import {CONCIV_HOOK_PATH, isHarnessSessionId, isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
-import type {HarnessAdapter, HarnessConnectPlan, HarnessHistory} from '@conciv/protocol/harness-types'
+import type {
+  HarnessAdapter,
+  HarnessConnectPlan,
+  HarnessHistory,
+  TranscriptFailure,
+  TranscriptRevision,
+} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {sessions, type ConcivDb} from '@conciv/db'
 import {apiBaseFrom} from '../lib/api-base.js'
@@ -55,6 +61,20 @@ export function transcriptTokenAllowed(
   return history?.withinProject?.(cwd, token, home) ?? true
 }
 
+export async function transcriptRevision(
+  history: HarnessHistory,
+  cwd: string,
+  token: string,
+  home?: string,
+): Promise<TranscriptRevision | TranscriptFailure> {
+  const handle = history.observe(cwd, token, home)
+  try {
+    return await handle.revision()
+  } finally {
+    handle.close()
+  }
+}
+
 export async function resumableToken(
   db: ConcivDb,
   harness: HarnessAdapter,
@@ -67,7 +87,10 @@ export async function resumableToken(
   if (!history) return token
   const transcriptCwd = (await transcriptCwdFor(db, token)) ?? cwd
   if (!transcriptTokenAllowed(history, transcriptCwd, token, home)) return null
-  return (await history.transcriptStat(transcriptCwd, token, home)) ? token : null
+  const revision = await transcriptRevision(history, transcriptCwd, token, home)
+  if (!('ok' in revision)) return token
+  if (revision.reason === 'missing') return null
+  throw new Error(`cannot read the transcript for ${token}: ${revision.detail}`)
 }
 
 export const recordMintedToken = async (db: ConcivDb, id: string, token: string): Promise<void> => {

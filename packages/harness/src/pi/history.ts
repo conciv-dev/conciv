@@ -4,7 +4,7 @@ import {homedir} from 'node:os'
 import {join, resolve} from 'node:path'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
-import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle, TranscriptStat} from '@conciv/protocol/harness-types'
+import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50
@@ -257,11 +257,6 @@ function observeTranscript(cwd: string, sessionId: string, home?: string): Trans
   })
 }
 
-async function transcriptStat(cwd: string, sessionId: string, home?: string): Promise<TranscriptStat | null> {
-  const info = await stat(transcriptPath(cwd, sessionId, home)).catch(() => null)
-  return info ? {mtimeMs: info.mtimeMs, size: info.size} : null
-}
-
 function firstUserText(messages: UIMessage[]): string {
   const first = messages.find((message) => message.role === 'user')
   return first ? textOf(first) : ''
@@ -314,7 +309,6 @@ async function listSessions(cwd: string, home: string = homedir()): Promise<Harn
 
 export const piHistory: HarnessHistory = {
   messages: transcriptMessages,
-  transcriptStat,
   observe: observeTranscript,
   transcriptPath,
   list: listSessions,

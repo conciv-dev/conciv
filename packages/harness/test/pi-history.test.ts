@@ -161,13 +161,18 @@ describe('pi history sidecar', () => {
     expect(history().transcriptPath?.(PROJECT, SESSION, state.home)).toBe(join(sessionsDir(PROJECT, state.home), FILE))
     const messages = await history().messages(PROJECT, SESSION, state.home)
     expect(messages.map((message) => message.role)).toEqual(['user', 'assistant', 'assistant'])
-    const stat = await history().transcriptStat(PROJECT, SESSION, state.home)
-    expect(stat?.size).toBeGreaterThan(0)
+    const handle = history().observe(PROJECT, SESSION, state.home)
+    const revision = await handle.revision()
+    if ('ok' in revision) throw new Error(revision.detail)
+    expect(revision.changedAt).toBeGreaterThan(0)
+    handle.close()
   })
 
   it('reports nothing for an unknown session', async () => {
     expect(await history().messages(PROJECT, 'missing', state.home)).toEqual([])
-    expect(await history().transcriptStat(PROJECT, 'missing', state.home)).toBeNull()
+    const handle = history().observe(PROJECT, 'missing', state.home)
+    expect(await handle.revision()).toMatchObject({ok: false, reason: 'missing'})
+    handle.close()
   })
 })
 

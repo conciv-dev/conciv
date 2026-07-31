@@ -1,10 +1,10 @@
-import {readdir, readFile, stat} from 'node:fs/promises'
+import {readdir, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
-import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle, TranscriptStat} from '@conciv/protocol/harness-types'
+import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50
@@ -300,17 +300,6 @@ async function transcriptMessages(cwd: string, sessionId: string, home: string =
   return rollout ? parseHistory(rollout.raw) : []
 }
 
-async function transcriptStat(
-  cwd: string,
-  sessionId: string,
-  home: string = homedir(),
-): Promise<TranscriptStat | null> {
-  const rollout = await rolloutFor(cwd, sessionId, home)
-  if (!rollout) return null
-  const info = await stat(rollout.path).catch(() => null)
-  return info ? {mtimeMs: info.mtimeMs, size: info.size} : null
-}
-
 async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
   const rows = threadRows(stateDbPath(home), LIST_THREADS, [cwd])
   return Promise.all(
@@ -347,7 +336,6 @@ function observeTranscript(cwd: string, sessionId: string, home: string = homedi
 
 export const codexHistory: HarnessHistory = {
   messages: transcriptMessages,
-  transcriptStat,
   observe: observeTranscript,
   contextTokens: contextTokensFromTranscript,
   list: listSessions,

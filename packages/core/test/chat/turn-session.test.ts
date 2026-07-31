@@ -4,16 +4,32 @@ import {stat} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
-import type {HarnessAdapter, TranscriptHandle} from '@conciv/protocol/harness-types'
+import type {
+  HarnessAdapter,
+  TranscriptFailure,
+  TranscriptHandle,
+  TranscriptRevision,
+} from '@conciv/protocol/harness-types'
 import {testDb} from '../helpers/memory-store.js'
 import {createSession, sessionById} from '../../src/chat/session.js'
 import {requireClaude} from '../helpers/adapters.js'
 import {resumeTokenFor, recordMintedToken, ensureChatRecord, resumableToken} from '../../src/chat/session.js'
 
-const inertHandle: TranscriptHandle = {
-  revision: () => Promise.resolve({ok: false, reason: 'missing', detail: 'not observed in this test'}),
-  read: () => Promise.resolve({ok: false, reason: 'missing', detail: 'not observed in this test'}),
-  close: () => {},
+const missing = (path: string): TranscriptFailure => ({
+  ok: false,
+  reason: 'missing',
+  detail: `${path} does not exist`,
+})
+
+function fileHandle(path: string): TranscriptHandle {
+  return {
+    async revision(): Promise<TranscriptRevision | TranscriptFailure> {
+      const info = await stat(path).catch(() => null)
+      return info ? {rev: `${info.size}:${info.mtimeMs}`, changedAt: info.mtimeMs} : missing(path)
+    },
+    read: () => Promise.resolve(missing(path)),
+    close: () => {},
+  }
 }
 
 describe('turn session helpers', () => {
@@ -64,11 +80,7 @@ describe('turn session helpers', () => {
       commands: claude.commands,
       history: {
         messages: () => Promise.resolve([]),
-        transcriptStat: async (cwd, sessionId) => {
-          const info = await stat(join(cwd, `${sessionId}.jsonl`)).catch(() => null)
-          return info ? {mtimeMs: info.mtimeMs, size: info.size} : null
-        },
-        observe: () => inertHandle,
+        observe: (cwd, sessionId) => fileHandle(join(cwd, `${sessionId}.jsonl`)),
         list: () => Promise.resolve([]),
       },
     }

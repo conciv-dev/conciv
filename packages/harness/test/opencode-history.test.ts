@@ -26,6 +26,8 @@ const MESSAGES = [
   },
 ]
 
+const LATEST_MESSAGE_MS = 1785273548289
+
 const PARTS = [
   {id: 'prt_1', message: 'msg_1', data: {type: 'text', text: 'count the files'}},
   {id: 'prt_2', message: 'msg_2', data: {snapshot: '5f0b32be', type: 'step-start'}},
@@ -152,14 +154,18 @@ describe('opencode history sidecar', () => {
 
   it('refuses a session that belongs to another directory', async () => {
     expect(await history().messages(PROJECT, STRAY, state.home)).toEqual([])
-    expect(await history().transcriptStat(PROJECT, STRAY, state.home)).toBeNull()
+    const handle = history().observe(PROJECT, STRAY, state.home)
+    expect(await handle.revision()).toMatchObject({ok: false, reason: 'missing'})
+    handle.close()
   })
 
-  it('reports the newest write and the part count for change detection', async () => {
-    expect(await history().transcriptStat(PROJECT, SESSION, state.home)).toEqual({
-      mtimeMs: 1785305469728,
-      size: PARTS.length,
+  it('reports the newest message write and the part count for change detection', async () => {
+    const handle = history().observe(PROJECT, SESSION, state.home)
+    expect(await handle.revision()).toEqual({
+      rev: `${LATEST_MESSAGE_MS}:${PARTS.length}`,
+      changedAt: LATEST_MESSAGE_MS,
     })
+    handle.close()
   })
 
   it('returns nothing when there is no opencode database', async () => {

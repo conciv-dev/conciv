@@ -71,7 +71,6 @@ describe('defineHarness (generic typed factory; history↔transcriptHistory enfo
       },
       history: {
         messages: () => Promise.resolve([]),
-        transcriptStat: () => Promise.resolve(null),
         observe: () => stubHandle,
         list: () => Promise.resolve([]),
       },

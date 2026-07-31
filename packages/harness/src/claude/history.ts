@@ -8,7 +8,6 @@ import type {
   HarnessSessionMeta,
   HarnessSessionSummary,
   TranscriptHandle,
-  TranscriptStat,
 } from '@conciv/protocol/harness-types'
 import {makeJsonlHandle} from '../_shared/jsonl-handle.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
@@ -414,14 +413,8 @@ async function transcriptMessages(cwd: string, sessionId: string, home?: string)
   return raw ? parseHistory(raw) : []
 }
 
-async function transcriptStat(cwd: string, sessionId: string, home?: string): Promise<TranscriptStat | null> {
-  const info = await stat(transcriptPath(cwd, sessionId, home)).catch(() => null)
-  return info ? {mtimeMs: info.mtimeMs, size: info.size} : null
-}
-
 export const claudeHistory: HarnessHistory = {
   messages: transcriptMessages,
-  transcriptStat,
   observe: observeTranscript,
   transcriptPath,
   withinProject,

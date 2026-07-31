@@ -20,7 +20,7 @@ describe('claude harness adapter', () => {
 
   it('capability presence matches members (transcriptHistory ⇒ history, slashCommands ⇒ commands)', () => {
     expect(typeof claude.history?.messages).toBe('function')
-    expect(typeof claude.history?.transcriptStat).toBe('function')
+    expect(typeof claude.history?.observe).toBe('function')
     expect(typeof claude.commands).toBe('function')
   })
 

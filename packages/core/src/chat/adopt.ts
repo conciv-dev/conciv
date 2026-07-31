@@ -2,13 +2,13 @@ import {realpathSync} from 'node:fs'
 import {isAbsolute, relative, resolve} from 'node:path'
 import {eq, isNotNull} from 'drizzle-orm'
 import {CONCIV_HOOK_PATH, isHarnessSessionId} from '@conciv/protocol/chat-types'
-import type {HarnessLiveSession} from '@conciv/protocol/harness-types'
+import type {HarnessHistory, HarnessLiveSession, HarnessSessionSummary} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {sessions, type ConcivDb} from '@conciv/db'
 import type {LiveSession} from '@conciv/contract'
 import {apiBaseFrom} from '../lib/api-base.js'
 import {logError} from '../lib/debug.js'
-import {mcpUrlFor, resolveSession, sessionById, transcriptTokenAllowed} from './session.js'
+import {mcpUrlFor, resolveSession, sessionById, transcriptRevision, transcriptTokenAllowed} from './session.js'
 import {transcriptTail} from './transcript-tail.js'
 import type {ChatDeps} from './runtime.js'
 
@@ -39,22 +39,56 @@ export function cwdRelation(candidateCwd: string, engineCwd: string): CwdRelatio
 
 type CandidateFacts = Pick<LiveSession, 'title' | 'messageCount' | 'lastActivityAt' | 'tail'>
 
+export type CandidateDeps = Pick<ChatDeps, 'cwd' | 'claudeHome' | 'harness' | 'dialed'>
+
+const FACTS_MEMO_LIMIT = 64
+
+const rememberedFacts = new Map<string, CandidateFacts>()
+
+function recalled(key: string): CandidateFacts | undefined {
+  const found = rememberedFacts.get(key)
+  if (!found) return undefined
+  rememberedFacts.delete(key)
+  rememberedFacts.set(key, found)
+  return found
+}
+
+function remember(key: string, facts: CandidateFacts): void {
+  rememberedFacts.set(key, facts)
+  while (rememberedFacts.size > FACTS_MEMO_LIMIT) {
+    const oldest = rememberedFacts.keys().next()
+    if (oldest.done) return
+    rememberedFacts.delete(oldest.value)
+  }
+}
+
 function blankFacts(session: HarnessLiveSession): CandidateFacts {
   return {title: '', messageCount: 0, lastActivityAt: session.startedAt ?? 0, tail: []}
 }
 
-function readableTranscript(deps: ChatDeps, session: HarnessLiveSession): boolean {
+function readableTranscript(deps: CandidateDeps, session: HarnessLiveSession): boolean {
   const history = deps.harness.history
   if (!history) return false
   return transcriptTokenAllowed(history, session.cwd, session.sessionId, deps.claudeHome)
 }
 
-async function candidateFacts(deps: ChatDeps, session: HarnessLiveSession): Promise<CandidateFacts> {
-  const history = deps.harness.history
+function factsFromSummary(summary: HarnessSessionSummary): CandidateFacts {
+  return {
+    title: summary.meta.derivedTitle,
+    messageCount: summary.meta.messageCount,
+    lastActivityAt: summary.meta.updatedAt,
+    tail: transcriptTail(summary.tail),
+  }
+}
+
+async function factsFromMessages(
+  deps: CandidateDeps,
+  history: HarnessHistory,
+  session: HarnessLiveSession,
+): Promise<CandidateFacts> {
   const blank = blankFacts(session)
-  if (!history) return blank
-  const meta = await history.meta?.(session.cwd, session.sessionId, deps.claudeHome).catch(() => null)
-  const messages = await history.messages(session.cwd, session.sessionId, deps.claudeHome).catch(() => [])
+  const meta = await history.meta?.(session.cwd, session.sessionId, deps.claudeHome)
+  const messages = await history.messages(session.cwd, session.sessionId, deps.claudeHome)
   return {
     title: meta?.derivedTitle ?? blank.title,
     messageCount: meta?.messageCount ?? messages.length,
@@ -63,7 +97,34 @@ async function candidateFacts(deps: ChatDeps, session: HarnessLiveSession): Prom
   }
 }
 
-async function toWire(deps: ChatDeps, session: HarnessLiveSession): Promise<LiveSession[]> {
+async function readFacts(
+  deps: CandidateDeps,
+  history: HarnessHistory,
+  session: HarnessLiveSession,
+): Promise<CandidateFacts> {
+  const onePass = history.summary
+  if (!onePass) return factsFromMessages(deps, history, session)
+  const summary = await onePass(session.cwd, session.sessionId, deps.claudeHome)
+  return summary ? factsFromSummary(summary) : blankFacts(session)
+}
+
+async function candidateFacts(deps: CandidateDeps, session: HarnessLiveSession): Promise<CandidateFacts> {
+  const history = deps.harness.history
+  if (!history) return blankFacts(session)
+  const revision = await transcriptRevision(history, session.cwd, session.sessionId, deps.claudeHome)
+  if ('ok' in revision) {
+    if (revision.reason === 'missing') return blankFacts(session)
+    throw new Error(`cannot read the transcript of ${session.sessionId}: ${revision.detail}`)
+  }
+  const key = `${session.sessionId}:${revision.rev}`
+  const recalledFacts = recalled(key)
+  if (recalledFacts) return recalledFacts
+  const facts = await readFacts(deps, history, session)
+  remember(key, facts)
+  return facts
+}
+
+async function toWire(deps: CandidateDeps, session: HarnessLiveSession): Promise<LiveSession[]> {
   const relation = cwdRelation(session.cwd, deps.cwd)
   if (relation === 'disjoint') return []
   const facts = readableTranscript(deps, session) ? await candidateFacts(deps, session) : blankFacts(session)
@@ -71,7 +132,7 @@ async function toWire(deps: ChatDeps, session: HarnessLiveSession): Promise<Live
   return [{...session, ...facts, relation, ready, working: session.status === 'busy'}]
 }
 
-export async function liveCandidates(deps: ChatDeps): Promise<LiveSession[]> {
+export async function liveCandidates(deps: CandidateDeps): Promise<LiveSession[]> {
   const attach = deps.harness.attach
   if (!attach) return []
   const found = await attach.candidates(deps.cwd, deps.claudeHome).catch((error: unknown) => {

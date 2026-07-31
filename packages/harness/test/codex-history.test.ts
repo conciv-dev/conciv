@@ -186,12 +186,19 @@ describe('codex history sidecar', () => {
 
   it('returns nothing when the session was recorded in another cwd', async () => {
     expect(await history().messages(PROJECT, STRAY, state.home)).toEqual([])
-    expect(await history().transcriptStat(PROJECT, STRAY, state.home)).toBeNull()
+    const handle = history().observe(PROJECT, STRAY, state.home)
+    const read = await handle.read()
+    expect(read.ok).toBe(false)
+    handle.close()
   })
 
-  it('stats the resolved rollout file', async () => {
-    const stat = await history().transcriptStat(PROJECT, SESSION, state.home)
-    expect(stat?.size).toBeGreaterThan(0)
-    expect(stat?.mtimeMs).toBeGreaterThan(0)
+  it('revises the resolved rollout file without reading it', async () => {
+    const handle = history().observe(PROJECT, SESSION, state.home)
+    const revision = await handle.revision()
+    expect('ok' in revision).toBe(false)
+    if ('ok' in revision) throw new Error(revision.detail)
+    expect(revision.changedAt).toBeGreaterThan(0)
+    expect(revision.rev).toMatch(/^\d+:/)
+    handle.close()
   })
 })
