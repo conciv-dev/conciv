@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {
+  dialInPollMs,
   dialogIsOpen,
   orderCandidates,
   stepOnAdoptFailed,
@@ -97,4 +98,11 @@ describe('the order rows are shown in', () => {
     expect(orderCandidates(rows).map((row) => row.sessionId)).toEqual(['c', 'a', 'b'])
     expect(orderCandidates(rows.toReversed()).map((row) => row.sessionId)).toEqual(['c', 'a', 'b'])
   })
+})
+
+it('backs the dial-in poll off while the server keeps missing, then holds', () => {
+  expect(dialInPollMs(0)).toBe(1_500)
+  expect(dialInPollMs(1)).toBe(3_000)
+  expect(dialInPollMs(2)).toBe(6_000)
+  expect(dialInPollMs(9)).toBe(6_000)
 })

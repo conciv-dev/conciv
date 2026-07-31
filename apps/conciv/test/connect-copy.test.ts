@@ -5,6 +5,8 @@ import {
   isStale,
   metaLine,
   nothingRunning,
+  optionsUnavailable,
+  showAllLabel,
   subtitle,
   TRANSCRIPT_UNAVAILABLE,
   UNTITLED_SESSION,
@@ -91,4 +93,14 @@ describe('how fresh the list is', () => {
     expect(checkedLabel(0)).toBeNull()
     expect(checkedLabel(1_000_000)).toEqual(new Date(1_000_000))
   })
+})
+
+it('counts the sessions it is hiding in the reader’s own grammar', () => {
+  expect(showAllLabel(1)).toBe('Show all 1 session')
+  expect(showAllLabel(11)).toBe('Show all 11 sessions')
+  expect(showAllLabel(1_204)).toBe('Show all 1,204 sessions')
+})
+
+it('names the harness in front of it when its options cannot be read', () => {
+  expect(optionsUnavailable('Codex')).toBe('Terminal options unavailable for Codex')
 })

@@ -1,4 +1,4 @@
-import {createSignal, createEffect, onCleanup, type Accessor} from 'solid-js'
+import {createSignal, createEffect, on, onCleanup, type Accessor} from 'solid-js'
 import {useMutation, useQuery, type QueryClient} from '@tanstack/solid-query'
 import type {LiveSession, RpcClient} from '@conciv/contract'
 import type {QueryUtils} from '@conciv/client'
@@ -6,7 +6,9 @@ import {errorMessageFor} from '../../chat/send-errors.js'
 import type {Notify} from '../../chat/notify.js'
 import {
   CLOSED,
+  dialInPollMs,
   dialogIsOpen,
+  GIVE_UP_AFTER_FAILURES,
   stepOnAdoptFailed,
   stepOnAdopted,
   stepOnBack,
@@ -18,12 +20,22 @@ import {
 } from './connect-steps.js'
 import {
   candidateTitle,
+  CANNOT_TELL,
   connectFailed,
+  CONNECTING_LABEL,
+  CONTACT_LOST,
+  DIALLED_IN,
   HAND_BACK_LABEL,
   HANDED_BACK,
   isStale,
+  LEAVING_UNRELOADED,
+  nothingRunning,
+  LOOKING_LABEL,
+  LOOKUP_FAILED,
   nowFollowing,
+  RELOAD_ANNOUNCE,
   STILL_CONNECTED,
+  subtitle,
   UNDO_LABEL,
 } from './connect-copy.js'
 
@@ -31,7 +43,6 @@ const HAND_BACK_KEY = 'hand-back'
 const FRESH_MS = 3_000
 const KEEP_MS = 5 * 60_000
 const POLL_MS = 4_000
-const DIAL_IN_POLL_MS = 1_500
 const TICK_MS = 1_000
 
 export type ConnectFlowDeps = {
@@ -42,6 +53,7 @@ export type ConnectFlowDeps = {
   sessionId: () => string
   navigate: (sessionId: string) => void
   notify: Notify
+  announce: (message: string, assertive?: boolean) => void
   invalidateSessions: () => void
 }
 
@@ -56,6 +68,7 @@ export type ConnectFlow = {
   connectingId: Accessor<string | null>
   dialledIn: Accessor<boolean>
   contactLost: Accessor<boolean>
+  unreachable: Accessor<boolean>
   busy: Accessor<boolean>
   start: () => void
   prefetch: () => void
@@ -68,6 +81,8 @@ export type ConnectFlow = {
   keepWaiting: () => void
   handBack: () => void
 }
+
+type Spoken = {message: string; assertive: boolean}
 
 function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -82,6 +97,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
   const [undecided, setUndecided] = createSignal(false)
   const [connected, setConnected] = createSignal(false)
   const [now, setNow] = createSignal(Date.now())
+  const [failures, setFailures] = createSignal(0)
 
   const tick = setInterval(() => {
     if (requested()) setNow(Date.now())
@@ -185,7 +201,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
   const pollMs = (): number | false => {
     if (!requested()) return false
     if (adopt.isPending) return false
-    return awaitingDialIn() ? DIAL_IN_POLL_MS : POLL_MS
+    return awaitingDialIn() ? dialInPollMs(failures()) : POLL_MS
   }
 
   const candidates = useQuery(() => ({
@@ -198,6 +214,26 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     refetchOnWindowFocus: true,
     retry: 1,
   }))
+
+  createEffect(
+    on(
+      () => candidates.errorUpdatedAt,
+      (at, before) => {
+        if (at === 0 || at === before) return
+        setFailures((count) => count + 1)
+      },
+    ),
+  )
+
+  createEffect(
+    on(
+      () => candidates.dataUpdatedAt,
+      (at, before) => {
+        if (at === 0 || at === before) return
+        setFailures(0)
+      },
+    ),
+  )
 
   const startAdopt = (session: LiveSession): void => {
     setFlight(epoch())
@@ -291,6 +327,54 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
 
   const done = (): void => shut()
 
+  const unreachable = (): boolean => step().kind === 'reload' && failures() >= GIVE_UP_AFTER_FAILURES && !connected()
+
+  const reloadLine = (): Spoken => {
+    if (connected()) return {message: DIALLED_IN, assertive: false}
+    if (unreachable()) return {message: CANNOT_TELL, assertive: true}
+    if (candidates.isError) return {message: CONTACT_LOST, assertive: true}
+    return {message: RELOAD_ANNOUNCE, assertive: false}
+  }
+
+  const listLine = (): Spoken => {
+    const list = candidates.data
+    if (!list) return {message: LOOKING_LABEL, assertive: false}
+    const heading = subtitle(list.length, deps.harnessName()) ?? nothingRunning(deps.harnessName())
+    return {message: heading, assertive: false}
+  }
+
+  const pickingLine = (error: string | null): Spoken => {
+    if (error !== null) return {message: error, assertive: true}
+    if (candidates.isError && candidates.data === undefined) return {message: LOOKUP_FAILED, assertive: true}
+    return listLine()
+  }
+
+  const settledLine = (current: ConnectStep): Spoken | null => {
+    if (current.kind === 'connecting') return {message: CONNECTING_LABEL, assertive: false}
+    if (current.kind === 'snippet') return {message: current.detail, assertive: true}
+    if (current.kind === 'leaveConfirm') return {message: LEAVING_UNRELOADED, assertive: false}
+    return null
+  }
+
+  const spoken = (): Spoken | null => {
+    const current = step()
+    if (current.kind === 'reload') return reloadLine()
+    if (current.kind === 'picking') return pickingLine(current.error)
+    return settledLine(current)
+  }
+
+  let lastSaid: string | null = null
+  createEffect(() => {
+    const said = spoken()
+    if (said === null) {
+      lastSaid = null
+      return
+    }
+    if (said.message === lastSaid) return
+    lastSaid = said.message
+    deps.announce(said.message, said.assertive)
+  })
+
   return {
     step,
     candidates: () => candidates.data,
@@ -302,6 +386,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     connectingId: () => (adopt.isPending ? (adopt.variables?.sessionId ?? null) : null),
     dialledIn: connected,
     contactLost: () => step().kind === 'reload' && candidates.isError && !connected(),
+    unreachable,
     busy: () => adopt.isPending && !dialogIsOpen(step()),
     start,
     prefetch: () => void deps.queryClient.prefetchQuery(deps.utils.sessions.attachCandidates.queryOptions()),

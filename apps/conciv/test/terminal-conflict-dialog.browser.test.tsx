@@ -2,7 +2,7 @@ import {afterEach, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {render} from 'solid-js/web'
 import {createSignal} from 'solid-js'
-import {NO_CONFLICT, TERMINAL_RECONNECTED, type Conflict} from '../src/chat/conflict.js'
+import {ATTACHED_MESSAGE, NO_CONFLICT, TERMINAL_RECONNECTED, type Conflict} from '../src/chat/conflict.js'
 import {TerminalConflictDialog} from '../src/chat/terminal-conflict-dialog.js'
 
 const disposers: (() => void)[] = []
@@ -19,12 +19,15 @@ function mountDialog(): Mounted {
   const seen: string[] = []
   const dispose = render(
     () => (
-      <TerminalConflictDialog
-        conflict={conflict()}
-        onCancel={() => seen.push('cancel')}
-        onTakeOver={() => seen.push('take over')}
-        onSendAnyway={() => seen.push('send anyway')}
-      />
+      <>
+        <textarea aria-label="Message" />
+        <TerminalConflictDialog
+          conflict={conflict()}
+          onCancel={() => seen.push('cancel')}
+          onTakeOver={() => seen.push('take over')}
+          onSendAnyway={() => seen.push('send anyway')}
+        />
+      </>
     ),
     host,
   )
@@ -108,4 +111,20 @@ test('trying again after a failed take over asks the server again, it does not r
 
   expect(mounted.seen).toEqual(['take over'])
   expect(dialogs()).toHaveLength(1)
+})
+
+test('the question takes the focus off the composer, so the very first escape cancels it', async () => {
+  const mounted = mountDialog()
+  const composer = page.getByRole('textbox', {name: 'Message'})
+  await composer.click()
+  expect(document.activeElement).toBe(composer.element())
+
+  mounted.show({kind: 'attached', message: ATTACHED_MESSAGE})
+
+  const cancel = page.getByRole('button', {name: 'Cancel'})
+  await expect.element(cancel).toBeVisible()
+  expect(document.activeElement).toBe(cancel.element())
+
+  await userEvent.keyboard('{Escape}')
+  expect(mounted.seen).toEqual(['cancel'])
 })

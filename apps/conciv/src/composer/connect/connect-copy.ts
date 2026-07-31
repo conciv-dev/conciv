@@ -15,6 +15,10 @@ export const BACK_LABEL = 'Back to the list'
 export const CLOSE_LABEL = 'Close'
 export const UNDO_LABEL = 'Undo'
 export const KEEP_WAITING_LABEL = 'Keep waiting'
+export const COPIED_LABEL = 'Copied'
+export const SELECT_COMMAND_LABEL = 'Select command'
+export const CLIPBOARD_BLOCKED = 'Clipboard is blocked here — select the command and copy it.'
+const OPTIONS_UNAVAILABLE = 'Terminal options unavailable'
 export const HAND_BACK_LABEL = 'Hand it back'
 export const HAND_BACK_CLOSE_LABEL = 'Hand it back and close'
 
@@ -32,6 +36,8 @@ export const CHECKED_PREFIX = 'Checked'
 export const AS_OF_LAST_CHECK = 'as of the last check'
 export const WAITING_TO_DIAL_IN = 'Waiting for this session to dial in. It flips by itself.'
 export const CONTACT_LOST = 'Lost contact with the server. Still trying.'
+export const CANNOT_TELL = 'Can’t tell yet — not reaching the server. Run the command anyway; it still connects.'
+export const RELOAD_ANNOUNCE = 'Connected. One step is left in that terminal.'
 export const DIALLED_IN = 'Connected. Keep talking in either place.'
 export const RELOAD_HEADS_UP = 'Your next message re-reads the conversation once, then stops.'
 export const SNIPPET_HINT = 'Quit that session and start it again with this command instead.'
@@ -81,6 +87,15 @@ export function subtitle(count: number, harnessName: string): string | null {
   if (count === 0) return null
   const verb = plurals.select(count) === 'one' ? 'session is' : 'sessions are'
   return `${counts.format(count)} ${harnessName} ${verb} running in this project. Pick the one this panel should follow.`
+}
+
+export function showAllLabel(count: number): string {
+  const noun = plurals.select(count) === 'one' ? 'session' : 'sessions'
+  return `Show all ${counts.format(count)} ${noun}`
+}
+
+export function optionsUnavailable(harnessName: string): string {
+  return `${OPTIONS_UNAVAILABLE} for ${harnessName}`
 }
 
 export function nothingRunning(harnessName: string): string {

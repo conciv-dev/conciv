@@ -110,3 +110,11 @@ test('every notice is announced, and an alarming one interrupts', () => {
     {message: 'Still connected to your terminal.', assertive: true},
   ])
 })
+
+test('the way out of a notice is announced with it, not left for the eye alone', () => {
+  const mounted = mountNotices()
+
+  mounted.notify('Now following fix the flaky test.', {action: {label: 'Undo', run: () => {}}})
+
+  expect(mounted.announced).toEqual([{message: 'Now following fix the flaky test. Undo.', assertive: false}])
+})

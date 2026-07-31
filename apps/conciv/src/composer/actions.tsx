@@ -5,7 +5,7 @@ import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {Crosshair, FoldVertical, SquarePen} from 'lucide-solid'
 import {getReactGrabAdapter} from '@conciv/page'
 import type {Grab} from '@conciv/grab'
-import {useAppData, useAppQueryClient, useRpc} from '../app/context.js'
+import {useAnnounce, useAppData, useAppQueryClient, useRpc} from '../app/context.js'
 import type {Notify} from '../chat/notify.js'
 import {LaunchMenu} from './launch-menu.js'
 import {ConnectDialog} from './connect/connect-dialog.js'
@@ -41,6 +41,7 @@ export function ComposerActions(props: {
   const rpc = useRpc()
   const queryClient = useAppQueryClient()
   const router = useRouter()
+  const announce = useAnnounce()
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
   const harnessName = () => meta.data?.harness.name ?? 'the harness'
 
@@ -79,6 +80,7 @@ export function ComposerActions(props: {
     sessionId: () => props.sessionId,
     navigate: (sessionId) => void router.navigate({to: '/panel/$sessionId', params: {sessionId}}),
     notify: props.notify,
+    announce,
     invalidateSessions: () => appData.invalidateSessions(),
   })
 
@@ -101,13 +103,16 @@ export function ComposerActions(props: {
       >
         <FoldVertical class="size-5 block" />
       </TooltipIconButton>
-      <Show when={meta.data?.harness.canLaunch}>
+      <Show when={meta.data === undefined || meta.data.harness.canLaunch}>
         <LaunchMenu
           harnessName={harnessName()}
-          class={busyClass(launch.isPending || connect.busy())}
+          class={busyClass(launch.isPending || connect.busy() || meta.isPending)}
+          pending={meta.isPending}
+          failed={meta.isError}
           canConnect={meta.data?.harness.canAttach}
           onOpen={() => launch.mutate(true)}
           onCopy={() => launch.mutate(false)}
+          onRetry={() => void meta.refetch()}
           onConnect={() => connect.start()}
           onPrefetch={() => connect.prefetch()}
         />
@@ -124,6 +129,7 @@ export function ComposerActions(props: {
         connectingId={connect.connectingId()}
         dialledIn={connect.dialledIn()}
         contactLost={connect.contactLost()}
+        unreachable={connect.unreachable()}
         onPick={connect.pick}
         onRetry={connect.retry}
         onRefresh={connect.refresh}
@@ -131,7 +137,6 @@ export function ComposerActions(props: {
           connect.close()
           launch.mutate(true)
         }}
-        onCopy={(text) => void copyCommand(text, props.notify)}
         onBack={connect.back}
         onDone={connect.done}
         onKeepWaiting={connect.keepWaiting}

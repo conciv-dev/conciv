@@ -8,6 +8,8 @@ import type {NoticeOptions} from '../src/chat/notify.js'
 import {useConnectFlow} from '../src/composer/connect/use-connect-flow.js'
 import {ConnectDialog} from '../src/composer/connect/connect-dialog.js'
 import {
+  CANNOT_TELL,
+  CONTACT_LOST,
   HAND_BACK_CLOSE_LABEL,
   HAND_BACK_LABEL,
   HANDED_BACK,
@@ -15,6 +17,7 @@ import {
   LEAVING_UNRELOADED,
   LOOKING_LABEL,
   LOOKUP_FAILED,
+  RELOAD_ANNOUNCE,
   STILL_CONNECTED,
   UNDO_LABEL,
 } from '../src/composer/connect/connect-copy.js'
@@ -82,9 +85,12 @@ function installServer(server: Server): void {
 
 type Raised = {message: string; options: NoticeOptions | undefined}
 
+type Said = {message: string; assertive: boolean}
+
 type Mounted = {
   server: Server
   notices: Raised[]
+  said: Said[]
   navigated: string[]
   queryClient: QueryClient
 }
@@ -96,7 +102,7 @@ function mountFlow(server: Server): Mounted {
   const queryClient = new QueryClient()
   const rpc = makeRpcClient(BASE)
   const utils = makeQueryUtils(rpc)
-  const mounted: Mounted = {server, notices: [], navigated: [], queryClient}
+  const mounted: Mounted = {server, notices: [], said: [], navigated: [], queryClient}
   const Harness = () => {
     const flow = useConnectFlow({
       utils,
@@ -106,6 +112,7 @@ function mountFlow(server: Server): Mounted {
       sessionId: () => 'conciv_panel',
       navigate: (sessionId) => mounted.navigated.push(sessionId),
       notify: (message, options) => mounted.notices.push({message, options}),
+      announce: (message, assertive = false) => mounted.said.push({message, assertive}),
       invalidateSessions: () => {},
     })
     return (
@@ -125,11 +132,11 @@ function mountFlow(server: Server): Mounted {
           connectingId={flow.connectingId()}
           dialledIn={flow.dialledIn()}
           contactLost={flow.contactLost()}
+          unreachable={flow.unreachable()}
           onPick={flow.pick}
           onRetry={flow.retry}
           onRefresh={flow.refresh}
           onLaunch={() => {}}
-          onCopy={() => {}}
           onBack={flow.back}
           onDone={flow.done}
           onKeepWaiting={flow.keepWaiting}
@@ -321,4 +328,86 @@ test('a single session that is not ready is adopted first, then asks for the rel
   await expect.element(page.getByText('/reload-plugins --force')).toBeVisible()
   expect(mounted.server.calls.filter((call) => call.path === 'attachAdopt')).toHaveLength(1)
   expect(mounted.navigated).toEqual([])
+})
+
+const spoken = (mounted: Mounted) => mounted.said.map((line) => line.message)
+
+test('every step of the flow is said out loud, with trouble said louder', async () => {
+  const mounted = mountFlow({
+    candidates: {value: [liveSession(), liveSession({sessionId: 'sess-2', title: 'fix the flaky test'})]},
+    adopt: {value: {sessionId: 'conciv_adopted', reloadCommand: '/reload-plugins --force'}},
+    calls: [],
+    delayMs: 50,
+  })
+
+  await trigger().click()
+  await expect.poll(() => spoken(mounted)).toContain(LOOKING_LABEL)
+  await expect
+    .poll(() => spoken(mounted))
+    .toContain('2 Claude sessions are running in this project. Pick the one this panel should follow.')
+
+  await page.getByRole('button', {name: /fix the flaky test/}).click()
+  await expect.poll(() => mounted.navigated).toEqual(['conciv_adopted'])
+})
+
+test('a listing that fails is said louder than the list it replaces', async () => {
+  const mounted = mountFlow({
+    candidates: {failure: 'claude agents exited with code 1'},
+    adopt: {value: {sessionId: 'conciv_adopted', reloadCommand: ''}},
+    calls: [],
+  })
+
+  await trigger().click()
+
+  await expect
+    .poll(() => mounted.said.filter((line) => line.assertive).map((line) => line.message))
+    .toContain(LOOKUP_FAILED)
+})
+
+test('a reload card that keeps missing the server stops promising and admits it cannot tell', async () => {
+  const mounted = await openReloadCard(unreloadedTerminal())
+  await expect.poll(() => spoken(mounted)).toContain(RELOAD_ANNOUNCE)
+
+  mounted.server.candidates = {failure: 'the server hung up'}
+  const refresh = () => page.getByRole('button', {name: /Check for running sessions again/})
+
+  await refresh().click()
+  await expect.element(page.getByText(CONTACT_LOST)).toBeVisible()
+
+  await refresh().click()
+  await refresh().click()
+
+  await expect.element(page.getByText(CANNOT_TELL)).toBeVisible()
+  expect(page.getByText(CONTACT_LOST).elements()).toHaveLength(0)
+})
+
+test('leaving the reload card is said out loud before anything is handed back', async () => {
+  const mounted = await openReloadCard(unreloadedTerminal())
+
+  await userEvent.keyboard('{Escape}')
+  await expect.element(page.getByText(LEAVING_UNRELOADED)).toBeVisible()
+
+  expect(spoken(mounted)).toContain(LEAVING_UNRELOADED)
+  expect(detachCalls(mounted)).toHaveLength(0)
+})
+
+test('a background check that finds the same sessions is not read out again', async () => {
+  const mounted = mountFlow({
+    candidates: {value: [liveSession(), liveSession({sessionId: 'sess-2', title: 'fix the flaky test'})]},
+    adopt: {value: {sessionId: 'conciv_adopted', reloadCommand: '/reload-plugins --force'}},
+    calls: [],
+  })
+  const heading = '2 Claude sessions are running in this project. Pick the one this panel should follow.'
+
+  await trigger().click()
+  await expect.poll(() => spoken(mounted)).toContain(heading)
+
+  const refresh = () => page.getByRole('button', {name: /Check for running sessions again/})
+  await refresh().click()
+  await refresh().click()
+
+  await expect
+    .poll(() => mounted.server.calls.filter((call) => call.path === 'attachCandidates').length)
+    .toBeGreaterThan(2)
+  expect(spoken(mounted).filter((line) => line === heading)).toHaveLength(1)
 })

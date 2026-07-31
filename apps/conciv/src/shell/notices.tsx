@@ -61,7 +61,7 @@ export function NoticeProvider(
     lastId += 1
     const notice = makeNotice(lastId, message, options)
     setQueue((current) => pushNotice(current, notice))
-    props.announce(message, notice.tone === 'danger')
+    props.announce(notice.action ? `${message} ${notice.action.label}.` : message, notice.tone === 'danger')
     if (notice.sticky) return
     fuses.set(
       notice.id,

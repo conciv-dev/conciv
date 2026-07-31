@@ -36,12 +36,14 @@ export function TerminalConflictDialog(props: {
   const [local] = splitProps(props, ['conflict', 'onCancel', 'onTakeOver', 'onSendAnyway'])
   const busy = () => local.conflict.kind === 'taking-over'
   const failure = () => (local.conflict.kind === 'take-over-failed' ? local.conflict.reason : null)
+  let dismiss: HTMLButtonElement | undefined
   return (
     <Dialog
       open={local.conflict.kind !== 'none'}
       onOpenChange={() => local.onCancel()}
       dismissable
       role="alertdialog"
+      initialFocus={() => dismiss ?? null}
       label={labelOf(local.conflict)}
     >
       <div class="flex flex-col gap-3" aria-busy={busy()}>
@@ -57,7 +59,13 @@ export function TerminalConflictDialog(props: {
           <Match when={local.conflict.kind === 'blocked'}>
             <p class={HINT}>{KEPT_HINT}</p>
             <div class="flex justify-end">
-              <Button size="sm" onClick={() => local.onCancel()}>
+              <Button
+                ref={(element: HTMLButtonElement) => {
+                  dismiss = element
+                }}
+                size="sm"
+                onClick={() => local.onCancel()}
+              >
                 {CLOSE_LABEL}
               </Button>
             </div>
@@ -65,7 +73,14 @@ export function TerminalConflictDialog(props: {
           <Match when={local.conflict.kind === 'still-live'}>
             <p class={HINT}>{STILL_LIVE_QUESTION}</p>
             <div class="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => local.onCancel()}>
+              <Button
+                ref={(element: HTMLButtonElement) => {
+                  dismiss = element
+                }}
+                variant="ghost"
+                size="sm"
+                onClick={() => local.onCancel()}
+              >
                 {CANCEL_LABEL}
               </Button>
               <Button size="sm" onClick={() => local.onSendAnyway()}>
@@ -76,7 +91,14 @@ export function TerminalConflictDialog(props: {
           <Match when={local.conflict.kind === 'external'}>
             <p class={HINT}>{SEND_QUESTION}</p>
             <div class="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => local.onCancel()}>
+              <Button
+                ref={(element: HTMLButtonElement) => {
+                  dismiss = element
+                }}
+                variant="ghost"
+                size="sm"
+                onClick={() => local.onCancel()}
+              >
                 {CANCEL_LABEL}
               </Button>
               <Button size="sm" onClick={() => local.onSendAnyway()}>
@@ -87,7 +109,14 @@ export function TerminalConflictDialog(props: {
           <Match when={true}>
             <p class={HINT}>{TAKE_OVER_QUESTION}</p>
             <div class="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => local.onCancel()}>
+              <Button
+                ref={(element: HTMLButtonElement) => {
+                  dismiss = element
+                }}
+                variant="ghost"
+                size="sm"
+                onClick={() => local.onCancel()}
+              >
                 {CANCEL_LABEL}
               </Button>
               <Button size="sm" disabled={busy()} aria-busy={busy()} onClick={() => local.onTakeOver()}>

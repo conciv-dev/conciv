@@ -5,8 +5,12 @@ import {createSignal, type Setter} from 'solid-js'
 import type {LiveSession} from '@conciv/contract'
 import {ConnectDialog} from '../src/composer/connect/connect-dialog.js'
 import {
+  CANNOT_TELL,
   CHECK_AGAIN_LABEL,
+  CLIPBOARD_BLOCKED,
   CONNECTING_LABEL,
+  COPIED_LABEL,
+  COPY_LABEL,
   CONTACT_LOST,
   DIALOG_TITLE,
   LOOKING_LABEL,
@@ -15,6 +19,7 @@ import {
   PREVIEW_EMPTY,
   PREVIEW_UNAVAILABLE,
   RETRY_LABEL,
+  SELECT_COMMAND_LABEL,
   STALE_NOTICE,
   TRANSCRIPT_UNAVAILABLE,
   UNTITLED_SESSION,
@@ -23,8 +28,29 @@ import type {ConnectStep} from '../src/composer/connect/connect-steps.js'
 import {liveSession} from './helpers/live-session.js'
 
 const disposers: (() => void)[] = []
+const realClipboard = Object.getOwnPropertyDescriptor(Navigator.prototype, 'clipboard')
+
+const clipboard = {writes: [] as string[], deny: false}
+
+function stubClipboard(): void {
+  clipboard.writes = []
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: {
+      writeText: (text: string) => {
+        if (clipboard.deny) return Promise.reject(new Error('denied'))
+        clipboard.writes.push(text)
+        return Promise.resolve()
+      },
+    },
+  })
+}
+
 afterEach(() => {
   for (const dispose of disposers.splice(0)) dispose()
+  clipboard.deny = false
+  delete (navigator as {clipboard?: unknown}).clipboard
+  if (realClipboard) Object.defineProperty(Navigator.prototype, 'clipboard', realClipboard)
 })
 
 type View = {
@@ -37,8 +63,8 @@ type View = {
   connectingId: Setter<string | null>
   dialledIn: Setter<boolean>
   contactLost: Setter<boolean>
+  unreachable: Setter<boolean>
   picked: string[]
-  copied: string[]
   closed: number[]
   retried: number[]
   refreshed: number[]
@@ -51,7 +77,7 @@ type View = {
 
 const PICKING: ConnectStep = {kind: 'picking', error: null, retryId: null}
 
-function mount(initial: LiveSession[] | undefined = undefined): View {
+function mount(initial: LiveSession[] | undefined = undefined, harnessName = 'Claude'): View {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const [step, setStep] = createSignal<ConnectStep>({kind: 'closed'})
@@ -63,6 +89,7 @@ function mount(initial: LiveSession[] | undefined = undefined): View {
   const [connectingId, setConnectingId] = createSignal<string | null>(null)
   const [dialledIn, setDialledIn] = createSignal(false)
   const [contactLost, setContactLost] = createSignal(false)
+  const [unreachable, setUnreachable] = createSignal(false)
   const view: View = {
     step: setStep,
     candidates: setCandidates,
@@ -73,8 +100,8 @@ function mount(initial: LiveSession[] | undefined = undefined): View {
     connectingId: setConnectingId,
     dialledIn: setDialledIn,
     contactLost: setContactLost,
+    unreachable: setUnreachable,
     picked: [],
-    copied: [],
     closed: [],
     retried: [],
     refreshed: [],
@@ -88,7 +115,7 @@ function mount(initial: LiveSession[] | undefined = undefined): View {
     () => (
       <ConnectDialog
         step={step()}
-        harnessName="Claude"
+        harnessName={harnessName}
         candidates={candidates()}
         loading={loading()}
         refreshing={refreshing()}
@@ -98,10 +125,10 @@ function mount(initial: LiveSession[] | undefined = undefined): View {
         connectingId={connectingId()}
         dialledIn={dialledIn()}
         contactLost={contactLost()}
+        unreachable={unreachable()}
         onKeepWaiting={() => view.keptWaiting.push(1)}
         onHandBack={() => view.handedBack.push(1)}
         onPick={(session) => view.picked.push(session.sessionId)}
-        onCopy={(text) => view.copied.push(text)}
         onClose={() => view.closed.push(1)}
         onRetry={() => view.retried.push(1)}
         onRefresh={() => view.refreshed.push(1)}
@@ -219,7 +246,12 @@ test('only the picked row goes busy; the others stay clickable', async () => {
   view.connectingId('sess-2')
 
   await expect.element(page.getByText(CONNECTING_LABEL)).toBeVisible()
-  await expect.element(page.getByRole('button', {name: /fix the flaky test/})).toBeDisabled()
+  const busy = page.getByRole('button', {name: /fix the flaky test/})
+  await expect.element(busy).toHaveAttribute('aria-disabled', 'true')
+  expect(busy.element().hasAttribute('disabled')).toBe(false)
+  expect(busy.element().tabIndex).toBe(0)
+  busy.element().dispatchEvent(new MouseEvent('click', {bubbles: true}))
+  expect(view.picked).toEqual(['sess-2'])
   await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeEnabled()
   expect(page.getByText(CONNECTING_LABEL).elements()).toHaveLength(1)
 })
@@ -259,8 +291,10 @@ test('the reload card is built from the adopt result and stops spinning when con
   await expect.element(page.getByText('/reload-plugins --force')).toBeVisible()
   await expect.element(page.getByText(/Waiting for this session to dial in/)).toBeVisible()
 
-  await page.getByRole('button', {name: 'Copy command'}).click()
-  expect(view.copied).toEqual(['/reload-plugins --force'])
+  stubClipboard()
+  await page.getByRole('button', {name: COPY_LABEL}).click()
+  await expect.element(page.getByText(COPIED_LABEL)).toBeVisible()
+  expect(clipboard.writes).toEqual(['/reload-plugins --force'])
 
   view.contactLost(true)
   await expect.element(page.getByText(CONTACT_LOST)).toBeVisible()
@@ -281,8 +315,9 @@ test('falls back to a restart snippet when the cli is too old', async () => {
   })
 
   await expect.element(page.getByText(/lacks \/reload-plugins --force/)).toBeVisible()
-  await page.getByRole('button', {name: 'Copy command'}).click()
-  expect(view.copied).toEqual(["cd '/repo' && claude --resume tok-1"])
+  stubClipboard()
+  await page.getByRole('button', {name: COPY_LABEL}).click()
+  expect(clipboard.writes).toEqual(["cd '/repo' && claude --resume tok-1"])
 
   await page.getByRole('button', {name: 'Close'}).click()
   expect(view.closed).toHaveLength(1)
@@ -307,4 +342,181 @@ test('a very long title and terminal name still leave a locatable row', async ()
   mount([liveSession({title: long, name: 'n'.repeat(60)})])
 
   await expect.element(page.getByRole('button', {name: new RegExp(long.slice(0, 40))})).toBeVisible()
+})
+
+test('the copy confirmation lands inside the picker, where the reader is looking', async () => {
+  const view = mount([])
+  stubClipboard()
+  view.step({kind: 'snippet', command: "cd '/repo' && claude --resume tok-1", detail: 'the cli is too old'})
+
+  await page.getByRole('button', {name: COPY_LABEL}).click()
+
+  const chip = page.getByText(COPIED_LABEL)
+  await expect.element(chip).toBeVisible()
+  expect(page.getByRole('dialog').element().contains(chip.element())).toBe(true)
+})
+
+test('a blocked clipboard says so and hands the command over to be selected', async () => {
+  const view = mount([])
+  stubClipboard()
+  clipboard.deny = true
+  view.step({kind: 'snippet', command: "cd '/repo' && claude --resume tok-1", detail: 'the cli is too old'})
+
+  await page.getByRole('button', {name: COPY_LABEL}).click()
+
+  await expect.element(page.getByText(CLIPBOARD_BLOCKED)).toBeVisible()
+  const select = page.getByRole('button', {name: SELECT_COMMAND_LABEL})
+  await expect.element(select).toBeVisible()
+  expect(page.getByRole('dialog').element().contains(page.getByText(CLIPBOARD_BLOCKED).element())).toBe(true)
+  expect(window.getSelection()?.toString()).toContain('claude --resume tok-1')
+})
+
+test('the terminal preview is described to a reader instead of being read out as the row name', async () => {
+  mount([liveSession()])
+  const found = page.getByRole('button', {name: /rename the widget package/})
+  await expect.element(found).toBeVisible()
+  const row = found.element()
+
+  const named = (row.getAttribute('aria-labelledby') ?? '')
+    .split(' ')
+    .map((id) => document.getElementById(id)?.textContent ?? '')
+    .join(' ')
+  expect(named).toContain('rename the widget package')
+  expect(named).toContain('terminal-1')
+  expect(named).not.toContain('Looking at the manifests now.')
+
+  const described = document.getElementById(row.getAttribute('aria-describedby') ?? '')
+  expect(described?.textContent).toContain('Looking at the manifests now.')
+})
+
+test('a row whose transcript cannot be read is described by the sentence that admits it', async () => {
+  mount([liveSession({historyStatus: 'unavailable'})])
+  const found = page.getByRole('button', {name: /rename the widget package/})
+  await expect.element(found).toBeVisible()
+  const row = found.element()
+
+  const described = document.getElementById(row.getAttribute('aria-describedby') ?? '')
+  expect(described?.textContent).toBe(PREVIEW_UNAVAILABLE)
+})
+
+test('clicking the transcript preview picks the session it belongs to', async () => {
+  const view = mount([liveSession()])
+
+  await page.getByText('Looking at the manifests now.').click()
+
+  expect(view.picked).toEqual(['sess-1'])
+})
+
+test('speaks the name of the harness in front of it and never a hardcoded one', async () => {
+  mount([liveSession(), liveSession({sessionId: 'sess-2', title: 'fix the flaky test'})], 'Codex')
+
+  await expect.element(page.getByText(/2 Codex sessions are running in this project/)).toBeVisible()
+  expect(page.getByRole('dialog').element().textContent).not.toContain('Claude')
+})
+
+test('shows the first eight sessions and keeps the rest one control away', async () => {
+  const many = Array.from({length: 11}, (_, index) =>
+    liveSession({
+      sessionId: `sess-${index}`,
+      title: `session number ${index}`,
+      lastActivityAt: Date.now() - index * 1_000,
+    }),
+  )
+  mount(many)
+
+  await expect.element(page.getByRole('button', {name: /^session number 0/})).toBeVisible()
+  expect(page.getByRole('button', {name: /^session number/}).elements()).toHaveLength(8)
+
+  await page.getByRole('button', {name: 'Show all 11 sessions'}).click()
+
+  expect(page.getByRole('button', {name: /^session number/}).elements()).toHaveLength(11)
+})
+
+const focused = () => document.activeElement
+
+test('every step hands the keyboard the control that step is about', async () => {
+  const view = mount([liveSession()])
+  const adopted = {
+    concivSessionId: 'conciv_9',
+    harnessSessionId: 'sess-1',
+    title: 'the older one',
+    reloadCommand: '/reload-plugins --force',
+  }
+
+  const row = page.getByRole('button', {name: /rename the widget package/})
+  await expect.element(row).toBeVisible()
+  await expect.poll(focused).toBe(row.element())
+
+  view.step({kind: 'reload', adopted})
+  const copy = page.getByRole('button', {name: COPY_LABEL})
+  await expect.element(copy).toBeVisible()
+  await expect.poll(focused).toBe(copy.element())
+
+  view.step({kind: 'leaveConfirm', adopted})
+  const keep = page.getByRole('button', {name: 'Keep waiting'})
+  await expect.element(keep).toBeVisible()
+  await expect.poll(focused).toBe(keep.element())
+
+  view.step({kind: 'reload', adopted})
+  await expect.poll(focused).toBe(page.getByRole('button', {name: COPY_LABEL}).element())
+
+  view.step({kind: 'snippet', command: 'claude --resume tok-1', detail: 'the cli is too old'})
+  await expect.poll(focused).toBe(page.getByRole('button', {name: COPY_LABEL}).element())
+})
+
+test('an empty picker puts the keyboard on the way forward', async () => {
+  mount([])
+
+  const open = page.getByRole('button', {name: 'Open a new session'})
+  await expect.element(open).toBeVisible()
+  await expect.poll(focused).toBe(open.element())
+})
+
+test('a reload card that cannot reach the server stops promising and says so', async () => {
+  const view = mount([liveSession({ready: false})])
+  view.step({
+    kind: 'reload',
+    adopted: {
+      concivSessionId: 'conciv_9',
+      harnessSessionId: 'sess-1',
+      title: 'the older one',
+      reloadCommand: '/reload-plugins --force',
+    },
+  })
+  view.unreachable(true)
+
+  await expect.element(page.getByText(CANNOT_TELL)).toBeVisible()
+  expect(page.getByText(/Waiting for this session to dial in/).elements()).toHaveLength(0)
+  expect(page.getByText(CONTACT_LOST).elements()).toHaveLength(0)
+})
+
+function loopingAnimations(root: Element): string[] {
+  return [root, ...root.querySelectorAll('*')]
+    .map((node) => node.getAttribute('class') ?? '')
+    .filter((token) => /(^|\s)anim-(pulse|skel)(\s|$)/.test(token))
+}
+
+test('a list that stopped refreshing stops animating, so staleness reads at a glance', async () => {
+  const view = mount([liveSession({working: true})])
+  const row = page.getByRole('button', {name: /rename the widget package/})
+  await expect.element(row).toBeVisible()
+  expect(loopingAnimations(row.element())).not.toEqual([])
+
+  view.stale(true)
+
+  await expect.element(page.getByText(new RegExp(STALE_NOTICE))).toBeVisible()
+  expect(loopingAnimations(page.getByRole('button', {name: /rename the widget package/}).element())).toEqual([])
+})
+
+test('nothing the picker puts on screen blurs what is behind it', async () => {
+  mount([liveSession()])
+  await expect.element(page.getByRole('dialog')).toBeVisible()
+
+  const blurring = [...document.querySelectorAll('*')].filter((node) => {
+    const classes = node.getAttribute('class') ?? ''
+    if (/(^|\s)backdrop-(blur|filter|saturate|brightness)/.test(classes)) return true
+    return getComputedStyle(node).backdropFilter !== 'none'
+  })
+
+  expect(blurring.map((node) => node.getAttribute('class'))).toEqual([])
 })

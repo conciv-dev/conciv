@@ -49,6 +49,16 @@ export function stepOnBack(): ConnectStep {
   return {kind: 'picking', error: null, retryId: null}
 }
 
+const DIAL_IN_BASE_MS = 1_500
+const BACKOFF_CEILING = 2
+
+export const GIVE_UP_AFTER_FAILURES = 3
+
+export function dialInPollMs(failures: number): number {
+  const steps = Math.min(Math.max(failures, 0), BACKOFF_CEILING)
+  return DIAL_IN_BASE_MS * 2 ** steps
+}
+
 export function orderCandidates(candidates: LiveSession[]): LiveSession[] {
   return candidates.toSorted((left, right) => {
     const byActivity = right.lastActivityAt - left.lastActivityAt

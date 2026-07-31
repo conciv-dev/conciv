@@ -1,4 +1,4 @@
-import {Match, Show, Switch, splitProps, type JSX} from 'solid-js'
+import {Match, Show, Switch, createEffect, createSignal, splitProps, type JSX} from 'solid-js'
 import {Button, Dialog, RelativeTime, TooltipIconButton} from '@conciv/ui-kit-system'
 import {RotateCw} from 'lucide-solid'
 import type {LiveSession} from '@conciv/contract'
@@ -17,7 +17,8 @@ import {
 } from './connect-copy.js'
 
 const FRESHNESS = 'flex items-center gap-1.5 text-pw-text-3 text-xs'
-const REFRESH = 'size-6'
+const REFRESH = 'size-11'
+const TOUCH = 'min-h-11 px-3'
 
 function pickingOf(step: ConnectStep): {error: string | null; retryId: string | null} | undefined {
   return step.kind === 'picking' ? step : undefined
@@ -47,11 +48,11 @@ export function ConnectDialog(props: {
   connectingId: string | null
   dialledIn: boolean
   contactLost: boolean
+  unreachable: boolean
   onPick: (session: LiveSession) => void
   onRetry: () => void
   onRefresh: () => void
   onLaunch: () => void
-  onCopy: (text: string) => void
   onBack: () => void
   onDone: () => void
   onKeepWaiting: () => void
@@ -70,11 +71,11 @@ export function ConnectDialog(props: {
     'connectingId',
     'dialledIn',
     'contactLost',
+    'unreachable',
     'onPick',
     'onRetry',
     'onRefresh',
     'onLaunch',
-    'onCopy',
     'onBack',
     'onDone',
     'onKeepWaiting',
@@ -82,6 +83,19 @@ export function ConnectDialog(props: {
     'onClose',
   ])
   const checked = () => checkedLabel(local.checkedAt)
+  const [target, setTarget] = createSignal<HTMLElement | null>(null)
+  let focusedKind = ''
+  createEffect(() => {
+    const kind = local.step.kind
+    if (kind === 'closed') {
+      focusedKind = ''
+      return
+    }
+    const element = target()
+    if (!element || kind === focusedKind) return
+    focusedKind = kind
+    element.focus()
+  })
   return (
     <Dialog
       open={dialogIsOpen(local.step)}
@@ -104,6 +118,7 @@ export function ConnectDialog(props: {
                   tooltip={REFRESH_LABEL}
                   class={REFRESH}
                   aria-busy={local.refreshing}
+                  disabled={local.refreshing}
                   onClick={() => local.onRefresh()}
                 >
                   <RotateCw class="size-3.5 block" />
@@ -111,7 +126,7 @@ export function ConnectDialog(props: {
               </span>
             )}
           </Show>
-          <Button variant="ghost" size="sm" class="ms-auto" onClick={() => local.onClose()}>
+          <Button variant="ghost" size="sm" class={`ms-auto ${TOUCH}`} onClick={() => local.onClose()}>
             {CANCEL_LABEL}
           </Button>
         </div>
@@ -129,6 +144,7 @@ export function ConnectDialog(props: {
               checkedAt={local.checkedAt}
               error={picking().error}
               connectingId={local.connectingId}
+              focusRef={setTarget}
               onPick={local.onPick}
               onRetry={local.onRetry}
               onRefresh={local.onRefresh}
@@ -142,7 +158,8 @@ export function ConnectDialog(props: {
               adopted={reload().adopted}
               dialledIn={local.dialledIn}
               contactLost={local.contactLost}
-              onCopy={local.onCopy}
+              unreachable={local.unreachable}
+              focusRef={setTarget}
               onBack={local.onBack}
               onDone={local.onDone}
             />
@@ -152,6 +169,7 @@ export function ConnectDialog(props: {
           {(leaving) => (
             <LeaveConfirm
               title={leaving().adopted.title}
+              focusRef={setTarget}
               onKeepWaiting={local.onKeepWaiting}
               onHandBack={local.onHandBack}
             />
@@ -162,7 +180,7 @@ export function ConnectDialog(props: {
             <SnippetCard
               command={snippet().command}
               detail={snippet().detail}
-              onCopy={local.onCopy}
+              focusRef={setTarget}
               onClose={local.onClose}
             />
           )}

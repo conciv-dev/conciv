@@ -1,5 +1,5 @@
-import {For, Match, Show, Switch, splitProps, type JSX} from 'solid-js'
-import {Button, RelativeTime} from '@conciv/ui-kit-system'
+import {For, Match, Show, Switch, createSignal, splitProps, type JSX} from 'solid-js'
+import {Button, RelativeTime, StatusDot} from '@conciv/ui-kit-system'
 import type {LiveSession} from '@conciv/contract'
 import {CandidateRow} from './candidate-row.js'
 import {orderCandidates} from './connect-steps.js'
@@ -12,6 +12,7 @@ import {
   nothingRunning,
   OPEN_NEW_LABEL,
   RETRY_LABEL,
+  showAllLabel,
   STALE_NOTICE,
   subtitle,
 } from './connect-copy.js'
@@ -23,12 +24,12 @@ const SKELETON = 'flex flex-col gap-3 list-none m-0 p-0'
 const SKELETON_ROW = 'min-h-[10.5rem] rounded-pw-md bg-pw-fill-soft anim-skel list-none'
 const SKELETON_ROWS = [0, 1]
 const WAITING = 'flex items-center gap-2 text-pw-text-3 text-xs m-0'
-const SPINNER = 'size-1.75 rounded-pw-pill bg-pw-accent anim-pulse shrink-0'
 const CELL = 'flex items-start justify-between gap-2 rounded-pw-sm text-xs p-2'
 const DANGER = `${CELL} border border-pw-danger-line bg-pw-danger-10 text-pw-danger`
 const WARN = `${CELL} border border-pw-warn bg-pw-warn-20 text-pw-warn`
 const CELL_TEXT = 'min-w-0 break-words leading-normal'
 const EMPTY_TITLE = 'text-pw-text text-sm m-0'
+const TOUCH = 'min-h-11 px-3'
 
 const MAX_ROWS = 8
 
@@ -41,6 +42,7 @@ export function CandidateList(props: {
   checkedAt: number
   error: string | null
   connectingId: string | null
+  focusRef: (el: HTMLElement) => void
   onPick: (session: LiveSession) => void
   onRetry: () => void
   onRefresh: () => void
@@ -55,13 +57,15 @@ export function CandidateList(props: {
     'checkedAt',
     'error',
     'connectingId',
+    'focusRef',
     'onPick',
     'onRetry',
     'onRefresh',
     'onLaunch',
   ])
+  const [expanded, setExpanded] = createSignal(false)
   const rows = () => orderCandidates(local.sessions ?? [])
-  const shown = () => rows().slice(0, MAX_ROWS)
+  const shown = () => (expanded() ? rows() : rows().slice(0, MAX_ROWS))
   const hidden = () => rows().length - shown().length
   const frozen = () => local.failure !== null || local.stale
   const heading = () => {
@@ -76,7 +80,7 @@ export function CandidateList(props: {
         {(message) => (
           <div class={DANGER} role="alert">
             <span class={CELL_TEXT}>{message()}</span>
-            <Button variant="ghost" size="sm" class="shrink-0" onClick={() => local.onRetry()}>
+            <Button variant="ghost" size="sm" class={`shrink-0 ${TOUCH}`} onClick={() => local.onRetry()}>
               {RETRY_LABEL}
             </Button>
           </div>
@@ -85,7 +89,7 @@ export function CandidateList(props: {
       <Switch>
         <Match when={local.loading}>
           <p class={WAITING} role="status">
-            <span class={SPINNER} />
+            <StatusDot tone="accent" pulse />
             {LOOKING_LABEL}
           </p>
           <ul class={SKELETON} aria-busy="true" aria-hidden="true">
@@ -97,7 +101,13 @@ export function CandidateList(props: {
             <span class={CELL_TEXT}>
               {LOOKUP_FAILED} {local.failure}
             </span>
-            <Button variant="ghost" size="sm" class="shrink-0" onClick={() => local.onRefresh()}>
+            <Button
+              ref={(element: HTMLElement) => local.focusRef(element)}
+              variant="ghost"
+              size="sm"
+              class={`shrink-0 ${TOUCH}`}
+              onClick={() => local.onRefresh()}
+            >
               {RETRY_LABEL}
             </Button>
           </div>
@@ -108,10 +118,15 @@ export function CandidateList(props: {
           </p>
           <p class={SUBTITLE}>{NOTHING_RUNNING_HINT}</p>
           <div class="flex gap-2">
-            <Button size="sm" onClick={() => local.onLaunch()}>
+            <Button
+              ref={(element: HTMLElement) => local.focusRef(element)}
+              size="sm"
+              class={TOUCH}
+              onClick={() => local.onLaunch()}
+            >
               {OPEN_NEW_LABEL}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => local.onRefresh()}>
+            <Button variant="ghost" size="sm" class={TOUCH} onClick={() => local.onRefresh()}>
               {CHECK_AGAIN_LABEL}
             </Button>
           </div>
@@ -122,7 +137,7 @@ export function CandidateList(props: {
               <span class={CELL_TEXT}>
                 {STALE_NOTICE} <RelativeTime value={new Date(local.checkedAt)} />
               </span>
-              <Button variant="ghost" size="sm" class="shrink-0" onClick={() => local.onRefresh()}>
+              <Button variant="ghost" size="sm" class={`shrink-0 ${TOUCH}`} onClick={() => local.onRefresh()}>
                 {RETRY_LABEL}
               </Button>
             </div>
@@ -130,18 +145,21 @@ export function CandidateList(props: {
           <Show when={heading()}>{(text) => <p class={SUBTITLE}>{text()}</p>}</Show>
           <ul class={SCROLLER}>
             <For each={shown()}>
-              {(session) => (
+              {(session, index) => (
                 <CandidateRow
                   session={session}
                   connecting={local.connectingId === session.sessionId}
                   live={!frozen()}
+                  focusRef={index() === 0 ? local.focusRef : undefined}
                   onPick={local.onPick}
                 />
               )}
             </For>
           </ul>
           <Show when={hidden() > 0}>
-            <p class={SUBTITLE}>{`${hidden()} more session${hidden() === 1 ? '' : 's'} are not shown.`}</p>
+            <Button variant="ghost" size="sm" class={`self-start ${TOUCH}`} onClick={() => setExpanded(true)}>
+              {showAllLabel(rows().length)}
+            </Button>
           </Show>
         </Match>
       </Switch>

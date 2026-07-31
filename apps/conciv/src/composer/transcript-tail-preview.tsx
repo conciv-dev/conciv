@@ -10,7 +10,7 @@ export const PROMPT_MARK = '>'
 export const PREVIEW_CHARS = 72
 
 const BOX =
-  'flex flex-col gap-0.5 rounded-pw-sm bg-pw-sunken border border-pw-line-soft px-3 py-2.5 overflow-hidden font-mono text-[0.6875rem] leading-tight pointer-events-none select-none'
+  'flex flex-col gap-0.5 rounded-pw-sm bg-pw-sunken border border-pw-line-soft px-3 py-2.5 overflow-hidden font-mono text-[0.6875rem] leading-tight select-none'
 const NOTE =
   'block rounded-pw-sm bg-pw-sunken border border-pw-line-soft px-3 py-2.5 text-pw-text-3 text-xs leading-normal'
 const LINE = 'flex items-baseline gap-1.5 min-w-0 w-full'
@@ -19,7 +19,7 @@ const DIM = 'text-pw-text-3'
 const REPLY = 'text-pw-text-hi'
 const TOOL = 'text-pw-warn'
 const THINKING = 'text-pw-agent italic'
-const INDENT = 'pl-3'
+const INDENT = 'ps-3'
 const PROMPT_BOX = 'mt-1.5 flex items-center gap-1.5 rounded-pw-sm border border-pw-line-soft px-1.5 py-1'
 const CURSOR = 'inline-block w-1 h-3 bg-pw-text-3 shrink-0'
 
@@ -32,7 +32,9 @@ function clip(text: string): string {
 function TailLine(props: {mark: string; text: string; tone: string; indent?: boolean}): JSX.Element {
   return (
     <span class={props.indent === true ? `${LINE} ${INDENT} ${props.tone}` : `${LINE} ${props.tone}`}>
-      <span class="shrink-0">{props.mark}</span>
+      <span class="shrink-0" aria-hidden="true">
+        {props.mark}
+      </span>
       <span class={TEXT}>{props.text}</span>
     </span>
   )
@@ -57,18 +59,26 @@ function TailEntry(props: {entry: TranscriptTailEntry}): JSX.Element {
   )
 }
 
-export function TranscriptNote(props: {text: string}): JSX.Element {
-  return <span class={NOTE}>{props.text}</span>
+export function TranscriptNote(props: {id?: string; text: string}): JSX.Element {
+  return (
+    <span id={props.id} class={NOTE}>
+      {props.text}
+    </span>
+  )
 }
 
-export function TranscriptTailPreview(props: {tail: TranscriptTailEntry[]; working: boolean}): JSX.Element {
+export function TranscriptTailPreview(props: {
+  id?: string
+  tail: TranscriptTailEntry[]
+  working: boolean
+}): JSX.Element {
   return (
-    <span class={BOX} aria-hidden="true">
+    <span id={props.id} class={BOX} dir="ltr">
       <For each={props.tail}>{(entry) => <TailEntry entry={entry} />}</For>
       <Show when={props.working}>
         <TailLine mark={THINKING_MARK} text="Thinking…" tone={THINKING} />
       </Show>
-      <span class={PROMPT_BOX}>
+      <span class={PROMPT_BOX} aria-hidden="true">
         <span class={DIM}>{PROMPT_MARK}</span>
         <Show when={props.working}>
           <span class={CURSOR} />
