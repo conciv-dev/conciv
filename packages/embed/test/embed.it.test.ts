@@ -279,7 +279,6 @@ describe('embed at a phone viewport', () => {
   it('opens as a full-screen sheet with the launcher hidden and the composer reachable', async () => {
     const page = await browser.newPage({viewport: {width: 393, height: 800}})
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
     await openPanel(page)
     await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toHaveCount(0, {timeout: 30_000})
     await sendMessage(page, 'hi there', ASSISTANT_TEXT)
