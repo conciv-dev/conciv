@@ -29,7 +29,7 @@ enum LiveRegion: Equatable {
 // rediscovery loop would otherwise leave the host app permanently non-interactive.
 struct LiveRegionState: Equatable {
   var panelOpen = false
-  var launcher: ConcivLauncher = .native
+  var launcher: ConcivLauncher = .mascot
   var fabRect: CGRect = .zero
   var mascotRect: CGRect = .zero
   var bannerRect: CGRect?

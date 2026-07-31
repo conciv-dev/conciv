@@ -65,11 +65,11 @@ struct MyApp: App {
 Then run your dev server (a vite host with the conciv plugin) and launch the app in the simulator. The
 transparent overlay and launcher appear over your own UI.
 
-By default the launcher is a dark round `AI` button in the bottom-right corner (`launcher: .native`).
-Pass `.mascot` for the animated mascot the screenshots below show:
+By default the launcher is the animated mascot the screenshots below show (`launcher: .mascot`). Pass
+`.native` for a dark round `AI` button in the bottom-right corner instead:
 
 ```swift title="App.swift"
-ConcivWidget.attach(launcher: .mascot)
+ConcivWidget.attach(launcher: .native)
 ```
 
 <Callout type="info">
@@ -168,7 +168,7 @@ need to be sure which core the app talks to.
       height={2622}
     />
     <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">
-      The mascot launcher, from <code>attach(launcher: .mascot)</code>
+      The default mascot launcher, from <code>attach()</code>
     </figcaption>
   </figure>
   <figure className="m-0">

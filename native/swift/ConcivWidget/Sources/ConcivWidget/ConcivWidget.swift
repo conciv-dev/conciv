@@ -38,7 +38,7 @@ public enum ConcivWidget {
   // an env-injected api base and falls back to pairing-file auto-discovery when it is unset
   // or malformed. This is the whole consumer contract in one line.
   @MainActor
-  public static func attach(launcher: ConcivLauncher = .native) {
+  public static func attach(launcher: ConcivLauncher = .mascot) {
     attachViaWindow { window, generation in
       mountEnvOrDiscovered(to: window, generation: generation, launcher: launcher)
     }
@@ -52,7 +52,7 @@ public enum ConcivWidget {
   public static func attach(
     apiBase: URL,
     token: String? = nil,
-    launcher: ConcivLauncher = .native
+    launcher: ConcivLauncher = .mascot
   ) {
     attachViaWindow { window, _ in
       mount(to: window, endpoint: ConcivEndpoint(apiBase: apiBase, token: token, pid: nil), launcher: launcher)
@@ -66,7 +66,7 @@ public enum ConcivWidget {
     to window: UIWindow,
     apiBase: URL,
     token: String? = nil,
-    launcher: ConcivLauncher = .native
+    launcher: ConcivLauncher = .mascot
   ) {
     attachGeneration += 1
     mount(to: window, endpoint: ConcivEndpoint(apiBase: apiBase, token: token, pid: nil), launcher: launcher)
@@ -79,7 +79,7 @@ public enum ConcivWidget {
   @MainActor
   public static func attach(
     to window: UIWindow,
-    launcher: ConcivLauncher = .native
+    launcher: ConcivLauncher = .mascot
   ) {
     attachGeneration += 1
     let generation = attachGeneration
@@ -152,13 +152,13 @@ public enum ConcivWidget {
   }
   #else
   @MainActor
-  public static func attach(launcher: ConcivLauncher = .native) {}
+  public static func attach(launcher: ConcivLauncher = .mascot) {}
 
   @MainActor
   public static func attach(
     apiBase: URL,
     token: String? = nil,
-    launcher: ConcivLauncher = .native
+    launcher: ConcivLauncher = .mascot
   ) {}
 
   @MainActor
@@ -166,13 +166,13 @@ public enum ConcivWidget {
     to window: UIWindow,
     apiBase: URL,
     token: String? = nil,
-    launcher: ConcivLauncher = .native
+    launcher: ConcivLauncher = .mascot
   ) {}
 
   @MainActor
   public static func attach(
     to window: UIWindow,
-    launcher: ConcivLauncher = .native
+    launcher: ConcivLauncher = .mascot
   ) {}
 
   @MainActor

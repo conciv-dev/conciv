@@ -71,7 +71,7 @@ final class OverlayController: NSObject {
   private var recoveryAttempt = 0
   private var recoveryWork: DispatchWorkItem?
 
-  private var launcher: ConcivLauncher = .native
+  private var launcher: ConcivLauncher = .mascot
   private var panelOpen = false
   private var pickOverlay: PickOverlayView?
   private var pickRequestId: String?
