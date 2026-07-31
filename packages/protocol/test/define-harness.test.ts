@@ -1,6 +1,12 @@
 import {describe, it, expect} from 'vitest'
 import type {AnyTextAdapter} from '@tanstack/ai'
-import {defineHarness} from '../src/harness-types.js'
+import {defineHarness, type TranscriptHandle} from '../src/harness-types.js'
+
+const stubHandle: TranscriptHandle = {
+  revision: () => Promise.resolve({ok: false, reason: 'missing', detail: 'stub'}),
+  read: () => Promise.resolve({ok: false, reason: 'missing', detail: 'stub'}),
+  close: () => {},
+}
 
 const fakeAdapter: AnyTextAdapter = {
   kind: 'text',
@@ -66,6 +72,7 @@ describe('defineHarness (generic typed factory; history↔transcriptHistory enfo
       history: {
         messages: () => Promise.resolve([]),
         transcriptStat: () => Promise.resolve(null),
+        observe: () => stubHandle,
         list: () => Promise.resolve([]),
       },
     })

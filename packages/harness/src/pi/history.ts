@@ -4,7 +4,8 @@ import {homedir} from 'node:os'
 import {join, resolve} from 'node:path'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
-import type {HarnessHistory, HarnessSessionMeta, TranscriptStat} from '@conciv/protocol/harness-types'
+import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle, TranscriptStat} from '@conciv/protocol/harness-types'
+import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50
 const MAX_TITLE = 80
@@ -144,7 +145,23 @@ function toolResultPart(raw: unknown): MessagePart | null {
   }
 }
 
-export function parseHistory(raw: string): UIMessage[] {
+type PiFold = {entries: Entry[]}
+
+function emptyFold(): PiFold {
+  return {entries: []}
+}
+
+function foldLine(state: PiFold, line: string): PiFold {
+  const trimmed = line.trim()
+  if (!trimmed) return state
+  const record = parseLine(trimmed)
+  if (record === null) return state
+  const parsed = EntrySchema.safeParse(record)
+  if (parsed.success) state.entries.push(parsed.data)
+  return state
+}
+
+function messagesOf(entries: Entry[]): UIMessage[] {
   const out: UIMessage[] = []
   const idState = {n: 0}
   const open = (role: 'user' | 'assistant', parts: MessagePart[]): void => {
@@ -152,7 +169,7 @@ export function parseHistory(raw: string): UIMessage[] {
     out.push({id: `h${idState.n}`, role, parts})
   }
 
-  for (const entry of activePath(entriesOf(raw))) {
+  for (const entry of activePath(entries)) {
     const spoken = spokenMessage(entry.message)
     if (spoken) {
       if (spoken.parts.length > 0) open(spoken.role, spoken.parts)
@@ -165,6 +182,10 @@ export function parseHistory(raw: string): UIMessage[] {
     else open('assistant', [part])
   }
   return out
+}
+
+function parseHistory(raw: string): UIMessage[] {
+  return messagesOf(entriesOf(raw))
 }
 
 function condense(value: string, max: number): string {
@@ -212,18 +233,31 @@ function namesIn(dir: string): string[] {
   }
 }
 
-export function transcriptPath(cwd: string, sessionId: string, home: string = homedir()): string {
+function transcriptPath(cwd: string, sessionId: string, home: string = homedir()): string {
   const dir = sessionsDir(cwd, home)
   const suffix = `_${sessionId}.jsonl`
   return join(dir, namesIn(dir).find((name) => name.endsWith(suffix)) ?? `${sessionId}.jsonl`)
 }
 
-export async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]> {
+async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]> {
   const raw = await readFile(transcriptPath(cwd, sessionId, home), 'utf8').catch(() => '')
   return raw ? parseHistory(raw) : []
 }
 
-export async function transcriptStat(cwd: string, sessionId: string, home?: string): Promise<TranscriptStat | null> {
+function observeTranscript(cwd: string, sessionId: string, home?: string): TranscriptHandle {
+  return makeJsonlHandle<PiFold>({
+    parser: {empty: emptyFold, foldLine, messages: (state) => messagesOf(state.entries)},
+    resolvePath: async () => {
+      const dir = sessionsDir(cwd, home)
+      const names = await readdir(dir).catch(() => [])
+      const found = names.find((name) => name.endsWith(`_${sessionId}.jsonl`))
+      if (found) return join(dir, found)
+      return transcriptFailure('missing', `no pi transcript for ${sessionId} in ${dir}`)
+    },
+  })
+}
+
+async function transcriptStat(cwd: string, sessionId: string, home?: string): Promise<TranscriptStat | null> {
   const info = await stat(transcriptPath(cwd, sessionId, home)).catch(() => null)
   return info ? {mtimeMs: info.mtimeMs, size: info.size} : null
 }
@@ -257,7 +291,7 @@ function sessionMeta(fileName: string, raw: string, mtimeMs: number): HarnessSes
   }
 }
 
-export async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
+async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
   const dir = sessionsDir(cwd, home)
   const names = await readdir(dir).catch(() => [])
   const files = names.filter((name) => name.endsWith('.jsonl'))
@@ -281,6 +315,7 @@ export async function listSessions(cwd: string, home: string = homedir()): Promi
 export const piHistory: HarnessHistory = {
   messages: transcriptMessages,
   transcriptStat,
+  observe: observeTranscript,
   transcriptPath,
   list: listSessions,
 }

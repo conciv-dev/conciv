@@ -4,7 +4,6 @@ import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {beforeAll, describe, expect, it} from 'vitest'
 import {codex} from '../src/codex/index.js'
-import {contextTokensFromTranscript, parseHistory} from '../src/codex/history.js'
 
 const PROJECT = '/workspace/demo'
 const OTHER = '/workspace/other'
@@ -131,8 +130,8 @@ const history = () => {
 }
 
 describe('codex rollout parsing', () => {
-  it('builds a user/assistant spine with tool calls and their outputs', () => {
-    expect(parseHistory(rollout(ROLLOUT_LINES))).toEqual([
+  it('builds a user/assistant spine with tool calls and their outputs', async () => {
+    expect(await history().messages(PROJECT, SESSION, state.home)).toEqual([
       {id: 'h1', role: 'user', parts: [{type: 'text', content: 'list the files'}]},
       {
         id: 'h2',
@@ -161,7 +160,7 @@ describe('codex rollout parsing', () => {
   })
 
   it('reads the context tokens from the last token_count event', () => {
-    expect(contextTokensFromTranscript(rollout(ROLLOUT_LINES))).toBe(15994)
+    expect(history().contextTokens?.(rollout(ROLLOUT_LINES))).toBe(15994)
   })
 })
 

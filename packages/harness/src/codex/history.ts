@@ -4,7 +4,8 @@ import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
-import type {HarnessHistory, HarnessSessionMeta, TranscriptStat} from '@conciv/protocol/harness-types'
+import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle, TranscriptStat} from '@conciv/protocol/harness-types'
+import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50
 const MAX_TITLE = 80
@@ -205,38 +206,26 @@ function spineEvent(payload: unknown): SpineEvent | null {
   }
 }
 
-function spineEvents(raw: string): SpineEvent[] {
-  return raw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map(payloadOf)
-    .flatMap((payload) => {
-      const event = payload ? spineEvent(payload) : null
-      return event ? [event] : []
-    })
-}
+type CodexSpine = {messages: UIMessage[]; opened: number}
 
-type Spine = {messages: UIMessage[]; opened: number}
-
-function openMessage(spine: Spine, role: 'user' | 'assistant', parts: MessagePart[]): void {
+function openMessage(spine: CodexSpine, role: 'user' | 'assistant', parts: MessagePart[]): void {
   spine.opened += 1
   spine.messages.push({id: `h${spine.opened}`, role, parts})
 }
 
-function appendAssistant(spine: Spine, part: MessagePart): void {
+function appendAssistant(spine: CodexSpine, part: MessagePart): void {
   const last = spine.messages.at(-1)
   if (last?.role === 'assistant') last.parts.push(part)
   else openMessage(spine, 'assistant', [part])
 }
 
-function attachOutput(spine: Spine, callId: string, part: MessagePart): void {
+function attachOutput(spine: CodexSpine, callId: string, part: MessagePart): void {
   const owner = spine.messages.findLast((message) => hasCall(message, callId))
   if (owner) owner.parts.push(part)
   else appendAssistant(spine, part)
 }
 
-function applyEvent(spine: Spine, event: SpineEvent): void {
+function applyEvent(spine: CodexSpine, event: SpineEvent): void {
   if (event.kind === 'user') {
     if (event.text.trim()) openMessage(spine, 'user', [{type: 'text', content: event.text}])
     return
@@ -252,13 +241,29 @@ function applyEvent(spine: Spine, event: SpineEvent): void {
   attachOutput(spine, event.callId, event.part)
 }
 
-export function parseHistory(raw: string): UIMessage[] {
-  const spine: Spine = {messages: [], opened: 0}
-  for (const event of spineEvents(raw)) applyEvent(spine, event)
-  return spine.messages
+function emptySpine(): CodexSpine {
+  return {messages: [], opened: 0}
 }
 
-export function contextTokensFromTranscript(raw: string): number | undefined {
+function foldLine(spine: CodexSpine, line: string): CodexSpine {
+  const trimmed = line.trim()
+  if (!trimmed) return spine
+  const payload = payloadOf(trimmed)
+  if (!payload) return spine
+  const event = spineEvent(payload)
+  if (event) applyEvent(spine, event)
+  return spine
+}
+
+function spineMessages(spine: CodexSpine): UIMessage[] {
+  return spine.messages.map((message) => ({...message, parts: [...message.parts]}))
+}
+
+function parseHistory(raw: string): UIMessage[] {
+  return raw.split('\n').reduce(foldLine, emptySpine()).messages
+}
+
+function contextTokensFromTranscript(raw: string): number | undefined {
   let total: number | undefined
   for (const line of raw.split('\n')) {
     const trimmed = line.trim()
@@ -290,16 +295,12 @@ async function rolloutFor(cwd: string, sessionId: string, home: string): Promise
   return rolloutCwd(raw) === cwd ? {path, raw} : null
 }
 
-export async function transcriptMessages(
-  cwd: string,
-  sessionId: string,
-  home: string = homedir(),
-): Promise<UIMessage[]> {
+async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<UIMessage[]> {
   const rollout = await rolloutFor(cwd, sessionId, home)
   return rollout ? parseHistory(rollout.raw) : []
 }
 
-export async function transcriptStat(
+async function transcriptStat(
   cwd: string,
   sessionId: string,
   home: string = homedir(),
@@ -310,7 +311,7 @@ export async function transcriptStat(
   return info ? {mtimeMs: info.mtimeMs, size: info.size} : null
 }
 
-export async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
+async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
   const rows = threadRows(stateDbPath(home), LIST_THREADS, [cwd])
   return Promise.all(
     rows.map(async (row) => {
@@ -329,9 +330,25 @@ export async function listSessions(cwd: string, home: string = homedir()): Promi
   )
 }
 
+function observeTranscript(cwd: string, sessionId: string, home: string = homedir()): TranscriptHandle {
+  return makeJsonlHandle<CodexSpine>({
+    parser: {empty: emptySpine, foldLine, messages: spineMessages},
+    resolvePath: async () => {
+      const path = await rolloutPath(sessionId, home)
+      return path ?? transcriptFailure('missing', `no codex rollout recorded for ${sessionId}`)
+    },
+    verifyHead: (head) => {
+      const found = rolloutCwd(head)
+      if (found === null) return transcriptFailure('corrupt', `no session_meta in the head of the ${sessionId} rollout`)
+      return found === cwd ? null : transcriptFailure('missing', `${sessionId} was recorded in ${found}, not ${cwd}`)
+    },
+  })
+}
+
 export const codexHistory: HarnessHistory = {
   messages: transcriptMessages,
   transcriptStat,
+  observe: observeTranscript,
   contextTokens: contextTokensFromTranscript,
   list: listSessions,
 }

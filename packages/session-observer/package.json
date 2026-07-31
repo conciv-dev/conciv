@@ -43,6 +43,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/protocol": "workspace:^",
     "@tanstack/ai": "^0.41.0",
     "zod": "^4.4.3"
   },

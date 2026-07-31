@@ -1,0 +1,66 @@
+{
+  "messages": [
+    {
+      "id": "h1",
+      "role": "user",
+      "parts": [
+        {
+          "type": "text",
+          "content": "list the files"
+        }
+      ]
+    },
+    {
+      "id": "h2",
+      "role": "assistant",
+      "parts": [
+        {
+          "type": "tool-call",
+          "id": "call_1",
+          "name": "conciv__search",
+          "arguments": "{\"q\":1}",
+          "state": "input-complete"
+        },
+        {
+          "type": "tool-result",
+          "toolCallId": "call_1",
+          "content": "README.md",
+          "state": "complete"
+        },
+        {
+          "type": "tool-call",
+          "id": "call_2",
+          "name": "apply_patch",
+          "arguments": "{\"input\":\"P\"}",
+          "state": "input-complete"
+        },
+        {
+          "type": "tool-result",
+          "toolCallId": "call_2",
+          "content": "{\"code\":0}",
+          "state": "complete"
+        },
+        {
+          "type": "text",
+          "content": "Two files."
+        },
+        {
+          "type": "tool-result",
+          "toolCallId": "call_1",
+          "content": "late output",
+          "state": "complete"
+        }
+      ]
+    },
+    {
+      "id": "h3",
+      "role": "user",
+      "parts": [
+        {
+          "type": "text",
+          "content": "thanks"
+        }
+      ]
+    }
+  ]
+}

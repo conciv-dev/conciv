@@ -5,7 +5,7 @@ import {beforeAll, describe, expect, it} from 'vitest'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {pi} from '../src/pi/index.js'
-import {encodeSessionDir, parseHistory, sessionsDir} from '../src/pi/history.js'
+import {encodeSessionDir, sessionsDir} from '../src/pi/history.js'
 
 const PROJECT = '/workspace/pi.demo'
 const SESSION = '39a461cc-ceb9-495a-891b-b11fe6a03c55'
@@ -113,8 +113,8 @@ describe('pi session directory encoding', () => {
 })
 
 describe('pi transcript parsing', () => {
-  it('walks the newest leaf back to the root and drops the abandoned branch', () => {
-    expect(parseHistory(jsonl(LINES))).toEqual([
+  it('walks the newest leaf back to the root and drops the abandoned branch', async () => {
+    expect(await history().messages(PROJECT, SESSION, state.home)).toEqual([
       {id: 'h1', role: 'user', parts: [{type: 'text', content: 'count the files'}]},
       {
         id: 'h2',

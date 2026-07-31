@@ -1,5 +1,11 @@
 import {z} from 'zod'
 import type {UIMessage} from '@tanstack/ai'
+import {TRANSCRIPT_FAILURES, type TranscriptFailureReason} from '@conciv/protocol/harness-types'
+
+export {TRANSCRIPT_FAILURES}
+export type {TranscriptFailureReason}
+
+export type TranscriptFailure = {reason: TranscriptFailureReason; detail: string}
 
 export const PRESENCE_STATES = ['idle', 'launching', 'connected', 'working', 'stale'] as const
 export type PresenceState = (typeof PRESENCE_STATES)[number]
@@ -16,11 +22,6 @@ export const HOOK_EVENT_NAMES = [
   'SessionEnd',
 ] as const
 export type HookEventName = (typeof HOOK_EVENT_NAMES)[number]
-
-export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
-export type TranscriptFailureReason = (typeof TRANSCRIPT_FAILURES)[number]
-
-export type TranscriptFailure = {reason: TranscriptFailureReason; detail: string}
 
 export type TranscriptHealth = {ok: true} | {ok: false; reason: TranscriptFailureReason; detail: string; since: number}
 

@@ -118,9 +118,35 @@ export type HarnessSessionMeta = {
 
 export type TranscriptStat = {mtimeMs: number; size: number}
 
+export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: UIMessage[]}
+
+export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
+
+export type TranscriptFailureReason = (typeof TRANSCRIPT_FAILURES)[number]
+
+export type TranscriptRevision = {rev: string; changedAt: number}
+
+export type TranscriptFailure = {ok: false; reason: TranscriptFailureReason; detail: string}
+
+export type TranscriptChunk = {
+  ok: true
+  rev: string
+  changedAt: number
+  messages: UIMessage[]
+  replaced: boolean
+}
+
+export type TranscriptHandle = {
+  revision(): Promise<TranscriptRevision | TranscriptFailure>
+  read(): Promise<TranscriptChunk | TranscriptFailure>
+  close(): void
+}
+
 export type HarnessHistory = {
   messages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]>
   transcriptStat(cwd: string, sessionId: string, home?: string): Promise<TranscriptStat | null>
+
+  observe(cwd: string, sessionId: string, home?: string): TranscriptHandle
 
   transcriptPath?(cwd: string, sessionId: string, home?: string): string
 
@@ -133,6 +159,8 @@ export type HarnessHistory = {
   list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
 
   meta?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionMeta | null>
+
+  summary?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionSummary | null>
 }
 
 type HarnessAdapterBase = {
