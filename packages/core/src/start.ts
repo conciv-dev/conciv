@@ -3,7 +3,7 @@ import {Hono} from 'hono'
 import getPort from 'get-port'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import type {AnyExtension} from '@conciv/extension'
+import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
 import {makeApp, type MakeAppOpts} from './app.js'
 
 export type {AppType} from './app.js'
@@ -48,28 +48,25 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
-function extensionConfigured(extension: AnyExtension, config: unknown): boolean {
-  try {
-    return extension.parseConfig(config) !== undefined
-  } catch {
-    return false
-  }
-}
+export type ComposePromptOpts = ExtensionPromptContext & {extensions?: Record<string, unknown>}
 
 export function composeSystemPrompt(
   base: string | undefined,
   extensions: readonly AnyExtension[],
-  extensionConfig?: Record<string, unknown>,
+  opts: ComposePromptOpts,
 ): string {
-  const active = extensions.filter((extension) => extensionConfigured(extension, extensionConfig?.[extension.name]))
-  return [base, ...active.map((extension) => extension.systemPrompt)].filter(Boolean).join('\n\n')
+  const prompts = extensions.map((extension) => extension.systemPrompt?.(opts.extensions?.[extension.name], opts))
+  return [base, ...prompts].filter(Boolean).join('\n\n')
 }
 
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
 
-  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, opts.extensions ?? [], cfg.extensions)
+  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, opts.extensions ?? [], {
+    cwd: opts.root,
+    extensions: cfg.extensions,
+  })
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
   const openInEditor = makeEditorOpener(

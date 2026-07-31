@@ -94,6 +94,12 @@ export type ServerResult<Context> = {
 
 export type ConfigOf<Schema> = [Schema] extends [z.ZodNever] ? Record<never, never> : z.output<Schema>
 
+export type ExtensionPromptContext = {cwd: string}
+
+export type SystemPromptFactory<Config> = (config: Config, context: ExtensionPromptContext) => string
+
+export type SystemPromptResolver = (config: unknown, context: ExtensionPromptContext) => string | undefined
+
 export type UnionToIntersection<Union> = (Union extends unknown ? (incoming: Union) => void : never) extends (
   merged: infer Intersection,
 ) => void

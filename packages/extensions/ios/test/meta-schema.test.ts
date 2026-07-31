@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {IosConfigSchema, IOS_SYSTEM_PROMPT} from '../src/shared/meta.js'
+import {IosConfigSchema} from '../src/shared/meta.js'
 
 function parseIosConfig(config: Record<string, unknown>) {
   return IosConfigSchema.safeParse({projectRoot: '/Users/dev/PayApp', bundleId: 'dev.conciv.pay', ...config})
@@ -40,12 +40,5 @@ describe('ios config extra source dirs', () => {
     const parsed = parseIosConfig({buildMode: 'swiftc', extraSourceDirs: ['../ConcivWidget/Sources/ConcivWidget']})
     if (!parsed.success) throw new Error('expected the config to be accepted')
     expect(parsed.data?.extraSourceDirs).toEqual(['../ConcivWidget/Sources/ConcivWidget'])
-  })
-})
-
-describe('ios system prompt', () => {
-  it('no longer routes the agent around ios.build with the demo build script', () => {
-    expect(IOS_SYSTEM_PROMPT).not.toContain('build.sh')
-    expect(IOS_SYSTEM_PROMPT).toContain('ios.build')
   })
 })
