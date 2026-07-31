@@ -24,7 +24,7 @@ dependent on callback ordering.
   state, never hand-counted.
 - Timers/subscriptions created by the state that needs them, die with it. No always-on
   intervals. MANDATORY mechanism (user-approved install 2026-08-01): `@solid-primitives/
-  event-listener` (makeEventListener) and `@solid-primitives/timer` for every DOM
+event-listener` (makeEventListener) and `@solid-primitives/timer` for every DOM
   listener/interval these rewrites touch — these self-register onCleanup, making the
   leak class unrepresentable. Debounce/throttle/rate-shaping use `@tanstack/solid-pacer`
   (the house pacing primitive — Pacer's AsyncRetryer is already the mandated retry
@@ -45,6 +45,7 @@ dependent on callback ordering.
 ## Wave 1 — bug-carrying small files (three dispatches, serialized on the branch worktree)
 
 ### 1a. `apps/conciv/src/chat/send-guard.ts` (conciv-frontend)
+
 Machine: `idle → conflict{attempt} → sending{attempt} → sent | failed{attempt}` with
 events `send`, `rejected(error)`, `delivered`, `takeOver`, `takeOverFailed(reason)`,
 `sendAnyway`, `cancel`, `detachSettled`. Kills `{attempt, rejections, epoch, retrying}`
@@ -58,6 +59,7 @@ Contract: `terminal-conflict-dialog.browser.test.tsx`, `send-rejection.browser.t
 `user-turn.browser.test.tsx`.
 
 ### 1b. `apps/conciv/src/chat/use-pane-draft.ts` (conciv-frontend)
+
 Two real defects, failing tests first: (1) viewport `scroll` listener added at :95 never
 removed — `onCleanup` misses it; every pane teardown leaks a listener holding the
 debouncer. (2) the restore effect (:80-85) writes server text into the composer whenever
@@ -66,6 +68,7 @@ single-shot transition keyed on composer-ready + session identity (no `restored.
 latch); the listener registers via the same scoped-lifetime rule as everything else.
 
 ### 1c. `packages/ui-kit-chat/src/primitives/model-selector/model-selector.tsx` (conciv-frontend)
+
 Real defect: `useListCollection({initialItems: props.models.slice()})` freezes the
 dropdown at first-render models while `models: () => props.models` reads live — async
 model lists diverge permanently (audit :102-108). Known landmine
@@ -92,6 +95,7 @@ RCA, not a paper-over.
 ## Wave 3 — `chat-pane.tsx` decomposition (conciv-frontend)
 
 Target: ~80-line composition. Extractions, each killing a named hack:
+
 - 3a `use-send-pipeline.ts`: dispatch/beforeSend/guard wiring. Kills `guardHolder`
   (chat errors land in a signal the 1a guard machine consumes reactively) and
   `delivery.done` (derived in the guard store from status-during-attempt).
@@ -100,11 +104,11 @@ Target: ~80-line composition. Extractions, each killing a named hack:
 - 3c `use-tool-cards.tsx`: toolCtx, durations (move `startedAt` Map inside the memo
   closure — no external mutation from a memo), tools(), streamTitles, uiReply.
 - 3d `use-composer-bridge.ts`: `composerApi.current` → `createSignal<ComposerStateApi |
-  null>`; draft-restore + attachment-drain become effects on composer-ready; focus mgmt.
+null>`; draft-restore + attachment-drain become effects on composer-ready; focus mgmt.
 - 3e `use-session-maintenance.ts`: markers/dividers, compact mutation, newSession,
   nav blocker.
 - 3f view split: `<ThreadView>` + `<ComposerView>` with narrow props.
-Contract: every existing chat-pane-touching browser test unchanged.
+  Contract: every existing chat-pane-touching browser test unchanged.
 
 ## Wave 4 — `use-thread-auto-scroll.ts` (conciv-frontend, LAST, highest behavioral risk)
 

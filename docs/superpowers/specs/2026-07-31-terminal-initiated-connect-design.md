@@ -92,7 +92,7 @@ Two procedure groups with different authentication:
   `RATE_LIMITED`. `requesterKey` is a per-request secret; `await` must present it (binds
   outcome delivery to the original requester).
 - `connect.await({requestId, requesterKey}) → {outcome: 'approved', token, finishStep} |
-  {outcome: 'denied'} | {outcome: 'expired'} | {outcome: 'failed', code, detail}` — a held
+{outcome: 'denied'} | {outcome: 'expired'} | {outcome: 'failed', code, detail}` — a held
   request; errors: `NOT_FOUND` (unknown/expunged id), `FORBIDDEN` (wrong requesterKey).
   Semantics: terminal outcomes are stored for a bounded retention window (5 min) after
   resolution, so an `await` that registers late, reconnects after a drop, or retries still
