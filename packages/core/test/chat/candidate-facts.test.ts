@@ -178,7 +178,32 @@ describe('the facts the picker shows for a running session', () => {
     const failure: TranscriptFailure = {ok: false, reason: 'unreadable', detail: 'EACCES: permission denied'}
     const deps = fixtureDeps(() => ['locked'], reads, {summary: true, failure})
 
-    await expect(liveCandidates(deps)).rejects.toThrow(/EACCES/)
+    const [found] = await liveCandidates(deps)
+
+    expect(found).toMatchObject({historyStatus: 'unavailable', title: '', messageCount: 0})
+  })
+
+  it('marks a transcript it could read as readable', async () => {
+    const reads = {count: 0}
+    writeTranscript('readable', ['a real conversation'])
+    const deps = fixtureDeps(() => ['readable'], reads, {summary: true})
+
+    const [found] = await liveCandidates(deps)
+
+    expect(found).toMatchObject({historyStatus: 'ok', title: 'a real conversation'})
+  })
+
+  it('rejects instead of reporting no running sessions when the listing itself fails', async () => {
+    const reads = {count: 0}
+    const deps = fixtureDeps(() => ['never-listed'], reads, {summary: true})
+    const attach = deps.harness.attach
+    if (!attach) throw new Error('the fixture harness lost its attach sidecar')
+    const failing = {
+      ...deps.harness,
+      attach: {...attach, candidates: () => Promise.reject(new Error('claude agents exited with code 1'))},
+    }
+
+    await expect(liveCandidates({...deps, harness: failing})).rejects.toThrow(/claude agents exited with code 1/)
   })
 
   it('remembers at most 64 sessions, so the 65th evicts exactly one', async () => {

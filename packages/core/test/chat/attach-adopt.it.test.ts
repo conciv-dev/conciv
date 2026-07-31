@@ -238,6 +238,18 @@ describe('sending while a terminal drives the session', () => {
     expect((await attachedRow(openDb(kit.stateRoot), sessionId)).attachedPid).toBeNull()
   }, 30_000)
 
+  it('tells the session list which session a terminal is driving', async () => {
+    const kit = await boot()
+    const {sessionId} = await kit.rpc.sessions.attachAdopt({harnessSessionId: HARNESS_SESSION, pid: process.pid})
+
+    const attached = await kit.rpc.sessions.list()
+    expect(attached.find((meta) => meta.id === sessionId)?.attached).toBe(true)
+
+    await kit.rpc.sessions.attachDetach({sessionId})
+    const released = await kit.rpc.sessions.list()
+    expect(released.find((meta) => meta.id === sessionId)?.attached).toBe(false)
+  }, 30_000)
+
   it('hands the session back on detach and removes the generated plugin', async () => {
     const kit = await boot()
     const {sessionId} = await kit.rpc.sessions.attachAdopt({harnessSessionId: HARNESS_SESSION, pid: process.pid})

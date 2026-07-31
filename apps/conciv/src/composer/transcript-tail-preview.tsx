@@ -10,7 +10,9 @@ export const PROMPT_MARK = '>'
 export const PREVIEW_CHARS = 72
 
 const BOX =
-  'flex flex-col gap-0.5 rounded-pw-sm bg-pw-sunken border border-pw-line-soft p-2 overflow-hidden font-mono text-[0.6875rem] leading-tight pointer-events-none select-none'
+  'flex flex-col gap-0.5 rounded-pw-sm bg-pw-sunken border border-pw-line-soft px-3 py-2.5 overflow-hidden font-mono text-[0.6875rem] leading-tight pointer-events-none select-none'
+const NOTE =
+  'block rounded-pw-sm bg-pw-sunken border border-pw-line-soft px-3 py-2.5 text-pw-text-3 text-xs leading-normal'
 const LINE = 'flex items-baseline gap-1.5 min-w-0 w-full'
 const TEXT = 'truncate min-w-0'
 const DIM = 'text-pw-text-3'
@@ -55,9 +57,13 @@ function TailEntry(props: {entry: TranscriptTailEntry}): JSX.Element {
   )
 }
 
+export function TranscriptNote(props: {text: string}): JSX.Element {
+  return <span class={NOTE}>{props.text}</span>
+}
+
 export function TranscriptTailPreview(props: {tail: TranscriptTailEntry[]; working: boolean}): JSX.Element {
   return (
-    <div class={BOX} aria-hidden="true">
+    <span class={BOX} aria-hidden="true">
       <For each={props.tail}>{(entry) => <TailEntry entry={entry} />}</For>
       <Show when={props.working}>
         <TailLine mark={THINKING_MARK} text="Thinking…" tone={THINKING} />
@@ -68,6 +74,6 @@ export function TranscriptTailPreview(props: {tail: TranscriptTailEntry[]; worki
           <span class={CURSOR} />
         </Show>
       </span>
-    </div>
+    </span>
   )
 }

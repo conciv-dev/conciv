@@ -108,37 +108,43 @@ async function readFacts(
   return summary ? factsFromSummary(summary) : blankFacts(session)
 }
 
-async function candidateFacts(deps: CandidateDeps, session: HarnessLiveSession): Promise<CandidateFacts> {
+type CandidateHistory = CandidateFacts & Pick<LiveSession, 'historyStatus'>
+
+function unreadable(session: HarnessLiveSession, detail: string): CandidateHistory {
+  logError(`[core] cannot read the transcript of ${session.sessionId}: ${detail}`)
+  return {...blankFacts(session), historyStatus: 'unavailable'}
+}
+
+async function candidateHistory(deps: CandidateDeps, session: HarnessLiveSession): Promise<CandidateHistory> {
   const history = deps.harness.history
-  if (!history) return blankFacts(session)
+  if (!history) return unreadable(session, `${deps.harness.id} keeps no transcripts`)
+  if (!readableTranscript(deps, session)) return unreadable(session, 'that transcript is outside this project')
   const revision = await transcriptRevision(history, session.cwd, session.sessionId, deps.claudeHome)
   if ('ok' in revision) {
-    if (revision.reason === 'missing') return blankFacts(session)
-    throw new Error(`cannot read the transcript of ${session.sessionId}: ${revision.detail}`)
+    if (revision.reason === 'missing') return {...blankFacts(session), historyStatus: 'ok'}
+    return unreadable(session, revision.detail)
   }
   const key = `${session.sessionId}:${revision.rev}`
   const recalledFacts = recalled(key)
-  if (recalledFacts) return recalledFacts
-  const facts = await readFacts(deps, history, session)
+  if (recalledFacts) return {...recalledFacts, historyStatus: 'ok'}
+  const facts = await readFacts(deps, history, session).catch((error: unknown) => String(error))
+  if (typeof facts === 'string') return unreadable(session, facts)
   remember(key, facts)
-  return facts
+  return {...facts, historyStatus: 'ok'}
 }
 
 async function toWire(deps: CandidateDeps, session: HarnessLiveSession): Promise<LiveSession[]> {
   const relation = cwdRelation(session.cwd, deps.cwd)
   if (relation === 'disjoint') return []
-  const facts = readableTranscript(deps, session) ? await candidateFacts(deps, session) : blankFacts(session)
+  const history = await candidateHistory(deps, session)
   const ready = deps.dialed(session.sessionId)
-  return [{...session, ...facts, relation, ready, working: session.status === 'busy'}]
+  return [{...session, ...history, relation, ready, working: session.status === 'busy'}]
 }
 
 export async function liveCandidates(deps: CandidateDeps): Promise<LiveSession[]> {
   const attach = deps.harness.attach
   if (!attach) return []
-  const found = await attach.candidates(deps.cwd, deps.claudeHome).catch((error: unknown) => {
-    logError(`[core] listing live ${deps.harness.id} sessions failed: ${String(error)}`)
-    return []
-  })
+  const found = await attach.candidates(deps.cwd, deps.claudeHome)
   const wired = await Promise.all(found.map((session) => toWire(deps, session)))
   return wired.flat().toSorted((left, right) => right.lastActivityAt - left.lastActivityAt)
 }

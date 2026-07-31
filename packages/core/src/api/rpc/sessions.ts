@@ -48,12 +48,16 @@ export async function rpcSessionList(deps: RpcDeps): Promise<SessionMeta[]> {
     running: (sessionId) => wireStatus(statusOf(chat.db, sessionId)) === 'running',
     cwd: chat.cwd,
   })
-  const rows = await chat.db.select({id: sessions.id, model: sessions.model}).from(sessions)
+  const rows = await chat.db
+    .select({id: sessions.id, model: sessions.model, attachedPid: sessions.attachedPid})
+    .from(sessions)
   const models = new Map(rows.map((row) => [row.id, row.model]))
+  const attached = new Set(rows.filter((row) => row.attachedPid !== null).map((row) => row.id))
   return metas.map((meta) => ({
     ...meta,
     status: wireStatus(statusOf(chat.db, meta.id)),
     model: models.get(meta.id) ?? null,
+    attached: attached.has(meta.id),
   }))
 }
 

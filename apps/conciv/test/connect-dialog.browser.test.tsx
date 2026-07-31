@@ -1,102 +1,107 @@
 import {afterEach, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {render} from 'solid-js/web'
-import {createSignal} from 'solid-js'
+import {createSignal, type Setter} from 'solid-js'
 import type {LiveSession} from '@conciv/contract'
+import {ConnectDialog} from '../src/composer/connect/connect-dialog.js'
 import {
-  ConnectSessionDialog,
+  CHECK_AGAIN_LABEL,
   CONNECTING_LABEL,
   CONTACT_LOST,
+  DIALOG_TITLE,
   LOOKING_LABEL,
+  LOOKUP_FAILED,
   ONE_TIME_SETUP,
+  PREVIEW_EMPTY,
+  PREVIEW_UNAVAILABLE,
   RETRY_LABEL,
-  type ConnectStep,
-  type PickingStep,
-} from '../src/composer/connect-dialog.js'
+  STALE_NOTICE,
+  TRANSCRIPT_UNAVAILABLE,
+  UNTITLED_SESSION,
+} from '../src/composer/connect/connect-copy.js'
+import type {ConnectStep} from '../src/composer/connect/connect-steps.js'
+import {liveSession} from './helpers/live-session.js'
 
 const disposers: (() => void)[] = []
 afterEach(() => {
   for (const dispose of disposers.splice(0)) dispose()
 })
 
-const session = (over: Partial<LiveSession> = {}): LiveSession => ({
-  sessionId: 'sess-1',
-  pid: 4242,
-  cwd: '/repo',
-  name: 'terminal-1',
-  status: 'idle',
-  relation: 'same',
-  ready: true,
-  title: 'rename the widget package',
-  messageCount: 12,
-  lastActivityAt: Date.now() - 60_000,
-  working: false,
-  tail: [
-    {role: 'assistant', text: 'Looking at the manifests now.'},
-    {role: 'tool', text: '', toolName: 'Read', toolResult: 'package.json read'},
-  ],
-  ...over,
-})
-
-const pickingStep = (candidates: LiveSession[], over: Partial<PickingStep> = {}): PickingStep => ({
-  step: 'picking',
-  candidates,
-  error: null,
-  retry: null,
-  ...over,
-})
-
-type Mounted = {
-  state: (next: ConnectStep | null) => void
-  connected: (next: boolean) => void
-  connecting: (next: string | null) => void
-  contactLost: (next: boolean) => void
-  retried: number[]
-  picked: LiveSession[]
+type View = {
+  step: Setter<ConnectStep>
+  candidates: Setter<LiveSession[] | undefined>
+  loading: Setter<boolean>
+  refreshing: Setter<boolean>
+  failure: Setter<string | null>
+  stale: Setter<boolean>
+  connectingId: Setter<string | null>
+  dialledIn: Setter<boolean>
+  contactLost: Setter<boolean>
+  picked: string[]
   copied: string[]
   closed: number[]
+  retried: number[]
+  refreshed: number[]
   launched: number[]
-  backed: LiveSession[][]
-  done: LiveSession[]
+  backed: number[]
+  done: number[]
 }
 
-function mountDialog(react: (session: LiveSession) => void = () => {}): Mounted {
+const PICKING: ConnectStep = {kind: 'picking', error: null, retryId: null}
+
+function mount(initial: LiveSession[] | undefined = undefined): View {
   const host = document.createElement('div')
   document.body.appendChild(host)
-  const [state, setState] = createSignal<ConnectStep | null>(null)
-  const [connected, setConnected] = createSignal(false)
-  const [connecting, setConnecting] = createSignal<string | null>(null)
+  const [step, setStep] = createSignal<ConnectStep>({kind: 'closed'})
+  const [candidates, setCandidates] = createSignal<LiveSession[] | undefined>(initial)
+  const [loading, setLoading] = createSignal(false)
+  const [refreshing, setRefreshing] = createSignal(false)
+  const [failure, setFailure] = createSignal<string | null>(null)
+  const [stale, setStale] = createSignal(false)
+  const [connectingId, setConnectingId] = createSignal<string | null>(null)
+  const [dialledIn, setDialledIn] = createSignal(false)
   const [contactLost, setContactLost] = createSignal(false)
-  const mounted: Mounted = {
-    state: setState,
-    connected: setConnected,
-    connecting: setConnecting,
+  const view: View = {
+    step: setStep,
+    candidates: setCandidates,
+    loading: setLoading,
+    refreshing: setRefreshing,
+    failure: setFailure,
+    stale: setStale,
+    connectingId: setConnectingId,
+    dialledIn: setDialledIn,
     contactLost: setContactLost,
-    retried: [],
     picked: [],
     copied: [],
     closed: [],
+    retried: [],
+    refreshed: [],
     launched: [],
     backed: [],
     done: [],
   }
   const dispose = render(
     () => (
-      <ConnectSessionDialog
-        state={state()}
-        connected={connected()}
-        connecting={connecting()}
+      <ConnectDialog
+        step={step()}
+        harnessName="Claude"
+        candidates={candidates()}
+        loading={loading()}
+        refreshing={refreshing()}
+        failure={failure()}
+        stale={stale()}
+        checkedAt={Date.now() - 4_000}
+        connectingId={connectingId()}
+        dialledIn={dialledIn()}
         contactLost={contactLost()}
-        onRetry={() => mounted.retried.push(1)}
-        onPick={(value) => {
-          mounted.picked.push(value)
-          react(value)
-        }}
-        onCopy={(text) => mounted.copied.push(text)}
-        onClose={() => mounted.closed.push(1)}
-        onLaunch={() => mounted.launched.push(1)}
-        onBack={(candidates) => mounted.backed.push(candidates)}
-        onDone={(value) => mounted.done.push(value)}
+        onPick={(session) => view.picked.push(session.sessionId)}
+        onCopy={(text) => view.copied.push(text)}
+        onClose={() => view.closed.push(1)}
+        onRetry={() => view.retried.push(1)}
+        onRefresh={() => view.refreshed.push(1)}
+        onLaunch={() => view.launched.push(1)}
+        onBack={() => view.backed.push(1)}
+        onDone={() => view.done.push(1)}
       />
     ),
     host,
@@ -105,255 +110,195 @@ function mountDialog(react: (session: LiveSession) => void = () => {}): Mounted 
     dispose()
     host.remove()
   })
-  return mounted
+  setStep(PICKING)
+  return view
 }
 
-test('opens on a looking state before the sessions arrive, and can be left there', async () => {
-  const dialog = mountDialog()
-  dialog.state({step: 'looking'})
+test('skeletons only while the very first check is running, never over data it already has', async () => {
+  const view = mount()
+  view.loading(true)
 
   await expect.element(page.getByText(LOOKING_LABEL)).toBeVisible()
-  await page.getByRole('button', {name: 'Cancel'}).click()
-  expect(dialog.closed).toHaveLength(1)
 
-  dialog.state(pickingStep([session()]))
+  view.loading(false)
+  view.candidates([liveSession()])
+  view.refreshing(true)
+
   await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeVisible()
   expect(page.getByText(LOOKING_LABEL).elements()).toHaveLength(0)
 })
 
-test('shows a failed lookup in the dialog with a way to try again', async () => {
-  const dialog = mountDialog()
-  dialog.state(pickingStep([], {error: 'Couldn’t look for running claude sessions.'}))
+test('a row is one card: the transcript preview lives inside the button you click', async () => {
+  mount([liveSession()])
+  const row = page.getByRole('button', {name: /rename the widget package/})
+  await expect.element(row).toBeVisible()
 
-  await expect.element(page.getByText('Couldn’t look for running claude sessions.')).toBeVisible()
-  expect(page.getByText('No claude session is running in this project.').elements()).toHaveLength(0)
+  const preview = page.getByText('Looking at the manifests now.').element()
+  expect(row.element().contains(preview)).toBe(true)
+})
+
+test('never calls a session with nothing said in it active', async () => {
+  mount([liveSession({messageCount: 0, title: '', tail: []})])
+
+  await expect.element(page.getByRole('button', {name: new RegExp(UNTITLED_SESSION)})).toBeVisible()
+  await expect.element(page.getByText(/terminal-1 · idle · 0 messages · started/)).toBeVisible()
+  expect(page.getByText(/· active/).elements()).toHaveLength(0)
+  await expect.element(page.getByText(PREVIEW_EMPTY)).toBeVisible()
+})
+
+test('a session whose transcript cannot be read never passes for a brand new one', async () => {
+  mount([liveSession({messageCount: 0, title: '', tail: [], historyStatus: 'unavailable'})])
+
+  await expect.element(page.getByRole('button', {name: /terminal-1/})).toBeVisible()
+  expect(page.getByText(UNTITLED_SESSION).elements()).toHaveLength(0)
+  await expect.element(page.getByText(new RegExp(TRANSCRIPT_UNAVAILABLE))).toBeVisible()
+  await expect.element(page.getByText(PREVIEW_UNAVAILABLE)).toBeVisible()
+  await expect.element(page.getByRole('button', {name: /terminal-1/})).toBeEnabled()
+})
+
+test('an empty list says so without a subtitle counting to zero', async () => {
+  const view = mount([])
+
+  await expect.element(page.getByText('No Claude session is running here.')).toBeVisible()
+  expect(page.getByText(/running in this project/).elements()).toHaveLength(0)
+
+  await page.getByRole('button', {name: 'Open a new session'}).click()
+  expect(view.launched).toHaveLength(1)
+  await page.getByRole('button', {name: CHECK_AGAIN_LABEL}).click()
+  expect(view.refreshed).toHaveLength(1)
+})
+
+test('a failed check is its own cell, never the empty one', async () => {
+  const view = mount(undefined)
+  view.failure('the server hung up')
+
+  const alert = page.getByText(LOOKUP_FAILED)
+  await expect.element(alert).toBeVisible()
+  await expect.element(page.getByText('the server hung up')).toBeVisible()
+  expect(page.getByText('No Claude session is running here.').elements()).toHaveLength(0)
 
   await page.getByRole('button', {name: RETRY_LABEL}).click()
-  expect(dialog.retried).toHaveLength(1)
+  expect(view.refreshed).toHaveLength(1)
 })
 
-test('leaves the rows clickable after a failed connect and offers the retry', async () => {
-  const only = session()
-  const dialog = mountDialog()
-  dialog.state(pickingStep([only], {error: 'Couldn’t connect that claude session.', retry: only}))
+test('an empty answer after a failed check reads as the failure, not as nothing running', async () => {
+  const view = mount([])
+  await expect.element(page.getByText('No Claude session is running here.')).toBeVisible()
 
-  await expect.element(page.getByText('Couldn’t connect that claude session.')).toBeVisible()
-  await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeEnabled()
-  expect(page.getByText(CONNECTING_LABEL).elements()).toHaveLength(0)
+  view.candidates(undefined)
+  view.failure('the server hung up')
 
-  await page.getByRole('button', {name: RETRY_LABEL}).click()
-  expect(dialog.retried).toHaveLength(1)
-
-  await page.getByRole('button', {name: /rename the widget package/}).click()
-  expect(dialog.picked.map((value) => value.sessionId)).toEqual(['sess-1'])
+  await expect.element(page.getByText(LOOKUP_FAILED)).toBeVisible()
+  expect(page.getByText('No Claude session is running here.').elements()).toHaveLength(0)
 })
 
-test('says when the readiness poll lost the server instead of spinning forever', async () => {
-  const dialog = mountDialog()
-  const older = session({ready: false})
-  dialog.state({step: 'reload', session: older, command: '/reload-plugins --force', candidates: [older]})
-  await expect.element(page.getByText(/Waiting for the session to dial in/)).toBeVisible()
-
-  dialog.contactLost(true)
-
-  await expect.element(page.getByText(CONTACT_LOST)).toBeVisible()
-  expect(page.getByText(/Waiting for the session to dial in/).elements()).toHaveLength(0)
-})
-
-test('lists the running sessions with their first message and their state', async () => {
-  const dialog = mountDialog()
-  dialog.state(
-    pickingStep([
-      session(),
-      session({sessionId: 'sess-2', name: 'terminal-2', title: 'fix the flaky test', working: true, status: 'busy'}),
-    ]),
-  )
-
-  await expect.element(page.getByText('Connect a running session')).toBeVisible()
-  await expect.element(page.getByText(/2 Claude sessions are running in this project/)).toBeVisible()
+test('a refetch that failed over good rows keeps the rows and admits it stopped refreshing', async () => {
+  const view = mount([liveSession({working: true})])
   await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeVisible()
-  await expect.element(page.getByRole('button', {name: /fix the flaky test/})).toBeVisible()
-  await expect.element(page.getByText(/terminal-1 · idle · 12 messages/)).toBeVisible()
-  await expect.element(page.getByText(/terminal-2 · working/)).toBeVisible()
+
+  view.failure('the server hung up')
+  view.stale(true)
+
+  await expect.element(page.getByText(new RegExp(STALE_NOTICE))).toBeVisible()
+  await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeVisible()
+  expect(page.getByText(LOOKUP_FAILED).elements()).toHaveLength(0)
 })
 
-test('previews what each session was last doing', async () => {
-  const dialog = mountDialog()
-  dialog.state(pickingStep([session({working: true})]))
-
-  await expect.element(page.getByText('Looking at the manifests now.')).toBeVisible()
-  await expect.element(page.getByText('Read', {exact: true})).toBeVisible()
-  await expect.element(page.getByText('package.json read')).toBeVisible()
-  await expect.element(page.getByText('Thinking…')).toBeVisible()
-})
-
-test('holds the list still while the picked session is being connected', async () => {
-  const adopt: {land: () => void} = {land: () => {}}
-  const landed = new Promise<void>((resolve) => {
-    adopt.land = resolve
-  })
-  const dialog = mountDialog((picked) => {
-    dialog.connecting(picked.sessionId)
-    void landed.then(() => dialog.connecting(null))
-  })
-  dialog.state(pickingStep([session(), session({sessionId: 'sess-2', title: 'fix the flaky test'})]))
+test('only the picked row goes busy; the others stay clickable', async () => {
+  const view = mount([liveSession(), liveSession({sessionId: 'sess-2', title: 'fix the flaky test'})])
 
   await page.getByRole('button', {name: /fix the flaky test/}).click()
+  expect(view.picked).toEqual(['sess-2'])
+
+  view.connectingId('sess-2')
 
   await expect.element(page.getByText(CONNECTING_LABEL)).toBeVisible()
   await expect.element(page.getByRole('button', {name: /fix the flaky test/})).toBeDisabled()
-  await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeDisabled()
-  await expect.element(page.getByRole('button', {name: 'Cancel'})).toBeEnabled()
-  expect(page.getByText(CONNECTING_LABEL).elements()).toHaveLength(1)
-
-  adopt.land()
-  await landed
-
   await expect.element(page.getByRole('button', {name: /rename the widget package/})).toBeEnabled()
-  expect(page.getByText(CONNECTING_LABEL).elements()).toHaveLength(0)
+  expect(page.getByText(CONNECTING_LABEL).elements()).toHaveLength(1)
+})
+
+test('a failed connect shows the reason above a list that is still alive', async () => {
+  const view = mount([liveSession(), liveSession({sessionId: 'sess-2', title: 'fix the flaky test'})])
+  view.step({kind: 'picking', error: 'that session runs in a subdirectory', retryId: 'sess-2'})
+
+  await expect.element(page.getByText('that session runs in a subdirectory')).toBeVisible()
+  await page.getByRole('button', {name: /rename the widget package/}).click()
+  expect(view.picked).toEqual(['sess-1'])
+
+  await page.getByRole('button', {name: RETRY_LABEL}).click()
+  expect(view.retried).toHaveLength(1)
 })
 
 test('badges only the session that started before conciv was installed', async () => {
-  const dialog = mountDialog()
-  dialog.state(pickingStep([session(), session({sessionId: 'sess-2', title: 'the older one', ready: false})]))
+  mount([liveSession(), liveSession({sessionId: 'sess-2', title: 'the older one', ready: false})])
 
   await expect.element(page.getByRole('button', {name: new RegExp(ONE_TIME_SETUP)})).toBeVisible()
   expect(page.getByText(ONE_TIME_SETUP).elements()).toHaveLength(1)
-  await expect.element(page.getByText(/needs one reload in that terminal/)).toBeVisible()
 })
 
-test('falls back to a placeholder title for a session with nothing said yet', async () => {
-  const dialog = mountDialog()
-  dialog.state(pickingStep([session({title: '', messageCount: 0, tail: []})]))
-
-  await expect.element(page.getByRole('button', {name: /Untitled, just started/})).toBeVisible()
-})
-
-test('picks the session the row belongs to', async () => {
-  const dialog = mountDialog()
-  dialog.state(pickingStep([session(), session({sessionId: 'sess-2', title: 'fix the flaky test'})]))
-
-  await page.getByRole('button', {name: /fix the flaky test/}).click()
-  expect(dialog.picked.map((value) => value.sessionId)).toEqual(['sess-2'])
-})
-
-test('says so when nothing is running and points at the way forward', async () => {
-  const dialog = mountDialog()
-  dialog.state(pickingStep([]))
-  await expect.element(page.getByText('No claude session is running in this project.')).toBeVisible()
-
-  await expect.element(page.getByRole('button', {name: 'Open a new session'})).toBeVisible()
-  await page.getByRole('button', {name: 'Open a new session'}).click()
-  expect(dialog.launched).toHaveLength(1)
-
-  await page.getByRole('button', {name: 'Cancel'}).click()
-  expect(dialog.closed).toHaveLength(1)
-})
-
-test('escape leaves the empty picker', async () => {
-  const dialog = mountDialog()
-  dialog.state(pickingStep([]))
-  await expect.element(page.getByText('No claude session is running in this project.')).toBeVisible()
-
-  await userEvent.keyboard('{Escape}')
-  await expect.poll(() => dialog.closed.length).toBe(1)
-})
-
-async function clickBehindTheDialog(): Promise<void> {
-  const content = page.getByRole('dialog').element()
-  const positioner = content.parentElement
-  if (!(positioner instanceof HTMLElement)) throw new Error('the dialog content has no layer around it')
-  const away = content.getBoundingClientRect().bottom + 40
-  await userEvent.click(page.elementLocator(positioner), {position: {x: 8, y: away}, force: true})
-}
-
-test('clicking away leaves the empty picker', async () => {
-  const dialog = mountDialog()
-  dialog.state(pickingStep([]))
-  await expect.element(page.getByText('No claude session is running in this project.')).toBeVisible()
-
-  await clickBehindTheDialog()
-  await expect.poll(() => dialog.closed.length).toBe(1)
-})
-
-test('asks for the one reload the older session needs, and waits for it', async () => {
-  const dialog = mountDialog()
-  const older = session({ready: false, title: 'the older one'})
-  dialog.state({step: 'reload', session: older, command: '/reload-plugins --force', candidates: [older]})
+test('the reload card is built from the adopt result and stops spinning when contact is lost', async () => {
+  const view = mount([liveSession({ready: false})])
+  view.step({
+    kind: 'reload',
+    adopted: {
+      concivSessionId: 'conciv_9',
+      harnessSessionId: 'sess-1',
+      title: 'the older one',
+      reloadCommand: '/reload-plugins --force',
+    },
+  })
 
   await expect.element(page.getByText('the older one')).toBeVisible()
-  await expect.element(page.getByText(/started before conciv was installed/)).toBeVisible()
   await expect.element(page.getByText('/reload-plugins --force')).toBeVisible()
-  await expect.element(page.getByText(/Waiting for the session to dial in/)).toBeVisible()
+  await expect.element(page.getByText(/Waiting for this session to dial in/)).toBeVisible()
 
   await page.getByRole('button', {name: 'Copy command'}).click()
-  expect(dialog.copied).toEqual(['/reload-plugins --force'])
-})
+  expect(view.copied).toEqual(['/reload-plugins --force'])
 
-test('flips the reload card to connected on its own', async () => {
-  const dialog = mountDialog()
-  const older = session({ready: false, title: 'the older one'})
-  dialog.state({step: 'reload', session: older, command: '/reload-plugins --force', candidates: [older]})
-  await expect.element(page.getByText(/Waiting for the session to dial in/)).toBeVisible()
+  view.contactLost(true)
+  await expect.element(page.getByText(CONTACT_LOST)).toBeVisible()
+  expect(page.getByText(/Waiting for this session to dial in/).elements()).toHaveLength(0)
 
-  dialog.connected(true)
-
-  await expect.element(page.getByText(/Connected. Keep talking in either place./)).toBeVisible()
+  view.contactLost(false)
+  view.dialledIn(true)
   await page.getByRole('button', {name: 'Done'}).click()
-  expect(dialog.done.map((value) => value.sessionId)).toEqual(['sess-1'])
-})
-
-test('the reload card goes back to the list', async () => {
-  const dialog = mountDialog()
-  const older = session({ready: false})
-  dialog.state({step: 'reload', session: older, command: '/reload-plugins --force', candidates: [older]})
-
-  await page.getByRole('button', {name: 'Back to the list'}).click()
-  expect(dialog.backed).toHaveLength(1)
-  expect(dialog.backed[0]?.map((value) => value.sessionId)).toEqual(['sess-1'])
+  expect(view.done).toHaveLength(1)
 })
 
 test('falls back to a restart snippet when the cli is too old', async () => {
-  const dialog = mountDialog()
-  dialog.state({
-    step: 'snippet',
+  const view = mount([])
+  view.step({
+    kind: 'snippet',
     command: "cd '/repo' && claude --resume tok-1",
-    detail: 'claude 2.1.100 lacks /reload-plugins --force (needs 2.1.163+)',
+    detail: 'claude 2.1.100 lacks /reload-plugins --force',
   })
 
   await expect.element(page.getByText(/lacks \/reload-plugins --force/)).toBeVisible()
-  await expect.element(page.getByText("cd '/repo' && claude --resume tok-1")).toBeVisible()
-
   await page.getByRole('button', {name: 'Copy command'}).click()
-  expect(dialog.copied).toEqual(["cd '/repo' && claude --resume tok-1"])
+  expect(view.copied).toEqual(["cd '/repo' && claude --resume tok-1"])
 
   await page.getByRole('button', {name: 'Close'}).click()
-  expect(dialog.closed).toHaveLength(1)
+  expect(view.closed).toHaveLength(1)
 })
 
-test('takes its name from the one visible heading instead of a second copy of the string', async () => {
-  const dialog = mountDialog()
-  dialog.state({step: 'looking'})
+test('takes its name from the one visible heading and leaves on escape', async () => {
+  const view = mount([])
 
-  const heading = page.getByRole('heading', {name: 'Connect a running session'})
+  const heading = page.getByRole('heading', {name: DIALOG_TITLE})
   await expect.element(heading).toBeVisible()
-  expect(page.getByText('Connect a running session').elements()).toHaveLength(1)
+  expect(page.getByText(DIALOG_TITLE).elements()).toHaveLength(1)
 
-  const modal = page.getByRole('dialog', {name: 'Connect a running session'})
+  const modal = page.getByRole('dialog', {name: DIALOG_TITLE})
   await expect.element(modal).toHaveAttribute('aria-labelledby', heading.element().id)
-  await expect.element(modal).not.toHaveAttribute('aria-label')
+
+  await userEvent.keyboard('{Escape}')
+  await expect.poll(() => view.closed.length).toBe(1)
 })
 
-test('says out loud when the search finishes, instead of swapping the body silently', async () => {
-  const dialog = mountDialog()
-  dialog.state({step: 'looking'})
-  await expect.element(page.getByText(LOOKING_LABEL)).toBeVisible()
+test('a very long title and terminal name still leave a locatable row', async () => {
+  const long = 'r'.repeat(300)
+  mount([liveSession({title: long, name: 'n'.repeat(60)})])
 
-  dialog.state(pickingStep([session()]))
-  await expect.element(page.getByText(/1 Claude session is running/)).toHaveAttribute('role', 'status')
-
-  dialog.state(pickingStep([]))
-  await expect
-    .element(page.getByText('No claude session is running in this project.'))
-    .toHaveAttribute('role', 'status')
+  await expect.element(page.getByRole('button', {name: new RegExp(long.slice(0, 40))})).toBeVisible()
 })

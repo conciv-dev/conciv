@@ -17,6 +17,7 @@ export const SessionMetaSchema = z.object({
   usage: UsageSnapshotSchema.nullable(),
   status: SessionStatusSchema,
   model: z.string().nullable(),
+  attached: z.boolean(),
 })
 export type SessionMeta = z.infer<typeof SessionMetaSchema>
 
@@ -37,6 +38,7 @@ export const LiveSessionSchema = z.object({
   startedAt: z.number().optional(),
   relation: z.enum(['same', 'ancestor', 'descendant']),
   ready: z.boolean(),
+  historyStatus: z.enum(['ok', 'unavailable']),
   title: z.string(),
   messageCount: z.number().int().min(0),
   lastActivityAt: z.number(),

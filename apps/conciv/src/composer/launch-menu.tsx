@@ -9,15 +9,29 @@ export function LaunchMenu(props: {
   onOpen: () => void
   onCopy: () => void
   onConnect?: () => void
+  onPrefetch?: () => void
 }): JSX.Element {
-  const [local] = splitProps(props, ['harnessName', 'class', 'canConnect', 'onOpen', 'onCopy', 'onConnect'])
+  const [local] = splitProps(props, [
+    'harnessName',
+    'class',
+    'canConnect',
+    'onOpen',
+    'onCopy',
+    'onConnect',
+    'onPrefetch',
+  ])
   return (
     <Menu.Root>
       <TooltipIconButtonSlot tooltip={`Terminal options for ${local.harnessName}`} class={local.class}>
         {(buttonProps) => (
           <Menu.Trigger
             asChild={(triggerProps) => (
-              <button {...buttonProps()} {...triggerProps()}>
+              <button
+                {...buttonProps()}
+                {...triggerProps()}
+                onPointerEnter={() => local.onPrefetch?.()}
+                onFocus={() => local.onPrefetch?.()}
+              >
                 <SquareTerminal class="size-5 block" aria-hidden="true" />
               </button>
             )}
