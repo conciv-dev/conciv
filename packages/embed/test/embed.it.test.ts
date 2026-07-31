@@ -3,6 +3,7 @@ import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
+import {currentHref, setNavigation} from './helpers/navigation.js'
 import {openPanel, sendMessage} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
@@ -45,7 +46,7 @@ afterAll(async () => {
 })
 
 beforeEach(async () => {
-  await kit.rpc.navigation.set({entries: [{href: '/'}], index: 0})
+  expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
 })
 
 async function openPage(): Promise<Page> {
@@ -64,20 +65,46 @@ async function sendAndRevealThought(page: Page, message: string): Promise<void> 
 describe('embed boots the conciv app against a real core', () => {
   it('canonicalizes a restored panel route that carries a raw harness session id', async () => {
     const rawHarnessId = '43548fd1-0000-4220-acf0-014b10b5815f'
-    await kit.rpc.navigation.set({entries: [{href: `/panel/${rawHarnessId}`}], index: 0})
+    expect(await setNavigation(kit, [{href: `/panel/${rawHarnessId}`}])).toBe(true)
     const page = await openPage()
-    await expect
-      .poll(
-        async () => {
-          const persisted = await kit.rpc.navigation.get()
-          return persisted?.entries[persisted.index]?.href ?? ''
-        },
-        {timeout: 30_000},
-      )
-      .toMatch(/^\/panel\/conciv_/)
+    await expect.poll(() => currentHref(kit), {timeout: 30_000}).toMatch(/^\/panel\/conciv_/)
     const adopted = await kit.rpc.sessions.resolve({id: rawHarnessId})
     const persisted = await kit.rpc.navigation.get()
     expect(persisted?.entries[persisted.index]?.href).toBe(`/panel/${adopted.sessionId}`)
+    await page.close()
+  })
+
+  it('a widget navigation write that lands after a newer one loses, even in flight', async () => {
+    const page = await browser.newPage()
+    let releaseHeld = (): void => {}
+    let markHeld = (): void => {}
+    const heldRelease = new Promise<void>((resolve) => {
+      releaseHeld = resolve
+    })
+    const heldArrival = new Promise<void>((resolve) => {
+      markHeld = resolve
+    })
+    let seen = 0
+    await page.route(
+      (url) => url.pathname.endsWith('/rpc/navigation/set'),
+      async (route) => {
+        seen += 1
+        if (seen > 1) return route.abort()
+        markHeld()
+        await heldRelease
+        await route.continue()
+      },
+    )
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await openPanel(page)
+    await heldArrival
+
+    expect(await setNavigation(kit, [{href: '/reset-while-the-widget-write-is-in-flight'}])).toBe(true)
+    const landed = page.waitForResponse((response) => response.url().endsWith('/rpc/navigation/set'))
+    releaseHeld()
+    await landed
+
+    expect(await currentHref(kit)).toBe('/reset-while-the-widget-write-is-in-flight')
     await page.close()
   })
 
@@ -110,15 +137,7 @@ describe('embed boots the conciv app against a real core', () => {
     const first = await openPage()
     await openPanel(first)
     await first.getByRole('tab', {name: 'Terminal'}).click()
-    await expect
-      .poll(
-        async () => {
-          const persisted = await kit.rpc.navigation.get()
-          return persisted?.entries[persisted.index]?.href ?? ''
-        },
-        {timeout: 30_000},
-      )
-      .toMatch(/\/terminal\?.*open=true/)
+    await expect.poll(() => currentHref(kit), {timeout: 30_000}).toMatch(/\/terminal\?.*open=true/)
     await first.close()
     const second = await openPage()
     await expectLocator(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
@@ -131,25 +150,9 @@ describe('embed boots the conciv app against a real core', () => {
   it('a reload after closing the panel boots shut', async () => {
     const first = await openPage()
     await openPanel(first)
-    await expect
-      .poll(
-        async () => {
-          const persisted = await kit.rpc.navigation.get()
-          return persisted?.entries[persisted.index]?.href ?? ''
-        },
-        {timeout: 30_000},
-      )
-      .toContain('open=true')
+    await expect.poll(() => currentHref(kit), {timeout: 30_000}).toContain('open=true')
     await first.getByRole('button', {name: 'Minimize conciv chat'}).click()
-    await expect
-      .poll(
-        async () => {
-          const persisted = await kit.rpc.navigation.get()
-          return persisted?.entries[persisted.index]?.href ?? ''
-        },
-        {timeout: 30_000},
-      )
-      .not.toContain('open=true')
+    await expect.poll(() => currentHref(kit), {timeout: 30_000}).not.toContain('open=true')
     await first.close()
     const second = await openPage()
     await expectLocator(second.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})

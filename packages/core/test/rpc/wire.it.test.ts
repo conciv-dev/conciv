@@ -209,11 +209,28 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       entries: [{href: '/'}, {href: '/panel/s1/chat', state: {key: 'k1', __TSR_index: 1, usr: {from: 'fab'}}}],
       index: 1,
     }
-    await kit.rpc.navigation.set(state)
+    await kit.rpc.navigation.set({...state, updatedAt: 100})
     expect(await kit.rpc.navigation.get(undefined)).toEqual(state)
     const replaced = {entries: [{href: '/quick'}], index: 0}
-    await kit.rpc.navigation.set(replaced)
+    await kit.rpc.navigation.set({...replaced, updatedAt: 200})
     expect(await kit.rpc.navigation.get(undefined)).toEqual(replaced)
+  })
+
+  it('navigation set drops a write whose intent stamp is not strictly newer than the stored one', async () => {
+    const {kit} = await bootWire()
+    const first = {entries: [{href: '/first'}], index: 0}
+    const stale = {entries: [{href: '/stale'}], index: 0}
+    const latest = {entries: [{href: '/latest'}], index: 0}
+
+    expect(await kit.rpc.navigation.set({...first, updatedAt: 100})).toEqual({ok: true, applied: true})
+    expect(await kit.rpc.navigation.set({...stale, updatedAt: 50})).toEqual({ok: true, applied: false})
+    expect(await kit.rpc.navigation.get(undefined)).toEqual(first)
+
+    expect(await kit.rpc.navigation.set({...latest, updatedAt: 150})).toEqual({ok: true, applied: true})
+    expect(await kit.rpc.navigation.get(undefined)).toEqual(latest)
+
+    expect(await kit.rpc.navigation.set({...stale, updatedAt: 150})).toEqual({ok: true, applied: false})
+    expect(await kit.rpc.navigation.get(undefined)).toEqual(latest)
   })
 
   it('editor.open reaches the injected editor opener', async () => {

@@ -1,4 +1,4 @@
-import {asc, eq} from 'drizzle-orm'
+import {asc, eq, lt} from 'drizzle-orm'
 import {HTTPException} from 'hono/http-exception'
 import {resolveHarnessModels} from '@conciv/harness'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -53,9 +53,16 @@ export function makeRpcRouter(deps: RpcDeps) {
         return row ? {entries: row.entries, index: row.index} : null
       }),
       set: os.navigation.set.handler(async ({input}) => {
-        const row = {id: 'navigation', entries: input.entries, index: input.index, updatedAt: Date.now()}
-        await db.insert(navigation).values(row).onConflictDoUpdate({target: navigation.id, set: row})
-        return {ok: true as const}
+        const row = {id: 'navigation', entries: input.entries, index: input.index, updatedAt: input.updatedAt}
+        const result = await db
+          .insert(navigation)
+          .values(row)
+          .onConflictDoUpdate({
+            target: navigation.id,
+            set: row,
+            setWhere: lt(navigation.updatedAt, input.updatedAt),
+          })
+        return {ok: true as const, applied: Number(result.changes) > 0}
       }),
     },
     page: {

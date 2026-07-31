@@ -8,6 +8,7 @@ import {
   ChatModelsSchema,
   ChatToolsSchema,
   NavigationStateSchema,
+  NavigationWriteSchema,
   PermissionDecisionSchema,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
@@ -31,6 +32,7 @@ const ChatSendInput = SessionIdInput.extend({
 }).refine((input) => input.text !== undefined || input.content !== undefined)
 const Ok = z.object({ok: z.literal(true)})
 const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
+const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const busy = {BUSY: {message: 'session busy'}}
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
@@ -62,7 +64,7 @@ export const contract = {
   },
   navigation: {
     get: oc.output(NavigationStateSchema.nullable()),
-    set: oc.input(NavigationStateSchema).output(Ok),
+    set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
     attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
