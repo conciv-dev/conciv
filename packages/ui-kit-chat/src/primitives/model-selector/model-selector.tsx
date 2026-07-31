@@ -66,7 +66,6 @@ type ModelSelectorContextValue = {
   efforts: Accessor<readonly ModelSelectorEffortOption[] | undefined>
   effort: Accessor<string | undefined>
   setEffort: (effort: string) => void
-  setOpen: (open: boolean) => void
 }
 
 const ModelSelectorContext = createContext<ModelSelectorContextValue>()
@@ -117,11 +116,6 @@ function Root(props: ModelSelectorRootProps): JSX.Element {
     defaultValue: () => props.defaultEffort,
     onChange: (next) => props.onEffortChange?.(next),
   })
-  const [open, setOpen] = createControllableSignal<boolean>({
-    value: () => props.open,
-    defaultValue: () => props.defaultOpen ?? false,
-    onChange: (next) => props.onOpenChange?.(next),
-  })
   const [query, setQuery] = createSignal('')
   const resetSearch = () => {
     setQuery('')
@@ -145,26 +139,25 @@ function Root(props: ModelSelectorRootProps): JSX.Element {
         efforts,
         effort: activeEffort,
         setEffort,
-        setOpen: (next) => setOpen(next),
       }}
     >
       <Combobox.Root
         collection={collection()}
         value={selection()}
         inputValue={query()}
-        open={open() ?? false}
+        open={props.open}
+        defaultOpen={props.defaultOpen}
         onValueChange={(details) => {
           const id = details.value[0]
           if (id) setValue(id)
           resetSearch()
-          setOpen(false)
         }}
         onInputValueChange={(details) => {
           setQuery(details.inputValue)
           filter(details.inputValue)
         }}
         onOpenChange={(details) => {
-          setOpen(details.open)
+          props.onOpenChange?.(details.open)
           if (details.open) resetSearch()
         }}
         openOnClick
