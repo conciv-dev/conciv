@@ -3,6 +3,7 @@ import {mkdtempSync, readFileSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {test, expect} from 'vitest'
+import getPort from 'get-port'
 import {start} from '../src/start.js'
 import {statePaths} from '../src/lib/state-paths.js'
 import {createRecordingTerminalOpener} from '@conciv/harness-testkit'
@@ -43,6 +44,18 @@ test('start boots on the requested fixed port', async () => {
     } finally {
       await engine.stop()
     }
+  } finally {
+    rmSync(root, {recursive: true, force: true})
+  }
+})
+
+test('a fresh boot takes its port straight from the listening socket, leaving it free for nobody', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'conciv-engine-port-'))
+  try {
+    const engine = await bootEngine(root)
+    const port = engine.port
+    await engine.stop()
+    expect(await getPort({port})).toBe(port)
   } finally {
     rmSync(root, {recursive: true, force: true})
   }

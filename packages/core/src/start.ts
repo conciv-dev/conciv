@@ -1,6 +1,5 @@
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
-import getPort from 'get-port'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter, TerminalOpener} from '@conciv/protocol/harness-types'
 import type {AnyExtension} from '@conciv/extension'
@@ -65,7 +64,7 @@ async function servePersistedPort(fetchHandler: FetchHandler, stateFile: string)
   const persisted = readPersistedPort(stateFile)
   const reused = persisted === undefined ? undefined : await reservePort(fetchHandler, persisted)
   if (reused) return reused
-  const serving = await serveHono({fetch: fetchHandler, port: await getPort()})
+  const serving = await serveHono({fetch: fetchHandler, port: 0})
   writePersistedPort(stateFile, serving.port)
   return serving
 }

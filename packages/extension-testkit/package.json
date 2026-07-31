@@ -33,7 +33,6 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@playwright/test": "^1.61.1",
     "@vitest/coverage-v8": "^4.1.8",
-    "get-port": "^7.2.0",
     "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
     "vite": "^8.0.16",

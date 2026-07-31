@@ -1389,9 +1389,6 @@ importers:
       drizzle-orm:
         specifier: 1.0.0-rc.4
         version: 1.0.0-rc.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(zod@4.4.3)
-      get-port:
-        specifier: ^7.1.0
-        version: 7.2.0
       hono:
         specifier: ^4.12.0
         version: 4.12.27
@@ -1429,6 +1426,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.8
         version: 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
+      get-port:
+        specifier: ^7.1.0
+        version: 7.2.0
       tsdown:
         specifier: ^0.22.4
         version: 0.22.4(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
@@ -1730,9 +1730,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.8
         version: 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
-      get-port:
-        specifier: ^7.2.0
-        version: 7.2.0
       playwright:
         specifier: ^1.61.1
         version: 1.61.1
