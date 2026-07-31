@@ -10,6 +10,8 @@ const HARNESS_MODELS = [
   {id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5'},
   {id: 'claude-opus-4-1', name: 'Claude Opus 4.1'},
 ]
+const PHONE_VIEWPORT = {width: 393, height: 800}
+const SHEET_INTERIOR_CLIP = {x: 40, y: 150, width: 313, height: 120}
 const HOST_HEADING = 'Deployment checklist'
 const LONG_HOST_BODY = `<h1>Host site</h1>${Array.from(
   {length: 60},
@@ -261,12 +263,12 @@ describe('embed boots the conciv app against a real core', () => {
 
 describe('embed at a phone viewport', () => {
   it('paints an opaque sheet so the host page never shows through', async () => {
-    const page = await browser.newPage({viewport: {width: 393, height: 800}})
+    const page = await browser.newPage({viewport: PHONE_VIEWPORT})
     const shootOver = async (backdrop: string): Promise<Buffer> => {
       await kit.rpc.navigation.set({entries: [{href: '/'}], index: 0})
       await page.goto(`${host.base}/?backdrop=${backdrop}`, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
-      return page.screenshot({animations: 'disabled'})
+      return page.screenshot({animations: 'disabled', clip: SHEET_INTERIOR_CLIP})
     }
     const patterned = await shootOver('light-stripes')
     const repeated = await shootOver('light-stripes')
@@ -277,7 +279,7 @@ describe('embed at a phone viewport', () => {
   })
 
   it('opens as a full-screen sheet with the launcher hidden and the composer reachable', async () => {
-    const page = await browser.newPage({viewport: {width: 393, height: 800}})
+    const page = await browser.newPage({viewport: PHONE_VIEWPORT})
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
     await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toHaveCount(0, {timeout: 30_000})
