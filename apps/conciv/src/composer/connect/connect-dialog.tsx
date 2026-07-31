@@ -85,16 +85,25 @@ export function ConnectDialog(props: {
   const checked = () => checkedLabel(local.checkedAt)
   const [target, setTarget] = createSignal<HTMLElement | null>(null)
   let focusedKind = ''
+  let alreadyOpen = false
   createEffect(() => {
     const kind = local.step.kind
     if (kind === 'closed') {
       focusedKind = ''
+      alreadyOpen = false
+      setTarget(null)
       return
     }
     const element = target()
-    if (!element || kind === focusedKind) return
+    if (!element) {
+      alreadyOpen = true
+      return
+    }
+    if (kind === focusedKind) return
+    const handedOverAtOpen = !alreadyOpen
     focusedKind = kind
-    element.focus()
+    alreadyOpen = true
+    if (!handedOverAtOpen) element.focus()
   })
   return (
     <Dialog
@@ -103,6 +112,7 @@ export function ConnectDialog(props: {
       dismissable
       size="lg"
       title={DIALOG_TITLE}
+      initialFocus={() => target()}
       footer={
         <div class="flex justify-between items-center gap-2">
           <Show when={checked()}>
