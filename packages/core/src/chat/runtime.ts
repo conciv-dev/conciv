@@ -21,6 +21,7 @@ export type ChatDeps = {
   db: ConcivDb
   changes: Changes
   dialed: (harnessSessionId: string) => boolean
+  processAlive?: (pid: number) => boolean
   risky: ReadonlySet<string>
   tools: (sessionId: string) => AnyTool[]
   attachmentExpanders: AttachmentExpanders

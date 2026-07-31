@@ -1,6 +1,6 @@
 import {realpathSync} from 'node:fs'
 import {isAbsolute, relative, resolve} from 'node:path'
-import {eq, isNotNull} from 'drizzle-orm'
+import {and, eq, isNotNull} from 'drizzle-orm'
 import {CONCIV_HOOK_PATH, isHarnessSessionId} from '@conciv/protocol/chat-types'
 import type {HarnessHistory, HarnessLiveSession, HarnessSessionSummary} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -151,12 +151,45 @@ export async function liveCandidates(deps: CandidateDeps): Promise<LiveSession[]
 
 export type AdoptRequest = {harnessSessionId: string; pid: number; force: boolean; requestUrl: string}
 
+export type AdoptFailureCode = 'CWD_MISMATCH' | 'INSTALL_FAILED' | 'ATTACH_CONFLICT' | 'ATTACH_FAILED'
+
 export type AdoptOutcome =
   | {ok: true; sessionId: string; reloadCommand: string}
-  | {ok: false; code: 'CWD_MISMATCH' | 'INSTALL_FAILED'; detail: string}
+  | {ok: false; code: AdoptFailureCode; detail: string}
 
 function pickCandidate(all: LiveSession[], request: AdoptRequest): LiveSession | undefined {
   return all.find((session) => session.sessionId === request.harnessSessionId && session.pid === request.pid)
+}
+
+type ClaimOutcome = {ok: true} | {ok: false; code: 'ATTACH_CONFLICT' | 'ATTACH_FAILED'; detail: string}
+
+function claimAttachment(deps: ChatDeps, sessionId: string, candidate: LiveSession): ClaimOutcome {
+  const alive = deps.processAlive ?? processAlive
+  try {
+    return deps.db.transaction((tx): ClaimOutcome => {
+      const rows = tx.select({attachedPid: sessions.attachedPid}).from(sessions).where(eq(sessions.id, sessionId)).all()
+      const held = rows[0]?.attachedPid ?? null
+      if (held !== null && held !== candidate.pid && alive(held))
+        return {ok: false, code: 'ATTACH_CONFLICT', detail: `another terminal (pid ${held}) already drives this chat`}
+      const now = Date.now()
+      tx.update(sessions)
+        .set({attachedPid: candidate.pid, attachedAt: now, transcriptCwd: candidate.cwd, updatedAt: now})
+        .where(eq(sessions.id, sessionId))
+        .run()
+      return {ok: true}
+    })
+  } catch (error) {
+    return {ok: false, code: 'ATTACH_FAILED', detail: `could not record the attachment: ${String(error)}`}
+  }
+}
+
+async function rollBackInstall(deps: ChatDeps, dependentsBefore: number): Promise<void> {
+  if (dependentsBefore > 0) return
+  const dependentsNow = await attachedCount(deps.db).catch(() => dependentsBefore)
+  if (dependentsNow > 0) return
+  await deps.harness.attach
+    ?.uninstall({root: deps.cwd, stateDir: concivStateDir(deps.stateRoot)})
+    .catch((error: unknown) => logError(`[core] rolling the connect plugin back failed: ${String(error)}`))
 }
 
 export async function adoptLiveSession(deps: ChatDeps, request: AdoptRequest): Promise<AdoptOutcome> {
@@ -173,61 +206,77 @@ export async function adoptLiveSession(deps: ChatDeps, request: AdoptRequest): P
     {db: deps.db, harnessKind: deps.harness.id, cwd: deps.cwd},
     {id: candidate.sessionId},
   )
-  await deps.db
-    .update(sessions)
-    .set({attachedPid: candidate.pid, attachedAt: Date.now(), transcriptCwd: candidate.cwd, updatedAt: Date.now()})
-    .where(eq(sessions.id, sessionId))
-  deps.changes.notify()
-
-  const installed = await attach.install({
-    root: deps.cwd,
-    stateDir: concivStateDir(deps.stateRoot),
-    mcpUrl: mcpUrlFor(deps, request.requestUrl),
-    hookUrl: `${apiBaseFrom(request.requestUrl, deps.basePath)}${CONCIV_HOOK_PATH}`,
-  })
-  if (!installed.ok) {
-    await clearAttachment(deps.db, sessionId)
-    deps.changes.notify()
+  const dependentsBefore = await attachedCount(deps.db)
+  const installed = await attach
+    .install({
+      root: deps.cwd,
+      stateDir: concivStateDir(deps.stateRoot),
+      mcpUrl: mcpUrlFor(deps, request.requestUrl),
+      hookUrl: `${apiBaseFrom(request.requestUrl, deps.basePath)}${CONCIV_HOOK_PATH}`,
+    })
+    .catch((error: unknown) => ({ok: false, reloadCommand: '', detail: String(error)}))
+  if (!installed.ok)
     return {ok: false, code: 'INSTALL_FAILED', detail: installed.detail ?? 'claude refused the conciv plugin'}
+
+  const claimed = claimAttachment(deps, sessionId, candidate)
+  if (!claimed.ok) {
+    if (claimed.code === 'ATTACH_FAILED') await rollBackInstall(deps, dependentsBefore)
+    return {ok: false, code: claimed.code, detail: claimed.detail}
   }
+  deps.changes.notify()
   return {ok: true, sessionId, reloadCommand: installed.reloadCommand}
 }
 
-async function clearAttachment(db: ConcivDb, sessionId: string): Promise<void> {
-  await db
+async function clearAttachment(db: ConcivDb, sessionId: string): Promise<boolean> {
+  const cleared = await db
     .update(sessions)
     .set({attachedPid: null, attachedAt: null, updatedAt: Date.now()})
-    .where(eq(sessions.id, sessionId))
+    .where(and(eq(sessions.id, sessionId), isNotNull(sessions.attachedPid)))
+    .returning({id: sessions.id})
+  return cleared.length > 0
 }
 
 async function attachedCount(db: ConcivDb): Promise<number> {
   return (await db.select({id: sessions.id}).from(sessions).where(isNotNull(sessions.attachedPid))).length
 }
 
-export async function detachLiveSession(deps: ChatDeps, sessionId: string): Promise<void> {
-  await clearAttachment(deps.db, sessionId)
+export async function detachLiveSession(deps: ChatDeps, sessionId: string): Promise<boolean> {
+  if (!(await clearAttachment(deps.db, sessionId))) return false
   deps.onSessionDetached?.(sessionId)
   deps.changes.notify()
-  if ((await attachedCount(deps.db)) > 0) return
+  if ((await attachedCount(deps.db)) > 0) return true
   await deps.harness.attach
     ?.uninstall({root: deps.cwd, stateDir: concivStateDir(deps.stateRoot)})
     .catch((error: unknown) => logError(`[core] detach failed: ${String(error)}`))
+  return true
 }
 
 export function processAlive(pid: number): boolean {
   try {
     process.kill(pid, 0)
     return true
-  } catch {
-    return false
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
   }
+}
+
+async function stillListed(deps: ChatDeps, pid: number, harnessSessionId: string | null): Promise<boolean> {
+  const attach = deps.harness.attach
+  if (!attach || harnessSessionId === null) return true
+  const found = await attach.candidates(deps.cwd, deps.claudeHome).catch((error: unknown) => {
+    logError(`[core] rechecking the attached ${deps.harness.id} session failed: ${String(error)}`)
+    return null
+  })
+  if (found === null) return true
+  return found.some((session) => session.pid === pid && session.sessionId === harnessSessionId)
 }
 
 export async function attachedElsewhere(deps: ChatDeps, sessionId: string): Promise<boolean> {
   const record = await sessionById(deps.db, sessionId)
   const pid = record?.attachedPid ?? null
   if (pid === null) return false
-  if (processAlive(pid)) return true
+  const alive = deps.processAlive ?? processAlive
+  if (alive(pid) && (await stillListed(deps, pid, record?.harnessSessionId ?? null))) return true
   await clearAttachment(deps.db, sessionId)
   deps.changes.notify()
   return false

@@ -384,6 +384,7 @@ async function addCompactMarker(db: ConcivDb, sessionId: string, afterTurn: numb
 
 export function makeCompactor(deps: ChatDeps): Compactor {
   async function run(sessionId: string): Promise<void> {
+    if (await attachedElsewhere(deps, sessionId)) throw new Error(SESSION_ATTACHED)
     if (claimRun(deps.db, sessionId, 'compact') === null) throw new Error(SESSION_BUSY)
     deps.changes.notify()
     try {

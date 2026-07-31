@@ -37,6 +37,7 @@ const ChatSendInput = SessionIdInput.extend({
 const Ok = z.object({ok: z.literal(true)})
 const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
 const busy = {BUSY: {message: 'session busy'}}
+const sessionAttached = {SESSION_ATTACHED: {message: 'this session is driven from your terminal'}}
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 
@@ -54,22 +55,38 @@ export const contract = {
       .errors({...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
       .input(SessionIdInput.extend({model: z.string()}))
       .output(z.object({model: z.string()})),
-    compact: oc.errors(busy).input(SessionIdInput).output(Ok),
+    compact: oc
+      .errors({...busy, ...sessionAttached})
+      .input(SessionIdInput)
+      .output(Ok),
     stop: oc.input(SessionIdInput).output(Ok),
     launch: oc
-      .errors(busy)
-      .input(SessionIdInput.extend({model: z.string().optional(), open: z.boolean().optional()}))
+      .errors({...busy, ...sessionAttached})
+      .input(
+        SessionIdInput.extend({
+          model: z.string().optional(),
+          open: z.boolean().optional(),
+          force: z.boolean().optional(),
+        }),
+      )
       .output(ChatLaunchSchema),
-    connectCommand: oc.input(SessionIdInput.extend({model: z.string().optional()})).output(ChatLaunchSchema),
+    connectCommand: oc
+      .errors(sessionAttached)
+      .input(SessionIdInput.extend({model: z.string().optional(), force: z.boolean().optional()}))
+      .output(ChatLaunchSchema),
     attachCandidates: oc.output(z.array(LiveSessionSchema)),
     attachAdopt: oc
       .errors({
         CWD_MISMATCH: {message: 'that session runs in a different directory'},
         INSTALL_FAILED: {message: 'could not install the conciv plugin'},
+        ATTACH_CONFLICT: {message: 'another terminal already drives this conversation'},
+        ATTACH_FAILED: {message: 'could not record the attachment'},
       })
       .input(z.object({harnessSessionId: HarnessSessionId, pid: z.number().int(), force: z.boolean().optional()}))
       .output(z.object({sessionId: z.string(), reloadCommand: z.string()})),
-    attachDetach: oc.input(z.object({sessionId: SessionId})).output(Ok),
+    attachDetach: oc
+      .input(z.object({sessionId: SessionId}))
+      .output(z.object({ok: z.literal(true), detached: z.boolean()})),
   },
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
@@ -95,7 +112,7 @@ export const contract = {
           message: 'an external session owns this conversation',
           data: SendConfirmSchema,
         },
-        SESSION_ATTACHED: {message: 'this session is driven from your terminal'},
+        ...sessionAttached,
       })
       .input(ChatSendInput)
       .output(SendAccepted),

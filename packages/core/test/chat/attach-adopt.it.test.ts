@@ -250,6 +250,23 @@ describe('sending while a terminal drives the session', () => {
     expect(released.find((meta) => meta.id === sessionId)?.attached).toBe(false)
   }, 30_000)
 
+  it('says whether the detach handed anything back', async () => {
+    const kit = await boot()
+    const {sessionId} = await kit.rpc.sessions.attachAdopt({harnessSessionId: HARNESS_SESSION, pid: process.pid})
+
+    expect(await kit.rpc.sessions.attachDetach({sessionId})).toEqual({ok: true, detached: true})
+    expect(await kit.rpc.sessions.attachDetach({sessionId})).toEqual({ok: true, detached: false})
+  }, 30_000)
+
+  it('refuses to compact or relaunch a conversation a terminal is driving', async () => {
+    const kit = await boot()
+    const {sessionId} = await kit.rpc.sessions.attachAdopt({harnessSessionId: HARNESS_SESSION, pid: process.pid})
+
+    await expect(kit.rpc.sessions.compact({sessionId})).rejects.toMatchObject({code: 'SESSION_ATTACHED'})
+    await expect(kit.rpc.sessions.launch({sessionId})).rejects.toMatchObject({code: 'SESSION_ATTACHED'})
+    expect((await kit.rpc.sessions.list()).find((meta) => meta.id === sessionId)?.status).toBe('idle')
+  }, 30_000)
+
   it('hands the session back on detach and removes the generated plugin', async () => {
     const kit = await boot()
     const {sessionId} = await kit.rpc.sessions.attachAdopt({harnessSessionId: HARNESS_SESSION, pid: process.pid})

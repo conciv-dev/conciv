@@ -14,7 +14,13 @@ import {
 } from '../../chat/session.js'
 import type {ChatDeps} from '../../chat/runtime.js'
 import {SESSION_BUSY} from '../../chat/run.js'
-import {adoptLiveSession, detachLiveSession, liveCandidates} from '../../chat/adopt.js'
+import {
+  adoptLiveSession,
+  attachedElsewhere,
+  detachLiveSession,
+  liveCandidates,
+  SESSION_ATTACHED,
+} from '../../chat/adopt.js'
 import {os, type RpcDeps} from './mount.js'
 
 function wireStatus(status: RunStatus): 'idle' | 'running' | 'compacting' {
@@ -81,8 +87,9 @@ export function sessionsRouter(deps: RpcDeps) {
       const {sessionId} = await resolveSession(scope, input)
       return {sessionId}
     }),
-    launch: os.sessions.launch.handler(({input, context, errors}) => {
+    launch: os.sessions.launch.handler(async ({input, context, errors}) => {
       if (statusOf(db, input.sessionId) !== 'idle') throw errors.BUSY()
+      if (!input.force && (await attachedElsewhere(chat, input.sessionId))) throw errors.SESSION_ATTACHED()
       deps.onLaunch(input.sessionId)
       return launchHarness(chat, {
         sessionId: input.sessionId,
@@ -91,7 +98,8 @@ export function sessionsRouter(deps: RpcDeps) {
         requestUrl: context.request.url,
       })
     }),
-    connectCommand: os.sessions.connectCommand.handler(({input, context}) => {
+    connectCommand: os.sessions.connectCommand.handler(async ({input, context, errors}) => {
+      if (!input.force && (await attachedElsewhere(chat, input.sessionId))) throw errors.SESSION_ATTACHED()
       deps.onLaunch(input.sessionId)
       return launchHarness(chat, {
         sessionId: input.sessionId,
@@ -111,11 +119,13 @@ export function sessionsRouter(deps: RpcDeps) {
       })
       if (outcome.ok) return {sessionId: outcome.sessionId, reloadCommand: outcome.reloadCommand}
       if (outcome.code === 'CWD_MISMATCH') throw errors.CWD_MISMATCH({message: outcome.detail})
+      if (outcome.code === 'ATTACH_CONFLICT') throw errors.ATTACH_CONFLICT({message: outcome.detail})
+      if (outcome.code === 'ATTACH_FAILED') throw errors.ATTACH_FAILED({message: outcome.detail})
       throw errors.INSTALL_FAILED({message: outcome.detail})
     }),
     attachDetach: os.sessions.attachDetach.handler(async ({input}) => {
-      await detachLiveSession(chat, input.sessionId)
-      return {ok: true as const}
+      const detached = await detachLiveSession(chat, input.sessionId)
+      return {ok: true as const, detached}
     }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
       if (!(await sessionById(db, input.sessionId))) throw errors.NOT_FOUND()
@@ -143,6 +153,7 @@ export function sessionsRouter(deps: RpcDeps) {
         await deps.compactor.run(input.sessionId)
       } catch (error) {
         if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
+        if (error instanceof Error && error.message === SESSION_ATTACHED) throw errors.SESSION_ATTACHED()
         throw error
       }
       return {ok: true as const}
