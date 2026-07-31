@@ -40,9 +40,43 @@ Before opening the release PR, fan out verifier agents concurrently (one message
 | gates-runner      | sonnet | Run `pnpm typecheck && pnpm build && pnpm test`, forced test reruns for changed packages, `pnpm lint`, `pnpm format:check`, `pnpm exec fallow audit --changed-since main --format json`, and `pnpm release:check`. Report raw pass/fail per command with the failing output verbatim. Anything INTRODUCED by fallow blocks.                                                                                                                                                                           |
 | changeset-auditor | haiku  | Verify `.changeset/*.md` exists for the work being released, frontmatter parses, exactly the fixed-versioning shape (one `@conciv/*` entry, no enumeration), and the description reads from the consumer's perspective.                                                                                                                                                                                                                                                                               |
 | npm-auditor       | haiku  | For each package in `PUBLIC_PACKAGES` (`packages/publish/src/guards.ts`), query the registry: `curl -s https://registry.npmjs.org/@conciv%2f<pkg> \| jq '.versions["<v>"]._npmUser, .versions["<v>"].dist.attestations'`. `_npmUser` "GitHub Actions" plus attestations means trusted publishing is configured; a human `_npmUser` and null attestations means the package will E404 the next CI release. Also flag any `PUBLIC_PACKAGES` entry missing from the registry entirely (needs bootstrap). |
+| phone-smoke       | sonnet | Run the phone smoke gate below. Report each of the four checks as pass/fail with the artifact that proves it (screenshot path, IT name, or simulator log line), plus which half of the gate ran (automated ITs, simulator, or both).                                                                                                                                                                                                                                                                  |
 | release-skeptic   | opus   | Adversarial: read `.github/workflows/release.yml`, `packages/publish/src/guards.ts`, the diff since main, and the other verifiers' outputs. Mission: PROVE THE RELEASE WILL FAIL. Any concrete failure path (permission missing on the reusable ci.yml call, `assertPublicSet` drift, unbootstrapped package, manifest missing `homepage`/`repository.directory`) is a blocking finding with the exact file and line.                                                                                 |
 
-The release PR opens only when gates are green and the skeptic fails to construct a failure path. Report the skeptic's attempted attacks and why each failed; "skeptic found nothing" with no attack list is not evidence.
+The release PR opens only when gates are green, the phone smoke gate is green, and the skeptic fails to construct a failure path. Report the skeptic's attempted attacks and why each failed; "skeptic found nothing" with no attack list is not evidence.
+
+### Phone smoke gate (blocking)
+
+0.0.16 shipped with every component check green and was broken on a real phone: the chat did not scroll, the panel sheet was transparent, and the composer overflowed its container. Nothing in the package-level suites looks at the widget at phone size, so component-green is not release-green. This gate exists so that cannot recur.
+
+Build the embed first, because both halves load the prebuilt bundle:
+
+```
+pnpm turbo run build --filter=@conciv/embed
+```
+
+Then run both halves. Neither half alone clears the gate.
+
+**Automated half (always run, no simulator needed).** The phone-viewport Playwright ITs in `packages/embed/test/*.it.test.ts` open the built bundle with `browser.newPage({viewport: {width: 390, height: 844}})` and cover scrolling, sheet opacity, and composer layout as screenshots (never `getBoundingClientRect`, per the no-DOM-measurement rule). If a check has no phone-viewport IT yet, writing it is part of the release, not a follow-up.
+
+**Simulator half (needed for anything the browser cannot model).** WKWebView, the native bridge, and `pick` returning a real element only exist on-device. Run the demo headlessly and never drive the user's mouse or the Simulator UI:
+
+```
+SIM_NAME="iPhone 17 Pro" native/swift/ConcivDemo/run.sh
+```
+
+`run.sh` builds, boots the simulator, installs, and launches `dev.conciv.ConcivDemo`. For a consumer app instead of the in-repo demo, use the documented external flow in `apps/site/content/docs/quick-start/ios.mdx` (`ios.build` and `ios.run`, or `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl launch booted dev.conciv.YourApp`). Drive the rest with `xcrun simctl` only (`launch`, `io <udid> screenshot`, `spawn <udid> log stream`); the `open -a Simulator` line is convenience, not permission to click. On a machine with no Xcode simulator, say so in the verifier report and treat the simulator checks as UNVERIFIED, which blocks the release the same way a failure does.
+
+The four checks, each needing an artifact:
+
+| Check                              | Automated proxy                            | Simulator                                                                         |
+| ---------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------- |
+| Chat transcript scrolls to the end | phone-viewport IT, screenshot after scroll | screenshot after a long turn, taken with `simctl io screenshot`                   |
+| Panel sheet is opaque              | phone-viewport IT screenshot               | screenshot over a busy host screen                                                |
+| Composer does not overflow         | phone-viewport IT screenshot               | screenshot with a multi-line draft and the keyboard up                            |
+| `pick` returns a real element      | not coverable in the browser               | REQUIRED: pick a row in the demo, confirm the grab carries text, rect, and source |
+
+`pick` has no browser proxy: the bridge is native, so a green IT run says nothing about it. A release that skipped the simulator has not verified `pick`.
 
 ## Adding a new published package
 
@@ -79,3 +113,4 @@ Until the trust config exists, every CI release fails that package with `E404 un
 - Treating the version PR's missing CI as a blocker, or a green version PR as test evidence.
 - Publishing manually to "unblock" a red Release run instead of fixing it: you lose provenance and tags.
 - Skipping the verifier fan-out because "the gates passed last week": registry and workflow state drift independently of the code.
+- Treating component-green CI as phone-green, or shipping with the simulator half of the phone smoke gate unrun: that is exactly how 0.0.16 shipped broken.
