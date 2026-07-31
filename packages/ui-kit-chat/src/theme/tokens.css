@@ -28,6 +28,7 @@
   --chat-radius-md: 12px;
   --chat-radius-lg: 18px;
   --chat-radius-pill: 999px;
+  --chat-shadow-sm: 0 2px 8px rgba(15, 18, 24, 0.14);
   --chat-shadow-lg: 0 16px 44px rgba(15, 18, 24, 0.18);
   --chat-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --chat-font: system-ui, -apple-system, sans-serif;
@@ -60,6 +61,7 @@
   --chat-success: #57d9a3;
   --chat-line: rgba(255, 255, 255, 0.1);
   --chat-line-soft: rgba(255, 255, 255, 0.06);
+  --chat-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.45);
   --chat-shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.55);
 }
 

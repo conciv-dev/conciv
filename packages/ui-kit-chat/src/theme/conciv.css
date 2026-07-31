@@ -28,6 +28,7 @@
   --chat-radius-md: var(--pw-r-md);
   --chat-radius-lg: var(--pw-r-lg);
   --chat-radius-pill: var(--pw-r-pill);
+  --chat-shadow-sm: var(--pw-shadow);
   --chat-shadow-lg: var(--pw-shadow-lg);
   --chat-ease: var(--pw-ease);
   --chat-font: var(--pw-font);
