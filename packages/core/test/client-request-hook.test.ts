@@ -3,6 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {test, expect} from 'vitest'
 import {start} from '../src/start.js'
+import {createRecordingTerminalOpener} from '@conciv/harness-testkit'
 
 test('onClientRequest fires once on the first token request', async () => {
   const root = mkdtempSync(join(tmpdir(), 'conciv-client-request-hook-'))
@@ -12,6 +13,7 @@ test('onClientRequest fires once on the first token request', async () => {
       options: {harnessBin: 'true', stateRoot: root},
       root,
       launchEditor: () => {},
+      openTerminal: createRecordingTerminalOpener().open,
       accessToken: 'tok-hook',
       onClientRequest: () => {
         fired += 1

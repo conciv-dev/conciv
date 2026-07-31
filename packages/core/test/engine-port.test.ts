@@ -5,9 +5,15 @@ import {join} from 'node:path'
 import {test, expect} from 'vitest'
 import {start} from '../src/start.js'
 import {statePaths} from '../src/lib/state-paths.js'
+import {createRecordingTerminalOpener} from '@conciv/harness-testkit'
 
 function bootEngine(root: string) {
-  return start({options: {harnessBin: 'true', stateRoot: root, systemPrompt: false}, root, launchEditor: () => {}})
+  return start({
+    options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
+    root,
+    launchEditor: () => {},
+    openTerminal: createRecordingTerminalOpener().open,
+  })
 }
 
 function recordedPort(root: string): unknown {
@@ -29,6 +35,7 @@ test('start boots on the requested fixed port', async () => {
       options: {harnessBin: 'true', stateRoot: root},
       root,
       launchEditor: () => {},
+      openTerminal: createRecordingTerminalOpener().open,
       port: 41799,
     })
     try {

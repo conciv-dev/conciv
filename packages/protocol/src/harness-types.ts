@@ -59,6 +59,10 @@ export type HarnessConnectPlan = {
 
 export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPlan}
 
+export type TerminalOpenRequest = {bin: string; args: string[]}
+
+export type TerminalOpener = (request: TerminalOpenRequest) => Promise<boolean>
+
 export type HarnessLiveSession = {
   sessionId: string
   pid: number

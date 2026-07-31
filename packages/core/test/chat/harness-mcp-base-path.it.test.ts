@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
-import {createFakeHarness} from '@conciv/harness-testkit'
+import {createFakeHarness, createRecordingTerminalOpener} from '@conciv/harness-testkit'
 import {makeRpcClient} from '@conciv/contract'
 import {connectPlanFor} from '../../src/chat/session.js'
 import {start} from '../../src/start.js'
@@ -39,6 +39,7 @@ async function harnessFacingMcpUrl(accessToken?: string): Promise<string | undef
     harness,
     extensions: [],
     launchEditor: () => {},
+    openTerminal: createRecordingTerminalOpener().open,
     accessToken,
   })
   const prefix = accessToken ? `/t/${accessToken}` : ''

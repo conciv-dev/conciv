@@ -2,7 +2,7 @@ import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {createFakeHarness} from '@conciv/harness-testkit'
+import {createFakeHarness, createRecordingTerminalOpener} from '@conciv/harness-testkit'
 import {start, type Engine} from '../../src/start.js'
 
 let engine: Engine
@@ -12,6 +12,7 @@ beforeAll(async () => {
     options: {},
     root: mkdtempSync(join(tmpdir(), 'conciv-gate-')),
     launchEditor: () => {},
+    openTerminal: createRecordingTerminalOpener().open,
     harness: createFakeHarness({id: 'fake-gate'}),
     accessToken: 'tok-123',
   })

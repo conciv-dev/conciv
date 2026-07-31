@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter, TerminalOpener} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {
@@ -50,6 +50,7 @@ export type MakeAppOpts = {
   basePath?: string
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
+  openTerminal: TerminalOpener
   systemPromptFile?: string
 
   systemPromptText?: string
@@ -324,6 +325,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     basePath,
     harness,
     harnessEnv: opts.harnessEnv,
+    openTerminal: opts.openTerminal,
     claudeHome: opts.claudeHome,
     systemText: resolveSystemText(
       {systemPromptFile: opts.systemPromptFile, systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt},

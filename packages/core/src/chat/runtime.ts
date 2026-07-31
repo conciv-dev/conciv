@@ -1,7 +1,7 @@
 import {toolDefinition, type AnyTool} from '@tanstack/ai'
 import type {SandboxDefinition} from '@tanstack/ai-sandbox'
 import type {z} from 'zod'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter, TerminalOpener} from '@conciv/protocol/harness-types'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import type {ConcivDb} from '@conciv/db'
@@ -16,6 +16,7 @@ export type ChatDeps = {
   claudeHome?: string
   harness: HarnessAdapter
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
+  openTerminal: TerminalOpener
   sandbox: SandboxDefinition
   db: ConcivDb
   changes: Changes

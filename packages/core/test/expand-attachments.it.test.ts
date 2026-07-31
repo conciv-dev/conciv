@@ -2,7 +2,7 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterAll, describe, expect, it, vi} from 'vitest'
-import {createFakeHarness} from '@conciv/harness-testkit'
+import {createFakeHarness, createRecordingTerminalOpener} from '@conciv/harness-testkit'
 import {defineAttachment, defineExtension} from '@conciv/extension'
 import {imageHistoryFor, openDb} from '@conciv/db'
 import {ChatMessageSchema} from '@conciv/protocol/chat-types'
@@ -39,6 +39,7 @@ async function bootApp(fake: ReturnType<typeof createFakeHarness>): Promise<Made
     },
     cwd: stateRoot,
     openInEditor: () => {},
+    openTerminal: createRecordingTerminalOpener().open,
     harness: fake,
     extensions: [fixtureExtension()],
   })

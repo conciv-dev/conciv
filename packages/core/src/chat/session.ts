@@ -330,6 +330,7 @@ export async function launchHarness(deps: ChatDeps, opts: LaunchOptions): Promis
     cwd: deps.cwd,
     stateDir: concivStateDir(deps.stateRoot),
     open: opts.open ?? true,
+    openTerminal: deps.openTerminal,
   })
   return {supported: true, opened, command}
 }

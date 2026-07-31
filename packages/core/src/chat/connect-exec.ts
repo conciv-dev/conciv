@@ -1,13 +1,12 @@
-import {spawn} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 import {chmodSync, mkdirSync, writeFileSync} from 'node:fs'
 import {platform, tmpdir} from 'node:os'
 import {dirname, isAbsolute, join, resolve} from 'node:path'
-import type {HarnessConnectFile, HarnessConnectPlan} from '@conciv/protocol/harness-types'
+import type {HarnessConnectFile, HarnessConnectPlan, TerminalOpener} from '@conciv/protocol/harness-types'
 
 const DEFAULT_FILE_MODE = 0o600
 
-export type ConnectExecOptions = {cwd: string; stateDir: string; open: boolean}
+export type ConnectExecOptions = {cwd: string; stateDir: string; open: boolean; openTerminal: TerminalOpener}
 
 export type ConnectExecResult = {opened: boolean; command: string}
 
@@ -81,33 +80,22 @@ function macTerminalApp(termProgram: string | undefined): string | null {
   }
 }
 
-function spawnDetached(bin: string, args: string[]): Promise<boolean> {
-  return new Promise((settle) => {
-    const child = spawn(bin, args, {detached: true, stdio: 'ignore'})
-    child.once('spawn', () => {
-      child.unref()
-      settle(true)
-    })
-    child.once('error', () => settle(false))
-  })
-}
-
-async function openWindows(plan: HarnessConnectPlan, cwd: string, open: boolean): Promise<ConnectExecResult> {
-  const script = writeScript(renderCmdScript(plan, cwd), 'cmd', 0o700)
+async function openWindows(plan: HarnessConnectPlan, opts: ConnectExecOptions): Promise<ConnectExecResult> {
+  const script = writeScript(renderCmdScript(plan, opts.cwd), 'cmd', 0o700)
   const command = `cmd /c ${cmdQuote(script)}`
-  if (!open) return {opened: false, command}
-  return {opened: await spawnDetached('cmd', ['/c', 'start', 'cmd', '/k', script]), command}
+  if (!opts.open) return {opened: false, command}
+  return {opened: await opts.openTerminal({bin: 'cmd', args: ['/c', 'start', 'cmd', '/k', script]}), command}
 }
 
-async function openPosix(plan: HarnessConnectPlan, cwd: string): Promise<boolean> {
-  const command = renderConnectCommand(plan, cwd)
+async function openPosix(plan: HarnessConnectPlan, opts: ConnectExecOptions): Promise<boolean> {
   if (platform() === 'darwin') {
-    const script = writeScript(renderBashScript(plan, cwd), 'command', 0o755)
+    const script = writeScript(renderBashScript(plan, opts.cwd), 'command', 0o755)
     const terminalApp = macTerminalApp(process.env.TERM_PROGRAM)
-    return spawnDetached('open', terminalApp ? ['-a', terminalApp, script] : [script])
+    return opts.openTerminal({bin: 'open', args: terminalApp ? ['-a', terminalApp, script] : [script]})
   }
   if (platform() === 'linux') {
-    return spawnDetached('x-terminal-emulator', ['-e', 'bash', '-lc', `${command}; exec bash`])
+    const command = renderConnectCommand(plan, opts.cwd)
+    return opts.openTerminal({bin: 'x-terminal-emulator', args: ['-e', 'bash', '-lc', `${command}; exec bash`]})
   }
   return false
 }
@@ -117,8 +105,8 @@ export async function executeConnectPlan(
   opts: ConnectExecOptions,
 ): Promise<ConnectExecResult> {
   writePlanFiles(plan, opts.stateDir)
-  if (platform() === 'win32') return openWindows(plan, opts.cwd, opts.open)
+  if (platform() === 'win32') return openWindows(plan, opts)
   const command = renderConnectCommand(plan, opts.cwd)
   if (!opts.open) return {opened: false, command}
-  return {opened: await openPosix(plan, opts.cwd), command}
+  return {opened: await openPosix(plan, opts), command}
 }

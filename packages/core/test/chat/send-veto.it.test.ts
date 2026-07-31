@@ -3,7 +3,7 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, type ServerApi} from '@conciv/extension'
-import {createTestHarness, createTestkit, until, type Kit} from '@conciv/harness-testkit'
+import {createRecordingTerminalOpener, createTestHarness, createTestkit, until, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 
@@ -104,12 +104,29 @@ describe('sessions.launch busy guard', () => {
     }
   }, 30_000)
 
-  it('launches once the session is idle', async () => {
-    const kit = await createTestkit(requireClaude(), bootCoreApp({fakeClaude: {}})).setup()
+  it('launches once the session is idle, through the injected terminal opener', async () => {
+    const terminal = createRecordingTerminalOpener()
+    const kit = await createTestkit(requireClaude(), bootCoreApp({fakeClaude: {}, openTerminal: terminal.open})).setup()
     try {
       const sessionId = await kit.session()
       const launch = await kit.rpc.sessions.launch({sessionId})
       expect(launch.supported).toBe(true)
+      expect(launch.opened).toBe(true)
+      expect(terminal.opened).toHaveLength(1)
+      expect(terminal.opened[0]?.bin).toBe(process.platform === 'win32' ? 'cmd' : 'open')
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
+  it('does not open a terminal when the caller asks for the command only', async () => {
+    const terminal = createRecordingTerminalOpener()
+    const kit = await createTestkit(requireClaude(), bootCoreApp({fakeClaude: {}, openTerminal: terminal.open})).setup()
+    try {
+      const sessionId = await kit.session()
+      const launch = await kit.rpc.sessions.connectCommand({sessionId})
+      expect(launch.command).toContain('claude')
+      expect(terminal.opened).toEqual([])
     } finally {
       await kit.cleanup()
     }

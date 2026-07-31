@@ -3,6 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import type {HarnessConnectPlan} from '@conciv/protocol/harness-types'
+import {createRecordingTerminalOpener} from '@conciv/harness-testkit'
 import {executeConnectPlan, renderConnectCommand} from '../../src/chat/connect-exec.js'
 
 const dirs: string[] = []
@@ -50,6 +51,7 @@ describe('executeConnectPlan', () => {
       cwd: stateDir,
       stateDir,
       open: false,
+      openTerminal: createRecordingTerminalOpener().open,
     })
     expect(readFileSync(path, 'utf8')).toBe('{"hook":true}')
     expect(statSync(path).mode & 0o777).toBe(0o600)
@@ -62,6 +64,7 @@ describe('executeConnectPlan', () => {
       cwd: stateDir,
       stateDir,
       open: false,
+      openTerminal: createRecordingTerminalOpener().open,
     })
     expect(statSync(path).mode & 0o777).toBe(0o755)
   })
@@ -72,14 +75,31 @@ describe('executeConnectPlan', () => {
       cwd: stateDir,
       stateDir,
       open: false,
+      openTerminal: createRecordingTerminalOpener().open,
     })
     expect(readFileSync(join(stateDir, 'connect', 'hook.json'), 'utf8')).toBe('x')
   })
 
   it('returns the command unopened when opening is off', async () => {
     const stateDir = tmp('conciv-connect-state-')
-    const result = await executeConnectPlan(plan({env: {A: 'b'}}), {cwd: '/w', stateDir, open: false})
+    const opener = createRecordingTerminalOpener()
+    const result = await executeConnectPlan(plan({env: {A: 'b'}}), {
+      cwd: '/w',
+      stateDir,
+      open: false,
+      openTerminal: opener.open,
+    })
     expect(result.opened).toBe(false)
     expect(result.command).toBe(renderConnectCommand(plan({env: {A: 'b'}}), '/w'))
+    expect(opener.opened).toEqual([])
+  })
+
+  it('opens through the injected opener instead of spawning a terminal itself', async () => {
+    const stateDir = tmp('conciv-connect-state-')
+    const opener = createRecordingTerminalOpener()
+    const result = await executeConnectPlan(plan(), {cwd: stateDir, stateDir, open: true, openTerminal: opener.open})
+    expect(result.opened).toBe(true)
+    expect(opener.opened).toHaveLength(1)
+    expect(opener.opened[0]?.bin).not.toBe('')
   })
 })

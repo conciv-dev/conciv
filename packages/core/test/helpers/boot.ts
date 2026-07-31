@@ -5,7 +5,8 @@ import {fileURLToPath, pathToFileURL} from 'node:url'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension} from '@conciv/extension'
-import {createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
+import type {TerminalOpener} from '@conciv/protocol/harness-types'
+import {createRecordingTerminalOpener, createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '../../src/app.js'
 import type {ResolvedConcivConfig} from '../../src/config.js'
 import {requireClaude} from './adapters.js'
@@ -21,6 +22,7 @@ export type BootOverrides = {
   extensions?: AnyExtension[]
   extensionConfig?: Record<string, unknown>
   openInEditor?: (file: string, line?: number) => void
+  openTerminal?: TerminalOpener
   bridge?: BundlerBridge
   firstChunkTimeoutMs?: number
 }
@@ -63,6 +65,7 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
       cfg,
       cwd: overrides.cwd ?? env.cwd,
       openInEditor: overrides.openInEditor ?? (() => {}),
+      openTerminal: overrides.openTerminal ?? createRecordingTerminalOpener().open,
       harness: env.harness,
       harnessEnv,
       claudeHome: overrides.claudeHome,

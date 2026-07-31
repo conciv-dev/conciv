@@ -2,7 +2,7 @@ import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
-import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
+import {createRecordingTerminalOpener, createTestHarness, type TestHarness} from '@conciv/harness-testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {makeChanges} from '../../src/chat/attach.js'
 import {makeConcivSandbox} from '../../src/chat/gate.js'
@@ -36,6 +36,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     risky: new Set<string>(),
     tools: () => [],
     attachmentExpanders: {},
+    openTerminal: createRecordingTerminalOpener().open,
   }
   const sessionId = 'conciv_fixture'
   if (opts.seedSession !== false) await ensureChatRecord(db, sessionId, harness.id, stateRoot)

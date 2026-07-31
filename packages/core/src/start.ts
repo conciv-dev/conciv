@@ -2,12 +2,13 @@ import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
 import getPort from 'get-port'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter, TerminalOpener} from '@conciv/protocol/harness-types'
 import type {AnyExtension} from '@conciv/extension'
 import {makeApp, type MakeAppOpts} from './app.js'
 
 export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
+import {spawnTerminalOpener} from './chat/terminal-opener.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
@@ -28,6 +29,7 @@ export type StartOpts = {
 
   extensions?: AnyExtension[]
   harness?: HarnessAdapter
+  openTerminal?: TerminalOpener
 }
 
 export type Engine = {
@@ -110,6 +112,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     basePath: opts.accessToken ? `/t/${opts.accessToken}` : '',
     bridge: opts.bridge,
     openInEditor,
+    openTerminal: opts.openTerminal ?? spawnTerminalOpener,
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
     systemPromptText: systemPrompt,
     extensions: opts.extensions,
