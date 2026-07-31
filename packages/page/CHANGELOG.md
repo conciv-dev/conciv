@@ -1,5 +1,15 @@
 # @conciv/page
 
+## 0.0.17
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.17
+  - @conciv/extension@0.0.17
+  - @conciv/grab@0.0.17
+  - @conciv/protocol@0.0.17
+
 ## 0.0.16
 
 ### Patch Changes

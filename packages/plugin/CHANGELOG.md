@@ -1,5 +1,17 @@
 # @conciv/plugin
 
+## 0.0.17
+
+### Patch Changes
+
+- Updated dependencies [[`0d2ddf6`](https://github.com/conciv-dev/conciv/commit/0d2ddf6cb63baa58095a70faf9783c12a895928c)]:
+  - @conciv/embed@0.0.17
+  - @conciv/cli@0.0.17
+  - @conciv/core@0.0.17
+  - @conciv/extension@0.0.17
+  - @conciv/extension-compiler@0.0.17
+  - @conciv/protocol@0.0.17
+
 ## 0.0.16
 
 ### Patch Changes

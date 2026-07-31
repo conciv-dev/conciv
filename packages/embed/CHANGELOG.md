@@ -1,5 +1,26 @@
 # @conciv/embed
 
+## 0.0.17
+
+### Patch Changes
+
+- [#156](https://github.com/conciv-dev/conciv/pull/156) [`0d2ddf6`](https://github.com/conciv-dev/conciv/commit/0d2ddf6cb63baa58095a70faf9783c12a895928c) Thanks [@omridevk](https://github.com/omridevk)! - The full-screen chat panel on phones now paints an opaque background, so the app behind it no longer shows through the sheet.
+
+- Updated dependencies [[`2aa2b01`](https://github.com/conciv-dev/conciv/commit/2aa2b01db001973dd3432253fabc915462b3ec85), [`cf6fc75`](https://github.com/conciv-dev/conciv/commit/cf6fc75ddc841c4fd01b331b93568af7283b320a), [`d76c337`](https://github.com/conciv-dev/conciv/commit/d76c337ba404b1f5c23a6f548a92e008f09490dd)]:
+  - @conciv/ui-kit-chat@0.0.17
+  - @conciv/extension-ios@0.0.17
+  - @conciv/ui-kit-chat-tools@0.0.17
+  - @conciv/client@0.0.17
+  - @conciv/contract@0.0.17
+  - @conciv/extension@0.0.17
+  - @conciv/grab@0.0.17
+  - @conciv/mascot@0.0.17
+  - @conciv/protocol@0.0.17
+  - @conciv/solid-diffs@0.0.17
+  - @conciv/solid-streamdown@0.0.17
+  - @conciv/storage-history@0.0.17
+  - @conciv/ui-kit-system@0.0.17
+
 ## 0.0.16
 
 ### Patch Changes

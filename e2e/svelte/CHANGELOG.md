@@ -1,5 +1,12 @@
 # conciv-e2e-svelte
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies [[`5396837`](https://github.com/conciv-dev/conciv/commit/53968379fbc6958eb2642d544f6f64791d811243)]:
+  - @conciv/it@0.0.17
+
 ## 0.0.9
 
 ### Patch Changes
