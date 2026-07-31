@@ -22,6 +22,7 @@ export const HookBodySchema = z
     session_id: HarnessSessionId,
     transcript_path: z.string().optional(),
     cwd: z.string().optional(),
+    source: z.string().optional(),
     hook_event_name: z.enum(HOOK_EVENTS),
   })
   .passthrough()

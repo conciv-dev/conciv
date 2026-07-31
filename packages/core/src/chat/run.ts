@@ -12,7 +12,12 @@ import {
 } from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {AttachmentDocumentPart} from '@conciv/extension'
-import {ChatMessageSchema, type ChatContentPart, type ChatMessage} from '@conciv/protocol/chat-types'
+import {
+  ChatMessageSchema,
+  isHarnessSessionId,
+  type ChatContentPart,
+  type ChatMessage,
+} from '@conciv/protocol/chat-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {
   claimRun,
@@ -28,8 +33,8 @@ import {
 } from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 import {
+  claimHarnessToken,
   ensureChatRecord,
-  recordMintedToken,
   resumableToken,
   resumeTokenFor,
   sessionById,
@@ -136,6 +141,25 @@ async function recordRunEnd(deps: ChatDeps, sessionId: string, usage: UsageSnaps
 
 type RunOutcome = {error: string | null; usage: UsageSnapshot | null}
 
+async function claimMintedToken(
+  deps: ChatDeps,
+  sessionId: string,
+  chunk: StreamChunk,
+  outcome: RunOutcome,
+): Promise<void> {
+  const token = mintedSessionId(chunk)
+  if (token === null) return
+  if (!isHarnessSessionId(token)) {
+    logError(`[core] ${deps.harness.id} reported an unusable session id: "${token}"`)
+    return
+  }
+  const claim = await claimHarnessToken(deps.db, sessionId, token)
+  if (claim !== 'conflict') return
+  const detail = `${deps.harness.id} session ${token} already belongs to another conciv session; this one will not resume`
+  logError(`[core] ${detail}`)
+  outcome.error = detail
+}
+
 async function foldRunStream(
   deps: ChatDeps,
   sessionId: string,
@@ -146,7 +170,7 @@ async function foldRunStream(
 ): Promise<void> {
   for await (const chunk of stream) {
     processor.processChunk(chunk)
-    tapSessionId(chunk, (id) => void recordMintedToken(deps.db, sessionId, id).catch(() => {}))
+    await claimMintedToken(deps, sessionId, chunk, outcome)
     if (chunk.type === EventType.RUN_ERROR) {
       outcome.error = chunk.message || 'run failed'
       return
@@ -270,12 +294,11 @@ function usageSnapshotFor(deps: ChatDeps, modelId: string | null, usage: TokenUs
   }
 }
 
-export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => void): void {
-  if (chunk.type !== EventType.CUSTOM || !chunk.name.endsWith('.session-id')) return
+export function mintedSessionId(chunk: StreamChunk): string | null {
+  if (chunk.type !== EventType.CUSTOM || !chunk.name.endsWith('.session-id')) return null
   const value = chunk.value
-  if (typeof value === 'object' && value !== null && 'sessionId' in value && typeof value.sessionId === 'string') {
-    onSessionId(value.sessionId)
-  }
+  if (typeof value !== 'object' || value === null || !('sessionId' in value)) return null
+  return typeof value.sessionId === 'string' ? value.sessionId : null
 }
 
 export type UserContent = string | ChatContentPart[]

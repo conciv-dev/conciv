@@ -28,6 +28,10 @@
       "types": "./dist/registry.d.ts",
       "import": "./dist/registry.js"
     },
+    "./cwd": {
+      "types": "./dist/_shared/cwd.d.ts",
+      "import": "./dist/_shared/cwd.js"
+    },
     "./claude": {
       "types": "./dist/claude/index.d.ts",
       "import": "./dist/claude/index.js"

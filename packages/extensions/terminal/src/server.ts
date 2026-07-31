@@ -157,18 +157,28 @@ async function hookSessionId(
   return isSessionId(owner) ? owner : null
 }
 
-async function applyHookReport(runtime: TerminalRuntime, sessionId: SessionId, body: HookBody): Promise<void> {
+const CONTINUATION_SOURCES = new Set(['resume', 'compact'])
+
+async function repointAllowed({server}: TerminalRuntime, known: string, source: string | undefined): Promise<boolean> {
+  if (CONTINUATION_SOURCES.has(source ?? '')) return true
+  return !((await server.harness.transcriptExists?.(known)) ?? false)
+}
+
+async function applyHookReport(runtime: TerminalRuntime, sessionId: SessionId, body: HookBody): Promise<boolean> {
   const {observer, server} = runtime
   observer.report(sessionId, {kind: 'hook', event: body.hook_event_name})
   if (body.hook_event_name === 'SessionEnd') {
     await removeHooksPlugin(server.stateDir, sessionId)
-    return
+    return true
   }
-  if (body.hook_event_name !== 'SessionStart') return
+  if (body.hook_event_name !== 'SessionStart') return true
   const known = await server.sessions.resumeToken(sessionId)
-  if (known === body.session_id) return
-  await server.sessions.recordToken(sessionId, body.session_id)
+  if (known === body.session_id) return true
+  if (known && !(await repointAllowed(runtime, known, body.source))) return true
+  const claim = await server.sessions.recordToken(sessionId, body.session_id)
+  if (claim === 'conflict') return false
   observer.resetTranscript(sessionId)
+  return true
 }
 
 const app = new Hono<TerminalEnv>()
@@ -177,9 +187,8 @@ const app = new Hono<TerminalEnv>()
     const parsed = HookBodySchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return c.json({error: 'invalid hook payload'}, 400)
     const sessionId = await hookSessionId(runtime, c.req.header(CONCIV_SESSION_HEADER), parsed.data)
-    if (!sessionId) return c.json({})
-    await applyHookReport(runtime, sessionId, parsed.data)
-    return c.json({})
+    if (!sessionId) return c.json({ok: true})
+    return c.json({ok: await applyHookReport(runtime, sessionId, parsed.data)})
   })
   .get(
     '/tty',

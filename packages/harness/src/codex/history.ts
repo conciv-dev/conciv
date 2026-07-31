@@ -5,6 +5,7 @@ import {DatabaseSync} from 'node:sqlite'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
+import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50
@@ -292,7 +293,8 @@ async function rolloutFor(cwd: string, sessionId: string, home: string): Promise
   if (!path) return null
   const raw = await readFile(path, 'utf8').catch(() => '')
   if (!raw) return null
-  return rolloutCwd(raw) === cwd ? {path, raw} : null
+  const found = rolloutCwd(raw)
+  return found !== null && sameCwd(found, cwd) ? {path, raw} : null
 }
 
 async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<UIMessage[]> {
@@ -301,7 +303,7 @@ async function transcriptMessages(cwd: string, sessionId: string, home: string =
 }
 
 async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
-  const rows = threadRows(stateDbPath(home), LIST_THREADS, [cwd])
+  const rows = threadRows(stateDbPath(home), LIST_THREADS, [realpathOrSelf(cwd)])
   return Promise.all(
     rows.map(async (row) => {
       const raw = await readFile(row.rollout_path, 'utf8').catch(() => '')
@@ -329,7 +331,8 @@ function observeTranscript(cwd: string, sessionId: string, home: string = homedi
     verifyHead: (head) => {
       const found = rolloutCwd(head)
       if (found === null) return transcriptFailure('corrupt', `no session_meta in the head of the ${sessionId} rollout`)
-      return found === cwd ? null : transcriptFailure('missing', `${sessionId} was recorded in ${found}, not ${cwd}`)
+      if (sameCwd(found, cwd)) return null
+      return transcriptFailure('missing', `${sessionId} was recorded in ${found}, not ${cwd}`)
     },
   })
 }

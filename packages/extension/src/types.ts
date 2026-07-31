@@ -5,7 +5,7 @@ import type {AnyRouter} from '@orpc/server'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {HarnessConnectContext, TranscriptHandle} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
-import type {SendVerdict} from '@conciv/protocol/chat-types'
+import type {SendVerdict, TokenClaim} from '@conciv/protocol/chat-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -56,7 +56,7 @@ export type ClientFactoryResult<ClientReturnValue extends object> = {
 
 export type ServerSessions = {
   resumeToken(sessionId: string): Promise<string | null>
-  recordToken(sessionId: string, token: string): Promise<void>
+  recordToken(sessionId: string, token: string): Promise<TokenClaim>
   sessionForHarnessId(harnessSessionId: string): Promise<string | null>
   chatBusy(sessionId: string): boolean
   model(sessionId: string): Promise<string | null>

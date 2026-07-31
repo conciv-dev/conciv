@@ -19,9 +19,9 @@ import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import {isSessionId, type ChatTool, type SendVerdict} from '@conciv/protocol/chat-types'
 import {
+  claimHarnessToken,
   ensureAgentRecord,
   ensureChatRecord,
-  recordMintedToken,
   resumeTokenFor,
   sessionByHarnessId,
   sweepEmptyChatRecords,
@@ -195,7 +195,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     resumeToken: (sessionId) => resumeTokenFor(db, sessionId),
     recordToken: async (sessionId, token) => {
       await ensureChatRecord(db, sessionId, harness.id, opts.cwd)
-      await recordMintedToken(db, sessionId, token)
+      return claimHarnessToken(db, sessionId, token)
     },
     sessionForHarnessId: async (harnessSessionId) => (await sessionByHarnessId(db, harnessSessionId))?.id ?? null,
     chatBusy: (sessionId) => statusOf(db, sessionId) !== 'idle',
@@ -222,9 +222,21 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
     notifyChange: () => changes.bumpExternal(),
   }
+  const askVeto = (
+    check: (sessionId: string, opts: {force: boolean}) => SendVerdict,
+    sessionId: string,
+    sendOpts: {force: boolean},
+  ): SendVerdict => {
+    try {
+      return check(sessionId, sendOpts)
+    } catch (error) {
+      logError(`[core] send veto failed: ${String(error)}`)
+      return {allow: true}
+    }
+  }
   const runSendVetoes = (sessionId: string, sendOpts: {force: boolean}): SendVerdict => {
     for (const check of sendVetoes) {
-      const verdict = check(sessionId, sendOpts)
+      const verdict = askVeto(check, sessionId, sendOpts)
       if (!verdict.allow) return verdict
     }
     return {allow: true}

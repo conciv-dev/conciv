@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {afterEach, describe, expect, it} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {CONCIV_SESSION_HEADER, type UIMessage} from '@conciv/protocol/chat-types'
 import {concivHooksPluginDir} from '@conciv/protocol/state-types'
 import type {
@@ -13,7 +13,7 @@ import type {
 } from '@conciv/protocol/harness-types'
 import type {SessionSnapshot, SessionUpdate} from '@conciv/session-observer/types'
 import {until} from '@conciv/harness-testkit'
-import {bashHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
+import {bashHarness, closeServersAfterEach, startTerminalServer, type TerminalTestServer} from './helpers.js'
 import type {HOOK_EVENTS} from '../src/shared/protocol.js'
 
 type HookEvent = (typeof HOOK_EVENTS)[number]
@@ -26,7 +26,7 @@ type FakeTranscript = {
   closed: number
 }
 
-const open: {servers: TerminalTestServer[]} = {servers: []}
+const open = closeServersAfterEach()
 
 function fakeTranscript(): FakeTranscript {
   return {
@@ -103,11 +103,6 @@ async function watchSession(server: TerminalTestServer, sessionId: string): Prom
   await until(() => snapshots(watch).length >= 1)
   return watch
 }
-
-afterEach(async () => {
-  const servers = open.servers.splice(0)
-  await Promise.all(servers.map((server) => server.close()))
-})
 
 describe('hooks that carry no conciv header', () => {
   it('routes the hook to the session that owns that claude session id', async () => {
@@ -216,7 +211,7 @@ describe('terminal observation', () => {
 
     const headerless = await hook(server, 'UserPromptSubmit')
     expect(headerless.status).toBe(200)
-    expect(await headerless.json()).toEqual({})
+    expect(await headerless.json()).toEqual({ok: true})
     expect(server.sessions.runSend(sessionId, false)).toEqual({allow: true})
   })
 

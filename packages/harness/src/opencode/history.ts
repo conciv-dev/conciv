@@ -12,6 +12,7 @@ import type {
   TranscriptHandle,
   TranscriptRevision,
 } from '@conciv/protocol/harness-types'
+import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50
@@ -147,7 +148,7 @@ export function buildMessages(
 async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<UIMessage[]> {
   return withDatabase<UIMessage[]>(home, [], (db) => {
     const session = sessionRow(db, sessionId)
-    if (!session || session.directory !== cwd) return []
+    if (!session || !sameCwd(session.directory, cwd)) return []
     const messageRows = rowsOf(DataRowSchema, db.prepare(MESSAGES_OF).all(sessionId))
     const partRows = rowsOf(PartRowSchema, db.prepare(PARTS_OF).all(sessionId))
     return buildMessages(messageRows, partRows)
@@ -167,7 +168,7 @@ function messageCounts(db: DatabaseSync, ids: string[]): Map<string, number> {
 
 async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
   return withDatabase<HarnessSessionMeta[]>(home, [], (db) => {
-    const sessions = rowsOf(SessionRowSchema, db.prepare(LIST_SESSIONS).all(cwd))
+    const sessions = rowsOf(SessionRowSchema, db.prepare(LIST_SESSIONS).all(realpathOrSelf(cwd)))
     const counts = messageCounts(
       db,
       sessions.map((session) => session.id),
@@ -207,7 +208,7 @@ function openSession(cwd: string, sessionId: string, home: string): OpencodeSess
       parts: db.prepare(PARTS_OF),
     }
     const session = rowsOf(SessionRowSchema, statements.session.all(sessionId)).at(0)
-    if (!session || session.directory !== cwd) {
+    if (!session || !sameCwd(session.directory, cwd)) {
       db.close()
       return transcriptFailure('missing', `opencode session ${sessionId} is not recorded in ${cwd}`)
     }

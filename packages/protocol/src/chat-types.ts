@@ -121,6 +121,8 @@ export type SessionRecord = z.infer<typeof SessionRecordSchema>
 
 export type SessionRecordInput = z.input<typeof SessionRecordSchema>
 
+export type TokenClaim = 'recorded' | 'kept' | 'conflict'
+
 export const ResolveRequestSchema = z.object({id: z.string().optional()})
 export type ResolveRequest = z.infer<typeof ResolveRequestSchema>
 export const ResolveResponseSchema = z.object({sessionId: SessionId})

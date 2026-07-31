@@ -1,8 +1,8 @@
-import {afterEach, describe, expect, it} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {startTerminalServer, type TerminalTestServer} from './helpers.js'
+import {closeServersAfterEach, startTerminalServer, type TerminalTestServer} from './helpers.js'
 
-const open: {servers: TerminalTestServer[]} = {servers: []}
+const open = closeServersAfterEach()
 
 const OWNER = 'conciv_hook_owner'
 
@@ -23,11 +23,6 @@ function postHook(server: TerminalTestServer, harnessSessionId: string): Promise
     body: JSON.stringify({session_id: harnessSessionId, hook_event_name: 'SessionStart', cwd: '/workspace'}),
   })
 }
-
-afterEach(async () => {
-  const servers = open.servers.splice(0)
-  await Promise.all(servers.map((server) => server.close()))
-})
 
 describe('terminal hook route rejects hostile session ids', () => {
   it.each(HOSTILE)('refuses %j and records no token', async (hostile) => {

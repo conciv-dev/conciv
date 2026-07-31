@@ -1,4 +1,4 @@
-import {mkdtemp, mkdir, writeFile} from 'node:fs/promises'
+import {mkdtemp, mkdir, realpath, symlink, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
@@ -200,5 +200,34 @@ describe('codex history sidecar', () => {
     expect(revision.changedAt).toBeGreaterThan(0)
     expect(revision.rev).toMatch(/^\d+:/)
     handle.close()
+  })
+})
+
+describe('codex history follows a symlinked project root', () => {
+  it('reads a rollout recorded under the real path when asked through the link', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'codex-symlink-')))
+    const home = join(root, 'home')
+    const real = join(root, 'project')
+    const link = join(root, 'project-link')
+    await mkdir(join(home, '.codex'), {recursive: true})
+    await mkdir(real, {recursive: true})
+    await symlink(real, link)
+    const dir = join(home, '.codex', 'sessions', '2026', '07', '30')
+    await mkdir(dir, {recursive: true})
+    const path = join(dir, `rollout-2026-07-30T16-23-00-${SESSION}.jsonl`)
+    await writeFile(
+      path,
+      rollout(
+        ROLLOUT_LINES.map((line) =>
+          line.type === 'session_meta' ? {...line, payload: {...line.payload, cwd: real}} : line,
+        ),
+      ),
+      'utf8',
+    )
+    expect(await history().messages(link, SESSION, home)).toHaveLength(2)
+    const handle = history().observe(link, SESSION, home)
+    const chunk = await handle.read()
+    handle.close()
+    expect('ok' in chunk && chunk.ok).toBe(true)
   })
 })

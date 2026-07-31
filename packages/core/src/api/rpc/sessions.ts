@@ -3,15 +3,9 @@ import {eq} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
 import {resolveHarnessModels} from '@conciv/harness'
 import {clearRunState, drafts, markers, requestStop, sessions, statusOf, type RunStatus} from '@conciv/db'
+import {sameCwd} from '@conciv/harness/cwd'
 import type {HarnessRow} from '../../chat/session.js'
-import {
-  buildSessionList,
-  ensureChatRecord,
-  launchHarness,
-  resolveSession,
-  sameCwd,
-  sessionById,
-} from '../../chat/session.js'
+import {buildSessionList, ensureChatRecord, launchHarness, resolveSession, sessionById} from '../../chat/session.js'
 import type {ChatDeps} from '../../chat/runtime.js'
 import {SESSION_BUSY} from '../../chat/run.js'
 import {
@@ -21,6 +15,7 @@ import {
   liveCandidates,
   SESSION_ATTACHED,
 } from '../../chat/adopt.js'
+import {logError} from '../../lib/debug.js'
 import {os, type RpcDeps} from './mount.js'
 
 function wireStatus(status: RunStatus): 'idle' | 'running' | 'compacting' {
@@ -39,12 +34,14 @@ async function foreignTranscriptRows(chat: ChatDeps): Promise<HarnessRow[]> {
       ? [{token: row.harnessSessionId, cwd: row.transcriptCwd}]
       : [],
   )
-  const metas = await Promise.all(foreign.map((row) => meta(row.cwd, row.token, chat.claudeHome)))
-  return metas.filter((row) => row !== null)
+  const settled = await Promise.allSettled(foreign.map((row) => meta(row.cwd, row.token, chat.claudeHome)))
+  settled.forEach((outcome) => {
+    if (outcome.status === 'rejected') logError(`[core] reading a foreign transcript failed: ${String(outcome.reason)}`)
+  })
+  return settled.flatMap((outcome) => (outcome.status === 'fulfilled' && outcome.value ? [outcome.value] : []))
 }
 
-export async function rpcSessionList(deps: RpcDeps): Promise<SessionMeta[]> {
-  const chat = deps.chat
+export async function rpcSessionList(chat: ChatDeps): Promise<SessionMeta[]> {
   const hist = chat.harness.history
   const harnessList =
     chat.harness.capabilities.transcriptHistory && hist ? await hist.list(chat.cwd, chat.claudeHome) : []
@@ -76,7 +73,7 @@ export function sessionsRouter(deps: RpcDeps) {
     return {models, defaultModel: chat.harness.defaultModel ?? models[0]?.id ?? null}
   }
   return {
-    list: os.sessions.list.handler(() => rpcSessionList(deps)),
+    list: os.sessions.list.handler(() => rpcSessionList(chat)),
     create: os.sessions.create.handler(async () => {
       const {sessionId} = await resolveSession(scope, {})
       await ensureChatRecord(db, sessionId, scope.harnessKind, scope.cwd)

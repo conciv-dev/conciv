@@ -79,6 +79,32 @@ describe('extension send veto', () => {
     }
   }, 30_000)
 
+  it('lets a send through when a veto throws, and still honours a real veto', async () => {
+    const {kit, captured} = await bootProbe('veto-throws')
+    try {
+      const server = serverOf(captured)
+      server.sessions.beforeSend(() => {
+        throw new Error('observer exploded')
+      })
+      const sessionId = await kit.session()
+      const accepted = await kit.rpc.chat.send({sessionId, text: 'hi'})
+      expect(accepted.ok).toBe(true)
+
+      server.sessions.beforeSend(() => ({
+        allow: false,
+        kind: 'block',
+        code: 'EXTERNAL_WORKING',
+        message: 'terminal owns this session',
+      }))
+      await expect(kit.rpc.chat.send({sessionId, text: 'hi again'})).rejects.toMatchObject({
+        code: 'EXTERNAL_BLOCKED',
+        data: {code: 'EXTERNAL_WORKING'},
+      })
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
   it('reports the session id to the veto', async () => {
     const {kit, captured} = await bootProbe('veto-id')
     try {

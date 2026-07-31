@@ -1392,9 +1392,6 @@ importers:
       hono:
         specifier: ^4.12.0
         version: 4.12.27
-      ufo:
-        specifier: ^1.6.4
-        version: 1.6.4
       zod:
         specifier: ^4.4.3
         version: 4.4.3

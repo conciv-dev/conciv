@@ -191,7 +191,12 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const kit = await createTestkit(
       claude,
       bootCoreApp({
-        fakeClaude: {env: (sessionId) => (sessionId && hang.has(sessionId) ? {CONCIV_FAKE_HANG: '1'} : {})},
+        fakeClaude: {
+          env: (sessionId) => ({
+            ...(sessionId && hang.has(sessionId) ? {CONCIV_FAKE_HANG: '1'} : {}),
+            ...(sessionId ? {CONCIV_FAKE_SESSION_ID: `sess-${sessionId}`} : {}),
+          }),
+        },
       }),
     ).setup()
     state.kit = kit

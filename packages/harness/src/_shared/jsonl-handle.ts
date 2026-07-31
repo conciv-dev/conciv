@@ -108,6 +108,8 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
     async revision(): Promise<TranscriptRevision | TranscriptFailure> {
       const found = await located()
       if ('ok' in found) return found
+      const problem = await verify(found.path, found.info.size)
+      if (problem) return problem
       return revisionOf(found.info)
     },
     async read(): Promise<TranscriptChunk | TranscriptFailure> {

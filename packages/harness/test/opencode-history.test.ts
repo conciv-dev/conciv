@@ -1,4 +1,4 @@
-import {mkdir, mkdtemp} from 'node:fs/promises'
+import {mkdir, mkdtemp, realpath, symlink} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
@@ -63,8 +63,8 @@ const PARTS = [
 
 const state = {home: ''}
 
-function seed(): void {
-  const db = new DatabaseSync(storagePath(state.home))
+function seed(home: string = state.home, directory: string = PROJECT): void {
+  const db = new DatabaseSync(storagePath(home))
   db.exec(
     `create table session (id text primary key, project_id text not null default '', directory text not null, title text not null, time_created integer not null, time_updated integer not null, time_archived integer, model text, tokens_input integer not null default 0, tokens_output integer not null default 0)`,
   )
@@ -77,7 +77,7 @@ function seed(): void {
   const session = db.prepare(
     'insert into session (id, directory, title, time_created, time_updated, time_archived, model, tokens_input, tokens_output) values (?,?,?,?,?,?,?,?,?)',
   )
-  session.run(SESSION, PROJECT, 'Count the files', 1785273548261, 1785305469728, null, 'openai/gpt-5.6-sol', 300, 120)
+  session.run(SESSION, directory, 'Count the files', 1785273548261, 1785305469728, null, 'openai/gpt-5.6-sol', 300, 120)
   session.run(STRAY, OTHER, 'Somewhere else', 1785273433416, 1785273519484, null, 'openai/gpt-5.6-sol', 10, 5)
 
   const message = db.prepare(
@@ -171,5 +171,24 @@ describe('opencode history sidecar', () => {
   it('returns nothing when there is no opencode database', async () => {
     expect(await history().list(PROJECT, join(state.home, 'missing'))).toEqual([])
     expect(await history().messages(PROJECT, SESSION, join(state.home, 'missing'))).toEqual([])
+  })
+})
+
+describe('opencode history follows a symlinked project root', () => {
+  it('reads a session recorded under the real path when asked through the link', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'opencode-symlink-')))
+    const home = join(root, 'home')
+    const real = join(root, 'project')
+    const link = join(root, 'project-link')
+    await mkdir(join(home, '.local', 'share', 'opencode'), {recursive: true})
+    await mkdir(real, {recursive: true})
+    await symlink(real, link)
+    seed(home, real)
+    expect((await history().list(link, home)).map((session) => session.id)).toEqual([SESSION])
+    expect(await history().messages(link, SESSION, home)).toHaveLength(2)
+    const handle = history().observe(link, SESSION, home)
+    const chunk = await handle.read()
+    handle.close()
+    expect('ok' in chunk && chunk.ok).toBe(true)
   })
 })

@@ -1,6 +1,5 @@
 import {randomUUID} from 'node:crypto'
 import {and, eq, isNull} from 'drizzle-orm'
-import {withoutTrailingSlash} from 'ufo'
 import type {ContentPart, ModelMessage} from '@tanstack/ai'
 import type {
   ChatCommand,
@@ -11,6 +10,7 @@ import type {
   ChatSessionMeta,
   SessionRecord,
   SessionRecordInput,
+  TokenClaim,
 } from '@conciv/protocol/chat-types'
 import {CONCIV_HOOK_PATH, isHarnessSessionId, isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
@@ -23,6 +23,7 @@ import type {
 } from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {sessions, type ConcivDb} from '@conciv/db'
+import {sameCwd} from '@conciv/harness/cwd'
 import {apiBaseFrom} from '../lib/api-base.js'
 import {executeConnectPlan} from './connect-exec.js'
 import type {ChatDeps} from './runtime.js'
@@ -98,6 +99,26 @@ export const recordMintedToken = async (db: ConcivDb, id: string, token: string)
   await db.update(sessions).set({harnessSessionId: token, updatedAt: Date.now()}).where(eq(sessions.id, id))
 }
 
+function emptyChatShell(record: SessionRecord): boolean {
+  return record.origin === 'chat' && record.title === null
+}
+
+async function releaseToken(db: ConcivDb, id: string): Promise<void> {
+  await db.update(sessions).set({harnessSessionId: null, updatedAt: Date.now()}).where(eq(sessions.id, id))
+}
+
+export async function claimHarnessToken(db: ConcivDb, id: string, token: string): Promise<TokenClaim> {
+  if (!isHarnessSessionId(token)) throw new Error(`refusing to record an unusable harness session id: "${token}"`)
+  const owner = await sessionByHarnessId(db, token)
+  if (owner?.id === id) return 'kept'
+  const claimant = await sessionById(db, id)
+  if (owner && !emptyChatShell(owner)) return 'conflict'
+  if (owner && claimant && owner.updatedAt > claimant.updatedAt) return 'conflict'
+  if (owner) await releaseToken(db, owner.id)
+  await recordMintedToken(db, id, token)
+  return 'recorded'
+}
+
 export const ensureChatRecord = async (db: ConcivDb, id: string, harnessKind: string, cwd: string): Promise<void> => {
   if (await sessionById(db, id)) return
   await createSession(db, {
@@ -160,8 +181,6 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
     cwd: deps.cwd,
   })
 }
-
-export const sameCwd = (a: string, b: string): boolean => withoutTrailingSlash(a) === withoutTrailingSlash(b)
 
 export async function sweepEmptyChatRecords(db: ConcivDb): Promise<void> {
   await db

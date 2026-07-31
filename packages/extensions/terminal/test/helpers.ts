@@ -1,3 +1,4 @@
+import {afterEach} from 'vitest'
 import {Hono} from 'hono'
 import {cors} from 'hono/cors'
 import {RPCHandler} from '@orpc/server/fetch'
@@ -82,8 +83,11 @@ function fakeSessions(): FakeSessions {
     },
     resumeToken: (sessionId) => Promise.resolve(tokens.get(sessionId) ?? null),
     recordToken: (sessionId, token) => {
+      if (tokens.get(sessionId) === token) return Promise.resolve('kept')
+      const taken = [...tokens.entries()].some(([id, value]) => value === token && id !== sessionId)
+      if (taken) return Promise.resolve('conflict')
       tokens.set(sessionId, token)
-      return Promise.resolve()
+      return Promise.resolve('recorded')
     },
     sessionForHarnessId: (harnessSessionId) => {
       const owner = [...tokens.entries()].find(([, token]) => token === harnessSessionId)
@@ -192,4 +196,13 @@ export async function startTerminalServer(
       await served.close()
     },
   }
+}
+
+export function closeServersAfterEach(): {servers: TerminalTestServer[]} {
+  const open: {servers: TerminalTestServer[]} = {servers: []}
+  afterEach(async () => {
+    const servers = open.servers.splice(0)
+    await Promise.all(servers.map((server) => server.close()))
+  })
+  return open
 }
