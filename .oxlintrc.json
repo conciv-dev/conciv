@@ -4,6 +4,7 @@
   "jsPlugins": [
     {"name": "unocss", "specifier": "@unocss/eslint-plugin"},
     {"name": "playwright", "specifier": "eslint-plugin-playwright"},
+    {"name": "solid", "specifier": "eslint-plugin-solid"},
     {"name": "conciv", "specifier": "./tools/oxlint/no-comments.js"}
   ],
   "categories": {
@@ -49,6 +50,22 @@
       }
     ],
     "unocss/order": "warn",
+    "solid/jsx-no-duplicate-props": "error",
+    "solid/jsx-no-undef": "error",
+    "solid/jsx-uses-vars": "error",
+    "solid/no-unknown-namespaces": "error",
+    "solid/no-innerhtml": "warn",
+    "solid/jsx-no-script-url": "error",
+    "solid/components-return-once": "warn",
+    "solid/no-destructure": "warn",
+    "solid/prefer-for": "warn",
+    "solid/reactivity": "warn",
+    "solid/event-handlers": "error",
+    "solid/imports": "error",
+    "solid/style-prop": "warn",
+    "solid/no-react-deps": "error",
+    "solid/no-react-specific-props": "warn",
+    "solid/self-closing-comp": "error",
     "no-restricted-imports": [
       "error",
       {
