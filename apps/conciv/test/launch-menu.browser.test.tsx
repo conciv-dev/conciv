@@ -33,8 +33,9 @@ function mountMenu(chosen: string[], canConnect = false): void {
 test('offers opening the terminal or copying the command', async () => {
   const chosen: string[] = []
   mountMenu(chosen)
-  const trigger = page.getByRole('button', {name: 'Open in Claude'})
+  const trigger = page.getByRole('button', {name: 'Terminal options for Claude'})
 
+  await expect.element(trigger).toHaveAttribute('aria-haspopup', 'menu')
   await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
   await trigger.click()
   await expect.element(trigger).toHaveAttribute('aria-expanded', 'true')
@@ -53,7 +54,7 @@ test('offers connecting a running session only when the harness can attach', asy
   const chosen: string[] = []
   mountMenu(chosen, true)
 
-  await page.getByRole('button', {name: 'Open in Claude'}).click()
+  await page.getByRole('button', {name: 'Terminal options for Claude'}).click()
   await page.getByRole('menuitem', {name: 'Connect a running session'}).click()
   await expect.poll(() => chosen).toEqual(['connect'])
 })

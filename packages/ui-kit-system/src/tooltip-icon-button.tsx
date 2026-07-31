@@ -2,6 +2,7 @@ import {splitProps, type JSX} from 'solid-js'
 import {Tooltip} from './tooltip.js'
 
 export type TooltipIconButtonVariant = 'ghost' | 'solid'
+export type TooltipIconButtonSide = 'top' | 'bottom' | 'left' | 'right'
 
 const BASE =
   'inline-flex items-center justify-center cursor-pointer trans-btn focus-ring disabled:opacity-50 disabled:cursor-not-allowed active:not-disabled:[transform:scale(0.97)]'
@@ -11,9 +12,13 @@ const VARIANT: Record<TooltipIconButtonVariant, string> = {
   solid: 'rounded-pw-md bg-pw-accent text-pw-on-accent hover:bg-pw-accent-hi',
 }
 
+function iconButtonClass(variant: TooltipIconButtonVariant | undefined, size: string | undefined): string {
+  return `${BASE}  ${VARIANT[variant ?? 'ghost']}  ${size ?? 'size-9'}`
+}
+
 export type TooltipIconButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
   tooltip: string
-  side?: 'top' | 'bottom' | 'left' | 'right'
+  side?: TooltipIconButtonSide
   variant?: TooltipIconButtonVariant
 }
 
@@ -23,10 +28,50 @@ export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
     <Tooltip.Root positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}>
       <Tooltip.Trigger
         type="button"
-        class={`${BASE}  ${VARIANT[local.variant ?? 'ghost']}  ${local.class ?? 'size-9'}`}
+        class={iconButtonClass(local.variant, local.class)}
         {...rest}
         aria-label={local.tooltip}
       />
+      <Tooltip.Positioner>
+        <Tooltip.Content>{local.tooltip}</Tooltip.Content>
+      </Tooltip.Positioner>
+    </Tooltip.Root>
+  )
+}
+
+export type TooltipIconButtonSlotProps = {
+  tooltip: string
+  side?: TooltipIconButtonSide
+  variant?: TooltipIconButtonVariant
+  class?: string
+  children: (buttonProps: () => JSX.ButtonHTMLAttributes<HTMLButtonElement>) => JSX.Element
+}
+
+export function TooltipIconButtonSlot(props: TooltipIconButtonSlotProps): JSX.Element {
+  const [local] = splitProps(props, ['tooltip', 'side', 'variant', 'class', 'children'])
+  const buttonProps = (): JSX.ButtonHTMLAttributes<HTMLButtonElement> => ({
+    type: 'button',
+    class: iconButtonClass(local.variant, local.class),
+    'aria-label': local.tooltip,
+  })
+  return (
+    <Tooltip.Root positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}>
+      <Tooltip.Context>
+        {(api) => (
+          <Tooltip.Trigger
+            asChild={(triggerProps) => (
+              <span
+                {...triggerProps()}
+                class="inline-flex"
+                onFocusIn={() => api().setOpen(true)}
+                onFocusOut={() => api().setOpen(false)}
+              >
+                {local.children(buttonProps)}
+              </span>
+            )}
+          />
+        )}
+      </Tooltip.Context>
       <Tooltip.Positioner>
         <Tooltip.Content>{local.tooltip}</Tooltip.Content>
       </Tooltip.Positioner>

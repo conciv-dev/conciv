@@ -1,5 +1,5 @@
 import {Show, splitProps, type JSX} from 'solid-js'
-import {Menu, TooltipIconButton} from '@conciv/ui-kit-system'
+import {Menu, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {ClipboardCopy, PlugZap, SquareTerminal} from 'lucide-solid'
 
 export function LaunchMenu(props: {
@@ -13,15 +13,19 @@ export function LaunchMenu(props: {
   const [local] = splitProps(props, ['harnessName', 'class', 'canConnect', 'onOpen', 'onCopy', 'onConnect'])
   return (
     <Menu.Root>
-      <Menu.Trigger
-        asChild={(triggerProps) => (
-          <TooltipIconButton tooltip={`Open in ${local.harnessName}`} class={local.class} {...triggerProps()}>
-            <SquareTerminal class="size-5 block" />
-          </TooltipIconButton>
+      <TooltipIconButtonSlot tooltip={`Terminal options for ${local.harnessName}`} class={local.class}>
+        {(buttonProps) => (
+          <Menu.Trigger
+            asChild={(triggerProps) => (
+              <button {...buttonProps()} {...triggerProps()}>
+                <SquareTerminal class="size-5 block" aria-hidden="true" />
+              </button>
+            )}
+          />
         )}
-      />
+      </TooltipIconButtonSlot>
       <Menu.Positioner>
-        <Menu.Content aria-label="Terminal launch options">
+        <Menu.Content aria-label={`Terminal options for ${local.harnessName}`}>
           <Menu.Item value="open" onSelect={() => local.onOpen()}>
             <SquareTerminal class="size-4 block" aria-hidden="true" />
             Open in {local.harnessName}
