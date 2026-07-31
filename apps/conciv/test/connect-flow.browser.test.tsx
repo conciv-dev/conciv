@@ -102,7 +102,7 @@ function mountFlow(server: Server): Mounted {
   installServer(server)
   const host = document.createElement('div')
   document.body.appendChild(host)
-  const queryClient = new QueryClient()
+  const queryClient = new QueryClient({defaultOptions: {queries: {retryDelay: 0}}})
   const rpc = makeRpcClient(BASE)
   const utils = makeQueryUtils(rpc)
   const mounted: Mounted = {server, notices: [], said: [], navigated: [], queryClient}
