@@ -45,6 +45,8 @@ type View = {
   launched: number[]
   backed: number[]
   done: number[]
+  keptWaiting: number[]
+  handedBack: number[]
 }
 
 const PICKING: ConnectStep = {kind: 'picking', error: null, retryId: null}
@@ -79,6 +81,8 @@ function mount(initial: LiveSession[] | undefined = undefined): View {
     launched: [],
     backed: [],
     done: [],
+    keptWaiting: [],
+    handedBack: [],
   }
   const dispose = render(
     () => (
@@ -94,6 +98,8 @@ function mount(initial: LiveSession[] | undefined = undefined): View {
         connectingId={connectingId()}
         dialledIn={dialledIn()}
         contactLost={contactLost()}
+        onKeepWaiting={() => view.keptWaiting.push(1)}
+        onHandBack={() => view.handedBack.push(1)}
         onPick={(session) => view.picked.push(session.sessionId)}
         onCopy={(text) => view.copied.push(text)}
         onClose={() => view.closed.push(1)}

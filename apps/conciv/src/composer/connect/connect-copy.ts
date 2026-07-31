@@ -14,6 +14,9 @@ export const DONE_LABEL = 'Done'
 export const BACK_LABEL = 'Back to the list'
 export const CLOSE_LABEL = 'Close'
 export const UNDO_LABEL = 'Undo'
+export const KEEP_WAITING_LABEL = 'Keep waiting'
+export const HAND_BACK_LABEL = 'Hand it back'
+export const HAND_BACK_CLOSE_LABEL = 'Hand it back and close'
 
 export const LOOKUP_FAILED = 'Couldn’t check for running sessions.'
 export const NOTHING_RUNNING_HINT = 'Start one and this panel follows it from the first message.'
@@ -32,7 +35,10 @@ export const CONTACT_LOST = 'Lost contact with the server. Still trying.'
 export const DIALLED_IN = 'Connected. Keep talking in either place.'
 export const RELOAD_HEADS_UP = 'Your next message re-reads the conversation once, then stops.'
 export const SNIPPET_HINT = 'Quit that session and start it again with this command instead.'
-export const HAND_BACK_FAILED = 'Couldn’t hand it back. Try the terminal menu again.'
+export const LEAVING_UNRELOADED = 'That terminal hasn’t reloaded yet. Leaving now hands the session back to it.'
+export const LEAVING_HINT = 'You can connect it again whenever you like.'
+export const HANDED_BACK = 'Handed back to your terminal.'
+export const STILL_CONNECTED = 'Still connected to your terminal — messages here will be rejected.'
 
 const STALE_AFTER_MS = 15_000
 

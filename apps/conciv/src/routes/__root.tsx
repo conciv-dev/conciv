@@ -33,6 +33,7 @@ import {makeThemeApplier} from '../lib/theme.js'
 import {resolveApiBase} from '../lib/api-base.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
+import {NoticeProvider} from '../shell/notices.js'
 import {quickPaneIds} from '../lib/quick-search.js'
 import {setShutter} from '../lib/shutter.js'
 import '../styles.css'
@@ -129,7 +130,9 @@ function RootComponent() {
             popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
             sessionId={activeSession}
           >
-            <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
+            <NoticeProvider announce={announce}>
+              <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
+            </NoticeProvider>
             <EffectsSurface instances={app.instances} />
           </HostApiProvider>
         </AppContext.Provider>

@@ -14,7 +14,7 @@ import type {MultimodalContent} from '@tanstack/ai-client'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {Primitive} from '../util/primitive.js'
-import {ComposerProvider, useComposerContext} from './composer-context.js'
+import {ComposerProvider, useComposerContext, type ComposerDraft} from './composer-context.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
 import {
   fileMatchesAccept,
@@ -26,7 +26,7 @@ import {
 } from '../attachment/attachment-adapter.js'
 import {QueueItemProvider, type QueuedMessage} from '../queue-item/queue-item.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
-import {useComposerHandlers} from './composer-handlers.js'
+import {useComposerHandlers, type ComposerHandlers} from './composer-handlers.js'
 import {
   TriggerPopover,
   TriggerPopoverBack,
@@ -53,6 +53,10 @@ function buildContent(text: string, attachments: Attachment[]): string | Multimo
 
 function invokeSubmit(handler: FormProps['onSubmit'], event: SubmitEvent): void {
   if (typeof handler === 'function') handler(event)
+}
+
+function vetoed(handlers: ComposerHandlers, content: string | MultimodalContent): boolean {
+  return handlers.beforeSend?.(content) === false
 }
 
 function canSubmit(canSend: boolean, attachmentCount: number, unavailable: boolean): boolean {
@@ -151,8 +155,6 @@ async function completeAll(
   )
 }
 
-type DraftState = {draft: string; attachments: Attachment[]; quote: string | null}
-
 function pastedFiles(event: ClipboardEvent): File[] {
   const files = Array.from(event.clipboardData?.files ?? [])
   if (files.length > 0) event.preventDefault()
@@ -222,34 +224,38 @@ function Root(props: FormProps): JSX.Element {
     }
     setAttachments((current) => current.filter((value) => value.id !== id))
   }
-  const restoreFailedSend = (original: DraftState, error: unknown) => {
-    const restored = restoredAttachments(original.attachments, error)
+  const snapshotDraft = (): ComposerDraft => ({draft: chat.view.draft, attachments: attachments(), quote: quote()})
+  const restoreDraft = (original: ComposerDraft) => {
     setAttachments((current) => {
       const currentIds = new Set(current.map((value) => value.id))
-      return [...current, ...restored.filter((value) => !currentIds.has(value.id))]
+      return [...current, ...original.attachments.filter((value) => !currentIds.has(value.id))]
     })
     if (chat.view.draft !== '' || quote() !== null) return
     chat.setView('draft', original.draft)
     setQuote(original.quote)
   }
+  const clearDraft = () => {
+    chat.setView('draft', '')
+    setAttachments([])
+    setQuote(null)
+  }
+  const markSendFailed = (error: unknown) => {
+    setAttachments((current) => restoredAttachments(current, error))
+  }
   const submit = async (event: SubmitEvent) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
     if (!canSubmit(composer.canSend(), attachments().length, sendingAttachments())) return
-    const original: DraftState = {draft: chat.view.draft, attachments: attachments(), quote: quote()}
+    const original = snapshotDraft()
     setSendingAttachments(true)
-    chat.setView('draft', '')
-    setAttachments([])
-    setQuote(null)
     try {
       const complete = await completeAll(attachmentAdapter(), original.attachments)
-      sendContent(
-        handlers.onSend,
-        (content) => chat.sendMessage(content),
-        buildContent(original.draft.trim(), complete),
-      )
+      const content = buildContent(original.draft.trim(), complete)
+      if (vetoed(handlers, content)) return
+      clearDraft()
+      sendContent(handlers.onSend, (value) => chat.sendMessage(value), content)
     } catch (error) {
-      restoreFailedSend(original, error)
+      markSendFailed(error)
     } finally {
       setSendingAttachments(false)
     }
@@ -262,6 +268,9 @@ function Root(props: FormProps): JSX.Element {
         addAttachment,
         removeAttachment,
         sendingAttachments,
+        snapshotDraft,
+        restoreDraft,
+        clearDraft,
         quote,
         setQuote,
         editing,

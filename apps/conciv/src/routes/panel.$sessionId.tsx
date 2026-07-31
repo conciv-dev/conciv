@@ -4,10 +4,9 @@ import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ChevronDown, PictureInPicture2, Unplug} from 'lucide-solid'
 import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {Grab} from '@conciv/grab'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useDisconnect, useInstances, useRpc} from '../app/context.js'
-import {PaneContext, makePendingAttachmentQueue, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
+import {PaneContext, makeGrabStore, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {setShutter} from '../lib/shutter.js'
 import {ContextTracker} from '../chat/context-tracker.js'
@@ -41,6 +40,7 @@ function PanelSession(): JSX.Element {
   const row = () => (sessions.data ?? []).find((session) => session.id === params().sessionId)
   const usage = () => row()?.usage ?? null
   const running = () => row()?.running ?? false
+  const attached = () => row()?.attached ?? false
 
   const views = createMemo(() => collectViews(instances))
   const activeView = () => {
@@ -79,18 +79,12 @@ function PanelSession(): JSX.Element {
     announce('Started a new session')
   }
 
-  const [grabs, setGrabs] = createSignal<StagedGrab[]>([])
-  const grabStore = {
-    grabs,
-    stage: (grab: Grab) => setGrabs((prev) => [...prev, grab]),
-    stageTexts: (texts: string[]) => setGrabs(texts.map((text) => ({text}))),
-    remove: (grab: StagedGrab) => setGrabs((prev) => prev.filter((entry) => entry !== grab)),
-    clear: () => setGrabs([]),
-  }
+  const grabStore = makeGrabStore()
 
   const paneValue: PaneContextValue = {
     sessionId: () => params().sessionId,
     running,
+    attached,
     viewLocked,
     setLockedFor,
     slideClass,

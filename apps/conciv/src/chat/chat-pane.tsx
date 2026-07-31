@@ -1,4 +1,4 @@
-import {createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX} from 'solid-js'
+import {createEffect, createMemo, createSignal, For, Show, type JSX} from 'solid-js'
 import {useBlocker, useRouter} from '@tanstack/solid-router'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import {useChatSession} from '@conciv/client'
@@ -12,13 +12,10 @@ import {
   Thread,
   ToolProvider,
   pairResults,
-  useComposer,
-  useComposerContext,
   type Turn,
 } from '@conciv/ui-kit-chat'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
-import {createDebouncer} from '@tanstack/solid-pacer'
-import type {MessagePart, MultimodalContent, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {MessagePart, MultimodalContent, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
@@ -36,30 +33,22 @@ import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {HostApiProvider} from '@conciv/extension'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
-import {
-  ExternalSessionConfirm,
-  ExternalSessionNotice,
-  sendBlockedMessage,
-  sendConfirmMessage,
-  sessionAttachedMessage,
-} from './external-session.js'
+import {ComposerStateBridge, type ComposerStateApi} from './composer-state.js'
+import {checkSend} from './send-checks.js'
+import {usePaneDraft} from './use-pane-draft.js'
+import {makeSendGuard, type SendGuard} from './send-guard.js'
+import {TerminalConflictDialog} from './terminal-conflict-dialog.js'
+import {NoticeStrip, useNotify} from '../shell/notices.js'
 import {ComposerActions} from '../composer/actions.js'
-import type {Notice, Notify} from './notify.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
-import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
 
 const GRAB_PREVIEW_MAX_W = 280
-const MAX_CONTENT_PARTS = 16
 
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
 const RECONNECT = 'flex gap-2 items-center text-pw-text-2 text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
 const DOT = 'w-1.5 h-1.5 rounded-[50%] bg-pw-text-2'
-const NOTICE =
-  'flex items-center gap-2 text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]'
-const NOTICE_ACTION =
-  'shrink-0 [border:none] bg-transparent p-0 text-[0.75rem] font-semibold text-pw-accent-link cursor-pointer underline underline-offset-2'
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {
@@ -81,34 +70,15 @@ function activeCallTitle(parts: ReadonlyArray<MessagePart>, titleByName: Record<
   return title
 }
 
-function contentText(content: string | MultimodalContent): string {
-  if (typeof content === 'string') return content.trim()
-  const parts = content.content
-  if (typeof parts === 'string') return parts.trim()
-  return parts
-    .flatMap((part) => (part.type === 'text' ? [part.content] : []))
-    .join('\n')
-    .trim()
+function busySlot(compacting: boolean): JSX.Element | undefined {
+  if (!compacting) return undefined
+  return <CompactSpinner />
 }
 
-type ComposerStateApi = {
-  append: (text: string) => void
-  text: () => string
-  setText: (value: string) => void
-  addAttachment: (file: File) => Promise<void>
-}
-
-function ComposerStateBridge(props: {onReady: (api: ComposerStateApi) => void}): JSX.Element {
-  const composer = useComposer()
-  const context = useComposerContext()
-  const api: ComposerStateApi = {
-    append: (text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text),
-    text: composer.text,
-    setText: composer.setText,
-    addAttachment: context.addAttachment,
-  }
-  onMount(() => props.onReady(api))
-  return <></>
+function streamingTitle(messages: ReadonlyArray<UIMessage>, titles: Record<string, string>): string | null {
+  const last = messages[messages.length - 1]
+  if (!last || last.role !== 'assistant') return null
+  return activeCallTitle(last.parts, titles)
 }
 
 export function ChatPane(props: {sessionId: string}): JSX.Element {
@@ -118,39 +88,15 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
-  const [externalConfirm, setExternalConfirm] = createSignal<string | null>(null)
-  const [externalBlocked, setExternalBlocked] = createSignal<string | null>(null)
-  const [attachedActive, setAttachedActive] = createSignal<string | null>(null)
+  const notify = useNotify()
   const [forceSend, setForceSend] = createSignal(false)
-  const lastAttempt: {content: string | MultimodalContent | null} = {content: null}
+  const guardHolder: {guard: SendGuard | null} = {guard: null}
   const chat = useChatSession({
     rpc,
     sessionId: props.sessionId,
     connection: {force: () => forceSend()},
-    onError: (error) => {
-      if (lastAttempt.content === null) return
-      const attached = sessionAttachedMessage(error)
-      if (attached !== null) {
-        setAttachedActive(attached)
-        return
-      }
-      const blocked = sendBlockedMessage(error)
-      if (blocked !== null) {
-        setExternalBlocked(blocked)
-        return
-      }
-      const confirm = sendConfirmMessage(error)
-      if (confirm !== null) setExternalConfirm(confirm)
-    },
+    onError: (error) => guardHolder.guard?.rejected(error),
   })
-
-  const takeOver = async (): Promise<void> => {
-    const content = lastAttempt.content
-    setAttachedActive(null)
-    await rpc.sessions.attachDetach({sessionId: props.sessionId}).catch(() => {})
-    appData.invalidateSessions()
-    if (content !== null) await send(content)
-  }
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
@@ -163,17 +109,9 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId: props.sessionId}}))
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
-
-  const [notice, setNotice] = createSignal<Notice | null>(null)
-  let noticeTimer: ReturnType<typeof setTimeout> | undefined
-  const notify: Notify = (message, action) => {
-    setNotice({message, action: action ?? null})
-    announce(message)
-    if (noticeTimer) clearTimeout(noticeTimer)
-    noticeTimer = setTimeout(() => setNotice(null), 5000)
-  }
-  onCleanup(() => {
-    if (noticeTimer) clearTimeout(noticeTimer)
+  const delivery = {done: false}
+  createEffect(() => {
+    if (isStreaming()) delivery.done = true
   })
 
   const startedAt = new Map<string, number>()
@@ -211,13 +149,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     Object.fromEntries(
       tools().flatMap((entry) => (entry.streamTitle ? entry.names.map((name) => [name, entry.streamTitle ?? '']) : [])),
     )
-  const nowTitleText = (): string | null => {
-    if (!isStreaming()) return null
-    const messages = chat.messages()
-    const last = messages[messages.length - 1]
-    if (!last || last.role !== 'assistant') return null
-    return activeCallTitle(last.parts, streamTitles())
-  }
+  const nowTitleText = (): string | null => (isStreaming() ? streamingTitle(chat.messages(), streamTitles()) : null)
 
   let wasWorking = false
   createEffect(() => {
@@ -295,116 +227,47 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const dividersInRange = (start: number, end: number): MarkerRow[] =>
     (markers.data ?? []).filter((row) => row.afterTurn >= start && row.afterTurn <= end)
 
-  const isInputFocused = (): boolean => {
-    if (!inputEl) return false
-    const root = inputEl.getRootNode()
-    if (root instanceof ShadowRoot) return root.activeElement === inputEl
-    return document.activeElement === inputEl
-  }
-
-  const writeDraft = () => {
-    const text = composerApi.current?.text() ?? ''
-    void rpc.drafts
-      .set({
-        sessionId: props.sessionId,
-        text,
-        selectionStart: inputEl?.selectionStart ?? text.length,
-        selectionEnd: inputEl?.selectionEnd ?? text.length,
-        grabs: pane.grabStore.grabs().map((grab) => grab.text),
-      })
-      .catch(() => {})
-  }
-  const persistDraft = createDebouncer(writeDraft, {wait: 400})
-  const persistSnapshot = createDebouncer(
-    () =>
-      writePaneSnapshot(props.sessionId, {
-        selectionStart: inputEl?.selectionStart ?? 0,
-        selectionEnd: inputEl?.selectionEnd ?? 0,
-        focused: isInputFocused(),
-        scrollTop: viewportEl?.scrollTop ?? null,
-      }),
-    {wait: 150},
-  )
-
-  const draftQuery = useQuery(() => appData.utils.drafts.get.queryOptions({input: {sessionId: props.sessionId}}))
-  const restored = {done: false}
-  const maybeRestore = () => {
-    const api = composerApi.current
-    if (!api || restored.done || !draftQuery.isSuccess) return
-    restored.done = true
-    const row = draftQuery.data
-    if (row) {
-      api.setText(row.text)
-      if (row.grabs.length > 0) pane.grabStore.stageTexts(row.grabs)
-    }
-    const snapshot = readPaneSnapshot(props.sessionId)
-    requestAnimationFrame(() => {
-      if (snapshot?.scrollTop != null && viewportEl) viewportEl.scrollTop = snapshot.scrollTop
-      if (!inputEl) return
-      if (row) inputEl.setSelectionRange(row.selectionStart, row.selectionEnd)
-      if (snapshot?.focused ?? true) inputEl.focus()
-    })
-  }
-  createEffect(() => {
-    if (!draftQuery.isSuccess) return
-    maybeRestore()
-  })
-  createEffect(() => {
-    const row = draftQuery.data
-    if (!row || !restored.done || isInputFocused()) return
-    const api = composerApi.current
-    if (api && api.text() !== row.text) api.setText(row.text)
+  const draft = usePaneDraft({
+    rpc,
+    utils: appData.utils,
+    sessionId: () => props.sessionId,
+    composer: () => composerApi.current,
+    grabTexts: () => pane.grabStore.grabs().map((grab) => grab.text),
+    stageTexts: pane.grabStore.stageTexts,
+    input: () => inputEl,
+    viewport: () => viewportEl,
   })
 
-  onMount(() => {
-    const schedule = () => {
-      persistDraft.maybeExecute()
-      persistSnapshot.maybeExecute()
-    }
-    const inputEvents: string[] = ['input', 'select', 'keyup', 'click', 'focus', 'blur']
-    const target = inputEl
-    const viewport = viewportEl
-    if (target) for (const event of inputEvents) target.addEventListener(event, schedule)
-    if (viewport) viewport.addEventListener('scroll', () => persistSnapshot.maybeExecute())
-    const onPageHide = () => persistSnapshot.flush()
-    window.addEventListener('pagehide', onPageHide)
-    onCleanup(() => {
-      if (target) for (const event of inputEvents) target.removeEventListener(event, schedule)
-      window.removeEventListener('pagehide', onPageHide)
-    })
-  })
-
-  const send = async (content: string | MultimodalContent, force = false) => {
-    lastAttempt.content = content
+  const dispatch = async (content: string | MultimodalContent, force: boolean) => {
     setForceSend(force)
+    delivery.done = false
     const sending = chat.sendMessage(content).finally(() => setForceSend(false))
-    await rpc.drafts
-      .set({
-        sessionId: props.sessionId,
-        text: '',
-        selectionStart: 0,
-        selectionEnd: 0,
-        grabs: pane.grabStore.grabs().map((grab) => grab.text),
-      })
-      .catch(() => {})
-    persistDraft.cancel()
-    pane.grabStore.clear()
+    await draft.noteSent()
     await sending
-    clearPaneSnapshot(props.sessionId)
-    void draftQuery.refetch()
+    draft.settleSent()
   }
-  const onSend = (content: string | MultimodalContent) => {
-    const text = contentText(content)
-    const hasContent = typeof content === 'string' ? text.length > 0 : content.content.length > 0
-    if (!hasContent || compacting()) return
-    if (typeof content !== 'string' && content.content.length > MAX_CONTENT_PARTS) {
-      notify('Too many attachments. Remove some and send again.')
-      return
-    }
-    if (chat.connectionStatus() !== 'connected') return
-    setExternalConfirm(null)
-    setExternalBlocked(null)
-    void send(typeof content === 'string' ? text : content)
+
+  const guard = makeSendGuard({
+    attached: pane.attached,
+    delivered: () => delivery.done,
+    snapshot: () => composerApi.current?.snapshotDraft() ?? null,
+    restore: (saved) => composerApi.current?.restoreDraft(saved),
+    clearDraft: () => composerApi.current?.clearDraft(),
+    grabs: pane.grabStore.grabs,
+    stageGrabs: pane.grabStore.stageAll,
+    clearGrabs: pane.grabStore.clear,
+    focusComposer: focusInput,
+    detach: () => rpc.sessions.attachDetach({sessionId: props.sessionId}).then(appData.invalidateSessions),
+    dispatch,
+    onFailed: () => notify('Couldn’t send that message. It is back in the composer.', {tone: 'danger'}),
+  })
+  guardHolder.guard = guard
+
+  const beforeSend = (content: string | MultimodalContent): boolean => {
+    const verdict = checkSend(content, {busy: compacting(), connected: chat.connectionStatus() === 'connected'})
+    if (verdict.ok) return guard.beforeSend(content)
+    if (verdict.message !== null) notify(verdict.message, {tone: verdict.tone})
+    return false
   }
 
   useBlocker({
@@ -425,28 +288,18 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
       attach={attach}
       newSession={() => void newSession()}
     >
-      <ExternalSessionConfirm
-        message={attachedActive()}
-        question="Take the session back from your terminal?"
-        confirmLabel="Take over"
-        onCancel={() => setAttachedActive(null)}
-        onSendAnyway={() => void takeOver()}
+      <TerminalConflictDialog
+        conflict={guard.conflict()}
+        onCancel={guard.cancel}
+        onTakeOver={guard.takeOver}
+        onSendAnyway={guard.sendAnyway}
       />
-      <ExternalSessionConfirm
-        message={externalConfirm()}
-        onCancel={() => setExternalConfirm(null)}
-        onSendAnyway={() => {
-          const content = lastAttempt.content
-          setExternalConfirm(null)
-          if (content !== null) void send(content, true)
-        }}
-      />
-      <ExternalSessionNotice message={externalBlocked()} onDismiss={() => setExternalBlocked(null)} />
       <ChatProvider chat={chat}>
         <ToolProvider value={toolCtx}>
           <ComposerHandlersProvider
             value={{
-              onSend,
+              beforeSend,
+              onSend: guard.onSend,
               onCancel: () => {
                 chat.stop()
                 void rpc.sessions.stop({sessionId: props.sessionId}).catch(() => {})
@@ -507,27 +360,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                           <span class="flex-1">Reconnecting…</span>
                         </div>
                       </Show>
-                      <Show when={notice()}>
-                        {(current) => (
-                          <div class={NOTICE}>
-                            <span class="flex-1">{current().message}</span>
-                            <Show when={current().action}>
-                              {(action) => (
-                                <button
-                                  type="button"
-                                  class={NOTICE_ACTION}
-                                  onClick={() => {
-                                    setNotice(null)
-                                    action().run()
-                                  }}
-                                >
-                                  {action().label}
-                                </button>
-                              )}
-                            </Show>
-                          </div>
-                        )}
-                      </Show>
+                      <NoticeStrip />
                       <For each={pane.grabStore.grabs()}>
                         {(grab) => (
                           <GrabReference
@@ -545,7 +378,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                         inputRef={(el) => {
                           inputEl = el
                         }}
-                        busy={compacting() ? <CompactSpinner /> : undefined}
+                        busy={busySlot(compacting())}
                         popover={<TriggerMenus sessionId={props.sessionId} />}
                       >
                         <ComposerActions
@@ -561,7 +394,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                         <ComposerStateBridge
                           onReady={(api) => {
                             composerApi.current = api
-                            maybeRestore()
+                            draft.restore()
                             for (const file of pane.attachments.drain()) void api.addAttachment(file)
                           }}
                         />

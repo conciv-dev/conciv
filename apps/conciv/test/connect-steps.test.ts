@@ -5,6 +5,8 @@ import {
   stepOnAdoptFailed,
   stepOnAdopted,
   stepOnBack,
+  stepOnKeepWaiting,
+  stepOnLeave,
   stepOnOpen,
   type Adopted,
 } from '../src/composer/connect/connect-steps.js'
@@ -59,6 +61,29 @@ describe('what happens once the server answers the adopt', () => {
 
   it('goes back to a clean list from the reload card', () => {
     expect(stepOnBack()).toEqual({kind: 'picking', error: null, retryId: null})
+  })
+})
+
+describe('leaving the reload card', () => {
+  it('asks before it lets a half-connected terminal go', () => {
+    const step = stepOnLeave({kind: 'reload', adopted}, false)
+    expect(step).toEqual({kind: 'leaveConfirm', adopted})
+    expect(dialogIsOpen(step)).toBe(true)
+  })
+
+  it('just closes once the terminal has dialled in, because nothing is half done', () => {
+    expect(stepOnLeave({kind: 'reload', adopted}, true)).toEqual({kind: 'closed'})
+  })
+
+  it('closes straight away from every other step', () => {
+    expect(stepOnLeave({kind: 'picking', error: null, retryId: null}, false)).toEqual({kind: 'closed'})
+    expect(stepOnLeave({kind: 'snippet', command: 'claude --resume tok', detail: 'old'}, false)).toEqual({
+      kind: 'closed',
+    })
+  })
+
+  it('goes back to waiting with the same session when the reader keeps waiting', () => {
+    expect(stepOnKeepWaiting({kind: 'leaveConfirm', adopted})).toEqual({kind: 'reload', adopted})
   })
 })
 

@@ -3,6 +3,7 @@ import {Button, Dialog, RelativeTime, TooltipIconButton} from '@conciv/ui-kit-sy
 import {RotateCw} from 'lucide-solid'
 import type {LiveSession} from '@conciv/contract'
 import {CandidateList} from './candidate-list.js'
+import {LeaveConfirm} from './leave-confirm.js'
 import {ReloadCard} from './reload-card.js'
 import {SnippetCard} from './snippet-card.js'
 import {dialogIsOpen, type ConnectStep} from './connect-steps.js'
@@ -24,6 +25,10 @@ function pickingOf(step: ConnectStep): {error: string | null; retryId: string | 
 
 function reloadOf(step: ConnectStep) {
   return step.kind === 'reload' ? step : undefined
+}
+
+function leaveConfirmOf(step: ConnectStep) {
+  return step.kind === 'leaveConfirm' ? step : undefined
 }
 
 function snippetOf(step: ConnectStep) {
@@ -49,6 +54,8 @@ export function ConnectDialog(props: {
   onCopy: (text: string) => void
   onBack: () => void
   onDone: () => void
+  onKeepWaiting: () => void
+  onHandBack: () => void
   onClose: () => void
 }): JSX.Element {
   const [local] = splitProps(props, [
@@ -70,6 +77,8 @@ export function ConnectDialog(props: {
     'onCopy',
     'onBack',
     'onDone',
+    'onKeepWaiting',
+    'onHandBack',
     'onClose',
   ])
   const checked = () => checkedLabel(local.checkedAt)
@@ -136,6 +145,15 @@ export function ConnectDialog(props: {
               onCopy={local.onCopy}
               onBack={local.onBack}
               onDone={local.onDone}
+            />
+          )}
+        </Match>
+        <Match when={leaveConfirmOf(local.step)}>
+          {(leaving) => (
+            <LeaveConfirm
+              title={leaving().adopted.title}
+              onKeepWaiting={local.onKeepWaiting}
+              onHandBack={local.onHandBack}
             />
           )}
         </Match>

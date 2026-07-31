@@ -134,6 +134,8 @@ export function ComposerActions(props: {
         onCopy={(text) => void copyCommand(text, props.notify)}
         onBack={connect.back}
         onDone={connect.done}
+        onKeepWaiting={connect.keepWaiting}
+        onHandBack={connect.handBack}
         onClose={connect.close}
       />
     </>

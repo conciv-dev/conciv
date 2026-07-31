@@ -12,12 +12,13 @@ export type ConnectStep =
   | {kind: 'connecting'}
   | {kind: 'picking'; error: string | null; retryId: string | null}
   | {kind: 'reload'; adopted: Adopted}
+  | {kind: 'leaveConfirm'; adopted: Adopted}
   | {kind: 'snippet'; command: string; detail: string}
 
 export const CLOSED: ConnectStep = {kind: 'closed'}
 
 export function dialogIsOpen(step: ConnectStep): boolean {
-  return step.kind === 'picking' || step.kind === 'reload' || step.kind === 'snippet'
+  return step.kind !== 'closed' && step.kind !== 'connecting'
 }
 
 export function stepOnOpen(candidates: LiveSession[]): ConnectStep {
@@ -32,6 +33,16 @@ export function stepOnAdopted(adopted: Adopted, ready: boolean): ConnectStep {
 export function stepOnAdoptFailed(failure: {message: string; sessionId: string}, snippet: string | null): ConnectStep {
   if (snippet !== null) return {kind: 'snippet', command: snippet, detail: failure.message}
   return {kind: 'picking', error: failure.message, retryId: failure.sessionId}
+}
+
+export function stepOnLeave(step: ConnectStep, connected: boolean): ConnectStep {
+  if (step.kind === 'reload' && !connected) return {kind: 'leaveConfirm', adopted: step.adopted}
+  return CLOSED
+}
+
+export function stepOnKeepWaiting(step: ConnectStep): ConnectStep {
+  if (step.kind === 'leaveConfirm') return {kind: 'reload', adopted: step.adopted}
+  return CLOSED
 }
 
 export function stepOnBack(): ConnectStep {

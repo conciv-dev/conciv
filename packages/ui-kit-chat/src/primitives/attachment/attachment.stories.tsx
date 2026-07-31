@@ -38,6 +38,9 @@ function Harness(): JSX.Element {
           setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
         },
         sendingAttachments: () => false,
+        snapshotDraft: () => ({draft: '', attachments: [], quote: null}),
+        restoreDraft: () => {},
+        clearDraft: () => {},
         quote: () => null,
         setQuote: () => {},
         editing: () => false,

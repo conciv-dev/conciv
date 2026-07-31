@@ -2,7 +2,7 @@ import {createSignal, createEffect, onCleanup, type Accessor} from 'solid-js'
 import {useMutation, useQuery, type QueryClient} from '@tanstack/solid-query'
 import type {LiveSession, RpcClient} from '@conciv/contract'
 import type {QueryUtils} from '@conciv/client'
-import {errorMessageFor} from '../../chat/external-session.js'
+import {errorMessageFor} from '../../chat/send-errors.js'
 import type {Notify} from '../../chat/notify.js'
 import {
   CLOSED,
@@ -10,12 +10,24 @@ import {
   stepOnAdoptFailed,
   stepOnAdopted,
   stepOnBack,
+  stepOnKeepWaiting,
+  stepOnLeave,
   stepOnOpen,
   type Adopted,
   type ConnectStep,
 } from './connect-steps.js'
-import {candidateTitle, connectFailed, HAND_BACK_FAILED, isStale, nowFollowing, UNDO_LABEL} from './connect-copy.js'
+import {
+  candidateTitle,
+  connectFailed,
+  HAND_BACK_LABEL,
+  HANDED_BACK,
+  isStale,
+  nowFollowing,
+  STILL_CONNECTED,
+  UNDO_LABEL,
+} from './connect-copy.js'
 
+const HAND_BACK_KEY = 'hand-back'
 const FRESH_MS = 3_000
 const KEEP_MS = 5 * 60_000
 const POLL_MS = 4_000
@@ -53,6 +65,8 @@ export type ConnectFlow = {
   refresh: () => void
   back: () => void
   done: () => void
+  keepWaiting: () => void
+  handBack: () => void
 }
 
 function reasonOf(error: unknown): string {
@@ -66,6 +80,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
   const [epoch, setEpoch] = createSignal(0)
   const [flight, setFlight] = createSignal(0)
   const [undecided, setUndecided] = createSignal(false)
+  const [connected, setConnected] = createSignal(false)
   const [now, setNow] = createSignal(Date.now())
 
   const tick = setInterval(() => {
@@ -73,25 +88,45 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
   }, TICK_MS)
   onCleanup(() => clearInterval(tick))
 
-  const handBack = (concivSessionId: string): void => {
-    void deps.rpc.sessions
-      .attachDetach({sessionId: concivSessionId})
-      .then(() => deps.invalidateSessions())
-      .catch(() => deps.notify(HAND_BACK_FAILED))
-  }
+  const detach = useMutation(() => ({
+    mutationFn: (concivSessionId: string) => deps.rpc.sessions.attachDetach({sessionId: concivSessionId}),
+    onSuccess: () => {
+      deps.invalidateSessions()
+      void deps.queryClient.invalidateQueries({queryKey: deps.utils.sessions.attachCandidates.key()})
+      deps.notify(HANDED_BACK, {key: HAND_BACK_KEY, tone: 'success'})
+    },
+    onError: (_error: unknown, concivSessionId: string) => {
+      deps.notify(STILL_CONNECTED, {
+        key: HAND_BACK_KEY,
+        tone: 'danger',
+        action: {label: HAND_BACK_LABEL, run: () => detach.mutate(concivSessionId)},
+      })
+    },
+  }))
 
   const announceAdopted = (session: Adopted): void => {
     deps.notify(nowFollowing(session.title), {
-      label: UNDO_LABEL,
-      run: () => handBack(session.concivSessionId),
+      key: `following-${session.concivSessionId}`,
+      tone: 'success',
+      action: {label: UNDO_LABEL, run: () => detach.mutate(session.concivSessionId)},
     })
   }
 
-  const finish = (session: Adopted): void => {
-    setStep(CLOSED)
-    setRequested(false)
+  const commit = (session: Adopted): void => {
     deps.navigate(session.concivSessionId)
     announceAdopted(session)
+  }
+
+  const shut = (): void => {
+    setEpoch((count) => count + 1)
+    setUndecided(false)
+    setRequested(false)
+    setStep(CLOSED)
+  }
+
+  const finish = (session: Adopted): void => {
+    shut()
+    commit(session)
   }
 
   const connectCommand = useMutation(() => ({
@@ -142,10 +177,15 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     },
   }))
 
+  const awaitingDialIn = (): boolean => {
+    const kind = step().kind
+    return kind === 'reload' || kind === 'leaveConfirm'
+  }
+
   const pollMs = (): number | false => {
     if (!requested()) return false
     if (adopt.isPending) return false
-    return step().kind === 'reload' ? DIAL_IN_POLL_MS : POLL_MS
+    return awaitingDialIn() ? DIAL_IN_POLL_MS : POLL_MS
   }
 
   const candidates = useQuery(() => ({
@@ -179,8 +219,24 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     decide(list)
   })
 
+  const dialledIn = (): boolean => {
+    const following = adopted()
+    if (!following || !awaitingDialIn()) return false
+    return candidates.data?.some((row) => row.sessionId === following.harnessSessionId && row.ready) ?? false
+  }
+
+  createEffect(() => {
+    if (connected() || !dialledIn()) return
+    const following = adopted()
+    if (!following) return
+    setConnected(true)
+    setStep({kind: 'reload', adopted: following})
+    commit(following)
+  })
+
   const start = (): void => {
     setEpoch((count) => count + 1)
+    setConnected(false)
     setRequested(true)
     const cached = candidates.data
     if (cached) {
@@ -192,11 +248,29 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     setStep({kind: 'picking', error: null, retryId: null})
   }
 
+  const keepWaiting = (): void => {
+    setStep(stepOnKeepWaiting(step()))
+  }
+
+  const handBack = (): void => {
+    const leaving = step()
+    if (leaving.kind !== 'leaveConfirm') return
+    shut()
+    detach.mutate(leaving.adopted.concivSessionId)
+  }
+
   const close = (): void => {
-    setEpoch((count) => count + 1)
-    setUndecided(false)
-    setRequested(false)
-    setStep(CLOSED)
+    const current = step()
+    if (current.kind === 'leaveConfirm') {
+      handBack()
+      return
+    }
+    const next = stepOnLeave(current, connected())
+    if (next.kind === 'leaveConfirm') {
+      setStep(next)
+      return
+    }
+    shut()
   }
 
   const pick = (session: LiveSession): void => {
@@ -215,11 +289,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     pick(again)
   }
 
-  const done = (): void => {
-    const session = adopted()
-    if (!session) return
-    finish(session)
-  }
+  const done = (): void => shut()
 
   return {
     step,
@@ -230,12 +300,8 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     stale: () => isStale(candidates.dataUpdatedAt, now()),
     checkedAt: () => candidates.dataUpdatedAt,
     connectingId: () => (adopt.isPending ? (adopt.variables?.sessionId ?? null) : null),
-    dialledIn: () => {
-      const following = adopted()
-      if (step().kind !== 'reload' || !following) return false
-      return candidates.data?.some((row) => row.sessionId === following.harnessSessionId && row.ready) ?? false
-    },
-    contactLost: () => step().kind === 'reload' && candidates.isError,
+    dialledIn: connected,
+    contactLost: () => step().kind === 'reload' && candidates.isError && !connected(),
     busy: () => adopt.isPending && !dialogIsOpen(step()),
     start,
     prefetch: () => void deps.queryClient.prefetchQuery(deps.utils.sessions.attachCandidates.queryOptions()),
@@ -245,5 +311,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     refresh: () => void candidates.refetch(),
     back: () => setStep(stepOnBack()),
     done,
+    keepWaiting,
+    handBack,
   }
 }
