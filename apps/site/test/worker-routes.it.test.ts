@@ -1,31 +1,17 @@
-import {spawn, type ChildProcess} from 'node:child_process'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {startWranglerDev, type WranglerDev} from './wrangler-dev'
 
 const SITE_PORT = 8792
 const INSPECTOR_PORT = 9792
 const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
-let site: ChildProcess
+let site: WranglerDev
 
 beforeAll(async () => {
-  site = spawn(
-    'pnpm',
-    ['exec', 'wrangler', 'dev', '--port', String(SITE_PORT), '--inspector-port', String(INSPECTOR_PORT)],
-    {cwd: import.meta.dirname + '/..'},
-  )
-  await new Promise<void>((resolve, reject) => {
-    const output: string[] = []
-    const watch = (chunk: Buffer) => {
-      output.push(String(chunk))
-      if (String(chunk).includes('Ready')) resolve()
-    }
-    site.stdout?.on('data', watch)
-    site.stderr?.on('data', watch)
-    site.on('exit', () => reject(new Error(`wrangler dev exited:\n${output.join('')}`)))
-  })
+  site = await startWranglerDev({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
 }, 120_000)
 
-afterAll(() => {
-  site?.kill()
+afterAll(async () => {
+  await site?.stop()
 })
 
 function servedByWorker(response: Response): boolean {
