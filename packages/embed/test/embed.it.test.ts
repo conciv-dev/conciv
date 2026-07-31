@@ -3,7 +3,13 @@ import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
-import {currentHref, setNavigation} from './helpers/navigation.js'
+import {
+  currentHref,
+  freezeClock,
+  holdFirstNavigationWrite,
+  setNavigation,
+  waitForNavigationWrite,
+} from './helpers/navigation.js'
 import {openPanel, sendMessage} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
@@ -76,36 +82,46 @@ describe('embed boots the conciv app against a real core', () => {
 
   it('a widget navigation write that lands after a newer one loses, even in flight', async () => {
     const page = await browser.newPage()
-    let releaseHeld = (): void => {}
-    let markHeld = (): void => {}
-    const heldRelease = new Promise<void>((resolve) => {
-      releaseHeld = resolve
-    })
-    const heldArrival = new Promise<void>((resolve) => {
-      markHeld = resolve
-    })
-    let seen = 0
-    await page.route(
-      (url) => url.pathname.endsWith('/rpc/navigation/set'),
-      async (route) => {
-        seen += 1
-        if (seen > 1) return route.abort()
-        markHeld()
-        await heldRelease
-        await route.continue()
-      },
-    )
+    const held = await holdFirstNavigationWrite(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
-    await heldArrival
+    await held.arrived
 
     expect(await setNavigation(kit, [{href: '/reset-while-the-widget-write-is-in-flight'}])).toBe(true)
-    const landed = page.waitForResponse((response) => response.url().endsWith('/rpc/navigation/set'))
-    releaseHeld()
+    const landed = waitForNavigationWrite(page)
+    held.release()
     await landed
 
     expect(await currentHref(kit)).toBe('/reset-while-the-widget-write-is-in-flight')
     await page.close()
+  })
+
+  it('a reloaded page outranks the previous page in-flight write when both clocks read the same', async () => {
+    const frozen = Date.now()
+    const before = await browser.newPage()
+    await freezeClock(before, frozen)
+    const held = await holdFirstNavigationWrite(before)
+    expect((await kit.rpc.navigation.set({entries: [{href: '/'}], index: 0, updatedAt: frozen + 5_000})).applied).toBe(
+      true,
+    )
+    await before.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await openPanel(before)
+    await held.arrived
+
+    const after = await browser.newPage()
+    await freezeClock(after, frozen)
+    await after.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await openPanel(after)
+    await after.getByRole('tab', {name: 'Terminal'}).click()
+    await expect.poll(() => currentHref(kit), {timeout: 30_000}).toContain('/terminal')
+
+    const landed = waitForNavigationWrite(before)
+    held.release()
+    await landed
+
+    expect(await currentHref(kit)).toContain('/terminal')
+    await before.close()
+    await after.close()
   })
 
   it('fab close is a shutter: reopening restores the same view without touching history', async () => {
@@ -268,7 +284,7 @@ describe('embed at a phone viewport', () => {
   it('paints an opaque sheet so the host page never shows through', async () => {
     const page = await browser.newPage({viewport: PHONE_VIEWPORT})
     const shootOver = async (backdrop: string): Promise<Buffer> => {
-      await kit.rpc.navigation.set({entries: [{href: '/'}], index: 0})
+      expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
       await page.goto(`${host.base}/?backdrop=${backdrop}`, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
       return page.screenshot({animations: 'disabled', clip: SHEET_INTERIOR_CLIP})

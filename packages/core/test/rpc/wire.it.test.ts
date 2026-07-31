@@ -210,10 +210,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       index: 1,
     }
     await kit.rpc.navigation.set({...state, updatedAt: 100})
-    expect(await kit.rpc.navigation.get(undefined)).toEqual(state)
+    expect(await kit.rpc.navigation.get(undefined)).toEqual({...state, updatedAt: 100})
     const replaced = {entries: [{href: '/quick'}], index: 0}
     await kit.rpc.navigation.set({...replaced, updatedAt: 200})
-    expect(await kit.rpc.navigation.get(undefined)).toEqual(replaced)
+    expect(await kit.rpc.navigation.get(undefined)).toEqual({...replaced, updatedAt: 200})
   })
 
   it('navigation set drops a write whose intent stamp is not strictly newer than the stored one', async () => {
@@ -224,13 +224,35 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
 
     expect(await kit.rpc.navigation.set({...first, updatedAt: 100})).toEqual({ok: true, applied: true})
     expect(await kit.rpc.navigation.set({...stale, updatedAt: 50})).toEqual({ok: true, applied: false})
-    expect(await kit.rpc.navigation.get(undefined)).toEqual(first)
+    expect(await kit.rpc.navigation.get(undefined)).toEqual({...first, updatedAt: 100})
 
     expect(await kit.rpc.navigation.set({...latest, updatedAt: 150})).toEqual({ok: true, applied: true})
-    expect(await kit.rpc.navigation.get(undefined)).toEqual(latest)
+    expect(await kit.rpc.navigation.get(undefined)).toEqual({...latest, updatedAt: 150})
 
     expect(await kit.rpc.navigation.set({...stale, updatedAt: 150})).toEqual({ok: true, applied: false})
-    expect(await kit.rpc.navigation.get(undefined)).toEqual(latest)
+    expect(await kit.rpc.navigation.get(undefined)).toEqual({...latest, updatedAt: 150})
+  })
+
+  it('navigation set refuses a stamp far ahead of the server clock so it cannot wedge later writes', async () => {
+    const {kit} = await bootWire()
+    const stored = {entries: [{href: '/stored'}], index: 0}
+    const absurd = {entries: [{href: '/absurd'}], index: 0}
+    const now = Date.now()
+
+    expect(await kit.rpc.navigation.set({...stored, updatedAt: now})).toEqual({ok: true, applied: true})
+    expect(await kit.rpc.navigation.set({...absurd, updatedAt: Number.MAX_SAFE_INTEGER})).toEqual({
+      ok: true,
+      applied: false,
+    })
+    expect(await kit.rpc.navigation.set({...absurd, updatedAt: now + 25 * 60 * 60 * 1000})).toEqual({
+      ok: true,
+      applied: false,
+    })
+    expect(await kit.rpc.navigation.get(undefined)).toEqual({...stored, updatedAt: now})
+
+    const nearFuture = {entries: [{href: '/near-future'}], index: 0}
+    expect(await kit.rpc.navigation.set({...nearFuture, updatedAt: now + 60_000})).toEqual({ok: true, applied: true})
+    expect(await kit.rpc.navigation.get(undefined)).toEqual({...nearFuture, updatedAt: now + 60_000})
   })
 
   it('editor.open reaches the injected editor opener', async () => {

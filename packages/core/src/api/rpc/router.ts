@@ -9,6 +9,8 @@ import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
 import {os, type RpcDeps} from './mount.js'
 
+const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
+
 type PageErrors = {NO_PAGE_CLIENT: () => Error; PAGE_TIMEOUT: () => Error}
 type BundlerErrors = {NO_BUNDLER: () => Error}
 
@@ -50,9 +52,10 @@ export function makeRpcRouter(deps: RpcDeps) {
       get: os.navigation.get.handler(async () => {
         const rows = await db.select().from(navigation).where(eq(navigation.id, 'navigation'))
         const row = rows[0]
-        return row ? {entries: row.entries, index: row.index} : null
+        return row ? {entries: row.entries, index: row.index, updatedAt: row.updatedAt} : null
       }),
       set: os.navigation.set.handler(async ({input}) => {
+        if (input.updatedAt > Date.now() + MAX_NAVIGATION_CLOCK_SKEW_MS) return {ok: true as const, applied: false}
         const row = {id: 'navigation', entries: input.entries, index: input.index, updatedAt: input.updatedAt}
         const result = await db
           .insert(navigation)

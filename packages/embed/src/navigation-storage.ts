@@ -16,8 +16,8 @@ function parseNavigation(raw: string): NavigationState | null {
 
 export async function makeNavigationStorage(rpc: RpcClient): Promise<WebStorage> {
   const initial = await rpc.navigation.get(undefined).catch(() => null)
-  let cache = initial ? JSON.stringify(initial) : null
-  let lastStamp = 0
+  let cache = initial ? JSON.stringify({entries: initial.entries, index: initial.index}) : null
+  let lastStamp = initial?.updatedAt ?? 0
   const stamp = (): number => {
     lastStamp = Math.max(Date.now(), lastStamp + 1)
     return lastStamp

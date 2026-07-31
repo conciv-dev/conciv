@@ -7,7 +7,6 @@ import {
   ChatLaunchSchema,
   ChatModelsSchema,
   ChatToolsSchema,
-  NavigationStateSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
 } from '@conciv/protocol/chat-types'
@@ -63,7 +62,7 @@ export const contract = {
     list: oc.input(SessionIdInput).output(z.array(MarkerRowSchema)),
   },
   navigation: {
-    get: oc.output(NavigationStateSchema.nullable()),
+    get: oc.output(NavigationWriteSchema.nullable()),
     set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
