@@ -9,6 +9,7 @@ import type {
   HarnessSessionSummary,
   TranscriptHandle,
 } from '@conciv/protocol/harness-types'
+import {parseJsonOrNull} from '../_shared/json.js'
 import {makeJsonlHandle} from '../_shared/jsonl-handle.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
@@ -250,7 +251,7 @@ function foldRecord(state: ClaudeFold, record: TranscriptRecord): void {
 function foldLine(state: ClaudeFold, line: string): ClaudeFold {
   const trimmed = line.trim()
   if (!trimmed) return state
-  const raw = parseJson(trimmed)
+  const raw = parseJsonOrNull(trimmed)
   if (raw === null) return state
   const parsed = TranscriptRecordSchema.safeParse(raw)
   if (parsed.success && parsed.data.isSidechain === true) return state
@@ -291,20 +292,12 @@ const AssistantUsageRecordSchema = z
   })
   .loose()
 
-function parseJson(line: string): unknown {
-  try {
-    return JSON.parse(line)
-  } catch {
-    return null
-  }
-}
-
 type AssistantUsage = NonNullable<NonNullable<z.infer<typeof AssistantUsageRecordSchema>['message']>['usage']>
 
 function lastAssistantUsage(jsonl: string): AssistantUsage | undefined {
   return jsonl.split('\n').reduceRight<AssistantUsage | undefined>((found, line) => {
     if (found) return found
-    const rec = AssistantUsageRecordSchema.safeParse(parseJson(line))
+    const rec = AssistantUsageRecordSchema.safeParse(parseJsonOrNull(line))
     return rec.success && !rec.data.isSidechain && rec.data.message?.usage ? rec.data.message.usage : found
   }, undefined)
 }
@@ -368,7 +361,7 @@ export async function listSessions(cwd: string, home: string = homedir()): Promi
         }
       }),
     )
-  ).filter(Boolean) as {name: string; mtime: number}[]
+  ).filter((entry): entry is {name: string; mtime: number} => entry !== null)
   const top = stamped.toSorted((a, b) => b.mtime - a.mtime).slice(0, MAX_SESSIONS)
   return Promise.all(
     top.map(async (f) => {

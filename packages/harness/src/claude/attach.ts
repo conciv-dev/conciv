@@ -12,6 +12,7 @@ import type {
   HarnessLiveSession,
 } from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
+import {parseJsonOrNull} from '../_shared/json.js'
 import {claudeHooksManifest} from './hooks-plugin.js'
 import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE, CLAUDE_CONNECT_BRIDGE_URL_VAR} from './connect-bridge.js'
 import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './connect-names.js'
@@ -100,7 +101,7 @@ export function relatedCwd(sessionCwd: string, cwd: string): boolean {
 }
 
 export function parseLiveSessions(raw: string): HarnessLiveSession[] {
-  const listed = AgentsOutputSchema.safeParse(safeJson(raw))
+  const listed = AgentsOutputSchema.safeParse(parseJsonOrNull(raw))
   if (!listed.success) return []
   return listed.data.flatMap((value) => {
     const parsed = LiveSessionSchema.safeParse(value)
@@ -118,14 +119,6 @@ export function parseLiveSessions(raw: string): HarnessLiveSession[] {
       },
     ]
   })
-}
-
-function safeJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
 }
 
 export function meetsReloadFloor(version: string, floor = CLAUDE_RELOAD_MIN_VERSION): boolean {
@@ -278,7 +271,7 @@ function readTextOrNull(path: string): string | null {
 
 function readJsonFile(path: string): unknown {
   const raw = readTextOrNull(path)
-  return raw === null ? null : safeJson(raw)
+  return raw === null ? null : parseJsonOrNull(raw)
 }
 
 function cachedCopyMatches(files: HarnessConnectFile[], stateDir: string): boolean {

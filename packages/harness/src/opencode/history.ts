@@ -13,6 +13,7 @@ import type {
   TranscriptRevision,
 } from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
+import {parseJsonOrNull} from '../_shared/json.js'
 import {transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50
@@ -78,14 +79,6 @@ const ToolPartSchema = z
   })
   .loose()
 
-function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
-}
-
 function toolParts(data: unknown): MessagePart[] {
   const tool = ToolPartSchema.safeParse(data)
   if (!tool.success) return []
@@ -133,12 +126,12 @@ export function buildMessages(
 ): UIMessage[] {
   const partsByMessage = new Map<string, MessagePart[]>()
   for (const row of partRows) {
-    const parts = partsFrom(parseJson(row.data))
+    const parts = partsFrom(parseJsonOrNull(row.data))
     if (parts.length === 0) continue
     partsByMessage.set(row.message_id, [...(partsByMessage.get(row.message_id) ?? []), ...parts])
   }
   return messageRows.flatMap((row, index) => {
-    const message = MessageDataSchema.safeParse(parseJson(row.data))
+    const message = MessageDataSchema.safeParse(parseJsonOrNull(row.data))
     if (!message.success) return []
     const parts = partsByMessage.get(row.id) ?? []
     return parts.length > 0 ? [{id: `h${index + 1}`, role: message.data.role, parts}] : []

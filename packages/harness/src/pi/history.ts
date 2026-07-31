@@ -5,6 +5,7 @@ import {join, resolve} from 'node:path'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
+import {parseJsonOrNull} from '../_shared/json.js'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50
@@ -32,20 +33,12 @@ const ModelChangeSchema = z.object({type: z.literal('model_change'), modelId: z.
 
 type Entry = z.infer<typeof EntrySchema>
 
-function parseLine(line: string): unknown {
-  try {
-    return JSON.parse(line)
-  } catch {
-    return null
-  }
-}
-
 function records(raw: string): unknown[] {
   return raw
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
-    .map(parseLine)
+    .map(parseJsonOrNull)
     .filter((value) => value !== null)
 }
 
@@ -154,7 +147,7 @@ function emptyFold(): PiFold {
 function foldLine(state: PiFold, line: string): PiFold {
   const trimmed = line.trim()
   if (!trimmed) return state
-  const record = parseLine(trimmed)
+  const record = parseJsonOrNull(trimmed)
   if (record === null) return state
   const parsed = EntrySchema.safeParse(record)
   if (parsed.success) state.entries.push(parsed.data)
