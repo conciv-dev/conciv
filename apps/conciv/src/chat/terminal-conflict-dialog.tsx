@@ -5,6 +5,7 @@ import type {Conflict} from './conflict.js'
 const BODY = 'text-pw-text text-sm leading-normal m-0'
 const HINT = 'text-pw-text-3 text-xs leading-normal m-0'
 const ALARM = 'text-pw-danger text-xs leading-normal m-0'
+const RING = 'focus-ring-always'
 
 const TAKE_OVER_QUESTION = 'Take the session back from your terminal?'
 const SEND_QUESTION = 'Send it here anyway?'
@@ -27,6 +28,22 @@ function labelOf(conflict: Conflict): string {
   return conflict.kind === 'blocked' ? BUSY_TITLE : ACTIVE_TITLE
 }
 
+function ChoiceRow(props: {
+  dismissRef: (element: HTMLButtonElement) => void
+  onCancel: () => void
+  children: JSX.Element
+}): JSX.Element {
+  const [local] = splitProps(props, ['dismissRef', 'onCancel', 'children'])
+  return (
+    <div class="flex justify-end gap-2">
+      <Button ref={local.dismissRef} class={RING} variant="ghost" size="sm" onClick={() => local.onCancel()}>
+        {CANCEL_LABEL}
+      </Button>
+      {local.children}
+    </div>
+  )
+}
+
 export function TerminalConflictDialog(props: {
   conflict: Conflict
   onCancel: () => void
@@ -36,7 +53,11 @@ export function TerminalConflictDialog(props: {
   const [local] = splitProps(props, ['conflict', 'onCancel', 'onTakeOver', 'onSendAnyway'])
   const busy = () => local.conflict.kind === 'taking-over'
   const failure = () => (local.conflict.kind === 'take-over-failed' ? local.conflict.reason : null)
+  const sending = () => local.conflict.kind === 'still-live' || local.conflict.kind === 'external'
   let dismiss: HTMLButtonElement | undefined
+  const keepDismiss = (element: HTMLButtonElement) => {
+    dismiss = element
+  }
   return (
     <Dialog
       open={local.conflict.kind !== 'none'}
@@ -59,73 +80,29 @@ export function TerminalConflictDialog(props: {
           <Match when={local.conflict.kind === 'blocked'}>
             <p class={HINT}>{KEPT_HINT}</p>
             <div class="flex justify-end">
-              <Button
-                ref={(element: HTMLButtonElement) => {
-                  dismiss = element
-                }}
-                size="sm"
-                onClick={() => local.onCancel()}
-              >
+              <Button ref={keepDismiss} class={RING} size="sm" onClick={() => local.onCancel()}>
                 {CLOSE_LABEL}
               </Button>
             </div>
           </Match>
-          <Match when={local.conflict.kind === 'still-live'}>
-            <p class={HINT}>{STILL_LIVE_QUESTION}</p>
-            <div class="flex justify-end gap-2">
-              <Button
-                ref={(element: HTMLButtonElement) => {
-                  dismiss = element
-                }}
-                variant="ghost"
-                size="sm"
-                onClick={() => local.onCancel()}
-              >
-                {CANCEL_LABEL}
-              </Button>
-              <Button size="sm" onClick={() => local.onSendAnyway()}>
+          <Match when={sending()}>
+            <p class={HINT}>{local.conflict.kind === 'still-live' ? STILL_LIVE_QUESTION : SEND_QUESTION}</p>
+            <ChoiceRow dismissRef={keepDismiss} onCancel={() => local.onCancel()}>
+              <Button class={RING} size="sm" onClick={() => local.onSendAnyway()}>
                 {SEND_ANYWAY_LABEL}
               </Button>
-            </div>
-          </Match>
-          <Match when={local.conflict.kind === 'external'}>
-            <p class={HINT}>{SEND_QUESTION}</p>
-            <div class="flex justify-end gap-2">
-              <Button
-                ref={(element: HTMLButtonElement) => {
-                  dismiss = element
-                }}
-                variant="ghost"
-                size="sm"
-                onClick={() => local.onCancel()}
-              >
-                {CANCEL_LABEL}
-              </Button>
-              <Button size="sm" onClick={() => local.onSendAnyway()}>
-                {SEND_ANYWAY_LABEL}
-              </Button>
-            </div>
+            </ChoiceRow>
           </Match>
           <Match when={true}>
             <p class={HINT}>{TAKE_OVER_QUESTION}</p>
-            <div class="flex justify-end gap-2">
-              <Button
-                ref={(element: HTMLButtonElement) => {
-                  dismiss = element
-                }}
-                variant="ghost"
-                size="sm"
-                onClick={() => local.onCancel()}
-              >
-                {CANCEL_LABEL}
-              </Button>
-              <Button size="sm" disabled={busy()} aria-busy={busy()} onClick={() => local.onTakeOver()}>
+            <ChoiceRow dismissRef={keepDismiss} onCancel={() => local.onCancel()}>
+              <Button class={RING} size="sm" disabled={busy()} aria-busy={busy()} onClick={() => local.onTakeOver()}>
                 <Switch fallback={TAKE_OVER_LABEL}>
                   <Match when={busy()}>{TAKING_OVER_LABEL}</Match>
                   <Match when={failure()}>{RETRY_LABEL}</Match>
                 </Switch>
               </Button>
-            </div>
+            </ChoiceRow>
           </Match>
         </Switch>
       </div>
