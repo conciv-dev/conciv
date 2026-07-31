@@ -1,8 +1,19 @@
-import {createSignal, type Accessor} from 'solid-js'
+import {createMemo, type Accessor} from 'solid-js'
+import {createStore, reconcile, unwrap} from 'solid-js/store'
 import type {MultimodalContent} from '@tanstack/ai-client'
 import type {ComposerDraft} from '@conciv/ui-kit-chat'
 import type {StagedGrab} from '../app/pane-context.js'
-import {ATTACHED_MESSAGE, conflictAfterTakeOver, conflictFor, NO_CONFLICT, type Conflict} from './conflict.js'
+import type {Conflict} from './conflict.js'
+import {
+  IDLE_SEND,
+  planFor,
+  questionOf,
+  transition,
+  type SendAttempt,
+  type SendEvent,
+  type SendPlan,
+  type SendState,
+} from './send-machine.js'
 
 export type SendGuardDeps = {
   attached: () => boolean
@@ -29,111 +40,77 @@ export type SendGuard = {
   sendAnyway: () => void
 }
 
-type Attempt = {content: string | MultimodalContent; draft: ComposerDraft | null; grabs: StagedGrab[]}
-
 function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
 export function makeSendGuard(deps: SendGuardDeps): SendGuard {
-  const [conflict, setConflict] = createSignal<Conflict>(NO_CONFLICT)
-  const state = {attempt: null as Attempt | null, rejections: 0, epoch: 0, retrying: false}
+  const [state, setState] = createStore<SendState>({...IDLE_SEND})
+  const conflict = createMemo(() => questionOf(state))
+  let lastAttemptId = 0
 
-  const capture = (content: string | MultimodalContent): Attempt => ({
-    content,
-    draft: deps.snapshot(),
-    grabs: deps.grabs(),
-  })
-
-  const putBack = (attempt: Attempt): void => {
-    if (attempt.draft) deps.restore(attempt.draft)
-    deps.stageGrabs(attempt.grabs)
+  const capture = (content: string | MultimodalContent): SendAttempt => {
+    lastAttemptId += 1
+    return {id: lastAttemptId, content, draft: deps.snapshot(), grabs: deps.grabs()}
   }
 
-  const succeeded = (): void => {
-    state.attempt = null
-    state.retrying = false
-    setConflict(NO_CONFLICT)
-    deps.clearGrabs()
+  const putBack = (attempt: SendAttempt): void => {
+    const draft = unwrap(attempt.draft)
+    if (draft) deps.restore(draft)
+    deps.stageGrabs(unwrap(attempt.grabs))
   }
 
-  const dispatch = (attempt: Attempt, force: boolean): void => {
+  const send = (attempt: SendAttempt, force: boolean): void => {
     deps.clearDraft()
-    const before = state.rejections
-    void deps.dispatch(attempt.content, force).then(() => {
-      if (state.rejections !== before) return
-      succeeded()
-    })
+    void deps.dispatch(unwrap(attempt.content), force).then(() => apply({type: 'delivered', attemptId: attempt.id}))
   }
 
-  const beforeSend = (content: string | MultimodalContent): boolean => {
-    state.attempt = capture(content)
-    if (!deps.attached()) return true
-    setConflict({kind: 'attached', message: ATTACHED_MESSAGE})
-    return false
-  }
-
-  const onSend = (content: string | MultimodalContent): void => {
-    const attempt = state.attempt ?? capture(content)
-    state.attempt = attempt
-    setConflict(NO_CONFLICT)
-    dispatch(attempt, false)
-  }
-
-  const rejected = (error: unknown): void => {
-    const attempt = state.attempt
-    if (!attempt) return
-    state.rejections += 1
-    const retrying = state.retrying
-    state.retrying = false
-    if (deps.delivered()) {
-      state.attempt = null
-      return
-    }
-    const next = retrying ? conflictAfterTakeOver(error) : conflictFor(error)
-    if (next.kind === 'none') {
-      state.attempt = null
-      putBack(attempt)
-      deps.onFailed(error)
-      return
-    }
-    setConflict(next)
-  }
-
-  const cancel = (): void => {
-    state.epoch += 1
-    state.retrying = false
-    const attempt = state.attempt
-    state.attempt = null
-    setConflict(NO_CONFLICT)
-    if (attempt) putBack(attempt)
-    deps.focusComposer()
-  }
-
-  const takeOver = (): void => {
-    const attempt = state.attempt
-    if (!attempt) return
-    const mine = state.epoch
-    setConflict({kind: 'taking-over', message: ATTACHED_MESSAGE})
+  const handOver = (attempt: SendAttempt): void => {
     void deps.detach().then(
-      () => {
-        if (mine !== state.epoch) return
-        state.retrying = true
-        dispatch(attempt, false)
-      },
-      (error: unknown) => {
-        if (mine !== state.epoch) return
-        setConflict({kind: 'take-over-failed', message: ATTACHED_MESSAGE, reason: reasonOf(error)})
-      },
+      () => apply({type: 'detachSettled', attemptId: attempt.id}),
+      (error: unknown) => apply({type: 'takeOverFailed', attemptId: attempt.id, reason: reasonOf(error)}),
     )
   }
 
-  const sendAnyway = (): void => {
-    const attempt = state.attempt
-    if (!attempt) return
-    setConflict(NO_CONFLICT)
-    dispatch(attempt, true)
+  const runPlan = (plan: SendPlan): void => {
+    if (plan.abandoned) putBack(plan.abandoned)
+    if (plan.cancelled) deps.focusComposer()
+    if (plan.starting) send(plan.starting.attempt, plan.starting.force)
+    if (plan.cleared) deps.clearGrabs()
+    if (plan.failure) {
+      putBack(plan.failure.attempt)
+      deps.onFailed(plan.failure.error)
+    }
+    if (plan.handing) handOver(plan.handing)
   }
 
-  return {conflict, beforeSend, onSend, rejected, cancel, takeOver, sendAnyway}
+  const apply = (event: SendEvent): SendState => {
+    const before = unwrap(state)
+    const after = transition(before, event)
+    if (after === before) return before
+    const plan = planFor(before, after, event)
+    setState(reconcile(after, {key: 'id'}))
+    runPlan(plan)
+    return after
+  }
+
+  const beforeSend = (content: string | MultimodalContent): boolean => {
+    const after = apply({type: 'send', attempt: capture(content), attached: deps.attached()})
+    return after.kind === 'sending'
+  }
+
+  const onSend = (content: string | MultimodalContent): void => {
+    if (state.kind === 'sending') return
+    apply({type: 'send', attempt: capture(content), attached: deps.attached()})
+  }
+
+  return {
+    conflict,
+    beforeSend,
+    onSend,
+    rejected: (error) => void apply({type: 'rejected', error, delivered: deps.delivered()}),
+    cancel: () => void apply({type: 'cancel'}),
+    takeOver: () => void apply({type: 'takeOver'}),
+    sendAnyway: () => void apply({type: 'sendAnyway'}),
+  }
 }

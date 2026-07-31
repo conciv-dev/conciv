@@ -1,7 +1,7 @@
 import {afterEach, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {render} from 'solid-js/web'
-import {createSignal} from 'solid-js'
+import {createSignal, For} from 'solid-js'
 import {ATTACHED_MESSAGE, NO_CONFLICT, TERMINAL_RECONNECTED, type Conflict} from '../src/chat/conflict.js'
 import {TerminalConflictDialog} from '../src/chat/terminal-conflict-dialog.js'
 
@@ -10,22 +10,26 @@ afterEach(() => {
   for (const dispose of disposers.splice(0)) dispose()
 })
 
-type Mounted = {show: (conflict: Conflict) => void; seen: string[]}
+type Mounted = {show: (conflict: Conflict) => void; seen: () => string[]}
 
 function mountDialog(): Mounted {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const [conflict, setConflict] = createSignal<Conflict>(NO_CONFLICT)
-  const seen: string[] = []
+  const [seen, setSeen] = createSignal<string[]>([])
+  const record = (answer: string) => setSeen((answers) => [...answers, answer])
   const dispose = render(
     () => (
       <>
         <textarea aria-label="Message" />
+        <ul>
+          <For each={seen()}>{(answer) => <li>saw {answer}</li>}</For>
+        </ul>
         <TerminalConflictDialog
           conflict={conflict()}
-          onCancel={() => seen.push('cancel')}
-          onTakeOver={() => seen.push('take over')}
-          onSendAnyway={() => seen.push('send anyway')}
+          onCancel={() => record('cancel')}
+          onTakeOver={() => record('take over')}
+          onSendAnyway={() => record('send anyway')}
         />
       </>
     ),
@@ -73,11 +77,11 @@ test('lets the reader out of every phase without sending', async () => {
   const mounted = mountDialog()
   mounted.show({kind: 'attached', message: 'This session is driven from your terminal.'})
   await page.getByRole('button', {name: 'Cancel'}).click()
-  expect(mounted.seen).toEqual(['cancel'])
+  expect(mounted.seen()).toEqual(['cancel'])
 
   mounted.show({kind: 'taking-over', message: 'This session is driven from your terminal.'})
   await page.getByRole('button', {name: 'Cancel'}).click()
-  expect(mounted.seen).toEqual(['cancel', 'cancel'])
+  expect(mounted.seen()).toEqual(['cancel', 'cancel'])
 })
 
 test('escape cancels instead of sending or trapping the writer', async () => {
@@ -87,7 +91,7 @@ test('escape cancels instead of sending or trapping the writer', async () => {
 
   await userEvent.keyboard('{Escape}')
 
-  await expect.poll(() => mounted.seen).toEqual(['cancel'])
+  await expect.element(page.getByText('saw cancel')).toBeVisible()
 })
 
 test('a blocked send offers no way to push through', async () => {
@@ -109,7 +113,7 @@ test('trying again after a failed take over asks the server again, it does not r
 
   await page.getByRole('button', {name: 'Try again'}).click()
 
-  expect(mounted.seen).toEqual(['take over'])
+  expect(mounted.seen()).toEqual(['take over'])
   expect(dialogs()).toHaveLength(1)
 })
 
@@ -126,5 +130,5 @@ test('the question takes the focus off the composer, so the very first escape ca
   expect(document.activeElement).toBe(cancel.element())
 
   await userEvent.keyboard('{Escape}')
-  expect(mounted.seen).toEqual(['cancel'])
+  expect(mounted.seen()).toEqual(['cancel'])
 })

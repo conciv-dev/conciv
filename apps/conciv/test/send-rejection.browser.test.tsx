@@ -180,12 +180,12 @@ async function typeAndSend(text: string): Promise<void> {
 
 async function modalTakesOverTheScreen(): Promise<void> {
   await expect.element(page.getByRole('alertdialog')).toBeVisible()
-  await expect.poll(() => document.body.style.pointerEvents).toBe('none')
+  await expect.element(input()).not.toBeInTheDocument()
 }
 
 async function modalIsGone(): Promise<void> {
   await expect.element(page.getByRole('alertdialog')).not.toBeInTheDocument()
-  await expect.poll(() => document.body.style.pointerEvents).not.toBe('none')
+  await expect.element(input()).toBeVisible()
 }
 
 test('a send the terminal blocked gives the message and its grabs back to the composer', async () => {
@@ -270,7 +270,7 @@ test('a send that fails on the way out comes straight back to the composer with 
   await expect.element(input()).toHaveValue('rename the widget package')
   await expect.element(grab()).toBeVisible()
   expect(page.getByRole('alertdialog').elements()).toHaveLength(0)
-  await expect.poll(() => mounted.failures).toHaveLength(1)
+  expect(mounted.failures).toHaveLength(1)
 })
 
 test('a take over that lands after the reader gave up cannot reopen the dialog or send', async () => {
