@@ -33,7 +33,7 @@ import {makeDialLog} from './chat/dial-log.js'
 import {makeChanges} from './chat/attach.js'
 import {askUi, makeConcivSandbox, makeRunGate, needsApproval, riskyToolNames, sessionAsk} from './chat/gate.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
-import {detachAllAttached} from './chat/adopt.js'
+import {attachedElsewhere, detachAllAttached} from './chat/adopt.js'
 import {modelOf, openDb, requestStop, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {makePageBus} from './page-bus.js'
@@ -169,9 +169,24 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .map((tool) => tool.name),
   )
 
-  const runStartListeners: ((sessionId: string) => void)[] = []
+  const localRunListeners: ((sessionId: string, phase: 'start' | 'end') => void)[] = []
+  const detachedListeners: ((sessionId: string) => void)[] = []
+  const launchListeners: ((sessionId: string) => void)[] = []
   const sendVetoes: ((sessionId: string, opts: {force: boolean}) => SendVerdict)[] = []
   const mcpRequestListeners: ((sessionId: string) => void)[] = []
+  const fanOut = <Args extends unknown[]>(listeners: ((...args: Args) => void)[], label: string, ...args: Args) => {
+    for (const listener of listeners) {
+      try {
+        listener(...args)
+      } catch (error) {
+        logError(`[core] ${label} listener failed: ${String(error)}`)
+      }
+    }
+  }
+  const notifyLocalRun = (sessionId: string, phase: 'start' | 'end'): void =>
+    fanOut(localRunListeners, 'local-run', sessionId, phase)
+  const notifySessionDetached = (sessionId: string): void => fanOut(detachedListeners, 'session-detached', sessionId)
+  const notifyLaunch = (sessionId: string): void => fanOut(launchListeners, 'launch', sessionId)
 
   const pageBus = makePageBus()
 
@@ -184,7 +199,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sessionForHarnessId: async (harnessSessionId) => (await sessionByHarnessId(db, harnessSessionId))?.id ?? null,
     chatBusy: (sessionId) => statusOf(db, sessionId) !== 'idle',
     model: async (sessionId) => modelOf(db, sessionId),
-    onChatTurn: (listener) => runStartListeners.push(listener),
+    onLocalRun: (listener) => {
+      localRunListeners.push(listener)
+      return () => removeListener(localRunListeners, listener)
+    },
+    onSessionDetached: (listener) => {
+      detachedListeners.push(listener)
+      return () => removeListener(detachedListeners, listener)
+    },
+    onLaunch: (listener) => {
+      launchListeners.push(listener)
+      return () => removeListener(launchListeners, listener)
+    },
     beforeSend: (check) => {
       sendVetoes.push(check)
       return () => removeListener(sendVetoes, check)
@@ -202,15 +228,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }
     return {allow: true}
   }
-  const notifyMcpRequest = (sessionId: string): void => {
-    for (const listener of mcpRequestListeners) {
-      try {
-        listener(sessionId)
-      } catch (error) {
-        logError(`[core] mcp-request listener failed: ${String(error)}`)
-      }
-    }
-  }
+  const notifyMcpRequest = (sessionId: string): void => fanOut(mcpRequestListeners, 'mcp-request', sessionId)
   const history = harness.history
   const transcriptPath = history?.transcriptPath
   const cwdForToken = async (token: string): Promise<string> => (await transcriptCwdFor(db, token)) ?? opts.cwd
@@ -227,18 +245,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           return existsSync(transcriptPath(cwd, token, opts.claudeHome))
         }
       : undefined,
-    transcriptStat: history
+    observeTranscript: history
       ? async (token) => {
           const cwd = await cwdForToken(token)
           if (!transcriptTokenAllowed(history, cwd, token, opts.claudeHome)) return null
-          return history.transcriptStat(cwd, token, opts.claudeHome)
-        }
-      : undefined,
-    transcriptMessages: history
-      ? async (token) => {
-          const cwd = await cwdForToken(token)
-          if (!transcriptTokenAllowed(history, cwd, token, opts.claudeHome)) return []
-          return history.messages(cwd, token, opts.claudeHome)
+          return history.observe(cwd, token, opts.claudeHome)
         }
       : undefined,
   }
@@ -284,6 +295,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
   const onRunEnd = async (sessionId: string): Promise<void> => {
+    notifyLocalRun(sessionId, 'end')
     const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
@@ -338,8 +350,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     risky,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     attachmentExpanders,
-    onRunStart: (sessionId) => runStartListeners.forEach((listener) => listener(sessionId)),
+    onRunStart: (sessionId) => notifyLocalRun(sessionId, 'start'),
     onRunEnd,
+    onSessionDetached: notifySessionDetached,
     firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
   }
 
@@ -360,6 +373,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     compactor,
     send,
     beforeSend: runSendVetoes,
+    attachedElsewhere: (sessionId) => attachedElsewhere(chatDeps, sessionId),
+    onLaunch: notifyLaunch,
     openInEditor: opts.openInEditor,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     page: pageEnv,

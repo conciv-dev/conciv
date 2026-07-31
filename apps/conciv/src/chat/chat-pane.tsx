@@ -36,7 +36,13 @@ import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {HostApiProvider} from '@conciv/extension'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
-import {ExternalSessionConfirm, externalActiveMessage, sessionAttachedMessage} from './external-session.js'
+import {
+  ExternalSessionConfirm,
+  ExternalSessionNotice,
+  sendBlockedMessage,
+  sendConfirmMessage,
+  sessionAttachedMessage,
+} from './external-session.js'
 import {ComposerActions} from '../composer/actions.js'
 import type {Notice, Notify} from './notify.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
@@ -112,7 +118,8 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
-  const [externalActive, setExternalActive] = createSignal<string | null>(null)
+  const [externalConfirm, setExternalConfirm] = createSignal<string | null>(null)
+  const [externalBlocked, setExternalBlocked] = createSignal<string | null>(null)
   const [attachedActive, setAttachedActive] = createSignal<string | null>(null)
   const [forceSend, setForceSend] = createSignal(false)
   const lastAttempt: {content: string | MultimodalContent | null} = {content: null}
@@ -127,8 +134,13 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
         setAttachedActive(attached)
         return
       }
-      const message = externalActiveMessage(error)
-      if (message !== null) setExternalActive(message)
+      const blocked = sendBlockedMessage(error)
+      if (blocked !== null) {
+        setExternalBlocked(blocked)
+        return
+      }
+      const confirm = sendConfirmMessage(error)
+      if (confirm !== null) setExternalConfirm(confirm)
     },
   })
 
@@ -390,7 +402,8 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
       return
     }
     if (chat.connectionStatus() !== 'connected') return
-    setExternalActive(null)
+    setExternalConfirm(null)
+    setExternalBlocked(null)
     void send(typeof content === 'string' ? text : content)
   }
 
@@ -420,14 +433,15 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
         onSendAnyway={() => void takeOver()}
       />
       <ExternalSessionConfirm
-        message={externalActive()}
-        onCancel={() => setExternalActive(null)}
+        message={externalConfirm()}
+        onCancel={() => setExternalConfirm(null)}
         onSendAnyway={() => {
           const content = lastAttempt.content
-          setExternalActive(null)
+          setExternalConfirm(null)
           if (content !== null) void send(content, true)
         }}
       />
+      <ExternalSessionNotice message={externalBlocked()} onDismiss={() => setExternalBlocked(null)} />
       <ChatProvider chat={chat}>
         <ToolProvider value={toolCtx}>
           <ComposerHandlersProvider

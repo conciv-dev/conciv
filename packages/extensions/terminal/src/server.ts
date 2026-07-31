@@ -4,16 +4,14 @@ import {upgradeWebSocket} from '@hono/node-server'
 import {eventIterator, os} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, subscriptionIterator, type ServerApi} from '@conciv/extension'
-import {CONCIV_SESSION_HEADER, isSessionId, type SessionId, type UIMessage} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, isSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
-import {makeTranscriptMirror} from '@conciv/session-presence/transcript-mirror'
-import type {PresenceSnapshot} from '@conciv/session-presence/presence'
+import {SessionUpdateSchema, type SessionUpdate} from '@conciv/session-observer/types'
 import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
-import {createTerminalPresence, type TerminalPresence} from './server/presence.js'
+import {createTerminalObserver, type TerminalObserver} from './server/observer-wiring.js'
 import {removeHooksPlugin, sweepHooksPlugins} from './server/hooks-cleanup.js'
 import {
   HookBodySchema,
-  PresenceSnapshotSchema,
   TERMINAL_NAME,
   TerminalOpenRequestSchema,
   TerminalStateSchema,
@@ -27,7 +25,7 @@ const ESCAPE_KEY = String.fromCharCode(27)
 type TerminalRuntime = {
   server: ServerApi<Record<never, never>>
   tty: ReturnType<typeof createTtySessions>
-  presence: TerminalPresence
+  observer: TerminalObserver
 }
 
 type TerminalEnv = {Variables: {terminal: TerminalRuntime}}
@@ -105,9 +103,6 @@ const noTty = {NO_TTY: {message: 'harness has no terminal mode'}}
 const busy = {BUSY: {message: 'session busy'}}
 
 function makeTerminalRouter(runtime: TerminalRuntime) {
-  const mirror = makeTranscriptMirror({
-    messages: (token) => runtime.server.harness.transcriptMessages?.(token) ?? Promise.resolve([]),
-  })
   return terminalOs.router({
     open: terminalOs
       .errors({...noTty, ...busy})
@@ -120,6 +115,7 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
         if (server.sessions.chatBusy(sessionId)) throw errors.BUSY()
         if (reuseAlive(tty.get(sessionId), size)) return {alive: true}
         await openTtySession(runtime, sessionId, size, new URL(context.request.url).origin)
+        runtime.observer.report(sessionId, {kind: 'launch'})
         return {alive: true}
       }),
     close: terminalOs
@@ -140,33 +136,11 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
         const payload: TerminalState = {alive: Boolean(session) && !session?.exited(), busy: session?.busy() ?? false}
         return payload
       }),
-    mirror: terminalOs
-      .errors({NO_TRANSCRIPT: {message: 'no transcript'}})
+    observe: terminalOs
       .input(SessionInputSchema)
-      .output(eventIterator(z.object({messages: z.array(z.custom<UIMessage>())})))
-      .handler(async function* ({input, signal, errors}) {
-        const {server} = runtime
-        const token = await server.sessions.resumeToken(input.sessionId)
-        if (!token || !server.harness.transcriptMessages) throw errors.NO_TRANSCRIPT()
-        yield* subscriptionIterator<{messages: UIMessage[]}>(
-          (emit) => mirror.subscribe(token, (messages) => emit({messages})),
-          signal,
-        )
-      }),
-    presence: terminalOs
-      .input(SessionInputSchema)
-      .output(eventIterator(PresenceSnapshotSchema))
+      .output(eventIterator(SessionUpdateSchema))
       .handler(async function* ({input, signal}) {
-        const {presence} = runtime
-        yield presence.snapshot(input.sessionId)
-        yield* subscriptionIterator<PresenceSnapshot>((emit) => presence.subscribe(input.sessionId, emit), signal)
-      }),
-    launched: terminalOs
-      .input(SessionInputSchema)
-      .output(PresenceSnapshotSchema)
-      .handler(({input}) => {
-        runtime.presence.report(input.sessionId, {kind: 'launched'})
-        return runtime.presence.snapshot(input.sessionId)
+        yield* subscriptionIterator<SessionUpdate>((emit) => runtime.observer.subscribe(input.sessionId, emit), signal)
       }),
   })
 }
@@ -184,15 +158,17 @@ async function hookSessionId(
 }
 
 async function applyHookReport(runtime: TerminalRuntime, sessionId: SessionId, body: HookBody): Promise<void> {
-  const {presence, server} = runtime
-  presence.report(sessionId, {kind: 'hook', event: body.hook_event_name})
+  const {observer, server} = runtime
+  observer.report(sessionId, {kind: 'hook', event: body.hook_event_name})
   if (body.hook_event_name === 'SessionEnd') {
     await removeHooksPlugin(server.stateDir, sessionId)
     return
   }
   if (body.hook_event_name !== 'SessionStart') return
   const known = await server.sessions.resumeToken(sessionId)
-  if (known !== body.session_id) await server.sessions.recordToken(sessionId, body.session_id)
+  if (known === body.session_id) return
+  await server.sessions.recordToken(sessionId, body.session_id)
+  observer.resetTranscript(sessionId)
 }
 
 const app = new Hono<TerminalEnv>()
@@ -246,13 +222,13 @@ export type TerminalAppType = typeof app
 
 export default defineExtension({name: TERMINAL_NAME}).server((server) => {
   const tty = createTtySessions()
-  server.sessions.onChatTurn((sessionId) => tty.close(sessionId))
-  const presence = createTerminalPresence(server)
-  server.sessions.onMcpRequest((sessionId) => presence.report(sessionId, {kind: 'mcp'}))
-  server.sessions.beforeSend((sessionId, {force}) => presence.sendVerdict(sessionId, force))
-  presence.start()
+  const observer = createTerminalObserver(server)
+  const releaseTtyGuard = server.sessions.onLocalRun((sessionId, phase) => {
+    if (phase === 'start') tty.close(sessionId)
+  })
+  observer.start()
   void sweepHooksPlugins(server.stateDir, Date.now())
-  const runtime: TerminalRuntime = {server, tty, presence}
+  const runtime: TerminalRuntime = {server, tty, observer}
   return {
     context: {},
     router: makeTerminalRouter(runtime),
@@ -263,7 +239,8 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
       })
       .route('/', app),
     dispose: () => {
-      presence.dispose()
+      releaseTtyGuard()
+      observer.dispose()
       tty.shutdown()
     },
   }

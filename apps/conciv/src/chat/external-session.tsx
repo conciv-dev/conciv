@@ -19,16 +19,49 @@ export function errorMessageFor(error: unknown, code: string): string | null {
   return null
 }
 
-export function externalActiveMessage(error: unknown): string | null {
-  const message = errorMessageFor(error, 'EXTERNAL_ACTIVE')
+export function sendConfirmMessage(error: unknown): string | null {
+  const message = errorMessageFor(error, 'EXTERNAL_CONFIRM')
   if (message === null) return null
   return message.length > 0 ? message : 'Claude is open in your terminal.'
+}
+
+export function sendBlockedMessage(error: unknown): string | null {
+  const message = errorMessageFor(error, 'EXTERNAL_BLOCKED')
+  if (message === null) return null
+  return message.length > 0 ? message : 'Claude is working in your terminal right now.'
 }
 
 export function sessionAttachedMessage(error: unknown): string | null {
   const message = errorMessageFor(error, 'SESSION_ATTACHED')
   if (message === null) return null
   return message.length > 0 ? message : 'This session is driven from your terminal.'
+}
+
+export function ExternalSessionNotice(props: {message: string | null; onDismiss: () => void}): JSX.Element {
+  const [local] = splitProps(props, ['message', 'onDismiss'])
+  return (
+    <Dialog
+      open={local.message !== null}
+      onOpenChange={() => local.onDismiss()}
+      dismissable
+      role="alertdialog"
+      label="Your terminal is busy"
+    >
+      <Show when={local.message}>
+        {(message) => (
+          <div class="flex flex-col gap-3">
+            <p class="text-pw-text text-sm leading-normal">{message()}</p>
+            <p class="text-pw-text-3 text-xs leading-normal">Your message is still in the composer.</p>
+            <div class="flex justify-end">
+              <Button size="sm" onClick={() => local.onDismiss()}>
+                OK
+              </Button>
+            </div>
+          </div>
+        )}
+      </Show>
+    </Dialog>
+  )
 }
 
 export function ExternalSessionConfirm(props: {

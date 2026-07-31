@@ -26,6 +26,7 @@ export type ChatDeps = {
   attachmentExpanders: AttachmentExpanders
   onRunStart?: (sessionId: string) => void
   onRunEnd?: (sessionId: string) => Promise<void>
+  onSessionDetached?: (sessionId: string) => void
   firstChunkTimeoutMs?: number
 }
 

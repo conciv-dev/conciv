@@ -34,7 +34,8 @@ describe('chatConnection force', () => {
     const seen: boolean[] = []
     server.sessions.beforeSend((_sessionId, opts) => {
       seen.push(opts.force)
-      return opts.force ? {allow: true} : {allow: false, code: 'EXTERNAL_ACTIVE', message: 'terminal is working'}
+      if (opts.force) return {allow: true}
+      return {allow: false, kind: 'confirm', code: 'EXTERNAL_CONNECTED', message: 'terminal is open'}
     })
 
     const sessionId = await booted.session()
@@ -45,7 +46,7 @@ describe('chatConnection force', () => {
     })
 
     await expect(connection.send([userMessage('m1', 'hi')], undefined, undefined)).rejects.toMatchObject({
-      code: 'EXTERNAL_ACTIVE',
+      code: 'EXTERNAL_CONFIRM',
     })
 
     forced.on = true

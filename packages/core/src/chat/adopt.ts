@@ -139,6 +139,7 @@ async function attachedCount(db: ConcivDb): Promise<number> {
 
 export async function detachLiveSession(deps: ChatDeps, sessionId: string): Promise<void> {
   await clearAttachment(deps.db, sessionId)
+  deps.onSessionDetached?.(sessionId)
   deps.changes.notify()
   if ((await attachedCount(deps.db)) > 0) return
   await deps.harness.attach
@@ -168,7 +169,10 @@ export async function attachedElsewhere(deps: ChatDeps, sessionId: string): Prom
 export async function detachAllAttached(deps: ChatDeps): Promise<void> {
   const rows = await deps.db.select({id: sessions.id}).from(sessions).where(isNotNull(sessions.attachedPid))
   if (rows.length === 0) return
-  for (const row of rows) await clearAttachment(deps.db, row.id)
+  for (const row of rows) {
+    await clearAttachment(deps.db, row.id)
+    deps.onSessionDetached?.(row.id)
+  }
   await deps.harness.attach
     ?.uninstall({root: deps.cwd, stateDir: concivStateDir(deps.stateRoot)})
     .catch((error: unknown) => logError(`[core] detach on shutdown failed: ${String(error)}`))

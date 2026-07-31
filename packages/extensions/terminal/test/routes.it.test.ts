@@ -85,7 +85,7 @@ describe('terminal extension routes', () => {
   })
 
   it('a chat turn on the session kills the pty', async () => {
-    ctx.server?.sessions.fireChatTurn(sessionId)
+    ctx.server?.sessions.fireLocalRun(sessionId, 'start')
     const ws = new WebSocket(`${wsBase()}/api/ext/terminal/tty?session=${sessionId}`)
     const code = await new Promise<number>((resolve, reject) => {
       ws.on('close', (c) => resolve(c))

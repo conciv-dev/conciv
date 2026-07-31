@@ -13,26 +13,68 @@ export type FakeSessions = ServerSessions & {
   tokens: Map<string, string>
   busy: Set<string>
   changes: {count: number}
-  fireChatTurn: (sessionId: string) => void
+  listeners: {localRun: number; detached: number; launch: number; mcp: number; veto: number}
+  fireLocalRun: (sessionId: string, phase: 'start' | 'end') => void
+  fireSessionDetached: (sessionId: string) => void
+  fireLaunch: (sessionId: string) => void
   fireMcpRequest: (sessionId: string) => void
   runSend: (sessionId: string, force: boolean) => SendVerdict
+}
+
+function makeChannel<Listener>(counts: {value: number}): {
+  add: (listener: Listener) => () => void
+  all: () => Listener[]
+} {
+  const listeners: Listener[] = []
+  return {
+    add: (listener) => {
+      listeners.push(listener)
+      counts.value += 1
+      return () => {
+        const index = listeners.indexOf(listener)
+        if (index >= 0) listeners.splice(index, 1)
+        counts.value -= 1
+      }
+    },
+    all: () => [...listeners],
+  }
 }
 
 function fakeSessions(): FakeSessions {
   const tokens = new Map<string, string>()
   const busy = new Set<string>()
   const changes = {count: 0}
-  const turnListeners: ((sessionId: string) => void)[] = []
-  const mcpListeners: ((sessionId: string) => void)[] = []
-  const vetoes: ((sessionId: string, opts: {force: boolean}) => SendVerdict)[] = []
+  const counts = {
+    localRun: {value: 0},
+    detached: {value: 0},
+    launch: {value: 0},
+    mcp: {value: 0},
+    veto: {value: 0},
+  }
+  const localRun = makeChannel<(sessionId: string, phase: 'start' | 'end') => void>(counts.localRun)
+  const detached = makeChannel<(sessionId: string) => void>(counts.detached)
+  const launch = makeChannel<(sessionId: string) => void>(counts.launch)
+  const mcp = makeChannel<(sessionId: string) => void>(counts.mcp)
+  const vetoes = makeChannel<(sessionId: string, opts: {force: boolean}) => SendVerdict>(counts.veto)
   return {
     tokens,
     busy,
     changes,
-    fireChatTurn: (sessionId) => turnListeners.forEach((listener) => listener(sessionId)),
-    fireMcpRequest: (sessionId) => mcpListeners.forEach((listener) => listener(sessionId)),
+    get listeners() {
+      return {
+        localRun: counts.localRun.value,
+        detached: counts.detached.value,
+        launch: counts.launch.value,
+        mcp: counts.mcp.value,
+        veto: counts.veto.value,
+      }
+    },
+    fireLocalRun: (sessionId, phase) => localRun.all().forEach((listener) => listener(sessionId, phase)),
+    fireSessionDetached: (sessionId) => detached.all().forEach((listener) => listener(sessionId)),
+    fireLaunch: (sessionId) => launch.all().forEach((listener) => listener(sessionId)),
+    fireMcpRequest: (sessionId) => mcp.all().forEach((listener) => listener(sessionId)),
     runSend: (sessionId, force) => {
-      for (const veto of vetoes) {
+      for (const veto of vetoes.all()) {
         const verdict = veto(sessionId, {force})
         if (!verdict.allow) return verdict
       }
@@ -49,15 +91,11 @@ function fakeSessions(): FakeSessions {
     },
     chatBusy: (sessionId) => busy.has(sessionId),
     model: () => Promise.resolve(null),
-    onChatTurn: (listener) => turnListeners.push(listener),
-    beforeSend: (check) => {
-      vetoes.push(check)
-      return () => {}
-    },
-    onMcpRequest: (listener) => {
-      mcpListeners.push(listener)
-      return () => {}
-    },
+    onLocalRun: (listener) => localRun.add(listener),
+    onSessionDetached: (listener) => detached.add(listener),
+    onLaunch: (listener) => launch.add(listener),
+    beforeSend: (check) => vetoes.add(check),
+    onMcpRequest: (listener) => mcp.add(listener),
     notifyChange: () => {
       changes.count += 1
     },

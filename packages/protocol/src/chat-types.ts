@@ -79,7 +79,22 @@ export function isSessionId(id: unknown): id is SessionId {
   return SessionId.safeParse(id).success
 }
 
-export type SendVerdict = {allow: true} | {allow: false; code: 'EXTERNAL_ACTIVE'; message: string}
+export const SEND_BLOCK_CODES = ['EXTERNAL_WORKING'] as const
+
+export type SendBlockCode = (typeof SEND_BLOCK_CODES)[number]
+
+export const SEND_CONFIRM_CODES = ['EXTERNAL_CONNECTED', 'EXTERNAL_STALE', 'EXTERNAL_LAUNCHING'] as const
+
+export type SendConfirmCode = (typeof SEND_CONFIRM_CODES)[number]
+
+export const SendBlockedSchema = z.object({code: z.enum(SEND_BLOCK_CODES)})
+
+export const SendConfirmSchema = z.object({code: z.enum(SEND_CONFIRM_CODES)})
+
+export type SendVerdict =
+  | {allow: true}
+  | {allow: false; kind: 'block'; code: SendBlockCode; message: string}
+  | {allow: false; kind: 'confirm'; code: SendConfirmCode; message: string}
 
 export const HarnessSessionId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 

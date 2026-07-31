@@ -19,6 +19,8 @@ export type RpcDeps = {
   compactor: Compactor
   send: (sessionId: string, content: UserContent) => Promise<string>
   beforeSend: (sessionId: string, opts: {force: boolean}) => SendVerdict
+  attachedElsewhere: (sessionId: string) => Promise<boolean>
+  onLaunch: (sessionId: string) => void
   openInEditor: OpenInEditor
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   page: PageEnv

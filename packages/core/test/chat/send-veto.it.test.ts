@@ -32,17 +32,21 @@ async function bootProbe(name: string, env?: NodeJS.ProcessEnv): Promise<{kit: K
 }
 
 describe('extension send veto', () => {
-  it('denies chat.send with EXTERNAL_ACTIVE and stops once unregistered', async () => {
+  it('denies chat.send with EXTERNAL_BLOCKED and stops once unregistered', async () => {
     const {kit, captured} = await bootProbe('veto-deny')
     try {
       const server = serverOf(captured)
       const unregister = server.sessions.beforeSend(() => ({
         allow: false,
-        code: 'EXTERNAL_ACTIVE',
+        kind: 'block',
+        code: 'EXTERNAL_WORKING',
         message: 'terminal owns this session',
       }))
       const sessionId = await kit.session()
-      await expect(kit.rpc.chat.send({sessionId, text: 'hi'})).rejects.toMatchObject({code: 'EXTERNAL_ACTIVE'})
+      await expect(kit.rpc.chat.send({sessionId, text: 'hi'})).rejects.toMatchObject({
+        code: 'EXTERNAL_BLOCKED',
+        data: {code: 'EXTERNAL_WORKING'},
+      })
 
       unregister()
       const accepted = await kit.rpc.chat.send({sessionId, text: 'hi again'})
@@ -59,10 +63,14 @@ describe('extension send veto', () => {
       const seen: {force: boolean}[] = []
       server.sessions.beforeSend((_id, opts) => {
         seen.push({force: opts.force})
-        return opts.force ? {allow: true} : {allow: false, code: 'EXTERNAL_ACTIVE', message: 'external is working'}
+        if (opts.force) return {allow: true}
+        return {allow: false, kind: 'confirm', code: 'EXTERNAL_CONNECTED', message: 'external is open'}
       })
       const sessionId = await kit.session()
-      await expect(kit.rpc.chat.send({sessionId, text: 'hi'})).rejects.toMatchObject({code: 'EXTERNAL_ACTIVE'})
+      await expect(kit.rpc.chat.send({sessionId, text: 'hi'})).rejects.toMatchObject({
+        code: 'EXTERNAL_CONFIRM',
+        data: {code: 'EXTERNAL_CONNECTED'},
+      })
       const accepted = await kit.rpc.chat.send({sessionId, text: 'hi', force: true})
       expect(accepted.ok).toBe(true)
       expect(seen).toEqual([{force: false}, {force: true}])
@@ -90,6 +98,28 @@ describe('extension send veto', () => {
 })
 
 describe('sessions.launch busy guard', () => {
+  it('tells extensions a session was launched into a terminal', async () => {
+    const {kit, captured} = await bootProbe('launch-seam')
+    try {
+      const server = serverOf(captured)
+      const launched: string[] = []
+      const unregister = server.sessions.onLaunch((id) => launched.push(id))
+      const sessionId = await kit.session()
+
+      await kit.rpc.sessions.launch({sessionId, open: false})
+      expect(launched).toEqual([sessionId])
+
+      await kit.rpc.sessions.connectCommand({sessionId})
+      expect(launched).toEqual([sessionId, sessionId])
+
+      unregister()
+      await kit.rpc.sessions.launch({sessionId, open: false})
+      expect(launched).toHaveLength(2)
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
   it('rejects a launch while a chat turn is running', async () => {
     const harness = createTestHarness(requireClaude())
     const kit = await createTestkit(harness, bootCoreApp()).setup()

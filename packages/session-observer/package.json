@@ -29,6 +29,10 @@
     "./machine": {
       "types": "./dist/machine.d.ts",
       "import": "./dist/machine.js"
+    },
+    "./observer": {
+      "types": "./dist/observer.d.ts",
+      "import": "./dist/observer.js"
     }
   },
   "publishConfig": {

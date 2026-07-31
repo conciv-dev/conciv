@@ -21,8 +21,11 @@ export function chatRouter(deps: RpcDeps) {
       yield* attachLive(chat, input.sessionId, signal ?? new AbortController().signal)
     }),
     send: os.chat.send.handler(async ({input, errors}) => {
+      if (await deps.attachedElsewhere(input.sessionId)) throw errors.SESSION_ATTACHED()
       const verdict = deps.beforeSend(input.sessionId, {force: input.force ?? false})
-      if (!verdict.allow) throw errors.EXTERNAL_ACTIVE({message: verdict.message})
+      if (!verdict.allow && verdict.kind === 'block')
+        throw errors.EXTERNAL_BLOCKED({message: verdict.message, data: {code: verdict.code}})
+      if (!verdict.allow) throw errors.EXTERNAL_CONFIRM({message: verdict.message, data: {code: verdict.code}})
       const runId = await deps.send(input.sessionId, input.content ?? input.text ?? '').catch((error: unknown) => {
         throw sendFailure(error, errors)
       })

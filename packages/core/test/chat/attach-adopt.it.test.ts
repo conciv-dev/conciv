@@ -6,6 +6,7 @@ import {eq} from 'drizzle-orm'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {openDb, sessions, type ConcivDb} from '@conciv/db'
 import type {Kit} from '@conciv/harness-testkit'
+import {defineExtension} from '@conciv/extension'
 import {bootKit} from '../helpers/boot.js'
 
 const AGENTS_FILE = 'agents.json'
@@ -202,6 +203,24 @@ describe('the snippet for a session we do not own', () => {
 })
 
 describe('sending while a terminal drives the session', () => {
+  it('reports the attachment even while an extension blocks the send, so take-over stays reachable', async () => {
+    const blocker = defineExtension({name: 'blocker'}).server((server) => {
+      server.sessions.beforeSend(() => ({
+        allow: false,
+        kind: 'block',
+        code: 'EXTERNAL_WORKING',
+        message: 'terminal is working',
+      }))
+      return {context: {}}
+    })
+    const kit = await bootKit({fakeClaude: {}, extensions: [blocker]})
+    opened.push(kit)
+    writeAgents([liveSession(kit.stateRoot)])
+    const {sessionId} = await kit.rpc.sessions.attachAdopt({harnessSessionId: HARNESS_SESSION, pid: process.pid})
+
+    await expect(kit.rpc.chat.send({sessionId, text: 'hi'})).rejects.toMatchObject({code: 'SESSION_ATTACHED'})
+  }, 30_000)
+
   it('refuses the send while the attached process is alive', async () => {
     const kit = await boot()
     const {sessionId} = await kit.rpc.sessions.attachAdopt({harnessSessionId: HARNESS_SESSION, pid: process.pid})

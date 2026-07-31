@@ -10,6 +10,8 @@ import {
   HarnessSessionId,
   NavigationStateSchema,
   PermissionDecisionSchema,
+  SendBlockedSchema,
+  SendConfirmSchema,
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
@@ -85,7 +87,14 @@ export const contract = {
     send: oc
       .errors({
         ...busy,
-        EXTERNAL_ACTIVE: {message: 'an external session owns this conversation'},
+        EXTERNAL_BLOCKED: {
+          message: 'your terminal is working on this conversation right now',
+          data: SendBlockedSchema,
+        },
+        EXTERNAL_CONFIRM: {
+          message: 'an external session owns this conversation',
+          data: SendConfirmSchema,
+        },
         SESSION_ATTACHED: {message: 'this session is driven from your terminal'},
       })
       .input(ChatSendInput)

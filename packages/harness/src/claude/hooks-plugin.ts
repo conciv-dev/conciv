@@ -2,6 +2,7 @@ import {join} from 'node:path'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {concivHooksPluginDir} from '@conciv/protocol/state-types'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
+import type {HookEventName} from '@conciv/session-observer/types'
 
 export const CLAUDE_HOOK_EVENTS = [
   'SessionStart',
@@ -10,7 +11,7 @@ export const CLAUDE_HOOK_EVENTS = [
   'PostToolUse',
   'Stop',
   'SessionEnd',
-] as const
+] as const satisfies readonly HookEventName[]
 
 const HOOK_TIMEOUT_SECONDS = 3
 const SESSION_END_TIMEOUT_SECONDS = 1

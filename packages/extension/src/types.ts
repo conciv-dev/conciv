@@ -3,9 +3,9 @@ import type {z} from 'zod'
 import type {ContentPart} from '@tanstack/ai'
 import type {AnyRouter} from '@orpc/server'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import type {HarnessConnectContext, TranscriptStat} from '@conciv/protocol/harness-types'
+import type {HarnessConnectContext, TranscriptHandle} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
-import type {SendVerdict, UIMessage} from '@conciv/protocol/chat-types'
+import type {SendVerdict} from '@conciv/protocol/chat-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -60,7 +60,9 @@ export type ServerSessions = {
   sessionForHarnessId(harnessSessionId: string): Promise<string | null>
   chatBusy(sessionId: string): boolean
   model(sessionId: string): Promise<string | null>
-  onChatTurn(listener: (sessionId: string) => void): void
+  onLocalRun(listener: (sessionId: string, phase: 'start' | 'end') => void): () => void
+  onSessionDetached(listener: (sessionId: string) => void): () => void
+  onLaunch(listener: (sessionId: string) => void): () => void
   beforeSend(check: (sessionId: string, opts: {force: boolean}) => SendVerdict): () => void
   onMcpRequest(listener: (sessionId: string) => void): () => void
   notifyChange(): void
@@ -71,8 +73,7 @@ export type ServerHarness = {
   ttyCommand?: (ctx: HarnessConnectContext) => TtyCommand
   release?: (sessionId: string) => void
   transcriptExists?: (token: string) => Promise<boolean>
-  transcriptStat?: (token: string) => Promise<TranscriptStat | null>
-  transcriptMessages?: (token: string) => Promise<UIMessage[]>
+  observeTranscript?: (token: string) => Promise<TranscriptHandle | null>
 }
 
 export type ServerApi<Config> = {

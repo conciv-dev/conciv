@@ -46,7 +46,7 @@
   "dependencies": {
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@conciv/session-presence": "workspace:^",
+    "@conciv/session-observer": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",

@@ -79,6 +79,7 @@ export function sessionsRouter(deps: RpcDeps) {
     }),
     launch: os.sessions.launch.handler(({input, context, errors}) => {
       if (statusOf(db, input.sessionId) !== 'idle') throw errors.BUSY()
+      deps.onLaunch(input.sessionId)
       return launchHarness(chat, {
         sessionId: input.sessionId,
         model: input.model,
@@ -86,15 +87,16 @@ export function sessionsRouter(deps: RpcDeps) {
         requestUrl: context.request.url,
       })
     }),
-    connectCommand: os.sessions.connectCommand.handler(({input, context}) =>
-      launchHarness(chat, {
+    connectCommand: os.sessions.connectCommand.handler(({input, context}) => {
+      deps.onLaunch(input.sessionId)
+      return launchHarness(chat, {
         sessionId: input.sessionId,
         model: input.model,
         open: false,
         owned: false,
         requestUrl: context.request.url,
-      }),
-    ),
+      })
+    }),
     attachCandidates: os.sessions.attachCandidates.handler(() => liveCandidates(chat)),
     attachAdopt: os.sessions.attachAdopt.handler(async ({input, context, errors}) => {
       const outcome = await adoptLiveSession(chat, {

@@ -27,7 +27,6 @@ export const PUBLIC_PACKAGES = [
   '@conciv/contract',
   '@conciv/db',
   '@conciv/storage-history',
-  '@conciv/session-presence',
   '@conciv/session-observer',
   '@conciv/client',
   '@conciv/grab',
