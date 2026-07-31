@@ -52,7 +52,7 @@ final class OverlayController: NSObject {
   let webView: WKWebView
   private let fab = UIButton(type: .system)
   private let bridge: BridgeHandler
-  private var pageUrl: URL
+  private(set) var pageUrl: URL
   private weak var hostWindow: UIWindow?
 
   private(set) var endpoint: ConcivEndpoint
