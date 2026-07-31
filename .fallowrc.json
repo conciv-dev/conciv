@@ -91,6 +91,7 @@
     "@conciv/preact",
     "@conciv/protocol",
     "@conciv/react",
+    "@conciv/session-observer",
     "@conciv/session-presence",
     "@conciv/solid",
     "@conciv/solid-diffs",
