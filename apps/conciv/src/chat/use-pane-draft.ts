@@ -1,4 +1,6 @@
-import {createEffect, onCleanup, onMount} from 'solid-js'
+import {createEffect, onMount} from 'solid-js'
+import {createStore, reconcile} from 'solid-js/store'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {useQuery} from '@tanstack/solid-query'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import type {RpcClient} from '@conciv/contract'
@@ -9,7 +11,7 @@ import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-
 
 const WRITE_WAIT_MS = 400
 const SNAPSHOT_WAIT_MS = 150
-const INPUT_EVENTS = ['input', 'select', 'keyup', 'click', 'focus', 'blur']
+const INPUT_EVENTS = ['input', 'select', 'keyup', 'click', 'focus', 'blur'] as const
 
 export type PaneDraftDeps = {
   rpc: RpcClient
@@ -27,6 +29,19 @@ export type PaneDraft = {
   focused: () => boolean
   noteSent: () => Promise<void>
   settleSent: () => void
+}
+
+type RestoreState = {composerReady: boolean; restoredSession: string | null}
+
+type RestoreEvent = {kind: 'composerReady'} | {kind: 'restored'; sessionId: string}
+
+function nextRestoreState(state: RestoreState, event: RestoreEvent): RestoreState {
+  if (event.kind === 'composerReady') return {...state, composerReady: true}
+  return {...state, restoredSession: event.sessionId}
+}
+
+function awaitsRestore(state: RestoreState, sessionId: string): boolean {
+  return state.composerReady && state.restoredSession !== sessionId
 }
 
 export function usePaneDraft(deps: PaneDraftDeps): PaneDraft {
@@ -60,28 +75,20 @@ export function usePaneDraft(deps: PaneDraftDeps): PaneDraft {
   )
 
   const row = useQuery(() => deps.utils.drafts.get.queryOptions({input: {sessionId: deps.sessionId()}}))
-  const restored = {done: false}
+  const [restoreState, setRestoreState] = createStore<RestoreState>({composerReady: false, restoredSession: null})
+  const send = (event: RestoreEvent): void => setRestoreState(reconcile(nextRestoreState(restoreState, event)))
 
-  const restore = () => {
+  createEffect(() => {
+    const sessionId = deps.sessionId()
+    if (!row.isSuccess || !awaitsRestore(restoreState, sessionId)) return
     const composer = deps.composer()
-    if (!composer || restored.done || !row.isSuccess) return
-    restored.done = true
+    if (!composer) return
+    send({kind: 'restored', sessionId})
     stageRestoredDraft(row.data, composer.setText, deps.stageTexts)
-    const snapshot = readPaneSnapshot(deps.sessionId())
+    const snapshot = readPaneSnapshot(sessionId)
     requestAnimationFrame(() =>
       applyRestoredDraft(row.data, snapshot, {input: deps.input(), viewport: deps.viewport()}),
     )
-  }
-
-  createEffect(() => {
-    if (!row.isSuccess) return
-    restore()
-  })
-  createEffect(() => {
-    const stored = row.data
-    if (!stored || !restored.done || focused()) return
-    const composer = deps.composer()
-    if (composer && composer.text() !== stored.text) composer.setText(stored.text)
   })
 
   onMount(() => {
@@ -91,18 +98,13 @@ export function usePaneDraft(deps: PaneDraftDeps): PaneDraft {
     }
     const target = deps.input()
     const viewport = deps.viewport()
-    if (target) for (const event of INPUT_EVENTS) target.addEventListener(event, schedule)
-    if (viewport) viewport.addEventListener('scroll', () => persistSnapshot.maybeExecute())
-    const onPageHide = () => persistSnapshot.flush()
-    window.addEventListener('pagehide', onPageHide)
-    onCleanup(() => {
-      if (target) for (const event of INPUT_EVENTS) target.removeEventListener(event, schedule)
-      window.removeEventListener('pagehide', onPageHide)
-    })
+    if (target) for (const event of INPUT_EVENTS) makeEventListener(target, event, schedule)
+    if (viewport) makeEventListener(viewport, 'scroll', () => persistSnapshot.maybeExecute())
+    makeEventListener(window, 'pagehide', () => persistSnapshot.flush())
   })
 
   return {
-    restore,
+    restore: () => send({kind: 'composerReady'}),
     focused,
     noteSent: async () => {
       await deps.rpc.drafts
