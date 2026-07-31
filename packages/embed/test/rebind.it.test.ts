@@ -1,8 +1,9 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
+import {setNavigation} from './helpers/navigation.js'
 import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 
 const ASSISTANT_TEXT = 'Rebound reply'
@@ -23,6 +24,10 @@ afterAll(async () => {
   await kit.cleanup()
 })
 
+beforeEach(async () => {
+  expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
+})
+
 async function mountHandle(page: Page, apiBase: string): Promise<void> {
   await page.evaluate((base) => {
     const el = document.createElement('div')
@@ -39,10 +44,9 @@ async function sendTurn(page: Page, text: string): Promise<void> {
 }
 
 async function openPanelTabs(page: Page): Promise<void> {
-  const dialog = page.getByRole('dialog', {name: 'conciv chat agent'})
   const opener = page.getByRole('button', {name: 'Open conciv chat'})
-  await expectLocator(dialog.or(opener)).toBeVisible({timeout: 30_000})
-  if (!(await dialog.isVisible())) await opener.click()
+  await expectLocator(opener).toBeVisible({timeout: 30_000})
+  await opener.click()
   await expectLocator(page.getByRole('tab', {name: 'Mount probe'})).toBeVisible({timeout: 30_000})
 }
 

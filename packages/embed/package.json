@@ -54,6 +54,7 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@tanstack/pacer": "^0.21.1",
     "@tanstack/solid-router": "^1.170.17",
     "bippy": "0.5.41",
     "react-grab": "^0.1.44",

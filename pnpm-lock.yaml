@@ -1547,6 +1547,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
+      '@tanstack/pacer':
+        specifier: ^0.21.1
+        version: 0.21.1
       '@tanstack/solid-router':
         specifier: ^1.170.17
         version: 1.170.17(solid-js@1.9.14)
