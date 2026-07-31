@@ -1,5 +1,14 @@
 # conciv-e2e-vite-solid-component
 
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies [[`5396837`](https://github.com/conciv-dev/conciv/commit/53968379fbc6958eb2642d544f6f64791d811243)]:
+  - @conciv/it@0.0.17
+  - @conciv/extension-terminal@0.0.17
+  - @conciv/solid@0.0.17
+
 ## 0.0.8
 
 ### Patch Changes

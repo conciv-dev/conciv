@@ -1,5 +1,22 @@
 # @conciv/it
 
+## 0.0.17
+
+### Patch Changes
+
+- [#151](https://github.com/conciv-dev/conciv/pull/151) [`5396837`](https://github.com/conciv-dev/conciv/commit/53968379fbc6958eb2642d544f6f64791d811243) Thanks [@omridevk](https://github.com/omridevk)! - Restore pairing-file discovery for hosts that install @conciv/it. A dev core again writes
+  `~/.conciv/dev-endpoint.json`, so the iOS SDK finds the running dev server instead of falling back to
+  probing a fixed list of ports. The temporary-directory location that 0.0.16 forced on every run is
+  now a plugin option, `devEndpointDir`, that a host sets when it wants the pairing file elsewhere.
+- Updated dependencies [[`0d2ddf6`](https://github.com/conciv-dev/conciv/commit/0d2ddf6cb63baa58095a70faf9783c12a895928c), [`d76c337`](https://github.com/conciv-dev/conciv/commit/d76c337ba404b1f5c23a6f548a92e008f09490dd)]:
+  - @conciv/embed@0.0.17
+  - @conciv/extension-ios@0.0.17
+  - @conciv/extension-terminal@0.0.17
+  - @conciv/extension-test-runner@0.0.17
+  - @conciv/extension-whiteboard@0.0.17
+  - @conciv/plugin@0.0.17
+  - @conciv/extension-compiler@0.0.17
+
 ## 0.0.16
 
 ### Patch Changes

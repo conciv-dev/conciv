@@ -1,5 +1,22 @@
 # @conciv/extension-ios
 
+## 0.0.17
+
+### Patch Changes
+
+- [#155](https://github.com/conciv-dev/conciv/pull/155) [`d76c337`](https://github.com/conciv-dev/conciv/commit/d76c337ba404b1f5c23a6f548a92e008f09490dd) Thanks [@omridevk](https://github.com/omridevk)! - Fix native pick targeting and the --autoshow one-shot. Private UIKit chrome (list
+  decoration views, separators, system background views) is no longer a pick candidate, so a
+  tap in a SwiftUI List row stops attaching a blank full-section crop; the pick now snaps to
+  the `.concivGrab` anchor on the tapped row even when the tap lands in the cell padding
+  outside the anchor's own frame. Grab source labels never surface a mangled or
+  underscore-prefixed class name, and view rects are reported as whole points instead of raw
+  layout floats. `ios.run --autoshow` waits for the page to report its panel state before
+  sending its single open, so the open no longer races the widget shell's listener or gets
+  lost.
+- Updated dependencies []:
+  - @conciv/extension@0.0.17
+  - @conciv/grab@0.0.17
+
 ## 0.0.16
 
 ### Patch Changes

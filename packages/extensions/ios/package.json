@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-ios",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The iOS built-in extension bridge protocol: zod schemas for the WKWebView page and native message contract, the platform-neutral page-side bridge client state machine, and cross-platform conformance fixtures.",
   "keywords": [
     "bridge",
