@@ -40,10 +40,10 @@ Before opening the release PR, fan out verifier agents concurrently (one message
 | gates-runner      | sonnet | Run `pnpm typecheck && pnpm build && pnpm test`, forced test reruns for changed packages, `pnpm lint`, `pnpm format:check`, `pnpm exec fallow audit --changed-since main --format json`, and `pnpm release:check`. Report raw pass/fail per command with the failing output verbatim. Anything INTRODUCED by fallow blocks.                                                                                                                                                                           |
 | changeset-auditor | haiku  | Verify `.changeset/*.md` exists for the work being released, frontmatter parses, exactly the fixed-versioning shape (one `@conciv/*` entry, no enumeration), and the description reads from the consumer's perspective.                                                                                                                                                                                                                                                                               |
 | npm-auditor       | haiku  | For each package in `PUBLIC_PACKAGES` (`packages/publish/src/guards.ts`), query the registry: `curl -s https://registry.npmjs.org/@conciv%2f<pkg> \| jq '.versions["<v>"]._npmUser, .versions["<v>"].dist.attestations'`. `_npmUser` "GitHub Actions" plus attestations means trusted publishing is configured; a human `_npmUser` and null attestations means the package will E404 the next CI release. Also flag any `PUBLIC_PACKAGES` entry missing from the registry entirely (needs bootstrap). |
-| phone-smoke       | sonnet | Run the phone smoke gate below: run the automated ITs itself, then STOP and ask the user to run the simulator checks by hand (it must never drive the Simulator UI). Report each of the four checks as pass/fail with the artifact that proves it (IT name, screenshot the user returned, or simulator log line), and mark anything the user did not run as UNVERIFIED.                                                                                                                               |
+| phone-smoke       | sonnet | Automated half of the phone smoke gate ONLY: build the embed, run the `embed at a phone viewport` ITs, and report pass/fail per IT plus which of the four checks each one covers. Write the two missing ITs if they are still missing. It must NOT attempt the simulator half: a subagent cannot pause to ask the user, so that half belongs to the orchestrator.                                                                                                                                     |
 | release-skeptic   | opus   | Adversarial: read `.github/workflows/release.yml`, `packages/publish/src/guards.ts`, the diff since main, and the other verifiers' outputs. Mission: PROVE THE RELEASE WILL FAIL. Any concrete failure path (permission missing on the reusable ci.yml call, `assertPublicSet` drift, unbootstrapped package, manifest missing `homepage`/`repository.directory`) is a blocking finding with the exact file and line.                                                                                 |
 
-The release PR opens only when gates are green, the phone smoke gate is green, and the skeptic fails to construct a failure path. Report the skeptic's attempted attacks and why each failed; "skeptic found nothing" with no attack list is not evidence.
+The release PR opens only when gates are green, both halves of the phone smoke gate are green, and the skeptic fails to construct a failure path. Report the skeptic's attempted attacks and why each failed; "skeptic found nothing" with no attack list is not evidence.
 
 ### Phone smoke gate (blocking)
 
@@ -55,9 +55,9 @@ Build the embed first, because both halves load the prebuilt bundle:
 pnpm turbo run build --filter=@conciv/embed
 ```
 
-Then run both halves. Neither half alone clears the gate.
+The gate has two halves and different owners. The automated half runs inside the `phone-smoke` verifier during the fan-out. The simulator half CANNOT: a subagent cannot suspend the conversation to ask the user and wait, so a verifier that owned it would always return UNVERIFIED and the gate could never go green. The simulator half is therefore an orchestrator step in the main conversation, after the fan-out returns and before the release PR opens. Neither half alone clears the gate.
 
-**Automated half (always run, no simulator needed).** What exists TODAY is the `embed at a phone viewport` describe block in `packages/embed/test/embed.it.test.ts`, three ITs against the built bundle:
+**Automated half (verifier, always run, no simulator needed).** What exists TODAY is the `embed at a phone viewport` describe block in `packages/embed/test/embed.it.test.ts`, three ITs against the built bundle:
 
 - `paints an opaque sheet so the host page never shows through`: at 393x800 it opens the panel over fixture-owned striped backdrops (`?backdrop=light-stripes` and `?backdrop=dark-stripes`) and screenshots the sheet interior with `{animations: 'disabled', clip: SHEET_INTERIOR_CLIP}`. Inverting the backdrop must not change a single pixel, and a same-backdrop repeat is the determinism control. That check is COVERED.
 - `opens as a full-screen sheet with the launcher hidden and the composer reachable`: at 393x800 the launcher disappears while the sheet is open, a message round-trips, and closing restores the launcher.
@@ -70,7 +70,7 @@ Beyond opacity that is viewport-fit and open/close behavior only. Nothing assert
 
 Assert both as screenshots, never `getBoundingClientRect` or `scrollHeight`, per the no-DOM-measurement rule. The opacity IT is the pattern to copy: clip a region, vary only the thing under test, and compare buffers.
 
-**Simulator half (needed for anything the browser cannot model).** WKWebView, the native bridge, and `pick` returning a real element only exist on-device.
+**Simulator half (ORCHESTRATOR step, never a verifier).** WKWebView, the native bridge, and `pick` returning a real element only exist on-device. Run this in the main conversation once the fan-out has returned and before the release PR opens.
 
 Prerequisite: the demo has no core of its own. `native/swift/ConcivDemo/run.sh` only builds, boots, installs, and launches `dev.conciv.ConcivDemo`; the app then discovers a core through `CONCIV_URL`, the pairing file `~/.conciv/dev-endpoint.json` that a running dev core writes on startup, or the 4599/8787/3000 port probe (`apps/site/content/docs/quick-start/ios.mdx`). So start the core FIRST:
 
@@ -82,14 +82,14 @@ That example's `vite.config.ts` pins the core to port 4599 and configures the `i
 
 Then the interaction problem: `simctl` can launch, screenshot (`io <udid> screenshot`), and stream logs (`spawn <udid> log stream`), but it CANNOT tap, type, or scroll. All four checks are interactive, so the listed commands alone cannot drive them. Two honest options, in order:
 
-1. An XCUITest UI-test target driven headlessly by `xcodebuild test`. That is allowed: it drives its own simulator and never touches the user's mouse. No such target exists for ConcivDemo today (`native/swift/ConcivDemo` is a `swiftc` app build with no test target; only `native/swift/ConcivWidget/Tests` runs under `xcodebuild test`), so this option is unavailable until someone writes one.
-2. Until then the four checks are a MANUAL step for the human doing the release. The phone-smoke verifier must STOP, ask the user to run the checks in the simulator, and wait for their report plus screenshots. An agent must never drive the Simulator UI itself, by `osascript`, `cliclick`, or anything else.
+1. An XCUITest UI-test target driven headlessly by `xcodebuild test`. That is allowed: it drives its own simulator and never touches the user's mouse, and being non-interactive it could move into the `phone-smoke` verifier. No such target exists for ConcivDemo today (`native/swift/ConcivDemo` is a `swiftc` app build with no test target; only `native/swift/ConcivWidget/Tests` runs under `xcodebuild test`), so this option is unavailable until someone writes one.
+2. Until then the four checks are a MANUAL step for the human doing the release. The orchestrator presents the four checks to the user as a list, waits for their report plus screenshots, and records each one against the artifact they returned. Never hand this to a subagent, and never drive the Simulator UI itself, by `osascript`, `cliclick`, or anything else.
 
-If the user is unavailable, or the machine has no Xcode simulator, the simulator checks are UNVERIFIED, which blocks the release the same way a failure does.
+If the user does not respond, or the machine has no Xcode simulator, the simulator checks are UNVERIFIED, which blocks the release the same way a failure does. Do not open the release PR on a green fan-out alone.
 
 The four checks and where each one is verified:
 
-| Check                              | Automated (embed ITs)                                  | Simulator (manual today)                                                          |
+| Check                              | Automated (verifier, embed ITs)                        | Simulator (orchestrator asks the user)                                            |
 | ---------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------- |
 | Chat transcript scrolls to the end | GAP: write the scroll screenshot IT                    | scroll the transcript after a long turn, screenshot the result                    |
 | Panel sheet is opaque              | COVERED by `paints an opaque sheet ...`                | open the sheet over the demo's payments screen, screenshot it                     |
@@ -134,3 +134,4 @@ Until the trust config exists, every CI release fails that package with `E404 un
 - Publishing manually to "unblock" a red Release run instead of fixing it: you lose provenance and tags.
 - Skipping the verifier fan-out because "the gates passed last week": registry and workflow state drift independently of the code.
 - Treating component-green CI as phone-green, or shipping with the simulator half of the phone smoke gate unrun: that is exactly how 0.0.16 shipped broken.
+- Handing the simulator half to a subagent: it cannot stop and ask the user, so it can only ever report UNVERIFIED.
