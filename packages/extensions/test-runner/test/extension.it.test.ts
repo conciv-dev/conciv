@@ -28,7 +28,11 @@ async function boot(opts: {root?: string; extensions?: ConcivConfig['extensions'
   engine: Engine
 }> {
   const engine = await start({
-    options: {systemPrompt: false, extensions: opts.extensions},
+    options: {
+      systemPrompt: false,
+      extensions: opts.extensions,
+      stateRoot: mkdtempSync(join(tmpdir(), 'conciv-test-runner-it-')),
+    },
     root: opts.root ?? fixture,
     launchEditor: () => {},
     openTerminal: () => Promise.resolve(true),
