@@ -51,12 +51,5 @@
   <array>
     <integer>1</integer>
   </array>
-  <key>NSAppTransportSecurity</key>
-  <dict>
-    <key>NSAllowsLocalNetworking</key>
-    <true/>
-  </dict>
-  <key>NSLocalNetworkUsageDescription</key>
-  <string>Loads a local development server for testing.</string>
 </dict>
 </plist>

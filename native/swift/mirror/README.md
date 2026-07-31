@@ -44,11 +44,11 @@ Release builds, so nothing conciv reaches TestFlight or the App Store. For hosts
 explicit endpoint or own their window lifecycle, `attach(apiBase:)` and `attach(to:apiBase:)` take the
 base (and window) directly.
 
-The launcher defaults to a dark round `AI` button (`launcher: .native`). Pass `launcher: .mascot` for
-the animated mascot instead; every `attach` overload takes the argument.
+The launcher defaults to the animated mascot (`launcher: .mascot`). Pass `launcher: .native` for a dark
+round `AI` button instead; every `attach` overload takes the argument.
 
 ```swift
-ConcivWidget.attach(launcher: .mascot)
+ConcivWidget.attach(launcher: .native)
 ```
 
 ## Finding the core

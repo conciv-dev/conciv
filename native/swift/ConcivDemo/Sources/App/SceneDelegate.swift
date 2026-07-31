@@ -24,9 +24,9 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     #if DEBUG
     if let override = ProcessInfo.processInfo.environment["CONCIV_URL"],
        let apiBase = URL(string: override) {
-      ConcivWidget.attach(to: window, apiBase: apiBase, launcher: .mascot)
+      ConcivWidget.attach(to: window, apiBase: apiBase)
     } else {
-      ConcivWidget.attach(to: window, launcher: .mascot)
+      ConcivWidget.attach(to: window)
     }
     #endif
   }
