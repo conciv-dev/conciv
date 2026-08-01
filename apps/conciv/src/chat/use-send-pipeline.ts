@@ -43,6 +43,7 @@ export type SendPipeline = {
   status: () => string
   thinking: () => boolean
   working: () => boolean
+  generating: () => boolean
   disconnected: () => boolean
   visibleError: () => Error | undefined
 }
@@ -122,6 +123,7 @@ export function useSendPipeline(deps: SendPipelineDeps): SendPipeline {
     status: chat.status,
     thinking,
     working,
+    generating: chat.sessionGenerating,
     disconnected,
     visibleError: () => {
       const error = chat.error()

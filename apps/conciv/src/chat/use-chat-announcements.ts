@@ -7,6 +7,7 @@ const RECONNECTING = 'Reconnecting to conciv…'
 export type TurnState = {
   status: () => string
   working: () => boolean
+  generating: () => boolean
   disconnected: () => boolean
 }
 
@@ -15,12 +16,6 @@ export type ChatAnnouncementDeps = {
   announce: (message: string) => void
   invalidateSessions: () => void
   refreshMarkers: () => void
-}
-
-function turnLine(status: string, before: string): string | null {
-  if (status === 'submitted') return THINKING
-  if (before === 'streaming' && status !== 'streaming') return REPLIED
-  return null
 }
 
 export function useChatAnnouncements(deps: ChatAnnouncementDeps): void {
@@ -33,9 +28,14 @@ export function useChatAnnouncements(deps: ChatAnnouncementDeps): void {
   )
 
   createEffect(
-    on(deps.turn.status, (now, before = '') => {
-      const said = turnLine(now, before)
-      if (said) deps.announce(said)
+    on(deps.turn.status, (now) => {
+      if (now === 'submitted') deps.announce(THINKING)
+    }),
+  )
+
+  createEffect(
+    on(deps.turn.generating, (now, before = false) => {
+      if (before === true && now === false) deps.announce(REPLIED)
     }),
   )
 
