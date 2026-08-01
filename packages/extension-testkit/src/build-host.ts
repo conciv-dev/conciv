@@ -1,7 +1,10 @@
+import {existsSync, rmSync} from 'node:fs'
 import {mkdtemp} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {build, type Plugin, type PluginOption} from 'vite'
+import UnoCSS from 'unocss/vite'
+import {presetConciv} from '@conciv/uno-preset'
 import {
   concivSolidConfig,
   loadExtensionsModule,
@@ -41,6 +44,26 @@ function extensionUnderTestPlugin(clientEntry: string): Plugin {
   }
 }
 
+function nearestWith(startDir: string, marker: string): string | null {
+  let dir = startDir
+  while (true) {
+    if (existsSync(join(dir, marker))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) return null
+    dir = parent
+  }
+}
+
+function unoContentGlobs(hostRoot: string): string[] {
+  const globs = [join(hostRoot, '**/*.{ts,tsx}')]
+  const packageRoot = nearestWith(process.cwd(), 'package.json')
+  if (!packageRoot) return globs
+  globs.push(join(packageRoot, 'src/**/*.{ts,tsx}'))
+  const workspaceRoot = nearestWith(packageRoot, 'pnpm-workspace.yaml')
+  if (workspaceRoot) globs.push(join(workspaceRoot, 'packages/ui-kit-*/src/**/*.{ts,tsx}'))
+  return globs
+}
+
 export type BuildConcivHostOptions = {
   root: string
   input?: string
@@ -48,15 +71,40 @@ export type BuildConcivHostOptions = {
   clientEntry: string
 }
 
-export async function buildConcivHost(options: BuildConcivHostOptions): Promise<string> {
+const builtHosts = new Map<string, Promise<string>>()
+
+async function buildHostOnce(options: BuildConcivHostOptions): Promise<string> {
   const outDir = await mkdtemp(join(tmpdir(), 'conciv-testkit-host-'))
+  process.once('exit', () => rmSync(outDir, {recursive: true, force: true, maxRetries: 2}))
   const input = options.input ?? join(options.root, 'index.html')
   await build({
     root: options.root,
     configFile: false,
     logLevel: 'silent',
-    plugins: [concivBuildPlugin(NO_BUILTINS), extensionUnderTestPlugin(options.clientEntry), ...options.plugins],
+    plugins: [
+      concivBuildPlugin(NO_BUILTINS),
+      extensionUnderTestPlugin(options.clientEntry),
+      UnoCSS({
+        configFile: false,
+        presets: [presetConciv()],
+        content: {filesystem: unoContentGlobs(options.root)},
+      }),
+      ...options.plugins,
+    ],
     build: {outDir, emptyOutDir: true, rollupOptions: {input}},
   })
   return outDir
+}
+
+export async function buildConcivHost(options: BuildConcivHostOptions): Promise<string> {
+  const key = [options.root, options.input ?? '', options.clientEntry].join('\n')
+  const cached = builtHosts.get(key)
+  if (cached) {
+    const dir = await cached.catch(() => null)
+    if (dir !== null && existsSync(dir)) return dir
+    builtHosts.delete(key)
+  }
+  const building = buildHostOnce(options)
+  builtHosts.set(key, building)
+  return building
 }

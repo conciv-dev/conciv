@@ -1,4 +1,3 @@
-import {rm} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import solid from 'vite-plugin-solid'
 import {buildConcivHost} from './build-host.js'
@@ -11,12 +10,6 @@ export function fixtureHost(clientEntry: string): (engine: HostEngine) => Promis
   return async (engine) => {
     const outDir = await buildConcivHost({root: hostDir, plugins: [solid()], clientEntry})
     const served = await serveDir(outDir, {apiBase: engine.apiBase, session: engine.session})
-    return {
-      origin: served.origin,
-      close: async () => {
-        await served.close()
-        await rm(outDir, {recursive: true, force: true}).catch(() => {})
-      },
-    }
+    return {origin: served.origin, close: () => served.close()}
   }
 }

@@ -12,13 +12,21 @@ export function ciReporters(): CiReporterEntry[] {
   return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
 }
 
+function forkCap(): number | undefined {
+  const cap = Number(process.env.VITEST_MAX_FORKS)
+  if (!Number.isInteger(cap) || cap < 1) return undefined
+  return cap
+}
+
 export function ciTest(): {
   reporters: CiReporterEntry[]
   coverage: CiCoverage
   testTimeout: number
   hookTimeout: number
   teardownTimeout: number
+  maxWorkers?: number
 } {
+  const maxWorkers = forkCap()
   return {
     reporters: ciReporters(),
     testTimeout: 30_000,
@@ -30,5 +38,6 @@ export function ciTest(): {
       reporter: ['json-summary'],
       reportsDirectory: 'coverage',
     },
+    ...(maxWorkers === undefined ? {} : {maxWorkers}),
   }
 }

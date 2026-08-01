@@ -1,4 +1,3 @@
-import {rm} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import type {Page} from 'playwright'
 import react from '@vitejs/plugin-react'
@@ -22,13 +21,7 @@ export function useTanstackTestApi(): () => TanstackTestApi {
         const outDir = await buildConcivHost({root: hostDir, plugins: [react()], clientEntry})
         const served = await serveDir(outDir, {apiBase, session})
         ctx.origin = served.origin
-        return {
-          origin: served.origin,
-          close: async () => {
-            await served.close()
-            await rm(outDir, {recursive: true, force: true}).catch(() => {})
-          },
-        }
+        return {origin: served.origin, close: () => served.close()}
       },
     })
   }, 120_000)
