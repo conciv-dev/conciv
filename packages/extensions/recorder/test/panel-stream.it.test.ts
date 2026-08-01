@@ -1,14 +1,15 @@
 import {describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import type {Page} from 'playwright-core'
 import {useRecorderTestApi} from './helpers/test-api.js'
 import {addMarker} from './helpers/fixtures.js'
 
 const api = useRecorderTestApi()
 
+const replayed = (page: Page, text: string) => page.frameLocator('iframe').getByText(text, {exact: true}).first()
+
 function replayShows(page: Page, text: string): Promise<boolean> {
-  return page
-    .frameLocator('iframe')
-    .getByText(text, {exact: true})
+  return replayed(page, text)
     .count()
     .then((found) => found > 0)
 }
@@ -23,7 +24,7 @@ async function openPanelStreaming(page: Page): Promise<string> {
   const label = await addMarker(page)
   await page.getByRole('tab', {name: 'Recorder'}).click()
   await page.getByRole('button', {name: 'Send to agent'}).waitFor({state: 'visible', timeout: 20_000})
-  await expect.poll(() => replayShows(page, label), {timeout: 30_000}).toBe(true)
+  await expectLocator(replayed(page, label)).toBeAttached({timeout: 30_000})
   return label
 }
 
@@ -36,7 +37,7 @@ describe('panel stream replay (real browser)', () => {
     await page.getByRole('button', {name: 'Toggle fullscreen'}).waitFor({state: 'visible', timeout: 10_000})
     await page.getByRole('slider', {name: 'Timeline'}).waitFor({state: 'visible', timeout: 10_000})
     const followed = await addMarker(page)
-    await expect.poll(() => replayShows(page, followed), {timeout: 30_000}).toBe(true)
+    await expectLocator(replayed(page, followed)).toBeAttached({timeout: 30_000})
   }, 120_000)
 
   it('scrubbing back leaves the live edge and Go live returns to it', async () => {
@@ -44,15 +45,15 @@ describe('panel stream replay (real browser)', () => {
     await openPanelStreaming(page)
     await page.waitForTimeout(1_500)
     const late = await addMarker(page)
-    await expect.poll(() => replayShows(page, late), {timeout: 30_000}).toBe(true)
+    await expectLocator(replayed(page, late)).toBeAttached({timeout: 30_000})
 
     await scrubBack(page, 4)
     await page.getByRole('button', {name: 'Go live'}).waitFor({state: 'visible', timeout: 10_000})
-    await expect.poll(() => replayShows(page, late), {timeout: 30_000}).toBe(false)
+    await expectLocator(replayed(page, late)).not.toBeAttached({timeout: 30_000})
 
     await page.getByRole('button', {name: 'Go live'}).click()
     await page.getByText('LIVE', {exact: true}).waitFor({state: 'visible', timeout: 10_000})
-    await expect.poll(() => replayShows(page, late), {timeout: 30_000}).toBe(true)
+    await expectLocator(replayed(page, late)).toBeAttached({timeout: 30_000})
   }, 120_000)
 
   it('pausing playback detaches from live and playing catches back up', async () => {
@@ -66,7 +67,7 @@ describe('panel stream replay (real browser)', () => {
     expect(await replayShows(page, missed)).toBe(false)
 
     await page.getByRole('button', {name: 'Toggle playback'}).click()
-    await expect.poll(() => replayShows(page, missed), {timeout: 30_000}).toBe(true)
+    await expectLocator(replayed(page, missed)).toBeAttached({timeout: 30_000})
     await page.getByText('LIVE', {exact: true}).waitFor({state: 'visible', timeout: 10_000})
   }, 120_000)
 })

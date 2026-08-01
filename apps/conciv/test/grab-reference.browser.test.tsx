@@ -1,5 +1,6 @@
 import {render} from 'solid-js/web'
 import {afterEach, expect, test} from 'vitest'
+import {page} from 'vitest/browser'
 import type {Grab} from '@conciv/grab'
 import {makeImageHostGrab} from '@conciv/extension-testkit/host/grab'
 import {GrabReference} from '../src/chat/grab-reference.js'
@@ -31,14 +32,13 @@ function domGrab(): Grab {
   }
 }
 
-test('grab reference renders the dom preview arm by appending the cloned node', async () => {
+test('grab reference renders the dom preview arm by appending the cloned node', () => {
   const host = mount(domGrab())
-  await expect.poll(() => host.textContent ?? '').toContain('Payroll Deposit clone')
+  expect(page.getByText('Payroll Deposit clone').elements()).toHaveLength(1)
   expect(host.querySelector('img')).toBeNull()
 })
 
-test('grab reference renders the image preview arm as an img element', async () => {
+test('grab reference renders the image preview arm as an img element', () => {
   const host = mount(makeImageHostGrab(IMAGE_DATA_URL))
-  await expect.poll(() => host.querySelector('img') !== null).toBe(true)
   expect(host.querySelector('img')?.getAttribute('src')).toBe(IMAGE_DATA_URL)
 })

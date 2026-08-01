@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url'
 import {type ViteDevServer} from 'vite'
 import {z} from 'zod'
 import {start, type Engine} from '@conciv/core/start'
-import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
+import {makeCallTool, resolveSession, until, type CallTool} from '@conciv/harness-testkit'
 import {makeViteBridge} from '@conciv/plugin/vite'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import tanstackServer from '../src/server.js'
@@ -67,15 +67,11 @@ describe('tanstack server-half read tools (IT, real engine)', () => {
 
     await fetch(`${viteBase}/broken.ts`, {headers: {'sec-fetch-dest': 'script'}}).catch(() => undefined)
 
-    await expect
-      .poll(
-        async () => {
-          const errors = AppErrorsSchema.parse(await callTool('tanstack_build_errors', {}))
-          return errors.some((error) => error.kind === 'build')
-        },
-        {timeout: 10_000},
-      )
-      .toBe(true)
+    await until(
+      async () =>
+        AppErrorsSchema.parse(await callTool('tanstack_build_errors', {})).some((error) => error.kind === 'build'),
+      {hangGuardMs: 10_000},
+    )
 
     const errors = AppErrorsSchema.parse(await callTool('tanstack_build_errors', {}))
     const buildError = errors.find((error) => error.kind === 'build')

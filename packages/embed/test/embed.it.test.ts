@@ -1,6 +1,7 @@
 import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
+import {until} from '@conciv/harness-testkit/until'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
 import {
@@ -73,7 +74,7 @@ describe('embed boots the conciv app against a real core', () => {
     const rawHarnessId = '43548fd1-0000-4220-acf0-014b10b5815f'
     expect(await setNavigation(kit, [{href: `/panel/${rawHarnessId}`}])).toBe(true)
     const page = await openPage()
-    await expect.poll(() => currentHref(kit), {timeout: 30_000}).toMatch(/^\/panel\/conciv_/)
+    await until(async () => (await currentHref(kit)).startsWith('/panel/conciv_'), {hangGuardMs: 30_000})
     const adopted = await kit.rpc.sessions.resolve({id: rawHarnessId})
     const persisted = await kit.rpc.navigation.get()
     expect(persisted?.entries[persisted.index]?.href).toBe(`/panel/${adopted.sessionId}`)
@@ -113,7 +114,7 @@ describe('embed boots the conciv app against a real core', () => {
     await after.goto(host.base, {waitUntil: 'domcontentloaded'})
     await openPanel(after)
     await after.getByRole('tab', {name: 'Terminal'}).click()
-    await expect.poll(() => currentHref(kit), {timeout: 30_000}).toContain('/terminal')
+    await until(async () => (await currentHref(kit)).includes('/terminal'), {hangGuardMs: 30_000})
 
     const landed = waitForNavigationWrite(before)
     held.release()
@@ -137,15 +138,13 @@ describe('embed boots the conciv app against a real core', () => {
     await expectLocator(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
-    await expect
-      .poll(
-        async () => {
-          const persisted = await kit.rpc.navigation.get()
-          return persisted?.entries.filter((entry) => entry.href.includes('/panel/')).length ?? 0
-        },
-        {timeout: 30_000},
-      )
-      .toBe(1)
+    await until(
+      async () => {
+        const persisted = await kit.rpc.navigation.get()
+        return (persisted?.entries.filter((entry) => entry.href.includes('/panel/')).length ?? 0) === 1
+      },
+      {hangGuardMs: 30_000},
+    )
     await page.close()
   })
 
@@ -153,7 +152,7 @@ describe('embed boots the conciv app against a real core', () => {
     const first = await openPage()
     await openPanel(first)
     await first.getByRole('tab', {name: 'Terminal'}).click()
-    await expect.poll(() => currentHref(kit), {timeout: 30_000}).toMatch(/\/terminal\?.*open=true/)
+    await until(async () => /\/terminal\?.*open=true/.test(await currentHref(kit)), {hangGuardMs: 30_000})
     await first.close()
     const second = await openPage()
     await expectLocator(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
@@ -166,9 +165,9 @@ describe('embed boots the conciv app against a real core', () => {
   it('a reload after closing the panel boots shut', async () => {
     const first = await openPage()
     await openPanel(first)
-    await expect.poll(() => currentHref(kit), {timeout: 30_000}).toContain('open=true')
+    await until(async () => (await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000})
     await first.getByRole('button', {name: 'Minimize conciv chat'}).click()
-    await expect.poll(() => currentHref(kit), {timeout: 30_000}).not.toContain('open=true')
+    await until(async () => !(await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000})
     await first.close()
     const second = await openPage()
     await expectLocator(second.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
@@ -192,7 +191,7 @@ describe('embed boots the conciv app against a real core', () => {
     const unscrolled = await headingTop()
 
     await page.mouse.wheel(0, 1200)
-    await expect.poll(headingTop, {timeout: 30_000}).toBeLessThan(unscrolled - 1000)
+    await until(async () => (await headingTop()) < unscrolled - 1000, {hangGuardMs: 30_000})
     const readerPosition = await headingTop()
 
     await openPanel(page)

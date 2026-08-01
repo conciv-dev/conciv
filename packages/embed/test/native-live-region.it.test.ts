@@ -2,6 +2,7 @@ import {fileURLToPath} from 'node:url'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
+import {until} from '@conciv/harness-testkit/until'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
 
@@ -49,6 +50,9 @@ function callNative(page: Page, method: NativeMethod, arg: Record<string, unknow
 
 const composerBox = (page: Page) => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
+const untilReported = (probe: () => Promise<boolean>): Promise<void> =>
+  until(probe, {hangGuardMs: 30_000, intervalMs: 100})
+
 const closedRects = (all: PanelToggled[]): Rect[] =>
   all.flatMap((toggle) => (toggle.open === false && toggle.mascotRect ? [toggle.mascotRect] : []))
 
@@ -61,14 +65,9 @@ describe('native live region reporting', () => {
   it('reports the mascot rect on a fresh closed mount so tap-to-open stays live', async () => {
     const page = await openMascotNative()
     await page.setViewportSize({width: 1200, height: 860})
-    await expect
-      .poll(
-        () => toggles(page).then((all) => all.some((toggle) => toggle.open === false && Boolean(toggle.mascotRect))),
-        {
-          timeout: 30_000,
-        },
-      )
-      .toBe(true)
+    await untilReported(async () =>
+      (await toggles(page)).some((toggle) => toggle.open === false && Boolean(toggle.mascotRect)),
+    )
     const closed = (await toggles(page)).findLast((toggle) => toggle.open === false && Boolean(toggle.mascotRect))
     expect(closed?.mascotRect?.width).toBeGreaterThan(0)
     expect(closed?.mascotRect?.height).toBeGreaterThan(0)
@@ -78,13 +77,11 @@ describe('native live region reporting', () => {
   it('re-reports the mascot rect when the launcher moves and settles on a stable value', async () => {
     const page = await openMascotNative()
     await page.setViewportSize({width: 1200, height: 860})
-    await expect.poll(() => toggles(page).then((all) => closedRects(all).length > 0), {timeout: 30_000}).toBe(true)
+    await untilReported(async () => closedRects(await toggles(page)).length > 0)
     const beforeMove = (await toggles(page)).length
 
     await page.setViewportSize({width: 760, height: 640})
-    await expect
-      .poll(() => toggles(page).then((all) => closedRects(all.slice(beforeMove)).length > 0), {timeout: 30_000})
-      .toBe(true)
+    await untilReported(async () => closedRects((await toggles(page)).slice(beforeMove)).length > 0)
 
     await page.evaluate(
       () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
@@ -102,12 +99,10 @@ describe('native live region reporting', () => {
 
   it('never reports closed mascot-region state once the panel is open', async () => {
     const page = await openMascotNative()
-    await expect.poll(() => toggles(page).then((all) => all.length), {timeout: 30_000}).toBeGreaterThan(0)
+    await untilReported(async () => (await toggles(page)).length > 0)
 
     await openFromHost(page)
-    await expect
-      .poll(() => toggles(page).then((all) => all.some((toggle) => toggle.open === true)), {timeout: 30_000})
-      .toBe(true)
+    await untilReported(async () => (await toggles(page)).some((toggle) => toggle.open === true))
 
     const openEvent = (await toggles(page)).find((toggle) => toggle.open === true)
     expect(openEvent?.mascotRect ?? null).toBeNull()
@@ -133,10 +128,10 @@ describe('native live region reporting', () => {
 
   it('reports open, not a closed mascot rect, once a session is opened from the host', async () => {
     const page = await openMascotNative()
-    await expect.poll(() => toggles(page).then((all) => all.length), {timeout: 30_000}).toBeGreaterThan(0)
+    await untilReported(async () => (await toggles(page)).length > 0)
 
     await openFromHost(page)
-    await expect.poll(() => toggles(page).then((all) => all.at(-1)?.open === true), {timeout: 30_000}).toBe(true)
+    await untilReported(async () => (await toggles(page)).at(-1)?.open === true)
 
     const latest = (await toggles(page)).at(-1)
     expect(latest?.open).toBe(true)

@@ -1,5 +1,6 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {afterAll, beforeAll, describe, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
+import {until} from '@conciv/harness-testkit/until'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
 
@@ -30,15 +31,13 @@ describe('startPagePlane executes core page verbs in the browser', () => {
     const page = await browser.newPage()
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 30_000})
-    await expect
-      .poll(
-        async () => {
-          const body = await kit.rpc.page.run({verb: 'text', selector: '#probe'}).catch(() => null)
-          return body !== null && 'text' in body ? body.text : null
-        },
-        {timeout: 30_000},
-      )
-      .toBe('page-bus-ok')
+    await until(
+      async () => {
+        const body = await kit.rpc.page.run({verb: 'text', selector: '#probe'}).catch(() => null)
+        return body !== null && 'text' in body && body.text === 'page-bus-ok'
+      },
+      {hangGuardMs: 30_000},
+    )
     await page.close()
   })
 
@@ -46,15 +45,13 @@ describe('startPagePlane executes core page verbs in the browser', () => {
     const page = await browser.newPage()
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 30_000})
-    await expect
-      .poll(
-        async () => {
-          const body = await kit.rpc.page.run({verb: 'snapshot'}).catch(() => null)
-          return body === null ? '' : JSON.stringify(body)
-        },
-        {timeout: 30_000},
-      )
-      .toContain('Embed page')
+    await until(
+      async () => {
+        const body = await kit.rpc.page.run({verb: 'snapshot'}).catch(() => null)
+        return body !== null && JSON.stringify(body).includes('Embed page')
+      },
+      {hangGuardMs: 30_000},
+    )
     await page.close()
   })
 })

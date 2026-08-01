@@ -1,10 +1,14 @@
 import {componentHostAt, describe as describeHost, find, inspect, locate, override, tree} from '../src/react-bridge.js'
 import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
+import {page} from 'vitest/browser'
 import {createRoot, type Root} from 'react-dom/client'
 import type {Refs} from '../src/page-snapshot.js'
 import {FixtureApp} from './fixtures/react-app.js'
 
 const makeRefs = (): Refs => ({map: new Map(), n: 0})
+
+const leafText = () => page.getByRole('button')
+const classText = () => page.getByRole('status')
 
 let container: HTMLElement
 let root: Root
@@ -84,13 +88,13 @@ describe('override', () => {
   it('sets class state in place and re-renders', async () => {
     const result = await override(classHost(), 'state', ['value'], 42)
     expect(result).toEqual({ok: true})
-    await expect.poll(() => classHost().textContent).toBe('42')
+    await expect.element(classText()).toHaveTextContent('42')
   })
 
   it('overrides function-component props through the dev renderer', async () => {
     const result = await override(leaf(), 'props', ['label'], 'B')
     expect(result).toEqual({ok: true})
-    await expect.poll(() => leaf().textContent).toContain('B:')
+    await expect.element(leafText()).toHaveTextContent('B:')
   })
 
   it('overrides hook state by hook id', async () => {
@@ -99,13 +103,13 @@ describe('override', () => {
     expect(editable).toBeDefined()
     const result = await override(leaf(), 'hooks', [], 9, editable?.id)
     expect(result).toEqual({ok: true})
-    await expect.poll(() => leaf().textContent).toContain(':9:')
+    await expect.element(leafText()).toHaveTextContent(':9:')
   })
 
   it('overrides the nearest context provider value', async () => {
     const result = await override(leaf(), 'context', [], 'contrast')
     expect(result).toEqual({ok: true})
-    await expect.poll(() => leaf().textContent).toContain(':contrast')
+    await expect.element(leafText()).toHaveTextContent(':contrast')
   })
 
   it('reports actionable errors for unsupported targets', async () => {

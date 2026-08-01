@@ -1,7 +1,7 @@
 import {expect, test} from 'vitest'
 import whiteboard from '../src/server.js'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
-import {clientEntry, openCanvas} from './canvas-it-helpers.js'
+import {clientEntry, openCanvas, readCanvas, untilCanvasSettles} from './canvas-it-helpers.js'
 
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
@@ -15,11 +15,7 @@ test('preview returns a real png of the draft without any browser round-trip', a
       y: 50,
       width: 200,
     })
-    await expect
-      .poll(async () => ((await api.callTool('canvas.read', {scope: 'draft'})) as {elements: unknown[]}).elements, {
-        timeout: 15_000,
-      })
-      .toHaveLength(1)
+    await untilCanvasSettles(async () => (await readCanvas(api, 'draft')).length === 1)
     const result = (await api.callTool('canvas.preview', {})) as Array<{
       type: string
       source?: {value: string; mimeType: string}

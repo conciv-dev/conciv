@@ -1,6 +1,7 @@
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser} from 'playwright'
+import {until} from '@conciv/harness-testkit/until'
 import {makeExtRpcClient} from '@conciv/extension'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
@@ -37,9 +38,7 @@ describe('recording attachment end to end in the real widget', () => {
     await page.getByRole('button', {name: 'Embed fixture'}).click()
 
     const recorderRpc = makeExtRpcClient<RecorderRouter>(kit.base, 'recorder')
-    await expect
-      .poll(async () => (await recorderRpc.window({})).events.length, {timeout: 30_000})
-      .toBeGreaterThanOrEqual(2)
+    await until(async () => (await recorderRpc.window({})).events.length >= 2, {hangGuardMs: 30_000})
 
     await openPanel(page)
     await page.getByRole('tab', {name: 'Recorder'}).click()

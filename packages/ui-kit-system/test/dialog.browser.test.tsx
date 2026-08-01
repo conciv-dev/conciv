@@ -1,5 +1,5 @@
 import 'virtual:uno.css'
-import {createSignal} from 'solid-js'
+import {createSignal, For} from 'solid-js'
 import {render} from 'solid-js/web'
 import {page, userEvent} from 'vitest/browser'
 import {afterEach, expect, it} from 'vitest'
@@ -12,7 +12,7 @@ const LAYERING = '.fixed{position:fixed}.inset-0{inset:0}'
 const disposers: (() => void)[] = []
 const hosts: HTMLElement[] = []
 
-function mount(dismissable: boolean): {closes: boolean[]} {
+function mount(dismissable: boolean): void {
   const style = document.createElement('style')
   style.textContent = LAYERING
   document.head.appendChild(style)
@@ -20,19 +20,32 @@ function mount(dismissable: boolean): {closes: boolean[]} {
   document.body.appendChild(host)
   hosts.push(host)
   disposers.push(() => style.remove())
-  const closes: boolean[] = []
+  const [closes, setCloses] = createSignal<boolean[]>([])
   disposers.push(
     render(
       () => (
-        <Dialog open onOpenChange={(open) => closes.push(open)} dismissable={dismissable} label="Sample dialog">
+        <Dialog
+          open
+          onOpenChange={(open) => setCloses((asked) => [...asked, open])}
+          dismissable={dismissable}
+          label="Sample dialog"
+        >
           <p>a body of text</p>
+          <ul>
+            <For each={closes()}>{(open) => <li>asked to close, open {String(open)}</li>}</For>
+          </ul>
         </Dialog>
       ),
       host,
     ),
   )
-  return {closes}
 }
+
+const closeRequests = (): string[] =>
+  page
+    .getByRole('listitem')
+    .elements()
+    .map((item) => item.textContent ?? '')
 
 async function clickBehindTheDialog(): Promise<void> {
   const content = page.getByRole('dialog').element()
@@ -53,29 +66,31 @@ afterEach(() => {
 })
 
 it('lets escape close a dismissable dialog', async () => {
-  const dialog = mount(true)
+  mount(true)
   await expect.element(page.getByText('a body of text')).toBeVisible()
 
   await userEvent.keyboard('{Escape}')
-  await expect.poll(() => dialog.closes).toEqual([false])
+  await expect.element(page.getByText('asked to close, open false')).toBeVisible()
+  expect(closeRequests()).toEqual(['asked to close, open false'])
 })
 
 it('lets a click behind the dialog close a dismissable dialog', async () => {
-  const dialog = mount(true)
+  mount(true)
   await expect.element(page.getByText('a body of text')).toBeVisible()
 
   await clickBehindTheDialog()
-  await expect.poll(() => dialog.closes).toEqual([false])
+  await expect.element(page.getByText('asked to close, open false')).toBeVisible()
+  expect(closeRequests()).toEqual(['asked to close, open false'])
 })
 
 it('holds a non-dismissable dialog open through escape and clicks behind it', async () => {
-  const dialog = mount(false)
+  mount(false)
   await expect.element(page.getByText('a body of text')).toBeVisible()
 
   await userEvent.keyboard('{Escape}')
   await clickBehindTheDialog()
   await expect.element(page.getByText('a body of text')).toBeVisible()
-  expect(dialog.closes).toEqual([])
+  expect(closeRequests()).toEqual([])
 })
 
 it('announces itself as a plain dialog unless the caller asks for an interrupt', async () => {
@@ -135,7 +150,8 @@ it('moves focus to the element the caller nominates, inside a shadow root', asyn
     </EnvironmentProvider>
   ))
 
-  await expect.poll(() => shadow.activeElement?.textContent?.trim()).toBe('Pick this session')
+  await expect.element(page.elementLocator(shadow.host)).toHaveFocus()
+  expect(shadow.activeElement?.textContent?.trim()).toBe('Pick this session')
 })
 
 it('gives focus back to the opener when it closes, inside a shadow root', async () => {
@@ -153,8 +169,9 @@ it('gives focus back to the opener when it closes, inside a shadow root', async 
       </Dialog>
     </EnvironmentProvider>
   ))
-  await expect.poll(() => shadow.activeElement?.textContent?.trim()).toBe('Pick this session')
+  await expect.element(page.elementLocator(shadow.host)).toHaveFocus()
+  expect(shadow.activeElement?.textContent?.trim()).toBe('Pick this session')
 
   setOpen(false)
-  await expect.poll(() => document.activeElement).toBe(opener)
+  await expect.element(page.getByRole('button', {name: 'Open'})).toHaveFocus()
 })

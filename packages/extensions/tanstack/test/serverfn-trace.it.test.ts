@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url'
 import {type ViteDevServer} from 'vite'
 import {z} from 'zod'
 import {start, type Engine} from '@conciv/core/start'
-import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
+import {makeCallTool, resolveSession, until, type CallTool} from '@conciv/harness-testkit'
 import {makeViteBridge} from '@conciv/plugin/vite'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import tanstackServer from '../src/server.js'
@@ -75,15 +75,9 @@ describe('tanstack server_fn_trace (IT, real vite dev server + real HTTP request
     await fetch(`${viteBase}/`).catch(() => undefined)
     await fetch(`${viteBase}/_serverFn/${SERVER_FN_ID}`).catch(() => undefined)
 
-    await expect
-      .poll(
-        async () => {
-          const payload = PayloadSchema.parse(await callTool('tanstack_server_fn_trace', {}))
-          return payload.traces.length
-        },
-        {timeout: 10_000},
-      )
-      .toBeGreaterThan(0)
+    await until(async () => PayloadSchema.parse(await callTool('tanstack_server_fn_trace', {})).traces.length > 0, {
+      hangGuardMs: 10_000,
+    })
 
     const payload = PayloadSchema.parse(await callTool('tanstack_server_fn_trace', {}))
     const trace = payload.traces.find((t) => t.name === SERVER_FN.export)
@@ -108,15 +102,13 @@ describe('tanstack server_fn_trace (IT, real vite dev server + real HTTP request
 
     await fetch(`${viteBase}/app/_serverFn/${BASEPATH_FN_ID}`).catch(() => undefined)
 
-    await expect
-      .poll(
-        async () => {
-          const payload = PayloadSchema.parse(await callTool('tanstack_server_fn_trace', {}))
-          return payload.traces.some((t) => t.name === BASEPATH_FN.export)
-        },
-        {timeout: 10_000},
-      )
-      .toBe(true)
+    await until(
+      async () =>
+        PayloadSchema.parse(await callTool('tanstack_server_fn_trace', {})).traces.some(
+          (trace) => trace.name === BASEPATH_FN.export,
+        ),
+      {hangGuardMs: 10_000},
+    )
 
     const payload = PayloadSchema.parse(await callTool('tanstack_server_fn_trace', {}))
     const trace = payload.traces.find((t) => t.name === BASEPATH_FN.export)

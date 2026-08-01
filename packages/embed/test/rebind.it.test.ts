@@ -1,6 +1,7 @@
 import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
+import {until} from '@conciv/harness-testkit/until'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
 import {setNavigation} from './helpers/navigation.js'
@@ -85,7 +86,7 @@ describe('handle.rebind survives same-core port drift', () => {
 
     await sendTurn(page, 'first message before the drift')
     await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
-    await expect.poll(() => panelSession(), {timeout: 30_000}).not.toBeNull()
+    await until(async () => (await panelSession()) !== null, {hangGuardMs: 30_000})
     const sessionBefore = await panelSession()
 
     const beforeB = proxyB.requestCount()

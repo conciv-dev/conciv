@@ -87,8 +87,8 @@ it('positions the tooltip next to a trigger that also opens a menu', async () =>
 
   const positioner = tooltip.element().parentElement
   if (!(positioner instanceof HTMLElement)) throw new Error('the tooltip rendered no positioner')
-  await expect.poll(() => positioner.style.getPropertyValue('--x')).not.toBe('')
-  await expect.poll(() => positioner.style.getPropertyValue('--y')).not.toBe('')
+  expect(positioner.style.getPropertyValue('--x')).not.toBe('')
+  expect(positioner.style.getPropertyValue('--y')).not.toBe('')
 })
 
 it('keeps the tooltip machine identity off the menu trigger', async () => {

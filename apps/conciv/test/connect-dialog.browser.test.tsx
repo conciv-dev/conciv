@@ -1,7 +1,7 @@
 import {afterEach, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {render} from 'solid-js/web'
-import {createSignal, type Setter} from 'solid-js'
+import {createSignal, For, type Setter} from 'solid-js'
 import type {LiveSession} from '@conciv/contract'
 import {ConnectDialog} from '../src/composer/connect/connect-dialog.js'
 import {
@@ -68,7 +68,6 @@ type View = {
   contactLost: Setter<boolean>
   unreachable: Setter<boolean>
   picked: string[]
-  closed: number[]
   retried: number[]
   refreshed: number[]
   launched: number[]
@@ -94,6 +93,8 @@ function mount(initial: LiveSession[] | undefined = undefined, harnessName = 'Cl
   const [dialledIn, setDialledIn] = createSignal(false)
   const [contactLost, setContactLost] = createSignal(false)
   const [unreachable, setUnreachable] = createSignal(false)
+  const [answers, setAnswers] = createSignal<string[]>([])
+  const record = (answer: string) => setAnswers((seen) => [...seen, answer])
   const view: View = {
     step: setStep,
     candidates: setCandidates,
@@ -107,7 +108,6 @@ function mount(initial: LiveSession[] | undefined = undefined, harnessName = 'Cl
     contactLost: setContactLost,
     unreachable: setUnreachable,
     picked: [],
-    closed: [],
     retried: [],
     refreshed: [],
     launched: [],
@@ -118,30 +118,35 @@ function mount(initial: LiveSession[] | undefined = undefined, harnessName = 'Cl
   }
   const dispose = render(
     () => (
-      <ConnectDialog
-        step={step()}
-        harnessName={harnessName}
-        candidates={candidates()}
-        arrived={arrived()}
-        loading={loading()}
-        refreshing={refreshing()}
-        failure={failure()}
-        stale={stale()}
-        checkedAt={Date.now() - 4_000}
-        connectingId={connectingId()}
-        dialledIn={dialledIn()}
-        contactLost={contactLost()}
-        unreachable={unreachable()}
-        onKeepWaiting={() => view.keptWaiting.push(1)}
-        onHandBack={() => view.handedBack.push(1)}
-        onPick={(session) => view.picked.push(session.sessionId)}
-        onClose={() => view.closed.push(1)}
-        onRetry={() => view.retried.push(1)}
-        onRefresh={() => view.refreshed.push(1)}
-        onLaunch={() => view.launched.push(1)}
-        onBack={() => view.backed.push(1)}
-        onDone={() => view.done.push(1)}
-      />
+      <>
+        <ul>
+          <For each={answers()}>{(answer) => <li>saw {answer}</li>}</For>
+        </ul>
+        <ConnectDialog
+          step={step()}
+          harnessName={harnessName}
+          candidates={candidates()}
+          arrived={arrived()}
+          loading={loading()}
+          refreshing={refreshing()}
+          failure={failure()}
+          stale={stale()}
+          checkedAt={Date.now() - 4_000}
+          connectingId={connectingId()}
+          dialledIn={dialledIn()}
+          contactLost={contactLost()}
+          unreachable={unreachable()}
+          onKeepWaiting={() => view.keptWaiting.push(1)}
+          onHandBack={() => view.handedBack.push(1)}
+          onPick={(session) => view.picked.push(session.sessionId)}
+          onClose={() => record('close')}
+          onRetry={() => view.retried.push(1)}
+          onRefresh={() => view.refreshed.push(1)}
+          onLaunch={() => view.launched.push(1)}
+          onBack={() => view.backed.push(1)}
+          onDone={() => view.done.push(1)}
+        />
+      </>
     ),
     host,
   )
@@ -326,11 +331,11 @@ test('falls back to a restart snippet when the cli is too old', async () => {
   expect(clipboard.writes).toEqual(["cd '/repo' && claude --resume tok-1"])
 
   await page.getByRole('button', {name: 'Close'}).click()
-  expect(view.closed).toHaveLength(1)
+  await expect.element(page.getByText('saw close')).toBeVisible()
 })
 
 test('takes its name from the one visible heading and leaves on escape', async () => {
-  const view = mount([])
+  mount([])
 
   const heading = page.getByRole('heading', {name: DIALOG_TITLE})
   await expect.element(heading).toBeVisible()
@@ -340,7 +345,7 @@ test('takes its name from the one visible heading and leaves on escape', async (
   await expect.element(modal).toHaveAttribute('aria-labelledby', heading.element().id)
 
   await userEvent.keyboard('{Escape}')
-  await expect.poll(() => view.closed.length).toBe(1)
+  await expect.element(page.getByText('saw close')).toBeVisible()
 })
 
 test('a very long title and terminal name still leave a locatable row', async () => {
@@ -438,8 +443,6 @@ test('shows the first eight sessions and keeps the rest one control away', async
   expect(page.getByRole('button', {name: /^session number/}).elements()).toHaveLength(11)
 })
 
-const focused = () => document.activeElement
-
 test('every step hands the keyboard the control that step is about', async () => {
   const view = mount([liveSession()])
   const adopted = {
@@ -449,33 +452,25 @@ test('every step hands the keyboard the control that step is about', async () =>
     reloadCommand: '/reload-plugins --force',
   }
 
-  const row = page.getByRole('button', {name: /rename the widget package/})
-  await expect.element(row).toBeVisible()
-  await expect.poll(focused).toBe(row.element())
+  await expect.element(page.getByRole('button', {name: /rename the widget package/})).toHaveFocus()
 
   view.step({kind: 'reload', adopted})
-  const copy = page.getByRole('button', {name: COPY_LABEL})
-  await expect.element(copy).toBeVisible()
-  await expect.poll(focused).toBe(copy.element())
+  await expect.element(page.getByRole('button', {name: COPY_LABEL})).toHaveFocus()
 
   view.step({kind: 'leaveConfirm', adopted})
-  const keep = page.getByRole('button', {name: 'Keep waiting'})
-  await expect.element(keep).toBeVisible()
-  await expect.poll(focused).toBe(keep.element())
+  await expect.element(page.getByRole('button', {name: 'Keep waiting'})).toHaveFocus()
 
   view.step({kind: 'reload', adopted})
-  await expect.poll(focused).toBe(page.getByRole('button', {name: COPY_LABEL}).element())
+  await expect.element(page.getByRole('button', {name: COPY_LABEL})).toHaveFocus()
 
   view.step({kind: 'snippet', command: 'claude --resume tok-1', detail: 'the cli is too old'})
-  await expect.poll(focused).toBe(page.getByRole('button', {name: COPY_LABEL}).element())
+  await expect.element(page.getByRole('button', {name: COPY_LABEL})).toHaveFocus()
 })
 
 test('an empty picker puts the keyboard on the way forward', async () => {
   mount([])
 
-  const open = page.getByRole('button', {name: 'Open a new session'})
-  await expect.element(open).toBeVisible()
-  await expect.poll(focused).toBe(open.element())
+  await expect.element(page.getByRole('button', {name: 'Open a new session'})).toHaveFocus()
 })
 
 test('a reload card that cannot reach the server stops promising and says so', async () => {

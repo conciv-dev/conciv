@@ -3,7 +3,7 @@ import type {Store} from '../src/server/db/store.js'
 import whiteboard from '../src/server.js'
 import {autoCommitDraft} from '../src/server/auto-commit.js'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
-import {clientEntry, openCanvas, readCanvas as read} from './canvas-it-helpers.js'
+import {clientEntry, openCanvas, readCanvas as read, untilCanvasSettles} from './canvas-it-helpers.js'
 
 test('turn end commits an abandoned draft', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
@@ -15,12 +15,12 @@ test('turn end commits an abandoned draft', async () => {
       y: 0,
       width: 100,
     })
-    await expect.poll(() => read(api, 'draft'), {timeout: 30_000}).toHaveLength(1)
+    await untilCanvasSettles(async () => (await read(api, 'draft')).length === 1)
     const context = api.serverContext as {store: Store}
     const committed = await autoCommitDraft(context.store, api.session)
     expect(committed).toBe(true)
-    await expect.poll(() => read(api, 'live'), {timeout: 30_000}).toHaveLength(1)
-    await expect.poll(() => read(api, 'draft'), {timeout: 30_000}).toHaveLength(0)
+    await untilCanvasSettles(async () => (await read(api, 'live')).length === 1)
+    await untilCanvasSettles(async () => (await read(api, 'draft')).length === 0)
   } finally {
     await api.dispose()
   }

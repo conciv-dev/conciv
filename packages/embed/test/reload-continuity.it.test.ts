@@ -1,6 +1,7 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {afterAll, beforeAll, describe, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser} from 'playwright'
+import {until} from '@conciv/harness-testkit/until'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
 import {openPanel} from './helpers/panel.js'
@@ -36,19 +37,17 @@ describe('reload continuity through the db-backed navigation row', () => {
 
     await input.fill('an unsent draft survives')
     await input.press('End')
-    await expect
-      .poll(
-        async () => {
-          const state = await kit.rpc.navigation.get(undefined)
-          const panelEntry = state?.entries.find((entry) => entry.href.startsWith('/panel/'))
-          if (!panelEntry) return false
-          const sessionId = (panelEntry.href.split('/')[2] ?? '').split('?')[0] ?? ''
-          const draft = await kit.rpc.drafts.get({sessionId})
-          return draft?.text === 'an unsent draft survives'
-        },
-        {timeout: 30_000},
-      )
-      .toBe(true)
+    await until(
+      async () => {
+        const state = await kit.rpc.navigation.get(undefined)
+        const panelEntry = state?.entries.find((entry) => entry.href.startsWith('/panel/'))
+        if (!panelEntry) return false
+        const sessionId = (panelEntry.href.split('/')[2] ?? '').split('?')[0] ?? ''
+        const draft = await kit.rpc.drafts.get({sessionId})
+        return draft?.text === 'an unsent draft survives'
+      },
+      {hangGuardMs: 30_000},
+    )
 
     await page.reload({waitUntil: 'domcontentloaded'})
 

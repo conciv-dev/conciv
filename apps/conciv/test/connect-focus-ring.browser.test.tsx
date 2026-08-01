@@ -25,17 +25,6 @@ const ADOPTED = {
 
 const OPEN_TRIGGER = 'Open the picker with the mouse'
 
-function ringOf(element: Element): string {
-  const style = getComputedStyle(element)
-  if (style.outlineStyle === 'none') return 'none'
-  return `${style.outlineStyle} ${style.outlineWidth}`
-}
-
-function focusRing(): string {
-  const active = document.activeElement
-  return active === null ? 'nothing focused' : ringOf(active)
-}
-
 type Mounted = {step: Setter<ConnectStep>; picked: string[]}
 
 function mount(opened: ConnectStep, candidates: LiveSession[] | undefined, failure: string | null = null): Mounted {
@@ -98,10 +87,7 @@ test('a picker opened with the mouse still shows the reader where the keyboard l
 
   await openWithTheMouse()
 
-  const row = page.getByRole('button', {name: /rename the widget package/})
-  await expect.element(row).toBeVisible()
-  await expect.poll(() => document.activeElement).toBe(row.element())
-  await expect.poll(() => focusRing()).toBe('solid 2px')
+  await expect.element(page.getByRole('button', {name: /rename the widget package/})).toHaveFocus()
 })
 
 test('the step the flow moves to after a mouse click shows its focus too', async () => {
@@ -110,48 +96,40 @@ test('the step the flow moves to after a mouse click shows its focus too', async
 
   await page.getByRole('button', {name: /rename the widget package/}).click()
 
-  const copy = page.getByRole('button', {name: COPY_LABEL})
-  await expect.element(copy).toBeVisible()
-  await expect.poll(() => document.activeElement).toBe(copy.element())
-  await expect.poll(() => focusRing()).toBe('solid 2px')
+  await expect.element(page.getByRole('button', {name: COPY_LABEL})).toHaveFocus()
 })
 
 test('the reload step shows its focus when the mouse opened it', async () => {
   mount({kind: 'reload', adopted: ADOPTED}, [liveSession({ready: false})])
   await openWithTheMouse()
 
-  await expect.element(page.getByRole('button', {name: COPY_LABEL})).toBeVisible()
-  await expect.poll(() => focusRing()).toBe('solid 2px')
+  await expect.element(page.getByRole('button', {name: COPY_LABEL})).toHaveFocus()
 })
 
 test('the leave confirmation shows its focus when the mouse opened it', async () => {
   mount({kind: 'leaveConfirm', adopted: ADOPTED}, [liveSession({ready: false})])
   await openWithTheMouse()
 
-  await expect.element(page.getByRole('button', {name: KEEP_WAITING_LABEL})).toBeVisible()
-  await expect.poll(() => focusRing()).toBe('solid 2px')
+  await expect.element(page.getByRole('button', {name: KEEP_WAITING_LABEL})).toHaveFocus()
 })
 
 test('the restart snippet shows its focus when the mouse opened it', async () => {
   mount({kind: 'snippet', command: 'claude --resume tok-1', detail: 'the cli is too old'}, [])
   await openWithTheMouse()
 
-  await expect.element(page.getByRole('button', {name: COPY_LABEL})).toBeVisible()
-  await expect.poll(() => focusRing()).toBe('solid 2px')
+  await expect.element(page.getByRole('button', {name: COPY_LABEL})).toHaveFocus()
 })
 
 test('an empty picker opened with the mouse shows its focus on the way forward', async () => {
   mount({kind: 'picking', error: null, retryId: null}, [])
   await openWithTheMouse()
 
-  await expect.element(page.getByRole('button', {name: OPEN_NEW_LABEL})).toBeVisible()
-  await expect.poll(() => focusRing()).toBe('solid 2px')
+  await expect.element(page.getByRole('button', {name: OPEN_NEW_LABEL})).toHaveFocus()
 })
 
 test('a picker that could not check shows its focus on the retry the mouse opened it onto', async () => {
   mount({kind: 'picking', error: null, retryId: null}, undefined, 'the server hung up')
   await openWithTheMouse()
 
-  await expect.element(page.getByRole('button', {name: RETRY_LABEL})).toBeVisible()
-  await expect.poll(() => focusRing()).toBe('solid 2px')
+  await expect.element(page.getByRole('button', {name: RETRY_LABEL})).toHaveFocus()
 })

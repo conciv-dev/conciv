@@ -1,5 +1,6 @@
 import type {Page} from 'playwright'
 import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
+import {until} from '@conciv/harness-testkit'
 import whiteboard from '../src/server.js'
 
 export const clientEntry = '@conciv/extension-whiteboard/client'
@@ -42,3 +43,6 @@ export const openThreadPin = async (page: Page): Promise<void> => {
 
 export const readCanvas = async (api: ToolCaller, scope: string): Promise<unknown[]> =>
   ((await api.callTool('canvas.read', {scope})) as {elements: unknown[]}).elements
+
+export const untilCanvasSettles = (probe: () => Promise<boolean>): Promise<void> =>
+  until(probe, {hangGuardMs: 30_000, intervalMs: 250})

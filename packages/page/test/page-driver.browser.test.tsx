@@ -1,12 +1,17 @@
 import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
 import {installReactBridge} from '../src/react-bridge.js'
 import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
+import {page} from 'vitest/browser'
 import {createRoot, type Root} from 'react-dom/client'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 
 let container: HTMLElement
 let reactRoot: Root
 let driver: PageDriver
+
+const leaf = () => page.getByRole('button', {name: /^A:/})
+const counter = () => page.getByRole('status')
+const formState = () => page.getByText(/^subscribed:/)
 
 const resultOf = async (query: Parameters<PageDriver['execute']>[0]): Promise<Record<string, unknown>> => {
   const result = await driver.execute(query)
@@ -66,7 +71,7 @@ describe('target resolution', () => {
 describe('dom verbs', () => {
   it('clicks through React handlers and mirrors the action', async () => {
     expect(await resultOf({kind: 'click', selector: '[data-fixture="leaf"]'})).toEqual({ok: true})
-    await expect.poll(() => document.querySelector('[data-fixture="leaf"]')?.textContent).toContain(':1:')
+    await expect.element(leaf()).toHaveTextContent(':1:')
     expect(document.querySelector('[data-conciv-cursor]')).not.toBeNull()
   })
 
@@ -79,27 +84,25 @@ describe('dom verbs', () => {
   })
 
   it('drives React-controlled checkboxes and radios so component state follows', async () => {
-    const formState = (): string => document.body.textContent ?? ''
+    expect(await resultOf({kind: 'check', selector: '#subscribe'})).toEqual({ok: true, checked: true})
+    await expect.element(formState()).toHaveTextContent('subscribed: true')
 
     expect(await resultOf({kind: 'check', selector: '#subscribe'})).toEqual({ok: true, checked: true})
-    await expect.poll(formState).toContain('subscribed: true')
-
-    expect(await resultOf({kind: 'check', selector: '#subscribe'})).toEqual({ok: true, checked: true})
-    await expect.poll(formState).toContain('subscribed: true')
+    await expect.element(formState()).toHaveTextContent('subscribed: true')
 
     expect(await resultOf({kind: 'uncheck', selector: '#subscribe'})).toEqual({ok: true, checked: false})
-    await expect.poll(formState).toContain('subscribed: false')
+    await expect.element(formState()).toHaveTextContent('subscribed: false')
 
     expect(await resultOf({kind: 'check', selector: '#plan-pro'})).toEqual({ok: true, checked: true})
-    await expect.poll(formState).toContain('plan: pro')
+    await expect.element(formState()).toHaveTextContent('plan: pro')
 
     expect(await resultOf({kind: 'uncheck', selector: '#plan-pro'})).toEqual({
       error: 'cannot uncheck a radio; check another radio in the same group instead',
     })
-    await expect.poll(formState).toContain('plan: pro')
+    await expect.element(formState()).toHaveTextContent('plan: pro')
 
     expect(await resultOf({kind: 'check', selector: '#plan-free'})).toEqual({ok: true, checked: true})
-    await expect.poll(formState).toContain('plan: free')
+    await expect.element(formState()).toHaveTextContent('plan: free')
   })
 
   it('mutates attributes, classes, styles, text, and structure', async () => {
@@ -168,21 +171,20 @@ describe('react verbs through the driver', () => {
     })
     const set = await resultOf({kind: 'override', name: 'Counter', target: 'state', path: 'value', json: '77'})
     expect(set.ok).toBe(true)
-    await expect.poll(() => document.querySelector('[data-fixture="class"]')?.textContent).toBe('77')
+    await expect.element(counter()).toHaveTextContent('77')
   })
 
   it('tracks renders between start and stop', async () => {
     await resultOf({kind: 'track', action: 'start'})
     await resultOf({kind: 'click', name: 'Leaf'})
-    await expect
-      .poll(async () => {
-        const report = await resultOf({kind: 'track', action: 'report'})
-        const components = Array.isArray(report.components) ? report.components : []
-        return components.some(
-          (entry) => typeof entry === 'object' && entry !== null && 'component' in entry && entry.component === 'Leaf',
-        )
-      })
-      .toBe(true)
+    await expect.element(leaf()).toHaveTextContent(':2:')
+    const report = await resultOf({kind: 'track', action: 'report'})
+    const components = Array.isArray(report.components) ? report.components : []
+    expect(
+      components.some(
+        (entry) => typeof entry === 'object' && entry !== null && 'component' in entry && entry.component === 'Leaf',
+      ),
+    ).toBe(true)
     const stopped = await resultOf({kind: 'track', action: 'stop'})
     expect(stopped.tracking).toBe(false)
   })

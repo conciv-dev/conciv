@@ -51,16 +51,17 @@ test('shows nothing until claude reports in, then tracks the terminal state', as
       <TerminalPresencePill />
     </HostApiProvider>
   ))
-  await expect.poll(() => host.textContent).toBe('')
+  expect(host.textContent).toBe('')
 
   await hook(base, sessionId, 'UserPromptSubmit')
-  await expect.poll(() => host.textContent).toContain('Terminal working')
+  await expect.element(page.getByText(/Terminal working/)).toBeVisible()
 
   await hook(base, sessionId, 'Stop')
-  await expect.poll(() => host.textContent).toContain('Terminal connected')
+  await expect.element(page.getByText(/Terminal connected/)).toBeVisible()
 
   await hook(base, sessionId, 'SessionEnd')
-  await expect.poll(() => host.textContent).toBe('')
+  await expect.element(page.getByText(/Terminal connected/)).not.toBeInTheDocument()
+  expect(host.textContent).toBe('')
 })
 
 test('keeps its slot reserved while the terminal is idle so nothing pops in later', () => {

@@ -2,6 +2,7 @@ import {fileURLToPath} from 'node:url'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
+import {until} from '@conciv/harness-testkit/until'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
 
@@ -60,6 +61,9 @@ async function openNative(): Promise<Page> {
   return page
 }
 
+const untilPosted = (probe: () => Promise<boolean>, hangGuardMs = 30_000): Promise<void> =>
+  until(probe, {hangGuardMs, intervalMs: 100})
+
 const outbound = async (page: Page): Promise<PageToNativeMessage[]> => {
   const raw = await page.evaluate(() => window.__p2n)
   return raw.flatMap((entry) => {
@@ -89,12 +93,8 @@ const grabPreview = (page: Page) => panel(page).locator('img')
 describe('native widget bridge', () => {
   it('installs the native bridge, re-posts readiness, and settles after the first acked call and handshake', async () => {
     const page = await openNative()
-    await expect
-      .poll(() => outbound(page).then((m) => countType(m, 'bridge.ready')), {timeout: 5000})
-      .toBeGreaterThan(1)
-    await expect
-      .poll(() => outbound(page).then((m) => countType(m, 'handshake.hello')), {timeout: 5000})
-      .toBeGreaterThan(1)
+    await untilPosted(async () => countType(await outbound(page), 'bridge.ready') > 1, 5_000)
+    await untilPosted(async () => countType(await outbound(page), 'handshake.hello') > 1, 5_000)
 
     await callNative(page, 'grabCapability', {v: 1, seq: 1, grabbable: true})
     await callNative(page, 'handshake', {v: 1, seq: 2, apiBase: kit.base, token: null})
@@ -130,18 +130,14 @@ describe('native widget bridge', () => {
 
     await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
     await grabButton(page).click()
-    await expect.poll(() => outbound(page).then((m) => countType(m, 'grab.pick')), {timeout: 30_000}).toBe(1)
+    await untilPosted(async () => countType(await outbound(page), 'grab.pick') === 1)
     const pick = findByType(await outbound(page), 'grab.pick')
     expect(pick?.requestId).toBeTruthy()
 
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
     await expectLocator(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
     await expectLocator(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
-    await expect
-      .poll(() => rpcBodies.some((body) => body.includes('[view]') && body.includes('PaymentCardCell')), {
-        timeout: 30_000,
-      })
-      .toBe(true)
+    await untilPosted(async () => rpcBodies.some((body) => body.includes('[view]') && body.includes('PaymentCardCell')))
     await page.close()
   })
 
@@ -151,7 +147,7 @@ describe('native widget bridge', () => {
     await expectLocator(composerBox(page)).toBeVisible({timeout: 30_000})
     await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
     await grabButton(page).click()
-    await expect.poll(() => outbound(page).then((m) => countType(m, 'grab.pick')), {timeout: 30_000}).toBe(1)
+    await untilPosted(async () => countType(await outbound(page), 'grab.pick') === 1)
 
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: 'not-the-pending-one', grab: NEUTRAL_GRAB})
     await new Promise((resolve) => setTimeout(resolve, 500))
@@ -170,11 +166,8 @@ describe('native widget bridge', () => {
   it('dispatches conciv:rebind when a handshake reports a different same-core base', async () => {
     const page = await openNative()
     await callNative(page, 'handshake', {v: 1, seq: 1, apiBase: 'http://127.0.0.1:1/moved', token: null})
-    await expect
-      .poll(() => page.evaluate(() => window.__rebinds), {
-        timeout: 30_000,
-      })
-      .toEqual([{apiBase: 'http://127.0.0.1:1/moved'}])
+    await untilPosted(async () => (await page.evaluate(() => window.__rebinds)).length === 1)
+    expect(await page.evaluate(() => window.__rebinds)).toEqual([{apiBase: 'http://127.0.0.1:1/moved'}])
     await page.close()
   })
 })
