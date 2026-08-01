@@ -1,4 +1,5 @@
-import {createSignal, onCleanup, onMount, Show, type Accessor, type JSX} from 'solid-js'
+import {createSignal, onMount, Show, type Accessor, type JSX} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {useComposer} from '../../store/chat-context.js'
 import {Primitive} from '../util/primitive.js'
 
@@ -16,8 +17,7 @@ export function useSelectionToolbarInfo(): Accessor<SelectionInfo | null> {
     setInfo({text, rect: selection.getRangeAt(0).getBoundingClientRect()})
   }
   onMount(() => {
-    document.addEventListener('selectionchange', update)
-    onCleanup(() => document.removeEventListener('selectionchange', update))
+    makeEventListener(document, 'selectionchange', update)
   })
   return info
 }

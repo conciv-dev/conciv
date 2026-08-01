@@ -1879,6 +1879,9 @@ importers:
       '@rrweb/types':
         specifier: ^2.1.0
         version: 2.1.0
+      '@solid-primitives/timer':
+        specifier: ^1.4.4
+        version: 1.4.4(solid-js@1.9.14)
       '@tanstack/solid-query':
         specifier: ^5.101.2
         version: 5.101.2(solid-js@1.9.14)
@@ -2076,6 +2079,12 @@ importers:
       '@orpc/server':
         specifier: ^1.14.7
         version: 1.14.7(@opentelemetry/api@1.9.1)(crossws@0.4.10(srvx@0.11.22))(ws@8.21.0)
+      '@solid-primitives/event-listener':
+        specifier: ^2.4.6
+        version: 2.4.6(solid-js@1.9.14)
+      '@solid-primitives/timer':
+        specifier: ^1.4.4
+        version: 1.4.4(solid-js@1.9.14)
       '@tanstack/ai-client':
         specifier: ^0.22.0
         version: 0.22.0(@opentelemetry/api@1.9.1)
@@ -2225,6 +2234,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
+      '@solid-primitives/timer':
+        specifier: ^1.4.4
+        version: 1.4.4(solid-js@1.9.14)
       lucide-solid:
         specifier: ^1.18.0
         version: 1.18.0(solid-js@1.9.14)
@@ -2307,6 +2319,9 @@ importers:
       '@orpc/server':
         specifier: ^1.14.7
         version: 1.14.7(@opentelemetry/api@1.9.1)(crossws@0.4.10(srvx@0.11.22))(ws@8.21.0)
+      '@solid-primitives/event-listener':
+        specifier: ^2.4.6
+        version: 2.4.6(solid-js@1.9.14)
       '@takumi-rs/core':
         specifier: ^1.8.7
         version: 1.8.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

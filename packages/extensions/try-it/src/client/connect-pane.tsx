@@ -2,7 +2,8 @@ import {getHostApi} from '@conciv/extension'
 import {connectPorts} from '@conciv/protocol/connect-ports'
 import {Collapsible, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
 import {Check, Copy} from 'lucide-solid'
-import {createSignal, onCleanup, onMount, Show, type JSX} from 'solid-js'
+import {createEffect, createSignal, onCleanup, onMount, Show, type JSX} from 'solid-js'
+import {makeTimer} from '@solid-primitives/timer'
 import {probeCore} from '../shared/probe.js'
 import {stepStates, type StepState, type TryStep} from '../shared/try-steps.js'
 
@@ -18,16 +19,17 @@ const STEP_TITLES: Record<TryStep, string> = {
 }
 
 function CopyRow(props: {label: string; text: string; onCopy: () => void}): JSX.Element {
-  const [done, setDone] = createSignal(false)
-  let timer: ReturnType<typeof setTimeout> | undefined
+  const [doneAt, setDoneAt] = createSignal<number | null>(null)
+  const done = () => doneAt() !== null
   const copy = () => {
     void navigator.clipboard.writeText(props.text)
     props.onCopy()
-    setDone(true)
-    clearTimeout(timer)
-    timer = setTimeout(() => setDone(false), COPY_FEEDBACK_MS)
+    setDoneAt(performance.now())
   }
-  onCleanup(() => clearTimeout(timer))
+  createEffect(() => {
+    if (doneAt() === null) return
+    makeTimer(() => setDoneAt(null), COPY_FEEDBACK_MS, setTimeout)
+  })
   return (
     <div class="py-1.5 pl-3 pr-1.5 border border-pw-line rounded-pw-md bg-pw-fill flex gap-2 items-center">
       <Tooltip.Root>

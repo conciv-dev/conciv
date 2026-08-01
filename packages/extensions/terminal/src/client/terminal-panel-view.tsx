@@ -1,4 +1,5 @@
 import {createEffect, createResource, createSignal, on, onCleanup, onMount, Show, type JSX} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {ORPCError} from '@orpc/client'
 import type {TerminalRouter} from '../server.js'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
@@ -105,8 +106,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
       model.sendInput(ESCAPE_KEY)
       model.focus()
     }
-    win.addEventListener('keydown', onEscape, true)
-    onCleanup(() => win.removeEventListener('keydown', onEscape, true))
+    makeEventListener(win, 'keydown', onEscape, true)
   })
   onMount(() => {
     const doc = props.themeHost().ownerDocument
@@ -117,8 +117,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
         if (doc.hasFocus()) model.focus()
       })
     }
-    root.addEventListener('focusout', onFocusOut, true)
-    onCleanup(() => root.removeEventListener('focusout', onFocusOut, true))
+    makeEventListener(root, 'focusout', onFocusOut, true)
   })
   const pasteStagedGrabs = (): boolean => {
     const staged = grab.staged()

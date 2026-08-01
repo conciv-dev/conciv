@@ -1,4 +1,5 @@
-import {createSignal, createEffect, Show, onCleanup, type JSX} from 'solid-js'
+import {createSignal, createEffect, Show, onCleanup, onMount, type JSX} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {defineExtension} from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
@@ -69,19 +70,16 @@ function HighlightInspector(props: {onExit: () => void}): JSX.Element {
     raf = requestAnimationFrame(() => resolve(lastX, lastY))
   }
 
-  window.addEventListener('pointermove', onMove, true)
-  window.addEventListener('click', onClick, true)
-  window.addEventListener('keydown', onKey, true)
-  window.addEventListener('scroll', reposition, true)
-  window.addEventListener('resize', reposition)
-  onCleanup(() => {
-    cancelAnimationFrame(raf)
-    window.removeEventListener('pointermove', onMove, true)
-    window.removeEventListener('click', onClick, true)
-    window.removeEventListener('keydown', onKey, true)
-    window.removeEventListener('scroll', reposition, true)
-    window.removeEventListener('resize', reposition)
+  onMount(() => {
+    const openHovered = (event: MouseEvent) => void onClick(event)
+    const exitOnEscape = (event: KeyboardEvent) => onKey(event)
+    makeEventListener(window, 'pointermove', onMove, true)
+    makeEventListener(window, 'click', openHovered, true)
+    makeEventListener(window, 'keydown', exitOnEscape, true)
+    makeEventListener(window, 'scroll', reposition, true)
+    makeEventListener(window, 'resize', reposition)
   })
+  onCleanup(() => cancelAnimationFrame(raf))
 
   const glide = matchMedia('(prefers-reduced-motion: reduce)').matches ? '' : GLIDE
 

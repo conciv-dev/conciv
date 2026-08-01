@@ -1,4 +1,5 @@
-import {createSignal, Match, onCleanup, onMount, Show, Switch, type JSX} from 'solid-js'
+import {createSignal, Match, onMount, Show, Switch, type JSX} from 'solid-js'
+import {makeTimer} from '@solid-primitives/timer'
 import {getHostApi} from '@conciv/extension'
 import type {SessionSnapshot} from '@conciv/session-observer/types'
 import {observeTerminal} from './terminal-context.js'
@@ -28,7 +29,7 @@ export function PresencePillView(props: {snapshot: SessionSnapshot | null; now: 
     return current
   }
   return (
-    <span class="flex items-center min-h-5 min-w-0" aria-live="polite" aria-atomic="true">
+    <span class="flex min-h-5 min-w-0 items-center" aria-live="polite" aria-atomic="true">
       <Show when={live()}>
         {(current) => (
           <span class={PILL}>
@@ -69,8 +70,7 @@ export function TerminalPresencePill(): JSX.Element {
   const [now, setNow] = createSignal(Date.now())
 
   onMount(() => {
-    const timer = setInterval(() => setNow(Date.now()), TICK_MS)
-    onCleanup(() => clearInterval(timer))
+    makeTimer(() => setNow(Date.now()), TICK_MS, setInterval)
   })
 
   return <PresencePillView snapshot={observation.snapshot()} now={now()} />

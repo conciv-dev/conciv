@@ -1,4 +1,5 @@
-import {createEffect, createSignal, onCleanup, type Accessor} from 'solid-js'
+import {createEffect, createSignal, type Accessor} from 'solid-js'
+import {makeTimer} from '@solid-primitives/timer'
 
 export const SETTLE_DELAY_MS = 1000
 
@@ -9,8 +10,7 @@ export function createSettled(streaming: Accessor<boolean>, delayMs: number = SE
       setSettled(false)
       return
     }
-    const timer = setTimeout(() => setSettled(true), delayMs)
-    onCleanup(() => clearTimeout(timer))
+    makeTimer(() => setSettled(true), delayMs, setTimeout)
   })
   return settled
 }

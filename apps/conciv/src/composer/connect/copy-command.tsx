@@ -1,4 +1,5 @@
-import {createSignal, onCleanup, Show, splitProps, type JSX} from 'solid-js'
+import {createEffect, createSignal, Show, splitProps, type JSX} from 'solid-js'
+import {makeTimer} from '@solid-primitives/timer'
 import {Button} from '@conciv/ui-kit-system'
 import {CLIPBOARD_BLOCKED, COPIED_LABEL, COPY_LABEL, SELECT_COMMAND_LABEL} from './connect-copy.js'
 
@@ -37,11 +38,15 @@ export function CopyCommand(props: {
   focusRef?: (el: HTMLElement) => void
 }): JSX.Element {
   const [local] = splitProps(props, ['command', 'lead', 'focusRef'])
-  const [copied, setCopied] = createSignal(false)
+  const [copiedAt, setCopiedAt] = createSignal<number | null>(null)
+  const copied = () => copiedAt() !== null
   const [blocked, setBlocked] = createSignal(false)
   let code: HTMLElement | undefined
-  let chip: ReturnType<typeof setTimeout> | undefined
-  onCleanup(() => clearTimeout(chip))
+
+  createEffect(() => {
+    if (copiedAt() === null) return
+    makeTimer(() => setCopiedAt(null), CHIP_MS, setTimeout)
+  })
 
   const run = async (): Promise<void> => {
     if (blocked()) {
@@ -54,9 +59,7 @@ export function CopyCommand(props: {
       if (code) selectAll(code)
       return
     }
-    setCopied(true)
-    clearTimeout(chip)
-    chip = setTimeout(() => setCopied(false), CHIP_MS)
+    setCopiedAt(performance.now())
   }
 
   return (

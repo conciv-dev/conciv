@@ -1,4 +1,5 @@
 import {Show, createResource, createSignal, onCleanup, type JSX} from 'solid-js'
+import {makeTimer} from '@solid-primitives/timer'
 import {QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient} from '@tanstack/solid-query'
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
 import {getHostApi, makeExtRpcClient} from '@conciv/extension'
@@ -43,11 +44,8 @@ function RecorderPanel(): JSX.Element {
     await rpc.presence({viewerId, live: true}).catch(() => {})
     return true
   })
-  const renewTimer = setInterval(() => void rpc.presence({viewerId, live: true}).catch(() => {}), VIEWER_RENEW_MS)
-  onCleanup(() => {
-    clearInterval(renewTimer)
-    void rpc.presence({viewerId, live: false}).catch(() => {})
-  })
+  makeTimer(() => void rpc.presence({viewerId, live: true}).catch(() => {}), VIEWER_RENEW_MS, setInterval)
+  onCleanup(() => void rpc.presence({viewerId, live: false}).catch(() => {}))
   const pinned = (): {clientId?: string} => {
     const clientId = store.clientId()
     return clientId ? {clientId} : {}
