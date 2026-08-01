@@ -1,15 +1,11 @@
 import {getHostApi} from '@conciv/extension'
-import {connectPorts} from '@conciv/protocol/connect-ports'
 import {Collapsible, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
 import {Check, Copy} from 'lucide-solid'
-import {createEffect, createSignal, onCleanup, onMount, Show, type JSX} from 'solid-js'
+import {createEffect, createSignal, onMount, Show, type JSX} from 'solid-js'
 import {makeTimer} from '@solid-primitives/timer'
-import {probeCore} from '../shared/probe.js'
+import {useCoreProbe} from './use-core-probe.js'
 import {stepStates, type StepState, type TryStep} from '../shared/try-steps.js'
 
-const SLOW_HINT_MS = 60_000
-const CONNECTED_HOLD_MS = 600
-const PROBE_INTERVAL_MS = 2_000
 const COPY_FEEDBACK_MS = 1_400
 
 const STEP_TITLES: Record<TryStep, string> = {
@@ -90,8 +86,9 @@ function Step(props: {index: number; state: StepState; title: string; children?:
 export function ConnectPane(props: {token: string}): JSX.Element {
   const connect = getHostApi().useConnect()
   const [copied, setCopied] = createSignal(false)
-  const [connected, setConnected] = createSignal(false)
-  const [slow, setSlow] = createSignal(false)
+  const probe = useCoreProbe({token: () => props.token, onFound: (base) => connect.found(base)})
+  const connected = probe.connected
+  const slow = probe.slow
   const states = () => stepStates({copied: copied(), connected: connected()})
   const promptText = () =>
     `I'm pairing my browser tab at ${connect.origin} with a local conciv core so you can drive the page. ` +
@@ -105,28 +102,6 @@ export function ConnectPane(props: {token: string}): JSX.Element {
   let paneEl: HTMLDivElement | undefined
   onMount(() => {
     requestAnimationFrame(() => paneEl?.focus())
-    const slowTimer = setTimeout(() => setSlow(true), SLOW_HINT_MS)
-    const controller = new AbortController()
-    let settled = false
-    let handoff: ReturnType<typeof setTimeout> | undefined
-    const probe = async () => {
-      if (settled) return
-      const base = await probeCore(props.token, connectPorts(), controller.signal)
-      if (settled || !base) return
-      settled = true
-      clearInterval(interval)
-      setConnected(true)
-      handoff = setTimeout(() => connect.found(base), CONNECTED_HOLD_MS)
-    }
-    const interval = setInterval(() => void probe(), PROBE_INTERVAL_MS)
-    void probe()
-    onCleanup(() => {
-      settled = true
-      clearTimeout(slowTimer)
-      clearTimeout(handoff)
-      clearInterval(interval)
-      controller.abort()
-    })
   })
 
   return (
