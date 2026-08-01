@@ -292,6 +292,22 @@ type InputProps = TextAreaProps & {
   addAttachmentOnPaste?: boolean
 }
 
+type ComposerKeyboardEvent = KeyboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}
+
+function forwardKeyDown(event: ComposerKeyboardEvent, handler: InputProps['onKeyDown']): void {
+  if (typeof handler === 'function') handler(event)
+}
+
+function shouldCancelOnEscape(event: ComposerKeyboardEvent, cancelOnEscape: boolean, canCancel: boolean): boolean {
+  return cancelOnEscape && event.key === 'Escape' && canCancel
+}
+
+function wantsEnterSubmit(event: ComposerKeyboardEvent, mode: 'enter' | 'ctrlEnter' | 'none'): boolean {
+  if (mode === 'enter') return !event.shiftKey
+  if (mode === 'ctrlEnter') return event.ctrlKey || event.metaKey
+  return false
+}
+
 function Input(props: InputProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
@@ -332,20 +348,17 @@ function Input(props: InputProps): JSX.Element {
     for (const trigger of triggers) trigger.scope.setCursorPosition(position)
   }
   const cancelViaHandlers = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
-  const onKeyDown = (event: KeyboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}) => {
-    if (typeof local.onKeyDown === 'function') local.onKeyDown(event)
+  const onKeyDown = (event: ComposerKeyboardEvent) => {
+    forwardKeyDown(event, local.onKeyDown)
     if (event.isComposing) return
     if (openTrigger()?.scope.handleKeyDown(event)) return
-    const mode = local.submitMode ?? 'enter'
-    if ((local.cancelOnEscape ?? true) && event.key === 'Escape' && composer.canCancel()) {
+    if (shouldCancelOnEscape(event, local.cancelOnEscape ?? true, composer.canCancel())) {
       event.preventDefault()
       cancelViaHandlers()
       return
     }
     if (event.key !== 'Enter' || event.isComposing) return
-    const wantsSubmit =
-      mode === 'enter' ? !event.shiftKey : mode === 'ctrlEnter' ? event.ctrlKey || event.metaKey : false
-    if (!wantsSubmit) return
+    if (!wantsEnterSubmit(event, local.submitMode ?? 'enter')) return
     event.preventDefault()
     event.currentTarget.form?.requestSubmit()
   }
