@@ -65,6 +65,16 @@ describe('the live widget mounts site-wide and the root widget param decides the
     await page.close()
   }, 60_000)
 
+  it('keeps the panel closed on the home page when ?widget=false is explicit', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${ORIGIN}/?widget=false`, {waitUntil: 'domcontentloaded'})
+
+    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 20_000})
+    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden()
+
+    await page.close()
+  }, 60_000)
+
   it('opens the panel on a docs page when ?widget=true is explicit', async () => {
     const page = await browser.newPage()
     await page.goto(`${ORIGIN}/docs/quick-start?widget=true`, {waitUntil: 'domcontentloaded'})

@@ -7,7 +7,9 @@ const rootRoute = getRouteApi('__root__')
 
 export function LiveWidgetMount() {
   const isMobile = useIsMobile()
-  const {widgetOpen} = rootRoute.useRouteContext()
+  const {widget} = rootRoute.useSearch()
+  const {widgetHomeDefault} = rootRoute.useRouteContext()
+  const widgetOpen = widget ?? widgetHomeDefault
   if (isMobile) return null
   return (
     <ClientOnly>

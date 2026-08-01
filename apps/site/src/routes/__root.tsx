@@ -13,8 +13,8 @@ const OG_IMAGE = `${SITE}/og.png`
 
 export const Route = createRootRoute({
   validateSearch: rootSearchSchema,
-  beforeLoad: ({matches, search}) => ({
-    widgetOpen: search.widget ?? matches.some((match) => match.routeId === '/'),
+  beforeLoad: ({matches}) => ({
+    widgetHomeDefault: matches.some((match) => match.routeId === '/'),
   }),
   head: () => ({
     meta: [
