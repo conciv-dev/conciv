@@ -49,6 +49,8 @@
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@solid-primitives/event-listener": "^2.4.6",
+    "@solid-primitives/timer": "^1.4.4",
     "@tanstack/ai-client": "0.22.0",
     "@tanstack/solid-virtual": "^3.13.12",
     "lucide-solid": "^1.18.0",
