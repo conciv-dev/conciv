@@ -1,4 +1,4 @@
-import {createSignal, createUniqueId, Match, Show, Switch, type JSX} from 'solid-js'
+import {createMemo, createSignal, createUniqueId, Match, Show, Switch, type JSX} from 'solid-js'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import {ChevronRight} from 'lucide-solid'
@@ -108,9 +108,9 @@ export function MirrorRail(props: {
     collapseAt: 140,
     onCollapse: () => open() && setOpenPersisted(false),
   })
-  const observation = observeTerminal(props.apiBase, props.sessionId())
+  const observation = createMemo(() => observeTerminal(props.apiBase, props.sessionId()))
   const messages = () => {
-    const current = observation.transcript()
+    const current = observation().transcript()
     return current.status === 'open' ? current.messages : []
   }
   const titles = Object.fromEntries(
@@ -148,14 +148,14 @@ export function MirrorRail(props: {
         class="flex-1 min-h-0"
       >
         <RailHeader
-          transcript={observation.transcript()}
+          transcript={observation().transcript()}
           open={open()}
           logId={logId}
           count={messages().length}
           onToggle={() => setOpenPersisted(!open())}
         />
         <Show when={open()}>
-          <Show when={messages().length > 0} fallback={<RailPlaceholder transcript={observation.transcript()} />}>
+          <Show when={messages().length > 0} fallback={<RailPlaceholder transcript={observation().transcript()} />}>
             <Activity.Timeline id={logId} aria-label="Terminal activity" />
           </Show>
           <Activity.Now />

@@ -181,12 +181,12 @@ type SuggestionsProps =
 
 function Suggestions(props: SuggestionsProps): JSX.Element {
   const itemComponent = () => ('components' in props && props.components ? props.components.Suggestion : undefined)
-  const renderChildren = 'children' in props ? props.children : undefined
+  const renderChildren = () => ('children' in props ? props.children : undefined)
   return (
     <Index each={props.each}>
       {(suggestion) => (
-        <SuggestionProvider value={suggestion()}>
-          <Show when={itemComponent()} fallback={renderChildren ? renderChildren(suggestion) : null}>
+        <SuggestionProvider value={suggestion}>
+          <Show when={itemComponent()} fallback={renderChildren()?.(suggestion) ?? null}>
             {(component) => <Dynamic component={component()} />}
           </Show>
         </SuggestionProvider>

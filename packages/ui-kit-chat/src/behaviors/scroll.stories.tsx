@@ -40,7 +40,7 @@ const LONG_REPLY = `${'The bug is a missing await. '.repeat(40)}END_OF_ANSWER`
 
 function StreamingThread(props: {expose: (chat: UseChatReturn) => void}): JSX.Element {
   const chat = useChat({connection: storyConnection({chunks: createTextChunks(LONG_REPLY), chunkDelay: 3})})
-  props.expose(chat)
+  onMount(() => props.expose(chat))
   return (
     <ChatProvider chat={chat}>
       <Thread.Root class="flex flex-col">

@@ -111,16 +111,18 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     state.retry = setTimeout(connect, delay)
   }
 
+  const finishOpening = (): void => {
+    state.opening = false
+    if (!settled()) attach()
+  }
+
   const connect = (): void => {
     if (state.socket || state.opening || settled()) return
     setStatus('connecting')
     state.opening = true
     void Promise.resolve()
       .then(() => opts.beforeConnect?.(terminal))
-      .then(() => {
-        state.opening = false
-        if (!settled()) attach()
-      })
+      .then(finishOpening)
       .catch((error: unknown) => {
         state.opening = false
         giveUp(error instanceof Error ? error.message : 'Could not open the terminal.')

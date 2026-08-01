@@ -1,4 +1,4 @@
-import {createSignal, type JSX} from 'solid-js'
+import {createSignal, onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
@@ -45,8 +45,8 @@ function AssistantMessage(): JSX.Element {
 }
 
 function ThreadHarness(props: {options: StoryConnectionOptions; expose: (chat: UseChatReturn) => void}): JSX.Element {
-  const chat = useChat({connection: storyConnection(props.options)})
-  props.expose(chat)
+  const chat = useChat({connection: storyConnection(untrack(() => props.options))})
+  onMount(() => props.expose(chat))
   return (
     <ChatProvider chat={chat}>
       <Thread.Root class="flex flex-col gap-2">

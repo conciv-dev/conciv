@@ -58,13 +58,13 @@ function resolveToolComponent(part: ToolCallPart, tools: PartsComponents['tools'
 function Parts(props: PartsProps): JSX.Element {
   const message = useMessage()
   const ctx = useToolCtx()
-  const renderChildren = 'children' in props ? props.children : undefined
-  const components = 'components' in props ? (props.components ?? {}) : {}
+  const renderChildren = () => ('children' in props ? props.children : undefined)
+  const components = (): PartsComponents => ('components' in props ? (props.components ?? {}) : {})
   return (
     <Index each={message.message().parts}>
       {(part, index) => (
         <PartProvider value={{part, index: () => index}}>
-          <Show when={renderChildren} fallback={<DispatchPart part={part} components={components} ctx={ctx} />}>
+          <Show when={renderChildren()} fallback={<DispatchPart part={part} components={components()} ctx={ctx} />}>
             {(render) => render()(part, () => index)}
           </Show>
         </PartProvider>
@@ -79,8 +79,8 @@ function DispatchPart(props: {
   ctx: ReturnType<typeof useToolCtx>
 }): JSX.Element {
   const message = useMessage()
-  const part = props.part
-  const components = props.components
+  const part = (): Part => props.part()
+  const components = (): PartsComponents => props.components
   const isHiddenResult = () => {
     const value = part()
     return value.type === 'tool-result' && message.pairing().hiddenResultIds.has(value.toolCallId)
@@ -108,28 +108,30 @@ function DispatchPart(props: {
   return (
     <Show when={!partIsModelOnly(part()) && !isHiddenResult()} fallback={null}>
       <Show when={asText()} keyed>
-        {(text) => (components.Text ? <Dynamic component={components.Text} part={text} /> : <MessagePart.Text />)}
+        {(text) => (components().Text ? <Dynamic component={components().Text} part={text} /> : <MessagePart.Text />)}
       </Show>
       <Show when={asThinking()} keyed>
         {(thinking) =>
-          components.Thinking ? (
-            <Dynamic component={components.Thinking} part={thinking} />
+          components().Thinking ? (
+            <Dynamic component={components().Thinking} part={thinking} />
           ) : (
             <span>{thinking.content}</span>
           )
         }
       </Show>
       <Show when={asImage()} keyed>
-        {(image) => (components.Image ? <Dynamic component={components.Image} part={image} /> : <MessagePart.Image />)}
+        {(image) =>
+          components().Image ? <Dynamic component={components().Image} part={image} /> : <MessagePart.Image />
+        }
       </Show>
       <Show when={asStructured()} keyed>
         {(structured) => (
-          <Show when={components.StructuredOutput}>{(c) => <Dynamic component={c()} part={structured} />}</Show>
+          <Show when={components().StructuredOutput}>{(c) => <Dynamic component={c()} part={structured} />}</Show>
         )}
       </Show>
       <Show when={asToolCall()} keyed>
         {(toolCall) => (
-          <Show when={resolveToolComponent(toolCall, components.tools)}>
+          <Show when={resolveToolComponent(toolCall, components().tools)}>
             {(render) => (
               <Dynamic
                 component={render()}
@@ -339,18 +341,18 @@ function GroupBody(props: {
 function GroupedParts(props: {components?: GroupedComponents}): JSX.Element {
   const message = useMessage()
   const ctx = useToolCtx()
-  const components = props.components ?? {}
+  const components = (): GroupedComponents => props.components ?? {}
   const segments = createMemo(() => groupSegments(message.message().parts))
   return (
     <Index each={segments()}>
       {(segment) => (
         <Show
-          when={components.Group}
-          fallback={<GroupBody indices={segmentIndices(segment())} components={components} ctx={ctx} />}
+          when={components().Group}
+          fallback={<GroupBody indices={segmentIndices(segment())} components={components()} ctx={ctx} />}
         >
           {(group) => (
             <Dynamic component={group()} indices={segmentIndices(segment())} kind={segment().kind}>
-              <GroupBody indices={segmentIndices(segment())} components={components} ctx={ctx} />
+              <GroupBody indices={segmentIndices(segment())} components={components()} ctx={ctx} />
             </Dynamic>
           )}
         </Show>

@@ -1,4 +1,4 @@
-import {onMount, type JSX} from 'solid-js'
+import {onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, fn, within, userEvent, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
@@ -34,6 +34,7 @@ function Queue(props: {onSteer: () => Promise<void>}): JSX.Element {
     void chat.sendMessage('and update the docs')
     void chat.sendMessage(attachmentOnlyContent)
   })
+  const handlers = untrack(() => ({onSteer: props.onSteer}))
   const sentContent = () =>
     chat
       .messages()
@@ -41,7 +42,7 @@ function Queue(props: {onSteer: () => Promise<void>}): JSX.Element {
       .at(-1)?.parts ?? []
   return (
     <ChatProvider chat={chat}>
-      <ComposerHandlersProvider value={{onSteer: props.onSteer}}>
+      <ComposerHandlersProvider value={handlers}>
         <div class="flex flex-col gap-1">
           <Composer.Queue>
             {() => (

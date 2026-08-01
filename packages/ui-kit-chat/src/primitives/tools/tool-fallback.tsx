@@ -53,6 +53,9 @@ function Root(props: {
   children: JSX.Element
 }): JSX.Element {
   const status = createMemo(() => toolStatus(props.part, props.result))
+  const toolArgsText = createMemo(() => argsText(props.part))
+  const toolResultText = createMemo(() => resultText(props.result))
+  const toolErrorText = createMemo(() => errorText(props.result))
   return (
     <ToolFallbackContext.Provider
       value={{
@@ -62,10 +65,10 @@ function Root(props: {
         durationMs: () => props.durationMs,
         name: () => props.part.name,
         status,
-        argsText: createMemo(() => argsText(props.part)),
-        resultText: createMemo(() => resultText(props.result)),
+        argsText: toolArgsText,
+        resultText: toolResultText,
         resultName: () => (typeof props.result?.content === 'string' ? 'result.txt' : 'result.json'),
-        error: createMemo(() => errorText(props.result)),
+        error: toolErrorText,
       }}
     >
       {props.children}

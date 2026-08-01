@@ -1,14 +1,14 @@
-import {createContext, splitProps, useContext, type JSX} from 'solid-js'
+import {createContext, splitProps, useContext, type Accessor, type JSX} from 'solid-js'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {Primitive} from '../util/primitive.js'
 
 export type SuggestionData = {title: string; label: string; prompt: string}
 
-const SuggestionContext = createContext<SuggestionData>()
+const SuggestionContext = createContext<Accessor<SuggestionData>>()
 
 export const SuggestionProvider = SuggestionContext.Provider
 
-export function useSuggestion(): SuggestionData {
+export function useSuggestion(): Accessor<SuggestionData> {
   const context = useContext(SuggestionContext)
   if (!context) throw new Error('Suggestion.* must be used within a Thread.Suggestions item')
   return context
@@ -16,12 +16,12 @@ export function useSuggestion(): SuggestionData {
 
 function Title(props: JSX.HTMLAttributes<HTMLSpanElement>): JSX.Element {
   const suggestion = useSuggestion()
-  return <Primitive.span {...props}>{props.children ?? suggestion.title}</Primitive.span>
+  return <Primitive.span {...props}>{props.children ?? suggestion().title}</Primitive.span>
 }
 
 function Description(props: JSX.HTMLAttributes<HTMLSpanElement>): JSX.Element {
   const suggestion = useSuggestion()
-  return <Primitive.span {...props}>{props.children ?? suggestion.label}</Primitive.span>
+  return <Primitive.span {...props}>{props.children ?? suggestion().label}</Primitive.span>
 }
 
 type TriggerProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {send?: boolean; clearComposer?: boolean}
@@ -35,10 +35,10 @@ function Trigger(props: TriggerProps): JSX.Element {
     if (typeof local.onClick === 'function') local.onClick(event)
     if (local.clearComposer !== false) composer.setText('')
     if (local.send) {
-      void chat.sendMessage(suggestion.prompt)
+      void chat.sendMessage(suggestion().prompt)
       return
     }
-    composer.setText(suggestion.prompt)
+    composer.setText(suggestion().prompt)
   }
   return <button type="button" onClick={activate} {...rest} />
 }

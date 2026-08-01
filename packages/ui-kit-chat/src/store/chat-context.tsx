@@ -1,4 +1,13 @@
-import {createContext, createEffect, createMemo, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
+import {
+  createContext,
+  createEffect,
+  createMemo,
+  untrack,
+  useContext,
+  type Accessor,
+  type JSX,
+  type ParentProps,
+} from 'solid-js'
 import {createStore, type SetStoreFunction} from 'solid-js/store'
 import type {UseChatReturn} from '@tanstack/ai-solid'
 import {coalesceTurns, type Turn} from './grouping.js'
@@ -43,7 +52,7 @@ export function ChatProvider(props: ParentProps<{chat: UseChatReturn}>): JSX.Ele
     setView('pinned', (prev) => pickKeys(prev, liveMessages))
   })
 
-  const value: ChatContextValue = Object.assign({}, props.chat, {view, setView})
+  const value: ChatContextValue = untrack(() => Object.assign({}, props.chat, {view, setView}))
   return <ChatContext.Provider value={value}>{props.children}</ChatContext.Provider>
 }
 

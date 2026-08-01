@@ -243,8 +243,8 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
   )
 }
 
-function parseRunResult(props: ToolCardProps): TestRunResult | null {
-  const text = resultText(props.result)
+function parseRunResult(result: ToolCardProps['result']): TestRunResult | null {
+  const text = resultText(result)
   if (!text) return null
   try {
     const parsed = TestRunResultSchema.safeParse(JSON.parse(text))
@@ -261,7 +261,7 @@ function TestIcon(): JSX.Element {
 export function TestCard(props: ToolCardProps): JSX.Element {
   return (
     <ToolCard Icon={TestIcon} title="Ran tests" part={props.part} result={props.result} defaultOpen>
-      <TestResults result={parseRunResult(props)} ctx={props.ctx} />
+      <TestResults result={parseRunResult(props.result)} ctx={props.ctx} />
     </ToolCard>
   )
 }

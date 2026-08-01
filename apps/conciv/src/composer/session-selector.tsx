@@ -132,11 +132,11 @@ export function SessionSelector(props: {
     announce(`Switched to ${title}`)
   }
 
-  const isPill = props.variant === 'pill'
+  const isPill = () => props.variant === 'pill'
   return (
     <Combobox.Root
       ids={{root: idPrefix}}
-      class={isPill ? 'inline-flex min-w-0 max-w-full' : ''}
+      class={isPill() ? 'inline-flex min-w-0 max-w-full' : ''}
       collection={collection()}
       value={valueArr()}
       inputValue={query()}
@@ -165,7 +165,7 @@ export function SessionSelector(props: {
       <Combobox.Control class="inline-flex min-w-0">
         <Combobox.Trigger
           class={`group text-[0.75rem] text-pw-text-2 border border-transparent rounded-pw-pill bg-transparent inline-flex gap-1.5 h-7 min-w-0 cursor-pointer trans-cbb items-center hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
-            isPill
+            isPill()
               ? 'max-w-64 py-0 pr-1.5 pl-2 hover:border-pw-line hover:bg-pw-fill-soft data-[state=open]:border-pw-line data-[state=open]:bg-pw-fill-soft data-[state=open]:text-pw-text-hi'
               : 'p-0 font-pw-mono'
           }`}

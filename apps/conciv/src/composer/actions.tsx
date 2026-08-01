@@ -85,7 +85,7 @@ export function ComposerActions(props: {
     harnessName,
     sessionId: () => props.sessionId,
     navigate: (sessionId) => void router.navigate({to: '/panel/$sessionId', params: {sessionId}}),
-    notify: props.notify,
+    notify: (message: string) => props.notify(message),
     announce,
     invalidateSessions: () => appData.invalidateSessions(),
   })

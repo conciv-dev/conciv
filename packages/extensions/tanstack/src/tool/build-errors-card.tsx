@@ -21,8 +21,8 @@ function locationOf(source: {file: string; line: number} | null | undefined): st
   return `${source.file}:${source.line}`
 }
 
-function parseErrors(props: ToolCardProps): BuildError[] | null {
-  const parsed = AppErrorsSchema.safeParse(parseResultPayload(props.result))
+function parseErrors(result: ToolCardProps['result']): BuildError[] | null {
+  const parsed = AppErrorsSchema.safeParse(parseResultPayload(result))
   if (!parsed.success) return null
   return parsed.data.map((error) => ({message: error.message, where: locationOf(error.source)}))
 }
@@ -32,7 +32,7 @@ function ErrorsIcon(): JSX.Element {
 }
 
 export function BuildErrorsCard(props: ToolCardProps): JSX.Element {
-  const errors = () => parseErrors(props)
+  const errors = () => parseErrors(props.result)
   const summary = () => {
     const list = errors()
     if (!list) return ''

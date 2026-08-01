@@ -22,7 +22,8 @@ export function SolidPatchDiff(props: SolidPatchDiffProps): JSX.Element {
   }
 
   createEffect(() => {
-    const {patch, options} = props
+    const patch = props.patch
+    const options = props.options
     if (!instance) return
     if (!primed) {
       primed = true
@@ -32,5 +33,5 @@ export function SolidPatchDiff(props: SolidPatchDiffProps): JSX.Element {
     void instance.render({fileDiff: getSingularPatch(patch), forceRender: true})
   })
 
-  return <diffs-container ref={setRef} class={props.class} style={props.style} />
+  return <diffs-container ref={(node) => setRef(node)} class={props.class} style={props.style} />
 }

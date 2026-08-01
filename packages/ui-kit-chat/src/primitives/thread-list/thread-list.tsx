@@ -28,12 +28,12 @@ function Items(props: ItemsProps): JSX.Element {
   const list = useThreadList()
   const each = () => (props.archived ? (list.archived?.() ?? []) : list.sessions())
   const itemComponent = () => ('components' in props && props.components ? props.components.ThreadListItem : undefined)
-  const renderChildren = 'children' in props ? props.children : undefined
+  const renderChildren = () => ('children' in props ? props.children : undefined)
   return (
     <For each={each()}>
       {(session) => (
         <ThreadListItemProvider value={session}>
-          <Show when={itemComponent()} fallback={renderChildren ? renderChildren(() => session) : null}>
+          <Show when={itemComponent()} fallback={renderChildren()?.(() => session) ?? null}>
             {(component) => <Dynamic component={component()} />}
           </Show>
         </ThreadListItemProvider>

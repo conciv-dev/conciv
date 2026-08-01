@@ -45,7 +45,7 @@ export function ShellFab(props: {
       aria-label={fabLabel(props.open())}
       aria-expanded={props.open()}
       aria-controls="pw-chat-panel"
-      onPointerDown={props.fab.onPointerDown}
+      onPointerDown={(event) => props.fab.onPointerDown(event)}
       onClick={() => {
         if (!props.fab.consumeClick()) props.onToggle()
       }}

@@ -9,6 +9,7 @@ import {
   onCleanup,
   Show,
   splitProps,
+  untrack,
   useContext,
   type Accessor,
   type JSX,
@@ -149,8 +150,9 @@ function TriggerPopoverComponent(props: TriggerPopoverProps): JSX.Element {
     },
   }
 
+  const triggerChar = untrack(() => local.char)
   const scope = createTriggerPopoverModel({
-    char: local.char,
+    char: triggerChar,
     adapter: () => local.adapter,
     behavior: () => behavior() ?? undefined,
     isLoading: () => local.isLoading ?? false,
@@ -158,7 +160,7 @@ function TriggerPopoverComponent(props: TriggerPopoverProps): JSX.Element {
     text: composer.text,
     setText: composer.setText,
   })
-  onCleanup(root.register({char: local.char, scope}))
+  onCleanup(root.register({char: triggerChar, scope}))
 
   return (
     <TriggerBehaviorRegistrationContext.Provider value={registration}>

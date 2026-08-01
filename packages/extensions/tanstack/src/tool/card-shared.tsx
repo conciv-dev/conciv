@@ -5,16 +5,16 @@ import {parseResultPayload, resultText, ToolCard, toolStatus} from '@conciv/ui-k
 
 const PageVerbErrorSchema = z.object({message: z.string()}).loose()
 
-function readError(props: ToolCardProps): string | null {
-  if (toolStatus(props.part, props.result) !== 'error') return null
-  const shaped = PageVerbErrorSchema.safeParse(parseResultPayload(props.result))
+function readError(part: ToolCardProps['part'], result: ToolCardProps['result']): string | null {
+  if (toolStatus(part, result) !== 'error') return null
+  const shaped = PageVerbErrorSchema.safeParse(parseResultPayload(result))
   if (shaped.success) return shaped.data.message
-  const text = resultText(props.result)
+  const text = resultText(result)
   return text.length > 0 ? text : 'tool failed'
 }
 
-function isRunning(props: ToolCardProps): boolean {
-  return toolStatus(props.part, props.result) === 'running'
+function isRunning(part: ToolCardProps['part'], result: ToolCardProps['result']): boolean {
+  return toolStatus(part, result) === 'running'
 }
 
 export function CardRows(props: {children: JSX.Element}): JSX.Element {
@@ -54,8 +54,8 @@ export function InspectionCard(props: {
   summary: string
   children: JSX.Element
 }): JSX.Element {
-  const error = () => readError(props.card)
-  const meta = () => (error() ? '' : isRunning(props.card) ? 'reading…' : props.summary)
+  const error = () => readError(props.card.part, props.card.result)
+  const meta = () => (error() ? '' : isRunning(props.card.part, props.card.result) ? 'reading…' : props.summary)
   return (
     <ToolCard
       Icon={props.Icon}
@@ -66,14 +66,14 @@ export function InspectionCard(props: {
       status={error() ? 'error' : undefined}
     >
       <Show when={error()}>{(message) => <CardErrorBlock>{message()}</CardErrorBlock>}</Show>
-      <Show when={!error() && !isRunning(props.card)}>{props.children}</Show>
+      <Show when={!error() && !isRunning(props.card.part, props.card.result)}>{props.children}</Show>
     </ToolCard>
   )
 }
 
 export function ActionCard(props: {card: ToolCardProps; Icon: Component; summary: string}): JSX.Element {
-  const error = () => readError(props.card)
-  const meta = () => (error() ? '' : isRunning(props.card) ? 'running…' : props.summary)
+  const error = () => readError(props.card.part, props.card.result)
+  const meta = () => (error() ? '' : isRunning(props.card.part, props.card.result) ? 'running…' : props.summary)
   return (
     <ToolCard
       Icon={props.Icon}

@@ -77,6 +77,8 @@ function renderPart(part: unknown, key: string, ctx: ToolViewCtx): JSX.Element {
 function CommentRow(props: {comment: Comment}): JSX.Element {
   const model = useComments()
   const parts = (): unknown[] => (Array.isArray(props.comment.parts) ? props.comment.parts : [])
+  const keyedParts = (): {part: unknown; key: string}[] =>
+    parts().map((part, index) => ({part, key: `${props.comment.cid}-${index}`}))
   return (
     <article class="px-3 py-2 border-t border-pw-line-soft flex flex-col gap-1 first:border-t-0">
       <div class="flex gap-2 items-center">
@@ -105,7 +107,7 @@ function CommentRow(props: {comment: Comment}): JSX.Element {
         </Show>
       </div>
       <div class="pl-8 flex flex-col gap-1">
-        <For each={parts()}>{(part, index) => renderPart(part, `${props.comment.cid}-${index()}`, model.ctx)}</For>
+        <For each={keyedParts()}>{(entry) => renderPart(entry.part, entry.key, model.ctx)}</For>
       </div>
     </article>
   )

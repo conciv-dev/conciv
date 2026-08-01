@@ -33,7 +33,7 @@ export function createResizable(opts: {
   )
   const [size, setSize] = createSignal(stored)
   const [resizing, setResizing] = createSignal(false)
-  let cleanup: (() => void) | undefined
+  let drag: AbortController | undefined
 
   const onPointerDown = (e: PointerEvent) => {
     if (e.button !== 0) return
@@ -54,17 +54,14 @@ export function createResizable(opts: {
       setSize(Math.max(opts.min, next))
     }
     const up = () => {
-      cleanup?.()
-      cleanup = undefined
+      drag?.abort()
+      drag = undefined
       setResizing(false)
       writeStorage(opts.storageKey, size())
     }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-    cleanup = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
+    drag = new AbortController()
+    window.addEventListener('pointermove', move, {signal: drag.signal})
+    window.addEventListener('pointerup', up, {signal: drag.signal})
   }
 
   const STEP = 24
@@ -77,7 +74,7 @@ export function createResizable(opts: {
     writeStorage(opts.storageKey, next)
   }
 
-  onCleanup(() => cleanup?.())
+  onCleanup(() => drag?.abort())
 
   return {size, isResizing: resizing, onPointerDown, onKeyDown}
 }

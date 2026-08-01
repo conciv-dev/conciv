@@ -1,4 +1,4 @@
-import {createEffect, createMemo, createSignal, splitProps, type ComponentProps, type JSX} from 'solid-js'
+import {createEffect, createMemo, createSignal, splitProps, untrack, type ComponentProps, type JSX} from 'solid-js'
 import {Popover} from '@conciv/ui-kit-system'
 import {useChatContextOptional} from '../../store/chat-context.js'
 
@@ -10,12 +10,11 @@ function Root(props: RootProps): JSX.Element {
   const [internalOpen, setInternalOpen] = createSignal(local.defaultOpen ?? false)
   const isRunning = createMemo(() => (chat ? chat.status() === 'streaming' || chat.status() === 'submitted' : false))
 
-  let wasRunning = isRunning()
-  createEffect(() => {
+  createEffect<boolean>((wasRunning) => {
     const running = isRunning()
     if (local.openOnRunStart !== false && running && !wasRunning) setInternalOpen(true)
-    wasRunning = running
-  })
+    return running
+  }, untrack(isRunning))
   const open = () => (local.open === undefined ? internalOpen() : local.open)
   return (
     <Popover.Root

@@ -4,6 +4,7 @@ import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import {PageInput} from '@conciv/tools/defs'
 import {MUTATING_KINDS, mirrorsKind, type PageQueryKind} from '@conciv/protocol/page-types'
 import {ToolCard, parseInput, resultText, parseResultPayload} from '@conciv/ui-kit-chat'
+import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {formatHtml} from '../page-format.js'
 
@@ -17,8 +18,8 @@ const OUT_OPTIONS: FileOptions<undefined> = {
 const OUT_CLASS =
   'block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
 
-function readInput(props: ToolCardProps): ReturnType<typeof parseInput<typeof PageInput>> {
-  return parseInput(PageInput, props.part)
+function readInput(part: ToolCallPart): ReturnType<typeof parseInput<typeof PageInput>> {
+  return parseInput(PageInput, part)
 }
 
 function target(input: ReturnType<typeof readInput>): string | undefined {
@@ -39,8 +40,8 @@ function VerbIcon(verb: PageQueryKind | undefined): JSX.Element {
   return <Wand2 size={14} />
 }
 
-function pageTitle(props: ToolCardProps): string {
-  const input = readInput(props)
+function pageTitle(part: ToolCallPart): string {
+  const input = readInput(part)
   const targetEl = target(input)
   const at = targetEl ? ` ${targetEl}` : ''
   const value = input?.value || input?.text
@@ -210,7 +211,7 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
 }
 
 export function PageActionCard(props: ToolCardProps): JSX.Element {
-  const input = () => readInput(props)
+  const input = () => readInput(props.part)
   const verb = () => input()?.verb
   const targetEl = () => target(input())
   const payload = () => parseResultPayload(props.result)
@@ -228,7 +229,7 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
     return value !== undefined && mirrorsKind(value)
   }
   return (
-    <ToolCard Icon={() => VerbIcon(verb())} title={pageTitle(props)} part={props.part} result={props.result}>
+    <ToolCard Icon={() => VerbIcon(verb())} title={pageTitle(props.part)} part={props.part} result={props.result}>
       <Show
         when={errorMessage()}
         fallback={

@@ -1,4 +1,4 @@
-import {createContext, onCleanup, onMount, Show, useContext, type JSX} from 'solid-js'
+import {createContext, onCleanup, onMount, Show, untrack, useContext, type JSX} from 'solid-js'
 import {injectXtermCss} from '../xterm-css.js'
 import type {TerminalModel} from '../model.js'
 
@@ -12,7 +12,7 @@ export function useTerminal(): TerminalModel {
 
 function Root(props: {model: TerminalModel; class?: string; children: JSX.Element}): JSX.Element {
   return (
-    <TerminalContext.Provider value={props.model}>
+    <TerminalContext.Provider value={untrack(() => props.model)}>
       <div class={props.class} data-terminal-root data-status={props.model.status()}>
         {props.children}
       </div>

@@ -1,4 +1,4 @@
-import {Show, For, createMemo, createSignal, type JSX} from 'solid-js'
+import {Show, Switch, Match, For, createMemo, createSignal, type JSX} from 'solid-js'
 import {Button, Select, createListCollection} from '@conciv/ui-kit-system'
 import {Check, ChevronDown} from 'lucide-solid'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
@@ -211,11 +211,19 @@ function Form(props: {spec: UiInput; onAnswer: (value: UiAnswerValue) => void}):
 }
 
 function Pending(props: {spec: UiInput; onAnswer: (value: UiAnswerValue) => void}): JSX.Element {
-  const spec = props.spec
-  if (spec.kind === 'choices') return <Choices spec={spec} onAnswer={props.onAnswer} />
-  if (spec.kind === 'confirm') return <Confirm spec={spec} onAnswer={props.onAnswer} />
-  if (spec.kind === 'diff') return <Diff spec={spec} onAnswer={props.onAnswer} />
-  return <Form spec={spec} onAnswer={props.onAnswer} />
+  return (
+    <Switch fallback={<Form spec={props.spec} onAnswer={props.onAnswer} />}>
+      <Match when={props.spec.kind === 'choices'}>
+        <Choices spec={props.spec} onAnswer={props.onAnswer} />
+      </Match>
+      <Match when={props.spec.kind === 'confirm'}>
+        <Confirm spec={props.spec} onAnswer={props.onAnswer} />
+      </Match>
+      <Match when={props.spec.kind === 'diff'}>
+        <Diff spec={props.spec} onAnswer={props.onAnswer} />
+      </Match>
+    </Switch>
+  )
 }
 
 export function makeConcivUiCard(opts: {

@@ -122,7 +122,7 @@ function Canvas(props: {state: SurfaceState; room: Accessor<string>; self: Self}
 
 function ComposeBridge(props: {registerComment: (write: (pick: CommentPick) => void) => void}): JSX.Element {
   const model = useComments()
-  props.registerComment((pick) => model.startCompose(toComposeTarget(pick)))
+  onMount(() => props.registerComment((pick) => model.startCompose(toComposeTarget(pick))))
   return <></>
 }
 

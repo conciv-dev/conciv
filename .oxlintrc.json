@@ -62,8 +62,8 @@
     "solid/no-destructure": "warn",
     "solid/prefer-for": "warn",
     "solid/reactivity": [
-      "warn",
-      {"customReactiveFunctions": ["makeEventListener", "makeEventListenerStack", "makeTimer"]}
+      "error",
+      {"customReactiveFunctions": ["makeEventListener", "makeEventListenerStack", "makeTimer", "registerLayer"]}
     ],
     "solid/event-handlers": "error",
     "solid/imports": "error",
@@ -107,6 +107,12 @@
       "files": ["packages/serve/**"],
       "rules": {
         "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["packages/react/**", "packages/preact/**"],
+      "rules": {
+        "solid/reactivity": "off"
       }
     },
     {

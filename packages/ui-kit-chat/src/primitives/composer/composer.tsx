@@ -309,7 +309,6 @@ function Input(props: InputProps): JSX.Element {
     'ref',
   ])
   let element: HTMLTextAreaElement | undefined
-  const forwardRef = local.ref
   const isRunning = () => chat.status() === 'streaming' || chat.status() === 'submitted'
 
   createEffect<boolean>((wasRunning) => {
@@ -358,6 +357,7 @@ function Input(props: InputProps): JSX.Element {
     <TextArea
       ref={(node) => {
         element = node
+        const forwardRef = local.ref
         if (typeof forwardRef === 'function') forwardRef(node)
       }}
       value={composer.text()}
