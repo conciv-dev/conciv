@@ -7,6 +7,7 @@ export type PaneGrabStore = {
   grabs: Accessor<StagedGrab[]>
   stage: (grab: Grab) => void
   stageTexts: (texts: string[]) => void
+  replace: (grab: StagedGrab, next: StagedGrab) => void
   remove: (grab: StagedGrab) => void
   clear: () => void
 }

@@ -85,6 +85,8 @@ function PanelSession(): JSX.Element {
     grabs,
     stage: (grab: Grab) => setGrabs((prev) => [...prev, grab]),
     stageTexts: (texts: string[]) => setGrabs(texts.map((text) => ({text}))),
+    replace: (grab: StagedGrab, next: StagedGrab) =>
+      setGrabs((prev) => prev.map((entry) => (entry === grab ? next : entry))),
     remove: (grab: StagedGrab) => setGrabs((prev) => prev.filter((entry) => entry !== grab)),
     clear: () => setGrabs([]),
   }
