@@ -133,6 +133,9 @@ importers:
       '@solid-primitives/event-listener':
         specifier: ^2.4.6
         version: 2.4.6(solid-js@1.9.14)
+      '@solid-primitives/timer':
+        specifier: ^1.4.4
+        version: 1.4.4(solid-js@1.9.14)
       '@tanstack/ai-client':
         specifier: 0.22.0
         version: 0.22.0(@opentelemetry/api@1.9.1)
@@ -7870,6 +7873,11 @@ packages:
 
   '@solid-primitives/static-store@0.1.3':
     resolution: {integrity: sha512-uxez7SXnr5GiRnzqO2IEDjOJRIXaG+0LZLBizmUA1FwSi+hrpuMzVBwyk70m4prcl8X6FDDXUl9O8hSq8wHbBQ==}
+    peerDependencies:
+      solid-js: ^1.6.12
+
+  '@solid-primitives/timer@1.4.4':
+    resolution: {integrity: sha512-Ayjyb3+v1hyU92vuLUN0tVHq2mmTCPGxSDLGJMsDydRqx9ZfJIc9xj6cxK4XvdY3pif3ps2mIv52pjgToybEpQ==}
     peerDependencies:
       solid-js: ^1.6.12
 
@@ -20433,6 +20441,10 @@ snapshots:
   '@solid-primitives/static-store@0.1.3(solid-js@1.9.14)':
     dependencies:
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.14)
+      solid-js: 1.9.14
+
+  '@solid-primitives/timer@1.4.4(solid-js@1.9.14)':
+    dependencies:
       solid-js: 1.9.14
 
   '@solid-primitives/trigger@1.2.4(solid-js@1.9.14)':

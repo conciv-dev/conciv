@@ -1,24 +1,32 @@
-import {createSignal, createEffect, on, onCleanup, type Accessor} from 'solid-js'
+import {createEffect, createMemo, createSignal, type Accessor} from 'solid-js'
+import {createStore, reconcile, unwrap} from 'solid-js/store'
+import {createTimer} from '@solid-primitives/timer'
 import {useMutation, useQuery, type QueryClient} from '@tanstack/solid-query'
 import type {LiveSession, RpcClient} from '@conciv/contract'
 import type {QueryUtils} from '@conciv/client'
 import {errorMessageFor} from '../../chat/send-errors.js'
 import type {Notify} from '../../chat/notify.js'
 import {
-  CLOSED,
+  arrivedCount,
   dialInPollMs,
-  dialogIsOpen,
   GIVE_UP_AFTER_FAILURES,
+  mergeFrozen,
   orderCandidates,
-  stepOnAdoptFailed,
-  stepOnAdopted,
-  stepOnBack,
-  stepOnKeepWaiting,
-  stepOnLeave,
-  stepOnOpen,
   type Adopted,
   type ConnectStep,
 } from './connect-steps.js'
+import {
+  adoptedOf,
+  attemptOf,
+  CLOSED_CONNECT,
+  connectPlanFor,
+  connectTransition,
+  dialledIn,
+  heldOf,
+  type ConnectEvent,
+  type ConnectPlan,
+  type ConnectState,
+} from './connect-machine.js'
 import {
   candidateTitle,
   CANNOT_TELL,
@@ -47,6 +55,7 @@ const FRESH_MS = 3_000
 const KEEP_MS = 5 * 60_000
 const POLL_MS = 4_000
 const TICK_MS = 1_000
+const LOOKUP_RETRIES = 1
 
 export type ConnectFlowDeps = {
   utils: QueryUtils
@@ -92,22 +101,20 @@ function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
-  const [requested, setRequested] = createSignal(false)
-  const [step, setStep] = createSignal<ConnectStep>(CLOSED)
-  const [adopted, setAdopted] = createSignal<Adopted | null>(null)
-  const [epoch, setEpoch] = createSignal(0)
-  const [flight, setFlight] = createSignal(0)
-  const [undecided, setUndecided] = createSignal(false)
-  const [connected, setConnected] = createSignal(false)
-  const [now, setNow] = createSignal(Date.now())
-  const [failures, setFailures] = createSignal(0)
-  const [held, setHeld] = createSignal<LiveSession[] | null>(null)
+function dialing(state: ConnectState): boolean {
+  return state.kind === 'reload' || state.kind === 'leaveConfirm'
+}
 
-  const tick = setInterval(() => {
-    if (requested()) setNow(Date.now())
-  }, TICK_MS)
-  onCleanup(() => clearInterval(tick))
+export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
+  const [state, setState] = createStore<ConnectState>({...CLOSED_CONNECT})
+  const [now, setNow] = createSignal(Date.now())
+
+  const open = createMemo(() => state.kind !== 'closed')
+  createTimer(
+    () => setNow(Date.now()),
+    () => (open() ? TICK_MS : false),
+    setInterval,
+  )
 
   const detach = useMutation(() => ({
     mutationFn: (concivSessionId: string) => deps.rpc.sessions.attachDetach({sessionId: concivSessionId}),
@@ -125,7 +132,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     },
   }))
 
-  const announceAdopted = (session: Adopted): void => {
+  const noticeFollowing = (session: Adopted): void => {
     deps.notify(nowFollowing(session.title), {
       key: `following-${session.concivSessionId}`,
       tone: 'success',
@@ -133,31 +140,18 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     })
   }
 
-  const commit = (session: Adopted): void => {
-    deps.navigate(session.concivSessionId)
-    announceAdopted(session)
-  }
-
-  const shut = (): void => {
-    setEpoch((count) => count + 1)
-    setUndecided(false)
-    setRequested(false)
-    setHeld(null)
-    setStep(CLOSED)
-  }
-
-  const finish = (session: Adopted): void => {
-    shut()
-    commit(session)
-  }
-
   const connectCommand = useMutation(() => ({
     mutationFn: (sessionId: string) => deps.rpc.sessions.connectCommand({sessionId}),
   }))
 
-  const offerSnippet = async (detail: string, session: LiveSession): Promise<void> => {
+  const failedWithSnippet = async (detail: string, session: LiveSession): Promise<void> => {
     const fallback = await connectCommand.mutateAsync(deps.sessionId()).catch(() => null)
-    setStep(stepOnAdoptFailed({message: detail, sessionId: session.sessionId}, fallback?.command ?? null))
+    apply({
+      type: 'adoptFailed',
+      candidateId: session.sessionId,
+      message: detail,
+      snippet: fallback?.command ?? null,
+    })
   }
 
   const adopt = useMutation(() => ({
@@ -168,206 +162,122 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
         force: session.relation === 'descendant',
       }),
     onSuccess: (result: {sessionId: string; reloadCommand: string}, session: LiveSession) => {
-      const next: Adopted = {
-        concivSessionId: result.sessionId,
-        harnessSessionId: session.sessionId,
-        title: clampTitle(candidateTitle(session)),
-        reloadCommand: result.reloadCommand,
-      }
-      setAdopted(next)
       deps.invalidateSessions()
       void deps.queryClient.invalidateQueries({queryKey: deps.utils.sessions.attachCandidates.key()})
-      if (flight() !== epoch()) {
-        announceAdopted(next)
-        return
-      }
-      const settled = stepOnAdopted(next, session.ready)
-      if (settled.kind === 'closed') {
-        finish(next)
-        return
-      }
-      setStep(settled)
+      apply({
+        type: 'adopted',
+        candidateId: session.sessionId,
+        ready: session.ready,
+        adopted: {
+          concivSessionId: result.sessionId,
+          harnessSessionId: session.sessionId,
+          title: clampTitle(candidateTitle(session)),
+          reloadCommand: result.reloadCommand,
+        },
+      })
     },
     onError: (error: unknown, session: LiveSession) => {
       const install = errorMessageFor(error, 'INSTALL_FAILED')
       if (install !== null) {
-        void offerSnippet(install, session)
+        void failedWithSnippet(install, session)
         return
       }
       const message = errorMessageFor(error, 'CWD_MISMATCH') ?? connectFailed(deps.harnessName())
-      setStep(stepOnAdoptFailed({message, sessionId: session.sessionId}, null))
+      apply({type: 'adoptFailed', candidateId: session.sessionId, message, snippet: null})
     },
   }))
 
-  const awaitingDialIn = (): boolean => {
-    const kind = step().kind
-    return kind === 'reload' || kind === 'leaveConfirm'
+  const runPlan = (plan: ConnectPlan): void => {
+    if (plan.adopt) adopt.mutate(unwrap(plan.adopt))
+    if (plan.follow) {
+      deps.navigate(plan.follow.concivSessionId)
+      noticeFollowing(plan.follow)
+    }
+    if (plan.announce) noticeFollowing(plan.announce)
+    if (plan.handBack) detach.mutate(plan.handBack.concivSessionId)
+  }
+
+  const apply = (event: ConnectEvent): void => {
+    const before = unwrap(state)
+    const after = connectTransition(before, event)
+    const plan = connectPlanFor(before, after, event)
+    if (after !== before) setState(reconcile(after, {key: 'sessionId'}))
+    runPlan(plan)
   }
 
   const pollMs = (): number | false => {
-    if (!requested()) return false
-    if (adopt.isPending) return false
-    return awaitingDialIn() ? dialInPollMs(failures()) : POLL_MS
+    if (!open()) return false
+    if (attemptOf(state) !== null) return false
+    return dialing(state) ? dialInPollMs(0) : POLL_MS
+  }
+
+  const persistence = () => {
+    if (!dialing(state)) return {retry: LOOKUP_RETRIES}
+    return {retry: GIVE_UP_AFTER_FAILURES - 1, retryDelay: (attempt: number) => dialInPollMs(attempt)}
   }
 
   const candidates = useQuery(() => ({
     ...deps.utils.sessions.attachCandidates.queryOptions(),
-    enabled: requested(),
+    enabled: open(),
     staleTime: FRESH_MS,
     gcTime: KEEP_MS,
     refetchInterval: pollMs(),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
-    retry: 1,
+    ...persistence(),
   }))
 
-  createEffect(
-    on(
-      () => candidates.errorUpdatedAt,
-      (at, before) => {
-        if (at === 0 || at === before) return
-        setFailures((count) => count + 1)
-      },
-    ),
-  )
+  createEffect(() => {
+    const listed = candidates.data
+    if (!listed) return
+    apply({type: 'listed', candidates: listed})
+  })
 
-  createEffect(
-    on(
-      () => candidates.dataUpdatedAt,
-      (at, before) => {
-        if (at === 0 || at === before) return
-        setFailures(0)
-      },
-    ),
-  )
+  const terminalDialledIn = createMemo(() => {
+    const following = adoptedOf(state)
+    if (!following) return false
+    return candidates.data?.some((row) => row.sessionId === following.harnessSessionId && row.ready) ?? false
+  })
 
-  const stamp = (list: LiveSession[] | undefined): void => {
-    if (!list) return
-    setHeld(orderCandidates(list))
-  }
-
-  const liveById = (): Map<string, LiveSession> =>
-    new Map((candidates.data ?? []).map((session) => [session.sessionId, session]))
+  createEffect(() => {
+    if (terminalDialledIn()) apply({type: 'dialledIn'})
+  })
 
   const rows = (): LiveSession[] | undefined => {
-    const frozen = held()
+    const frozen = heldOf(state)
     if (!frozen) return candidates.data === undefined ? undefined : orderCandidates(candidates.data)
-    const live = liveById()
-    return frozen.map((row) => live.get(row.sessionId) ?? {...row, working: false})
+    return mergeFrozen(frozen, candidates.data ?? [])
   }
 
-  const arrived = (): number => {
-    const frozen = held()
-    if (!frozen) return 0
-    const known = new Set(frozen.map((row) => row.sessionId))
-    return (candidates.data ?? []).filter((session) => !known.has(session.sessionId)).length
-  }
+  const arrived = (): number => arrivedCount(heldOf(state), candidates.data ?? [])
 
   const refresh = (): void => {
-    void candidates.refetch().then((settled) => stamp(settled.data))
-  }
-
-  const startAdopt = (session: LiveSession): void => {
-    setFlight(epoch())
-    adopt.mutate(session)
-  }
-
-  const decide = (list: LiveSession[]): void => {
-    const next = stepOnOpen(list)
-    setStep(next)
-    const only = list[0]
-    if (next.kind === 'connecting' && only) startAdopt(only)
-  }
-
-  createEffect(() => {
-    if (!undecided()) return
-    const list = candidates.data
-    if (!list) return
-    setUndecided(false)
-    stamp(list)
-    decide(list)
-  })
-
-  const dialledIn = (): boolean => {
-    const following = adopted()
-    if (!following || !awaitingDialIn()) return false
-    return candidates.data?.some((row) => row.sessionId === following.harnessSessionId && row.ready) ?? false
-  }
-
-  createEffect(() => {
-    if (connected() || !dialledIn()) return
-    const following = adopted()
-    if (!following) return
-    setConnected(true)
-    setStep({kind: 'reload', adopted: following})
-    commit(following)
-  })
-
-  const start = (): void => {
-    setEpoch((count) => count + 1)
-    setConnected(false)
-    setRequested(true)
-    const cached = candidates.data
-    if (cached) {
-      setUndecided(false)
-      stamp(cached)
-      decide(cached)
-      return
-    }
-    setHeld(null)
-    setUndecided(true)
-    setStep({kind: 'picking', error: null, retryId: null})
-  }
-
-  const keepWaiting = (): void => {
-    setStep(stepOnKeepWaiting(step()))
-  }
-
-  const handBack = (): void => {
-    const leaving = step()
-    if (leaving.kind !== 'leaveConfirm') return
-    shut()
-    detach.mutate(leaving.adopted.concivSessionId)
-  }
-
-  const close = (): void => {
-    const current = step()
-    if (current.kind === 'leaveConfirm') {
-      handBack()
-      return
-    }
-    const next = stepOnLeave(current, connected())
-    if (next.kind === 'leaveConfirm') {
-      setStep(next)
-      return
-    }
-    shut()
-  }
-
-  const pick = (session: LiveSession): void => {
-    setStep({kind: 'picking', error: null, retryId: null})
-    startAdopt(session)
+    void candidates.refetch().then((settled) => {
+      if (settled.data) apply({type: 'refreshed', candidates: settled.data})
+    })
   }
 
   const retry = (): void => {
-    const current = step()
+    const current = unwrap(state)
     const retryId = current.kind === 'picking' ? current.retryId : null
     const again = candidates.data?.find((session) => session.sessionId === retryId)
     if (!again) {
       refresh()
       return
     }
-    pick(again)
+    apply({type: 'pick', candidate: again})
   }
 
-  const done = (): void => shut()
+  const stillDialing = (): boolean => state.kind === 'reload' && !state.dialled
 
-  const unreachable = (): boolean => step().kind === 'reload' && failures() >= GIVE_UP_AFTER_FAILURES && !connected()
+  const unreachable = (): boolean => stillDialing() && candidates.isError
+
+  const contactLost = (): boolean => stillDialing() && !candidates.isError && candidates.failureCount > 0
 
   const reloadLine = (): Spoken => {
-    if (connected()) return {message: DIALLED_IN, assertive: false}
+    if (dialledIn(state)) return {message: DIALLED_IN, assertive: false}
     if (unreachable()) return {message: CANNOT_TELL, assertive: true}
-    if (candidates.isError) return {message: CONTACT_LOST, assertive: true}
+    if (contactLost()) return {message: CONTACT_LOST, assertive: true}
     return {message: RELOAD_ANNOUNCE, assertive: false}
   }
 
@@ -386,55 +296,47 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     return listLine()
   }
 
-  const settledLine = (current: ConnectStep): Spoken | null => {
-    if (current.kind === 'connecting') return {message: CONNECTING_LABEL, assertive: false}
-    if (current.kind === 'snippet') return {message: current.detail, assertive: true}
-    if (current.kind === 'leaveConfirm') return {message: LEAVING_UNRELOADED, assertive: false}
-    return null
-  }
+  const spoken = createMemo(
+    (): Spoken | null => {
+      if (state.kind === 'reload') return reloadLine()
+      if (state.kind === 'picking') return pickingLine(state.error)
+      if (state.kind === 'connecting') return {message: CONNECTING_LABEL, assertive: false}
+      if (state.kind === 'snippet') return {message: state.detail, assertive: true}
+      if (state.kind === 'leaveConfirm') return {message: LEAVING_UNRELOADED, assertive: false}
+      return null
+    },
+    undefined,
+    {equals: (was, is) => was?.message === is?.message},
+  )
 
-  const spoken = (): Spoken | null => {
-    const current = step()
-    if (current.kind === 'reload') return reloadLine()
-    if (current.kind === 'picking') return pickingLine(current.error)
-    return settledLine(current)
-  }
-
-  let lastSaid: string | null = null
   createEffect(() => {
     const said = spoken()
-    if (said === null) {
-      lastSaid = null
-      return
-    }
-    if (said.message === lastSaid) return
-    lastSaid = said.message
-    deps.announce(said.message, said.assertive)
+    if (said) deps.announce(said.message, said.assertive)
   })
 
   return {
-    step,
+    step: () => state,
     candidates: rows,
     arrived,
     loading: () => candidates.isLoading,
-    refreshing: () => candidates.isFetching && candidates.data !== undefined,
+    refreshing: () => candidates.isFetching && candidates.failureCount === 0 && candidates.data !== undefined,
     failure: () => (candidates.isError ? reasonOf(candidates.error) : null),
     stale: () => isStale(candidates.dataUpdatedAt, now()),
     checkedAt: () => candidates.dataUpdatedAt,
-    connectingId: () => (adopt.isPending ? (adopt.variables?.sessionId ?? null) : null),
-    dialledIn: connected,
-    contactLost: () => step().kind === 'reload' && candidates.isError && !connected(),
+    connectingId: () => attemptOf(state)?.sessionId ?? null,
+    dialledIn: () => dialledIn(state),
+    contactLost,
     unreachable,
-    busy: () => adopt.isPending && !dialogIsOpen(step()),
-    start,
+    busy: () => state.kind === 'connecting',
+    start: () => apply({type: 'open', cached: candidates.data ?? null}),
     prefetch: () => void deps.queryClient.prefetchQuery(deps.utils.sessions.attachCandidates.queryOptions()),
-    close,
-    pick,
+    close: () => apply({type: 'close'}),
+    pick: (session) => apply({type: 'pick', candidate: session}),
     retry,
     refresh,
-    back: () => setStep(stepOnBack()),
-    done,
-    keepWaiting,
-    handBack,
+    back: () => apply({type: 'back'}),
+    done: () => apply({type: 'done'}),
+    keepWaiting: () => apply({type: 'keepWaiting'}),
+    handBack: () => apply({type: 'close'}),
   }
 }

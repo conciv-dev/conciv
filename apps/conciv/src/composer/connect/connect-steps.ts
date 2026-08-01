@@ -15,38 +15,8 @@ export type ConnectStep =
   | {kind: 'leaveConfirm'; adopted: Adopted}
   | {kind: 'snippet'; command: string; detail: string}
 
-export const CLOSED: ConnectStep = {kind: 'closed'}
-
 export function dialogIsOpen(step: ConnectStep): boolean {
   return step.kind !== 'closed' && step.kind !== 'connecting'
-}
-
-export function stepOnOpen(candidates: LiveSession[]): ConnectStep {
-  if (candidates.length === 1) return {kind: 'connecting'}
-  return {kind: 'picking', error: null, retryId: null}
-}
-
-export function stepOnAdopted(adopted: Adopted, ready: boolean): ConnectStep {
-  return ready ? CLOSED : {kind: 'reload', adopted}
-}
-
-export function stepOnAdoptFailed(failure: {message: string; sessionId: string}, snippet: string | null): ConnectStep {
-  if (snippet !== null) return {kind: 'snippet', command: snippet, detail: failure.message}
-  return {kind: 'picking', error: failure.message, retryId: failure.sessionId}
-}
-
-export function stepOnLeave(step: ConnectStep, connected: boolean): ConnectStep {
-  if (step.kind === 'reload' && !connected) return {kind: 'leaveConfirm', adopted: step.adopted}
-  return CLOSED
-}
-
-export function stepOnKeepWaiting(step: ConnectStep): ConnectStep {
-  if (step.kind === 'leaveConfirm') return {kind: 'reload', adopted: step.adopted}
-  return CLOSED
-}
-
-export function stepOnBack(): ConnectStep {
-  return {kind: 'picking', error: null, retryId: null}
 }
 
 const DIAL_IN_BASE_MS = 1_500
@@ -64,4 +34,15 @@ export function orderCandidates(candidates: LiveSession[]): LiveSession[] {
     const byActivity = right.lastActivityAt - left.lastActivityAt
     return byActivity === 0 ? left.sessionId.localeCompare(right.sessionId) : byActivity
   })
+}
+
+export function mergeFrozen(frozen: LiveSession[], live: LiveSession[]): LiveSession[] {
+  const running = new Map(live.map((session) => [session.sessionId, session]))
+  return frozen.map((row) => running.get(row.sessionId) ?? {...row, working: false})
+}
+
+export function arrivedCount(frozen: LiveSession[] | null, live: LiveSession[]): number {
+  if (!frozen) return 0
+  const known = new Set(frozen.map((row) => row.sessionId))
+  return live.filter((session) => !known.has(session.sessionId)).length
 }

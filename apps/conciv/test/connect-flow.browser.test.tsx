@@ -1,5 +1,6 @@
 import {afterEach, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
+import {createSignal, For} from 'solid-js'
 import {render} from 'solid-js/web'
 import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
 import {makeRpcClient, type LiveSession} from '@conciv/contract'
@@ -10,6 +11,7 @@ import {ConnectDialog} from '../src/composer/connect/connect-dialog.js'
 import {
   CANNOT_TELL,
   CONTACT_LOST,
+  COPY_LABEL,
   HAND_BACK_CLOSE_LABEL,
   HAND_BACK_LABEL,
   HANDED_BACK,
@@ -27,6 +29,7 @@ import {
 import {liveSession} from './helpers/live-session.js'
 
 const BASE = 'http://conciv.test'
+const TWO_RUNNING = '2 Claude sessions are running in this project. Pick the one this panel should follow.'
 
 type Answer<Value> = {value: Value} | {failure: string}
 
@@ -36,6 +39,30 @@ type Server = {
   detach?: Answer<{ok: boolean}>
   calls: {path: string; body: unknown}[]
   delayMs?: number
+  waiting?: {path: string; upTo: number; settle: () => void}[]
+}
+
+function callsTo(server: Server, path: string): {path: string; body: unknown}[] {
+  return server.calls.filter((call) => call.path === path)
+}
+
+function calledTimes(server: Server, path: string, upTo: number): Promise<void> {
+  if (callsTo(server, path).length >= upTo) return Promise.resolve()
+  return new Promise((settle) => {
+    const waiting = server.waiting ?? []
+    server.waiting = waiting
+    waiting.push({path, upTo, settle})
+  })
+}
+
+function releaseWaiting(server: Server, path: string): void {
+  const waiting = server.waiting ?? []
+  const reached = callsTo(server, path).length
+  server.waiting = waiting.filter((wait) => {
+    if (wait.path !== path || wait.upTo > reached) return true
+    wait.settle()
+    return false
+  })
 }
 
 const disposers: (() => void)[] = []
@@ -80,6 +107,7 @@ function installServer(server: Server): void {
     const text = await request.clone().text()
     const parsed: unknown = text === '' ? null : JSON.parse(text)
     server.calls.push({path, body: parsed})
+    releaseWaiting(server, path)
     const route = routes(server)[path]
     if (!route) throw new Error(`the fake core has no route for ${path}`)
     return answer(server, path, await route())
@@ -107,14 +135,22 @@ function mountFlow(server: Server): Mounted {
   const utils = makeQueryUtils(rpc)
   const mounted: Mounted = {server, notices: [], said: [], navigated: [], queryClient}
   const Harness = () => {
+    const [raised, setRaised] = createSignal<string[]>([])
+    const [followed, setFollowed] = createSignal<string[]>([])
     const flow = useConnectFlow({
       utils,
       rpc,
       queryClient,
       harnessName: () => 'Claude',
       sessionId: () => 'conciv_panel',
-      navigate: (sessionId) => mounted.navigated.push(sessionId),
-      notify: (message, options) => mounted.notices.push({message, options}),
+      navigate: (sessionId) => {
+        mounted.navigated.push(sessionId)
+        setFollowed([...mounted.navigated])
+      },
+      notify: (message, options) => {
+        mounted.notices.push({message, options})
+        setRaised(mounted.notices.map((notice) => notice.message))
+      },
       announce: (message, assertive = false) => mounted.said.push({message, assertive}),
       invalidateSessions: () => {},
     })
@@ -147,6 +183,8 @@ function mountFlow(server: Server): Mounted {
           onHandBack={flow.handBack}
           onClose={flow.close}
         />
+        <For each={followed()}>{(sessionId) => <p>{`the panel follows ${sessionId}`}</p>}</For>
+        <For each={raised()}>{(message) => <p>{message}</p>}</For>
       </>
     )
   }
@@ -220,10 +258,9 @@ test('the panel follows the session the server handed back, and undo lets that o
   expect(notice?.options?.action?.label).toBe(UNDO_LABEL)
   notice?.options?.action?.run()
 
-  await expect.poll(() => mounted.server.calls.filter((call) => call.path === 'attachDetach')).toHaveLength(1)
-  expect(mounted.server.calls.find((call) => call.path === 'attachDetach')?.body).toEqual({
-    json: {sessionId: 'conciv_adopted'},
-  })
+  await expect.element(page.getByText(HANDED_BACK)).toBeVisible()
+  expect(callsTo(mounted.server, 'attachDetach')).toHaveLength(1)
+  expect(callsTo(mounted.server, 'attachDetach')[0]?.body).toEqual({json: {sessionId: 'conciv_adopted'}})
 })
 
 test('a single ready session connects without ever opening the picker', async () => {
@@ -236,7 +273,8 @@ test('a single ready session connects without ever opening the picker', async ()
 
   await trigger().click()
 
-  await expect.poll(() => mounted.navigated).toEqual(['conciv_only'])
+  await expect.element(page.getByText('the panel follows conciv_only')).toBeVisible()
+  expect(mounted.navigated).toEqual(['conciv_only'])
   expect(page.getByRole('dialog').elements()).toHaveLength(0)
 })
 
@@ -254,6 +292,7 @@ async function openReloadCard(server: Server): Promise<Mounted> {
   await mounted.queryClient.prefetchQuery(makeQueryUtils(makeRpcClient(BASE)).sessions.attachCandidates.queryOptions())
   await trigger().click()
   await expect.element(page.getByText('/reload-plugins --force')).toBeVisible()
+  await expect.element(page.getByRole('button', {name: COPY_LABEL})).toHaveFocus()
   return mounted
 }
 
@@ -279,9 +318,9 @@ test('handing it back on the way out lets go of the session the server minted', 
   await page.getByRole('button', {name: HAND_BACK_CLOSE_LABEL}).click()
 
   await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
-  await expect.poll(() => detachCalls(mounted)).toHaveLength(1)
+  await expect.element(page.getByText(HANDED_BACK)).toBeVisible()
+  expect(detachCalls(mounted)).toHaveLength(1)
   expect(detachCalls(mounted)[0]?.body).toEqual({json: {sessionId: 'conciv_only'}})
-  await expect.poll(() => mounted.notices.at(-1)?.message).toBe(HANDED_BACK)
 })
 
 test('a second escape hands it back, so escape always gets the reader out', async () => {
@@ -292,7 +331,8 @@ test('a second escape hands it back, so escape always gets the reader out', asyn
   await userEvent.keyboard('{Escape}')
 
   await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
-  await expect.poll(() => detachCalls(mounted)).toHaveLength(1)
+  await expect.element(page.getByText(HANDED_BACK)).toBeVisible()
+  expect(detachCalls(mounted)).toHaveLength(1)
 })
 
 test('a hand back that fails leaves a standing notice that says so and offers to try again', async () => {
@@ -302,7 +342,8 @@ test('a hand back that fails leaves a standing notice that says so and offers to
   await page.getByRole('button', {name: HAND_BACK_CLOSE_LABEL}).click()
 
   await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
-  await expect.poll(() => mounted.notices.at(-1)?.message).toBe(STILL_CONNECTED)
+  await expect.element(page.getByText(STILL_CONNECTED)).toBeVisible()
+  expect(mounted.notices.at(-1)?.message).toBe(STILL_CONNECTED)
   const notice = mounted.notices.at(-1)
   expect(notice?.options?.tone).toBe('danger')
   expect(notice?.options?.action?.label).toBe(HAND_BACK_LABEL)
@@ -315,7 +356,8 @@ test('the panel follows the session the moment the terminal dials in, with no Do
   mounted.server.candidates = {value: [liveSession({ready: true})]}
   await page.getByRole('button', {name: /Check for running sessions again/}).click()
 
-  await expect.poll(() => mounted.navigated).toEqual(['conciv_only'])
+  await expect.element(page.getByText('the panel follows conciv_only')).toBeVisible()
+  expect(mounted.navigated).toEqual(['conciv_only'])
   expect(mounted.notices.at(-1)?.options?.action?.label).toBe(UNDO_LABEL)
 })
 
@@ -345,13 +387,13 @@ test('every step of the flow is said out loud, with trouble said louder', async 
   })
 
   await trigger().click()
-  await expect.poll(() => spoken(mounted)).toContain(LOOKING_LABEL)
-  await expect
-    .poll(() => spoken(mounted))
-    .toContain('2 Claude sessions are running in this project. Pick the one this panel should follow.')
+  await expect.element(page.getByText(TWO_RUNNING)).toBeVisible()
+  expect(spoken(mounted)).toContain(LOOKING_LABEL)
+  expect(spoken(mounted)).toContain(TWO_RUNNING)
 
   await page.getByRole('button', {name: /fix the flaky test/}).click()
-  await expect.poll(() => mounted.navigated).toEqual(['conciv_adopted'])
+  await expect.element(page.getByText('the panel follows conciv_adopted')).toBeVisible()
+  expect(mounted.navigated).toEqual(['conciv_adopted'])
 })
 
 test('a listing that fails is said louder than the list it replaces', async () => {
@@ -363,14 +405,13 @@ test('a listing that fails is said louder than the list it replaces', async () =
 
   await trigger().click()
 
-  await expect
-    .poll(() => mounted.said.filter((line) => line.assertive).map((line) => line.message))
-    .toContain(LOOKUP_FAILED)
+  await expect.element(page.getByText(LOOKUP_FAILED)).toBeVisible()
+  expect(mounted.said.filter((line) => line.assertive).map((line) => line.message)).toContain(LOOKUP_FAILED)
 })
 
 test('a reload card that keeps missing the server stops promising and admits it cannot tell', async () => {
   const mounted = await openReloadCard(unreloadedTerminal())
-  await expect.poll(() => spoken(mounted)).toContain(RELOAD_ANNOUNCE)
+  expect(spoken(mounted)).toContain(RELOAD_ANNOUNCE)
 
   mounted.server.candidates = {failure: 'the server hung up'}
   const refresh = () => page.getByRole('button', {name: /Check for running sessions again/})
@@ -430,7 +471,8 @@ async function openedPicker(candidates: LiveSession[]): Promise<Mounted> {
     calls: [],
   })
   await trigger().click()
-  await expect.poll(rowOrder).toEqual([RENAME, FLAKY])
+  await expect.element(page.getByRole('button', {name: new RegExp(FLAKY)})).toBeVisible()
+  expect(rowOrder()).toEqual([RENAME, FLAKY])
   return mounted
 }
 
@@ -443,7 +485,7 @@ test('the rows keep the order they had when the dialog opened, however the sessi
   ])
 
   await expect.element(page.getByRole('button', {name: /99 messages/})).toBeVisible()
-  await expect.poll(rowOrder).toEqual([RENAME, FLAKY])
+  expect(rowOrder()).toEqual([RENAME, FLAKY])
 })
 
 test('a session that starts while the dialog is open waits behind a refresh instead of landing under the pointer', async () => {
@@ -459,7 +501,8 @@ test('a session that starts while the dialog is open waits behind a refresh inst
 
   await page.getByRole('button', {name: SHOW_NEW_LABEL, exact: true}).click()
 
-  await expect.poll(rowOrder).toEqual([PICKER, RENAME, FLAKY])
+  await expect.element(page.getByRole('button', {name: new RegExp(PICKER)})).toBeVisible()
+  expect(rowOrder()).toEqual([PICKER, RENAME, FLAKY])
   expect(page.getByText(newSessionsLabel(1)).elements()).toHaveLength(0)
 })
 
@@ -484,13 +527,12 @@ test('the sessions waiting behind the refresh are offered once, not on every bac
   const arrival = [...openPair(), liveSession({sessionId: 'sess-3', title: PICKER, lastActivityAt: Date.now()})]
 
   await backgroundCheck(mounted, arrival)
-  await expect.poll(() => spoken(mounted)).toContain(newSessionsAnnounce(1))
+  await expect.element(page.getByText(newSessionsLabel(1))).toBeVisible()
+  expect(spoken(mounted)).toContain(newSessionsAnnounce(1))
   await backgroundCheck(mounted, arrival)
   await backgroundCheck(mounted, arrival)
 
-  await expect
-    .poll(() => mounted.server.calls.filter((call) => call.path === 'attachCandidates').length)
-    .toBeGreaterThan(3)
+  await calledTimes(mounted.server, 'attachCandidates', 4)
   expect(spoken(mounted).filter((line) => line === newSessionsAnnounce(1))).toHaveLength(1)
 })
 
@@ -500,17 +542,15 @@ test('a background check that finds the same sessions is not read out again', as
     adopt: {value: {sessionId: 'conciv_adopted', reloadCommand: '/reload-plugins --force'}},
     calls: [],
   })
-  const heading = '2 Claude sessions are running in this project. Pick the one this panel should follow.'
 
   await trigger().click()
-  await expect.poll(() => spoken(mounted)).toContain(heading)
+  await expect.element(page.getByText(TWO_RUNNING)).toBeVisible()
+  expect(spoken(mounted)).toContain(TWO_RUNNING)
 
   const refresh = () => page.getByRole('button', {name: /Check for running sessions again/})
   await refresh().click()
   await refresh().click()
 
-  await expect
-    .poll(() => mounted.server.calls.filter((call) => call.path === 'attachCandidates').length)
-    .toBeGreaterThan(2)
-  expect(spoken(mounted).filter((line) => line === heading)).toHaveLength(1)
+  await calledTimes(mounted.server, 'attachCandidates', 3)
+  expect(spoken(mounted).filter((line) => line === TWO_RUNNING)).toHaveLength(1)
 })

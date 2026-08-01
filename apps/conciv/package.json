@@ -35,6 +35,7 @@
     "@fontsource-variable/roboto-mono": "^5.2.9",
     "@fontsource-variable/wix-madefor-text": "^5.2.8",
     "@solid-primitives/event-listener": "^2.4.6",
+    "@solid-primitives/timer": "^1.4.4",
     "@tanstack/ai-client": "0.22.0",
     "@tanstack/hotkeys": "^0.8.0",
     "@tanstack/solid-hotkeys": "^0.10.0",
