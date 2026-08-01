@@ -75,6 +75,42 @@ describe('the live widget mounts site-wide and the root widget param decides the
     await page.close()
   }, 60_000)
 
+  it('keeps the open panel mounted while navigating from the landing page to the docs', async () => {
+    const page = await browser.newPage()
+    await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
+
+    const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+    await expectLocator(panel).toBeVisible({timeout: 20_000})
+
+    await page.getByRole('navigation').getByRole('link', {name: 'Docs', exact: true}).click()
+
+    await expectLocator(page).toHaveURL(/\/docs\/?$/)
+    await expectLocator(panel).toBeVisible()
+
+    await page.close()
+  }, 60_000)
+
+  it('keeps a closed panel closed across navigation to the docs and back to the landing page', async () => {
+    const page = await browser.newPage()
+    await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
+
+    const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+    await expectLocator(panel).toBeVisible({timeout: 20_000})
+
+    await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+    await expectLocator(panel).toBeHidden()
+
+    await page.getByRole('navigation').getByRole('link', {name: 'Docs', exact: true}).click()
+    await expectLocator(page).toHaveURL(/\/docs\/?$/)
+    await expectLocator(panel).toBeHidden()
+
+    await page.getByRole('link', {name: 'conciv', exact: true}).first().click()
+    await expectLocator(page).toHaveURL(`${ORIGIN}/`)
+    await expectLocator(panel).toBeHidden()
+
+    await page.close()
+  }, 60_000)
+
   it('opens the panel on a docs page when ?widget=true is explicit', async () => {
     const page = await browser.newPage()
     await page.goto(`${ORIGIN}/docs/quick-start?widget=true`, {waitUntil: 'domcontentloaded'})
