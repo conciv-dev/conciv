@@ -201,12 +201,20 @@ test('a hold taken during a hold restarts the window', () => {
   expect(followTransition(held, {type: 'hold', at: AWAY, startedAt: 99, durationMs: 350}).hold?.startedAt).toBe(99)
 })
 
-test('releasing a hold hands scrolling back', () => {
+test('releasing the live hold hands scrolling back', () => {
   const held = run([{type: 'hold', at: AWAY, startedAt: 10, durationMs: 350}])
-  expect(followTransition(held, {type: 'release'}).hold).toBe(null)
+  expect(followTransition(held, {type: 'release', startedAt: 10}).hold).toBe(null)
+})
+
+test('a release left over from a superseded hold never cuts the newer one short', () => {
+  const reheld = run([
+    {type: 'hold', at: AWAY, startedAt: 10, durationMs: 350},
+    {type: 'hold', at: AWAY, startedAt: 99, durationMs: 350},
+  ])
+  expect(followTransition(reheld, {type: 'release', startedAt: 10}).hold?.startedAt).toBe(99)
 })
 
 test('a detach taken during a hold survives the release', () => {
   const held = run([{type: 'hold', at: AWAY, startedAt: 10, durationMs: 350}, {type: 'wheelUp'}])
-  expect(followTransition(held, {type: 'release'}).mode).toEqual({kind: 'detached'})
+  expect(followTransition(held, {type: 'release', startedAt: 10}).mode).toEqual({kind: 'detached'})
 })

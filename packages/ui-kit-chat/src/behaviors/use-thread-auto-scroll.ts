@@ -75,7 +75,8 @@ export function useThreadAutoScroll(
   createEffect(() => {
     const hold = state.hold
     if (!hold) return
-    makeTimer(() => send({type: 'release'}), hold.durationMs, setTimeout)
+    const startedAt = hold.startedAt
+    makeTimer(() => send({type: 'release', startedAt}), hold.durationMs, setTimeout)
   })
 
   createEffect(() => {

@@ -21,7 +21,7 @@ export type ThreadFollowEvent =
   | {type: 'resized'; at: ThreadMeasurement; autoScroll: boolean; topAnchored: boolean}
   | {type: 'requestBottom'; behavior: ScrollBehavior}
   | {type: 'hold'; at: ThreadMeasurement; startedAt: number; durationMs: number}
-  | {type: 'release'}
+  | {type: 'release'; startedAt: number}
   | {type: 'pointerDown'}
   | {type: 'wheelUp'}
   | {type: 'scrollKeyDown'}
@@ -138,6 +138,11 @@ function onDetach(state: ThreadFollowState): ThreadFollowState {
   return withMode(state, {kind: 'detached'})
 }
 
+function onRelease(state: ThreadFollowState, startedAt: number): ThreadFollowState {
+  if (state.hold?.startedAt !== startedAt) return state
+  return {...state, hold: null}
+}
+
 function onHold(state: ThreadFollowState, at: ThreadMeasurement, startedAt: number, durationMs: number) {
   return {...abandonSeek(state), hold: {top: at.scrollTop, startedAt, durationMs}}
 }
@@ -147,7 +152,7 @@ export function followTransition(state: ThreadFollowState, event: ThreadFollowEv
   if (event.type === 'resized') return onResized(state, event.at, event.autoScroll, event.topAnchored)
   if (event.type === 'requestBottom') return withMode(state, {kind: 'seeking', behavior: event.behavior})
   if (event.type === 'hold') return onHold(state, event.at, event.startedAt, event.durationMs)
-  if (event.type === 'release') return {...state, hold: null}
+  if (event.type === 'release') return onRelease(state, event.startedAt)
   if (event.type === 'pointerDown') return abandonSeek(state)
   if (event.type === 'wheelUp' || event.type === 'scrollKeyDown') return onDetach(state)
   if (event.type === 'scrollKeySettled') return recomputed(state, event.at)
