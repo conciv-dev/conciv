@@ -1,7 +1,7 @@
 import {existsSync, rmSync} from 'node:fs'
 import {mkdtemp} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {dirname, join} from 'node:path'
+import {join} from 'node:path'
 import {build, type Plugin, type PluginOption} from 'vite'
 import UnoCSS from 'unocss/vite'
 import {presetConciv} from '@conciv/uno-preset'
@@ -44,26 +44,6 @@ function extensionUnderTestPlugin(clientEntry: string): Plugin {
   }
 }
 
-function nearestWith(startDir: string, marker: string): string | null {
-  let dir = startDir
-  while (true) {
-    if (existsSync(join(dir, marker))) return dir
-    const parent = dirname(dir)
-    if (parent === dir) return null
-    dir = parent
-  }
-}
-
-function unoContentGlobs(hostRoot: string): string[] {
-  const globs = [join(hostRoot, '**/*.{ts,tsx}')]
-  const packageRoot = nearestWith(process.cwd(), 'package.json')
-  if (!packageRoot) return globs
-  globs.push(join(packageRoot, 'src/**/*.{ts,tsx}'))
-  const workspaceRoot = nearestWith(packageRoot, 'pnpm-workspace.yaml')
-  if (workspaceRoot) globs.push(join(workspaceRoot, 'packages/ui-kit-*/src/**/*.{ts,tsx}'))
-  return globs
-}
-
 export type BuildConcivHostOptions = {
   root: string
   input?: string
@@ -87,7 +67,7 @@ async function buildHostOnce(options: BuildConcivHostOptions): Promise<string> {
       UnoCSS({
         configFile: false,
         presets: [presetConciv()],
-        content: {filesystem: unoContentGlobs(options.root)},
+        content: {pipeline: {include: [/\.[jt]sx?($|\?)/]}},
       }),
       ...options.plugins,
     ],
