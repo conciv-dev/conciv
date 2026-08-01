@@ -197,13 +197,13 @@ export function Demo() {
   const selectedModel = MODELS.find((option) => option.id === model.selected)
 
   return (
-    <div className="relative" ref={scope}>
+    <div className="relative min-w-0" ref={scope}>
       <div
         className="pointer-events-none absolute -inset-3 -z-10 rounded-[28px] opacity-60 blur-2xl"
         style={{background: 'radial-gradient(60% 60% at 70% 20%, var(--od-accent-soft), transparent)'}}
       />
       <Card className="gap-0 overflow-hidden p-0 shadow-xl">
-        <div className="flex items-center gap-2 border-b px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
           <SparkMark className="text-base text-primary" />
           <span className="text-[13.5px] font-semibold">conciv</span>
           <Badge className="bg-accent font-mono text-[10px] uppercase tracking-wide text-accent-foreground">
@@ -254,8 +254,8 @@ export function Demo() {
           )}
         </div>
 
-        <div className="grid h-[460px] grid-cols-1 sm:grid-cols-2">
-          <div className="flex min-h-0 flex-col border-r">
+        <div className="grid grid-cols-1 sm:h-[460px] sm:grid-cols-2">
+          <div className="flex min-h-[19rem] flex-col border-b sm:min-h-0 sm:border-b-0 sm:border-r">
             <Transcript
               messages={state.messages}
               hint={state.messages.length === 1 && !state.grabbed && !state.picking}

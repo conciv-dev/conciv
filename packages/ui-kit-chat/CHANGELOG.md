@@ -1,5 +1,31 @@
 # @conciv/ui-kit-chat
 
+## 0.0.17
+
+### Patch Changes
+
+- [#153](https://github.com/conciv-dev/conciv/pull/153) [`2aa2b01`](https://github.com/conciv-dev/conciv/commit/2aa2b01db001973dd3432253fabc915462b3ec85) Thanks [@omridevk](https://github.com/omridevk)! - Let the composer's model picker shrink so Stop and Send stay reachable at phone widths. While a turn is running the composer shows Stop next to Send, and the action row had nothing that could give up space: the icon buttons are fixed size by design, and the model pill sat inside wrappers that were all sized to their full label. The row overflowed, and on a 320px phone the Send button was pushed off screen entirely. The pill now shrinks and truncates its label ("Claude Sonnet 4.5" becomes "Claude S...") so the whole row fits, which also removes the few pixels of overflow at 393px and on any narrower device.
+
+- [#154](https://github.com/conciv-dev/conciv/pull/154) [`cf6fc75`](https://github.com/conciv-dev/conciv/commit/cf6fc75ddc841c4fd01b331b93568af7283b320a) Thanks [@omridevk](https://github.com/omridevk)! - Touch, wheel, and keyboard scrolling in the thread now detaches auto-follow, so scrolling back through a reply while the assistant is still streaming no longer fights a re-pin that snaps you to the bottom. This was most visible on iOS, where the browser reports scrolling later than the streamed content arrives. Auto-follow resumes as soon as you return to the bottom or press the scroll-to-end button.
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.17
+  - @conciv/solid-diffs@0.0.17
+  - @conciv/solid-streamdown@0.0.17
+  - @conciv/ui-kit-system@0.0.17
+
+## 0.0.16
+
+### Patch Changes
+
+- [#141](https://github.com/conciv-dev/conciv/pull/141) [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4) Thanks [@omridevk](https://github.com/omridevk)! - Render code and tool output through SolidCodeBlock instead of hand-rolled pre blocks, with explicit languages: plaintext for payloads, TypeScript for eval'd page code, and ANSI for terminal streams so command colors render natively.
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
+  - @conciv/protocol@0.0.16
+  - @conciv/solid-diffs@0.0.16
+  - @conciv/solid-streamdown@0.0.16
+  - @conciv/ui-kit-system@0.0.16
+
 ## 0.0.15
 
 ### Patch Changes

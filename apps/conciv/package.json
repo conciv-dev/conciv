@@ -1,6 +1,6 @@
 {
   "name": "conciv",
-  "version": "0.0.15",
+  "version": "0.0.17",
   "private": true,
   "description": "The conciv app: a TanStack Solid Router UI over the @conciv/contract rpc surface. Inlined by @conciv/embed; runs standalone against a core dev server.",
   "type": "module",
@@ -28,6 +28,7 @@
     "@conciv/mascot": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-chat-tools": "workspace:^",
@@ -47,6 +48,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/extension-testkit": "workspace:^",
     "@conciv/storage-history": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

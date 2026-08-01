@@ -144,6 +144,9 @@ export const NavigationStateSchema = z.object({
 })
 export type NavigationState = z.infer<typeof NavigationStateSchema>
 
+export const NavigationWriteSchema = NavigationStateSchema.extend({updatedAt: z.number().int()})
+export type NavigationWrite = z.infer<typeof NavigationWriteSchema>
+
 export const HarnessModelSchema = z.object({
   id: z.string(),
   name: z.string(),

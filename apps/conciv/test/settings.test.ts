@@ -7,6 +7,7 @@ describe('parseConcivSettings', () => {
       modal: {enabled: true, position: 'bottom-right'},
       quickTerminal: {enabled: true, hotkeys: ['Mod+`']},
       defaultOpen: false,
+      launcher: 'mascot',
     }
     expect(parseConcivSettings('')).toEqual(expected)
     expect(parseConcivSettings('{nope')).toEqual(expected)
@@ -22,6 +23,14 @@ describe('parseConcivSettings', () => {
   it('reads modal position and validates unknown values back to the default', () => {
     expect(parseConcivSettings('{"modal": {"position": "top-left"}}').modal.position).toBe('top-left')
     expect(parseConcivSettings('{"modal": {"position": "under-the-sea"}}').modal.position).toBe('bottom-right')
+  })
+
+  it('defaults the launcher to the mascot and reads native or false explicitly', () => {
+    expect(parseConcivSettings('{}').launcher).toBe('mascot')
+    expect(parseConcivSettings('{"launcher": "mascot"}').launcher).toBe('mascot')
+    expect(parseConcivSettings('{"launcher": "native"}').launcher).toBe('native')
+    expect(parseConcivSettings('{"launcher": false}').launcher).toBe(false)
+    expect(parseConcivSettings('{"launcher": "bogus"}').launcher).toBe('mascot')
   })
 
   it('defaultOpen only on explicit true', () => {

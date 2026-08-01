@@ -1,6 +1,7 @@
 import {createSignal, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {Check, ChevronDown, CircleAlert, CircleX, LoaderCircle, type LucideIcon} from 'lucide-solid'
+import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import {Collapsible} from '@conciv/ui-kit-system'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primitives/tools/tool-fallback.js'
@@ -24,8 +25,15 @@ function formatToolDuration(ms: number): string {
   return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`
 }
 
-const PRE =
-  'm-0 max-h-80 overflow-auto rounded-[var(--chat-radius-sm)] p-2.5 text-[length:var(--chat-text-xs)] whitespace-pre-wrap [overflow-wrap:anywhere] [background:var(--chat-sunken)] [color:var(--chat-text)]'
+const CODE_OPTIONS: FileOptions<undefined> = {
+  theme: {light: 'github-light', dark: 'github-dark'},
+  themeType: 'system',
+  disableFileHeader: true,
+  disableLineNumbers: true,
+  overflow: 'wrap',
+}
+const CODE_CLASS =
+  'block max-h-80 overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)]'
 const BTN =
   'inline-flex items-center gap-1 py-1 px-2.5 rounded-[var(--chat-radius-sm)] [border:1px_solid] font-semibold text-[length:var(--chat-text-sm)] leading-none cursor-pointer'
 const ALLOW = `${BTN} text-[color:var(--chat-on-accent)] [border-color:var(--chat-accent)] [background:var(--chat-accent)] hover:[background:var(--chat-accent-hi)]`
@@ -93,7 +101,13 @@ function Args(): JSX.Element {
   const tool = useToolFallback()
   return (
     <Show when={tool.argsText()}>
-      <pre class={PRE}>{tool.argsText()}</pre>
+      {(text) => (
+        <SolidCodeBlock
+          class={CODE_CLASS}
+          options={CODE_OPTIONS}
+          file={{name: 'args.txt', lang: 'text', contents: text()}}
+        />
+      )}
     </Show>
   )
 }
@@ -104,7 +118,11 @@ function Result(): JSX.Element {
     <Show when={tool.resultText()}>
       <div>
         <p class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] font-medium m-0">Result:</p>
-        <pre class={`mt-1 ${PRE}`}>{tool.resultText()}</pre>
+        <SolidCodeBlock
+          class={`mt-1 ${CODE_CLASS}`}
+          options={CODE_OPTIONS}
+          file={{name: 'result.txt', lang: 'text', contents: tool.resultText()}}
+        />
       </div>
     </Show>
   )

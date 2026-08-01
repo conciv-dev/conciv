@@ -17,6 +17,7 @@ const acme = defineExtension({name: 'acme', tools: [echo]})
 async function echoedSession(base: string, headers: Record<string, string>): Promise<string> {
   const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`, headers}})
   try {
+    await mcp.callTool('conciv_discover_tools', {names: ['acme_echo_session']})
     const tool = (await mcp.tools()).find((candidate) => candidate.name === 'acme_echo_session')
     if (!tool?.execute) throw new Error('acme_echo_session not registered on /api/mcp')
     const raw = await tool.execute({})

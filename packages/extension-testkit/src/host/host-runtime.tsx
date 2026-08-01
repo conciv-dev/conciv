@@ -116,7 +116,7 @@ export function startHost(extension: AnyExtension): void {
       document.body.appendChild(el)
       render(
         () => (
-          <HostApiProvider rpc={rpc} apiBase={apiBase} toast={showToast} dialog={Dialog} popover={Popover}>
+          <HostApiProvider rpc={rpc} apiBase={() => apiBase} toast={showToast} dialog={Dialog} popover={Popover}>
             <AttachmentProvider value={pending}>
               <AttachmentByMime cards={cards} />
             </AttachmentProvider>
@@ -141,7 +141,7 @@ export function startHost(extension: AnyExtension): void {
     () => (
       <HostApiProvider
         rpc={rpc}
-        apiBase={apiBase}
+        apiBase={() => apiBase}
         toast={showToast}
         openEditor={(file, line) => void rpc.editor.open({file, line}).catch(() => {})}
         registerLayer={() => () => {}}

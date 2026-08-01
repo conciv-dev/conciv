@@ -1,5 +1,23 @@
 # conciv-e2e-nextjs-component
 
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [[`5396837`](https://github.com/conciv-dev/conciv/commit/53968379fbc6958eb2642d544f6f64791d811243)]:
+  - @conciv/it@0.0.17
+  - @conciv/extension-terminal@0.0.17
+  - @conciv/react@0.0.17
+
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
+  - @conciv/extension-terminal@0.0.16
+  - @conciv/it@0.0.16
+  - @conciv/react@0.0.16
+
 ## 0.1.7
 
 ### Patch Changes

@@ -91,6 +91,7 @@ describe('recorder extension booted in the real engine (IT)', () => {
     try {
       await recorderClient(base).flush({clientId: 'c1', events: fixtureStream(Date.now() - 2000)})
       const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+      await mcp.callTool('conciv_discover_tools', {names: ['recording_start', 'recording_stop', 'recording_pull']})
       const tools = await mcp.tools()
       const names = tools.map((tool) => tool.name)
       expect(names).toEqual(expect.arrayContaining(['recording_start', 'recording_stop', 'recording_pull']))
@@ -116,6 +117,7 @@ describe('recorder extension booted in the real engine (IT)', () => {
         for await (const message of control) seen.push(message)
       })()
       const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+      await mcp.callTool('conciv_discover_tools', {names: ['recording_start', 'recording_stop']})
       const tools = await mcp.tools()
       const startRecording = tools.find((tool) => tool.name === 'recording_start')
       const stopRecording = tools.find((tool) => tool.name === 'recording_stop')

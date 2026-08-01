@@ -170,8 +170,12 @@ export function canonicalToolName(name: string): string {
   return name.replace(MCP_PREFIX, '').replace(SEPARATORS, '.')
 }
 
+export function riskyMatches(risky: ReadonlySet<string>, toolName: string): boolean {
+  return risky.has(canonicalToolName(toolName))
+}
+
 export function needsApproval(toolName: string, toolInput: unknown, risky: ReadonlySet<string>): boolean {
-  if (risky.has(canonicalToolName(toolName))) return true
+  if (riskyMatches(risky, toolName)) return true
   if (toolName !== 'Bash') return false
   const parsed = BashInputSchema.safeParse(toolInput)
   return classifyCommand(parsed.success ? parsed.data.command : '') !== 'allow'

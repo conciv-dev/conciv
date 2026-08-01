@@ -8,7 +8,7 @@ import {
   ChatModelsSchema,
   ChatToolsSchema,
   HarnessSessionId,
-  NavigationStateSchema,
+  NavigationWriteSchema,
   PermissionDecisionSchema,
   SendBlockedSchema,
   SendConfirmSchema,
@@ -36,6 +36,7 @@ const ChatSendInput = SessionIdInput.extend({
 }).refine((input) => input.text !== undefined || input.content !== undefined)
 const Ok = z.object({ok: z.literal(true)})
 const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
+const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const busy = {BUSY: {message: 'session busy'}}
 const sessionAttached = {SESSION_ATTACHED: {message: 'this session is driven from your terminal'}}
 const notFound = {NOT_FOUND: {message: 'session not found'}}
@@ -96,8 +97,8 @@ export const contract = {
     list: oc.input(SessionIdInput).output(z.array(MarkerRowSchema)),
   },
   navigation: {
-    get: oc.output(NavigationStateSchema.nullable()),
-    set: oc.input(NavigationStateSchema).output(Ok),
+    get: oc.output(NavigationWriteSchema.nullable()),
+    set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
     attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),

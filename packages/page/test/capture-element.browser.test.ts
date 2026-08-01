@@ -26,30 +26,30 @@ function mountStyled(): HTMLElement {
 describe('captureElement', () => {
   it('clones with inlined computed styles and measured size', async () => {
     const el = mountStyled()
-    const snapshot = await captureElement(el)
-    expect(snapshot.width).toBeGreaterThan(0)
-    const clone = snapshot.node.querySelector('section')
+    const preview = await captureElement(el)
+    expect(preview.width).toBeGreaterThan(0)
+    const clone = preview.node.querySelector('section')
     expect(clone).not.toBeNull()
     expect(clone?.style.color).toBe('rgb(0, 128, 0)')
-    const child = snapshot.node.querySelector('span')
+    const child = preview.node.querySelector('span')
     expect(child?.style.fontWeight).toBe('700')
   })
 
   it('captures pseudo-element rules into a scoped stylesheet', async () => {
     const el = mountStyled()
-    const snapshot = await captureElement(el)
-    const sheet = snapshot.node.querySelector('style')?.textContent ?? ''
+    const preview = await captureElement(el)
+    const sheet = preview.node.querySelector('style')?.textContent ?? ''
     expect(sheet).toContain('::before')
     expect(sheet).toContain('content:"★"')
-    const clone = snapshot.node.querySelector('section')
+    const clone = preview.node.querySelector('section')
     expect([...(clone?.classList ?? [])].some((cls) => cls.startsWith('pw-grab-pseudo-'))).toBe(true)
   })
 
   it('strips ids and neutralizes the root layout', async () => {
     const el = mountStyled()
-    const snapshot = await captureElement(el)
-    expect(snapshot.node.querySelector('[id]')).toBeNull()
-    const clone = snapshot.node.querySelector('section')
+    const preview = await captureElement(el)
+    expect(preview.node.querySelector('[id]')).toBeNull()
+    const clone = preview.node.querySelector('section')
     expect(clone?.style.position).toBe('static')
     expect(clone?.style.margin).toBe('0px')
   })

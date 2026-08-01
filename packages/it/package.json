@@ -1,6 +1,6 @@
 {
   "name": "@conciv/it",
-  "version": "0.0.15",
+  "version": "0.0.17",
   "description": "Conceive it. The conciv dev agent, one install. Plugin for vite, webpack, rspack, rollup, esbuild, nextjs.",
   "keywords": [
     "ai",
@@ -61,19 +61,26 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
   },
   "dependencies": {
     "@conciv/embed": "workspace:^",
+    "@conciv/extension-compiler": "workspace:^",
+    "@conciv/extension-ios": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-test-runner": "workspace:^",
     "@conciv/extension-whiteboard": "workspace:^",
     "@conciv/plugin": "workspace:^"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
     "tsdown": "^0.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
     "next": "^15.3.0 || ^16.0.0",

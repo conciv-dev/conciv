@@ -11,8 +11,7 @@ export default defineConfig({
     ...ciTest(),
     projects: [
       {
-        resolve: {conditions: ['browser', 'development']},
-        ssr: {resolve: {conditions: ['browser', 'development'], externalConditions: ['browser', 'development']}},
+        extends: true,
         test: {
           name: 'ui-kit-chat',
           environment: 'node',
@@ -23,7 +22,7 @@ export default defineConfig({
         },
       },
       {
-        resolve: {conditions: ['browser', 'development']},
+        extends: true,
         plugins: [solidPlugin(), UnoCSS({content: {filesystem: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}']}})],
         test: {
           name: 'ui-kit-chat-browser',

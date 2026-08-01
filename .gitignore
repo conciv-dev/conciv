@@ -16,6 +16,7 @@ coverage/
 .aidx/
 # Claude Code local worktrees (git worktrees created under the repo)
 .claude/worktrees/
+.claude-worktrees/
 
 *storybook.log
 storybook-static
@@ -46,3 +47,9 @@ e2e/*/src/routeTree.gen.ts
 .tanstack-mcp-bridge-*.json
 
 .migration-stash/
+
+# Swift SDK build artifacts (native/swift/ConcivWidget)
+.build/
+.swiftpm/
+*.xcresult
+

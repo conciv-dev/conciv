@@ -3,7 +3,7 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "outputs": ["dist/**", ".wrangler/**"]
+      "outputs": ["dist/**", ".wrangler/deploy/**"]
     },
     "test:e2e": {
       "dependsOn": ["^build", "build"]

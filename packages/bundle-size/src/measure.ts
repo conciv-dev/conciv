@@ -10,7 +10,8 @@ const PACKAGE_GROUPS = ['packages', 'packages/extensions']
 const BUNDLED_EXTENSIONS = ['.js', '.mjs', '.cjs', '.css']
 const WIDGET_BUNDLE = 'packages/embed/dist/conciv-widget.global.js'
 
-const SITE_SERVER_DIST = 'apps/site/dist/server'
+const SITE_WORKER_CONFIG = 'dist/server/wrangler.json'
+const SITE_WORKER_CONFIG_FROM_ROOT = `apps/site/${SITE_WORKER_CONFIG}`
 export const WORKER_NAME = 'conciv.dev worker (apps/site)'
 export const WORKER_LIMIT_KIB = 3 * 1024
 
@@ -110,20 +111,31 @@ export function workerIsOverBudget(report: WorkerReport, limitKib: number): bool
 }
 
 export function workerIsBuilt(root: string): boolean {
-  return existsSync(join(root, SITE_SERVER_DIST))
+  return existsSync(join(root, SITE_WORKER_CONFIG_FROM_ROOT))
 }
 
 export function measureWorker(root: string): WorkerReport {
   if (!workerIsBuilt(root)) {
     throw new Error(
-      `${SITE_SERVER_DIST} is missing, so the worker size cannot be measured. Build it first: pnpm exec turbo run build --filter=site`,
+      `${SITE_WORKER_CONFIG_FROM_ROOT} is missing, so the worker size cannot be measured. Build it first: pnpm exec turbo run build --filter=site`,
     )
   }
   const outputDirectory = mkdtempSync(join(tmpdir(), 'conciv-worker-size-'))
   try {
     const output = execFileSync(
       'pnpm',
-      ['--filter', 'site', 'exec', 'wrangler', 'deploy', '--dry-run', '--outdir', outputDirectory],
+      [
+        '--filter',
+        'site',
+        'exec',
+        'wrangler',
+        'deploy',
+        '--dry-run',
+        '--config',
+        SITE_WORKER_CONFIG,
+        '--outdir',
+        outputDirectory,
+      ],
       {
         cwd: root,
         encoding: 'utf8',

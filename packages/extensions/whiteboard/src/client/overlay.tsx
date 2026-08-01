@@ -104,7 +104,7 @@ function Canvas(props: {state: SurfaceState; room: Accessor<string>; self: Self}
   return (
     <CommentsProvider
       room={props.room}
-      apiBase={apiBase}
+      apiBase={apiBase()}
       canvasOpen={props.state.open}
       onComposeSettled={onComposeSettled}
     >
@@ -133,7 +133,7 @@ function Board(props: {state: SurfaceState}): JSX.Element {
   return (
     <Show when={sessionId()} keyed fallback={<SessionPending />}>
       {(session) => (
-        <WhiteboardDbProvider apiBase={apiBase} room={session}>
+        <WhiteboardDbProvider apiBase={apiBase()} room={session}>
           <Canvas state={props.state} room={() => session} self={selfIdentity(window)} />
         </WhiteboardDbProvider>
       )}

@@ -35,3 +35,19 @@ test('buildChatTools yields conciv + extension tools bound to the session', asyn
   const extension = tools.find((tool) => tool.name === 'ext_tool')
   await expect(extension?.execute?.({})).resolves.toEqual({sessionId: 'session-9', model: 'opus'})
 })
+
+test('extension tools are lazy, conciv tools are eager', () => {
+  const tools = buildChatTools(
+    () => ({
+      askUi: async () => ({answered: false, note: ''}),
+      page: async () => ({ok: false as const, error: 'none'}),
+      open: () => {},
+    }),
+    [{name: 'ext_tool', description: 'extension tool', inputSchema: z.object({}), execute: async () => 'ok'}],
+    () => null,
+  )('session-1')
+  const extension = tools.find((tool) => tool.name === 'ext_tool')
+  const core = tools.find((tool) => tool.name !== 'ext_tool')
+  expect(extension?.lazy).toBe(true)
+  expect(core?.lazy).toBeFalsy()
+})

@@ -14,6 +14,8 @@ export type HarnessCapabilities = {
   slashCommands: 'live' | 'files' | 'none'
 
   imageInput: 'native' | 'fileRef' | false
+
+  codeMode?: boolean
 }
 
 export type HarnessImage = {mediaType: string; dataBase64: string}
@@ -96,6 +98,7 @@ export type HarnessChatDeps = {
   model?: string
   env: Record<string, string | undefined>
   kind: 'chat' | 'compact'
+  hasTools?: boolean
   decide(toolName: string, input: unknown, toolUseId: string): Promise<'allow' | 'deny'>
 }
 

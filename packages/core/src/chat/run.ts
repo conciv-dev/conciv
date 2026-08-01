@@ -5,6 +5,7 @@ import {
   chat,
   EventType,
   StreamProcessor,
+  type AnyTool,
   type ContentPart,
   type ModelMessage,
   type StreamChunk,
@@ -43,7 +44,9 @@ import {
 } from './session.js'
 import {mergedMessages, runIdFor, transcriptMessages} from './attach.js'
 import {attachedElsewhere, SESSION_ATTACHED} from './adopt.js'
-import {makeRunGate, processorAsk, withConcivGate, withConcivSandbox} from './gate.js'
+import {makeRunGate, processorAsk, withConcivGate, withConcivSandbox, type PermissionGate} from './gate.js'
+import {makeCodeMode} from './code-mode.js'
+import {codeModeToolChunks} from './code-mode-parts.js'
 import {harnessDebug, logError} from '../lib/debug.js'
 
 export type RunRequest = {
@@ -82,6 +85,19 @@ function runMessagesFor(deps: ChatDeps, req: RunRequest): ModelMessage[] {
   return req.messages
 }
 
+function codeModeExtras(
+  deps: ChatDeps,
+  sessionId: string,
+  req: RunRequest,
+  gate: PermissionGate,
+): {systemPrompts: string[]; tools: AnyTool[]} {
+  const codeMode = deps.harness.capabilities.codeMode
+    ? makeCodeMode(deps.extensionServerTools(), {sessionId, model: req.model ?? null}, gate)
+    : null
+  const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
+  return {systemPrompts, tools: [...deps.tools(sessionId), ...(codeMode?.tools ?? [])]}
+}
+
 async function buildRunStream(
   deps: ChatDeps,
   sessionId: string,
@@ -99,6 +115,7 @@ async function buildRunStream(
     changes: deps.changes,
     risky: deps.risky,
   })
+  const extras = codeModeExtras(deps, sessionId, req, gate)
   const config = deps.harness.chatConfig({
     cwd: deps.cwd,
     sessionId,
@@ -106,15 +123,17 @@ async function buildRunStream(
     model: req.model ?? undefined,
     env: deps.harnessEnv?.(sessionId) ?? process.env,
     kind: req.kind,
+    hasTools: extras.tools.length > 0,
     decide: (toolName, input, toolUseId) => gate.decide(toolName, input, sessionId, toolUseId),
   })
   const messages = runMessagesFor(deps, req)
   return chat({
     adapter: config.adapter,
     messages: config.prepareMessages?.(messages) ?? messages,
-    systemPrompts: deps.systemText ? [deps.systemText] : [],
+    systemPrompts: extras.systemPrompts,
     threadId: sessionId,
-    tools: deps.tools(sessionId),
+    tools: extras.tools,
+    lazyToolsConfig: {includeDescription: 'first-sentence'},
     modelOptions: config.modelOptions,
     middleware: [withConcivSandbox(deps.sandbox), withConcivGate(gate, sessionId)],
     abortController: abort,
@@ -160,6 +179,18 @@ async function claimMintedToken(
   outcome.error = detail
 }
 
+function foldToolChunks(processor: StreamProcessor, chunk: StreamChunk): boolean {
+  const toolChunks = codeModeToolChunks(chunk)
+  if (!toolChunks) return false
+  toolChunks.forEach((synthesized) => processor.processChunk(synthesized))
+  return true
+}
+
+function noteRunUsage(deps: ChatDeps, req: RunRequest, chunk: StreamChunk, outcome: RunOutcome): void {
+  if (chunk.type !== EventType.RUN_FINISHED || chunk.finishReason === 'tool_calls' || !chunk.usage) return
+  outcome.usage = usageSnapshotFor(deps, req.model ?? deps.harness.defaultModel ?? null, chunk.usage)
+}
+
 async function foldRunStream(
   deps: ChatDeps,
   sessionId: string,
@@ -169,15 +200,14 @@ async function foldRunStream(
   outcome: RunOutcome,
 ): Promise<void> {
   for await (const chunk of stream) {
+    if (foldToolChunks(processor, chunk)) continue
     processor.processChunk(chunk)
     await claimMintedToken(deps, sessionId, chunk, outcome)
     if (chunk.type === EventType.RUN_ERROR) {
       outcome.error = chunk.message || 'run failed'
       return
     }
-    if (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls' && chunk.usage) {
-      outcome.usage = usageSnapshotFor(deps, req.model ?? deps.harness.defaultModel ?? null, chunk.usage)
-    }
+    noteRunUsage(deps, req, chunk, outcome)
   }
 }
 

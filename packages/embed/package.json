@@ -1,6 +1,6 @@
 {
   "name": "@conciv/embed",
-  "version": "0.0.15",
+  "version": "0.0.17",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). Also powers the @conciv/react and @conciv/preact wrapper components. The conciv embed bundle: mounts the conciv router app into a Shadow DOM on the host page and starts the page plane. Inlines the private conciv app and @conciv/page; externalizes shared Solid/Ark/@conciv packages.",
   "keywords": [
     "ai",
@@ -32,7 +32,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && vite build --config vite.global.config.ts && tsc -p tsconfig.build.json",
+    "build": "vite build && vite build --config vite.global.config.ts && vite build --config vite.native.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vite build --config vite.handle.config.ts && vitest run",
@@ -44,14 +44,17 @@
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
+    "@conciv/extension-ios": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/storage-history": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@tanstack/pacer": "^0.21.1",
     "@tanstack/solid-router": "^1.170.17",
     "bippy": "0.5.41",
     "react-grab": "^0.1.44",

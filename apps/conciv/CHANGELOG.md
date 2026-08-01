@@ -1,5 +1,41 @@
 # conciv
 
+## 0.0.17
+
+### Patch Changes
+
+- Updated dependencies [[`2aa2b01`](https://github.com/conciv-dev/conciv/commit/2aa2b01db001973dd3432253fabc915462b3ec85), [`cf6fc75`](https://github.com/conciv-dev/conciv/commit/cf6fc75ddc841c4fd01b331b93568af7283b320a)]:
+  - @conciv/ui-kit-chat@0.0.17
+  - @conciv/ui-kit-chat-tools@0.0.17
+  - @conciv/client@0.0.17
+  - @conciv/contract@0.0.17
+  - @conciv/extension@0.0.17
+  - @conciv/grab@0.0.17
+  - @conciv/mascot@0.0.17
+  - @conciv/page@0.0.17
+  - @conciv/protocol@0.0.17
+  - @conciv/solid-diffs@0.0.17
+  - @conciv/solid-streamdown@0.0.17
+  - @conciv/ui-kit-system@0.0.17
+
+## 0.0.16
+
+### Patch Changes
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
+  - @conciv/extension@0.0.16
+  - @conciv/protocol@0.0.16
+  - @conciv/grab@0.0.16
+  - @conciv/ui-kit-chat@0.0.16
+  - @conciv/ui-kit-chat-tools@0.0.16
+  - @conciv/page@0.0.16
+  - @conciv/client@0.0.16
+  - @conciv/contract@0.0.16
+  - @conciv/mascot@0.0.16
+  - @conciv/solid-diffs@0.0.16
+  - @conciv/solid-streamdown@0.0.16
+  - @conciv/ui-kit-system@0.0.16
+
 ## 0.0.15
 
 ### Patch Changes

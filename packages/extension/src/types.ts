@@ -2,10 +2,12 @@ import type {Component, JSX} from 'solid-js'
 import type {z} from 'zod'
 import type {ContentPart} from '@tanstack/ai'
 import type {AnyRouter} from '@orpc/server'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {HarnessConnectContext, TranscriptHandle} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {SendVerdict, TokenClaim} from '@conciv/protocol/chat-types'
+import type {PageCaller, PageVerbMap} from './page-verbs.js'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -25,6 +27,7 @@ export type ExtensionServerTool = {
   name: string
   description: string
   inputSchema: z.ZodObject<z.ZodRawShape>
+  approval?: 'ask'
   execute: (input: unknown, request: ToolRequest) => Promise<unknown>
 }
 
@@ -49,8 +52,9 @@ export type ExtensionTool = {
   __render?: ToolRenderer
 }
 
-export type ClientFactoryResult<ClientReturnValue extends object> = {
+export type ClientFactoryResult<ClientReturnValue extends object, Verbs extends PageVerbMap = Record<never, never>> = {
   value: ClientReturnValue
+  pageVerbs?: Verbs
   dispose?: () => void
 }
 
@@ -76,13 +80,16 @@ export type ServerHarness = {
   observeTranscript?: (token: string) => Promise<TranscriptHandle | null>
 }
 
-export type ServerApi<Config> = {
+export type ServerApi<Config, Verbs extends PageVerbMap = Record<never, never>> = {
   config: Config
   cwd: string
   basePath: string
   stateDir: string
   sessions: ServerSessions
   harness: ServerHarness
+  page: PageCaller<Verbs>
+  bundler?: BundlerBridge
+  nativeUrl: () => string | undefined
 }
 
 export type ServerResult<Context> = {
@@ -94,6 +101,12 @@ export type ServerResult<Context> = {
 }
 
 export type ConfigOf<Schema> = [Schema] extends [z.ZodNever] ? Record<never, never> : z.output<Schema>
+
+export type ExtensionPromptContext = {cwd: string}
+
+export type SystemPromptFactory<Config> = (config: Config, context: ExtensionPromptContext) => string
+
+export type SystemPromptResolver = (config: unknown, context: ExtensionPromptContext) => string | undefined
 
 export type UnionToIntersection<Union> = (Union extends unknown ? (incoming: Union) => void : never) extends (
   merged: infer Intersection,

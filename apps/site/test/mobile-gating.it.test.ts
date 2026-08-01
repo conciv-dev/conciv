@@ -1,34 +1,22 @@
-import {spawn, type ChildProcess} from 'node:child_process'
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {afterAll, beforeAll, describe, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {chromium, devices, type Browser} from 'playwright'
+import {startWranglerDev, type WranglerDev} from './wrangler-dev'
 
 const SITE_PORT = 8788
 const INSPECTOR_PORT = 9788
 const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
-let site: ChildProcess
+let site: WranglerDev
 let browser: Browser
 
 beforeAll(async () => {
-  site = spawn(
-    'pnpm',
-    ['exec', 'wrangler', 'dev', '--port', String(SITE_PORT), '--inspector-port', String(INSPECTOR_PORT)],
-    {cwd: import.meta.dirname + '/..'},
-  )
-  await new Promise<void>((resolve, reject) => {
-    const output: string[] = []
-    site.stdout?.on('data', (chunk: Buffer) => {
-      output.push(String(chunk))
-      if (String(chunk).includes('Ready')) resolve()
-    })
-    site.stderr?.on('data', (chunk: Buffer) => output.push(String(chunk)))
-    site.on('exit', () => reject(new Error(`wrangler dev exited:\n${output.join('')}`)))
-  })
+  site = await startWranglerDev({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
   browser = await chromium.launch()
 }, 120_000)
 
 afterAll(async () => {
   await browser?.close()
-  site?.kill()
+  await site?.stop()
 })
 
 describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
@@ -36,9 +24,9 @@ describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
     const page = await browser.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
 
-    await expect.poll(() => page.locator('[data-conciv-root]').count(), {timeout: 20_000}).toBe(1)
-    await expect.poll(() => page.getByRole('button', {name: 'Copy install command'}).isVisible()).toBe(true)
-    await expect.poll(() => page.getByRole('button', {name: /Try it live/i}).isVisible()).toBe(true)
+    await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(1, {timeout: 20_000})
+    await expectLocator(page.getByRole('button', {name: 'Copy install command'})).toBeVisible()
+    await expectLocator(page.getByRole('button', {name: /Try it live/i})).toBeVisible()
 
     await page.close()
   }, 60_000)
@@ -48,9 +36,9 @@ describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
     const page = await context.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
 
-    await expect.poll(() => page.getByRole('button', {name: 'Copy install command'}).count(), {timeout: 20_000}).toBe(0)
-    await expect.poll(() => page.getByRole('button', {name: /Try it live/i}).count()).toBe(0)
-    await expect.poll(() => page.locator('[data-conciv-root]').count()).toBe(0)
+    await expectLocator(page.getByRole('button', {name: 'Copy install command'})).toHaveCount(0, {timeout: 20_000})
+    await expectLocator(page.getByRole('button', {name: /Try it live/i})).toHaveCount(0)
+    await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(0)
 
     await context.close()
   }, 60_000)

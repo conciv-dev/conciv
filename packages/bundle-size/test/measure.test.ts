@@ -148,7 +148,7 @@ test('parseSizes tolerates an unusable baseline instead of crashing the gate', (
 test('measureWorker refuses to silently skip when the site is not built', async () => {
   const unbuilt = await mkdtemp(join(tmpdir(), 'conciv-unbuilt-'))
   expect(workerIsBuilt(unbuilt)).toBe(false)
-  expect(() => measureWorker(unbuilt)).toThrow(/dist\/server is missing/)
+  expect(() => measureWorker(unbuilt)).toThrow(/dist\/server\/wrangler\.json is missing/)
   await rm(unbuilt, {recursive: true, force: true})
 })
 

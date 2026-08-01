@@ -8,11 +8,18 @@ import {
 } from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {AnyExtension} from '@conciv/extension'
+import type {HarnessModel} from '@conciv/protocol/harness-types'
 
 export type CoreKit = Kit & {harness: FakeHarness; terminal: RecordingTerminalOpener}
 
-export async function bootCoreKit(opts: {id: string; text?: string; extensions?: AnyExtension[]}): Promise<CoreKit> {
-  const harness = createFakeHarness({id: opts.id, text: opts.text ?? 'Hello from conciv'})
+export async function bootCoreKit(opts: {
+  id: string
+  text?: string
+  extensions?: AnyExtension[]
+  models?: HarnessModel[]
+  nativePageDir?: string
+}): Promise<CoreKit> {
+  const harness = createFakeHarness({id: opts.id, text: opts.text ?? 'Hello from conciv', models: opts.models})
   const terminal = createRecordingTerminalOpener()
   const kit = await createTestkit(harness, async (env) => {
     const {app, disposers} = await makeApp({
@@ -31,6 +38,7 @@ export async function bootCoreKit(opts: {id: string; text?: string; extensions?:
       openTerminal: terminal.open,
       harness: env.harness,
       extensions: opts.extensions,
+      nativePageDir: opts.nativePageDir,
     })
     return {
       fetch: app.fetch,

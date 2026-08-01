@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin",
-  "version": "0.0.15",
+  "version": "0.0.17",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv dev agent as an unplugin: vite (full: viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
   "keywords": [
     "conciv",
@@ -77,6 +77,8 @@
     "@conciv/extension": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "chokidar": "^5.0.0",
+    "knitwork": "^1.3.0",
     "launch-editor": "^2.14.1",
     "unplugin": "^3.0.0"
   },

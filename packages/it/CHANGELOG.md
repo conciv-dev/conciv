@@ -1,5 +1,41 @@
 # @conciv/it
 
+## 0.0.17
+
+### Patch Changes
+
+- [#151](https://github.com/conciv-dev/conciv/pull/151) [`5396837`](https://github.com/conciv-dev/conciv/commit/53968379fbc6958eb2642d544f6f64791d811243) Thanks [@omridevk](https://github.com/omridevk)! - Restore pairing-file discovery for hosts that install @conciv/it. A dev core again writes
+  `~/.conciv/dev-endpoint.json`, so the iOS SDK finds the running dev server instead of falling back to
+  probing a fixed list of ports. The temporary-directory location that 0.0.16 forced on every run is
+  now a plugin option, `devEndpointDir`, that a host sets when it wants the pairing file elsewhere.
+- Updated dependencies [[`0d2ddf6`](https://github.com/conciv-dev/conciv/commit/0d2ddf6cb63baa58095a70faf9783c12a895928c), [`d76c337`](https://github.com/conciv-dev/conciv/commit/d76c337ba404b1f5c23a6f548a92e008f09490dd)]:
+  - @conciv/embed@0.0.17
+  - @conciv/extension-ios@0.0.17
+  - @conciv/extension-terminal@0.0.17
+  - @conciv/extension-test-runner@0.0.17
+  - @conciv/extension-whiteboard@0.0.17
+  - @conciv/plugin@0.0.17
+  - @conciv/extension-compiler@0.0.17
+
+## 0.0.16
+
+### Patch Changes
+
+- [#126](https://github.com/conciv-dev/conciv/pull/126) [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b) Thanks [@omridevk](https://github.com/omridevk)! - First-party extensions are folder-installable: `pnpm add @conciv/extension-<name>`, drop a one-line re-export in `conciv/extensions/<name>.tsx`, and both halves load on every supported framework.
+
+  Every published extension (tanstack, terminal, test-runner, whiteboard, recorder) ships per-environment conditional exports: the `browser` condition resolves `dist/client.js`, the `import` condition resolves `dist/server.js`, with per-condition `types`, plus an explicit `./server` subpath. `@conciv/extension-compiler` gains the shared discovery primitives (`@conciv/extension-compiler/dedupe`: provenance-carrying `dedupeExtensions`, `toSortedEntries`, `isExtension`) used by both the server loader and every client path; `loadServerExtensions` now matches files exactly (no directories, no `.d.ts`), treats a missing default export as fatal, and reports every dropped entry with its source and reason. `listExtensionFiles` is the single fs listing primitive.
+
+  Next.js support (Turbopack and `next dev --webpack`, current GA line): `withConciv` generates an app-local `.conciv/extensions-client.gen.tsx` entry (knitwork static imports, idempotent) and wires it to the widget via `turbopack.resolveAlias`/webpack alias as `@conciv/app-extensions`; `register()` runs a chokidar watcher that regenerates the entry live on add/remove. The widget stays lazy (dynamic imports behind the dev-only guard), the engine register entrypoints are stubbed out of Next edge-runtime compilations, and the generated client module now threads a resolved dedupe entry so dist-mode consumers boot. The tanstack extension renders a mount-time composer chip as its client-active surface and degrades gracefully in apps without a TanStack router.
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`1019e21`](https://github.com/conciv-dev/conciv/commit/1019e213fc99b84d0931a50cffa2cd602fd31e0e), [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4), [`7627eba`](https://github.com/conciv-dev/conciv/commit/7627eba4ffaddd6e85289724759f41d75b5c2e7b)]:
+  - @conciv/extension-terminal@0.0.16
+  - @conciv/extension-test-runner@0.0.16
+  - @conciv/extension-whiteboard@0.0.16
+  - @conciv/extension-compiler@0.0.16
+  - @conciv/plugin@0.0.16
+  - @conciv/extension-ios@0.0.16
+  - @conciv/embed@0.0.16
+
 ## 0.0.15
 
 ### Patch Changes

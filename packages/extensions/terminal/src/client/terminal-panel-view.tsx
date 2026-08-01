@@ -77,14 +77,14 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
   const openTerminal = async (cols: number, rows: number): Promise<void> => {
     const id = sessionId()
     if (!id) throw openError(undefined)
-    await terminalClient(apiBase)
+    await terminalClient(apiBase())
       .open({sessionId: id, cols, rows, model: store.spawnModel() ?? undefined})
       .catch((error: unknown) => {
         throw openError(error)
       })
   }
   const model = createTerminalModel({
-    url: (terminal) => wsUrl(apiBase, sessionId(), terminal.cols, terminal.rows),
+    url: (terminal) => wsUrl(apiBase(), sessionId(), terminal.cols, terminal.rows),
     beforeConnect: async (terminal) => {
       setOpenFailed(null)
       await openTerminal(terminal.cols, terminal.rows).catch((error: Error) => {
@@ -142,7 +142,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
     store.setBusy(false)
   })
   const railCtx = (): ToolViewCtx => ({
-    apiBase,
+    apiBase: apiBase(),
     harnessId: meta()?.harness.id ?? '',
     sendMessage: () => {},
     respondApproval: () => {},
@@ -163,7 +163,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
         model={model}
         onBackToChat={() => leaveView()}
         class="flex-1 min-h-0"
-        rail={<MirrorRail apiBase={apiBase} sessionId={sessionId} ctx={railCtx()} busy={model.busy} />}
+        rail={<MirrorRail apiBase={apiBase()} sessionId={sessionId} ctx={railCtx()} busy={model.busy} />}
       />
     </Show>
   )
@@ -184,7 +184,7 @@ export function TerminalPanelView(): JSX.Element {
     try {
       const id = sessionId()
       if (id)
-        await terminalClient(apiBase)
+        await terminalClient(apiBase())
           .close({sessionId: id})
           .catch(() => {})
       setOpenKey((key) => key + 1)

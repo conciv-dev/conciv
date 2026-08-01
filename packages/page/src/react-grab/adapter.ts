@@ -36,8 +36,8 @@ async function create(): Promise<ReactGrabAdapter> {
   const deliver = async (element: Element, text: string): Promise<void> => {
     const box = element.getBoundingClientRect()
     const rect = {x: box.x, y: box.y, width: box.width, height: box.height}
-    const [snapshot, info] = await Promise.all([captureElement(element), api.getSource(element)])
-    sink?.({text, snapshot, source: toElementSource(info), rect})
+    const [preview, info] = await Promise.all([captureElement(element), api.getSource(element)])
+    sink?.({text, preview, source: toElementSource(info), rect})
   }
   const hooks = {
     onActivate: () => setPicking(true),

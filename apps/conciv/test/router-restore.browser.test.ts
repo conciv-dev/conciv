@@ -1,8 +1,9 @@
 import {describe, expect, it} from 'vitest'
 import {createWebStorageHistory, type WebStorage} from '@conciv/storage-history'
 import {makeRpcClient} from '@conciv/contract'
+import {defineExtension} from '@conciv/extension'
 import {parseConcivSettings} from '../src/data/settings.js'
-import {createConcivRouter} from '../src/router.js'
+import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
 
 function makeMemoryStorage(): WebStorage {
   const map = new Map<string, string>()
@@ -44,5 +45,27 @@ describe('createConcivRouter with storage-history', () => {
     expect(router.state.location.search).toEqual({panes: 'conciv_abc123', focus: 0})
     router.history.back()
     expect(router.history.location.pathname).toBe('/panel/conciv_abc123')
+  })
+
+  it('invokes every extension instance disposer on teardown, even when one throws', () => {
+    const order: string[] = []
+    const first = defineExtension({name: 'dispose-a'}).client(() => ({value: {}, dispose: () => order.push('a')}))
+    const second = defineExtension({name: 'dispose-b'}).client(() => ({
+      value: {},
+      dispose: () => {
+        order.push('b')
+        throw new Error('teardown b blew up')
+      },
+    }))
+    const third = defineExtension({name: 'dispose-c'}).client(() => ({value: {}, dispose: () => order.push('c')}))
+    const router = createConcivRouter({
+      rpc: makeRpcClient('http://127.0.0.1:9'),
+      history: createWebStorageHistory({storage: makeMemoryStorage()}),
+      environment: {rootNode: document, document},
+      settings: parseConcivSettings(''),
+      extensions: [first, second, third],
+    })
+    expect(() => disposeConcivRouter(router)).not.toThrow()
+    expect(order).toEqual(['a', 'b', 'c'])
   })
 })

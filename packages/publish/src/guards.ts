@@ -44,6 +44,8 @@ export const PUBLIC_PACKAGES = [
   '@conciv/extension-whiteboard',
   '@conciv/extension-terminal',
   '@conciv/extension-recorder',
+  '@conciv/extension-tanstack',
+  '@conciv/extension-ios',
   '@conciv/mascot',
   '@conciv/embed',
   '@conciv/react',

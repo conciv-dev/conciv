@@ -1,5 +1,23 @@
 # nextjs-app
 
+## 0.1.17
+
+### Patch Changes
+
+- Updated dependencies [[`5396837`](https://github.com/conciv-dev/conciv/commit/53968379fbc6958eb2642d544f6f64791d811243), [`0d2ddf6`](https://github.com/conciv-dev/conciv/commit/0d2ddf6cb63baa58095a70faf9783c12a895928c)]:
+  - @conciv/it@0.0.17
+  - @conciv/embed@0.0.17
+  - @conciv/extension-tanstack@0.0.17
+
+## 0.1.16
+
+### Patch Changes
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`1019e21`](https://github.com/conciv-dev/conciv/commit/1019e213fc99b84d0931a50cffa2cd602fd31e0e), [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`7627eba`](https://github.com/conciv-dev/conciv/commit/7627eba4ffaddd6e85289724759f41d75b5c2e7b)]:
+  - @conciv/extension-tanstack@0.0.16
+  - @conciv/it@0.0.16
+  - @conciv/embed@0.0.16
+
 ## 0.1.15
 
 ### Patch Changes

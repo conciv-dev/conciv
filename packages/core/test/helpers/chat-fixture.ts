@@ -35,6 +35,8 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     dialed: () => false,
     risky: new Set<string>(),
     tools: () => [],
+    toolNames: new Set<string>(),
+    extensionServerTools: () => [],
     attachmentExpanders: {},
     openTerminal: createRecordingTerminalOpener().open,
   }

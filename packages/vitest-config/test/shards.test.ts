@@ -5,9 +5,13 @@ import {expect, test} from 'vitest'
 import {
   DEFAULT_PACKAGE_MS,
   discoverPackages,
+  E2E_HARNESS_PACKAGE,
+  E2E_SHARD_SIZING,
+  e2ePackages,
   PACKAGE_GROUPS,
   PACKAGES_WITH_DEDICATED_JOBS,
   parseTimings,
+  planE2eShards,
   planShards,
   plannedPackages,
   TARGET_SHARD_MS,
@@ -15,7 +19,11 @@ import {
 } from '../src/shards.ts'
 
 function pkg(name: string, browser = false): WorkspacePackage {
-  return {name, browser}
+  return {name, browser, e2e: false}
+}
+
+function e2ePkg(name: string): WorkspacePackage {
+  return {name, browser: true, e2e: true}
 }
 
 function writeManifest(root: string, dir: string, manifest: Record<string, unknown>): void {
@@ -31,10 +39,10 @@ test('discoverPackages finds workspace packages and flags browser dependencies',
   writeManifest(root, 'packages/extensions/board', {name: '@x/board', devDependencies: {playwright: '^1'}})
   mkdirSync(join(root, 'packages', 'no-manifest'))
   expect(discoverPackages(root, ['packages', 'packages/extensions'])).toEqual([
-    {name: '@x/board', browser: true},
-    {name: '@x/core', browser: false},
-    {name: '@x/embed', browser: true},
-    {name: '@x/ui', browser: true},
+    {name: '@x/board', browser: true, e2e: false},
+    {name: '@x/core', browser: false, e2e: false},
+    {name: '@x/embed', browser: true, e2e: false},
+    {name: '@x/ui', browser: true, e2e: false},
   ])
 })
 
@@ -122,6 +130,50 @@ test('a package with a dedicated CI job is kept out of the shard matrix', () => 
   writeManifest(root, 'apps/storybook', {name: 'conciv-storybook', version: '1.0.0'})
   writeManifest(root, 'apps/conciv', {name: 'conciv', version: '1.0.0'})
   expect(plannedPackages(root).map((entry) => entry.name)).toEqual(['conciv'])
+})
+
+test('e2ePackages keeps only workspace packages that actually define a test:e2e script', () => {
+  const root = mkdtempSync(join(tmpdir(), 'shards-'))
+  writeManifest(root, 'e2e/vite-react', {name: 'x-e2e-vite-react', scripts: {'test:e2e': 'playwright test'}})
+  writeManifest(root, 'e2e/e2e-utils', {name: '@x/e2e-utils', scripts: {build: 'tsc'}})
+  writeManifest(root, 'apps/site', {name: 'site', scripts: {'test:e2e': 'vitest run'}})
+  writeManifest(root, 'apps/storybook', {name: 'x-storybook', scripts: {test: 'vitest run'}})
+  expect(e2ePackages(root).map((entry) => entry.name)).toEqual(['site', 'x-e2e-vite-react'])
+})
+
+test('every real e2e consumer app plus the site lands in the e2e matrix, and e2e-utils does not', () => {
+  const names = e2ePackages(join(import.meta.dirname, '..', '..', '..')).map((entry) => entry.name)
+  expect(names).toContain('conciv-e2e-vite-react')
+  expect(names).toContain(E2E_HARNESS_PACKAGE)
+  expect(names).toContain('site')
+  expect(names).not.toContain('@conciv/e2e-utils')
+  expect(names).not.toContain('conciv-storybook')
+})
+
+test('planE2eShards flags only the shard that owns the harness matrix', () => {
+  const packages = [e2ePkg(E2E_HARNESS_PACKAGE), e2ePkg('app-a'), e2ePkg('app-b')]
+  const shards = planE2eShards(packages, {[E2E_HARNESS_PACKAGE]: 400_000, 'app-a': 200_000, 'app-b': 200_000})
+  expect(shards.filter((shard) => shard.harnesses).flatMap((shard) => shard.packages)).toEqual([E2E_HARNESS_PACKAGE])
+  expect(shards.flatMap((shard) => shard.packages).toSorted()).toEqual(['app-a', 'app-b', E2E_HARNESS_PACKAGE])
+})
+
+test('planE2eShards packs bigger bins than the package matrix so per-shard setup is not repaid too often', () => {
+  const packages = Array.from({length: 12}, (_, index) => e2ePkg(`app${index}`))
+  const timings = Object.fromEntries(packages.map((entry) => [entry.name, TARGET_SHARD_MS]))
+  expect(planE2eShards(packages, timings).length).toBeLessThan(planShards(packages, timings).length)
+  expect(planE2eShards(packages, timings)).toHaveLength(E2E_SHARD_SIZING.maxShards)
+})
+
+test('planE2eShards charges every app a fixed server-boot overhead the case timings never capture', () => {
+  const packages = Array.from({length: 10}, (_, index) => e2ePkg(`app${index}`))
+  const timings = Object.fromEntries(packages.map((entry) => [entry.name, 40_000]))
+  expect(planE2eShards(packages, timings)).toHaveLength(3)
+  expect(planShards(packages, timings, {...E2E_SHARD_SIZING, overheadMs: 0})).toHaveLength(2)
+})
+
+test('planE2eShards spreads across three shards on the bootstrap run with no baseline', () => {
+  const packages = Array.from({length: 15}, (_, index) => e2ePkg(`app${index}`))
+  expect(planE2eShards(packages, {})).toHaveLength(E2E_SHARD_SIZING.bootstrapShards)
 })
 
 test('a package.json without a usable name fails the plan instead of vanishing from it', () => {

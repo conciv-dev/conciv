@@ -1,6 +1,6 @@
 import {fileURLToPath} from 'node:url'
 import {afterAll, beforeAll} from 'vitest'
-import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
+import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import recorderServer from '../../src/server.js'
 
 const clientEntry = fileURLToPath(new URL('../../src/client.tsx', import.meta.url))
@@ -8,7 +8,7 @@ const clientEntry = fileURLToPath(new URL('../../src/client.tsx', import.meta.ur
 export function useRecorderTestApi(): () => ExtensionTestApi {
   const ctx: {api?: ExtensionTestApi} = {}
   beforeAll(async () => {
-    ctx.api = await getExtensionTestApi({server: recorderServer, clientEntry})
+    ctx.api = await getExtensionTestApi({server: recorderServer, host: fixtureHost(clientEntry)})
   }, 120_000)
   afterAll(async () => ctx.api?.dispose())
   return () => {

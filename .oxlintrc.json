@@ -5,7 +5,7 @@
     {"name": "unocss", "specifier": "@unocss/eslint-plugin"},
     {"name": "playwright", "specifier": "eslint-plugin-playwright"},
     {"name": "solid", "specifier": "eslint-plugin-solid"},
-    {"name": "conciv", "specifier": "./tools/oxlint/no-comments.js"}
+    {"name": "conciv", "specifier": "./tools/oxlint/plugin.js"}
   ],
   "categories": {
     "correctness": "error",
@@ -13,6 +13,7 @@
   },
   "rules": {
     "conciv/no-comments": "error",
+    "conciv/no-locator-poll": "error",
     "unicorn/consistent-function-scoping": "off",
     "unicorn/require-module-specifiers": "off",
     "react/react-in-jsx-scope": "off",
@@ -21,6 +22,7 @@
       "warn",
       {
         "allow": [
+          "__conciv",
           "__CONCIV__",
           "__CONCIV_API_BASE__",
           "__CONCIV_PAGE_DRIVER__",
@@ -138,7 +140,14 @@
         "playwright/no-raw-locators": "error",
         "playwright/no-eval": "error",
         "playwright/no-element-handle": "error",
-        "playwright/prefer-native-locators": "error"
+        "playwright/prefer-native-locators": "error",
+        "playwright/prefer-web-first-assertions": "error"
+      }
+    },
+    {
+      "files": ["packages/embed/test/**", "packages/extension-testkit/src/**"],
+      "rules": {
+        "playwright/prefer-web-first-assertions": "error"
       }
     },
     {
@@ -156,8 +165,12 @@
     "build",
     "node_modules",
     ".turbo",
+    ".conciv",
     "**/*.gen.ts",
+    "**/*.gen.tsx",
     "**/test-results",
+    "packages/plugin/test/fixtures/**",
+    "packages/extensions/tanstack/test/fixtures/**",
     "e2e/*/src",
     "e2e/*/app"
   ]

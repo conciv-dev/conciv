@@ -16,6 +16,8 @@ export interface WidgetConfig {
 
 export interface ConcivSettingsInit extends WidgetConfig {
   defaultOpen?: boolean
+
+  launcher?: 'native' | 'mascot' | false
 }
 
 export interface ExtensionConfigRegistry {}
@@ -33,6 +35,8 @@ export interface ConcivConfig {
   sessionId?: string
 
   port?: number
+
+  devEndpointDir?: string
 
   systemPrompt?: string | boolean
   claudePath?: string

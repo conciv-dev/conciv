@@ -1,12 +1,12 @@
 import {expect, test} from 'vitest'
 import whiteboard from '../src/server.js'
-import {getExtensionTestApi} from '@conciv/extension-testkit'
+import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
 import {clientEntry, openCanvas} from './canvas-it-helpers.js'
 
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
 test('preview returns a real png of the draft without any browser round-trip', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
+  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
   try {
     await openCanvas(api.page)
     await api.callTool('canvas.svg', {
@@ -34,7 +34,7 @@ test('preview returns a real png of the draft without any browser round-trip', a
 })
 
 test('preview on an empty draft names the cause', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
+  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
   try {
     const result = (await api.callTool('canvas.preview', {})) as {empty: boolean; reason: string}
     expect(result.empty).toBe(true)

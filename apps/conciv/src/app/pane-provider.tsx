@@ -1,6 +1,6 @@
 import {type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
-import {useAppData} from './context.js'
+import {useAppData, useGrabProvider} from './context.js'
 import {PaneContext, makeGrabStore, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
 
 export function PaneProvider(props: {sessionId: string; children: JSX.Element}): JSX.Element {
@@ -9,6 +9,7 @@ export function PaneProvider(props: {sessionId: string; children: JSX.Element}):
   const row = () => (sessions.data ?? []).find((session) => session.id === props.sessionId)
   const running = () => row()?.running ?? false
   const attached = () => row()?.attached ?? false
+  const grabProvider = useGrabProvider()
 
   const value: PaneContextValue = {
     sessionId: () => props.sessionId,
@@ -19,6 +20,7 @@ export function PaneProvider(props: {sessionId: string; children: JSX.Element}):
     slideClass: () => '',
     resetSlide: () => {},
     grabStore: makeGrabStore(),
+    grabProvider,
     attachments: makePendingAttachmentQueue(),
   }
 

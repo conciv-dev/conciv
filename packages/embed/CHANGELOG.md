@@ -1,5 +1,59 @@
 # @conciv/embed
 
+## 0.0.17
+
+### Patch Changes
+
+- [#156](https://github.com/conciv-dev/conciv/pull/156) [`0d2ddf6`](https://github.com/conciv-dev/conciv/commit/0d2ddf6cb63baa58095a70faf9783c12a895928c) Thanks [@omridevk](https://github.com/omridevk)! - The full-screen chat panel on phones now paints an opaque background, so the app behind it no longer shows through the sheet.
+
+- Updated dependencies [[`2aa2b01`](https://github.com/conciv-dev/conciv/commit/2aa2b01db001973dd3432253fabc915462b3ec85), [`cf6fc75`](https://github.com/conciv-dev/conciv/commit/cf6fc75ddc841c4fd01b331b93568af7283b320a), [`d76c337`](https://github.com/conciv-dev/conciv/commit/d76c337ba404b1f5c23a6f548a92e008f09490dd)]:
+  - @conciv/ui-kit-chat@0.0.17
+  - @conciv/extension-ios@0.0.17
+  - @conciv/ui-kit-chat-tools@0.0.17
+  - @conciv/client@0.0.17
+  - @conciv/contract@0.0.17
+  - @conciv/extension@0.0.17
+  - @conciv/grab@0.0.17
+  - @conciv/mascot@0.0.17
+  - @conciv/protocol@0.0.17
+  - @conciv/solid-diffs@0.0.17
+  - @conciv/solid-streamdown@0.0.17
+  - @conciv/storage-history@0.0.17
+  - @conciv/ui-kit-system@0.0.17
+
+## 0.0.16
+
+### Patch Changes
+
+- [#143](https://github.com/conciv-dev/conciv/pull/143) [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e) Thanks [@omridevk](https://github.com/omridevk)! - Add the widget-side seams that let the embedded widget behave as a native host: a host-level
+  `grabProvider` on `ConcivInit` (threaded to `makePaneGrabApi`, with `grabbable` reaching the composer
+  for a capability-driven disabled state), a `launcher: 'native' | 'mascot' | false` settings field that
+  gates the mascot FAB and reports `mascotRect`, programmatic `open()`/`close()`/`toggle()` handle methods
+  over `conciv:open-panel`/`conciv:close-panel`/`conciv:toggle-panel` events with a `bootNormal`-tolerant
+  open, and a public `handle.rebind(apiBase)` (plus `conciv:rebind` event) that re-points RPC/SSE on
+  same-core port drift while preserving nav/session state.
+
+- [#144](https://github.com/conciv-dev/conciv/pull/144) [`1019e21`](https://github.com/conciv-dev/conciv/commit/1019e213fc99b84d0931a50cffa2cd602fd31e0e) Thanks [@omridevk](https://github.com/omridevk)! - Make the widget panel usable at phone widths. Below a 520px viewport the floating modal now becomes a full-bleed sheet (`inset-0`, edge to edge) instead of a small clipped card, driven by a reactive media query so the stored `conciv-modal-width`/`-height` prefs and resize handles no longer fight the breakpoint. The sheet pads with `env(safe-area-inset-*)` via a new `pad-safe` preset shortcut so the header and composer clear the notch, status bar, and home indicator when the native page runs under `viewport-fit=cover`. Long inline code tokens now wrap (`overflow-wrap: anywhere` in the typography preset) instead of clipping, and code blocks keep their own horizontal scroll, so tool cards, code blocks, and the composer produce no horizontal overflow at 320/375/393/430px in both light and dark. While the full-screen sheet is open the launcher mascot is hidden so it no longer covers the composer; the panel is closed via its header control.
+
+- [#141](https://github.com/conciv-dev/conciv/pull/141) [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4) Thanks [@omridevk](https://github.com/omridevk)! - Render code and tool output through SolidCodeBlock instead of hand-rolled pre blocks, with explicit languages: plaintext for payloads, TypeScript for eval'd page code, and ANSI for terminal streams so command colors render natively.
+
+- [#125](https://github.com/conciv-dev/conciv/pull/125) [`7627eba`](https://github.com/conciv-dev/conciv/commit/7627eba4ffaddd6e85289724759f41d75b5c2e7b) Thanks [@omridevk](https://github.com/omridevk)! - Stop the widget from scrolling the host page to the top. TanStack Router installs its scroll handler on every client router even with `scrollRestoration` unset, and `resetScroll` defaults to `true`, so every panel navigation ran `window.scrollTo(0, 0)` on the embedding page, so opening the widget yanked the host site back to the top. The widget router now opts out globally with `scrollRestoration: () => false`, which also covers the `history.back()` paths (Escape-close, quick-terminal close) that a per-navigation `resetScroll` cannot reach. The widget never relied on router scroll restoration: its own scrolling is element-level.
+
+- Updated dependencies [[`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b), [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`af04b36`](https://github.com/conciv-dev/conciv/commit/af04b368a4b7bf2eecf3fb20f0b6c0949368ce1e), [`aa06a88`](https://github.com/conciv-dev/conciv/commit/aa06a88067430bd97934f4abb0b096bfdf1812f4), [`85ad5da`](https://github.com/conciv-dev/conciv/commit/85ad5da09b83fa1a263578620d9ad2054b6eea1b)]:
+  - @conciv/extension@0.0.16
+  - @conciv/protocol@0.0.16
+  - @conciv/grab@0.0.16
+  - @conciv/extension-ios@0.0.16
+  - @conciv/ui-kit-chat@0.0.16
+  - @conciv/ui-kit-chat-tools@0.0.16
+  - @conciv/client@0.0.16
+  - @conciv/contract@0.0.16
+  - @conciv/mascot@0.0.16
+  - @conciv/solid-diffs@0.0.16
+  - @conciv/solid-streamdown@0.0.16
+  - @conciv/storage-history@0.0.16
+  - @conciv/ui-kit-system@0.0.16
+
 ## 0.0.15
 
 ### Patch Changes

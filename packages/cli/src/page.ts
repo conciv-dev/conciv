@@ -44,7 +44,10 @@ const PAGE_VERBS: Record<PageQueryKind, VerbSpec> = {
   insert: {targetsElement: true, flags: ['html', 'position']},
   css: {targetsElement: false, flags: ['text']},
   eval: {targetsElement: false, flags: ['code']},
+  ext: {targetsElement: false, flags: []},
 }
+
+const USER_FACING_VERBS = PAGE_QUERY_KINDS.filter((kind) => kind !== 'ext')
 
 const FIELD = {
   selector: z.string(),
@@ -139,7 +142,7 @@ function pageCommands(): SubCommandsDef {
     args: {clear: {type: 'boolean', description: 'reset the journal after listing'}},
     run: ({args}) => runRpc((rpc) => (args.clear ? rpc.page.clearChanges(undefined) : rpc.page.changes(undefined))),
   })
-  return {...leafCommandsFor(PAGE_QUERY_KINDS), changes}
+  return {...leafCommandsFor(USER_FACING_VERBS), changes}
 }
 
 export const pageCommand = defineCommand({

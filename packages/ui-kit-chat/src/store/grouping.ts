@@ -1,4 +1,19 @@
-import type {MessagePart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
+import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
+
+export type ToolCallPartWithParent = ToolCallPart & {metadata?: {parentToolCallId?: unknown}}
+
+export function parentToolCallIdOf(part: MessagePart): string | null {
+  if (part.type !== 'tool-call') return null
+  const withMeta: ToolCallPartWithParent = part
+  const parent = withMeta.metadata?.parentToolCallId
+  return typeof parent === 'string' ? parent : null
+}
+
+export function childCallsFor(parts: ReadonlyArray<MessagePart>, parentId: string): ToolCallPart[] {
+  return parts.filter(
+    (part): part is ToolCallPart => part.type === 'tool-call' && parentToolCallIdOf(part) === parentId,
+  )
+}
 
 export type Turn = {key: string; role: UIMessage['role']; parts: MessagePart[]; start: number; end: number}
 

@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-compiler",
-  "version": "0.0.15",
+  "version": "0.0.17",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The vite build plumbing for conciv extension code: client/server splitting, Solid TSX compilation, JSX source stamping, and the extensions virtual module.",
   "keywords": [
     "conciv",
@@ -39,6 +39,10 @@
     "./split-extension": {
       "types": "./dist/split-extension.d.ts",
       "import": "./dist/split-extension.js"
+    },
+    "./dedupe": {
+      "types": "./dist/dedupe-extensions.d.ts",
+      "import": "./dist/dedupe-extensions.js"
     }
   },
   "publishConfig": {

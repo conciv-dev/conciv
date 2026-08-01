@@ -53,7 +53,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const cards = useToolCards({rpc, sessionId, instances, harnessId, chat, notify})
   const extensions = (): AnyExtension[] => instances.map((instance) => instance.extension)
   const attachments = createMemo(() => paneAttachments(extensions(), meta.data?.harness.imageInput))
-  const paneGrab = makePaneGrabApi(pane.grabStore)
+  const paneGrab = makePaneGrabApi(pane.grabStore, pane.grabProvider)
 
   useChatAnnouncements({
     turn: pipeline,

@@ -5,13 +5,20 @@ import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter, TerminalOpener} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {
-  AnyExtension,
-  AttachmentDocumentPart,
-  ContentPart,
-  ServerHarness,
-  ServerSessions,
-  ToolRequest,
+import {
+  type AnyExtension,
+  type AttachmentDocumentPart,
+  type ContentPart,
+  type ExtensionServerTool,
+  type PageCaller,
+  type PageVerbErrorCode,
+  type PageVerbMap,
+  type ServerHarness,
+  type ServerResult,
+  type ServerSessions,
+  type ToolRequest,
+  isPageVerbErrorCode,
+  pageVerbError,
 } from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
@@ -37,6 +44,7 @@ import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} fr
 import {attachedElsewhere, detachAllAttached} from './chat/adopt.js'
 import {modelOf, openDb, requestStop, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
+import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makePageBus} from './page-bus.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
@@ -70,6 +78,10 @@ export type MakeAppOpts = {
   onShutdown?: () => void
 
   firstChunkTimeoutMs?: number
+
+  nativePageDir?: string
+
+  nativeUrl?: () => string | undefined
 }
 
 export function slug(name: string): string {
@@ -96,6 +108,42 @@ function narrowExtensionApp(name: string, app: unknown): Hono | null {
   return app
 }
 
+function replyError(reply: Record<string, unknown>): {code: string; message: string} | null {
+  const error = reply.error
+  if (typeof error !== 'object' || error === null) return null
+  if (!('code' in error) || !('message' in error)) return null
+  const {code, message} = error
+  if (typeof code !== 'string' || typeof message !== 'string') return null
+  return {code, message}
+}
+
+function mapBrowserCode(code: string): PageVerbErrorCode {
+  return isPageVerbErrorCode(code) ? code : 'handler-error'
+}
+
+function mapBusError(error: unknown): PageVerbErrorCode {
+  if (error instanceof HTTPException && error.status === 503) return 'no-widget'
+  if (error instanceof HTTPException && error.status === 504) return 'timeout'
+  return 'handler-error'
+}
+
+type CallPageVerb = (extension: string, verb: string, argsJson: string) => Promise<unknown>
+
+function scopedPageCaller(extension: string, callPageVerb: CallPageVerb): PageCaller<PageVerbMap> {
+  return {
+    call(verb, args) {
+      let argsJson: string
+      try {
+        argsJson = JSON.stringify(args ?? {})
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return Promise.reject(pageVerbError('invalid-args', extension, verb, message))
+      }
+      return callPageVerb(extension, verb, argsJson)
+    },
+  }
+}
+
 function buildAttachmentExpanders(
   extension: AnyExtension,
   context: unknown,
@@ -109,15 +157,19 @@ function buildAttachmentExpanders(
   return entries
 }
 
-function buildExtensionTools(extension: AnyExtension, context: unknown) {
+export function buildExtensionTools(extension: AnyExtension, context: unknown): ExtensionServerTool[] {
   return (extension.tools ?? []).flatMap((tool) => {
     const run = tool.__execute
     if (!run) return []
+    const description = [tool.description, tool.promptSnippet, ...(tool.promptGuidelines ?? [])]
+      .filter(Boolean)
+      .join('\n\n')
     return [
       {
         name: tool.name,
-        description: tool.description,
+        description,
         inputSchema: tool.inputSchema,
+        approval: tool.approval,
         execute: (input: unknown, request: ToolRequest) => run(input, context, request),
       },
     ]
@@ -190,6 +242,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const notifyLaunch = (sessionId: string): void => fanOut(launchListeners, 'launch', sessionId)
 
   const pageBus = makePageBus()
+
+  const callPageVerb: CallPageVerb = async (extension, verb, argsJson) => {
+    let reply: Record<string, unknown>
+    try {
+      reply = await pageBus.ask({kind: 'ext', extension, verb, argsJson})
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw pageVerbError(mapBusError(error), extension, verb, message)
+    }
+    const failure = replyError(reply)
+    if (failure) throw pageVerbError(mapBrowserCode(failure.code), extension, verb, failure.message)
+    return reply.result
+  }
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => resumeTokenFor(db, sessionId),
@@ -269,10 +334,24 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const basePath = opts.basePath ?? ''
   const seenTools = new Set<string>()
   const seenNames = new Set<string>()
-  const mounted = await Promise.all(
-    (opts.extensions ?? []).map(async (extension) => {
-      if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
-      seenNames.add(extension.name)
+  const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
+
+  function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
+    const context = result?.context
+    return {
+      extensionName: extension.name,
+      app: narrowExtensionApp(extension.name, result?.app),
+      router: result?.router,
+      tools: buildExtensionTools(extension, context),
+      attachmentExpanders: buildAttachmentExpanders(extension, context),
+      context,
+      dispose: result?.dispose,
+      turnEnd: result?.turnEnd,
+    }
+  }
+
+  async function mountExtension(extension: AnyExtension): Promise<ReturnType<typeof assembleMounted> | null> {
+    try {
       const result = await extension.__server?.({
         stateDir: concivStateDir(opts.cfg.stateRoot),
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
@@ -280,20 +359,25 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         basePath,
         sessions: serverSessions,
         harness: serverHarness,
+        page: scopedPageCaller(extension.name, callPageVerb),
+        bundler: opts.bridge,
+        nativeUrl,
       })
-      const context = result?.context
-      return {
-        extensionName: extension.name,
-        app: narrowExtensionApp(extension.name, result?.app),
-        router: result?.router,
-        tools: buildExtensionTools(extension, context),
-        attachmentExpanders: buildAttachmentExpanders(extension, context),
-        context,
-        dispose: result?.dispose,
-        turnEnd: result?.turnEnd,
-      }
+      return assembleMounted(extension, result)
+    } catch (error) {
+      logError(`[core] extension "${extension.name}" failed to mount: ${String(error)}`)
+      return null
+    }
+  }
+
+  const mountResults = await Promise.all(
+    (opts.extensions ?? []).map((extension) => {
+      if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
+      seenNames.add(extension.name)
+      return mountExtension(extension)
     }),
   )
+  const mounted = mountResults.flatMap((entry) => (entry ? [entry] : []))
   const attachmentExpanders: AttachmentExpanders = {}
   for (const entry of mounted)
     for (const [mime, expand] of entry.attachmentExpanders) attachmentExpanders[mime] ??= expand
@@ -362,6 +446,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     dialed: dialLog.seen,
     risky,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
+    toolNames: new Set(toolList.map((tool) => tool.name)),
+    extensionServerTools: () => extensionTools,
     attachmentExpanders,
     onRunStart: (sessionId) => notifyLocalRun(sessionId, 'start'),
     onRunEnd,
@@ -407,11 +493,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         onHarnessDial: dialLog.note,
         sessionForHarnessId: serverSessions.sessionForHarnessId,
         decide: decideMcpTool,
+        discovered: new Map(),
       },
     },
     rpc,
     opts.onShutdown,
   )
+
+  if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))
 
   mounted.forEach((entry) => {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)

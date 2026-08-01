@@ -65,7 +65,7 @@ export function TerminalPresencePill(): JSX.Element {
   const host = getHostApi()
   const apiBase = host.useApiBase()
   const sessionId = host.useSessionId()
-  const observation = observeTerminal(apiBase, sessionId())
+  const observation = observeTerminal(apiBase(), sessionId())
   const [now, setNow] = createSignal(Date.now())
 
   onMount(() => {

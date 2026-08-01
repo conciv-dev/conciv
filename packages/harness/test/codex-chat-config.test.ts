@@ -42,6 +42,13 @@ describe('codex chatConfig', () => {
     expect(codex.chatConfig(deps({resumeSessionId: 'thread-9'})).modelOptions).toEqual({sessionId: 'thread-9'})
   })
 
+  it('auto-approves the bridged MCP server only when tools ride the run', () => {
+    const bridged = JSON.stringify(codex.chatConfig(deps({hasTools: true})).adapter)
+    expect(bridged).toContain('mcp_servers.tanstack.default_tools_approval_mode')
+    const bare = JSON.stringify(codex.chatConfig(deps()).adapter)
+    expect(bare).not.toContain('mcp_servers.tanstack')
+  })
+
   it('plans a resume invocation for an existing harness session', () => {
     expect(codex.connect?.plan(connectContext({resume: true, harnessSessionId: 'thread-9', model: 'gpt-5.1'}))).toEqual(
       {

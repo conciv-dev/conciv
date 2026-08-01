@@ -1,7 +1,7 @@
 import {expect, test} from 'vitest'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
-import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
+import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import {ELEMENT_WRITE_THROTTLE_MS} from '../src/client/whiteboard-collection.js'
 import {openCanvas} from './canvas-it-helpers.js'
 
@@ -43,7 +43,7 @@ const dragBursts = async (page: Page, fromX: number, y: number, dx: number): Pro
 }
 
 test('a single-element drag coalesces per-frame writes into few throttled PUTs', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
+  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx - 120, cy - 80, cx + 120, cy + 80)
@@ -67,7 +67,7 @@ test('a single-element drag coalesces per-frame writes into few throttled PUTs',
 })
 
 test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
+  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx - 220, cy - 40, cx - 120, cy + 40)

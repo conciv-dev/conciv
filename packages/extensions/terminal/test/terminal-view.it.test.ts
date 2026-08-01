@@ -1,6 +1,7 @@
-import {expect, test} from 'vitest'
+import {test} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import terminal from '../src/server.js'
-import {getExtensionTestApi} from '@conciv/extension-testkit'
+import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import type {Page} from 'playwright'
 
@@ -14,13 +15,13 @@ const bashTty = {
 
 async function openTerminalView(page: Page): Promise<void> {
   await page.getByRole('tab', {name: 'Terminal'}).click()
-  await expect.poll(() => page.getByText('P>').first().isVisible(), {timeout: 30_000}).toBe(true)
+  await expectLocator(page.getByText('P>').first()).toBeVisible({timeout: 30_000})
 }
 
 test('a remounted terminal view replays the pty output it left behind', async () => {
   const api = await getExtensionTestApi({
     server: terminal,
-    clientEntry: '@conciv/extension-terminal/client',
+    host: fixtureHost('@conciv/extension-terminal/client'),
     harness: createFakeHarness({id: 'fake-terminal', text: 'ok', tty: bashTty}),
   })
   try {
@@ -28,11 +29,11 @@ test('a remounted terminal view replays the pty output it left behind', async ()
     await openTerminalView(page)
     await page.keyboard.type('echo reload-marker-$((40+2))')
     await page.keyboard.press('Enter')
-    await expect.poll(() => page.getByText('reload-marker-42').first().isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(page.getByText('reload-marker-42').first()).toBeVisible({timeout: 30_000})
 
     await page.reload({waitUntil: 'domcontentloaded'})
     await openTerminalView(page)
-    await expect.poll(() => page.getByText('reload-marker-42').first().isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(page.getByText('reload-marker-42').first()).toBeVisible({timeout: 30_000})
   } finally {
     await api.dispose()
   }

@@ -35,7 +35,7 @@ function PipSession(): JSX.Element {
             <Show when={params().sessionId} keyed>
               {(sessionId) => (
                 <PaneProvider sessionId={sessionId}>
-                  <div class="flex flex-col h-full min-h-0 bg-pw-glass text-pw-text font-pw text-[0.875rem] leading-[1.45]">
+                  <div class="flex flex-col h-full min-h-0 bg-pw-panel text-pw-text font-pw text-[0.875rem] leading-[1.45]">
                     <ChatPane sessionId={sessionId} />
                   </div>
                 </PaneProvider>

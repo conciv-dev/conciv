@@ -5,7 +5,13 @@ import {RPCHandler} from '@orpc/server/fetch'
 import type {AnyRouter} from '@orpc/server'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveApp} from '@conciv/harness-testkit'
-import {makeExtRpcClient, type ServerApi, type ServerHarness, type ServerSessions} from '@conciv/extension'
+import {
+  makeExtRpcClient,
+  noWidgetPageCaller,
+  type ServerApi,
+  type ServerHarness,
+  type ServerSessions,
+} from '@conciv/extension'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import type {SendVerdict} from '@conciv/protocol/chat-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
@@ -171,6 +177,8 @@ export async function startTerminalServer(
     stateDir,
     sessions,
     harness,
+    page: noWidgetPageCaller('terminal'),
+    nativeUrl: () => undefined,
   }
   const result = await terminalExtension.__server?.(api)
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')

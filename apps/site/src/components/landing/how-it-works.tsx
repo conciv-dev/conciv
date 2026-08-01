@@ -21,11 +21,11 @@ function Step({number, title, body, children}: {number: string; title: string; b
       duration={0.65}
       ease="power3.out"
       threshold={0.2}
-      className="grid grid-cols-[88px_1fr] gap-6 border-t py-[30px] last:border-b"
+      className="grid grid-cols-1 gap-2 border-t py-[30px] last:border-b sm:grid-cols-[88px_1fr] sm:gap-6"
     >
       <div
         aria-hidden
-        className="od-display text-[56px] font-extrabold leading-[0.9] tracking-[-0.04em] text-accent [-webkit-text-stroke:1.5px_var(--od-accent)]"
+        className="od-display text-[44px] font-extrabold leading-[0.9] tracking-[-0.04em] text-accent [-webkit-text-stroke:1.5px_var(--od-accent)] sm:text-[56px]"
       >
         {number}
       </div>

@@ -22,6 +22,15 @@ pnpm --filter conciv-e2e-vite-vanilla test:e2e   # one app (build @conciv/it fir
 
 `pnpm test` does not run these.
 
+A `prepare` script here must not load the app's framework config. `prepare` runs during
+`pnpm install`, when no `@conciv/*` package has a `dist/` yet, and every app's config imports
+`@conciv/it`: `vite.config.ts` in the vite and SvelteKit apps, `next.config.ts` in `nextjs` and
+`nextjs-component`, `astro.config.mjs` in `astro`. Loading one at install time fails with
+`ERR_MODULE_NOT_FOUND` and fills the log with a stack trace, even when the command shrugs it off
+and exits 0. Whatever the config would have generated (SvelteKit's `.svelte-kit`, for example)
+gets generated anyway by `build` and `dev`, which run after `turbo build`. A `prepare` script that
+touches none of this is fine.
+
 ## Apps
 
 | App                     | Scaffold CLI               | Covers                                                          |

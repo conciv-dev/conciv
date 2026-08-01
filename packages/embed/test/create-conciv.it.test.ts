@@ -1,19 +1,10 @@
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
-
-type Handle = {mount: (el: HTMLElement) => Promise<void>; unmount: () => void}
-
-declare global {
-  interface Window {
-    ConcivHandle: {makeHandle: (apiBase: string) => Handle}
-    concivTestHandle: Handle
-    concivTestElement: HTMLElement
-  }
-}
 
 let browser: Browser
 let kit: EmbedKit
@@ -53,11 +44,19 @@ describe('createConciv lifecycle', () => {
   it('mounts, unmounts, and remounts the widget', async () => {
     const page = await openPage()
     await mountHandle(page, kit.base)
-    await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(fab(page)).toBeVisible({timeout: 30_000})
     await page.evaluate(() => window.concivTestHandle.unmount())
-    await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(0)
+    await expectLocator(fab(page)).toHaveCount(0, {timeout: 30_000})
     await page.evaluate(() => void window.concivTestHandle.mount(window.concivTestElement))
-    await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(fab(page)).toBeVisible({timeout: 30_000})
+    await page.close()
+  })
+
+  it('threads the mounted api base to extension surfaces when the host page has no pw-api-base meta', async () => {
+    const page = await openPage()
+    await mountHandle(page, kit.base)
+    const probe = page.getByRole('status', {name: 'host api base probe'})
+    await expectLocator(probe).toHaveText(kit.base, {timeout: 30_000})
     await page.close()
   })
 
@@ -70,7 +69,7 @@ describe('createConciv lifecycle', () => {
       void handle.mount(el)
       void handle.mount(el)
     }, kit.base)
-    await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(1)
+    await expectLocator(fab(page)).toHaveCount(1, {timeout: 30_000})
     expect(await fab(page).count()).toBe(1)
     await page.close()
   })
@@ -84,7 +83,7 @@ describe('createConciv lifecycle', () => {
       void handle.mount(el)
       handle.unmount()
     }, kit.base)
-    await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(0)
+    await expectLocator(fab(page)).toHaveCount(0, {timeout: 30_000})
     expect(await page.evaluate(() => document.querySelector('[data-conciv-root]') === null)).toBe(true)
     await page.close()
   })
@@ -95,7 +94,7 @@ describe('createConciv lifecycle', () => {
       Reflect.set(window, '__TSR_ROUTER__', {hostSentinel: true})
     })
     await mountHandle(page, kit.base)
-    await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(fab(page)).toBeVisible({timeout: 30_000})
     await page.evaluate(() => window.concivTestHandle.unmount())
     const restored = await page.evaluate(() => {
       const value = Reflect.get(window, '__TSR_ROUTER__')
@@ -112,12 +111,12 @@ describe('createConciv lifecycle', () => {
     await mountHandle(page, kit.base)
     await fab(page).click()
     const box = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await expect.poll(() => box.isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(box).toBeVisible({timeout: 30_000})
     await box.fill('hello')
     await box.press('Enter')
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
+    await expectLocator(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
     await page.evaluate(() => window.concivTestHandle.unmount())
-    await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(0)
+    await expectLocator(fab(page)).toHaveCount(0, {timeout: 30_000})
     expect(pageErrors).toEqual([])
     await page.close()
   })

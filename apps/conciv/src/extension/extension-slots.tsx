@@ -2,7 +2,7 @@ import {ErrorBoundary, For, type JSX} from 'solid-js'
 import {MountedExtension} from '@conciv/extension/client'
 import type {AnyExtension, ExtensionSlot} from '@conciv/extension'
 
-export type ExtensionInstance = {extension: AnyExtension; clientValue: object}
+export type ExtensionInstance = {extension: AnyExtension; clientValue: object; dispose: () => void}
 
 export function ExtensionSurface(props: {name: ExtensionSlot; instances: ExtensionInstance[]}): JSX.Element {
   return (

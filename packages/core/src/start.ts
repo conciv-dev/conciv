@@ -2,7 +2,7 @@ import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter, TerminalOpener} from '@conciv/protocol/harness-types'
-import type {AnyExtension} from '@conciv/extension'
+import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
 import {makeApp, type MakeAppOpts} from './app.js'
 
 export type {AppType} from './app.js'
@@ -12,6 +12,7 @@ import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './con
 import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
 import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
+import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint} from './lib/dev-endpoint.js'
 
 export type StartOpts = {
   options: ConcivConfig
@@ -29,6 +30,8 @@ export type StartOpts = {
   extensions?: AnyExtension[]
   harness?: HarnessAdapter
   openTerminal?: TerminalOpener
+  nativePageDir?: string
+  devEndpointDir?: string
 }
 
 export type Engine = {
@@ -78,19 +81,25 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
+export type ComposePromptOpts = ExtensionPromptContext & {extensions?: Record<string, unknown>}
+
+export function composeSystemPrompt(
+  base: string | undefined,
+  extensions: readonly AnyExtension[],
+  opts: ComposePromptOpts,
+): string {
+  const prompts = extensions.map((extension) => extension.systemPrompt?.(opts.extensions?.[extension.name], opts))
+  return [base, ...prompts].filter(Boolean).join('\n\n')
+}
+
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
 
-  const systemPrompt = [
-    cfg.systemPrompt,
-    ...(opts.extensions ?? []).flatMap((ext) => [
-      ...(ext.tools ?? []).map((tool) => tool.promptSnippet),
-      ext.systemPrompt,
-    ]),
-  ]
-    .filter(Boolean)
-    .join('\n\n')
+  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, opts.extensions ?? [], {
+    cwd: opts.root,
+    extensions: cfg.extensions,
+  })
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
   const openInEditor = makeEditorOpener(
@@ -103,6 +112,15 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const harnessEnv = (sessionId?: string): NodeJS.ProcessEnv => {
     const baseEnv = opts.childEnv ? opts.childEnv(portRef.port) : process.env
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
+  }
+  const tokenScopedBase = (): string | undefined => {
+    if (portRef.port === 0) return undefined
+    const prefix = opts.accessToken ? `/t/${opts.accessToken}` : ''
+    return `http://127.0.0.1:${portRef.port}${prefix}`
+  }
+  const nativeUrl = (): string | undefined => {
+    if (!opts.nativePageDir) return undefined
+    return tokenScopedBase()
   }
 
   const appOpts: MakeAppOpts = {
@@ -120,6 +138,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
     onShutdown: opts.onShutdown,
+    nativePageDir: opts.nativePageDir,
+    nativeUrl,
   }
   const {app, disposers, extensionContexts, closeDb} = await makeApp(appOpts)
 
@@ -149,11 +169,32 @@ export async function start(opts: StartOpts): Promise<Engine> {
   }
   const {port, close} = serving
   portRef.port = port
+
+  const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
+  const base = tokenScopedBase()
+  if (opts.nativePageDir && base) {
+    try {
+      writeDevEndpoint(endpointDir, {apiBase: base, token: opts.accessToken ?? null, pid: process.pid})
+    } catch (error) {
+      await dispose()
+      await close()
+      throw error
+    }
+  }
+  const clearEndpoint = (): void => {
+    if (!opts.nativePageDir) return
+    try {
+      removeDevEndpoint(endpointDir, process.pid)
+    } catch (error) {
+      console.error('conciv: failed to remove the dev endpoint file', error)
+    }
+  }
   return {
     port,
     cfg,
     extensionContexts,
     stop: async () => {
+      clearEndpoint()
       await dispose()
       await close()
     },

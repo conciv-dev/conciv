@@ -12,7 +12,10 @@ import type {
   RequiredContext,
   ServerApi,
   ServerResult,
+  SystemPromptFactory,
+  SystemPromptResolver,
 } from './types.js'
+import type {PageVerbMap} from './page-verbs.js'
 import {useExtensionValue} from './host-context.js'
 
 export type AnyToolBuilder = ToolBuilder<z.ZodObject<z.ZodRawShape>, unknown>
@@ -31,7 +34,7 @@ export type ExtensionMeta<
   views?: readonly ExtensionView[]
   Component?: Component
   Surface?: Component
-  systemPrompt?: string
+  systemPrompt?: string | SystemPromptFactory<Exclude<ConfigOf<Schema>, undefined>>
   theme?: ThemeTokens
   connectGate?: ConnectGate
 }
@@ -42,12 +45,13 @@ export type ExtensionBuilder<
   Tools extends readonly AnyToolBuilder[] = readonly AnyToolBuilder[],
   Attachments extends readonly AnyAttachmentBuilder[] = readonly AnyAttachmentBuilder[],
   ClientValue extends object = Record<never, never>,
+  Verbs extends PageVerbMap = Record<never, never>,
 > = {
   name: Name
   configSchema?: Schema
   Component?: Component
   Surface?: Component
-  systemPrompt?: string
+  systemPrompt?: SystemPromptResolver
   theme?: ThemeTokens
   connectGate?: ConnectGate
   tools?: Tools
@@ -55,18 +59,26 @@ export type ExtensionBuilder<
   commands?: readonly ExtensionCommand[]
   views?: readonly ExtensionView[]
   parseConfig: (raw: unknown) => ConfigOf<Schema>
-  __client?(): ClientFactoryResult<ClientValue>
-  __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown> | Promise<ServerResult<unknown>>
+  __client?(): ClientFactoryResult<ClientValue, Verbs>
+  __server?(server: ServerApi<ConfigOf<Schema>, Verbs>): ServerResult<unknown> | Promise<ServerResult<unknown>>
   useContext: {
     (): ClientValue
     <Selected>(select: (context: ClientValue) => Selected): Selected
   }
-  client: <Value extends object>(
-    factory: () => ClientFactoryResult<Value>,
-  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value>
+  client: <Value extends object, ClientVerbs extends PageVerbMap = Record<never, never>>(
+    factory: () => ClientFactoryResult<Value, ClientVerbs>,
+  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value, ClientVerbs>
+  pageVerbs: <BoundVerbs extends PageVerbMap>() => ExtensionBuilder<
+    Name,
+    Schema,
+    Tools,
+    Attachments,
+    ClientValue,
+    BoundVerbs
+  >
   server: <Context extends RequiredContext<readonly [...Tools, ...Attachments]>>(
-    factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context> | Promise<ServerResult<Context>>,
-  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue>
+    factory: (server: ServerApi<ConfigOf<Schema>, Verbs>) => ServerResult<Context> | Promise<ServerResult<Context>>,
+  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue, Verbs>
 }
 
 export type AnyExtension = ExtensionBuilder<
@@ -74,7 +86,8 @@ export type AnyExtension = ExtensionBuilder<
   z.ZodType,
   readonly AnyToolBuilder[],
   readonly AnyAttachmentBuilder[],
-  object
+  object,
+  PageVerbMap
 >
 
 export type RegisterExtension<Extension> =
@@ -86,6 +99,36 @@ export type RegisterExtension<Extension> =
 
 function parseExtensionConfig<Schema extends z.ZodType>(schema: Schema | undefined, raw: unknown): ConfigOf<Schema> {
   return (schema ? schema.parse(raw ?? {}) : {}) as ConfigOf<Schema>
+}
+
+function configuredOrUndefined<Schema extends z.ZodType>(
+  schema: Schema | undefined,
+  raw: unknown,
+): ConfigOf<Schema> | undefined {
+  try {
+    return parseExtensionConfig(schema, raw)
+  } catch {
+    return undefined
+  }
+}
+
+function isConfigured<Config>(config: Config): config is Exclude<Config, undefined> {
+  return config !== undefined
+}
+
+function makeSystemPrompt<
+  Name extends string,
+  Schema extends z.ZodType,
+  Tools extends readonly AnyToolBuilder[],
+  Attachments extends readonly AnyAttachmentBuilder[],
+>(meta: ExtensionMeta<Name, Schema, Tools, Attachments>): SystemPromptResolver | undefined {
+  const prompt = meta.systemPrompt
+  if (prompt === undefined) return undefined
+  return (raw, context) => {
+    const config = configuredOrUndefined(meta.configSchema, raw)
+    if (!isConfigured(config)) return undefined
+    return typeof prompt === 'string' ? prompt : prompt(config, context)
+  }
 }
 
 export function defineExtension<
@@ -105,7 +148,7 @@ export function defineExtension<
     configSchema: meta.configSchema,
     Component: meta.Component,
     Surface: meta.Surface,
-    systemPrompt: meta.systemPrompt,
+    systemPrompt: makeSystemPrompt(meta),
     theme: meta.theme,
     connectGate: meta.connectGate,
     tools: meta.tools,
@@ -116,6 +159,9 @@ export function defineExtension<
     useContext,
     client(factory: () => ClientFactoryResult<object>) {
       builder.__client = factory
+      return builder
+    },
+    pageVerbs() {
       return builder
     },
     server(factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<unknown> | Promise<ServerResult<unknown>>) {

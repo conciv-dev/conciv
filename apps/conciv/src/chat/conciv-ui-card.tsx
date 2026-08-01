@@ -1,11 +1,18 @@
 import {Show, For, createSignal, type JSX} from 'solid-js'
+import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {UiAnswerSchema, UiInputSchema, type UiAnswerValue, type UiInput} from '@conciv/protocol/ui-types'
 
 const CARD = 'self-stretch flex flex-col gap-2.5 p-3 border border-pw-line rounded-pw-md bg-pw-fill-soft anim-msg-lg'
 const QUESTION = 'font-semibold text-pw-text'
-const DETAIL =
-  'p-2 rounded-[0.4375rem] bg-pw-sunken text-[0.6875rem] whitespace-pre-wrap [word-break:break-word] text-pw-text-2'
+const DETAIL_OPTIONS: FileOptions<undefined> = {
+  theme: {light: 'github-light', dark: 'github-dark'},
+  themeType: 'system',
+  disableFileHeader: true,
+  disableLineNumbers: true,
+  overflow: 'wrap',
+}
+const DETAIL_CLASS = 'block overflow-auto rounded-[0.4375rem] text-[0.6875rem]'
 const ACTIONS = 'flex gap-2'
 const ACTION_BASE =
   'flex-1 min-h-[2.375rem] py-[0.5625rem] px-3 border rounded-[0.5625rem] cursor-pointer font-semibold text-[0.8125rem] leading-none font-pw trans-btn active:scale-[0.97]'
@@ -65,7 +72,15 @@ function Confirm(props: {spec: UiInput; onAnswer: (value: UiAnswerValue) => void
   return (
     <>
       <p class={QUESTION}>{props.spec.question}</p>
-      <Show when={props.spec.detail}>{(detail) => <pre class={DETAIL}>{detail()}</pre>}</Show>
+      <Show when={props.spec.detail}>
+        {(detail) => (
+          <SolidCodeBlock
+            class={DETAIL_CLASS}
+            options={DETAIL_OPTIONS}
+            file={{name: 'detail.txt', lang: 'text', contents: detail()}}
+          />
+        )}
+      </Show>
       <div class={ACTIONS}>
         <button type="button" class={PRIMARY} onClick={() => props.onAnswer('yes')}>
           Approve

@@ -59,8 +59,9 @@ export function loadExtensionsModule(
   clientEntries: readonly string[],
   apiBase?: string,
   embedEntry?: string,
+  dedupeEntry?: string,
 ): string | null {
-  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(clientEntries, apiBase, embedEntry) : null
+  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(clientEntries, apiBase, embedEntry, dedupeEntry) : null
 }
 
 export function isClientEntry(id: string): boolean {

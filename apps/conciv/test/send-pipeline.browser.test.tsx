@@ -98,6 +98,7 @@ function makePane(): PaneContextValue {
     setLockedFor: () => () => {},
     slideClass: () => '',
     resetSlide: () => {},
+    grabProvider: undefined,
     grabStore: makeGrabStore(),
     attachments: makePendingAttachmentQueue(),
   }

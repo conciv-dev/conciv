@@ -47,7 +47,7 @@ test('shows nothing until claude reports in, then tracks the terminal state', as
   const base = inject('terminalBase')
   const sessionId = `conciv_pill_${Date.now()}`
   const host = mount(() => (
-    <HostApiProvider apiBase={base} sessionId={() => sessionId} slot="status">
+    <HostApiProvider apiBase={() => base} sessionId={() => sessionId} slot="status">
       <TerminalPresencePill />
     </HostApiProvider>
   ))

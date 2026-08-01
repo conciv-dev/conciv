@@ -1,5 +1,10 @@
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
-import {defineHarness, type HarnessAdapter, type HarnessConnectContext} from '@conciv/protocol/harness-types'
+import {
+  defineHarness,
+  type HarnessAdapter,
+  type HarnessConnectContext,
+  type HarnessModel,
+} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {makeScriptedRun, type ScriptedRun} from './scripted-run.js'
 
@@ -8,7 +13,12 @@ export type FakeHarness = HarnessAdapter & {
 }
 
 export function createFakeHarness(
-  opts: {id?: string; text?: string; tty?: {command(ctx: HarnessConnectContext): TtyCommand}} = {},
+  opts: {
+    id?: string
+    text?: string
+    models?: HarnessModel[]
+    tty?: {command(ctx: HarnessConnectContext): TtyCommand}
+  } = {},
 ): FakeHarness {
   const id = opts.id ?? 'fake-harness'
   const scripted = makeScriptedRun({text: opts.text})
@@ -29,6 +39,7 @@ export function createFakeHarness(
         slashCommands: 'none',
         imageInput: false,
       },
+      models: opts.models,
       tty: opts.tty,
     }),
     {script: scripted},

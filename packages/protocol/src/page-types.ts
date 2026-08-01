@@ -38,6 +38,7 @@ export const PAGE_QUERY_KINDS = [
   'insert',
   'css',
   'eval',
+  'ext',
 ] as const
 
 export type PageQueryKind = (typeof PAGE_QUERY_KINDS)[number]
@@ -117,6 +118,9 @@ export const PageQuerySchema = z.object({
   json: z.string().optional(),
   effect: z.string().optional(),
   action: z.enum(['start', 'stop', 'report', 'enable', 'disable', 'toggle', 'list']).optional(),
+  extension: z.string().optional().describe('extension name owning the verb (ext kind)'),
+  verb: z.string().optional().describe('extension page verb name (ext kind)'),
+  argsJson: z.string().optional().describe('JSON-encoded args for the ext verb'),
 })
 
 export type PageQuery = z.infer<typeof PageQuerySchema>

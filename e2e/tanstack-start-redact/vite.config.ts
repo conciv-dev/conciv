@@ -8,6 +8,7 @@ import tailwindcss from '@tailwindcss/vite'
 import {nitro} from 'nitro/vite'
 import {redact} from '@tanstack/redact/vite'
 import conciv from '@conciv/it/plugin/vite'
+import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'
 
 const serverVariantAliases: Record<string, string> = {
   'react-dom/server': '@tanstack/redact/server',
@@ -35,7 +36,7 @@ const config = defineConfig({
     redact(),
     tanstackStart(),
     viteReact(),
-    conciv(),
+    conciv({devEndpointDir: E2E_DEV_ENDPOINT_DIR}),
   ],
 })
 

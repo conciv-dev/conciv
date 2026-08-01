@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "type": "handshake.hello",
+  "minV": 1,
+  "maxV": 1,
+  "bundleReady": true
+}

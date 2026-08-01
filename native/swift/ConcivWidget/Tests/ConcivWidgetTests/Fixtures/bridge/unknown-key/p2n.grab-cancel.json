@@ -1,0 +1,6 @@
+{
+  "v": 1,
+  "type": "grab.cancel",
+  "requestId": "req-1",
+  "reason": "escape"
+}
