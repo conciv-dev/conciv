@@ -1,4 +1,6 @@
-import {Show, For, createSignal, type JSX} from 'solid-js'
+import {Show, For, createMemo, createSignal, type JSX} from 'solid-js'
+import {Button, Select, createListCollection} from '@conciv/ui-kit-system'
+import {Check, ChevronDown} from 'lucide-solid'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {UiAnswerSchema, UiInputSchema, type UiAnswerValue, type UiInput} from '@conciv/protocol/ui-types'
@@ -14,13 +16,12 @@ const DETAIL_OPTIONS: FileOptions<undefined> = {
 }
 const DETAIL_CLASS = 'block overflow-auto rounded-[0.4375rem] text-[0.6875rem]'
 const ACTIONS = 'flex gap-2'
-const ACTION_BASE =
-  'flex-1 min-h-[2.375rem] py-[0.5625rem] px-3 border rounded-[0.5625rem] cursor-pointer font-semibold text-[0.8125rem] leading-none font-pw trans-btn active:scale-[0.97]'
-const PRIMARY = `${ACTION_BASE} border-transparent bg-pw-accent text-pw-on-accent hover:bg-pw-accent-hi`
-const GHOST = `${ACTION_BASE} bg-transparent border-pw-line-2 text-pw-text hover:border-pw-danger hover:text-pw-danger`
+const ACTION = 'flex-1 min-h-[2.375rem] font-semibold leading-none'
+const CHOICE = 'font-medium leading-none px-[0.8125rem] py-[0.5625rem] rounded-pw-pill min-h-9'
 const INPUT =
   'py-2 px-2.5 border border-pw-line rounded-pw-sm bg-pw-fill text-pw-text [font:inherit] trans-border focus:outline-none focus:border-pw-accent'
 const SETTLED = 'text-[0.75rem] text-pw-text-2'
+const FIELD_LABEL = 'text-[0.75rem] text-pw-text-2'
 
 function parseUiInput(argumentsJson: string): UiInput | null {
   try {
@@ -54,13 +55,9 @@ function Choices(props: {spec: UiInput; onAnswer: (value: UiAnswerValue) => void
       <div class="flex flex-wrap gap-2">
         <For each={props.spec.options ?? []}>
           {(option) => (
-            <button
-              type="button"
-              class="text-[0.8125rem] text-pw-text leading-none font-medium font-pw px-[0.8125rem] py-[0.5625rem] border border-pw-accent-line rounded-pw-pill bg-pw-accent-08 min-h-9 cursor-pointer trans-bg-tf hover:bg-pw-accent-20 active:scale-[0.97]"
-              onClick={() => props.onAnswer(option)}
-            >
+            <Button variant="accent-soft" class={CHOICE} onClick={() => props.onAnswer(option)}>
               {option}
-            </button>
+            </Button>
           )}
         </For>
       </div>
@@ -82,12 +79,12 @@ function Confirm(props: {spec: UiInput; onAnswer: (value: UiAnswerValue) => void
         )}
       </Show>
       <div class={ACTIONS}>
-        <button type="button" class={PRIMARY} onClick={() => props.onAnswer('yes')}>
+        <Button class={ACTION} onClick={() => props.onAnswer('yes')}>
           Approve
-        </button>
-        <button type="button" class={GHOST} onClick={() => props.onAnswer('no')}>
+        </Button>
+        <Button variant="outline-danger" class={ACTION} onClick={() => props.onAnswer('no')}>
           Deny
-        </button>
+        </Button>
       </div>
     </>
   )
@@ -110,12 +107,12 @@ function Diff(props: {spec: UiInput; onAnswer: (value: UiAnswerValue) => void}):
         </For>
       </div>
       <div class={ACTIONS}>
-        <button type="button" class={PRIMARY} onClick={() => props.onAnswer('apply')}>
+        <Button class={ACTION} onClick={() => props.onAnswer('apply')}>
           Apply
-        </button>
-        <button type="button" class={GHOST} onClick={() => props.onAnswer('reject')}>
+        </Button>
+        <Button variant="outline-danger" class={ACTION} onClick={() => props.onAnswer('reject')}>
           Reject
-        </button>
+        </Button>
       </div>
     </>
   )
@@ -126,6 +123,47 @@ function fieldValue(values: Record<string, string>, field: NonNullable<UiInput['
   if (current !== undefined) return current
   if (field.type === 'select') return field.options?.[0] ?? ''
   return ''
+}
+
+function SelectField(props: {
+  field: NonNullable<UiInput['fields']>[number]
+  value: string
+  onSelect: (value: string) => void
+}): JSX.Element {
+  const collection = createMemo(() => createListCollection({items: props.field.options ?? []}))
+  return (
+    <Select.Root
+      class="flex flex-col gap-1"
+      collection={collection()}
+      value={[props.value]}
+      onValueChange={(details) => {
+        const next = details.value[0]
+        if (next !== undefined) props.onSelect(next)
+      }}
+    >
+      <Select.Label class={FIELD_LABEL}>{props.field.label}</Select.Label>
+      <Select.Control>
+        <Select.Trigger>
+          <Select.ValueText class="truncate" placeholder="Choose an option" />
+          <ChevronDown class="opacity-60 shrink-0 size-3.5" aria-hidden="true" />
+        </Select.Trigger>
+      </Select.Control>
+      <Select.Positioner>
+        <Select.Content>
+          <For each={collection().items}>
+            {(option) => (
+              <Select.Item item={option}>
+                <Select.ItemText>{option}</Select.ItemText>
+                <Select.ItemIndicator class="hidden data-[state=checked]:inline-flex">
+                  <Check class="size-4 block" aria-hidden="true" />
+                </Select.ItemIndicator>
+              </Select.Item>
+            )}
+          </For>
+        </Select.Content>
+      </Select.Positioner>
+    </Select.Root>
+  )
 }
 
 function Form(props: {spec: UiInput; onAnswer: (value: UiAnswerValue) => void}): JSX.Element {
@@ -141,34 +179,32 @@ function Form(props: {spec: UiInput; onAnswer: (value: UiAnswerValue) => void}):
       <Show when={props.spec.title}>{(title) => <p class={QUESTION}>{title()}</p>}</Show>
       <For each={fields()}>
         {(field) => (
-          <label class="flex flex-col gap-1">
-            <span class="text-[0.75rem] text-pw-text-2">{field.label}</span>
-            <Show
-              when={field.type === 'select'}
-              fallback={
+          <Show
+            when={field.type === 'select'}
+            fallback={
+              <label class="flex flex-col gap-1">
+                <span class={FIELD_LABEL}>{field.label}</span>
                 <input
                   class={INPUT}
                   type="text"
                   value={values()[field.name] ?? ''}
                   onInput={(e) => set(field.name, e.currentTarget.value)}
                 />
-              }
-            >
-              <select
-                class={INPUT}
-                value={fieldValue(values(), field)}
-                onChange={(e) => set(field.name, e.currentTarget.value)}
-              >
-                <For each={field.options ?? []}>{(option) => <option value={option}>{option}</option>}</For>
-              </select>
-            </Show>
-          </label>
+              </label>
+            }
+          >
+            <SelectField
+              field={field}
+              value={fieldValue(values(), field)}
+              onSelect={(value) => set(field.name, value)}
+            />
+          </Show>
         )}
       </For>
       <div class={ACTIONS}>
-        <button type="submit" class={PRIMARY}>
+        <Button type="submit" class={ACTION}>
           Submit
-        </button>
+        </Button>
       </div>
     </form>
   )

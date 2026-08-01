@@ -9,6 +9,7 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {X} from 'lucide-solid'
+import {Button, TooltipIconButton} from '@conciv/ui-kit-system'
 import {
   dismissNotice,
   FUSE_MS,
@@ -23,10 +24,8 @@ import {
 const STRIP = 'flex flex-col gap-1.5 empty:hidden'
 const NOTICE =
   'flex items-center gap-2 text-[0.75rem] leading-[1.4] font-medium font-pw px-2.5 py-2 border rounded-pw-md [word-break:break-word] anim-msg'
-const ACTION =
-  'shrink-0 [border:none] bg-transparent p-0 text-[0.75rem] font-semibold text-pw-accent-link cursor-pointer underline underline-offset-2 focus-ring'
-const DISMISS =
-  'shrink-0 size-5 rounded-pw-pill [border:none] bg-transparent text-pw-text-3 cursor-pointer inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong focus-ring'
+const ACTION = 'shrink-0 font-semibold'
+const DISMISS = 'shrink-0 size-5 rounded-pw-pill'
 
 const TONE: Record<NoticeTone, string> = {
   info: 'border-pw-line bg-pw-fill text-pw-text-2',
@@ -101,8 +100,9 @@ export function NoticeStrip(): JSX.Element {
             <span class="flex-1 min-w-0">{notice.message}</span>
             <For each={notice.action ? [notice.action] : []}>
               {(action) => (
-                <button
-                  type="button"
+                <Button
+                  variant="link"
+                  size="bare"
                   class={ACTION}
                   onClick={() => {
                     notices.dismiss(notice.id)
@@ -110,12 +110,12 @@ export function NoticeStrip(): JSX.Element {
                   }}
                 >
                   {action.label}
-                </button>
+                </Button>
               )}
             </For>
-            <button type="button" class={DISMISS} aria-label="Dismiss" onClick={() => notices.dismiss(notice.id)}>
-              <X class="size-3.5 block" />
-            </button>
+            <TooltipIconButton tooltip="Dismiss" class={DISMISS} onClick={() => notices.dismiss(notice.id)}>
+              <X class="size-3.5 block" aria-hidden="true" />
+            </TooltipIconButton>
           </div>
         )}
       </For>

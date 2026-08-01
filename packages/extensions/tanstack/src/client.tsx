@@ -1,5 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {Waypoints} from 'lucide-solid'
+import {Tooltip} from '@conciv/ui-kit-system'
 import {defineExtension, getHostApi} from '@conciv/extension'
 import {CONCIV_TANSTACK_CLIENT_SENTINEL} from './client-sentinel.js'
 import {tanstackVerbs} from './client/verbs.js'
@@ -25,13 +26,22 @@ function Component(): JSX.Element {
   const slot = getHostApi().useSlot()
   return (
     <Show when={slot === 'composer'}>
-      <span
-        title="TanStack inspector active"
-        class="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-pw-md text-pw-text-2 bg-pw-fill-strong text-sm"
-      >
-        <Waypoints size={14} />
-        {CONCIV_TANSTACK_CLIENT_SENTINEL}
-      </span>
+      <Tooltip.Root>
+        <Tooltip.Trigger
+          asChild={(triggerProps) => (
+            <span
+              {...triggerProps()}
+              class="text-sm text-pw-text-2 px-2.5 rounded-pw-md bg-pw-fill-strong inline-flex gap-1.5 h-9 items-center"
+            >
+              <Waypoints size={14} aria-hidden="true" />
+              {CONCIV_TANSTACK_CLIENT_SENTINEL}
+            </span>
+          )}
+        />
+        <Tooltip.Positioner>
+          <Tooltip.Content>TanStack inspector active</Tooltip.Content>
+        </Tooltip.Positioner>
+      </Tooltip.Root>
     </Show>
   )
 }

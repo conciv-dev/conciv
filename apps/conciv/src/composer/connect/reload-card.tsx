@@ -14,8 +14,7 @@ import {
 
 const LEAD = 'text-pw-text text-sm leading-normal m-0'
 const HINT = 'text-pw-text-3 text-xs leading-normal m-0'
-const LINK =
-  'self-start [border:none] bg-transparent p-0 min-h-11 text-xs text-pw-accent-link cursor-pointer underline underline-offset-2 focus-ring'
+const LINK = 'self-start min-h-11 text-xs'
 const STATUS = 'flex items-center gap-2 text-xs m-0'
 const WAITING = `${STATUS} text-pw-text-3`
 const LOST = `${STATUS} text-pw-danger`
@@ -53,9 +52,9 @@ export function ReloadCard(props: {
         command={local.adopted.reloadCommand}
         focusRef={local.focusRef}
         lead={
-          <button type="button" class={LINK} onClick={() => local.onBack()}>
+          <Button variant="link" size="bare" class={LINK} onClick={() => local.onBack()}>
             {BACK_LABEL}
-          </button>
+          </Button>
         }
       />
       <p class={HINT}>{RELOAD_HEADS_UP}</p>

@@ -1,6 +1,6 @@
 import {getHostApi} from '@conciv/extension'
 import {connectPorts} from '@conciv/protocol/connect-ports'
-import {TooltipIconButton} from '@conciv/ui-kit-system'
+import {Collapsible, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
 import {Check, Copy} from 'lucide-solid'
 import {createSignal, onCleanup, onMount, Show, type JSX} from 'solid-js'
 import {probeCore} from '../shared/probe.js'
@@ -30,9 +30,18 @@ function CopyRow(props: {label: string; text: string; onCopy: () => void}): JSX.
   onCleanup(() => clearTimeout(timer))
   return (
     <div class="py-1.5 pl-3 pr-1.5 border border-pw-line rounded-pw-md bg-pw-fill flex gap-2 items-center">
-      <span class="text-[12px] text-pw-text-2 font-mono flex-1 min-w-0 truncate" title={props.text}>
-        {props.text}
-      </span>
+      <Tooltip.Root>
+        <Tooltip.Trigger
+          asChild={(triggerProps) => (
+            <span {...triggerProps()} class="text-[12px] text-pw-text-2 font-mono text-start flex-1 min-w-0 truncate">
+              {props.text}
+            </span>
+          )}
+        />
+        <Tooltip.Positioner>
+          <Tooltip.Content class="font-mono [overflow-wrap:anywhere]">{props.text}</Tooltip.Content>
+        </Tooltip.Positioner>
+      </Tooltip.Root>
       <TooltipIconButton tooltip={props.label} class="size-7" onClick={copy}>
         <Show when={done()} fallback={<Copy class="size-3.5" aria-hidden="true" />}>
           <Check class="text-pw-accent size-3.5" aria-hidden="true" />
@@ -137,17 +146,19 @@ export function ConnectPane(props: {token: string}): JSX.Element {
       <ol class="m-0 p-0 list-none flex flex-1 flex-col gap-3.5 min-h-0 overflow-y-auto anim-rise-d">
         <Step index={1} state={states().copy} title={STEP_TITLES.copy}>
           <CopyRow label="Copy connect command" text={npxText()} onCopy={markCopied} />
-          <details>
-            <summary class="text-[12px] text-pw-text-3 w-fit cursor-pointer trans-color-bg hover:text-pw-text-2">
+          <Collapsible.Root>
+            <Collapsible.Trigger class="text-[12px] text-pw-text-3 w-fit cursor-pointer focus-ring trans-color-bg hover:text-pw-text-2">
               or hand it to your coding agent
-            </summary>
-            <div class="mt-2 flex flex-col gap-1.5">
-              <CopyRow label="Copy agent prompt" text={promptText()} onCopy={markCopied} />
-              <p class="text-[11.5px] text-pw-text-3">
-                Some agents will ask you to run the command yourself, and that works too.
-              </p>
-            </div>
-          </details>
+            </Collapsible.Trigger>
+            <Collapsible.Content>
+              <div class="mt-2 flex flex-col gap-1.5">
+                <CopyRow label="Copy agent prompt" text={promptText()} onCopy={markCopied} />
+                <p class="text-[11.5px] text-pw-text-3">
+                  Some agents will ask you to run the command yourself, and that works too.
+                </p>
+              </div>
+            </Collapsible.Content>
+          </Collapsible.Root>
         </Step>
         <Step index={2} state={states().run} title={STEP_TITLES.run}>
           <p class="text-[12px] text-pw-text-3">First run installs the package (~30s).</p>

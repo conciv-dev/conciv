@@ -1,5 +1,5 @@
 import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
-import {Collapsible} from '@conciv/ui-kit-system'
+import {Button, Collapsible} from '@conciv/ui-kit-system'
 import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
 import {ToolCard, resultText} from '@conciv/ui-kit-chat'
 import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
@@ -52,9 +52,7 @@ const ERR =
   'mt-0 mr-3 mb-2 ml-9 py-2 px-2.5 bg-pw-sunken border-l-2 border-l-pw-danger rounded text-pw-danger text-[0.71875rem]'
 const ERR_PRE = 'm-0 whitespace-pre-wrap [word-break:break-word] [font:inherit]'
 const ACTIONS = 'flex gap-1.75 mt-2'
-const ACT = `inline-flex items-center gap-1.25 min-h-6 text-[0.6875rem] leading-none font-pw-mono py-1 px-2.25 rounded-[0.3125rem] cursor-pointer border trans-bg ${FOCUS}`
-const ACT_PLAIN = 'border-pw-line-2 bg-pw-fill text-pw-text hover:bg-pw-fill-strong'
-const ACT_FIX = 'border-pw-accent-line bg-pw-accent-08 text-pw-accent-link hover:bg-pw-accent-20'
+const ACT = 'min-h-6 text-[0.6875rem] leading-none font-pw-mono py-1 px-2.25 rounded-[0.3125rem]'
 
 function dotClass(state: TestState | 'running'): string {
   return `${DOT_BASE} ${DOT_STATE[state]}`
@@ -101,14 +99,14 @@ function TestErrorBlock(props: {error: TestError; ctx: ToolViewCtx}): JSX.Elemen
     <div class={ERR}>
       <pre class={ERR_PRE}>{props.error.message}</pre>
       <div class={ACTIONS}>
-        <button class={`${ACT}  ${ACT_PLAIN}`} onClick={() => openEditor(props.error.file, props.error.line)}>
+        <Button variant="outline" class={ACT} onClick={() => openEditor(props.error.file, props.error.line)}>
           <ExternalLink size={12} aria-hidden="true" />
           Open {openLabel(props.error)}
-        </button>
-        <button class={`${ACT}  ${ACT_FIX}`} onClick={() => props.ctx.sendMessage(fixMessage(props.error))}>
+        </Button>
+        <Button variant="accent-soft" class={ACT} onClick={() => props.ctx.sendMessage(fixMessage(props.error))}>
           <Sparkles size={12} aria-hidden="true" />
           Fix this
-        </button>
+        </Button>
       </div>
     </div>
   )

@@ -151,16 +151,16 @@ function RecorderPanel(): JSX.Element {
                       <Show
                         when={live()}
                         fallback={
-                          <button
-                            type="button"
-                            class="px-2.5 border border-pw-line rounded-pw-pill bg-pw-fill flex gap-1.5 h-6.5 cursor-pointer select-none items-center hover:border-pw-line-2 hover:bg-pw-fill-strong"
+                          <Button
+                            variant="outline"
+                            class="px-2.5 rounded-pw-pill h-6.5 select-none"
                             onClick={() => playerHandle?.goLive()}
                           >
-                            <span class="rounded-full bg-pw-text-3 size-1.5" />
+                            <span class="rounded-full bg-pw-text-3 size-1.5" aria-hidden="true" />
                             <span class="text-[0.6875rem] text-pw-text-2 tracking-[0.1em] font-pw font-semibold">
                               GO LIVE
                             </span>
-                          </button>
+                          </Button>
                         }
                       >
                         <LiveBadge />
