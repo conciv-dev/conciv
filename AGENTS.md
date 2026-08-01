@@ -52,6 +52,24 @@ README.md; this file is the non-obvious operational rules.
   `any`/`as`/`@ts-ignore`.
 - oxfmt: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
 
+## TanStack Router
+
+- Before any router work: `pnpm dlx @tanstack/intent@latest load @tanstack/router-core#<skill>`
+  (`router-core/search-params` for params, `router-core/code-splitting` for `getRouteApi`).
+- Files under `src/routes/` use route-scoped APIs only: `Route.useSearch()`, `Route.useNavigate()`,
+  `Route.useParams()`, `Route.useLoaderData()`, or `getRouteApi('/path')` in a split component. Bare
+  `useSearch`/`useNavigate`/`useParams`/`useLoaderData` imports there are a lint error.
+- Shared cross-route components read params with `useSearch({strict: false})`. Never mine
+  `useRouterState().matches` and never hand-parse `window.location`: ask the router
+  (`router.matchRoutes`).
+- Declare a search param on the shallowest route whose layout reads it; inheritance is
+  downward-only. Children contribute their own defaults through `search.middlewares`, and masked
+  defaults are stripped with `stripSearchParams`.
+- `validateSearch` must never throw: every zod field carries `.default()` or `.optional()` AND
+  `.catch()` (zod v4, plain `.catch()`, no `zodValidator` adapter, no `fallback()`). Search schemas
+  live in files named `*-schemas.ts` with `const <name>SearchSchema`, which is what the
+  `conciv/router-idioms` lint rule matches on to check fields across files.
+
 ## Testing
 
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
