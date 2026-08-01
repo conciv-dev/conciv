@@ -1,7 +1,8 @@
 import {createFileRoute} from '@tanstack/react-router'
 import {LandingPage} from '@/components/landing/landing-page'
+import {indexSearchSchema} from '@/lib/search-schemas'
 
 export const Route = createFileRoute('/')({
-  validateSearch: (search: Record<string, unknown>): {try?: 1} => (search.try === 1 ? {try: 1} : {}),
+  validateSearch: indexSearchSchema,
   component: LandingPage,
 })

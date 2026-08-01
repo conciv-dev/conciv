@@ -7,7 +7,6 @@ import {FeaturesSection} from './features-section'
 import {HowItWorks} from './how-it-works'
 import {SiteFooter} from './site-footer'
 import {SmoothScroll} from './smooth-scroll'
-import {LiveWidgetMount} from './live-widget-mount'
 
 export function LandingPage() {
   return (
@@ -24,7 +23,6 @@ export function LandingPage() {
             <HowItWorks />
           </main>
           <SiteFooter />
-          <LiveWidgetMount />
         </div>
       </SmoothScroll>
     </LandingMotion>
