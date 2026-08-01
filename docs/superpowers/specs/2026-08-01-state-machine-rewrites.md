@@ -112,14 +112,29 @@ null>`; draft-restore + attachment-drain become effects on composer-ready; focus
 
 ## Wave 4 — `use-thread-auto-scroll.ts` (conciv-frontend, LAST, highest behavioral risk)
 
-HARD constraints from memory: the engine-adapter design is load-bearing
-([[pane-snapshot-pagetoken]] — never poke scrollTop from outside;
-[[dom-reinsert-resets-scrolltop]] — hostObserver restore is load-bearing;
-[[scroll-to-bottom-button-in-flow-jumps]] — holdPosition). Rewrite unifies at-bottom
-into one derived rule (formula currently written twice), one machine for
-pinned/holding/free, kills the DOM-attribute-as-storage and the 4-field `last` record.
-The MutationObserver narrows its watch set. Every historical scroll bug has a pinned
-test — the net is the whole point of doing this file last, with the most care.
+CORRECTION (2026-08-01, post-merge of main at 00e65849): the hostObserver reinsert-restore
+and the ThreadScrollRestoration engine-adapter were NEVER merged to main — they live only
+on the unmerged branches session-switch-scroll-fix / scroll-position-restoration /
+generalized-scroll-persistence. They are NOT constraints on this rewrite. What IS binding:
+
+- Real file: `packages/ui-kit-chat/src/behaviors/use-thread-auto-scroll.ts` (~214 lines
+  post-merge, includes cf6fc75d), consumed by `use-thread-scroll.ts`.
+- cf6fc75d pinned behavior: user input (wheel/touch/key) detaches auto-follow so touch
+  scrolling wins over streaming re-pin. Its browser suite
+  `packages/ui-kit-chat/test/thread-auto-scroll.browser.test.tsx` (8 tests) is the
+  behavior contract, plus the 4 scroll stories.
+- holdPosition ([[scroll-to-bottom-button-in-flow-jumps]]): scroll-to-bottom button is an
+  absolute overlay; keep.
+- Design rule for any restoration follow-up (not this rewrite): scroll restore enters via
+  an adapter inside the engine, never external scrollTop writes.
+
+Rewrite items (verified live post-merge): unify at-bottom into `isAtBottomNow` promoted to
+a node-tested export (main already unified the formula); one machine for pinned/holding/
+free (currently `isAtBottom` signal + `intent.behavior` + `SCROLL_HOLD_ATTR` + the two
+net-new `gesture` flags cf6fc75d added — sediment confirming the machine is overdue);
+kill DOM-attribute-as-storage (`data-scroll-hold`) and the 4-field `last` record; narrow
+the MutationObserver watch set; convert 9 raw addEventListener + setTimeout to
+solid-primitives/Pacer per shared rules.
 
 ## Deferred rotten files (separate follow-ups, not this plan)
 
