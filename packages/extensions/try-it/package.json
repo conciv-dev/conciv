@@ -27,6 +27,7 @@
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@solid-primitives/event-listener": "^2.4.5",
     "lucide-solid": "^1.18.0"
   },
   "devDependencies": {
