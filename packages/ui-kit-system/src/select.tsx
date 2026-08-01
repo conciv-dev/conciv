@@ -2,7 +2,7 @@ import {splitProps, type ComponentProps} from 'solid-js'
 import {Select as Ark} from '@ark-ui/solid/select'
 
 const TRIGGER =
-  'flex items-center justify-between gap-2 w-full min-h-9 py-2 px-2.5 rounded-pw-sm bg-pw-fill text-pw-text text-[0.8125rem] font-pw [border:1px_solid_var(--pw-line)] cursor-pointer trans-border focus-ring data-[state=open]:[border-color:var(--pw-accent)] data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed'
+  'flex items-center justify-between gap-2 w-full min-h-9 py-2 px-2.5 rounded-pw-sm bg-pw-fill text-pw-text text-[0.8125rem] font-pw [border-width:1px] [border-style:solid] border-pw-line cursor-pointer trans-border focus-ring data-[state=open]:border-pw-accent data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed'
 const CONTENT =
   'hidden data-[state=open]:flex data-[state=open]:anim-combo flex-col gap-0.5 z-[2147483647] min-w-[var(--reference-width)] max-h-60 overflow-y-auto rounded-pw-md bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg p-1 focus-visible:outline-none'
 const ITEM =

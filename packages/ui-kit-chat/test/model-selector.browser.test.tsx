@@ -4,10 +4,11 @@ import {page, userEvent} from 'vitest/browser'
 import {afterEach, expect, it} from 'vitest'
 import {ModelSelector, type ModelOption} from '../src/primitives/model-selector/model-selector.js'
 import {ModelSelector as StyledModelSelector} from '../src/styled/model-selector.js'
-import {cleanupSelectors, HARNESS_MODELS, mountSelector} from './model-selector-harness.js'
+import {HARNESS_MODELS} from './model-selector-harness.js'
+import {cleanupViews, mountView} from './mount-view.js'
 
 afterEach(() => {
-  cleanupSelectors()
+  cleanupViews()
 })
 
 function Selector(): JSX.Element {
@@ -39,7 +40,7 @@ function tapTriggerThenTypeInTheSameTurn(text: string): void {
 }
 
 it('filters the list from keystrokes typed immediately after the trigger click', async () => {
-  mountSelector(() => <Selector />)
+  mountView(() => <Selector />)
 
   await userEvent.click(page.getByRole('button', {name: 'Select model'}))
   await userEvent.keyboard('haiku')
@@ -49,7 +50,7 @@ it('filters the list from keystrokes typed immediately after the trigger click',
 })
 
 it('keeps a keystroke typed in the same turn as a touch tap on the trigger', async () => {
-  mountSelector(() => <Selector />)
+  mountView(() => <Selector />)
 
   tapTriggerThenTypeInTheSameTurn('haiku')
 
@@ -59,7 +60,7 @@ it('keeps a keystroke typed in the same turn as a touch tap on the trigger', asy
 
 function mountLateSelector(): (models: readonly ModelOption[]) => void {
   const [models, setModels] = createSignal<readonly ModelOption[]>([])
-  mountSelector(() => (
+  mountView(() => (
     <ModelSelector.Root models={models()}>
       <ModelSelector.Trigger aria-label="Select model" />
       <ModelSelector.Content>
@@ -95,7 +96,7 @@ it('filters models that arrive after mount', async () => {
 })
 
 it('hides the styled model list until the selector is opened', async () => {
-  mountSelector(() => <StyledModelSelector models={HARNESS_MODELS} defaultValue="claude-opus-4-8" searchable />)
+  mountView(() => <StyledModelSelector models={HARNESS_MODELS} defaultValue="claude-opus-4-8" searchable />)
 
   await expect.element(page.getByRole('button', {name: 'Select model'}), {timeout: 2000}).toBeVisible()
   await expect.element(page.getByPlaceholder('Search models…'), {timeout: 2000}).not.toBeVisible()
@@ -103,7 +104,7 @@ it('hides the styled model list until the selector is opened', async () => {
 })
 
 it('reveals and filters the styled model list from keystrokes typed right after the trigger click', async () => {
-  mountSelector(() => <StyledModelSelector models={HARNESS_MODELS} defaultValue="claude-opus-4-8" searchable />)
+  mountView(() => <StyledModelSelector models={HARNESS_MODELS} defaultValue="claude-opus-4-8" searchable />)
 
   await userEvent.click(page.getByRole('button', {name: 'Select model'}))
   await userEvent.keyboard('haiku')

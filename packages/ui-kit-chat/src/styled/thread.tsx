@@ -236,6 +236,7 @@ const MESSAGES_COMPONENTS = {UserMessage: UserTurn, AssistantMessage: AssistantM
 
 export function Thread(props: ThreadProps): JSX.Element {
   const composerSlot = children(() => props.composer)
+  const viewportFooterSlot = children(() => props.viewportFooter)
   return (
     <ThreadConfigContext.Provider
       value={{
@@ -261,7 +262,7 @@ export function Thread(props: ThreadProps): JSX.Element {
             </Show>
           </ThreadPrimitive.Empty>
           <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
-          <Show when={props.viewportFooter}>{props.viewportFooter}</Show>
+          <Show when={viewportFooterSlot()}>{viewportFooterSlot()}</Show>
           {props.overlay}
           <div class="h-0 pointer-events-none self-center bottom-2 sticky z-10 overflow-visible">
             <ThreadPrimitive.ScrollToBottom

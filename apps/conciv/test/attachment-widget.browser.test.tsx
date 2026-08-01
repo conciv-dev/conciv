@@ -60,6 +60,6 @@ test('composer chip area renders the fixture card with a remove affordance', asy
     dispose()
     host.remove()
   })
-  await expect.element(page.getByText('fixture player').first()).toBeVisible()
-  expect(page.getByRole('button', {name: 'Remove fixture.bin'}).elements().length).toBeGreaterThan(0)
+  await expect.element(page.getByText('fixture player'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Remove fixture.bin'}), {timeout: 2000}).toBeVisible()
 })

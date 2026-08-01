@@ -1,4 +1,4 @@
-import {For, Show, splitProps, type JSX} from 'solid-js'
+import {children, For, Show, splitProps, type JSX} from 'solid-js'
 import {Combobox} from '@conciv/ui-kit-system'
 import {Check, ChevronsUpDown} from 'lucide-solid'
 import {
@@ -9,6 +9,7 @@ import {
   type ModelSelectorRootProps,
   type ModelSelectorValueProps,
 } from '../primitives/model-selector/model-selector.js'
+import {Slot} from '../primitives/util/slot.js'
 
 const TRIGGER =
   'text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] pl-2.5 pr-[0.4375rem] h-7 max-w-42 min-w-0 shrink gap-1 inline-flex items-center cursor-pointer rounded-[var(--chat-radius-pill)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)]'
@@ -61,8 +62,7 @@ function Trigger(
       title="Select model"
       {...rest}
     >
-      <Show
-        when={local.children}
+      <Slot
         fallback={
           <>
             <Value />
@@ -71,7 +71,7 @@ function Trigger(
         }
       >
         {local.children}
-      </Show>
+      </Slot>
     </ModelSelectorPrimitive.Trigger>
   )
 }
@@ -114,13 +114,20 @@ function List(): JSX.Element {
   )
 }
 
+function GroupLabel(props: {label: JSX.Element}): JSX.Element {
+  const label = children(() => props.label)
+  return (
+    <Show when={label()}>
+      <Combobox.ItemGroupLabel class={GROUP_LABEL}>{label()}</Combobox.ItemGroupLabel>
+    </Show>
+  )
+}
+
 function Group(props: JSX.HTMLAttributes<HTMLDivElement> & {label?: JSX.Element}): JSX.Element {
   const [local, rest] = splitProps(props, ['label', 'children'])
   return (
     <ModelSelectorPrimitive.Group {...rest}>
-      <Show when={local.label}>
-        <Combobox.ItemGroupLabel class={GROUP_LABEL}>{local.label}</Combobox.ItemGroupLabel>
-      </Show>
+      <GroupLabel label={local.label} />
       {local.children}
     </ModelSelectorPrimitive.Group>
   )

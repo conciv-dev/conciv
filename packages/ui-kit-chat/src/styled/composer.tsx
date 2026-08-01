@@ -5,6 +5,7 @@ import {Composer as ComposerPrimitive} from '../primitives/composer/composer.js'
 import type {AttachmentAdapter} from '../primitives/attachment/attachment-adapter.js'
 import {AttachmentUI} from './attachment-ui.js'
 import {QueueItem} from '../primitives/queue-item/queue-item.js'
+import {Slot} from '../primitives/util/slot.js'
 import {FOCUS} from './classes.js'
 
 export type ComposerProps = {
@@ -84,11 +85,9 @@ export function Composer(props: ComposerProps): JSX.Element {
               <Paperclip size={16} aria-hidden="true" />
             </ComposerPrimitive.AddAttachment>
           </Show>
-          <Show when={props.children}>{props.children}</Show>
+          <Slot>{props.children}</Slot>
           <div class="ml-auto flex gap-1 items-center">
-            <Show when={props.busy} fallback={<TrailingControls />}>
-              {props.busy}
-            </Show>
+            <Slot fallback={<TrailingControls />}>{props.busy}</Slot>
           </div>
         </div>
       </div>

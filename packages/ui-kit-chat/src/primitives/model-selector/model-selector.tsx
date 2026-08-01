@@ -13,6 +13,7 @@ import {
 import {Combobox} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {createControllableSignal} from '../util/create-controllable-signal.js'
+import {Slot} from '../util/slot.js'
 
 export type ModelSelectorEffortOption = {id: string; name: string}
 
@@ -186,9 +187,7 @@ function Trigger(props: ModelSelectorTriggerProps): JSX.Element {
   return (
     <Combobox.Control class="inline-flex shrink max-w-full min-w-0">
       <Combobox.Trigger data-variant={local.variant ?? 'outline'} data-size={local.size ?? 'default'} {...rest}>
-        <Show when={local.children} fallback={<Value />}>
-          {local.children}
-        </Show>
+        <Slot fallback={<Value />}>{local.children}</Slot>
       </Combobox.Trigger>
     </Combobox.Control>
   )
@@ -242,12 +241,9 @@ function List(props: ModelSelectorListProps): JSX.Element {
   const [local, rest] = splitProps(props, ['children'])
   return (
     <div {...rest}>
-      <Show
-        when={local.children}
-        fallback={<For each={context.filteredModels()}>{(model) => <Item model={model} />}</For>}
-      >
+      <Slot fallback={<For each={context.filteredModels()}>{(model) => <Item model={model} />}</For>}>
         {local.children}
-      </Show>
+      </Slot>
     </div>
   )
 }
@@ -285,9 +281,7 @@ function Item(props: ModelSelectorItemProps): JSX.Element {
   const [local, rest] = splitProps(props, ['model', 'onSelect', 'children'])
   return (
     <Combobox.Item item={local.model} {...rest}>
-      <Show when={local.children} fallback={<Combobox.ItemText>{local.model.name}</Combobox.ItemText>}>
-        {local.children}
-      </Show>
+      <Slot fallback={<Combobox.ItemText>{local.model.name}</Combobox.ItemText>}>{local.children}</Slot>
     </Combobox.Item>
   )
 }
