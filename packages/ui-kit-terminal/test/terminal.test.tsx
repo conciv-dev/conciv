@@ -1,7 +1,7 @@
 import {describe, expect, inject, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from 'solid-js/web'
-import type {JSX} from 'solid-js'
+import {createSignal, onMount, type JSX} from 'solid-js'
 import {until} from '@conciv/harness-testkit/until'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createTerminalModel, translateBuffer, type TerminalModel} from '../src/model.js'
@@ -13,13 +13,39 @@ function mount(ui: () => JSX.Element): {host: HTMLElement; dispose: () => void} 
   host.style.width = '640px'
   host.style.height = '320px'
   document.body.appendChild(host)
-  const dispose = render(ui, host)
+  const disposeRoot = render(ui, host)
+  const dispose = (): void => {
+    disposeRoot()
+    host.remove()
+  }
   return {host, dispose}
+}
+
+function SessionLog(props: {model: TerminalModel; label: string}): JSX.Element {
+  const [text, setText] = createSignal('')
+  onMount(() => {
+    const {terminal} = props.model
+    terminal.onWriteParsed(() => setText(translateBuffer(terminal)))
+  })
+  return <section aria-label={props.label}>{text()}</section>
+}
+
+function sessionLog(label: string) {
+  return page.getByRole('region', {name: label})
 }
 
 function controlModel(): TerminalModel {
   const base = inject('controlBase')
   return createTerminalModel({url: () => base})
+}
+
+function greetedModel(key: string): TerminalModel {
+  const base = inject('controlBase')
+  return createTerminalModel({url: () => `${base}/?greet=${key}`})
+}
+
+function dropConnection(model: TerminalModel): void {
+  model.sendInput(JSON.stringify({drop: true}))
 }
 
 async function emit(model: TerminalModel, frame: TtyServerControl): Promise<void> {
@@ -172,6 +198,49 @@ describe('terminal primitives', () => {
     await emit(model, {type: 'busy', busy: false})
     await until(() => !model.busy())
     model.disconnect()
+  })
+})
+
+describe('terminal reconnection', () => {
+  it('reopens the session after the connection drops', async () => {
+    const model = greetedModel('dropped')
+    const {dispose} = mount(() => (
+      <>
+        <Terminal model={model} />
+        <SessionLog model={model} label="dropped log" />
+      </>
+    ))
+    await expect.element(sessionLog('dropped log')).toHaveTextContent('dropped-1')
+    dropConnection(model)
+    await expect.element(sessionLog('dropped log')).toHaveTextContent('dropped-2')
+    dispose()
+  })
+
+  it('never reopens the session after a deliberate disconnect', async () => {
+    const abandoned = greetedModel('solo')
+    const abandonedMount = mount(() => (
+      <>
+        <Terminal model={abandoned} />
+        <SessionLog model={abandoned} label="abandoned log" />
+      </>
+    ))
+    await expect.element(sessionLog('abandoned log')).toHaveTextContent('solo-1')
+    abandoned.disconnect()
+    abandonedMount.dispose()
+
+    const successor = greetedModel('solo')
+    const {dispose} = mount(() => (
+      <>
+        <Terminal model={successor} />
+        <SessionLog model={successor} label="successor log" />
+      </>
+    ))
+    await expect.element(sessionLog('successor log')).toHaveTextContent('solo-2')
+    dropConnection(successor)
+    await expect.element(sessionLog('successor log')).toHaveTextContent('solo-3')
+    dropConnection(successor)
+    await expect.element(sessionLog('successor log')).toHaveTextContent('solo-4')
+    dispose()
   })
 })
 
