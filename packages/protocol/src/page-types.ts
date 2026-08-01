@@ -170,5 +170,12 @@ export const RawFrameSchema = z.object({
   fn: z.string().optional(),
 })
 export const OpenSourceSchema = z.object({frames: z.array(RawFrameSchema)})
+export const SourceLocSchema = z.object({file: z.string(), line: z.number(), column: z.number()})
+export const SymbolicateFrameSchema = z.object({
+  fileName: z.string().min(1),
+  line: z.number().int().min(1),
+  column: z.number().int().min(0).optional(),
+})
+export const SymbolicateSchema = z.object({frames: z.array(SymbolicateFrameSchema).min(1).max(32)})
 export const OpenSourceResultSchema = z.object({status: z.enum(['opened', 'no-source', 'failed'])})
 export type OpenSourceResult = z.infer<typeof OpenSourceResultSchema>['status']

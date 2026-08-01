@@ -23,7 +23,9 @@ import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
 import {collectToolRenderers} from '@conciv/extension'
+import type {Grab} from '@conciv/grab'
 import {paneAttachments} from './pane-attachments.js'
+import {resolveGrabSource} from './grab-source-resolve.js'
 import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
@@ -241,9 +243,16 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
     <AttachmentByMime cards={attachments().cards} removable={slotProps.removable} />
   )
-  const stageGrab = (grab: Parameters<typeof pane.grabStore.stage>[0]) => {
+  const groundGrab = async (grab: Grab): Promise<void> => {
+    const grounded = await resolveGrabSource(grab, (input) => rpc.page.symbolicate(input))
+    if (!grounded) return
+    pane.grabStore.replace(grab, grounded)
+    persistDraft.maybeExecute()
+  }
+  const stageGrab = (grab: Grab) => {
     pane.grabStore.stage(grab)
     focusInput()
+    void groundGrab(grab)
   }
   const paneGrab = makePaneGrabApi(pane.grabStore, pane.grabProvider)
 

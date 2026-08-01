@@ -1,10 +1,11 @@
+import {Link} from '@tanstack/react-router'
 import {SparkMark} from './spark-mark'
 
 const PRODUCT = [
-  {label: 'Docs', href: '/docs'},
-  {label: 'Quick start', href: '/docs/quick-start'},
-  {label: 'Configuration', href: '/docs/configuration'},
-  {label: 'Troubleshooting', href: '/docs/troubleshooting'},
+  {label: 'Docs', splat: ''},
+  {label: 'Quick start', splat: 'quick-start'},
+  {label: 'Configuration', splat: 'configuration'},
+  {label: 'Troubleshooting', splat: 'troubleshooting'},
 ]
 
 const COMMUNITY = [
@@ -18,18 +19,35 @@ const INSTALL = [
   {label: 'Example app', href: 'https://github.com/conciv-dev/conciv/tree/main/apps/examples/tanstack-start'},
 ]
 
+const LINK_CLASS = 'mb-2.5 block text-[13.5px] text-[oklch(0.85_0.008_75)] transition-colors hover:text-white'
+
+function ColumnHeading({title}: {title: string}) {
+  return (
+    <p className="mb-3.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.68_0.012_70)]">
+      {title}
+    </p>
+  )
+}
+
+function DocsColumn() {
+  return (
+    <div>
+      <ColumnHeading title="Product" />
+      {PRODUCT.map((link) => (
+        <Link key={link.label} to="/docs/$" params={{_splat: link.splat}} className={LINK_CLASS}>
+          {link.label}
+        </Link>
+      ))}
+    </div>
+  )
+}
+
 function Column({title, links}: {title: string; links: {label: string; href: string}[]}) {
   return (
     <div>
-      <p className="mb-3.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.68_0.012_70)]">
-        {title}
-      </p>
+      <ColumnHeading title={title} />
       {links.map((link) => (
-        <a
-          key={link.label}
-          href={link.href}
-          className="mb-2.5 block text-[13.5px] text-[oklch(0.85_0.008_75)] transition-colors hover:text-white"
-        >
+        <a key={link.label} href={link.href} className={LINK_CLASS}>
           {link.label}
         </a>
       ))}
@@ -57,7 +75,7 @@ export function SiteFooter() {
             An AI dev agent that lives inside your running app. Dev-only, open source, harness-agnostic.
           </p>
         </div>
-        <Column title="Product" links={PRODUCT} />
+        <DocsColumn />
         <Column title="Community" links={COMMUNITY} />
         <Column title="Install" links={INSTALL} />
       </div>

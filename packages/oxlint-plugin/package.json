@@ -1,0 +1,29 @@
+{
+  "name": "@conciv/oxlint-plugin",
+  "version": "0.0.16",
+  "private": true,
+  "description": "Repo-local oxlint JS plugin: the conciv lint rules (no-comments, no-locator-poll, router-idioms) wired into .oxlintrc.json.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/oxlint-plugin"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/plugin.js"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint src test/*.ts",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
+    "@types/node": "^22.19.21",
+    "oxlint": "^1.69.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

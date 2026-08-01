@@ -4,7 +4,7 @@
   "jsPlugins": [
     {"name": "unocss", "specifier": "@unocss/eslint-plugin"},
     {"name": "playwright", "specifier": "eslint-plugin-playwright"},
-    {"name": "conciv", "specifier": "./tools/oxlint/plugin.js"}
+    {"name": "conciv", "specifier": "./packages/oxlint-plugin/src/plugin.js"}
   ],
   "categories": {
     "correctness": "error",
@@ -77,6 +77,12 @@
     "es2022": true
   },
   "overrides": [
+    {
+      "files": ["apps/site/**"],
+      "rules": {
+        "conciv/router-idioms": "error"
+      }
+    },
     {
       "files": ["packages/ui-kit-system/**"],
       "rules": {
@@ -152,6 +158,7 @@
     "**/*.gen.ts",
     "**/*.gen.tsx",
     "**/test-results",
+    "packages/oxlint-plugin/test/fixtures/**",
     "packages/plugin/test/fixtures/**",
     "packages/extensions/tanstack/test/fixtures/**",
     "e2e/*/src",

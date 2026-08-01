@@ -56,7 +56,18 @@ export async function buildConcivHost(options: BuildConcivHostOptions): Promise<
     configFile: false,
     logLevel: 'silent',
     plugins: [concivBuildPlugin(NO_BUILTINS), extensionUnderTestPlugin(options.clientEntry), ...options.plugins],
-    build: {outDir, emptyOutDir: true, rollupOptions: {input}},
+    build: {
+      outDir,
+      emptyOutDir: true,
+      rollupOptions: {
+        input,
+        output: {
+          codeSplitting: {
+            groups: [{name: 'shiki', test: /node_modules[\\/](shiki|@shikijs[\\/][^\\/]+)[\\/]/}],
+          },
+        },
+      },
+    },
   })
   return outDir
 }

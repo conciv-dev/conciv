@@ -1,7 +1,10 @@
 import type {SourceInfo} from 'react-grab'
 import {setPicking, setCancelPick} from './picking.js'
 import {captureElement} from './capture-element.js'
-import type {ElementSource, Grab} from '@conciv/grab'
+import {groundGrabText} from './grab-text.js'
+import {framesForElement} from '../react-bridge.js'
+import type {ElementSource, Grab, GrabFrame} from '@conciv/grab'
+import type {SourceLoc} from '@conciv/protocol/page-introspect-types'
 import '../conciv-global.js'
 
 export type GrabSink = (grab: Grab) => void
@@ -9,6 +12,23 @@ export type GrabSink = (grab: Grab) => void
 function toElementSource(info: SourceInfo | null): ElementSource | null {
   if (!info) return null
   return {componentName: info.componentName, filePath: info.filePath, lineNumber: info.lineNumber}
+}
+
+function fromSourceLoc(source: SourceLoc): ElementSource {
+  return {componentName: null, filePath: source.file, lineNumber: source.line}
+}
+
+function grabFrames(element: Element): GrabFrame[] {
+  return framesForElement(element).flatMap((frame) => {
+    if (!frame.fileName || typeof frame.line !== 'number') return []
+    return [{fileName: frame.fileName, line: frame.line, ...(frame.column === undefined ? {} : {column: frame.column})}]
+  })
+}
+
+function unresolvedFrames(element: Element, source: SourceLoc | null): {frames?: GrabFrame[]} {
+  if (source) return {}
+  const frames = grabFrames(element)
+  return frames.length > 0 ? {frames} : {}
 }
 
 export type ReactGrabAdapter = {
@@ -33,11 +53,18 @@ async function create(): Promise<ReactGrabAdapter> {
   let sink: GrabSink | null = null
 
   let intercept = false
-  const deliver = async (element: Element, text: string): Promise<void> => {
+  const deliver = async (element: Element, fallback: string): Promise<void> => {
     const box = element.getBoundingClientRect()
-    const rect = {x: box.x, y: box.y, width: box.width, height: box.height}
     const [preview, info] = await Promise.all([captureElement(element), api.getSource(element)])
-    sink?.({text, preview, source: toElementSource(info), rect})
+    const {snippet, source, text} = groundGrabText(element, fallback)
+    sink?.({
+      text,
+      preview,
+      source: source ? fromSourceLoc(source) : toElementSource(info),
+      rect: {x: box.x, y: box.y, width: box.width, height: box.height},
+      snippet,
+      ...unresolvedFrames(element, source),
+    })
   }
   const hooks = {
     onActivate: () => setPicking(true),
