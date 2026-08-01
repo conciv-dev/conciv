@@ -9,12 +9,12 @@ function ensureWidgetMeta(defaultOpen: boolean): void {
   document.head.appendChild(meta)
 }
 
-export async function mountLiveWidget(opts: {widgetOpen: boolean}): Promise<void> {
+export async function mountLiveWidget(opts: {widgetOpen: boolean; tryParam: boolean}): Promise<void> {
   if (document.querySelector('[data-conciv-root]')) return
   const {token, dismissed} = await getTrySession()
-  const tryParam = new URLSearchParams(window.location.search).get('try') === '1'
   const defaultOpen =
-    shouldAutoOpen({widgetOpen: opts.widgetOpen, tryParam, dismissed, widgetPresent: false}) || tryParam
+    shouldAutoOpen({widgetOpen: opts.widgetOpen, tryParam: opts.tryParam, dismissed, widgetPresent: false}) ||
+    opts.tryParam
   ensureWidgetMeta(defaultOpen)
 
   const [embed, terminal, tryItModule] = await Promise.all([
