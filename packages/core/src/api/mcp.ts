@@ -165,8 +165,13 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
     enableJsonResponse: true,
   })
   const decide = (toolName: string, input: unknown) => c.var.mcp.decide(sessionId, toolName, input)
-  await buildServer(ctx, c.var.mcp.extensionTools, request, decide, discovered).connect(transport)
-  return transport.handleRequest(c.req.raw)
+  const server = buildServer(ctx, c.var.mcp.extensionTools, request, decide, discovered)
+  await server.connect(transport)
+  try {
+    return await transport.handleRequest(c.req.raw)
+  } finally {
+    await server.close()
+  }
 })
 
 export default app

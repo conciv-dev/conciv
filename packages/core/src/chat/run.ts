@@ -417,7 +417,7 @@ export function makeSend(deps: ChatDeps): (sessionId: string, content: UserConte
       const model = (await sessionById(deps.db, sessionId))?.model ?? null
       const history = await historyFor(deps, sessionId)
       const messages = toModelMessages([...history, {role: 'user', content: expanded}])
-      void startRun(deps, sessionId, {messages, model, kind: 'chat', userParts: expanded})
+      void deps.runs.track(startRun(deps, sessionId, {messages, model, kind: 'chat', userParts: expanded}))
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       deps.changes.notify()
       return runIdFor(sessionId, epoch)
@@ -450,11 +450,13 @@ export function makeCompactor(deps: ChatDeps): Compactor {
       deps.changes.notify()
       throw error
     }
-    await startRun(deps, sessionId, {
-      messages: toModelMessages([{role: 'user', content: '/compact'}]),
-      model: null,
-      kind: 'compact',
-    })
+    await deps.runs.track(
+      startRun(deps, sessionId, {
+        messages: toModelMessages([{role: 'user', content: '/compact'}]),
+        model: null,
+        kind: 'compact',
+      }),
+    )
   }
 
   return {run}

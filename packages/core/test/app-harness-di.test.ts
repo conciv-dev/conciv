@@ -20,7 +20,7 @@ describe('makeApp harness DI', () => {
         return real.id
       },
     })
-    const {disposers} = await makeApp({
+    const {dispose} = await makeApp({
       cfg: {
         enabled: true,
         widgetUrl: undefined,
@@ -36,7 +36,7 @@ describe('makeApp harness DI', () => {
       openTerminal: createRecordingTerminalOpener().open,
       harness: injected,
     })
-    await Promise.all(disposers.map((dispose) => dispose()))
+    await dispose()
     rmSync(stateRoot, {recursive: true, force: true})
     expect(marker.seen).toBe(true)
   })

@@ -29,7 +29,7 @@ function bootCliApp(extras: BootExtras = {}): BootApp {
       systemPrompt: '',
       extensions: undefined,
     }
-    const {app, disposers} = await makeApp({
+    const {app, dispose} = await makeApp({
       cfg,
       cwd: env.cwd,
       openInEditor: extras.openInEditor ?? (() => {}),
@@ -37,12 +37,7 @@ function bootCliApp(extras: BootExtras = {}): BootApp {
       harness: env.harness,
       bridge: extras.bridge,
     })
-    return {
-      fetch: app.fetch,
-      dispose: async () => {
-        await Promise.all(disposers.map((dispose) => dispose()))
-      },
-    }
+    return {fetch: app.fetch, dispose}
   }
 }
 

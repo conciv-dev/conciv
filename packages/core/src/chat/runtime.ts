@@ -7,6 +7,7 @@ import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import type {ConcivDb} from '@conciv/db'
 import type {Changes} from './attach.js'
 import type {AttachmentExpanders} from './run.js'
+import type {RunTracker} from './run-tracker.js'
 
 export type ProcessLiveness = 'alive' | 'foreign' | 'dead'
 
@@ -29,6 +30,7 @@ export type ChatDeps = {
   toolNames: ReadonlySet<string>
   extensionServerTools: () => ExtensionServerTool[]
   attachmentExpanders: AttachmentExpanders
+  runs: RunTracker
   onRunStart?: (sessionId: string) => void
   onRunEnd?: (sessionId: string) => Promise<void>
   onSessionDetached?: (sessionId: string) => void

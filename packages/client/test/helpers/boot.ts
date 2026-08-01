@@ -13,7 +13,7 @@ export type ClientKit = Kit & {harness: FakeHarness; gate: {hold: () => void; re
 export async function bootClientKit(opts: {extensions?: AnyExtension[]} = {}): Promise<ClientKit> {
   const harness = createFakeHarness({id: 'fake-client', text: 'ok'})
   const kit = await createTestkit(harness, async (env) => {
-    const {app, disposers} = await makeApp({
+    const {app, dispose} = await makeApp({
       cfg: {
         enabled: true,
         widgetUrl: undefined,
@@ -30,12 +30,7 @@ export async function bootClientKit(opts: {extensions?: AnyExtension[]} = {}): P
       harness: env.harness,
       extensions: opts.extensions,
     })
-    return {
-      fetch: app.fetch,
-      dispose: async () => {
-        await Promise.all(disposers.map((dispose) => dispose()))
-      },
-    }
+    return {fetch: app.fetch, dispose}
   }).setup()
   return {...kit, harness, gate: {hold: harness.script.hold, release: harness.script.release}}
 }

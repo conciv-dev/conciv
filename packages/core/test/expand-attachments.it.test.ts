@@ -43,10 +43,7 @@ async function bootApp(fake: ReturnType<typeof createFakeHarness>): Promise<Made
     harness: fake,
     extensions: [fixtureExtension()],
   })
-  cleanups.push(async () => {
-    for (const dispose of made.disposers) await dispose()
-    made.closeDb()
-  })
+  cleanups.push(made.dispose)
   return made
 }
 

@@ -41,6 +41,7 @@ import {sweepLaunchScripts} from './chat/connect-exec.js'
 import {makeChanges} from './chat/attach.js'
 import {askUi, makeConcivSandbox, makeRunGate, needsApproval, riskyToolNames, sessionAsk} from './chat/gate.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
+import {createRunTracker} from './chat/run-tracker.js'
 import {attachedElsewhere, detachAllAttached} from './chat/adopt.js'
 import {modelOf, openDb, requestStop, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
@@ -204,11 +205,12 @@ function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>, on
 
 export type AppType = ReturnType<typeof composeRoutes>
 
+const RUN_DRAIN_TIMEOUT_MS = 10_000
+
 export type MadeApp = {
   app: AppType
-  disposers: (() => void | Promise<void>)[]
+  dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
-  closeDb: () => void
 }
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
@@ -449,6 +451,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     toolNames: new Set(toolList.map((tool) => tool.name)),
     extensionServerTools: () => extensionTools,
     attachmentExpanders,
+    runs: createRunTracker(),
     onRunStart: (sessionId) => notifyLocalRun(sessionId, 'start'),
     onRunEnd,
     onSessionDetached: notifySessionDetached,
@@ -513,8 +516,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   return {
     app,
-    disposers: [...disposers, () => detachAllAttached(chatDeps)],
+    dispose: async () => {
+      const stillRunning = await chatDeps.runs.drain(RUN_DRAIN_TIMEOUT_MS)
+      if (stillRunning > 0) logError(`[core] dispose gave up on ${stillRunning} run(s) still in flight`)
+      await Promise.all([...disposers, () => detachAllAttached(chatDeps)].map((dispose) => dispose()))
+      db.$client.close()
+    },
     extensionContexts,
-    closeDb: () => db.$client.close(),
   }
 }

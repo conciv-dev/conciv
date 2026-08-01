@@ -141,7 +141,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     nativeUrl,
   }
-  const {app, disposers, extensionContexts, closeDb} = await makeApp(appOpts)
+  const {app, dispose, extensionContexts} = await makeApp(appOpts)
 
   const notifyClient = onceNotifier(opts.onClientRequest)
   const served = opts.accessToken
@@ -152,10 +152,6 @@ export async function start(opts: StartOpts): Promise<Engine> {
         })
         .mount(`/t/${opts.accessToken}`, app.fetch)
     : app
-  const dispose = async (): Promise<void> => {
-    await Promise.all(disposers.map((runDispose) => runDispose()))
-    closeDb()
-  }
   const fetchHandler: FetchHandler = served.fetch.bind(served)
   let serving: Served
   try {
