@@ -1,10 +1,12 @@
 import {describe, expect, inject, it} from 'vitest'
+import {page} from 'vitest/browser'
 import {render} from 'solid-js/web'
 import type {JSX} from 'solid-js'
 import {until} from '@conciv/harness-testkit/until'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createTerminalModel, translateBuffer, type TerminalModel} from '../src/model.js'
 import {TerminalPrimitive} from '../src/primitives/terminal.js'
+import {Terminal} from '../src/styled/terminal.js'
 
 function mount(ui: () => JSX.Element): {host: HTMLElement; dispose: () => void} {
   const host = document.createElement('div')
@@ -170,5 +172,20 @@ describe('terminal primitives', () => {
     await emit(model, {type: 'busy', busy: false})
     await until(() => !model.busy())
     model.disconnect()
+  })
+})
+
+describe('terminal rail', () => {
+  it('builds the rail overlay exactly once', async () => {
+    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const builds = {count: 0}
+    const Rail = (): JSX.Element => {
+      builds.count += 1
+      return <div>rail build {builds.count}</div>
+    }
+    const {dispose} = mount(() => <Terminal model={model} rail={<Rail />} />)
+    await expect.element(page.getByText('rail build 1')).toBeVisible()
+    expect(builds.count).toBe(1)
+    dispose()
   })
 })

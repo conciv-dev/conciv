@@ -61,7 +61,10 @@
     "solid/components-return-once": "warn",
     "solid/no-destructure": "warn",
     "solid/prefer-for": "warn",
-    "solid/reactivity": "warn",
+    "solid/reactivity": [
+      "warn",
+      {"customReactiveFunctions": ["makeEventListener", "makeEventListenerStack", "makeTimer"]}
+    ],
     "solid/event-handlers": "error",
     "solid/imports": "error",
     "solid/style-prop": "warn",

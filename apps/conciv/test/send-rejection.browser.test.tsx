@@ -16,12 +16,22 @@ const RUN_ID = 'conciv_1:1'
 
 type Rejection = {code: string; message: string} | {plain: string}
 
+type DetachGate = {held: Promise<void>; release: () => void}
+
 type Server = {
   send: Rejection | 'accept'
   detach: Rejection | 'accept'
-  detachDelayMs?: number
+  detachGate?: DetachGate
   calls: string[]
   push: (chunk: unknown) => void
+}
+
+function makeDetachGate(): DetachGate {
+  const gate = {held: Promise.resolve(), release: () => {}}
+  gate.held = new Promise<void>((settle) => {
+    gate.release = settle
+  })
+  return gate
 }
 
 const disposers: (() => void)[] = []
@@ -64,10 +74,6 @@ function liveStream(server: Server): Response {
   return new Response(stream, {status: 200, headers: {'content-type': 'text/event-stream'}})
 }
 
-async function wait(ms: number): Promise<void> {
-  await new Promise((settle) => setTimeout(settle, ms))
-}
-
 function installServer(server: Server): void {
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = input instanceof Request ? input : new Request(input, init)
@@ -83,7 +89,7 @@ function installServer(server: Server): void {
       return ok({ok: true, runId: RUN_ID})
     }
     if (path === 'sessions/attachDetach') {
-      if (server.detachDelayMs) await wait(server.detachDelayMs)
+      if (server.detachGate) await server.detachGate.held
       if (server.detach !== 'accept') return rejection(server.detach)
       return ok({ok: true})
     }
@@ -91,7 +97,12 @@ function installServer(server: Server): void {
   }
 }
 
-type Mounted = {server: Server; failures: string[]; setAttached: (value: boolean) => void}
+type Mounted = {
+  server: Server
+  failures: string[]
+  setAttached: (value: boolean) => void
+  detachCalls: Promise<unknown>[]
+}
 
 function mountComposer(given: Partial<Server>): Mounted {
   const server: Server = {send: 'accept', detach: 'accept', calls: [], push: () => {}, ...given}
@@ -100,6 +111,7 @@ function mountComposer(given: Partial<Server>): Mounted {
   document.body.appendChild(host)
   const [attached, setAttached] = createSignal(false)
   const failures: string[] = []
+  const detachCalls: Promise<unknown>[] = []
   const rpc = makeRpcClient(BASE)
 
   const Harness = () => {
@@ -127,7 +139,11 @@ function mountComposer(given: Partial<Server>): Mounted {
       stageGrabs: grabStore.stageAll,
       clearGrabs: grabStore.clear,
       focusComposer: () => {},
-      detach: () => rpc.sessions.attachDetach({sessionId: 'conciv_1'}),
+      detach: () => {
+        const call = rpc.sessions.attachDetach({sessionId: 'conciv_1'})
+        detachCalls.push(call)
+        return call
+      },
       dispatch: async (content, forced) => {
         setForce(forced)
         delivery.done = false
@@ -166,7 +182,7 @@ function mountComposer(given: Partial<Server>): Mounted {
     dispose()
     host.remove()
   })
-  return {server, failures, setAttached}
+  return {server, failures, setAttached, detachCalls}
 }
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -274,16 +290,20 @@ test('a send that fails on the way out comes straight back to the composer with 
 })
 
 test('a take over that lands after the reader gave up cannot reopen the dialog or send', async () => {
-  const mounted = mountComposer({detachDelayMs: 200})
+  const gate = makeDetachGate()
+  const mounted = mountComposer({detachGate: gate})
   mounted.setAttached(true)
 
   await typeAndSend('rename the widget package')
   await modalTakesOverTheScreen()
   await page.getByRole('button', {name: 'Take over'}).click()
-  await page.getByRole('button', {name: 'Cancel'}).click()
+  await expect.element(page.getByRole('button', {name: 'Taking over…'})).toBeVisible()
 
+  await page.getByRole('button', {name: 'Cancel'}).click()
   await modalIsGone()
-  await wait(400)
+
+  gate.release()
+  await Promise.all(mounted.detachCalls)
 
   expect(page.getByRole('alertdialog').elements()).toHaveLength(0)
   expect(sends(mounted)).toHaveLength(0)

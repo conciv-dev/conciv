@@ -54,3 +54,22 @@ export const Error: Story = {
 export const Light: Story = {
   render: () => frame('', <ToolChip name="canvas_svg" />),
 }
+
+const builds = {count: 0}
+
+function CountedTip(): JSX.Element {
+  builds.count += 1
+  return <div>tip build {builds.count}</div>
+}
+
+export const TipBuiltOnce: Story = {
+  render: () => {
+    builds.count = 0
+    return frame('chat-theme-dark', <ToolChip name="canvas_once" tip={<CountedTip />} />)
+  },
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.hover(canvas.getByRole('button', {name: 'canvas_once'}))
+    await waitFor(() => expect(canvas.getByText('tip build 1')).toBeVisible())
+  },
+}
