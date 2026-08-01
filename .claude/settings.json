@@ -13,7 +13,5 @@
       }
     ]
   },
-  "enabledPlugins": {
-    "fallow@fallow-skills": true
-  }
+  "enabledPlugins": {}
 }
