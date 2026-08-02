@@ -1,7 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk, type UIMessage} from '@tanstack/ai'
 import {makeRpcClient} from '@conciv/contract'
-import {until} from '@conciv/harness-testkit'
 import {chatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
 
@@ -116,8 +115,8 @@ describe('chatConnection', () => {
     kit = await bootClientKit()
     const sessionId = await kit.session()
     const rpc = makeRpcClient(kit.base)
-    const busy = {count: 0}
-    const connection = chatConnection(rpc, sessionId, {retryDelayMs: 5, onRetry: () => (busy.count += 1)})
+    const retried = Promise.withResolvers<void>()
+    const connection = chatConnection(rpc, sessionId, {retryDelayMs: 5, onRetry: () => retried.resolve()})
     kit.gate.hold()
     await connection.send([userMessage('u1', 'first')])
     const abort = new AbortController()
@@ -131,7 +130,7 @@ describe('chatConnection', () => {
     const second = connection.send([userMessage('u2', 'second')]).then(() => {
       accepted = true
     })
-    await until(() => busy.count > 0)
+    await retried.promise
     expect(accepted).toBe(false)
     kit.gate.release()
     await second
@@ -144,7 +143,8 @@ describe('chatConnection', () => {
     kit = await bootClientKit()
     const sessionId = await kit.session()
     const rpc = makeRpcClient(kit.base)
-    const connection = chatConnection(rpc, sessionId, {retryDelayMs: 5})
+    const retried = Promise.withResolvers<void>()
+    const connection = chatConnection(rpc, sessionId, {retryDelayMs: 5, onRetry: () => retried.resolve()})
     kit.gate.hold()
     await connection.send([{id: 'u1', role: 'user', parts: [{type: 'text', content: 'first'}]}])
     const abort = new AbortController()
@@ -153,7 +153,7 @@ describe('chatConnection', () => {
       undefined,
       abort.signal,
     )
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await retried.promise
     abort.abort()
     await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
     kit.gate.release()
@@ -165,15 +165,15 @@ describe('chatConnection', () => {
     const sessionId = await clientKit.session()
     const rpc = makeRpcClient(clientKit.base)
     const first = chatConnection(rpc, sessionId, {retryDelayMs: 5})
-    const busy = {count: 0}
-    const second = chatConnection(rpc, sessionId, {...secondOptions, onRetry: () => (busy.count += 1)})
+    const retried = Promise.withResolvers<void>()
+    const second = chatConnection(rpc, sessionId, {...secondOptions, onRetry: () => retried.resolve()})
     clientKit.gate.hold()
     await first.send([userMessage('u1', 'first')])
-    return {clientKit, sessionId, rpc, second, busy}
+    return {clientKit, sessionId, rpc, second, retried}
   }
 
   it('holds the foreign run terminal during a busy send and delivers it after the own run settles', async () => {
-    const {clientKit, sessionId, second, busy} = await heldSessionWithWaitingSurface({retryDelayMs: 5})
+    const {clientKit, sessionId, second, retried} = await heldSessionWithWaitingSurface({retryDelayMs: 5})
     const abort = new AbortController()
     const stream = second.subscribe(abort.signal)[Symbol.asyncIterator]()
     const finished: Array<string | undefined> = []
@@ -182,7 +182,7 @@ describe('chatConnection', () => {
       return finished.length === 2
     })
     const sending = second.send([userMessage('u2', 'second')])
-    await until(() => busy.count > 0)
+    await retried.promise
     clientKit.gate.release()
     await sending
     await collecting
@@ -191,7 +191,7 @@ describe('chatConnection', () => {
   })
 
   it('delivers a foreign run error immediately while a send is still waiting', async () => {
-    const {clientKit, sessionId, second, busy} = await heldSessionWithWaitingSurface({retryDelayMs: 60_000})
+    const {clientKit, sessionId, second, retried} = await heldSessionWithWaitingSurface({retryDelayMs: 60_000})
     clientKit.harness.script.scriptError('boom')
     const abort = new AbortController()
     const stream = second.subscribe(abort.signal)[Symbol.asyncIterator]()
@@ -201,7 +201,7 @@ describe('chatConnection', () => {
     )
     const sendAbort = new AbortController()
     const waiting = second.send([userMessage('u2', 'second')], undefined, sendAbort.signal)
-    await until(() => busy.count > 0)
+    await retried.promise
     clientKit.gate.release()
     const seen = await collecting
     expect(chunkRunId(seen.at(-1))).toBe(`${sessionId}:1`)
@@ -211,15 +211,17 @@ describe('chatConnection', () => {
   })
 
   it('flushes the held terminal when the waiting send aborts', async () => {
-    const {clientKit, sessionId, rpc, second, busy} = await heldSessionWithWaitingSurface({retryDelayMs: 60_000})
+    const {clientKit, sessionId, rpc, second, retried} = await heldSessionWithWaitingSurface({retryDelayMs: 60_000})
     const witness = chatConnection(rpc, sessionId, {retryDelayMs: 5})
     const abort = new AbortController()
     const seen: StreamChunk[] = []
+    const flushed = Promise.withResolvers<StreamChunk>()
     const stream = second.subscribe(abort.signal)[Symbol.asyncIterator]()
     const readAll = async () => {
       let next = await stream.next()
       while (!next.done) {
         seen.push(next.value)
+        if (next.value.type === EventType.RUN_FINISHED) flushed.resolve(next.value)
         next = await stream.next()
       }
     }
@@ -232,7 +234,7 @@ describe('chatConnection', () => {
     )
     const sendAbort = new AbortController()
     const waiting = second.send([userMessage('u2', 'second')], undefined, sendAbort.signal)
-    await until(() => busy.count > 0)
+    await retried.promise
     clientKit.gate.release()
     await witnessing
     witnessAbort.abort()
@@ -240,8 +242,7 @@ describe('chatConnection', () => {
     expect(seen.some((chunk) => chunk.type === EventType.RUN_FINISHED)).toBe(false)
     sendAbort.abort()
     await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
-    await until(() => seen.some((chunk) => chunk.type === EventType.RUN_FINISHED))
-    expect(chunkRunId(seen.findLast((chunk) => chunk.type === EventType.RUN_FINISHED))).toBe(`${sessionId}:1`)
+    expect(chunkRunId(await flushed.promise)).toBe(`${sessionId}:1`)
     abort.abort()
     await reading
   })

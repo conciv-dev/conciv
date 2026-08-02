@@ -4,7 +4,6 @@ import {spawn, type ChildProcess} from 'node:child_process'
 import {afterEach, expect, it} from 'vitest'
 import {createTestkit, type BootApp} from '../src/create-testkit.js'
 import {createFakeHarness} from '../src/create-fake-harness.js'
-import {until} from '../src/until.js'
 
 const lateWriterSource = `
 const {writeFileSync, unlinkSync, existsSync} = require('node:fs')
@@ -12,6 +11,7 @@ const {join} = require('node:path')
 const root = process.argv[1]
 const temp = join(root, '.tanstack-mcp-bridge-late.json')
 writeFileSync(join(root, 'writer-live'), '')
+console.log('live')
 const stopAt = Date.now() + 150
 while (Date.now() < stopAt) writeFileSync(temp, '{}')
 if (existsSync(temp)) unlinkSync(temp)
@@ -33,8 +33,11 @@ function lateWritingBoot(state: {writer: ChildProcess | null}): BootApp {
     return {
       fetch: () => new Response('ok'),
       dispose: async () => {
-        state.writer = spawn(process.execPath, ['-e', lateWriterSource, env.stateRoot], {stdio: 'ignore'})
-        await until(() => existsSync(join(env.stateRoot, 'writer-live')), {hangGuardMs: 5000})
+        const writer = spawn(process.execPath, ['-e', lateWriterSource, env.stateRoot], {
+          stdio: ['ignore', 'pipe', 'ignore'],
+        })
+        state.writer = writer
+        await new Promise<void>((resolve) => writer.stdout?.once('data', () => resolve()))
       },
     }
   }

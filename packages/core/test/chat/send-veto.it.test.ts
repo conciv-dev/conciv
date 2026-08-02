@@ -3,7 +3,7 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, type ServerApi} from '@conciv/extension'
-import {createRecordingTerminalOpener, createTestHarness, createTestkit, until, type Kit} from '@conciv/harness-testkit'
+import {createRecordingTerminalOpener, createTestHarness, createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 
@@ -243,12 +243,24 @@ describe('harness release', () => {
     const {kit, captured} = await bootProbe('release-seam', {CONCIV_FAKE_HANG: '1'})
     try {
       const server = serverOf(captured)
+      const runStarted = new Promise<string>((resolve) =>
+        server.sessions.onLocalRun((id, phase) => {
+          if (phase === 'start') resolve(id)
+        }),
+      )
+      const runEnded = new Promise<string>((resolve) =>
+        server.sessions.onLocalRun((id, phase) => {
+          if (phase === 'end') resolve(id)
+        }),
+      )
       const sessionId = await kit.session()
       await kit.rpc.chat.send({sessionId, text: 'hang'})
-      await until(() => server.sessions.chatBusy(sessionId), {hangGuardMs: 5000, settleFor: 500})
+      expect(await runStarted).toBe(sessionId)
+      expect(server.sessions.chatBusy(sessionId)).toBe(true)
 
       server.harness.release?.(sessionId)
-      await until(() => !server.sessions.chatBusy(sessionId), {hangGuardMs: 10_000})
+      expect(await runEnded).toBe(sessionId)
+      expect(server.sessions.chatBusy(sessionId)).toBe(false)
     } finally {
       await kit.cleanup()
     }

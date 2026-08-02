@@ -3,7 +3,7 @@ import {dirname} from 'node:path'
 import {expect, test} from 'vitest'
 import {claude} from '@conciv/harness/claude'
 import {defineExtension, type ServerApi} from '@conciv/extension'
-import {createTestHarness, createTestkit, until} from '@conciv/harness-testkit'
+import {createTestHarness, createTestkit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {runTurn} from '../helpers/turns.js'
 import {requireTranscriptPath} from '../helpers/adapters.js'
@@ -29,12 +29,18 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
     await server.sessions.recordToken(fresh, 'tok-fresh')
     expect(await server.sessions.resumeToken(fresh)).toBe('tok-fresh')
 
+    const runEnded = new Promise<string>((resolve) =>
+      server.sessions.onLocalRun((id, phase) => {
+        if (phase === 'end') resolve(id)
+      }),
+    )
     expect(server.sessions.chatBusy(sessionId)).toBe(false)
     harness.script.hold()
     await kit.rpc.chat.send({sessionId, text: 'busy probe'})
     expect(server.sessions.chatBusy(sessionId)).toBe(true)
     harness.script.release()
-    await until(() => !server.sessions.chatBusy(sessionId), {hangGuardMs: 5000})
+    expect(await runEnded).toBe(sessionId)
+    expect(server.sessions.chatBusy(sessionId)).toBe(false)
 
     expect(server.harness.id).toBe('claude')
     expect(typeof server.harness.ttyCommand).toBe('function')
@@ -80,17 +86,23 @@ test('a chat turn brackets onLocalRun listeners with start and end', async () =>
     const server = captured.server
     if (!server) throw new Error('server api not captured')
     const turns: {sessionId: string; phase: 'start' | 'end'}[] = []
-    const unregister = server.sessions.onLocalRun((sessionId, phase) => turns.push({sessionId, phase}))
+    const registration: {unregister?: () => void} = {}
+    const bracketed = new Promise<void>((resolve) => {
+      registration.unregister = server.sessions.onLocalRun((sessionId, phase) => {
+        turns.push({sessionId, phase})
+        if (phase === 'end') resolve()
+      })
+    })
 
     const sessionId = await kit.session()
     await runTurn(kit, 'hi', sessionId)
-    await until(() => turns.some((turn) => turn.phase === 'end'), {hangGuardMs: 5000})
+    await bracketed
     expect(turns).toEqual([
       {sessionId, phase: 'start'},
       {sessionId, phase: 'end'},
     ])
 
-    unregister()
+    registration.unregister?.()
     await runTurn(kit, 'again', sessionId)
     expect(turns).toHaveLength(2)
   } finally {
