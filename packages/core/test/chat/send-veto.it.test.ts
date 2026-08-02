@@ -169,7 +169,9 @@ describe('sessions.launch busy guard', () => {
       expect(launch.supported).toBe(true)
       expect(launch.opened).toBe(true)
       expect(terminal.opened).toHaveLength(1)
-      expect(terminal.opened[0]?.bin).toBe(process.platform === 'win32' ? 'cmd' : 'open')
+      const expectedBin =
+        process.platform === 'win32' ? 'cmd' : process.platform === 'darwin' ? 'open' : 'x-terminal-emulator'
+      expect(terminal.opened[0]?.bin).toBe(expectedBin)
     } finally {
       await kit.cleanup()
     }
