@@ -33,7 +33,6 @@ import {createDraggablePosition} from '../lib/draggable-position.js'
 import {makeThemeApplier} from '../lib/theme.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
-import {NoticeToaster} from '../shell/notices.js'
 import {quickPaneIds} from '../lib/quick-search.js'
 import {setShutter} from '../lib/shutter.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
@@ -315,7 +314,6 @@ function RootChrome(props: {
           onToggle={togglePanel}
         />
       </Show>
-      <NoticeToaster />
       <div class="sr-only" role="status" aria-live="polite">
         {props.politeMessage()}
       </div>
