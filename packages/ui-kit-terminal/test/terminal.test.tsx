@@ -2,7 +2,6 @@ import {describe, expect, inject, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from 'solid-js/web'
 import {createSignal, onMount, type JSX} from 'solid-js'
-import {until} from '@conciv/harness-testkit/until'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createTerminalModel, translateBuffer, type TerminalModel} from '../src/model.js'
 import {TerminalPrimitive} from '../src/primitives/terminal.js'
@@ -30,8 +29,16 @@ function SessionLog(props: {model: TerminalModel; label: string}): JSX.Element {
   return <section aria-label={props.label}>{text()}</section>
 }
 
-function sessionLog(label: string) {
+function region(label: string) {
   return page.getByRole('region', {name: label})
+}
+
+function ModelState(props: {model: TerminalModel; label: string}): JSX.Element {
+  return (
+    <section aria-label={props.label}>
+      status={props.model.status()} busy={String(props.model.busy())}
+    </section>
+  )
 }
 
 function controlModel(): TerminalModel {
@@ -48,8 +55,8 @@ function dropConnection(model: TerminalModel): void {
   model.sendInput(JSON.stringify({drop: true}))
 }
 
-async function emit(model: TerminalModel, frame: TtyServerControl): Promise<void> {
-  await until(() => model.status() === 'open')
+async function emit(model: TerminalModel, label: string, frame: TtyServerControl): Promise<void> {
+  await expect.element(region(label)).toHaveTextContent('status=open')
   model.sendInput(JSON.stringify({emit: frame}))
 }
 
@@ -57,13 +64,15 @@ describe('terminal primitives', () => {
   it('mounts xterm and renders written bytes', async () => {
     const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
     const {dispose} = mount(() => (
-      <TerminalPrimitive.Root model={model}>
-        <TerminalPrimitive.Screen />
-      </TerminalPrimitive.Root>
+      <>
+        <TerminalPrimitive.Root model={model}>
+          <TerminalPrimitive.Screen />
+        </TerminalPrimitive.Root>
+        <SessionLog model={model} label="written bytes log" />
+      </>
     ))
-    await until(() => model.terminal.element != null)
     model.terminal.write('\u001b[31mhello-term\u001b[0m')
-    await until(() => translateBuffer(model.terminal).includes('hello-term'))
+    await expect.element(region('written bytes log')).toHaveTextContent('hello-term')
     expect(translateBuffer(model.terminal)).toContain('hello-term')
     dispose()
   })
@@ -79,11 +88,14 @@ describe('terminal primitives', () => {
     const received: string[] = []
     model.terminal.onData((data) => received.push(data))
     const {dispose} = mount(() => (
-      <TerminalPrimitive.Root model={model}>
-        <TerminalPrimitive.Screen />
-      </TerminalPrimitive.Root>
+      <>
+        <TerminalPrimitive.Root model={model}>
+          <TerminalPrimitive.Screen />
+        </TerminalPrimitive.Root>
+        <ModelState model={model} label="paste state" />
+      </>
     ))
-    await until(() => model.terminal.element != null)
+    await expect.element(region('paste state')).toHaveTextContent('status=connecting')
     model.paste('grab text')
     expect(received.join('')).toContain('grab text')
     dispose()
@@ -103,7 +115,7 @@ describe('terminal primitives', () => {
         </div>
       </TerminalPrimitive.Root>
     ))
-    await until(() => model.terminal.element != null)
+    await expect.element(page.getByText('rail content')).toBeVisible()
     const screen = host.querySelector('[data-terminal-screen]')
     const overlay = host.querySelector('[data-terminal-overlay="rail"]')
     if (!screen || !overlay) throw new Error('missing screen or overlay')
@@ -126,7 +138,7 @@ describe('terminal primitives', () => {
         </TerminalPrimitive.Root>
       </div>
     ))
-    await until(() => model.terminal.element != null)
+    await expect.element(page.getByRole('button', {name: 'corner action'})).toBeVisible()
     const overlay = host.querySelector('[data-terminal-overlay="top-right"]')
     if (!overlay) throw new Error('missing overlay')
     const hostBox = host.getBoundingClientRect()
@@ -152,9 +164,12 @@ describe('terminal primitives', () => {
       ),
       container,
     )
+    const state = mount(() => <ModelState model={model} label="detached state" />)
     expect(shadow.querySelector('style[data-conciv-xterm]')).toBeNull()
     document.body.appendChild(host)
-    await until(() => shadow.querySelector('style[data-conciv-xterm]') !== null)
+    await expect.element(region('detached state')).toHaveTextContent('status=connecting')
+    expect(shadow.querySelector('style[data-conciv-xterm]')).not.toBeNull()
+    state.dispose()
     dispose()
     host.remove()
   })
@@ -162,42 +177,48 @@ describe('terminal primitives', () => {
   it('shows the banner only after exit', async () => {
     const model = controlModel()
     const {host, dispose} = mount(() => (
-      <TerminalPrimitive.Root model={model}>
-        <TerminalPrimitive.Screen />
-        <TerminalPrimitive.Banner>{(state) => <p>ended with {state.code}</p>}</TerminalPrimitive.Banner>
-      </TerminalPrimitive.Root>
+      <>
+        <TerminalPrimitive.Root model={model}>
+          <TerminalPrimitive.Screen />
+          <TerminalPrimitive.Banner>{(state) => <p>ended with {state.code}</p>}</TerminalPrimitive.Banner>
+        </TerminalPrimitive.Root>
+        <ModelState model={model} label="banner state" />
+      </>
     ))
-    await until(() => model.terminal.element != null)
     expect(host.textContent ?? '').not.toContain('ended with')
-    await emit(model, {type: 'exit', code: 0})
-    await until(() => (host.textContent ?? '').includes('ended with 0'))
+    await emit(model, 'banner state', {type: 'exit', code: 0})
+    await expect.element(page.getByText('ended with 0')).toBeVisible()
     dispose()
   })
 
   it('surfaces error frames as error status', async () => {
     const model = controlModel()
-    const {host, dispose} = mount(() => (
-      <TerminalPrimitive.Root model={model}>
-        <TerminalPrimitive.Screen />
-        <TerminalPrimitive.Banner>{(state) => <p>failed: {state.message}</p>}</TerminalPrimitive.Banner>
-      </TerminalPrimitive.Root>
+    const {dispose} = mount(() => (
+      <>
+        <TerminalPrimitive.Root model={model}>
+          <TerminalPrimitive.Screen />
+          <TerminalPrimitive.Banner>{(state) => <p>failed: {state.message}</p>}</TerminalPrimitive.Banner>
+        </TerminalPrimitive.Root>
+        <ModelState model={model} label="error state" />
+      </>
     ))
-    await until(() => model.terminal.element != null)
-    await emit(model, {type: 'error', message: 'spawn failed'})
-    await until(() => (host.textContent ?? '').includes('failed: spawn failed'))
+    await emit(model, 'error state', {type: 'error', message: 'spawn failed'})
+    await expect.element(page.getByText('failed: spawn failed')).toBeVisible()
     expect(model.status()).toBe('error')
     dispose()
   })
 
   it('tracks busy frames', async () => {
     const model = controlModel()
+    const {dispose} = mount(() => <ModelState model={model} label="busy state" />)
     expect(model.busy()).toBe(false)
     model.connect()
-    await emit(model, {type: 'busy', busy: true})
-    await until(() => model.busy())
-    await emit(model, {type: 'busy', busy: false})
-    await until(() => !model.busy())
+    await emit(model, 'busy state', {type: 'busy', busy: true})
+    await expect.element(region('busy state')).toHaveTextContent('busy=true')
+    await emit(model, 'busy state', {type: 'busy', busy: false})
+    await expect.element(region('busy state')).toHaveTextContent('busy=false')
     model.disconnect()
+    dispose()
   })
 })
 
@@ -210,9 +231,9 @@ describe('terminal reconnection', () => {
         <SessionLog model={model} label="dropped log" />
       </>
     ))
-    await expect.element(sessionLog('dropped log')).toHaveTextContent('dropped-1')
+    await expect.element(region('dropped log')).toHaveTextContent('dropped-1')
     dropConnection(model)
-    await expect.element(sessionLog('dropped log')).toHaveTextContent('dropped-2')
+    await expect.element(region('dropped log')).toHaveTextContent('dropped-2')
     dispose()
   })
 
@@ -224,10 +245,10 @@ describe('terminal reconnection', () => {
         <SessionLog model={model} label="resilient log" />
       </>
     ))
-    await expect.element(sessionLog('resilient log')).toHaveTextContent('resilient-1')
+    await expect.element(region('resilient log')).toHaveTextContent('resilient-1')
     for (let ordinal = 2; ordinal <= 9; ordinal += 1) {
       dropConnection(model)
-      await expect.element(sessionLog('resilient log'), {timeout: 3000}).toHaveTextContent(`resilient-${ordinal}`)
+      await expect.element(region('resilient log'), {timeout: 3000}).toHaveTextContent(`resilient-${ordinal}`)
     }
     dispose()
   })
@@ -240,7 +261,7 @@ describe('terminal reconnection', () => {
         <SessionLog model={abandoned} label="abandoned log" />
       </>
     ))
-    await expect.element(sessionLog('abandoned log')).toHaveTextContent('solo-1')
+    await expect.element(region('abandoned log')).toHaveTextContent('solo-1')
     abandoned.disconnect()
     abandonedMount.dispose()
 
@@ -251,11 +272,11 @@ describe('terminal reconnection', () => {
         <SessionLog model={successor} label="successor log" />
       </>
     ))
-    await expect.element(sessionLog('successor log')).toHaveTextContent('solo-2')
+    await expect.element(region('successor log')).toHaveTextContent('solo-2')
     dropConnection(successor)
-    await expect.element(sessionLog('successor log')).toHaveTextContent('solo-3')
+    await expect.element(region('successor log')).toHaveTextContent('solo-3')
     dropConnection(successor)
-    await expect.element(sessionLog('successor log')).toHaveTextContent('solo-4')
+    await expect.element(region('successor log')).toHaveTextContent('solo-4')
     dispose()
   })
 })
