@@ -122,21 +122,23 @@ test('tanstack_query_invalidate no-ops on unknown keys and refetches the real ke
   const demoKey = JSON.stringify(['spike', 'demo'])
   const readDemo = async () => {
     const cache = queryCacheSchema.parse(await api.callTool('tanstack_query_cache', {}))
-    return cache.queries.find((entry) => entry.key === demoKey)
+    const entry = cache.queries.find((row) => row.key === demoKey)
+    if (!entry) throw new Error('demo query missing from the tanstack query cache')
+    return entry
   }
 
   const before = await readDemo()
-  expect(before?.status).toBe('success')
-  expect(before?.updatedAt).not.toBeNull()
+  expect(before.status).toBe('success')
+  expect(before.updatedAt).not.toBeNull()
 
   await api.callTool('tanstack_query_invalidate', {key: JSON.stringify(['nope', 'nope'])})
   const afterUnknown = await readDemo()
-  expect(afterUnknown?.updatedAt).toBe(before?.updatedAt)
-  expect(afterUnknown?.state).toBe(before?.state)
+  expect(afterUnknown.updatedAt).toBe(before.updatedAt)
+  expect(afterUnknown.state).toBe(before.state)
 
   await api.callTool('tanstack_query_invalidate', {key: demoKey})
   const after = await readDemo()
-  expect(after?.updatedAt ?? 0).toBeGreaterThan(before?.updatedAt ?? 0)
+  expect(after.updatedAt).toBeGreaterThan(before.updatedAt ?? 0)
 })
 
 const truncationMarkerSchema = z.object({__conciv: z.literal('object'), preview: z.literal('{…}')}).loose()

@@ -60,11 +60,7 @@ async function openNative(): Promise<Native> {
   })
   await installNativeStub(page)
   await page.addInitScript(() => {
-    window.__rebinds = []
-    window.addEventListener('conciv:rebind', (event) => {
-      window.__rebinds.push(event.detail)
-      void window.concivNativeRebind(event.detail)
-    })
+    window.addEventListener('conciv:rebind', (event) => void window.concivNativeRebind(event.detail))
   })
   await page.goto(`${kit.base}/native`, {waitUntil: 'domcontentloaded'})
   await page.waitForFunction(() => typeof window.__concivNative === 'object')

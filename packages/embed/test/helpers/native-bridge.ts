@@ -19,16 +19,8 @@ export async function captureNativePosts(page: Page): Promise<NativeBridge> {
 
 export async function installNativeStub(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    window.__p2n = []
     window.webkit = {
-      messageHandlers: {
-        concivBridge: {
-          postMessage: (message) => {
-            window.__p2n.push(message)
-            void window.concivNativePost(message)
-          },
-        },
-      },
+      messageHandlers: {concivBridge: {postMessage: (message) => void window.concivNativePost(message)}},
     }
   })
 }
