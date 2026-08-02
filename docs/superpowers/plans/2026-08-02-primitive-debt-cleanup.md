@@ -27,23 +27,29 @@ Already dispatched with its own brief. This task records the acceptance gate the
 
 ---
 
-### Task 2: Core pushes dial-in (`sessions.awaitDialIn`)
+### Task 2: `sessions.changes` push route + Online/Last-seen presence model
+
+No new server state. The change emitter already exists (`makeChanges` in `packages/core/src/chat/attach.ts`, with `nextChange`/`ChangeWaiter` already written and tested) and dial-in already reaches it: MCP request → sessions fan-out → terminal observer presence transition → `observer-wiring.ts:49` `notifyChange()` → `bumpExternal()`. This task only (a) exposes that emitter on the wire and (b) reshapes the candidate row from a connect/disconnect flag to presence.
 
 **Files:**
-- Modify: `packages/core/src/chat/dial-log.ts` (add subscribe)
-- Modify: `packages/contract/src/contract.ts` (new route under `sessions`)
-- Modify: `packages/core/src/api/rpc/*` where `sessions.attachCandidates` is implemented (add handler; find with `grep -rn attachCandidates packages/core/src/api`)
-- Test: `packages/core/test/chat/dial-in-push.it.test.ts`
+- Modify: `packages/contract/src/contract.ts` (route `sessions.changes`)
+- Modify: `packages/contract/src/rows.ts` (`LiveSessionSchema`: replace `ready: z.boolean()` with `online: z.boolean()` and `lastSeenAt: z.number().nullable()`)
+- Modify: `packages/core/src/chat/dial-log.ts` (presence read surface)
+- Modify: `packages/core/src/chat/adopt.ts:132` (row assembly)
+- Modify: `packages/core/src/api/rpc/*` sessions handler (add `changes` handler; find with `grep -rn attachCandidates packages/core/src/api`)
+- Modify: every `ready` consumer (`grep -rn '\.ready' apps/conciv/src packages/core/src packages/contract/src`) — v0, no shims
+- Test: `packages/core/test/chat/changes-push.it.test.ts`
 
 **Interfaces:**
-- Produces: `DialLog` gains `onDial(listener: (harnessSessionId: string) => void): () => void`; `note(id)` fires listeners exactly once per id (repeat notes for an already-seen id do not re-fire).
-- Produces: contract route `sessions.awaitDialIn: oc.input(z.object({harnessSessionId: HarnessSessionId})).output(eventIterator(z.object({ready: z.literal(true)})))`. Semantics: if `dialLog.seen(id)` already true, emit `{ready: true}` immediately and end; otherwise emit on the first `onDial` for that id, then end. Client cancels via signal; handler must unsubscribe on abort (use the existing `subscriptionIterator` helper pattern from the terminal extension's `observe` route).
+- Produces: contract route `sessions.changes: oc.output(eventIterator(z.object({rev: z.number()})))`. Handler: loop `nextChange(changes, signal)` → yield `{rev: changes.externalRev()}`; abort via signal. NO filtering, NO per-session state — it is a dumb "something changed" tick over the existing emitter.
+- Produces: `DialLog` reshaped: `note(id)` unchanged; `seen(id)` renamed `online(id)` (same recent-window math); new `lastSeenAt(id): number | null`. TTL no longer DELETES entries (last-seen must survive going offline) — the LRU cap (512) remains the only eviction. Known accepted edge: in-memory, so a core restart forgets last-seen until next contact.
+- Produces: `LiveSession.online` (recent contact) + `LiveSession.lastSeenAt` (last contact, null = never dialed this core run). The "started before install — one reload" note keys off `lastSeenAt === null`, not a decaying flag — a wired-but-idle session shows "last seen 5m ago", never the reload note.
 
-- [ ] **Step 1: Failing test.** In `dial-in-push.it.test.ts` boot the core app via `bootCoreApp` (existing helper). Two cases: (a) subscribe to `awaitDialIn` for an unseen id, then trigger the same code path `onHarnessDial` uses (drive it through the public surface that calls `dialLog.note` — an MCP request with the session header, as existing core tests do; grep `onHarnessDial` usage in tests); the subscription's first (awaited, not polled) event is `{ready: true}` and the iterator completes. (b) subscribe for an id already noted; event arrives immediately. Await the iterator directly (`for await` first value) — no wait helpers.
-- [ ] **Step 2: Run, verify it fails** (route missing).
-- [ ] **Step 3: Implement** `onDial` in dial-log (listener array, fanOut-style error isolation like `packages/core/src/app.ts:232`, unsubscribe function), contract route, handler.
-- [ ] **Step 4: Tests green.** Also `pnpm turbo run typecheck --filter=@conciv/core --filter=@conciv/contract`.
-- [ ] **Step 5: Commit** `feat(core): push harness dial-in over sessions.awaitDialIn` (pathspec: the four files).
+- [ ] **Step 1: Failing test.** `changes-push.it.test.ts` via `bootCoreApp`: open `sessions.changes` with an AbortController, `for await` the first event after driving one real change (the same MCP-request path existing observer tests use); assert `rev` increased. Second case: two rapid changes coalesce (microtask batching) — drive both, await one event, assert no second event arrives before the next cause (synchronous assert on collected array after a third cause's event lands — no timers).
+- [ ] **Step 2: Run, verify it fails.**
+- [ ] **Step 3: Implement** route + dial-log reshape + row reshape + consumer sweep.
+- [ ] **Step 4: Gates** for `@conciv/core @conciv/contract` + full `conciv` app typecheck (consumer sweep).
+- [ ] **Step 5: Commit** `feat(core): sessions.changes push over the existing change emitter; rows carry online/lastSeenAt`.
 
 ---
 
@@ -57,11 +63,12 @@ Already dispatched with its own brief. This task records the acceptance gate the
 - Test: whatever browser test currently covers the connect dialog staleness/dial-in (grep `stale\|dialledIn` under `apps/conciv/test`); update in place.
 
 **Interfaces:**
-- Consumes: `deps.rpc.sessions.awaitDialIn({harnessSessionId}, {signal})` from Task 2.
+- Consumes: `deps.rpc.sessions.changes(undefined, {signal})` and `LiveSession.online`/`lastSeenAt` from Task 2.
 
 - [ ] **Step 1: Delete the clock.** Remove `now`/`setNow`/`createTimer`/`TICK_MS`. Stale badge becomes `stale: () => candidates.isStale`; set the query's `staleTime` to the single badge window (move `STALE_AFTER_MS = 15_000` out of connect-copy into this file as the `staleTime` value). Delete `FRESH_MS`. `checkedAt` stays `candidates.dataUpdatedAt` (RelativeTime consumes it).
-- [ ] **Step 2: Replace dial-in polling.** Delete `pollMs()`/`persistence()`/`terminalDialledIn` and the `dialInPollMs` backoff. Query keeps a single steady `refetchInterval: open() ? POLL_MS : false` for list freshness only (listing running processes has no push source — this poll is the honest interface and stays), plain default retry. Dial-in: when the machine enters the reload step (`adoptedOf(state)` non-null), open `awaitDialIn` for `adopted.harnessSessionId` with an AbortController tied to leaving the step (effect or plan-driven — follow the machine's existing effect-planner idiom: prefer emitting an `openDialWatch`/`closeDialWatch` entry from `connectPlanFor` and executing it in `runPlan`, matching how `adopt`/`follow` effects run). First event → `apply({type: 'dialledIn'})`. `contactLost`/`unreachable` derive from the subscription erroring/retrying: on iterator error while still in reload, re-open after `dialInPollMs`-free fixed delay is NOT allowed — instead surface `contactLost` state and re-open on the query's next successful refetch or an explicit user retry. If that error-path shape fights the machine, STOP and report; do not invent a retry loop (pacer AsyncRetryer is the only sanctioned retry primitive if one is truly needed).
-- [ ] **Step 3: Update the browser test** to drive dial-in through the real surface (the fake harness dials in via the same path as Task 2's test), assert the reload card flips to "Connected" via `expect.element`. No timers.
+- [ ] **Step 2: Push-driven refetch.** Delete `pollMs()`/`persistence()`/`dialInPollMs`/`GIVE_UP_AFTER_FAILURES`/`terminalDialledIn`. While the dialog is open, hold ONE `sessions.changes` subscription (AbortController tied to `open()` — a small effect or the machine's plan, matching the existing effect-planner idiom); each event → `queryClient.invalidateQueries({queryKey: attachCandidates.key()})`. The query keeps a slow safety-net `refetchInterval: open() ? POLL_MS : false` ONLY for sessions that cannot announce themselves (no hooks installed yet — their processes appear without any server-side event); bump `POLL_MS` to 15_000 since push now carries the fast path. Dial-in state: `dialledIn` fires when the adopted row (`adoptedOf(state).harnessSessionId`) shows `online: true` in fresh data — same `createEffect` shape as today's `terminalDialledIn`, but reading `online`. `contactLost` = subscription dropped while in reload (iterator ended/errored, not user-aborted); `unreachable` = `candidates.isError`. On subscription drop, do NOT hand-roll reconnect: surface `contactLost` and re-open only on explicit user retry or dialog re-open. If that shape fights the machine, STOP and report — pacer AsyncRetryer is the only sanctioned retry primitive if one is truly needed.
+- [ ] **Step 3: Online/Last-seen presentation.** `connect-copy.ts` `activityOf`/`metaLine`: replace the working/idle + reload-note logic — `online: true` → "online" (plus working/shell detail), else "last seen" + `RelativeTime` of `lastSeenAt` (or "started" + `startedAt` when `lastSeenAt` is null, keeping the one-time-setup note only for null). Candidate-row renders it with the existing `RelativeTime`. Reload card copy: waiting = "Waiting for this session to come online…", flipped = existing DIALLED_IN line.
+- [ ] **Step 4: Update the browser test** to drive dial-in through the real surface (the fake harness dials via the same MCP path as Task 2's test), assert the reload card flips via `expect.element` and a row shows "last seen" after the online window passes is NOT tested (would need clock control — skip; the pure `metaLine` mapping is covered by the machine-free copy function's usage in the browser test's visible text). No timers.
 - [ ] **Step 4: Gates green** for `conciv` app filter + embed if classes changed.
 - [ ] **Step 5: Commit** `refactor(conciv): connect flow rides pushed dial-in, deletes clock and poll ladder`.
 
