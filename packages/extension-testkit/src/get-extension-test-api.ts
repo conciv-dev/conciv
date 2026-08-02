@@ -31,7 +31,7 @@ export type ExtensionTestApi = {
 
 export {serveDir} from './serve.js'
 export {buildConcivHost, type BuildConcivHostOptions} from './build-host.js'
-export {fixtureHost} from './fixture-host.js'
+export {fixtureHost, prebuildFixtureHost} from './fixture-host.js'
 
 export async function getExtensionTestApi(extension: ExtensionUnderTest): Promise<ExtensionTestApi> {
   const {apiBase, extensionContexts, stop} = await bootExtensionServer(extension.server, {

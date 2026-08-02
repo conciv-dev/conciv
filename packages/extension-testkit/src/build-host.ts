@@ -87,8 +87,24 @@ async function buildHostOnce(options: BuildConcivHostOptions): Promise<string> {
   return outDir
 }
 
+function hostKey(options: BuildConcivHostOptions): string {
+  return [options.root, options.input ?? '', options.clientEntry].join('\n')
+}
+
+function readPrebuiltHosts(): Record<string, string> {
+  const raw = process.env.CONCIV_PREBUILT_HOSTS
+  if (!raw) return {}
+  try {
+    return JSON.parse(raw) as Record<string, string>
+  } catch {
+    return {}
+  }
+}
+
 export async function buildConcivHost(options: BuildConcivHostOptions): Promise<string> {
-  const key = [options.root, options.input ?? '', options.clientEntry].join('\n')
+  const key = hostKey(options)
+  const prebuilt = readPrebuiltHosts()[key]
+  if (prebuilt !== undefined && existsSync(prebuilt)) return prebuilt
   const cached = builtHosts.get(key)
   if (cached) {
     const dir = await cached.catch(() => null)
@@ -98,4 +114,13 @@ export async function buildConcivHost(options: BuildConcivHostOptions): Promise<
   const building = buildHostOnce(options)
   builtHosts.set(key, building)
   return building
+}
+
+export async function prebuildConcivHost(options: BuildConcivHostOptions): Promise<string> {
+  const key = hostKey(options)
+  const outDir = await buildHostOnce(options)
+  const prebuiltHosts = readPrebuiltHosts()
+  prebuiltHosts[key] = outDir
+  process.env.CONCIV_PREBUILT_HOSTS = JSON.stringify(prebuiltHosts)
+  return outDir
 }
