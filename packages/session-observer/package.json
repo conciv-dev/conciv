@@ -26,10 +26,6 @@
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js"
     },
-    "./machine": {
-      "types": "./dist/machine.d.ts",
-      "import": "./dist/machine.js"
-    },
     "./observer": {
       "types": "./dist/observer.d.ts",
       "import": "./dist/observer.js"

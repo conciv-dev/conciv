@@ -3,7 +3,7 @@ import {defineHarness} from '@conciv/protocol/harness-types'
 import {unsupportedChatConfig} from '../_shared/stub.js'
 import {piHistory, sessionsDir} from './history.js'
 
-export function piSessionArgs(cwd: string, harnessSessionId: string | null): string[] {
+function piSessionArgs(cwd: string, harnessSessionId: string | null): string[] {
   if (!harnessSessionId) return []
   return ['--session', join(sessionsDir(cwd), `${harnessSessionId}.jsonl`)]
 }
