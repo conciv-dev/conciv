@@ -7,5 +7,7 @@ declare global {
     concivTestElement: HTMLElement
     __p2n: unknown[]
     __rebinds: {apiBase?: string}[]
+    concivNativePost: (message: unknown) => Promise<void>
+    concivNativeRebind: (detail: unknown) => Promise<void>
   }
 }

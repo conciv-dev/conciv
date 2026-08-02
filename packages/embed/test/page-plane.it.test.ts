@@ -1,6 +1,5 @@
-import {afterAll, beforeAll, describe, it} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
-import {until} from '@conciv/harness-testkit/until'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
 
@@ -29,29 +28,25 @@ afterAll(async () => {
 describe('startPagePlane executes core page verbs in the browser', () => {
   it('round-trips page.run text through rpc.page.queries to the DOM driver', async () => {
     const page = await browser.newPage()
+    const subscribed = page.waitForResponse((response) => response.url().endsWith('/rpc/page/queries'), {
+      timeout: 30_000,
+    })
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 30_000})
-    await until(
-      async () => {
-        const body = await kit.rpc.page.run({verb: 'text', selector: '#probe'}).catch(() => null)
-        return body !== null && 'text' in body && body.text === 'page-bus-ok'
-      },
-      {hangGuardMs: 30_000},
-    )
+    await subscribed
+    expect(await kit.rpc.page.run({verb: 'text', selector: '#probe'})).toMatchObject({text: 'page-bus-ok'})
     await page.close()
   })
 
   it('snapshot verb sees host page structure', async () => {
     const page = await browser.newPage()
+    const subscribed = page.waitForResponse((response) => response.url().endsWith('/rpc/page/queries'), {
+      timeout: 30_000,
+    })
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 30_000})
-    await until(
-      async () => {
-        const body = await kit.rpc.page.run({verb: 'snapshot'}).catch(() => null)
-        return body !== null && JSON.stringify(body).includes('Embed page')
-      },
-      {hangGuardMs: 30_000},
-    )
+    await subscribed
+    expect(JSON.stringify(await kit.rpc.page.run({verb: 'snapshot'}))).toContain('Embed page')
     await page.close()
   })
 })
