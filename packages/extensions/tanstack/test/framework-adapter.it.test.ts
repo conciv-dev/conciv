@@ -1,6 +1,5 @@
 import {expect, test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {until} from '@conciv/harness-testkit'
 import {
   gotoAbout,
   tanstackAdapter,
@@ -50,14 +49,7 @@ test('adapter.client.data.invalidate re-runs the real router loader', async () =
   expect(before).not.toBeNull()
 
   await adapter.client.data.invalidate('/about')
-  await until(
-    async () => {
-      const after = await readUpdatedAt()
-      if (after === null || before === null) return false
-      return after > before
-    },
-    {hangGuardMs: 10_000},
-  )
+  expect(await readUpdatedAt()).toBeGreaterThan(before ?? 0)
 })
 
 test('adapter.queryCache splits the live TanStack Query cache into queries and mutations', async () => {
@@ -80,14 +72,13 @@ test('adapter.client.errors.snapshot captures a real runtime error thrown in an 
 
   await api.page.getByRole('link', {name: 'Boom'}).click()
   await expectLocator(api.page.getByRole('heading', {name: 'Boom page'})).toBeVisible()
+  const crashed = api.page.waitForEvent('pageerror')
   await api.page.getByRole('button', {name: 'Trigger runtime error'}).click()
+  expect(String(await crashed)).toContain('boom-from-event-handler')
 
   const adapter = tanstackAdapter(api)
-  await until(
-    async () =>
-      (await adapter.client.errors.snapshot()).some(
-        (error) => error.kind === 'runtime' && error.message.includes('boom-from-event-handler'),
-      ),
-    {hangGuardMs: 10_000},
+  const captured = await adapter.client.errors.snapshot()
+  expect(captured.some((error) => error.kind === 'runtime' && error.message.includes('boom-from-event-handler'))).toBe(
+    true,
   )
 })

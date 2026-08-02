@@ -1,7 +1,6 @@
 import {expect, test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {z} from 'zod'
-import {until} from '@conciv/harness-testkit'
 import {
   gotoAbout,
   tanstackAdapter,
@@ -95,11 +94,8 @@ test('tanstack_navigate drives real TanStack Router navigation on the running ap
 
   await api.callTool('tanstack_navigate', {to: '/form'})
 
-  await until(
-    async () => routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.pathname === '/form',
-    {hangGuardMs: 10_000},
-  )
   await expectLocator(api.page.getByRole('heading', {name: 'Form page'})).toBeVisible()
+  expect(routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.pathname).toBe('/form')
 })
 
 test('navigate threads search through the adapter into the running TanStack Router location', async () => {
@@ -110,14 +106,10 @@ test('navigate threads search through the adapter into the running TanStack Rout
   const adapter = tanstackAdapter(api)
   await adapter.client.navigation.navigate({to: '/secret', search: {token: 'nav-applied'}})
 
-  await until(
-    async () =>
-      routerStateSchema
-        .parse(await api.callTool('tanstack_router_state', {}))
-        .location.search.includes('token=nav-applied'),
-    {hangGuardMs: 10_000},
-  )
   await expectLocator(api.page.getByRole('heading', {name: 'Secret page'})).toBeVisible()
+  expect(routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.search).toContain(
+    'token=nav-applied',
+  )
 })
 
 test('tanstack_query_invalidate no-ops on unknown keys and refetches the real key on the running app', async () => {
@@ -143,14 +135,8 @@ test('tanstack_query_invalidate no-ops on unknown keys and refetches the real ke
   expect(afterUnknown?.state).toBe(before?.state)
 
   await api.callTool('tanstack_query_invalidate', {key: demoKey})
-  await until(
-    async () => {
-      const after = await readDemo()
-      if (!after || after.updatedAt === null || before?.updatedAt == null) return false
-      return after.updatedAt > before.updatedAt
-    },
-    {hangGuardMs: 10_000},
-  )
+  const after = await readDemo()
+  expect(after?.updatedAt ?? 0).toBeGreaterThan(before?.updatedAt ?? 0)
 })
 
 const truncationMarkerSchema = z.object({__conciv: z.literal('object'), preview: z.literal('{…}')}).loose()
