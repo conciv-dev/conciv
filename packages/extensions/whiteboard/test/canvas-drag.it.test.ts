@@ -3,7 +3,7 @@ import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
 import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import {until} from '@conciv/harness-testkit'
-import {openCanvas, untilCanvasSettles} from './canvas-it-helpers.js'
+import {openCanvas} from './canvas-it-helpers.js'
 
 const clientEntry = '@conciv/extension-whiteboard/client'
 
@@ -28,7 +28,7 @@ test('a drawn rectangle keeps its real size and does not collapse to a point', a
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx, cy)
-    await untilCanvasSettles(async () => (await firstWidth(api)) > 100)
+    await until(async () => (await firstWidth(api)) > 100, {hangGuardMs: 30_000, intervalMs: 250})
     const settled = (await readElements(api))[0]
     expect(settled?.height).toBeGreaterThan(60)
     await until(async () => ((await readElements(api))[0]?.width ?? 0) >= (settled?.width ?? 0) * 0.9, {
@@ -46,14 +46,14 @@ test('dragging a rectangle moves it the full cursor distance, not a fraction', a
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx, cy)
-    await untilCanvasSettles(async () => (await firstWidth(api)) > 100)
+    await until(async () => (await firstWidth(api)) > 100, {hangGuardMs: 30_000, intervalMs: 250})
     const startX = (await readElements(api))[0]?.x ?? 0
     await api.page.getByRole('radio', {name: 'Selection'}).click({force: true})
     await api.page.mouse.move(cx, cy)
     await api.page.mouse.down()
     for (let step = 1; step <= 10; step += 1) await api.page.mouse.move(cx + step * 20, cy, {steps: 1})
     await api.page.mouse.up()
-    await untilCanvasSettles(async () => (await firstDeltaX(api, startX)) > 180)
+    await until(async () => (await firstDeltaX(api, startX)) > 180, {hangGuardMs: 30_000, intervalMs: 250})
   } finally {
     await api.dispose()
   }

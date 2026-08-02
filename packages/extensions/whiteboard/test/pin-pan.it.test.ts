@@ -2,7 +2,8 @@ import {expect, test} from 'vitest'
 import type {Locator} from 'playwright'
 import whiteboard from '../src/server.js'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
-import {openCanvas, untilCanvasSettles} from './canvas-it-helpers.js'
+import {until} from '@conciv/harness-testkit'
+import {openCanvas} from './canvas-it-helpers.js'
 
 const clientEntry = '@conciv/extension-whiteboard/client'
 
@@ -30,7 +31,7 @@ test('a comment pin is projected to screen and tracks canvas pan', async () => {
     await api.page.mouse.move(cx, cy)
     await api.page.mouse.wheel(0, 320)
 
-    await untilCanvasSettles(async () => Math.abs((await projectedTop(pin)()) - top0) > 80)
+    await until(async () => Math.abs((await projectedTop(pin)()) - top0) > 80, {hangGuardMs: 30_000, intervalMs: 250})
   } finally {
     await api.dispose()
   }

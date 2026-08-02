@@ -3,7 +3,8 @@ import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
 import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import {ELEMENT_WRITE_THROTTLE_MS} from '../src/client/whiteboard-collection.js'
-import {openCanvas, untilCanvasSettles} from './canvas-it-helpers.js'
+import {until} from '@conciv/harness-testkit'
+import {openCanvas} from './canvas-it-helpers.js'
 
 const flushBudget = (elapsedMs: number): number => Math.ceil(elapsedMs / ELEMENT_WRITE_THROTTLE_MS) + 2
 
@@ -47,13 +48,16 @@ test('a single-element drag coalesces per-frame writes into few throttled PUTs',
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx - 120, cy - 80, cx + 120, cy + 80)
-    await untilCanvasSettles(async () => ((await readElements(api))[0]?.width ?? 0) > 100)
+    await until(async () => ((await readElements(api))[0]?.width ?? 0) > 100, {hangGuardMs: 30_000, intervalMs: 250})
     const startX = (await readElements(api))[0]?.x ?? 0
     await api.page.getByRole('radio', {name: 'Selection'}).click({force: true})
     const counts = putCounts(api.page)
     const dragStartedAt = Date.now()
     await dragBursts(api.page, cx, cy, 40)
-    await untilCanvasSettles(async () => ((await readElements(api))[0]?.x ?? startX) - startX > 180)
+    await until(async () => ((await readElements(api))[0]?.x ?? startX) - startX > 180, {
+      hangGuardMs: 30_000,
+      intervalMs: 250,
+    })
     expect(counts.single).toBeGreaterThan(1)
     expect(counts.single).toBeLessThanOrEqual(flushBudget(Date.now() - dragStartedAt))
     expect(counts.bulk).toBe(0)
@@ -68,7 +72,7 @@ test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx - 220, cy - 40, cx - 120, cy + 40)
     await drawRectangle(api.page, cx + 120, cy - 40, cx + 220, cy + 40)
-    await untilCanvasSettles(async () => (await readElements(api)).length === 2)
+    await until(async () => (await readElements(api)).length === 2, {hangGuardMs: 30_000, intervalMs: 250})
     const startXs = await readXs(api)
     await api.page.getByRole('radio', {name: 'Selection'}).click({force: true})
     await api.page.mouse.move(cx - 300, cy - 120)
@@ -78,12 +82,15 @@ test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async
     const counts = putCounts(api.page)
     const dragStartedAt = Date.now()
     await dragBursts(api.page, cx - 170, cy, 26)
-    await untilCanvasSettles(async () => {
-      const [x0, x1] = await readXs(api)
-      const [s0, s1] = startXs
-      if (x0 === undefined || x1 === undefined || s0 === undefined || s1 === undefined) return false
-      return x0 - s0 > 100 && x1 - s1 > 100
-    })
+    await until(
+      async () => {
+        const [x0, x1] = await readXs(api)
+        const [s0, s1] = startXs
+        if (x0 === undefined || x1 === undefined || s0 === undefined || s1 === undefined) return false
+        return x0 - s0 > 100 && x1 - s1 > 100
+      },
+      {hangGuardMs: 30_000, intervalMs: 250},
+    )
     expect(counts.bulk).toBeGreaterThan(0)
     expect(counts.single + counts.bulk).toBeLessThanOrEqual(flushBudget(Date.now() - dragStartedAt))
   } finally {

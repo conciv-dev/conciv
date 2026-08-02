@@ -1,7 +1,8 @@
 import {expect, test} from 'vitest'
 import whiteboard from '../src/server.js'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
-import {clientEntry, openCanvas, readCanvas as read, untilCanvasSettles} from './canvas-it-helpers.js'
+import {until} from '@conciv/harness-testkit'
+import {clientEntry, openCanvas, readCanvas as read} from './canvas-it-helpers.js'
 
 const HOUSE =
   "<svg viewBox='0 0 100 100'><rect x='20' y='50' width='60' height='40' fill='#e8d9b0'/><path d='M 10 50 L 50 15 L 90 50 Z' fill='#c0533f'/></svg>"
@@ -11,10 +12,10 @@ test('commit moves the whole draft to the live canvas', async () => {
   try {
     await openCanvas(api.page)
     await api.callTool('canvas.svg', {svg: HOUSE, x: 60, y: 60, width: 300})
-    await untilCanvasSettles(async () => (await read(api, 'draft')).length === 2)
+    await until(async () => (await read(api, 'draft')).length === 2, {hangGuardMs: 30_000, intervalMs: 250})
     const result = (await api.callTool('canvas.commit', {})) as {committed: boolean}
     expect(result.committed).toBe(true)
-    await untilCanvasSettles(async () => (await read(api, 'live')).length === 2)
+    await until(async () => (await read(api, 'live')).length === 2, {hangGuardMs: 30_000, intervalMs: 250})
     expect(await read(api, 'draft')).toHaveLength(0)
   } finally {
     await api.dispose()
@@ -26,7 +27,7 @@ test('discard clears the draft and never touches live', async () => {
   try {
     await openCanvas(api.page)
     await api.callTool('canvas.svg', {svg: HOUSE, x: 60, y: 60, width: 300})
-    await untilCanvasSettles(async () => (await read(api, 'draft')).length === 2)
+    await until(async () => (await read(api, 'draft')).length === 2, {hangGuardMs: 30_000, intervalMs: 250})
     const result = (await api.callTool('canvas.discard', {})) as {discarded: number}
     expect(result.discarded).toBe(2)
     expect(await read(api, 'draft')).toHaveLength(0)
