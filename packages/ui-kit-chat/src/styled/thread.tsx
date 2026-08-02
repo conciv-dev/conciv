@@ -277,7 +277,7 @@ export function Thread(props: ThreadProps): JSX.Element {
           </div>
         </ThreadPrimitive.Viewport>
         <Show when={noticesSlot()}>
-          <div class="shrink-0 h-0 relative overflow-visible">{noticesSlot()}</div>
+          <div class="px-2 shrink-0 empty:hidden">{noticesSlot()}</div>
         </Show>
         <Show when={composerSlot()}>
           <div class="p-2 shrink-0 [border-top:1px_solid_var(--chat-line)]">{composerSlot()}</div>

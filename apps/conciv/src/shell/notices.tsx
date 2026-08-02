@@ -16,7 +16,7 @@ const STANDING_LIMIT = 2
 const TOAST_TYPE: Record<NoticeTone, string> = {info: 'info', success: 'success', warn: 'warning', danger: 'error'}
 
 const NOTICE =
-  'relative w-80 max-w-[calc(100%-2rem)] flex items-center gap-2 text-[0.75rem] leading-[1.4] font-medium font-pw px-2.5 py-2 border rounded-pw-md shadow-pw-lg [word-break:break-word] [translate:var(--x)_var(--y)] [z-index:var(--z-index)] [height:var(--height)] [opacity:var(--opacity)] [transition:translate_320ms_var(--pw-ease),height_320ms_var(--pw-ease),opacity_200ms_var(--pw-ease)]'
+  'w-full flex items-center gap-2 text-[0.75rem] leading-[1.4] font-medium font-pw px-2.5 py-2 border rounded-pw-md shadow-pw-lg [word-break:break-word] anim-msg'
 const ACTION = 'shrink-0 font-semibold'
 const DISMISS = 'shrink-0 size-5 rounded-pw-pill'
 
@@ -47,9 +47,13 @@ export const notify: Notify = (message, options = {}) => {
 
 export function NoticeToaster(): JSX.Element {
   return (
-    <ToastGroup toaster={toaster} style={{position: 'absolute'}}>
+    <ToastGroup toaster={toaster} class="pb-2 empty:hidden" style={{position: 'static'}}>
       {(toast) => (
-        <Toast.Root class={`${NOTICE} ${toneClass(toast().type)}`} role={toast().type === 'error' ? 'alert' : 'status'}>
+        <Toast.Root
+          class={`${NOTICE} ${toneClass(toast().type)}`}
+          style={{position: 'relative'}}
+          role={toast().type === 'error' ? 'alert' : 'status'}
+        >
           <Toast.Title class="flex-1 min-w-0">{toast().title}</Toast.Title>
           <Show when={toast().action}>
             {(action) => (
