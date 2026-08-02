@@ -12,7 +12,6 @@ import type {
   TranscriptRevision,
 } from '@conciv/protocol/harness-types'
 import type {SessionSnapshot, SessionUpdate} from '@conciv/session-observer/types'
-import {until} from '@conciv/harness-testkit'
 import {bashHarness, closeServersAfterEach, startTerminalServer, type TerminalTestServer} from './helpers.js'
 import type {HOOK_EVENTS} from '../src/shared/protocol.js'
 
@@ -86,12 +85,21 @@ function snapshots(watch: Watch): SessionSnapshot[] {
   return watch.updates.flatMap((update) => (update.kind === 'presence' ? [update.snapshot] : []))
 }
 
-async function watchSession(server: TerminalTestServer, sessionId: string): Promise<Watch> {
+async function watchSession(
+  server: TerminalTestServer,
+  sessionId: string,
+  onUpdate: (update: SessionUpdate) => void = () => {},
+): Promise<Watch> {
   const controller = new AbortController()
   const stream = await server.rpc.observe({sessionId}, {signal: controller.signal})
   const updates: SessionUpdate[] = []
+  const opened = Promise.withResolvers<SessionSnapshot>()
   const pump = (async () => {
-    for await (const update of stream) updates.push(update)
+    for await (const update of stream) {
+      updates.push(update)
+      if (update.kind === 'presence') opened.resolve(update.snapshot)
+      onUpdate(update)
+    }
   })()
   const watch: Watch = {
     updates,
@@ -100,7 +108,7 @@ async function watchSession(server: TerminalTestServer, sessionId: string): Prom
       await pump.catch(() => {})
     },
   }
-  await until(() => snapshots(watch).length >= 1)
+  await opened.promise
   return watch
 }
 
@@ -110,10 +118,13 @@ describe('hooks that carry no conciv header', () => {
     const sessionId = `conciv_${randomUUID()}`
     const harnessSessionId = randomUUID()
     await server.sessions.recordToken(sessionId, harnessSessionId)
-    const watch = await watchSession(server, sessionId)
+    const working = Promise.withResolvers<SessionSnapshot>()
+    const watch = await watchSession(server, sessionId, (update) => {
+      if (update.kind === 'presence' && update.snapshot.state === 'working') working.resolve(update.snapshot)
+    })
 
     expect((await hook(server, 'UserPromptSubmit', {harnessSessionId})).status).toBe(200)
-    await until(() => snapshots(watch).at(-1)?.state === 'working')
+    expect((await working.promise).state).toBe('working')
 
     await watch.stop()
   }, 20_000)
@@ -134,21 +145,39 @@ describe('terminal observation', () => {
   it('starts idle and follows the claude hook lifecycle', async () => {
     const server = await startServer()
     const sessionId = `conciv_${randomUUID()}`
-    const watch = await watchSession(server, sessionId)
+    const presence = {notify: (_snapshot: SessionSnapshot) => {}}
+    const watch = await watchSession(server, sessionId, (update) => {
+      if (update.kind === 'presence') presence.notify(update.snapshot)
+    })
     expect(snapshots(watch)[0]?.state).toBe('idle')
 
+    const started = Promise.withResolvers<SessionSnapshot>()
+    presence.notify = (snapshot) => {
+      if (snapshot.state === 'connected') started.resolve(snapshot)
+    }
     expect((await hook(server, 'SessionStart', {sessionId})).status).toBe(200)
-    await until(() => snapshots(watch).at(-1)?.state === 'connected')
-    expect(snapshots(watch).at(-1)?.evidence).toBe('hook')
+    expect((await started.promise).evidence).toBe('hook')
 
+    const working = Promise.withResolvers<SessionSnapshot>()
+    presence.notify = (snapshot) => {
+      if (snapshot.state === 'working') working.resolve(snapshot)
+    }
     await hook(server, 'UserPromptSubmit', {sessionId})
-    await until(() => snapshots(watch).at(-1)?.state === 'working')
+    expect((await working.promise).state).toBe('working')
 
+    const stopped = Promise.withResolvers<SessionSnapshot>()
+    presence.notify = (snapshot) => {
+      if (snapshot.state === 'connected') stopped.resolve(snapshot)
+    }
     await hook(server, 'Stop', {sessionId})
-    await until(() => snapshots(watch).at(-1)?.state === 'connected')
+    expect((await stopped.promise).state).toBe('connected')
 
+    const ended = Promise.withResolvers<SessionSnapshot>()
+    presence.notify = (snapshot) => {
+      if (snapshot.state === 'idle') ended.resolve(snapshot)
+    }
     await hook(server, 'SessionEnd', {sessionId})
-    await until(() => snapshots(watch).at(-1)?.state === 'idle')
+    expect((await ended.promise).state).toBe('idle')
     await watch.stop()
   })
 
@@ -218,10 +247,12 @@ describe('terminal observation', () => {
   it('keeps presence alive from an mcp request', async () => {
     const server = await startServer()
     const sessionId = `conciv_${randomUUID()}`
-    const watch = await watchSession(server, sessionId)
+    const working = Promise.withResolvers<SessionSnapshot>()
+    const watch = await watchSession(server, sessionId, (update) => {
+      if (update.kind === 'presence' && update.snapshot.state === 'working') working.resolve(update.snapshot)
+    })
     server.sessions.fireMcpRequest(sessionId)
-    await until(() => snapshots(watch).at(-1)?.state === 'working')
-    expect(snapshots(watch).at(-1)?.evidence).toBe('mcp')
+    expect((await working.promise).evidence).toBe('mcp')
     await watch.stop()
   })
 
@@ -230,10 +261,20 @@ describe('terminal observation', () => {
     const server = await startServer(transcript)
     const sessionId = `conciv_${randomUUID()}`
     server.sessions.tokens.set(sessionId, randomUUID())
-    const watch = await watchSession(server, sessionId)
-    await until(() => watch.updates.some((update) => update.kind === 'transcript'))
+    const mirrored = {notify: (_messages: UIMessage[]) => {}}
+    const firstTranscript = Promise.withResolvers<UIMessage[]>()
+    const watch = await watchSession(server, sessionId, (update) => {
+      if (update.kind !== 'transcript') return
+      firstTranscript.resolve(update.messages)
+      mirrored.notify(update.messages)
+    })
+    await firstTranscript.promise
     const beforeChanges = server.sessions.changes.count
 
+    const grown = Promise.withResolvers<UIMessage[]>()
+    mirrored.notify = (messages) => {
+      if (messages.length === 2) grown.resolve(messages)
+    }
     server.sessions.fireLocalRun(sessionId, 'start')
     transcript.rev = 'r1'
     transcript.messages = [
@@ -241,10 +282,7 @@ describe('terminal observation', () => {
       {id: 'h2', role: 'assistant', parts: [{type: 'text', content: 'hi there'}]},
     ]
 
-    await until(() => {
-      const last = watch.updates.flatMap((update) => (update.kind === 'transcript' ? [update] : [])).at(-1)
-      return last?.messages.length === 2
-    })
+    expect((await grown.promise).at(-1)?.id).toBe('h2')
     expect(snapshots(watch).at(-1)?.state).toBe('idle')
     expect(server.sessions.changes.count).toBe(beforeChanges)
     await watch.stop()
@@ -256,23 +294,37 @@ describe('terminal observation', () => {
     const server = await startServer(transcript)
     const sessionId = `conciv_${randomUUID()}`
     server.sessions.tokens.set(sessionId, randomUUID())
-    const watch = await watchSession(server, sessionId)
+    const failed = Promise.withResolvers<SessionUpdate>()
+    const watch = await watchSession(server, sessionId, (update) => {
+      if (update.kind === 'transcript-error') failed.resolve(update)
+    })
 
-    await until(() => watch.updates.some((update) => update.kind === 'transcript-error'))
+    expect(await failed.promise).toMatchObject({reason: 'unreadable', detail: 'EACCES'})
     expect(watch.updates.some((update) => update.kind === 'transcript')).toBe(false)
-    await until(() => snapshots(watch).at(-1)?.health.ok === false)
+    expect(snapshots(watch).at(-1)?.health.ok).toBe(false)
     await watch.stop()
   }, 20_000)
 
   it('drops presence when core reports the session was detached', async () => {
     const server = await startServer()
     const sessionId = `conciv_${randomUUID()}`
-    const watch = await watchSession(server, sessionId)
+    const presence = {notify: (_snapshot: SessionSnapshot) => {}}
+    const watch = await watchSession(server, sessionId, (update) => {
+      if (update.kind === 'presence') presence.notify(update.snapshot)
+    })
+    const working = Promise.withResolvers<SessionSnapshot>()
+    presence.notify = (snapshot) => {
+      if (snapshot.state === 'working') working.resolve(snapshot)
+    }
     await hook(server, 'UserPromptSubmit', {sessionId})
-    await until(() => snapshots(watch).at(-1)?.state === 'working')
+    expect((await working.promise).state).toBe('working')
 
+    const dropped = Promise.withResolvers<SessionSnapshot>()
+    presence.notify = (snapshot) => {
+      if (snapshot.state === 'idle') dropped.resolve(snapshot)
+    }
     server.sessions.fireSessionDetached(sessionId)
-    await until(() => snapshots(watch).at(-1)?.state === 'idle')
+    expect((await dropped.promise).state).toBe('idle')
     expect(server.sessions.runSend(sessionId, false)).toEqual({allow: true})
     await watch.stop()
   }, 20_000)
@@ -298,10 +350,16 @@ describe('terminal observation', () => {
     const server = await startServer(transcript)
     const sessionId = `conciv_${randomUUID()}`
     server.sessions.tokens.set(sessionId, randomUUID())
-    const watch = await watchSession(server, sessionId)
-    await until(() => transcript.handles > 0)
+    const read = Promise.withResolvers<UIMessage[]>()
+    const working = Promise.withResolvers<SessionSnapshot>()
+    const watch = await watchSession(server, sessionId, (update) => {
+      if (update.kind === 'transcript') read.resolve(update.messages)
+      if (update.kind === 'presence' && update.snapshot.state === 'working') working.resolve(update.snapshot)
+    })
+    expect(await read.promise).toHaveLength(1)
+    expect(transcript.handles).toBeGreaterThan(0)
     await hook(server, 'UserPromptSubmit', {sessionId})
-    await until(() => snapshots(watch).at(-1)?.state === 'working')
+    expect((await working.promise).state).toBe('working')
     expect(server.sessions.listeners).toEqual({localRun: 2, detached: 1, launch: 1, mcp: 1, veto: 1})
     await watch.stop()
 

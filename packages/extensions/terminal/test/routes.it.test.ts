@@ -2,19 +2,24 @@ import {randomUUID} from 'node:crypto'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import WebSocket from 'ws'
 import {recordingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
-import {until} from '@conciv/harness-testkit'
 
 type Client = {ws: WebSocket; received: string[]; controls: string[]}
 
-function connect(wsBase: string, sessionId: string, params = ''): Promise<Client> {
+function connect(
+  wsBase: string,
+  sessionId: string,
+  params = '',
+  onData: (text: string) => void = () => {},
+): Promise<Client> {
   const ws = new WebSocket(`${wsBase}/api/ext/terminal/tty?session=${sessionId}${params}`)
   const client: Client = {ws, received: [], controls: []}
   ws.on('message', (data, isBinary) => {
-    if (isBinary) {
-      client.received.push(new TextDecoder().decode(data as Buffer))
+    if (!isBinary) {
+      client.controls.push(String(data))
       return
     }
-    client.controls.push(String(data))
+    client.received.push(new TextDecoder().decode(data as Buffer))
+    onData(client.received.join(''))
   })
   return new Promise((resolve, reject) => {
     ws.on('open', () => resolve(client))
@@ -51,36 +56,53 @@ describe('terminal extension routes', () => {
     expect(await rpc().open({sessionId})).toEqual({alive: true})
     expect((await rpc().state({sessionId})).alive).toBe(true)
 
-    const client = await connect(wsBase(), sessionId, '&cols=100&rows=30')
+    const roundTripped = Promise.withResolvers<string>()
+    const resized = Promise.withResolvers<string>()
+    const client = await connect(wsBase(), sessionId, '&cols=100&rows=30', (text) => {
+      if (text.includes('ws-roundtrip-42')) roundTripped.resolve(text)
+      if (text.includes('27 91')) resized.resolve(text)
+    })
     client.ws.send('echo ws-roundtrip-$((40+2))\r')
-    await until(() => client.received.join('').includes('ws-roundtrip-42'))
+    expect(await roundTripped.promise).toContain('ws-roundtrip-42')
 
     client.ws.send(JSON.stringify({type: 'resize', cols: 91, rows: 27}))
     client.ws.send('stty size\r')
-    await until(() => client.received.join('').includes('27 91'))
+    expect(await resized.promise).toContain('27 91')
     client.ws.close()
   })
 
   it('replays buffered bytes on reconnect', async () => {
-    const client = await connect(wsBase(), sessionId)
-    await until(() => client.received.join('').includes('ws-roundtrip-42'))
+    const replayed = Promise.withResolvers<string>()
+    const client = await connect(wsBase(), sessionId, '', (text) => {
+      if (text.includes('ws-roundtrip-42')) replayed.resolve(text)
+    })
+    expect(await replayed.promise).toContain('ws-roundtrip-42')
     client.ws.close()
   })
 
   it('open is idempotent while the pty is alive: buffer survives a re-open', async () => {
     expect(await rpc().open({sessionId})).toEqual({alive: true})
-    const client = await connect(wsBase(), sessionId)
-    await until(() => client.received.join('').includes('ws-roundtrip-42'))
+    const replayed = Promise.withResolvers<string>()
+    const client = await connect(wsBase(), sessionId, '', (text) => {
+      if (text.includes('ws-roundtrip-42')) replayed.resolve(text)
+    })
+    expect(await replayed.promise).toContain('ws-roundtrip-42')
     client.ws.close()
   })
 
   it('inject control frame writes a marker readable by a reconnecting socket', async () => {
-    const client = await connect(wsBase(), sessionId)
+    const injected = Promise.withResolvers<string>()
+    const client = await connect(wsBase(), sessionId, '', (text) => {
+      if (text.includes('\r\nconciv says hi\r\n')) injected.resolve(text)
+    })
     client.ws.send(JSON.stringify({type: 'inject', text: 'conciv says hi'}))
-    await until(() => client.received.join('').includes('\r\nconciv says hi\r\n'))
+    expect(await injected.promise).toContain('\r\nconciv says hi\r\n')
     client.ws.close()
-    const second = await connect(wsBase(), sessionId)
-    await until(() => second.received.join('').includes('\r\nconciv says hi\r\n'))
+    const replayed = Promise.withResolvers<string>()
+    const second = await connect(wsBase(), sessionId, '', (text) => {
+      if (text.includes('\r\nconciv says hi\r\n')) replayed.resolve(text)
+    })
+    expect(await replayed.promise).toContain('\r\nconciv says hi\r\n')
     second.ws.close()
   })
 
@@ -153,9 +175,11 @@ describe('terminal extension routes', () => {
     try {
       dedicated.sessions.tokens.set(sessionId, randomUUID())
       expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
-      const wsBaseUrl = dedicated.wsBase
-      const client = await connect(wsBaseUrl, sessionId)
-      await until(() => client.received.join('').includes('\u2500 conciv: resumed session \u2500'))
+      const resumed = Promise.withResolvers<string>()
+      const client = await connect(dedicated.wsBase, sessionId, '', (text) => {
+        if (text.includes('\u2500 conciv: resumed session \u2500')) resumed.resolve(text)
+      })
+      expect(await resumed.promise).toContain('\u2500 conciv: resumed session \u2500')
       client.ws.close()
     } finally {
       await dedicated.close()

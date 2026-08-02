@@ -1,8 +1,9 @@
 import {describe, expect, inject, it, onTestFinished} from 'vitest'
+import {page} from 'vitest/browser'
 import {render} from 'solid-js/web'
+import {createSignal, onMount, type JSX} from 'solid-js'
 import {createTerminalModel, translateBuffer, TerminalPrimitive, type TerminalModel} from '@conciv/ui-kit-terminal'
 import {makeExtRpcClient} from '@conciv/extension'
-import {until} from '@conciv/harness-testkit/until'
 import type {TerminalRouter} from '../src/server.js'
 
 const LAYOUT = `
@@ -14,11 +15,28 @@ function ttyUrl(base: string, sessionId: string, cols: number, rows: number): st
   return `${base.replace('http', 'ws')}/api/ext/terminal/tty?session=${sessionId}&cols=${cols}&rows=${rows}`
 }
 
-type Mounted = {model: TerminalModel; dispose: () => void}
+type Mounted = {model: TerminalModel; label: string; dispose: () => void}
 
 type ExtClient = ReturnType<typeof makeExtRpcClient<TerminalRouter>>
 
-function mountTerminal(ext: ExtClient, base: string, sessionId: string): Mounted {
+function TerminalState(props: {model: TerminalModel; label: string}): JSX.Element {
+  const [buffer, setBuffer] = createSignal('')
+  onMount(() => {
+    const {terminal} = props.model
+    terminal.onWriteParsed(() => setBuffer(translateBuffer(terminal).replaceAll('\n', '')))
+  })
+  return (
+    <section aria-label={props.label}>
+      status={props.model.status()} buffer={buffer()}
+    </section>
+  )
+}
+
+function terminalState(label: string) {
+  return page.getByRole('region', {name: label})
+}
+
+function mountTerminal(ext: ExtClient, base: string, sessionId: string, label: string): Mounted {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const shadow = host.attachShadow({mode: 'open'})
@@ -34,6 +52,9 @@ function mountTerminal(ext: ExtClient, base: string, sessionId: string): Mounted
       await ext.open({sessionId, cols: terminal.cols, rows: terminal.rows})
     },
   })
+  const stateHost = document.createElement('div')
+  document.body.appendChild(stateHost)
+  const disposeState = render(() => <TerminalState model={model} label={label} />, stateHost)
   const dispose = render(
     () => (
       <TerminalPrimitive.Root model={model}>
@@ -44,18 +65,21 @@ function mountTerminal(ext: ExtClient, base: string, sessionId: string): Mounted
   )
   return {
     model,
+    label,
     dispose: () => {
       dispose()
+      disposeState()
       host.remove()
+      stateHost.remove()
     },
   }
 }
 
 async function reportedSize(mounted: Mounted, marker: string): Promise<{rows: number; cols: number}> {
   mounted.model.sendInput(`echo ${marker}-$(stty size | tr ' ' 'x')\r`)
-  await until(() => new RegExp(`${marker}-\\d+x\\d+`).test(translateBuffer(mounted.model.terminal)), {
-    hangGuardMs: 10_000,
-  })
+  await expect
+    .element(terminalState(mounted.label), {timeout: 10_000})
+    .toHaveTextContent(new RegExp(`${marker}-\\d+x\\d+`))
   const match = translateBuffer(mounted.model.terminal).match(new RegExp(`${marker}-(\\d+)x(\\d+)`))
   if (!match) throw new Error('no size report')
   return {rows: Number(match[1]), cols: Number(match[2])}
@@ -67,29 +91,26 @@ describe('replay after a fresh attach (reload path)', () => {
     const sessionId = `conciv_${crypto.randomUUID()}`
     const ext = makeExtRpcClient<TerminalRouter>(base, 'terminal')
 
-    const first = mountTerminal(ext, base, sessionId)
-    await until(() => first.model.status() === 'open', {hangGuardMs: 10_000})
-    await until(() => translateBuffer(first.model.terminal).includes('P>'), {hangGuardMs: 10_000})
+    const first = mountTerminal(ext, base, sessionId, 'first terminal')
+    await expect.element(terminalState(first.label), {timeout: 10_000}).toHaveTextContent('status=open')
+    await expect.element(terminalState(first.label), {timeout: 10_000}).toHaveTextContent('P>')
     const firstSize = await reportedSize(first, 'FIRSTSIZE')
     expect(firstSize.cols).toBe(first.model.terminal.cols)
     expect(firstSize.rows).toBe(first.model.terminal.rows)
     first.model.sendInput(`printf 'RULER:%0.s=' $(seq 1 60); printf 'END\\n'\r`)
     const replayMarker = `${'RULER:='.repeat(60)}END`
-    await until(() => translateBuffer(first.model.terminal).replaceAll('\n', '').includes(replayMarker), {
-      hangGuardMs: 10_000,
-    })
+    await expect.element(terminalState(first.label), {timeout: 10_000}).toHaveTextContent(replayMarker)
     const firstBuffer = translateBuffer(first.model.terminal)
+    const firstCols = first.model.terminal.cols
     first.dispose()
 
-    const second = mountTerminal(ext, base, sessionId)
+    const second = mountTerminal(ext, base, sessionId, 'second terminal')
     onTestFinished(() => second.dispose())
-    await until(() => second.model.status() === 'open', {hangGuardMs: 10_000})
-    await until(() => translateBuffer(second.model.terminal).replaceAll('\n', '').includes(replayMarker), {
-      hangGuardMs: 10_000,
-    })
+    await expect.element(terminalState(second.label), {timeout: 10_000}).toHaveTextContent('status=open')
+    await expect.element(terminalState(second.label), {timeout: 10_000}).toHaveTextContent(replayMarker)
     const secondBuffer = translateBuffer(second.model.terminal)
 
-    expect(second.model.terminal.cols).toBe(first.model.terminal.cols)
+    expect(second.model.terminal.cols).toBe(firstCols)
     const replayedLines = firstBuffer.split('\n').filter((line) => line.trim() !== '')
     for (const line of replayedLines) expect(secondBuffer).toContain(line)
 
@@ -103,11 +124,9 @@ describe('replay after a fresh attach (reload path)', () => {
     const sessionId = `conciv_${crypto.randomUUID()}`
     const ext = makeExtRpcClient<TerminalRouter>(base, 'terminal')
 
-    const mounted = mountTerminal(ext, base, sessionId)
+    const mounted = mountTerminal(ext, base, sessionId, 'spawn paint terminal')
     onTestFinished(() => mounted.dispose())
-    await until(() => /^SPAWNRULER\[=+\]$/m.test(translateBuffer(mounted.model.terminal)), {
-      hangGuardMs: 10_000,
-    })
+    await expect.element(terminalState(mounted.label), {timeout: 10_000}).toHaveTextContent(/SPAWNRULER\[=+\]/)
     const buffer = translateBuffer(mounted.model.terminal)
 
     const spawnCols = Number(buffer.match(/SPAWNCOLS=(\d+)/)?.[1])
