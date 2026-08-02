@@ -41,7 +41,7 @@ No new server state. The change emitter already exists (`makeChanges` in `packag
 - Test: `packages/core/test/chat/changes-push.it.test.ts`
 
 **Interfaces:**
-- Produces: contract route `sessions.changes: oc.output(eventIterator(z.object({rev: z.number()})))`. Handler: loop `nextChange(changes, signal)` → yield `{rev: changes.externalRev()}`; abort via signal. NO filtering, NO per-session state — it is a dumb "something changed" tick over the existing emitter.
+- Produces: contract route `sessions.changes: oc.output(eventIterator(z.object({rev: z.number()})))`. Handler: loop `nextChange(changes, signal)`, but yield ONLY when `changes.externalRev()` advanced past the last yielded rev — the shared emitter also fires on every chat-stream snapshot change (`notify()` during token streaming), and those must never ring this bell. No other filtering, no per-session state. Abort via signal. Test case (c): drive a chat-stream-only change (plain `notify()` path), then an external change; assert exactly one event arrives and its rev reflects only the external bump.
 - Produces: `DialLog` reshaped: `note(id)` unchanged; `seen(id)` renamed `online(id)` (same recent-window math); new `lastSeenAt(id): number | null`. TTL no longer DELETES entries (last-seen must survive going offline) — the LRU cap (512) remains the only eviction. Known accepted edge: in-memory, so a core restart forgets last-seen until next contact.
 - Produces: `LiveSession.online` (recent contact) + `LiveSession.lastSeenAt` (last contact, null = never dialed this core run). The "started before install — one reload" note keys off `lastSeenAt === null`, not a decaying flag — a wired-but-idle session shows "last seen 5m ago", never the reload note.
 
