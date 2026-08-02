@@ -26,6 +26,7 @@ export type PaneDraftDeps = {
 
 export type PaneDraft = {
   restore: () => void
+  persist: () => void
   focused: () => boolean
   noteSent: () => Promise<void>
   settleSent: () => void
@@ -105,6 +106,7 @@ export function usePaneDraft(deps: PaneDraftDeps): PaneDraft {
 
   return {
     restore: () => send({kind: 'composerReady'}),
+    persist: () => persistDraft.maybeExecute(),
     focused,
     noteSent: async () => {
       await deps.rpc.drafts

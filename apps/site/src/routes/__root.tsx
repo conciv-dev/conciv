@@ -1,7 +1,9 @@
-import {createRootRoute, HeadContent, Outlet, Scripts} from '@tanstack/react-router'
+import {createRootRoute, HeadContent, Outlet, retainSearchParams, Scripts} from '@tanstack/react-router'
 import * as React from 'react'
 import appCss from '@/styles/app.css?url'
 import {RootProvider} from 'fumadocs-ui/provider/tanstack'
+import {LiveWidgetMount} from '@/components/live-widget-mount'
+import {rootSearchSchema} from '@/lib/search-schemas'
 
 const SITE = 'https://conciv.dev'
 const TITLE = 'conciv: Conceive it. An AI dev agent inside your running app'
@@ -10,6 +12,11 @@ const DESCRIPTION =
 const OG_IMAGE = `${SITE}/og.png`
 
 export const Route = createRootRoute({
+  validateSearch: rootSearchSchema,
+  search: {middlewares: [retainSearchParams(['widget'])]},
+  beforeLoad: ({matches}) => ({
+    widgetHomeDefault: matches.some((match) => match.routeId === '/'),
+  }),
   head: () => ({
     meta: [
       {charSet: 'utf-8'},
@@ -53,6 +60,7 @@ function RootComponent() {
         <RootProvider>
           <Outlet />
         </RootProvider>
+        <LiveWidgetMount />
         <Scripts />
       </body>
     </html>

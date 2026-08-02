@@ -22,6 +22,8 @@ import {
   PageReplySchema,
   PageRunInputSchema,
   PageRunResultSchema,
+  SourceLocSchema,
+  SymbolicateSchema,
 } from '@conciv/protocol/page-types'
 import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
 import {DraftRowSchema, LiveSessionSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
@@ -131,6 +133,7 @@ export const contract = {
       })
       .input(PageRunInputSchema)
       .output(PageRunResultSchema),
+    symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.output(z.array(PageChangeEntrySchema)),
     clearChanges: oc.output(Ok),
     queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),

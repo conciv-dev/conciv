@@ -67,7 +67,6 @@
       "@tanstack/devtools-vite",
       "@tanstack/query",
       "@tanstack/react-start",
-      "@tanstack/router",
       "@tanstack/router-core",
       "@tanstack/router-plugin",
       "@tanstack/solid-db",

@@ -8,6 +8,7 @@ export type PaneGrabStore = {
   stage: (grab: Grab) => void
   stageTexts: (texts: string[]) => void
   stageAll: (grabs: StagedGrab[]) => void
+  replace: (grab: StagedGrab, next: StagedGrab) => void
   remove: (grab: StagedGrab) => void
   clear: () => void
 }
@@ -19,6 +20,7 @@ export function makeGrabStore(): PaneGrabStore {
     stage: (grab) => setGrabs((prev) => [...prev, grab]),
     stageTexts: (texts) => setGrabs(texts.map((text) => ({text}))),
     stageAll: (staged) => setGrabs((prev) => [...prev, ...staged.filter((grab) => !prev.includes(grab))]),
+    replace: (grab, next) => setGrabs((prev) => prev.map((entry) => (entry === grab ? next : entry))),
     remove: (grab) => setGrabs((prev) => prev.filter((entry) => entry !== grab)),
     clear: () => setGrabs([]),
   }

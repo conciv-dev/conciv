@@ -1,10 +1,11 @@
 import {getHostApi} from '@conciv/extension'
 import {Collapsible, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
-import {Check, Copy} from 'lucide-solid'
+import {Check, Copy, TriangleAlert} from 'lucide-solid'
 import {createEffect, createSignal, onMount, Show, type JSX} from 'solid-js'
 import {makeTimer} from '@solid-primitives/timer'
 import {useCoreProbe} from './use-core-probe.js'
 import {stepStates, type StepState, type TryStep} from '../shared/try-steps.js'
+import {useLocalNetworkAccessPermission} from './use-lna-permission.js'
 
 const COPY_FEEDBACK_MS = 1_400
 
@@ -89,6 +90,8 @@ export function ConnectPane(props: {token: string}): JSX.Element {
   const probe = useCoreProbe({token: () => props.token, onFound: (base) => connect.found(base)})
   const connected = probe.connected
   const slow = probe.slow
+  const localNetworkAccess = useLocalNetworkAccessPermission()
+  const localNetworkBlocked = () => localNetworkAccess() === 'denied'
   const states = () => stepStates({copied: copied(), connected: connected()})
   const promptText = () =>
     `I'm pairing my browser tab at ${connect.origin} with a local conciv core so you can drive the page. ` +
@@ -141,9 +144,19 @@ export function ConnectPane(props: {token: string}): JSX.Element {
           <p class="text-[12px] text-pw-text-3">First run installs the package (~30s).</p>
         </Step>
         <Step index={3} state={states().approve} title={STEP_TITLES.approve}>
-          <p class="text-[12px] text-pw-text-3 leading-relaxed">
-            Chrome asks to allow local network access. That's your agent connecting. Approve it.
-          </p>
+          <Show
+            when={localNetworkBlocked()}
+            fallback={
+              <p class="text-[12px] text-pw-text-3 leading-relaxed">
+                Chrome asks to allow local network access. That's your agent connecting. Approve it.
+              </p>
+            }
+          >
+            <p role="alert" class="text-[12px] text-pw-danger leading-relaxed">
+              Local network access was blocked. Click the site icon in the address bar, allow local network access, and
+              reload.
+            </p>
+          </Show>
         </Step>
       </ol>
 
@@ -151,10 +164,20 @@ export function ConnectPane(props: {token: string}): JSX.Element {
         <Show
           when={connected()}
           fallback={
-            <p class="text-[12.5px] text-pw-text-2 flex gap-2 items-center">
-              <span class="rounded-pw-pill bg-pw-accent size-1.5 anim-pulse" aria-hidden="true" />
-              Waiting for your agent…
-            </p>
+            <Show
+              when={localNetworkBlocked()}
+              fallback={
+                <p class="text-[12.5px] text-pw-text-2 flex gap-2 items-center">
+                  <span class="rounded-pw-pill bg-pw-accent size-1.5 anim-pulse" aria-hidden="true" />
+                  Waiting for your agent…
+                </p>
+              }
+            >
+              <p role="status" class="text-[12.5px] text-pw-danger flex gap-2 items-center">
+                <TriangleAlert class="shrink-0 size-4" aria-hidden="true" />
+                Local network access is blocked, so your agent can't reach this tab.
+              </p>
+            </Show>
           }
         >
           <p role="status" class="text-[13px] text-pw-accent font-semibold flex gap-2 items-center anim-rise">
@@ -162,7 +185,7 @@ export function ConnectPane(props: {token: string}): JSX.Element {
             Agent connected
           </p>
         </Show>
-        <Show when={slow() && !connected()}>
+        <Show when={slow() && !connected() && !localNetworkBlocked()}>
           <p class="text-[12px] text-pw-text-3">
             Taking a while? See the{' '}
             <a href="/docs" class="text-pw-accent-link underline underline-offset-2">

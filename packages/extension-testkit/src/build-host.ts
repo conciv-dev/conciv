@@ -71,7 +71,18 @@ async function buildHostOnce(options: BuildConcivHostOptions): Promise<string> {
       }),
       ...options.plugins,
     ],
-    build: {outDir, emptyOutDir: true, rollupOptions: {input}},
+    build: {
+      outDir,
+      emptyOutDir: true,
+      rollupOptions: {
+        input,
+        output: {
+          codeSplitting: {
+            groups: [{name: 'shiki', test: /node_modules[\\/](shiki|@shikijs[\\/][^\\/]+)[\\/]/}],
+          },
+        },
+      },
+    },
   })
   return outDir
 }

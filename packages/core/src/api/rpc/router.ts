@@ -5,6 +5,7 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {drafts, markers, navigation} from '@conciv/db'
 import {listCommands} from '../../chat/session.js'
 import {pageQueryStream, runVerb} from '../../page-bus.js'
+import {symbolicateFrames} from '../../editor/symbolicate.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
 import {os, type RpcDeps} from './mount.js'
@@ -77,6 +78,7 @@ export function makeRpcRouter(deps: RpcDeps) {
           throw pageError(error, errors)
         }
       }),
+      symbolicate: os.page.symbolicate.handler(({input}) => symbolicateFrames(input.frames, deps.page.root)),
       changes: os.page.changes.handler(() => deps.page.journal.list()),
       clearChanges: os.page.clearChanges.handler(() => {
         deps.page.journal.clear()

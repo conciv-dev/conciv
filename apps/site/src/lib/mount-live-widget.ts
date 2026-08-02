@@ -1,5 +1,5 @@
 import {dismissTry, getTrySession} from './try-session.functions'
-import {shouldAutoOpen} from './try-state'
+import {shouldAutoOpen, shouldDismissOnClose} from './try-state'
 
 function ensureWidgetMeta(defaultOpen: boolean): void {
   if (document.querySelector('meta[name="pw-widget"]')) return
@@ -9,11 +9,12 @@ function ensureWidgetMeta(defaultOpen: boolean): void {
   document.head.appendChild(meta)
 }
 
-export async function mountLiveWidget(): Promise<void> {
+export async function mountLiveWidget(opts: {widgetOpen: boolean; tryParam: boolean}): Promise<void> {
   if (document.querySelector('[data-conciv-root]')) return
   const {token, dismissed} = await getTrySession()
-  const tryParam = new URLSearchParams(window.location.search).get('try') === '1'
-  const defaultOpen = shouldAutoOpen({tryParam, dismissed, widgetPresent: false}) || tryParam
+  const defaultOpen =
+    shouldAutoOpen({widgetOpen: opts.widgetOpen, tryParam: opts.tryParam, dismissed, widgetPresent: false}) ||
+    opts.tryParam
   ensureWidgetMeta(defaultOpen)
 
   const [embed, terminal, tryItModule] = await Promise.all([
@@ -25,8 +26,14 @@ export async function mountLiveWidget(): Promise<void> {
   embed.mountConciv([terminal.default, tryItModule.tryIt({token})])
   window.dispatchEvent(new Event('conciv:widget-mounted'))
 
+  let hasBeenOpen = false
   window.addEventListener('conciv:panel-toggled', (event) => {
     const detail = (event as CustomEvent<{open: boolean; connected: boolean}>).detail
-    if (detail && !detail.open && !detail.connected) void dismissTry().catch(() => {})
+    if (!detail) return
+    if (detail.open) {
+      hasBeenOpen = true
+      return
+    }
+    if (shouldDismissOnClose({hasBeenOpen, connected: detail.connected})) void dismissTry().catch(() => {})
   })
 }

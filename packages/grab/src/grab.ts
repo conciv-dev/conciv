@@ -27,10 +27,29 @@ export type ImagePreview = {
 
 export type GrabPreview = DomPreview | ImagePreview
 
+export type GrabFrame = {
+  fileName: string
+  line: number
+  column?: number
+}
+
+export type GrabSourceLoc = {
+  file: string
+  line: number
+  column: number
+}
+
 export type StagedGrab = {
   preview: GrabPreview
   source: ElementSource | null
   rect: ElementRect | null
+  snippet?: string
+  frames?: GrabFrame[]
+}
+
+export function composeGrabText(snippet: string, source: GrabSourceLoc | null, fallback: string): string {
+  if (!source || !snippet) return fallback
+  return `${snippet} at ${source.file}:${source.line}:${source.column}`
 }
 
 export type Grab = StagedGrab & {text: string}

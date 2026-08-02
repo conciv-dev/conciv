@@ -1,3 +1,4 @@
+import {Link} from '@tanstack/react-router'
 import {SparkMark} from './spark-mark'
 import {ThemeToggle} from './theme-toggle'
 import {useSmoothAnchor} from './smooth-scroll'
@@ -17,9 +18,13 @@ export function SiteNav() {
       >
         How it works
       </a>
-      <a href="/docs" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+      <Link
+        to="/docs/$"
+        params={{_splat: ''}}
+        className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
         Docs
-      </a>
+      </Link>
       <a
         href="https://github.com/conciv-dev/conciv"
         className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"

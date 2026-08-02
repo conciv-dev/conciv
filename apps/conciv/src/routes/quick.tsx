@@ -17,7 +17,7 @@ const CLOSE =
 const CLOSE_PANE = 'text-pw-text-3 leading-none ml-auto size-6'
 
 export const Route = createFileRoute('/quick')({
-  validateSearch: (search) => QuickSearchSchema.parse(search),
+  validateSearch: QuickSearchSchema,
   beforeLoad: ({context}) => {
     if (!context.settings.quickTerminal.enabled) throw redirect({to: '/'})
   },

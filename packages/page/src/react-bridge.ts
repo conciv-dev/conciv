@@ -11,6 +11,7 @@ import {
 } from 'bippy'
 import {parseStack, hasDebugStack, getFallbackOwnerStack, formatOwnerStack} from 'bippy/source'
 import {installTracker} from './render-tracker.js'
+import {sourceFromAttr} from './source-attr.js'
 import {addRef, type Refs} from './page-snapshot.js'
 
 export type {
@@ -26,7 +27,6 @@ export type {
 } from '@conciv/protocol/page-introspect-types'
 import type {
   RawFrame,
-  SourceLoc,
   Owner,
   TreeNode,
   HookNode,
@@ -96,15 +96,13 @@ function rawFrames(fiber: Fiber): RawFrame[] {
   }))
 }
 
-function sourceFromAttr(el: Element): SourceLoc | null {
-  const node = el.closest('[data-conciv-source],[data-tsd-source]')
-  const raw = node?.getAttribute('data-conciv-source') ?? node?.getAttribute('data-tsd-source')
-  if (!raw) return null
-  const parts = raw.split(':')
-  const column = Number(parts.pop())
-  const line = Number(parts.pop())
-  const file = parts.join(':')
-  return file && Number.isFinite(line) && Number.isFinite(column) ? {file, line, column} : null
+export function framesForElement(el: Element): RawFrame[] {
+  try {
+    const fiber = getFiberFromHostInstance(el)
+    return fiber ? rawFrames(fiber) : []
+  } catch {
+    return []
+  }
 }
 
 function hostElementOf(composite: Fiber): Element | null {

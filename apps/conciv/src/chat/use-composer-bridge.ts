@@ -4,6 +4,7 @@ import type {QueryUtils} from '@conciv/client'
 import type {Grab} from '@conciv/grab'
 import type {PaneContextValue} from '../app/pane-context.js'
 import type {ComposerStateApi} from './composer-state.js'
+import {resolveGrabSource} from './grab-source-resolve.js'
 import {usePaneDraft, type PaneDraft} from './use-pane-draft.js'
 
 export type ComposerBridgeDeps = {
@@ -52,6 +53,13 @@ export function useComposerBridge(deps: ComposerBridgeDeps): ComposerBridge {
     for (const file of deps.pane.attachments.drain()) void api.addAttachment(file)
   })
 
+  const groundGrab = async (grab: Grab): Promise<void> => {
+    const grounded = await resolveGrabSource(grab, (input) => deps.rpc.page.symbolicate(input))
+    if (!grounded) return
+    deps.pane.grabStore.replace(grab, grounded)
+    draft.persist()
+  }
+
   const attach = (file: File): void => {
     const api = composer()
     if (!api) {
@@ -81,6 +89,7 @@ export function useComposerBridge(deps: ComposerBridgeDeps): ComposerBridge {
     stageGrab: (grab) => {
       deps.pane.grabStore.stage(grab)
       focusInput()
+      void groundGrab(grab)
     },
   }
 }

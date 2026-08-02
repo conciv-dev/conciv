@@ -8,6 +8,7 @@
     "**/*.generated.ts",
     "packages/aidx/**",
     "packages/extensions/tanstack/test/fixtures/**",
+    "packages/oxlint-plugin/test/fixtures/**",
     "apps/examples/**",
     "e2e/astro/**",
     "e2e/nextjs/**",
@@ -118,6 +119,7 @@
     "packages/extension-testkit/src/host/host-entry.tsx",
     "packages/embed/src/native-entry.ts",
     "packages/extensions/tanstack/test/host/main.tsx",
+    "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
     "e2e/harnesses/vite.*.config.ts"
   ]
 }

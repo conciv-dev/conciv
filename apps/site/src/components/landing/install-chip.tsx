@@ -1,3 +1,4 @@
+import {Link} from '@tanstack/react-router'
 import Magnet from '@/components/Magnet'
 import {CopyButton} from './copy-button'
 
@@ -17,9 +18,13 @@ export function InstallChip() {
         </span>
       </div>
       <Magnet padding={44} magnetStrength={3}>
-        <a href="/docs/quick-start" className="text-[13.5px] font-semibold text-primary hover:underline">
+        <Link
+          to="/docs/$"
+          params={{_splat: 'quick-start'}}
+          className="text-[13.5px] font-semibold text-primary hover:underline"
+        >
           Quick start →
-        </a>
+        </Link>
       </Magnet>
     </div>
   )
