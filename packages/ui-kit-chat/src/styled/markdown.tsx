@@ -1,17 +1,6 @@
 import {createSignal, onCleanup, type JSX} from 'solid-js'
 import {createHighlighterCore, type HighlighterCore} from 'shiki/core'
 import {createJavaScriptRegexEngine} from 'shiki/engine/javascript'
-import ts from 'shiki/langs/typescript.mjs'
-import tsx from 'shiki/langs/tsx.mjs'
-import js from 'shiki/langs/javascript.mjs'
-import jsx from 'shiki/langs/jsx.mjs'
-import json from 'shiki/langs/json.mjs'
-import cssLang from 'shiki/langs/css.mjs'
-import html from 'shiki/langs/html.mjs'
-import bash from 'shiki/langs/bash.mjs'
-import md from 'shiki/langs/markdown.mjs'
-import githubDark from 'shiki/themes/github-dark.mjs'
-import githubLight from 'shiki/themes/github-light.mjs'
 import {Streamdown} from '@conciv/solid-streamdown'
 
 const THEMES = {light: 'github-light', dark: 'github-dark'} as const
@@ -32,8 +21,18 @@ function ensureHighlighter(): void {
   if (store.started) return
   store.started = true
   void createHighlighterCore({
-    themes: [githubLight, githubDark],
-    langs: [ts, tsx, js, jsx, json, cssLang, html, bash, md],
+    themes: [() => import('shiki/themes/github-light.mjs'), () => import('shiki/themes/github-dark.mjs')],
+    langs: [
+      () => import('shiki/langs/typescript.mjs'),
+      () => import('shiki/langs/tsx.mjs'),
+      () => import('shiki/langs/javascript.mjs'),
+      () => import('shiki/langs/jsx.mjs'),
+      () => import('shiki/langs/json.mjs'),
+      () => import('shiki/langs/css.mjs'),
+      () => import('shiki/langs/html.mjs'),
+      () => import('shiki/langs/bash.mjs'),
+      () => import('shiki/langs/markdown.mjs'),
+    ],
     engine: createJavaScriptRegexEngine(),
   }).then((highlighter) => {
     store.highlighter = highlighter

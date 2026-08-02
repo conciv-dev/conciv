@@ -78,7 +78,7 @@
   },
   "overrides": [
     {
-      "files": ["apps/site/**"],
+      "files": ["apps/site/**", "apps/conciv/**"],
       "rules": {
         "conciv/router-idioms": "error"
       }
