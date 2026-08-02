@@ -6,14 +6,14 @@ import {render} from 'solid-js/web'
 import type {JSX} from 'solid-js'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
-import type {Notify} from '../src/chat/notify.js'
-import {NoticeProvider, NoticeStrip, useNotify} from '../src/shell/notices.js'
+import {NoticeToaster, notify, toaster} from '../src/shell/notices.js'
 import {QuickTerminalHeader} from '../src/routes/quick.js'
 import {makeConcivUiCard} from '../src/chat/conciv-ui-card.js'
 
 const disposers: (() => void)[] = []
 
 afterEach(() => {
+  toaster.remove()
   for (const dispose of disposers.splice(0)) dispose()
 })
 
@@ -32,16 +32,7 @@ function uiPart(spec: unknown): ToolCallPart {
 }
 
 test('the way out of a notice explains itself with a tooltip a touch reader can reach, not a native title', async () => {
-  let notify: Notify = () => {}
-  const Strip = (): JSX.Element => {
-    notify = useNotify()
-    return <NoticeStrip />
-  }
-  mount(() => (
-    <NoticeProvider announce={() => {}}>
-      <Strip />
-    </NoticeProvider>
-  ))
+  mount(() => <NoticeToaster />)
   notify('Command copied. Paste it in your terminal.')
 
   await page.getByRole('button', {name: 'Dismiss'}).hover()

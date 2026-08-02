@@ -8,9 +8,9 @@ import type {RpcClient} from '@conciv/contract'
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import {collectToolRenderers} from '@conciv/extension'
+import {notify} from '../shell/notices.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
-import type {Notify} from './notify.js'
 import {foldToolDurations} from './tool-durations.js'
 
 const ANSWER_GONE = 'That question is no longer waiting for an answer.'
@@ -23,7 +23,6 @@ export type ToolCardsDeps = {
   instances: ExtensionInstance[]
   harnessId: () => string
   chat: ChatSession
-  notify: Notify
 }
 
 export type ToolCards = {
@@ -65,7 +64,7 @@ export function useToolCards(deps: ToolCardsDeps): ToolCards {
   const uiReply = useMutation(() => ({
     mutationFn: (input: {toolCallId: string; value: UiAnswerValue}) =>
       deps.rpc.chat.uiReply({sessionId: deps.sessionId(), toolCallId: input.toolCallId, value: input.value}),
-    onError: () => deps.notify(ANSWER_GONE),
+    onError: () => notify(ANSWER_GONE),
   }))
 
   const concivUiEntry: ToolCardEntry = {

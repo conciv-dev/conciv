@@ -33,7 +33,7 @@ import {createDraggablePosition} from '../lib/draggable-position.js'
 import {makeThemeApplier} from '../lib/theme.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
-import {NoticeProvider} from '../shell/notices.js'
+import {NoticeToaster} from '../shell/notices.js'
 import {quickPaneIds} from '../lib/quick-search.js'
 import {setShutter} from '../lib/shutter.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
@@ -133,9 +133,7 @@ function RootComponent() {
             popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
             sessionId={activeSession}
           >
-            <NoticeProvider announce={announce}>
-              <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
-            </NoticeProvider>
+            <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
             <EffectsSurface instances={app.instances} />
           </HostApiProvider>
         </AppContext.Provider>
@@ -317,6 +315,7 @@ function RootChrome(props: {
           onToggle={togglePanel}
         />
       </Show>
+      <NoticeToaster />
       <div class="sr-only" role="status" aria-live="polite">
         {props.politeMessage()}
       </div>

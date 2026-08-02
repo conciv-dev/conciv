@@ -16,7 +16,7 @@ export {
 } from './tooltip-icon-button.js'
 export {Menu} from './menu.js'
 export {Popover, type PopoverApi} from './popover.js'
-export {Toast, createToaster, type ToasterInstance} from './toast.js'
+export {Toast, ToastGroup, createToaster, type ToasterInstance} from './toast.js'
 export {Avatar} from './avatar.js'
 export {RelativeTime} from './relative-time.js'
 export {Tabs} from './tabs.js'

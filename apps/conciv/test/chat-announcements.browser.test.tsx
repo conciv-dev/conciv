@@ -108,7 +108,6 @@ function mountPipeline(): {server: Server; announcements: string[]} {
       composer: bridge.composer,
       focusComposer: bridge.focusInput,
       busy: () => false,
-      notify: () => {},
       invalidateSessions: () => {},
     })
     useChatAnnouncements({

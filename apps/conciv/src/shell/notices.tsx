@@ -1,124 +1,76 @@
-import {
-  createContext,
-  createSignal,
-  For,
-  onCleanup,
-  useContext,
-  type Accessor,
-  type JSX,
-  type ParentProps,
-} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import {X} from 'lucide-solid'
-import {Button, TooltipIconButton} from '@conciv/ui-kit-system'
-import {
-  dismissNotice,
-  FUSE_MS,
-  makeNotice,
-  NO_NOTICES,
-  pushNotice,
-  type Notice,
-  type NoticeTone,
-  type Notify,
-} from '../chat/notify.js'
+import {Button, Toast, ToastGroup, TooltipIconButton, createToaster} from '@conciv/ui-kit-system'
 
-const STRIP = 'flex flex-col gap-1.5 empty:hidden'
+export type NoticeTone = 'info' | 'success' | 'warn' | 'danger'
+
+export type NoticeAction = {label: string; run: () => void}
+
+export type NoticeOptions = {key?: string; tone?: NoticeTone; action?: NoticeAction}
+
+export type Notify = (message: string, options?: NoticeOptions) => void
+
+const FUSE_MS = 6_000
+const STANDING_LIMIT = 2
+
+const TOAST_TYPE: Record<NoticeTone, string> = {info: 'info', success: 'success', warn: 'warning', danger: 'error'}
+
 const NOTICE =
-  'flex items-center gap-2 text-[0.75rem] leading-[1.4] font-medium font-pw px-2.5 py-2 border rounded-pw-md [word-break:break-word] anim-msg'
+  'relative w-80 max-w-[calc(100vw-2rem)] flex items-center gap-2 text-[0.75rem] leading-[1.4] font-medium font-pw px-2.5 py-2 border rounded-pw-md bg-pw-panel shadow-pw-lg [word-break:break-word] [translate:var(--x)_var(--y)] [z-index:var(--z-index)] [height:var(--height)] [opacity:var(--opacity)] [transition:translate_320ms_var(--pw-ease),height_320ms_var(--pw-ease),opacity_200ms_var(--pw-ease)]'
 const ACTION = 'shrink-0 font-semibold'
 const DISMISS = 'shrink-0 size-5 rounded-pw-pill'
 
-const TONE: Record<NoticeTone, string> = {
-  info: 'border-pw-line bg-pw-fill text-pw-text-2',
-  success: 'border-pw-success-18 bg-pw-fill text-pw-text-2',
-  warn: 'border-pw-warn-20 bg-pw-fill text-pw-warn',
-  danger: 'border-pw-danger-line bg-pw-danger-10 text-pw-danger',
+const TONE_INFO = 'border-pw-line text-pw-text-2'
+const TONE_SUCCESS = 'border-pw-success-18 text-pw-text-2'
+const TONE_WARN = 'border-pw-warn-20 text-pw-warn'
+const TONE_DANGER = 'border-pw-danger-line text-pw-danger'
+
+function toneClass(type: string | undefined): string {
+  if (type === 'success') return TONE_SUCCESS
+  if (type === 'warning') return TONE_WARN
+  if (type === 'error') return TONE_DANGER
+  return TONE_INFO
 }
 
-type NoticeApi = {
-  notify: Notify
-  visible: Accessor<Notice[]>
-  dismiss: (id: number) => void
-}
+export const toaster = createToaster({placement: 'bottom', gap: 8, max: STANDING_LIMIT, offsets: '1rem'})
 
-const NoticeContext = createContext<NoticeApi>()
-
-export function NoticeProvider(
-  props: ParentProps<{announce: (message: string, assertive?: boolean) => void}>,
-): JSX.Element {
-  const [queue, setQueue] = createSignal(NO_NOTICES)
-  const fuses = new Map<number, ReturnType<typeof setTimeout>>()
-  let lastId = 0
-
-  const dismiss = (id: number) => {
-    const fuse = fuses.get(id)
-    if (fuse) clearTimeout(fuse)
-    fuses.delete(id)
-    setQueue((current) => dismissNotice(current, id))
-  }
-
-  const notify: Notify = (message, options) => {
-    lastId += 1
-    const notice = makeNotice(lastId, message, options)
-    setQueue((current) => pushNotice(current, notice))
-    props.announce(notice.action ? `${message} ${notice.action.label}.` : message, notice.tone === 'danger')
-    if (notice.sticky) return
-    fuses.set(
-      notice.id,
-      setTimeout(() => dismiss(notice.id), FUSE_MS),
-    )
-  }
-
-  onCleanup(() => {
-    for (const fuse of fuses.values()) clearTimeout(fuse)
-    fuses.clear()
+export const notify: Notify = (message, options = {}) => {
+  const action = options.action
+  toaster.create({
+    ...(options.key ? {id: options.key} : {}),
+    ...(action ? {action: {label: action.label, onClick: action.run}} : {}),
+    title: message,
+    type: TOAST_TYPE[options.tone ?? 'info'],
+    duration: action ? Number.POSITIVE_INFINITY : FUSE_MS,
   })
+}
 
+export function NoticeToaster(): JSX.Element {
   return (
-    <NoticeContext.Provider value={{notify, visible: () => queue().visible, dismiss}}>
-      {props.children}
-    </NoticeContext.Provider>
-  )
-}
-
-function useNotices(): NoticeApi {
-  const api = useContext(NoticeContext)
-  if (!api) throw new Error('notices are only available inside a NoticeProvider')
-  return api
-}
-
-export function useNotify(): Notify {
-  return useNotices().notify
-}
-
-export function NoticeStrip(): JSX.Element {
-  const notices = useNotices()
-  return (
-    <div class={STRIP}>
-      <For each={notices.visible()}>
-        {(notice) => (
-          <div class={`${NOTICE} ${TONE[notice.tone]}`} role={notice.tone === 'danger' ? 'alert' : 'status'}>
-            <span class="flex-1 min-w-0">{notice.message}</span>
-            <For each={notice.action ? [notice.action] : []}>
-              {(action) => (
-                <Button
-                  variant="link"
-                  size="bare"
-                  class={ACTION}
-                  onClick={() => {
-                    notices.dismiss(notice.id)
-                    action.run()
-                  }}
-                >
-                  {action.label}
-                </Button>
-              )}
-            </For>
-            <TooltipIconButton tooltip="Dismiss" class={DISMISS} onClick={() => notices.dismiss(notice.id)}>
-              <X class="size-3.5 block" aria-hidden="true" />
-            </TooltipIconButton>
-          </div>
-        )}
-      </For>
-    </div>
+    <ToastGroup toaster={toaster}>
+      {(toast) => (
+        <Toast.Root class={`${NOTICE} ${toneClass(toast().type)}`} role={toast().type === 'error' ? 'alert' : 'status'}>
+          <Toast.Title class="flex-1 min-w-0">{toast().title}</Toast.Title>
+          <Show when={toast().action}>
+            {(action) => (
+              <Toast.ActionTrigger
+                asChild={(triggerProps) => (
+                  <Button variant="link" size="bare" class={ACTION} {...triggerProps()}>
+                    {action().label}
+                  </Button>
+                )}
+              />
+            )}
+          </Show>
+          <Toast.CloseTrigger
+            asChild={(triggerProps) => (
+              <TooltipIconButton tooltip="Dismiss" class={DISMISS} {...triggerProps()}>
+                <X class="size-3.5 block" aria-hidden="true" />
+              </TooltipIconButton>
+            )}
+          />
+        </Toast.Root>
+      )}
+    </ToastGroup>
   )
 }

@@ -123,7 +123,6 @@ function mountPipeline(streams: boolean[]): Server {
       composer: bridge.composer,
       focusComposer: bridge.focusInput,
       busy: () => false,
-      notify: () => {},
       invalidateSessions: () => {},
     })
     pane.grabStore.stageTexts(['the save button'])

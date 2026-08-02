@@ -7,7 +7,6 @@ import {paneAttachments} from './pane-attachments.js'
 import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
-import {useNotify} from '../shell/notices.js'
 import {ComposerView, PaneFrame, ThreadView} from './pane-views.js'
 import {TerminalConflictDialog} from './terminal-conflict-dialog.js'
 import {useChatAnnouncements} from './use-chat-announcements.js'
@@ -23,7 +22,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
-  const notify = useNotify()
   const sessionId = (): string => props.sessionId
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
 
@@ -34,7 +32,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     navigate: (created) => void router.navigate({to: '/panel/$sessionId', params: {sessionId: created}}),
     invalidateSessions: appData.invalidateSessions,
     announce,
-    notify,
   })
   const bridge = useComposerBridge({rpc, utils: appData.utils, sessionId, pane})
   const pipeline = useSendPipeline({
@@ -45,12 +42,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     composer: bridge.composer,
     focusComposer: bridge.focusInput,
     busy: maintenance.compacting,
-    notify,
     invalidateSessions: appData.invalidateSessions,
   })
   const chat = pipeline.chat
   const harnessId = (): string => meta.data?.harness.id ?? ''
-  const cards = useToolCards({rpc, sessionId, instances, harnessId, chat, notify})
+  const cards = useToolCards({rpc, sessionId, instances, harnessId, chat})
   const extensions = (): AnyExtension[] => instances.map((instance) => instance.extension)
   const attachments = createMemo(() => paneAttachments(extensions(), meta.data?.harness.imageInput))
   const paneGrab = makePaneGrabApi(pane.grabStore, pane.grabProvider)

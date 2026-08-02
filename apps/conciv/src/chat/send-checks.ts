@@ -1,5 +1,5 @@
 import type {MultimodalContent} from '@tanstack/ai-client'
-import type {NoticeTone} from './notify.js'
+import type {NoticeTone} from '../shell/notices.js'
 
 export const MAX_CONTENT_PARTS = 16
 

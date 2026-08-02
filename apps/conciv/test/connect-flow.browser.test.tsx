@@ -5,7 +5,7 @@ import {render} from 'solid-js/web'
 import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
 import {makeRpcClient, type LiveSession} from '@conciv/contract'
 import {makeQueryUtils} from '@conciv/client'
-import type {NoticeOptions} from '../src/chat/notify.js'
+import {NoticeToaster, toaster} from '../src/shell/notices.js'
 import {useConnectFlow} from '../src/composer/connect/use-connect-flow.js'
 import {ConnectDialog} from '../src/composer/connect/connect-dialog.js'
 import {
@@ -69,6 +69,7 @@ const disposers: (() => void)[] = []
 const realFetch = globalThis.fetch
 
 afterEach(() => {
+  toaster.remove()
   for (const dispose of disposers.splice(0)) dispose()
   globalThis.fetch = realFetch
 })
@@ -114,13 +115,10 @@ function installServer(server: Server): void {
   }
 }
 
-type Raised = {message: string; options: NoticeOptions | undefined}
-
 type Said = {message: string; assertive: boolean}
 
 type Mounted = {
   server: Server
-  notices: Raised[]
   said: Said[]
   navigated: string[]
   queryClient: QueryClient
@@ -133,9 +131,8 @@ function mountFlow(server: Server): Mounted {
   const queryClient = new QueryClient({defaultOptions: {queries: {retryDelay: 0}}})
   const rpc = makeRpcClient(BASE)
   const utils = makeQueryUtils(rpc)
-  const mounted: Mounted = {server, notices: [], said: [], navigated: [], queryClient}
+  const mounted: Mounted = {server, said: [], navigated: [], queryClient}
   const Harness = () => {
-    const [raised, setRaised] = createSignal<string[]>([])
     const [followed, setFollowed] = createSignal<string[]>([])
     const flow = useConnectFlow({
       utils,
@@ -146,10 +143,6 @@ function mountFlow(server: Server): Mounted {
       navigate: (sessionId) => {
         mounted.navigated.push(sessionId)
         setFollowed([...mounted.navigated])
-      },
-      notify: (message, options) => {
-        mounted.notices.push({message, options})
-        setRaised(mounted.notices.map((notice) => notice.message))
       },
       announce: (message, assertive = false) => mounted.said.push({message, assertive}),
       invalidateSessions: () => {},
@@ -184,7 +177,7 @@ function mountFlow(server: Server): Mounted {
           onClose={flow.close}
         />
         <For each={followed()}>{(sessionId) => <p>{`the panel follows ${sessionId}`}</p>}</For>
-        <For each={raised()}>{(message) => <p>{message}</p>}</For>
+        <NoticeToaster />
       </>
     )
   }
@@ -254,9 +247,7 @@ test('the panel follows the session the server handed back, and undo lets that o
   await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
   expect(mounted.navigated).toEqual(['conciv_adopted'])
 
-  const notice = mounted.notices.at(-1)
-  expect(notice?.options?.action?.label).toBe(UNDO_LABEL)
-  notice?.options?.action?.run()
+  await page.getByRole('button', {name: UNDO_LABEL}).click()
 
   await expect.element(page.getByText(HANDED_BACK)).toBeVisible()
   expect(callsTo(mounted.server, 'attachDetach')).toHaveLength(1)
@@ -336,17 +327,14 @@ test('a second escape hands it back, so escape always gets the reader out', asyn
 })
 
 test('a hand back that fails leaves a standing notice that says so and offers to try again', async () => {
-  const mounted = await openReloadCard(unreloadedTerminal({failure: 'that session is gone'}))
+  await openReloadCard(unreloadedTerminal({failure: 'that session is gone'}))
 
   await userEvent.keyboard('{Escape}')
   await page.getByRole('button', {name: HAND_BACK_CLOSE_LABEL}).click()
 
   await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
-  await expect.element(page.getByText(STILL_CONNECTED)).toBeVisible()
-  expect(mounted.notices.at(-1)?.message).toBe(STILL_CONNECTED)
-  const notice = mounted.notices.at(-1)
-  expect(notice?.options?.tone).toBe('danger')
-  expect(notice?.options?.action?.label).toBe(HAND_BACK_LABEL)
+  await expect.element(page.getByRole('alert')).toHaveTextContent(STILL_CONNECTED)
+  await expect.element(page.getByRole('button', {name: HAND_BACK_LABEL})).toBeVisible()
 })
 
 test('the panel follows the session the moment the terminal dials in, with no Done to click', async () => {
@@ -358,7 +346,7 @@ test('the panel follows the session the moment the terminal dials in, with no Do
 
   await expect.element(page.getByText('the panel follows conciv_only')).toBeVisible()
   expect(mounted.navigated).toEqual(['conciv_only'])
-  expect(mounted.notices.at(-1)?.options?.action?.label).toBe(UNDO_LABEL)
+  await expect.element(page.getByRole('button', {name: UNDO_LABEL})).toBeVisible()
 })
 
 test('a single session that is not ready is adopted first, then asks for the reload it just learned about', async () => {

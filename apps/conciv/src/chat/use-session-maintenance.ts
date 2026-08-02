@@ -2,7 +2,7 @@ import {useBlocker} from '@tanstack/solid-router'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import type {MarkerRow, RpcClient} from '@conciv/contract'
 import type {QueryUtils} from '@conciv/client'
-import type {Notify} from './notify.js'
+import {notify} from '../shell/notices.js'
 
 const COMPACT_FAILED = 'Compaction failed. The session may be busy. Try again in a moment.'
 const STARTED_SESSION = 'Started a new session'
@@ -14,7 +14,6 @@ export type SessionMaintenanceDeps = {
   navigate: (sessionId: string) => void
   invalidateSessions: () => void
   announce: (message: string) => void
-  notify: Notify
 }
 
 export type SessionMaintenance = {
@@ -39,7 +38,7 @@ export function useSessionMaintenance(deps: SessionMaintenanceDeps): SessionMain
 
   const compact = useMutation(() => ({
     mutationFn: () => deps.rpc.sessions.compact({sessionId: deps.sessionId()}),
-    onError: () => deps.notify(COMPACT_FAILED),
+    onError: () => notify(COMPACT_FAILED),
     onSettled: () => {
       deps.invalidateSessions()
       refreshMarkers()

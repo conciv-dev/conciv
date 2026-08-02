@@ -4,8 +4,8 @@ import type {MultimodalContent} from '@tanstack/ai-client'
 import type {RpcClient} from '@conciv/contract'
 import type {ComposerHandlers} from '@conciv/ui-kit-chat'
 import type {PaneContextValue} from '../app/pane-context.js'
+import {notify} from '../shell/notices.js'
 import type {ComposerStateApi} from './composer-state.js'
-import type {Notify} from './notify.js'
 import {checkSend} from './send-checks.js'
 import {makeSendGuard, type SendGuard} from './send-guard.js'
 import type {PaneDraft} from './use-pane-draft.js'
@@ -32,7 +32,6 @@ export type SendPipelineDeps = {
   composer: Accessor<ComposerStateApi | null>
   focusComposer: () => void
   busy: () => boolean
-  notify: Notify
   invalidateSessions: () => void
 }
 
@@ -88,7 +87,7 @@ export function useSendPipeline(deps: SendPipelineDeps): SendPipeline {
     focusComposer: deps.focusComposer,
     detach: () => deps.rpc.sessions.attachDetach({sessionId: deps.sessionId()}).then(deps.invalidateSessions),
     dispatch,
-    onFailed: () => deps.notify(SEND_FAILED, {tone: 'danger'}),
+    onFailed: () => notify(SEND_FAILED, {tone: 'danger'}),
   })
 
   createEffect(
@@ -101,7 +100,7 @@ export function useSendPipeline(deps: SendPipelineDeps): SendPipeline {
   const beforeSend = (content: string | MultimodalContent): boolean => {
     const verdict = checkSend(content, {busy: deps.busy(), connected: chat.connectionStatus() === 'connected'})
     if (verdict.ok) return guard.beforeSend(content)
-    if (verdict.message !== null) deps.notify(verdict.message, {tone: verdict.tone})
+    if (verdict.message !== null) notify(verdict.message, {tone: verdict.tone})
     return false
   }
 
@@ -113,7 +112,7 @@ export function useSendPipeline(deps: SendPipelineDeps): SendPipeline {
       void deps.rpc.sessions.stop({sessionId: deps.sessionId()}).catch(() => {})
     },
     onSteer: () => deps.rpc.sessions.stop({sessionId: deps.sessionId()}),
-    onSteerError: () => deps.notify(STEER_FAILED),
+    onSteerError: () => notify(STEER_FAILED),
   }
 
   return {

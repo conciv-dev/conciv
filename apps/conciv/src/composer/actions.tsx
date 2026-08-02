@@ -6,7 +6,7 @@ import {Crosshair, FoldVertical, SquarePen} from 'lucide-solid'
 import {getHostApi} from '@conciv/extension'
 import type {Grab} from '@conciv/grab'
 import {useAnnounce, useAppData, useAppQueryClient, useRpc} from '../app/context.js'
-import type {Notify} from '../chat/notify.js'
+import {notify} from '../shell/notices.js'
 import {LaunchMenu} from './launch-menu.js'
 import {ConnectDialog} from './connect/connect-dialog.js'
 import {useConnectFlow} from './connect/use-connect-flow.js'
@@ -20,7 +20,7 @@ function busyClass(busy: boolean): string {
 
 type LaunchResult = {supported: boolean; opened: boolean; command: string | null}
 
-async function copyCommand(command: string, notify: Notify): Promise<void> {
+async function copyCommand(command: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(command)
     notify('Command copied. Paste it in your terminal.')
@@ -35,7 +35,6 @@ export function ComposerActions(props: {
   onCompact: () => void
   onNewSession: () => void
   onStageGrab: (grab: Grab) => void
-  notify: Notify
 }): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
@@ -66,16 +65,16 @@ export function ComposerActions(props: {
     mutationFn: (open: boolean) => rpc.sessions.launch({sessionId: props.sessionId, open}),
     onSuccess: async (result: LaunchResult, open: boolean) => {
       if (!result.supported || !result.command) {
-        props.notify(`${harnessName()} can’t be opened in a terminal.`)
+        notify(`${harnessName()} can’t be opened in a terminal.`)
         return
       }
       if (open && result.opened) {
-        props.notify(`Opened in ${harnessName()}.`)
+        notify(`Opened in ${harnessName()}.`)
         return
       }
-      await copyCommand(result.command, props.notify)
+      await copyCommand(result.command)
     },
-    onError: () => props.notify(`Couldn’t open ${harnessName()}.`),
+    onError: () => notify(`Couldn’t open ${harnessName()}.`),
   }))
 
   const connect = useConnectFlow({
@@ -85,7 +84,6 @@ export function ComposerActions(props: {
     harnessName,
     sessionId: () => props.sessionId,
     navigate: (sessionId) => void router.navigate({to: '/panel/$sessionId', params: {sessionId}}),
-    notify: (message: string) => props.notify(message),
     announce,
     invalidateSessions: () => appData.invalidateSessions(),
   })

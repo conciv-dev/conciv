@@ -17,7 +17,6 @@ import {useInstances} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
-import {NoticeStrip, useNotify} from '../shell/notices.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {ComposerStateBridge, type ComposerStateApi} from './composer-state.js'
@@ -138,7 +137,6 @@ export function ThreadView(props: ThreadViewProps): JSX.Element {
 export function ComposerView(props: ComposerViewProps): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
-  const notify = useNotify()
   const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
     <AttachmentByMime cards={props.attachments.cards} removable={slotProps.removable} />
   )
@@ -152,7 +150,6 @@ export function ComposerView(props: ComposerViewProps): JSX.Element {
           <span class="flex-1">Reconnecting…</span>
         </div>
       </Show>
-      <NoticeStrip />
       <For each={pane.grabStore.grabs()}>
         {(grab) => (
           <GrabReference grab={grab} maxWidth={GRAB_PREVIEW_MAX_W} onRemove={() => pane.grabStore.remove(grab)} />
@@ -173,7 +170,6 @@ export function ComposerView(props: ComposerViewProps): JSX.Element {
           onCompact={() => props.onCompact()}
           onNewSession={() => props.onNewSession()}
           onStageGrab={(grab) => props.onStageGrab(grab)}
-          notify={notify}
         />
         <ExtensionSurface name="composer" instances={instances} />
         <SessionModelSelector sessionId={props.sessionId} />

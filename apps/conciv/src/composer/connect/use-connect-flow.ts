@@ -5,7 +5,7 @@ import {useMutation, useQuery, type QueryClient} from '@tanstack/solid-query'
 import type {LiveSession, RpcClient} from '@conciv/contract'
 import type {QueryUtils} from '@conciv/client'
 import {errorMessageFor} from '../../chat/send-errors.js'
-import type {Notify} from '../../chat/notify.js'
+import {notify} from '../../shell/notices.js'
 import {
   arrivedCount,
   dialInPollMs,
@@ -64,7 +64,6 @@ export type ConnectFlowDeps = {
   harnessName: () => string
   sessionId: () => string
   navigate: (sessionId: string) => void
-  notify: Notify
   announce: (message: string, assertive?: boolean) => void
   invalidateSessions: () => void
 }
@@ -121,10 +120,10 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
     onSuccess: () => {
       deps.invalidateSessions()
       void deps.queryClient.invalidateQueries({queryKey: deps.utils.sessions.attachCandidates.key()})
-      deps.notify(HANDED_BACK, {key: HAND_BACK_KEY, tone: 'success'})
+      notify(HANDED_BACK, {key: HAND_BACK_KEY, tone: 'success'})
     },
     onError: (_error: unknown, concivSessionId: string) => {
-      deps.notify(STILL_CONNECTED, {
+      notify(STILL_CONNECTED, {
         key: HAND_BACK_KEY,
         tone: 'danger',
         action: {label: HAND_BACK_LABEL, run: () => detach.mutate(concivSessionId)},
@@ -133,7 +132,7 @@ export function useConnectFlow(deps: ConnectFlowDeps): ConnectFlow {
   }))
 
   const noticeFollowing = (session: Adopted): void => {
-    deps.notify(nowFollowing(session.title), {
+    notify(nowFollowing(session.title), {
       key: `following-${session.concivSessionId}`,
       tone: 'success',
       action: {label: UNDO_LABEL, run: () => detach.mutate(session.concivSessionId)},
