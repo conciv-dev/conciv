@@ -4,7 +4,7 @@ import {expect as expectLocator} from 'playwright/test'
 import {defineExtension} from '@conciv/extension'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
 
-const connectPaneFixture = fileURLToPath(new URL('./fixture/connect-pane-fixture.tsx', import.meta.url))
+const hostDist = fileURLToPath(new URL('../dist/test-host', import.meta.url))
 const permissionStub = fileURLToPath(new URL('./fixture/local-network-access-stub.js', import.meta.url))
 
 const WAITING_COPY = 'Waiting for your agent…'
@@ -15,7 +15,7 @@ const BLOCKED_STATUS_COPY = "Local network access is blocked, so your agent can'
 test('a denied local-network-access permission replaces the waiting copy, and granting it restores the wait', async () => {
   const api = await getExtensionTestApi({
     server: defineExtension({name: 'try-it-connect-fixture'}),
-    host: fixtureHost(connectPaneFixture),
+    host: fixtureHost(hostDist),
   })
   try {
     const {page} = api

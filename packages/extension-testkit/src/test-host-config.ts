@@ -1,8 +1,7 @@
-import {existsSync, rmSync} from 'node:fs'
-import {mkdtemp} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {build, type Plugin, type PluginOption} from 'vite'
+import {fileURLToPath} from 'node:url'
+import type {Plugin, PluginOption, UserConfig} from 'vite'
+import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {presetConciv} from '@conciv/uno-preset'
 import {
@@ -44,22 +43,17 @@ function extensionUnderTestPlugin(clientEntry: string): Plugin {
   }
 }
 
-export type BuildConcivHostOptions = {
-  root: string
-  input?: string
-  plugins: PluginOption[]
+export type TestHostConfigOptions = {
   clientEntry: string
+  outDir: string
+  root?: string
+  plugins?: PluginOption[]
 }
 
-const builtHosts = new Map<string, Promise<string>>()
-
-async function buildHostOnce(options: BuildConcivHostOptions): Promise<string> {
-  const outDir = await mkdtemp(join(tmpdir(), 'conciv-testkit-host-'))
-  process.once('exit', () => rmSync(outDir, {recursive: true, force: true, maxRetries: 2}))
-  const input = options.input ?? join(options.root, 'index.html')
-  await build({
-    root: options.root,
-    configFile: false,
+export function testHostConfig(options: TestHostConfigOptions): UserConfig {
+  const root = options.root ?? fileURLToPath(new URL('./host', import.meta.url))
+  return {
+    root,
     logLevel: 'silent',
     plugins: [
       concivBuildPlugin(NO_BUILTINS),
@@ -69,13 +63,13 @@ async function buildHostOnce(options: BuildConcivHostOptions): Promise<string> {
         presets: [presetConciv()],
         content: {pipeline: {include: [/\.[jt]sx?($|\?)/]}},
       }),
-      ...options.plugins,
+      ...(options.plugins ?? [solid()]),
     ],
     build: {
-      outDir,
+      outDir: options.outDir,
       emptyOutDir: true,
       rollupOptions: {
-        input,
+        input: join(root, 'index.html'),
         output: {
           codeSplitting: {
             groups: [{name: 'shiki', test: /node_modules[\\/](shiki|@shikijs[\\/][^\\/]+)[\\/]/}],
@@ -83,44 +77,5 @@ async function buildHostOnce(options: BuildConcivHostOptions): Promise<string> {
         },
       },
     },
-  })
-  return outDir
-}
-
-function hostKey(options: BuildConcivHostOptions): string {
-  return [options.root, options.input ?? '', options.clientEntry].join('\n')
-}
-
-function readPrebuiltHosts(): Record<string, string> {
-  const raw = process.env.CONCIV_PREBUILT_HOSTS
-  if (!raw) return {}
-  try {
-    return JSON.parse(raw) as Record<string, string>
-  } catch {
-    return {}
   }
-}
-
-export async function buildConcivHost(options: BuildConcivHostOptions): Promise<string> {
-  const key = hostKey(options)
-  const prebuilt = readPrebuiltHosts()[key]
-  if (prebuilt !== undefined && existsSync(prebuilt)) return prebuilt
-  const cached = builtHosts.get(key)
-  if (cached) {
-    const dir = await cached.catch(() => null)
-    if (dir !== null && existsSync(dir)) return dir
-    builtHosts.delete(key)
-  }
-  const building = buildHostOnce(options)
-  builtHosts.set(key, building)
-  return building
-}
-
-export async function prebuildConcivHost(options: BuildConcivHostOptions): Promise<string> {
-  const key = hostKey(options)
-  const outDir = await buildHostOnce(options)
-  const prebuiltHosts = readPrebuiltHosts()
-  prebuiltHosts[key] = outDir
-  process.env.CONCIV_PREBUILT_HOSTS = JSON.stringify(prebuiltHosts)
-  return outDir
 }

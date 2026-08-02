@@ -4,10 +4,10 @@ import {expect} from '@playwright/test'
 import pingServer from './fixtures/ping/server.js'
 import {fixtureHost, getExtensionTestApi} from '../src/get-extension-test-api.js'
 
-const clientEntry = fileURLToPath(new URL('./fixtures/ping/client.tsx', import.meta.url))
+const hostDist = fileURLToPath(new URL('../dist/test-host', import.meta.url))
 
 test('mounts an extension, drives its real UI, grabs a source-mapped element, and calls a tool', async () => {
-  const api = await getExtensionTestApi({server: pingServer, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: pingServer, host: fixtureHost(hostDist)})
   try {
     await api.page.getByRole('button', {name: 'Ping'}).click()
     await expect(api.page.getByText('Pinged')).toBeVisible()

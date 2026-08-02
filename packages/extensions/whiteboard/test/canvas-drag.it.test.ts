@@ -1,11 +1,9 @@
 import {expect, test} from 'vitest'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
-import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
+import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import {until} from '@conciv/harness-testkit'
-import {openCanvas} from './canvas-it-helpers.js'
-
-const clientEntry = '@conciv/extension-whiteboard/client'
+import {openCanvas, testHost} from './canvas-it-helpers.js'
 
 type CanvasElement = {x: number; width: number; height: number}
 const readElements = async (api: ExtensionTestApi): Promise<CanvasElement[]> =>
@@ -24,7 +22,7 @@ const drawRectangle = async (page: Page, cx: number, cy: number): Promise<void> 
 }
 
 test('a drawn rectangle keeps its real size and does not collapse to a point', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx, cy)
@@ -42,7 +40,7 @@ test('a drawn rectangle keeps its real size and does not collapse to a point', a
 })
 
 test('dragging a rectangle moves it the full cursor distance, not a fraction', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx, cy)

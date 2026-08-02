@@ -1,11 +1,12 @@
+import {fileURLToPath} from 'node:url'
 import type {Page} from 'playwright'
 import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import whiteboard from '../src/server.js'
 
-export const clientEntry = '@conciv/extension-whiteboard/client'
+export const testHost = fixtureHost(fileURLToPath(new URL('../dist/test-host', import.meta.url)))
 
 export function bootWhiteboard(): Promise<ExtensionTestApi> {
-  return getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  return getExtensionTestApi({server: whiteboard, host: testHost})
 }
 
 export const openCanvas = async (page: Page): Promise<{cx: number; cy: number}> => {

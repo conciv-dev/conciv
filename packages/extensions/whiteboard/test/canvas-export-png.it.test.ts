@@ -1,13 +1,13 @@
 import {expect, test} from 'vitest'
 import whiteboard from '../src/server.js'
-import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
+import {getExtensionTestApi} from '@conciv/extension-testkit'
 import {until} from '@conciv/harness-testkit'
-import {clientEntry, openCanvas, readCanvas} from './canvas-it-helpers.js'
+import {openCanvas, readCanvas, testHost} from './canvas-it-helpers.js'
 
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
 test('png export round-trips through the island with excalidraw rendering', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
     await api.callTool('canvas.svg', {
@@ -31,7 +31,7 @@ test('png export round-trips through the island with excalidraw rendering', asyn
 })
 
 test('json export still returns elements', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
     const result = (await api.callTool('canvas.export', {})) as {elements: unknown[]}

@@ -14,7 +14,6 @@ export default defineConfig({
           include: ['test/**/*.test.ts', 'test/**/*.it.test.ts'],
           exclude: ['test/**/*.browser.test.tsx', 'node_modules/**', 'dist/**'],
           testTimeout: 60_000,
-          globalSetup: ['test/global-setup.ts'],
         },
       },
       {

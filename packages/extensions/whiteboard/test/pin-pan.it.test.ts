@@ -1,17 +1,15 @@
 import {expect, test} from 'vitest'
 import type {Locator} from 'playwright'
 import whiteboard from '../src/server.js'
-import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
+import {getExtensionTestApi} from '@conciv/extension-testkit'
 import {until} from '@conciv/harness-testkit'
-import {openCanvas} from './canvas-it-helpers.js'
-
-const clientEntry = '@conciv/extension-whiteboard/client'
+import {openCanvas, testHost} from './canvas-it-helpers.js'
 
 const projectedTop = (pin: Locator) => async (): Promise<number> =>
   pin.evaluate((element) => (element as HTMLElement).getBoundingClientRect().top)
 
 test('a comment pin is projected to screen and tracks canvas pan', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     const {cx, cy} = await openCanvas(api.page)
     await api.callTool('comment.create', {

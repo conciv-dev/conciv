@@ -17,9 +17,11 @@
     "./core-kit": "./src/core-kit.ts",
     "./framework-fake": "./src/framework-fake.ts",
     "./host/grab": "./src/host/grab.ts",
-    "./widget-suite": "./src/widget-suite.ts"
+    "./widget-suite": "./src/widget-suite.ts",
+    "./test-host": "./src/test-host-config.ts"
   },
   "scripts": {
+    "build": "vite build -c vite.test-host.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run"

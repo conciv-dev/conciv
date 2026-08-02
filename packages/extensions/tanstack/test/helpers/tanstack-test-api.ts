@@ -1,14 +1,12 @@
 import {fileURLToPath} from 'node:url'
 import type {Page} from 'playwright'
-import react from '@vitejs/plugin-react'
 import {afterAll, beforeAll} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {buildConcivHost, getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
+import {getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
 import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
 import tanstackExtension from '../../src/server.js'
 
-const hostDir = fileURLToPath(new URL('../host', import.meta.url))
-const clientEntry = fileURLToPath(new URL('../../dist/client.js', import.meta.url))
+const hostDist = fileURLToPath(new URL('../../dist/test-host', import.meta.url))
 
 export type TanstackTestApi = {api: ExtensionTestApi; origin: string}
 
@@ -18,8 +16,7 @@ export function useTanstackTestApi(): () => TanstackTestApi {
     ctx.api = await getExtensionTestApi({
       server: tanstackExtension,
       host: async ({apiBase, session}) => {
-        const outDir = await buildConcivHost({root: hostDir, plugins: [react()], clientEntry})
-        const served = await serveDir(outDir, {apiBase, session})
+        const served = await serveDir(hostDist, {apiBase, session})
         ctx.origin = served.origin
         return {origin: served.origin, close: () => served.close()}
       },

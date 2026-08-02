@@ -1,19 +1,13 @@
-import {fileURLToPath} from 'node:url'
-import solid from 'vite-plugin-solid'
-import {buildConcivHost, prebuildConcivHost} from './build-host.js'
+import {existsSync} from 'node:fs'
 import {serveDir} from './serve.js'
 import type {HostEngine, HostHandle} from './get-extension-test-api.js'
 
-const hostDir = fileURLToPath(new URL('./host', import.meta.url))
-
-export function fixtureHost(clientEntry: string): (engine: HostEngine) => Promise<HostHandle> {
+export function fixtureHost(hostDist: string): (engine: HostEngine) => Promise<HostHandle> {
   return async (engine) => {
-    const outDir = await buildConcivHost({root: hostDir, plugins: [solid()], clientEntry})
-    const served = await serveDir(outDir, {apiBase: engine.apiBase, session: engine.session})
+    if (!existsSync(hostDist)) {
+      throw new Error(`prebuilt test host missing at ${hostDist} — run this package's build first`)
+    }
+    const served = await serveDir(hostDist, {apiBase: engine.apiBase, session: engine.session})
     return {origin: served.origin, close: () => served.close()}
   }
-}
-
-export function prebuildFixtureHost(clientEntry: string): Promise<void> {
-  return prebuildConcivHost({root: hostDir, plugins: [solid()], clientEntry}).then(() => undefined)
 }
