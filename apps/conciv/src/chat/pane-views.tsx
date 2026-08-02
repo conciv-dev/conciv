@@ -17,6 +17,7 @@ import {useInstances} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
+import {NoticeToaster} from '../shell/notices.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {ComposerStateBridge, type ComposerStateApi} from './composer-state.js'
@@ -129,6 +130,7 @@ export function ThreadView(props: ThreadViewProps): JSX.Element {
         </>
       }
       welcome={<EmptyStateSlot onStarter={(starter) => props.onStarter(starter)} instances={instances} />}
+      notices={<NoticeToaster />}
       composer={props.composer}
     />
   )

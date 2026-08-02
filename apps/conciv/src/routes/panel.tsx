@@ -5,7 +5,6 @@ import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {useFabPosition, useLayers, useSuppressed} from '../app/context.js'
 import {setShutter} from '../lib/shutter.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
-import {NoticeToaster} from '../shell/notices.js'
 
 const PANEL_POS: Record<TriggerPosition, string> = {
   'top-left': 'top-21 left-5 [transform-origin:top_left]',
@@ -99,7 +98,6 @@ function PanelLayout(): JSX.Element {
             />
           </Show>
           <Outlet />
-          <NoticeToaster />
         </section>
       </FocusTrap>
     </Show>

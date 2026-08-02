@@ -50,6 +50,8 @@ export type ThreadProps = {
 
   overlay?: JSX.Element
 
+  notices?: JSX.Element
+
   attachmentCards?: readonly AttachmentCardSlot[]
 
   class?: string
@@ -237,6 +239,7 @@ const MESSAGES_COMPONENTS = {UserMessage: UserTurn, AssistantMessage: AssistantM
 export function Thread(props: ThreadProps): JSX.Element {
   const composerSlot = children(() => props.composer)
   const viewportFooterSlot = children(() => props.viewportFooter)
+  const noticesSlot = children(() => props.notices)
   return (
     <ThreadConfigContext.Provider
       value={{
@@ -273,6 +276,9 @@ export function Thread(props: ThreadProps): JSX.Element {
             </ThreadPrimitive.ScrollToBottom>
           </div>
         </ThreadPrimitive.Viewport>
+        <Show when={noticesSlot()}>
+          <div class="shrink-0 h-0 relative overflow-visible">{noticesSlot()}</div>
+        </Show>
         <Show when={composerSlot()}>
           <div class="p-2 shrink-0 [border-top:1px_solid_var(--chat-line)]">{composerSlot()}</div>
         </Show>
