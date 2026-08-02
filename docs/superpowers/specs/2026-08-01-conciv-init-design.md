@@ -133,3 +133,22 @@ runner owns ordering, dry-run, and the done/manual/failed ledger.
   not hand-written files.
 - E2e: one consumer-app spin-up per framework in the existing e2e suite
   running real `conciv init --yes` and booting the result.
+
+## Amendment 2026-08-02 (user-ruled, supersedes decision 4's per-harness MCP wiring)
+
+Harness wiring is CLI-first. The conciv CLI is the agent surface: `conciv tools`
+self-describes and resolves the running dev server itself, so agents run it like
+any other CLI — no MCP config, no addresses, nothing address-bearing is ever
+written by init, and nothing conciv-owned lives outside `.conciv/` except the
+AGENTS.md/CLAUDE.md marked section.
+
+- claude → native plugin install stays (the one harness with a deeper
+  integration: session binding, hooks, approvals).
+- codex / opencode / pi → the marked AGENTS.md section teaching `conciv tools`.
+  NO project config files, NO MCP entries.
+- Consent multiselect writes `.conciv/harnesses.json`; it decides which
+  harnesses the section names and whether the claude plugin installs.
+- Rejected along the way (recorded so they stay rejected): a `conciv mcp-stdio`
+  stdio bridge subcommand; init-reserved static server URLs in harness configs;
+  a dev-server-side config registrar. All solved a problem the CLI surface
+  already solves.

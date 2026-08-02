@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `npx conciv@latest init` sets a project up for conciv end to end — detects framework + package manager + installed harnesses, installs `@conciv/it`, wires the bundler/framework files via confidence-gated codemods, wires every consented harness project-scoped, and prints exactly what happened.
+**Goal:** `npx conciv@latest init` sets a project up for conciv end to end — detects framework + package manager + installed harnesses, installs `@conciv/it`, wires the bundler/framework files via confidence-gated codemods, teaches every consented agent harness the conciv CLI (claude additionally gets its native plugin), and prints exactly what happened.
 
-**Architecture:** A new `init` subcommand in `packages/cli` (citty, sibling of `tools`), built as a pipeline of self-contained step modules, each `{id, detect, plan, apply, verify, manualCard}`. The runner owns ordering, `--dry-run`, and the done/already/manual/skipped ledger (failures degrade to manual cards per spec decision 7 — there is no terminal 'failed' state). Framework codemods apply only on exact-shape matches; anything unrecognized degrades to a styled snippet card and the run still exits 0. Harness recipes live behind one interface; adding a harness = adding a recipe module.
+**Architecture:** A new `init` subcommand in `packages/cli` (citty, sibling of `tools`), built as a pipeline of self-contained step modules, each `{id, detect, plan, apply, verify, manualCard}`. The runner owns ordering, `--dry-run`, and the done/already/manual/skipped ledger (failures degrade to manual cards per spec decision 7 — there is no terminal 'failed' state). Framework codemods apply only on exact-shape matches; anything unrecognized degrades to a styled snippet card and the run still exits 0. Harness wiring is CLI-first: agents use `conciv tools` directly; only claude gets a deeper (plugin) integration.
 
 **Tech Stack:** citty ^0.2.2 (already in packages/cli), @clack/prompts ^1.7.0 (version precedent: packages/try), nypm (new), consola (new), codemod engine chosen by spike in Task 8 (@ast-grep/napi vs magicast).
 
@@ -44,12 +44,9 @@ packages/cli/src/
         webpack-family.ts   (webpack/rspack: config codemod + widgetUrl card)
         fallback.ts         (rollup/esbuild/unknown → card only)
       harness/
-        recipe.ts           (HarnessRecipe interface)
-        claude.ts           (native plugin-manager install)
-        codex.ts            (project-scoped codex config)
-        opencode.ts         (project opencode.json mcp entry)
-        pi.ts               (project pi wiring)
-        agents-md.ts        (marked AGENTS.md/CLAUDE.md section)
+        claude.ts               (native plugin-manager install — the only MCP-wired harness)
+        consent.ts              (.conciv/harnesses.json consent record)
+        agents-md.ts            (marked AGENTS.md/CLAUDE.md section teaching conciv tools)
 packages/cli/test/
   init-pipeline.test.ts
   init-preflight.test.ts
@@ -541,30 +538,20 @@ export default defineConfig({plugins: [conciv()]})
 - [ ] **Step 2: FAIL.** **Step 3: Implement.** **Step 4: PASS.**
 - [ ] **Step 5: Commit** `feat(cli): init webpack/rspack wiring and card-only fallbacks`
 
-### Task 12: harness wiring — consent record + server-side registration (+ codex/opencode/pi/AGENTS.md)
+### Task 12: harness wiring — AGENTS.md teaching + consent (no MCP for non-claude)
 
 **Files:**
-
-- Create: `packages/cli/src/init/steps/harness/recipe.ts`, `consent.ts`, `agents-md.ts`
-- Create: `packages/plugin/src/core/harness-registration.ts` (the server-side registrar, wired where the dev-endpoint file is already written)
-- Test: `packages/cli/test/steps/harness/project-recipes.test.ts`, `packages/plugin/test/harness-registration.test.ts`
+- Create: `packages/cli/src/init/steps/harness/agents-md.ts`, `packages/cli/src/init/steps/harness/consent.ts`
+- Test: `packages/cli/test/steps/harness/agents-md.test.ts`
 
 **Interfaces:**
+- DESIGN (user-ruled, final): non-claude harnesses get NO MCP wiring, no config files, no addresses — a codex/opencode/pi agent uses the conciv CLI directly (`conciv tools ...`), which self-describes and resolves the running dev server itself. The ONLY artifact init writes for them is the AGENTS.md teaching section. claude alone gets its native plugin (Task 13) because that integration already exists and carries session binding + hooks.
+- `consent.ts`: `readConsent(cwd): HarnessId[]` / `writeConsent(cwd, ids)` over `.conciv/harnesses.json` — records which detected harnesses the user approved in the wizard multiselect; drives which harnesses Task 13 installs for (claude) and which get named in the AGENTS.md section copy.
+- `agents-md.ts` produces `agentsMdStep(consented: () => HarnessId[]): InitStep` (`id: 'agents'`): a marked section between `<!-- conciv:start -->` and `<!-- conciv:end -->` appended to `AGENTS.md` (create-if-missing; mirror into `CLAUDE.md` ONLY if that file already exists), teaching: what conciv is (one line), `conciv tools --help` as the discovery entry, the three headline verbs (`conciv tools page`, `conciv tools react`, `conciv tools server`), and "needs your dev server running". Re-run replaces the marked span in place byte-preserving everything outside the markers. `detect` = markers present with current content hash; `manualCard` = the section text itself for hand-pasting.
 
-- DESIGN (user-ruled): addresses are written by the thing that knows them — the RUNNING dev server — never by init. Init only records CONSENT and does one-time non-address scaffolding. There is no bridge command; `mcp-stdio` does not exist.
-- `consent.ts` produces `readConsent(cwd): HarnessId[]` / `writeConsent(cwd, ids: HarnessId[])` — a small JSON file at `.conciv/harnesses.json` (committed, hidden dir). Init's wizard multiselect writes it; nothing else does.
-- `packages/plugin/src/core/harness-registration.ts` produces `registerHarnesses(ctx: {cwd: string; apiBase: string})`, called on dev-server boot AFTER the server is listening, next to the existing dev-endpoint write. For each CONSENTED harness it writes/refreshes that harness's project-scoped MCP entry carrying the live `apiBase`. HARD graceful-failure contract, each clause tested:
-  - absent/unreadable `.conciv/harnesses.json` ⇒ does nothing, silently;
-  - any write error ⇒ logged once via the plugin's existing debug channel, NEVER thrown — a registration failure can never break or delay the dev server (test: registrar with an unwritable target dir; server boot path resolves normally);
-  - only touches entries it owns: managed markers/keys inside the harness file, merged — user-authored content in the same file is byte-preserved (test: pre-existing foreign entries survive a refresh);
-  - atomic writes (temp file + rename), idempotent refresh (same apiBase ⇒ zero file churn, mtime-stable).
-- Placement rule (user-ruled): every conciv-owned artifact lives under `.conciv/` and is invisible. A harness whose manually-started sessions can only discover a VISIBLE project-root file (verified per harness by the doc spike — read the harness's own current docs for project-config discovery before landing anything) is handled by consent-time disclosure: the wizard names the exact file it would create at the root, creates it only on that consent, and adds it to `.gitignore` when the user opts to keep it untracked; declining ⇒ that harness gets a manual card instead. A harness with NO project-scoped discovery mechanism for manual sessions ⇒ manual card only, never a config write. Cards and docs tell the same story (Task 16).
-- `agents-md.ts` (init-side, one-time, address-free): a marked section between `<!-- conciv:start -->` / `<!-- conciv:end -->` appended to `AGENTS.md` (create if missing; mirror into `CLAUDE.md` only if it already exists) teaching the agent `conciv tools`; re-run replaces the marked span in place, never touches text outside markers.
-- pi: project wiring per its docs IF address-free scaffolding exists; anything address-bearing goes through the registrar like the others.
-
-- [ ] **Step 1: Failing tests** — consent read/write round-trip + absent-file default `[]`; registrar: consented codex entry written with live apiBase; refresh with changed apiBase rewrites, unchanged apiBase leaves mtime alone; foreign entries in the same file byte-preserved; unwritable dir does not throw; no consent file writes nothing; agents-md marked-section create/replace/preserve-outside cases.
-- [ ] **Step 2: FAIL.** **Step 3: Implement (per-harness doc spike first; correct file shapes in the commit body).** **Step 4: PASS + `pnpm turbo run test --filter=...@conciv/plugin` green.**
-- [ ] **Step 5: Commit** `feat(cli,plugin): harness consent in init, live registration by the dev server`
+- [ ] **Step 1: Failing test** — temp project: fresh run creates AGENTS.md with the marked section (assert exact section content); existing AGENTS.md with surrounding user text: section appended, outside text byte-identical; re-run with a stale section: replaced in place; CLAUDE.md mirrored only when pre-existing; consent round-trip + absent-file ⇒ `[]`.
+- [ ] **Step 2: FAIL.** **Step 3: Implement.** **Step 4: PASS.**
+- [ ] **Step 5: Commit** `feat(cli): init teaches agents conciv tools via a marked AGENTS.md section`
 
 ### Task 13: claude recipe (native plugin manager)
 
@@ -575,7 +562,7 @@ export default defineConfig({plugins: [conciv()]})
 
 **Interfaces:**
 
-- Produces `claudeRecipe(): HarnessRecipe`. Mechanism mirrors `packages/harness/src/claude/attach.ts` `install()` (the proven flow): shell out to the `claude` CLI — `claude plugin marketplace add <generated-root>`, `claude plugin install conciv-connect@conciv --scope local` — against a plugin directory generated with the SAME file layout `claudeConnectPluginFiles` produces (marketplace.json, plugin.json, bin bridge, .mcp.json, hooks/hooks.json). Implementation decision locked here: the CLI does NOT import `@conciv/harness` (server-weight package); instead this task EXTRACTS the plugin-file generation into a small shared module `packages/harness/src/claude/connect-plugin-files.ts` exported as `@conciv/harness/claude-connect-files` (pure functions, no server deps), and both `attach.ts` and the CLI recipe consume it. `detect`: read `~/.claude/plugins/installed_plugins.json` for `conciv-connect@conciv` (the `alreadyServing` pattern). Missing `claude` binary ⇒ card. Non-zero exit from the claude CLI ⇒ card with the exact command for the user to run.
+- Produces `claudeStep(consented: () => HarnessId[]): InitStep` (`id: 'claude'`; skips to status `skipped` when claude is not in the consent record). Mechanism mirrors `packages/harness/src/claude/attach.ts` `install()` (the proven flow): shell out to the `claude` CLI — `claude plugin marketplace add <generated-root>`, `claude plugin install conciv-connect@conciv --scope local` — against a plugin directory generated with the SAME file layout `claudeConnectPluginFiles` produces (marketplace.json, plugin.json, bin bridge, .mcp.json, hooks/hooks.json). Implementation decision locked here: the CLI does NOT import `@conciv/harness` (server-weight package); instead this task EXTRACTS the plugin-file generation into a small shared module `packages/harness/src/claude/connect-plugin-files.ts` exported as `@conciv/harness/claude-connect-files` (pure functions, no server deps), and both `attach.ts` and the CLI recipe consume it. `detect`: read `~/.claude/plugins/installed_plugins.json` for `conciv-connect@conciv` (the `alreadyServing` pattern). Missing `claude` binary ⇒ card. Non-zero exit from the claude CLI ⇒ card with the exact command for the user to run.
 - Test style: PATH-shim fake `claude` binary (a shell script recording argv to a file and exiting 0 / configurable exit 1), temp HOME — the harness-testkit PATH-shim pattern; assert the exact argv sequence, and that generated plugin files match the shared module's output byte-for-byte.
 
 - [ ] **Step 1: Failing test** — recipe with shim: asserts argv sequence `plugin marketplace add`, `plugin install conciv-connect@conciv --scope local`; failing shim ⇒ `manual` card containing the install command; pre-populated installed_plugins.json ⇒ `already` without spawning (assert the recording file stays absent).
@@ -632,14 +619,14 @@ export default defineConfig({plugins: [conciv()]})
 **Interfaces:**
 
 - Consumes: the shipped behavior of Tasks 1-15 (flag names, card copy, harness list) — docs claims must match the CLI verbatim; copy any command/snippet from the implementation, never retype from memory.
-- Produces: the docs story init's manual cards point at — card fallback text in Tasks 9-12 links to these pages' Manual sections, so THIS task also does a copy-sync pass over the card bodies (cards say "full steps: conciv.dev/docs/quick-start/<framework>#manual").
+- Produces: the docs story init's manual cards point at — card fallback text in Tasks 9-13 links to these pages' Manual sections, so THIS task also does a copy-sync pass over the card bodies (cards say "full steps: conciv.dev/docs/quick-start/<framework>#manual").
 
 Structure per framework page (the shadcn pattern, fumadocs `<Tabs items={['init', 'Manual']}>`):
 
 - Tab "init": `npx conciv@latest init` + two sentences on what it detects/wires for THIS framework + a note that a dirty git tree is refused (`--force`) and `--dry-run` previews. Then "what you get" (the same bullets the page has today).
 - Tab "Manual": the page's ENTIRE current step-by-step content, moved verbatim (these steps are also what init's snippet cards show when a codemod can't prove a config shape — one source of truth, same wording).
 - `index.mdx`: hero becomes the init one-liner with a framework-agnostic pitch; the framework grid stays.
-- `agents.mdx` (new "Connect your agents" page): the consent model (init records approved harnesses in `.conciv/harnesses.json`; the RUNNING dev server writes/refreshes each consented harness's MCP entry with its live address — nothing address-bearing is ever written by init), claude's native plugin install, the marked AGENTS.md section, the visible-root-file disclosure rule, and the "start your dev server first" requirement; Manual tab shows the per-harness entries the server maintains so users can hand-author them.
+- `agents.mdx` (new "Connect your agents" page): the model in one breath — agents use the conciv CLI directly (`conciv tools`, self-describing, finds your running dev server itself; no MCP config, no addresses, nothing to maintain); init teaches it via the marked AGENTS.md section and installs claude's native plugin (the one harness with a deeper integration); consent multiselect decides both. Manual tab shows the AGENTS.md section text and the claude plugin install command for hand-wiring.
 - rollup/esbuild pages: init tab explains these are build-only (cards mirror this — Task 11 copy).
 
 - [ ] **Step 1: Restructure one page (vite.mdx) with the Tabs layout; run the site dev build to verify fumadocs renders both tabs**
