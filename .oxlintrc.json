@@ -2,10 +2,22 @@
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "unicorn"],
   "jsPlugins": [
-    {"name": "unocss", "specifier": "@unocss/eslint-plugin"},
-    {"name": "playwright", "specifier": "eslint-plugin-playwright"},
-    {"name": "solid", "specifier": "eslint-plugin-solid"},
-    {"name": "conciv", "specifier": "./packages/oxlint-plugin/src/plugin.js"}
+    {
+      "name": "unocss",
+      "specifier": "@unocss/eslint-plugin"
+    },
+    {
+      "name": "playwright",
+      "specifier": "eslint-plugin-playwright"
+    },
+    {
+      "name": "solid",
+      "specifier": "eslint-plugin-solid"
+    },
+    {
+      "name": "conciv",
+      "specifier": "./packages/oxlint-plugin/src/plugin.js"
+    }
   ],
   "categories": {
     "correctness": "error",
@@ -63,7 +75,9 @@
     "solid/prefer-for": "warn",
     "solid/reactivity": [
       "error",
-      {"customReactiveFunctions": ["makeEventListener", "makeEventListenerStack", "makeTimer", "registerLayer"]}
+      {
+        "customReactiveFunctions": ["makeEventListener", "makeEventListenerStack", "makeTimer", "registerLayer"]
+      }
     ],
     "solid/event-handlers": "error",
     "solid/imports": "error",
@@ -78,14 +92,14 @@
           {
             "name": "@hono/node-server",
             "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
-            "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve — the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+            "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
           }
         ],
         "patterns": [
           {
             "group": ["@ark-ui", "@ark-ui/**"],
             "allowImportNames": ["useListCollection", "useFilter"],
-            "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly — only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
+            "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly \u2014 only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
           }
         ]
       }
@@ -172,6 +186,63 @@
         "playwright/no-eval": "off",
         "playwright/no-element-handle": "off",
         "playwright/prefer-native-locators": "off"
+      }
+    },
+    {
+      "files": ["**/test/**", "**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "conciv/no-timers-in-tests": "error"
+      }
+    },
+    {
+      "files": ["packages/harness-testkit/src/**", "packages/extension-testkit/src/**"],
+      "rules": {
+        "conciv/no-predicate-waits": "error"
+      }
+    },
+    {
+      "files": ["**/until.ts", "**/run-stream.ts"],
+      "rules": {
+        "conciv/no-predicate-waits": "off"
+      }
+    },
+    {
+      "files": [
+        "**/action-bar-copy.browser.test.tsx",
+        "**/attach-candidates.it.test.ts",
+        "**/bridge-gate.it.test.ts",
+        "**/bundler-diagnostics.it.test.ts",
+        "**/chat-announcements.browser.test.tsx",
+        "**/chat-client.it.test.ts",
+        "**/chat-connection.it.test.ts",
+        "**/claude-attach.test.ts",
+        "**/claude-connect-bridge.it.test.ts",
+        "**/cli.it.test.ts",
+        "**/code-mode.test.ts",
+        "**/compact.it.test.ts",
+        "**/connect-flow.browser.test.tsx",
+        "**/connect-pane.browser.test.tsx",
+        "**/dev-endpoint-option.it.test.ts",
+        "**/dispose-drain.it.test.ts",
+        "**/extensions-watch.it.test.ts",
+        "**/external-rev.it.test.ts",
+        "**/fake-claude.ts",
+        "**/native-live-region.it.test.ts",
+        "**/native-page-vite-boot.it.test.ts",
+        "**/native-widget.it.test.ts",
+        "**/permission-gate.test.ts",
+        "**/pty-sessions.it.test.ts",
+        "**/router.test.ts",
+        "**/run-stream.test.ts",
+        "**/scripted-run.test.ts",
+        "**/send-pipeline.browser.test.tsx",
+        "**/thread-hold.browser.test.tsx",
+        "**/until.test.ts",
+        "**/wire.it.test.ts",
+        "**/wrangler-dev.ts"
+      ],
+      "rules": {
+        "conciv/no-timers-in-tests": "off"
       }
     }
   ],

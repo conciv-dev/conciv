@@ -26,7 +26,7 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
   const listeners = new Set<() => void>()
 
   function announce(): void {
-    for (const listener of [...listeners]) listener()
+    for (const listener of listeners) listener()
   }
 
   async function collect(): Promise<void> {
