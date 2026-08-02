@@ -50,44 +50,55 @@ const TranscriptRecordSchema = z
 
 type TranscriptRecord = z.infer<typeof TranscriptRecordSchema>
 
+function textPart(block: unknown): MessagePart | null {
+  const text = TextBlock.safeParse(block)
+  if (!text.success) return null
+  return {type: 'text', content: text.data.text}
+}
+
+function thinkingPart(block: unknown): MessagePart | null {
+  const thinking = ThinkingBlock.safeParse(block)
+  if (!thinking.success) return null
+  return {type: 'thinking', content: thinking.data.thinking}
+}
+
+function toolCallPart(block: unknown): MessagePart | null {
+  const tool = ToolUseBlock.safeParse(block)
+  if (!tool.success) return null
+  return {
+    type: 'tool-call',
+    id: tool.data.id,
+    name: canonicalToolName(tool.data.name),
+    arguments: JSON.stringify(tool.data.input ?? {}),
+    state: 'input-complete',
+  }
+}
+
+function toolResultPart(block: unknown): MessagePart | null {
+  const result = ToolResultBlock.safeParse(block)
+  if (!result.success) return null
+  return {
+    type: 'tool-result',
+    toolCallId: result.data.tool_use_id,
+    content: contentText(result.data.content),
+    state: result.data.is_error ? 'error' : 'complete',
+  }
+}
+
+const BLOCK_READERS = [textPart, thinkingPart, toolCallPart, toolResultPart]
+
+function blockParts(block: unknown): MessagePart[] {
+  for (const read of BLOCK_READERS) {
+    const part = read(block)
+    if (part) return [part]
+  }
+  return []
+}
+
 function partsFrom(content: unknown): MessagePart[] {
   if (typeof content === 'string') return content ? [{type: 'text', content}] : []
   if (!Array.isArray(content)) return []
-  const out: MessagePart[] = []
-  for (const part of content) {
-    const text = TextBlock.safeParse(part)
-    if (text.success) {
-      out.push({type: 'text', content: text.data.text})
-      continue
-    }
-    const thinking = ThinkingBlock.safeParse(part)
-    if (thinking.success) {
-      out.push({type: 'thinking', content: thinking.data.thinking})
-      continue
-    }
-    const tool = ToolUseBlock.safeParse(part)
-    if (tool.success) {
-      out.push({
-        type: 'tool-call',
-        id: tool.data.id,
-        name: canonicalToolName(tool.data.name),
-        arguments: JSON.stringify(tool.data.input ?? {}),
-        state: 'input-complete',
-      })
-      continue
-    }
-
-    const result = ToolResultBlock.safeParse(part)
-    if (result.success) {
-      out.push({
-        type: 'tool-result',
-        toolCallId: result.data.tool_use_id,
-        content: contentText(result.data.content),
-        state: result.data.is_error ? 'error' : 'complete',
-      })
-    }
-  }
-  return out
+  return content.flatMap(blockParts)
 }
 
 function textOf(parts: MessagePart[]): string {
