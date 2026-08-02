@@ -129,15 +129,17 @@ export const initCommand = defineCommand({
 `bin.ts`: change `subCommands: {tools: toolsCommand}` to `subCommands: {tools: toolsCommand, init: initCommand}` and export `main` if not already exported (it is defined as `main` today — add `export`). Until Task 2 exists, create `packages/cli/src/init/pipeline.ts` with the minimal shape below (Task 2 replaces its body):
 
 ```ts
-import type {LedgerEntry} from './pipeline-types.js'
+export type StubLedgerEntry = {id: string; title: string; status: string}
 
 export type InitOptions = {yes: boolean; dryRun: boolean; force: boolean; cwd: string}
 
-export async function runInit(options: InitOptions): Promise<LedgerEntry[]> {
+export async function runInit(options: InitOptions): Promise<StubLedgerEntry[]> {
   void options
   return []
 }
 ```
+
+(Task 2 replaces this file wholesale, including swapping `StubLedgerEntry` for the real `LedgerEntry` — the stub exists only so Task 1 compiles alone.)
 
 (`runInit` returns the ledger so the Task 14 end-to-end assertions read it directly; the Task 2 rework keeps this return type.)
 
@@ -573,11 +575,13 @@ export default defineConfig({plugins: [conciv()]})
 
 **Files:**
 
-- Modify: `packages/cli/src/init/pipeline.ts` (`runInit` assembles preflight → detect → wizard → steps → outro), `packages/cli/package.json` (name `conciv`, keep bin `conciv`, rewrite description to the front-door text), `packages/publish/src/guards.ts` (PUBLIC_PACKAGES + name-pattern allowlist), root docs references.
+- Modify: `packages/cli/src/init/pipeline.ts` (`runInit` assembles preflight → detect → wizard → consent write → steps → outro), `packages/cli/package.json` (name `conciv`, keep bin `conciv`, rewrite description to the front-door text), `apps/conciv/package.json` (name `conciv` → `@conciv/app` — see the collision note), `packages/publish/src/guards.ts` (PUBLIC_PACKAGES + name-pattern allowlist), root docs references.
 - Test: `packages/cli/test/init-run.test.ts`, `packages/publish` existing guard tests.
 
 **Interfaces:**
 
+- BLOCKER RESOLVED IN THIS TASK — workspace name collision: the widget app package (`apps/conciv`) is ALREADY named `conciv`, and pnpm cannot hold two packages with one name, so the bare-name rename REQUIRES renaming the private app first: `apps/conciv` package name becomes `@conciv/app` (private, unpublished, so no guard changes for it). Sweep EVERY reference to the old filter name in the same commit: `.github/workflows/*` (`--filter=conciv`, shard configs), `turbo` invocations in docs/scripts, any package.json dep or vitest/e2e config naming `conciv` — `grep -rn '\bconciv\b' .github package.json turbo.json e2e packages/vitest-config` and audit each hit. CI must be green on the SAME commit that renames both packages.
+- `runInit` also writes the consent record: after the wizard resolves, `writeConsent(cwd, selections.harnesses)` (Task 12's API) runs before the steps so `claudeStep`/`agentsMdStep` read a fresh record.
 - `runInit(options: InitOptions): Promise<LedgerEntry[]>` (returns the ledger for assertions and outro rendering): preflight failure prints reason and exits code 1 — the ONLY non-zero path (wizard cancel is a clean exit-0 no-op); step failures still exit 0 with the ledger (spec decision 7).
 - `InitRuntime` injection: `runInit` takes an optional runtime `{addDependency, spawn, prompts}` (defaults = real nypm/execFile/clack) so the assembled end-to-end test runs hermetically — no network install, no real claude spawn; the recording implementations are the same boundary-injection pattern as Task 7.
 - Idempotency assertions are scoped by design: second run asserts `already` ONLY for steps that reported `done` on the first run; manual-by-design steps (webpack-family, fallbacks, carded harnesses) assert they are STILL `manual` with identical cards. (No blanket all-`already` assertion exists anywhere.)
@@ -586,7 +590,7 @@ export default defineConfig({plugins: [conciv()]})
 - OPERATIONAL (not code): first publish of the bare name needs the manual npm bootstrap (OIDC cannot create new package names) — record this in the PR body; do not attempt any publish from this plan.
 
 - [ ] **Step 1: Failing test** — `runInit` end-to-end over a temp vite fixture project with `yes: true` and a PATH-shim claude: asserts the ledger contains install/framework/harness/agents-md entries, package.json gained `@conciv/it`, vite config wired; second-run assertions per the scoped idempotency rule above; dirty-tree run exits with the refusal reason. Guard test: `assertValidPackageName('conciv')` passes, `assertValidPackageName('rogue')` still throws.
-- [ ] **Step 2: FAIL.** **Step 3: Implement.** **Step 4: PASS + `pnpm turbo run test --filter=...conciv-pkg-renamed` full dependents green.**
+- [ ] **Step 2: FAIL.** **Step 3: Implement.** **Step 4: PASS + full dependents green for BOTH renamed packages: `pnpm turbo run test --filter=...conciv --filter=...@conciv/app` (the first now resolves to the CLI package, the second to the widget app).**
 - [ ] **Step 5: Commit** `feat(cli)!: conciv init assembled; package renamed to the bare conciv name`
 
 ### Task 15: e2e — real init runs against consumer-app clones
@@ -650,10 +654,9 @@ git commit -m "docs(site): init-first quick-starts with manual tabs and an agent
 
 ---
 
----
-
 ## Self-Review (done at write time)
 
 - Spec coverage: docs/site story → Task 16 (init-first + Manual tabs, agents page, card/doc copy-sync); decision 1 → Tasks 2/6/14 (verify-cheap + outro + never-boot); 2 → Task 14; 3 → Tasks 5/6; 4 → Tasks 12/13; 5 → Tasks 8-11; 6 → Tasks 3 + idempotent detects throughout; 7 → Tasks 2/14 (failure semantics, exit codes); 8 → Tasks 1/6 (citty/clack/nypm/consola) + 8 (engine spike). Testing section → per-task fixture/PATH-shim style + Task 15.
 - Placeholders: none — every step carries code or exact rules; the two deliberate open points (per-harness config format, codemod engine choice) are structured SPIKES with binding contracts, per the spec's own wording.
-- Type consistency: `InitStep`/`InitContext`/`LedgerEntry`/`ManualCard` defined once in Task 2 and consumed by name everywhere; `Detected`/`Framework` from Task 4; `HarnessId`/`FoundHarness` from Task 5; `Transform` from Task 8; `HarnessRecipe` from Task 12.
+- Type consistency: `InitStep`/`InitContext`/`LedgerEntry`/`ManualCard` defined once in Task 2 and consumed by name everywhere; `Detected`/`Framework` from Task 4; `HarnessId`/`FoundHarness` from Task 5; `Transform` from Task 8; `readConsent`/`writeConsent` + `agentsMdStep` from Task 12; `claudeStep` from Task 13.
+- Workspace collision audited: bare `conciv` requires the `apps/conciv` → `@conciv/app` rename (Task 14) — caught in orchestrator cold read 2026-08-02.

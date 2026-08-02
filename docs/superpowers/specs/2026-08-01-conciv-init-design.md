@@ -148,6 +148,10 @@ AGENTS.md/CLAUDE.md marked section.
   NO project config files, NO MCP entries.
 - Consent multiselect writes `.conciv/harnesses.json`; it decides which
   harnesses the section names and whether the claude plugin installs.
+- Decision 2 operational addendum: the private widget app package (apps/conciv)
+  already holds the workspace name `conciv`; the bare-name promotion therefore
+  renames it to `@conciv/app` in the same change (internal only, no publish
+  impact, full --filter reference sweep).
 - Rejected along the way (recorded so they stay rejected): a `conciv mcp-stdio`
   stdio bridge subcommand; init-reserved static server URLs in harness configs;
   a dev-server-side config registrar. All solved a problem the CLI surface
