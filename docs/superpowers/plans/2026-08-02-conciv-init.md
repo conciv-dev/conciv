@@ -169,7 +169,7 @@ git commit -m "feat(cli): register the conciv init subcommand"
 ```ts
 export type StepStatus = 'done' | 'already' | 'manual' | 'skipped'
 export type ManualCard = {title: string; body: string; snippet?: string}
-export type StepOutcome = {status: 'done'} | {status: 'manual'; cards: ManualCard[]; detail?: string}
+export type StepOutcome = {status: 'done'} | {status: 'skipped'; detail?: string} | {status: 'manual'; cards: ManualCard[]; detail?: string}
 export type StepPlan = {summary: string; wouldEdit: string[]}
 export type InitStep = {
   id: string
@@ -185,7 +185,7 @@ export type LedgerEntry = {id: string; title: string; status: StepStatus; cards:
 export async function runSteps(steps: InitStep[], ctx: InitContext): Promise<LedgerEntry[]>
 ```
 
-- Semantics under test (SPEC decision 7: every mid-pipeline failure degrades to its manual card, run continues, exit 0 — there is NO 'failed' terminal status, failure detail rides on a `manual` entry): `detect() === 'present'` ⇒ status `already`, `apply` never called. `dryRun` ⇒ every missing step reports its `plan().summary`, status `skipped`, nothing applied. `apply` throwing ⇒ status `manual` with `cards: [step.manualCard(ctx)]` and the error message as `detail`, pipeline CONTINUES. `apply` returning `manual` carries its own cards through. `verify() === false` after a `done` apply ⇒ status `manual` with the step's manualCard and detail `'verification failed'`.
+- Semantics under test (SPEC decision 7: every mid-pipeline failure degrades to its manual card, run continues, exit 0 — there is NO 'failed' terminal status, failure detail rides on a `manual` entry): `detect() === 'present'` ⇒ status `already`, `apply` never called. `dryRun` ⇒ every missing step reports its `plan().summary`, status `skipped`, nothing applied. `apply` throwing ⇒ status `manual` with `cards: [step.manualCard(ctx)]` and the error message as `detail`, pipeline CONTINUES. `apply` returning `manual` carries its own cards through; `apply` returning `skipped` (a step declaring itself not applicable — e.g. claude without consent) passes through as `skipped` with no verify. `verify() === false` after a `done` apply ⇒ status `manual` with the step's manualCard and detail `'verification failed'`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -279,6 +279,8 @@ async function runOne(step: InitStep, ctx: InitContext): Promise<LedgerEntry> {
     return {id: step.id, title: step.title, status: 'skipped', cards: []}
   }
   const outcome = await step.apply(ctx).catch((error: unknown) => manualOutcome(step, ctx, error))
+  if (outcome.status === 'skipped')
+    return {id: step.id, title: step.title, status: 'skipped', cards: [], detail: outcome.detail}
   if (outcome.status === 'manual')
     return {id: step.id, title: step.title, status: 'manual', cards: outcome.cards, detail: outcome.detail}
   const verified = await step.verify(ctx).catch(() => false)
@@ -468,7 +470,7 @@ export function detectHarnesses(env: {PATH: string; HOME: string}): FoundHarness
 - Produces the engine facade the recipe tasks consume:
 
 ```ts
-export type Transform = {file: string; matched: boolean; output: string | null}
+export type Transform = {matched: boolean; output: string | null}
 export function addToPluginsArray(
   source: string,
   importName: string,
@@ -564,7 +566,7 @@ export default defineConfig({plugins: [conciv()]})
 
 **Interfaces:**
 
-- Produces `claudeStep(consented: () => HarnessId[]): InitStep` (`id: 'claude'`; skips to status `skipped` when claude is not in the consent record). Mechanism mirrors `packages/harness/src/claude/attach.ts` `install()` (the proven flow): shell out to the `claude` CLI — `claude plugin marketplace add <generated-root>`, `claude plugin install conciv-connect@conciv --scope local` — against a plugin directory generated with the SAME file layout `claudeConnectPluginFiles` produces (marketplace.json, plugin.json, bin bridge, .mcp.json, hooks/hooks.json). Implementation decision locked here: the CLI does NOT import `@conciv/harness` (server-weight package); instead this task EXTRACTS the plugin-file generation into a small shared module `packages/harness/src/claude/connect-plugin-files.ts` exported as `@conciv/harness/claude-connect-files` (pure functions, no server deps), and both `attach.ts` and the CLI recipe consume it. `detect`: read `~/.claude/plugins/installed_plugins.json` for `conciv-connect@conciv` (the `alreadyServing` pattern). Missing `claude` binary ⇒ card. Non-zero exit from the claude CLI ⇒ card with the exact command for the user to run.
+- Produces `claudeStep(consented: () => HarnessId[], io: ClaudeIo): InitStep` where `type ClaudeIo = {home: string; run: (bin: string, args: string[]) => Promise<{code: number; output: string}>}` — the HOME/spawn seam, injected (real default = `os.homedir()` + execFile; tests pass a temp home and a recording `run`, never mutating `process.env`). `id: 'claude'`; `apply` returns `{status: 'skipped', detail: 'not selected'}` when claude is not in the consent record. Mechanism mirrors `packages/harness/src/claude/attach.ts` `install()` (the proven flow): shell out to the `claude` CLI — `claude plugin marketplace add <generated-root>`, `claude plugin install conciv-connect@conciv --scope local` — against a plugin directory generated with the SAME file layout `claudeConnectPluginFiles` produces (marketplace.json, plugin.json, bin bridge, .mcp.json, hooks/hooks.json). Implementation decision locked here: the CLI does NOT import `@conciv/harness` (server-weight package); instead this task EXTRACTS the plugin-file generation into a small shared module `packages/harness/src/claude/connect-plugin-files.ts` exported as `@conciv/harness/claude-connect-files` (pure functions, no server deps), and both `attach.ts` and the CLI recipe consume it. `detect`: read `~/.claude/plugins/installed_plugins.json` for `conciv-connect@conciv` (the `alreadyServing` pattern). Missing `claude` binary ⇒ card. Non-zero exit from the claude CLI ⇒ card with the exact command for the user to run.
 - Test style: PATH-shim fake `claude` binary (a shell script recording argv to a file and exiting 0 / configurable exit 1), temp HOME — the harness-testkit PATH-shim pattern; assert the exact argv sequence, and that generated plugin files match the shared module's output byte-for-byte.
 
 - [ ] **Step 1: Failing test** — recipe with shim: asserts argv sequence `plugin marketplace add`, `plugin install conciv-connect@conciv --scope local`; failing shim ⇒ `manual` card containing the install command; pre-populated installed_plugins.json ⇒ `already` without spawning (assert the recording file stays absent).
@@ -657,6 +659,6 @@ git commit -m "docs(site): init-first quick-starts with manual tabs and an agent
 ## Self-Review (done at write time)
 
 - Spec coverage: docs/site story → Task 16 (init-first + Manual tabs, agents page, card/doc copy-sync); decision 1 → Tasks 2/6/14 (verify-cheap + outro + never-boot); 2 → Task 14; 3 → Tasks 5/6; 4 → Tasks 12/13; 5 → Tasks 8-11; 6 → Tasks 3 + idempotent detects throughout; 7 → Tasks 2/14 (failure semantics, exit codes); 8 → Tasks 1/6 (citty/clack/nypm/consola) + 8 (engine spike). Testing section → per-task fixture/PATH-shim style + Task 15.
-- Placeholders: none — every step carries code or exact rules; the two deliberate open points (per-harness config format, codemod engine choice) are structured SPIKES with binding contracts, per the spec's own wording.
+- Placeholders: none — every step carries code or exact rules; the one deliberate open point (codemod engine choice) is a structured SPIKE with binding contracts, per the spec's own wording.
 - Type consistency: `InitStep`/`InitContext`/`LedgerEntry`/`ManualCard` defined once in Task 2 and consumed by name everywhere; `Detected`/`Framework` from Task 4; `HarnessId`/`FoundHarness` from Task 5; `Transform` from Task 8; `readConsent`/`writeConsent` + `agentsMdStep` from Task 12; `claudeStep` from Task 13.
 - Workspace collision audited: bare `conciv` requires the `apps/conciv` → `@conciv/app` rename (Task 14) — caught in orchestrator cold read 2026-08-02.
