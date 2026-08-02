@@ -4,7 +4,6 @@ import {join} from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import {until} from '@conciv/harness-testkit/until'
 import {start, type Engine} from '@conciv/core'
 import {makeExtRpcClient, type AnyExtension} from '@conciv/extension'
 import recorderExtension, {type RecorderRouter} from '../src/server.js'
@@ -85,16 +84,18 @@ describe('recorder extension booted in the real engine (IT)', () => {
     try {
       const rpc = recorderClient(base)
       await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
-      const seen: unknown[] = []
+      const resnapshot = Promise.withResolvers<unknown>()
       const abort = new AbortController()
       const control = await rpc.control(undefined, {signal: abort.signal})
       const pump = (async () => {
-        for await (const message of control) seen.push(message)
+        for await (const message of control) {
+          if (sawMessage([message], {snapshot: true, flush: true})) resnapshot.resolve(message)
+        }
       })()
       await rpc.reset(undefined)
       const {events} = await rpc.window({})
       expect(events).toEqual([])
-      await until(() => sawMessage(seen, {snapshot: true, flush: true}), {hangGuardMs: 5000})
+      expect(await resnapshot.promise).toEqual({snapshot: true, flush: true})
       abort.abort()
       await pump.catch(() => {})
     } finally {
@@ -140,9 +141,11 @@ describe('recorder extension booted in the real engine (IT)', () => {
       const abort = new AbortController()
       const control = await rpc.control(undefined, {signal: abort.signal})
       mark('control')
-      const seen: unknown[] = []
+      const wentLive = Promise.withResolvers<unknown>()
       const pump = (async () => {
-        for await (const message of control) seen.push(message)
+        for await (const message of control) {
+          if (sawMessage([message], {live: true})) wentLive.resolve(message)
+        }
       })()
       const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
       mark('createMCPClient')
@@ -160,7 +163,7 @@ describe('recorder extension booted in the real engine (IT)', () => {
       const stopped = String(await stopRecording.execute({captureId: started.captureId, keyframes: 0}))
       mark('stop.execute')
       expect(stopped).toContain('click')
-      await until(() => sawMessage(seen, {live: true}), {hangGuardMs: 5000})
+      expect(await wentLive.promise).toEqual({live: true})
       mark('live-event')
       abort.abort()
       await pump.catch(() => {})

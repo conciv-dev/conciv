@@ -2,7 +2,7 @@ import {createServer} from 'node:http'
 import {realpathSync} from 'node:fs'
 import {randomUUID} from 'node:crypto'
 import {afterAll, describe, expect, it} from 'vitest'
-import {createFakeHarness, harnessAvailable, until} from '@conciv/harness-testkit'
+import {createFakeHarness, harnessAvailable} from '@conciv/harness-testkit'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {TerminalRouter} from '@conciv/extension-terminal'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
@@ -129,18 +129,22 @@ describe('conciv connect', () => {
       const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${engine.port}/t/tok-claude-tty`, 'terminal')
       const sessionId = `conciv_${randomUUID()}`
       expect(await rpc.open({sessionId})).toEqual({alive: true})
-      await until(async () => (await rpc.state({sessionId})).alive)
+      expect((await rpc.state({sessionId})).alive).toBe(true)
     },
     30_000,
   )
 
   it('emits seeded, started, then client-connected on the first token request', async () => {
     const events: ConnectEvent[] = []
+    const connected = Promise.withResolvers<ConnectEvent>()
     const engine = await runConnect({
       token: 'tok-events',
       harnessAdapter: createFakeHarness({id: 'fake-events'}),
       origin: 'http://127.0.0.1:1',
-      onEvent: (event) => events.push(event),
+      onEvent: (event) => {
+        events.push(event)
+        if (event.type === 'client-connected') connected.resolve(event)
+      },
     })
     engines.push(engine)
     expect(events).toEqual([
@@ -148,8 +152,8 @@ describe('conciv connect', () => {
       {type: 'started', port: engine.port, harness: 'fake-events'},
     ])
     await fetch(`http://127.0.0.1:${engine.port}/t/tok-events/health`)
-    await until(() => events.length === 3)
-    expect(events[2]).toEqual({type: 'client-connected'})
+    expect(await connected.promise).toEqual({type: 'client-connected'})
+    expect(events).toHaveLength(3)
   })
 
   it('walks the whole range, cleaning up each failed bind, and lands on the last free port', async () => {
