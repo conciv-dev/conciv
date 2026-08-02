@@ -31,7 +31,7 @@ file with the new version stamp. Full experiment procedures live in git history
   survive. Tables MERGE with the user's config — a launch cannot suppress the user's own MCP
   servers, and the built-in `codex_apps` server always remains.
 - Hooks must be declared WITHOUT `async` — `async = true` hooks are rejected (`async hooks are not
-  supported yet`) and only a TUI warning reveals it. SessionEnd fires with `session_id`,
+supported yet`) and only a TUI warning reveals it. SessionEnd fires with `session_id`,
   `transcript_path`, `cwd`, `reason`.
 - Trust friction: interactive prompt on a fresh directory plus one on first sight of a hook command.
   Hook trust is content-hashed per source; command-line hooks attribute to the synthetic source

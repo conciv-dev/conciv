@@ -169,7 +169,10 @@ git commit -m "feat(cli): register the conciv init subcommand"
 ```ts
 export type StepStatus = 'done' | 'already' | 'manual' | 'skipped'
 export type ManualCard = {title: string; body: string; snippet?: string}
-export type StepOutcome = {status: 'done'} | {status: 'skipped'; detail?: string} | {status: 'manual'; cards: ManualCard[]; detail?: string}
+export type StepOutcome =
+  | {status: 'done'}
+  | {status: 'skipped'; detail?: string}
+  | {status: 'manual'; cards: ManualCard[]; detail?: string}
 export type StepPlan = {summary: string; wouldEdit: string[]}
 export type InitStep = {
   id: string
@@ -545,10 +548,12 @@ export default defineConfig({plugins: [conciv()]})
 ### Task 12: harness wiring — AGENTS.md teaching + consent (no MCP for non-claude)
 
 **Files:**
+
 - Create: `packages/cli/src/init/steps/harness/agents-md.ts`, `packages/cli/src/init/steps/harness/consent.ts`
 - Test: `packages/cli/test/steps/harness/agents-md.test.ts`
 
 **Interfaces:**
+
 - DESIGN (user-ruled, final): non-claude harnesses get NO MCP wiring, no config files, no addresses — a codex/opencode/pi agent uses the conciv CLI directly (`conciv tools ...`), which self-describes and resolves the running dev server itself. The ONLY artifact init writes for them is the AGENTS.md teaching section. claude alone gets its native plugin (Task 13) because that integration already exists and carries session binding + hooks.
 - `consent.ts`: `readConsent(cwd): HarnessId[]` / `writeConsent(cwd, ids)` over `.conciv/harnesses.json` — records which detected harnesses the user approved in the wizard multiselect; drives which harnesses Task 13 installs for (claude) and which get named in the AGENTS.md section copy.
 - `agents-md.ts` produces `agentsMdStep(consented: () => HarnessId[]): InitStep` (`id: 'agents'`): a marked section between `<!-- conciv:start -->` and `<!-- conciv:end -->` appended to `AGENTS.md` (create-if-missing; mirror into `CLAUDE.md` ONLY if that file already exists), teaching: what conciv is (one line), `conciv tools --help` as the discovery entry, the three headline verbs (`conciv tools page`, `conciv tools react`, `conciv tools server`), and "needs your dev server running". Re-run replaces the marked span in place byte-preserving everything outside the markers. `detect` = markers present with current content hash; `manualCard` = the section text itself for hand-pasting.

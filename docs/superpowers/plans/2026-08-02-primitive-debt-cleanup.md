@@ -34,6 +34,7 @@ Already dispatched with its own brief. This task records the acceptance gate the
 No new server state. The change emitter already exists (`makeChanges` in `packages/core/src/chat/attach.ts`, with `nextChange`/`ChangeWaiter` already written and tested) and dial-in already reaches it: MCP request → sessions fan-out → terminal observer presence transition → `observer-wiring.ts:49` `notifyChange()` → `bumpExternal()`. This task only (a) exposes that emitter on the wire and (b) reshapes the candidate row from a connect/disconnect flag to presence.
 
 **Files:**
+
 - Modify: `packages/contract/src/contract.ts` (route `sessions.changes`)
 - Modify: `packages/contract/src/rows.ts` (`LiveSessionSchema`: replace `ready: z.boolean()` with `online: z.boolean()` and `lastSeenAt: z.number().nullable()`)
 - Modify: `packages/core/src/chat/dial-log.ts` (presence read surface)
@@ -43,6 +44,7 @@ No new server state. The change emitter already exists (`makeChanges` in `packag
 - Test: `packages/core/test/chat/changes-push.it.test.ts`
 
 **Interfaces:**
+
 - Produces: contract route `sessions.changes: oc.output(eventIterator(z.object({rev: z.number()})))`. Handler: loop `nextChange(changes, signal)`, but yield ONLY when `changes.externalRev()` advanced past the last yielded rev — the shared emitter also fires on every chat-stream snapshot change (`notify()` during token streaming), and those must never ring this bell. No other filtering, no per-session state. Abort via signal. Test case (c): drive a chat-stream-only change (plain `notify()` path), then an external change; assert exactly one event arrives and its rev reflects only the external bump.
 - Produces: `DialLog` reshaped: `note(id)` unchanged; `seen(id)` renamed `online(id)` (same recent-window math); new `lastSeenAt(id): number | null`. TTL no longer DELETES entries (last-seen must survive going offline) — the LRU cap (512) remains the only eviction. Known accepted edge: in-memory, so a core restart forgets last-seen until next contact.
 - Produces: `LiveSession.online` (recent contact) + `LiveSession.lastSeenAt` (last contact, null = never dialed this core run). The "started before install — one reload" note keys off `lastSeenAt === null`, not a decaying flag — a wired-but-idle session shows "last seen 5m ago", never the reload note.
@@ -58,6 +60,7 @@ No new server state. The change emitter already exists (`makeChanges` in `packag
 ### Task 3: connect flow rides the push — poll ladder and clock die
 
 **Files:**
+
 - Modify: `apps/conciv/src/composer/connect/use-connect-flow.ts`
 - Modify: `apps/conciv/src/composer/connect/connect-steps.ts` (delete `dialInPollMs`, `GIVE_UP_AFTER_FAILURES` if now dead)
 - Modify: `apps/conciv/src/composer/connect/connect-copy.ts` (delete `isStale` if now dead)
@@ -65,6 +68,7 @@ No new server state. The change emitter already exists (`makeChanges` in `packag
 - Test: whatever browser test currently covers the connect dialog staleness/dial-in (grep `stale\|dialledIn` under `apps/conciv/test`); update in place.
 
 **Interfaces:**
+
 - Consumes: `deps.rpc.sessions.changes(undefined, {signal})` and `LiveSession.online`/`lastSeenAt` from Task 2.
 
 - [ ] **Step 1: Delete the clock.** Remove `now`/`setNow`/`createTimer`/`TICK_MS`. Stale badge becomes `stale: () => candidates.isStale`; set the query's `staleTime` to the single badge window (move `STALE_AFTER_MS = 15_000` out of connect-copy into this file as the `staleTime` value). Delete `FRESH_MS`. `checkedAt` stays `candidates.dataUpdatedAt` (RelativeTime consumes it).
@@ -79,13 +83,15 @@ No new server state. The change emitter already exists (`makeChanges` in `packag
 ### Task 4: presence pill clock dies
 
 **Files:**
+
 - Modify: `packages/extensions/terminal/src/client/presence-pill.tsx`
 - Read first: the `PresencePillView` component in the same file/dir — find every use of the `now` prop.
 
 **Interfaces:**
+
 - Consumes: `RelativeTime` from `@conciv/ui-kit-system` (already used by connect-dialog).
 
-- [ ] **Step 1:** Replace the `now` signal + `makeTimer` tick: wherever the view formats "last seen at X" from `snapshot.lastEvidenceWallAt`, render `<RelativeTime value={...}>`. If `now` feeds a *staleness boolean* (pill tone flip), check what `observeTerminal` pushes — the observer already emits `state: 'stale'` presence transitions server-side; prefer the pushed state. If the view genuinely needs a live-ticking derived value the push cannot express, STOP and report (that would justify `createDateNow` + the `@solid-primitives/date` install, which needs user sign-off — do not install it yourself).
+- [ ] **Step 1:** Replace the `now` signal + `makeTimer` tick: wherever the view formats "last seen at X" from `snapshot.lastEvidenceWallAt`, render `<RelativeTime value={...}>`. If `now` feeds a _staleness boolean_ (pill tone flip), check what `observeTerminal` pushes — the observer already emits `state: 'stale'` presence transitions server-side; prefer the pushed state. If the view genuinely needs a live-ticking derived value the push cannot express, STOP and report (that would justify `createDateNow` + the `@solid-primitives/date` install, which needs user sign-off — do not install it yourself).
 - [ ] **Step 2:** Existing terminal client tests green; update assertions from tick-dependent to pushed-state-dependent if any.
 - [ ] **Step 3: Commit** `refactor(extension-terminal): presence pill renders pushed state, drops the tick clock`.
 
@@ -94,6 +100,7 @@ No new server state. The change emitter already exists (`makeChanges` in `packag
 ### Task 5: quick.tsx gutter → Ark Splitter; draggable-position listeners
 
 **Files:**
+
 - Modify: `apps/conciv/src/routes/quick.tsx` (delete `onGutterDown`, `resetPaneFlex`; render Ark Splitter)
 - Modify: `apps/conciv/src/lib/draggable-position.ts` (raw listeners → `makeEventListener`, `snapTimer` → `makeTimer`)
 - Read first: Ark Splitter source in node_modules (`@ark-ui/solid` splitter: `Splitter.Root/Panel/ResizeTrigger`, `size`/`onSizeChange`, min/max panel sizes) and how ui-kit-system wraps other Ark components — wrap Splitter thin in ui-kit-system if any second consumer is plausible, otherwise use it directly.

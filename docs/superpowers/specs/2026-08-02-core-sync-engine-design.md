@@ -19,11 +19,11 @@ One sentence: **core exposes a `changes` event-iterator stream of typed row upse
 
 ### Synced collections (v1 scope)
 
-| Collection | Row (zod, in `@conciv/contract`) | Key | Server source of truth |
-|---|---|---|---|
-| `sessions` | existing session row shape | `sessionId` | core db `sessions` table |
+| Collection   | Row (zod, in `@conciv/contract`)                                                            | Key                   | Server source of truth               |
+| ------------ | ------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------ |
+| `sessions`   | existing session row shape                                                                  | `sessionId`           | core db `sessions` table             |
 | `candidates` | `LiveSession` (reshaped: `online: boolean`, `lastSeenAt: number \| null` replacing `ready`) | `sessionId` (harness) | process scan + transcripts + dialLog |
-| `navigation` | existing navigation row | singleton key | core db `navigation` table |
+| `navigation` | existing navigation row                                                                     | singleton key         | core db `navigation` table           |
 
 Out of scope v1: chat message streaming (stays AG-UI over `sessions.attach` — different problem: ordered append stream, not row sync), drafts (tiny get/set, revisit later), whiteboard (already done, stays extension-local).
 
