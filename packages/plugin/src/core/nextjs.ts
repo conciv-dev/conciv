@@ -1,4 +1,5 @@
 import type {ConcivConfig} from '@conciv/protocol/config-types'
+import type {Builtins} from '@conciv/extension-compiler/extensions'
 import {writeExtensionsEntry} from './extensions-entry.js'
 
 export const CONCIV_DEFAULT_PORT = 41700
@@ -67,7 +68,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   }
 }
 
-export async function register(): Promise<void> {
+export async function registerWith(builtins: Builtins): Promise<void> {
   if (process.env.NODE_ENV === 'production') return
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   const options = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
@@ -80,6 +81,10 @@ export async function register(): Promise<void> {
     console.error('conciv: failed to start extensions watcher', error)
   }
   const {makeEngineBooter} = await import('./boot.js')
+  await makeEngineBooter(options, root, builtins)()
+}
+
+export async function register(): Promise<void> {
   const {NO_BUILTINS} = await import('@conciv/extension-compiler/extensions')
-  await makeEngineBooter(options, root, NO_BUILTINS)()
+  await registerWith(NO_BUILTINS)
 }

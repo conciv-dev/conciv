@@ -1,4 +1,5 @@
 import {createSignal, onCleanup, type Accessor} from 'solid-js'
+import {ORPCError} from '@orpc/client'
 import {getExtensionApi, makeExtRpcClient} from '@conciv/extension'
 import type {SessionSnapshot, SessionUpdate, TranscriptFailureReason} from '@conciv/session-observer/types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
@@ -34,7 +35,16 @@ async function pump(
   signal: AbortSignal,
   apply: (update: SessionUpdate) => void,
 ): Promise<void> {
-  const stream = await client.observe({sessionId}, {signal, context: {retry: Number.POSITIVE_INFINITY}})
+  const stream = await client.observe(
+    {sessionId},
+    {
+      signal,
+      context: {
+        retry: Number.POSITIVE_INFINITY,
+        shouldRetry: ({error}) => !(error instanceof ORPCError && error.status === 404),
+      },
+    },
+  )
   for await (const update of stream) apply(update)
 }
 
