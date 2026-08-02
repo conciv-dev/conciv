@@ -216,6 +216,22 @@ describe('terminal reconnection', () => {
     dispose()
   })
 
+  it('keeps reopening past the per-episode attempt cap when every drop recovers', async () => {
+    const model = greetedModel('resilient')
+    const {dispose} = mount(() => (
+      <>
+        <Terminal model={model} />
+        <SessionLog model={model} label="resilient log" />
+      </>
+    ))
+    await expect.element(sessionLog('resilient log')).toHaveTextContent('resilient-1')
+    for (let ordinal = 2; ordinal <= 9; ordinal += 1) {
+      dropConnection(model)
+      await expect.element(sessionLog('resilient log'), {timeout: 3000}).toHaveTextContent(`resilient-${ordinal}`)
+    }
+    dispose()
+  })
+
   it('never reopens the session after a deliberate disconnect', async () => {
     const abandoned = greetedModel('solo')
     const abandonedMount = mount(() => (

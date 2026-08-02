@@ -116,11 +116,11 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     }
   }
 
-  const holdSession = (): Promise<void> =>
-    new Promise<void>((resolve, reject) => {
+  const holdSession = (): Promise<boolean> =>
+    new Promise<boolean>((resolve, reject) => {
       const socket = openSocket()
       if (!socket) {
-        resolve()
+        resolve(false)
         return
       }
       socket.binaryType = 'arraybuffer'
@@ -134,10 +134,15 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
       socket.addEventListener('close', () => {
         live.socket = null
         if (settled()) {
-          resolve()
+          resolve(false)
           return
         }
+        const wasEstablished = session.status === 'open'
         setSession({status: 'connecting'})
+        if (wasEstablished) {
+          resolve(true)
+          return
+        }
         reject(new Error(CONNECTION_DROPPED))
       })
     })
@@ -152,10 +157,10 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     }
   }
 
-  const attemptSession = async (): Promise<void> => {
+  const attemptSession = async (): Promise<boolean> => {
     const ready = await prepare()
-    if (!ready || settled()) return
-    await holdSession()
+    if (!ready || settled()) return false
+    return holdSession()
   }
 
   const retryer = new AsyncRetryer(attemptSession, {
@@ -166,6 +171,11 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     throwOnError: false,
     onLastError: () => giveUp(LOST_CONNECTION),
   })
+
+  const runEpisodes = async (): Promise<void> => {
+    let dropped = await retryer.execute()
+    while (dropped) dropped = await retryer.execute()
+  }
 
   terminal.onData((data) => {
     if (live.socket?.readyState === WebSocket.OPEN) live.socket.send(data)
@@ -178,9 +188,9 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     exitCode: () => session.exitCode,
     errorMessage: () => session.errorMessage,
     connect: () => {
-      if (live.socket || retryer.store.state.isExecuting || settled()) return
+      if (session.status !== 'idle') return
       setSession({status: 'connecting'})
-      void retryer.execute()
+      void runEpisodes()
     },
     disconnect: () => {
       setSession({status: 'closed'})
