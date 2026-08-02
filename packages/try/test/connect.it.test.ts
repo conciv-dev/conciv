@@ -13,6 +13,8 @@ import type {Engine} from '@conciv/core/start'
 
 describe('conciv connect', () => {
   let shared: Engine
+  const engines: Engine[] = []
+  const closers: Array<() => void> = []
   const sharedEvents: ConnectEvent[] = []
   const sharedConnected = Promise.withResolvers<ConnectEvent>()
 
@@ -29,7 +31,8 @@ describe('conciv connect', () => {
   })
 
   afterAll(async () => {
-    await shared.stop()
+    await Promise.all([shared, ...engines].map((engine) => engine.stop()))
+    closers.forEach((close) => close())
   })
 
   it('boots a token-gated core in range, emitting seeded and started, then client-connected on the first token request', async () => {
@@ -92,29 +95,23 @@ describe('conciv connect', () => {
       }),
       origin: 'http://127.0.0.1:1',
     })
-    try {
-      const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${engine.port}/t/tok-tty`, 'terminal')
-      const sessionId = `conciv_${randomUUID()}`
-      expect(await rpc.open({sessionId})).toEqual({alive: true})
-      expect(captured[0]?.cwd).toBe(engine.cfg.stateRoot)
-      expect((await rpc.state({sessionId})).alive).toBe(true)
-    } finally {
-      await engine.stop()
-    }
+    engines.push(engine)
+    const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${engine.port}/t/tok-tty`, 'terminal')
+    const sessionId = `conciv_${randomUUID()}`
+    expect(await rpc.open({sessionId})).toEqual({alive: true})
+    expect(captured[0]?.cwd).toBe(engine.cfg.stateRoot)
+    expect((await rpc.state({sessionId})).alive).toBe(true)
   })
 
   it.skipIf(process.env.CI || !harnessAvailable(claude))(
     'opens a live claude tty in the throwaway workspace',
     async () => {
       const engine = await runConnect({token: 'tok-claude-tty', origin: 'http://127.0.0.1:1'})
-      try {
-        const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${engine.port}/t/tok-claude-tty`, 'terminal')
-        const sessionId = `conciv_${randomUUID()}`
-        expect(await rpc.open({sessionId})).toEqual({alive: true})
-        expect((await rpc.state({sessionId})).alive).toBe(true)
-      } finally {
-        await engine.stop()
-      }
+      engines.push(engine)
+      const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${engine.port}/t/tok-claude-tty`, 'terminal')
+      const sessionId = `conciv_${randomUUID()}`
+      expect(await rpc.open({sessionId})).toEqual({alive: true})
+      expect((await rpc.state({sessionId})).alive).toBe(true)
     },
     30_000,
   )
@@ -125,13 +122,10 @@ describe('conciv connect', () => {
       harnessAdapter: createFakeHarness({id: 'fake-second'}),
       origin: 'http://127.0.0.1:1',
     })
-    try {
-      expect(engine.port).not.toBe(shared.port)
-      const health = await fetch(`http://127.0.0.1:${engine.port}/t/tok-second/health`)
-      expect(health.status).toBe(200)
-    } finally {
-      await engine.stop()
-    }
+    engines.push(engine)
+    expect(engine.port).not.toBe(shared.port)
+    const health = await fetch(`http://127.0.0.1:${engine.port}/t/tok-second/health`)
+    expect(health.status).toBe(200)
   }, 20_000)
 
   it('walks the whole range, cleaning up each failed bind, and lands on the last free port', async () => {
@@ -154,21 +148,15 @@ describe('conciv connect', () => {
       return address.port
     })()
     await new Promise<void>((resolve) => last.close(() => resolve()))
-    try {
-      const engine = await runConnect({
-        token: 'tok-last',
-        harnessAdapter: createFakeHarness({id: 'fake-last'}),
-        origin: 'http://127.0.0.1:1',
-      })
-      try {
-        expect(engine.port).toBe(freePort)
-        const health = await fetch(`http://127.0.0.1:${freePort}/t/tok-last/health`)
-        expect(health.status).toBe(200)
-      } finally {
-        await engine.stop()
-      }
-    } finally {
-      blockers.forEach((blocker) => blocker.close())
-    }
+    blockers.forEach((blocker) => closers.push(() => blocker.close()))
+    const engine = await runConnect({
+      token: 'tok-last',
+      harnessAdapter: createFakeHarness({id: 'fake-last'}),
+      origin: 'http://127.0.0.1:1',
+    })
+    engines.push(engine)
+    expect(engine.port).toBe(freePort)
+    const health = await fetch(`http://127.0.0.1:${freePort}/t/tok-last/health`)
+    expect(health.status).toBe(200)
   }, 30_000)
 })
