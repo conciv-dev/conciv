@@ -252,7 +252,7 @@ describe('pending revision attribution', () => {
     expect(outcome.revisions.committedRevision).toBe('rev-0')
   })
 
-  it('signals a lone external write that landed inside the settle window once the window closes', () => {
+  it('commits a lone revision that landed inside the settle window silently once the window closes', () => {
     const ended = applyLocalRun(applyLocalRun(IDLE_ENTRY, 'start', NOW), 'end', NOW)
     const suppressed = applyRevision(ended, committed, 'rev-1', NOW + 1_000, WALL)
     expect(suppressed.signalled).toBe(false)
@@ -261,11 +261,10 @@ describe('pending revision attribution', () => {
 
     const after = NOW + LOCAL_SETTLE_MS + 1
     const resolved = applyRevision(suppressed.entry, suppressed.revisions, 'rev-1', after, WALL)
-    expect(resolved.signalled).toBe(true)
-    expect(resolved.entry.state).toBe('connected')
-    expect(resolved.entry.lastEvidenceAt).toBe(after)
+    expect(resolved.signalled).toBe(false)
+    expect(resolved.entry).toBe(suppressed.entry)
     expect(resolved.revisions).toEqual({committedRevision: 'rev-1', pendingRevision: null})
-    expect(sendPolicy(resolved.entry.state, false)).toBe('confirm')
+    expect(sendPolicy(resolved.entry.state, false)).toBe('allow')
   })
 
   it('keeps the pending revision across ticks that are still inside the window', () => {

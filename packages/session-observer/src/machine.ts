@@ -113,6 +113,9 @@ export function applyRevision(
   if (isLocalWrite(entry, now)) {
     return {entry, revisions: {...revisions, pendingRevision: revision}, signalled: false}
   }
+  if (revision === revisions.pendingRevision) {
+    return {entry, revisions: {committedRevision: revision, pendingRevision: null}, signalled: false}
+  }
   return {
     entry: applySignal(entry, {kind: 'external-write'}, now, wallNow),
     revisions: {committedRevision: revision, pendingRevision: null},

@@ -346,9 +346,9 @@ describe('dispose', () => {
 })
 
 describe('settle-window attribution', () => {
-  it('signals a single external write that landed during a local run once the window closes', async () => {
+  it('commits the local run revision silently instead of signalling external-write once the window closes', async () => {
     const made = rig()
-    collect(made.observer, 'a')
+    const seen = collect(made.observer, 'a')
     await made.ticks(2)
     made.observer.localRun('a', 'start')
     made.handles.get('a')?.setRevision('r-during-run')
@@ -358,6 +358,14 @@ describe('settle-window attribution', () => {
     made.observer.localRun('a', 'end')
     await made.advance(6000)
 
+    expect(presences(seen.updates).some((update) => update.snapshot.evidence === 'external-write')).toBe(false)
+    expect(made.observer.snapshot('a').state).toBe('idle')
+    expect(made.observer.sendPolicy('a', false)).toBe('allow')
+
+    made.handles.get('a')?.setRevision('r-genuine-external')
+    await made.ticks(2)
+
+    expect(presences(seen.updates).at(-1)?.snapshot.evidence).toBe('external-write')
     expect(made.observer.snapshot('a').state).toBe('connected')
     expect(made.observer.sendPolicy('a', false)).toBe('confirm')
   })
