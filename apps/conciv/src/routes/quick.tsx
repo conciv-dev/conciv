@@ -15,7 +15,7 @@ const CLOSE =
   'bg-transparent [border:none] text-pw-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-[0.5625rem] trans-color-bg hover:text-pw-text hover:bg-pw-fill-strong'
 
 export const Route = createFileRoute('/quick')({
-  validateSearch: (search) => QuickSearchSchema.parse(search),
+  validateSearch: QuickSearchSchema,
   beforeLoad: ({context}) => {
     if (!context.settings.quickTerminal.enabled) throw redirect({to: '/'})
   },
