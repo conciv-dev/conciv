@@ -2,37 +2,69 @@ function isAstNode(value) {
   return typeof value?.type === 'string'
 }
 
+function typeArgumentsOf(node) {
+  const holder = node.typeArguments ?? node.typeParameters
+  if (!holder) return []
+  return holder.params ?? []
+}
+
+function isPromiseOfBoolean(node) {
+  if (node.typeName?.name !== 'Promise') return false
+  return typeArgumentsOf(node).some(isBooleanType)
+}
+
+function isBooleanUnion(node) {
+  return typesOf(node).some(isBooleanType)
+}
+
+function typesOf(node) {
+  return node.types ?? []
+}
+
+const BOOLEAN_TYPE_CHECKS = {
+  TSBooleanKeyword: () => true,
+  TSUnionType: isBooleanUnion,
+  TSTypeReference: isPromiseOfBoolean,
+}
+
 function isBooleanType(node) {
   if (!isAstNode(node)) return false
-  if (node.type === 'TSBooleanKeyword') return true
-  if (node.type === 'TSUnionType') return (node.types ?? []).some(isBooleanType)
-  if (node.type !== 'TSTypeReference') return false
-  if (node.typeName?.name !== 'Promise') return false
-  return (node.typeArguments?.params ?? node.typeParameters?.params ?? []).some(isBooleanType)
+  const check = BOOLEAN_TYPE_CHECKS[node.type]
+  if (!check) return false
+  return check(node)
+}
+
+function returnTypeOf(node) {
+  return node.returnType?.typeAnnotation
 }
 
 function isBooleanReturningFunctionType(node) {
-  if (!isAstNode(node)) return false
   if (node.type !== 'TSFunctionType') return false
-  return isBooleanType(node.returnType?.typeAnnotation)
+  return isBooleanType(returnTypeOf(node))
 }
 
-function findPredicateType(value) {
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findPredicateType(item)
-      if (found) return found
-    }
-    return undefined
+function searchList(items) {
+  for (const item of items) {
+    const found = findPredicateType(item)
+    if (found) return found
   }
-  if (!isAstNode(value)) return undefined
-  if (isBooleanReturningFunctionType(value)) return value
-  for (const [key, child] of Object.entries(value)) {
+  return undefined
+}
+
+function searchChildren(node) {
+  for (const [key, child] of Object.entries(node)) {
     if (key === 'parent') continue
     const found = findPredicateType(child)
     if (found) return found
   }
   return undefined
+}
+
+function findPredicateType(value) {
+  if (Array.isArray(value)) return searchList(value)
+  if (!isAstNode(value)) return undefined
+  if (isBooleanReturningFunctionType(value)) return value
+  return searchChildren(value)
 }
 
 export default {
