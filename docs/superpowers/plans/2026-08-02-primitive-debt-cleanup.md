@@ -8,6 +8,8 @@
 
 **Tech Stack:** @ark-ui/solid (Toast, Splitter), @tanstack/solid-query, @orpc eventIterator + `subscriptionIterator`, @solid-primitives/event-listener + timer.
 
+**STATUS (2026-08-02, user ruling): Task 1 (toast) lands on `connected-external-terminal`. Tasks 2-6 and the wider sync-layer design review are DEFERRED to a post-merge refactor branch — do not execute them on this branch.**
+
 ## Global Constraints
 
 - Worktree `/Users/omrikatz/Public/web/aidx/.claude-worktrees/connected-external-terminal` only; never touch `apps/site/content/docs/quick-start/ios.mdx` or `plans/ios-extension/11-native-first-integration.md`; commit with pathspec; no push.
