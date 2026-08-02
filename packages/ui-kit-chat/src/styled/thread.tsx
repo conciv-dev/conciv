@@ -265,7 +265,7 @@ export function Thread(props: ThreadProps): JSX.Element {
           {props.overlay}
           <div class="h-0 pointer-events-none self-center bottom-2 sticky z-10 overflow-visible">
             <ThreadPrimitive.ScrollToBottom
-              class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer pointer-events-auto [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [color:var(--chat-accent-link)] [transition:opacity_120ms_var(--chat-ease)] items-center bottom-0 left-1/2 absolute data-[at-bottom]:opacity-0 data-[at-bottom]:invisible -translate-x-1/2 data-[at-bottom]:[transition:opacity_120ms_var(--chat-ease),visibility_0s_linear_120ms] hover:[background:var(--chat-fill-strong)] ${FOCUS}`}
+              class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer pointer-events-auto [background:var(--chat-glass)] [border:1px_solid_var(--chat-line)] [box-shadow:var(--chat-shadow-sm)] [color:var(--chat-accent-link)] [transition:opacity_120ms_var(--chat-ease),color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] items-center bottom-0 left-1/2 absolute data-[at-bottom]:opacity-0 data-[at-bottom]:invisible -translate-x-1/2 data-[at-bottom]:[transition:opacity_120ms_var(--chat-ease),color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),visibility_0s_linear_120ms] hover:[border-color:var(--chat-accent)] hover:[color:var(--chat-accent-hi)] ${FOCUS}`}
             >
               <ArrowDown size={12} aria-hidden="true" />
               Latest
