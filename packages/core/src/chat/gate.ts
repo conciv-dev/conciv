@@ -17,7 +17,8 @@ import {
 } from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
-import {ASK_TIMEOUT_MS, bareToolName, type AskRegistry} from './ask.js'
+import {ASK_TIMEOUT_MS, type AskRegistry} from './ask.js'
+import {makeToolNameNormalizer} from './tool-names.js'
 
 export type CommandPolicy = 'allow' | 'ask'
 
@@ -52,7 +53,7 @@ export function classifyCommand(command: string): CommandPolicy {
 }
 
 export function riskyMatches(risky: ReadonlySet<string>, toolName: string): boolean {
-  return risky.has(bareToolName(toolName))
+  return risky.has(makeToolNameNormalizer(risky)(toolName))
 }
 
 const BashInputSchema = z.object({command: z.string()})

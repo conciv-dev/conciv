@@ -6,9 +6,9 @@ export const TOOL_CALL_WAIT_MS = 5_000
 
 export const UI_TOOL_NAME = 'conciv_ui'
 
-const MCP_PREFIX = /^mcp__[a-z0-9-]+__/i
+const MCP_PREFIX = /^mcp__.+?__/
 
-export function bareToolName(name: string): string {
+function bareToolName(name: string): string {
   return name.replace(MCP_PREFIX, '')
 }
 
