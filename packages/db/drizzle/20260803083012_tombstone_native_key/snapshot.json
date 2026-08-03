@@ -2,9 +2,7 @@
   "version": "7",
   "dialect": "sqlite",
   "id": "38fc1626-4017-435a-a879-8d6638b7f9e7",
-  "prevIds": [
-    "4e297bed-0951-4781-ab21-1f4026f5950e"
-  ],
+  "prevIds": ["4e297bed-0951-4781-ab21-1f4026f5950e"],
   "ddl": [
     {
       "name": "drafts",
@@ -479,73 +477,56 @@
       "table": "runs"
     },
     {
-      "columns": [
-        "session_id",
-        "key"
-      ],
+      "columns": ["session_id", "key"],
       "nameExplicit": false,
       "name": "replies_pk",
       "entityType": "pks",
       "table": "replies"
     },
     {
-      "columns": [
-        "session_id"
-      ],
+      "columns": ["session_id"],
       "nameExplicit": false,
       "name": "drafts_pk",
       "table": "drafts",
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "markers_pk",
       "table": "markers",
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "navigation_pk",
       "table": "navigation",
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "sessions_pk",
       "table": "sessions",
       "entityType": "pks"
     },
     {
-      "columns": [
-        "session_id"
-      ],
+      "columns": ["session_id"],
       "nameExplicit": false,
       "name": "image_history_pk",
       "table": "image_history",
       "entityType": "pks"
     },
     {
-      "columns": [
-        "session_id"
-      ],
+      "columns": ["session_id"],
       "nameExplicit": false,
       "name": "run_messages_pk",
       "table": "run_messages",
       "entityType": "pks"
     },
     {
-      "columns": [
-        "session_id"
-      ],
+      "columns": ["session_id"],
       "nameExplicit": false,
       "name": "runs_pk",
       "table": "runs",
