@@ -4,8 +4,10 @@ import {ModelSelector, useModelSelectorContext} from '@conciv/ui-kit-chat'
 import type {ModelOption} from '@conciv/ui-kit-chat'
 import {Button, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
+import {ORPCError} from '@orpc/client'
 import {getHostApi} from '@conciv/extension'
 import {useTerminalContext} from './terminal-context.js'
+import {terminalClient} from './rpc.js'
 
 const MODEL_KEY = 'pw-conciv-model'
 
@@ -43,6 +45,7 @@ export function TerminalActions(): JSX.Element {
   const host = getHostApi()
   const store = useTerminalContext((context) => context.store)
   const rpc = host.useRpc()
+  const apiBase = host.useApiBase()
   const sessionId = host.useSessionId()
   const toast = host.useToast()
   const leaveView = host.useLeaveView()
@@ -71,26 +74,29 @@ export function TerminalActions(): JSX.Element {
       },
       () => toast(`Run in your terminal: ${command}`),
     )
-  const settleLaunch = async (res: {supported: boolean; opened: boolean; command: string | null}): Promise<void> => {
-    if (!res.supported || !res.command) return toast('This harness can’t be opened in a terminal.')
-    if (res.opened) {
-      leaveView()
-      return toast('Opened externally.')
-    }
-    await copyCommand(res.command)
-  }
   const launch = async (): Promise<void> => {
     const id = sessionId()
     if (!id) return toast('No active session.')
-    await settleLaunch(await rpc.sessions.launch({sessionId: id, model: store.spawnModel() ?? undefined}))
+    const client = terminalClient(apiBase())
+    const {ok} = await client.launch({sessionId: id, model: store.spawnModel() ?? undefined})
+    if (ok) {
+      leaveView()
+      return toast('Opened externally.')
+    }
+    const {command} = await client.connectCommand({sessionId: id})
+    await copyCommand(command)
+  }
+  const launchFailure = (error: unknown): string => {
+    if (error instanceof ORPCError && error.code === 'NO_CONNECT') return 'This harness can’t be opened in a terminal.'
+    return 'Couldn’t open externally.'
   }
   const openExternally = async () => {
     if (opening()) return
     setOpening(true)
     try {
       await launch()
-    } catch {
-      toast('Couldn’t open externally.')
+    } catch (error) {
+      toast(launchFailure(error))
     } finally {
       setOpening(false)
     }

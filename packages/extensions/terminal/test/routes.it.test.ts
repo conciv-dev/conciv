@@ -46,12 +46,6 @@ describe('terminal extension routes', () => {
     expect(await rpc().state({sessionId})).toEqual({alive: false, busy: false})
   })
 
-  it('rejects open while the chat lock is held', async () => {
-    ctx.server?.sessions.busy.add(sessionId)
-    await expect(rpc().open({sessionId})).rejects.toMatchObject({code: 'BUSY'})
-    ctx.server?.sessions.busy.delete(sessionId)
-  })
-
   it('opens a pty and streams bytes over ws', async () => {
     expect(await rpc().open({sessionId})).toEqual({alive: true})
     expect((await rpc().state({sessionId})).alive).toBe(true)
@@ -106,18 +100,6 @@ describe('terminal extension routes', () => {
     second.ws.close()
   })
 
-  it('a chat turn on the session kills the pty', async () => {
-    ctx.server?.sessions.fireLocalRun(sessionId, 'start')
-    const ws = new WebSocket(`${wsBase()}/api/ext/terminal/tty?session=${sessionId}`)
-    const code = await new Promise<number>((resolve, reject) => {
-      ws.on('close', (c) => resolve(c))
-      ws.on('error', reject)
-    })
-    expect(code).toBe(4404)
-
-    expect(await rpc().open({sessionId})).toEqual({alive: true})
-  })
-
   it('rejects ws for a session with no live pty', async () => {
     const other = `conciv_${randomUUID()}`
     const ws = new WebSocket(`${wsBase()}/api/ext/terminal/tty?session=${other}`)
@@ -140,10 +122,6 @@ describe('terminal extension routes', () => {
     expect(code).toBe(4404)
   })
 
-  it('records the minted harness session token for later chat resume', () => {
-    expect(ctx.server?.sessions.tokens.get(sessionId)).toMatch(/^[0-9a-f-]{36}$/)
-  })
-
   it('spawns with model override, conciv mcp url, and session id', async () => {
     const {harness, captured} = recordingHarness()
     const dedicated = await startTerminalServer(harness)
@@ -158,20 +136,9 @@ describe('terminal extension routes', () => {
     }
   })
 
-  it('spawns with an mcp url that carries the app base path', async () => {
-    const {harness, captured} = recordingHarness()
-    const dedicated = await startTerminalServer(harness, '/t/tok-terminal')
-    try {
-      expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
-      expect(captured[0]?.mcpUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/t\/tok-terminal\/api\/mcp$/)
-    } finally {
-      await dedicated.close()
-    }
-  })
-
   it('injects a resumed marker when reopening an existing transcript', async () => {
     const {harness} = recordingHarness()
-    const dedicated = await startTerminalServer({...harness, transcriptExists: () => Promise.resolve(true)})
+    const dedicated = await startTerminalServer({...harness, transcriptExists: () => true})
     try {
       dedicated.sessions.tokens.set(sessionId, randomUUID())
       expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})

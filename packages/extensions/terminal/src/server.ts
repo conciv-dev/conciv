@@ -1,13 +1,14 @@
 import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
 import {upgradeWebSocket} from '@hono/node-server'
-import {eventIterator, os} from '@orpc/server'
+import {os} from '@orpc/server'
 import {z} from 'zod'
-import {defineExtension, subscriptionIterator, type ServerApi} from '@conciv/extension'
-import {isSessionId, type UIMessage} from '@conciv/protocol/chat-types'
+import {defineExtension, type ServerApi} from '@conciv/extension'
+import {SessionId} from '@conciv/protocol/chat-types'
+import type {HarnessConnectContext, HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
 import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
-import {watchMirror} from './server/mirror.js'
+import {launchConnectPlan, renderConnectCommand} from './server/launch.js'
 import {
   TERMINAL_NAME,
   TerminalOpenRequestSchema,
@@ -47,44 +48,77 @@ function applyControl(session: TtySession, control: TtyClientControl | null, tex
   return false
 }
 
-async function resolveHarnessSession(
-  {server}: TerminalRuntime,
-  sessionId: string,
-): Promise<{harnessSessionId: string; resume: boolean}> {
-  const existing = await server.sessions.resumeToken(sessionId)
-  const harnessSessionId = existing ?? randomUUID()
-  if (!existing) await server.sessions.recordToken(sessionId, harnessSessionId)
-  const resume = Boolean(existing) && (server.harness.transcriptExists?.(harnessSessionId) ?? true)
-  return {harnessSessionId, resume}
+function resumable({server}: TerminalRuntime, harnessSessionId: string | null): boolean {
+  if (!harnessSessionId) return false
+  return server.harness.transcriptExists?.(harnessSessionId) ?? true
+}
+
+async function connectContext(
+  runtime: TerminalRuntime,
+  sessionId: SessionId,
+  harnessSessionId: string | null,
+  model: string | null,
+  origin: string,
+): Promise<HarnessConnectContext> {
+  const {server} = runtime
+  return {
+    cwd: server.cwd,
+    stateDir: server.stateDir,
+    concivSessionId: sessionId,
+    harnessSessionId,
+    resume: resumable(runtime, harnessSessionId),
+    owned: true,
+    model: model ?? (await server.sessions.model(sessionId)),
+    mcpUrl: `${origin}/api/mcp`,
+    hookUrl: null,
+  }
+}
+
+async function mintHarnessSession(runtime: TerminalRuntime, sessionId: SessionId): Promise<string> {
+  const existing = await runtime.server.sessions.resumeToken(sessionId)
+  if (existing) return existing
+  const minted = randomUUID()
+  await runtime.server.sessions.recordToken(sessionId, minted)
+  return minted
+}
+
+async function connectPlanFor(
+  runtime: TerminalRuntime,
+  sessionId: SessionId,
+  model: string | null,
+  origin: string,
+): Promise<HarnessConnectPlan | null> {
+  const plan = runtime.server.harness.connectPlan
+  if (!plan) return null
+  const harnessSessionId = await runtime.server.sessions.resumeToken(sessionId)
+  return plan(await connectContext(runtime, sessionId, harnessSessionId, model, origin))
 }
 
 async function openTtySession(
   runtime: TerminalRuntime,
-  sessionId: string,
+  sessionId: SessionId,
   size: TerminalOpenRequest,
   origin: string,
 ): Promise<void> {
   const {server, tty} = runtime
   const ttyCommand = server.harness.ttyCommand
   if (!ttyCommand) throw new Error(`harness "${server.harness.id}" has no terminal mode`)
-  const {harnessSessionId, resume} = await resolveHarnessSession(runtime, sessionId)
-  const model = size.model ?? (await server.sessions.model(sessionId))
+  const harnessSessionId = await mintHarnessSession(runtime, sessionId)
+  const ctx = await connectContext(runtime, sessionId, harnessSessionId, size.model ?? null, origin)
   server.harness.release?.(sessionId)
-  const mcpUrl = `${origin}/api/mcp`
-  const session = tty.open(
-    sessionId,
-    ttyCommand({cwd: server.cwd, harnessSessionId, resume, model, mcpUrl, concivSessionId: sessionId}),
-    server.cwd,
-  )
+  const session = tty.open(sessionId, ttyCommand(ctx), server.cwd)
   if (size.cols && size.rows) session.resize(size.cols, size.rows)
-  if (resume) session.inject('\u001b[2m\u2500 conciv: resumed session \u2500\u001b[0m')
+  if (ctx.resume) session.inject('\u001b[2m\u2500 conciv: resumed session \u2500\u001b[0m')
 }
 
 const terminalOs = os.$context<{request: Request}>()
 
-const SessionInputSchema = z.object({sessionId: z.string().refine(isSessionId, 'invalid session id (must be ours)')})
+const SessionInputSchema = z.object({sessionId: SessionId})
+
+const LaunchInputSchema = SessionInputSchema.extend({model: z.string().min(1).max(200).optional()})
 
 const noTty = {NO_TTY: {message: 'harness has no terminal mode'}}
+const noConnect = {NO_CONNECT: {message: 'harness cannot be launched in a terminal'}}
 const busy = {BUSY: {message: 'session busy'}}
 
 function makeTerminalRouter(runtime: TerminalRuntime) {
@@ -97,7 +131,6 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
         const {server, tty} = runtime
         const {sessionId, ...size} = input
         if (!server.harness.ttyCommand) throw errors.NO_TTY()
-        if (server.sessions.chatBusy(sessionId)) throw errors.BUSY()
         if (reuseAlive(tty.get(sessionId), size)) return {alive: true}
         await openTtySession(runtime, sessionId, size, new URL(context.request.url).origin)
         return {alive: true}
@@ -120,19 +153,26 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
         const payload: TerminalState = {alive: Boolean(session) && !session?.exited(), busy: session?.busy() ?? false}
         return payload
       }),
-    mirror: terminalOs
-      .errors({NO_TRANSCRIPT: {message: 'no transcript'}})
-      .input(SessionInputSchema)
-      .output(eventIterator(z.object({messages: z.array(z.custom<UIMessage>())})))
-      .handler(async function* ({input, signal, errors}) {
+    launch: terminalOs
+      .errors(noConnect)
+      .input(LaunchInputSchema)
+      .output(z.object({ok: z.boolean()}))
+      .handler(async ({input, context, errors}) => {
+        const origin = new URL(context.request.url).origin
+        const plan = await connectPlanFor(runtime, input.sessionId, input.model ?? null, origin)
+        if (!plan) throw errors.NO_CONNECT()
         const {server} = runtime
-        const token = await server.sessions.resumeToken(input.sessionId)
-        const transcriptMessages = server.harness.transcriptMessages
-        if (!token || !transcriptMessages) throw errors.NO_TRANSCRIPT()
-        yield* subscriptionIterator<{messages: UIMessage[]}>(
-          (emit) => watchMirror({messages: () => transcriptMessages(token)}, emit),
-          signal,
-        )
+        return {ok: await launchConnectPlan(plan, {cwd: server.cwd, stateDir: server.stateDir})}
+      }),
+    connectCommand: terminalOs
+      .errors(noConnect)
+      .input(SessionInputSchema)
+      .output(z.object({command: z.string()}))
+      .handler(async ({input, context, errors}) => {
+        const origin = new URL(context.request.url).origin
+        const plan = await connectPlanFor(runtime, input.sessionId, null, origin)
+        if (!plan) throw errors.NO_CONNECT()
+        return {command: renderConnectCommand(plan, runtime.server.cwd)}
       }),
   })
 }
@@ -180,7 +220,6 @@ export type TerminalAppType = typeof app
 
 export default defineExtension({name: TERMINAL_NAME}).server((server) => {
   const tty = createTtySessions()
-  server.sessions.onChatTurn((sessionId) => tty.close(sessionId))
   const runtime: TerminalRuntime = {server, tty}
   return {
     context: {},

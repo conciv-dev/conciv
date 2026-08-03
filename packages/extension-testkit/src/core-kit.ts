@@ -1,16 +1,9 @@
-import {
-  createFakeHarness,
-  createRecordingTerminalOpener,
-  createTestkit,
-  type FakeHarness,
-  type Kit,
-  type RecordingTerminalOpener,
-} from '@conciv/harness-testkit'
+import {createFakeHarness, createTestkit, type FakeHarness, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {AnyExtension} from '@conciv/extension'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 
-export type CoreKit = Kit & {harness: FakeHarness; terminal: RecordingTerminalOpener}
+export type CoreKit = Kit & {harness: FakeHarness}
 
 export async function bootCoreKit(opts: {
   id: string
@@ -20,7 +13,6 @@ export async function bootCoreKit(opts: {
   nativePageDir?: string
 }): Promise<CoreKit> {
   const harness = createFakeHarness({id: opts.id, text: opts.text ?? 'Hello from conciv', models: opts.models})
-  const terminal = createRecordingTerminalOpener()
   const kit = await createTestkit(harness, async (env) => {
     const {app, dispose} = await makeApp({
       cfg: {
@@ -35,12 +27,11 @@ export async function bootCoreKit(opts: {
       },
       cwd: env.cwd,
       openInEditor: () => {},
-      openTerminal: terminal.open,
       harness: env.harness,
       extensions: opts.extensions,
       nativePageDir: opts.nativePageDir,
     })
     return {fetch: app.fetch, dispose}
   }).setup()
-  return {...kit, harness, terminal}
+  return {...kit, harness}
 }

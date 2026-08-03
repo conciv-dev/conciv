@@ -1,13 +1,11 @@
-import {createEffect, createResource, createSignal, on, onCleanup, onMount, Show, type JSX} from 'solid-js'
+import {createEffect, createSignal, on, onCleanup, onMount, Show, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {ORPCError} from '@orpc/client'
-import type {TerminalRouter} from '../server.js'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {Button} from '@conciv/ui-kit-system'
-import {getHostApi, makeExtRpcClient} from '@conciv/extension'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {getHostApi} from '@conciv/extension'
 import {useTerminalContext} from './terminal-context.js'
-import {MirrorRail} from './mirror-rail.js'
+import {terminalClient, terminalUrl} from './rpc.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
 
@@ -23,14 +21,6 @@ function readTerminalTheme(element: Element): TerminalTheme {
     cursor: token('--pw-text-hi', '#d6d6de'),
     selectionBackground: token('--pw-fill-strong', '#3a3a44'),
   }
-}
-
-function terminalUrl(apiBase: string, path: string): string {
-  return `${apiBase}/api/ext/terminal/${path}`
-}
-
-function terminalClient(apiBase: string) {
-  return makeExtRpcClient<TerminalRouter>(apiBase, 'terminal')
 }
 
 function wsUrl(apiBase: string, sessionId: string | null, cols: number, rows: number): string {
@@ -68,8 +58,6 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
   const setViewLocked = host.useViewLock()
   const leaveView = host.useLeaveView()
   const toast = host.useToast()
-  const rpc = host.useRpc()
-  const [meta] = createResource(() => rpc.meta.models(undefined))
   const [openFailed, setOpenFailed] = createSignal<string | null>(null)
   const openError = (error: unknown): Error => {
     const busy = error instanceof ORPCError && error.code === 'BUSY'
@@ -140,12 +128,6 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
     setViewLocked(false)
     store.setBusy(false)
   })
-  const railCtx = (): ToolViewCtx => ({
-    apiBase: apiBase(),
-    harnessId: meta()?.harness.id ?? '',
-    sendMessage: () => {},
-    respondApproval: () => {},
-  })
   return (
     <Show
       when={!openFailed()}
@@ -158,12 +140,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
         </div>
       }
     >
-      <Terminal
-        model={model}
-        onBackToChat={() => leaveView()}
-        class="flex-1 min-h-0"
-        rail={<MirrorRail apiBase={apiBase()} sessionId={sessionId} ctx={railCtx()} busy={model.busy} />}
-      />
+      <Terminal model={model} onBackToChat={() => leaveView()} class="flex-1 min-h-0" />
     </Show>
   )
 }

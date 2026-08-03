@@ -4,7 +4,8 @@ import type {ContentPart} from '@tanstack/ai'
 import type {AnyRouter} from '@orpc/server'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
+import type {HarnessConnectContext, HarnessConnectPlan} from '@conciv/protocol/harness-types'
+import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
 import type {PageCaller, PageVerbMap} from './page-verbs.js'
 
@@ -67,7 +68,8 @@ export type ServerSessions = {
 
 export type ServerHarness = {
   id: string
-  ttyCommand?: (opts: TtyCommandOpts) => TtyCommand
+  ttyCommand?: (ctx: HarnessConnectContext) => TtyCommand
+  connectPlan?: (ctx: HarnessConnectContext) => HarnessConnectPlan
   release?: (sessionId: string) => void
   transcriptExists?: (token: string) => boolean
   transcriptMessages?: (token: string) => Promise<UIMessage[]>

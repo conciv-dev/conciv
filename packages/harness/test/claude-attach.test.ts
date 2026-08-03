@@ -13,7 +13,6 @@ import {
 } from '../src/claude/attach.js'
 import {CLAUDE_CONNECT_BRIDGE_FILE} from '../src/claude/connect-bridge.js'
 import {claude} from '../src/claude/index.js'
-import {claudeHooksManifest} from '../src/claude/hooks-plugin.js'
 
 const CONCIV_SESSION = SessionId.parse('conciv_attach_test')
 const MCP_URL = 'http://127.0.0.1:4242/api/mcp'
@@ -206,7 +205,6 @@ describe('claude connect plugin files', () => {
       join(root, 'conciv-connect', '.claude-plugin', 'plugin.json'),
       join(root, 'conciv-connect', 'bin', CLAUDE_CONNECT_BRIDGE_FILE),
       join(root, 'conciv-connect', '.mcp.json'),
-      join(root, 'conciv-connect', 'hooks', 'hooks.json'),
     ])
     expect(JSON.parse(contentsAt(join(root, '.claude-plugin', 'marketplace.json')))).toMatchObject({
       name: 'conciv',
@@ -237,17 +235,6 @@ describe('claude connect plugin files', () => {
     expect(bridge).toContain('CLAUDE_CODE_SESSION_ID')
     expect(bridge).toContain(CONCIV_CLAUDE_SESSION_HEADER)
     expect(bridge).toContain('CONCIV_MCP_URL')
-  })
-
-  it('writes hooks that identify their session from the hook body alone', () => {
-    const hooks = contentsAt(join(root, 'conciv-connect', 'hooks', 'hooks.json'))
-    expect(hooks).toBe(claudeHooksManifest({hookUrl: HOOK_URL}))
-    expect(JSON.parse(hooks).hooks.SessionStart[0].hooks[0].headers).toBeUndefined()
-  })
-
-  it('still lets the launched per-process plugin pin its own session header', () => {
-    const owned = JSON.parse(claudeHooksManifest({concivSessionId: CONCIV_SESSION, hookUrl: HOOK_URL}))
-    expect(owned.hooks.SessionStart[0].hooks[0].headers).toEqual({[CONCIV_SESSION_HEADER]: CONCIV_SESSION})
   })
 })
 
