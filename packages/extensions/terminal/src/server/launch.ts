@@ -141,8 +141,10 @@ function openWindows(plan: HarnessConnectPlan, opts: LaunchOptions, openTerminal
 }
 
 function openLinux(plan: HarnessConnectPlan, opts: LaunchOptions, openTerminal: TerminalOpener): Promise<boolean> {
-  const command = renderShellCommand(plan, opts.cwd)
-  return openTerminal({bin: 'x-terminal-emulator', args: ['-e', 'bash', '-lc', `${command}; exec bash`]})
+  const script = writeScript(opts.stateDir, renderBashScript(plan, opts.cwd), 'sh')
+  const opened = openTerminal({bin: 'x-terminal-emulator', args: ['-e', 'bash', script]})
+  forgetScript(script)
+  return opened
 }
 
 export async function launchConnectPlan(plan: HarnessConnectPlan, opts: LaunchOptions): Promise<boolean> {
