@@ -1,17 +1,32 @@
-import type {StreamChunk} from '@tanstack/ai'
+import {EventType, type StreamChunk} from '@tanstack/ai'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import type {ChatDeps} from './runtime.js'
+import {isRunEndChunk} from './run.js'
 import {sessionSnapshot} from './transcript.js'
 
 export type SessionStreams = {
   publish: (sessionId: string, chunk: StreamChunk) => void
   listen: (sessionId: string, onChunk: (chunk: StreamChunk) => void) => () => void
+  replay: (sessionId: string) => StreamChunk[]
 }
 
 export function createSessionStreams(): SessionStreams {
   const bySession = new Map<string, Set<(chunk: StreamChunk) => void>>()
+  const activeRunChunks = new Map<string, StreamChunk[]>()
+  const record = (sessionId: string, chunk: StreamChunk): void => {
+    if (chunk.type === EventType.RUN_STARTED) {
+      activeRunChunks.set(sessionId, [chunk])
+      return
+    }
+    if (isRunEndChunk(chunk)) {
+      activeRunChunks.delete(sessionId)
+      return
+    }
+    activeRunChunks.get(sessionId)?.push(chunk)
+  }
   return {
     publish: (sessionId, chunk) => {
+      record(sessionId, chunk)
       for (const listener of bySession.get(sessionId) ?? []) listener(chunk)
     },
     listen: (sessionId, onChunk) => {
@@ -23,6 +38,7 @@ export function createSessionStreams(): SessionStreams {
         if (listeners.size === 0) bySession.delete(sessionId)
       }
     },
+    replay: (sessionId) => [...(activeRunChunks.get(sessionId) ?? [])],
   }
 }
 
@@ -73,8 +89,10 @@ export async function* subscribeSession(
 ): AsyncGenerator<StreamChunk> {
   const queue = createChunkQueue(signal)
   const unlisten = deps.stream.listen(sessionId, queue.push)
+  const replayed = deps.stream.replay(sessionId)
   try {
     yield aguiSnapshotFor(await sessionSnapshot(deps, sessionId))
+    for (const chunk of replayed) yield chunk
     while (!signal.aborted) {
       const chunk = await queue.take()
       if (chunk === null) return

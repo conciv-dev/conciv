@@ -16,7 +16,7 @@ import {
 import type {HarnessAdapter, HarnessChatConfig} from '@conciv/protocol/harness-types'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
-import {APPROVAL_REQUESTED_EVENT} from '@conciv/protocol/ui-types'
+import {aguiSnapshotFor, APPROVAL_REQUESTED_EVENT} from '@conciv/protocol/ui-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {
   claimRun,
@@ -225,7 +225,7 @@ type RunOutcome = {
   runEnd: StreamChunk | null
 }
 
-function isRunEndChunk(chunk: StreamChunk): boolean {
+export function isRunEndChunk(chunk: StreamChunk): boolean {
   if (chunk.type === EventType.RUN_ERROR) return true
   return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }
@@ -383,6 +383,7 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
   })
   const outcome: RunOutcome = {error: null, usage: null, libraryApprovals: new Set(), runEnd: null}
   try {
+    deps.stream.publish(sessionId, aguiSnapshotFor(await sessionSnapshot(deps, sessionId)))
     const stream = await buildRunStream(deps, sessionId, req, gate, turn.abort)
     const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
     const bounded = boundFirstChunk(stream, timeoutMs, () => {
