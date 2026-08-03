@@ -22,7 +22,7 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     threadId: options.sessionId,
     connection,
     live: true,
-    queue: 'interrupt',
+    queue: 'queue',
     onError: options.onError,
   })
   const stop = () => {
