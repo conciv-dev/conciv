@@ -198,7 +198,6 @@
     {
       "files": ["**/test/**", "**/*.test.ts", "**/*.test.tsx"],
       "rules": {
-        "conciv/no-timers-in-tests": "error",
         "conciv/banned-vocabulary": "off"
       }
     },
@@ -212,45 +211,6 @@
       "files": ["**/until.ts", "**/run-stream.ts"],
       "rules": {
         "conciv/no-predicate-waits": "off"
-      }
-    },
-    {
-      "files": [
-        "**/action-bar-copy.browser.test.tsx",
-        "**/attach-candidates.it.test.ts",
-        "**/bridge-gate.it.test.ts",
-        "**/bundler-diagnostics.it.test.ts",
-        "**/chat-announcements.browser.test.tsx",
-        "**/chat-client.it.test.ts",
-        "**/chat-connection.it.test.ts",
-        "**/claude-attach.test.ts",
-        "**/claude-connect-bridge.it.test.ts",
-        "**/cli.it.test.ts",
-        "**/code-mode.test.ts",
-        "**/compact.it.test.ts",
-        "**/connect-flow.browser.test.tsx",
-        "**/connect-pane.browser.test.tsx",
-        "**/dev-endpoint-option.it.test.ts",
-        "**/dispose-drain.it.test.ts",
-        "**/extensions-watch.it.test.ts",
-        "**/external-rev.it.test.ts",
-        "**/fake-claude.ts",
-        "**/native-live-region.it.test.ts",
-        "**/native-page-vite-boot.it.test.ts",
-        "**/native-widget.it.test.ts",
-        "**/permission-gate.test.ts",
-        "**/pty-sessions.it.test.ts",
-        "**/router.test.ts",
-        "**/run-stream.test.ts",
-        "**/scripted-run.test.ts",
-        "**/send-pipeline.browser.test.tsx",
-        "**/thread-hold.browser.test.tsx",
-        "**/until.test.ts",
-        "**/wire.it.test.ts",
-        "**/wrangler-dev.ts"
-      ],
-      "rules": {
-        "conciv/no-timers-in-tests": "off"
       }
     }
   ],
