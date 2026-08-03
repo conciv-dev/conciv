@@ -252,7 +252,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     id: harness.id,
     ttyCommand: harness.tty?.command,
     transcriptExists: transcriptPath
-      ? (token) => existsSync(transcriptPath(opts.cwd, token, opts.claudeHome))
+      ? (token) => {
+          if (history?.withinProject && !history.withinProject(opts.cwd, token, opts.claudeHome)) return false
+          return existsSync(transcriptPath(opts.cwd, token, opts.claudeHome))
+        }
       : undefined,
     transcriptMessages: history ? (token) => history.messages(opts.cwd, token, opts.claudeHome) : undefined,
     connectPlan: harness.connect?.plan,

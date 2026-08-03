@@ -10,7 +10,7 @@ import type {
   TranscriptHandle,
 } from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '../_shared/json.js'
-import {makeJsonlHandle} from '../_shared/jsonl-handle.js'
+import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
 export function encodeProjectDir(cwd: string): string {
@@ -404,7 +404,12 @@ export async function sessionMeta(cwd: string, sessionId: string, home?: string)
 function observeTranscript(cwd: string, sessionId: string, home?: string): TranscriptHandle {
   return makeJsonlHandle<ClaudeFold>({
     parser: {empty: emptyFold, foldLine, messages: foldMessages},
-    resolvePath: () => Promise.resolve(transcriptPath(cwd, sessionId, home)),
+    resolvePath: async () => {
+      if (!withinProject(cwd, sessionId, home)) {
+        return transcriptFailure('missing', `${sessionId} is not a transcript of ${cwd}`)
+      }
+      return transcriptPath(cwd, sessionId, home)
+    },
   })
 }
 

@@ -409,6 +409,7 @@ async function contextOccupancyFor(deps: ChatDeps, sessionId: string): Promise<n
   if (!history?.contextTokens || !history.transcriptPath) return undefined
   const nativeId = await nativeIdFor(deps.db, sessionId)
   if (!nativeId) return undefined
+  if (history.withinProject && !history.withinProject(deps.cwd, nativeId, deps.claudeHome)) return undefined
   const path = history.transcriptPath(deps.cwd, nativeId, deps.claudeHome)
   if (!existsSync(path)) return undefined
   return history.contextTokens(readFileSync(path, 'utf8'))
