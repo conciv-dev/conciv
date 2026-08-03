@@ -1,5 +1,5 @@
 import {describe, it, expect, afterEach} from 'vitest'
-import {serveApp, type ServedApp} from '@conciv/harness-testkit'
+import {createRecordingTerminalOpener, serveApp, type ServedApp} from '@conciv/harness-testkit'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -22,6 +22,7 @@ async function startServer(): Promise<{served: ServedApp; base: string}> {
     cfg,
     cwd: root,
     openInEditor: () => {},
+    openTerminal: createRecordingTerminalOpener().open,
   })
   const served = await serveApp(app.fetch)
   return {served, base: served.base}

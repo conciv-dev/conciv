@@ -1,6 +1,20 @@
 import {describe, expect, it} from 'vitest'
-import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {SessionId} from '@conciv/protocol/chat-types'
+import type {HarnessChatDeps, HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {codex} from '../src/codex/index.js'
+
+const connectContext = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
+  cwd: '/tmp',
+  stateDir: '/tmp/.conciv/codex',
+  concivSessionId: SessionId.parse('conciv_codex_test'),
+  harnessSessionId: null,
+  resume: false,
+  owned: true,
+  model: null,
+  mcpUrl: null,
+  hookUrl: null,
+  ...over,
+})
 
 const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
   cwd: '/tmp/codex-test',
@@ -35,15 +49,30 @@ describe('codex chatConfig', () => {
     expect(bare).not.toContain('mcp_servers.tanstack')
   })
 
-  it('keeps the terminal launch flow', async () => {
-    const result = await codex.launch?.({
-      cwd: '/tmp',
-      sessionId: 'thread-9',
-      model: 'gpt-5.1',
-      mcpUrl: null,
-      openTerminal: async (argv) => ({opened: true, command: argv.join(' ')}),
-      openUrl: async () => ({opened: false, command: ''}),
-    })
-    expect(result).toEqual({opened: true, command: 'codex resume thread-9 -m gpt-5.1'})
+  it('plans a resume invocation for an existing harness session', () => {
+    expect(codex.connect?.plan(connectContext({resume: true, harnessSessionId: 'thread-9', model: 'gpt-5.1'}))).toEqual(
+      {
+        argv: ['codex', 'resume', 'thread-9', '-m', 'gpt-5.1'],
+        env: {},
+        files: [],
+      },
+    )
+  })
+
+  it('plans a bare invocation when there is no harness session and no model', () => {
+    expect(codex.connect?.plan(connectContext({}))).toEqual({argv: ['codex'], env: {}, files: []})
+  })
+
+  it('leaves the session to codex when a known session is not being resumed', () => {
+    expect(codex.connect?.plan(connectContext({harnessSessionId: 'thread-9'})).argv).toEqual(['codex'])
+  })
+
+  it('passes the conciv mcp server as a whole-table toml override', () => {
+    const argv = codex.connect?.plan(connectContext({mcpUrl: 'http://127.0.0.1:4321/api/mcp'})).argv ?? []
+    expect(argv).toEqual([
+      'codex',
+      '-c',
+      'mcp_servers={conciv={url="http://127.0.0.1:4321/api/mcp",http_headers={"conciv-session-id"="conciv_codex_test"},startup_timeout_sec=30}}',
+    ])
   })
 })

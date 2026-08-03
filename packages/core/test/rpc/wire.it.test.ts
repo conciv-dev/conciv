@@ -8,7 +8,7 @@ import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {openSource} from '@conciv/extension/client'
 import {toolCallParts} from '../../src/chat/gate.js'
-import {requireClaude} from '../helpers/adapters.js'
+import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 
 type WireContext = {kit: Kit; harness: TestHarness}
@@ -150,9 +150,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const first = await kit.attach(sessionId)
     await kit.rpc.chat.send({sessionId, text: 'first question'})
     await first.done({hangGuardMs: 10_000})
-    const history = noResume.history
-    if (!history) throw new Error('harness has no history support')
-    const transcript = history.transcriptPath(kit.stateRoot, `fake-${sessionId}`, claudeHome)
+    const transcript = requireTranscriptPath(noResume)(kit.stateRoot, `fake-${sessionId}`, claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
     writeFileSync(
       transcript,

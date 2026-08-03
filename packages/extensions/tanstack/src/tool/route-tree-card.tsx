@@ -23,8 +23,8 @@ function flatten(node: RawRouteNode, depth: number): RouteNodeShape[] {
   ]
 }
 
-function parseTree(props: ToolCardProps): RouteNodeShape[] | null {
-  const parsed = RouteNodeSchema.safeParse(parseResultPayload(props.result))
+function parseTree(result: ToolCardProps['result']): RouteNodeShape[] | null {
+  const parsed = RouteNodeSchema.safeParse(parseResultPayload(result))
   return parsed.success ? flatten(parsed.data, 0) : null
 }
 
@@ -33,7 +33,7 @@ function TreeIcon(): JSX.Element {
 }
 
 export function RouteTreeCard(props: ToolCardProps): JSX.Element {
-  const nodes = () => parseTree(props)
+  const nodes = () => parseTree(props.result)
   const summary = () => {
     const list = nodes()
     if (!list) return ''

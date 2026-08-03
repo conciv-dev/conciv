@@ -19,6 +19,24 @@ export class Counter extends Component<{start: number}, {value: number}> {
   }
 }
 
+export function ControlledForm(): ReactNode {
+  const [subscribed, setSubscribed] = useState(false)
+  const [plan, setPlan] = useState('none')
+  return (
+    <form>
+      <label for="subscribe">subscribe</label>
+      <input id="subscribe" type="checkbox" checked={subscribed} onChange={(e) => setSubscribed(e.target.checked)} />
+      <label for="plan-free">free</label>
+      <input id="plan-free" type="radio" name="plan" checked={plan === 'free'} onChange={() => setPlan('free')} />
+      <label for="plan-pro">pro</label>
+      <input id="plan-pro" type="radio" name="plan" checked={plan === 'pro'} onChange={() => setPlan('pro')} />
+      <p>
+        subscribed: {String(subscribed)} plan: {plan}
+      </p>
+    </form>
+  )
+}
+
 function Branch(): ReactNode {
   return (
     <section>

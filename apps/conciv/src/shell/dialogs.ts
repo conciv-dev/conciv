@@ -1,6 +1,6 @@
 import {createSignal, onCleanup, onMount, type Component} from 'solid-js'
 
-type Layer = {isOpen: () => boolean; hides: boolean}
+type Layer = {isOpen: () => boolean; hides: () => boolean}
 
 export type LayerStack = {
   register: (isOpen: () => boolean, hides?: boolean) => () => void
@@ -15,15 +15,15 @@ export function makeLayerStack(): LayerStack {
   const push = (layer: Layer) => setStack((prev) => [...prev, layer])
   return {
     register(isOpen, hides = true) {
-      const layer: Layer = {isOpen, hides}
+      const layer: Layer = {isOpen, hides: () => hides}
       push(layer)
       return () => remove(layer)
     },
     anyOpen: () => stack().some((layer) => layer.isOpen()),
-    anyHiding: () => stack().some((layer) => layer.hides && layer.isOpen()),
+    anyHiding: () => stack().some((layer) => layer.hides() && layer.isOpen()),
     track(Inner) {
       return (props) => {
-        const layer: Layer = {isOpen: () => props.open ?? false, hides: props.layer !== 'inline'}
+        const layer: Layer = {isOpen: () => props.open ?? false, hides: () => props.layer !== 'inline'}
         onMount(() => push(layer))
         onCleanup(() => remove(layer))
         return Inner(props)

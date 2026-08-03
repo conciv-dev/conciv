@@ -1,4 +1,4 @@
-import {onMount, type JSX} from 'solid-js'
+import {onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, fn, within, userEvent, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
@@ -77,9 +77,10 @@ export const EnterSubmits: Story = {
 
 function CancelApp(props: {onCancel: () => void}): JSX.Element {
   const chat = useChat({connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2000})})
+  const handlers = untrack(() => ({onCancel: props.onCancel}))
   return (
     <ChatProvider chat={chat}>
-      <ComposerHandlersProvider value={{onCancel: props.onCancel}}>
+      <ComposerHandlersProvider value={handlers}>
         <Composer.Root class="flex gap-2 items-end">
           <Composer.Input placeholder="Message…" class="flex-1" aria-label="Message" />
           <Composer.Send class="text-pw-on-accent px-3 py-1.5 rounded-pw-md bg-pw-accent disabled:opacity-40">
@@ -175,9 +176,10 @@ function AttachmentComposerApp(props: {
   onSend: (content: string | MultimodalContent) => void
 }): JSX.Element {
   const chat = useChat({connection: storyConnection({chunks: createTextChunks('unused')})})
+  const handlers = untrack(() => ({onSend: props.onSend}))
   return (
     <ChatProvider chat={chat}>
-      <ComposerHandlersProvider value={{onSend: props.onSend}}>
+      <ComposerHandlersProvider value={handlers}>
         <Composer.Root attachmentAdapter={props.adapter} class="flex flex-col gap-2">
           <Composer.Attachments component={AttachmentChip} />
           <Composer.Input aria-label="Attachment message" />

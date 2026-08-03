@@ -26,7 +26,10 @@ type RootProps = ParentProps<{
 
 function Root(props: RootProps): JSX.Element {
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
-  const settled = createSettled(() => props.streaming ?? false, props.settleDelayMs ?? SETTLE_DELAY_MS)
+  const settled = createSettled(
+    () => props.streaming ?? false,
+    () => props.settleDelayMs ?? SETTLE_DELAY_MS,
+  )
   const active = () => Boolean(props.streaming) || !settled()
   const open = () => userOpen() ?? (active() || Boolean(props.pinnedOpen))
   const state: ChainState = {

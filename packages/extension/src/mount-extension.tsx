@@ -1,4 +1,5 @@
-import type {JSX} from 'solid-js'
+import {Show, untrack, type JSX} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import {HostApiProvider} from './hooks.js'
 import type {AnyExtension} from './define-extension.js'
 import type {ExtensionSlot, ExtensionView} from './types.js'
@@ -10,12 +11,14 @@ export type MountedExtensionProps = {
 }
 
 export function MountedExtension(props: MountedExtensionProps): JSX.Element {
-  const Component = props.extension.Component
-  if (!Component) return null
   return (
-    <HostApiProvider slot={props.slot} value={props.clientValue}>
-      <Component />
-    </HostApiProvider>
+    <Show when={props.extension.Component}>
+      {(Component) => (
+        <HostApiProvider slot={props.slot} value={props.clientValue}>
+          <Dynamic component={Component()} />
+        </HostApiProvider>
+      )}
+    </Show>
   )
 }
 
@@ -25,12 +28,14 @@ export type MountedSurfaceProps = {
 }
 
 export function MountedSurface(props: MountedSurfaceProps): JSX.Element {
-  const Surface = props.extension.Surface
-  if (!Surface) return null
   return (
-    <HostApiProvider slot="surface" value={props.clientValue}>
-      <Surface />
-    </HostApiProvider>
+    <Show when={props.extension.Surface}>
+      {(Surface) => (
+        <HostApiProvider slot="surface" value={props.clientValue}>
+          <Dynamic component={Surface()} />
+        </HostApiProvider>
+      )}
+    </Show>
   )
 }
 
@@ -40,10 +45,9 @@ export type MountedViewProps = {
 }
 
 export function MountedView(props: MountedViewProps): JSX.Element {
-  const View = props.view.Component
   return (
-    <HostApiProvider slot="widget" value={props.clientValue}>
-      <View />
+    <HostApiProvider slot="widget" value={untrack(() => props.clientValue)}>
+      <Dynamic component={props.view.Component} />
     </HostApiProvider>
   )
 }

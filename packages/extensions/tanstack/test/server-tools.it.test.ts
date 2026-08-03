@@ -8,7 +8,7 @@ import {z} from 'zod'
 import {start, type Engine} from '@conciv/core/start'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
 import {makeViteBridge} from '@conciv/plugin/vite'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import tanstackServer from '../src/server.js'
 import {startViteFixtureServer} from './helpers/vite-fixture-server.js'
 
@@ -65,17 +65,13 @@ describe('tanstack server-half read tools (IT, real engine)', () => {
     const {engine, callTool} = await bootEngine(BUILD_APP, bridge)
     state.engine = engine
 
+    const failed = Promise.withResolvers<BundlerDiagnostic>()
+    const stopWatching = bridge.subscribe?.((diagnostic) => {
+      if (diagnostic.kind === 'build-error') failed.resolve(diagnostic)
+    })
     await fetch(`${viteBase}/broken.ts`, {headers: {'sec-fetch-dest': 'script'}}).catch(() => undefined)
-
-    await expect
-      .poll(
-        async () => {
-          const errors = AppErrorsSchema.parse(await callTool('tanstack_build_errors', {}))
-          return errors.some((error) => error.kind === 'build')
-        },
-        {timeout: 10_000},
-      )
-      .toBe(true)
+    await failed.promise
+    stopWatching?.()
 
     const errors = AppErrorsSchema.parse(await callTool('tanstack_build_errors', {}))
     const buildError = errors.find((error) => error.kind === 'build')

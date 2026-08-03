@@ -1,4 +1,4 @@
-import {createContext, createSignal, onCleanup, useContext, type JSX} from 'solid-js'
+import {createContext, createSignal, onCleanup, untrack, useContext, type JSX} from 'solid-js'
 import {createCollection} from '@tanstack/solid-db'
 import {makeExtRpcClient} from '@conciv/extension'
 import {
@@ -101,7 +101,7 @@ export type WhiteboardDb = ReturnType<typeof createWhiteboardDb>
 const WhiteboardDbContext = createContext<WhiteboardDb>()
 
 export function WhiteboardDbProvider(props: {apiBase: string; room: string; children: JSX.Element}): JSX.Element {
-  const db = createWhiteboardDb(props.apiBase, props.room)
+  const db = untrack(() => createWhiteboardDb(props.apiBase, props.room))
   onCleanup(() => db.dispose())
   return <WhiteboardDbContext.Provider value={db}>{props.children}</WhiteboardDbContext.Provider>
 }

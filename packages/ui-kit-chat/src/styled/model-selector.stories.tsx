@@ -40,7 +40,10 @@ function build(theme?: string): Story {
       const trigger = c.getByRole('button', {name: 'Select model'})
       await expect(trigger).toHaveTextContent('Claude Opus 4.8')
       await userEvent.click(trigger)
-      const search = await waitFor(() => c.getByPlaceholderText('Search models…'))
+      const search = await waitFor(() => {
+        expect(trigger).toHaveAttribute('aria-expanded', 'true')
+        return c.getByPlaceholderText('Search models…')
+      })
       await expect(search).toBeVisible()
 
       await expect(c.getByRole('group', {name: 'Reasoning effort'})).toBeVisible()

@@ -6,6 +6,7 @@ import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {makeApp, type MadeApp} from '../../src/app.js'
 import type {ResolvedConcivConfig} from '../../src/config.js'
+import {createRecordingTerminalOpener} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
 
 function cfgFor(stateRoot: string): ResolvedConcivConfig {
@@ -30,8 +31,8 @@ const healthyTool = defineTool({
 describe('extension mount isolation (real makeApp)', () => {
   const state = {stateRoot: undefined as string | undefined, made: undefined as MadeApp | undefined}
 
-  afterEach(() => {
-    state.made?.closeDb()
+  afterEach(async () => {
+    await state.made?.dispose()
     if (state.stateRoot) rmSync(state.stateRoot, {recursive: true, force: true})
     state.made = undefined
     state.stateRoot = undefined
@@ -56,6 +57,7 @@ describe('extension mount isolation (real makeApp)', () => {
         cfg: cfgFor(stateRoot),
         cwd: stateRoot,
         openInEditor: () => {},
+        openTerminal: createRecordingTerminalOpener().open,
         harness: requireClaude(),
         extensions: [broken, healthy],
       })
@@ -79,6 +81,7 @@ describe('extension mount isolation (real makeApp)', () => {
         cfg: cfgFor(stateRoot),
         cwd: stateRoot,
         openInEditor: () => {},
+        openTerminal: createRecordingTerminalOpener().open,
         harness: requireClaude(),
         extensions: [first, second],
       }),

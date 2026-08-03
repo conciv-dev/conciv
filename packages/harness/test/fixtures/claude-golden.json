@@ -1,0 +1,79 @@
+{
+  "messages": [
+    {
+      "id": "h1",
+      "role": "user",
+      "parts": [
+        {
+          "type": "text",
+          "content": "  rename   the settings panel  "
+        }
+      ]
+    },
+    {
+      "id": "h2",
+      "role": "assistant",
+      "parts": [
+        {
+          "type": "thinking",
+          "content": "Let me look."
+        },
+        {
+          "type": "tool-call",
+          "id": "toolu_1",
+          "name": "conciv_page",
+          "arguments": "{\"verb\":\"snapshot\"}",
+          "state": "input-complete"
+        },
+        {
+          "type": "tool-result",
+          "toolCallId": "toolu_1",
+          "content": "ok",
+          "state": "complete"
+        }
+      ]
+    },
+    {
+      "id": "h3",
+      "role": "assistant",
+      "parts": [
+        {
+          "type": "text",
+          "content": "Renamed it."
+        }
+      ]
+    },
+    {
+      "id": "h4",
+      "role": "user",
+      "parts": [
+        {
+          "type": "text",
+          "content": "and ship it"
+        }
+      ]
+    },
+    {
+      "id": "h5",
+      "role": "assistant",
+      "parts": [
+        {
+          "type": "text",
+          "content": "Shipped   the   change."
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "id": "fixture",
+    "derivedTitle": "rename the settings panel",
+    "updatedAt": 1785417797467,
+    "messageCount": 5,
+    "model": "claude-opus-4-8",
+    "totalTokens": 18,
+    "lastMessage": "Shipped the change.",
+    "createdAt": 1785417785125
+  },
+  "name": "Fix the checkout layout bug",
+  "contextTokens": 92752
+}

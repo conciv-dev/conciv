@@ -34,7 +34,7 @@ function ThreadApp(props: {theme?: string; expose: (chat: UseChatReturn) => void
       chunkDelay: 2,
     }),
   })
-  props.expose(chat)
+  onMount(() => props.expose(chat))
   return (
     <div
       class={`${props.theme ?? ''} rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden`}

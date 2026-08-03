@@ -1,15 +1,13 @@
-import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
-import {claudeMcpArgs} from './args.js'
+import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
+import type {TtyCommand} from '@conciv/protocol/terminal-types'
+import {claudeConnectArgs} from './args.js'
 
 const NESTED_SESSION_MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_', 'CLAUDE_EFFORT', 'AI_AGENT']
 
-export function claudeTtyCommand(opts: TtyCommandOpts): TtyCommand {
-  const base = opts.resume ? ['--resume', opts.harnessSessionId] : ['--session-id', opts.harnessSessionId]
-  const withModel = opts.model ? [...base, '--model', opts.model] : base
-  const args = opts.mcpUrl ? [...withModel, ...claudeMcpArgs(opts.mcpUrl, opts.concivSessionId)] : withModel
+export function claudeTtyCommand(ctx: HarnessConnectContext): TtyCommand {
   return {
     bin: 'claude',
-    args,
+    args: claudeConnectArgs(ctx),
     env: {TERM: 'xterm-256color', COLORTERM: 'truecolor'},
     unsetEnvPrefixes: NESTED_SESSION_MARKERS,
   }

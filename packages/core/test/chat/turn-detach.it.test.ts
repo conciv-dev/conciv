@@ -3,7 +3,8 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {EventType} from '@tanstack/ai'
-import {createTestkit, until, type Kit, type RunStream} from '@conciv/harness-testkit'
+import {createTestkit, type Kit, type RunStream} from '@conciv/harness-testkit'
+import {defineExtension} from '@conciv/extension'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 
@@ -99,16 +100,19 @@ describe('detached turns (IT)', () => {
   })
 
   it('the turn completes with zero subscribers and persists usage', async () => {
-    const kit = await setup()
+    const runEnd = {resolve: (_sessionId: string) => {}}
+    const runEnded = new Promise<string>((resolve) => (runEnd.resolve = resolve))
+    const probe = defineExtension({name: 'run-end-probe'}).server(() => ({
+      context: {},
+      turnEnd: (sessionId: string) => runEnd.resolve(sessionId),
+    }))
+    const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {}, extensions: [probe]})).setup()
+    state.kit = kit
     const id = await kit.session()
     await kit.rpc.chat.send({sessionId: id, text: 'hi'})
-    await until(
-      async () => {
-        const metas = await kit.rpc.sessions.list(undefined)
-        return Boolean(metas.find((meta) => meta.id === id)?.usage)
-      },
-      {hangGuardMs: 5000},
-    )
+    expect(await runEnded).toBe(id)
+    const metas = await kit.rpc.sessions.list(undefined)
+    expect(metas.find((meta) => meta.id === id)?.usage).toBeTruthy()
   })
 
   it('attach during a running turn returns a snapshot with the user text, not 500', async () => {

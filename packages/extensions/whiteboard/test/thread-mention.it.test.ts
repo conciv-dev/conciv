@@ -1,5 +1,5 @@
 import {test} from 'vitest'
-import {bootWhiteboard, createFloatingComment, openCanvas} from './helpers/whiteboard-test-api.js'
+import {bootWhiteboard, createFloatingComment, openCanvas} from './canvas-it-helpers.js'
 
 test('the mention composer lists participants and stores a mention in the shadow overlay', async () => {
   const api = await bootWhiteboard()

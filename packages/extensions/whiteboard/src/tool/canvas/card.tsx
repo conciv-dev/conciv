@@ -39,38 +39,38 @@ function opOf(name: string): string {
 
 type Detail = z.infer<typeof DetailSchema>
 
-function countSummary(_props: ToolCardProps, detail: Detail): string {
+function countSummary(_part: ToolCardProps['part'], detail: Detail): string {
   const count = elementCount(detail.elements)
   return count === null ? '' : `${count} element${count === 1 ? '' : 's'}`
 }
 
-function previewSummary(props: ToolCardProps, detail: Detail): string {
-  return detail.empty ? 'draft is empty' : countSummary(props, detail)
+function previewSummary(part: ToolCardProps['part'], detail: Detail): string {
+  return detail.empty ? 'draft is empty' : countSummary(part, detail)
 }
 
-function drawSummary(props: ToolCardProps): string {
-  const drawn = parseInput(DrawInput, props.part)?.elements.length
+function drawSummary(part: ToolCardProps['part']): string {
+  const drawn = parseInput(DrawInput, part)?.elements.length
   return drawn === undefined ? 'to draft' : `${drawn} element${drawn === 1 ? '' : 's'} to draft`
 }
 
-function connectSummary(props: ToolCardProps): string {
-  const input = parseInput(ConnectInput, props.part)
+function connectSummary(part: ToolCardProps['part']): string {
+  const input = parseInput(ConnectInput, part)
   return input ? `${input.fromId} → ${input.toId}` : ''
 }
 
-function updateSummary(props: ToolCardProps, detail: Detail): string {
-  const target = parseInput(TargetInput, props.part)?.elementId ?? ''
+function updateSummary(part: ToolCardProps['part'], detail: Detail): string {
+  const target = parseInput(TargetInput, part)?.elementId ?? ''
   if (detail.updated === undefined) return target
   return detail.updated ? `updated ${target}` : `${target} not found`
 }
 
-function commitSummary(_props: ToolCardProps, detail: Detail): string {
+function commitSummary(_part: ToolCardProps['part'], detail: Detail): string {
   if (detail.committed === undefined) return ''
   if (!detail.committed) return detail.reason ?? 'nothing to commit'
   return `${elementCount(detail.elements) ?? ''} published`.trim()
 }
 
-const SUMMARIES: Record<string, (props: ToolCardProps, detail: Detail) => string> = {
+const SUMMARIES: Record<string, (part: ToolCardProps['part'], detail: Detail) => string> = {
   read: countSummary,
   export: countSummary,
   preview: previewSummary,
@@ -79,14 +79,14 @@ const SUMMARIES: Record<string, (props: ToolCardProps, detail: Detail) => string
   diagram: () => 'mermaid to draft',
   connect: connectSummary,
   update: updateSummary,
-  delete: (props) => parseInput(TargetInput, props.part)?.elementId ?? '',
-  clear: (_props, detail) => (detail.cleared === undefined ? '' : `${detail.cleared} removed`),
+  delete: (part) => parseInput(TargetInput, part)?.elementId ?? '',
+  clear: (_part, detail) => (detail.cleared === undefined ? '' : `${detail.cleared} removed`),
   commit: commitSummary,
-  discard: (_props, detail) => (detail.discarded === undefined ? '' : `${detail.discarded} discarded`),
+  discard: (_part, detail) => (detail.discarded === undefined ? '' : `${detail.discarded} discarded`),
 }
 
-function summarize(op: string, props: ToolCardProps, detail: Detail): string {
-  return SUMMARIES[op]?.(props, detail) ?? ''
+function summarize(op: string, part: ToolCardProps['part'], detail: Detail): string {
+  return SUMMARIES[op]?.(part, detail) ?? ''
 }
 
 function CanvasIcon(): JSX.Element {
@@ -110,7 +110,7 @@ export function CanvasOpCard(props: ToolCardProps): JSX.Element {
     <ToolCard
       Icon={destructive() ? DangerIcon : CanvasIcon}
       title={props.part.name}
-      meta={summarize(op(), props, detail())}
+      meta={summarize(op(), props.part, detail())}
       part={props.part}
       result={props.result}
       status={failure() ? 'error' : undefined}
@@ -118,7 +118,7 @@ export function CanvasOpCard(props: ToolCardProps): JSX.Element {
       <div class="flex flex-col gap-2">
         <Show when={destructive()}>
           <div class="flex">
-            <ToolChip name={`${op()} ${summarize(op(), props, detail())}`.trim()} tone="bad" />
+            <ToolChip name={`${op()} ${summarize(op(), props.part, detail())}`.trim()} tone="bad" />
           </div>
         </Show>
         <Show when={payload().image}>
@@ -126,11 +126,11 @@ export function CanvasOpCard(props: ToolCardProps): JSX.Element {
             <img
               src={`data:${image().mimeType};base64,${image().value}`}
               alt={`canvas ${op()}`}
-              class="max-h-60 max-w-full self-start rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-line)]"
+              class="rounded-[var(--chat-radius-sm)] max-h-60 max-w-full [border:1px_solid_var(--chat-line)] self-start"
             />
           )}
         </Show>
-        <Show when={!payload().image && !destructive() && summarize(op(), props, detail())}>
+        <Show when={!payload().image && !destructive() && summarize(op(), props.part, detail())}>
           {(text) => (
             <div class="flex">
               <ToolChip name={text()} />
@@ -139,7 +139,7 @@ export function CanvasOpCard(props: ToolCardProps): JSX.Element {
         </Show>
         <Show when={failure()}>
           {(error) => (
-            <div class="rounded-[var(--chat-radius-sm)] p-2 text-[length:var(--chat-text-xs)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
+            <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
               {error().error}
               <Show when={error().reason}>
                 <span class="[color:var(--chat-text-3)]"> · {error().reason}</span>

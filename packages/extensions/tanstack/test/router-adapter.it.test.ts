@@ -94,12 +94,8 @@ test('tanstack_navigate drives real TanStack Router navigation on the running ap
 
   await api.callTool('tanstack_navigate', {to: '/form'})
 
-  await expect
-    .poll(async () => routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.pathname, {
-      timeout: 10_000,
-    })
-    .toBe('/form')
   await expectLocator(api.page.getByRole('heading', {name: 'Form page'})).toBeVisible()
+  expect(routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.pathname).toBe('/form')
 })
 
 test('navigate threads search through the adapter into the running TanStack Router location', async () => {
@@ -110,12 +106,10 @@ test('navigate threads search through the adapter into the running TanStack Rout
   const adapter = tanstackAdapter(api)
   await adapter.client.navigation.navigate({to: '/secret', search: {token: 'nav-applied'}})
 
-  await expect
-    .poll(async () => routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.search, {
-      timeout: 10_000,
-    })
-    .toContain('token=nav-applied')
   await expectLocator(api.page.getByRole('heading', {name: 'Secret page'})).toBeVisible()
+  expect(routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.search).toContain(
+    'token=nav-applied',
+  )
 })
 
 test('tanstack_query_invalidate no-ops on unknown keys and refetches the real key on the running app', async () => {
@@ -128,29 +122,23 @@ test('tanstack_query_invalidate no-ops on unknown keys and refetches the real ke
   const demoKey = JSON.stringify(['spike', 'demo'])
   const readDemo = async () => {
     const cache = queryCacheSchema.parse(await api.callTool('tanstack_query_cache', {}))
-    return cache.queries.find((entry) => entry.key === demoKey)
+    const entry = cache.queries.find((row) => row.key === demoKey)
+    if (!entry) throw new Error('demo query missing from the tanstack query cache')
+    return entry
   }
 
   const before = await readDemo()
-  expect(before?.status).toBe('success')
-  expect(before?.updatedAt).not.toBeNull()
+  expect(before.status).toBe('success')
+  expect(before.updatedAt).not.toBeNull()
 
   await api.callTool('tanstack_query_invalidate', {key: JSON.stringify(['nope', 'nope'])})
   const afterUnknown = await readDemo()
-  expect(afterUnknown?.updatedAt).toBe(before?.updatedAt)
-  expect(afterUnknown?.state).toBe(before?.state)
+  expect(afterUnknown.updatedAt).toBe(before.updatedAt)
+  expect(afterUnknown.state).toBe(before.state)
 
   await api.callTool('tanstack_query_invalidate', {key: demoKey})
-  await expect
-    .poll(
-      async () => {
-        const after = await readDemo()
-        if (!after || after.updatedAt === null || before?.updatedAt == null) return false
-        return after.updatedAt > before.updatedAt
-      },
-      {timeout: 10_000},
-    )
-    .toBe(true)
+  const after = await readDemo()
+  expect(after.updatedAt).toBeGreaterThan(before.updatedAt ?? 0)
 })
 
 const truncationMarkerSchema = z.object({__conciv: z.literal('object'), preview: z.literal('{…}')}).loose()

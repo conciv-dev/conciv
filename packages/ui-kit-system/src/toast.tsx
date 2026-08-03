@@ -30,5 +30,5 @@ function Toaster(props: {toaster: ToasterInstance}): JSX.Element {
 }
 
 export const Toast = Object.assign({}, Ark, {Toaster, createToaster})
-export {createToaster}
+export {ArkToaster as ToastGroup, createToaster}
 export type {ToasterInstance}

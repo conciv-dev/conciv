@@ -1,10 +1,5 @@
-import {spawn} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
-import {writeFileSync, chmodSync} from 'node:fs'
-import {platform, tmpdir} from 'node:os'
-import {join} from 'node:path'
 import {and, eq, isNull} from 'drizzle-orm'
-import {withoutTrailingSlash} from 'ufo'
 import type {ContentPart, ModelMessage} from '@tanstack/ai'
 import type {
   ChatCommand,
@@ -14,10 +9,23 @@ import type {
   ChatMessage,
   ChatSessionMeta,
   SessionRecord,
+  SessionRecordInput,
+  TokenClaim,
 } from '@conciv/protocol/chat-types'
-import {isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
-import {FILE_REF_PREFIX, type HarnessLaunchContext, type HarnessLaunchResult} from '@conciv/protocol/harness-types'
+import {CONCIV_HOOK_PATH, isHarnessSessionId, isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
+import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
+import type {
+  HarnessAdapter,
+  HarnessConnectPlan,
+  HarnessHistory,
+  TranscriptFailure,
+  TranscriptRevision,
+} from '@conciv/protocol/harness-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {sessions, type ConcivDb} from '@conciv/db'
+import {sameCwd} from '@conciv/harness/cwd'
+import {apiBaseFrom} from '../lib/api-base.js'
+import {executeConnectPlan} from './connect-exec.js'
 import type {ChatDeps} from './runtime.js'
 
 export type ResolveDeps = {
@@ -37,9 +45,97 @@ export async function sessionByHarnessId(db: ConcivDb, harnessSessionId: string)
   return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
 }
 
+export async function transcriptCwdFor(db: ConcivDb, token: string): Promise<string | null> {
+  return (await sessionByHarnessId(db, token))?.transcriptCwd ?? null
+}
+
+export const resumeTokenFor = async (db: ConcivDb, id: string): Promise<string | null> =>
+  (await sessionById(db, id))?.harnessSessionId ?? null
+
+export function transcriptTokenAllowed(
+  history: HarnessHistory | undefined,
+  cwd: string,
+  token: string,
+  home?: string,
+): boolean {
+  if (!isHarnessSessionId(token)) return false
+  return history?.withinProject?.(cwd, token, home) ?? true
+}
+
+export async function transcriptRevision(
+  history: HarnessHistory,
+  cwd: string,
+  token: string,
+  home?: string,
+): Promise<TranscriptRevision | TranscriptFailure> {
+  const handle = history.observe(cwd, token, home)
+  try {
+    return await handle.revision()
+  } finally {
+    handle.close()
+  }
+}
+
+export async function resumableToken(
+  db: ConcivDb,
+  harness: HarnessAdapter,
+  cwd: string,
+  token: string | null,
+  home?: string,
+): Promise<string | null> {
+  if (!token) return null
+  const history = harness.history
+  if (!history) return token
+  const transcriptCwd = (await transcriptCwdFor(db, token)) ?? cwd
+  if (!transcriptTokenAllowed(history, transcriptCwd, token, home)) return null
+  const revision = await transcriptRevision(history, transcriptCwd, token, home)
+  if (!('ok' in revision)) return token
+  if (revision.reason === 'missing') return null
+  throw new Error(`cannot read the transcript for ${token}: ${revision.detail}`)
+}
+
+export const recordMintedToken = async (db: ConcivDb, id: string, token: string): Promise<void> => {
+  if (!isHarnessSessionId(token)) throw new Error(`refusing to record an unusable harness session id: "${token}"`)
+  await db.update(sessions).set({harnessSessionId: token, updatedAt: Date.now()}).where(eq(sessions.id, id))
+}
+
+function emptyChatShell(record: SessionRecord): boolean {
+  return record.origin === 'chat' && record.title === null
+}
+
+async function releaseToken(db: ConcivDb, id: string): Promise<void> {
+  await db.update(sessions).set({harnessSessionId: null, updatedAt: Date.now()}).where(eq(sessions.id, id))
+}
+
+export async function claimHarnessToken(db: ConcivDb, id: string, token: string): Promise<TokenClaim> {
+  if (!isHarnessSessionId(token)) throw new Error(`refusing to record an unusable harness session id: "${token}"`)
+  const owner = await sessionByHarnessId(db, token)
+  if (owner?.id === id) return 'kept'
+  const claimant = await sessionById(db, id)
+  if (owner && !emptyChatShell(owner)) return 'conflict'
+  if (owner && claimant && owner.updatedAt > claimant.updatedAt) return 'conflict'
+  if (owner) await releaseToken(db, owner.id)
+  await recordMintedToken(db, id, token)
+  return 'recorded'
+}
+
+export const ensureChatRecord = async (db: ConcivDb, id: string, harnessKind: string, cwd: string): Promise<void> => {
+  if (await sessionById(db, id)) return
+  await createSession(db, {
+    id,
+    harnessSessionId: null,
+    harnessKind,
+    origin: 'chat',
+    title: null,
+    model: null,
+    usage: null,
+    cwd,
+  })
+}
+
 export async function createSession(
   db: ConcivDb,
-  input: Omit<SessionRecord, 'createdAt' | 'updatedAt' | 'id'> & {id: string},
+  input: Omit<SessionRecordInput, 'createdAt' | 'updatedAt'>,
 ): Promise<SessionRecord> {
   const now = Date.now()
   const record = SessionRecordSchema.parse({...input, createdAt: now, updatedAt: now})
@@ -85,8 +181,6 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
     cwd: deps.cwd,
   })
 }
-
-const sameCwd = (a: string, b: string): boolean => withoutTrailingSlash(a) === withoutTrailingSlash(b)
 
 export async function sweepEmptyChatRecords(db: ConcivDb): Promise<void> {
   await db
@@ -136,10 +230,13 @@ export async function buildSessionList(args: {
   return [...ours, ...unwrapped].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }
 
-export async function listCommands(deps: ChatDeps, opts: {sessionId?: string; origin: string}): Promise<ChatCommands> {
+export async function listCommands(
+  deps: ChatDeps,
+  opts: {sessionId?: string; requestUrl: string},
+): Promise<ChatCommands> {
   const commands = deps.harness.commands
   if (!commands) return {commands: []}
-  const mcpUrl = deps.harness.capabilities.mcp === 'http' ? `${opts.origin}/api/mcp` : undefined
+  const mcpUrl = deps.harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.requestUrl) : undefined
   const list = await commands({cwd: deps.cwd, sessionId: opts.sessionId, mcpUrl})
   return {
     commands: list.map((command) => ({
@@ -225,100 +322,57 @@ export function toModelMessages(messages: ChatMessage[]): ModelMessage[] {
   return messages.map((m) => ({role: modelRole(m.role), content: modelContent(m)}))
 }
 
-export async function launchHarness(
-  deps: ChatDeps,
-  opts: {sessionId: string | null; model?: string; origin: string},
-): Promise<ChatLaunch> {
-  if (!deps.harness.launch) return {supported: false, opened: false, command: null}
-  const token = opts.sessionId ? ((await sessionById(deps.db, opts.sessionId))?.harnessSessionId ?? null) : null
-  const ctx: HarnessLaunchContext = {
+export function mcpUrlFor(deps: ChatDeps, requestUrl: string): string {
+  return `${apiBaseFrom(requestUrl, deps.basePath)}/api/mcp`
+}
+
+export type LaunchOptions = {
+  sessionId: string
+  model?: string
+  open?: boolean
+  owned?: boolean
+  requestUrl: string
+}
+
+async function harnessToken(deps: ChatDeps, sessionId: string): Promise<{token: string; resume: boolean}> {
+  const existing = await resumeTokenFor(deps.db, sessionId)
+  if (!existing) {
+    const minted = randomUUID()
+    await recordMintedToken(deps.db, sessionId, minted)
+    return {token: minted, resume: false}
+  }
+  const resumable = await resumableToken(deps.db, deps.harness, deps.cwd, existing, deps.claudeHome)
+  return {token: existing, resume: resumable !== null}
+}
+
+export async function connectPlanFor(deps: ChatDeps, opts: LaunchOptions): Promise<HarnessConnectPlan | null> {
+  const connect = deps.harness.connect
+  if (!connect || !isSessionId(opts.sessionId)) return null
+  const sessionId = opts.sessionId
+  await ensureChatRecord(deps.db, sessionId, deps.harness.id, deps.cwd)
+  const {token, resume} = await harnessToken(deps, sessionId)
+  return connect.plan({
     cwd: deps.cwd,
-    sessionId: token || null,
+    stateDir: concivStateDir(deps.stateRoot),
+    concivSessionId: sessionId,
+    harnessSessionId: token,
+    resume,
+    owned: opts.owned ?? true,
     model: opts.model ?? null,
-    mcpUrl: deps.harness.capabilities.mcp === 'http' ? `${opts.origin}/api/mcp` : null,
-    openTerminal: (argv) => openTerminal(argv, deps.cwd),
-    openUrl: (url) => openUrl(url),
-  }
-  const result = await deps.harness.launch(ctx)
-  return {supported: true, opened: result.opened, command: result.command}
-}
-
-async function openTerminal(argv: string[], cwd: string): Promise<HarnessLaunchResult> {
-  const command = `cd ${shellQuote(cwd)} && ${argv.map(shellQuote).join(' ')}`
-  const opened = await spawnTerminal(command)
-  return {opened, command}
-}
-
-async function openUrl(url: string): Promise<HarnessLaunchResult> {
-  const invocation = urlOpener(url)
-  const opened = invocation ? await spawnDetached(invocation[0], invocation[1]) : false
-  return {opened, command: url}
-}
-
-async function spawnTerminal(command: string): Promise<boolean> {
-  switch (platform()) {
-    case 'darwin': {
-      const file = join(tmpdir(), `conciv-launch-${randomUUID()}.command`)
-
-      writeFileSync(file, `#!/bin/bash\n${command}\nexec $SHELL\n`)
-      chmodSync(file, 0o755)
-      const terminalApp = macTerminalApp(process.env.TERM_PROGRAM)
-      return spawnDetached('open', terminalApp ? ['-a', terminalApp, file] : [file])
-    }
-    case 'win32':
-      return spawnDetached('cmd', ['/c', 'start', 'cmd', '/k', command])
-    case 'linux':
-      return spawnDetached('x-terminal-emulator', ['-e', 'bash', '-lc', `${command}; exec bash`])
-    default:
-      return false
-  }
-}
-
-function macTerminalApp(termProgram: string | undefined): string | null {
-  switch (termProgram) {
-    case 'iTerm.app':
-      return 'iTerm'
-    case 'Apple_Terminal':
-      return 'Terminal'
-    case 'WarpTerminal':
-      return 'Warp'
-    case 'WezTerm':
-      return 'WezTerm'
-    case 'ghostty':
-      return 'Ghostty'
-    case 'Hyper':
-      return 'Hyper'
-    case 'kitty':
-      return 'kitty'
-    default:
-      return null
-  }
-}
-
-function urlOpener(url: string): [string, string[]] | null {
-  switch (platform()) {
-    case 'darwin':
-      return ['open', [url]]
-    case 'win32':
-      return ['cmd', ['/c', 'start', '', url]]
-    case 'linux':
-      return ['xdg-open', [url]]
-    default:
-      return null
-  }
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`
-}
-
-function spawnDetached(bin: string, args: string[]): Promise<boolean> {
-  return new Promise((resolve) => {
-    const child = spawn(bin, args, {detached: true, stdio: 'ignore'})
-    child.once('spawn', () => {
-      child.unref()
-      resolve(true)
-    })
-    child.once('error', () => resolve(false))
+    mcpUrl: deps.harness.capabilities.mcp === 'http' ? mcpUrlFor(deps, opts.requestUrl) : null,
+    hookUrl: `${apiBaseFrom(opts.requestUrl, deps.basePath)}${CONCIV_HOOK_PATH}`,
   })
+}
+
+export async function launchHarness(deps: ChatDeps, opts: LaunchOptions): Promise<ChatLaunch> {
+  if (!deps.harness.connect) return {supported: false, opened: false, command: null}
+  const plan = await connectPlanFor(deps, opts)
+  if (!plan) return {supported: true, opened: false, command: null}
+  const {opened, command} = await executeConnectPlan(plan, {
+    cwd: deps.cwd,
+    stateDir: concivStateDir(deps.stateRoot),
+    open: opts.open ?? true,
+    openTerminal: deps.openTerminal,
+  })
+  return {supported: true, opened, command}
 }

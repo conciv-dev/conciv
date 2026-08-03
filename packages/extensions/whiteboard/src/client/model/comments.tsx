@@ -1,4 +1,4 @@
-import {createContext, createMemo, createSignal, useContext, type Accessor, type JSX} from 'solid-js'
+import {createContext, createMemo, createSignal, untrack, useContext, type Accessor, type JSX} from 'solid-js'
 import {useLiveQuery} from '@tanstack/solid-db'
 import {getHostApi} from '@conciv/extension'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
@@ -370,7 +370,7 @@ export function CommentsProvider(props: {
   children: JSX.Element
 }): JSX.Element {
   const {Suppress} = getHostApi()
-  const model = createCommentsModel(props.room, props.apiBase, props.canvasOpen, props.onComposeSettled)
+  const model = untrack(() => createCommentsModel(props.room, props.apiBase, props.canvasOpen, props.onComposeSettled))
   return (
     <CommentsContext.Provider value={model}>
       <Suppress when={model.openCid() !== null || model.composeTarget() !== null}>{props.children}</Suppress>

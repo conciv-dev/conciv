@@ -46,7 +46,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json && vite build -c vite.test-host.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
@@ -62,6 +62,7 @@
     "@orpc/tanstack-query": "^1.14.7",
     "@rrweb/rrweb-plugin-console-record": "^2.1.0",
     "@rrweb/types": "^2.1.0",
+    "@solid-primitives/timer": "^1.4.4",
     "@tanstack/solid-query": "^5.101.2",
     "lucide-solid": "^1.18.0",
     "playwright-core": "^1.61.1",

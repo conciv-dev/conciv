@@ -3,8 +3,19 @@ import {eq} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
 import {resolveHarnessModels} from '@conciv/harness'
 import {clearRunState, drafts, markers, requestStop, sessions, statusOf, type RunStatus} from '@conciv/db'
-import {buildSessionList, launchHarness, resolveSession, sessionById} from '../../chat/session.js'
-import {ensureChatRecord, SESSION_BUSY} from '../../chat/run.js'
+import {sameCwd} from '@conciv/harness/cwd'
+import type {HarnessRow} from '../../chat/session.js'
+import {buildSessionList, ensureChatRecord, launchHarness, resolveSession, sessionById} from '../../chat/session.js'
+import type {ChatDeps} from '../../chat/runtime.js'
+import {SESSION_BUSY} from '../../chat/run.js'
+import {
+  adoptLiveSession,
+  attachedElsewhere,
+  detachLiveSession,
+  liveCandidates,
+  SESSION_ATTACHED,
+} from '../../chat/adopt.js'
+import {logError} from '../../lib/debug.js'
 import {os, type RpcDeps} from './mount.js'
 
 function wireStatus(status: RunStatus): 'idle' | 'running' | 'compacting' {
@@ -12,23 +23,44 @@ function wireStatus(status: RunStatus): 'idle' | 'running' | 'compacting' {
   return status === 'idle' ? 'idle' : 'running'
 }
 
-export async function rpcSessionList(deps: RpcDeps): Promise<SessionMeta[]> {
-  const chat = deps.chat
+async function foreignTranscriptRows(chat: ChatDeps): Promise<HarnessRow[]> {
+  const meta = chat.harness.history?.meta
+  if (!meta) return []
+  const rows = await chat.db
+    .select({harnessSessionId: sessions.harnessSessionId, transcriptCwd: sessions.transcriptCwd, cwd: sessions.cwd})
+    .from(sessions)
+  const foreign = rows.flatMap((row) =>
+    row.harnessSessionId && row.transcriptCwd && sameCwd(row.cwd, chat.cwd) && !sameCwd(row.transcriptCwd, chat.cwd)
+      ? [{token: row.harnessSessionId, cwd: row.transcriptCwd}]
+      : [],
+  )
+  const settled = await Promise.allSettled(foreign.map((row) => meta(row.cwd, row.token, chat.claudeHome)))
+  settled.forEach((outcome) => {
+    if (outcome.status === 'rejected') logError(`[core] reading a foreign transcript failed: ${String(outcome.reason)}`)
+  })
+  return settled.flatMap((outcome) => (outcome.status === 'fulfilled' && outcome.value ? [outcome.value] : []))
+}
+
+export async function rpcSessionList(chat: ChatDeps): Promise<SessionMeta[]> {
   const hist = chat.harness.history
   const harnessList =
-    chat.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(chat.cwd, chat.claudeHome) : []
+    chat.harness.capabilities.transcriptHistory && hist ? await hist.list(chat.cwd, chat.claudeHome) : []
   const metas = await buildSessionList({
     db: chat.db,
-    harnessList,
+    harnessList: [...harnessList, ...(await foreignTranscriptRows(chat))],
     running: (sessionId) => wireStatus(statusOf(chat.db, sessionId)) === 'running',
     cwd: chat.cwd,
   })
-  const rows = await chat.db.select({id: sessions.id, model: sessions.model}).from(sessions)
+  const rows = await chat.db
+    .select({id: sessions.id, model: sessions.model, attachedPid: sessions.attachedPid})
+    .from(sessions)
   const models = new Map(rows.map((row) => [row.id, row.model]))
+  const attached = new Set(rows.filter((row) => row.attachedPid !== null).map((row) => row.id))
   return metas.map((meta) => ({
     ...meta,
     status: wireStatus(statusOf(chat.db, meta.id)),
     model: models.get(meta.id) ?? null,
+    attached: attached.has(meta.id),
   }))
 }
 
@@ -41,7 +73,7 @@ export function sessionsRouter(deps: RpcDeps) {
     return {models, defaultModel: chat.harness.defaultModel ?? models[0]?.id ?? null}
   }
   return {
-    list: os.sessions.list.handler(() => rpcSessionList(deps)),
+    list: os.sessions.list.handler(() => rpcSessionList(chat)),
     create: os.sessions.create.handler(async () => {
       const {sessionId} = await resolveSession(scope, {})
       await ensureChatRecord(db, sessionId, scope.harnessKind, scope.cwd)
@@ -52,13 +84,46 @@ export function sessionsRouter(deps: RpcDeps) {
       const {sessionId} = await resolveSession(scope, input)
       return {sessionId}
     }),
-    launch: os.sessions.launch.handler(({input, context}) =>
-      launchHarness(chat, {
+    launch: os.sessions.launch.handler(async ({input, context, errors}) => {
+      if (statusOf(db, input.sessionId) !== 'idle') throw errors.BUSY()
+      if (!input.force && (await attachedElsewhere(chat, input.sessionId))) throw errors.SESSION_ATTACHED()
+      deps.onLaunch(input.sessionId)
+      return launchHarness(chat, {
         sessionId: input.sessionId,
         model: input.model,
-        origin: new URL(context.request.url).origin,
-      }),
-    ),
+        open: input.open ?? true,
+        requestUrl: context.request.url,
+      })
+    }),
+    connectCommand: os.sessions.connectCommand.handler(async ({input, context, errors}) => {
+      if (!input.force && (await attachedElsewhere(chat, input.sessionId))) throw errors.SESSION_ATTACHED()
+      deps.onLaunch(input.sessionId)
+      return launchHarness(chat, {
+        sessionId: input.sessionId,
+        model: input.model,
+        open: false,
+        owned: false,
+        requestUrl: context.request.url,
+      })
+    }),
+    attachCandidates: os.sessions.attachCandidates.handler(() => liveCandidates(chat)),
+    attachAdopt: os.sessions.attachAdopt.handler(async ({input, context, errors}) => {
+      const outcome = await adoptLiveSession(chat, {
+        harnessSessionId: input.harnessSessionId,
+        pid: input.pid,
+        force: input.force ?? false,
+        requestUrl: context.request.url,
+      })
+      if (outcome.ok) return {sessionId: outcome.sessionId, reloadCommand: outcome.reloadCommand}
+      if (outcome.code === 'CWD_MISMATCH') throw errors.CWD_MISMATCH({message: outcome.detail})
+      if (outcome.code === 'ATTACH_CONFLICT') throw errors.ATTACH_CONFLICT({message: outcome.detail})
+      if (outcome.code === 'ATTACH_FAILED') throw errors.ATTACH_FAILED({message: outcome.detail})
+      throw errors.INSTALL_FAILED({message: outcome.detail})
+    }),
+    attachDetach: os.sessions.attachDetach.handler(async ({input}) => {
+      const detached = await detachLiveSession(chat, input.sessionId)
+      return {ok: true as const, detached}
+    }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
       if (!(await sessionById(db, input.sessionId))) throw errors.NOT_FOUND()
       const title = cleanTitle(input.title)
@@ -85,6 +150,7 @@ export function sessionsRouter(deps: RpcDeps) {
         await deps.compactor.run(input.sessionId)
       } catch (error) {
         if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
+        if (error instanceof Error && error.message === SESSION_ATTACHED) throw errors.SESSION_ATTACHED()
         throw error
       }
       return {ok: true as const}
@@ -109,7 +175,8 @@ export function harnessMetaOf(deps: RpcDeps) {
   return {
     id: deps.chat.harness.id,
     name: deps.chat.harness.displayName ?? deps.chat.harness.id,
-    canLaunch: Boolean(deps.chat.harness.launch),
+    canLaunch: Boolean(deps.chat.harness.connect),
+    canAttach: Boolean(deps.chat.harness.attach),
     imageInput: deps.chat.harness.capabilities.imageInput,
   }
 }

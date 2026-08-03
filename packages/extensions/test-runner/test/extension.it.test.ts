@@ -28,9 +28,14 @@ async function boot(opts: {root?: string; extensions?: ConcivConfig['extensions'
   engine: Engine
 }> {
   const engine = await start({
-    options: {systemPrompt: false, extensions: opts.extensions},
+    options: {
+      systemPrompt: false,
+      extensions: opts.extensions,
+      stateRoot: mkdtempSync(join(tmpdir(), 'conciv-test-runner-it-')),
+    },
     root: opts.root ?? fixture,
     launchEditor: () => {},
+    openTerminal: () => Promise.resolve(true),
     extensions,
   })
   return {base: `http://127.0.0.1:${engine.port}`, engine}
@@ -118,6 +123,7 @@ describe('test-runner extension booted in the real engine (IT)', () => {
       options: {systemPrompt: false, stateRoot},
       root: missingRoot,
       launchEditor: () => {},
+      openTerminal: () => Promise.resolve(true),
       extensions,
     })
     const base = `http://127.0.0.1:${engine.port}`

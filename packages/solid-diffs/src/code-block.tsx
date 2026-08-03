@@ -22,7 +22,8 @@ export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
   }
 
   createEffect(() => {
-    const {file, options} = props
+    const file = props.file
+    const options = props.options
     if (!instance) return
     if (!primed) {
       primed = true
@@ -32,5 +33,5 @@ export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
     void instance.render({file, forceRender: true})
   })
 
-  return <diffs-container ref={setRef} class={props.class} style={props.style} />
+  return <diffs-container ref={(node) => setRef(node)} class={props.class} style={props.style} />
 }

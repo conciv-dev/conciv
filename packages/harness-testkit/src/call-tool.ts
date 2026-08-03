@@ -1,5 +1,7 @@
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {approvalIds} from './run-events.js'
+import {makeRpcClient} from './session.js'
 
 export type CallTool = (name: string, input: unknown) => Promise<unknown>
 
@@ -29,6 +31,31 @@ export function makeCallTool(apiBase: string, session: string): CallTool {
       }
     } finally {
       await mcp.close()
+    }
+  }
+}
+
+export function makeApprovingCallTool(apiBase: string, session: string): CallTool {
+  const rpc = makeRpcClient(apiBase)
+  const call = makeCallTool(apiBase, session)
+  return async (name, input) => {
+    const abort = new AbortController()
+    const decided = new Set<string>()
+    const pump = (async () => {
+      const stream = await rpc.chat.attach({sessionId: session}, {signal: abort.signal})
+      for await (const chunk of stream) {
+        for (const approvalId of approvalIds(chunk)) {
+          if (decided.has(approvalId)) continue
+          decided.add(approvalId)
+          await rpc.chat.permissionDecision({approvalId, approved: true})
+        }
+      }
+    })()
+    try {
+      return await call(name, input)
+    } finally {
+      abort.abort()
+      await pump.catch(() => {})
     }
   }
 }

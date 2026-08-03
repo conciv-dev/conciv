@@ -1,5 +1,5 @@
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
-import {Combobox, TooltipIconButton} from '@conciv/ui-kit-system'
+import {Button, Combobox, TooltipIconButton} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
@@ -10,6 +10,8 @@ let instanceSeq = 0
 
 const ACT =
   'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-pw-sm bg-transparent text-pw-text-2 cursor-pointer hover:bg-pw-fill-strong hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
+
+const RUNNING_ELSEWHERE = 'running in another pane'
 
 const SKEL = 'h-8 rounded-pw-sm skel-bg [background-size:200%_100%] anim-skel'
 
@@ -130,11 +132,11 @@ export function SessionSelector(props: {
     announce(`Switched to ${title}`)
   }
 
-  const isPill = props.variant === 'pill'
+  const isPill = () => props.variant === 'pill'
   return (
     <Combobox.Root
       ids={{root: idPrefix}}
-      class={isPill ? 'inline-flex min-w-0 max-w-full' : ''}
+      class={isPill() ? 'inline-flex min-w-0 max-w-full' : ''}
       collection={collection()}
       value={valueArr()}
       inputValue={query()}
@@ -163,7 +165,7 @@ export function SessionSelector(props: {
       <Combobox.Control class="inline-flex min-w-0">
         <Combobox.Trigger
           class={`group text-[0.75rem] text-pw-text-2 border border-transparent rounded-pw-pill bg-transparent inline-flex gap-1.5 h-7 min-w-0 cursor-pointer trans-cbb items-center hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
-            isPill
+            isPill()
               ? 'max-w-64 py-0 pr-1.5 pl-2 hover:border-pw-line hover:bg-pw-fill-soft data-[state=open]:border-pw-line data-[state=open]:bg-pw-fill-soft data-[state=open]:text-pw-text-hi'
               : 'p-0 font-pw-mono'
           }`}
@@ -241,13 +243,9 @@ export function SessionSelector(props: {
                 role="status"
               >
                 <span>Couldn't load sessions</span>
-                <button
-                  type="button"
-                  class="text-[0.6875rem] text-pw-text px-2 py-0.5 border border-pw-line rounded-pw-sm bg-transparent cursor-pointer"
-                  onClick={() => void list.refetch()}
-                >
+                <Button variant="outline" size="sm" onClick={() => void list.refetch()}>
                   Retry
-                </button>
+                </Button>
               </div>
             </Show>
             <Show when={list.isSuccess && collection().items.length === 0}>
@@ -266,10 +264,10 @@ export function SessionSelector(props: {
                       <Combobox.Item
                         item={s}
                         class="text-pw-text px-2 py-[0.4375rem] rounded-pw-sm flex gap-2 cursor-pointer items-center data-[highlighted]:text-pw-text-hi data-[highlighted]:bg-pw-fill-strong"
-                        aria-label={`${s.title}, ${metaLabel(s, now())}`}
+                        aria-label={`${s.title}, ${metaLabel(s, now())}${lockedElsewhere(s.id) ? `, ${RUNNING_ELSEWHERE}` : ''}`}
                       >
                         <div class="flex flex-1 flex-col gap-px min-w-0">
-                          <span class="truncate" title={s.title}>
+                          <span class="truncate">
                             <Combobox.ItemText>{s.title}</Combobox.ItemText>
                           </span>
                           <span class="text-[0.6875rem] text-pw-text-3 truncate" aria-hidden="true">
@@ -280,11 +278,7 @@ export function SessionSelector(props: {
                           <Sparkles class="text-pw-accent opacity-80 shrink-0 size-3.25" aria-hidden="true" />
                         </Show>
                         <Show when={lockedElsewhere(s.id)}>
-                          <span
-                            class="rounded-[50%] bg-pw-success shrink-0 size-1.75 anim-pulse"
-                            aria-hidden="true"
-                            title="Running in another pane"
-                          />
+                          <span class="rounded-[50%] bg-pw-success shrink-0 size-1.75 anim-pulse" aria-hidden="true" />
                         </Show>
                         <Combobox.ItemIndicator class="text-pw-accent ml-auto hidden data-[state=checked]:inline-flex">
                           <Check class="size-5 block" aria-hidden="true" />

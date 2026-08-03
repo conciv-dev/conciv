@@ -3,7 +3,7 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {createFakeHarness} from '@conciv/harness-testkit'
+import {createFakeHarness, createRecordingTerminalOpener} from '@conciv/harness-testkit'
 import {start} from '../src/start.js'
 
 describe('start harness DI', () => {
@@ -24,6 +24,7 @@ describe('start harness DI', () => {
       harness,
       extensions: [],
       launchEditor: () => {},
+      openTerminal: createRecordingTerminalOpener().open,
     })
     expect(marker.seen).toBe(true)
     await engine.stop()

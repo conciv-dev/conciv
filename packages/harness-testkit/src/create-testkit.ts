@@ -136,7 +136,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
           for (const abort of aborts) abort.abort()
           await app.dispose()
           await served.close()
-          rmSync(stateRoot, {recursive: true, force: true})
+          rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
         },
       }
     },

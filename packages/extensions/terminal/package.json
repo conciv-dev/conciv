@@ -46,7 +46,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json && vite build -c vite.test-host.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
@@ -64,6 +64,8 @@
     "@lydell/node-pty": "^1.1.0",
     "@orpc/client": "^1.14.7",
     "@orpc/server": "^1.14.7",
+    "@solid-primitives/event-listener": "^2.4.6",
+    "@solid-primitives/timer": "^1.4.4",
     "@tanstack/ai-client": "^0.22.0",
     "hono": "^4.12.0",
     "lucide-solid": "^1.18.0",

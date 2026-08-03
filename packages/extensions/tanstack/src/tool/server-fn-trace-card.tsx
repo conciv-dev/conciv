@@ -24,8 +24,8 @@ const PayloadSchema = z.object({
   functions: z.array(FunctionSchema),
 })
 
-function parsePayload(props: ToolCardProps): TraceRow[] | null {
-  const parsed = PayloadSchema.safeParse(parseResultPayload(props.result))
+function parsePayload(result: ToolCardProps['result']): TraceRow[] | null {
+  const parsed = PayloadSchema.safeParse(parseResultPayload(result))
   if (!parsed.success) return null
   const fileById = new Map(parsed.data.functions.map((fn) => [fn.id, fn.file ?? null]))
   return parsed.data.traces.map((trace) => ({
@@ -41,7 +41,7 @@ function TraceIcon(): JSX.Element {
 }
 
 export function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
-  const traces = () => parsePayload(props)
+  const traces = () => parsePayload(props.result)
   const summary = () => {
     const list = traces()
     if (!list) return ''

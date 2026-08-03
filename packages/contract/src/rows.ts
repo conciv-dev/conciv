@@ -17,8 +17,35 @@ export const SessionMetaSchema = z.object({
   usage: UsageSnapshotSchema.nullable(),
   status: SessionStatusSchema,
   model: z.string().nullable(),
+  attached: z.boolean(),
 })
 export type SessionMeta = z.infer<typeof SessionMetaSchema>
+
+export const TranscriptTailEntrySchema = z.object({
+  role: z.enum(['user', 'assistant', 'tool']),
+  text: z.string(),
+  toolName: z.string().optional(),
+  toolResult: z.string().optional(),
+})
+export type TranscriptTailEntry = z.infer<typeof TranscriptTailEntrySchema>
+
+export const LiveSessionSchema = z.object({
+  sessionId: z.string(),
+  pid: z.number().int(),
+  cwd: z.string(),
+  name: z.string(),
+  status: z.enum(['idle', 'busy', 'shell']),
+  startedAt: z.number().optional(),
+  relation: z.enum(['same', 'ancestor', 'descendant']),
+  ready: z.boolean(),
+  historyStatus: z.enum(['ok', 'unavailable']),
+  title: z.string(),
+  messageCount: z.number().int().min(0),
+  lastActivityAt: z.number(),
+  working: z.boolean(),
+  tail: z.array(TranscriptTailEntrySchema),
+})
+export type LiveSession = z.infer<typeof LiveSessionSchema>
 
 export const DraftRowSchema = z.object({
   sessionId: z.string(),

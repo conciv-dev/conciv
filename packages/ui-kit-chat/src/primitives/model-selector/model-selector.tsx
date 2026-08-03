@@ -1,5 +1,6 @@
 import {
   createContext,
+  createEffect,
   createSignal,
   For,
   Show,
@@ -12,6 +13,7 @@ import {
 import {Combobox} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {createControllableSignal} from '../util/create-controllable-signal.js'
+import {Slot} from '../util/slot.js'
 
 export type ModelSelectorEffortOption = {id: string; name: string}
 
@@ -66,7 +68,6 @@ type ModelSelectorContextValue = {
   efforts: Accessor<readonly ModelSelectorEffortOption[] | undefined>
   effort: Accessor<string | undefined>
   setEffort: (effort: string) => void
-  setOpen: (open: boolean) => void
 }
 
 const ModelSelectorContext = createContext<ModelSelectorContextValue>()
@@ -100,8 +101,8 @@ export type ModelSelectorRootProps = ParentProps<{
 }>
 
 function Root(props: ModelSelectorRootProps): JSX.Element {
-  const {collection, filter} = useListCollection<ModelOption>({
-    initialItems: props.models.slice(),
+  const {collection, filter, set} = useListCollection<ModelOption>({
+    initialItems: [],
     filter: (_text, query, item) => matches(item, query),
     itemToValue: (model) => model.id,
     itemToString: (model) => model.name,
@@ -117,12 +118,11 @@ function Root(props: ModelSelectorRootProps): JSX.Element {
     defaultValue: () => props.defaultEffort,
     onChange: (next) => props.onEffortChange?.(next),
   })
-  const [open, setOpen] = createControllableSignal<boolean>({
-    value: () => props.open,
-    defaultValue: () => props.defaultOpen ?? false,
-    onChange: (next) => props.onOpenChange?.(next),
-  })
   const [query, setQuery] = createSignal('')
+  createEffect(() => {
+    set(props.models.slice())
+    if (query()) filter(query())
+  })
   const resetSearch = () => {
     setQuery('')
     filter('')
@@ -145,7 +145,6 @@ function Root(props: ModelSelectorRootProps): JSX.Element {
         efforts,
         effort: activeEffort,
         setEffort,
-        setOpen: (next) => setOpen(next),
       }}
     >
       <Combobox.Root
@@ -153,19 +152,19 @@ function Root(props: ModelSelectorRootProps): JSX.Element {
         collection={collection()}
         value={selection()}
         inputValue={query()}
-        open={open() ?? false}
+        open={props.open}
+        defaultOpen={props.defaultOpen}
         onValueChange={(details) => {
           const id = details.value[0]
           if (id) setValue(id)
           resetSearch()
-          setOpen(false)
         }}
         onInputValueChange={(details) => {
           setQuery(details.inputValue)
           filter(details.inputValue)
         }}
         onOpenChange={(details) => {
-          setOpen(details.open)
+          props.onOpenChange?.(details.open)
           if (details.open) resetSearch()
         }}
         openOnClick
@@ -188,9 +187,7 @@ function Trigger(props: ModelSelectorTriggerProps): JSX.Element {
   return (
     <Combobox.Control class="inline-flex shrink max-w-full min-w-0">
       <Combobox.Trigger data-variant={local.variant ?? 'outline'} data-size={local.size ?? 'default'} {...rest}>
-        <Show when={local.children} fallback={<Value />}>
-          {local.children}
-        </Show>
+        <Slot fallback={<Value />}>{local.children}</Slot>
       </Combobox.Trigger>
     </Combobox.Control>
   )
@@ -244,12 +241,9 @@ function List(props: ModelSelectorListProps): JSX.Element {
   const [local, rest] = splitProps(props, ['children'])
   return (
     <div {...rest}>
-      <Show
-        when={local.children}
-        fallback={<For each={context.filteredModels()}>{(model) => <Item model={model} />}</For>}
-      >
+      <Slot fallback={<For each={context.filteredModels()}>{(model) => <Item model={model} />}</For>}>
         {local.children}
-      </Show>
+      </Slot>
     </div>
   )
 }
@@ -287,9 +281,7 @@ function Item(props: ModelSelectorItemProps): JSX.Element {
   const [local, rest] = splitProps(props, ['model', 'onSelect', 'children'])
   return (
     <Combobox.Item item={local.model} {...rest}>
-      <Show when={local.children} fallback={<Combobox.ItemText>{local.model.name}</Combobox.ItemText>}>
-        {local.children}
-      </Show>
+      <Slot fallback={<Combobox.ItemText>{local.model.name}</Combobox.ItemText>}>{local.children}</Slot>
     </Combobox.Item>
   )
 }

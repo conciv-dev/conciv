@@ -1,4 +1,5 @@
 import {createSignal, onCleanup} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {readStorage, writeStorage} from './storage.js'
 
 export type Grow = 'up' | 'down' | 'left' | 'right'
@@ -33,7 +34,7 @@ export function createResizable(opts: {
   )
   const [size, setSize] = createSignal(stored)
   const [resizing, setResizing] = createSignal(false)
-  let cleanup: (() => void) | undefined
+  let stopDrag: VoidFunction | undefined
 
   const onPointerDown = (e: PointerEvent) => {
     if (e.button !== 0) return
@@ -54,16 +55,16 @@ export function createResizable(opts: {
       setSize(Math.max(opts.min, next))
     }
     const up = () => {
-      cleanup?.()
-      cleanup = undefined
+      stopDrag?.()
+      stopDrag = undefined
       setResizing(false)
       writeStorage(opts.storageKey, size())
     }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-    cleanup = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
+    const clearMove = makeEventListener(window, 'pointermove', move)
+    const clearUp = makeEventListener(window, 'pointerup', up)
+    stopDrag = () => {
+      clearMove()
+      clearUp()
     }
   }
 
@@ -77,7 +78,7 @@ export function createResizable(opts: {
     writeStorage(opts.storageKey, next)
   }
 
-  onCleanup(() => cleanup?.())
+  onCleanup(() => stopDrag?.())
 
   return {size, isResizing: resizing, onPointerDown, onKeyDown}
 }

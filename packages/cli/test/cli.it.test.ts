@@ -1,7 +1,13 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {runCommand} from 'citty'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
-import {createFakeHarness, createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
+import {
+  createFakeHarness,
+  createRecordingTerminalOpener,
+  createTestkit,
+  type BootApp,
+  type Kit,
+} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {ResolvedConcivConfig} from '@conciv/core/config'
 import {toolsCommand} from '../src/tools.js'
@@ -23,19 +29,15 @@ function bootCliApp(extras: BootExtras = {}): BootApp {
       systemPrompt: '',
       extensions: undefined,
     }
-    const {app, disposers} = await makeApp({
+    const {app, dispose} = await makeApp({
       cfg,
       cwd: env.cwd,
       openInEditor: extras.openInEditor ?? (() => {}),
+      openTerminal: createRecordingTerminalOpener().open,
       harness: env.harness,
       bridge: extras.bridge,
     })
-    return {
-      fetch: app.fetch,
-      dispose: async () => {
-        await Promise.all(disposers.map((dispose) => dispose()))
-      },
-    }
+    return {fetch: app.fetch, dispose}
   }
 }
 

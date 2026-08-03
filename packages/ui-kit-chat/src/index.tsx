@@ -57,6 +57,7 @@ export {
   ComposerProvider,
   useComposerContext,
   type ComposerContextValue,
+  type ComposerDraft,
 } from './primitives/composer/composer-context.js'
 export {
   ComposerHandlersProvider,

@@ -3,7 +3,8 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
-import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
+import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
+import {captureNativePosts, installNativeStub, type NativeBridge} from './helpers/native-bridge.js'
 
 type NativeMethod = keyof NonNullable<Window['__concivNative']>
 
@@ -47,25 +48,23 @@ afterAll(async () => {
   await kit.cleanup()
 })
 
-async function openNative(): Promise<Page> {
+type Native = {page: Page; bridge: NativeBridge; rebinds: {apiBase?: string}[]; onRebind: () => void}
+
+async function openNative(): Promise<Native> {
   const page = await browser.newPage()
+  const bridge = await captureNativePosts(page)
+  const native: Native = {page, bridge, rebinds: [], onRebind: () => {}}
+  await page.exposeFunction('concivNativeRebind', (detail: {apiBase?: string}) => {
+    native.rebinds.push(detail)
+    native.onRebind()
+  })
+  await installNativeStub(page)
   await page.addInitScript(() => {
-    window.__p2n = []
-    window.__rebinds = []
-    window.webkit = {messageHandlers: {concivBridge: {postMessage: (message) => window.__p2n.push(message)}}}
-    window.addEventListener('conciv:rebind', (event) => window.__rebinds.push(event.detail))
+    window.addEventListener('conciv:rebind', (event) => void window.concivNativeRebind(event.detail))
   })
   await page.goto(`${kit.base}/native`, {waitUntil: 'domcontentloaded'})
   await page.waitForFunction(() => typeof window.__concivNative === 'object')
-  return page
-}
-
-const outbound = async (page: Page): Promise<PageToNativeMessage[]> => {
-  const raw = await page.evaluate(() => window.__p2n)
-  return raw.flatMap((entry) => {
-    const parsed = PageToNativeSchema.safeParse(entry)
-    return parsed.success ? [parsed.data] : []
-  })
+  return native
 }
 
 const countType = (messages: PageToNativeMessage[], type: PageToNativeMessage['type']): number =>
@@ -88,28 +87,29 @@ const grabPreview = (page: Page) => panel(page).locator('img')
 
 describe('native widget bridge', () => {
   it('installs the native bridge, re-posts readiness, and settles after the first acked call and handshake', async () => {
-    const page = await openNative()
-    await expect
-      .poll(() => outbound(page).then((m) => countType(m, 'bridge.ready')), {timeout: 5000})
-      .toBeGreaterThan(1)
-    await expect
-      .poll(() => outbound(page).then((m) => countType(m, 'handshake.hello')), {timeout: 5000})
-      .toBeGreaterThan(1)
+    const {page, bridge} = await openNative()
+    const reposted = Promise.withResolvers<PageToNativeMessage[]>()
+    bridge.notify = () => {
+      if (countType(bridge.posted, 'bridge.ready') > 1 && countType(bridge.posted, 'handshake.hello') > 1) {
+        reposted.resolve(bridge.posted)
+      }
+    }
+    expect(countType(await reposted.promise, 'bridge.ready')).toBeGreaterThan(1)
 
     await callNative(page, 'grabCapability', {v: 1, seq: 1, grabbable: true})
     await callNative(page, 'handshake', {v: 1, seq: 2, apiBase: kit.base, token: null})
 
     await new Promise((resolve) => setTimeout(resolve, 1200))
-    const settled = await outbound(page)
+    const settled = [...bridge.posted]
     await new Promise((resolve) => setTimeout(resolve, 1000))
-    const later = await outbound(page)
+    const later = bridge.posted
     expect(countType(later, 'bridge.ready')).toBe(countType(settled, 'bridge.ready'))
     expect(countType(later, 'handshake.hello')).toBe(countType(settled, 'handshake.hello'))
     await page.close()
   })
 
   it('opens the panel on native open and is idempotent, and closes on native close', async () => {
-    const page = await openNative()
+    const {page} = await openNative()
     await callNative(page, 'open', {v: 1, seq: 1})
     await callNative(page, 'open', {v: 1, seq: 2})
     await expectLocator(composerBox(page)).toHaveCount(1, {timeout: 30_000})
@@ -120,38 +120,46 @@ describe('native widget bridge', () => {
   })
 
   it('drives the native grab provider: pick posts a requestId and a matching image grabResult stages the preview', async () => {
-    const page = await openNative()
-    const rpcBodies: string[] = []
+    const {page, bridge} = await openNative()
+    const sentToModel = Promise.withResolvers<string>()
     page.on('request', (request) => {
-      if (request.url().includes('/rpc/')) rpcBodies.push(request.postData() ?? '')
+      if (!request.url().includes('/rpc/')) return
+      const body = request.postData() ?? ''
+      if (body.includes('[view]') && body.includes('PaymentCardCell')) sentToModel.resolve(body)
     })
+    const picked = Promise.withResolvers<PageToNativeMessage>()
+    bridge.notify = (message) => {
+      if (message.type === 'grab.pick') picked.resolve(message)
+    }
     await callNative(page, 'open', {v: 1, seq: 1})
     await expectLocator(composerBox(page)).toBeVisible({timeout: 30_000})
 
     await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
     await grabButton(page).click()
-    await expect.poll(() => outbound(page).then((m) => countType(m, 'grab.pick')), {timeout: 30_000}).toBe(1)
-    const pick = findByType(await outbound(page), 'grab.pick')
+    await picked.promise
+    const pick = findByType(bridge.posted, 'grab.pick')
     expect(pick?.requestId).toBeTruthy()
+    expect(countType(bridge.posted, 'grab.pick')).toBe(1)
 
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
     await expectLocator(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
     await expectLocator(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
-    await expect
-      .poll(() => rpcBodies.some((body) => body.includes('[view]') && body.includes('PaymentCardCell')), {
-        timeout: 30_000,
-      })
-      .toBe(true)
+    expect(await sentToModel.promise).toContain('PaymentCardCell')
     await page.close()
   })
 
   it('ignores a grabResult whose requestId does not match the pending pick', async () => {
-    const page = await openNative()
+    const {page, bridge} = await openNative()
+    const picked = Promise.withResolvers<PageToNativeMessage>()
+    bridge.notify = (message) => {
+      if (message.type === 'grab.pick') picked.resolve(message)
+    }
     await callNative(page, 'open', {v: 1, seq: 1})
     await expectLocator(composerBox(page)).toBeVisible({timeout: 30_000})
     await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
     await grabButton(page).click()
-    await expect.poll(() => outbound(page).then((m) => countType(m, 'grab.pick')), {timeout: 30_000}).toBe(1)
+    await picked.promise
+    expect(countType(bridge.posted, 'grab.pick')).toBe(1)
 
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: 'not-the-pending-one', grab: NEUTRAL_GRAB})
     await new Promise((resolve) => setTimeout(resolve, 500))
@@ -161,20 +169,18 @@ describe('native widget bridge', () => {
   })
 
   it('surfaces a visible error when native reports an incompatible bridge version', async () => {
-    const page = await openNative()
+    const {page} = await openNative()
     await callNative(page, 'bridgeIncompatible', {v: 1, seq: 1, nativeMinV: 2, nativeMaxV: 3})
     await expectLocator(page.getByText('Update the conciv widget', {exact: false})).toBeVisible({timeout: 30_000})
     await page.close()
   })
 
   it('dispatches conciv:rebind when a handshake reports a different same-core base', async () => {
-    const page = await openNative()
-    await callNative(page, 'handshake', {v: 1, seq: 1, apiBase: 'http://127.0.0.1:1/moved', token: null})
-    await expect
-      .poll(() => page.evaluate(() => window.__rebinds), {
-        timeout: 30_000,
-      })
-      .toEqual([{apiBase: 'http://127.0.0.1:1/moved'}])
-    await page.close()
+    const native = await openNative()
+    const rebound = Promise.withResolvers<{apiBase?: string}[]>()
+    native.onRebind = () => rebound.resolve(native.rebinds)
+    await callNative(native.page, 'handshake', {v: 1, seq: 1, apiBase: 'http://127.0.0.1:1/moved', token: null})
+    expect(await rebound.promise).toEqual([{apiBase: 'http://127.0.0.1:1/moved'}])
+    await native.page.close()
   })
 })

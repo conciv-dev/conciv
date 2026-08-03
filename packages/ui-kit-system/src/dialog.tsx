@@ -1,34 +1,65 @@
-import type {JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import {Dialog as Ark} from '@ark-ui/solid/dialog'
 
-const BACKDROP = 'fixed inset-0 z-[2147483646] bg-[rgba(0,0,0,0.55)] [backdrop-filter:blur(0.125rem)]'
-const POSITIONER = 'fixed inset-0 z-[2147483647] flex items-center justify-center p-4'
+const BACKDROP = 'fixed inset-0 z-[2147483646] bg-[rgba(0,0,0,0.55)]'
+const POSITIONER = 'fixed inset-0 z-[2147483647] flex items-start justify-center p-4 overflow-y-auto'
 const CONTENT_BASE =
-  'max-w-[calc(100vw-2rem)] rounded-pw-lg bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg p-4 focus-visible:outline-none data-[state=open]:anim-rise data-[state=closed]:anim-presence-out'
-const CONTENT_SIZE = {md: 'w-90', xl: 'w-[min(75rem,calc(100vw-2rem))]'}
+  'my-auto max-w-[calc(100vw-2rem)] rounded-pw-lg bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg overflow-hidden focus-visible:outline-none data-[state=open]:anim-rise data-[state=closed]:anim-presence-out'
+const SHELL = 'flex flex-col min-h-0 max-h-[calc(100dvh-2rem)]'
+const HEADER = 'shrink-0 px-4 pt-4'
+const TITLE = 'text-pw-text-hi text-sm font-semibold m-0'
+const BODY = 'flex-1 min-h-0 min-w-0 p-4 overflow-x-auto overflow-y-auto'
+const FOOTER = 'shrink-0 px-4 pb-4'
+const CONTENT_SIZE = {
+  md: 'w-90',
+  lg: 'w-[min(34rem,calc(100vw-2rem))]',
+  xl: 'w-[min(75rem,calc(100vw-2rem))]',
+}
 
-export function Dialog(props: {
-  open: boolean
-  onOpenChange?: (open: boolean) => void
-  label?: string
-  dismissable?: boolean
-  size?: 'md' | 'xl'
-  layer?: 'page' | 'inline'
-  children: JSX.Element
-}): JSX.Element {
+type DialogName = {title: string; label?: never} | {label: string; title?: never}
+
+export function Dialog(
+  props: DialogName & {
+    open: boolean
+    onOpenChange?: (open: boolean) => void
+    footer?: JSX.Element
+    role?: 'dialog' | 'alertdialog'
+    initialFocus?: () => HTMLElement | null
+    restoreFocus?: boolean
+    dismissable?: boolean
+    size?: 'md' | 'lg' | 'xl'
+    layer?: 'page' | 'inline'
+    children: JSX.Element
+  },
+): JSX.Element {
   return (
     <Ark.Root
       open={props.open}
       onOpenChange={(d) => props.onOpenChange?.(d.open)}
-      role="alertdialog"
+      role={props.role ?? 'dialog'}
       modal
       closeOnEscape={props.dismissable ?? false}
       closeOnInteractOutside={props.dismissable ?? false}
+      initialFocusEl={props.initialFocus}
+      restoreFocus={props.restoreFocus ?? true}
     >
       <Ark.Backdrop class={BACKDROP} />
       <Ark.Positioner class={POSITIONER}>
-        <Ark.Content class={`${CONTENT_SIZE[props.size ?? 'md']}  ${CONTENT_BASE}`} aria-label={props.label}>
-          {props.children}
+        <Ark.Content
+          class={`${CONTENT_SIZE[props.size ?? 'md']}  ${CONTENT_BASE}`}
+          aria-label={props.title === undefined ? props.label : undefined}
+        >
+          <div class={SHELL}>
+            <Show when={props.title}>
+              {(title) => (
+                <div class={HEADER}>
+                  <Ark.Title class={TITLE}>{title()}</Ark.Title>
+                </div>
+              )}
+            </Show>
+            <div class={BODY}>{props.children}</div>
+            <Show when={props.footer}>{(footer) => <div class={FOOTER}>{footer()}</div>}</Show>
+          </div>
         </Ark.Content>
       </Ark.Positioner>
     </Ark.Root>

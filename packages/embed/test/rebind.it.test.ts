@@ -3,7 +3,7 @@ import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
-import {setNavigation} from './helpers/navigation.js'
+import {setNavigation, waitForNavigationWrite} from './helpers/navigation.js'
 import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 
 const ASSISTANT_TEXT = 'Rebound reply'
@@ -83,10 +83,12 @@ describe('handle.rebind survives same-core port drift', () => {
     const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
     await expectLocator(apiBaseProbe).toHaveText(proxyA.base, {timeout: 30_000})
 
+    const routed = waitForNavigationWrite(page)
     await sendTurn(page, 'first message before the drift')
     await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
-    await expect.poll(() => panelSession(), {timeout: 30_000}).not.toBeNull()
+    await routed
     const sessionBefore = await panelSession()
+    expect(sessionBefore).not.toBeNull()
 
     const beforeB = proxyB.requestCount()
     await page.evaluate((base) => window.concivTestHandle.rebind(base), proxyB.base)

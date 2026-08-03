@@ -13,6 +13,7 @@ import {HostApiProvider} from '@conciv/extension'
 import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createSignal, onCleanup, onMount} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
@@ -249,8 +250,6 @@ function RootChrome(props: {
 
   onMount(() => {
     if (settings.defaultOpen && closedMatch()) void openPanel()
-    window.addEventListener('resize', reportPanelState)
-    onCleanup(() => window.removeEventListener('resize', reportPanelState))
     const openFromHost = () => void openPanel()
     const closeFromHost = () => {
       if (panelOpen()) {
@@ -260,14 +259,10 @@ function RootChrome(props: {
       setOpenIntent(false)
     }
     const toggleFromHost = () => togglePanel()
-    window.addEventListener('conciv:open-panel', openFromHost)
-    window.addEventListener('conciv:close-panel', closeFromHost)
-    window.addEventListener('conciv:toggle-panel', toggleFromHost)
-    onCleanup(() => {
-      window.removeEventListener('conciv:open-panel', openFromHost)
-      window.removeEventListener('conciv:close-panel', closeFromHost)
-      window.removeEventListener('conciv:toggle-panel', toggleFromHost)
-    })
+    makeEventListener(window, 'resize', reportPanelState)
+    makeEventListener(window, 'conciv:open-panel', openFromHost)
+    makeEventListener(window, 'conciv:close-panel', closeFromHost)
+    makeEventListener(window, 'conciv:toggle-panel', toggleFromHost)
   })
 
   let rootEl: HTMLDivElement | undefined

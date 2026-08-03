@@ -13,6 +13,7 @@ describe('row schemas', () => {
       usage: null,
       status: 'idle',
       model: null,
+      attached: false,
     })
     expect(parsed.status).toBe('idle')
   })

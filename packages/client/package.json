@@ -5,7 +5,8 @@
   "keywords": [
     "client",
     "conciv",
-    "orpc"
+    "orpc",
+    "tanstack-intent"
   ],
   "homepage": "https://conciv.dev",
   "bugs": "https://github.com/conciv-dev/conciv/issues",
@@ -16,7 +17,8 @@
     "directory": "packages/client"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "type": "module",
   "exports": {
@@ -49,6 +51,7 @@
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",
+    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@tanstack/ai-client": "0.22.0",

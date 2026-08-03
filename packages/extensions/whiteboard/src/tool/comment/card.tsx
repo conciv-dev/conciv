@@ -31,11 +31,11 @@ function opOf(name: string): string {
   return name.startsWith('comment.') ? name.slice('comment.'.length) : name
 }
 
-function textPreview(props: ToolCardProps): string {
-  const parts = parseInput(PartsInput, props.part)?.parts ?? []
+function textPreview(part: ToolCardProps['part']): string {
+  const parts = parseInput(PartsInput, part)?.parts ?? []
   return parts
-    .flatMap((part) => {
-      const parsed = TextPartSchema.safeParse(part)
+    .flatMap((entry) => {
+      const parsed = TextPartSchema.safeParse(entry)
       return parsed.success ? [parsed.data.text] : []
     })
     .join(' ')
@@ -69,7 +69,7 @@ export function CommentOpCard(props: ToolCardProps): JSX.Element {
     return parsed.success ? parsed.data : {}
   }
   const failure = () => failureOf(payload().detail)
-  const preview = () => textPreview(props)
+  const preview = () => textPreview(props.part)
   return (
     <ToolCard
       Icon={CommentIcon}
@@ -93,7 +93,7 @@ export function CommentOpCard(props: ToolCardProps): JSX.Element {
         </Show>
         <Show when={failure()}>
           {(error) => (
-            <div class="rounded-[var(--chat-radius-sm)] p-2 text-[length:var(--chat-text-xs)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
+            <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
               {error().error}
               <Show when={error().reason}>
                 <span class="[color:var(--chat-text-3)]"> · {error().reason}</span>

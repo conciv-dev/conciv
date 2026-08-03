@@ -1,14 +1,20 @@
-import {createSignal} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {Terminal as Xterm, type ITheme} from '@xterm/xterm'
 import {FitAddon} from '@xterm/addon-fit'
+import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import {TtyServerControlSchema, type TtyServerControl} from '@conciv/protocol/terminal-types'
 
 const RETRY_BASE_MS = 500
 const RETRY_MAX_MS = 8000
-const RETRY_LIMIT = 6
+const CONNECT_ATTEMPTS = 7
+
+const LOST_CONNECTION = 'Lost connection to the terminal.'
+const COULD_NOT_OPEN = 'Could not open the terminal.'
+const COULD_NOT_REACH = 'Could not reach the terminal.'
+const CONNECTION_DROPPED = 'The terminal connection dropped.'
 
 export type TerminalTheme = ITheme
-export type TerminalStatus = 'idle' | 'connecting' | 'open' | 'exited' | 'error'
+export type TerminalStatus = 'idle' | 'connecting' | 'open' | 'exited' | 'error' | 'closed'
 
 export type TerminalModelOpts = {
   url: (terminal: Xterm) => string
@@ -32,6 +38,13 @@ export type TerminalModel = {
   sendInput(data: string): void
 }
 
+type TerminalSession = {
+  status: TerminalStatus
+  busy: boolean
+  exitCode: number | null
+  errorMessage: string | null
+}
+
 export function translateBuffer(terminal: Xterm): string {
   const buffer = terminal.buffer.active
   const lines: string[] = []
@@ -43,10 +56,12 @@ export function translateBuffer(terminal: Xterm): string {
 }
 
 export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
-  const [status, setStatus] = createSignal<TerminalStatus>('idle')
-  const [busy, setBusy] = createSignal(false)
-  const [exitCode, setExitCode] = createSignal<number | null>(null)
-  const [errorMessage, setErrorMessage] = createSignal<string | null>(null)
+  const [session, setSession] = createStore<TerminalSession>({
+    status: 'idle',
+    busy: false,
+    exitCode: null,
+    errorMessage: null,
+  })
 
   const terminal = new Xterm({
     convertEol: false,
@@ -58,126 +73,130 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
   const fitAddon = new FitAddon()
   terminal.loadAddon(fitAddon)
 
-  const state: {
-    socket: WebSocket | null
-    retry: ReturnType<typeof setTimeout> | null
-    stopped: boolean
-    attempts: number
-    opening: boolean
-  } = {
-    socket: null,
-    retry: null,
-    stopped: false,
-    attempts: 0,
-    opening: false,
-  }
+  const live: {socket: WebSocket | null} = {socket: null}
+
+  const settled = (): boolean =>
+    session.status === 'exited' || session.status === 'error' || session.status === 'closed'
+
+  const giveUp = (message: string): void => setSession({status: 'error', errorMessage: message})
 
   const receiveControl = (frame: TtyServerControl): void => {
     if (frame.type === 'exit') {
-      setExitCode(frame.code)
-      setStatus('exited')
+      setSession({status: 'exited', exitCode: frame.code})
       return
     }
     if (frame.type === 'busy') {
-      setBusy(frame.busy)
+      setSession({busy: frame.busy})
       return
     }
-    setErrorMessage(frame.message)
-    setStatus('error')
+    setSession({status: 'error', errorMessage: frame.message})
+  }
+
+  const receiveMessage = (event: MessageEvent<string | ArrayBuffer>): void => {
+    if (typeof event.data !== 'string') {
+      terminal.write(new Uint8Array(event.data))
+      return
+    }
+    const parsed = safeControl(event.data)
+    if (parsed) receiveControl(parsed)
   }
 
   const sendResize = (): void => {
-    if (state.socket?.readyState === WebSocket.OPEN) {
-      state.socket.send(JSON.stringify({type: 'resize', cols: terminal.cols, rows: terminal.rows}))
+    if (live.socket?.readyState === WebSocket.OPEN) {
+      live.socket.send(JSON.stringify({type: 'resize', cols: terminal.cols, rows: terminal.rows}))
     }
-  }
-
-  const settled = (): boolean => status() === 'exited' || status() === 'error' || state.stopped
-
-  const giveUp = (message: string): void => {
-    setErrorMessage(message)
-    setStatus('error')
-  }
-
-  const scheduleRetry = (): void => {
-    if (settled()) return
-    state.attempts += 1
-    if (state.attempts > RETRY_LIMIT) {
-      giveUp('Lost connection to the terminal.')
-      return
-    }
-    setStatus('connecting')
-    const delay = Math.min(RETRY_BASE_MS * 2 ** (state.attempts - 1), RETRY_MAX_MS)
-    state.retry = setTimeout(connect, delay)
-  }
-
-  const connect = (): void => {
-    if (state.socket || state.opening || settled()) return
-    setStatus('connecting')
-    state.opening = true
-    void Promise.resolve()
-      .then(() => opts.beforeConnect?.(terminal))
-      .then(() => {
-        state.opening = false
-        if (!settled()) attach()
-      })
-      .catch((error: unknown) => {
-        state.opening = false
-        giveUp(error instanceof Error ? error.message : 'Could not open the terminal.')
-      })
-  }
-
-  const attach = (): void => {
-    if (state.socket || settled()) return
-    const socket = openSocket()
-    if (!socket) return
-    socket.binaryType = 'arraybuffer'
-    state.socket = socket
-    socket.addEventListener('open', () => {
-      state.attempts = 0
-      if (opts.theme) terminal.options.theme = opts.theme()
-      setStatus('open')
-      sendResize()
-    })
-    socket.addEventListener('message', (event) => {
-      if (typeof event.data !== 'string') {
-        terminal.write(new Uint8Array(event.data as ArrayBuffer))
-        return
-      }
-      const parsed = safeControl(event.data)
-      if (parsed) receiveControl(parsed)
-    })
-    socket.addEventListener('close', () => {
-      state.socket = null
-      scheduleRetry()
-    })
   }
 
   const openSocket = (): WebSocket | null => {
     try {
       return new WebSocket(opts.url(terminal))
     } catch {
-      giveUp('Could not reach the terminal.')
+      giveUp(COULD_NOT_REACH)
       return null
     }
   }
 
+  const holdSession = (): Promise<boolean> =>
+    new Promise<boolean>((resolve, reject) => {
+      const socket = openSocket()
+      if (!socket) {
+        resolve(false)
+        return
+      }
+      socket.binaryType = 'arraybuffer'
+      live.socket = socket
+      socket.addEventListener('message', receiveMessage)
+      socket.addEventListener('open', () => {
+        if (opts.theme) terminal.options.theme = opts.theme()
+        setSession({status: 'open'})
+        sendResize()
+      })
+      socket.addEventListener('close', () => {
+        live.socket = null
+        if (settled()) {
+          resolve(false)
+          return
+        }
+        const wasEstablished = session.status === 'open'
+        setSession({status: 'connecting'})
+        if (wasEstablished) {
+          resolve(true)
+          return
+        }
+        reject(new Error(CONNECTION_DROPPED))
+      })
+    })
+
+  const prepare = async (): Promise<boolean> => {
+    try {
+      await opts.beforeConnect?.(terminal)
+      return true
+    } catch (error) {
+      giveUp(error instanceof Error ? error.message : COULD_NOT_OPEN)
+      return false
+    }
+  }
+
+  const attemptSession = async (): Promise<boolean> => {
+    const ready = await prepare()
+    if (!ready || settled()) return false
+    return holdSession()
+  }
+
+  const retryer = new AsyncRetryer(attemptSession, {
+    maxAttempts: CONNECT_ATTEMPTS,
+    backoff: 'exponential',
+    baseWait: RETRY_BASE_MS,
+    maxWait: RETRY_MAX_MS,
+    throwOnError: false,
+    onLastError: () => giveUp(LOST_CONNECTION),
+  })
+
+  const runEpisodes = async (): Promise<void> => {
+    let dropped = await retryer.execute()
+    while (dropped) dropped = await retryer.execute()
+  }
+
   terminal.onData((data) => {
-    if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(data)
+    if (live.socket?.readyState === WebSocket.OPEN) live.socket.send(data)
   })
 
   return {
     terminal,
-    status,
-    busy,
-    exitCode,
-    errorMessage,
-    connect,
+    status: () => session.status,
+    busy: () => session.busy,
+    exitCode: () => session.exitCode,
+    errorMessage: () => session.errorMessage,
+    connect: () => {
+      if (session.status !== 'idle') return
+      setSession({status: 'connecting'})
+      void runEpisodes()
+    },
     disconnect: () => {
-      state.stopped = true
-      if (state.retry) clearTimeout(state.retry)
-      state.socket?.close()
-      state.socket = null
+      setSession({status: 'closed'})
+      retryer.abort()
+      live.socket?.close()
+      live.socket = null
       terminal.dispose()
     },
     fit: () => {
@@ -186,11 +205,11 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     },
     focus: () => terminal.focus(),
     inject: (text) => {
-      if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(JSON.stringify({type: 'inject', text}))
+      if (live.socket?.readyState === WebSocket.OPEN) live.socket.send(JSON.stringify({type: 'inject', text}))
     },
     paste: (text) => terminal.paste(text),
     sendInput: (data) => {
-      if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(data)
+      if (live.socket?.readyState === WebSocket.OPEN) live.socket.send(data)
     },
   }
 }

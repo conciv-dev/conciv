@@ -27,8 +27,8 @@ function toEntries(payload: unknown): Entry[] {
   return [{key: 'value', preview: preview(payload)}]
 }
 
-function parseEntries(props: ToolCardProps): Entry[] | null {
-  const payload = parseResultPayload(props.result)
+function parseEntries(result: ToolCardProps['result']): Entry[] | null {
+  const payload = parseResultPayload(result)
   if (payload === undefined || payload === null) return null
   return toEntries(payload)
 }
@@ -38,7 +38,7 @@ function LoaderIcon(): JSX.Element {
 }
 
 export function LoaderDataCard(props: ToolCardProps): JSX.Element {
-  const entries = () => parseEntries(props)
+  const entries = () => parseEntries(props.result)
   const summary = () => {
     const list = entries()
     if (!list) return ''

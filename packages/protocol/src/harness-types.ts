@@ -1,5 +1,6 @@
 import type {AnyTextAdapter, ModelMessage, UIMessage} from '@tanstack/ai'
-import type {TtyCommand, TtyCommandOpts} from './terminal-types.js'
+import type {SessionId} from './chat-types.js'
+import type {TtyCommand} from './terminal-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -38,17 +39,57 @@ export type HarnessCommandsContext = {cwd: string; sessionId?: string; mcpUrl?: 
 
 export type HarnessCommands = (ctx: HarnessCommandsContext) => Promise<HarnessCommand[]>
 
-export type HarnessLaunchResult = {opened: boolean; command: string}
-export type HarnessLaunchContext = {
+export type HarnessConnectContext = {
   cwd: string
-  sessionId: string | null
+  stateDir: string
+  concivSessionId: SessionId
+  harnessSessionId: string | null
+  resume: boolean
+  owned: boolean
   model: string | null
   mcpUrl: string | null
-
-  openTerminal(argv: string[]): Promise<HarnessLaunchResult>
-  openUrl(url: string): Promise<HarnessLaunchResult>
+  hookUrl: string | null
 }
-export type HarnessLaunch = (ctx: HarnessLaunchContext) => HarnessLaunchResult | Promise<HarnessLaunchResult>
+
+export type HarnessConnectFile = {path: string; contents: string; mode?: number}
+
+export type HarnessConnectPlan = {
+  argv: string[]
+  env: Record<string, string>
+  files: HarnessConnectFile[]
+}
+
+export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPlan}
+
+export type TerminalOpenRequest = {bin: string; args: string[]}
+
+export type TerminalOpener = (request: TerminalOpenRequest) => Promise<boolean>
+
+export type HarnessLiveSession = {
+  sessionId: string
+  pid: number
+  cwd: string
+  name: string
+  status: 'idle' | 'busy' | 'shell'
+  startedAt?: number
+}
+
+export type HarnessAttachInstall = {
+  root: string
+  stateDir: string
+  mcpUrl: string
+  hookUrl: string
+}
+
+export type HarnessAttachResult = {ok: boolean; reloadCommand: string; detail?: string}
+
+export type HarnessAttachRemoval = {root: string; stateDir: string}
+
+export type HarnessAttach = {
+  candidates(cwd: string, home?: string): Promise<HarnessLiveSession[]>
+  install(opts: HarnessAttachInstall): Promise<HarnessAttachResult>
+  uninstall(opts: HarnessAttachRemoval): Promise<void>
+}
 
 export type HarnessChatDeps = {
   cwd: string
@@ -78,15 +119,47 @@ export type HarnessSessionMeta = {
   createdAt?: number
 }
 
+export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: UIMessage[]}
+
+export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
+
+export type TranscriptFailureReason = (typeof TRANSCRIPT_FAILURES)[number]
+
+export type TranscriptRevision = {rev: string; changedAt: number}
+
+export type TranscriptFailure = {ok: false; reason: TranscriptFailureReason; detail: string}
+
+export type TranscriptChunk = {
+  ok: true
+  rev: string
+  changedAt: number
+  messages: UIMessage[]
+  replaced: boolean
+}
+
+export type TranscriptHandle = {
+  revision(): Promise<TranscriptRevision | TranscriptFailure>
+  read(): Promise<TranscriptChunk | TranscriptFailure>
+  close(): void
+}
+
 export type HarnessHistory = {
-  transcriptPath(cwd: string, sessionId: string, home?: string): string
-  parse(raw: string): UIMessage[]
+  messages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]>
+  observe(cwd: string, sessionId: string, home?: string): TranscriptHandle
+
+  transcriptPath?(cwd: string, sessionId: string, home?: string): string
+
+  withinProject?(cwd: string, sessionId: string, home?: string): boolean
 
   nameFromTranscript?(raw: string): string | null
 
   contextTokens?(raw: string): number | undefined
 
-  list?(cwd: string, home?: string): HarnessSessionMeta[] | Promise<HarnessSessionMeta[]>
+  list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
+
+  meta?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionMeta | null>
+
+  summary?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionSummary | null>
 }
 
 type HarnessAdapterBase = {
@@ -95,13 +168,14 @@ type HarnessAdapterBase = {
 
   displayName?: string
 
-  launch?: HarnessLaunch
+  connect?: HarnessConnect
+  attach?: HarnessAttach
   chatConfig: (deps: HarnessChatDeps) => HarnessChatConfig
 
   models?: HarnessModels
   defaultModel?: string
 
-  tty?: {command(opts: TtyCommandOpts): TtyCommand}
+  tty?: {command(ctx: HarnessConnectContext): TtyCommand}
 }
 
 export type HarnessAdapter = HarnessAdapterBase &

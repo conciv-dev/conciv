@@ -7,7 +7,10 @@ export type ReasoningProps = {text: string; streaming?: boolean; defaultOpen?: b
 
 export function Reasoning(props: ReasoningProps): JSX.Element {
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
-  const settled = createSettled(() => props.streaming ?? false, props.settleDelayMs)
+  const settled = createSettled(
+    () => props.streaming ?? false,
+    () => props.settleDelayMs,
+  )
   const open = () => userOpen() ?? (Boolean(props.streaming) || !settled())
   return (
     <CollapsibleCard

@@ -18,7 +18,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build && tsc -p tsconfig.build.json && vite build -c vite.test-host.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run"
@@ -28,6 +28,7 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@solid-primitives/event-listener": "^2.4.5",
+    "@solid-primitives/timer": "^1.4.4",
     "lucide-solid": "^1.18.0"
   },
   "devDependencies": {
@@ -36,7 +37,9 @@
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
     "@types/node": "^22.19.21",
+    "@vitest/browser-playwright": "4.1.10",
     "@vitest/coverage-v8": "^4.1.8",
+    "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
     "typescript": "^6.0.3",
     "unocss": "^66.7.2",

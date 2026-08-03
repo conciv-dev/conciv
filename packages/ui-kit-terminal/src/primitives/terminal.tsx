@@ -1,5 +1,5 @@
-import {createContext, onCleanup, onMount, Show, useContext, type JSX} from 'solid-js'
-import xtermCss from '@xterm/xterm/css/xterm.css?inline'
+import {createContext, onCleanup, onMount, Show, untrack, useContext, type JSX} from 'solid-js'
+import {injectXtermCss} from '../xterm-css.js'
 import type {TerminalModel} from '../model.js'
 
 const TerminalContext = createContext<TerminalModel>()
@@ -12,21 +12,12 @@ export function useTerminal(): TerminalModel {
 
 function Root(props: {model: TerminalModel; class?: string; children: JSX.Element}): JSX.Element {
   return (
-    <TerminalContext.Provider value={props.model}>
+    <TerminalContext.Provider value={untrack(() => props.model)}>
       <div class={props.class} data-terminal-root data-status={props.model.status()}>
         {props.children}
       </div>
     </TerminalContext.Provider>
   )
-}
-
-function injectCss(root: Node): void {
-  const target = root instanceof ShadowRoot ? root : document.head
-  if (target.querySelector('style[data-conciv-xterm]')) return
-  const style = document.createElement('style')
-  style.setAttribute('data-conciv-xterm', '')
-  style.textContent = xtermCss
-  target.appendChild(style)
 }
 
 function Screen(props: {class?: string}): JSX.Element {
@@ -40,7 +31,7 @@ function Screen(props: {class?: string}): JSX.Element {
     const start = (): void => {
       if (started || screen.clientWidth === 0) return
       started = true
-      injectCss(screen.getRootNode())
+      injectXtermCss(screen.getRootNode())
       model.fit()
       model.connect()
       model.focus()

@@ -13,7 +13,7 @@ const FAB_POS: Record<TriggerPosition, string> = {
 }
 
 const FAB_BASE =
-  'fixed size-13 rounded-pw-pill border border-pw-line bg-pw-panel text-pw-accent text-[1.375rem] cursor-pointer pointer-events-auto shadow-pw-lg inline-flex items-center justify-center trans-lift anim-fab [@media(hover:hover)_and_(pointer:fine)]:hover:[transform:translateY(-0.125rem)] [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-pw-hover active:[transform:translateY(0)_scale(0.94)]'
+  'fixed size-13 rounded-pw-pill border border-pw-line bg-pw-panel text-pw-accent text-[1.375rem] cursor-pointer pointer-events-auto shadow-pw-lg inline-flex items-center justify-center trans-lift anim-fab focus-ring [@media(hover:hover)_and_(pointer:fine)]:hover:[transform:translateY(-0.125rem)] [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-pw-hover active:[transform:translateY(0)_scale(0.94)]'
 const FAB_ATTN =
   "after:content-[''] after:absolute after:-inset-[0.1875rem] after:rounded-pw-pill after:border-2 after:border-pw-accent after:anim-fab-ring"
 const FAB_DRAGGING = 'transition-none z-[2147483647] cursor-grabbing'
@@ -45,7 +45,7 @@ export function ShellFab(props: {
       aria-label={fabLabel(props.open())}
       aria-expanded={props.open()}
       aria-controls="pw-chat-panel"
-      onPointerDown={props.fab.onPointerDown}
+      onPointerDown={(event) => props.fab.onPointerDown(event)}
       onClick={() => {
         if (!props.fab.consumeClick()) props.onToggle()
       }}

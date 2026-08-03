@@ -1,12 +1,13 @@
 import {expect, test} from 'vitest'
 import whiteboard from '../src/server.js'
-import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
-import {clientEntry, openCanvas} from './canvas-it-helpers.js'
+import {getExtensionTestApi} from '@conciv/extension-testkit'
+import {until} from '@conciv/harness-testkit'
+import {openCanvas, readCanvas, testHost} from './canvas-it-helpers.js'
 
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
 test('preview returns a real png of the draft without any browser round-trip', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
     await api.callTool('canvas.svg', {
@@ -15,11 +16,7 @@ test('preview returns a real png of the draft without any browser round-trip', a
       y: 50,
       width: 200,
     })
-    await expect
-      .poll(async () => ((await api.callTool('canvas.read', {scope: 'draft'})) as {elements: unknown[]}).elements, {
-        timeout: 15_000,
-      })
-      .toHaveLength(1)
+    await until(async () => (await readCanvas(api, 'draft')).length === 1, {hangGuardMs: 30_000, intervalMs: 250})
     const result = (await api.callTool('canvas.preview', {})) as Array<{
       type: string
       source?: {value: string; mimeType: string}
@@ -34,7 +31,7 @@ test('preview returns a real png of the draft without any browser round-trip', a
 })
 
 test('preview on an empty draft names the cause', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     const result = (await api.callTool('canvas.preview', {})) as {empty: boolean; reason: string}
     expect(result.empty).toBe(true)

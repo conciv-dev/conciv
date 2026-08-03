@@ -39,5 +39,6 @@ export const colors = {
   'pw-danger-18': 'color-mix(in oklch, var(--pw-danger) 18%, transparent)',
   'pw-success-18': 'color-mix(in oklch, var(--pw-success) 18%, transparent)',
   'pw-warn-20': 'color-mix(in oklch, var(--pw-warn) 20%, transparent)',
+  'pw-warn-line': 'color-mix(in oklch, var(--pw-warn) 42%, transparent)',
   'pw-panel-60': 'color-mix(in srgb, var(--pw-panel) 60%, transparent)',
 } satisfies Theme['colors']

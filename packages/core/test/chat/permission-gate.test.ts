@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {StreamProcessor} from '@tanstack/ai'
 import {writeReply} from '@conciv/db'
 import {makeChanges} from '../../src/chat/attach.js'
-import {makeRunGate} from '../../src/chat/gate.js'
+import {makeRunGate, processorAsk} from '../../src/chat/gate.js'
 import {testDb} from '../helpers/memory-store.js'
 
 const fixture = (timeoutMs?: number) => {
@@ -12,7 +12,7 @@ const fixture = (timeoutMs?: number) => {
   const risky = new Set(['canvas.delete'])
   const gate = makeRunGate({
     sessionId: 'conciv_x',
-    processor,
+    ask: processorAsk(processor),
     db,
     changes,
     risky,
@@ -29,28 +29,24 @@ describe('run gate on awaitReply', () => {
     expect(processor.getMessages().flatMap((message) => message.parts)).toEqual([])
   })
 
-  it('gates a risky tool by bare name across every mcp prefix', async () => {
-    const bare = fixture(30)
-    expect(await bare.gate.decide('canvas.delete', {id: 'r1'}, 'conciv_x', 'tu2a')).toBe('deny')
-    const conciv = fixture(30)
-    expect(await conciv.gate.decide('mcp__conciv__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu2b')).toBe('deny')
-    const tanstack = fixture(30)
-    expect(await tanstack.gate.decide('mcp__tanstack__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu2c')).toBe('deny')
-  })
-
-  it('allows a non-risky tool in every mcp prefix form', async () => {
-    const bare = fixture()
-    expect(await bare.gate.decide('canvas.read', {id: 'r1'}, 'conciv_x', 'tu2d')).toBe('allow')
-    const conciv = fixture()
-    expect(await conciv.gate.decide('mcp__conciv__canvas.read', {id: 'r1'}, 'conciv_x', 'tu2e')).toBe('allow')
-    const tanstack = fixture()
-    expect(await tanstack.gate.decide('mcp__tanstack__canvas.read', {id: 'r1'}, 'conciv_x', 'tu2f')).toBe('allow')
-  })
-
-  it('risky tool times out to deny when nobody replies', async () => {
+  it.each([
+    'canvas.delete',
+    'mcp__conciv__canvas.delete',
+    'mcp__tanstack__canvas.delete',
+    'mcp__plugin_conciv-connect_conciv__canvas.delete',
+    'mcp__conciv__canvas_delete',
+  ])('gates %s: every caller path names the same risky tool', async (name) => {
     const {gate} = fixture(30)
-    expect(await gate.decide('mcp__conciv__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu3')).toBe('deny')
+    expect(await gate.decide(name, {id: 'r1'}, 'conciv_x', 'tu2')).toBe('deny')
   })
+
+  it.each(['canvas.read', 'mcp__conciv__canvas.draw', 'mcp__tanstack__canvas.read'])(
+    'leaves %s alone: a non-risky tool in every mcp prefix form',
+    async (name) => {
+      const {gate} = fixture(30)
+      expect(await gate.decide(name, {id: 'r1'}, 'conciv_x', 'tu3')).toBe('allow')
+    },
+  )
 
   it('fires an approval request for a bridge-visible risky tool name (does not execute silently)', async () => {
     const {gate, db, changes, processor} = fixture(5_000)

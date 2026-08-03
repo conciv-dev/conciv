@@ -31,7 +31,10 @@ describe('widget-native live connect on the built site', () => {
     const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
     await expectLocator(panel.getByText('Drive this page with your agent.')).toBeVisible({timeout: 20_000})
 
-    const command = await panel.getByText(/^npx @conciv\/try --token \S+$/).textContent()
+    const command = await panel
+      .getByText(/^npx @conciv\/try --token \S+$/)
+      .filter({visible: true})
+      .textContent()
     const token = command?.match(/--token (\S+)/)?.[1] ?? ''
     expect(token).not.toBe('')
 

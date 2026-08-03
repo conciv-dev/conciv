@@ -10,13 +10,10 @@ export function HostApiProvider(props: Partial<HostWiring> & {children: JSX.Elem
 }
 
 function layerComponent(hides: boolean, hook: string): Component<{when: boolean; children?: JSX.Element}> {
-  return (props) => {
-    const register = use('registerLayer', hook)
-    onMount(() => {
-      const release = register(() => props.when, hides)
-      onCleanup(release)
-    })
-    return props.children
+  return function LayerGate(props): JSX.Element {
+    const registerLayer = use('registerLayer', hook)
+    onMount(() => onCleanup(registerLayer(() => props.when, hides)))
+    return <>{props.children}</>
   }
 }
 

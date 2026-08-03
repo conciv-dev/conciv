@@ -51,6 +51,13 @@ export function waitForNavigationWrite(page: Page): Promise<Response> {
   return page.waitForResponse((response) => isNavigationWrite(new URL(response.url())))
 }
 
+export function waitForNavigationWriteCarrying(page: Page, hrefFragment: string): Promise<Response> {
+  return page.waitForResponse(
+    (response) =>
+      isNavigationWrite(new URL(response.url())) && (response.request().postData() ?? '').includes(hrefFragment),
+  )
+}
+
 export async function freezeClock(page: Page, now: number): Promise<void> {
   await page.addInitScript((frozen: number) => {
     Date.now = () => frozen

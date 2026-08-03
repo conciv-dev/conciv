@@ -1,6 +1,7 @@
 import {defineConfig} from 'vitest/config'
-import solid from 'vite-plugin-solid'
 import {playwright} from '@vitest/browser-playwright'
+import solidPlugin from 'vite-plugin-solid'
+import UnoCSS from 'unocss/vite'
 import {ciTest} from '@conciv/vitest-config'
 
 export default defineConfig({
@@ -16,14 +17,24 @@ export default defineConfig({
           environment: 'node',
           include: ['test/**/*.test.ts'],
           server: {deps: {inline: ['solid-js']}},
+          testTimeout: ciTest().testTimeout,
+          hookTimeout: ciTest().hookTimeout,
         },
       },
       {
-        plugins: [solid()],
+        extends: true,
+        plugins: [solidPlugin(), UnoCSS({content: {filesystem: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}']}})],
         test: {
           name: 'ui-kit-chat-browser',
           include: ['test/**/*.browser.test.tsx'],
-          browser: {enabled: true, headless: true, provider: playwright({}), instances: [{browser: 'chromium'}]},
+          testTimeout: ciTest().testTimeout,
+          hookTimeout: ciTest().hookTimeout,
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({}),
+            instances: [{browser: 'chromium', launch: {channel: 'chrome'}}],
+          },
         },
       },
     ],

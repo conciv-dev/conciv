@@ -51,13 +51,14 @@ function Root(props: ActivityRootProps): JSX.Element {
   const turns = createMemo(() => coalesceTurns(props.messages))
   const results = createMemo(() => resultsById(props.messages))
   const resultFor = (toolCallId: string) => results().get(toolCallId)
+  const activeCall = createMemo(() => lastRunningCall(turns().at(-1), resultFor))
   const state: ActivityState = {
     turns,
     resultFor,
     live: () => props.live ?? false,
     label: (part) => (props.label ?? ((call: ToolCallPart) => call.name))(part),
     isLastTurn: (turn) => turns().at(-1)?.key === turn.key,
-    activeCall: createMemo(() => lastRunningCall(turns().at(-1), resultFor)),
+    activeCall,
   }
   return <ActivityContext.Provider value={state}>{props.children}</ActivityContext.Provider>
 }

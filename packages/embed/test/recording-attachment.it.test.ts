@@ -37,9 +37,8 @@ describe('recording attachment end to end in the real widget', () => {
     await page.getByRole('button', {name: 'Embed fixture'}).click()
 
     const recorderRpc = makeExtRpcClient<RecorderRouter>(kit.base, 'recorder')
-    await expect
-      .poll(async () => (await recorderRpc.window({})).events.length, {timeout: 30_000})
-      .toBeGreaterThanOrEqual(2)
+    await page.waitForResponse((response) => response.url().includes('/rpc/ext/recorder/flush'), {timeout: 30_000})
+    expect((await recorderRpc.window({})).events.length).toBeGreaterThanOrEqual(2)
 
     await openPanel(page)
     await page.getByRole('tab', {name: 'Recorder'}).click()
@@ -89,7 +88,7 @@ describe('recording attachment end to end in the real widget', () => {
     await page.getByRole('log').getByRole('button', {name: 'Play'}).first().waitFor({state: 'visible', timeout: 15_000})
 
     await page.getByRole('log').getByRole('button', {name: 'Play'}).first().click()
-    const modal = page.getByRole('alertdialog', {name: 'Screen recording replay'})
+    const modal = page.getByRole('dialog', {name: 'Screen recording replay'})
     await modal.waitFor({state: 'visible', timeout: 15_000})
     await modal.getByRole('button', {name: 'Close'}).click()
     await modal.waitFor({state: 'hidden', timeout: 15_000})

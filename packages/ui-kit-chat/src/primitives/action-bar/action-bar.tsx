@@ -1,4 +1,14 @@
-import {createContext, createSignal, Show, splitProps, useContext, type Accessor, type JSX} from 'solid-js'
+import {
+  createContext,
+  createEffect,
+  createSignal,
+  Show,
+  splitProps,
+  useContext,
+  type Accessor,
+  type JSX,
+} from 'solid-js'
+import {makeTimer} from '@solid-primitives/timer'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useThread} from '../../store/chat-context.js'
 import {useMessage} from '../message/message-context.js'
@@ -141,13 +151,17 @@ type CopyProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> &
 
 function Copy(props: CopyProps): JSX.Element {
   const message = useMessage()
-  const [copied, setCopied] = createSignal(false)
+  const [copiedAt, setCopiedAt] = createSignal<number | null>(null)
+  const copied = () => copiedAt() !== null
   const [local, rest] = splitProps(props, ['copiedDuration'])
   const run = () => {
     void navigator.clipboard.writeText(messageText(message.message())).catch(() => {})
-    setCopied(true)
-    setTimeout(() => setCopied(false), local.copiedDuration ?? 3000)
+    setCopiedAt(performance.now())
   }
+  createEffect(() => {
+    if (copiedAt() === null) return
+    makeTimer(() => setCopiedAt(null), local.copiedDuration ?? 3000, setTimeout)
+  })
   return (
     <CopiedContext.Provider value={copied}>
       <Primitive.button

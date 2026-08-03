@@ -4,7 +4,7 @@ import {StreamProcessor, type AnyTool} from '@tanstack/ai'
 import {writeReply, type ConcivDb} from '@conciv/db'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import {makeChanges, type Changes} from '../../src/chat/attach.js'
-import {makeRunGate, type PermissionGate} from '../../src/chat/gate.js'
+import {makeRunGate, processorAsk, type PermissionGate} from '../../src/chat/gate.js'
 import {gatedToolRun, makeCodeMode, withBindingNames} from '../../src/chat/code-mode.js'
 import {testDb} from '../helpers/memory-store.js'
 
@@ -52,7 +52,7 @@ function codeModeOf(
 function denyingGate(risky: string[], db: ConcivDb, changes: Changes): PermissionGate {
   return makeRunGate({
     sessionId: 'conciv_x',
-    processor: new StreamProcessor({events: {}}),
+    ask: processorAsk(new StreamProcessor({events: {}})),
     db,
     changes,
     risky: new Set(risky),
@@ -159,7 +159,7 @@ describe('gatedToolRun', () => {
     const processor = new StreamProcessor({events: {}})
     const gate = makeRunGate({
       sessionId: 'conciv_x',
-      processor,
+      ask: processorAsk(processor),
       db,
       changes,
       risky: new Set(['canvas.delete']),
@@ -182,7 +182,7 @@ describe('gatedToolRun', () => {
     const processor = new StreamProcessor({events: {}})
     const gate = makeRunGate({
       sessionId: 'conciv_x',
-      processor,
+      ask: processorAsk(processor),
       db,
       changes,
       risky: new Set(['canvas.delete']),

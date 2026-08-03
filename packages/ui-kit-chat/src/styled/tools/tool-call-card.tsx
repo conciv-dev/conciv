@@ -14,8 +14,9 @@ export type ToolCallCardProps = ToolCardProps & {
 export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
   const matched = () => props.tools?.().find((entry) => entry.names.includes(props.part.name))
   const render = (): ToolUIComponent => matched()?.render ?? props.fallback ?? ToolFallback
+  const duration = (): number | undefined => props.durationMs
   return (
-    <ToolDurationProvider value={() => props.durationMs}>
+    <ToolDurationProvider value={duration}>
       <Dynamic
         component={render()}
         part={props.part}

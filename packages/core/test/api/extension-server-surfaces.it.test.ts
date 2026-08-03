@@ -3,9 +3,10 @@ import {dirname} from 'node:path'
 import {expect, test} from 'vitest'
 import {claude} from '@conciv/harness/claude'
 import {defineExtension, type ServerApi} from '@conciv/extension'
-import {createTestHarness, createTestkit, until} from '@conciv/harness-testkit'
+import {createTestHarness, createTestkit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {runTurn} from '../helpers/turns.js'
+import {requireTranscriptPath} from '../helpers/adapters.js'
 
 test('extension server api exposes sessions + harness surfaces backed by the real store', async () => {
   const captured: {server?: ServerApi<Record<never, never>>} = {}
@@ -28,33 +29,44 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
     await server.sessions.recordToken(fresh, 'tok-fresh')
     expect(await server.sessions.resumeToken(fresh)).toBe('tok-fresh')
 
+    const runEnded = new Promise<string>((resolve) =>
+      server.sessions.onLocalRun((id, phase) => {
+        if (phase === 'end') resolve(id)
+      }),
+    )
     expect(server.sessions.chatBusy(sessionId)).toBe(false)
     harness.script.hold()
     await kit.rpc.chat.send({sessionId, text: 'busy probe'})
     expect(server.sessions.chatBusy(sessionId)).toBe(true)
     harness.script.release()
-    await until(() => !server.sessions.chatBusy(sessionId), {hangGuardMs: 5000})
+    expect(await runEnded).toBe(sessionId)
+    expect(server.sessions.chatBusy(sessionId)).toBe(false)
 
     expect(server.harness.id).toBe('claude')
     expect(typeof server.harness.ttyCommand).toBe('function')
-    expect(server.harness.transcriptExists?.('no-such-token')).toBe(false)
+    expect(await server.harness.transcriptExists?.('no-such-token')).toBe(false)
 
-    expect(await server.harness.transcriptMessages?.('no-such-token')).toEqual([])
+    const absent = await server.harness.observeTranscript?.('no-such-token')
+    if (!absent) throw new Error('no transcript handle for an unknown token')
+    expect(await absent.revision()).toEqual({ok: false, reason: 'missing', detail: expect.any(String)})
+    absent.close()
     const token = `surfaces-${process.pid}-${Math.random().toString(36).slice(2)}`
-    const history = claude.history
-    if (!history) throw new Error('claude adapter has no history surface')
-    const transcript = history.transcriptPath(server.cwd, token)
+    const transcript = requireTranscriptPath(claude)(server.cwd, token)
     mkdirSync(dirname(transcript), {recursive: true})
     writeFileSync(
       transcript,
       [
         JSON.stringify({type: 'user', message: {role: 'user', content: 'what else can you do?'}}),
         JSON.stringify({type: 'assistant', message: {role: 'assistant', content: [{type: 'text', text: 'Lots.'}]}}),
-      ].join('\n'),
+      ].join('\n') + '\n',
     )
     try {
-      const messages = await server.harness.transcriptMessages?.(token)
-      expect(messages?.map((m) => m.role)).toEqual(['user', 'assistant'])
+      const handle = await server.harness.observeTranscript?.(token)
+      if (!handle) throw new Error('no transcript handle')
+      const chunk = await handle.read()
+      if (chunk.ok === false) throw new Error(`transcript unreadable: ${chunk.detail}`)
+      expect(chunk.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+      handle.close()
     } finally {
       rmSync(transcript, {force: true})
     }
@@ -63,7 +75,7 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
   }
 }, 30_000)
 
-test('a chat turn fires onChatTurn listeners with the session id', async () => {
+test('a chat turn brackets onLocalRun listeners with start and end', async () => {
   const captured: {server?: ServerApi<Record<never, never>>} = {}
   const probe = defineExtension({name: 'probe-turn'}).server((server) => {
     captured.server = server
@@ -73,13 +85,26 @@ test('a chat turn fires onChatTurn listeners with the session id', async () => {
   try {
     const server = captured.server
     if (!server) throw new Error('server api not captured')
-    const turns: string[] = []
-    server.sessions.onChatTurn((sessionId) => turns.push(sessionId))
+    const turns: {sessionId: string; phase: 'start' | 'end'}[] = []
+    const registration: {unregister?: () => void} = {}
+    const bracketed = new Promise<void>((resolve) => {
+      registration.unregister = server.sessions.onLocalRun((sessionId, phase) => {
+        turns.push({sessionId, phase})
+        if (phase === 'end') resolve()
+      })
+    })
 
     const sessionId = await kit.session()
     await runTurn(kit, 'hi', sessionId)
-    await until(() => turns.length > 0, {hangGuardMs: 5000})
-    expect(turns).toEqual([sessionId])
+    await bracketed
+    expect(turns).toEqual([
+      {sessionId, phase: 'start'},
+      {sessionId, phase: 'end'},
+    ])
+
+    registration.unregister?.()
+    await runTurn(kit, 'again', sessionId)
+    expect(turns).toHaveLength(2)
   } finally {
     await kit.cleanup()
   }

@@ -3,8 +3,8 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
+import {defineExtension} from '@conciv/extension'
 import {bootCoreApp} from '../helpers/boot.js'
-import {untilRunSettled} from '../helpers/run-settled.js'
 
 const CHUNK_FAIL = 'stub is not installed or not yet supported'
 
@@ -33,7 +33,13 @@ const erroringHarness = defineHarness({
 
 describe('an adapter that yields RUN_ERROR as a chunk (stub harnesses, acp adapters)', () => {
   it('surfaces the error on the wire and settles the run', async () => {
-    const kit = await createTestkit(erroringHarness, bootCoreApp()).setup()
+    const runEnd = {resolve: (_sessionId: string) => {}}
+    const runEnded = new Promise<string>((resolve) => (runEnd.resolve = resolve))
+    const probe = defineExtension({name: 'run-end-probe'}).server(() => ({
+      context: {},
+      turnEnd: (sessionId: string) => runEnd.resolve(sessionId),
+    }))
+    const kit = await createTestkit(erroringHarness, bootCoreApp({extensions: [probe]})).setup()
     try {
       const id = await kit.session()
       const stream = await kit.attach(id)
@@ -41,7 +47,7 @@ describe('an adapter that yields RUN_ERROR as a chunk (stub harnesses, acp adapt
       const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 5000})
       expect(runError.type).toBe(EventType.RUN_ERROR)
       expect('message' in runError ? runError.message : '').toContain(CHUNK_FAIL)
-      await untilRunSettled(kit, id)
+      expect(await runEnded).toBe(id)
     } finally {
       await kit.cleanup()
     }

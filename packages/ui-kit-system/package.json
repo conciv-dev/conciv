@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
+    "@solid-primitives/event-listener": "^2.4.6",
     "lucide-solid": "^1.18.0"
   },
   "devDependencies": {

@@ -1,30 +1,39 @@
 import {toolDefinition, type AnyTool, type ServerTool} from '@tanstack/ai'
 import type {SandboxDefinition} from '@tanstack/ai-sandbox'
 import type {z} from 'zod'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter, TerminalOpener} from '@conciv/protocol/harness-types'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import type {ConcivDb} from '@conciv/db'
 import type {Changes} from './attach.js'
 import type {AttachmentExpanders} from './run.js'
+import type {RunTracker} from './run-tracker.js'
+
+export type ProcessLiveness = 'alive' | 'foreign' | 'dead'
 
 export type ChatDeps = {
   cwd: string
   stateRoot: string
+  basePath: string
   systemText: string
   claudeHome?: string
   harness: HarnessAdapter
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
+  openTerminal: TerminalOpener
   sandbox: SandboxDefinition
   db: ConcivDb
   changes: Changes
+  dialed: (harnessSessionId: string) => boolean
+  processLiveness?: (pid: number) => ProcessLiveness
   risky: ReadonlySet<string>
   tools: (sessionId: string) => AnyTool[]
   toolNames: ReadonlySet<string>
   extensionServerTools: () => ExtensionServerTool[]
   attachmentExpanders: AttachmentExpanders
+  runs: RunTracker
   onRunStart?: (sessionId: string) => void
   onRunEnd?: (sessionId: string) => Promise<void>
+  onSessionDetached?: (sessionId: string) => void
   firstChunkTimeoutMs?: number
 }
 

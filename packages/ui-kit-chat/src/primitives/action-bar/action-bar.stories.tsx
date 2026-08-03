@@ -1,4 +1,4 @@
-import {onMount, type JSX} from 'solid-js'
+import {onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor, userEvent} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
@@ -57,7 +57,7 @@ function AssistantMessage(): JSX.Element {
 function Frame(props: {handlers?: boolean}): JSX.Element {
   const chat = useChat({connection: storyConnection()})
   onMount(() => chat.setMessages([REPLY]))
-  const handlers = props.handlers ? {onEdit: () => {}, onSpeak: () => {}, onFeedback: () => {}} : {}
+  const handlers = untrack(() => (props.handlers ? {onEdit: () => {}, onSpeak: () => {}, onFeedback: () => {}} : {}))
   return (
     <ActionHandlersProvider value={handlers}>
       <ChatProvider chat={chat}>

@@ -1,0 +1,47 @@
+{
+  "messages": [
+    {
+      "id": "h1",
+      "role": "user",
+      "parts": [
+        {
+          "type": "text",
+          "content": "rename the panel"
+        }
+      ]
+    },
+    {
+      "id": "h2",
+      "role": "assistant",
+      "parts": [
+        {
+          "type": "thinking",
+          "content": "hmm"
+        },
+        {
+          "type": "tool-call",
+          "id": "tc1",
+          "name": "read",
+          "arguments": "{\"path\":\"a\"}",
+          "state": "input-complete"
+        },
+        {
+          "type": "tool-result",
+          "toolCallId": "tc1",
+          "content": "body",
+          "state": "complete"
+        }
+      ]
+    },
+    {
+      "id": "h3",
+      "role": "assistant",
+      "parts": [
+        {
+          "type": "text",
+          "content": "done"
+        }
+      ]
+    }
+  ]
+}

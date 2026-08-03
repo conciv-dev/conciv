@@ -1,4 +1,4 @@
-import {Show, type JSX} from 'solid-js'
+import {children, Show, type JSX} from 'solid-js'
 import {Tooltip} from '@conciv/ui-kit-system'
 
 const TONE = {
@@ -11,14 +11,15 @@ const CHIP =
 
 export function ToolChip(props: {name: string; tone?: 'new' | 'bad'; tip?: JSX.Element}): JSX.Element {
   const chipClass = () => `${CHIP} ${props.tone ? TONE[props.tone] : ''}`
+  const tip = children(() => props.tip)
   return (
-    <Show when={props.tip} fallback={<span class={chipClass()}>{props.name}</span>}>
+    <Show when={tip()} fallback={<span class={chipClass()}>{props.name}</span>}>
       <Tooltip.Root>
         <Tooltip.Trigger type="button" class={chipClass()}>
           {props.name}
         </Tooltip.Trigger>
         <Tooltip.Positioner>
-          <Tooltip.Content>{props.tip}</Tooltip.Content>
+          <Tooltip.Content>{tip()}</Tooltip.Content>
         </Tooltip.Positioner>
       </Tooltip.Root>
     </Show>

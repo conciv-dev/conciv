@@ -1,4 +1,4 @@
-import {Show, type JSX} from 'solid-js'
+import {children, Show, type JSX} from 'solid-js'
 import {TerminalPrimitive} from '../primitives/terminal.js'
 import type {TerminalModel} from '../model.js'
 
@@ -19,14 +19,15 @@ export function Terminal(props: {
   rail?: JSX.Element
 }): JSX.Element {
   const settled = () => props.model.status() === 'exited' || props.model.status() === 'error'
+  const rail = children(() => props.rail)
   return (
     <TerminalPrimitive.Root model={props.model} class={`${ROOT}  ${props.class ?? ''}`}>
       <div class="flex flex-1 flex-row min-h-0">
         <div class={SCREEN_WRAP} style={{opacity: settled() ? '0.45' : '1'}}>
           <TerminalPrimitive.Screen class={SCREEN} />
         </div>
-        <Show when={props.rail}>
-          <TerminalPrimitive.Overlay anchor="rail">{props.rail}</TerminalPrimitive.Overlay>
+        <Show when={rail()}>
+          <TerminalPrimitive.Overlay anchor="rail">{rail()}</TerminalPrimitive.Overlay>
         </Show>
       </div>
       <Show when={props.model.status() === 'connecting'}>

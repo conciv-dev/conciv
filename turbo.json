@@ -26,7 +26,7 @@
     },
     "test": {
       "dependsOn": ["^build", "build"],
-      "env": ["CI", "GITHUB_ACTIONS"],
+      "env": ["CI", "GITHUB_ACTIONS", "VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"],
       "outputs": ["test-results.json", "coverage/coverage-summary.json"]
     },
     "lint": {
@@ -41,7 +41,7 @@
     "test:e2e": {
       "dependsOn": ["^build"],
       "cache": false,
-      "env": ["CI", "GITHUB_ACTIONS", "CONCIV_E2E"]
+      "env": ["CI", "GITHUB_ACTIONS", "CONCIV_E2E", "VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]
     }
   }
 }

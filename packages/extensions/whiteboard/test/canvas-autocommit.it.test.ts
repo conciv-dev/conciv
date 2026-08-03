@@ -2,11 +2,12 @@ import {expect, test} from 'vitest'
 import type {Store} from '../src/server/db/store.js'
 import whiteboard from '../src/server.js'
 import {autoCommitDraft} from '../src/server/auto-commit.js'
-import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
-import {clientEntry, openCanvas, readCanvas as read} from './canvas-it-helpers.js'
+import {getExtensionTestApi} from '@conciv/extension-testkit'
+import {until} from '@conciv/harness-testkit'
+import {openCanvas, readCanvas as read, testHost} from './canvas-it-helpers.js'
 
 test('turn end commits an abandoned draft', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
     await api.callTool('canvas.svg', {
@@ -15,19 +16,19 @@ test('turn end commits an abandoned draft', async () => {
       y: 0,
       width: 100,
     })
-    await expect.poll(() => read(api, 'draft'), {timeout: 30_000}).toHaveLength(1)
+    await until(async () => (await read(api, 'draft')).length === 1, {hangGuardMs: 30_000, intervalMs: 250})
     const context = api.serverContext as {store: Store}
     const committed = await autoCommitDraft(context.store, api.session)
     expect(committed).toBe(true)
-    await expect.poll(() => read(api, 'live'), {timeout: 30_000}).toHaveLength(1)
-    await expect.poll(() => read(api, 'draft'), {timeout: 30_000}).toHaveLength(0)
+    await until(async () => (await read(api, 'live')).length === 1, {hangGuardMs: 30_000, intervalMs: 250})
+    await until(async () => (await read(api, 'draft')).length === 0, {hangGuardMs: 30_000, intervalMs: 250})
   } finally {
     await api.dispose()
   }
 })
 
 test('turn end with no draft is a no-op', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
     const context = api.serverContext as {store: Store}

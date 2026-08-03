@@ -2,12 +2,13 @@ import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
-import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
+import {createRecordingTerminalOpener, createTestHarness, type TestHarness} from '@conciv/harness-testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {makeChanges} from '../../src/chat/attach.js'
 import {makeConcivSandbox} from '../../src/chat/gate.js'
-import {ensureChatRecord} from '../../src/chat/run.js'
+import {ensureChatRecord} from '../../src/chat/session.js'
 import type {ChatDeps} from '../../src/chat/runtime.js'
+import {createRunTracker} from '../../src/chat/run-tracker.js'
 
 export type ChatFixture = {
   chat: ChatDeps
@@ -26,16 +27,20 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const chat: ChatDeps = {
     cwd: stateRoot,
     stateRoot,
+    basePath: '',
     harness,
     systemText: '',
     sandbox: makeConcivSandbox(stateRoot),
     db,
     changes: makeChanges(),
+    dialed: () => false,
     risky: new Set<string>(),
     tools: () => [],
     toolNames: new Set<string>(),
     extensionServerTools: () => [],
     attachmentExpanders: {},
+    runs: createRunTracker(),
+    openTerminal: createRecordingTerminalOpener().open,
   }
   const sessionId = 'conciv_fixture'
   if (opts.seedSession !== false) await ensureChatRecord(db, sessionId, harness.id, stateRoot)

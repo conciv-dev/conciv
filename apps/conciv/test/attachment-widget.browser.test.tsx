@@ -1,5 +1,6 @@
 import {render} from 'solid-js/web'
 import {afterEach, expect, test} from 'vitest'
+import {page} from 'vitest/browser'
 import {onMount, type JSX} from 'solid-js'
 import {makeRpcClient} from '@conciv/contract'
 import {useChatSession} from '@conciv/client'
@@ -59,6 +60,6 @@ test('composer chip area renders the fixture card with a remove affordance', asy
     dispose()
     host.remove()
   })
-  await expect.poll(() => host.textContent).toContain('fixture player')
-  expect(host.querySelector('button[aria-label="Remove fixture.bin"]')).not.toBeNull()
+  await expect.element(page.getByText('fixture player'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Remove fixture.bin'}), {timeout: 2000}).toBeVisible()
 })
