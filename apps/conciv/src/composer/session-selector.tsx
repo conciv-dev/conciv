@@ -11,7 +11,7 @@ let instanceSeq = 0
 const ACT =
   'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-pw-sm bg-transparent text-pw-text-2 cursor-pointer hover:bg-pw-fill-strong hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
 
-const RUNNING_ELSEWHERE = 'running in another pane'
+const RUNNING_LABEL = 'running'
 
 const SKEL = 'h-8 rounded-pw-sm skel-bg [background-size:200%_100%] anim-skel'
 
@@ -64,7 +64,6 @@ export function SessionSelector(props: {
 
   const list = useQuery(() => appData.utils.sessions.list.queryOptions())
   const rows = (): SessionMeta[] => list.data ?? []
-  const lockedElsewhere = (id: string) => (rows().find((s) => s.id === id)?.running ?? false) && id !== props.activeId()
   const activeId = () => props.activeId()
 
   const valueArr = (): string[] => {
@@ -264,7 +263,7 @@ export function SessionSelector(props: {
                       <Combobox.Item
                         item={s}
                         class="text-pw-text px-2 py-[0.4375rem] rounded-pw-sm flex gap-2 cursor-pointer items-center data-[highlighted]:text-pw-text-hi data-[highlighted]:bg-pw-fill-strong"
-                        aria-label={`${s.title}, ${metaLabel(s, now())}${lockedElsewhere(s.id) ? `, ${RUNNING_ELSEWHERE}` : ''}`}
+                        aria-label={`${s.title}, ${metaLabel(s, now())}${s.running ? `, ${RUNNING_LABEL}` : ''}`}
                       >
                         <div class="flex flex-1 flex-col gap-px min-w-0">
                           <span class="truncate">
@@ -277,7 +276,7 @@ export function SessionSelector(props: {
                         <Show when={s.origin === 'conciv'}>
                           <Sparkles class="text-pw-accent opacity-80 shrink-0 size-3.25" aria-hidden="true" />
                         </Show>
-                        <Show when={lockedElsewhere(s.id)}>
+                        <Show when={s.running}>
                           <span class="rounded-[50%] bg-pw-success shrink-0 size-1.75 anim-pulse" aria-hidden="true" />
                         </Show>
                         <Combobox.ItemIndicator class="text-pw-accent ml-auto hidden data-[state=checked]:inline-flex">

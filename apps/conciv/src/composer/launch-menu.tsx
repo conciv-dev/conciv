@@ -1,32 +1,23 @@
-import {Match, Show, Switch, splitProps, type JSX} from 'solid-js'
+import {Match, Switch, splitProps, type JSX} from 'solid-js'
 import {Menu, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
-import {ClipboardCopy, PlugZap, RotateCw, SquareTerminal} from 'lucide-solid'
-import {optionsUnavailable, RETRY_LABEL} from './connect/connect-copy.js'
+import {ClipboardCopy, RotateCw, SquareTerminal} from 'lucide-solid'
+
+const RETRY_LABEL = 'Try again'
+
+function optionsUnavailable(harnessName: string): string {
+  return `Terminal options unavailable for ${harnessName}`
+}
 
 export function LaunchMenu(props: {
   harnessName: string
   class: string
   pending?: boolean
   failed?: boolean
-  canConnect?: boolean
   onOpen: () => void
   onCopy: () => void
   onRetry?: () => void
-  onConnect?: () => void
-  onPrefetch?: () => void
 }): JSX.Element {
-  const [local] = splitProps(props, [
-    'harnessName',
-    'class',
-    'pending',
-    'failed',
-    'canConnect',
-    'onOpen',
-    'onCopy',
-    'onRetry',
-    'onConnect',
-    'onPrefetch',
-  ])
+  const [local] = splitProps(props, ['harnessName', 'class', 'pending', 'failed', 'onOpen', 'onCopy', 'onRetry'])
   return (
     <Menu.Root>
       <TooltipIconButtonSlot tooltip={`Terminal options for ${local.harnessName}`} class={local.class}>
@@ -38,8 +29,6 @@ export function LaunchMenu(props: {
                 {...triggerProps()}
                 disabled={local.pending === true}
                 aria-busy={local.pending === true}
-                onPointerEnter={() => local.onPrefetch?.()}
-                onFocus={() => local.onPrefetch?.()}
               >
                 <SquareTerminal class="size-5 block" aria-hidden="true" />
               </button>
@@ -65,12 +54,6 @@ export function LaunchMenu(props: {
                 <ClipboardCopy class="size-4 block" aria-hidden="true" />
                 Copy command
               </Menu.Item>
-              <Show when={local.canConnect}>
-                <Menu.Item value="connect" onSelect={() => local.onConnect?.()}>
-                  <PlugZap class="size-4 block" aria-hidden="true" />
-                  Connect a running session
-                </Menu.Item>
-              </Show>
             </Match>
           </Switch>
         </Menu.Content>

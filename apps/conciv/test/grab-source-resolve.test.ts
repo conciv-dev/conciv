@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import type {Grab} from '@conciv/grab'
-import {resolveGrabSource} from '../src/chat/grab-source-resolve.js'
+import {resolveGrabSource} from '../src/pane/grab-source-resolve.js'
 
 function unresolvedGrab(): Grab {
   return {

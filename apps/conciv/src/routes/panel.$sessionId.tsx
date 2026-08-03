@@ -1,4 +1,4 @@
-import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
+import {Outlet, createFileRoute, redirect, useBlocker, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
 import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ChevronDown, PictureInPicture2, Unplug} from 'lucide-solid'
@@ -9,7 +9,7 @@ import {useAnnounce, useAppData, useDisconnect, useGrabProvider, useInstances, u
 import {PaneContext, makeGrabStore, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {setShutter} from '../lib/shutter.js'
-import {ContextTracker} from '../chat/context-tracker.js'
+import {ContextTracker} from '../pane/context-tracker.js'
 import {collectViews} from '../extension/extension-views.js'
 
 const HEAD = 'flex items-center gap-2.5 py-3 px-3.5 border-b border-b-pw-line-soft'
@@ -41,7 +41,6 @@ function PanelSession(): JSX.Element {
   const row = () => (sessions.data ?? []).find((session) => session.id === params().sessionId)
   const usage = () => row()?.usage ?? null
   const running = () => row()?.running ?? false
-  const attached = () => row()?.attached ?? false
 
   const views = createMemo(() => collectViews(instances))
   const activeView = () => {
@@ -82,10 +81,14 @@ function PanelSession(): JSX.Element {
 
   const grabStore = makeGrabStore()
 
+  useBlocker({
+    shouldBlockFn: ({current, next}) =>
+      running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
+  })
+
   const paneValue: PaneContextValue = {
     sessionId: () => params().sessionId,
     running,
-    attached,
     viewLocked,
     setLockedFor,
     slideClass,
@@ -93,6 +96,7 @@ function PanelSession(): JSX.Element {
     grabStore,
     grabProvider,
     attachments: makePendingAttachmentQueue(),
+    newSession: () => void newSession(),
   }
 
   return (

@@ -1,11 +1,9 @@
-import {createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX} from 'solid-js'
-import {useBlocker, useRouter} from '@tanstack/solid-router'
+import {createEffect, createMemo, createResource, For, onMount, Show, untrack, type JSX} from 'solid-js'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import {useChatSession} from '@conciv/client'
 import {
   AttachmentByMime,
   ChatProvider,
-  Composer,
   ComposerHandlersProvider,
   ComposerPrimitive,
   NowLine,
@@ -17,17 +15,16 @@ import {
   type Turn,
 } from '@conciv/ui-kit-chat'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
-import {createDebouncer} from '@tanstack/solid-pacer'
 import type {MessagePart, MultimodalContent, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
-import {collectToolRenderers} from '@conciv/extension'
+import {collectToolRenderers, HostApiProvider} from '@conciv/extension'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments} from './pane-attachments.js'
 import {resolveGrabSource} from './grab-source-resolve.js'
 import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
-import {usePane} from '../app/pane-context.js'
+import {usePane, type StagedGrab} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
 import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
@@ -36,20 +33,36 @@ import {GrabReference} from './grab-reference.js'
 import {CompactSpinner, Divider, ThinkingBubble} from './indicators.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
-import {HostApiProvider} from '@conciv/extension'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
-import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
+import {NoticeToaster, notify} from '../shell/notices.js'
+import {makeDraftStorage} from './draft-storage.js'
+import {PaneComposer} from './pane-composer.js'
+import {checkSend, type SendVerdict} from './send-checks.js'
 
 const GRAB_PREVIEW_MAX_W = 280
-const MAX_CONTENT_PARTS = 16
 
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
 const RECONNECT = 'flex gap-2 items-center text-pw-text-2 text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
 const DOT = 'w-1.5 h-1.5 rounded-[50%] bg-pw-text-2'
+
+type SendRejection = {rejected: true; message: string | null; tone: 'info' | 'warn'}
+
+function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejection {
+  return {rejected: true, message: verdict.message, tone: verdict.tone}
+}
+
+function isSendRejection(failure: unknown): failure is SendRejection {
+  return typeof failure === 'object' && failure !== null && 'rejected' in failure && failure.rejected === true
+}
+
+function failureMessage(failure: unknown): string {
+  if (failure instanceof Error && failure.message.length > 0) return failure.message
+  return 'The message could not be sent.'
+}
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {
@@ -71,33 +84,29 @@ function activeCallTitle(parts: ReadonlyArray<MessagePart>, titleByName: Record<
   return title
 }
 
-function contentText(content: string | MultimodalContent): string {
-  if (typeof content === 'string') return content.trim()
-  const parts = content.content
-  if (typeof parts === 'string') return parts.trim()
-  return parts
-    .flatMap((part) => (part.type === 'text' ? [part.content] : []))
-    .join('\n')
-    .trim()
+function grabTexts(grabs: ReadonlyArray<StagedGrab>): string[] {
+  return grabs.map((grab) => grab.text)
 }
 
-type ComposerStateApi = {
+type ComposerApi = {
   append: (text: string) => void
-  text: () => string
-  setText: (value: string) => void
   addAttachment: (file: File) => Promise<void>
 }
 
-function ComposerStateBridge(props: {onReady: (api: ComposerStateApi) => void}): JSX.Element {
+function ComposerBridge(props: {onReady: (api: ComposerApi) => void}): JSX.Element {
+  const pane = usePane()
   const composer = useComposer()
   const context = useComposerContext()
-  const api: ComposerStateApi = {
-    append: (text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text),
-    text: composer.text,
-    setText: composer.setText,
-    addAttachment: context.addAttachment,
-  }
-  onMount(() => props.onReady(api))
+  onMount(() => {
+    const restored = context.grabs()
+    if (restored.length > 0) pane.grabStore.stageTexts(restored)
+    props.onReady({
+      append: (text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text),
+      addAttachment: context.addAttachment,
+    })
+    for (const file of pane.attachments.drain()) void context.addAttachment(file)
+  })
+  createEffect(() => context.setGrabs(grabTexts(pane.grabStore.grabs())))
   return <></>
 }
 
@@ -107,8 +116,8 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const announce = useAnnounce()
   const instances = useInstances()
   const pane = usePane()
-  const router = useRouter()
-  const chat = useChatSession({rpc, sessionId: props.sessionId})
+  const sessionId = untrack(() => props.sessionId)
+  const chat = useChatSession({rpc, sessionId})
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
@@ -116,23 +125,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const disconnected = () => chat.connectionStatus() !== 'connected'
 
   let inputEl: HTMLTextAreaElement | undefined
-  let viewportEl: HTMLElement | undefined
-  const composerApi = {current: null as ComposerStateApi | null}
+  const composerApi = {current: null as ComposerApi | null}
 
-  const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId: props.sessionId}}))
+  const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
-
-  const [notice, setNotice] = createSignal('')
-  let noticeTimer: ReturnType<typeof setTimeout> | undefined
-  const notify = (message: string) => {
-    setNotice(message)
-    announce(message)
-    if (noticeTimer) clearTimeout(noticeTimer)
-    noticeTimer = setTimeout(() => setNotice(''), 5000)
-  }
-  onCleanup(() => {
-    if (noticeTimer) clearTimeout(noticeTimer)
-  })
+  const [draftStorage] = createResource(() => makeDraftStorage(rpc, sessionId))
 
   const startedAt = new Map<string, number>()
   const durations = createMemo<Record<string, number>>(
@@ -152,7 +149,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
 
   const uiReply = useMutation(() => ({
     mutationFn: (input: {toolCallId: string; value: UiAnswerValue}) =>
-      rpc.chat.uiReply({sessionId: props.sessionId, toolCallId: input.toolCallId, value: input.value}),
+      rpc.chat.uiReply({sessionId, toolCallId: input.toolCallId, value: input.value}),
     onError: () => notify('That question is no longer waiting for an answer.'),
   }))
   const concivUiEntry: ToolCardEntry = {
@@ -177,23 +174,18 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     return activeCallTitle(last.parts, streamTitles())
   }
 
-  let wasWorking = false
-  createEffect(() => {
+  createEffect<boolean>((was) => {
     const now = working()
-    if (now !== wasWorking) {
-      wasWorking = now
-      appData.invalidateSessions()
-      if (!now) void markers.refetch()
+    if (now === was) return was
+    appData.invalidateSessions()
+    if (now) announce('conciv is thinking…')
+    if (!now) {
+      void markers.refetch()
+      if (!chat.error()) announce('conciv replied.')
     }
-  })
+    return now
+  }, false)
 
-  let prevStatus = ''
-  createEffect(() => {
-    const status = chat.status()
-    if (status === 'submitted') announce('conciv is thinking…')
-    else if (prevStatus === 'streaming' && status !== 'streaming') announce('conciv replied.')
-    prevStatus = status
-  })
   createEffect(() => {
     if (disconnected()) announce('Reconnecting to conciv…')
   })
@@ -204,7 +196,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   }
 
   const compact = useMutation(() => ({
-    mutationFn: () => rpc.sessions.compact({sessionId: props.sessionId}),
+    mutationFn: () => rpc.sessions.compact({sessionId}),
     onError: () => notify('Compaction failed. The session may be busy. Try again in a moment.'),
     onSettled: () => {
       appData.invalidateSessions()
@@ -212,13 +204,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     },
   }))
   const compacting = () => compact.isPending
-
-  const newSession = async () => {
-    const {sessionId} = await rpc.sessions.create(undefined)
-    appData.invalidateSessions()
-    void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
-    announce('Started a new session')
-  }
 
   const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
   const insert = (text: string) => {
@@ -247,7 +232,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     const grounded = await resolveGrabSource(grab, (input) => rpc.page.symbolicate(input))
     if (!grounded) return
     pane.grabStore.replace(grab, grounded)
-    persistDraft.maybeExecute()
   }
   const stageGrab = (grab: Grab) => {
     pane.grabStore.stage(grab)
@@ -260,118 +244,22 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const dividersInRange = (start: number, end: number): MarkerRow[] =>
     (markers.data ?? []).filter((row) => row.afterTurn >= start && row.afterTurn <= end)
 
-  const isInputFocused = (): boolean => {
-    if (!inputEl) return false
-    const root = inputEl.getRootNode()
-    if (root instanceof ShadowRoot) return root.activeElement === inputEl
-    return document.activeElement === inputEl
-  }
-
-  const writeDraft = () => {
-    const text = composerApi.current?.text() ?? ''
-    void rpc.drafts
-      .set({
-        sessionId: props.sessionId,
-        text,
-        selectionStart: inputEl?.selectionStart ?? text.length,
-        selectionEnd: inputEl?.selectionEnd ?? text.length,
-        grabs: pane.grabStore.grabs().map((grab) => grab.text),
-      })
-      .catch(() => {})
-  }
-  const persistDraft = createDebouncer(writeDraft, {wait: 400})
-  const persistSnapshot = createDebouncer(
-    () =>
-      writePaneSnapshot(props.sessionId, {
-        selectionStart: inputEl?.selectionStart ?? 0,
-        selectionEnd: inputEl?.selectionEnd ?? 0,
-        focused: isInputFocused(),
-        scrollTop: viewportEl?.scrollTop ?? null,
-      }),
-    {wait: 150},
-  )
-
-  const draftQuery = useQuery(() => appData.utils.drafts.get.queryOptions({input: {sessionId: props.sessionId}}))
-  const restored = {done: false}
-  const maybeRestore = () => {
-    const api = composerApi.current
-    if (!api || restored.done || !draftQuery.isSuccess) return
-    restored.done = true
-    const row = draftQuery.data
-    if (row) {
-      api.setText(row.text)
-      if (row.grabs.length > 0) pane.grabStore.stageTexts(row.grabs)
-    }
-    const snapshot = readPaneSnapshot(props.sessionId)
-    requestAnimationFrame(() => {
-      if (snapshot?.scrollTop != null && viewportEl) viewportEl.scrollTop = snapshot.scrollTop
-      if (!inputEl) return
-      if (row) inputEl.setSelectionRange(row.selectionStart, row.selectionEnd)
-      if (snapshot?.focused ?? true) inputEl.focus()
+  const onSend = async (content: string | MultimodalContent) => {
+    const verdict = checkSend(content, {
+      busy: compacting(),
+      connected: chat.connectionStatus() === 'connected',
     })
-  }
-  createEffect(() => {
-    if (!draftQuery.isSuccess) return
-    maybeRestore()
-  })
-  createEffect(() => {
-    const row = draftQuery.data
-    if (!row || !restored.done || isInputFocused()) return
-    const api = composerApi.current
-    if (api && api.text() !== row.text) api.setText(row.text)
-  })
-
-  onMount(() => {
-    const schedule = () => {
-      persistDraft.maybeExecute()
-      persistSnapshot.maybeExecute()
-    }
-    const inputEvents: string[] = ['input', 'select', 'keyup', 'click', 'focus', 'blur']
-    const target = inputEl
-    const viewport = viewportEl
-    if (target) for (const event of inputEvents) target.addEventListener(event, schedule)
-    if (viewport) viewport.addEventListener('scroll', () => persistSnapshot.maybeExecute())
-    const onPageHide = () => persistSnapshot.flush()
-    window.addEventListener('pagehide', onPageHide)
-    onCleanup(() => {
-      if (target) for (const event of inputEvents) target.removeEventListener(event, schedule)
-      window.removeEventListener('pagehide', onPageHide)
-    })
-  })
-
-  const send = async (content: string | MultimodalContent) => {
-    const sending = chat.sendMessage(content)
-    await rpc.drafts
-      .set({
-        sessionId: props.sessionId,
-        text: '',
-        selectionStart: 0,
-        selectionEnd: 0,
-        grabs: pane.grabStore.grabs().map((grab) => grab.text),
-      })
-      .catch(() => {})
-    persistDraft.cancel()
+    if (!verdict.ok) throw sendRejection(verdict)
+    await chat.sendMessage(content)
     pane.grabStore.clear()
-    await sending
-    clearPaneSnapshot(props.sessionId)
-    void draftQuery.refetch()
   }
-  const onSend = (content: string | MultimodalContent) => {
-    const text = contentText(content)
-    const hasContent = typeof content === 'string' ? text.length > 0 : content.content.length > 0
-    if (!hasContent || compacting()) return
-    if (typeof content !== 'string' && content.content.length > MAX_CONTENT_PARTS) {
-      notify('Too many attachments. Remove some and send again.')
+  const onSendError = (failure: unknown) => {
+    if (isSendRejection(failure)) {
+      if (failure.message) notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
       return
     }
-    if (chat.connectionStatus() !== 'connected') return
-    void send(typeof content === 'string' ? text : content)
+    notify(failureMessage(failure), {tone: 'danger'})
   }
-
-  useBlocker({
-    shouldBlockFn: ({current, next}) =>
-      working() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
-  })
 
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
   const renderTurnPrefix = (turn: Turn): JSX.Element => (
@@ -380,23 +268,20 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
 
   return (
     <HostApiProvider
-      sessionId={() => props.sessionId}
+      sessionId={() => sessionId}
       grab={paneGrab}
       insert={insert}
       attach={attach}
-      newSession={() => void newSession()}
+      newSession={() => pane.newSession()}
     >
       <ChatProvider chat={chat}>
         <ToolProvider value={toolCtx}>
           <ComposerHandlersProvider
             value={{
               onSend,
-              onCancel: () => {
-                chat.stop()
-                void rpc.sessions.stop({sessionId: props.sessionId}).catch(() => {})
-              },
-              onSteer: () => rpc.sessions.stop({sessionId: props.sessionId}),
-              onSteerError: () => notify('Steering failed. The message is still queued. Try again.'),
+              onSendError,
+              onRefresh: () => chat.refresh(),
+              onCancel: () => chat.stop(),
             }}
           >
             <ComposerPrimitive.TriggerPopoverRoot>
@@ -411,9 +296,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                   attachmentCards={attachments().cards}
                   components={{ToolFallback: ToolFallbackCard}}
                   turnPrefix={renderTurnPrefix}
-                  viewportRef={(el) => {
-                    viewportEl = el
-                  }}
                   viewportFooter={
                     <>
                       <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
@@ -451,11 +333,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                           <span class="flex-1">Reconnecting…</span>
                         </div>
                       </Show>
-                      <Show when={notice()}>
-                        <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
-                          {notice()}
-                        </div>
-                      </Show>
+                      <NoticeToaster />
                       <For each={pane.grabStore.grabs()}>
                         {(grab) => (
                           <GrabReference
@@ -465,35 +343,38 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                           />
                         )}
                       </For>
-                      <Composer
-                        placeholder="Ask a question…"
-                        inputLabel="Message the conciv agent"
-                        attachmentAdapter={attachments().adapter}
-                        AttachmentComponent={PaneAttachment}
-                        inputRef={(el) => {
-                          inputEl = el
-                        }}
-                        busy={compacting() ? <CompactSpinner /> : undefined}
-                        popover={<TriggerMenus sessionId={props.sessionId} />}
-                      >
-                        <ComposerActions
-                          sessionId={props.sessionId}
-                          compacting={compacting()}
-                          onCompact={() => compact.mutate()}
-                          onNewSession={() => void newSession()}
-                          onStageGrab={stageGrab}
-                          notify={notify}
-                        />
-                        <ExtensionSurface name="composer" instances={instances} />
-                        <SessionModelSelector sessionId={props.sessionId} />
-                        <ComposerStateBridge
-                          onReady={(api) => {
-                            composerApi.current = api
-                            maybeRestore()
-                            for (const file of pane.attachments.drain()) void api.addAttachment(file)
-                          }}
-                        />
-                      </Composer>
+                      <Show when={draftStorage()}>
+                        {(storage) => (
+                          <PaneComposer
+                            draftStorage={storage()}
+                            draftKey={sessionId}
+                            placeholder="Ask a question…"
+                            inputLabel="Message the conciv agent"
+                            attachmentAdapter={attachments().adapter}
+                            AttachmentComponent={PaneAttachment}
+                            inputRef={(element) => {
+                              inputEl = element
+                            }}
+                            busy={compacting() ? <CompactSpinner /> : undefined}
+                            popover={<TriggerMenus sessionId={sessionId} />}
+                          >
+                            <ComposerActions
+                              sessionId={sessionId}
+                              compacting={compacting()}
+                              onCompact={() => compact.mutate()}
+                              onNewSession={() => pane.newSession()}
+                              onStageGrab={stageGrab}
+                            />
+                            <ExtensionSurface name="composer" instances={instances} />
+                            <SessionModelSelector sessionId={sessionId} />
+                            <ComposerBridge
+                              onReady={(api) => {
+                                composerApi.current = api
+                              }}
+                            />
+                          </PaneComposer>
+                        )}
+                      </Show>
                     </>
                   }
                 />

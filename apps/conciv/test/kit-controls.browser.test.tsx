@@ -1,14 +1,14 @@
 import '@conciv/ui-kit-system/tokens.css'
 import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import {render} from 'solid-js/web'
 import type {JSX} from 'solid-js'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import {NoticeToaster, notify, toaster} from '../src/shell/notices.js'
 import {QuickTerminalHeader} from '../src/routes/quick.js'
-import {makeConcivUiCard} from '../src/chat/conciv-ui-card.js'
+import {makeConcivUiCard} from '../src/pane/conciv-ui-card.js'
 
 const disposers: (() => void)[] = []
 
@@ -63,10 +63,9 @@ test('a form question answers with the option the reader picks out of the listbo
     />
   ))
 
-  await page.getByRole('combobox', {name: 'Environment'}).click()
-  await page.getByRole('option', {name: 'production'}).click()
+  await userEvent.selectOptions(page.getByRole('combobox', {name: 'Environment'}), 'production')
 
-  await expect.element(page.getByRole('combobox', {name: 'Environment'})).toHaveTextContent('production')
+  await expect.element(page.getByRole('combobox', {name: 'Environment'})).toHaveValue('production')
 
   await page.getByRole('button', {name: 'Submit'}).click()
 

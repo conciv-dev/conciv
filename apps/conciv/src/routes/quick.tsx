@@ -6,8 +6,8 @@ import {TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
 import {useAppData, useRpc, useSuppressed} from '../app/context.js'
 import {PaneProvider} from '../app/pane-provider.js'
-import {ChatPane} from '../chat/chat-pane.js'
-import {ContextTracker} from '../chat/context-tracker.js'
+import {ChatPane} from '../pane/chat-pane.js'
+import {ContextTracker} from '../pane/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-search.js'
 
@@ -110,7 +110,7 @@ function QuickLayer(): JSX.Element {
   const closePane = (index: number) => {
     const ids = paneIds()
     const closed = ids[index]
-    if (closed) void rpc.sessions.remove({sessionId: closed}).catch(() => {})
+    if (closed) void rpc.sessions.delete({sessionId: closed}).catch(() => {})
     const remaining = ids.filter((_, i) => i !== index)
     appData.invalidateSessions()
     if (remaining.length === 0) {
@@ -211,7 +211,7 @@ function QuickLayer(): JSX.Element {
                 </div>
                 <Show when={id} keyed>
                   {(sessionId) => (
-                    <PaneProvider sessionId={sessionId}>
+                    <PaneProvider sessionId={sessionId} onNewSession={() => void addPane()}>
                       <ChatPane sessionId={sessionId} />
                     </PaneProvider>
                   )}

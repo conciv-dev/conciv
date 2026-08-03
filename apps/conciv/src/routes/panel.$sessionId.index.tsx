@@ -1,7 +1,7 @@
 import {createFileRoute} from '@tanstack/solid-router'
 import {Show, type JSX} from 'solid-js'
 import {useConnectionGeneration} from '../app/context.js'
-import {ChatPane} from '../chat/chat-pane.js'
+import {ChatPane} from '../pane/chat-pane.js'
 
 export const Route = createFileRoute('/panel/$sessionId/')({component: ChatPaneRoute})
 

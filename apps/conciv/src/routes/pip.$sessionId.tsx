@@ -4,7 +4,7 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {Portal} from 'solid-js/web'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {PaneProvider} from '../app/pane-provider.js'
-import {ChatPane} from '../chat/chat-pane.js'
+import {ChatPane} from '../pane/chat-pane.js'
 import {openPipWindow, type PipWindow} from '../shell/pip.js'
 
 export const Route = createFileRoute('/pip/$sessionId')({component: PipSession})

@@ -1,4 +1,5 @@
 import {type JSX} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import {SquarePen, FoldVertical} from 'lucide-solid'
 import {Progress} from '@conciv/ui-kit-system'
 
@@ -9,7 +10,7 @@ const DIVIDER_LABEL =
 const DOT = 'w-1.5 h-1.5 rounded-[50%] bg-pw-text-2'
 
 export function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JSX.Element {
-  const Icon = props.kind === 'new' ? SquarePen : FoldVertical
+  const icon = () => (props.kind === 'new' ? SquarePen : FoldVertical)
   const label = () => (props.kind === 'new' ? 'New session' : props.pending ? 'Compacting…' : 'Context compacted')
   return (
     <div
@@ -19,7 +20,11 @@ export function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JS
       aria-label={label()}
     >
       <span class={DIVIDER_LABEL}>
-        <Icon class={`size-3 ${props.pending ? '[transform-origin:center] anim-compact' : ''}`} aria-hidden="true" />
+        <Dynamic
+          component={icon()}
+          class={`size-3 ${props.pending ? '[transform-origin:center] anim-compact' : ''}`}
+          aria-hidden="true"
+        />
         {label()}
       </span>
     </div>

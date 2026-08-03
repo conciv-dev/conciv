@@ -12,7 +12,7 @@ import {
   ComposerHandlersProvider,
   useComposerContext,
 } from '@conciv/ui-kit-chat'
-import {paneAttachments} from '../src/chat/pane-attachments.js'
+import {paneAttachments} from '../src/pane/pane-attachments.js'
 
 const disposers: (() => void)[] = []
 afterEach(() => {

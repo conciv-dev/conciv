@@ -145,6 +145,9 @@ importers:
       '@tanstack/hotkeys':
         specifier: ^0.8.0
         version: 0.8.0
+      '@tanstack/pacer':
+        specifier: ^0.21.1
+        version: 0.21.1
       '@tanstack/solid-hotkeys':
         specifier: ^0.10.0
         version: 0.10.0(solid-js@1.9.14)
@@ -167,6 +170,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@conciv/extension-terminal':
+        specifier: workspace:^
+        version: link:../../packages/extensions/terminal
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../packages/extension-testkit

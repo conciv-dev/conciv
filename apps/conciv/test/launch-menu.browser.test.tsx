@@ -9,7 +9,7 @@ afterEach(() => {
   for (const dispose of disposers.splice(0)) dispose()
 })
 
-function mountMenu(canConnect = false, state: {pending?: boolean; failed?: boolean} = {}): void {
+function mountMenu(state: {pending?: boolean; failed?: boolean} = {}): void {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const [made, setMade] = createSignal<string[]>([])
@@ -23,13 +23,11 @@ function mountMenu(canConnect = false, state: {pending?: boolean; failed?: boole
         <LaunchMenu
           harnessName="Claude"
           class="size-8"
-          canConnect={canConnect}
           pending={state.pending}
           failed={state.failed}
           onOpen={() => choose('open')}
           onCopy={() => choose('copy')}
           onRetry={() => choose('retry')}
-          onConnect={() => choose('connect')}
         />
       </>
     ),
@@ -68,17 +66,8 @@ test('offers opening the terminal or copying the command', async () => {
   expect(document.body.textContent).not.toContain('Connect a running session')
 })
 
-test('offers connecting a running session only when the harness can attach', async () => {
-  mountMenu(true)
-
-  await page.getByRole('button', {name: 'Terminal options for Claude'}).click()
-  await page.getByRole('menuitem', {name: 'Connect a running session'}).click()
-  await expect.element(page.getByText('chose connect')).toBeVisible()
-  expect(chosen()).toEqual(['chose connect'])
-})
-
 test('the trigger is there from the first frame, busy until the harness answers', async () => {
-  mountMenu(false, {pending: true})
+  mountMenu({pending: true})
   const trigger = page.getByRole('button', {name: 'Terminal options for Claude'})
 
   await expect.element(trigger).toBeVisible()
@@ -87,7 +76,7 @@ test('the trigger is there from the first frame, busy until the harness answers'
 })
 
 test('a harness that could not be read says so and offers another go', async () => {
-  mountMenu(false, {failed: true})
+  mountMenu({failed: true})
 
   await page.getByRole('button', {name: 'Terminal options for Claude'}).click()
   const item = page.getByRole('menuitem', {name: /Terminal options unavailable for Claude/})

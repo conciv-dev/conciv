@@ -34,7 +34,6 @@ export type PendingAttachmentQueue = {
 export type PaneContextValue = {
   sessionId: Accessor<string>
   running: Accessor<boolean>
-  attached: Accessor<boolean>
   viewLocked: Accessor<boolean>
   setLockedFor: (id: string) => (locked: boolean) => void
   slideClass: Accessor<string>
@@ -42,6 +41,7 @@ export type PaneContextValue = {
   grabStore: PaneGrabStore
   grabProvider: GrabProvider | undefined
   attachments: PendingAttachmentQueue
+  newSession: () => void
 }
 
 export function makePendingAttachmentQueue(): PendingAttachmentQueue {

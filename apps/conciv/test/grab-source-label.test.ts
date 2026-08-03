@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {sourceLabel} from '../src/chat/grab-source-label.js'
+import {sourceLabel} from '../src/pane/grab-source-label.js'
 
 describe('sourceLabel', () => {
   it('renders component and file:line for a web grab', () => {

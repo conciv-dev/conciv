@@ -103,7 +103,7 @@ export function SessionModelSelector(props: {sessionId: string}): JSX.Element {
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
   const setModel = useMutation(() => ({
-    mutationFn: (model: string) => rpc.sessions.setModel({sessionId: props.sessionId, model}),
+    mutationFn: (model: string) => rpc.sessions.model({sessionId: props.sessionId, model}),
     onError: () => announce('Could not switch model', true),
     onSettled: () => appData.invalidateSessions(),
   }))

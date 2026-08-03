@@ -39,6 +39,7 @@
     "@solid-primitives/timer": "^1.4.4",
     "@tanstack/ai-client": "0.22.1",
     "@tanstack/hotkeys": "^0.8.0",
+    "@tanstack/pacer": "^0.21.1",
     "@tanstack/solid-hotkeys": "^0.10.0",
     "@tanstack/solid-pacer": "^0.21.1",
     "@tanstack/solid-query": "^5.101.2",
@@ -48,6 +49,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/storage-history": "workspace:^",
     "@conciv/uno-preset": "workspace:*",

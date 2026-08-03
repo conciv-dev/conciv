@@ -1,5 +1,5 @@
 import {expect, test} from 'vitest'
-import {checkSend, MAX_CONTENT_PARTS} from '../src/chat/send-checks.js'
+import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 
 const ready = {busy: false, connected: true}
 

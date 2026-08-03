@@ -3,7 +3,7 @@ import {afterEach, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import type {Grab} from '@conciv/grab'
 import {makeImageHostGrab} from '@conciv/extension-testkit/host/grab'
-import {GrabReference} from '../src/chat/grab-reference.js'
+import {GrabReference} from '../src/pane/grab-reference.js'
 
 const IMAGE_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
