@@ -7,16 +7,9 @@ import {eq} from 'drizzle-orm'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb} from '../src/db.js'
-import {
-  claimRun,
-  imageHistoryFor,
-  runMessagesFor,
-  replyFor,
-  setRunMessages,
-  statusOf,
-  writeReply,
-} from '../src/run-queries.js'
+import {imageHistoryFor, runMessagesFor, replyFor, setRunMessages, writeReply} from '../src/run-queries.js'
 import {sessions} from '../src/schema.js'
+import {runs} from '../src/run-schema.js'
 
 const record = (id: string) => ({
   id,
@@ -152,12 +145,12 @@ describe('openDb', () => {
       .insert(sessions)
       .values({...record('conciv_z'), title: 'keep'})
       .run()
-    claimRun(first, 'conciv_z', 'chat')
+    first.insert(runs).values({sessionId: 'conciv_z', status: 'running', updatedAt: Date.now()}).run()
     setRunMessages(first, 'conciv_z', [{id: 'm1'}])
     writeReply(first, 'conciv_z', 'k', true)
     const second = openDb(stateRoot)
     expect(second.select().from(sessions).all()[0]?.title).toBe('keep')
-    expect(statusOf(second, 'conciv_z')).toBe('idle')
+    expect(second.select().from(runs).where(eq(runs.sessionId, 'conciv_z')).all()[0]?.status).toBe('idle')
     expect(runMessagesFor(second, 'conciv_z')).toBeNull()
     expect(replyFor(second, 'conciv_z', 'k')).toBeNull()
   })
@@ -168,7 +161,6 @@ describe('openDb', () => {
     const imageTurn = [
       {id: 'u1', role: 'user', parts: [{type: 'image', source: {type: 'data', value: 'aGk=', mimeType: 'image/png'}}]},
     ]
-    claimRun(first, 'conciv_img', 'chat')
     setRunMessages(first, 'conciv_img', imageTurn)
     setRunMessages(first, 'conciv_txt', [{id: 't1', role: 'user', parts: [{type: 'text', content: 'hi'}]}])
     const second = openDb(stateRoot)

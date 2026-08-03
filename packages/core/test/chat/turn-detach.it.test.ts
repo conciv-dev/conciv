@@ -17,6 +17,10 @@ function tmp(): string {
   return dir
 }
 
+function runIdOf(chunk: {runId?: unknown}): string | null {
+  return typeof chunk.runId === 'string' ? chunk.runId : null
+}
+
 async function waitForSnapshot(stream: RunStream): Promise<string> {
   const chunk = await stream.waitFor((c) => c.type === EventType.MESSAGES_SNAPSHOT, {
     hangGuardMs: 5000,
@@ -48,14 +52,24 @@ describe('detached turns (IT)', () => {
     return {kit, id, releaseFile}
   }
 
-  it('rejects a resend while the prior turn is still generating', async () => {
-    const kit = await setupHang()
+  it('a resend while the prior turn is still generating runs concurrently to completion', async () => {
+    const releaseFile = join(tmp(), 'release')
+    const kit = await setupSlow(releaseFile)
     const id = await kit.session()
+    const stream = await kit.attach(id)
     await kit.rpc.chat.send({runId: 'turn-detach-2', sessionId: id, text: 'hi'})
-    await expect(kit.rpc.chat.send({runId: 'turn-detach-3', sessionId: id, text: 'again'})).rejects.toMatchObject({
-      code: 'BUSY',
+    await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
+    await expect(kit.rpc.chat.send({runId: 'turn-detach-3', sessionId: id, text: 'again'})).resolves.toEqual({
+      ok: true,
+      runId: 'turn-detach-3',
     })
-    await kit.rpc.chat.stop({sessionId: id})
+    writeFileSync(releaseFile, '')
+    await stream.waitFor((c) => c.type === EventType.RUN_FINISHED && runIdOf(c) === 'turn-detach-2', {
+      hangGuardMs: 10_000,
+    })
+    await stream.waitFor((c) => c.type === EventType.RUN_FINISHED && runIdOf(c) === 'turn-detach-3', {
+      hangGuardMs: 10_000,
+    })
   })
 
   it('chat.send resolves ok before the turn finishes', async () => {

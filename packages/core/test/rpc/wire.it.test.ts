@@ -69,17 +69,6 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(types).toContain(EventType.RUN_STARTED)
   })
 
-  it('send reports typed BUSY while a turn is generating', async () => {
-    const {kit, harness} = await bootWire()
-    const sessionId = await kit.session()
-    const stream = await kit.attach(sessionId)
-    harness.script.hold()
-    await kit.rpc.chat.send({runId: 'wire-3', sessionId, text: 'first'})
-    await expect(kit.rpc.chat.send({runId: 'wire-4', sessionId, text: 'second'})).rejects.toMatchObject({code: 'BUSY'})
-    harness.script.release()
-    await stream.done({hangGuardMs: 10_000})
-  })
-
   it('send consumes the server-side draft: grabs prefix the turn, row cleared', async () => {
     const {kit} = await bootWire()
     const sessionId = await kit.session()

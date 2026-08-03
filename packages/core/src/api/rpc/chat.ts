@@ -1,4 +1,3 @@
-import {SESSION_BUSY} from '../../chat/run.js'
 import {stopSession} from '../../chat/stop.js'
 import {subscribeSession} from '../../chat/subscribe.js'
 import {os, type RpcDeps} from './mount.js'
@@ -9,14 +8,9 @@ export function chatRouter(deps: RpcDeps) {
     subscribe: os.chat.subscribe.handler(async function* ({input, signal}) {
       yield* subscribeSession(chat, input.sessionId, signal ?? new AbortController().signal)
     }),
-    send: os.chat.send.handler(async ({input, errors}) => {
-      try {
-        const runId = await deps.send(input.sessionId, input.runId, input.content ?? input.text ?? '')
-        return {ok: true as const, runId}
-      } catch (error) {
-        if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
-        throw error
-      }
+    send: os.chat.send.handler(async ({input}) => {
+      const runId = await deps.send(input.sessionId, input.runId, input.content ?? input.text ?? '')
+      return {ok: true as const, runId}
     }),
     stop: os.chat.stop.handler(({input}) => stopSession(chat, input.sessionId)),
     permissionDecision: os.chat.permissionDecision.handler(({input}) => {

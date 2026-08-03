@@ -13,7 +13,6 @@ import {
   rowById,
   tombstoneRow,
 } from '../../chat/session-rows.js'
-import {SESSION_BUSY} from '../../chat/run.js'
 import {os, type RpcDeps} from './mount.js'
 
 export async function rpcSessionList(chat: ChatDeps, includeHidden: boolean): Promise<SessionMeta[]> {
@@ -25,7 +24,7 @@ export async function rpcSessionList(chat: ChatDeps, includeHidden: boolean): Pr
     harnessKind: chat.harness.id,
     cwd: chat.cwd,
     nativeList,
-    running: (sessionId) => chat.turns.running(sessionId),
+    running: (sessionId) => chat.liveRuns.running(sessionId),
     model: (sessionId) => modelOf(chat.db, sessionId),
     includeHidden,
   })
@@ -97,13 +96,8 @@ export function sessionsRouter(deps: RpcDeps) {
       await db.update(sessions).set({model: input.model, updatedAt: Date.now()}).where(eq(sessions.id, input.sessionId))
       return {model: input.model}
     }),
-    compact: os.sessions.compact.handler(async ({input, errors}) => {
-      try {
-        await deps.compactor.run(input.sessionId)
-      } catch (error) {
-        if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
-        throw error
-      }
+    compact: os.sessions.compact.handler(async ({input}) => {
+      await deps.compactor.run(input.sessionId)
       return {ok: true as const}
     }),
   }

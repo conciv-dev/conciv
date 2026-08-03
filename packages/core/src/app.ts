@@ -33,13 +33,14 @@ import {
   rowByNativeId,
   sweepEmptyRows,
 } from './chat/session-rows.js'
+import {InMemoryRunEventLog, RunController} from '@tanstack/ai-sandbox'
 import {buildChatTools, type ChatDeps} from './chat/runtime.js'
 import {askUi, createAskRegistry} from './chat/ask.js'
 import {makeConcivSandbox, makeRunGate, riskyMatches} from './chat/gate.js'
 import {createSessionStreams} from './chat/subscribe.js'
 import {createSnapshotCache} from './chat/transcript.js'
-import {createRunTracker} from './chat/run-tracker.js'
-import {createTurnRegistry, makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
+import {createLiveRuns} from './chat/live-runs.js'
+import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
 import {modelOf, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
@@ -204,14 +205,27 @@ export type MadeApp = {
 
 const RUN_DRAIN_TIMEOUT_MS = 5_000
 
+async function drainWithDeadline(drain: Promise<void>, timeoutMs: number): Promise<boolean> {
+  const timer = {handle: null as ReturnType<typeof setTimeout> | null}
+  const outcome = await Promise.race([
+    drain.then(() => 'drained' as const),
+    new Promise<'timeout'>((resolve) => {
+      timer.handle = setTimeout(() => resolve('timeout'), timeoutMs)
+    }),
+  ])
+  if (timer.handle) clearTimeout(timer.handle)
+  return outcome === 'drained'
+}
+
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const db = openDb(opts.cfg.stateRoot)
   const asks = createAskRegistry()
-  const turns = createTurnRegistry()
+  const runLog = new InMemoryRunEventLog()
+  const runControl = new RunController(runLog)
+  const liveRuns = createLiveRuns()
   const stream = createSessionStreams()
   const snapshots = createSnapshotCache()
-  const runs = createRunTracker()
   const risky = new Set(
     (opts.extensions ?? [])
       .flatMap((extension) => extension.tools ?? [])
@@ -242,7 +256,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       await ensureRow(db, sessionId, harness.id, opts.cwd)
       await recordNativeId(db, sessionId, token)
     },
-    chatBusy: (sessionId) => turns.running(sessionId),
+    chatBusy: (sessionId) => liveRuns.running(sessionId),
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
@@ -359,10 +373,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sandbox: makeConcivSandbox(opts.cwd),
     db,
     asks,
-    turns,
+    runLog,
+    runControl,
+    liveRuns,
     stream,
     snapshots,
-    runs,
     risky,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     toolNames: new Set(toolList.map((tool) => tool.name)),
@@ -424,8 +439,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
 
   const dispose = async (): Promise<void> => {
-    const outstanding = await runs.drain(RUN_DRAIN_TIMEOUT_MS)
-    if (outstanding > 0) logError(`[core] disposed with ${outstanding} run(s) still in flight`)
+    const drained = await drainWithDeadline(runControl.drain(), RUN_DRAIN_TIMEOUT_MS)
+    if (!drained) logError('[core] disposed with run(s) still in flight')
     for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
     db.$client.close()
   }

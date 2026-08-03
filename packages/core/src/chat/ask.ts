@@ -24,7 +24,6 @@ type SessionAsks = {
 
 export type AskRegistry = {
   open: (sessionId: string, key: string) => void
-  opened: (sessionId: string, key: string) => boolean
   owner: (key: string) => string | null
   pending: (sessionId: string) => string[]
   reply: (sessionId: string, key: string, value: unknown) => boolean
@@ -65,7 +64,6 @@ export function createAskRegistry(): AskRegistry {
     open: (sessionId, key) => {
       askOf(stateOf(sessionId), key)
     },
-    opened: (sessionId, key) => bySession.get(sessionId)?.asks.has(key) ?? false,
     owner: (key) => {
       for (const [sessionId, state] of bySession) {
         if (state.asks.has(key)) return sessionId

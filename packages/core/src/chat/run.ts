@@ -1,7 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {existsSync, readFileSync} from 'node:fs'
 import {eq} from 'drizzle-orm'
-import {z} from 'zod'
 import {
   chat,
   EventType,
@@ -16,20 +15,19 @@ import {
 import type {HarnessAdapter, HarnessChatConfig} from '@conciv/protocol/harness-types'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
-import {aguiSnapshotFor, APPROVAL_REQUESTED_EVENT} from '@conciv/protocol/ui-types'
+import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {
-  claimRun,
   clearImageHistory,
   drafts,
   foldRunMessagesIntoImageHistory,
   markers,
-  releaseRun,
   sessions,
   setRunMessages,
   type ConcivDb,
 } from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
+import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot} from './transcript.js'
 import {makeRunGate, withConcivGate, withConcivSandbox, type PermissionGate} from './gate.js'
@@ -38,45 +36,7 @@ import {codeModeToolChunks} from './code-mode-parts.js'
 import {makeToolNameNormalizer, normalizeChunkToolName} from './tool-names.js'
 import {harnessDebug, logError} from '../lib/debug.js'
 
-export const SESSION_BUSY = 'session busy'
-
 export type TurnKind = 'chat' | 'compact'
-
-export type Turn = {abort: AbortController; phase: 'running' | 'awaiting-approval'}
-
-export type TurnRegistry = {
-  begin: (sessionId: string) => {turn: Turn; fresh: boolean} | null
-  active: (sessionId: string) => Turn | null
-  running: (sessionId: string) => boolean
-  hold: (sessionId: string) => void
-  release: (sessionId: string) => void
-}
-
-export function createTurnRegistry(): TurnRegistry {
-  const turns = new Map<string, Turn>()
-  return {
-    begin: (sessionId) => {
-      const existing = turns.get(sessionId)
-      if (existing?.phase === 'awaiting-approval') {
-        existing.phase = 'running'
-        return {turn: existing, fresh: false}
-      }
-      if (existing) return null
-      const created: Turn = {abort: new AbortController(), phase: 'running'}
-      turns.set(sessionId, created)
-      return {turn: created, fresh: true}
-    },
-    active: (sessionId) => turns.get(sessionId) ?? null,
-    running: (sessionId) => turns.get(sessionId)?.phase === 'running',
-    hold: (sessionId) => {
-      const turn = turns.get(sessionId)
-      if (turn) turn.phase = 'awaiting-approval'
-    },
-    release: (sessionId) => {
-      turns.delete(sessionId)
-    },
-  }
-}
 
 export function resumableToken(
   harness: HarnessAdapter,
@@ -115,7 +75,7 @@ export function resolveSystemText(
 
 export type UserContent = string | ChatContentPart[]
 
-export type RunRequest = {
+type RunRequest = {
   runId: string
   kind: TurnKind
   content: UserContent
@@ -205,7 +165,7 @@ async function buildRunStream(
 
 const LIFECYCLE_TYPES = new Set<string>([EventType.RUN_STARTED, EventType.RUN_FINISHED, EventType.RUN_ERROR])
 
-export function stampRunId(chunk: StreamChunk, runId: string): StreamChunk {
+function stampRunId(chunk: StreamChunk, runId: string): StreamChunk {
   if (!LIFECYCLE_TYPES.has(chunk.type)) return chunk
   if ('runId' in chunk && chunk.runId === runId) return chunk
   return {...chunk, runId}
@@ -221,27 +181,12 @@ export function mintedSessionId(chunk: StreamChunk): string | null {
 type RunOutcome = {
   error: string | null
   usage: UsageSnapshot | null
-  libraryApprovals: Set<string>
   runEnd: StreamChunk | null
 }
 
-export function isRunEndChunk(chunk: StreamChunk): boolean {
+function isRunEndChunk(chunk: StreamChunk): boolean {
   if (chunk.type === EventType.RUN_ERROR) return true
   return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
-}
-
-const ApprovalValueSchema = z.object({approval: z.object({id: z.string()}).loose()}).loose()
-
-function approvalIdOf(chunk: StreamChunk): string | null {
-  if (chunk.type !== EventType.CUSTOM || chunk.name !== APPROVAL_REQUESTED_EVENT) return null
-  const parsed = ApprovalValueSchema.safeParse(chunk.value)
-  return parsed.success ? parsed.data.approval.id : null
-}
-
-function noteApprovalRequest(deps: ChatDeps, sessionId: string, chunk: StreamChunk, outcome: RunOutcome): void {
-  const approvalId = approvalIdOf(chunk)
-  if (approvalId === null || deps.asks.opened(sessionId, approvalId)) return
-  outcome.libraryApprovals.add(approvalId)
 }
 
 function noteToolCall(deps: ChatDeps, sessionId: string, chunk: StreamChunk): void {
@@ -261,11 +206,8 @@ type ChunkFold = {deps: ChatDeps; sessionId: string; model: string | null; proce
 function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'continue' | 'stop' {
   const {deps, sessionId} = fold
   fold.processor.processChunk(chunk)
-  const ended = isRunEndChunk(chunk)
-  if (ended) outcome.runEnd = chunk
-  if (!ended) deps.stream.publish(sessionId, chunk)
+  if (isRunEndChunk(chunk)) outcome.runEnd = chunk
   noteToolCall(deps, sessionId, chunk)
-  noteApprovalRequest(deps, sessionId, chunk, outcome)
   const minted = mintedSessionId(chunk)
   if (minted) void recordNativeId(deps.db, sessionId, minted).catch(() => {})
   if (chunk.type === EventType.RUN_ERROR) {
@@ -276,21 +218,23 @@ function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'c
   return 'continue'
 }
 
-async function foldRunStream(
+async function* foldRunStream(
   deps: ChatDeps,
   sessionId: string,
   req: RunRequest,
   processor: StreamProcessor,
   stream: AsyncIterable<StreamChunk>,
   outcome: RunOutcome,
-): Promise<void> {
+): AsyncGenerator<StreamChunk> {
   const model = (await rowById(deps.db, sessionId))?.model ?? null
   const normalize = makeToolNameNormalizer(deps.toolNames)
   const fold: ChunkFold = {deps, sessionId, model, processor}
   for await (const raw of stream) {
     for (const chunk of codeModeToolChunks(raw) ?? [raw]) {
       const stamped = normalizeChunkToolName(stampRunId(chunk, req.runId), normalize)
-      if (foldChunk(fold, stamped, outcome) === 'stop') return
+      const step = foldChunk(fold, stamped, outcome)
+      if (!isRunEndChunk(stamped)) yield stamped
+      if (step === 'stop') return
     }
   }
 }
@@ -358,19 +302,17 @@ async function finishRun(deps: ChatDeps, sessionId: string, req: RunRequest, out
   deps.snapshots.clear(sessionId)
   if (outcome.usage) outcome.usage.contextTokens = await contextOccupancyFor(deps, sessionId).catch(() => undefined)
   await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
-  if (outcome.libraryApprovals.size > 0 && outcome.error === null) {
-    deps.turns.hold(sessionId)
-    deps.stream.publish(sessionId, runEndChunkFor(sessionId, req, outcome))
-    return
-  }
-  releaseRun(deps.db, sessionId, outcome.error)
-  deps.turns.release(sessionId)
+  deps.liveRuns.settle(sessionId, req.runId)
   deps.asks.cancel(sessionId)
   if (deps.onRunEnd) await deps.onRunEnd(sessionId).catch(() => {})
-  deps.stream.publish(sessionId, runEndChunkFor(sessionId, req, outcome))
 }
 
-export async function startRun(deps: ChatDeps, sessionId: string, req: RunRequest, turn: Turn): Promise<void> {
+async function* runStream(
+  deps: ChatDeps,
+  sessionId: string,
+  req: RunRequest,
+  abort: AbortController,
+): AsyncGenerator<StreamChunk> {
   const processor = new StreamProcessor({
     events: {onMessagesChange: (messages) => setRunMessages(deps.db, sessionId, messages)},
   })
@@ -378,24 +320,44 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
   const gate = makeRunGate({
     sessionId,
     asks: deps.asks,
-    emit: (chunk) => deps.stream.publish(sessionId, chunk),
+    emit: (chunk) => void deps.runLog.append(req.runId, chunk).catch(() => {}),
     risky: deps.risky,
   })
-  const outcome: RunOutcome = {error: null, usage: null, libraryApprovals: new Set(), runEnd: null}
+  const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
   try {
     deps.stream.publish(sessionId, aguiSnapshotFor(await sessionSnapshot(deps, sessionId)))
-    const stream = await buildRunStream(deps, sessionId, req, gate, turn.abort)
+    const stream = await buildRunStream(deps, sessionId, req, gate, abort)
     const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
     const bounded = boundFirstChunk(stream, timeoutMs, () => {
       outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`
-      turn.abort.abort()
+      abort.abort()
     })
-    await foldRunStream(deps, sessionId, req, processor, bounded, outcome)
+    yield* foldRunStream(deps, sessionId, req, processor, bounded, outcome)
   } catch (error) {
-    if (!turn.abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
-  } finally {
-    await finishRun(deps, sessionId, req, outcome)
+    if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
   }
+  await finishRun(deps, sessionId, req, outcome)
+  yield runEndChunkFor(sessionId, req, outcome)
+}
+
+async function launchRun(deps: ChatDeps, sessionId: string, req: RunRequest): Promise<LiveRun> {
+  await deps.runLog.open({runId: req.runId, threadId: sessionId})
+  const abort = new AbortController()
+  const handle = deps.runControl.start({
+    runId: req.runId,
+    threadId: sessionId,
+    stream: runStream(deps, sessionId, req, abort),
+  })
+  const run: LiveRun = {
+    runId: req.runId,
+    abort,
+    done: handle.done.then(
+      () => undefined,
+      () => undefined,
+    ),
+  }
+  deps.liveRuns.start(sessionId, run)
+  return run
 }
 
 function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {
@@ -482,33 +444,15 @@ async function composeUserContent(db: ConcivDb, sessionId: string, content: User
 
 export type Send = (sessionId: string, runId: string, content: UserContent) => Promise<string>
 
-function claimTurn(deps: ChatDeps, sessionId: string, kind: TurnKind): Turn {
-  const claim = deps.turns.begin(sessionId)
-  if (!claim) throw new Error(SESSION_BUSY)
-  if (!claim.fresh) return claim.turn
-  if (claimRun(deps.db, sessionId, kind) === null) {
-    deps.turns.release(sessionId)
-    throw new Error(SESSION_BUSY)
-  }
-  return claim.turn
-}
-
 export function makeSend(deps: ChatDeps): Send {
   return async (sessionId, runId, content) => {
-    const turn = claimTurn(deps, sessionId, 'chat')
-    try {
-      deps.onRunStart?.(sessionId)
-      await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
-      const userContent = await composeUserContent(deps.db, sessionId, content)
-      const expanded = await expandUserParts(userContent, deps.attachmentExpanders)
-      void deps.runs.track(sessionId, startRun(deps, sessionId, {runId, kind: 'chat', content: expanded}, turn))
-      await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
-      return runId
-    } catch (error) {
-      releaseRun(deps.db, sessionId, null)
-      deps.turns.release(sessionId)
-      throw error
-    }
+    deps.onRunStart?.(sessionId)
+    await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
+    const userContent = await composeUserContent(deps.db, sessionId, content)
+    const expanded = await expandUserParts(userContent, deps.attachmentExpanders)
+    await launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
+    await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+    return runId
   }
 }
 
@@ -520,20 +464,11 @@ async function addCompactMarker(db: ConcivDb, sessionId: string, afterTurn: numb
 
 export function makeCompactor(deps: ChatDeps): Compactor {
   async function run(sessionId: string): Promise<void> {
-    const turn = claimTurn(deps, sessionId, 'compact')
-    try {
-      deps.onRunStart?.(sessionId)
-      const history = await sessionSnapshot(deps, sessionId)
-      await addCompactMarker(deps.db, sessionId, history.length)
-    } catch (error) {
-      releaseRun(deps.db, sessionId, null)
-      deps.turns.release(sessionId)
-      throw error
-    }
-    await deps.runs.track(
-      sessionId,
-      startRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)}, turn),
-    )
+    deps.onRunStart?.(sessionId)
+    const history = await sessionSnapshot(deps, sessionId)
+    await addCompactMarker(deps.db, sessionId, history.length)
+    const live = await launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
+    await live.done
   }
 
   return {run}

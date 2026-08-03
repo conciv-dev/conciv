@@ -14,7 +14,7 @@ describe('stop then send (IT)', () => {
     state.kit = undefined
   })
 
-  it('a send right after stop claims the turn instead of SESSION_BUSY', {timeout: 30_000}, async () => {
+  it('a send right after stop is accepted and starts a fresh run', {timeout: 30_000}, async () => {
     const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: () => ({CONCIV_FAKE_HANG: '1'})}})).setup()
     state.kit = kit
     const id = await kit.session()

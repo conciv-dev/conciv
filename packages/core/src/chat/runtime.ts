@@ -1,13 +1,13 @@
 import {toolDefinition, type AnyTool, type ServerTool} from '@tanstack/ai'
-import type {SandboxDefinition} from '@tanstack/ai-sandbox'
+import type {RunController, RunEventLog, SandboxDefinition} from '@tanstack/ai-sandbox'
 import type {z} from 'zod'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import type {ConcivDb} from '@conciv/db'
 import type {AskRegistry} from './ask.js'
-import type {AttachmentExpanders, TurnRegistry} from './run.js'
-import type {RunTracker} from './run-tracker.js'
+import type {AttachmentExpanders} from './run.js'
+import type {LiveRuns} from './live-runs.js'
 import type {SessionStreams} from './subscribe.js'
 import type {SnapshotCache} from './transcript.js'
 
@@ -22,7 +22,9 @@ export type ChatDeps = {
   sandbox: SandboxDefinition
   db: ConcivDb
   asks: AskRegistry
-  turns: TurnRegistry
+  runLog: RunEventLog
+  runControl: RunController
+  liveRuns: LiveRuns
   stream: SessionStreams
   snapshots: SnapshotCache
   risky: ReadonlySet<string>
@@ -30,7 +32,6 @@ export type ChatDeps = {
   toolNames: ReadonlySet<string>
   extensionServerTools: () => ExtensionServerTool[]
   attachmentExpanders: AttachmentExpanders
-  runs: RunTracker
   onRunStart?: (sessionId: string) => void
   onRunEnd?: (sessionId: string) => Promise<void>
   firstChunkTimeoutMs?: number

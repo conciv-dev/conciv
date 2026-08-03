@@ -1,33 +1,31 @@
 import {asc, eq} from 'drizzle-orm'
 import {describe, expect, it} from 'vitest'
-import {markers, statusOf} from '@conciv/db'
+import {markers} from '@conciv/db'
 import {makeChatFixture} from '../helpers/chat-fixture.js'
 import {makeCompactor} from '../../src/chat/run.js'
 
 describe('compactor', () => {
-  it('runs a compact run, writes marker, status is compacting during the run', async () => {
+  it('runs a compact run, writes marker, session reports running during the run', async () => {
     const {chat, db, sessionId, harness} = await makeChatFixture()
     const compactor = makeCompactor(chat)
     harness.script.hold()
     const run = compactor.run(sessionId)
     await new Promise((resolve) => setTimeout(resolve, 25))
-    expect(statusOf(db, sessionId)).toBe('compacting')
+    expect(chat.liveRuns.running(sessionId)).toBe(true)
     harness.script.release()
     await run
-    expect(statusOf(db, sessionId)).toBe('idle')
+    expect(chat.liveRuns.running(sessionId)).toBe(false)
     const kinds = (
       await db.select().from(markers).where(eq(markers.sessionId, sessionId)).orderBy(asc(markers.afterTurn))
     ).map((marker) => marker.kind)
     expect(kinds).toContain('compact')
   })
 
-  it('rejects a concurrent run as busy', async () => {
-    const {chat, sessionId, harness} = await makeChatFixture()
+  it('a concurrent compact is accepted and both runs settle', async () => {
+    const {chat, db, sessionId} = await makeChatFixture()
     const compactor = makeCompactor(chat)
-    harness.script.hold()
-    const run = compactor.run(sessionId)
-    await expect(compactor.run(sessionId)).rejects.toThrow(/busy/)
-    harness.script.release()
-    await run
+    await Promise.all([compactor.run(sessionId), compactor.run(sessionId)])
+    const kinds = (await db.select().from(markers).where(eq(markers.sessionId, sessionId))).map((marker) => marker.kind)
+    expect(kinds.filter((kind) => kind === 'compact')).toHaveLength(2)
   })
 })

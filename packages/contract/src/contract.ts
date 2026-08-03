@@ -35,7 +35,6 @@ const ChatSendInput = SessionIdInput.extend({
 const Ok = z.object({ok: z.literal(true)})
 const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
-const busy = {BUSY: {message: 'session busy'}}
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 
@@ -55,7 +54,7 @@ export const contract = {
       .errors({...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
       .input(SessionIdInput.extend({model: z.string()}))
       .output(z.object({model: z.string()})),
-    compact: oc.errors(busy).input(SessionIdInput).output(Ok),
+    compact: oc.input(SessionIdInput).output(Ok),
   },
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
@@ -70,7 +69,7 @@ export const contract = {
   },
   chat: {
     subscribe: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    send: oc.errors(busy).input(ChatSendInput).output(SendAccepted),
+    send: oc.input(ChatSendInput).output(SendAccepted),
     stop: oc.input(SessionIdInput).output(Ok),
     permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
     uiReply: oc
