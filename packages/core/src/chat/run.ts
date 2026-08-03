@@ -219,10 +219,10 @@ type RunOutcome = {
   error: string | null
   usage: UsageSnapshot | null
   libraryApprovals: Set<string>
-  terminal: StreamChunk | null
+  runEnd: StreamChunk | null
 }
 
-function isTerminalChunk(chunk: StreamChunk): boolean {
+function isRunEndChunk(chunk: StreamChunk): boolean {
   if (chunk.type === EventType.RUN_ERROR) return true
   return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }
@@ -258,9 +258,9 @@ type ChunkFold = {deps: ChatDeps; sessionId: string; model: string | null; proce
 function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'continue' | 'stop' {
   const {deps, sessionId} = fold
   fold.processor.processChunk(chunk)
-  const terminal = isTerminalChunk(chunk)
-  if (terminal) outcome.terminal = chunk
-  if (!terminal) deps.stream.publish(sessionId, chunk)
+  const ended = isRunEndChunk(chunk)
+  if (ended) outcome.runEnd = chunk
+  if (!ended) deps.stream.publish(sessionId, chunk)
   noteToolCall(deps, sessionId, chunk)
   noteApprovalRequest(deps, sessionId, chunk, outcome)
   const minted = mintedSessionId(chunk)
@@ -342,8 +342,8 @@ function persistRunOutcome(deps: ChatDeps, sessionId: string, kind: TurnKind): v
   clearImageHistory(deps.db, sessionId)
 }
 
-function terminalChunkFor(sessionId: string, req: RunRequest, outcome: RunOutcome): StreamChunk {
-  if (outcome.terminal) return outcome.terminal
+function runEndChunkFor(sessionId: string, req: RunRequest, outcome: RunOutcome): StreamChunk {
+  if (outcome.runEnd) return outcome.runEnd
   if (outcome.error !== null) {
     return {type: EventType.RUN_ERROR, threadId: sessionId, runId: req.runId, message: outcome.error}
   }
@@ -357,14 +357,14 @@ async function finishRun(deps: ChatDeps, sessionId: string, req: RunRequest, out
   await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
   if (outcome.libraryApprovals.size > 0 && outcome.error === null) {
     deps.turns.hold(sessionId)
-    deps.stream.publish(sessionId, terminalChunkFor(sessionId, req, outcome))
+    deps.stream.publish(sessionId, runEndChunkFor(sessionId, req, outcome))
     return
   }
   releaseRun(deps.db, sessionId, outcome.error)
   deps.turns.release(sessionId)
   deps.asks.cancel(sessionId)
   if (deps.onRunEnd) await deps.onRunEnd(sessionId).catch(() => {})
-  deps.stream.publish(sessionId, terminalChunkFor(sessionId, req, outcome))
+  deps.stream.publish(sessionId, runEndChunkFor(sessionId, req, outcome))
 }
 
 export async function startRun(deps: ChatDeps, sessionId: string, req: RunRequest, turn: Turn): Promise<void> {
@@ -378,7 +378,7 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
     emit: (chunk) => deps.stream.publish(sessionId, chunk),
     risky: deps.risky,
   })
-  const outcome: RunOutcome = {error: null, usage: null, libraryApprovals: new Set(), terminal: null}
+  const outcome: RunOutcome = {error: null, usage: null, libraryApprovals: new Set(), runEnd: null}
   try {
     const stream = await buildRunStream(deps, sessionId, req, gate, turn.abort)
     const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
