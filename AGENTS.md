@@ -147,9 +147,8 @@ true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` requir
 ## Security & safety
 
 - The core dev server binds `127.0.0.1` only. Never commit or log credentials/tokens.
-- Risky Bash from the agent is gated (`packages/core/src/api/chat/permission.ts` +
-  `packages/core/src/policy/command-policy.ts`): read-only commands auto-allow, everything else
-  asks. Keep that policy conservative when editing it.
+- Risky Bash from the agent is gated (`packages/core/src/chat/gate.ts`): read-only commands
+  auto-allow, everything else asks. Keep that policy conservative when editing it.
 
 ## Project status
 

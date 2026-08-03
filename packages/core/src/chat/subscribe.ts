@@ -1,4 +1,5 @@
 import type {StreamChunk} from '@tanstack/ai'
+import {AsyncQueue} from '@tanstack/ai-acp'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import type {ChatDeps} from './runtime.js'
 import {sessionSnapshot} from './transcript.js'
@@ -26,71 +27,33 @@ export function createSessionStreams(): SessionStreams {
   }
 }
 
-type ChunkQueue = {
-  push: (chunk: StreamChunk) => void
-  take: () => Promise<StreamChunk | null>
-  close: () => void
-}
-
-function createChunkQueue(signal: AbortSignal): ChunkQueue {
-  const buffered: StreamChunk[] = []
-  const state = {wake: null as (() => void) | null, closed: false}
-  const wakeUp = (): void => {
-    const wake = state.wake
-    state.wake = null
-    wake?.()
-  }
-  const close = (): void => {
-    state.closed = true
-    wakeUp()
-  }
-  signal.addEventListener('abort', close, {once: true})
-  return {
-    push: (chunk) => {
-      if (state.closed) return
-      buffered.push(chunk)
-      wakeUp()
-    },
-    take: async () => {
-      while (buffered.length === 0 && !state.closed) {
-        await new Promise<void>((resolve) => {
-          state.wake = resolve
-        })
-      }
-      return buffered.shift() ?? null
-    },
-    close: () => {
-      signal.removeEventListener('abort', close)
-      close()
-    },
-  }
-}
-
 export async function* subscribeSession(
   deps: ChatDeps,
   sessionId: string,
   signal: AbortSignal,
 ): AsyncGenerator<StreamChunk> {
-  const queue = createChunkQueue(signal)
+  const queue = new AsyncQueue<StreamChunk>()
+  const stop = (): void => queue.end()
+  signal.addEventListener('abort', stop, {once: true})
   async function pumpRun(runId: string): Promise<void> {
     for await (const event of deps.runControl.attach(runId, {signal})) queue.push(event.chunk)
   }
   const tailRun = (runId: string): void => {
     void pumpRun(runId).catch(() => {})
   }
-  const unlisten = deps.stream.listen(sessionId, queue.push)
+  const unlisten = deps.stream.listen(sessionId, (chunk) => queue.push(chunk))
   const unlistenRuns = deps.liveRuns.onStart(sessionId, tailRun)
   for (const run of deps.liveRuns.of(sessionId)) tailRun(run.runId)
   try {
     yield aguiSnapshotFor(await sessionSnapshot(deps, sessionId))
-    while (!signal.aborted) {
-      const chunk = await queue.take()
-      if (chunk === null) return
+    for await (const chunk of queue) {
       yield chunk
+      if (signal.aborted) return
     }
   } finally {
+    signal.removeEventListener('abort', stop)
     unlisten()
     unlistenRuns()
-    queue.close()
+    queue.end()
   }
 }

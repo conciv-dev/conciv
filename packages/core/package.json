@@ -62,6 +62,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@orpc/server": "^1.14.7",
     "@tanstack/ai": "^0.42.0",
+    "@tanstack/ai-acp": "0.2.3",
     "@tanstack/ai-code-mode": "0.3.7",
     "@tanstack/ai-isolate-node": "0.1.46",
     "@tanstack/ai-sandbox": "0.2.4",
