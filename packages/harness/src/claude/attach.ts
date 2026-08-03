@@ -13,7 +13,6 @@ import type {
 } from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {parseJsonOrNull} from '../_shared/json.js'
-import {claudeHooksManifest} from './hooks-plugin.js'
 import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE, CLAUDE_CONNECT_BRIDGE_URL_VAR} from './connect-bridge.js'
 import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './connect-names.js'
 
@@ -209,7 +208,6 @@ export function claudeConnectPluginFiles(opts: {
       mode: BRIDGE_FILE_MODE,
     },
     {path: join(plugin, '.mcp.json'), contents: mcpManifest(opts)},
-    {path: join(plugin, 'hooks', 'hooks.json'), contents: claudeHooksManifest({hookUrl: opts.hookUrl})},
   ]
 }
 

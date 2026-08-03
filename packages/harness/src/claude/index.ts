@@ -1,9 +1,7 @@
 import {defineHarness, type HarnessConnectContext, type HarnessConnectPlan} from '@conciv/protocol/harness-types'
-import {concivHooksPluginDir} from '@conciv/protocol/state-types'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 import {claudeConnectArgs} from './args.js'
 import {claudeAttach} from './attach.js'
-import {claudeHooksPluginFiles} from './hooks-plugin.js'
 import {claudeChatConfig} from './chat.js'
 import {claudeHistory} from './history.js'
 import {claudeSdkCommands} from './sdk.js'
@@ -26,21 +24,10 @@ const CLAUDE_MODELS = [
 
 function claudeConnectPlan(ctx: HarnessConnectContext): HarnessConnectPlan {
   const pluginArgs = CONCIV_PLUGIN_DIR ? ['--plugin-dir', CONCIV_PLUGIN_DIR] : []
-  const hooks = ctx.hookUrl
-    ? {
-        dir: concivHooksPluginDir(ctx.stateDir, ctx.concivSessionId),
-        files: claudeHooksPluginFiles({
-          stateDir: ctx.stateDir,
-          concivSessionId: ctx.concivSessionId,
-          hookUrl: ctx.hookUrl,
-        }),
-      }
-    : null
-  const hookArgs = hooks ? ['--plugin-dir', hooks.dir] : []
   return {
-    argv: ['claude', ...claudeConnectArgs(ctx), ...pluginArgs, ...hookArgs],
+    argv: ['claude', ...claudeConnectArgs(ctx), ...pluginArgs],
     env: {},
-    files: hooks?.files ?? [],
+    files: [],
   }
 }
 
