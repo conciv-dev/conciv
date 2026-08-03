@@ -255,6 +255,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       ? (token) => existsSync(transcriptPath(opts.cwd, token, opts.claudeHome))
       : undefined,
     transcriptMessages: history ? (token) => history.messages(opts.cwd, token, opts.claudeHome) : undefined,
+    connectPlan: harness.connect?.plan,
   }
   const seenTools = new Set<string>()
   const seenNames = new Set<string>()
