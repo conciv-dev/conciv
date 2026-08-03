@@ -77,6 +77,13 @@ export function isSessionId(id: unknown): id is SessionId {
 
 export const HarnessSessionId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 
+export const NativeSessionRefSchema = z.object({
+  harnessKind: z.string().min(1),
+  cwd: z.string().min(1),
+  nativeId: z.string().min(1),
+})
+export type NativeSessionRef = z.infer<typeof NativeSessionRefSchema>
+
 export const SessionRecordSchema = z.object({
   id: SessionId,
   harnessSessionId: z.string().nullable(),
