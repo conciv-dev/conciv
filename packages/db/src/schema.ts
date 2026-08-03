@@ -16,10 +16,11 @@ export const sessions = sqliteTable(
     transcriptCwd: text('transcript_cwd'),
     attachedPid: integer('attached_pid'),
     attachedAt: integer('attached_at'),
+    deletedAt: integer('deleted_at'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
-  (table) => [uniqueIndex('sessions_harness_session_id_unique').on(table.harnessSessionId)],
+  (table) => [uniqueIndex('sessions_native_key_unique').on(table.harnessKind, table.cwd, table.harnessSessionId)],
 )
 
 export const drafts = sqliteTable('drafts', {
