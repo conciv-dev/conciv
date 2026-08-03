@@ -203,7 +203,17 @@ export function mintedSessionId(chunk: StreamChunk): string | null {
   return typeof value.sessionId === 'string' ? value.sessionId : null
 }
 
-type RunOutcome = {error: string | null; usage: UsageSnapshot | null; libraryApprovals: Set<string>}
+type RunOutcome = {
+  error: string | null
+  usage: UsageSnapshot | null
+  libraryApprovals: Set<string>
+  terminal: StreamChunk | null
+}
+
+function isTerminalChunk(chunk: StreamChunk): boolean {
+  if (chunk.type === EventType.RUN_ERROR) return true
+  return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
+}
 
 function noteApprovalRequest(deps: ChatDeps, sessionId: string, chunk: StreamChunk, outcome: RunOutcome): void {
   if (chunk.type !== EventType.CUSTOM || chunk.name !== APPROVAL_REQUESTED_EVENT) return
@@ -243,7 +253,9 @@ async function foldRunStream(
     for (const chunk of chunks) {
       const stamped = stampRunId(chunk, req.runId)
       processor.processChunk(stamped)
-      deps.stream.publish(sessionId, stamped)
+      const terminal = isTerminalChunk(stamped)
+      if (terminal) outcome.terminal = stamped
+      if (!terminal) deps.stream.publish(sessionId, stamped)
       noteToolCall(deps, sessionId, stamped)
       noteApprovalRequest(deps, sessionId, stamped, outcome)
       const minted = mintedSessionId(stamped)
@@ -307,6 +319,14 @@ function persistRunOutcome(deps: ChatDeps, sessionId: string, kind: TurnKind): v
   clearImageHistory(deps.db, sessionId)
 }
 
+function terminalChunkFor(sessionId: string, req: RunRequest, outcome: RunOutcome): StreamChunk {
+  if (outcome.terminal) return outcome.terminal
+  if (outcome.error !== null) {
+    return {type: EventType.RUN_ERROR, threadId: sessionId, runId: req.runId, message: outcome.error}
+  }
+  return {type: EventType.RUN_FINISHED, threadId: sessionId, runId: req.runId, finishReason: 'stop'}
+}
+
 async function finishRun(deps: ChatDeps, sessionId: string, req: RunRequest, outcome: RunOutcome): Promise<void> {
   persistRunOutcome(deps, sessionId, req.kind)
   deps.snapshots.clear(sessionId)
@@ -314,12 +334,14 @@ async function finishRun(deps: ChatDeps, sessionId: string, req: RunRequest, out
   await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
   if (outcome.libraryApprovals.size > 0 && outcome.error === null) {
     deps.turns.hold(sessionId)
+    deps.stream.publish(sessionId, terminalChunkFor(sessionId, req, outcome))
     return
   }
   releaseRun(deps.db, sessionId, outcome.error)
   deps.turns.release(sessionId)
   deps.asks.cancel(sessionId)
   if (deps.onRunEnd) await deps.onRunEnd(sessionId).catch(() => {})
+  deps.stream.publish(sessionId, terminalChunkFor(sessionId, req, outcome))
 }
 
 export async function startRun(deps: ChatDeps, sessionId: string, req: RunRequest, turn: Turn): Promise<void> {
@@ -333,7 +355,7 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
     emit: (chunk) => deps.stream.publish(sessionId, chunk),
     risky: deps.risky,
   })
-  const outcome: RunOutcome = {error: null, usage: null, libraryApprovals: new Set()}
+  const outcome: RunOutcome = {error: null, usage: null, libraryApprovals: new Set(), terminal: null}
   try {
     const stream = await buildRunStream(deps, sessionId, req, gate, turn.abort)
     const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS

@@ -1,4 +1,4 @@
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 import {z} from 'zod'
 
 export type SeenToolCall = {toolCallId: string; name: string; input: unknown}
@@ -26,14 +26,14 @@ function parseArgs(raw: string): unknown {
   }
 }
 
-export function lastSnapshotMessages(all: StreamChunk[]): unknown[] {
-  const snapshot = all.findLast((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
-  if (!snapshot || snapshot.type !== EventType.MESSAGES_SNAPSHOT) return []
-  return Array.isArray(snapshot.messages) ? snapshot.messages : []
+export function renderedMessages(all: StreamChunk[]): unknown[] {
+  const processor = new StreamProcessor({})
+  for (const chunk of all) processor.processChunk(chunk)
+  return processor.getMessages()
 }
 
 function partsOf(all: StreamChunk[], role?: string): unknown[] {
-  return lastSnapshotMessages(all).flatMap((message) => {
+  return renderedMessages(all).flatMap((message) => {
     const parsed = MessageSchema.safeParse(message)
     if (!parsed.success) return []
     if (role !== undefined && parsed.data.role !== role) return []
@@ -41,15 +41,17 @@ function partsOf(all: StreamChunk[], role?: string): unknown[] {
   })
 }
 
-const ApprovalPartSchema = z
-  .object({type: z.literal('tool-call'), approval: z.object({id: z.string()}).loose()})
+const ApprovalChunkSchema = z
+  .object({
+    type: z.literal(EventType.CUSTOM),
+    name: z.literal('approval-requested'),
+    value: z.object({approval: z.object({id: z.string()}).loose()}).loose(),
+  })
   .loose()
 
 export function approvalIds(chunk: StreamChunk): string[] {
-  return partsOf([chunk]).flatMap((part) => {
-    const parsed = ApprovalPartSchema.safeParse(part)
-    return parsed.success ? [parsed.data.approval.id] : []
-  })
+  const parsed = ApprovalChunkSchema.safeParse(chunk)
+  return parsed.success ? [parsed.data.value.approval.id] : []
 }
 
 export function collectToolCalls(all: StreamChunk[], name?: string): SeenToolCall[] {

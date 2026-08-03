@@ -92,13 +92,18 @@ function buildServer(
   extensionTools: ExtensionServerTool[],
   request: ToolRequest,
   discovered: Set<string>,
+  decide: McpToolDecider,
 ): McpServer {
   const server = new McpServer({name: 'conciv', version: '0.0.0'})
   for (const tool of concivTools(ctx)) registerTool(server, tool, (args) => tool.execute(args))
   if (extensionTools.length > 0) registerDiscoverTool(server, extensionTools, discovered)
   for (const tool of extensionTools) {
     if (!discovered.has(tool.name)) continue
-    registerTool(server, tool, (args) => tool.execute(args, request))
+    registerTool(server, tool, async (args) => {
+      const decision = await decide(request.sessionId, tool.name, args)
+      if (decision === 'deny') throw new Error(`Tool "${tool.name}" was denied by the user`)
+      return tool.execute(args, request)
+    })
   }
   return server
 }
@@ -111,12 +116,15 @@ function discoveredNamesFor(store: Map<string, Set<string>>, sessionId: string):
   return created
 }
 
+export type McpToolDecider = (sessionId: string, toolName: string, input: unknown) => Promise<'allow' | 'deny'>
+
 export type McpVars = {
   mcp: {
     makeCtx: (sessionId: string) => ConcivToolContext
     extensionTools: ExtensionServerTool[]
     sessionModel: (sessionId: string) => string | null
     discovered: Map<string, Set<string>>
+    decide: McpToolDecider
   }
 }
 
@@ -129,7 +137,7 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   })
-  await buildServer(ctx, c.var.mcp.extensionTools, request, discovered).connect(transport)
+  await buildServer(ctx, c.var.mcp.extensionTools, request, discovered, c.var.mcp.decide).connect(transport)
   return transport.handleRequest(c.req.raw)
 })
 

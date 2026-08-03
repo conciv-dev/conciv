@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -87,13 +88,16 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
         makeCallTool(base, await sessionFor(session))(name, input)
 
       const sendChat = async (input: string | ChatMessage, session: string): Promise<void> => {
+        const runId = randomUUID()
         if (typeof input === 'string') {
-          await rpc.chat.send({sessionId: session, text: input})
+          await rpc.chat.send({sessionId: session, runId, text: input})
           return
         }
         const content = ChatContentPartSchema.array().safeParse(input.content)
         await rpc.chat.send(
-          content.success ? {sessionId: session, content: content.data} : {sessionId: session, text: textOf(input)},
+          content.success
+            ? {sessionId: session, runId, content: content.data}
+            : {sessionId: session, runId, text: textOf(input)},
         )
       }
 
@@ -107,7 +111,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
           aborts.push(abort)
           const signal = opts?.signal ? AbortSignal.any([abort.signal, opts.signal]) : abort.signal
           const id = await sessionFor(session)
-          const iterator = await rpc.chat.attach({sessionId: id}, {signal})
+          const iterator = await rpc.chat.subscribe({sessionId: id}, {signal})
           return makeRunStream(iterator)
         },
         chat: async (input, session) => {

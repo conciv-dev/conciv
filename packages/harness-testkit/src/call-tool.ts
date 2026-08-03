@@ -42,7 +42,7 @@ export function makeApprovingCallTool(apiBase: string, session: string): CallToo
     const abort = new AbortController()
     const decided = new Set<string>()
     const pump = (async () => {
-      const stream = await rpc.chat.attach({sessionId: session}, {signal: abort.signal})
+      const stream = await rpc.chat.subscribe({sessionId: session}, {signal: abort.signal})
       for await (const chunk of stream) {
         for (const approvalId of approvalIds(chunk)) {
           if (decided.has(approvalId)) continue
