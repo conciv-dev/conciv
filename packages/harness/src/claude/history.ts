@@ -387,6 +387,7 @@ export async function sessionSummary(
   sessionId: string,
   home?: string,
 ): Promise<HarnessSessionSummary | null> {
+  if (!withinProject(cwd, sessionId, home)) return null
   const path = transcriptPath(cwd, sessionId, home)
   const info = await stat(path).catch(() => null)
   if (!info) return null
@@ -413,6 +414,7 @@ export function withinProject(cwd: string, sessionId: string, home: string = hom
 }
 
 async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]> {
+  if (!withinProject(cwd, sessionId, home)) return []
   const raw = await readFile(transcriptPath(cwd, sessionId, home), 'utf8').catch(() => '')
   return raw ? parseHistory(raw) : []
 }
