@@ -68,7 +68,7 @@ export function withConciv<T extends object>(nextConfig: T = {} as T, options: C
   }
 }
 
-export async function registerWith(builtins: Builtins): Promise<void> {
+export async function registerWith(loadBuiltins: () => Promise<Builtins>): Promise<void> {
   if (process.env.NODE_ENV === 'production') return
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   const options = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
@@ -81,10 +81,13 @@ export async function registerWith(builtins: Builtins): Promise<void> {
     console.error('conciv: failed to start extensions watcher', error)
   }
   const {makeEngineBooter} = await import('./boot.js')
+  const builtins = await loadBuiltins()
   await makeEngineBooter(options, root, builtins)()
 }
 
 export async function register(): Promise<void> {
-  const {NO_BUILTINS} = await import('@conciv/extension-compiler/extensions')
-  await registerWith(NO_BUILTINS)
+  await registerWith(async () => {
+    const {NO_BUILTINS} = await import('@conciv/extension-compiler/extensions')
+    return NO_BUILTINS
+  })
 }
