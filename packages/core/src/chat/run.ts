@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {existsSync, readFileSync} from 'node:fs'
 import {eq} from 'drizzle-orm'
+import {z} from 'zod'
 import {
   chat,
   EventType,
@@ -216,15 +217,17 @@ function isTerminalChunk(chunk: StreamChunk): boolean {
   return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }
 
+const ApprovalValueSchema = z.object({approval: z.object({id: z.string()}).loose()}).loose()
+
+function approvalIdOf(chunk: StreamChunk): string | null {
+  if (chunk.type !== EventType.CUSTOM || chunk.name !== APPROVAL_REQUESTED_EVENT) return null
+  const parsed = ApprovalValueSchema.safeParse(chunk.value)
+  return parsed.success ? parsed.data.approval.id : null
+}
+
 function noteApprovalRequest(deps: ChatDeps, sessionId: string, chunk: StreamChunk, outcome: RunOutcome): void {
-  if (chunk.type !== EventType.CUSTOM || chunk.name !== APPROVAL_REQUESTED_EVENT) return
-  const value = chunk.value
-  if (typeof value !== 'object' || value === null || !('approval' in value)) return
-  const approval = value.approval
-  if (typeof approval !== 'object' || approval === null || !('id' in approval)) return
-  const approvalId = approval.id
-  if (typeof approvalId !== 'string') return
-  if (deps.asks.opened(sessionId, approvalId)) return
+  const approvalId = approvalIdOf(chunk)
+  if (approvalId === null || deps.asks.opened(sessionId, approvalId)) return
   outcome.libraryApprovals.add(approvalId)
 }
 
@@ -240,6 +243,26 @@ function noteUsage(deps: ChatDeps, model: string | null, chunk: StreamChunk, out
   outcome.usage = usageSnapshotFor(deps, model ?? deps.harness.defaultModel ?? null, chunk.usage)
 }
 
+type ChunkFold = {deps: ChatDeps; sessionId: string; model: string | null; processor: StreamProcessor}
+
+function foldChunk(fold: ChunkFold, chunk: StreamChunk, outcome: RunOutcome): 'continue' | 'stop' {
+  const {deps, sessionId} = fold
+  fold.processor.processChunk(chunk)
+  const terminal = isTerminalChunk(chunk)
+  if (terminal) outcome.terminal = chunk
+  if (!terminal) deps.stream.publish(sessionId, chunk)
+  noteToolCall(deps, sessionId, chunk)
+  noteApprovalRequest(deps, sessionId, chunk, outcome)
+  const minted = mintedSessionId(chunk)
+  if (minted) void recordNativeId(deps.db, sessionId, minted).catch(() => {})
+  if (chunk.type === EventType.RUN_ERROR) {
+    outcome.error = chunk.message || 'run failed'
+    return 'stop'
+  }
+  noteUsage(deps, fold.model, chunk, outcome)
+  return 'continue'
+}
+
 async function foldRunStream(
   deps: ChatDeps,
   sessionId: string,
@@ -250,23 +273,11 @@ async function foldRunStream(
 ): Promise<void> {
   const model = (await rowById(deps.db, sessionId))?.model ?? null
   const normalize = makeToolNameNormalizer(deps.toolNames)
+  const fold: ChunkFold = {deps, sessionId, model, processor}
   for await (const raw of stream) {
-    const chunks = codeModeToolChunks(raw) ?? [raw]
-    for (const chunk of chunks) {
+    for (const chunk of codeModeToolChunks(raw) ?? [raw]) {
       const stamped = normalizeChunkToolName(stampRunId(chunk, req.runId), normalize)
-      processor.processChunk(stamped)
-      const terminal = isTerminalChunk(stamped)
-      if (terminal) outcome.terminal = stamped
-      if (!terminal) deps.stream.publish(sessionId, stamped)
-      noteToolCall(deps, sessionId, stamped)
-      noteApprovalRequest(deps, sessionId, stamped, outcome)
-      const minted = mintedSessionId(stamped)
-      if (minted) void recordNativeId(deps.db, sessionId, minted).catch(() => {})
-      if (stamped.type === EventType.RUN_ERROR) {
-        outcome.error = stamped.message || 'run failed'
-        return
-      }
-      noteUsage(deps, model, stamped, outcome)
+      if (foldChunk(fold, stamped, outcome) === 'stop') return
     }
   }
 }

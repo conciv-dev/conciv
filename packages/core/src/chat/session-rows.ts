@@ -155,25 +155,32 @@ export type SessionListInput = {
   includeHidden: boolean
 }
 
-function rowMeta(
-  row: SessionRecord,
-  native: HarnessSessionMeta | undefined,
-  input: SessionListInput,
-  harnessKind: string,
-): SessionMeta {
+function nativeRefOf(row: SessionRecord): NativeSessionRef | null {
+  if (!row.harnessSessionId) return null
+  return {harnessKind: row.harnessKind, cwd: row.cwd, nativeId: row.harnessSessionId}
+}
+
+type RowFacts = {title: string; updatedAt: number; messageCount: number}
+
+function rowFacts(row: SessionRecord, native: HarnessSessionMeta | undefined): RowFacts {
+  if (!native) return {title: row.title ?? 'New session', updatedAt: row.updatedAt, messageCount: 0}
   return {
+    title: row.title ?? native.derivedTitle,
+    updatedAt: native.updatedAt,
+    messageCount: native.messageCount,
+  }
+}
+
+function rowMeta(row: SessionRecord, native: HarnessSessionMeta | undefined, input: SessionListInput): SessionMeta {
+  return {
+    ...rowFacts(row, native),
     id: row.id,
-    title: row.title ?? native?.derivedTitle ?? 'New session',
-    updatedAt: native?.updatedAt ?? row.updatedAt,
-    messageCount: native?.messageCount ?? 0,
     running: input.running(row.id),
     origin: row.origin === 'external' ? 'external' : 'conciv',
     usage: row.usage,
     model: input.model(row.id) ?? row.model,
     hidden: row.deletedAt !== null,
-    native: row.harnessSessionId
-      ? {harnessKind: row.harnessKind || harnessKind, cwd: row.cwd, nativeId: row.harnessSessionId}
-      : null,
+    native: nativeRefOf(row),
   }
 }
 
@@ -200,7 +207,7 @@ export async function listSessionMetas(input: SessionListInput): Promise<Session
   const nativeById = new Map(input.nativeList.map((native) => [native.id, native]))
   const claimed = new Set(rows.flatMap((row) => (row.harnessSessionId ? [row.harnessSessionId] : [])))
   const ours = rows.map((row) =>
-    rowMeta(row, row.harnessSessionId ? nativeById.get(row.harnessSessionId) : undefined, input, input.harnessKind),
+    rowMeta(row, row.harnessSessionId ? nativeById.get(row.harnessSessionId) : undefined, input),
   )
   const unmaterialized = input.nativeList
     .filter((native) => !claimed.has(native.id))
