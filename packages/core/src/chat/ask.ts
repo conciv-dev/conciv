@@ -101,6 +101,7 @@ export function createAskRegistry(): AskRegistry {
     noteToolCall: (sessionId, toolCallId, toolName) => {
       if (bareToolName(toolName) !== UI_TOOL_NAME) return
       const state = stateOf(sessionId)
+      askOf(state, toolCallId)
       state.uiCalls.push({callId: toolCallId, claimed: false})
       const waiters = [...state.uiWaiters]
       state.uiWaiters.clear()

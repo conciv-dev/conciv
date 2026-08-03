@@ -41,7 +41,7 @@ const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 
 export const contract = {
   sessions: {
-    list: oc.input(z.object({includeHidden: z.boolean().optional()}).default({})).output(z.array(SessionMetaSchema)),
+    list: oc.input(z.object({includeHidden: z.boolean().optional()}).nullish()).output(z.array(SessionMetaSchema)),
     create: oc.output(SessionIdInput),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
     open: oc.input(NativeSessionRefSchema).output(SessionIdInput),

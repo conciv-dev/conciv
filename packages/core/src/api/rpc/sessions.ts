@@ -53,7 +53,7 @@ export function sessionsRouter(deps: RpcDeps) {
   const db = chat.db
   const scope = {db, harnessKind: chat.harness.id, cwd: chat.cwd}
   return {
-    list: os.sessions.list.handler(({input}) => rpcSessionList(chat, input.includeHidden ?? false)),
+    list: os.sessions.list.handler(({input}) => rpcSessionList(chat, input?.includeHidden ?? false)),
     create: os.sessions.create.handler(async () => {
       const sessionId = `conciv_${randomUUID()}`
       await createRow(db, {
