@@ -46,7 +46,7 @@ async function failingTurn(harness: HarnessAdapter): Promise<{seedCalls: string[
   try {
     const id = await kit.session()
     const stream = await kit.attach(id)
-    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
+    await kit.rpc.chat.send({runId: 'turn-error-flood-1', sessionId: id, text: 'hi'})
     const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 5000})
     expect(await runEnded).toBe(id)
     const seedCalls = calls.filter((c) => c.includes('chat run failed') || c.includes('tanstack-ai'))

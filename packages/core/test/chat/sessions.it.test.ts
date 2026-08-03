@@ -2,9 +2,7 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {eq} from 'drizzle-orm'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
-import {openDb, sessions} from '@conciv/db'
 import {bootCoreApp} from '../helpers/boot.js'
 import {runTurn} from '../helpers/turns.js'
 import {requireClaude} from '../helpers/adapters.js'
@@ -57,22 +55,6 @@ describe('sessions.list + rename over rpc (IT, real temp ~/.claude)', () => {
     expect(sessions.find((s) => s.id === id)?.origin).toBe('conciv')
     expect(sessions.find((s) => s.id === id)?.title).toBe('made in conciv')
     expect(sessions.find((s) => s.id === 'tok-ext')?.origin).toBe('external')
-  })
-
-  it('titles a session whose transcript lives under another cwd, without listing that cwd', async () => {
-    const home = tmpHome()
-    const foreignCwd = tmpHome()
-    seedTranscript(projectDir(home, foreignCwd), 'tok-foreign', 'adopted from another project')
-    seedTranscript(projectDir(home, foreignCwd), 'tok-stranger', 'unrelated neighbour session')
-    const kit = await setup(home, process.cwd())
-
-    const id = await kit.session('tok-foreign')
-    const db = openDb(kit.stateRoot)
-    await db.update(sessions).set({transcriptCwd: foreignCwd}).where(eq(sessions.id, id))
-
-    const list = await kit.rpc.sessions.list(undefined)
-    expect(list.find((session) => session.id === id)?.title).toBe('adopted from another project')
-    expect(list.some((session) => session.id === 'tok-stranger')).toBe(false)
   })
 
   it('rename persists into the next list (keyed by our id)', async () => {

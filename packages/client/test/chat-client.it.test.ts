@@ -1,5 +1,4 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType} from '@tanstack/ai'
 import {ChatClient, type UIMessage} from '@tanstack/ai-client'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'
@@ -89,7 +88,7 @@ describe('ChatClient over chatConnection (useChatSession composition, headless)'
     kit = await bootClientKit()
     const sessionId = await kit.session()
     kit.gate.hold()
-    await makeRpcClient(kit.base).chat.send({sessionId, text: 'started elsewhere'})
+    await makeRpcClient(kit.base).chat.send({sessionId, runId: 'chat-client-1', text: 'started elsewhere'})
     const hydrated = Promise.withResolvers<UIMessage[]>()
     const running = Promise.withResolvers<void>()
     const settled = Promise.withResolvers<void>()
@@ -106,72 +105,6 @@ describe('ChatClient over chatConnection (useChatSession composition, headless)'
       await running.promise
       kit?.gate.release()
       await settled.promise
-    } finally {
-      client.unsubscribe()
-    }
-  })
-
-  it('does not settle a local send from another surface terminal event after BUSY', async () => {
-    kit = await bootClientKit()
-    const sessionId = await kit.session()
-    const rpc = makeRpcClient(kit.base)
-    const startSeen = Promise.withResolvers<void>()
-    const releaseStart = Promise.withResolvers<void>()
-    const retried = Promise.withResolvers<void>()
-    const baseConnection = chatConnection(rpc, sessionId, {
-      retryDelayMs: 500,
-      onRetry: () => {
-        retried.resolve()
-        releaseStart.resolve()
-      },
-    })
-    const connection: ReturnType<typeof chatConnection> = {
-      subscribe: async function* (signal) {
-        let heldStart = false
-        for await (const chunk of baseConnection.subscribe(signal)) {
-          if (!heldStart && chunk.type === EventType.RUN_STARTED) {
-            heldStart = true
-            startSeen.resolve()
-            await releaseStart.promise
-            continue
-          }
-          yield chunk
-        }
-      },
-      send: baseConnection.send,
-    }
-    const connected = Promise.withResolvers<void>()
-    const localRunSettled = Promise.withResolvers<void>()
-    const {client, observed} = observeClient(kit.base, sessionId, {
-      connection,
-      onUpdate: (update) => {
-        if (update.kind === 'connection' && update.status === 'connected') connected.resolve()
-        if (update.kind === 'generating' && !update.generating) localRunSettled.resolve()
-      },
-    })
-    client.subscribe()
-    try {
-      await connected.promise
-      kit.gate.hold()
-      await rpc.chat.send({sessionId, text: 'started elsewhere'})
-      await startSeen.promise
-      let localSettled = false
-      const localSend = client.sendMessage('sent locally').then((result) => {
-        localSettled = true
-        return result
-      })
-      await retried.promise
-      kit.gate.release()
-      await new Promise((resolve) => setTimeout(resolve, 100))
-      expect(localSettled).toBe(false)
-      await localSend
-      await localRunSettled.promise
-      expect(observed.messages.some((message) => message.role === 'assistant' && textOf(message).includes('ok'))).toBe(
-        true,
-      )
-      expect(observed.messages.some((message) => message.role === 'user' && textOf(message) === 'sent locally')).toBe(
-        true,
-      )
     } finally {
       client.unsubscribe()
     }

@@ -3,11 +3,10 @@ import {mkdtempSync, realpathSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType} from '@tanstack/ai'
+import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {openSource} from '@conciv/extension/client'
-import {toolCallParts} from '../../src/chat/gate.js'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 
@@ -20,8 +19,17 @@ function partsOf(message: unknown): unknown[] {
   return message.parts
 }
 
-const uiCallIdOf = (messages: unknown): string | null =>
-  Array.isArray(messages) ? (toolCallParts(messages).find((part) => part.name === 'conciv_ui')?.id ?? null) : null
+function renderedMessages(chunks: StreamChunk[]): unknown[] {
+  const processor = new StreamProcessor({})
+  for (const chunk of chunks) processor.processChunk(chunk)
+  return processor.getMessages()
+}
+
+async function snapshotMessages(kit: Kit, sessionId: string): Promise<unknown[]> {
+  const stream = await kit.attach(sessionId)
+  const chunk = await stream.waitFor((c) => c.type === EventType.MESSAGES_SNAPSHOT, {hangGuardMs: 5_000})
+  return chunk.type === EventType.MESSAGES_SNAPSHOT ? chunk.messages : []
+}
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -40,8 +48,8 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const {kit} = await bootWire()
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
-    const accepted = await kit.rpc.chat.send({sessionId, text: 'hello'})
-    expect(accepted).toEqual({ok: true, runId: `${sessionId}:1`})
+    const accepted = await kit.rpc.chat.send({runId: 'wire-1', sessionId, text: 'hello'})
+    expect(accepted).toEqual({ok: true, runId: 'wire-1'})
     const events = await stream.done({hangGuardMs: 10_000})
     const types = events.all.map((chunk) => chunk.type)
     expect(types[0]).toBe(EventType.MESSAGES_SNAPSHOT)
@@ -52,7 +60,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
     harness.script.hold()
-    await kit.rpc.chat.send({sessionId, text: 'hello'})
+    await kit.rpc.chat.send({runId: 'wire-2', sessionId, text: 'hello'})
     const late = await kit.attach(sessionId)
     harness.script.release()
     const events = await late.done({hangGuardMs: 10_000})
@@ -66,8 +74,8 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
     harness.script.hold()
-    await kit.rpc.chat.send({sessionId, text: 'first'})
-    await expect(kit.rpc.chat.send({sessionId, text: 'second'})).rejects.toMatchObject({code: 'BUSY'})
+    await kit.rpc.chat.send({runId: 'wire-3', sessionId, text: 'first'})
+    await expect(kit.rpc.chat.send({runId: 'wire-4', sessionId, text: 'second'})).rejects.toMatchObject({code: 'BUSY'})
     harness.script.release()
     await stream.done({hangGuardMs: 10_000})
   })
@@ -83,10 +91,11 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       selectionEnd: 0,
       grabs: ['<div id="grabbed"/>'],
     })
-    await kit.rpc.chat.send({sessionId, text: 'about the grabbed element'})
-    const events = await stream.done({hangGuardMs: 10_000})
-    const snapshots = events.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
-    const visibleUser = snapshots.at(-1)?.messages.findLast((message) => message.role === 'user')
+    await kit.rpc.chat.send({runId: 'wire-5', sessionId, text: 'about the grabbed element'})
+    await stream.done({hangGuardMs: 10_000})
+    const visibleUser = (await snapshotMessages(kit, sessionId)).findLast(
+      (message) => isRecord(message) && message.role === 'user',
+    )
     const firstPart = partsOf(visibleUser)[0]
     const text = isRecord(firstPart) && typeof firstPart.content === 'string' ? firstPart.content : ''
     expect(text.startsWith('<div id="grabbed"/>\n')).toBe(true)
@@ -106,17 +115,19 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       grabs: ['<button>Save</button>'],
     })
     await kit.rpc.chat.send({
+      runId: 'wire-12',
       sessionId,
       content: [
         {type: 'text', content: 'what color is this? '},
         {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='}},
       ],
     })
-    const events = await stream.done({hangGuardMs: 10_000})
-    const snapshots = events.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
-    const visibleUser = snapshots.at(-1)?.messages.findLast((message) => message.role === 'user')
-    if (!visibleUser || !('parts' in visibleUser))
-      throw new Error('stream snapshot did not include the user message parts')
+    await stream.done({hangGuardMs: 10_000})
+    const visibleUser = (await snapshotMessages(kit, sessionId)).findLast(
+      (message) => isRecord(message) && message.role === 'user',
+    )
+    if (!isRecord(visibleUser) || !('parts' in visibleUser))
+      throw new Error('stream did not include the user message parts')
     expect(visibleUser.parts).toEqual([
       {type: 'text', content: '<button>Save</button>\n'},
       {type: 'text', content: 'what color is this? '},
@@ -125,12 +136,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(await kit.rpc.drafts.get({sessionId})).toBeNull()
 
     const followUp = await kit.attach(sessionId)
-    await kit.rpc.chat.send({sessionId, text: 'and what shape is it?'})
-    const followUpEvents = await followUp.done({hangGuardMs: 10_000})
-    const followUpSnapshots = followUpEvents.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
-    const priorImage = followUpSnapshots
-      .at(-1)
-      ?.messages.flatMap((message) => partsOf(message))
+    await kit.rpc.chat.send({runId: 'wire-6', sessionId, text: 'and what shape is it?'})
+    await followUp.done({hangGuardMs: 10_000})
+    const priorImage = (await snapshotMessages(kit, sessionId))
+      .flatMap((message) => partsOf(message))
       .find((part) => isRecord(part) && part.type === 'image')
     expect(priorImage).toMatchObject({
       type: 'image',
@@ -148,7 +157,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
     const first = await kit.attach(sessionId)
-    await kit.rpc.chat.send({sessionId, text: 'first question'})
+    await kit.rpc.chat.send({runId: 'wire-7', sessionId, text: 'first question'})
     await first.done({hangGuardMs: 10_000})
     const transcript = requireTranscriptPath(noResume)(kit.stateRoot, `fake-${sessionId}`, claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
@@ -160,9 +169,9 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       ].join('\n'),
     )
     const second = await kit.attach(sessionId)
-    await kit.rpc.chat.send({sessionId, text: 'second question'})
+    await kit.rpc.chat.send({runId: 'wire-8', sessionId, text: 'second question'})
     const events = await second.done({hangGuardMs: 10_000})
-    const snapshotJson = JSON.stringify(events.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT).at(-1))
+    const snapshotJson = JSON.stringify(renderedMessages(events.all))
     expect(snapshotJson).toContain('first question')
     expect(snapshotJson).toContain('second question')
   })
@@ -183,10 +192,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(renamed.title).toBe('wire session')
     const markers = await kit.rpc.markers.list({sessionId})
     expect(markers.map((marker) => marker.kind)).toEqual(['new'])
-    await expect(kit.rpc.sessions.setModel({sessionId, model: 'definitely-not-a-model'})).rejects.toMatchObject({
+    await expect(kit.rpc.sessions.model({sessionId, model: 'definitely-not-a-model'})).rejects.toMatchObject({
       code: 'UNKNOWN_MODEL',
     })
-    await kit.rpc.sessions.remove({sessionId})
+    await kit.rpc.sessions.delete({sessionId})
     const list = await kit.rpc.sessions.list(undefined)
     expect(list.map((meta) => meta.id)).not.toContain(sessionId)
   })
@@ -421,19 +430,11 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
     harness.script.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
-    await kit.rpc.chat.send({sessionId, text: 'ask me'})
-    const snapshot = await stream.waitFor(
-      (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT && uiCallIdOf(chunk.messages) !== null,
-      {hangGuardMs: 10_000},
-    )
-    if (snapshot.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('matched chunk was not a snapshot')
-    const toolCallId = uiCallIdOf(snapshot.messages)
-    if (!toolCallId) throw new Error('no conciv_ui part in the snapshot')
-    await kit.rpc.chat.uiReply({sessionId, toolCallId, value: 'yes'})
+    await kit.rpc.chat.send({runId: 'wire-9', sessionId, text: 'ask me'})
+    const call = await stream.waitForToolCall('conciv_ui', {hangGuardMs: 10_000})
+    await kit.rpc.chat.uiReply({sessionId, toolCallId: call.toolCallId, value: 'yes'})
     const events = await stream.done({hangGuardMs: 10_000})
-    const last = events.all.findLast((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
-    if (!last || last.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('no final snapshot')
-    expect(JSON.stringify(last.messages)).toContain('"answered":true')
+    expect(JSON.stringify(renderedMessages(events.all))).toContain('"answered":true')
   })
 
   it('chat.uiReply on an unknown toolCallId reports UNKNOWN_REQUEST', async () => {
@@ -448,16 +449,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
     harness.script.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
-    await kit.rpc.chat.send({sessionId, text: 'ask me'})
+    await kit.rpc.chat.send({runId: 'wire-10', sessionId, text: 'ask me'})
     const late = await kit.attach(sessionId)
-    const snapshot = await late.waitFor(
-      (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT && uiCallIdOf(chunk.messages) !== null,
-      {hangGuardMs: 10_000},
-    )
-    if (snapshot.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('matched chunk was not a snapshot')
-    const toolCallId = uiCallIdOf(snapshot.messages)
-    if (!toolCallId) throw new Error('no conciv_ui part in the snapshot')
-    await kit.rpc.chat.uiReply({sessionId, toolCallId, value: 'yes'})
+    const call = await late.waitForToolCall('conciv_ui', {hangGuardMs: 10_000})
+    await kit.rpc.chat.uiReply({sessionId, toolCallId: call.toolCallId, value: 'yes'})
     await late.done({hangGuardMs: 10_000})
   })
 
@@ -469,7 +464,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
     harness.script.scriptToolCall('conciv_open', {file: 'src/from-tool.ts'})
-    await kit.rpc.chat.send({sessionId, text: 'open the file'})
+    await kit.rpc.chat.send({runId: 'wire-11', sessionId, text: 'open the file'})
     await stream.done({hangGuardMs: 10_000})
     expect(opened).toEqual(['src/from-tool.ts'])
   })

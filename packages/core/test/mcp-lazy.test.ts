@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from './helpers/boot.js'
-import {riskyMatches, riskyToolNames} from '../src/chat/gate.js'
+import {riskyMatches} from '../src/chat/gate.js'
 
 function makeAcme() {
   const executed: string[] = []
@@ -84,7 +84,7 @@ describe('/api/mcp lazy discovery', () => {
       const listed = (await mcp.tools()).find((tool) => tool.name === 'acme_delete')
       expect(listed?.name).toBe('acme_delete')
 
-      const risky = riskyToolNames(
+      const risky = new Set(
         [extension]
           .flatMap((ext) => ext.tools ?? [])
           .filter((tool) => tool.approval === 'ask')

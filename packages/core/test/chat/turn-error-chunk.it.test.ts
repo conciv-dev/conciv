@@ -43,7 +43,7 @@ describe('an adapter that yields RUN_ERROR as a chunk (stub harnesses, acp adapt
     try {
       const id = await kit.session()
       const stream = await kit.attach(id)
-      await kit.rpc.chat.send({sessionId: id, text: 'hi'})
+      await kit.rpc.chat.send({runId: 'turn-error-chunk-1', sessionId: id, text: 'hi'})
       const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 5000})
       expect(runError.type).toBe(EventType.RUN_ERROR)
       expect('message' in runError ? runError.message : '').toContain(CHUNK_FAIL)

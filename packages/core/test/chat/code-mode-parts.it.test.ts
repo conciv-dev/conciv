@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {EventType} from '@tanstack/ai'
+import {StreamProcessor} from '@tanstack/ai'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
@@ -54,14 +54,15 @@ describe('code-mode per-tool parts on the wire (IT)', () => {
     })
     harness.script.scriptCustomEvent('conciv:tool_result', {callId: 'call-1', result: 'drew'})
     const stream = await kit.attach(sessionId)
-    await kit.rpc.chat.send({sessionId, text: 'draw a circle'})
+    await kit.rpc.chat.send({runId: 'code-mode-parts-1', sessionId, text: 'draw a circle'})
     const events = await stream.done({hangGuardMs: 10_000})
-    const snapshot = events.all.findLast((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
-    if (!snapshot || snapshot.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('no snapshot')
-    const children = childParts(snapshot.messages)
+    const processor = new StreamProcessor({})
+    for (const chunk of events.all) processor.processChunk(chunk)
+    const messages = processor.getMessages()
+    const children = childParts(messages)
     expect(children).toHaveLength(1)
     expect(children[0]).toMatchObject({name: 'canvas.svg', metadata: {parentToolCallId: parentId}})
-    const raw = JSON.stringify(snapshot.messages)
+    const raw = JSON.stringify(messages)
     expect(raw).toContain('execute_typescript')
     expect(raw).toContain('drew')
   })

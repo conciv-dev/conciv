@@ -4,7 +4,6 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {createRecordingTerminalOpener} from '@conciv/harness-testkit'
 import {makeApp} from '../src/app.js'
 
 describe('makeApp harness DI', () => {
@@ -33,7 +32,6 @@ describe('makeApp harness DI', () => {
       },
       cwd: stateRoot,
       openInEditor: () => {},
-      openTerminal: createRecordingTerminalOpener().open,
       harness: injected,
     })
     await dispose()

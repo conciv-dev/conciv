@@ -148,13 +148,13 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     expect(argv).not.toContain('--resume')
   })
 
-  it('passes --model <selected> to the spawned claude once sessions.setModel persists it', async () => {
+  it('passes --model <selected> to the spawned claude once sessions.model persists it', async () => {
     const argvFile = join(tmp(), 'argv.json')
     const kit = await setup({argvFile})
     const {sessionId: id} = await kit.rpc.sessions.create(undefined)
     const stream = await kit.attach(id)
-    await kit.rpc.sessions.setModel({sessionId: id, model: 'haiku'})
-    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
+    await kit.rpc.sessions.model({sessionId: id, model: 'haiku'})
+    await kit.rpc.chat.send({runId: 'chat-1', sessionId: id, text: 'hi'})
     await stream.done()
     const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
     expect(argv).toContain('--model')
@@ -172,7 +172,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
   it('rejects a send with an empty message', async () => {
     const kit = await setup()
     const id = await kit.session()
-    await expect(kit.rpc.chat.send({sessionId: id, text: ''})).rejects.toThrow()
+    await expect(kit.rpc.chat.send({runId: 'chat-2', sessionId: id, text: ''})).rejects.toThrow()
   })
 
   it('keeps per-session state independent under distinct ids', async () => {
@@ -203,11 +203,11 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const a = await kit.session()
     const b = await kit.session()
     hang.add(a)
-    await kit.rpc.chat.send({sessionId: a, text: 'hi'})
+    await kit.rpc.chat.send({runId: 'chat-3', sessionId: a, text: 'hi'})
     const stream = await kit.attach(b)
-    await kit.rpc.chat.send({sessionId: b, text: 'hi'})
+    await kit.rpc.chat.send({runId: 'chat-4', sessionId: b, text: 'hi'})
     await stream.done()
-    await kit.rpc.sessions.stop({sessionId: a})
+    await kit.rpc.chat.stop({sessionId: a})
   })
 
   it('persists usage onto each session record, not a shared pointer', async () => {

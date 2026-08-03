@@ -44,16 +44,18 @@ describe('detached turns (IT)', () => {
     const releaseFile = join(tmp(), 'release')
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
-    await kit.rpc.chat.send({sessionId: id, text})
+    await kit.rpc.chat.send({runId: 'turn-detach-1', sessionId: id, text})
     return {kit, id, releaseFile}
   }
 
   it('rejects a resend while the prior turn is still generating', async () => {
     const kit = await setupHang()
     const id = await kit.session()
-    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
-    await expect(kit.rpc.chat.send({sessionId: id, text: 'again'})).rejects.toMatchObject({code: 'BUSY'})
-    await kit.rpc.sessions.stop({sessionId: id})
+    await kit.rpc.chat.send({runId: 'turn-detach-2', sessionId: id, text: 'hi'})
+    await expect(kit.rpc.chat.send({runId: 'turn-detach-3', sessionId: id, text: 'again'})).rejects.toMatchObject({
+      code: 'BUSY',
+    })
+    await kit.rpc.chat.stop({sessionId: id})
   })
 
   it('chat.send resolves ok before the turn finishes', async () => {
@@ -61,7 +63,10 @@ describe('detached turns (IT)', () => {
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
     const stream = await kit.attach(id)
-    expect(await kit.rpc.chat.send({sessionId: id, text: 'hi'})).toEqual({ok: true, runId: `${id}:1`})
+    expect(await kit.rpc.chat.send({runId: 'turn-detach-4', sessionId: id, text: 'hi'})).toEqual({
+      ok: true,
+      runId: 'turn-detach-4',
+    })
     writeFileSync(releaseFile, '')
     const events = await stream.done()
     expect(events.runs()).toBe(1)
@@ -109,7 +114,7 @@ describe('detached turns (IT)', () => {
     const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {}, extensions: [probe]})).setup()
     state.kit = kit
     const id = await kit.session()
-    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
+    await kit.rpc.chat.send({runId: 'turn-detach-5', sessionId: id, text: 'hi'})
     expect(await runEnded).toBe(id)
     const metas = await kit.rpc.sessions.list(undefined)
     expect(metas.find((meta) => meta.id === id)?.usage).toBeTruthy()
@@ -134,9 +139,9 @@ describe('detached turns (IT)', () => {
       const kit = await setupHang()
       const id = await kit.session()
       const stream = await kit.attach(id)
-      await kit.rpc.chat.send({sessionId: id, text: 'hang around'})
+      await kit.rpc.chat.send({runId: 'turn-detach-6', sessionId: id, text: 'hang around'})
       await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
-      await kit.rpc.sessions.stop({sessionId: id})
+      await kit.rpc.chat.stop({sessionId: id})
       const events = await stream.done({hangGuardMs: 8000})
       expect(events.runs()).toBe(1)
       expect(events.errors()).toEqual([])
@@ -151,9 +156,9 @@ describe('detached turns (IT)', () => {
       const kit = await setup({CONCIV_FAKE_HANG: '1', CONCIV_FAKE_IGNORE_TERM: '1'})
       const id = await kit.session()
       const stream = await kit.attach(id)
-      await kit.rpc.chat.send({sessionId: id, text: 'hang forever'})
+      await kit.rpc.chat.send({runId: 'turn-detach-7', sessionId: id, text: 'hang forever'})
       await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
-      await kit.rpc.sessions.stop({sessionId: id})
+      await kit.rpc.chat.stop({sessionId: id})
       const events = await stream.done({hangGuardMs: 10_000})
       expect(events.runs()).toBe(1)
       expect(events.errors()).toEqual([])

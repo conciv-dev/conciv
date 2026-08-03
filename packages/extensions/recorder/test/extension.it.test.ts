@@ -22,7 +22,6 @@ async function boot(): Promise<{base: string; engine: Engine}> {
     options: {systemPrompt: false, stateRoot},
     root: mkdtempSync(join(tmpdir(), 'conciv-recorder-root-')),
     launchEditor: () => {},
-    openTerminal: () => Promise.resolve(true),
     extensions,
   })
   return {base: `http://127.0.0.1:${engine.port}`, engine}
