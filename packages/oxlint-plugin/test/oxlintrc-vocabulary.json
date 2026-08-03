@@ -1,0 +1,12 @@
+{
+  "plugins": [],
+  "jsPlugins": [{"name": "conciv", "specifier": "../src/plugin.js"}],
+  "categories": {},
+  "rules": {"conciv/banned-vocabulary": "error"},
+  "overrides": [
+    {
+      "files": ["fixtures/core-purity/**"],
+      "rules": {"conciv/core-purity": "error"}
+    }
+  ]
+}

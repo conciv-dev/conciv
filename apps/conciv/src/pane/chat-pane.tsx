@@ -93,7 +93,7 @@ type ComposerApi = {
   addAttachment: (file: File) => Promise<void>
 }
 
-function ComposerBridge(props: {onReady: (api: ComposerApi) => void}): JSX.Element {
+function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Element {
   const pane = usePane()
   const composer = useComposer()
   const context = useComposerContext()
@@ -367,7 +367,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                             />
                             <ExtensionSurface name="composer" instances={instances} />
                             <SessionModelSelector sessionId={sessionId} />
-                            <ComposerBridge
+                            <ComposerWiring
                               onReady={(api) => {
                                 composerApi.current = api
                               }}

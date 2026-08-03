@@ -24,6 +24,7 @@
     "suspicious": "warn"
   },
   "rules": {
+    "conciv/banned-vocabulary": "error",
     "conciv/no-comments": "error",
     "conciv/no-locator-poll": "error",
     "unicorn/consistent-function-scoping": "off",
@@ -189,9 +190,16 @@
       }
     },
     {
+      "files": ["packages/core/src/**"],
+      "rules": {
+        "conciv/core-purity": "error"
+      }
+    },
+    {
       "files": ["**/test/**", "**/*.test.ts", "**/*.test.tsx"],
       "rules": {
-        "conciv/no-timers-in-tests": "error"
+        "conciv/no-timers-in-tests": "error",
+        "conciv/banned-vocabulary": "off"
       }
     },
     {
