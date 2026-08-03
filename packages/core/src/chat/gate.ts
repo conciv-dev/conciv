@@ -4,6 +4,7 @@ import {defineChatMiddleware, type AnyTool, type StreamChunk} from '@tanstack/ai
 import {
   defineSandbox,
   defineSandboxPolicy,
+  evaluateCommand,
   nodeHttpBridgeProvisioner,
   provideSandbox,
   provideSandboxPolicy,
@@ -12,6 +13,7 @@ import {
   ToolBridgeProvisionerCapability,
   type SandboxDefinition,
   type SandboxHandle,
+  type PolicyDecision,
   type SandboxProcess,
   type ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
@@ -20,9 +22,7 @@ import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
 import {ASK_TIMEOUT_MS, type AskRegistry} from './ask.js'
 import {makeToolNameNormalizer} from './tool-names.js'
 
-export type CommandPolicy = 'allow' | 'ask'
-
-const READ_ONLY = new Set([
+const READ_ONLY_COMMANDS = [
   'ls',
   'cat',
   'pwd',
@@ -37,19 +37,26 @@ const READ_ONLY = new Set([
   'env',
   'date',
   'true',
-])
+]
 
-const GIT_READ_ONLY = new Set(['status', 'diff', 'log', 'show', 'branch'])
+const GIT_READ_ONLY_SUBCOMMANDS = ['status', 'diff', 'log', 'show', 'branch']
 
-export function classifyCommand(command: string): CommandPolicy {
-  const c = command.trim()
-  if (c === '') return 'ask'
+const SHELL_METACHARACTER_PATTERNS = ['*;*', '*&*', '*|*', '*`*', '*$*', '*>*', '*<*']
 
-  if (/[;&|`$><\n]/.test(c)) return 'ask'
-  if (c.startsWith('conciv tools')) return 'allow'
-  const tokens = c.split(/\s+/)
-  if (tokens[0] === 'git') return GIT_READ_ONLY.has(tokens[1] ?? '') ? 'allow' : 'ask'
-  return READ_ONLY.has(tokens[0] ?? '') ? 'allow' : 'ask'
+const commandPolicy = defineSandboxPolicy({
+  default: 'ask',
+  commands: {
+    ask: SHELL_METACHARACTER_PATTERNS,
+    allow: [
+      ...READ_ONLY_COMMANDS.flatMap((command) => [command, `${command} *`]),
+      ...GIT_READ_ONLY_SUBCOMMANDS.flatMap((subcommand) => [`git ${subcommand}`, `git ${subcommand} *`]),
+      'conciv tools*',
+    ],
+  },
+})
+
+export function classifyCommand(command: string): PolicyDecision {
+  return evaluateCommand(command, commandPolicy)
 }
 
 export function riskyMatches(risky: ReadonlySet<string>, toolName: string): boolean {
