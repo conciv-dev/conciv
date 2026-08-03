@@ -30,7 +30,7 @@ import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
 import {TriggerMenus} from './trigger-menus.js'
 import {GrabReference} from './grab-reference.js'
-import {CompactSpinner, Divider, ThinkingBubble} from './indicators.js'
+import {CompactSpinner, ConversationSkeleton, Divider, ThinkingBubble} from './indicators.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
@@ -44,10 +44,8 @@ import {checkSend, type SendVerdict} from './send-checks.js'
 const GRAB_PREVIEW_MAX_W = 280
 
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
-const RECONNECT = 'flex gap-2 items-center text-pw-text-2 text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
-const DOT = 'w-1.5 h-1.5 rounded-[50%] bg-pw-text-2'
 
 type SendRejection = {rejected: true; message: string | null; tone: 'info' | 'warn'}
 
@@ -186,10 +184,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     return now
   }, false)
 
-  createEffect(() => {
-    if (disconnected()) announce('Reconnecting to conciv…')
-  })
-
   const visibleError = () => {
     const error = chat.error()
     return error && error.message !== 'stopped' ? error : undefined
@@ -321,18 +315,14 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                     </>
                   }
                   welcome={
-                    <EmptyStateSlot onStarter={(starter) => void chat.sendMessage(starter)} instances={instances} />
+                    <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
+                      <EmptyStateSlot onStarter={(starter) => void chat.sendMessage(starter)} instances={instances} />
+                    </Show>
                   }
                   composer={
                     <>
                       <ExtensionSurface name="status" instances={instances} />
                       <ExtensionSurface name="footer" instances={instances} />
-                      <Show when={disconnected()}>
-                        <div class={RECONNECT} aria-hidden="true">
-                          <span class={`${DOT} anim-dot1`} />
-                          <span class="flex-1">Reconnecting…</span>
-                        </div>
-                      </Show>
                       <NoticeToaster />
                       <For each={pane.grabStore.grabs()}>
                         {(grab) => (

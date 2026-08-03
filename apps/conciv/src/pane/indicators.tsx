@@ -48,6 +48,22 @@ export function CompactSpinner(): JSX.Element {
   )
 }
 
+const SKELETON_BUBBLE = 'rounded-pw-md bg-pw-fill-strong anim-switching h-9'
+
+export function ConversationSkeleton(): JSX.Element {
+  return (
+    <div
+      class="flex flex-col gap-2.5 anim-msg animate-delay-[200ms] animate-fill-mode-backwards"
+      role="status"
+      aria-label="Loading conversation"
+    >
+      <div class={`${SKELETON_BUBBLE} w-3/5 self-start`} />
+      <div class={`${SKELETON_BUBBLE} w-2/5 self-end`} />
+      <div class={`${SKELETON_BUBBLE} w-1/2 self-start`} />
+    </div>
+  )
+}
+
 export function ThinkingBubble(): JSX.Element {
   return (
     <div class="p-2.75 rounded-pw-md bg-pw-fill inline-flex gap-1 items-center self-start anim-msg" aria-hidden="true">

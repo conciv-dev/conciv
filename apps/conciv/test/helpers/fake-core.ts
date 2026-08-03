@@ -9,6 +9,7 @@ export type FakeCore = {
   calls: CoreCall[]
   push: (chunk: unknown) => void
   subscribeCount: () => number
+  releaseSnapshot: () => void
   restore: () => void
 }
 
@@ -17,6 +18,7 @@ export type FakeCoreConfig = {
   sessions?: SessionMeta[]
   rejectSend?: boolean
   snapshotFor?: (subscribeIndex: number) => unknown[]
+  holdSnapshot?: boolean
   holdRun?: boolean
   launchOk?: boolean
   launchRejects?: boolean
@@ -64,11 +66,15 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
   const realFetch = globalThis.fetch
   const calls: CoreCall[] = []
   let subscribes = 0
+  let snapshotReleased = false
   if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = CORE_BASE
   const core: FakeCore = {
     calls,
     push: () => {},
     subscribeCount: () => subscribes,
+    releaseSnapshot: () => {
+      snapshotReleased = true
+    },
     restore: () => {
       globalThis.fetch = realFetch
       if (typeof window !== 'undefined') delete window.__CONCIV_API_BASE__
@@ -80,7 +86,10 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     const messages = config.snapshotFor?.(subscribes) ?? []
     const stream = new ReadableStream<Uint8Array>({
       start: (controller) => {
-        controller.enqueue(frame({type: 'MESSAGES_SNAPSHOT', messages}))
+        const sendSnapshot = () => controller.enqueue(frame({type: 'MESSAGES_SNAPSHOT', messages}))
+        const held = config.holdSnapshot === true && !snapshotReleased
+        if (held) core.releaseSnapshot = sendSnapshot
+        if (!held) sendSnapshot()
         core.push = (chunk) => controller.enqueue(frame(chunk))
         signal.addEventListener('abort', () => {
           core.push = () => {}

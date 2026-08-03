@@ -1,3 +1,4 @@
+import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {ChatPane} from '../src/pane/chat-pane.js'
@@ -84,4 +85,15 @@ test('the refresh affordance is disabled while the run streams', async () => {
 
   await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Refresh the conversation'})).toBeDisabled()
+})
+
+test('the initial load shows a conversation skeleton until the snapshot arrives', async () => {
+  mountChatPane({holdSnapshot: true})
+
+  await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
+
+  core?.releaseSnapshot()
+
+  await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+  await expect.element(page.getByRole('status', {name: 'Loading conversation'})).not.toBeInTheDocument()
 })
