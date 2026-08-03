@@ -1,5 +1,6 @@
 export type RunTracker = {
-  track: (run: Promise<void>) => Promise<void>
+  track: (sessionId: string, run: Promise<void>) => Promise<void>
+  settled: (sessionId: string) => Promise<void>
   drain: (timeoutMs: number) => Promise<number>
 }
 
@@ -16,14 +17,18 @@ async function raceWithTimeout(work: Promise<unknown>, timeoutMs: number): Promi
 
 export function createRunTracker(): RunTracker {
   const inFlight = new Set<Promise<void>>()
+  const bySession = new Map<string, Promise<void>>()
   return {
-    track: (run) => {
+    track: (sessionId, run) => {
       const settled = run.catch(() => {})
       inFlight.add(settled)
+      bySession.set(sessionId, settled)
       return settled.finally(() => {
         inFlight.delete(settled)
+        if (bySession.get(sessionId) === settled) bySession.delete(sessionId)
       })
     },
+    settled: (sessionId) => bySession.get(sessionId) ?? Promise.resolve(),
     drain: async (timeoutMs) => {
       const pending = [...inFlight]
       if (pending.length === 0) return 0

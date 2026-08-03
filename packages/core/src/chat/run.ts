@@ -501,7 +501,7 @@ export function makeSend(deps: ChatDeps): Send {
       await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
       const userContent = await composeUserContent(deps.db, sessionId, content)
       const expanded = await expandUserParts(userContent, deps.attachmentExpanders)
-      void deps.runs.track(startRun(deps, sessionId, {runId, kind: 'chat', content: expanded}, turn))
+      void deps.runs.track(sessionId, startRun(deps, sessionId, {runId, kind: 'chat', content: expanded}, turn))
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       return runId
     } catch (error) {
@@ -530,7 +530,10 @@ export function makeCompactor(deps: ChatDeps): Compactor {
       deps.turns.release(sessionId)
       throw error
     }
-    await startRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)}, turn)
+    await deps.runs.track(
+      sessionId,
+      startRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)}, turn),
+    )
   }
 
   return {run}
