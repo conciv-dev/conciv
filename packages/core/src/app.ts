@@ -25,7 +25,14 @@ import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
-import {ensureAgentRow, ensureRow, nativeIdFor, recordNativeId, sweepEmptyRows} from './chat/session-rows.js'
+import {
+  ensureAgentRow,
+  ensureRow,
+  nativeIdFor,
+  recordNativeId,
+  rowByNativeId,
+  sweepEmptyRows,
+} from './chat/session-rows.js'
 import {buildChatTools, type ChatDeps} from './chat/runtime.js'
 import {askUi, createAskRegistry} from './chat/ask.js'
 import {makeConcivSandbox, makeRunGate, riskyMatches} from './chat/gate.js'
@@ -388,7 +395,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       chat: chatDeps,
-      mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel, discovered: new Map(), decide: decideMcpCall},
+      mcp: {
+        makeCtx: makeToolCtx,
+        extensionTools,
+        sessionModel,
+        discovered: new Map(),
+        decide: decideMcpCall,
+        sessionForNativeId: async (nativeId) => (await rowByNativeId(db, nativeId))?.id ?? null,
+      },
     },
     rpc,
     opts.onShutdown,

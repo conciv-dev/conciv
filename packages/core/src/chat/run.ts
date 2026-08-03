@@ -8,11 +8,12 @@ import {
   StreamProcessor,
   type AnyTool,
   type ContentPart,
+  type ModelMessage,
   type StreamChunk,
   type TokenUsage,
   type UIMessage,
 } from '@tanstack/ai'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter, HarnessChatConfig} from '@conciv/protocol/harness-types'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
 import {APPROVAL_REQUESTED_EVENT} from '@conciv/protocol/ui-types'
@@ -126,8 +127,8 @@ function userParts(content: UserContent): ContentPart[] {
   })
 }
 
-function userMessage(content: UserContent): UIMessage {
-  return {id: randomUUID(), role: 'user', parts: userParts(content)}
+function userModelMessage(content: UserContent): ModelMessage {
+  return {role: 'user', content: userParts(content)}
 }
 
 function compactContent(deps: ChatDeps): UserContent {
@@ -147,9 +148,14 @@ function codeModeExtras(
   return {systemPrompts, tools: [...deps.tools(sessionId), ...(codeMode?.tools ?? [])]}
 }
 
-async function turnMessages(deps: ChatDeps, sessionId: string, resumable: boolean, content: UserContent) {
-  const history = resumable ? [] : await sessionSnapshot(deps, sessionId)
-  return [...history, userMessage(content)]
+async function turnMessages(
+  deps: ChatDeps,
+  sessionId: string,
+  options: {resumable: boolean; content: UserContent; prepare: HarnessChatConfig['prepareMessages']},
+): Promise<Array<UIMessage | ModelMessage>> {
+  const history = options.resumable ? [] : await sessionSnapshot(deps, sessionId)
+  const turn = [userModelMessage(options.content)]
+  return [...history, ...(options.prepare?.(turn) ?? turn)]
 }
 
 async function buildRunStream(
@@ -174,7 +180,11 @@ async function buildRunStream(
     hasTools: extras.tools.length > 0,
     decide: (toolName, input, toolUseId) => gate.decide(toolName, input, sessionId, toolUseId),
   })
-  const messages = await turnMessages(deps, sessionId, resumeSessionId !== null, req.content)
+  const messages = await turnMessages(deps, sessionId, {
+    resumable: resumeSessionId !== null,
+    content: req.content,
+    prepare: config.prepareMessages,
+  })
   return chat({
     adapter: config.adapter,
     messages,

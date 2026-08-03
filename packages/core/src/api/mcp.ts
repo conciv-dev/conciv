@@ -6,7 +6,7 @@ import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import {isContentPartArray, type ContentPart} from '@tanstack/ai'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import {HTTPException} from 'hono/http-exception'
-import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {logError} from '../lib/debug.js'
 
 export function sessionIdFromHeaders(headers: Headers): string | null {
@@ -14,6 +14,10 @@ export function sessionIdFromHeaders(headers: Headers): string | null {
   if (!raw) return null
   if (!isSessionId(raw)) throw new HTTPException(400, {message: 'invalid session id (must be ours)'})
   return raw
+}
+
+export function nativeIdFromHeaders(headers: Headers): string | null {
+  return headers.get(CONCIV_CLAUDE_SESSION_HEADER)?.trim() || null
 }
 
 type RegistrableTool = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
@@ -125,11 +129,14 @@ export type McpVars = {
     sessionModel: (sessionId: string) => string | null
     discovered: Map<string, Set<string>>
     decide: McpToolDecider
+    sessionForNativeId: (nativeId: string) => Promise<string | null>
   }
 }
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
-  const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? ''
+  const nativeId = nativeIdFromHeaders(c.req.raw.headers)
+  const nativeOwner = nativeId ? await c.var.mcp.sessionForNativeId(nativeId) : null
+  const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? nativeOwner ?? ''
   const ctx = c.var.mcp.makeCtx(sessionId)
   const request: ToolRequest = {sessionId, model: c.var.mcp.sessionModel(sessionId)}
   const discovered = discoveredNamesFor(c.var.mcp.discovered, sessionId)
