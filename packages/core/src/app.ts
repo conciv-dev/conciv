@@ -1,5 +1,4 @@
 import {existsSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
 import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -25,20 +24,15 @@ import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
-import {ensureAgentRecord, sweepEmptyChatRecords} from './chat/session.js'
+import {ensureAgentRow, ensureRow, nativeIdFor, recordNativeId, sweepEmptyRows} from './chat/session-rows.js'
 import {buildChatTools, type ChatDeps} from './chat/runtime.js'
-import {makeChanges} from './chat/attach.js'
-import {askUi, makeConcivSandbox} from './chat/gate.js'
-import {
-  ensureChatRecord,
-  makeCompactor,
-  makeSend,
-  recordMintedToken,
-  resolveSystemText,
-  resumeTokenFor,
-  type AttachmentExpanders,
-} from './chat/run.js'
-import {modelOf, openDb, statusOf} from '@conciv/db'
+import {askUi, createAskRegistry} from './chat/ask.js'
+import {makeConcivSandbox} from './chat/gate.js'
+import {createSessionStreams} from './chat/subscribe.js'
+import {createSnapshotCache} from './chat/transcript.js'
+import {createRunTracker} from './chat/run-tracker.js'
+import {createTurnRegistry, makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
+import {modelOf, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makePageBus} from './page-bus.js'
@@ -52,6 +46,7 @@ import type {OpenInEditor} from './editor/open.js'
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
   cwd: string
+  basePath?: string
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
   systemPromptFile?: string
@@ -195,15 +190,20 @@ export type AppType = ReturnType<typeof composeRoutes>
 
 export type MadeApp = {
   app: AppType
-  disposers: (() => void | Promise<void>)[]
+  dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
-  closeDb: () => void
 }
+
+const RUN_DRAIN_TIMEOUT_MS = 5_000
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const db = openDb(opts.cfg.stateRoot)
-  const changes = makeChanges()
+  const asks = createAskRegistry()
+  const turns = createTurnRegistry()
+  const stream = createSessionStreams()
+  const snapshots = createSnapshotCache()
+  const runs = createRunTracker()
   const risky = new Set(
     (opts.extensions ?? [])
       .flatMap((extension) => extension.tools ?? [])
@@ -229,28 +229,24 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
 
   const serverSessions: ServerSessions = {
-    resumeToken: (sessionId) => resumeTokenFor(db, sessionId),
+    resumeToken: (sessionId) => nativeIdFor(db, sessionId),
     recordToken: async (sessionId, token) => {
-      await ensureChatRecord(db, sessionId, harness.id, opts.cwd)
-      await recordMintedToken(db, sessionId, token)
+      await ensureRow(db, sessionId, harness.id, opts.cwd)
+      await recordNativeId(db, sessionId, token)
     },
-    chatBusy: (sessionId) => statusOf(db, sessionId) !== 'idle',
+    chatBusy: (sessionId) => turns.running(sessionId),
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
   const history = harness.history
+  const transcriptPath = history?.transcriptPath
   const serverHarness: ServerHarness = {
     id: harness.id,
     ttyCommand: harness.tty?.command,
-    transcriptExists: history
-      ? (token) => existsSync(history.transcriptPath(opts.cwd, token, opts.claudeHome))
+    transcriptExists: transcriptPath
+      ? (token) => existsSync(transcriptPath(opts.cwd, token, opts.claudeHome))
       : undefined,
-    transcriptMessages: history
-      ? async (token) => {
-          const raw = await readFile(history.transcriptPath(opts.cwd, token, opts.claudeHome), 'utf8').catch(() => '')
-          return raw ? history.parse(raw) : []
-        }
-      : undefined,
+    transcriptMessages: history ? (token) => history.messages(opts.cwd, token, opts.claudeHome) : undefined,
   }
   const seenTools = new Set<string>()
   const seenNames = new Set<string>()
@@ -317,7 +313,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     })
   }
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
-    askUi: () => askUi({db, changes}, sessionId),
+    askUi: () => askUi(asks, sessionId),
     page: (query) => pageBus.ask(query),
     open: (file, line) => opts.openInEditor(file, line),
   })
@@ -333,6 +329,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const chatDeps: ChatDeps = {
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
+    basePath: opts.basePath ?? '',
     harness,
     harnessEnv: opts.harnessEnv,
     claudeHome: opts.claudeHome,
@@ -342,7 +339,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ),
     sandbox: makeConcivSandbox(opts.cwd),
     db,
-    changes,
+    asks,
+    turns,
+    stream,
+    snapshots,
+    runs,
     risky,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     toolNames: new Set(toolList.map((tool) => tool.name)),
@@ -354,9 +355,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
 
   if (opts.cfg.sessionId) {
-    void ensureAgentRecord({db, harnessKind: harness.id, cwd: opts.cwd}, opts.cfg.sessionId).catch(() => {})
+    void ensureAgentRow({db, harnessKind: harness.id, cwd: opts.cwd}, opts.cfg.sessionId).catch(() => {})
   }
-  void sweepEmptyChatRecords(db).catch(() => {})
+  void sweepEmptyRows(db).catch(() => {})
 
   const compactor = makeCompactor(chatDeps)
 
@@ -396,5 +397,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       )
   })
 
-  return {app, disposers, extensionContexts, closeDb: () => db.$client.close()}
+  const dispose = async (): Promise<void> => {
+    const outstanding = await runs.drain(RUN_DRAIN_TIMEOUT_MS)
+    if (outstanding > 0) logError(`[core] disposed with ${outstanding} run(s) still in flight`)
+    for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
+    db.$client.close()
+  }
+
+  return {app, dispose, extensionContexts}
 }

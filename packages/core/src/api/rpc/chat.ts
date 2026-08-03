@@ -1,36 +1,31 @@
-import {writeReply} from '@conciv/db'
-import {attachLive} from '../../chat/attach.js'
 import {SESSION_BUSY} from '../../chat/run.js'
-import {pendingUiCallIds, sessionForApproval} from '../../chat/gate.js'
+import {stopSession} from '../../chat/stop.js'
+import {subscribeSession} from '../../chat/subscribe.js'
 import {os, type RpcDeps} from './mount.js'
 
 export function chatRouter(deps: RpcDeps) {
   const chat = deps.chat
   return {
-    attach: os.chat.attach.handler(async function* ({input, signal}) {
-      yield* attachLive(chat, input.sessionId, signal ?? new AbortController().signal)
+    subscribe: os.chat.subscribe.handler(async function* ({input, signal}) {
+      yield* subscribeSession(chat, input.sessionId, signal ?? new AbortController().signal)
     }),
     send: os.chat.send.handler(async ({input, errors}) => {
       try {
-        const runId = await deps.send(input.sessionId, input.content ?? input.text ?? '')
+        const runId = await deps.send(input.sessionId, input.runId, input.content ?? input.text ?? '')
         return {ok: true as const, runId}
       } catch (error) {
         if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
         throw error
       }
     }),
+    stop: os.chat.stop.handler(({input}) => stopSession(chat, input.sessionId)),
     permissionDecision: os.chat.permissionDecision.handler(({input}) => {
-      const sessionId = sessionForApproval(chat.db, input.approvalId)
-      if (sessionId !== null) {
-        writeReply(chat.db, sessionId, input.approvalId, input.approved)
-        chat.changes.notify()
-      }
+      const sessionId = chat.asks.owner(input.approvalId)
+      if (sessionId !== null) chat.asks.reply(sessionId, input.approvalId, input.approved)
       return {ok: true as const}
     }),
     uiReply: os.chat.uiReply.handler(({input, errors}) => {
-      if (!pendingUiCallIds(chat.db, input.sessionId).includes(input.toolCallId)) throw errors.UNKNOWN_REQUEST()
-      writeReply(chat.db, input.sessionId, input.toolCallId, input.value)
-      chat.changes.notify()
+      if (!chat.asks.reply(input.sessionId, input.toolCallId, input.value)) throw errors.UNKNOWN_REQUEST()
       return {ok: true as const}
     }),
   }
