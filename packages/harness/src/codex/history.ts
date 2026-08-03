@@ -1,4 +1,5 @@
-import {readdir, readFile} from 'node:fs/promises'
+import {readdirSync, readFileSync, type Dirent} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
@@ -275,30 +276,49 @@ function contextTokensFromTranscript(raw: string): number | undefined {
   return total
 }
 
-async function scanForRollout(sessionId: string, home: string): Promise<string | null> {
+function rolloutEntries(home: string): Dirent[] {
+  try {
+    return readdirSync(sessionsRoot(home), {withFileTypes: true, recursive: true})
+  } catch {
+    return []
+  }
+}
+
+function scanForRollout(sessionId: string, home: string): string | null {
   const suffix = `-${sessionId}.jsonl`
-  const entries = await readdir(sessionsRoot(home), {withFileTypes: true, recursive: true}).catch(() => [])
-  const hit = entries.find((entry) => entry.isFile() && entry.name.endsWith(suffix))
+  const hit = rolloutEntries(home).find((entry) => entry.isFile() && entry.name.endsWith(suffix))
   return hit ? join(hit.parentPath, hit.name) : null
 }
 
-export async function rolloutPath(sessionId: string, home: string = homedir()): Promise<string | null> {
+export function rolloutPath(sessionId: string, home: string = homedir()): string | null {
   const row = threadRows(stateDbPath(home), THREAD_BY_ID, [sessionId]).at(0)
   if (row) return row.rollout_path
   return scanForRollout(sessionId, home)
 }
 
-async function rolloutFor(cwd: string, sessionId: string, home: string): Promise<{path: string; raw: string} | null> {
-  const path = await rolloutPath(sessionId, home)
+function readRollout(path: string): string {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return ''
+  }
+}
+
+function projectRollout(cwd: string, sessionId: string, home: string): {path: string; raw: string} | null {
+  const path = rolloutPath(sessionId, home)
   if (!path) return null
-  const raw = await readFile(path, 'utf8').catch(() => '')
+  const raw = readRollout(path)
   if (!raw) return null
   const found = rolloutCwd(raw)
   return found !== null && sameCwd(found, cwd) ? {path, raw} : null
 }
 
+function rolloutWithinProject(cwd: string, sessionId: string, home: string = homedir()): boolean {
+  return projectRollout(cwd, sessionId, home) !== null
+}
+
 async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<UIMessage[]> {
-  const rollout = await rolloutFor(cwd, sessionId, home)
+  const rollout = projectRollout(cwd, sessionId, home)
   return rollout ? parseHistory(rollout.raw) : []
 }
 
@@ -325,7 +345,7 @@ function observeTranscript(cwd: string, sessionId: string, home: string = homedi
   return makeJsonlHandle<CodexSpine>({
     parser: {empty: emptySpine, foldLine, messages: spineMessages},
     resolvePath: async () => {
-      const path = await rolloutPath(sessionId, home)
+      const path = rolloutPath(sessionId, home)
       return path ?? transcriptFailure('missing', `no codex rollout recorded for ${sessionId}`)
     },
     verifyHead: (head) => {
@@ -340,6 +360,7 @@ function observeTranscript(cwd: string, sessionId: string, home: string = homedi
 export const codexHistory: HarnessHistory = {
   messages: transcriptMessages,
   observe: observeTranscript,
+  withinProject: rolloutWithinProject,
   contextTokens: contextTokensFromTranscript,
   list: listSessions,
 }

@@ -85,7 +85,10 @@ export function resumableToken(
   home?: string,
 ): string | null {
   if (!token) return null
-  const transcriptPath = harness.history?.transcriptPath
+  const history = harness.history
+  if (!history) return token
+  if (history.withinProject && !history.withinProject(cwd, token, home)) return null
+  const transcriptPath = history.transcriptPath
   if (!transcriptPath) return token
   return existsSync(transcriptPath(cwd, token, home)) ? token : null
 }
