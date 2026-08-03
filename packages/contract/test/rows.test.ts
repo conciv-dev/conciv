@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from '../src/rows.js'
 
 describe('row schemas', () => {
-  it('parses a session meta with status', () => {
+  it('parses a session meta', () => {
     const parsed = SessionMetaSchema.parse({
       id: 'conciv_1',
       title: 'hello',
@@ -11,11 +11,11 @@ describe('row schemas', () => {
       running: false,
       origin: 'conciv',
       usage: null,
-      status: 'idle',
       model: null,
-      attached: false,
+      hidden: false,
+      native: null,
     })
-    expect(parsed.status).toBe('idle')
+    expect(parsed.hidden).toBe(false)
   })
 
   it('rejects an unknown marker kind', () => {
