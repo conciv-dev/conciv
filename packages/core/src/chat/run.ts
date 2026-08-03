@@ -33,6 +33,7 @@ import {sessionSnapshot} from './transcript.js'
 import {makeRunGate, withConcivGate, withConcivSandbox, type PermissionGate} from './gate.js'
 import {makeCodeMode} from './code-mode.js'
 import {codeModeToolChunks} from './code-mode-parts.js'
+import {makeToolNameNormalizer, normalizeChunkToolName} from './tool-names.js'
 import {harnessDebug, logError} from '../lib/debug.js'
 
 export const SESSION_BUSY = 'session busy'
@@ -248,10 +249,11 @@ async function foldRunStream(
   outcome: RunOutcome,
 ): Promise<void> {
   const model = (await rowById(deps.db, sessionId))?.model ?? null
+  const normalize = makeToolNameNormalizer(deps.toolNames)
   for await (const raw of stream) {
     const chunks = codeModeToolChunks(raw) ?? [raw]
     for (const chunk of chunks) {
-      const stamped = stampRunId(chunk, req.runId)
+      const stamped = normalizeChunkToolName(stampRunId(chunk, req.runId), normalize)
       processor.processChunk(stamped)
       const terminal = isTerminalChunk(stamped)
       if (terminal) outcome.terminal = stamped
