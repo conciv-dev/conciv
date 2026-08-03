@@ -1,5 +1,6 @@
 import {afterEach, expect, test, vi} from 'vitest'
 import {makeRpcClient, type DraftRow} from '@conciv/contract'
+import type {WebStorage} from '@conciv/storage-history'
 import {makeDraftStorage} from '../src/pane/draft-storage.js'
 
 const BASE = 'http://conciv.test'
@@ -47,6 +48,14 @@ async function settleWrites(): Promise<void> {
   await Promise.resolve()
 }
 
+async function bootWritableStorage(): Promise<{server: Server; storage: WebStorage}> {
+  const server: Server = {row: null, writes: [], failReads: false}
+  installServer(server)
+  const storage = await makeDraftStorage(makeRpcClient(BASE), SESSION)
+  vi.useFakeTimers()
+  return {server, storage}
+}
+
 test('seeds the cache from the server draft row in the composer draft shape', async () => {
   const server: Server = {row: draftRow('kept across the reload', ['a grabbed heading']), writes: [], failReads: false}
   installServer(server)
@@ -71,10 +80,7 @@ test('starts empty when the server has no draft', async () => {
 })
 
 test('writes the composer draft back to the server with the caret at the end', async () => {
-  const server: Server = {row: null, writes: [], failReads: false}
-  installServer(server)
-  const storage = await makeDraftStorage(makeRpcClient(BASE), SESSION)
-  vi.useFakeTimers()
+  const {server, storage} = await bootWritableStorage()
 
   storage.setItem('any', JSON.stringify({text: 'a fresh draft', quote: null, grabs: ['a heading'], attachments: []}))
   await settleWrites()
@@ -85,10 +91,7 @@ test('writes the composer draft back to the server with the caret at the end', a
 })
 
 test('collapses a burst of writes into the last draft', async () => {
-  const server: Server = {row: null, writes: [], failReads: false}
-  installServer(server)
-  const storage = await makeDraftStorage(makeRpcClient(BASE), SESSION)
-  vi.useFakeTimers()
+  const {server, storage} = await bootWritableStorage()
 
   storage.setItem('any', JSON.stringify({text: 'a', quote: null, grabs: [], attachments: []}))
   storage.setItem('any', JSON.stringify({text: 'ab', quote: null, grabs: [], attachments: []}))
@@ -99,10 +102,7 @@ test('collapses a burst of writes into the last draft', async () => {
 })
 
 test('keeps the latest value readable even when the payload cannot be persisted', async () => {
-  const server: Server = {row: null, writes: [], failReads: false}
-  installServer(server)
-  const storage = await makeDraftStorage(makeRpcClient(BASE), SESSION)
-  vi.useFakeTimers()
+  const {server, storage} = await bootWritableStorage()
 
   storage.setItem('any', 'not json at all')
   await settleWrites()
