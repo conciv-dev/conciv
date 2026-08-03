@@ -6,5 +6,6 @@ export default defineConfig({
     ...ciTest(),
     include: ['test/**/*.test.ts'],
     exclude: ['test/fixtures/**', 'node_modules/**', 'dist/**'],
+    execArgv: ['--expose-gc'],
   },
 })
