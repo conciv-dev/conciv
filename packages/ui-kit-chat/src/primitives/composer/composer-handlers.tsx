@@ -2,8 +2,9 @@ import {createContext, useContext, type Accessor} from 'solid-js'
 import type {MultimodalContent} from '@tanstack/ai-client'
 
 export type ComposerHandlers = {
-  beforeSend?: (content: string | MultimodalContent) => boolean
-  onSend?: (content: string | MultimodalContent) => void
+  onSend?: (content: string | MultimodalContent) => void | Promise<unknown>
+  onSendError?: (error: unknown) => void
+  onRefresh?: () => void
   onCancel?: () => void
   onSteer?: () => void | Promise<unknown>
   onSteerError?: (error: unknown) => void
