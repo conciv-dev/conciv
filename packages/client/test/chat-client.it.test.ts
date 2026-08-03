@@ -84,6 +84,26 @@ describe('ChatClient over chatConnection (useChatSession composition, headless)'
     }
   })
 
+  it('a run whose adapter stream dies after RUN_STARTED still settles generating', async () => {
+    kit = await bootClientKit()
+    const sessionId = await kit.session()
+    const connected = Promise.withResolvers<void>()
+    const {client, observed} = observeClient(kit.base, sessionId, {
+      onUpdate: (update) => {
+        if (update.kind === 'connection' && update.status === 'connected') connected.resolve()
+      },
+    })
+    client.subscribe()
+    try {
+      await connected.promise
+      kit.harness.script.scriptError('adapter stream blew up')
+      await client.sendMessage('hello')
+      expect(observed.generating).toBe(false)
+    } finally {
+      client.unsubscribe()
+    }
+  })
+
   it('attaching mid-turn hydrates messages from the snapshot and flags generating', async () => {
     kit = await bootClientKit()
     const sessionId = await kit.session()

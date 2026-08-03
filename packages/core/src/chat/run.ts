@@ -207,7 +207,7 @@ const LIFECYCLE_TYPES = new Set<string>([EventType.RUN_STARTED, EventType.RUN_FI
 
 export function stampRunId(chunk: StreamChunk, runId: string): StreamChunk {
   if (!LIFECYCLE_TYPES.has(chunk.type)) return chunk
-  if ('runId' in chunk && typeof chunk.runId === 'string' && chunk.runId) return chunk
+  if ('runId' in chunk && chunk.runId === runId) return chunk
   return {...chunk, runId}
 }
 
