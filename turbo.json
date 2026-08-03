@@ -1,6 +1,6 @@
 {
   "$schema": "https://v2-10-3.turborepo.dev/schema.json",
-  "globalDependencies": [".github/workflows/ci.yml", "pnpm-workspace.yaml"],
+  "globalDependencies": [".github/workflows/ci.yml", "pnpm-workspace.yaml", ".oxlintrc.json"],
   "concurrency": "50%",
   "tasks": {
     "build": {
