@@ -36,6 +36,7 @@ export function storyConnection(options?: StoryConnectionOptions): ConnectConnec
         if (abortSignal?.aborted) return
         yield chunk
       }
+      if (abortSignal?.aborted) return
       if (options?.shouldError) {
         yield {type: EventType.RUN_ERROR, message: (options.error ?? new Error('Story stream error')).message}
         return
