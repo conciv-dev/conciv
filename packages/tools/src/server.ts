@@ -26,7 +26,7 @@ function concivPageServerTool(ctx: ConcivToolContext): ConcivServerTool {
     name: tool.name,
     description: tool.description,
     inputSchema: PageInput,
-    execute: (input) => run(PageInput.parse(input)),
+    execute: async (input) => run(PageInput.parse(input)),
   }
 }
 
@@ -41,7 +41,7 @@ function concivOpenServerTool(ctx: ConcivToolContext): ConcivServerTool {
     name: tool.name,
     description: tool.description,
     inputSchema: OpenInput,
-    execute: (input) => run(OpenInput.parse(input)),
+    execute: async (input) => run(OpenInput.parse(input)),
   }
 }
 
@@ -61,7 +61,7 @@ function concivExtensionsServerTool(): ConcivServerTool {
     name: tool.name,
     description: tool.description,
     inputSchema: ExtensionsInput,
-    execute: (input) => run(ExtensionsInput.parse(input)),
+    execute: async (input) => run(ExtensionsInput.parse(input)),
   }
 }
 

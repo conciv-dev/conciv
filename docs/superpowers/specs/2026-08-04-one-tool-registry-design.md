@@ -48,6 +48,32 @@ Where to look, by concern:
 | a docs tool                    | `src/tools/docs-search.ts`                                               | `outputSchema` + `structuredContent` + `readOnlyHint` |
 | what we skip                   | `src/auth/*`, `src/metrics.ts`                                           | OAuth and telemetry — see below                       |
 
+## Libraries: the exact versions, and where to read them
+
+Read the **resolved source** under `node_modules/.pnpm/`, not the published docs alone. Several claims in earlier
+drafts of this spec came from docs that were wrong, silent, or stale about the installed code — the declared-error
+loss, the missing search tool, and the `$ref` gap were all found by reading source after a doc implied otherwise.
+
+Versions below are the ones this repo runs after the 0.43-line upgrade (#239). Cite a version whenever a claim
+depends on library behaviour, so a later bump makes the claim re-checkable instead of quietly false.
+
+| concern                                                               | where to read                                                                                                                                                                                                                |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| code-mode tool, discovery, bindings, type generation, secret scanning | `@tanstack/ai-code-mode@0.3.9` — `src/create-code-mode.ts`, `create-code-mode-tool.ts`, `create-discovery-tool.ts`, `bindings/tool-to-binding.ts`, `type-generator/json-schema-to-ts.ts`, `validate-bindings.ts`, `types.ts` |
+| its shipped skill                                                     | `@tanstack/ai-code-mode/skills/ai-code-mode/SKILL.md`, or `pnpm dlx @tanstack/intent@latest load @tanstack/ai-code-mode#ai-code-mode`                                                                                        |
+| where a declared error's code is destroyed                            | `@tanstack/ai-isolate-node@0.1.48` — `src/isolate-driver.ts`, `isolate-context.ts`, `error-normalizer.ts`                                                                                                                    |
+| tool handler signature, custom events, the event union                | `@tanstack/ai@0.43.0` — `dist/esm/types.d.ts`                                                                                                                                                                                |
+| why a runtime-registered procedure is not on the typed client         | `@orpc/server@1.14.7` — `dist/index.d.mts`, the router-client mapped type                                                                                                                                                    |
+| server instructions, transport DNS-rebinding options                  | `@modelcontextprotocol/sdk@1.30.0` — `server/index.d.ts`, `server/webStandardStreamableHttp.d.ts`                                                                                                                            |
+| extension config/tool type derivation                                 | `packages/extension/src/define-extension.ts`, and the existing type test `packages/extension/test/config-registry.test-d.ts`                                                                                                 |
+| code mode's model requirements, with its evaluation table             | `tanstack.com/ai/latest/docs/code-mode/code-mode`                                                                                                                                                                            |
+| how tools reach a sandboxed agent, and per-harness reality            | `tanstack.com/ai/latest/docs/sandbox/tools`, `/sandbox/harnesses`                                                                                                                                                            |
+
+Two traps this table exists to prevent. A capability flag in **our** code is not evidence of a library limit —
+the per-harness `codeMode` flag was an omission, not a constraint, and designing around it nearly bought us two
+permanent exposure shapes. And a package's own docs can be stale against its own source: the reference server's
+`AGENTS.md` says "two tools" while `src/server.ts` registers three.
+
 ## The problem
 
 The same 38 page verbs are written out in eleven places. Four are typed `Record<PageQueryKind, …>` and fail to compile when forgotten. **The other seven fail silently:**
