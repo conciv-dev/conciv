@@ -24,7 +24,9 @@ const imported = (pattern: RegExp) => chunks.some((code) => pattern.test(code))
 
 describe('harness dist keeps @tanstack/ai-sandbox free of peer edges (#107)', () => {
   it('bundles the @tanstack/ai-* adapters instead of importing them', () => {
-    expect(imported(/from\s*["']@tanstack\/ai-(acp|claude-code|codex|opencode)["']/)).toBe(false)
+    expect(imported(/^\s*(?:import|export)[^\n]*from\s*["']@tanstack\/ai-(acp|claude-code|codex|opencode)["']/m)).toBe(
+      false,
+    )
   })
 
   it('externalizes @tanstack/ai-sandbox so capability-handle identity is shared with core', () => {

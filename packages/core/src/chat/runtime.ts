@@ -1,6 +1,13 @@
-import {toolDefinition, type AnyTool, type ServerTool} from '@tanstack/ai'
-import type {RunController, RunEventLog, SandboxDefinition} from '@tanstack/ai-sandbox'
-import type {z} from 'zod'
+import {
+  InMemoryRunStore,
+  memoryStream,
+  toolDefinition,
+  type AnyTool,
+  type ServerTool,
+  type StreamDurability,
+} from '@tanstack/ai'
+import {RunController, type SandboxDefinition} from '@tanstack/ai-sandbox'
+import {z} from 'zod'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
@@ -22,7 +29,7 @@ export type ChatDeps = {
   sandbox: SandboxDefinition
   db: ConcivDb
   asks: AskRegistry
-  runLog: RunEventLog
+  durability: (runId: string) => StreamDurability
   runControl: RunController
   liveRuns: LiveRuns
   stream: SessionStreams
@@ -39,17 +46,35 @@ export type ChatDeps = {
 
 export type ChatEnv = {Variables: {chat: ChatDeps}}
 
+export const FIRST_CHUNK_TIMEOUT_MS = 30_000
+
+const READER_FIRST_APPEND_GRACE_MS = 5_000
+
+export function makeRunControl(firstChunkTimeoutMs?: number): {
+  durability: (runId: string) => StreamDurability
+  runControl: RunController
+} {
+  const firstChunkDeadlineMs = (firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS) + READER_FIRST_APPEND_GRACE_MS
+  const durability = (runId: string): StreamDurability => memoryStream({runId}, {firstChunkDeadlineMs})
+  return {durability, runControl: new RunController({runs: new InMemoryRunStore(), durability})}
+}
+
 type Registrable = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
 
 export type ToolRunContext = {emitCustomEvent?: (eventName: string, value: Record<string, unknown>) => void}
 
 type ToolRun = (args: unknown, context?: ToolRunContext) => Promise<unknown>
 
-export function toChatTool(tool: Registrable, run: ToolRun, opts?: {lazy?: boolean}): ServerTool {
+export function toChatTool(
+  tool: Registrable,
+  run: ToolRun,
+  opts?: {lazy?: boolean},
+): ServerTool<z.ZodObject<z.ZodRawShape>, z.ZodUnknown> {
   return toolDefinition({
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,
+    outputSchema: z.unknown(),
     lazy: opts?.lazy,
   }).server(run)
 }

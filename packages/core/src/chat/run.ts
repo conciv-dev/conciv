@@ -26,7 +26,7 @@ import {
   setRunMessages,
   type ConcivDb,
 } from '@conciv/db'
-import type {ChatDeps} from './runtime.js'
+import {FIRST_CHUNK_TIMEOUT_MS, type ChatDeps} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot} from './transcript.js'
@@ -163,10 +163,14 @@ async function buildRunStream(
   })
 }
 
-const LIFECYCLE_TYPES = new Set<string>([EventType.RUN_STARTED, EventType.RUN_FINISHED, EventType.RUN_ERROR])
-
 function stampRunId(chunk: StreamChunk, runId: string): StreamChunk {
-  if (!LIFECYCLE_TYPES.has(chunk.type)) return chunk
+  if (
+    chunk.type !== EventType.RUN_STARTED &&
+    chunk.type !== EventType.RUN_FINISHED &&
+    chunk.type !== EventType.RUN_ERROR
+  ) {
+    return chunk
+  }
   if ('runId' in chunk && chunk.runId === runId) return chunk
   return {...chunk, runId}
 }
@@ -238,8 +242,6 @@ async function* foldRunStream(
     }
   }
 }
-
-const FIRST_CHUNK_TIMEOUT_MS = 30_000
 
 async function firstOrTimeout(
   iterator: AsyncIterator<StreamChunk>,
@@ -320,7 +322,11 @@ async function* runStream(
   const gate = makeRunGate({
     sessionId,
     asks: deps.asks,
-    emit: (chunk) => void deps.runLog.append(req.runId, chunk).catch(() => {}),
+    emit: (chunk) =>
+      void deps
+        .durability(req.runId)
+        .append([chunk])
+        .catch(() => {}),
     risky: deps.risky,
   })
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
@@ -340,8 +346,7 @@ async function* runStream(
   yield runEndChunkFor(sessionId, req, outcome)
 }
 
-async function launchRun(deps: ChatDeps, sessionId: string, req: RunRequest): Promise<LiveRun> {
-  await deps.runLog.open({runId: req.runId, threadId: sessionId})
+function launchRun(deps: ChatDeps, sessionId: string, req: RunRequest): LiveRun {
   const abort = new AbortController()
   const handle = deps.runControl.start({
     runId: req.runId,
@@ -450,7 +455,7 @@ export function makeSend(deps: ChatDeps): Send {
     await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
     const userContent = await composeUserContent(deps.db, sessionId, content)
     const expanded = await expandUserParts(userContent, deps.attachmentExpanders)
-    await launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
+    launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
     await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
     return runId
   }
@@ -467,7 +472,7 @@ export function makeCompactor(deps: ChatDeps): Compactor {
     deps.onRunStart?.(sessionId)
     const history = await sessionSnapshot(deps, sessionId)
     await addCompactMarker(deps.db, sessionId, history.length)
-    const live = await launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
+    const live = launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
     await live.done
   }
 

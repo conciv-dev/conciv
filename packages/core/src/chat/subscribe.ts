@@ -36,7 +36,7 @@ export async function* subscribeSession(
   const stop = (): void => queue.end()
   signal.addEventListener('abort', stop, {once: true})
   async function pumpRun(runId: string): Promise<void> {
-    for await (const event of deps.runControl.attach(runId, {signal})) queue.push(event.chunk)
+    for await (const event of deps.runControl.attach(runId, '-1', signal)) queue.push(event.chunk)
   }
   const tailRun = (runId: string): void => {
     void pumpRun(runId).catch(() => {})
