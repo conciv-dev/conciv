@@ -85,6 +85,7 @@
     "@tanstack/ai-opencode": "0.2.4",
     "@types/node": "^22.19.21",
     "@vitest/coverage-v8": "^4.1.8",
+    "oxc-parser": "^0.127.0",
     "tsdown": "^0.22.4",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
