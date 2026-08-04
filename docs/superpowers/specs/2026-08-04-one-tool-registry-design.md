@@ -115,13 +115,24 @@ The CLI command tree, the model-facing schemas, MCP registration, the action-car
 That is affordable because `page.run` has **three** non-test callers: the model-facing page tool (`packages/tools/src/server.ts:22`), its own handler (`packages/core/src/api/rpc/router.ts:73`), and the CLI leaf (`packages/cli/src/page.ts:135`). Everything else that touches it is a test, and tests change with the behaviour they cover.
 
 1. **Expand** — add `defineTool` with meta and errors, the registry assembly, and the catalog walk. Purely additive; nothing calls it yet and nothing else changes.
-2. **Define the built-in tools in batches** — read, act, edit-live, react, then the server operations. Each batch moves an existing handler body and writes its schema from what the protocol already declares. The old path is untouched, not wrapped, so every batch is green on its own.
+2. **Define the built-in tools in batches** — read, act, edit-live, react, then the server operations. Each batch moves an existing handler body and writes its schema from what the protocol already declares. The old path is untouched, not wrapped.
 3. **Move the three callers**, one per commit: the CLI leaf derives its command tree from the registry; the page tool's schema and description derive from it; the router hands off to it.
 4. **Derive the remaining consumers** — chat and MCP exposure, action-card labels, journal and mirror flags — each replacing a parallel list with a read of the registry.
 5. **Move extensions onto the same path** — `pageVerb` becomes `defineTool(...).client(...)`, deleting the `ext` kind. This subsumes #226.
 6. **Contract** — delete `page.run`, the enum, the field bag, and every parallel list; add the guard tests that stop them coming back.
 
 If step 3 turns out to need a translation layer to stay green, that is a signal the registry's shape is wrong — not a reason to write one.
+
+## Tests may stay red until the end
+
+A ruling, because it changes how this is executed: **tests are allowed to fail for the duration of the migration** and are brought back at the end. Demanding green at every step is what would force a translation layer — two systems cannot both satisfy one suite without one pretending to be the other.
+
+Two guardrails keep that from decaying into "made green at the end":
+
+- **Typecheck and build stay green continuously.** In a refactor of this shape that is the gate that matters: a deleted enum member or a moved schema surfaces as a compile error across all eleven surfaces in seconds, while a red suite says little about a half-moved truth.
+- **Every red test is triaged, not just fixed.** _Mechanical_ — references a deleted API or asserts a shape that intentionally changed — update freely. _Behavioural_ — the thing it protected genuinely stopped working — read and understand before touching, because that is where a real regression hides.
+
+**No test is deleted to reach green.** A test whose concept ceased to exist (an exhaustiveness check over the old enum) is replaced by its registry-guard equivalent, never dropped.
 
 ## Testing
 
