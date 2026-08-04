@@ -82,9 +82,13 @@ function changedPaths(cloneDir: string): string[] {
     .toSorted()
 }
 
-function runInitCli(cloneDir: string, env: {PATH: string; HOME: string}): Promise<{code: number; output: string}> {
+function runInitCli(
+  cloneDir: string,
+  env: {PATH: string; HOME: string},
+  flag = '--yes',
+): Promise<{code: number; output: string}> {
   return new Promise((settle, reject) => {
-    execFile(process.execPath, [cliBin, 'init', '--yes'], {cwd: cloneDir, env}, (error, stdout, stderr) => {
+    execFile(process.execPath, [cliBin, 'init', flag], {cwd: cloneDir, env}, (error, stdout, stderr) => {
       if (error === null) {
         settle({code: 0, output: `${stdout}${stderr}`})
         return
@@ -96,6 +100,18 @@ function runInitCli(cloneDir: string, env: {PATH: string; HOME: string}): Promis
       settle({code: error.code, output: `${stdout}${stderr}`})
     })
   })
+}
+
+function expectPlanPreview(output: string, detection: string, frameworkRow: RegExp): void {
+  expect(output).toContain('conciv init')
+  expect(output).toContain(`Detected: ${detection}`)
+  expect(output).toContain('harnesses: none found')
+  expect(output).toContain('Plan')
+  expect(output).toMatch(/Install @conciv\/it\s+package\.json/)
+  expect(output).toMatch(frameworkRow)
+  expect(output).toMatch(/Teach agents the conciv CLI\s+AGENTS\.md/)
+  expect(output).toMatch(/Install the conciv claude plugin\s+\.conciv\/claude-connect/)
+  expect(output).toContain('Harnesses: none found')
 }
 
 function expectCommonOutcome(cloneDir: string, outcome: {code: number; output: string}): void {
@@ -114,6 +130,7 @@ describe('conciv init against consumer-app clones', () => {
     commitClone(cloneDir)
     const outcome = await runInitCli(cloneDir, minimalTools())
     expectCommonOutcome(cloneDir, outcome)
+    expectPlanPreview(outcome.output, 'vite (vite.config.ts)', /Wire the vite config\s+vite\.config\.ts/)
     const original = readFileSync(join(repoRoot, 'e2e', appName, 'vite.config.ts'), 'utf8')
     expect(original).toContain("import conciv from '@conciv/it/plugin/vite'")
     const wired = readFileSync(join(cloneDir, 'vite.config.ts'), 'utf8')
@@ -128,6 +145,11 @@ describe('conciv init against consumer-app clones', () => {
     commitClone(cloneDir)
     const outcome = await runInitCli(cloneDir, minimalTools())
     expectCommonOutcome(cloneDir, outcome)
+    expectPlanPreview(
+      outcome.output,
+      'nextjs (next.config.ts)',
+      /Wire next\.js\s+next\.config\.ts, instrumentation\.ts,/,
+    )
     const wired = readFileSync(join(cloneDir, 'next.config.ts'), 'utf8')
     expect(wired).toContain("import {withConciv} from '@conciv/it/plugin/nextjs'")
     expect(wired).toContain('withConciv(nextConfig)')
@@ -144,6 +166,17 @@ describe('conciv init against consumer-app clones', () => {
     ])
   })
 
+  it('prints the plan and touches nothing with --dry-run', async () => {
+    const cloneDir = cloneApp('vite-vanilla')
+    stripViteWiring(cloneDir)
+    commitClone(cloneDir)
+    const outcome = await runInitCli(cloneDir, minimalTools(), '--dry-run')
+    expect(outcome.code, outcome.output).toBe(0)
+    expectPlanPreview(outcome.output, 'vite (vite.config.ts)', /Wire the vite config\s+vite\.config\.ts/)
+    expect(outcome.output).toContain('Dry run — nothing changed.')
+    expect(changedPaths(cloneDir)).toEqual([])
+  })
+
   it('refuses a dirty clone with exit code 1 and touches nothing', async () => {
     const cloneDir = cloneApp('vite-vanilla')
     stripViteWiring(cloneDir)
@@ -151,7 +184,9 @@ describe('conciv init against consumer-app clones', () => {
     writeFileSync(join(cloneDir, 'scratch.txt'), 'uncommitted')
     const outcome = await runInitCli(cloneDir, minimalTools())
     expect(outcome.code, outcome.output).toBe(1)
-    expect(outcome.output).toContain('uncommitted changes')
+    expect(outcome.output).toContain('uncommitted changes — commit first or pass --force')
+    expect(outcome.output).toContain('conciv init stopped — nothing changed.')
+    expect(outcome.output).not.toContain('Plan')
     expect(readFileSync(join(cloneDir, 'vite.config.ts'), 'utf8')).not.toContain('conciv')
     expect(changedPaths(cloneDir)).toEqual(['?? scratch.txt'])
   })

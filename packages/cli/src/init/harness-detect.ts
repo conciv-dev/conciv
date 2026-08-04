@@ -13,6 +13,8 @@ const harnessMarkers: HarnessMarker[] = [
   {id: 'pi', bin: 'pi', configDir: ['.pi']},
 ]
 
+export const harnessIds: HarnessId[] = harnessMarkers.map((marker) => marker.id)
+
 export function detectHarnesses(env: {PATH: string; HOME: string}): FoundHarness[] {
   const pathDirs = env.PATH.split(delimiter).filter((entry) => entry.length > 0)
   return harnessMarkers.flatMap((marker): FoundHarness[] => {

@@ -1,8 +1,7 @@
 import {execFile} from 'node:child_process'
 import {homedir} from 'node:os'
-import {consola} from 'consola'
 import {detectProject, type Detected} from './detect.js'
-import {detectHarnesses} from './harness-detect.js'
+import {detectHarnesses, harnessIds, type FoundHarness} from './harness-detect.js'
 import {renderOutro} from './outro.js'
 import {preflight} from './preflight.js'
 import {fallbackStep} from './steps/framework/fallback.js'
@@ -13,7 +12,17 @@ import {agentsMdStep} from './steps/harness/agents-md.js'
 import {claudeStep} from './steps/harness/claude.js'
 import {readConsent, writeConsent} from './steps/harness/consent.js'
 import {addWithNypm, installItStep, type AddDep} from './steps/install-it.js'
-import {confirmSelections, promptSelections, type ConfirmedSelections, type PromptSelections} from './wizard.js'
+import {
+  approvePlan,
+  clackOutput,
+  clackPrompts,
+  renderPlan,
+  type ConfirmedSelections,
+  type HarnessRow,
+  type InitOutput,
+  type PlanPrompts,
+  type PlanRow,
+} from './wizard.js'
 
 export type StepStatus = 'done' | 'already' | 'manual' | 'skipped'
 
@@ -47,9 +56,9 @@ export type SpawnBin = (bin: string, args: string[]) => Promise<{code: number; o
 export type InitRuntime = {
   addDependency: AddDep
   spawn: SpawnBin
-  prompts: PromptSelections
+  prompts: PlanPrompts
   env: {PATH: string; HOME: string}
-  output: (line: string) => void
+  output: InitOutput
 }
 
 function spawnBin(bin: string, args: string[]): Promise<{code: number; output: string}> {
@@ -72,9 +81,9 @@ function defaultRuntime(): InitRuntime {
   return {
     addDependency: addWithNypm,
     spawn: spawnBin,
-    prompts: promptSelections,
+    prompts: clackPrompts,
     env: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? homedir()},
-    output: (line) => consola.log(line),
+    output: clackOutput,
   }
 }
 
@@ -100,29 +109,75 @@ function stepList(cwd: string, detected: Detected, selections: ConfirmedSelectio
   ]
 }
 
+function detectionSummary(detected: Detected, found: FoundHarness[]): string {
+  const framework = detected.configFile === null ? detected.framework : `${detected.framework} (${detected.configFile})`
+  const harnesses = found.length === 0 ? 'none found' : found.map((one) => one.id).join(', ')
+  return `Detected: ${framework} · ${detected.packageManager} · harnesses: ${harnesses}`
+}
+
+function harnessRows(found: FoundHarness[], selections: ConfirmedSelections): HarnessRow[] {
+  return harnessIds.map((id) => ({
+    id,
+    found: found.some((one) => one.id === id),
+    selected: selections.harnesses.includes(id),
+  }))
+}
+
+async function planRows(steps: InitStep[], ctx: InitContext): Promise<PlanRow[]> {
+  const rows: PlanRow[] = []
+  for (const step of steps) {
+    const state = await step.detect(ctx).catch(() => 'missing' as const)
+    const planned = await step.plan(ctx)
+    rows.push({title: step.title, wouldEdit: planned.wouldEdit, already: state === 'present'})
+  }
+  return rows
+}
+
 export async function runInit(options: InitOptions, overrides: Partial<InitRuntime> = {}): Promise<LedgerEntry[]> {
   const runtime: InitRuntime = {...defaultRuntime(), ...overrides}
+  runtime.output.intro('conciv init')
+  const detecting = runtime.output.spinner('Detecting your project…')
   const checked = await preflight(options.cwd, options.force)
   if (!checked.ok) {
-    runtime.output(checked.reason)
+    detecting.fail('Cannot run here')
+    runtime.output.error(checked.reason)
+    runtime.output.failure('conciv init stopped — nothing changed.')
     process.exitCode = 1
     return []
   }
   const detected = await detectProject(options.cwd)
   const found = detectHarnesses(runtime.env)
-  const selections = await confirmSelections(
-    {framework: detected.framework, harnesses: found},
-    options.yes,
-    runtime.prompts,
-  )
-  if (selections === 'cancelled') {
-    runtime.output('nothing changed')
+  detecting.stop(detectionSummary(detected, found))
+  const planContext: InitContext = {cwd: options.cwd, yes: options.yes, dryRun: true, report: () => {}}
+  const approved = await approvePlan({
+    yes: options.yes,
+    dryRun: options.dryRun,
+    found: {framework: detected.framework, harnesses: found},
+    renderSelected: async (selections) =>
+      renderPlan(
+        await planRows(stepList(options.cwd, detected, selections, runtime), planContext),
+        harnessRows(found, selections),
+      ),
+    prompts: runtime.prompts,
+    output: runtime.output,
+  })
+  if (approved === 'cancelled') {
+    runtime.output.cancelled('Nothing changed.')
     return []
   }
-  if (!options.dryRun) writeConsent(options.cwd, selections.harnesses)
-  const context: InitContext = {cwd: options.cwd, yes: options.yes, dryRun: options.dryRun, report: runtime.output}
-  const entries = await runSteps(stepList(options.cwd, detected, selections, runtime), context)
-  runtime.output(renderOutro(entries, nextSteps(detected.packageManager)))
+  if (approved === 'dry-run') {
+    runtime.output.outro('Dry run — nothing changed.')
+    return []
+  }
+  writeConsent(options.cwd, approved.harnesses)
+  const context: InitContext = {
+    cwd: options.cwd,
+    yes: options.yes,
+    dryRun: false,
+    report: (line) => runtime.output.line(line),
+  }
+  const entries = await runSteps(stepList(options.cwd, detected, approved, runtime), context)
+  runtime.output.line(renderOutro(entries, nextSteps(detected.packageManager)))
   return entries
 }
 

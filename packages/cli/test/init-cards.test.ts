@@ -2,7 +2,6 @@ import {describe, expect, it} from 'vitest'
 import {renderCard} from '../src/init/cards.js'
 import {renderOutro} from '../src/init/outro.js'
 import type {LedgerEntry} from '../src/init/pipeline.js'
-import {confirmSelections} from '../src/init/wizard.js'
 
 describe('renderCard', () => {
   it('renders a bordered box with title, body, and fenced snippet', () => {
@@ -61,25 +60,5 @@ describe('renderOutro', () => {
     expect(rendered).toContain('1 already')
     expect(rendered).not.toContain('done')
     expect(rendered).not.toContain('Next steps:')
-  })
-})
-
-describe('confirmSelections', () => {
-  it('resolves everything selected with yes and no TTY', async () => {
-    const selected = await confirmSelections(
-      {
-        framework: 'vite',
-        harnesses: [
-          {id: 'claude', via: 'path'},
-          {id: 'codex', via: 'config'},
-        ],
-      },
-      true,
-    )
-    expect(selected).toEqual({framework: true, harnesses: ['claude', 'codex']})
-  })
-  it('resolves an empty harness list with yes when nothing was detected', async () => {
-    const selected = await confirmSelections({framework: 'unknown', harnesses: []}, true)
-    expect(selected).toEqual({framework: true, harnesses: []})
   })
 })

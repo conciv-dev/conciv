@@ -7,6 +7,7 @@ import {z} from 'zod'
 import {claudeConnectDir} from '@conciv/harness/claude-connect-files'
 import {runInit, type InitRuntime, type LedgerEntry} from '../src/init/pipeline.js'
 import {readConsent} from '../src/init/steps/harness/consent.js'
+import type {InitOutput, PlanPrompts} from '../src/init/wizard.js'
 
 const viteConfigSource = readFileSync(new URL('./fixtures/vite.config.vanilla.ts', import.meta.url), 'utf8')
 
@@ -20,7 +21,7 @@ const manifestSchema = z.object({
 type Fixture = {
   cwd: string
   home: string
-  lines: string[]
+  events: string[]
   spawned: string[]
   added: string[]
   runtime: Partial<InitRuntime>
@@ -31,6 +32,56 @@ function commitAll(cwd: string): void {
   execFileSync('git', ['-c', 'user.email=init@test', '-c', 'user.name=init', 'commit', '-m', 'seed', '--no-verify'], {
     cwd,
   })
+}
+
+function recorderOutput(events: string[]): InitOutput {
+  return {
+    intro: (title) => {
+      events.push(`intro:${title}`)
+    },
+    spinner: (message) => {
+      events.push(`spin:${message}`)
+      return {
+        stop: (summary) => {
+          events.push(`spin-stop:${summary}`)
+        },
+        fail: (summary) => {
+          events.push(`spin-fail:${summary}`)
+        },
+      }
+    },
+    plan: (body) => {
+      events.push(`plan:${body}`)
+    },
+    line: (text) => {
+      events.push(text)
+    },
+    error: (message) => {
+      events.push(`error:${message}`)
+    },
+    cancelled: (message) => {
+      events.push(`cancel:${message}`)
+    },
+    outro: (message) => {
+      events.push(`outro:${message}`)
+    },
+    failure: (message) => {
+      events.push(`failure:${message}`)
+    },
+  }
+}
+
+function recorderPrompts(events: string[]): PlanPrompts {
+  return {
+    decide: async () => {
+      events.push('decide')
+      return 'proceed'
+    },
+    adjust: async (_found, current) => {
+      events.push('adjust')
+      return current
+    },
+  }
 }
 
 function fixture(): Fixture {
@@ -50,7 +101,7 @@ function fixture(): Fixture {
   writeFileSync(join(cwd, 'vite.config.ts'), viteConfigSource)
   execFileSync('git', ['init'], {cwd})
   commitAll(cwd)
-  const lines: string[] = []
+  const events: string[] = []
   const spawned: string[] = []
   const added: string[] = []
   const runtime: Partial<InitRuntime> = {
@@ -72,12 +123,15 @@ function fixture(): Fixture {
       return {code: 0, output: ''}
     },
     env: {PATH: binDir, HOME: home},
-    output: (line) => lines.push(line),
+    prompts: recorderPrompts(events),
+    output: recorderOutput(events),
   }
-  return {cwd, home, lines, spawned, added, runtime}
+  return {cwd, home, events, spawned, added, runtime}
 }
 
 const byId = (entries: LedgerEntry[]) => Object.fromEntries(entries.map((entry) => [entry.id, entry.status]))
+
+const plansOf = (events: string[]) => events.filter((event) => event.startsWith('plan:'))
 
 describe('runInit', () => {
   it('wires a vite project end to end with --yes over the injected runtime', async () => {
@@ -93,9 +147,56 @@ describe('runInit', () => {
       `claude plugin marketplace add ${claudeConnectDir(join(run.cwd, '.conciv'))}`,
       'claude plugin install conciv-connect@conciv --scope local',
     ])
-    const output = run.lines.join('\n')
+    expect(run.events).toContain('intro:conciv init')
+    expect(run.events).toContain('spin-stop:Detected: vite (vite.config.ts) · pnpm · harnesses: claude')
+    expect(run.events).not.toContain('decide')
+    const plans = plansOf(run.events)
+    expect(plans).toHaveLength(1)
+    expect(plans[0]).toContain('Install @conciv/it')
+    expect(plans[0]).toContain('package.json')
+    expect(plans[0]).toContain('Wire the vite config')
+    expect(plans[0]).toContain('vite.config.ts')
+    expect(plans[0]).toContain('Teach agents the conciv CLI')
+    expect(plans[0]).toContain('Install the conciv claude plugin')
+    expect(plans[0]).toContain('● claude')
+    expect(plans[0]).toContain('○ codex (not found)')
+    const output = run.events.join('\n')
     expect(output).toContain('pnpm dev')
     expect(output).toContain('conciv tools --help')
+  })
+
+  it('renders the plan before the first prompt and applies an adjusted selection', async () => {
+    const run = fixture()
+    const decisions: ('adjust' | 'proceed')[] = ['adjust', 'proceed']
+    const entries = await runInit(
+      {yes: false, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        prompts: {
+          decide: async () => {
+            run.events.push('decide')
+            const next = decisions.shift()
+            if (next === undefined) throw new Error('ran out of decisions')
+            return next
+          },
+          adjust: async () => {
+            run.events.push('adjust')
+            return {framework: false, harnesses: []}
+          },
+        },
+      },
+    )
+    const firstPlanAt = run.events.findIndex((event) => event.startsWith('plan:'))
+    expect(firstPlanAt).toBeGreaterThanOrEqual(0)
+    expect(firstPlanAt).toBeLessThan(run.events.indexOf('decide'))
+    const plans = plansOf(run.events)
+    expect(plans).toHaveLength(2)
+    expect(plans[0]).toContain('Wire the vite config')
+    expect(plans[1]).not.toContain('Wire the vite config')
+    expect(plans[1]).toContain('○ claude (not selected)')
+    expect(byId(entries)).toEqual({install: 'done', agents: 'done', claude: 'skipped'})
+    expect(readConsent(run.cwd)).toEqual([])
+    expect(run.spawned).toEqual([])
   })
 
   it('reports already on the second run for every step the first run completed', async () => {
@@ -110,6 +211,35 @@ describe('runInit', () => {
     }
     expect(run.added).toEqual(['@conciv/it'])
     expect(run.spawned).toHaveLength(2)
+    const plans = plansOf(run.events)
+    expect(plans[1]).toContain('already wired')
+  })
+
+  it('prints the plan and touches nothing with --dry-run', async () => {
+    const run = fixture()
+    const entries = await runInit(
+      {yes: false, dryRun: true, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        prompts: {
+          decide: async () => {
+            throw new Error('decide must not run under --dry-run')
+          },
+          adjust: async () => {
+            throw new Error('adjust must not run under --dry-run')
+          },
+        },
+      },
+    )
+    expect(entries).toEqual([])
+    expect(process.exitCode).toBeUndefined()
+    const plans = plansOf(run.events)
+    expect(plans).toHaveLength(1)
+    expect(plans[0]).toContain('Install @conciv/it')
+    expect(run.events).toContain('outro:Dry run — nothing changed.')
+    expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
+    expect(run.added).toEqual([])
+    expect(run.spawned).toEqual([])
   })
 
   it('refuses a dirty tree with the reason and exit code 1', async () => {
@@ -119,7 +249,9 @@ describe('runInit', () => {
     expect(entries).toEqual([])
     expect(process.exitCode).toBe(1)
     process.exitCode = undefined
-    expect(run.lines.join('\n')).toContain('uncommitted changes')
+    expect(run.events).toContain('error:uncommitted changes — commit first or pass --force')
+    expect(run.events.some((event) => event.startsWith('spin-fail:'))).toBe(true)
+    expect(run.events.some((event) => event.startsWith('failure:'))).toBe(true)
     expect(run.added).toEqual([])
     expect(run.spawned).toEqual([])
   })
@@ -128,11 +260,30 @@ describe('runInit', () => {
     const run = fixture()
     const entries = await runInit(
       {yes: false, dryRun: false, force: false, cwd: run.cwd},
-      {...run.runtime, prompts: async () => 'cancelled'},
+      {...run.runtime, prompts: {...recorderPrompts(run.events), decide: async () => 'cancelled'}},
     )
     expect(entries).toEqual([])
     expect(process.exitCode).toBeUndefined()
-    expect(run.lines.join('\n')).toContain('nothing changed')
+    expect(run.events).toContain('cancel:Nothing changed.')
+    expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
+    expect(run.added).toEqual([])
+    expect(run.spawned).toEqual([])
+  })
+
+  it('treats a cancel inside adjust as a clean no-op that changes nothing', async () => {
+    const run = fixture()
+    const entries = await runInit(
+      {yes: false, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        prompts: {
+          decide: async () => 'adjust',
+          adjust: async () => 'cancelled',
+        },
+      },
+    )
+    expect(entries).toEqual([])
+    expect(run.events).toContain('cancel:Nothing changed.')
     expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
     expect(run.added).toEqual([])
     expect(run.spawned).toEqual([])
