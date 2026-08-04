@@ -110,12 +110,18 @@ The CLI command tree, the model-facing schemas, MCP registration, the action-car
 
 ## Migration (expand, migrate, contract — green at every step)
 
-1. **Expand** — add `defineTool` with meta and errors, the registry assembly, and the catalog walk, beside what exists. Nothing breaks.
-2. **Bridge** — `page.run` keeps working, implemented on top of the registry, so every current caller is untouched while the truth moves.
-3. **Migrate the built-ins in batches** — read verbs, act verbs, edit-live verbs, react verbs, then the server operations. Each batch deletes its rows from the parallel lists and is independently green.
-4. **Derive the consumers** — CLI tree, chat and MCP tool exposure, action-card labels, journal and mirror flags.
+**No compatibility shim.** The repo rule is explicit — pre-release, no external users, reshape internal APIs freely and update all call sites. Leaving original code in place until its callers move is expand-then-contract; writing new code whose only job is to translate the old shape onto the new one is a shim, and it is the thing that becomes permanent. We do the first and never the second.
+
+That is affordable because `page.run` has **three** non-test callers: the model-facing page tool (`packages/tools/src/server.ts:22`), its own handler (`packages/core/src/api/rpc/router.ts:73`), and the CLI leaf (`packages/cli/src/page.ts:135`). Everything else that touches it is a test, and tests change with the behaviour they cover.
+
+1. **Expand** — add `defineTool` with meta and errors, the registry assembly, and the catalog walk. Purely additive; nothing calls it yet and nothing else changes.
+2. **Define the built-in tools in batches** — read, act, edit-live, react, then the server operations. Each batch moves an existing handler body and writes its schema from what the protocol already declares. The old path is untouched, not wrapped, so every batch is green on its own.
+3. **Move the three callers**, one per commit: the CLI leaf derives its command tree from the registry; the page tool's schema and description derive from it; the router hands off to it.
+4. **Derive the remaining consumers** — chat and MCP exposure, action-card labels, journal and mirror flags — each replacing a parallel list with a read of the registry.
 5. **Move extensions onto the same path** — `pageVerb` becomes `defineTool(...).client(...)`, deleting the `ext` kind. This subsumes #226.
-6. **Contract** — delete `page.run`, the enum, the field bag, and the parallel lists; add the guard tests.
+6. **Contract** — delete `page.run`, the enum, the field bag, and every parallel list; add the guard tests that stop them coming back.
+
+If step 3 turns out to need a translation layer to stay green, that is a signal the registry's shape is wrong — not a reason to write one.
 
 ## Testing
 
@@ -128,7 +134,7 @@ The CLI command tree, the model-facing schemas, MCP registration, the action-car
 
 ## Risks, stated honestly
 
-- **This is a large refactor.** It touches protocol, page, core, cli, tools, extension, extension-compiler, and ui-kit-chat-tools. The bridge step is what keeps it landable; without it this is a stop-the-world change.
+- **This is a large refactor.** It touches protocol, page, core, cli, tools, extension, extension-compiler, and ui-kit-chat-tools. What keeps it landable is that the registry is additive until step 3 and that `page.run` has only three non-test callers — not a compatibility layer.
 - **Extension tools cannot be statically typed by the CLI binary**, which does not compile the user's project. Editors and `--file` scripts see the types; the binary relies on runtime schema validation. Built-ins are statically typed everywhere.
 - **Per-tool `mutating` / `mirrors` metadata moves the answer out of one list**, which is better for authoring and worse for eyeballing "what writes to the page". The catalog can answer it on demand.
 - **`isProcedure` and `~orpc.meta` are oRPC internals-adjacent.** The walk should live in one place so an oRPC upgrade has a single blast site.
