@@ -55,6 +55,15 @@ function appendEdit(source: string, array: SgNode, callExpr: string): Edit {
   return {startPos: at, endPos: at, insertedText: `\n${indent}${callExpr},`}
 }
 
+function pluginsArray(root: SgNode): SgNode | null {
+  const pairs = root
+    .findAll({rule: {kind: 'pair'}})
+    .filter((pair) => pair.field('key')?.text() === 'plugins' && pair.field('value')?.kind() === 'array')
+  const pair = pairs[0]
+  if (!pair || pairs.length > 1 || insideFunction(pair)) return null
+  return pair.field('value')
+}
+
 export function addToPluginsArray(
   source: string,
   importName: string,
@@ -64,16 +73,40 @@ export function addToPluginsArray(
 ): Transform {
   const root = parse(Lang.TypeScript, source).root()
   if (importsFrom(root, importFrom)) return {matched: true, output: source}
-  const pairs = root
-    .findAll({rule: {kind: 'pair'}})
-    .filter((pair) => pair.field('key')?.text() === 'plugins' && pair.field('value')?.kind() === 'array')
-  const pair = pairs[0]
-  if (!pair || pairs.length > 1 || insideFunction(pair)) return unmatched
-  const array = pair.field('value')
+  const array = pluginsArray(root)
   if (!array) return unmatched
   const edits = [
     appendEdit(source, array, callExpr),
     importEdit(root, importLine(importName, importFrom, opts.importStyle)),
+  ]
+  return {matched: true, output: root.commitEdits(edits)}
+}
+
+function requiresFrom(root: SgNode, requireFrom: string): boolean {
+  return root.findAll({rule: {kind: 'call_expression'}}).some((call) => {
+    if (call.field('function')?.text() !== 'require') return false
+    const argument = call
+      .field('arguments')
+      ?.children()
+      .find((child) => child.isNamed())
+    return argument !== undefined && argument.text().slice(1, -1) === requireFrom
+  })
+}
+
+export function addToPluginsArrayRequire(
+  source: string,
+  bindingName: string,
+  requireFrom: string,
+  callExpr: string,
+): Transform {
+  const root = parse(Lang.TypeScript, source).root()
+  if (requiresFrom(root, requireFrom)) return {matched: true, output: source}
+  if (importStatements(root).length > 0) return unmatched
+  const array = pluginsArray(root)
+  if (!array) return unmatched
+  const edits = [
+    appendEdit(source, array, callExpr),
+    {startPos: 0, endPos: 0, insertedText: `const ${bindingName} = require('${requireFrom}')\n`},
   ]
   return {matched: true, output: root.commitEdits(edits)}
 }

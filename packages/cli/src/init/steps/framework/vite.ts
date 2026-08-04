@@ -1,7 +1,6 @@
-import {writeFileSync} from 'node:fs'
 import type {Detected} from '../../detect.js'
 import type {InitStep, ManualCard} from '../../pipeline.js'
-import {readConfig, restoreBackupOnExit, unifiedDiff} from './config-edit.js'
+import {readConfig, writeConfigChange} from './config-edit.js'
 import {addToPluginsArray} from './engine.js'
 
 const pluginModule = '@conciv/it/plugin/vite'
@@ -40,10 +39,7 @@ export function viteStep(detected: Detected): InitStep {
         importStyle: 'default',
       })
       if (!transformed.matched || transformed.output === null) return {status: 'manual', cards: [snippetCard()]}
-      const release = restoreBackupOnExit(config.path, config.content)
-      writeFileSync(config.path, transformed.output)
-      release()
-      ctx.report(unifiedDiff(config.name, config.content, transformed.output))
+      writeConfigChange(ctx, config, transformed.output)
       return {status: 'done'}
     },
     verify: async (ctx) => detectWired(ctx.cwd, detected.configFile) === 'present',

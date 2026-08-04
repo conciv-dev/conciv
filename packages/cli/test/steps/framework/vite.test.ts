@@ -7,6 +7,7 @@ import type {InitContext} from '../../../src/init/pipeline.js'
 import {runSteps} from '../../../src/init/pipeline.js'
 import {restoreBackupOnExit} from '../../../src/init/steps/framework/config-edit.js'
 import {viteStep} from '../../../src/init/steps/framework/vite.js'
+import {stepContext} from './step-context.js'
 
 const fixturesDir = join(import.meta.dirname, '..', '..', 'fixtures')
 
@@ -21,9 +22,7 @@ function project(fixtureName: string | null): {cwd: string; detected: Detected; 
     writeFileSync(join(cwd, 'vite.config.ts'), readFileSync(join(fixturesDir, fixtureName), 'utf8'))
   }
   const detected: Detected = {framework: 'vite', configFile, packageManager: 'pnpm'}
-  const reports: string[] = []
-  const ctx: InitContext = {cwd, yes: true, dryRun: false, report: (line) => reports.push(line)}
-  return {cwd, detected, reports, ctx}
+  return {cwd, detected, ...stepContext(cwd)}
 }
 
 describe('viteStep', () => {

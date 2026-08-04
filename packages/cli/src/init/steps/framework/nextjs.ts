@@ -2,7 +2,7 @@ import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {Detected} from '../../detect.js'
 import type {InitContext, InitStep, ManualCard} from '../../pipeline.js'
-import {readConfig, restoreBackupOnExit, unifiedDiff} from './config-edit.js'
+import {readConfig, writeConfigChange} from './config-edit.js'
 import {wrapDefaultExport} from './engine.js'
 
 const pluginModule = '@conciv/it/plugin/nextjs'
@@ -68,10 +68,7 @@ function wireConfig(ctx: InitContext, configFile: string | null): ManualCard | n
   if (config === null) return configCard()
   const transformed = wrapDefaultExport(config.content, 'withConciv', pluginModule)
   if (!transformed.matched || transformed.output === null) return configCard()
-  const release = restoreBackupOnExit(config.path, config.content)
-  writeFileSync(config.path, transformed.output)
-  release()
-  ctx.report(unifiedDiff(config.name, config.content, transformed.output))
+  writeConfigChange(ctx, config, transformed.output)
   return null
 }
 

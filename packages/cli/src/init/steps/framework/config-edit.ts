@@ -1,5 +1,6 @@
 import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
+import type {InitContext} from '../../pipeline.js'
 
 export type ConfigFile = {name: string; path: string; content: string}
 
@@ -10,7 +11,7 @@ export function readConfig(cwd: string, configFile: string | null): ConfigFile |
   return {name: configFile, path, content: readFileSync(path, 'utf8')}
 }
 
-export function unifiedDiff(name: string, before: string, after: string): string {
+function unifiedDiff(name: string, before: string, after: string): string {
   const beforeLines = before.split('\n')
   const afterLines = after.split('\n')
   let start = 0
@@ -35,4 +36,11 @@ export function restoreBackupOnExit(path: string, original: string): () => void 
   return () => {
     process.off('exit', restore)
   }
+}
+
+export function writeConfigChange(ctx: InitContext, config: ConfigFile, output: string): void {
+  const release = restoreBackupOnExit(config.path, config.content)
+  writeFileSync(config.path, output)
+  release()
+  ctx.report(unifiedDiff(config.name, config.content, output))
 }

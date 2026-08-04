@@ -6,6 +6,7 @@ import type {Detected} from '../../../src/init/detect.js'
 import type {InitContext} from '../../../src/init/pipeline.js'
 import {runSteps} from '../../../src/init/pipeline.js'
 import {nextjsStep} from '../../../src/init/steps/framework/nextjs.js'
+import {stepContext} from './step-context.js'
 
 const fixturesDir = join(import.meta.dirname, '..', '..', 'fixtures')
 
@@ -20,9 +21,7 @@ function project(fixtureName: string | null): {cwd: string; detected: Detected; 
     writeFileSync(join(cwd, 'next.config.ts'), readFileSync(join(fixturesDir, fixtureName), 'utf8'))
   }
   const detected: Detected = {framework: 'nextjs', configFile, packageManager: 'pnpm'}
-  const reports: string[] = []
-  const ctx: InitContext = {cwd, yes: true, dryRun: false, report: (line) => reports.push(line)}
-  return {cwd, detected, reports, ctx}
+  return {cwd, detected, ...stepContext(cwd)}
 }
 
 describe('nextjsStep', () => {
