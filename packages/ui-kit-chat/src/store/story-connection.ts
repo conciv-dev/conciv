@@ -32,8 +32,8 @@ export function storyConnection(options?: StoryConnectionOptions): ConnectConnec
       const delay = options?.chunkDelay ?? 0
       yield {type: EventType.RUN_STARTED, threadId, runId}
       for (const chunk of options?.chunks ?? []) {
-        if (abortSignal?.aborted) return
         if (delay > 0) await sleep(delay, abortSignal)
+        if (abortSignal?.aborted) return
         yield chunk
       }
       if (options?.shouldError) {
