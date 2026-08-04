@@ -69,7 +69,16 @@ export const contract = {
   },
   chat: {
     subscribe: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    send: oc.input(ChatSendInput).output(SendAccepted),
+    send: oc
+      .errors({
+        RUN_ALREADY_FINISHED: {
+          status: 409,
+          message: 'runId already belongs to a finished run',
+          data: z.object({runId: z.string()}),
+        },
+      })
+      .input(ChatSendInput)
+      .output(SendAccepted),
     stop: oc.input(SessionIdInput).output(Ok),
     permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
     uiReply: oc

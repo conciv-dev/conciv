@@ -49,7 +49,18 @@ describe('runId reuse after a finished run (IT)', () => {
       const runId = 'run-id-reuse-rpc-1'
       await kit.rpc.chat.send({runId, sessionId: id, text: 'first turn'})
       await stream.done({hangGuardMs: 5000})
-      await expect(kit.rpc.chat.send({runId, sessionId: id, text: 'second turn'})).rejects.toThrow(/already finished/)
+      const failure = await kit.rpc.chat.send({runId, sessionId: id, text: 'second turn'}).then(
+        () => null,
+        (error: unknown) => error,
+      )
+      expect(failure).toBeInstanceOf(Error)
+      expect(failure).toMatchObject({
+        code: 'RUN_ALREADY_FINISHED',
+        defined: true,
+        status: 409,
+        data: {runId},
+        message: expect.stringMatching(/already finished/),
+      })
     } finally {
       await kit.cleanup()
     }
