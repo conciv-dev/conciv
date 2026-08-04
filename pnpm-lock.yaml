@@ -1245,6 +1245,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@clack/prompts':
+        specifier: ^1.7.0
+        version: 1.7.0
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
@@ -1257,6 +1260,9 @@ importers:
       citty:
         specifier: ^0.2.2
         version: 0.2.2
+      consola:
+        specifier: ^3.4.2
+        version: 3.4.2
       nypm:
         specifier: ^0.6.9
         version: 0.6.9
