@@ -13,6 +13,7 @@ User rulings (binding, in the order they were settled):
 - the external agent reaches the registry through a **code-mode MCP server**, modelled on `cloudflare/mcp` —
   "let's do the MCP like they did", "this seems like the right one to inspire from"
 - **one** code-mode tool, with the catalog as a binding rather than a second tool
+- **one surface for both agents** — in-chat is code mode only too, not code mode layered over individual tools
 - **reads auto-allow, mutations gate**, decided from each tool's own metadata
 
 ## Reference implementation — read it before writing any part of this
@@ -282,6 +283,27 @@ than reviving per-tool registration. A fallback would be the entire deleted surf
 A `docs` tool over conciv.dev is the obvious third tool and their `docs-search.ts` is the template, but it needs
 its own index, so it is out of scope here.
 
+### The in-chat agent uses the same surface
+
+**Ruled: one surface, code mode only, in-chat as well as external.** This was previously deferred on the
+grounds that the widget renders per-tool action cards a sandbox execution does not produce. **That reason was
+false.** `packages/core/src/chat/code-mode-parts.ts:19-61` translates every binding call into real
+`TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` / `TOOL_CALL_RESULT` chunks, carrying
+`parentToolCallId` so the call nests under the enclosing code-mode call. From the UI's side a binding call is
+indistinguishable from a directly-called tool, so nothing is lost.
+
+What we have today is the opposite of consistent. `packages/core/src/chat/run.ts:110` composes
+`[...deps.tools(sessionId), ...(codeMode?.tools ?? [])]`, and `buildChatTools`
+(`packages/core/src/chat/runtime.ts:66-67`) registers every built-in individually **and** every extension tool
+individually as lazy. So:
+
+- built-ins are registered one by one and are **absent from the sandbox entirely**
+- extension tools are exposed **twice** — individually and as bindings
+- the code-mode tools sit on top of both
+
+After this, the model gets one tool and the registry supplies its bindings, in-chat and over MCP alike. The
+same reads-auto-allow, mutations-gate rule applies in both, because it is one path.
+
 ### Environments resolve contents, never the interface
 
 | Environment | Entries come from                                                                 | Can execute                                               |
@@ -405,7 +427,7 @@ Work items the design implies and did not name:
 
 ## Risks, stated honestly
 
-- **This is a large refactor.** It touches protocol, page, core, cli, tools, extension, extension-compiler, and ui-kit-chat-tools. What keeps it landable is that the registry is additive until step 3 and that `page.run` has only three non-test callers — not a compatibility layer.
+- **This is a large refactor.** It touches protocol, page, core, cli, tools, extension, extension-compiler, and ui-kit-chat-tools. What keeps it landable is that the registry is additive until step 3 and that `page.run` has only one non-test caller — not a compatibility layer.
 - **Extension tools cannot be statically typed by the CLI binary**, which does not compile the user's project. Editors and `--file` scripts see the types; the binary relies on runtime schema validation. Built-ins are statically typed everywhere.
 - **Per-tool `mutating` / `mirrors` metadata moves the answer out of one list**, which is better for authoring and worse for eyeballing "what writes to the page". The catalog can answer it on demand.
 - **Code mode moves the failure from a rejected call to a thrown exception inside someone else's sandbox.** A
@@ -419,6 +441,3 @@ Work items the design implies and did not name:
 - Renaming capabilities for their own sake: names change only where a namespace demands it.
 - Connecting the `effect` tool, which is a permanent stub today (#227) — it migrates as-is and stays absent from the catalog until implemented.
 - A `docs` tool over conciv.dev: the natural third agent-facing tool, but it needs its own index.
-- Whether the **chat** agent sees tools individually or through code mode only. The external agent is settled
-  above — code mode only. In-chat the question is different, because the widget renders per-tool action cards
-  that a sandbox execution does not produce, so it is decided after the registry lands.
