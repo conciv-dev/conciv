@@ -5,7 +5,8 @@ import {describe, expect, it} from 'vitest'
 import type {Detected} from '../../../src/init/detect.js'
 import type {InitContext} from '../../../src/init/pipeline.js'
 import {runSteps} from '../../../src/init/pipeline.js'
-import {restoreBackupOnExit, viteStep} from '../../../src/init/steps/framework/vite.js'
+import {restoreBackupOnExit} from '../../../src/init/steps/framework/config-edit.js'
+import {viteStep} from '../../../src/init/steps/framework/vite.js'
 
 const fixturesDir = join(import.meta.dirname, '..', '..', 'fixtures')
 
