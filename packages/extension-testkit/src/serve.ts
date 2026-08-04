@@ -1,7 +1,7 @@
 import {createServer} from 'node:http'
 import {readFile} from 'node:fs/promises'
 import {extname, join, normalize} from 'node:path'
-import getPort from 'get-port'
+import {listenLocal} from './listen-local.js'
 
 const MIME: Record<string, string> = {
   '.html': 'text/html',
@@ -18,7 +18,6 @@ const MIME: Record<string, string> = {
 export type ServedHost = {origin: string; close: () => Promise<void>}
 
 export async function serveDir(dir: string, config: {apiBase: string; session: string}): Promise<ServedHost> {
-  const port = await getPort()
   const server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0] ?? '/'
     const rel =
@@ -46,7 +45,7 @@ export async function serveDir(dir: string, config: {apiBase: string; session: s
         res.end('not found')
       })
   })
-  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve))
+  const port = await listenLocal(server)
   return {
     origin: `http://127.0.0.1:${port}`,
     close: () => new Promise((resolve) => server.close(() => resolve())),

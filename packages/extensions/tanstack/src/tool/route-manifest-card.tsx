@@ -12,8 +12,8 @@ const RouteInfoSchema = z.object({path: z.string(), kind: z.string(), dynamic: z
 
 const RouteManifestSchema = z.array(RouteInfoSchema)
 
-function parseRoutes(props: ToolCardProps): RouteRow[] | null {
-  const parsed = RouteManifestSchema.safeParse(parseResultPayload(props.result))
+function parseRoutes(result: ToolCardProps['result']): RouteRow[] | null {
+  const parsed = RouteManifestSchema.safeParse(parseResultPayload(result))
   if (!parsed.success) return null
   return parsed.data.map((route) => ({path: route.path, kind: route.kind, dynamic: route.dynamic}))
 }
@@ -23,7 +23,7 @@ function ManifestIcon(): JSX.Element {
 }
 
 export function RouteManifestCard(props: ToolCardProps): JSX.Element {
-  const routes = () => parseRoutes(props)
+  const routes = () => parseRoutes(props.result)
   const summary = () => {
     const list = routes()
     if (!list) return ''

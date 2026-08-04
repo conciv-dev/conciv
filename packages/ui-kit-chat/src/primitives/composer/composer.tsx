@@ -1,5 +1,6 @@
 import {
   createEffect,
+  createMemo,
   createSignal,
   For,
   onMount,
@@ -9,12 +10,17 @@ import {
   type ParentProps,
   type ValidComponent,
 } from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {Dynamic} from 'solid-js/web'
 import type {MultimodalContent} from '@tanstack/ai-client'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
+import type {WebStorage} from '@conciv/storage-history'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
+import {chatBusy} from '../../store/chat-busy.js'
+import {readComposerDraft} from '../../behaviors/composer-draft-storage.js'
+import {useComposerDraftPersistence} from '../../behaviors/use-composer-draft.js'
 import {Primitive} from '../util/primitive.js'
-import {ComposerProvider, useComposerContext} from './composer-context.js'
+import {ComposerProvider, useComposerContext, type ComposerDraft} from './composer-context.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
 import {
   fileMatchesAccept,
@@ -38,7 +44,22 @@ import {
   useTriggerPopoverRootOptional,
 } from './trigger/trigger-popover.js'
 
-type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {attachmentAdapter?: AttachmentAdapter}
+type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
+  attachmentAdapter?: AttachmentAdapter
+  draftStorage?: WebStorage
+  draftKey?: string
+}
+
+type ComposerState = {
+  attachments: Attachment[]
+  quote: string | null
+  grabs: string[]
+  editing: boolean
+  dictating: boolean
+  sendingAttachments: boolean
+}
+
+const DEFAULT_DRAFT_KEY = 'conciv-composer-draft'
 
 type SubmitEvent = globalThis.SubmitEvent & {currentTarget: HTMLFormElement; target: Element}
 
@@ -59,13 +80,17 @@ function canSubmit(canSend: boolean, attachmentCount: number, unavailable: boole
   return !unavailable && (canSend || attachmentCount > 0)
 }
 
-function sendContent(
-  handler: ((content: string | MultimodalContent) => void) | undefined,
-  fallback: (content: string | MultimodalContent) => unknown,
+async function sendContent(
+  handler: ((content: string | MultimodalContent) => void | Promise<unknown>) | undefined,
+  fallback: (content: string | MultimodalContent) => Promise<unknown>,
   content: string | MultimodalContent,
-): void {
-  if (handler) handler(content)
-  else void fallback(content)
+): Promise<void> {
+  if (handler) await handler(content)
+  else await fallback(content)
+}
+
+function sendFailure(error: unknown): unknown {
+  return error ?? new Error('The message could not be sent')
 }
 
 function isAsyncGenerator(
@@ -151,8 +176,6 @@ async function completeAll(
   )
 }
 
-type DraftState = {draft: string; attachments: Attachment[]; quote: string | null}
-
 function pastedFiles(event: ClipboardEvent): File[] {
   const files = Array.from(event.clipboardData?.files ?? [])
   if (files.length > 0) event.preventDefault()
@@ -189,17 +212,22 @@ function Root(props: FormProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
   const handlers = useComposerHandlers()
-  const [attachments, setAttachments] = createSignal<Attachment[]>([])
-  const [sendingAttachments, setSendingAttachments] = createSignal(false)
-  const [quote, setQuote] = createSignal<string | null>(null)
-  const [editing, setEditing] = createSignal(false)
-  const [dictating, setDictating] = createSignal(false)
-  const [local, rest] = splitProps(props, ['onSubmit', 'attachmentAdapter'])
+  const [state, setState] = createStore<ComposerState>({
+    attachments: [],
+    quote: null,
+    grabs: [],
+    editing: false,
+    dictating: false,
+    sendingAttachments: false,
+  })
+  const [local, rest] = splitProps(props, ['onSubmit', 'attachmentAdapter', 'draftStorage', 'draftKey'])
   const removedIds = new Set<string>()
   const attachmentAdapter = () => local.attachmentAdapter
+  const attachments = () => state.attachments
+  const draftKey = () => local.draftKey ?? DEFAULT_DRAFT_KEY
   const upsertAttachment = (attachment: PendingAttachment) => {
     if (removedIds.has(attachment.id)) return
-    setAttachments((current) => {
+    setState('attachments', (current) => {
       const index = current.findIndex((value) => value.id === attachment.id)
       if (index < 0) return [...current, attachment]
       return current.toSpliced(index, 1, attachment)
@@ -220,39 +248,72 @@ function Root(props: FormProps): JSX.Element {
       removedIds.delete(id)
       throw error
     }
-    setAttachments((current) => current.filter((value) => value.id !== id))
+    setState('attachments', (current) => current.filter((value) => value.id !== id))
   }
-  const restoreFailedSend = (original: DraftState, error: unknown) => {
-    const restored = restoredAttachments(original.attachments, error)
-    setAttachments((current) => {
+  const snapshotDraft = (): ComposerDraft => ({
+    draft: chat.view.draft,
+    attachments: [...state.attachments],
+    quote: state.quote,
+    grabs: [...state.grabs],
+  })
+  const restoreDraft = (original: ComposerDraft) => {
+    setState('attachments', (current) => {
       const currentIds = new Set(current.map((value) => value.id))
-      return [...current, ...restored.filter((value) => !currentIds.has(value.id))]
+      return [...current, ...original.attachments.filter((value) => !currentIds.has(value.id))]
     })
-    if (chat.view.draft !== '' || quote() !== null) return
+    if (chat.view.draft !== '' || state.quote !== null || state.grabs.length > 0) return
     chat.setView('draft', original.draft)
-    setQuote(original.quote)
+    setState({quote: original.quote, grabs: original.grabs})
+  }
+  const clearDraft = () => {
+    chat.setView('draft', '')
+    setState({attachments: [], quote: null, grabs: []})
+  }
+  onMount(() => {
+    const storage = local.draftStorage
+    const restored = storage ? readComposerDraft(storage, draftKey()) : null
+    if (!restored) return
+    chat.setView('draft', restored.draft)
+    setState({attachments: restored.attachments, quote: restored.quote, grabs: restored.grabs})
+  })
+  useComposerDraftPersistence({storage: () => local.draftStorage, key: draftKey, draft: snapshotDraft})
+  const markSendFailed = (error: unknown) => {
+    setState('attachments', (current) => restoredAttachments(current, error))
+  }
+  const completedContent = async (original: ComposerDraft): Promise<string | MultimodalContent | null> => {
+    try {
+      const complete = await completeAll(attachmentAdapter(), original.attachments)
+      return buildContent(original.draft.trim(), complete)
+    } catch (error) {
+      markSendFailed(error)
+      return null
+    } finally {
+      setState('sendingAttachments', false)
+    }
+  }
+  const runSend = async (content: string | MultimodalContent): Promise<unknown> => {
+    const before = chat.error()
+    try {
+      await sendContent(handlers.onSend, (value) => chat.sendMessage(value), content)
+    } catch (error) {
+      return sendFailure(error)
+    }
+    const after = chat.error()
+    return after === before ? undefined : after
   }
   const submit = async (event: SubmitEvent) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
-    if (!canSubmit(composer.canSend(), attachments().length, sendingAttachments())) return
-    const original: DraftState = {draft: chat.view.draft, attachments: attachments(), quote: quote()}
-    setSendingAttachments(true)
-    chat.setView('draft', '')
-    setAttachments([])
-    setQuote(null)
-    try {
-      const complete = await completeAll(attachmentAdapter(), original.attachments)
-      sendContent(
-        handlers.onSend,
-        (content) => chat.sendMessage(content),
-        buildContent(original.draft.trim(), complete),
-      )
-    } catch (error) {
-      restoreFailedSend(original, error)
-    } finally {
-      setSendingAttachments(false)
-    }
+    if (!canSubmit(composer.canSend(), state.attachments.length, state.sendingAttachments)) return
+    const original = snapshotDraft()
+    setState('sendingAttachments', true)
+    const content = await completedContent(original)
+    if (content === null) return
+    clearDraft()
+    const failure = await runSend(content)
+    if (!failure) return
+    restoreDraft(original)
+    handlers.onSendError?.(failure)
   }
   return (
     <ComposerProvider
@@ -261,13 +322,18 @@ function Root(props: FormProps): JSX.Element {
         attachmentAdapter,
         addAttachment,
         removeAttachment,
-        sendingAttachments,
-        quote,
-        setQuote,
-        editing,
-        setEditing,
-        dictating,
-        setDictating,
+        sendingAttachments: () => state.sendingAttachments,
+        snapshotDraft,
+        restoreDraft,
+        clearDraft,
+        quote: () => state.quote,
+        setQuote: (value) => setState('quote', value),
+        grabs: () => state.grabs,
+        setGrabs: (values) => setState('grabs', values),
+        editing: () => state.editing,
+        setEditing: (value) => setState('editing', value),
+        dictating: () => state.dictating,
+        setDictating: (value) => setState('dictating', value),
       }}
     >
       <Primitive.form onSubmit={(event) => void submit(event)} {...rest} />
@@ -281,6 +347,22 @@ type InputProps = TextAreaProps & {
   focusOnRunStart?: boolean
   focusOnThreadSwitched?: boolean
   addAttachmentOnPaste?: boolean
+}
+
+type ComposerKeyboardEvent = KeyboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}
+
+function forwardKeyDown(event: ComposerKeyboardEvent, handler: InputProps['onKeyDown']): void {
+  if (typeof handler === 'function') handler(event)
+}
+
+function shouldCancelOnEscape(event: ComposerKeyboardEvent, cancelOnEscape: boolean, canCancel: boolean): boolean {
+  return cancelOnEscape && event.key === 'Escape' && canCancel
+}
+
+function wantsEnterSubmit(event: ComposerKeyboardEvent, mode: 'enter' | 'ctrlEnter' | 'none'): boolean {
+  if (mode === 'enter') return !event.shiftKey
+  if (mode === 'ctrlEnter') return event.ctrlKey || event.metaKey
+  return false
 }
 
 function Input(props: InputProps): JSX.Element {
@@ -300,7 +382,6 @@ function Input(props: InputProps): JSX.Element {
     'ref',
   ])
   let element: HTMLTextAreaElement | undefined
-  const forwardRef = local.ref
   const isRunning = () => chat.status() === 'streaming' || chat.status() === 'submitted'
 
   createEffect<boolean>((wasRunning) => {
@@ -324,20 +405,17 @@ function Input(props: InputProps): JSX.Element {
     for (const trigger of triggers) trigger.scope.setCursorPosition(position)
   }
   const cancelViaHandlers = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
-  const onKeyDown = (event: KeyboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}) => {
-    if (typeof local.onKeyDown === 'function') local.onKeyDown(event)
+  const onKeyDown = (event: ComposerKeyboardEvent) => {
+    forwardKeyDown(event, local.onKeyDown)
     if (event.isComposing) return
     if (openTrigger()?.scope.handleKeyDown(event)) return
-    const mode = local.submitMode ?? 'enter'
-    if ((local.cancelOnEscape ?? true) && event.key === 'Escape' && composer.canCancel()) {
+    if (shouldCancelOnEscape(event, local.cancelOnEscape ?? true, composer.canCancel())) {
       event.preventDefault()
       cancelViaHandlers()
       return
     }
     if (event.key !== 'Enter' || event.isComposing) return
-    const wantsSubmit =
-      mode === 'enter' ? !event.shiftKey : mode === 'ctrlEnter' ? event.ctrlKey || event.metaKey : false
-    if (!wantsSubmit) return
+    if (!wantsEnterSubmit(event, local.submitMode ?? 'enter')) return
     event.preventDefault()
     event.currentTarget.form?.requestSubmit()
   }
@@ -349,6 +427,7 @@ function Input(props: InputProps): JSX.Element {
     <TextArea
       ref={(node) => {
         element = node
+        const forwardRef = local.ref
         if (typeof forwardRef === 'function') forwardRef(node)
       }}
       value={composer.text()}
@@ -518,6 +597,15 @@ function QuoteDismiss(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.E
   )
 }
 
+const Refresh = createActionButton('Refresh', () => {
+  const chat = useChatContext()
+  const handlers = useComposerHandlers()
+  const state = createMemo<ActionButtonState | null>(() =>
+    handlers.onRefresh ? {run: () => handlers.onRefresh?.(), disabled: chatBusy(chat)} : null,
+  )
+  return state
+})
+
 const Dictate = createActionButton('Dictate', () => {
   const context = useComposerContext()
   const handlers = useComposerHandlers()
@@ -572,6 +660,7 @@ export const Composer = Object.assign(Root, {
   AddAttachment,
   Attachments,
   AttachmentDropzone,
+  Refresh,
   If,
   Quote,
   QuoteDismiss,

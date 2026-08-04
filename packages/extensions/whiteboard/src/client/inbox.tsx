@@ -1,14 +1,14 @@
 import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Inbox as InboxIcon, ListFilter} from 'lucide-solid'
-import {RelativeTime, ScrollArea, TextField, TooltipIconButton} from '@conciv/ui-kit-system'
+import {Button, RelativeTime, ScrollArea, TextField, TooltipIconButton} from '@conciv/ui-kit-system'
 import {useComments, type Comment} from './model/comments.js'
 import {Avatar, Menu, MenuCheckboxItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Tabs} from './ui.js'
 
 const PANEL =
   'fixed right-0 top-0 bottom-0 m-3 w-[clamp(20rem,28vw,25rem)] max-sm:left-0 max-sm:top-auto max-sm:w-auto max-sm:h-[65vh] max-sm:m-2 pointer-events-auto flex flex-col bg-pw-panel text-pw-text border border-pw-line rounded-pw-lg shadow-pw-lg overflow-hidden anim-presence-in'
-const TOGGLE =
-  'fixed right-4 top-4 pointer-events-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-pw-pill bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg text-[0.8125rem] [outline:none] focus-ring'
+const TOGGLE = 'fixed right-4 top-4 pointer-events-auto h-9 px-3 rounded-pw-pill shadow-pw-lg text-[0.8125rem]'
+const MARK_ALL = 'h-7 px-2 rounded-pw-sm'
 const ICON_BTN =
   'inline-flex size-7 items-center justify-center rounded-pw-sm text-pw-text-2 [outline:none] trans-bg hover:bg-pw-fill focus-ring'
 const FEED_ITEM =
@@ -72,15 +72,15 @@ export function InboxToggle(): JSX.Element {
   const unread = (): number => model.orderedThreads().filter((thread) => model.isUnread(thread.cid)).length
   return (
     <Show when={!model.inboxOpen()}>
-      <button type="button" aria-label="Toggle comments inbox" class={TOGGLE} onClick={() => model.toggleInbox()}>
-        <InboxIcon size={16} />
+      <Button variant="panel" aria-label="Toggle comments inbox" class={TOGGLE} onClick={() => model.toggleInbox()}>
+        <InboxIcon size={16} aria-hidden="true" />
         Comments
         <Show when={unread() > 0}>
           <span class="text-[0.6875rem] text-pw-on-accent px-1 rounded-pw-pill bg-pw-accent inline-flex h-4 min-w-4 items-center justify-center">
             {unread()}
           </span>
         </Show>
-      </button>
+      </Button>
     </Show>
   )
 }
@@ -144,13 +144,9 @@ export function Inbox(): JSX.Element {
               Show resolved comments
             </MenuCheckboxItem>
           </Menu>
-          <button
-            type="button"
-            class="text-[0.75rem] text-pw-text-2 px-2 rounded-pw-sm inline-flex h-7 [outline:none] focus-ring items-center hover:bg-pw-fill"
-            onClick={() => model.markAllRead()}
-          >
+          <Button variant="ghost" size="sm" class={MARK_ALL} onClick={() => model.markAllRead()}>
             Mark all as read
-          </button>
+          </Button>
         </div>
         <ScrollArea.Root class="flex-1 min-h-0">
           <ScrollArea.Viewport class="size-full [outline:none]">

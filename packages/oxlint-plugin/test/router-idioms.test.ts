@@ -1,23 +1,7 @@
-import {execFile} from 'node:child_process'
-import {dirname, join} from 'node:path'
-import {fileURLToPath} from 'node:url'
-import {promisify} from 'node:util'
 import {describe, expect, test} from 'vitest'
-
-const runFile = promisify(execFile)
-const packageDir = join(dirname(fileURLToPath(import.meta.url)), '..')
-const oxlintBin = join(packageDir, 'node_modules', '.bin', 'oxlint')
+import {isRecord, lintDiagnostics} from './run-lint.js'
 
 type Finding = {message: string; line: number}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function stdoutOf(value: unknown): string {
-  if (isRecord(value) && typeof value.stdout === 'string') return value.stdout
-  throw new Error(`oxlint produced no stdout: ${String(value)}`)
-}
 
 function firstLine(diagnostic: Record<string, unknown>): number {
   const labels = diagnostic.labels
@@ -27,20 +11,11 @@ function firstLine(diagnostic: Record<string, unknown>): number {
   return label.span.line
 }
 
-function routerIdiomFindings(payload: string): Finding[] {
-  const parsed: unknown = JSON.parse(payload)
-  if (!isRecord(parsed) || !Array.isArray(parsed.diagnostics)) throw new Error(`unexpected oxlint payload: ${payload}`)
-  return parsed.diagnostics
-    .filter(isRecord)
+async function lintFixture(fixture: string): Promise<Finding[]> {
+  const diagnostics = await lintDiagnostics('test/oxlintrc.json', `test/fixtures/${fixture}`)
+  return diagnostics
     .filter((diagnostic) => diagnostic.code === 'conciv(router-idioms)')
     .map((diagnostic) => ({message: String(diagnostic.message), line: firstLine(diagnostic)}))
-}
-
-async function lintFixture(fixture: string): Promise<Finding[]> {
-  const result = await runFile(oxlintBin, ['-c', 'test/oxlintrc.json', '-f', 'json', `test/fixtures/${fixture}`], {
-    cwd: packageDir,
-  }).catch((error: unknown) => ({stdout: stdoutOf(error)}))
-  return routerIdiomFindings(result.stdout)
 }
 
 describe('bare router hooks in route files', () => {

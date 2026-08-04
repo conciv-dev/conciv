@@ -5,6 +5,8 @@ export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
+export const CONCIV_CLAUDE_SESSION_HEADER = 'conciv-claude-session-id'
+
 const MAX_ATTACHMENT_BASE64_LENGTH = 27_962_028
 const BASE64_ALPHABET = /^[A-Za-z0-9+/]*={0,2}$/
 
@@ -77,6 +79,13 @@ export function isSessionId(id: unknown): id is SessionId {
 
 export const HarnessSessionId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 
+export const NativeSessionRefSchema = z.object({
+  harnessKind: z.string().min(1),
+  cwd: z.string().min(1),
+  nativeId: z.string().min(1),
+})
+export type NativeSessionRef = z.infer<typeof NativeSessionRefSchema>
+
 export const SessionRecordSchema = z.object({
   id: SessionId,
   harnessSessionId: z.string().nullable(),
@@ -86,6 +95,7 @@ export const SessionRecordSchema = z.object({
   model: z.string().nullable(),
   usage: UsageSnapshotSchema.nullable(),
   cwd: z.string(),
+  deletedAt: z.number().nullable().default(null),
   createdAt: z.number(),
   updatedAt: z.number(),
 })

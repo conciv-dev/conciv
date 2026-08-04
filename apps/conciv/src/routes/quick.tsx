@@ -6,13 +6,15 @@ import {TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
 import {useAppData, useRpc, useSuppressed} from '../app/context.js'
 import {PaneProvider} from '../app/pane-provider.js'
-import {ChatPane} from '../chat/chat-pane.js'
-import {ContextTracker} from '../chat/context-tracker.js'
+import {ChatPane} from '../pane/chat-pane.js'
+import {ContextTracker} from '../pane/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-search.js'
 
 const CLOSE =
   'bg-transparent [border:none] text-pw-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-[0.5625rem] trans-color-bg hover:text-pw-text hover:bg-pw-fill-strong'
+
+const CLOSE_PANE = 'text-pw-text-3 leading-none ml-auto size-6'
 
 export const Route = createFileRoute('/quick')({
   validateSearch: QuickSearchSchema,
@@ -54,7 +56,7 @@ function onGutterDown(e: PointerEvent) {
   window.addEventListener('pointerup', up)
 }
 
-function QuickTerminalHeader(props: {onPip: () => void; onSplit: () => void; onClose: () => void}): JSX.Element {
+export function QuickTerminalHeader(props: {onPip: () => void; onSplit: () => void; onClose: () => void}): JSX.Element {
   return (
     <header class="px-4.5 py-3 border-b border-b-pw-line-soft flex shrink-0 gap-3 items-center">
       <span class="tracking-[-0.01em] font-semibold flex gap-2 items-center">
@@ -67,15 +69,9 @@ function QuickTerminalHeader(props: {onPip: () => void; onSplit: () => void; onC
         quick terminal
       </span>
       <span class="flex-1" />
-      <button
-        type="button"
-        class={CLOSE}
-        aria-label="Pop out to a window"
-        title="Picture-in-Picture"
-        onClick={props.onPip}
-      >
+      <TooltipIconButton tooltip="Pop out to a window" class={CLOSE} onClick={props.onPip}>
         <PictureInPicture2 class="size-5 block" aria-hidden="true" />
-      </button>
+      </TooltipIconButton>
       <TooltipIconButton tooltip="Split pane (Mod+D)" class={CLOSE} onClick={props.onSplit}>
         <Columns2 class="size-5 block" aria-hidden="true" />
       </TooltipIconButton>
@@ -114,7 +110,7 @@ function QuickLayer(): JSX.Element {
   const closePane = (index: number) => {
     const ids = paneIds()
     const closed = ids[index]
-    if (closed) void rpc.sessions.remove({sessionId: closed}).catch(() => {})
+    if (closed) void rpc.sessions.delete({sessionId: closed}).catch(() => {})
     const remaining = ids.filter((_, i) => i !== index)
     appData.invalidateSessions()
     if (remaining.length === 0) {
@@ -202,21 +198,20 @@ function QuickLayer(): JSX.Element {
                     onNewSession={() => void addPane()}
                   />
                   <ContextTracker usage={usageOf(id)} />
-                  <button
-                    type="button"
-                    class="text-pw-text-3 leading-none ml-auto rounded-md inline-flex size-6 cursor-pointer transition-[color,background-color] duration-[120ms] ease-pw items-center justify-center hover:text-pw-text hover:bg-pw-fill-strong"
-                    aria-label="Close pane"
+                  <TooltipIconButton
+                    tooltip="Close pane"
+                    class={CLOSE_PANE}
                     onClick={(e) => {
                       e.stopPropagation()
                       closePane(index())
                     }}
                   >
                     <X size={14} aria-hidden="true" />
-                  </button>
+                  </TooltipIconButton>
                 </div>
                 <Show when={id} keyed>
                   {(sessionId) => (
-                    <PaneProvider sessionId={sessionId}>
+                    <PaneProvider sessionId={sessionId} onNewSession={() => void addPane()}>
                       <ChatPane sessionId={sessionId} />
                     </PaneProvider>
                   )}

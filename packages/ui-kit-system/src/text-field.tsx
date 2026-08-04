@@ -33,7 +33,8 @@ export type TextAreaProps = Omit<JSX.TextareaHTMLAttributes<HTMLTextAreaElement>
 }
 
 export function TextArea(props: TextAreaProps): JSX.Element {
-  const [local, rest] = splitProps(mergeProps({minRows: 1, maxRows: 5}, props), [
+  const merged = mergeProps({minRows: 1, maxRows: 5}, props)
+  const [local, rest] = splitProps(merged, [
     'class',
     'minRows',
     'maxRows',
@@ -60,11 +61,11 @@ export function TextArea(props: TextAreaProps): JSX.Element {
     void local.value
     grow()
   })
-  const forwardRef = local.ref
   return (
     <textarea
       ref={(node) => {
         el = node
+        const forwardRef = local.ref
         if (typeof forwardRef === 'function') forwardRef(node)
       }}
       rows={local.minRows}

@@ -35,10 +35,11 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@fontsource-variable/roboto-mono": "^5.2.9",
     "@fontsource-variable/wix-madefor-text": "^5.2.8",
-    "@tanstack/ai-client": "0.22.0",
+    "@solid-primitives/event-listener": "^2.4.6",
+    "@tanstack/ai-client": "0.22.1",
     "@tanstack/hotkeys": "^0.8.0",
+    "@tanstack/pacer": "^0.21.1",
     "@tanstack/solid-hotkeys": "^0.10.0",
-    "@tanstack/solid-pacer": "^0.21.1",
     "@tanstack/solid-query": "^5.101.2",
     "@tanstack/solid-router": "^1.170.17",
     "lucide-solid": "^1.18.0",
@@ -46,6 +47,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/storage-history": "workspace:^",
     "@conciv/uno-preset": "workspace:*",

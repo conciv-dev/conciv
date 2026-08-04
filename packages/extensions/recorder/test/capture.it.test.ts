@@ -16,6 +16,10 @@ async function windowJson(): Promise<string> {
   return JSON.stringify((await recorderRpc().window({})).events)
 }
 
+async function flushIntoTheRing(): Promise<void> {
+  await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})
+}
+
 describe('recorder end to end (real browser, real engine)', () => {
   it('records real page interaction and recording_pull returns a matching action log', async () => {
     await addMarker(api().page)
@@ -34,8 +38,9 @@ describe('recorder end to end (real browser, real engine)', () => {
 
   it('strips script bodies from snapshots (slimDOM) so page code never bloats the ring', async () => {
     const label = await addMarker(api().page)
-    await expect.poll(async () => (await windowJson()).includes(label), {timeout: 30_000}).toBe(true)
+    await flushIntoTheRing()
     const stored = await windowJson()
+    expect(stored).toContain(label)
     expect(stored).toContain('Comment target')
     expect(stored).not.toContain('FIXTURE_SCRIPT_BODY')
   }, 120_000)
@@ -45,16 +50,18 @@ describe('recorder end to end (real browser, real engine)', () => {
     await field.click()
     await field.pressSequentially('sampling', {delay: 40})
     await field.press('Tab')
-    await expect.poll(async () => (await windowJson()).includes('sampling'), {timeout: 30_000}).toBe(true)
+    await flushIntoTheRing()
     const {events} = await recorderRpc().window({})
+    expect(JSON.stringify(events)).toContain('sampling')
     const inputEvents = events.filter((event) => JSON.stringify(event).includes('"text":"s'))
     expect(inputEvents.length).toBeLessThan(4)
   }, 120_000)
 
   it('never captures conciv-marked light-DOM styles, so no multi-megabyte events', async () => {
     const label = await addMarker(api().page)
-    await expect.poll(async () => (await windowJson()).includes(label), {timeout: 30_000}).toBe(true)
+    await flushIntoTheRing()
     const {events} = await recorderRpc().window({})
+    expect(JSON.stringify(events)).toContain(label)
     expect(JSON.stringify(events)).not.toContain('CONCIV_FONT_FIXTURE')
     const largest = Math.max(...events.map((event) => JSON.stringify(event).length))
     expect(largest).toBeLessThan(500_000)

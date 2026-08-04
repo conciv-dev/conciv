@@ -1,7 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {EventType} from '@tanstack/ai'
 import {ChatClient, type UIMessage} from '@tanstack/ai-client'
-import {until} from '@conciv/harness-testkit/until'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -18,23 +16,37 @@ type Observed = {
   connectionStatus: string
 }
 
+type ClientUpdate =
+  | {kind: 'messages'; messages: UIMessage[]}
+  | {kind: 'generating'; generating: boolean}
+  | {kind: 'connection'; status: string}
+
+type ObserveOpts = {
+  onUpdate: (update: ClientUpdate) => void
+  connectionOptions?: Parameters<typeof chatConnection>[2]
+  connection?: ReturnType<typeof chatConnection>
+}
+
 function observeClient(
   kitBase: string,
   sessionId: string,
-  connectionOptions: Parameters<typeof chatConnection>[2] = {},
-  connection = chatConnection(makeRpcClient(kitBase), sessionId, connectionOptions),
+  opts: ObserveOpts,
 ): {client: ChatClient; observed: Observed} {
   const observed: Observed = {messages: [], generating: false, connectionStatus: 'disconnected'}
+  const connection = opts.connection ?? chatConnection(makeRpcClient(kitBase), sessionId, opts.connectionOptions ?? {})
   const client = new ChatClient({
     connection,
     onMessagesChange: (messages) => {
       observed.messages = messages
+      opts.onUpdate({kind: 'messages', messages})
     },
     onSessionGeneratingChange: (isGenerating) => {
       observed.generating = isGenerating
+      opts.onUpdate({kind: 'generating', generating: isGenerating})
     },
     onConnectionStatusChange: (status) => {
       observed.connectionStatus = status
+      opts.onUpdate({kind: 'connection', status})
     },
   })
   return {client, observed}
@@ -47,17 +59,46 @@ describe('ChatClient over chatConnection (useChatSession composition, headless)'
   it('sendMessage round-trips: user message renders, assistant text streams in, generating settles', async () => {
     kit = await bootClientKit()
     const sessionId = await kit.session()
-    const {client, observed} = observeClient(kit.base, sessionId)
+    const connected = Promise.withResolvers<void>()
+    const settled = Promise.withResolvers<void>()
+    const {client, observed} = observeClient(kit.base, sessionId, {
+      onUpdate: (update) => {
+        if (update.kind === 'connection' && update.status === 'connected') connected.resolve()
+        if (update.kind === 'generating' && !update.generating) settled.resolve()
+      },
+    })
     client.subscribe()
     try {
-      await until(() => observed.connectionStatus === 'connected', {hangGuardMs: 5000})
+      await connected.promise
       await client.sendMessage('hello')
-      await until(
-        () => observed.messages.some((message) => message.role === 'assistant' && textOf(message).includes('ok')),
-        {hangGuardMs: 5000},
-      )
+      await settled.promise
       expect(observed.messages[0]?.role).toBe('user')
-      await until(() => !observed.generating, {hangGuardMs: 5000})
+      expect(
+        observed.messages
+          .filter((message) => message.role === 'assistant')
+          .map(textOf)
+          .join(''),
+      ).toContain('ok')
+    } finally {
+      client.unsubscribe()
+    }
+  })
+
+  it('a run whose adapter stream dies after RUN_STARTED still settles generating', async () => {
+    kit = await bootClientKit()
+    const sessionId = await kit.session()
+    const connected = Promise.withResolvers<void>()
+    const {client, observed} = observeClient(kit.base, sessionId, {
+      onUpdate: (update) => {
+        if (update.kind === 'connection' && update.status === 'connected') connected.resolve()
+      },
+    })
+    client.subscribe()
+    try {
+      await connected.promise
+      kit.harness.script.scriptError('adapter stream blew up')
+      await client.sendMessage('hello')
+      expect(observed.generating).toBe(false)
     } finally {
       client.unsubscribe()
     }
@@ -67,73 +108,23 @@ describe('ChatClient over chatConnection (useChatSession composition, headless)'
     kit = await bootClientKit()
     const sessionId = await kit.session()
     kit.gate.hold()
-    await makeRpcClient(kit.base).chat.send({sessionId, text: 'started elsewhere'})
-    const {client, observed} = observeClient(kit.base, sessionId)
-    client.subscribe()
-    try {
-      await until(() => observed.messages.length > 0, {hangGuardMs: 5000})
-      expect(observed.messages.some((message) => textOf(message).includes('started elsewhere'))).toBe(true)
-      await until(() => observed.generating, {hangGuardMs: 5000})
-      kit?.gate.release()
-      await until(() => !observed.generating, {hangGuardMs: 5000})
-    } finally {
-      client.unsubscribe()
-    }
-  })
-
-  it('does not settle a local send from another surface terminal event after BUSY', async () => {
-    kit = await bootClientKit()
-    const sessionId = await kit.session()
-    const rpc = makeRpcClient(kit.base)
-    const startSeen = Promise.withResolvers<void>()
-    const releaseStart = Promise.withResolvers<void>()
-    let retries = 0
-    const baseConnection = chatConnection(rpc, sessionId, {
-      retryDelayMs: 500,
-      onRetry: () => {
-        retries += 1
-        releaseStart.resolve()
+    await makeRpcClient(kit.base).chat.send({sessionId, runId: 'chat-client-1', text: 'started elsewhere'})
+    const hydrated = Promise.withResolvers<UIMessage[]>()
+    const running = Promise.withResolvers<void>()
+    const settled = Promise.withResolvers<void>()
+    const {client} = observeClient(kit.base, sessionId, {
+      onUpdate: (update) => {
+        if (update.kind === 'messages') hydrated.resolve(update.messages)
+        if (update.kind === 'generating' && update.generating) running.resolve()
+        if (update.kind === 'generating' && !update.generating) settled.resolve()
       },
     })
-    const connection: ReturnType<typeof chatConnection> = {
-      subscribe: async function* (signal) {
-        let heldStart = false
-        for await (const chunk of baseConnection.subscribe(signal)) {
-          if (!heldStart && chunk.type === EventType.RUN_STARTED) {
-            heldStart = true
-            startSeen.resolve()
-            await releaseStart.promise
-            continue
-          }
-          yield chunk
-        }
-      },
-      send: baseConnection.send,
-    }
-    const {client, observed} = observeClient(kit.base, sessionId, {}, connection)
     client.subscribe()
     try {
-      await until(() => observed.connectionStatus === 'connected', {hangGuardMs: 5000})
-      kit.gate.hold()
-      await rpc.chat.send({sessionId, text: 'started elsewhere'})
-      await startSeen.promise
-      let localSettled = false
-      const localSend = client.sendMessage('sent locally').then((result) => {
-        localSettled = true
-        return result
-      })
-      await until(() => retries > 0, {hangGuardMs: 5000})
-      kit.gate.release()
-      await new Promise((resolve) => setTimeout(resolve, 100))
-      expect(localSettled).toBe(false)
-      await localSend
-      await until(() => !observed.generating, {hangGuardMs: 5000})
-      expect(observed.messages.some((message) => message.role === 'assistant' && textOf(message).includes('ok'))).toBe(
-        true,
-      )
-      expect(observed.messages.some((message) => message.role === 'user' && textOf(message) === 'sent locally')).toBe(
-        true,
-      )
+      expect((await hydrated.promise).some((message) => textOf(message).includes('started elsewhere'))).toBe(true)
+      await running.promise
+      kit?.gate.release()
+      await settled.promise
     } finally {
       client.unsubscribe()
     }

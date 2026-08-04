@@ -1,6 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import {until} from '@conciv/harness-testkit/until'
 import {makeRpcClient} from '@conciv/contract'
 import {chatConnection} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -20,15 +19,22 @@ describe('chatConnection reconnect', () => {
     const connection = chatConnection(rpc, sessionId, {retryDelayMs: 25, onRetry: (error) => retries.push(error)})
     const abort = new AbortController()
     const snapshots: StreamChunk[] = []
+    const firstSnapshot = Promise.withResolvers<StreamChunk>()
+    const secondSnapshot = Promise.withResolvers<StreamChunk>()
     const consumer = (async () => {
       for await (const chunk of connection.subscribe(abort.signal)) {
-        if (chunk.type === EventType.MESSAGES_SNAPSHOT) snapshots.push(chunk)
-        if (snapshots.length === 2) abort.abort()
+        if (chunk.type !== EventType.MESSAGES_SNAPSHOT) continue
+        snapshots.push(chunk)
+        if (snapshots.length === 1) firstSnapshot.resolve(chunk)
+        if (snapshots.length === 2) {
+          secondSnapshot.resolve(chunk)
+          abort.abort()
+        }
       }
     })()
-    await until(() => snapshots.length === 1, {hangGuardMs: 5000})
+    expect((await firstSnapshot.promise).type).toBe(EventType.MESSAGES_SNAPSHOT)
     await kit.restartServer()
-    await until(() => snapshots.length === 2, {hangGuardMs: 5000})
+    expect((await secondSnapshot.promise).type).toBe(EventType.MESSAGES_SNAPSHOT)
     await consumer
     expect(retries.length).toBeGreaterThanOrEqual(1)
   })

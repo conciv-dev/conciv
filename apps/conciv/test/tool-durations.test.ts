@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {foldToolDurations, type ToolPartLike} from '../src/chat/tool-durations.js'
+import {foldToolDurations, type ToolPartLike} from '../src/pane/tool-durations.js'
 
 const message = (...parts: ToolPartLike[]): {parts: ToolPartLike[]} => ({parts})
 

@@ -1,5 +1,5 @@
+import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
 import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -25,20 +25,23 @@ import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
-import {ensureAgentRecord, sweepEmptyChatRecords} from './chat/session.js'
-import {buildChatTools, type ChatDeps} from './chat/runtime.js'
-import {makeChanges} from './chat/attach.js'
-import {askUi, makeConcivSandbox} from './chat/gate.js'
 import {
-  ensureChatRecord,
-  makeCompactor,
-  makeSend,
-  recordMintedToken,
-  resolveSystemText,
-  resumeTokenFor,
-  type AttachmentExpanders,
-} from './chat/run.js'
-import {modelOf, openDb, statusOf} from '@conciv/db'
+  ensureAgentRow,
+  ensureRow,
+  nativeIdFor,
+  recordNativeId,
+  rowByNativeId,
+  sweepEmptyRows,
+} from './chat/session-rows.js'
+import {InMemoryRunEventLog, RunController} from '@tanstack/ai-sandbox'
+import {buildChatTools, type ChatDeps} from './chat/runtime.js'
+import {askUi, createAskRegistry} from './chat/ask.js'
+import {makeConcivSandbox, makeRunGate, riskyMatches} from './chat/gate.js'
+import {createSessionStreams} from './chat/subscribe.js'
+import {createSnapshotCache} from './chat/transcript.js'
+import {createLiveRuns} from './chat/live-runs.js'
+import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
+import {modelOf, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makePageBus} from './page-bus.js'
@@ -52,6 +55,7 @@ import type {OpenInEditor} from './editor/open.js'
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
   cwd: string
+  basePath?: string
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
   systemPromptFile?: string
@@ -195,15 +199,33 @@ export type AppType = ReturnType<typeof composeRoutes>
 
 export type MadeApp = {
   app: AppType
-  disposers: (() => void | Promise<void>)[]
+  dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
-  closeDb: () => void
+}
+
+const RUN_DRAIN_TIMEOUT_MS = 5_000
+
+async function drainWithDeadline(drain: Promise<void>, timeoutMs: number): Promise<boolean> {
+  const timer = {handle: null as ReturnType<typeof setTimeout> | null}
+  const outcome = await Promise.race([
+    drain.then(() => 'drained' as const),
+    new Promise<'timeout'>((resolve) => {
+      timer.handle = setTimeout(() => resolve('timeout'), timeoutMs)
+    }),
+  ])
+  if (timer.handle) clearTimeout(timer.handle)
+  return outcome === 'drained'
 }
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const db = openDb(opts.cfg.stateRoot)
-  const changes = makeChanges()
+  const asks = createAskRegistry()
+  const runLog = new InMemoryRunEventLog()
+  const runControl = new RunController(runLog)
+  const liveRuns = createLiveRuns()
+  const stream = createSessionStreams()
+  const snapshots = createSnapshotCache()
   const risky = new Set(
     (opts.extensions ?? [])
       .flatMap((extension) => extension.tools ?? [])
@@ -229,28 +251,28 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
 
   const serverSessions: ServerSessions = {
-    resumeToken: (sessionId) => resumeTokenFor(db, sessionId),
+    resumeToken: (sessionId) => nativeIdFor(db, sessionId),
     recordToken: async (sessionId, token) => {
-      await ensureChatRecord(db, sessionId, harness.id, opts.cwd)
-      await recordMintedToken(db, sessionId, token)
+      await ensureRow(db, sessionId, harness.id, opts.cwd)
+      await recordNativeId(db, sessionId, token)
     },
-    chatBusy: (sessionId) => statusOf(db, sessionId) !== 'idle',
+    chatBusy: (sessionId) => liveRuns.running(sessionId),
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
   const history = harness.history
+  const transcriptPath = history?.transcriptPath
   const serverHarness: ServerHarness = {
     id: harness.id,
     ttyCommand: harness.tty?.command,
-    transcriptExists: history
-      ? (token) => existsSync(history.transcriptPath(opts.cwd, token, opts.claudeHome))
-      : undefined,
-    transcriptMessages: history
-      ? async (token) => {
-          const raw = await readFile(history.transcriptPath(opts.cwd, token, opts.claudeHome), 'utf8').catch(() => '')
-          return raw ? history.parse(raw) : []
+    transcriptExists: transcriptPath
+      ? (token) => {
+          if (history?.withinProject && !history.withinProject(opts.cwd, token, opts.claudeHome)) return false
+          return existsSync(transcriptPath(opts.cwd, token, opts.claudeHome))
         }
       : undefined,
+    transcriptMessages: history ? (token) => history.messages(opts.cwd, token, opts.claudeHome) : undefined,
+    connectPlan: harness.connect?.plan,
   }
   const seenTools = new Set<string>()
   const seenNames = new Set<string>()
@@ -317,11 +339,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     })
   }
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
-    askUi: () => askUi({db, changes}, sessionId),
+    askUi: () => askUi(asks, sessionId),
     page: (query) => pageBus.ask(query),
     open: (file, line) => opts.openInEditor(file, line),
   })
   const sessionModel = (sessionId: string): string | null => modelOf(db, sessionId)
+
+  const decideMcpCall = async (sessionId: string, toolName: string, input: unknown): Promise<'allow' | 'deny'> => {
+    if (!riskyMatches(risky, toolName)) return 'allow'
+    if (!sessionId) return 'deny'
+    const gate = makeRunGate({sessionId, asks, emit: (chunk) => stream.publish(sessionId, chunk), risky})
+    return gate.decide(toolName, input, sessionId, randomUUID())
+  }
 
   const toolList: ChatTool[] = [
     ...concivTools(makeToolCtx('')).map((tool) => ({name: tool.name, description: tool.description})),
@@ -333,6 +362,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const chatDeps: ChatDeps = {
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
+    basePath: opts.basePath ?? '',
     harness,
     harnessEnv: opts.harnessEnv,
     claudeHome: opts.claudeHome,
@@ -342,7 +372,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ),
     sandbox: makeConcivSandbox(opts.cwd),
     db,
-    changes,
+    asks,
+    runLog,
+    runControl,
+    liveRuns,
+    stream,
+    snapshots,
     risky,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     toolNames: new Set(toolList.map((tool) => tool.name)),
@@ -354,9 +389,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
 
   if (opts.cfg.sessionId) {
-    void ensureAgentRecord({db, harnessKind: harness.id, cwd: opts.cwd}, opts.cfg.sessionId).catch(() => {})
+    void ensureAgentRow({db, harnessKind: harness.id, cwd: opts.cwd}, opts.cfg.sessionId).catch(() => {})
   }
-  void sweepEmptyChatRecords(db).catch(() => {})
+  void sweepEmptyRows(db).catch(() => {})
 
   const compactor = makeCompactor(chatDeps)
 
@@ -379,7 +414,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       chat: chatDeps,
-      mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel, discovered: new Map()},
+      mcp: {
+        makeCtx: makeToolCtx,
+        extensionTools,
+        sessionModel,
+        discovered: new Map(),
+        decide: decideMcpCall,
+        sessionForNativeId: async (nativeId) => (await rowByNativeId(db, nativeId))?.id ?? null,
+      },
     },
     rpc,
     opts.onShutdown,
@@ -396,5 +438,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       )
   })
 
-  return {app, disposers, extensionContexts, closeDb: () => db.$client.close()}
+  const dispose = async (): Promise<void> => {
+    const drained = await drainWithDeadline(runControl.drain(), RUN_DRAIN_TIMEOUT_MS)
+    if (!drained) logError('[core] disposed with run(s) still in flight')
+    for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
+    db.$client.close()
+  }
+
+  return {app, dispose, extensionContexts}
 }

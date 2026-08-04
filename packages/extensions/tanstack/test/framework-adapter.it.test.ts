@@ -49,16 +49,7 @@ test('adapter.client.data.invalidate re-runs the real router loader', async () =
   expect(before).not.toBeNull()
 
   await adapter.client.data.invalidate('/about')
-  await expect
-    .poll(
-      async () => {
-        const after = await readUpdatedAt()
-        if (after === null || before === null) return false
-        return after > before
-      },
-      {timeout: 10_000},
-    )
-    .toBe(true)
+  expect(await readUpdatedAt()).toBeGreaterThan(before ?? 0)
 })
 
 test('adapter.queryCache splits the live TanStack Query cache into queries and mutations', async () => {
@@ -81,16 +72,13 @@ test('adapter.client.errors.snapshot captures a real runtime error thrown in an 
 
   await api.page.getByRole('link', {name: 'Boom'}).click()
   await expectLocator(api.page.getByRole('heading', {name: 'Boom page'})).toBeVisible()
+  const crashed = api.page.waitForEvent('pageerror')
   await api.page.getByRole('button', {name: 'Trigger runtime error'}).click()
+  expect(String(await crashed)).toContain('boom-from-event-handler')
 
   const adapter = tanstackAdapter(api)
-  await expect
-    .poll(
-      async () => {
-        const errors = await adapter.client.errors.snapshot()
-        return errors.some((error) => error.kind === 'runtime' && error.message.includes('boom-from-event-handler'))
-      },
-      {timeout: 10_000},
-    )
-    .toBe(true)
+  const captured = await adapter.client.errors.snapshot()
+  expect(captured.some((error) => error.kind === 'runtime' && error.message.includes('boom-from-event-handler'))).toBe(
+    true,
+  )
 })

@@ -34,7 +34,10 @@ export const Headless: Story = {
     const trigger = c.getByRole('button', {name: 'Select model'})
     await expect(trigger).toHaveTextContent('Alpha')
     await userEvent.click(trigger)
-    const search = await waitFor(() => c.getByPlaceholderText('Search models…'))
+    const search = await waitFor(() => {
+      expect(trigger).toHaveAttribute('aria-expanded', 'true')
+      return c.getByPlaceholderText('Search models…')
+    })
     await userEvent.type(search, 'bet')
 
     await waitFor(() => expect(c.queryByText('Gamma')).toBeNull())

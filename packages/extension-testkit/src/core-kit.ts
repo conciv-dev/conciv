@@ -14,7 +14,7 @@ export async function bootCoreKit(opts: {
 }): Promise<CoreKit> {
   const harness = createFakeHarness({id: opts.id, text: opts.text ?? 'Hello from conciv', models: opts.models})
   const kit = await createTestkit(harness, async (env) => {
-    const {app, disposers} = await makeApp({
+    const {app, dispose} = await makeApp({
       cfg: {
         enabled: true,
         widgetUrl: undefined,
@@ -31,12 +31,7 @@ export async function bootCoreKit(opts: {
       extensions: opts.extensions,
       nativePageDir: opts.nativePageDir,
     })
-    return {
-      fetch: app.fetch,
-      dispose: async () => {
-        await Promise.all(disposers.map((dispose) => dispose()))
-      },
-    }
+    return {fetch: app.fetch, dispose}
   }).setup()
   return {...kit, harness}
 }

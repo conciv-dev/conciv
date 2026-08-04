@@ -3,12 +3,12 @@ import {afterAll, beforeAll} from 'vitest'
 import {fixtureHost, getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import recorderServer from '../../src/server.js'
 
-const clientEntry = fileURLToPath(new URL('../../src/client.tsx', import.meta.url))
+const hostDist = fileURLToPath(new URL('../../dist/test-host', import.meta.url))
 
 export function useRecorderTestApi(): () => ExtensionTestApi {
   const ctx: {api?: ExtensionTestApi} = {}
   beforeAll(async () => {
-    ctx.api = await getExtensionTestApi({server: recorderServer, host: fixtureHost(clientEntry)})
+    ctx.api = await getExtensionTestApi({server: recorderServer, host: fixtureHost(hostDist)})
   }, 120_000)
   afterAll(async () => ctx.api?.dispose())
   return () => {

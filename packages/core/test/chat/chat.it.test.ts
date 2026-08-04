@@ -7,7 +7,7 @@ import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {countType, runTurn} from '../helpers/turns.js'
-import {requireClaude} from '../helpers/adapters.js'
+import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 
 const claude = requireClaude()
 
@@ -107,8 +107,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const kit = await setup({argvFile}, claudeHome)
     const id = await kit.session()
     await runTurn(kit, 'hi', id)
-    const transcript = claude.history?.transcriptPath(kit.stateRoot, 'sess-fake', claudeHome)
-    if (!transcript) throw new Error('claude harness lacks history')
+    const transcript = requireTranscriptPath(claude)(kit.stateRoot, 'sess-fake', claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
     writeFileSync(transcript, '')
     await runTurn(kit, 'more', id)
@@ -122,8 +121,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const kit = await setup({}, claudeHome)
     const id = await kit.session()
     await runTurn(kit, 'hi', id)
-    const transcript = claude.history?.transcriptPath(kit.stateRoot, 'sess-fake', claudeHome)
-    if (!transcript) throw new Error('claude harness lacks history')
+    const transcript = requireTranscriptPath(claude)(kit.stateRoot, 'sess-fake', claudeHome)
     mkdirSync(dirname(transcript), {recursive: true})
     const rec = (usage: Record<string, number>) =>
       JSON.stringify({type: 'assistant', message: {role: 'assistant', content: [{type: 'text', text: 'ok'}], usage}})
@@ -150,13 +148,13 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     expect(argv).not.toContain('--resume')
   })
 
-  it('passes --model <selected> to the spawned claude once sessions.setModel persists it', async () => {
+  it('passes --model <selected> to the spawned claude once sessions.model persists it', async () => {
     const argvFile = join(tmp(), 'argv.json')
     const kit = await setup({argvFile})
     const {sessionId: id} = await kit.rpc.sessions.create(undefined)
     const stream = await kit.attach(id)
-    await kit.rpc.sessions.setModel({sessionId: id, model: 'haiku'})
-    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
+    await kit.rpc.sessions.model({sessionId: id, model: 'haiku'})
+    await kit.rpc.chat.send({runId: 'chat-1', sessionId: id, text: 'hi'})
     await stream.done()
     const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
     expect(argv).toContain('--model')
@@ -174,7 +172,7 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
   it('rejects a send with an empty message', async () => {
     const kit = await setup()
     const id = await kit.session()
-    await expect(kit.rpc.chat.send({sessionId: id, text: ''})).rejects.toThrow()
+    await expect(kit.rpc.chat.send({runId: 'chat-2', sessionId: id, text: ''})).rejects.toThrow()
   })
 
   it('keeps per-session state independent under distinct ids', async () => {
@@ -193,18 +191,23 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     const kit = await createTestkit(
       claude,
       bootCoreApp({
-        fakeClaude: {env: (sessionId) => (sessionId && hang.has(sessionId) ? {CONCIV_FAKE_HANG: '1'} : {})},
+        fakeClaude: {
+          env: (sessionId) => ({
+            ...(sessionId && hang.has(sessionId) ? {CONCIV_FAKE_HANG: '1'} : {}),
+            ...(sessionId ? {CONCIV_FAKE_SESSION_ID: `sess-${sessionId}`} : {}),
+          }),
+        },
       }),
     ).setup()
     state.kit = kit
     const a = await kit.session()
     const b = await kit.session()
     hang.add(a)
-    await kit.rpc.chat.send({sessionId: a, text: 'hi'})
+    await kit.rpc.chat.send({runId: 'chat-3', sessionId: a, text: 'hi'})
     const stream = await kit.attach(b)
-    await kit.rpc.chat.send({sessionId: b, text: 'hi'})
+    await kit.rpc.chat.send({runId: 'chat-4', sessionId: b, text: 'hi'})
     await stream.done()
-    await kit.rpc.sessions.stop({sessionId: a})
+    await kit.rpc.chat.stop({sessionId: a})
   })
 
   it('persists usage onto each session record, not a shared pointer', async () => {

@@ -23,7 +23,9 @@ export function SolidFileDiff(props: SolidFileDiffProps): JSX.Element {
   }
 
   createEffect(() => {
-    const {oldFile, newFile, options} = props
+    const oldFile = props.oldFile
+    const newFile = props.newFile
+    const options = props.options
     if (!instance) return
     if (!primed) {
       primed = true
@@ -33,5 +35,5 @@ export function SolidFileDiff(props: SolidFileDiffProps): JSX.Element {
     void instance.render({oldFile, newFile, forceRender: true})
   })
 
-  return <diffs-container ref={setRef} class={props.class} style={props.style} />
+  return <diffs-container ref={(node) => setRef(node)} class={props.class} style={props.style} />
 }

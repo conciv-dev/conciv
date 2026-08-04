@@ -57,6 +57,7 @@ export {
   ComposerProvider,
   useComposerContext,
   type ComposerContextValue,
+  type ComposerDraft,
 } from './primitives/composer/composer-context.js'
 export {
   ComposerHandlersProvider,
@@ -166,6 +167,8 @@ export {
   type ModelContextToolsOptions,
   type IconComponent,
 } from './behaviors/create-mention-adapter.js'
+export {readComposerDraft, writeComposerDraft, type PersistedComposerDraft} from './behaviors/composer-draft-storage.js'
+export {useComposerDraftPersistence, type ComposerDraftPersistenceOptions} from './behaviors/use-composer-draft.js'
 export {useThreadAutoScroll} from './behaviors/use-thread-auto-scroll.js'
 export {useTopAnchorReserve} from './behaviors/use-top-anchor-reserve.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'

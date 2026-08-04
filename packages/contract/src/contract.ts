@@ -4,9 +4,9 @@ import type {StreamChunk} from '@tanstack/ai'
 import {
   ChatContentPartSchema,
   ChatCommandsSchema,
-  ChatLaunchSchema,
   ChatModelsSchema,
   ChatToolsSchema,
+  NativeSessionRefSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
 } from '@conciv/protocol/chat-types'
@@ -28,33 +28,33 @@ const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'obj
 
 const SessionIdInput = z.object({sessionId: z.string()})
 const ChatSendInput = SessionIdInput.extend({
+  runId: z.string().min(1),
   text: z.string().min(1).optional(),
   content: z.union([z.string().min(1), z.array(ChatContentPartSchema).min(1).max(16)]).optional(),
 }).refine((input) => input.text !== undefined || input.content !== undefined)
 const Ok = z.object({ok: z.literal(true)})
 const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
-const busy = {BUSY: {message: 'session busy'}}
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 
 export const contract = {
   sessions: {
-    list: oc.output(z.array(SessionMetaSchema)),
+    list: oc.input(z.object({includeHidden: z.boolean().optional()}).nullish()).output(z.array(SessionMetaSchema)),
     create: oc.output(SessionIdInput),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
+    open: oc.input(NativeSessionRefSchema).output(SessionIdInput),
+    restore: oc.input(SessionIdInput).output(SessionIdInput),
     rename: oc
       .errors(notFound)
       .input(SessionIdInput.extend({title: z.string().min(1).max(120)}))
       .output(z.object({title: z.string()})),
-    remove: oc.input(SessionIdInput).output(Ok),
-    setModel: oc
+    delete: oc.input(SessionIdInput).output(Ok),
+    model: oc
       .errors({...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
       .input(SessionIdInput.extend({model: z.string()}))
       .output(z.object({model: z.string()})),
-    compact: oc.errors(busy).input(SessionIdInput).output(Ok),
-    stop: oc.input(SessionIdInput).output(Ok),
-    launch: oc.input(SessionIdInput.extend({model: z.string().optional()})).output(ChatLaunchSchema),
+    compact: oc.input(SessionIdInput).output(Ok),
   },
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
@@ -68,8 +68,9 @@ export const contract = {
     set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
-    attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    send: oc.errors(busy).input(ChatSendInput).output(SendAccepted),
+    subscribe: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
+    send: oc.input(ChatSendInput).output(SendAccepted),
+    stop: oc.input(SessionIdInput).output(Ok),
     permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
     uiReply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})

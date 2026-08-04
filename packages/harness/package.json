@@ -28,6 +28,10 @@
       "types": "./dist/registry.d.ts",
       "import": "./dist/registry.js"
     },
+    "./cwd": {
+      "types": "./dist/_shared/cwd.d.ts",
+      "import": "./dist/_shared/cwd.js"
+    },
     "./claude": {
       "types": "./dist/claude/index.d.ts",
       "import": "./dist/claude/index.js"
@@ -65,16 +69,16 @@
     "@anthropic-ai/claude-agent-sdk": "^0.3.179",
     "@conciv/protocol": "workspace:^",
     "@opencode-ai/sdk": "^1.17.4",
-    "@tanstack/ai": "^0.41.0",
-    "@tanstack/ai-sandbox": "0.2.3",
+    "@tanstack/ai": "^0.42.0",
+    "@tanstack/ai-sandbox": "0.2.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
-    "@tanstack/ai-acp": "0.2.2",
-    "@tanstack/ai-claude-code": "0.2.2",
-    "@tanstack/ai-codex": "0.2.2",
-    "@tanstack/ai-opencode": "0.2.2",
+    "@tanstack/ai-acp": "0.2.3",
+    "@tanstack/ai-claude-code": "0.2.3",
+    "@tanstack/ai-codex": "0.2.3",
+    "@tanstack/ai-opencode": "0.2.3",
     "@types/node": "^22.19.21",
     "@vitest/coverage-v8": "^4.1.8",
     "tsdown": "^0.22.4",

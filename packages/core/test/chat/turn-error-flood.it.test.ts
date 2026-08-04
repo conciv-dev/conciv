@@ -3,8 +3,8 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
+import {defineExtension} from '@conciv/extension'
 import {bootCoreApp} from '../helpers/boot.js'
-import {untilRunSettled} from '../helpers/run-settled.js'
 
 const FAIL = 'harness exited with code 143'
 
@@ -36,13 +36,19 @@ async function failingTurn(harness: HarnessAdapter): Promise<{seedCalls: string[
   const original = console.error
   const calls: string[] = []
   console.error = (...args: unknown[]) => void calls.push(args.map((a) => String(a)).join(' '))
-  const kit = await createTestkit(harness, bootCoreApp()).setup()
+  const runEnd = {resolve: (_sessionId: string) => {}}
+  const runEnded = new Promise<string>((resolve) => (runEnd.resolve = resolve))
+  const probe = defineExtension({name: 'run-end-probe'}).server(() => ({
+    context: {},
+    turnEnd: (sessionId: string) => runEnd.resolve(sessionId),
+  }))
+  const kit = await createTestkit(harness, bootCoreApp({extensions: [probe]})).setup()
   try {
     const id = await kit.session()
     const stream = await kit.attach(id)
-    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
+    await kit.rpc.chat.send({runId: 'turn-error-flood-1', sessionId: id, text: 'hi'})
     const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 5000})
-    await untilRunSettled(kit, id)
+    expect(await runEnded).toBe(id)
     const seedCalls = calls.filter((c) => c.includes('chat run failed') || c.includes('tanstack-ai'))
     return {seedCalls, runError}
   } finally {

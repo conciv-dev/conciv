@@ -1,6 +1,5 @@
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
-import getPort from 'get-port'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
@@ -11,6 +10,7 @@ import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
+import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint} from './lib/dev-endpoint.js'
 
 export type StartOpts = {
@@ -37,6 +37,37 @@ export type Engine = {
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
   extensionContexts: Record<string, unknown>
+}
+
+type Served = Awaited<ReturnType<typeof serveHono>>
+type FetchHandler = (request: Request) => Response | Promise<Response>
+
+const PERSISTED_PORT_ATTEMPTS = 4
+const PERSISTED_PORT_RETRY_MS = 300
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function reservePort(fetchHandler: FetchHandler, port: number): Promise<Served | undefined> {
+  for (let attempt = 0; attempt < PERSISTED_PORT_ATTEMPTS; attempt++) {
+    try {
+      return await serveHono({fetch: fetchHandler, port})
+    } catch (error) {
+      if (!isAddressInUse(error)) throw error
+      if (attempt < PERSISTED_PORT_ATTEMPTS - 1) await delay(PERSISTED_PORT_RETRY_MS)
+    }
+  }
+  return undefined
+}
+
+async function servePersistedPort(fetchHandler: FetchHandler, stateFile: string): Promise<Served> {
+  const persisted = readPersistedPort(stateFile)
+  const reused = persisted === undefined ? undefined : await reservePort(fetchHandler, persisted)
+  if (reused) return reused
+  const serving = await serveHono({fetch: fetchHandler, port: 0})
+  writePersistedPort(stateFile, serving.port)
+  return serving
 }
 
 function onceNotifier(callback?: () => void): () => void {
@@ -93,6 +124,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const appOpts: MakeAppOpts = {
     cfg,
     cwd: opts.root,
+    basePath: opts.accessToken ? `/t/${opts.accessToken}` : '',
     bridge: opts.bridge,
     openInEditor,
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
@@ -106,9 +138,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     nativeUrl,
   }
-  const {app, disposers, extensionContexts, closeDb} = await makeApp(appOpts)
+  const {app, dispose, extensionContexts} = await makeApp(appOpts)
 
-  const requestedPort = opts.port ?? (await getPort())
   const notifyClient = onceNotifier(opts.onClientRequest)
   const served = opts.accessToken
     ? new Hono()
@@ -118,13 +149,13 @@ export async function start(opts: StartOpts): Promise<Engine> {
         })
         .mount(`/t/${opts.accessToken}`, app.fetch)
     : app
-  const dispose = async (): Promise<void> => {
-    await Promise.all(disposers.map((runDispose) => runDispose()))
-    closeDb()
-  }
-  let serving: Awaited<ReturnType<typeof serveHono>>
+  const fetchHandler: FetchHandler = served.fetch.bind(served)
+  let serving: Served
   try {
-    serving = await serveHono({fetch: served.fetch.bind(served), port: requestedPort})
+    serving =
+      opts.port === undefined
+        ? await servePersistedPort(fetchHandler, paths.server)
+        : await serveHono({fetch: fetchHandler, port: opts.port})
   } catch (error) {
     await dispose()
     throw error

@@ -94,8 +94,8 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@tanstack/ai": "^0.41.0",
-    "@tanstack/ai-client": "0.22.0",
+    "@tanstack/ai": "^0.42.0",
+    "@tanstack/ai-client": "0.22.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

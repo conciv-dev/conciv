@@ -1,5 +1,6 @@
 import {render} from 'solid-js/web'
 import {afterEach, expect, test} from 'vitest'
+import {page} from 'vitest/browser'
 import {onMount, type JSX} from 'solid-js'
 import {makeRpcClient} from '@conciv/contract'
 import {useChatSession} from '@conciv/client'
@@ -47,7 +48,7 @@ function ThreadApp(props: {cards: readonly AttachmentCardSlot[]}): JSX.Element {
 test('renders the matching card, hides modelOnly parts', async () => {
   const Card = (): JSX.Element => <span>test document player</span>
   const host = mountThread([{mime: 'application/x-test', render: Card}])
-  await expect.poll(() => host.textContent).toContain('why?')
+  await expect.element(page.getByText('why?')).toBeVisible()
   expect(host.textContent).toContain('test document player')
   expect(host.textContent).not.toContain('clicked save')
   expect(host.querySelector('img')).toBeNull()
@@ -55,6 +56,6 @@ test('renders the matching card, hides modelOnly parts', async () => {
 
 test('falls back to the generic tile with zero cards registered', async () => {
   const host = mountThread([])
-  await expect.poll(() => host.textContent).toContain('why?')
+  await expect.element(page.getByText('why?')).toBeVisible()
   expect(host.querySelector('[data-attachment]')).not.toBeNull()
 })

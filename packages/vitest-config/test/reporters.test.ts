@@ -22,6 +22,7 @@ test('CI runs add json results and annotation reporters without the noisy job su
 
 test('CI runs collect v8 line coverage into a json summary', () => {
   vi.stubEnv('GITHUB_ACTIONS', 'true')
+  vi.stubEnv('VITEST_MAX_FORKS', undefined)
   expect(ciTest()).toEqual({
     reporters: ciReporters(),
     testTimeout: 30_000,
@@ -29,4 +30,14 @@ test('CI runs collect v8 line coverage into a json summary', () => {
     teardownTimeout: 30_000,
     coverage: {enabled: true, provider: 'v8', reporter: ['json-summary'], reportsDirectory: 'coverage'},
   })
+})
+
+test('a fork cap in the environment caps the worker count', () => {
+  vi.stubEnv('VITEST_MAX_FORKS', '2')
+  expect(ciTest().maxWorkers).toBe(2)
+})
+
+test('a nonsense fork cap leaves the worker count to vitest', () => {
+  vi.stubEnv('VITEST_MAX_FORKS', 'lots')
+  expect(ciTest().maxWorkers).toBeUndefined()
 })

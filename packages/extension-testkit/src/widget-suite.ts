@@ -5,6 +5,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
+import {listenLocal} from './listen-local.js'
 
 export type ServedDir = {base: string; close: () => Promise<void>}
 
@@ -29,9 +30,7 @@ export async function serveStaticDir(dir: string): Promise<ServedDir> {
     res.writeHead(200, {'content-type': MIME[path.extname(file)] ?? 'application/octet-stream'})
     res.end(fs.readFileSync(file))
   })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  const address = server.address()
-  const port = typeof address === 'object' && address !== null ? address.port : 0
+  const port = await listenLocal(server)
   return {
     base: `http://127.0.0.1:${port}`,
     close: () => new Promise((resolve) => server.close(() => resolve())),

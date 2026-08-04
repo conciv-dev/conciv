@@ -1,10 +1,13 @@
 import {Show, createSignal, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
-import {Crosshair, FoldVertical, SquarePen, SquareTerminal} from 'lucide-solid'
+import {Crosshair, FoldVertical, SquarePen} from 'lucide-solid'
 import {getHostApi} from '@conciv/extension'
 import type {Grab} from '@conciv/grab'
-import {useAppData, useRpc} from '../app/context.js'
+import {useAppData} from '../app/context.js'
+import {notify} from '../shell/notices.js'
+import {LaunchMenu} from './launch-menu.js'
+import {terminalRpc} from './terminal-rpc.js'
 
 const ACT =
   'size-8.5 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
@@ -13,20 +16,36 @@ function busyClass(busy: boolean): string {
   return busy ? `${ACT} opacity-60 cursor-progress` : ACT
 }
 
+type LaunchOutcome = {opened: boolean; command: string | null}
+
+function errorCode(error: unknown): string | null {
+  if (typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string')
+    return error.code
+  return null
+}
+
+async function copyCommand(command: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(command)
+    notify('Command copied. Paste it in your terminal.')
+  } catch {
+    notify(`Run in your terminal: ${command}`)
+  }
+}
+
 export function ComposerActions(props: {
   sessionId: string
   compacting: boolean
   onCompact: () => void
   onNewSession: () => void
   onStageGrab: (grab: Grab) => void
-  notify: (message: string) => void
 }): JSX.Element {
   const appData = useAppData()
-  const rpc = useRpc()
   const grab = getHostApi().useGrab()
   const toast = getHostApi().useToast()
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
   const harnessName = () => meta.data?.harness.name ?? 'the harness'
+  const terminal = terminalRpc()
 
   const grabDisabled = () => (grab.grabbable ? !grab.grabbable() : false)
 
@@ -43,25 +62,32 @@ export function ComposerActions(props: {
     }
   }
 
-  const launch = useMutation(() => ({
-    mutationFn: () => rpc.sessions.launch({sessionId: props.sessionId}),
-    onSuccess: async (result: {supported: boolean; opened: boolean; command: string | null}) => {
-      if (!result.supported || !result.command) {
-        props.notify(`${harnessName()} can’t be opened in a terminal.`)
-        return
-      }
-      if (result.opened) {
-        props.notify(`Opened in ${harnessName()}.`)
-        return
-      }
-      try {
-        await navigator.clipboard.writeText(result.command)
-        props.notify('Command copied. Paste it in your terminal.')
-      } catch {
-        props.notify(`Run in your terminal: ${result.command}`)
-      }
+  const launchFailure = (error: unknown): string => {
+    if (errorCode(error) === 'NO_CONNECT') return `${harnessName()} can’t be opened in a terminal.`
+    return `Couldn’t open ${harnessName()}.`
+  }
+
+  const openExternal = useMutation(() => ({
+    mutationFn: async (): Promise<LaunchOutcome> => {
+      const {ok} = await terminal.launch({sessionId: props.sessionId})
+      if (ok) return {opened: true, command: null}
+      const {command} = await terminal.connectCommand({sessionId: props.sessionId})
+      return {opened: false, command}
     },
-    onError: () => props.notify(`Couldn’t open ${harnessName()}.`),
+    onSuccess: async (outcome: LaunchOutcome) => {
+      if (outcome.opened) {
+        notify(`Opened in ${harnessName()}.`)
+        return
+      }
+      if (outcome.command) await copyCommand(outcome.command)
+    },
+    onError: (error: unknown) => notify(launchFailure(error), {tone: 'warn'}),
+  }))
+
+  const copyConnect = useMutation(() => ({
+    mutationFn: () => terminal.connectCommand({sessionId: props.sessionId}),
+    onSuccess: (result: {command: string}) => void copyCommand(result.command),
+    onError: (error: unknown) => notify(launchFailure(error), {tone: 'warn'}),
   }))
 
   return (
@@ -84,14 +110,16 @@ export function ComposerActions(props: {
       >
         <FoldVertical class="size-5 block" />
       </TooltipIconButton>
-      <Show when={meta.data?.harness.canLaunch}>
-        <TooltipIconButton
-          tooltip={`Open in ${harnessName()}`}
-          class={busyClass(launch.isPending)}
-          onClick={() => launch.mutate()}
-        >
-          <SquareTerminal class="size-5 block" />
-        </TooltipIconButton>
+      <Show when={meta.data === undefined || meta.data.harness.canLaunch}>
+        <LaunchMenu
+          harnessName={harnessName()}
+          class={busyClass(openExternal.isPending || copyConnect.isPending || meta.isPending)}
+          pending={meta.isPending}
+          failed={meta.isError}
+          onOpen={() => openExternal.mutate()}
+          onCopy={() => copyConnect.mutate()}
+          onRetry={() => void meta.refetch()}
+        />
       </Show>
     </>
   )

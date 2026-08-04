@@ -3,7 +3,7 @@ import {HTTPException} from 'hono/http-exception'
 import {resolveHarnessModels} from '@conciv/harness'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {drafts, markers, navigation} from '@conciv/db'
-import {listCommands} from '../../chat/session.js'
+import {listCommands} from '../../chat/commands.js'
 import {pageQueryStream, runVerb} from '../../page-bus.js'
 import {symbolicateFrames} from '../../editor/symbolicate.js'
 import {chatRouter} from './chat.js'
@@ -126,7 +126,7 @@ export function makeRpcRouter(deps: RpcDeps) {
         }
       }),
       commands: os.meta.commands.handler(({input, context}) =>
-        listCommands(chat, {sessionId: input.sessionId, origin: new URL(context.request.url).origin}),
+        listCommands(chat, {sessionId: input.sessionId, requestUrl: context.request.url}),
       ),
       tools: os.meta.tools.handler(() => ({tools: deps.tools})),
     },

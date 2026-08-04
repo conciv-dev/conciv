@@ -4,6 +4,7 @@ import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import {PageInput} from '@conciv/tools/defs'
 import {MUTATING_KINDS, mirrorsKind, type PageQueryKind} from '@conciv/protocol/page-types'
 import {ToolCard, parseInput, resultText, parseResultPayload} from '@conciv/ui-kit-chat'
+import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {formatHtml} from '../page-format.js'
 
@@ -17,8 +18,8 @@ const OUT_OPTIONS: FileOptions<undefined> = {
 const OUT_CLASS =
   'block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
 
-function readInput(props: ToolCardProps): ReturnType<typeof parseInput<typeof PageInput>> {
-  return parseInput(PageInput, props.part)
+function readInput(part: ToolCallPart): ReturnType<typeof parseInput<typeof PageInput>> {
+  return parseInput(PageInput, part)
 }
 
 function target(input: ReturnType<typeof readInput>): string | undefined {
@@ -39,87 +40,68 @@ function VerbIcon(verb: PageQueryKind | undefined): JSX.Element {
   return <Wand2 size={14} />
 }
 
-function pageTitle(props: ToolCardProps): string {
-  const input = readInput(props)
+type TitleContext = {
+  at: string
+  value: string | undefined
+  key: string | undefined
+}
+
+function changedAttributeTitle(ctx: TitleContext): string {
+  return `Changed an attribute${ctx.at}`
+}
+
+function changedClassTitle(ctx: TitleContext): string {
+  return `Changed a class${ctx.at}`
+}
+
+const TITLES: Record<PageQueryKind, (ctx: TitleContext) => string> = {
+  click: (ctx) => `Clicked${ctx.at || ' element'}`,
+  fill: (ctx) => (ctx.value ? `Typed "${ctx.value}" into${ctx.at || ' field'}` : `Filled${ctx.at || ' field'}`),
+  select: (ctx) => (ctx.value ? `Selected "${ctx.value}"` : `Selected an option${ctx.at}`),
+  check: (ctx) => `Checked${ctx.at || ' box'}`,
+  uncheck: (ctx) => `Unchecked${ctx.at || ' box'}`,
+  press: (ctx) => `Pressed ${ctx.key ?? 'a key'}`,
+  hover: (ctx) => `Hovered${ctx.at || ' element'}`,
+  scroll: () => 'Scrolled the page',
+  submit: (ctx) => `Submitted${ctx.at || ' the form'}`,
+  find: (ctx) => `Found${ctx.at || ' elements'}`,
+  locate: (ctx) => `Located${ctx.at || ' element'}`,
+  inspect: (ctx) => `Inspected${ctx.at || ' element'}`,
+  tree: () => 'Read the page tree',
+  dom: (ctx) => `Read the DOM${ctx.at}`,
+  snapshot: () => 'Captured a snapshot',
+  text: (ctx) => `Read the text${ctx.at}`,
+  value: (ctx) => `Read a value${ctx.at}`,
+  attr: (ctx) => `Read an attribute${ctx.at}`,
+  exists: (ctx) => `Checked if${ctx.at || ' an element'} exists`,
+  query: (ctx) => `Queried${ctx.at || ' the page'}`,
+  console: () => 'Read the console',
+  route: () => 'Read the route',
+  track: () => 'Tracked changes',
+  wait: (ctx) => `Waited for${ctx.at || ' the page'}`,
+  override: (ctx) => `Overrode${ctx.at || ' a value'}`,
+  setattr: changedAttributeTitle,
+  removeattr: changedAttributeTitle,
+  addclass: changedClassTitle,
+  removeclass: changedClassTitle,
+  setstyle: (ctx) => `Styled${ctx.at || ' an element'}`,
+  settext: (ctx) => `Set text${ctx.at}`,
+  sethtml: (ctx) => `Set HTML${ctx.at}`,
+  remove: (ctx) => `Removed${ctx.at || ' an element'}`,
+  insert: (ctx) => `Inserted${ctx.at || ' content'}`,
+  css: () => 'Injected CSS',
+  eval: () => 'Ran a script on the page',
+  effect: (ctx) => `effect${ctx.at}`,
+  ext: (ctx) => `ext${ctx.at}`,
+}
+
+function pageTitle(part: ToolCallPart): string {
+  const input = readInput(part)
+  if (input?.verb === undefined) return 'Page action'
   const targetEl = target(input)
   const at = targetEl ? ` ${targetEl}` : ''
   const value = input?.value || input?.text
-  switch (input?.verb) {
-    case 'click':
-      return `Clicked${at || ' element'}`
-    case 'fill':
-      return value ? `Typed "${value}" into${at || ' field'}` : `Filled${at || ' field'}`
-    case 'select':
-      return value ? `Selected "${value}"` : `Selected an option${at}`
-    case 'check':
-      return `Checked${at || ' box'}`
-    case 'uncheck':
-      return `Unchecked${at || ' box'}`
-    case 'press':
-      return `Pressed ${input?.key ?? 'a key'}`
-    case 'hover':
-      return `Hovered${at || ' element'}`
-    case 'scroll':
-      return 'Scrolled the page'
-    case 'submit':
-      return `Submitted${at || ' the form'}`
-    case 'find':
-      return `Found${at || ' elements'}`
-    case 'locate':
-      return `Located${at || ' element'}`
-    case 'inspect':
-      return `Inspected${at || ' element'}`
-    case 'tree':
-      return 'Read the page tree'
-    case 'dom':
-      return `Read the DOM${at}`
-    case 'snapshot':
-      return 'Captured a snapshot'
-    case 'text':
-      return `Read the text${at}`
-    case 'value':
-      return `Read a value${at}`
-    case 'attr':
-      return `Read an attribute${at}`
-    case 'exists':
-      return `Checked if${at || ' an element'} exists`
-    case 'query':
-      return `Queried${at || ' the page'}`
-    case 'console':
-      return 'Read the console'
-    case 'route':
-      return 'Read the route'
-    case 'track':
-      return 'Tracked changes'
-    case 'wait':
-      return `Waited for${at || ' the page'}`
-    case 'override':
-      return `Overrode${at || ' a value'}`
-    case 'setattr':
-    case 'removeattr':
-      return `Changed an attribute${at}`
-    case 'addclass':
-    case 'removeclass':
-      return `Changed a class${at}`
-    case 'setstyle':
-      return `Styled${at || ' an element'}`
-    case 'settext':
-      return `Set text${at}`
-    case 'sethtml':
-      return `Set HTML${at}`
-    case 'remove':
-      return `Removed${at || ' an element'}`
-    case 'insert':
-      return `Inserted${at || ' content'}`
-    case 'css':
-      return 'Injected CSS'
-    case 'eval':
-      return 'Ran a script on the page'
-    case undefined:
-      return 'Page action'
-    default:
-      return `${input?.verb}${at}`
-  }
+  return TITLES[input.verb]({at, value, key: input?.key})
 }
 
 type SnapNode = {ref?: string; role?: string; name?: string; value?: string; state?: string[]}
@@ -210,7 +192,7 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
 }
 
 export function PageActionCard(props: ToolCardProps): JSX.Element {
-  const input = () => readInput(props)
+  const input = () => readInput(props.part)
   const verb = () => input()?.verb
   const targetEl = () => target(input())
   const payload = () => parseResultPayload(props.result)
@@ -228,7 +210,7 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
     return value !== undefined && mirrorsKind(value)
   }
   return (
-    <ToolCard Icon={() => VerbIcon(verb())} title={pageTitle(props)} part={props.part} result={props.result}>
+    <ToolCard Icon={() => VerbIcon(verb())} title={pageTitle(props.part)} part={props.part} result={props.result}>
       <Show
         when={errorMessage()}
         fallback={

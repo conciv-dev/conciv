@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url'
 import {test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import terminal from '../src/server.js'
@@ -21,7 +22,7 @@ async function openTerminalView(page: Page): Promise<void> {
 test('a remounted terminal view replays the pty output it left behind', async () => {
   const api = await getExtensionTestApi({
     server: terminal,
-    host: fixtureHost('@conciv/extension-terminal/client'),
+    host: fixtureHost(fileURLToPath(new URL('../dist/test-host', import.meta.url))),
     harness: createFakeHarness({id: 'fake-terminal', text: 'ok', tty: bashTty}),
   })
   try {

@@ -66,6 +66,24 @@ export function listExtensionFiles(root: string): string[] {
   }
 }
 
+export async function loadExtensionPackages(
+  root: string,
+  resolveFrom: string,
+  specifiers: readonly string[],
+): Promise<AnyExtension[]> {
+  const rootJiti = createJiti(pathToFileURL(join(root, 'noop.js')).href)
+  const resolveFromUrl = rootJiti.esmResolve(resolveFrom)
+  const packageJiti = createJiti(resolveFromUrl)
+  return Promise.all(
+    specifiers.map(async (specifier) => {
+      const loaded = await packageJiti.import<{default?: AnyExtension}>(specifier)
+      const extension = loaded && typeof loaded === 'object' && 'default' in loaded ? loaded.default : undefined
+      if (extension === undefined) throw new Error(`conciv builtin extension ${specifier} has no default export`)
+      return extension
+    }),
+  )
+}
+
 export async function loadServerExtensions(
   root: string,
   builtinServerExtensions: readonly AnyExtension[],

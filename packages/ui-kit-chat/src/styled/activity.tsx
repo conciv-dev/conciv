@@ -256,9 +256,11 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
     const chain = segment.kind === 'chain' ? segment : null
     return chain && stepIndices(props.turn, chain).length > 0 ? chain : null
   }
-  const lastChainIndex = createMemo(() =>
-    segments().reduce((last, segment, index) => (visibleChain(segment) ? index : last), -1),
-  )
+  const lastChainIndex = createMemo(() => {
+    let last = -1
+    for (const [index, segment] of segments().entries()) if (visibleChain(segment)) last = index
+    return last
+  })
   const liveSegment = (index: number) =>
     activity.live() && activity.isLastTurn(props.turn) && index === lastChainIndex()
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)

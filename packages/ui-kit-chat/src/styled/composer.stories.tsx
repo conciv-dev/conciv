@@ -28,8 +28,9 @@ export const BusyRemainsSendableAndRemovesQueued: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByRole('button', {name: 'Stop generating'})).toBeVisible())
-    await expect(c.getByRole('button', {name: 'Send message'})).toBeVisible()
     await userEvent.type(c.getByLabelText('Message'), 'queued follow-up')
+    await expect(c.getByRole('button', {name: 'Send message'})).toBeVisible()
+    await expect(c.queryByRole('button', {name: 'Stop generating'})).toBeNull()
     await userEvent.click(c.getByRole('button', {name: 'Send message'}))
     await waitFor(() => expect(c.getByText('queued follow-up')).toBeVisible())
     await userEvent.click(c.getByRole('button', {name: 'Remove from queue'}))

@@ -3,8 +3,8 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
+import {defineExtension} from '@conciv/extension'
 import {bootCoreApp} from '../helpers/boot.js'
-import {untilRunSettled} from '../helpers/run-settled.js'
 
 const baseCaps = {
   resume: false,
@@ -39,14 +39,23 @@ const hangingHarness = defineHarness({
 
 describe('an adapter that never produces a first chunk', () => {
   it('settles the run with a deadline error instead of hanging forever', async () => {
-    const kit = await createTestkit(hangingHarness, bootCoreApp({firstChunkTimeoutMs: 300})).setup()
+    const runEnd = {resolve: (_sessionId: string) => {}}
+    const runEnded = new Promise<string>((resolve) => (runEnd.resolve = resolve))
+    const probe = defineExtension({name: 'run-end-probe'}).server(() => ({
+      context: {},
+      turnEnd: (sessionId: string) => runEnd.resolve(sessionId),
+    }))
+    const kit = await createTestkit(
+      hangingHarness,
+      bootCoreApp({firstChunkTimeoutMs: 300, extensions: [probe]}),
+    ).setup()
     try {
       const id = await kit.session()
       const stream = await kit.attach(id)
-      await kit.rpc.chat.send({sessionId: id, text: 'hi'})
+      await kit.rpc.chat.send({runId: 'turn-first-chunk-deadline-1', sessionId: id, text: 'hi'})
       const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 5000})
       expect('message' in runError ? runError.message : '').toContain('no output')
-      await untilRunSettled(kit, id)
+      expect(await runEnded).toBe(id)
     } finally {
       await kit.cleanup()
     }

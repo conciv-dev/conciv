@@ -1,15 +1,12 @@
 import {getHostApi} from '@conciv/extension'
-import {connectPorts} from '@conciv/protocol/connect-ports'
-import {TooltipIconButton} from '@conciv/ui-kit-system'
+import {Collapsible, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
 import {Check, Copy, TriangleAlert} from 'lucide-solid'
-import {createSignal, onCleanup, onMount, Show, type JSX} from 'solid-js'
-import {probeCore} from '../shared/probe.js'
+import {createEffect, createSignal, onMount, Show, type JSX} from 'solid-js'
+import {makeTimer} from '@solid-primitives/timer'
+import {useCoreProbe} from './use-core-probe.js'
 import {stepStates, type StepState, type TryStep} from '../shared/try-steps.js'
 import {useLocalNetworkAccessPermission} from './use-lna-permission.js'
 
-const SLOW_HINT_MS = 60_000
-const CONNECTED_HOLD_MS = 600
-const PROBE_INTERVAL_MS = 2_000
 const COPY_FEEDBACK_MS = 1_400
 
 const STEP_TITLES: Record<TryStep, string> = {
@@ -19,21 +16,31 @@ const STEP_TITLES: Record<TryStep, string> = {
 }
 
 function CopyRow(props: {label: string; text: string; onCopy: () => void}): JSX.Element {
-  const [done, setDone] = createSignal(false)
-  let timer: ReturnType<typeof setTimeout> | undefined
+  const [doneAt, setDoneAt] = createSignal<number | null>(null)
+  const done = () => doneAt() !== null
   const copy = () => {
     void navigator.clipboard.writeText(props.text)
     props.onCopy()
-    setDone(true)
-    clearTimeout(timer)
-    timer = setTimeout(() => setDone(false), COPY_FEEDBACK_MS)
+    setDoneAt(performance.now())
   }
-  onCleanup(() => clearTimeout(timer))
+  createEffect(() => {
+    if (doneAt() === null) return
+    makeTimer(() => setDoneAt(null), COPY_FEEDBACK_MS, setTimeout)
+  })
   return (
     <div class="py-1.5 pl-3 pr-1.5 border border-pw-line rounded-pw-md bg-pw-fill flex gap-2 items-center">
-      <span class="text-[12px] text-pw-text-2 font-mono flex-1 min-w-0 truncate" title={props.text}>
-        {props.text}
-      </span>
+      <Tooltip.Root>
+        <Tooltip.Trigger
+          asChild={(triggerProps) => (
+            <span {...triggerProps()} class="text-[12px] text-pw-text-2 font-mono text-start flex-1 min-w-0 truncate">
+              {props.text}
+            </span>
+          )}
+        />
+        <Tooltip.Positioner>
+          <Tooltip.Content class="font-mono [overflow-wrap:anywhere]">{props.text}</Tooltip.Content>
+        </Tooltip.Positioner>
+      </Tooltip.Root>
       <TooltipIconButton tooltip={props.label} class="size-7" onClick={copy}>
         <Show when={done()} fallback={<Copy class="size-3.5" aria-hidden="true" />}>
           <Check class="text-pw-accent size-3.5" aria-hidden="true" />
@@ -80,8 +87,9 @@ function Step(props: {index: number; state: StepState; title: string; children?:
 export function ConnectPane(props: {token: string}): JSX.Element {
   const connect = getHostApi().useConnect()
   const [copied, setCopied] = createSignal(false)
-  const [connected, setConnected] = createSignal(false)
-  const [slow, setSlow] = createSignal(false)
+  const probe = useCoreProbe({token: () => props.token, onFound: (base) => connect.found(base)})
+  const connected = probe.connected
+  const slow = probe.slow
   const localNetworkAccess = useLocalNetworkAccessPermission()
   const localNetworkBlocked = () => localNetworkAccess() === 'denied'
   const states = () => stepStates({copied: copied(), connected: connected()})
@@ -97,28 +105,6 @@ export function ConnectPane(props: {token: string}): JSX.Element {
   let paneEl: HTMLDivElement | undefined
   onMount(() => {
     requestAnimationFrame(() => paneEl?.focus())
-    const slowTimer = setTimeout(() => setSlow(true), SLOW_HINT_MS)
-    const controller = new AbortController()
-    let settled = false
-    let handoff: ReturnType<typeof setTimeout> | undefined
-    const probe = async () => {
-      if (settled) return
-      const base = await probeCore(props.token, connectPorts(), controller.signal)
-      if (settled || !base) return
-      settled = true
-      clearInterval(interval)
-      setConnected(true)
-      handoff = setTimeout(() => connect.found(base), CONNECTED_HOLD_MS)
-    }
-    const interval = setInterval(() => void probe(), PROBE_INTERVAL_MS)
-    void probe()
-    onCleanup(() => {
-      settled = true
-      clearTimeout(slowTimer)
-      clearTimeout(handoff)
-      clearInterval(interval)
-      controller.abort()
-    })
   })
 
   return (
@@ -140,17 +126,19 @@ export function ConnectPane(props: {token: string}): JSX.Element {
       <ol class="m-0 p-0 list-none flex flex-1 flex-col gap-3.5 min-h-0 overflow-y-auto anim-rise-d">
         <Step index={1} state={states().copy} title={STEP_TITLES.copy}>
           <CopyRow label="Copy connect command" text={npxText()} onCopy={markCopied} />
-          <details>
-            <summary class="text-[12px] text-pw-text-3 w-fit cursor-pointer trans-color-bg hover:text-pw-text-2">
+          <Collapsible.Root>
+            <Collapsible.Trigger class="text-[12px] text-pw-text-3 w-fit cursor-pointer focus-ring trans-color-bg hover:text-pw-text-2">
               or hand it to your coding agent
-            </summary>
-            <div class="mt-2 flex flex-col gap-1.5">
-              <CopyRow label="Copy agent prompt" text={promptText()} onCopy={markCopied} />
-              <p class="text-[11.5px] text-pw-text-3">
-                Some agents will ask you to run the command yourself, and that works too.
-              </p>
-            </div>
-          </details>
+            </Collapsible.Trigger>
+            <Collapsible.Content>
+              <div class="mt-2 flex flex-col gap-1.5">
+                <CopyRow label="Copy agent prompt" text={promptText()} onCopy={markCopied} />
+                <p class="text-[11.5px] text-pw-text-3">
+                  Some agents will ask you to run the command yourself, and that works too.
+                </p>
+              </div>
+            </Collapsible.Content>
+          </Collapsible.Root>
         </Step>
         <Step index={2} state={states().run} title={STEP_TITLES.run}>
           <p class="text-[12px] text-pw-text-3">First run installs the package (~30s).</p>

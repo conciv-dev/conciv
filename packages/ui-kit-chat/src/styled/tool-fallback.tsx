@@ -60,7 +60,7 @@ function Trigger(): JSX.Element {
       <Dynamic
         component={STATUS_ICON[tool.status()]}
         size={16}
-        class={`shrink-0 ${running() ? 'anim-tool-spin motion-reduce:[animation:none]' : ''}`}
+        class={`shrink-0 ${running() ? 'anim-tool-spin' : ''}`}
         aria-hidden="true"
       />
       <span class="leading-none text-start inline-block relative">

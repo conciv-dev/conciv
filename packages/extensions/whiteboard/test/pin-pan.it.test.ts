@@ -1,16 +1,15 @@
 import {expect, test} from 'vitest'
 import type {Locator} from 'playwright'
 import whiteboard from '../src/server.js'
-import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
-import {openCanvas} from './canvas-it-helpers.js'
-
-const clientEntry = '@conciv/extension-whiteboard/client'
+import {getExtensionTestApi} from '@conciv/extension-testkit'
+import {until} from '@conciv/harness-testkit'
+import {openCanvas, testHost} from './canvas-it-helpers.js'
 
 const projectedTop = (pin: Locator) => async (): Promise<number> =>
   pin.evaluate((element) => (element as HTMLElement).getBoundingClientRect().top)
 
 test('a comment pin is projected to screen and tracks canvas pan', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, host: fixtureHost(clientEntry)})
+  const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     const {cx, cy} = await openCanvas(api.page)
     await api.callTool('comment.create', {
@@ -30,9 +29,7 @@ test('a comment pin is projected to screen and tracks canvas pan', async () => {
     await api.page.mouse.move(cx, cy)
     await api.page.mouse.wheel(0, 320)
 
-    await expect
-      .poll(async () => Math.abs((await projectedTop(pin)()) - top0), {timeout: 30_000, interval: 200})
-      .toBeGreaterThan(80)
+    await until(async () => Math.abs((await projectedTop(pin)()) - top0) > 80, {hangGuardMs: 30_000, intervalMs: 250})
   } finally {
     await api.dispose()
   }

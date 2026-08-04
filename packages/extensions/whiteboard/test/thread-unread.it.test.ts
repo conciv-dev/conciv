@@ -1,6 +1,6 @@
 import {test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {bootWhiteboard, createFloatingComment, openCanvas} from './helpers/whiteboard-test-api.js'
+import {bootWhiteboard, createFloatingComment, openCanvas} from './canvas-it-helpers.js'
 
 test('an agent comment is unread until the dev opens it', async () => {
   const api = await bootWhiteboard()

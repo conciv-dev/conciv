@@ -4,9 +4,13 @@ import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
-import {makeChanges} from '../../src/chat/attach.js'
+import {InMemoryRunEventLog, RunController} from '@tanstack/ai-sandbox'
 import {makeConcivSandbox} from '../../src/chat/gate.js'
-import {ensureChatRecord} from '../../src/chat/run.js'
+import {createAskRegistry} from '../../src/chat/ask.js'
+import {createSessionStreams} from '../../src/chat/subscribe.js'
+import {createSnapshotCache} from '../../src/chat/transcript.js'
+import {createLiveRuns} from '../../src/chat/live-runs.js'
+import {ensureRow} from '../../src/chat/session-rows.js'
 import type {ChatDeps} from '../../src/chat/runtime.js'
 
 export type ChatFixture = {
@@ -23,14 +27,21 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const harness = createTestHarness(real)
   const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-fixture-'))
   const db = openDb(stateRoot)
+  const runLog = new InMemoryRunEventLog()
   const chat: ChatDeps = {
     cwd: stateRoot,
     stateRoot,
+    basePath: '',
     harness,
     systemText: '',
     sandbox: makeConcivSandbox(stateRoot),
     db,
-    changes: makeChanges(),
+    asks: createAskRegistry(),
+    runLog,
+    runControl: new RunController(runLog),
+    liveRuns: createLiveRuns(),
+    stream: createSessionStreams(),
+    snapshots: createSnapshotCache(),
     risky: new Set<string>(),
     tools: () => [],
     toolNames: new Set<string>(),
@@ -38,6 +49,6 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     attachmentExpanders: {},
   }
   const sessionId = 'conciv_fixture'
-  if (opts.seedSession !== false) await ensureChatRecord(db, sessionId, harness.id, stateRoot)
+  if (opts.seedSession !== false) await ensureRow(db, sessionId, harness.id, stateRoot)
   return {chat, db, harness, sessionId, stateRoot}
 }

@@ -5,7 +5,8 @@
   "keywords": [
     "client",
     "conciv",
-    "orpc"
+    "orpc",
+    "tanstack-intent"
   ],
   "homepage": "https://conciv.dev",
   "bugs": "https://github.com/conciv-dev/conciv/issues",
@@ -16,7 +17,8 @@
     "directory": "packages/client"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "type": "module",
   "exports": {
@@ -41,17 +43,18 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "1.14.7",
     "@orpc/tanstack-query": "^1.14.7",
-    "@tanstack/ai": "^0.41.0",
-    "@tanstack/ai-solid": "0.15.0",
+    "@tanstack/ai": "^0.42.0",
+    "@tanstack/ai-solid": "0.15.1",
     "@tanstack/pacer": "^0.21.1",
     "@tanstack/query-core": "^5.80.2",
     "solid-js": "^1.9.13"
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",
+    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
-    "@tanstack/ai-client": "0.22.0",
+    "@tanstack/ai-client": "0.22.1",
     "@tanstack/solid-query": "^5.101.2",
     "@vitest/coverage-v8": "^4.1.8",
     "tsdown": "^0.22.4",

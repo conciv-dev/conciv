@@ -6,7 +6,7 @@ import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/
 import {usePane} from '../app/pane-context.js'
 import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
-import {GrabReference} from '../chat/grab-reference.js'
+import {GrabReference} from '../pane/grab-reference.js'
 
 const GRAB_PREVIEW_MAX_W = 280
 

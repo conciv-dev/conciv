@@ -1,5 +1,6 @@
-import {expect, test} from 'vitest'
-import {bootWhiteboard, createFloatingComment, openCanvas} from './helpers/whiteboard-test-api.js'
+import {test} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
+import {bootWhiteboard, createFloatingComment, openCanvas} from './canvas-it-helpers.js'
 
 test('clicking a pin opens the thread card with its comment and replies', async () => {
   const api = await bootWhiteboard()
@@ -18,7 +19,7 @@ test('clicking a pin opens the thread card with its comment and replies', async 
 
     const reply = api.page.getByRole('textbox', {name: 'Reply'})
     await reply.waitFor()
-    await expect.poll(async () => reply.evaluate((element) => element.matches(':focus')).catch(() => false)).toBe(true)
+    await expectLocator(reply).toBeFocused({timeout: 30_000})
 
     for (const name of ['Previous thread', 'Next thread', 'Resolve thread', 'Delete thread', 'Close thread'])
       await api.page.getByRole('button', {name}).waitFor()

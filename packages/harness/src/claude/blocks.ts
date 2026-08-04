@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './connect-names.js'
 
 export const TextBlock = z.object({type: z.literal('text'), text: z.string()})
 export const ThinkingBlock = z.object({type: z.literal('thinking'), thinking: z.string()})
@@ -15,9 +16,14 @@ export const ToolResultBlock = z.object({
   is_error: z.boolean().optional(),
 })
 
-const CONCIV_MCP_PREFIX = 'mcp__conciv__'
+const CONCIV_MCP_PREFIXES = [
+  `mcp__${CLAUDE_CONNECT_MCP_SERVER}__`,
+  `mcp__plugin_${CLAUDE_CONNECT_PLUGIN}_${CLAUDE_CONNECT_MCP_SERVER}__`,
+]
+
 export function canonicalToolName(name: string): string {
-  return name.startsWith(CONCIV_MCP_PREFIX) ? name.slice(CONCIV_MCP_PREFIX.length) : name
+  const prefix = CONCIV_MCP_PREFIXES.find((candidate) => name.startsWith(candidate))
+  return prefix === undefined ? name : name.slice(prefix.length)
 }
 
 const TextContentPart = z.object({type: z.literal('text'), text: z.string()})

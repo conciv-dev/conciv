@@ -2,15 +2,6 @@ import {z} from 'zod'
 
 export type TtyCommand = {bin: string; args: string[]; env: Record<string, string>; unsetEnvPrefixes?: string[]}
 
-export type TtyCommandOpts = {
-  cwd: string
-  harnessSessionId: string
-  resume: boolean
-  model?: string | null
-  mcpUrl?: string | null
-  concivSessionId?: string
-}
-
 export const TtyClientControlSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('resize'),

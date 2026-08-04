@@ -1,6 +1,7 @@
-import {defineHarness, type HarnessLaunchContext} from '@conciv/protocol/harness-types'
+import {defineHarness, type HarnessConnectContext, type HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
-import {claudeMcpArgs} from './args.js'
+import {claudeConnectArgs} from './args.js'
+import {claudeAttach} from './attach.js'
 import {claudeChatConfig} from './chat.js'
 import {claudeHistory} from './history.js'
 import {claudeSdkCommands} from './sdk.js'
@@ -21,13 +22,13 @@ const CLAUDE_MODELS = [
   {id: 'claude-fable-5', name: 'Fable 5', description: 'Disabled', group: 'Claude', disabled: true},
 ]
 
-const claudeLaunch = (ctx: HarnessLaunchContext) => {
-  const argv = ['claude']
-  if (ctx.sessionId) argv.push('--resume', ctx.sessionId)
-  if (ctx.model) argv.push('--model', ctx.model)
-  if (ctx.mcpUrl) argv.push(...claudeMcpArgs(ctx.mcpUrl))
-  if (CONCIV_PLUGIN_DIR) argv.push('--plugin-dir', CONCIV_PLUGIN_DIR)
-  return ctx.openTerminal(argv)
+function claudeConnectPlan(ctx: HarnessConnectContext): HarnessConnectPlan {
+  const pluginArgs = CONCIV_PLUGIN_DIR ? ['--plugin-dir', CONCIV_PLUGIN_DIR] : []
+  return {
+    argv: ['claude', ...claudeConnectArgs(ctx), ...pluginArgs],
+    env: {},
+    files: [],
+  }
 }
 
 export const claude = defineHarness({
@@ -50,6 +51,7 @@ export const claude = defineHarness({
   chatConfig: claudeChatConfig,
   commands: claudeSdkCommands,
   history: claudeHistory,
-  launch: claudeLaunch,
+  connect: {plan: claudeConnectPlan},
+  attach: claudeAttach,
   tty: {command: claudeTtyCommand},
 })

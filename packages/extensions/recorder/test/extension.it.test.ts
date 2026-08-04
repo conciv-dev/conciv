@@ -1,7 +1,7 @@
 import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {describe, expect, it} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {start, type Engine} from '@conciv/core'
@@ -27,6 +27,22 @@ async function boot(): Promise<{base: string; engine: Engine}> {
   return {base: `http://127.0.0.1:${engine.port}`, engine}
 }
 
+const phases: {phase: string; ms: number}[] = []
+const clock = {startedAt: 0}
+
+function mark(phase: string): void {
+  phases.push({phase, ms: Math.round(performance.now() - clock.startedAt)})
+}
+
+function sawMessage(seen: unknown[], expected: Record<string, boolean>): boolean {
+  const entries = Object.entries(expected)
+  return seen.some((message) => {
+    if (typeof message !== 'object' || message === null) return false
+    if (Object.keys(message).length !== entries.length) return false
+    return entries.every(([key, value]) => Reflect.get(message, key) === value)
+  })
+}
+
 const page = pageFixture([buttonFixture(4, 5, 'Buy')])
 
 function fixtureStream(base: number): RrwebEvent[] {
@@ -38,6 +54,15 @@ function fixtureStream(base: number): RrwebEvent[] {
 }
 
 describe('recorder extension booted in the real engine (IT)', () => {
+  beforeEach(() => {
+    phases.length = 0
+    clock.startedAt = performance.now()
+  })
+
+  afterEach((ctx) => {
+    if (ctx.task.result?.state === 'fail') console.error(`[recorder-it] phases ${JSON.stringify(phases)}`)
+  })
+
   it('round-trips flush -> window -> log over the extension rpc', async () => {
     const {base, engine} = await boot()
     try {
@@ -58,16 +83,18 @@ describe('recorder extension booted in the real engine (IT)', () => {
     try {
       const rpc = recorderClient(base)
       await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
-      const seen: unknown[] = []
+      const resnapshot = Promise.withResolvers<unknown>()
       const abort = new AbortController()
       const control = await rpc.control(undefined, {signal: abort.signal})
       const pump = (async () => {
-        for await (const message of control) seen.push(message)
+        for await (const message of control) {
+          if (sawMessage([message], {snapshot: true, flush: true})) resnapshot.resolve(message)
+        }
       })()
       await rpc.reset(undefined)
       const {events} = await rpc.window({})
       expect(events).toEqual([])
-      expect(seen).toContainEqual({snapshot: true, flush: true})
+      expect(await resnapshot.promise).toEqual({snapshot: true, flush: true})
       abort.abort()
       await pump.catch(() => {})
     } finally {
@@ -107,30 +134,44 @@ describe('recorder extension booted in the real engine (IT)', () => {
 
   it('start/stop capture emits control events to subscribers and returns the marked window', async () => {
     const {base, engine} = await boot()
+    mark('boot')
     try {
       const rpc = recorderClient(base)
       const abort = new AbortController()
       const control = await rpc.control(undefined, {signal: abort.signal})
-      const seen: unknown[] = []
+      mark('control')
+      const wentLive = Promise.withResolvers<unknown>()
       const pump = (async () => {
-        for await (const message of control) seen.push(message)
+        for await (const message of control) {
+          if (sawMessage([message], {live: true})) wentLive.resolve(message)
+        }
       })()
       const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+      mark('createMCPClient')
       await mcp.callTool('conciv_discover_tools', {names: ['recording_start', 'recording_stop']})
+      mark('discover')
       const tools = await mcp.tools()
+      mark('tools')
       const startRecording = tools.find((tool) => tool.name === 'recording_start')
       const stopRecording = tools.find((tool) => tool.name === 'recording_stop')
       if (!startRecording?.execute || !stopRecording?.execute) throw new Error('tools missing')
       const started = z.object({captureId: z.string()}).parse(JSON.parse(String(await startRecording.execute({}))))
+      mark('start.execute')
       await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
+      mark('flush')
       const stopped = String(await stopRecording.execute({captureId: started.captureId, keyframes: 0}))
+      mark('stop.execute')
       expect(stopped).toContain('click')
-      expect(seen).toContainEqual({live: true})
+      expect(await wentLive.promise).toEqual({live: true})
+      mark('live-event')
       abort.abort()
       await pump.catch(() => {})
+      mark('pump')
       await mcp.close()
+      mark('mcp.close')
     } finally {
       await engine.stop()
+      mark('engine.stop')
     }
   }, 30_000)
 })

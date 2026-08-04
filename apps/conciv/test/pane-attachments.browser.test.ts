@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {defineAttachment, defineExtension} from '@conciv/extension'
-import {paneAttachments} from '../src/chat/pane-attachments.js'
+import {paneAttachments} from '../src/pane/pane-attachments.js'
 
 function fixtureExtension() {
   const attachment = defineAttachment({mime: 'application/x-fixture'})

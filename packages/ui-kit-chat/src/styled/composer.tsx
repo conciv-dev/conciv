@@ -1,10 +1,15 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {ArrowUp, Clock, Paperclip, Square} from 'lucide-solid'
+import {Swap} from '@conciv/ui-kit-system'
 import {Composer as ComposerPrimitive} from '../primitives/composer/composer.js'
+import {useComposerContext} from '../primitives/composer/composer-context.js'
+import {useComposerHandlers} from '../primitives/composer/composer-handlers.js'
+import {useComposer} from '../store/chat-context.js'
 import type {AttachmentAdapter} from '../primitives/attachment/attachment-adapter.js'
 import {AttachmentUI} from './attachment-ui.js'
 import {QueueItem} from '../primitives/queue-item/queue-item.js'
+import {Slot} from '../primitives/util/slot.js'
 import {FOCUS} from './classes.js'
 
 export type ComposerProps = {
@@ -22,21 +27,39 @@ export type ComposerProps = {
 const BTN =
   'size-8.5 rounded-[var(--chat-radius-pill)] [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center [transition:background-color_120ms_var(--chat-ease),transform_120ms_var(--chat-ease)] [&:active:not(:disabled)]:scale-[0.92]'
 const SEND = `${BTN} [background:var(--chat-accent)] text-[color:var(--chat-on-accent)] [&:hover:not(:disabled)]:[background:var(--chat-accent-hi)] disabled:opacity-40 disabled:cursor-default`
-const CANCEL = `${BTN} [background:var(--chat-text-3)] [color:var(--chat-on-accent)]`
+const CANCEL = `${BTN} [background:var(--chat-text-3)] [color:var(--chat-on-accent)] [&:hover]:[background:var(--chat-text-2)]`
 const INPUT =
   'block max-h-30 px-2 pb-1 pt-2 [color:var(--chat-text)] text-[length:var(--chat-text-md)] leading-[1.45] placeholder:[color:var(--chat-text-3)]'
 const QUEUE_ACTION = `${FOCUS} shrink-0 px-2 py-1 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-md)] leading-[1.45] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease),transform_100ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] [&:active]:scale-[0.96]`
 
 function TrailingControls(): JSX.Element {
+  const composer = useComposer()
+  const context = useComposerContext()
+  const handlers = useComposerHandlers()
+  const stopping = () => composer.canCancel() && composer.isEmpty()
+  const cancel = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
+  const sendDisabled = () => context.sendingAttachments() || (!composer.canSend() && context.attachments().length === 0)
   return (
-    <>
-      <ComposerPrimitive.Cancel class={CANCEL} aria-label="Stop generating">
-        <Square size={14} fill="currentColor" aria-hidden="true" />
-      </ComposerPrimitive.Cancel>
-      <ComposerPrimitive.Send class={SEND} aria-label="Send message">
-        <ArrowUp size={18} aria-hidden="true" />
-      </ComposerPrimitive.Send>
-    </>
+    <button
+      type={stopping() ? 'button' : 'submit'}
+      class={stopping() ? CANCEL : SEND}
+      aria-label={stopping() ? 'Stop generating' : 'Send message'}
+      disabled={!stopping() && sendDisabled()}
+      onClick={(event) => {
+        if (!stopping()) return
+        event.preventDefault()
+        cancel()
+      }}
+    >
+      <Swap.Root swap={stopping()}>
+        <Swap.Indicator type="on">
+          <Square size={14} fill="currentColor" aria-hidden="true" />
+        </Swap.Indicator>
+        <Swap.Indicator type="off">
+          <ArrowUp size={18} aria-hidden="true" />
+        </Swap.Indicator>
+      </Swap.Root>
+    </button>
   )
 }
 
@@ -84,11 +107,9 @@ export function Composer(props: ComposerProps): JSX.Element {
               <Paperclip size={16} aria-hidden="true" />
             </ComposerPrimitive.AddAttachment>
           </Show>
-          <Show when={props.children}>{props.children}</Show>
+          <Slot>{props.children}</Slot>
           <div class="ml-auto flex gap-1 items-center">
-            <Show when={props.busy} fallback={<TrailingControls />}>
-              {props.busy}
-            </Show>
+            <Slot fallback={<TrailingControls />}>{props.busy}</Slot>
           </div>
         </div>
       </div>

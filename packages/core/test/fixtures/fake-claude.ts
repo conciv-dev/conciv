@@ -16,18 +16,20 @@ function emit(lines: unknown[]): void {
   for (const line of lines) process.stdout.write(JSON.stringify(line) + '\n')
 }
 
+const fakeSessionId = process.env.CONCIV_FAKE_SESSION_ID ?? 'sess-fake'
+
 const prompt = await readStdin()
 if (process.env.CONCIV_TEST_PROMPT_FILE) writeFileSync(process.env.CONCIV_TEST_PROMPT_FILE, prompt)
 
 if (process.env.CONCIV_FAKE_HANG) {
-  emit([{type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'}])
+  emit([{type: 'system', subtype: 'init', session_id: fakeSessionId, model: 'claude-test'}])
   const onTerm = process.env.CONCIV_FAKE_IGNORE_TERM ? () => {} : () => process.exit(143)
   process.on('SIGTERM', onTerm)
   setInterval(() => {}, 1000)
 } else if (process.env.CONCIV_FAKE_RELEASE_FILE) {
   const releaseFile = process.env.CONCIV_FAKE_RELEASE_FILE
   emit([
-    {type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'},
+    {type: 'system', subtype: 'init', session_id: fakeSessionId, model: 'claude-test'},
     {
       type: 'stream_event',
       parent_tool_use_id: null,
@@ -56,7 +58,7 @@ if (process.env.CONCIV_FAKE_HANG) {
         {
           type: 'result',
           subtype: 'success',
-          session_id: 'sess-fake',
+          session_id: fakeSessionId,
           num_turns: 1,
           total_cost_usd: 0.001,
           usage: {input_tokens: 100, output_tokens: 5},
@@ -69,7 +71,7 @@ if (process.env.CONCIV_FAKE_HANG) {
   waitForRelease()
 } else if (process.env.CONCIV_FAKE_PARTIAL) {
   emit([
-    {type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'},
+    {type: 'system', subtype: 'init', session_id: fakeSessionId, model: 'claude-test'},
     {
       type: 'stream_event',
       parent_tool_use_id: null,
@@ -106,7 +108,7 @@ if (process.env.CONCIV_FAKE_HANG) {
     {
       type: 'result',
       subtype: 'success',
-      session_id: 'sess-fake',
+      session_id: fakeSessionId,
       num_turns: 1,
       total_cost_usd: 0.001,
       usage: {input_tokens: 100, cache_read_input_tokens: 40, cache_creation_input_tokens: 10, output_tokens: 5},
@@ -115,7 +117,7 @@ if (process.env.CONCIV_FAKE_HANG) {
   process.exit(0)
 } else if (process.env.CONCIV_FAKE_RICH) {
   emit([
-    {type: 'system', subtype: 'init', session_id: 'sess-fake'},
+    {type: 'system', subtype: 'init', session_id: fakeSessionId},
     {type: 'summary', summary: 'Fake session title'},
     {
       type: 'assistant',
@@ -132,7 +134,7 @@ if (process.env.CONCIV_FAKE_HANG) {
     {
       type: 'result',
       subtype: 'success',
-      session_id: 'sess-fake',
+      session_id: fakeSessionId,
       num_turns: 1,
       total_cost_usd: 0.001,
       usage: {input_tokens: 100, output_tokens: 5},
@@ -142,7 +144,7 @@ if (process.env.CONCIV_FAKE_HANG) {
 } else {
   const inputTokens = Number(process.env.CONCIV_FAKE_INPUT_TOKENS ?? '100')
   emit([
-    {type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'},
+    {type: 'system', subtype: 'init', session_id: fakeSessionId, model: 'claude-test'},
     {type: 'summary', summary: 'Fake session title'},
     {
       type: 'assistant',
@@ -161,7 +163,7 @@ if (process.env.CONCIV_FAKE_HANG) {
     {
       type: 'result',
       subtype: 'success',
-      session_id: 'sess-fake',
+      session_id: fakeSessionId,
       num_turns: 1,
       total_cost_usd: 0.001,
       usage: {

@@ -1,9 +1,10 @@
 import {createFileRoute, useRouter} from '@tanstack/solid-router'
 import {Show, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {Portal} from 'solid-js/web'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {PaneProvider} from '../app/pane-provider.js'
-import {ChatPane} from '../chat/chat-pane.js'
+import {ChatPane} from '../pane/chat-pane.js'
 import {openPipWindow, type PipWindow} from '../shell/pip.js'
 
 export const Route = createFileRoute('/pip/$sessionId')({component: PipSession})
@@ -19,7 +20,7 @@ function PipSession(): JSX.Element {
       router.history.back()
       return
     }
-    opened.win.addEventListener('pagehide', () => {
+    makeEventListener(opened.win, 'pagehide', () => {
       setPip(null)
       router.history.back()
     })

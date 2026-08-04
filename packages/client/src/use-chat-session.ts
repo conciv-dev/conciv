@@ -1,21 +1,33 @@
-import {useChat, type UseChatOptions} from '@tanstack/ai-solid'
+import {useChat} from '@tanstack/ai-solid'
 import type {RpcClient} from '@conciv/contract'
 import {chatConnection, type ChatConnectionOptions} from './chat-connection.js'
 
 export type UseChatSessionOptions = {
   rpc: RpcClient
   sessionId: string
-  queue?: UseChatOptions['queue']
   connection?: ChatConnectionOptions
   onError?: (error: Error) => void
 }
 
-export function useChatSession(options: UseChatSessionOptions): ReturnType<typeof useChat> {
-  return useChat({
+export type ChatSession = ReturnType<typeof useChat> & {refresh: () => void}
+
+function asError(value: unknown): Error {
+  return value instanceof Error ? value : new Error(String(value))
+}
+
+export function useChatSession(options: UseChatSessionOptions): ChatSession {
+  const connection = chatConnection(options.rpc, options.sessionId, options.connection ?? {})
+  const chat = useChat({
     id: options.sessionId,
-    connection: chatConnection(options.rpc, options.sessionId, options.connection ?? {}),
+    threadId: options.sessionId,
+    connection,
     live: true,
-    queue: options.queue ?? {whenBusy: 'queue', drain: 'fifo'},
+    queue: 'queue',
     onError: options.onError,
   })
+  const stop = () => {
+    chat.stop()
+    void options.rpc.chat.stop({sessionId: options.sessionId}).catch((error) => options.onError?.(asError(error)))
+  }
+  return {...chat, stop, refresh: connection.refresh}
 }

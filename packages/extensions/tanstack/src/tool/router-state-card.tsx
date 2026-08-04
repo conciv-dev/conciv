@@ -13,8 +13,8 @@ const RouterStateSchema = z
 
 type RouterState = z.infer<typeof RouterStateSchema>
 
-function parseState(props: ToolCardProps): RouterState | null {
-  const parsed = RouterStateSchema.safeParse(parseResultPayload(props.result))
+function parseState(result: ToolCardProps['result']): RouterState | null {
+  const parsed = RouterStateSchema.safeParse(parseResultPayload(result))
   return parsed.success ? parsed.data : null
 }
 
@@ -28,7 +28,7 @@ function RouterIcon(): JSX.Element {
 }
 
 export function RouterStateCard(props: ToolCardProps): JSX.Element {
-  const state = () => parseState(props)
+  const state = () => parseState(props.result)
   const summary = () => {
     const value = state()
     return value ? summarize(value) : ''

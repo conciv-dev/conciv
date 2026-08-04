@@ -1,4 +1,5 @@
-import {ErrorBoundary, Show, Suspense, createEffect, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
+import {ErrorBoundary, Show, Suspense, createEffect, onMount, type Accessor, type JSX} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {getHostApi} from '@conciv/extension'
 import type {ElementRect, ElementSource} from '@conciv/grab'
 import {Island, type Self} from '../canvas/island.js'
@@ -59,8 +60,7 @@ function CanvasView(props: {
     const onKey = (event: KeyboardEvent): void => {
       if (escapeClosesCanvas(event)) props.close()
     }
-    win.addEventListener('keydown', onKey, true)
-    onCleanup(() => win.removeEventListener('keydown', onKey, true))
+    makeEventListener(win, 'keydown', onKey, true)
   })
   return (
     <>
@@ -122,7 +122,7 @@ function Canvas(props: {state: SurfaceState; room: Accessor<string>; self: Self}
 
 function ComposeBridge(props: {registerComment: (write: (pick: CommentPick) => void) => void}): JSX.Element {
   const model = useComments()
-  props.registerComment((pick) => model.startCompose(toComposeTarget(pick)))
+  onMount(() => props.registerComment((pick) => model.startCompose(toComposeTarget(pick))))
   return <></>
 }
 

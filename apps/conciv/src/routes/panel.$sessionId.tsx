@@ -1,16 +1,15 @@
-import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
+import {Outlet, createFileRoute, redirect, useBlocker, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
 import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ChevronDown, PictureInPicture2, Unplug} from 'lucide-solid'
 import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {Grab} from '@conciv/grab'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useDisconnect, useGrabProvider, useInstances, useRpc} from '../app/context.js'
-import {PaneContext, makePendingAttachmentQueue, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
+import {PaneContext, makeGrabStore, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {setShutter} from '../lib/shutter.js'
-import {ContextTracker} from '../chat/context-tracker.js'
+import {ContextTracker} from '../pane/context-tracker.js'
 import {collectViews} from '../extension/extension-views.js'
 
 const HEAD = 'flex items-center gap-2.5 py-3 px-3.5 border-b border-b-pw-line-soft'
@@ -80,16 +79,12 @@ function PanelSession(): JSX.Element {
     announce('Started a new session')
   }
 
-  const [grabs, setGrabs] = createSignal<StagedGrab[]>([])
-  const grabStore = {
-    grabs,
-    stage: (grab: Grab) => setGrabs((prev) => [...prev, grab]),
-    stageTexts: (texts: string[]) => setGrabs(texts.map((text) => ({text}))),
-    replace: (grab: StagedGrab, next: StagedGrab) =>
-      setGrabs((prev) => prev.map((entry) => (entry === grab ? next : entry))),
-    remove: (grab: StagedGrab) => setGrabs((prev) => prev.filter((entry) => entry !== grab)),
-    clear: () => setGrabs([]),
-  }
+  const grabStore = makeGrabStore()
+
+  useBlocker({
+    shouldBlockFn: ({current, next}) =>
+      running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
+  })
 
   const paneValue: PaneContextValue = {
     sessionId: () => params().sessionId,
@@ -101,6 +96,7 @@ function PanelSession(): JSX.Element {
     grabStore,
     grabProvider,
     attachments: makePendingAttachmentQueue(),
+    newSession: () => void newSession(),
   }
 
   return (

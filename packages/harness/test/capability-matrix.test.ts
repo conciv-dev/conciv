@@ -1,15 +1,15 @@
 import {describe, it, expect} from 'vitest'
 import {listHarnesses} from '../src/registry.js'
 
-const STUB_IDS = new Set(['gemini-cli', 'opencode', 'pi'])
+const STUB_IDS = new Set(['gemini-cli'])
 
 describe('harness capability matrix', () => {
   for (const adapter of listHarnesses().filter((a) => !STUB_IDS.has(a.id))) {
     describe(adapter.id, () => {
       it('transcriptHistory <=> a history implementation is present', () => {
         if (adapter.capabilities.transcriptHistory) {
-          expect(typeof adapter.history?.transcriptPath).toBe('function')
-          expect(typeof adapter.history?.parse).toBe('function')
+          expect(typeof adapter.history?.messages).toBe('function')
+          expect(typeof adapter.history?.observe).toBe('function')
         } else {
           expect(adapter.history).toBeUndefined()
         }

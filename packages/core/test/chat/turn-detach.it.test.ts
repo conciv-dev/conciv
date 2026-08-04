@@ -3,7 +3,8 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {EventType} from '@tanstack/ai'
-import {createTestkit, until, type Kit, type RunStream} from '@conciv/harness-testkit'
+import {createTestkit, type Kit, type RunStream} from '@conciv/harness-testkit'
+import {defineExtension} from '@conciv/extension'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 
@@ -14,6 +15,10 @@ function tmp(): string {
   const dir = mkdtempSync(join(tmpdir(), 'conciv-detach-it-'))
   dirs.push(dir)
   return dir
+}
+
+function runIdOf(chunk: {runId?: unknown}): string | null {
+  return typeof chunk.runId === 'string' ? chunk.runId : null
 }
 
 async function waitForSnapshot(stream: RunStream): Promise<string> {
@@ -43,16 +48,28 @@ describe('detached turns (IT)', () => {
     const releaseFile = join(tmp(), 'release')
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
-    await kit.rpc.chat.send({sessionId: id, text})
+    await kit.rpc.chat.send({runId: 'turn-detach-1', sessionId: id, text})
     return {kit, id, releaseFile}
   }
 
-  it('rejects a resend while the prior turn is still generating', async () => {
-    const kit = await setupHang()
+  it('a resend while the prior turn is still generating runs concurrently to completion', async () => {
+    const releaseFile = join(tmp(), 'release')
+    const kit = await setupSlow(releaseFile)
     const id = await kit.session()
-    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
-    await expect(kit.rpc.chat.send({sessionId: id, text: 'again'})).rejects.toMatchObject({code: 'BUSY'})
-    await kit.rpc.sessions.stop({sessionId: id})
+    const stream = await kit.attach(id)
+    await kit.rpc.chat.send({runId: 'turn-detach-2', sessionId: id, text: 'hi'})
+    await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
+    await expect(kit.rpc.chat.send({runId: 'turn-detach-3', sessionId: id, text: 'again'})).resolves.toEqual({
+      ok: true,
+      runId: 'turn-detach-3',
+    })
+    writeFileSync(releaseFile, '')
+    await stream.waitFor((c) => c.type === EventType.RUN_FINISHED && runIdOf(c) === 'turn-detach-2', {
+      hangGuardMs: 10_000,
+    })
+    await stream.waitFor((c) => c.type === EventType.RUN_FINISHED && runIdOf(c) === 'turn-detach-3', {
+      hangGuardMs: 10_000,
+    })
   })
 
   it('chat.send resolves ok before the turn finishes', async () => {
@@ -60,7 +77,10 @@ describe('detached turns (IT)', () => {
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
     const stream = await kit.attach(id)
-    expect(await kit.rpc.chat.send({sessionId: id, text: 'hi'})).toEqual({ok: true, runId: `${id}:1`})
+    expect(await kit.rpc.chat.send({runId: 'turn-detach-4', sessionId: id, text: 'hi'})).toEqual({
+      ok: true,
+      runId: 'turn-detach-4',
+    })
     writeFileSync(releaseFile, '')
     const events = await stream.done()
     expect(events.runs()).toBe(1)
@@ -99,16 +119,19 @@ describe('detached turns (IT)', () => {
   })
 
   it('the turn completes with zero subscribers and persists usage', async () => {
-    const kit = await setup()
+    const runEnd = {resolve: (_sessionId: string) => {}}
+    const runEnded = new Promise<string>((resolve) => (runEnd.resolve = resolve))
+    const probe = defineExtension({name: 'run-end-probe'}).server(() => ({
+      context: {},
+      turnEnd: (sessionId: string) => runEnd.resolve(sessionId),
+    }))
+    const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {}, extensions: [probe]})).setup()
+    state.kit = kit
     const id = await kit.session()
-    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
-    await until(
-      async () => {
-        const metas = await kit.rpc.sessions.list(undefined)
-        return Boolean(metas.find((meta) => meta.id === id)?.usage)
-      },
-      {hangGuardMs: 5000},
-    )
+    await kit.rpc.chat.send({runId: 'turn-detach-5', sessionId: id, text: 'hi'})
+    expect(await runEnded).toBe(id)
+    const metas = await kit.rpc.sessions.list(undefined)
+    expect(metas.find((meta) => meta.id === id)?.usage).toBeTruthy()
   })
 
   it('attach during a running turn returns a snapshot with the user text, not 500', async () => {
@@ -130,9 +153,9 @@ describe('detached turns (IT)', () => {
       const kit = await setupHang()
       const id = await kit.session()
       const stream = await kit.attach(id)
-      await kit.rpc.chat.send({sessionId: id, text: 'hang around'})
+      await kit.rpc.chat.send({runId: 'turn-detach-6', sessionId: id, text: 'hang around'})
       await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
-      await kit.rpc.sessions.stop({sessionId: id})
+      await kit.rpc.chat.stop({sessionId: id})
       const events = await stream.done({hangGuardMs: 8000})
       expect(events.runs()).toBe(1)
       expect(events.errors()).toEqual([])
@@ -147,9 +170,9 @@ describe('detached turns (IT)', () => {
       const kit = await setup({CONCIV_FAKE_HANG: '1', CONCIV_FAKE_IGNORE_TERM: '1'})
       const id = await kit.session()
       const stream = await kit.attach(id)
-      await kit.rpc.chat.send({sessionId: id, text: 'hang forever'})
+      await kit.rpc.chat.send({runId: 'turn-detach-7', sessionId: id, text: 'hang forever'})
       await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
-      await kit.rpc.sessions.stop({sessionId: id})
+      await kit.rpc.chat.stop({sessionId: id})
       const events = await stream.done({hangGuardMs: 10_000})
       expect(events.runs()).toBe(1)
       expect(events.errors()).toEqual([])

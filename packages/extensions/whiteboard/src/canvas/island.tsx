@@ -131,9 +131,9 @@ export function Island(props: {
     }
   }
 
-  const agentPeerId = `agent:${props.room}`
+  const agentPeerId = () => `agent:${props.room}`
   const agentCursor = (x: number, y: number): void =>
-    db.postCursor({peerId: agentPeerId, kind: 'agent', name: 'drawing…', color: '#8a86e8', x, y})
+    db.postCursor({peerId: agentPeerId(), kind: 'agent', name: 'drawing…', color: '#8a86e8', x, y})
 
   const commitStep = (draft: ElementRow): ReplayStep => {
     const data = draft.data as unknown as {x?: number; y?: number}
@@ -162,7 +162,7 @@ export function Island(props: {
     try {
       const steps = ordered.map(commitStep)
       container?.addEventListener('pointerdown', onPointerDown, {once: true})
-      handle = replayDraft(steps, (x, y) => agentCursor(x, y))
+      handle = replayDraft(steps, agentCursor)
       await handle.done
       clearDraftRows(ordered)
     } catch (error) {
@@ -291,7 +291,7 @@ export function Island(props: {
               })
             }
             pushViewport()
-            unsubscribeScroll = instance.onScrollChange(() => pushViewport())
+            unsubscribeScroll = instance.onScrollChange(pushViewport)
             props.registerPan?.((sceneX, sceneY) => {
               const state = instance.getAppState()
               instance.updateScene({

@@ -24,8 +24,8 @@ const QueryCacheSchema = z.object({
 
 type Entry = z.infer<typeof EntrySchema>
 
-function parseCache(props: ToolCardProps): {queries: Entry[]; mutations: Entry[]} | null {
-  const parsed = QueryCacheSchema.safeParse(parseResultPayload(props.result))
+function parseCache(result: ToolCardProps['result']): {queries: Entry[]; mutations: Entry[]} | null {
+  const parsed = QueryCacheSchema.safeParse(parseResultPayload(result))
   return parsed.success ? parsed.data : null
 }
 
@@ -49,7 +49,7 @@ function EntryRow(props: {entry: Entry}): JSX.Element {
 }
 
 export function QueryCacheCard(props: ToolCardProps): JSX.Element {
-  const cache = () => parseCache(props)
+  const cache = () => parseCache(props.result)
   const summary = () => {
     const value = cache()
     if (!value) return ''

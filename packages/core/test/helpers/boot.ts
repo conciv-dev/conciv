@@ -59,7 +59,7 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
           ...fake?.env?.(sessionId),
         })
       : undefined
-    const {app, disposers} = await makeApp({
+    const {app, dispose} = await makeApp({
       cfg,
       cwd: overrides.cwd ?? env.cwd,
       openInEditor: overrides.openInEditor ?? (() => {}),
@@ -71,11 +71,6 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
       bridge: overrides.bridge,
       firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
     })
-    return {
-      fetch: app.fetch,
-      dispose: async () => {
-        await Promise.all(disposers.map((dispose) => dispose()))
-      },
-    }
+    return {fetch: app.fetch, dispose}
   }
 }

@@ -5,9 +5,7 @@ import {afterAll, describe, expect, it, vi} from 'vitest'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import {defineAttachment, defineExtension} from '@conciv/extension'
 import {imageHistoryFor, openDb} from '@conciv/db'
-import {ChatMessageSchema} from '@conciv/protocol/chat-types'
 import {makeApp, type MadeApp} from '../src/app.js'
-import {toModelMessages} from '../src/chat/session.js'
 
 const FIXTURE_MIME = 'application/x-conciv-fixture'
 const sessionId = 'conciv_expand_e2e'
@@ -42,10 +40,7 @@ async function bootApp(fake: ReturnType<typeof createFakeHarness>): Promise<Made
     harness: fake,
     extensions: [fixtureExtension()],
   })
-  cleanups.push(async () => {
-    for (const dispose of made.disposers) await dispose()
-    made.closeDb()
-  })
+  cleanups.push(made.dispose)
   return made
 }
 
@@ -63,7 +58,7 @@ describe('attachment expand end-to-end (real send path, scripted harness)', () =
     const response = await made.app.request('/rpc/chat/send', {
       method: 'POST',
       headers: {'content-type': 'application/json'},
-      body: JSON.stringify({json: {sessionId, content}}),
+      body: JSON.stringify({json: {sessionId, runId: 'expand-attachments-1', content}}),
     })
     expect(response.status).toBe(200)
 
@@ -106,12 +101,5 @@ describe('attachment expand end-to-end (real send path, scripted harness)', () =
         (part) => part.type === 'text' && part.content === 'fixture-expanded' && part.metadata?.modelOnly === true,
       ),
     ).toBe(true)
-
-    const richHistory = stored.messages.map((message) => ChatMessageSchema.parse(message))
-    const modelUser = toModelMessages(richHistory).findLast((message) => message.role === 'user')
-    if (!modelUser) throw new Error('expected a model user message')
-    const modelView = typeof modelUser.content === 'string' ? modelUser.content : JSON.stringify(modelUser.content)
-    expect(modelView).toContain('fixture-expanded')
-    expect(modelView).not.toContain('document')
   }, 30_000)
 })

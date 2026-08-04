@@ -1,12 +1,11 @@
 import {describe, expect, test} from 'vitest'
 import {z} from 'zod'
-import {StreamProcessor, type AnyTool} from '@tanstack/ai'
-import {writeReply, type ConcivDb} from '@conciv/db'
+import type {AnyTool, StreamChunk} from '@tanstack/ai'
+import {approvalIds} from '@conciv/harness-testkit'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
-import {makeChanges, type Changes} from '../../src/chat/attach.js'
+import {createAskRegistry, type AskRegistry} from '../../src/chat/ask.js'
 import {makeRunGate, type PermissionGate} from '../../src/chat/gate.js'
 import {gatedToolRun, makeCodeMode, withBindingNames} from '../../src/chat/code-mode.js'
-import {testDb} from '../helpers/memory-store.js'
 
 const request: ToolRequest = {sessionId: 'conciv_x', model: null}
 
@@ -49,16 +48,30 @@ function codeModeOf(
   return result
 }
 
-function denyingGate(risky: string[], db: ConcivDb, changes: Changes): PermissionGate {
+function denyingGate(risky: string[]): PermissionGate {
   return makeRunGate({
     sessionId: 'conciv_x',
-    processor: new StreamProcessor({events: {}}),
-    db,
-    changes,
+    asks: createAskRegistry(),
+    emit: () => {},
     risky: new Set(risky),
     timeoutMs: 30,
-    partWaitMs: 10,
   })
+}
+
+function replyingGate(
+  risky: string[],
+  timeoutMs: number,
+): {gate: PermissionGate; asks: AskRegistry; approvalId: () => string | undefined} {
+  const asks = createAskRegistry()
+  const emitted: StreamChunk[] = []
+  const gate = makeRunGate({
+    sessionId: 'conciv_x',
+    asks,
+    emit: (chunk) => emitted.push(chunk),
+    risky: new Set(risky),
+    timeoutMs,
+  })
+  return {gate, asks, approvalId: () => emitted.flatMap(approvalIds)[0]}
 }
 
 describe('makeCodeMode', () => {
@@ -127,14 +140,12 @@ describe('code mode sandbox execution', () => {
   })
 
   test('gates a dotted risky tool on its original bare name', async () => {
-    const db = testDb()
-    const changes = makeChanges()
     const ran = {value: false}
     const gated = tool('canvas.delete', 'ask', async () => {
       ran.value = true
       return 'deleted'
     })
-    const codeMode = codeModeOf([gated], denyingGate(['canvas.delete'], db, changes))
+    const codeMode = codeModeOf([gated], denyingGate(['canvas.delete']))
     const result = await runSandbox(codeMode.tools, 'return await external_canvas_delete({})')
     expect(result.success).toBe(false)
     expect(result.error?.message).toMatch(/denied/i)
@@ -142,10 +153,8 @@ describe('code mode sandbox execution', () => {
   })
 
   test('leaves an unlisted dotted tool ungated', async () => {
-    const db = testDb()
-    const changes = makeChanges()
     const allowed = tool('canvas.read', undefined, async () => 'read')
-    const codeMode = codeModeOf([allowed], denyingGate(['canvas.delete'], db, changes))
+    const codeMode = codeModeOf([allowed], denyingGate(['canvas.delete']))
     const result = await runSandbox(codeMode.tools, 'return await external_canvas_read({})')
     expect(result.success).toBe(true)
     expect(result.result).toBe('read')
@@ -154,18 +163,7 @@ describe('code mode sandbox execution', () => {
 
 describe('gatedToolRun', () => {
   test('deny reply blocks execute and throws a refusal', async () => {
-    const db = testDb()
-    const changes = makeChanges()
-    const processor = new StreamProcessor({events: {}})
-    const gate = makeRunGate({
-      sessionId: 'conciv_x',
-      processor,
-      db,
-      changes,
-      risky: new Set(['canvas.delete']),
-      timeoutMs: 30,
-      partWaitMs: 10,
-    })
+    const gate = denyingGate(['canvas.delete'])
     const ran = {value: false}
     const gated = tool('canvas.delete', 'ask', async () => {
       ran.value = true
@@ -177,18 +175,7 @@ describe('gatedToolRun', () => {
   })
 
   test('allow reply lets execute run and returns its result', async () => {
-    const db = testDb()
-    const changes = makeChanges()
-    const processor = new StreamProcessor({events: {}})
-    const gate = makeRunGate({
-      sessionId: 'conciv_x',
-      processor,
-      db,
-      changes,
-      risky: new Set(['canvas.delete']),
-      timeoutMs: 5_000,
-      partWaitMs: 10,
-    })
+    const {gate, asks, approvalId} = replyingGate(['canvas.delete'], 5_000)
     const ran = {value: false}
     const gated = tool('canvas.delete', 'ask', async () => {
       ran.value = true
@@ -197,12 +184,9 @@ describe('gatedToolRun', () => {
     const run = gatedToolRun(gated, request, gate)
     const pending = run({})
     await sleep(60)
-    const parts = processor.getMessages().flatMap((message) => message.parts)
-    const toolPart = parts.find((part) => part.type === 'tool-call')
-    const approvalId = toolPart && 'approval' in toolPart && toolPart.approval ? toolPart.approval.id : undefined
-    if (approvalId === undefined) throw new Error('no approval id')
-    writeReply(db, 'conciv_x', approvalId, true)
-    changes.notify()
+    const id = approvalId()
+    if (id === undefined) throw new Error('no approval id')
+    asks.reply('conciv_x', id, true)
     await expect(pending).resolves.toBe('deleted')
     expect(ran.value).toBe(true)
   })
@@ -250,11 +234,9 @@ describe('code mode per-tool call events', () => {
   })
 
   test('gatedToolRun emits conciv:tool_error on deny', async () => {
-    const db = testDb()
-    const changes = makeChanges()
     const {events, context} = capturingContext()
     const gated = tool('canvas.delete', 'ask', async () => 'deleted')
-    const run = gatedToolRun(gated, request, denyingGate(['canvas.delete'], db, changes))
+    const run = gatedToolRun(gated, request, denyingGate(['canvas.delete']))
     await expect(run({}, context)).rejects.toThrow(/denied/i)
     const failure = events.find((event) => event.name === 'conciv:tool_error')
     expect(failure?.value).toMatchObject({error: expect.stringMatching(/denied/i)})

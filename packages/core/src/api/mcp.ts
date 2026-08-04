@@ -6,7 +6,7 @@ import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import {isContentPartArray, type ContentPart} from '@tanstack/ai'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import {HTTPException} from 'hono/http-exception'
-import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {logError} from '../lib/debug.js'
 
 export function sessionIdFromHeaders(headers: Headers): string | null {
@@ -14,6 +14,10 @@ export function sessionIdFromHeaders(headers: Headers): string | null {
   if (!raw) return null
   if (!isSessionId(raw)) throw new HTTPException(400, {message: 'invalid session id (must be ours)'})
   return raw
+}
+
+export function nativeIdFromHeaders(headers: Headers): string | null {
+  return headers.get(CONCIV_CLAUDE_SESSION_HEADER)?.trim() || null
 }
 
 type RegistrableTool = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
@@ -92,13 +96,18 @@ function buildServer(
   extensionTools: ExtensionServerTool[],
   request: ToolRequest,
   discovered: Set<string>,
+  decide: McpToolDecider,
 ): McpServer {
   const server = new McpServer({name: 'conciv', version: '0.0.0'})
   for (const tool of concivTools(ctx)) registerTool(server, tool, (args) => tool.execute(args))
   if (extensionTools.length > 0) registerDiscoverTool(server, extensionTools, discovered)
   for (const tool of extensionTools) {
     if (!discovered.has(tool.name)) continue
-    registerTool(server, tool, (args) => tool.execute(args, request))
+    registerTool(server, tool, async (args) => {
+      const decision = await decide(request.sessionId, tool.name, args)
+      if (decision === 'deny') throw new Error(`Tool "${tool.name}" was denied by the user`)
+      return tool.execute(args, request)
+    })
   }
   return server
 }
@@ -111,17 +120,23 @@ function discoveredNamesFor(store: Map<string, Set<string>>, sessionId: string):
   return created
 }
 
+export type McpToolDecider = (sessionId: string, toolName: string, input: unknown) => Promise<'allow' | 'deny'>
+
 export type McpVars = {
   mcp: {
     makeCtx: (sessionId: string) => ConcivToolContext
     extensionTools: ExtensionServerTool[]
     sessionModel: (sessionId: string) => string | null
     discovered: Map<string, Set<string>>
+    decide: McpToolDecider
+    sessionForNativeId: (nativeId: string) => Promise<string | null>
   }
 }
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
-  const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? ''
+  const nativeId = nativeIdFromHeaders(c.req.raw.headers)
+  const nativeOwner = nativeId ? await c.var.mcp.sessionForNativeId(nativeId) : null
+  const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? nativeOwner ?? ''
   const ctx = c.var.mcp.makeCtx(sessionId)
   const request: ToolRequest = {sessionId, model: c.var.mcp.sessionModel(sessionId)}
   const discovered = discoveredNamesFor(c.var.mcp.discovered, sessionId)
@@ -129,7 +144,7 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   })
-  await buildServer(ctx, c.var.mcp.extensionTools, request, discovered).connect(transport)
+  await buildServer(ctx, c.var.mcp.extensionTools, request, discovered, c.var.mcp.decide).connect(transport)
   return transport.handleRequest(c.req.raw)
 })
 

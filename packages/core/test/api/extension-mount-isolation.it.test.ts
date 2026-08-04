@@ -30,8 +30,8 @@ const healthyTool = defineTool({
 describe('extension mount isolation (real makeApp)', () => {
   const state = {stateRoot: undefined as string | undefined, made: undefined as MadeApp | undefined}
 
-  afterEach(() => {
-    state.made?.closeDb()
+  afterEach(async () => {
+    await state.made?.dispose()
     if (state.stateRoot) rmSync(state.stateRoot, {recursive: true, force: true})
     state.made = undefined
     state.stateRoot = undefined

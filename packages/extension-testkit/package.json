@@ -17,9 +17,11 @@
     "./core-kit": "./src/core-kit.ts",
     "./framework-fake": "./src/framework-fake.ts",
     "./host/grab": "./src/host/grab.ts",
-    "./widget-suite": "./src/widget-suite.ts"
+    "./widget-suite": "./src/widget-suite.ts",
+    "./test-host": "./src/test-host-config.ts"
   },
   "scripts": {
+    "build": "vite build -c vite.test-host.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run"
@@ -34,11 +36,12 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@conciv/uno-preset": "workspace:^",
     "@playwright/test": "^1.61.1",
     "@vitest/coverage-v8": "^4.1.8",
-    "get-port": "^7.2.0",
     "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
+    "unocss": "^66.7.2",
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.8",

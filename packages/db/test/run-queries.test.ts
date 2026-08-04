@@ -4,21 +4,15 @@ import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {openDb} from '../src/db.js'
 import {
-  claimRun,
   clearImageHistory,
   clearRunState,
   foldRunMessagesIntoImageHistory,
   hasRichPart,
   imageHistoryFor,
-  lastErrorForEpoch,
   modelOf,
-  releaseRun,
   replyFor,
-  requestStop,
-  runEpochOf,
   runMessagesFor,
   setRunMessages,
-  statusOf,
   writeReply,
 } from '../src/run-queries.js'
 import {sessions} from '../src/schema.js'
@@ -26,23 +20,6 @@ import {sessions} from '../src/schema.js'
 const fresh = () => openDb(mkdtempSync(join(tmpdir(), 'conciv-run-')))
 
 describe('run lifecycle queries', () => {
-  it('claimRun is atomic, bumps runEpoch, and clears prior run rows', () => {
-    const db = fresh()
-    setRunMessages(db, 's1', [{id: 'stale'}])
-    writeReply(db, 's1', 'stale-key', true)
-    expect(runEpochOf(db, 's1')).toBe(0)
-    expect(claimRun(db, 's1', 'chat')).toBe(1)
-    expect(claimRun(db, 's1', 'chat')).toBeNull()
-    expect(statusOf(db, 's1')).toBe('running')
-    expect(runEpochOf(db, 's1')).toBe(1)
-    expect(runMessagesFor(db, 's1')).toBeNull()
-    expect(replyFor(db, 's1', 'stale-key')).toBeNull()
-    releaseRun(db, 's1', null)
-    expect(statusOf(db, 's1')).toBe('idle')
-    expect(claimRun(db, 's1', 'compact')).toBe(2)
-    expect(statusOf(db, 's1')).toBe('compacting')
-  })
-
   it('fold moves image-bearing run messages into image history and clears the run row', () => {
     const db = fresh()
     const imageTurn = [
@@ -87,35 +64,8 @@ describe('run lifecycle queries', () => {
     expect(runMessagesFor(db, 's9')?.messages).toEqual([{id: 'live'}])
   })
 
-  it('releaseRun keys lastError to its epoch and it survives the next claim', () => {
-    const db = fresh()
-    claimRun(db, 's2', 'chat')
-    releaseRun(db, 's2', 'boom')
-    expect(lastErrorForEpoch(db, 's2', 1)).toBe('boom')
-    claimRun(db, 's2', 'chat')
-    expect(lastErrorForEpoch(db, 's2', 1)).toBe('boom')
-    expect(lastErrorForEpoch(db, 's2', 2)).toBeNull()
-    releaseRun(db, 's2', null)
-    expect(lastErrorForEpoch(db, 's2', 1)).toBeNull()
-    expect(lastErrorForEpoch(db, 's2', 2)).toBeNull()
-  })
-
-  it('requestStop only flips a live run', () => {
-    const db = fresh()
-    expect(requestStop(db, 's3')).toBe(false)
-    claimRun(db, 's3', 'chat')
-    expect(requestStop(db, 's3')).toBe(true)
-    expect(statusOf(db, 's3')).toBe('stopping')
-    expect(requestStop(db, 's3')).toBe(false)
-    releaseRun(db, 's3')
-    expect(statusOf(db, 's3')).toBe('idle')
-  })
-
   it('reads fall back safely for unknown sessions', () => {
     const db = fresh()
-    expect(statusOf(db, 'missing')).toBe('idle')
-    expect(runEpochOf(db, 'missing')).toBe(0)
-    expect(lastErrorForEpoch(db, 'missing', 1)).toBeNull()
     expect(modelOf(db, 'missing')).toBeNull()
     expect(runMessagesFor(db, 'missing')).toBeNull()
     expect(replyFor(db, 'missing', 'k')).toBeNull()
@@ -154,14 +104,12 @@ describe('run lifecycle queries', () => {
 
   it('clearRunState removes everything for the session only', () => {
     const db = fresh()
-    claimRun(db, 's5', 'chat')
     setRunMessages(db, 's5', [{id: 'm', parts: [{type: 'image'}]}])
     foldRunMessagesIntoImageHistory(db, 's5')
     setRunMessages(db, 's5', [{id: 'm'}])
     writeReply(db, 's5', 'k', 1)
     setRunMessages(db, 'other', [{id: 'o'}])
     clearRunState(db, 's5')
-    expect(statusOf(db, 's5')).toBe('idle')
     expect(runMessagesFor(db, 's5')).toBeNull()
     expect(imageHistoryFor(db, 's5')).toBeNull()
     expect(replyFor(db, 's5', 'k')).toBeNull()

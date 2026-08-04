@@ -1,0 +1,9 @@
+{"type":"session","id":"root","timestamp":"2026-07-30T13:23:05.125Z","cwd":"/workspace/demo"}
+{"type":"session_info","name":"Rename the panel"}
+{"type":"model_change","modelId":"pi-1"}
+{"type":"message","id":"m1","parentId":null,"message":{"role":"user","content":"rename the panel"}}
+{"type":"message","id":"m2","parentId":"m1","message":{"role":"assistant","content":[{"type":"thinking","thinking":"hmm"},{"type":"toolCall","id":"tc1","name":"read","arguments":{"path":"a"}}]}}
+{"type":"message","id":"m3","parentId":"m2","message":{"role":"toolResult","toolCallId":"tc1","content":"body"}}
+{"type":"message","id":"m_dead","parentId":"m1","message":{"role":"assistant","content":[{"type":"text","text":"x"}]}}
+{"type":"message","id":"m4","parentId":"m3","message":{"role":"assistant","content":[{"type":"text","text":"done"}]}}
+{"type":"model_change","modelId":"pi-2"}

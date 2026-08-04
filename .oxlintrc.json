@@ -2,15 +2,29 @@
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "unicorn"],
   "jsPlugins": [
-    {"name": "unocss", "specifier": "@unocss/eslint-plugin"},
-    {"name": "playwright", "specifier": "eslint-plugin-playwright"},
-    {"name": "conciv", "specifier": "./packages/oxlint-plugin/src/plugin.js"}
+    {
+      "name": "unocss",
+      "specifier": "@unocss/eslint-plugin"
+    },
+    {
+      "name": "playwright",
+      "specifier": "eslint-plugin-playwright"
+    },
+    {
+      "name": "solid",
+      "specifier": "eslint-plugin-solid"
+    },
+    {
+      "name": "conciv",
+      "specifier": "./packages/oxlint-plugin/src/plugin.js"
+    }
   ],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
   },
   "rules": {
+    "conciv/banned-vocabulary": "error",
     "conciv/no-comments": "error",
     "conciv/no-locator-poll": "error",
     "unicorn/consistent-function-scoping": "off",
@@ -51,6 +65,27 @@
       }
     ],
     "unocss/order": "warn",
+    "solid/jsx-no-duplicate-props": "error",
+    "solid/jsx-no-undef": "error",
+    "solid/jsx-uses-vars": "error",
+    "solid/no-unknown-namespaces": "error",
+    "solid/no-innerhtml": "warn",
+    "solid/jsx-no-script-url": "error",
+    "solid/components-return-once": "warn",
+    "solid/no-destructure": "warn",
+    "solid/prefer-for": "warn",
+    "solid/reactivity": [
+      "error",
+      {
+        "customReactiveFunctions": ["makeEventListener", "makeEventListenerStack", "makeTimer", "registerLayer"]
+      }
+    ],
+    "solid/event-handlers": "error",
+    "solid/imports": "error",
+    "solid/style-prop": "warn",
+    "solid/no-react-deps": "error",
+    "solid/no-react-specific-props": "warn",
+    "solid/self-closing-comp": "error",
     "no-restricted-imports": [
       "error",
       {
@@ -58,14 +93,14 @@
           {
             "name": "@hono/node-server",
             "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
-            "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve — the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+            "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
           }
         ],
         "patterns": [
           {
             "group": ["@ark-ui", "@ark-ui/**"],
             "allowImportNames": ["useListCollection", "useFilter"],
-            "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly — only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
+            "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly \u2014 only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
           }
         ]
       }
@@ -93,6 +128,12 @@
       "files": ["packages/serve/**"],
       "rules": {
         "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["packages/react/**", "packages/preact/**"],
+      "rules": {
+        "solid/reactivity": "off"
       }
     },
     {
@@ -146,6 +187,30 @@
         "playwright/no-eval": "off",
         "playwright/no-element-handle": "off",
         "playwright/prefer-native-locators": "off"
+      }
+    },
+    {
+      "files": ["packages/core/src/**"],
+      "rules": {
+        "conciv/core-purity": "error"
+      }
+    },
+    {
+      "files": ["**/test/**", "**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "conciv/banned-vocabulary": "off"
+      }
+    },
+    {
+      "files": ["packages/harness-testkit/src/**", "packages/extension-testkit/src/**"],
+      "rules": {
+        "conciv/no-predicate-waits": "error"
+      }
+    },
+    {
+      "files": ["**/until.ts", "**/run-stream.ts"],
+      "rules": {
+        "conciv/no-predicate-waits": "off"
       }
     }
   ],

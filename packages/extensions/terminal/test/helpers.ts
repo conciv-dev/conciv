@@ -11,31 +11,23 @@ import {
   type ServerHarness,
   type ServerSessions,
 } from '@conciv/extension'
-import type {TtyCommandOpts} from '@conciv/protocol/terminal-types'
+import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
 
-export type FakeSessions = ServerSessions & {
-  tokens: Map<string, string>
-  busy: Set<string>
-  fireChatTurn: (sessionId: string) => void
-}
+export type FakeSessions = ServerSessions & {tokens: Map<string, string>}
 
 function fakeSessions(): FakeSessions {
   const tokens = new Map<string, string>()
-  const busy = new Set<string>()
-  const listeners: ((sessionId: string) => void)[] = []
   return {
     tokens,
-    busy,
-    fireChatTurn: (sessionId) => listeners.forEach((listener) => listener(sessionId)),
     resumeToken: (sessionId) => Promise.resolve(tokens.get(sessionId) ?? null),
     recordToken: (sessionId, token) => {
       tokens.set(sessionId, token)
       return Promise.resolve()
     },
-    chatBusy: (sessionId) => busy.has(sessionId),
+    chatBusy: () => false,
     model: () => Promise.resolve(null),
-    onChatTurn: (listener) => listeners.push(listener),
+    onChatTurn: () => {},
   }
 }
 
@@ -61,17 +53,35 @@ export const bashHarness: ServerHarness = {
   release: () => {},
 }
 
-export function recordingHarness(): {harness: ServerHarness; captured: TtyCommandOpts[]} {
-  const captured: TtyCommandOpts[] = []
+export function recordingHarness(): {harness: ServerHarness; captured: HarnessConnectContext[]} {
+  const captured: HarnessConnectContext[] = []
   const command = bashHarness.ttyCommand
   if (!command) throw new Error('bash harness has no tty command')
   return {
     captured,
     harness: {
       ...bashHarness,
-      ttyCommand: (opts) => {
-        captured.push(opts)
-        return command(opts)
+      ttyCommand: (ctx) => {
+        captured.push(ctx)
+        return command(ctx)
+      },
+    },
+  }
+}
+
+export function connectingHarness(): {harness: ServerHarness; captured: HarnessConnectContext[]} {
+  const captured: HarnessConnectContext[] = []
+  return {
+    captured,
+    harness: {
+      ...bashHarness,
+      connectPlan: (ctx) => {
+        captured.push(ctx)
+        return {
+          argv: ['fake-cli', '--session', ctx.harnessSessionId ?? 'new', ...(ctx.mcpUrl ? ['--mcp', ctx.mcpUrl] : [])],
+          env: {CONCIV_LAUNCH: 'yes'},
+          files: [],
+        }
       },
     },
   }
@@ -81,6 +91,7 @@ export type TerminalTestServer = {
   base: string
   wsBase: string
   sessions: FakeSessions
+  stateDir: string
   rpc: ReturnType<typeof makeExtRpcClient<TerminalRouter>>
   close: () => Promise<void>
 }
@@ -89,14 +100,17 @@ function isRouter(candidate: unknown): candidate is AnyRouter {
   return typeof candidate === 'object' && candidate !== null
 }
 
-export async function startTerminalServer(harness: ServerHarness = bashHarness): Promise<TerminalTestServer> {
+export async function startTerminalServer(
+  harness: ServerHarness = bashHarness,
+  stateDir = concivStateDir(process.cwd()),
+): Promise<TerminalTestServer> {
   const app = new Hono()
   app.use(cors())
   const sessions = fakeSessions()
   const api: ServerApi<Record<never, never>> = {
     config: {},
     cwd: process.cwd(),
-    stateDir: concivStateDir(process.cwd()),
+    stateDir,
     sessions,
     harness,
     page: noWidgetPageCaller('terminal'),
@@ -120,6 +134,7 @@ export async function startTerminalServer(harness: ServerHarness = bashHarness):
     base: served.base,
     wsBase: served.wsBase,
     sessions,
+    stateDir,
     rpc: makeExtRpcClient<TerminalRouter>(served.base, 'terminal'),
     close: async () => {
       await result?.dispose?.()

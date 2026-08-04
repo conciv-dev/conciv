@@ -1,6 +1,6 @@
 import {test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {CONCIV_TANSTACK_CLIENT_SENTINEL} from '../src/client-sentinel.js'
+import {CONCIV_TANSTACK_CLIENT_LABEL} from '../src/client-sentinel.js'
 import {gotoAbout, useTanstackTestApi, waitForAboutQuery, waitForWidget} from './helpers/tanstack-test-api.js'
 
 const get = useTanstackTestApi()
@@ -27,6 +27,6 @@ test('the tanstack client surface mounts a composer chip in the open widget', as
 
   const chip = api.page
     .getByRole('dialog', {name: 'conciv chat agent'})
-    .getByText(CONCIV_TANSTACK_CLIENT_SENTINEL, {exact: true})
+    .getByRole('status', {name: CONCIV_TANSTACK_CLIENT_LABEL})
   await expectLocator(chip).toBeVisible({timeout: 15_000})
 })

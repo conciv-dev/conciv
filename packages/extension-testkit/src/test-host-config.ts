@@ -1,0 +1,81 @@
+import {join} from 'node:path'
+import {fileURLToPath} from 'node:url'
+import type {Plugin, PluginOption, UserConfig} from 'vite'
+import solid from 'vite-plugin-solid'
+import UnoCSS from 'unocss/vite'
+import {presetConciv} from '@conciv/uno-preset'
+import {
+  concivSolidConfig,
+  loadExtensionsModule,
+  resolveExtensionsModule,
+  transformConcivModule,
+} from '@conciv/extension-compiler/vite-plumbing'
+import {type Builtins, NO_BUILTINS} from '@conciv/extension-compiler/extensions'
+
+const VIRTUAL_ID = 'virtual:conciv-extension-under-test'
+const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_ID}`
+
+function concivBuildPlugin(builtins: Builtins): Plugin {
+  let root = process.cwd()
+  let deferToTsd = false
+  return {
+    name: 'conciv:build',
+    enforce: 'pre',
+    config: () => concivSolidConfig(),
+    configResolved(config) {
+      root = config.root
+      deferToTsd = config.plugins.some((plugin) => plugin.name === '@tanstack/devtools:inject-source')
+    },
+    resolveId: (id) => resolveExtensionsModule(id),
+    load: (id) =>
+      loadExtensionsModule(id, builtins.clientEntries, undefined, builtins.embedEntry, builtins.dedupeEntry),
+    transform(code, id, opts) {
+      return transformConcivModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
+    },
+  }
+}
+
+function extensionUnderTestPlugin(clientEntry: string): Plugin {
+  return {
+    name: 'conciv-testkit-extension-under-test',
+    resolveId: (id) => (id === VIRTUAL_ID ? RESOLVED_VIRTUAL_ID : null),
+    load: (id) => (id === RESOLVED_VIRTUAL_ID ? `export {default} from ${JSON.stringify(clientEntry)}` : null),
+  }
+}
+
+export type TestHostConfigOptions = {
+  clientEntry: string
+  outDir: string
+  root?: string
+  plugins?: PluginOption[]
+}
+
+export function testHostConfig(options: TestHostConfigOptions): UserConfig {
+  const root = options.root ?? fileURLToPath(new URL('./host', import.meta.url))
+  return {
+    root,
+    logLevel: 'silent',
+    plugins: [
+      concivBuildPlugin(NO_BUILTINS),
+      extensionUnderTestPlugin(options.clientEntry),
+      UnoCSS({
+        configFile: false,
+        presets: [presetConciv()],
+        content: {pipeline: {include: [/\.[jt]sx?($|\?)/]}},
+      }),
+      ...(options.plugins ?? [solid()]),
+    ],
+    build: {
+      outDir: options.outDir,
+      emptyOutDir: true,
+      rollupOptions: {
+        input: join(root, 'index.html'),
+        output: {
+          codeSplitting: {
+            groups: [{name: 'shiki', test: /node_modules[\\/](shiki|@shikijs[\\/][^\\/]+)[\\/]/}],
+          },
+        },
+      },
+    },
+  }
+}

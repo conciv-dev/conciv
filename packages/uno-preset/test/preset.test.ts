@@ -34,6 +34,39 @@ describe('shortcuts', () => {
   })
 })
 
+const LOOPING = [
+  'anim-dot1',
+  'anim-dot2',
+  'anim-dot3',
+  'anim-switching',
+  'anim-compact',
+  'anim-fab-ring',
+  'anim-pulse',
+  'anim-skel',
+  'anim-test-rot',
+  'anim-tool-spin',
+  'anim-think-shimmer',
+]
+
+describe('reduced motion', () => {
+  it.each(LOOPING)('%s stops animating under prefers-reduced-motion', async (name) => {
+    const {css} = await generate(name)
+    const reduced = css.split('@media (prefers-reduced-motion: reduce)')[1] ?? ''
+    expect(reduced).toContain(`.${name}{animation:none;}`)
+  })
+
+  it('lists every shortcut that animates forever', () => {
+    const loops = (body: string): boolean =>
+      body.includes('animate-iteration-count-infinite') ||
+      body.includes('animate-pulse') ||
+      body.includes('animate-spin')
+    const forever = Object.entries(motion)
+      .filter(([, body]) => loops(body))
+      .map(([name]) => name)
+    expect(forever.toSorted()).toEqual(LOOPING.toSorted())
+  })
+})
+
 describe('keyframes', () => {
   const referenced = [
     ...new Set(

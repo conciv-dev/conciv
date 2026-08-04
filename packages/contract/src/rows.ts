@@ -1,8 +1,6 @@
 import {z} from 'zod'
+import {NativeSessionRefSchema} from '@conciv/protocol/chat-types'
 import {UsageSnapshotSchema} from '@conciv/protocol/usage-types'
-
-export const SessionStatusSchema = z.enum(['idle', 'running', 'compacting'])
-export type SessionStatus = z.infer<typeof SessionStatusSchema>
 
 export {UsageSnapshotSchema}
 export type UsageSnapshot = z.infer<typeof UsageSnapshotSchema>
@@ -15,8 +13,9 @@ export const SessionMetaSchema = z.object({
   running: z.boolean(),
   origin: z.enum(['conciv', 'external']),
   usage: UsageSnapshotSchema.nullable(),
-  status: SessionStatusSchema,
   model: z.string().nullable(),
+  hidden: z.boolean(),
+  native: NativeSessionRefSchema.nullable(),
 })
 export type SessionMeta = z.infer<typeof SessionMetaSchema>
 

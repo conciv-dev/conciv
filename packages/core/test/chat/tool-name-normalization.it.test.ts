@@ -1,9 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {EventType} from '@tanstack/ai'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
-import {toolCallParts} from '../../src/chat/gate.js'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 
@@ -31,11 +29,9 @@ async function snapshotToolNames(kit: Kit, harness: TestHarness, wireName: strin
   const sessionId = await kit.session()
   harness.script.scriptToolCall(wireName, {}, {blocking: false})
   const stream = await kit.attach(sessionId)
-  await kit.rpc.chat.send({sessionId, text: 'ping the probe'})
+  await kit.rpc.chat.send({runId: 'tool-name-normalization-1', sessionId, text: 'ping the probe'})
   const events = await stream.done({hangGuardMs: 10_000})
-  const snapshot = events.all.findLast((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
-  if (!snapshot || snapshot.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('no snapshot')
-  return toolCallParts(snapshot.messages).map((part) => part.name)
+  return events.toolCalls().map((call) => call.name)
 }
 
 describe('tool-name normalization on the wire (IT)', () => {

@@ -3,6 +3,7 @@ import {defineConfig} from 'tsdown'
 export default defineConfig({
   entry: [
     'src/registry.ts',
+    'src/_shared/cwd.ts',
     'src/claude/index.ts',
     'src/codex/index.ts',
     'src/gemini-cli/index.ts',
