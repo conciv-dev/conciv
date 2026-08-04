@@ -1,1 +1,2 @@
 export const CONCIV_TANSTACK_CLIENT_SENTINEL = 'TanStack'
+export const CONCIV_TANSTACK_CLIENT_LABEL = `${CONCIV_TANSTACK_CLIENT_SENTINEL} inspector active`
