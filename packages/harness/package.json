@@ -36,6 +36,10 @@
       "types": "./dist/claude/index.d.ts",
       "import": "./dist/claude/index.js"
     },
+    "./claude-connect-files": {
+      "types": "./dist/claude/connect-plugin-files.d.ts",
+      "import": "./dist/claude/connect-plugin-files.js"
+    },
     "./codex": {
       "types": "./dist/codex/index.d.ts",
       "import": "./dist/codex/index.js"
