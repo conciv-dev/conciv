@@ -31,11 +31,11 @@ async function installCard(cwd: string): Promise<ManualCard> {
   return {title: `Install ${itName}`, body: 'The automatic install failed. Run this in your project:', snippet: command}
 }
 
-const nypmAdd: AddDep = async (name, opts) => {
+export const addWithNypm: AddDep = async (name, opts) => {
   await addDevDependency(name, {cwd: opts.cwd, silent: true})
 }
 
-export function installItStep(add: AddDep = nypmAdd): InitStep {
+export function installItStep(add: AddDep = addWithNypm): InitStep {
   return {
     id: 'install',
     title: `Install ${itName}`,

@@ -10,8 +10,8 @@ describe('isConcivSrcTsx', () => {
     expect(isConcivSrcTsx(fixture('scoped/src/button.tsx'))).toBe(true)
   })
 
-  it('matches src tsx inside the package named conciv', () => {
-    expect(isConcivSrcTsx(fixture('app/src/entry.tsx'))).toBe(true)
+  it('rejects src tsx inside a package named bare conciv (the CLI owns that name)', () => {
+    expect(isConcivSrcTsx(fixture('app/src/entry.tsx'))).toBe(false)
   })
 
   it('rejects src tsx belonging to a host package', () => {

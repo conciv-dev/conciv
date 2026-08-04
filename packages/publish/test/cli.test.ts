@@ -2,7 +2,13 @@ import {test, expect} from 'vitest'
 import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {assertBootstrappable, assertValidPackageName, assertValidTag} from '../src/guards.ts'
+import {
+  PUBLIC_PACKAGES,
+  assertBootstrappable,
+  assertPublicSet,
+  assertValidPackageName,
+  assertValidTag,
+} from '../src/guards.ts'
 
 test('accepts plain dist-tags', () => {
   expect(() => assertValidTag('beta')).not.toThrow()
@@ -21,9 +27,37 @@ test('accepts scoped conciv package names', () => {
 })
 
 test('rejects foreign scopes and flag-like package names (argument injection)', () => {
-  for (const bad of ['@evil/pkg', 'core', '--registry=https://evil.dev', '@conciv/Core', '@conciv/a b', '']) {
+  for (const bad of ['@evil/pkg', 'core', 'rogue', '--registry=https://evil.dev', '@conciv/Core', '@conciv/a b', '']) {
     expect(() => assertValidPackageName(bad), bad).toThrow(/invalid package name/)
   }
+})
+
+test('accepts the bare conciv front-door name', () => {
+  expect(() => assertValidPackageName('conciv')).not.toThrow()
+})
+
+async function publicWorkspace(names: string[]): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'public-set-'))
+  await Promise.all(
+    names.map(async (name, index) => {
+      const dir = join(root, 'packages', `pkg-${index}`)
+      await mkdir(dir, {recursive: true})
+      await writeFile(join(dir, 'package.json'), JSON.stringify({name, version: '0.0.14'}))
+    }),
+  )
+  return root
+}
+
+test('assertPublicSet accepts the full public set including the bare conciv package', async () => {
+  const root = await publicWorkspace([...PUBLIC_PACKAGES])
+  await expect(assertPublicSet(root)).resolves.toBeUndefined()
+  await rm(root, {recursive: true, force: true})
+})
+
+test('assertPublicSet reports the bare conciv package when the workspace lost it', async () => {
+  const root = await publicWorkspace(PUBLIC_PACKAGES.filter((name) => name !== 'conciv'))
+  await expect(assertPublicSet(root)).rejects.toThrow(/missing: \[conciv\]/)
+  await rm(root, {recursive: true, force: true})
 })
 
 async function workspaceWith(manifest: object): Promise<string> {

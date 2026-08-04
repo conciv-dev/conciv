@@ -1,5 +1,5 @@
 {
-  "projectName": "conciv",
+  "projectName": "@conciv/app",
   "mode": "file-router",
   "typescript": true,
   "tailwind": true,

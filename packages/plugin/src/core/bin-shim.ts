@@ -10,7 +10,7 @@ export function installConcivBinShim(stateDir: string): string {
   try {
     const shim = join(binDir, 'conciv')
     rmSync(shim, {force: true})
-    symlinkSync(require.resolve('@conciv/cli/bin'), shim)
+    symlinkSync(require.resolve('conciv/bin'), shim)
   } catch {}
   return `${binDir}${delimiter}${process.env.PATH ?? ''}`
 }

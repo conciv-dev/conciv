@@ -1,7 +1,7 @@
 {
-  "name": "@conciv/cli",
+  "name": "conciv",
   "version": "0.0.17",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv agent-facing CLI: `conciv tools` (drive the live page/vite/tests). citty command tree, zod-validated args.",
+  "description": "The conciv front door: `npx conciv@latest init` sets your project up end to end, and `conciv tools` gives your coding agent the live page, React tree, and dev server.",
   "keywords": [
     "ai-agent",
     "cli",

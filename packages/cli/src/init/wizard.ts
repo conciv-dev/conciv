@@ -4,15 +4,18 @@ import type {FoundHarness, HarnessId} from './harness-detect.js'
 export type FoundSelections = {framework: Framework; harnesses: FoundHarness[]}
 export type ConfirmedSelections = {framework: boolean; harnesses: HarnessId[]}
 
+export type PromptSelections = (found: FoundSelections) => Promise<ConfirmedSelections | 'cancelled'>
+
 export async function confirmSelections(
   found: FoundSelections,
   yes: boolean,
+  prompts: PromptSelections = promptSelections,
 ): Promise<ConfirmedSelections | 'cancelled'> {
   if (yes) return {framework: true, harnesses: found.harnesses.map((harness) => harness.id)}
-  return promptSelections(found)
+  return prompts(found)
 }
 
-async function promptSelections(found: FoundSelections): Promise<ConfirmedSelections | 'cancelled'> {
+export async function promptSelections(found: FoundSelections): Promise<ConfirmedSelections | 'cancelled'> {
   const clack = await import('@clack/prompts')
   clack.intro('conciv init')
   const harnesses = await pickHarnesses(clack, found.harnesses)
