@@ -1,6 +1,7 @@
 import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {HarnessId} from '../../harness-detect.js'
+import {captureFile} from '../../interrupt.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
 
 const startMarker = '<!-- conciv:start -->'
@@ -81,6 +82,7 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
     apply: async (ctx) => {
       const section = agentsSection(consented())
       for (const file of targets(ctx.cwd)) {
+        ctx.backup(captureFile(file))
         upsertSection(file, section)
       }
       return {status: 'done'}

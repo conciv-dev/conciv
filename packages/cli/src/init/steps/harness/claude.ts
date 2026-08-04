@@ -7,6 +7,7 @@ import {
   CLAUDE_CONNECT_INSTALL_TARGET,
 } from '@conciv/harness/claude-connect-files'
 import type {HarnessId} from '../../harness-detect.js'
+import {captureFile} from '../../interrupt.js'
 import type {ManualCard, StepOutcome} from '../../ledger.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
 
@@ -46,9 +47,10 @@ function installCard(root: string): ManualCard {
   }
 }
 
-function writePluginFiles(stateDir: string): void {
+function writePluginFiles(ctx: InitContext, stateDir: string): void {
   for (const file of claudeConnectPluginFiles({stateDir, mcpUrl: '', hookUrl: ''})) {
     mkdirSync(dirname(file.path), {recursive: true})
+    ctx.backup(captureFile(file.path))
     writeFileSync(file.path, file.contents, {mode: file.mode ?? 0o600})
   }
 }
@@ -68,7 +70,7 @@ async function applyClaude(ctx: InitContext, consented: () => HarnessId[], io: C
   if (!consented().includes('claude')) return {status: 'skipped', detail: 'not selected'}
   const stateDir = stateDirOf(ctx.cwd)
   const root = claudeConnectDir(stateDir)
-  writePluginFiles(stateDir)
+  writePluginFiles(ctx, stateDir)
   for (const args of [marketplaceAddArgs(root), installArgs()]) {
     const failed = await runClaude(io, args)
     if (failed !== null) return {status: 'manual', cards: [installCard(root)], detail: failed}

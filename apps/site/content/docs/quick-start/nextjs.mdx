@@ -18,8 +18,8 @@ init detects Next.js from your package.json, installs `@conciv/it` with your pac
 your next config with `withConciv`, and creates `instrumentation.ts` and `instrumentation-client.ts`.
 If it cannot prove the shape of your config, it prints the exact snippet to paste instead.
 
-init refuses a dirty git tree; commit first or pass `--force`. `--dry-run` prints the plan without
-touching anything.
+init prints the whole plan and asks once before it writes anything; `--yes` approves it up front and
+`--dry-run` prints it and exits. It refuses a dirty git tree; commit first or pass `--force`.
 
 </Tab>
 

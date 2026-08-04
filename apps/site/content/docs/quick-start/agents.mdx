@@ -15,14 +15,22 @@ No MCP config, no addresses, nothing to maintain.
 npx conciv@latest init
 ```
 
-init scans for installed harnesses (claude, codex, opencode, pi) and asks which ones to teach in a
-multiselect. Consenting writes a marked conciv section into AGENTS.md (and CLAUDE.md if you keep
-one); re-running init updates that section in place. claude is the one harness with a deeper
-integration: init also installs the conciv-connect plugin through claude's native plugin manager,
-scoped to the project.
+init scans for installed harnesses (claude, codex, opencode, pi) and lists what it found in the plan
+it prints before doing anything — `● claude` for a harness it will teach, `○ codex (not found)` for
+one that is not installed. Pick `Adjust` at the prompt to choose the harnesses in a multiselect.
 
-init refuses a dirty git tree; commit first or pass `--force`. `--dry-run` prints the plan without
-touching anything.
+Approving the plan writes a marked conciv section into AGENTS.md (and CLAUDE.md if you keep one),
+whether or not any harness was found; the section names the harnesses you picked in a
+`Set up for:` line. Re-running init updates that section in place and reports it as
+`already wired` when it is current.
+
+claude is the one harness with a deeper integration: init also installs the conciv-connect plugin
+through claude's native plugin manager, scoped to the project. If the claude CLI is not selected the
+step resolves as `skipped: not selected`, and if the plugin manager fails init prints the two
+commands to run yourself.
+
+init prints the whole plan and asks once before it writes anything; `--yes` approves it up front and
+`--dry-run` prints it and exits. It refuses a dirty git tree; commit first or pass `--force`.
 
 </Tab>
 

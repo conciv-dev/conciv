@@ -1,8 +1,8 @@
-import {mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {guardBackups, onInterrupt} from '../src/init/interrupt.js'
+import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
 
 function scratchFile(name: string, content: string): string {
   const dir = mkdtempSync(join(tmpdir(), 'conciv-interrupt-'))
@@ -48,6 +48,27 @@ describe('guardBackups', () => {
     writeFileSync(path, 'after release')
     process.emit('exit', 0)
     expect(readFileSync(path, 'utf8')).toBe('after release')
+  })
+
+  it('removes a file the run created when the captured backup recorded it as absent', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'conciv-interrupt-'))
+    const created = join(dir, 'AGENTS.md')
+    const guard = guardBackups()
+    guard.remember(captureFile(created))
+    writeFileSync(created, 'written mid-run')
+    guard.restore()
+    guard.release()
+    expect(existsSync(created)).toBe(false)
+  })
+
+  it('captures the current content of a file that already exists', () => {
+    const path = scratchFile('vite.config.ts', 'original')
+    const guard = guardBackups()
+    guard.remember(captureFile(path))
+    writeFileSync(path, 'clobbered')
+    guard.restore()
+    guard.release()
+    expect(readFileSync(path, 'utf8')).toBe('original')
   })
 
   it('leaves no exit listener behind after release', () => {

@@ -1,6 +1,7 @@
 import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {Detected} from '../../detect.js'
+import {captureFile} from '../../interrupt.js'
 import type {ManualCard} from '../../ledger.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
 import {readConfig, writeConfigChange} from './config-edit.js'
@@ -77,7 +78,9 @@ function wireFile(ctx: InitContext, name: string, line: string): ManualCard | nu
   const state = fileState(ctx.cwd, name, line)
   if (state === 'wired') return null
   if (state === 'foreign') return fileCard(name, line)
-  writeFileSync(join(ctx.cwd, name), `${line}\n`)
+  const path = join(ctx.cwd, name)
+  ctx.backup(captureFile(path))
+  writeFileSync(path, `${line}\n`)
   ctx.report(`created ${name}`)
   return null
 }

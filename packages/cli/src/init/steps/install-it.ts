@@ -2,6 +2,7 @@ import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {addDependencyCommand, addDevDependency, detectPackageManager} from 'nypm'
 import {z} from 'zod'
+import {captureFile} from '../interrupt.js'
 import type {ManualCard} from '../ledger.js'
 import type {InitStep} from '../pipeline.js'
 
@@ -45,6 +46,7 @@ export function installItStep(add: AddDep, packageManager: string): InitStep {
     detect: async (ctx) => (hasIt(readManifest(ctx.cwd)) ? 'present' : 'missing'),
     plan: async () => ({summary: `add ${itName} as a dev dependency`, wouldEdit: ['package.json']}),
     apply: async (ctx) => {
+      ctx.backup(captureFile(join(ctx.cwd, 'package.json')))
       const failure = await add(itName, {cwd: ctx.cwd}).then(
         () => null,
         (error: unknown) => (error instanceof Error ? error.message : String(error)),

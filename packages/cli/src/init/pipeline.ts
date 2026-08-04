@@ -2,7 +2,7 @@ import {execFile} from 'node:child_process'
 import {homedir} from 'node:os'
 import {detectProject, type Detected} from './detect.js'
 import {detectHarnesses, harnessIds, type FoundHarness} from './harness-detect.js'
-import {guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
+import {captureFile, guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
 import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan} from './ledger.js'
 import {emitOutro} from './outro.js'
 import {preflight} from './preflight.js'
@@ -12,7 +12,7 @@ import {viteStep} from './steps/framework/vite.js'
 import {webpackFamilyStep} from './steps/framework/webpack-family.js'
 import {agentsMdStep} from './steps/harness/agents-md.js'
 import {claudeStep} from './steps/harness/claude.js'
-import {readConsent, writeConsent} from './steps/harness/consent.js'
+import {consentFile, readConsent, writeConsent} from './steps/harness/consent.js'
 import {addWithNypm, installItStep, type AddDep} from './steps/install-it.js'
 import {
   approvePlan,
@@ -187,8 +187,9 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     runtime.output.outro('Dry run — nothing changed.')
     return []
   }
-  writeConsent(options.cwd, approved.harnesses)
   const backups = guardBackups()
+  backups.remember(captureFile(consentFile(options.cwd)))
+  writeConsent(options.cwd, approved.harnesses)
   const settings: RunSettings = {
     cwd: options.cwd,
     yes: options.yes,

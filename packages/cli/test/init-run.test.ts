@@ -39,6 +39,13 @@ function commitAll(cwd: string): void {
   })
 }
 
+function pendingChanges(cwd: string): string[] {
+  return execFileSync('git', ['status', '--porcelain'], {cwd, encoding: 'utf8'})
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .toSorted()
+}
+
 function recorderPrompts(events: string[]): PlanPrompts {
   return {
     decide: async () => {
@@ -346,6 +353,30 @@ describe('runInit', () => {
     expect(run.events).toContain('cancel:Interrupted — your config was restored.')
     expect(run.exits).toEqual([130])
     expect(process.listeners('SIGINT')).toEqual(before)
+  })
+
+  it('leaves the working tree pristine when the run is interrupted mid-apply', async () => {
+    const run = fixture()
+    const before = process.listeners('SIGINT')
+    let atInterrupt: string[] | null = null
+    await runInit(
+      {yes: true, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        spawn: async (bin, args) => {
+          if (atInterrupt === null) {
+            const added = process.listeners('SIGINT').filter((listener) => !before.includes(listener))
+            expect(added).toHaveLength(1)
+            added[0]?.('SIGINT')
+            atInterrupt = pendingChanges(run.cwd)
+          }
+          return {code: 0, output: `${bin} ${args.join(' ')}`}
+        },
+      },
+    )
+    expect(atInterrupt).toEqual([])
+    expect(run.events).toContain('cancel:Interrupted — your config was restored.')
+    expect(run.exits).toEqual([130])
   })
 
   it('refuses a dirty tree with the reason and exit code 1', async () => {
