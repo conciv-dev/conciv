@@ -4,6 +4,8 @@ import {eq} from 'drizzle-orm'
 import {
   chat,
   EventType,
+  isTerminalRunStatus,
+  RUN_ACCEPTED_EVENT,
   StreamProcessor,
   type AnyTool,
   type ContentPart,
@@ -315,6 +317,8 @@ async function* runStream(
   req: RunRequest,
   abort: AbortController,
 ): AsyncGenerator<StreamChunk> {
+  yield {type: EventType.CUSTOM, name: RUN_ACCEPTED_EVENT, value: {}, timestamp: Date.now()}
+  const runLog = deps.durability(req.runId)
   const processor = new StreamProcessor({
     events: {onMessagesChange: (messages) => setRunMessages(deps.db, sessionId, messages)},
   })
@@ -322,11 +326,7 @@ async function* runStream(
   const gate = makeRunGate({
     sessionId,
     asks: deps.asks,
-    emit: (chunk) =>
-      void deps
-        .durability(req.runId)
-        .append([chunk])
-        .catch(() => {}),
+    emit: (chunk) => void runLog.append([chunk]).catch(() => {}),
     risky: deps.risky,
   })
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
@@ -449,8 +449,22 @@ async function composeUserContent(db: ConcivDb, sessionId: string, content: User
 
 export type Send = (sessionId: string, runId: string, content: UserContent) => Promise<string>
 
+const RUN_ID_REUSED_ERROR_NAME = 'RunIdReusedError'
+
+function runIdReusedError(runId: string): Error {
+  const error = new Error(`run ${runId} already finished; a runId cannot be reused`)
+  error.name = RUN_ID_REUSED_ERROR_NAME
+  return error
+}
+
+export function isRunIdReusedError(error: unknown): error is Error {
+  return error instanceof Error && error.name === RUN_ID_REUSED_ERROR_NAME
+}
+
 export function makeSend(deps: ChatDeps): Send {
   return async (sessionId, runId, content) => {
+    const existing = await deps.runControl.status(runId)
+    if (existing !== null && isTerminalRunStatus(existing.status)) throw runIdReusedError(runId)
     deps.onRunStart?.(sessionId)
     await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
     const userContent = await composeUserContent(deps.db, sessionId, content)

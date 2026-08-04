@@ -1,3 +1,5 @@
+import {ORPCError} from '@orpc/server'
+import {isRunIdReusedError} from '../../chat/run.js'
 import {stopSession} from '../../chat/stop.js'
 import {subscribeSession} from '../../chat/subscribe.js'
 import {os, type RpcDeps} from './mount.js'
@@ -9,7 +11,12 @@ export function chatRouter(deps: RpcDeps) {
       yield* subscribeSession(chat, input.sessionId, signal ?? new AbortController().signal)
     }),
     send: os.chat.send.handler(async ({input}) => {
-      const runId = await deps.send(input.sessionId, input.runId, input.content ?? input.text ?? '')
+      const runId = await deps
+        .send(input.sessionId, input.runId, input.content ?? input.text ?? '')
+        .catch((error: unknown) => {
+          if (isRunIdReusedError(error)) throw new ORPCError('CONFLICT', {message: error.message})
+          throw error
+        })
       return {ok: true as const, runId}
     }),
     stop: os.chat.stop.handler(({input}) => stopSession(chat, input.sessionId)),

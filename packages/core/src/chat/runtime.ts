@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto'
 import {
   InMemoryRunStore,
   memoryStream,
@@ -55,7 +56,9 @@ export function makeRunControl(firstChunkTimeoutMs?: number): {
   runControl: RunController
 } {
   const firstChunkDeadlineMs = (firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS) + READER_FIRST_APPEND_GRACE_MS
-  const durability = (runId: string): StreamDurability => memoryStream({runId}, {firstChunkDeadlineMs})
+  const instanceKey = randomUUID()
+  const durability = (runId: string): StreamDurability =>
+    memoryStream({runId: `${instanceKey}:${runId}`}, {firstChunkDeadlineMs})
   return {durability, runControl: new RunController({runs: new InMemoryRunStore(), durability})}
 }
 
