@@ -13,7 +13,7 @@ User rulings (binding, in the order they were settled):
 - the external agent reaches the registry through a **code-mode MCP server**, modelled on `cloudflare/mcp` —
   "let's do the MCP like they did", "this seems like the right one to inspire from"
 - **one** code-mode tool, with the catalog as a binding rather than a second tool
-- **one surface for both agents** — in-chat is code mode only too, not code mode layered over individual tools
+- **one surface, every agent and every harness** — code mode only; the per-harness `codeMode` flag is deleted
 - **reads auto-allow, mutations gate**, decided from each tool's own metadata
 
 ## Reference implementation — read it before writing any part of this
@@ -301,8 +301,32 @@ individually as lazy. So:
 - extension tools are exposed **twice** — individually and as bindings
 - the code-mode tools sit on top of both
 
-After this, the model gets one tool and the registry supplies its bindings, in-chat and over MCP alike. The
-same reads-auto-allow, mutations-gate rule applies in both, because it is one path.
+**Every harness, not only claude — the `codeMode` capability is on the wrong axis and is deleted.** It is set on
+exactly one harness today (`packages/harness/src/claude/index.ts:49`), which reads as a constraint and is not
+one. Tools reach a sandboxed agent through an **MCP tool-proxy** at the sandbox-middleware level, not through
+anything harness-specific: "each tool is exposed to the agent over this proxy… The tool's `execute()` runs on
+the host, keeping its DB handle, secrets, and any closures it captured." Our own codex config already depends on
+that, setting `mcp_servers.tanstack.default_tools_approval_mode` whenever `deps.hasTools`. All five harnesses
+declare `mcp: 'http'`, and a code-mode tool is an ordinary tool.
+
+What varies is the **model**, not the harness: "many small or older models mishandle the `external_*` calling
+conventions even when the system prompt is explicit." Their published evaluation puts every measured model at
+full accuracy, with Grok 4.1 Fast, Claude Haiku 4.5 and Gemini 2.5 Flash all clean under ten seconds; the ones
+it tells you to avoid are small **local** models, which "ignore shape requirements, hallucinate results, or
+refuse to invoke `execute_typescript`". Haiku 4.5 is the smallest model Anthropic ships, so every model our
+harnesses front sits at or above the tier that handles this cleanly.
+
+So: one exposure shape, everywhere, and the flag goes rather than being kept to choose between two. One good way
+beats two half-ways — and a capability flag that silently downgrades four harnesses onto a different surface is
+precisely how eleven parallel verb lists came to exist.
+
+Two things to verify per harness rather than assume, neither of them a reason to keep a second shape:
+
+- whether `emitCustomEvent` from a bridged tool reaches the stream, since that is what nests a capability call
+  under its enclosing code-mode call in the UI. The handler runs on the host and has the run context, but no
+  doc states that every adapter threads the event through. If one drops it, fix the adapter path.
+- that our generated binding names survive whatever `external_*` convention a given model expects — the same
+  mangling constraint the typed-bindings section names, now with a second reason to get it right.
 
 ### Environments resolve contents, never the interface
 
