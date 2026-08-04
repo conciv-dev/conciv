@@ -15,7 +15,7 @@ User rulings (binding):
 
 conciv's **in-chat** agent already has the modern setup: every extension tool is registered `lazy: true` (`packages/core/src/chat/runtime.ts:53,67`) and `packages/core/src/chat/code-mode.ts` builds a real code-mode surface with `createCodeMode` from `@tanstack/ai-code-mode`, per the implemented plan `docs/superpowers/plans/2026-07-19-lazy-discovery-code-mode.md` ("shrinking conciv's standing system prompt to near zero").
 
-An **external** agent — a terminal claude/codex session shelling out to our CLI — gets none of it: 38 page verbs whose descriptions are their own names, no discovery, no composition, and a raw undici stack trace when the dev server is down. Same product, two wildly different capabilities.
+An **external** agent — a terminal claude/codex session shelling out to our CLI — gets none of it: 37 page verbs whose descriptions are their own names, no discovery, no composition, and a raw undici stack trace when the dev server is down. Same product, two wildly different capabilities.
 
 ## Measured baseline (current build, 2026-08-04)
 
@@ -33,13 +33,13 @@ An **external** agent — a terminal claude/codex session shelling out to our CL
 
 **Cloudflare Code Mode** (`/agents/tools/codemode/`, `/agents/model-context-protocol/codemode/`): two patterns — a single `code` tool carrying typed methods for every upstream tool, or `search` + `execute` for large APIs. Crucially **their search is code, not a query**: the model writes `const spec = await codemode.spec(); return Object.entries(spec.paths).filter(…)`, the complete document stays inside the sandbox, and only the filtered subset enters context. Their `/agents/concepts/tools/` page presents direct tool calls and Code Mode as a choice of _interface_ — direct "when the task is simple and uses a small, known tool set", Code Mode "when the task needs composition, dependent calls, filtering, branching, repeatable logic, or tool discovery". Successful programs can be saved as reusable snippets.
 
-**Us**: `@tanstack/ai-code-mode` (installed, in use) exports `createCodeMode`, `createCodeModeTool`, `createDiscoveryTool`, `toolToBinding`/`toolsToBindings`, `generateTypeStubs`, `jsonSchemaToTypeScript`, `stripTypeScript`, `wrapCode`; `@tanstack/ai-isolate-node` provides the driver. `packages/contract` already exports `RpcClient = ContractRouterClient<typeof contract>` — the whole API typed from one zod contract. Nothing new to install.
+**Us**: `@tanstack/ai-code-mode` (installed, in use) exports `createCodeMode`, `createCodeModeTool`, `createDiscoveryTool`, `toolToBinding`/`toolsToBindings`, `generateTypeStubs`, `jsonSchemaToTypeScript`, `stripTypeScript`, `wrapCode`; `@tanstack/ai-isolate-node` provides the driver. `packages/contract` already exports `RpcClient = ContractRouterClient<typeof contract>` — the whole API typed from one zod contract. Both code-mode packages are dependencies of `packages/core` only, so the CLI would be adding them (see section 3).
 
 ## Design
 
 ### 1. One catalog, four consumers
 
-**The catalog is a registry of every leaf command, not of page verbs.** `PAGE_VERBS` (39 entries, driving the page and react trees through `leafCommandsFor`) covers only `page.run` verbs; the tree also has `page changes`, seven `server` operations, and `open`. A catalog that misses those is a catalog an agent cannot trust, so the registry is one typed list of leaf commands with `PAGE_VERBS` as one section of it, and the guard test asserts coverage **both ways** — every registered command appears in the registry, and every registry entry resolves to a registered command.
+**The catalog is a registry of every leaf command, not of page verbs.** `PAGE_VERBS` (38 entries, driving the page and react trees through `leafCommandsFor`) covers only `page.run` verbs; the tree also has `page changes`, seven `server` operations, and `open`. A catalog that misses those is a catalog an agent cannot trust, so the registry is one typed list of leaf commands with `PAGE_VERBS` as one section of it, and the guard test asserts coverage **both ways** — every registered command appears in the registry, and every registry entry resolves to a registered command.
 
 Each entry carries `summary` (one concrete line), `examples`, `category`, optional `keywords` for synonyms ("type" → fill, "press" → click), and — critically — **its input as a real zod schema, not a flag-name list**.
 
