@@ -59,7 +59,9 @@ The same 38 page verbs are written out in eleven places. Four are typed `Record<
 | `TYPE_VERBS` / `POINTER_VERBS` (ui-kit-chat-tools)      | wrong icon, silently                                  |
 | tool description (tools), 2 system prompts, 3 doc pages | the model is told the verb does not exist             |
 
-That last row is not hypothetical. `packages/tools/src/page.ts:14` describes the page tool to every model — chat, MCP, code mode — with a hand-written sentence listing **23 of 38 verbs**. `wait`, `attr`, `exists`, `css`, `eval` and every edit-live verb are missing. They work from the CLI and the in-widget agent does not know they exist.
+That last row is not hypothetical. `packages/tools/src/page.ts:14` describes the page tool to every model — chat, MCP, code mode — with a hand-written sentence naming **20 of the 38 verbs** in `PAGE_QUERY_KINDS`. The 18 it omits: `route`, `console`, `attr`, `exists`, `wait`, `effect`, `setattr`, `removeattr`, `addclass`, `removeclass`, `setstyle`, `settext`, `sethtml`, `remove`, `insert`, `css`, `eval`, `ext`. They work from the CLI and the in-widget agent does not know they exist.
+
+**The strongest evidence is one both reviews found and this spec originally missed.** The model-facing page tool does not go through `page.run` at all: it calls `ctx.page(query)`, which is wired to `pageBus.ask` (`packages/core/src/app.ts:343`), while journaling and `locate` symbolication live only in `runVerb` (`packages/core/src/page-bus.ts:148-160`). So **agent-driven page mutations are never journaled — there is no undo entry for them — and `locate` is never symbolicated for the agent.** The live-edit journal is CLI-only today. Two entry points to one capability, silently different in behaviour, is the drift this design exists to end; the `MUTATING_KINDS` row above is the weaker version of the same argument.
 
 Underneath all of it: one oRPC procedure, `page.run`, carrying a stringly-typed verb and a bag of ~20 all-optional fields. Nothing can be typed per verb, so every consumer rebuilt the missing knowledge by hand, and the copies drifted.
 
@@ -95,7 +97,13 @@ This is what makes every requirement native instead of rebuilt:
 - **schemas** — per tool, in and out
 - **types** — `RouterClient<typeof registry>`, a recursive mapped type
 
-Transport-level failures stay on the transport, where they belong: `NO_PAGE_CLIENT`, `PAGE_TIMEOUT`, `UNKNOWN_TOOL`, `INVALID_ARGS`. Two layers of declared error, each owned by the thing that can raise it. Today the page surface declares **none** — a failed verb returns a hand-written string that is shaped exactly like a success.
+Transport-level failures stay on the transport, where they belong: `NO_PAGE_CLIENT`, `PAGE_TIMEOUT`, `UNKNOWN_TOOL`, `INVALID_ARGS`. Two layers of declared error, each owned by the thing that can raise it. Today the transport declares a few codes at `packages/contract/src/contract.ts:81-85`, and the `ext` path already carries typed codes that this migration must not drop; what no page verb declares is an error of its own, so a failed verb comes back as a hand-written string shaped exactly like a success.
+
+**Where typed errors stop working, stated up front rather than as a risk.** They hold for every caller that speaks oRPC — the CLI, in-process callers, RPC over HTTP. They do **not** reach an agent writing code in the sandbox. The installed isolate driver reduces a binding's thrown error to its `message` alone (`@tanstack/ai-isolate-node@0.1.46/src/isolate-driver.ts:203-207`) and rethrows it inside the isolate as a fresh plain `Error` (`:223-225`), and the code-mode tool then forwards only `{message, name}` (`@tanstack/ai-code-mode/src/create-code-mode-tool.ts:236-255`). The code and the "this error was declared" flag are both gone; `isDefinedError` is structurally unusable there. Patching the dependency is not permitted by repo rule.
+
+So inside the sandbox a declared error is **text**: the code travels as a prefix on the message, and an agent branches on it by reading the exception. That is a real limitation of the surface, and the docs must say so rather than implying `isDefinedError` works everywhere.
+
+One consequence to fix rather than inherit: `execute_typescript` never throws and never sets `isError` — a failed execution returns `{success: false, error}` as an ordinary **successful** tool result, which is precisely the failure-shaped-like-success pattern this whole design condemns. Our MCP layer maps it to `isError: true`.
 
 ### oRPC is the SDK
 
@@ -129,7 +137,27 @@ Read those three before building this section.**
 | `search({code})`  | the catalog, read-only           | pure; no tool execution, so nothing to gate           |
 | `execute({code})` | every registry tool as a binding | each binding call passes the existing permission gate |
 
-**Two tools rather than one because the split is a trust boundary, not ergonomics.** In their `search.ts` the
+Two corrections to how this spec first described the reference. Their server registers **three** tools, not two
+— `docs`, `search`, `execute` (`cf-mcp/src/server.ts:21-23`); their own `AGENTS.md` says "just two tools" and is
+stale against its source. Two tools is **our** decision, arrived at by omitting their `docs`, not a property of
+theirs. And their trust split is available to them cheaply because the Workers loader takes arbitrary module
+source, so they interpolate the spec into a network-free isolate as data.
+
+**We cannot do that, and the search tool is work we write.** `createCodeModeTool` throws when given zero tools
+(`create-code-mode-tool.ts:102-103`), so there is no binding-free sandbox; `IsolateConfig` accepts only
+`bindings`, `timeout` and `memoryLimit` (`types.ts:27-41`), so there is no channel for baking a catalog in as
+data; and the driver installs functions rather than transferable object graphs
+(`isolate-driver.ts:193-228`), so the catalog reaches the sandbox as **a binding**, not as an embedded value.
+Building `search` as a genuinely separate read-only tool therefore means constructing a context against
+`driver.createContext` directly with the catalog as its only binding — roughly the body of
+`createCodeModeTool`, re-implemented. That is the price, and it buys one thing: `readOnlyHint` on a tool that
+provably cannot execute a capability, which is what lets a client auto-approve it.
+
+The alternative is one tool, with the catalog as a binding inside `execute`. Fewer concepts, no
+re-implementation, and search plus execution can happen in a single round trip — at the cost of every discovery
+call going through the approval path that execution uses. **This is the open decision.**
+
+**The trust boundary is real either way, and it is why their two are split.** In their `search.ts` the
 isolate is created with `globalOutbound: null` and the tool is annotated `readOnlyHint: true`; in `execute.ts`
 it gets a proxy that rejects every host but the API base and attaches the token _outside_ the code isolate,
 which their comment states plainly: "token comes from props, never enters user code isolate". Our equivalent
@@ -145,15 +173,40 @@ parallel verb lists violate, applied to the model-facing surface.
 
 Bindings are real and typed, which is where we should diverge from them. Their sandbox holds one function,
 `cloudflare.request({method, path, body})`, because 2,594 typed bindings is absurd; ours holds ~45 tools that
-already carry zod schemas, so each becomes `external_<name>(input)` and `generateTypeStubs` in
-`@tanstack/ai-code-mode` renders its declaration from the JSON schema. `search` returns those declarations, so
-what the model gets back is directly callable rather than a path string it has to assemble. The bindings
-themselves are always present in the sandbox — search reveals signatures, it does not grant access.
+already carry zod schemas, so each becomes a callable binding whose declaration `generateTypeStubs` renders
+from the JSON schema. What the model gets back is directly callable rather than a path string it has to
+assemble.
+
+Three constraints on that, all verified in the installed library rather than assumed:
+
+- **`$ref` must be pre-resolved, or the typing is a lie.** `json-schema-to-ts.ts:105-180` handles primitives,
+  arrays, objects, enums and unions; an object that is only a `$ref` falls through to `unknown`. Zod emits refs
+  for exactly the schemas we reuse most, so a shared `Target` would arrive as `unknown` — untyped precisely
+  where per-tool precision was the point. `allOf`, `const`, tuples and intersections are also unsupported.
+  Pre-resolution is therefore a **precondition of this design**, not a nice-to-have borrowed from the reference.
+- **Do not copy the reference's resolver.** `cf-mcp/src/spec-processor.ts:18-46` carries one mutable `seen` set
+  across sibling branches, so a schema legitimately reused twice gets marked `$circular` on its second
+  appearance, and it resolves JSON Pointers by direct property access without decoding `~0`/`~1`. Take the
+  requirement; write a per-branch ancestor-stack cycle check with proper pointer decoding, with fixtures for
+  both repeated refs and real cycles.
+- **A dotted name cannot be a binding name.** `isolate-driver.ts:216-228` builds each binding by evaluating a
+  function _declaration_ named after the tool, so `page.fill` is a syntax error. Name mangling between the
+  registry path and the sandbox identifier is part of the design, and the catalog must report the sandbox name
+  alongside the registry path or an agent will write a call that cannot parse.
+
+Bindings are always present in the sandbox — a search reveals signatures, it does not grant access.
 
 **Results are capped with a notice, not silently cut.** Their `truncateResponse` caps at 6,000 tokens and
 appends the reason plus what to do: "Response was ~N tokens (limit: 6,000). Use more specific queries to
 reduce response size." We need this more than they do, because `page snapshot` on a real application can
 dwarf that cap on its own.
+
+Take the policy, not the function. `cf-mcp/src/truncate.ts:12` slices serialized JSON at a UTF-16 offset, so
+the output is no longer valid JSON and can split a multi-byte character. And capping cannot be combined
+naively with `structuredContent`: if the text is capped while the structured field carries the full payload,
+the cap accomplishes nothing and the two disagree. So per tool: cap the text with its notice, and either return
+a schema-valid truncation envelope as the structured field or omit the structured field when the cap trips.
+Enforce the limit before serialization and test it with large multi-byte content.
 
 **One sandbox, two callers.** `packages/core/src/chat/code-mode.ts` already builds the in-chat code mode from
 `createCodeMode` in `@tanstack/ai-code-mode`; the MCP server calls the same function over the same registry
@@ -185,11 +238,26 @@ Reference for this whole subsection: `cloudflare/mcp` at `0702302`, file named p
 | **Fail fast with a sentence, never a silently wrong value.** With no account resolved they install a throwing getter rather than let `accountId` be empty, whose comment names the bug avoided: "instead of silently producing `/accounts//...` (a 404)". | `tools/execute.ts`                          |
 | **A whole MCP server is small.** `server.ts` is 26 lines: register, return. If ours is much bigger, the registry is not carrying its weight.                                                                                                              | `server.ts`                                 |
 
-Two of their choices need no work from us. Their `mcp-handler.ts` guards the deployment boundary with
-`hostHeaderValidationResponse` + `originValidationResponse` against a localhost allowlist — the standard MCP
-DNS-rebinding guard, which `corsMiddleware()` in `packages/core/src/lib/cors.ts` already applies to every route
-including `/api/mcp` (loopback origin plus host check). And their `isolate-cache.ts` exists to avoid an R2
-round-trip per call; our registry is in-process.
+Their `isolate-cache.ts` needs no equivalent — it exists to avoid an R2 round-trip per call, and our registry is
+in-process.
+
+**The DNS-rebinding guard is narrower than this spec first claimed.** Their `mcp-handler.ts` runs
+`hostHeaderValidationResponse` + `originValidationResponse` against a static localhost allowlist. Ours: a
+no-Origin request is not a bypass, because `originAllowed(null)` passes but `hostAllowed` still demands a
+loopback Host (`packages/core/src/lib/cors.ts:20-29`), and the middleware sits ahead of `/api/mcp`
+(`app.ts:181-195`). That much is verified. But "already equivalent" was wrong on three counts, two of which are
+live bugs worth fixing on their own:
+
+- a **missing** Host is accepted (`cors.ts:25-26`) — a security check that fails open
+- `host.split(':')[0]` (`cors.ts:27`) turns `[::1]:PORT` into `[`, so the IPv6 loopback the allowlist explicitly
+  names is rejected
+- our SDK 1.29.0 exposes `enableDnsRebindingProtection` / `allowedHosts` / `allowedOrigins` on the transport,
+  and `packages/core/src/api/mcp.ts:143-146` leaves all three unset. The platform-ladder rule says use the
+  library's own guard rather than relying only on ours.
+
+Note that their helpers — `createMcpHandler`, `hostHeaderValidationResponse`, `localhostAllowedHostnames` — are
+from the Workers-only MCP SDK v2 and **do not exist in our 1.29.0**. Anything the reference does through them
+has to be reached a different way here.
 
 What we skip, and why: `auth/*` is 2,400 lines of OAuth and PKCE for a multi-tenant public endpoint, where ours
 binds `127.0.0.1`; `metrics.ts` is telemetry, already out of scope below.
@@ -215,7 +283,9 @@ The CLI needs no generated artifact and no running server to answer "what can co
 
 ### Authoring stays co-located; the compiler splits
 
-`splitExtension(code, id, env)` already strips `.client()` and `.render()` for node and `.server()` for browser, then dead-code-eliminates the orphans. One change is needed: the strip must be finer, rewriting a tool's client binding to keep its definition while dropping only the implementation. Authors keep writing the schema next to the handler; neither half leaks into the other bundle.
+`splitExtension(code, id, env)` already strips `.client()` and `.render()` for node and `.server()` for browser, then dead-code-eliminates the orphans. **No change is needed** — this spec previously claimed the strip had to be made finer; `packages/extension-compiler/src/split-extension.ts:30-36` already replaces the whole call with its receiver, which keeps the definition and drops only the implementation. Authors keep writing the schema next to the handler; neither half leaks into the other bundle.
+
+Two real constraints do apply. The transform bails unless the source contains the literal `defineExtension`, so a tool declared in a file without it is never split. And `loadServerExtensions` splits only the **entry** file, so a tool declared in an imported module is evaluated unsplit — browser code reaching node.
 
 ### The boundary
 
@@ -238,11 +308,13 @@ read the relevant file first.
 
 **No compatibility shim.** The repo rule is explicit — pre-release, no external users, reshape internal APIs freely and update all call sites. Leaving original code in place until its callers move is expand-then-contract; writing new code whose only job is to translate the old shape onto the new one is a shim, and it is the thing that becomes permanent. We do the first and never the second.
 
-That is affordable because `page.run` has **three** non-test callers: the model-facing page tool (`packages/tools/src/server.ts:22`), its own handler (`packages/core/src/api/rpc/router.ts:73`), and the CLI leaf (`packages/cli/src/page.ts:135`). Everything else that touches it is a test, and tests change with the behaviour they cover.
+That is affordable because `page.run` has **exactly one** non-test caller: the CLI leaf (`packages/cli/src/page.ts:135`). `packages/core/src/api/rpc/router.ts:73` is its handler, not a caller, and the model-facing tool reaches the page by a different route entirely — `ctx.page` → `pageBus.ask` — which is the divergence described in the problem statement. Everything else that touches it is a test, and tests change with the behaviour they cover.
+
+Because the two entry points behave differently today, unifying them is a **behaviour change, not a refactor**: agent-driven mutations start being journaled and agent `locate` starts being symbolicated. That is the intended fix, and it needs its own test rather than being smuggled in as a side effect.
 
 1. **Expand** — add `defineTool` with meta and errors, the registry assembly, and the catalog walk. Purely additive; nothing calls it yet and nothing else changes.
 2. **Define the built-in tools in batches** — read, act, edit-live, react, then the server operations. Each batch moves an existing handler body and writes its schema from what the protocol already declares. The old path is untouched, not wrapped.
-3. **Move the three callers**, one per commit: the CLI leaf derives its command tree from the registry; the page tool's schema and description derive from it; the router hands off to it.
+3. **Move the one caller and unify the second entry point**: the CLI leaf derives its command tree from the registry, and the model-facing path stops going around `runVerb`, so journaling and symbolication apply to both. Assert the new behaviour rather than assuming it.
 4. **Derive the remaining consumers** — action-card labels, journal and mirror flags, and chat exposure — each replacing a parallel list with a read of the registry.
    Then replace the MCP server's per-tool registration with `search` and `execute` over the registry, which is where the agent surface above lands.
    **Reference for this step: `cloudflare/mcp` at `0702302` — `src/server.ts`, `src/tools/search.ts`, `src/tools/execute.ts`, `src/truncate.ts`, `src/utils/errors.ts`. Clone and read them; do not work from this spec's summary of them.**
@@ -275,6 +347,44 @@ Two guardrails keep that from decaying into "made green at the end":
   gated, and a denial surfaces as an exception where the code called it; a result over the cap arrives
   truncated with the notice attached. Their suite is worth mirroring: `tests/executor.test.ts`,
   `tests/truncate.test.ts`, `tests/mcp-client.test.ts` in `cloudflare/mcp` at `0702302`.
+
+## Open decisions, and constraints found in review
+
+Two reviews (fable and codex `gpt-5.6-sol`) read this spec against the code and the reference. Their confirmed
+findings are folded into the sections above. What is left needs a decision or a named work item.
+
+**Decision 1 — one tool or two.** Priced in the agent-surface section: two costs a re-implementation of
+`createCodeModeTool` against `driver.createContext`, and buys a provably non-executing tool a client can
+auto-approve. One is fewer concepts and one round trip, and puts discovery behind the approval path.
+
+**Decision 2 — do built-in capabilities become gated?** They are not gated today. `packages/core/src/app.ts:229-234`
+builds the risky set from **extension** tools only, and `packages/core/src/api/mcp.ts:102` registers the
+built-in tools directly, bypassing the decider that extension tools go through at `:104-110`. So "each binding
+call passes the existing permission gate" is new behaviour, not a description. Folding ~37 page verbs into gated
+bindings would start prompting where nothing prompted before. Either that is the intent — say so, and let
+read-only metadata auto-allow — or built-ins stay ungated and the trust split applies only to extensions. This
+has to be chosen, not discovered during implementation.
+
+Work items the design implies and did not name:
+
+- **A runtime-registered procedure is not reachable through the typed proxy.** `RouterClient<T>` maps `keyof T`,
+  so an extension's tool is a compile error rather than `any`, and reaching it needs a cast, which is banned.
+  The registry needs an explicit escape — a typed `call(path: string[], input: unknown)` — or extension tools
+  are callable only through the sandbox and the CLI.
+- **Bindings are built once.** `makeCodeMode` converts a tool array into static bindings at construction
+  (`packages/core/src/chat/code-mode.ts:73-90`, `create-code-mode-tool.ts:106-108`). An extension that loads
+  after the server is built will not appear. Either version the registry and rebuild on change, or use a
+  dynamic binding supplier deliberately — and test it by loading an extension after construction.
+- **Secret-parameter scanning already exists and has no policy.** `validate-bindings.ts:149-197` scans schemas
+  for credential-shaped parameter names, and `create-code-mode-tool.ts` runs it. Putting every registry tool in
+  the sandbox makes this load-bearing: pick the production behaviour and make it throw in CI.
+- **Category is not bounded by construction.** Extensions supply a category string, so the "bounded sample" in
+  a tool description is only bounded if the schema closes the set or the sample is hard-capped and ranked.
+- **Prototype the catalog walk before committing to the registry shape.** `isProcedure` and procedure metadata
+  are internals-adjacent; verify that a runtime-assembled nested router yields stable input, output, error and
+  meta objects on the installed oRPC before the rest of the design leans on it.
+- **Per-call isolation needs its own tests** — state leakage between executions, timeout, memory exhaustion,
+  cleanup — not just tool counts and gating.
 
 ## Risks, stated honestly
 
