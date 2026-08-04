@@ -15,6 +15,8 @@ User rulings (binding, in the order they were settled):
 - **one** code-mode tool, with the catalog as a binding rather than a second tool
 - **one surface, every agent and every harness** — code mode only; the per-harness `codeMode` flag is deleted
 - **reads auto-allow, mutations gate**, decided from each tool's own metadata
+- **every capability declares an output schema**, not only an input — "we need to have schema for all as much as we can"
+- **the authoring API stays one call and one binding** — "the API must stay nice and sweeeet"
 
 ## Reference implementation — read it before writing any part of this
 
@@ -113,7 +115,11 @@ defineTool({
 }).client(handler)
 ```
 
-Where it runs is a **binding**, not a category: `.client()` runs in the browser over the bus, `.server()` runs in process. Built-ins and extension tools differ only in who wrote them. There is no verb, no page verb, no ext verb — only tools.
+Where it runs is a **binding**, not a category: `.client()` runs in the browser over the bus, `.server()` runs in process. Built-ins and extension tools differ only in who wrote them. There is no verb, no page verb, no ext verb — only tools. Concretely that is all 38 page verbs, the 7 server operations, `open`, and every extension-contributed tool: **one concept, no second kind**. A parallel list can only drift if there is something to list.
+
+**Output schemas are required, not optional.** Today no page verb declares one, which is why nothing downstream can state what a capability returns, and why a failure can be shaped like a result. Declaring both directions buys a typed result at every call site, structured content over MCP for free, and a catalog that answers "what do I get back" before the call. Where a return genuinely resists a schema, say so in the tool and keep it the exception.
+
+**The authoring surface is one call and one chained binding — it does not grow.** Two fields join the existing `defineTool` (`outputSchema`, `errors`) plus the catalog metadata; nothing else. Every mechanism this design needs — the registry walk, the gate decision, the CLI tree, the model-facing schema, the sandbox binding — is a _derivation_ over that one declaration, never another thing an author writes.
 
 ### The registry is an oRPC router, assembled at runtime
 
@@ -431,6 +437,53 @@ Two guardrails keep that from decaying into "made green at the end":
   arrives truncated with the notice attached. Their suite is worth mirroring: `tests/executor.test.ts`,
   `tests/truncate.test.ts` in `cloudflare/mcp` at `0702302`.
 
+## Unknowns closed by spike
+
+Every assumption below was executed against the installed libraries rather than reasoned about. Where a spike
+contradicted this spec, the spec is corrected above and the correction is named here.
+
+**The catalog walk works, through a public API.** `traverseContractProcedures` (exported from `@orpc/server`)
+walks a nested router and yields each procedure with its full path. `meta` — merged from the `$meta` base —
+`errorMap` with its declared codes, and both schemas all read off the procedure, and `z.toJSONSchema` accepts
+the input schema. `isProcedure` and `getRouter(registry, path)` both behave. **A procedure added after the
+router object was built is found**, so runtime extension registration works for discovery. This replaces the
+spec's earlier plan to hand-walk with `isProcedure` and reach into procedure internals.
+
+**But the walk is path-driven.** One procedure object registered at three paths is reported at all three, so a
+double-registered capability appears three times in the catalog. The registry needs a uniqueness guard; nothing
+in oRPC provides one.
+
+**`.meta()` cannot be made type-required**, so "a tool cannot exist without a summary" is enforced by our own
+`defineTool` or not at all. The `$meta` base supplies a default that a missing `.meta()` silently inherits.
+
+**Corrected: reused schemas do not produce `$ref`.** zod 4 inlines a schema used twice; `$ref` appears only for
+genuine recursion (`{"$ref": "#"}`). The spec previously claimed a shared `Target` would arrive as `unknown`,
+which is false. What remains true: the type generator renders a `$ref` as `unknown`, and a cycle cannot be
+inlined away — so the day `tree` gets a recursive output schema, its stub needs hand-shaping or a flattened
+schema. No schema in the protocol is recursive today.
+
+**`defineTool` already exists** (`packages/extension/src/define-tool.ts`) with `name`, `description`,
+`inputSchema`, `promptSnippet`, `promptGuidelines`, `streamTitle`, and **`approval?: 'ask'`** — so per-tool gating
+metadata has a precedent, and the reads-auto-allow ruling widens an existing field rather than inventing one.
+What is missing is `outputSchema`, `errors`, the catalog metadata, and `.client()`. Browser capabilities today
+arrive through `pageVerbs` on `ClientFactoryResult`, a separate mechanism, which is exactly what `.client()`
+replaces. **This ticket is a widening, not a new tool system.**
+
+**The `.server()` / `.client()` split works, verified by running the transform.** For `node`,
+`defineTool({...}).client(handler)` becomes `defineTool({...})` — definition kept, handler dropped — while
+`.server()` survives; for `browser` the mirror. The spec's earlier claim that the strip "must be made finer" was
+wrong, and so was the correction's implication that nothing needs doing, because the same run exposed two live
+defects:
+
+- **A file without the literal `defineExtension` is not split at all** — `splitExtension` returns `null` on the
+  marker check. A tool declared in a module that does not itself call `defineExtension` keeps its browser handler
+  in the node bundle. Since the whole point is that tools are declarable anywhere, `defineTool` has to be a
+  marker too.
+- **The strip matches on method name alone, across any object.** `view.render({mode: 'fast'})` became `view;` in
+  the node build, and an `api.server({port: 1})` survives only because `server` is kept for node. `render` and
+  `server` are ordinary method names, so the transform silently deletes calls it was never aimed at. It must
+  match calls on a tool or extension builder, not any member call with those names.
+
 ## Constraints found in review
 
 Two reviews (fable and codex `gpt-5.6-sol`) read this spec against the code and the reference. Their confirmed
@@ -469,9 +522,9 @@ Work items the design implies and did not name:
   the sandbox makes this load-bearing: pick the production behaviour and make it throw in CI.
 - **Category is not bounded by construction.** Extensions supply a category string, so the "bounded sample" in
   a tool description is only bounded if the schema closes the set or the sample is hard-capped and ranked.
-- **Prototype the catalog walk before committing to the registry shape.** `isProcedure` and procedure metadata
-  are internals-adjacent; verify that a runtime-assembled nested router yields stable input, output, error and
-  meta objects on the installed oRPC before the rest of the design leans on it.
+- **The catalog walk is verified, not assumed** — see "Unknowns closed by spike" below. It uses oRPC's own
+  `traverseContractProcedures`, so it is not internals-poking. One guard it revealed: a procedure registered at
+  two paths is reported at both, so the registry needs a uniqueness check.
 - **Per-call isolation needs its own tests** — state leakage between executions, timeout, memory exhaustion,
   cleanup — not just tool counts and gating.
 
