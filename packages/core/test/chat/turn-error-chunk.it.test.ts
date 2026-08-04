@@ -3,8 +3,8 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
-import {defineExtension} from '@conciv/extension'
 import {bootCoreApp} from '../helpers/boot.js'
+import {makeRunEndProbe} from '../helpers/run-end-probe.js'
 
 const CHUNK_FAIL = 'stub is not installed or not yet supported'
 
@@ -33,12 +33,7 @@ const erroringHarness = defineHarness({
 
 describe('an adapter that yields RUN_ERROR as a chunk (stub harnesses, acp adapters)', () => {
   it('surfaces the error on the wire and settles the run', async () => {
-    const runEnd = {resolve: (_sessionId: string) => {}}
-    const runEnded = new Promise<string>((resolve) => (runEnd.resolve = resolve))
-    const probe = defineExtension({name: 'run-end-probe'}).server(() => ({
-      context: {},
-      turnEnd: (sessionId: string) => runEnd.resolve(sessionId),
-    }))
+    const {probe, runEnded} = makeRunEndProbe()
     const kit = await createTestkit(erroringHarness, bootCoreApp({extensions: [probe]})).setup()
     try {
       const id = await kit.session()

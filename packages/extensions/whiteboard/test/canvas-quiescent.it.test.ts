@@ -1,15 +1,7 @@
 import {expect, test} from 'vitest'
-import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
-import {testHost} from './canvas-it-helpers.js'
+import {openCanvas, testHost} from './canvas-it-helpers.js'
 import {getExtensionTestApi} from '@conciv/extension-testkit'
-
-const openCanvas = async (page: Page): Promise<{cx: number; cy: number}> => {
-  await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
-  await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
-  const {width, height} = page.viewportSize() ?? {width: 1280, height: 720}
-  return {cx: width / 2, cy: height / 2}
-}
 
 test('moving over the open canvas does not storm the sync feed (no write feedback loop)', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})

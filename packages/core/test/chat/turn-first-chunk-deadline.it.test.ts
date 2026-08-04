@@ -3,8 +3,8 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
-import {defineExtension} from '@conciv/extension'
 import {bootCoreApp} from '../helpers/boot.js'
+import {makeRunEndProbe} from '../helpers/run-end-probe.js'
 
 const baseCaps = {
   resume: false,
@@ -39,12 +39,7 @@ const hangingHarness = defineHarness({
 
 describe('an adapter that never produces a first chunk', () => {
   it('settles the run with a deadline error instead of hanging forever', async () => {
-    const runEnd = {resolve: (_sessionId: string) => {}}
-    const runEnded = new Promise<string>((resolve) => (runEnd.resolve = resolve))
-    const probe = defineExtension({name: 'run-end-probe'}).server(() => ({
-      context: {},
-      turnEnd: (sessionId: string) => runEnd.resolve(sessionId),
-    }))
+    const {probe, runEnded} = makeRunEndProbe()
     const kit = await createTestkit(
       hangingHarness,
       bootCoreApp({firstChunkTimeoutMs: 300, extensions: [probe]}),

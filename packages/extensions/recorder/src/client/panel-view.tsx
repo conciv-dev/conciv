@@ -89,13 +89,29 @@ function RecorderPanel(): JSX.Element {
   const save = useMutation(() => utils.recordings.save.mutationOptions())
   const exportVideo = useMutation(() => utils.recordings.exportVideo.mutationOptions())
 
-  const downloadVideo = async (): Promise<void> => {
+  const savedRecordingId = async (): Promise<string | null> => {
     const saved = await save.mutateAsync(pinned()).catch(() => null)
-    if (!saved || 'error' in saved) {
+    if (!saved) return null
+    if ('error' in saved) return null
+    return saved.recordingId
+  }
+
+  const refetchedLogEntries = async () => {
+    const fresh = await log.refetch().catch(() => null)
+    return fresh?.data?.entries
+  }
+
+  const currentLogEntries = () => log.data?.entries ?? []
+
+  const posterLogEntries = async () => (await refetchedLogEntries()) ?? currentLogEntries()
+
+  const downloadVideo = async (): Promise<void> => {
+    const recordingId = await savedRecordingId()
+    if (!recordingId) {
       toast('Could not export the recording. Try again.')
       return
     }
-    const video = await exportVideo.mutateAsync({recordingId: saved.recordingId}).catch(() => null)
+    const video = await exportVideo.mutateAsync({recordingId}).catch(() => null)
     if (!(video instanceof File)) {
       toast('Could not export the recording. Try again.')
       return
@@ -104,14 +120,12 @@ function RecorderPanel(): JSX.Element {
   }
 
   const sendToAgent = async (): Promise<void> => {
-    const saved = await save.mutateAsync(pinned()).catch(() => null)
-    if (!saved || 'error' in saved) {
+    const recordingId = await savedRecordingId()
+    if (!recordingId) {
       toast('Could not save the recording. Try again.')
       return
     }
-    const fresh = await log.refetch().catch(() => null)
-    const entries = fresh?.data?.entries ?? log.data?.entries ?? []
-    const ref = recordingRefJson({recordingId: saved.recordingId, poster: recordingPoster(entries)})
+    const ref = recordingRefJson({recordingId, poster: recordingPoster(await posterLogEntries())})
     attach(new File([ref], 'Screen recording', {type: RECORDER_MIME}))
     leaveView()
   }
