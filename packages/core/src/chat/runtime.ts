@@ -4,6 +4,7 @@ import {
   memoryStream,
   toolDefinition,
   type AnyTool,
+  type RunStore,
   type ServerTool,
   type StreamDurability,
 } from '@tanstack/ai'
@@ -33,6 +34,7 @@ export type ChatDeps = {
   asks: AskRegistry
   durability: (runId: string) => StreamDurability
   runControl: RunController
+  runs: RunStore
   liveRuns: LiveRuns
   stream: SessionStreams
   snapshots: SnapshotCache
@@ -51,12 +53,14 @@ export type ChatEnv = {Variables: {chat: ChatDeps}}
 export function makeRunControl(firstChunkTimeoutMs?: number): {
   durability: (runId: string) => StreamDurability
   runControl: RunController
+  runs: RunStore
 } {
   const firstChunkDeadlineMs = (firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS) + READER_FIRST_APPEND_GRACE_MS
   const instanceKey = randomUUID()
   const durability = (runId: string): StreamDurability =>
     memoryStream({runId: `${instanceKey}:${runId}`}, {firstChunkDeadlineMs})
-  return {durability, runControl: new RunController({runs: new InMemoryRunStore(), durability})}
+  const runs = new InMemoryRunStore()
+  return {durability, runControl: new RunController({runs, durability}), runs}
 }
 
 type Registrable = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}

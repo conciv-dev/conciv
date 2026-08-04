@@ -220,7 +220,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const db = openDb(opts.cfg.stateRoot)
   const asks = createAskRegistry()
-  const {durability, runControl} = makeRunControl(opts.firstChunkTimeoutMs)
+  const {durability, runControl, runs} = makeRunControl(opts.firstChunkTimeoutMs)
   const liveRuns = createLiveRuns()
   const stream = createSessionStreams()
   const snapshots = createSnapshotCache()
@@ -373,6 +373,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     asks,
     durability,
     runControl,
+    runs,
     liveRuns,
     stream,
     snapshots,

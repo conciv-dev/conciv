@@ -1,10 +1,10 @@
 import {describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import {EventType, RUN_ACCEPTED_EVENT, type StreamChunk} from '@tanstack/ai'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
 import {makeSend} from '../../src/chat/run.js'
-import {makeChatFixture} from '../helpers/chat-fixture.js'
+import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
 import {bootCoreApp} from '../helpers/boot.js'
 
 const baseCaps = {
@@ -31,14 +31,65 @@ const instantHarness = defineHarness({
   capabilities: baseCaps,
 })
 
-describe('runId reuse after a finished run (IT)', () => {
+function deferred(): {promise: Promise<void>; resolve: () => void} {
+  let resolve: () => void = () => {}
+  const promise = new Promise<void>((res) => {
+    resolve = res
+  })
+  return {promise, resolve}
+}
+
+async function replayRunLog(chat: ChatFixture['chat'], runId: string): Promise<StreamChunk[]> {
+  const chunks: StreamChunk[] = []
+  for await (const entry of chat.runControl.attach(runId, '-1')) chunks.push(entry.chunk)
+  return chunks
+}
+
+describe('runId reuse (IT)', () => {
   it('send rejects when the runId already belongs to a finished run', {timeout: 15_000}, async () => {
     const fixture = await makeChatFixture()
     const send = makeSend(fixture.chat)
     const runId = 'run-id-reuse-1'
     await send(fixture.sessionId, runId, 'first turn')
     await Promise.all(fixture.chat.liveRuns.of(fixture.sessionId).map((run) => run.done))
-    await expect(send(fixture.sessionId, runId, 'second turn')).rejects.toThrow(/already finished/)
+    await expect(send(fixture.sessionId, runId, 'second turn')).rejects.toThrow(/cannot be reused/)
+  })
+
+  it('concurrent sends with one runId admit exactly one run', {timeout: 15_000}, async () => {
+    const fixture = await makeChatFixture()
+    const send = makeSend(fixture.chat)
+    const runId = 'run-id-reuse-concurrent-1'
+    const results = await Promise.allSettled([
+      send(fixture.sessionId, runId, 'first sender'),
+      send(fixture.sessionId, runId, 'second sender'),
+    ])
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    const rejection = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+    expect(rejection?.reason).toMatchObject({name: 'RunIdTakenError'})
+    await Promise.all(fixture.chat.liveRuns.of(fixture.sessionId).map((run) => run.done))
+    const chunks = await replayRunLog(fixture.chat, runId)
+    const accepted = chunks.filter((chunk) => chunk.type === EventType.CUSTOM && chunk.name === RUN_ACCEPTED_EVENT)
+    const finished = chunks.filter((chunk) => chunk.type === EventType.RUN_FINISHED)
+    expect(accepted).toHaveLength(1)
+    expect(finished).toHaveLength(1)
+  })
+
+  it('send rejects reuse while the finished stream still awaits onRunEnd', {timeout: 15_000}, async () => {
+    const fixture = await makeChatFixture()
+    const entered = deferred()
+    const release = deferred()
+    fixture.chat.onRunEnd = async () => {
+      entered.resolve()
+      await release.promise
+    }
+    const send = makeSend(fixture.chat)
+    const runId = 'run-id-reuse-window-1'
+    await send(fixture.sessionId, runId, 'first turn')
+    const runs = fixture.chat.liveRuns.of(fixture.sessionId)
+    await entered.promise
+    await expect(send(fixture.sessionId, runId, 'reuse in window')).rejects.toMatchObject({name: 'RunIdTakenError'})
+    release.resolve()
+    await Promise.all(runs.map((run) => run.done))
   })
 
   it('rpc chat.send surfaces the rejection to the client', {timeout: 15_000}, async () => {
@@ -55,11 +106,11 @@ describe('runId reuse after a finished run (IT)', () => {
       )
       expect(failure).toBeInstanceOf(Error)
       expect(failure).toMatchObject({
-        code: 'RUN_ALREADY_FINISHED',
+        code: 'RUN_ID_TAKEN',
         defined: true,
         status: 409,
         data: {runId},
-        message: expect.stringMatching(/already finished/),
+        message: expect.stringMatching(/cannot be reused/),
       })
     } finally {
       await kit.cleanup()

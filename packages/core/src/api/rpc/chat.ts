@@ -1,4 +1,4 @@
-import {isRunIdReusedError} from '../../chat/run.js'
+import {isRunIdTakenError} from '../../chat/run.js'
 import {stopSession} from '../../chat/stop.js'
 import {subscribeSession} from '../../chat/subscribe.js'
 import {os, type RpcDeps} from './mount.js'
@@ -13,8 +13,8 @@ export function chatRouter(deps: RpcDeps) {
       const runId = await deps
         .send(input.sessionId, input.runId, input.content ?? input.text ?? '')
         .catch((error: unknown) => {
-          if (isRunIdReusedError(error)) {
-            throw errors.RUN_ALREADY_FINISHED({message: error.message, data: {runId: input.runId}})
+          if (isRunIdTakenError(error)) {
+            throw errors.RUN_ID_TAKEN({message: error.message, data: {runId: input.runId}})
           }
           throw error
         })

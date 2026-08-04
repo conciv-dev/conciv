@@ -4,7 +4,6 @@ import {eq} from 'drizzle-orm'
 import {
   chat,
   EventType,
-  isTerminalRunStatus,
   RUN_ACCEPTED_EVENT,
   StreamProcessor,
   type AnyTool,
@@ -450,22 +449,23 @@ async function composeUserContent(db: ConcivDb, sessionId: string, content: User
 
 export type Send = (sessionId: string, runId: string, content: UserContent) => Promise<string>
 
-const RUN_ID_REUSED_ERROR_NAME = 'RunIdReusedError'
+const RUN_ID_TAKEN_ERROR_NAME = 'RunIdTakenError'
 
-function runIdReusedError(runId: string): Error {
-  const error = new Error(`run ${runId} already finished; a runId cannot be reused`)
-  error.name = RUN_ID_REUSED_ERROR_NAME
+function runIdTakenError(runId: string): Error {
+  const error = new Error(`run ${runId} already exists; a runId cannot be reused`)
+  error.name = RUN_ID_TAKEN_ERROR_NAME
   return error
 }
 
-export function isRunIdReusedError(error: unknown): error is Error {
-  return error instanceof Error && error.name === RUN_ID_REUSED_ERROR_NAME
+export function isRunIdTakenError(error: unknown): error is Error {
+  return error instanceof Error && error.name === RUN_ID_TAKEN_ERROR_NAME
 }
 
 export function makeSend(deps: ChatDeps): Send {
   return async (sessionId, runId, content) => {
-    const existing = await deps.runControl.status(runId)
-    if (existing !== null && isTerminalRunStatus(existing.status)) throw runIdReusedError(runId)
+    const startedAt = performance.timeOrigin + performance.now()
+    const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
+    if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
     deps.onRunStart?.(sessionId)
     await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
     const userContent = await composeUserContent(deps.db, sessionId, content)

@@ -71,9 +71,9 @@ export const contract = {
     subscribe: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
     send: oc
       .errors({
-        RUN_ALREADY_FINISHED: {
+        RUN_ID_TAKEN: {
           status: 409,
-          message: 'runId already belongs to a finished run',
+          message: 'runId already belongs to another run, live or finished',
           data: z.object({runId: z.string()}),
         },
       })
