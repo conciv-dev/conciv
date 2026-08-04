@@ -63,6 +63,22 @@ describe('conciv CLI failure reporting', () => {
     expect(JSON.stringify(error)).not.toContain('fetch failed')
   })
 
+  it('reports a request the server rejected as a user error, not a bug', async () => {
+    const body = JSON.stringify({defined: false, code: 'BAD_REQUEST', status: 400, message: 'Input validation failed'})
+    process.env.CONCIV_PORT = String(
+      await listen((_request, response) => {
+        response.writeHead(400, {'content-type': 'application/json'})
+        response.end(body)
+      }),
+    )
+    const code = await runCli(main, ['tools', 'server', 'urls'])
+    expect(code).toBe(1)
+    const error = failure()
+    expect(error.kind).toBe('user')
+    expect(error.code).toBe('BAD_REQUEST')
+    expect(error.stack).toBeUndefined()
+  })
+
   it('reports an alien server on the port as a probable bug, with the stack', async () => {
     process.env.CONCIV_PORT = String(await listen((_request, response) => response.end('not a rpc reply')))
     const code = await runCli(main, ['tools', 'server', 'urls'])

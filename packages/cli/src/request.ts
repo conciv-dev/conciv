@@ -20,6 +20,8 @@ const MAX_CAUSE_DEPTH = 5
 
 const LinkSchema = z.object({code: z.string().optional(), message: z.string().optional(), cause: z.unknown()})
 
+const RemoteSchema = z.object({status: z.number(), code: z.string()})
+
 function defaultOrigin(): string {
   const port = process.env.CONCIV_PORT ?? '5173'
   return `http://127.0.0.1:${port}`
@@ -29,12 +31,18 @@ export async function runRpc(call: (rpc: RpcClient) => Promise<unknown>): Promis
   const origin = defaultOrigin()
   const result = await safe(call(makeRpcClient(origin)))
   if (result.isSuccess) return {report: 'json', data: result.data}
-  if (result.isDefined) throw definedFailure(toORPCError(result.error))
+  if (result.isDefined) throw rpcFailure(toORPCError(result.error))
   if (offline(result.error, 0)) throw offlineFailure(origin)
+  if (rejectedByServer(result.error)) throw rpcFailure(toORPCError(result.error))
   throw result.error
 }
 
-function definedFailure(error: ORPCError<string, unknown>): Error {
+function rejectedByServer(error: unknown): boolean {
+  const remote = RemoteSchema.safeParse(error)
+  return remote.success && remote.data.status >= 400 && remote.data.status < 500
+}
+
+function rpcFailure(error: ORPCError<string, unknown>): Error {
   return userFailure(error.message, {code: error.code})
 }
 
