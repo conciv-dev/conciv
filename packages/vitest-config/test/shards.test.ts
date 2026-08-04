@@ -144,6 +144,7 @@ test('e2ePackages keeps only workspace packages that actually define a test:e2e 
 test('every real e2e consumer app plus the site lands in the e2e matrix, and e2e-utils does not', () => {
   const names = e2ePackages(join(import.meta.dirname, '..', '..', '..')).map((entry) => entry.name)
   expect(names).toContain('conciv-e2e-vite-react')
+  expect(names).toContain('conciv-e2e-init')
   expect(names).toContain(E2E_HARNESS_PACKAGE)
   expect(names).toContain('site')
   expect(names).not.toContain('@conciv/e2e-utils')
