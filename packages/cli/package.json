@@ -37,6 +37,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@ast-grep/napi": "^0.45.0",
     "@clack/prompts": "^1.7.0",
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",

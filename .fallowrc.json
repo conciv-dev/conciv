@@ -9,6 +9,7 @@
     "packages/aidx/**",
     "packages/extensions/tanstack/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
+    "packages/cli/test/fixtures/**",
     "apps/examples/**",
     "e2e/astro/**",
     "e2e/nextjs/**",

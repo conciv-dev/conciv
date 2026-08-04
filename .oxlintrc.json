@@ -236,6 +236,7 @@
     "**/*.gen.tsx",
     "**/test-results",
     "packages/oxlint-plugin/test/fixtures/**",
+    "packages/cli/test/fixtures/**",
     "packages/plugin/test/fixtures/**",
     "packages/extensions/tanstack/test/fixtures/**",
     "e2e/*/src",
