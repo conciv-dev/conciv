@@ -81,7 +81,11 @@ const PREEXISTING_TERM_SITES = [
   },
   {
     term: 'manager',
-    paths: ['packages/extensions/test-runner/src/', 'packages/extensions/test-runner/vitest.config.ts'],
+    paths: [
+      'packages/extensions/test-runner/src/',
+      'packages/extensions/test-runner/vitest.config.ts',
+      'packages/cli/src/init/',
+    ],
   },
   {term: 'pipeline', paths: ['packages/extension-testkit/src/test-host-config.ts']},
   {

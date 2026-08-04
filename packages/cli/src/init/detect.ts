@@ -4,7 +4,6 @@ import {detectPackageManager} from 'nypm'
 import {z} from 'zod'
 
 export type Framework = 'nextjs' | 'vite' | 'webpack' | 'rspack' | 'rollup' | 'esbuild' | 'unknown'
-// oxlint-disable-next-line conciv/banned-vocabulary -- packageManager is the npm manifest field name, mandated by the init plan's Task 4 contract
 export type Detected = {framework: Framework; configFile: string | null; packageManager: string}
 
 type FrameworkRule = {framework: Framework; packages: string[]; configFiles: string[]}
