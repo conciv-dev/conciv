@@ -1,16 +1,5 @@
 import {defineCommand} from 'citty'
 
-type InitFlags = {yes: boolean; dryRun: boolean; force: boolean}
-
-type InitOptions = InitFlags & {cwd: string}
-
-type InitResult = {outcome: 'done'; steps: []}
-
-async function runInit(options: InitOptions): Promise<InitResult> {
-  void options
-  return {outcome: 'done', steps: []}
-}
-
 export const initCommand = defineCommand({
   meta: {name: 'init', description: 'Set this project up for conciv: install, wire the bundler, connect your agents.'},
   args: {
@@ -19,6 +8,7 @@ export const initCommand = defineCommand({
     force: {type: 'boolean', default: false, description: 'run even with uncommitted git changes'},
   },
   run: async ({args}) => {
+    const {runInit} = await import('./init/pipeline.js')
     await runInit({yes: args.yes, dryRun: args['dry-run'], force: args.force, cwd: process.cwd()})
   },
 })

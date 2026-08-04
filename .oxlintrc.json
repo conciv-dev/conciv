@@ -212,6 +212,18 @@
       "rules": {
         "conciv/no-predicate-waits": "off"
       }
+    },
+    {
+      "files": ["packages/cli/test/**"],
+      "rules": {
+        "conciv/no-timers-in-tests": "error"
+      }
+    },
+    {
+      "files": ["packages/cli/test/cli.it.test.ts"],
+      "rules": {
+        "conciv/no-timers-in-tests": "off"
+      }
     }
   ],
   "ignorePatterns": [
