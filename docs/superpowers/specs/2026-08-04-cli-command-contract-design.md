@@ -24,6 +24,7 @@ An **external** agent — a terminal claude/codex session shelling out to our CL
 - **Domain errors are silently downgraded to success.** `request.ts:runRpc` catches `ORPCError`, prints `{"message": …}` on stdout, and sets no exit code — so `conciv tools page click --ref nope` exits **0** with an error payload a script cannot distinguish from a result. This is the concrete form of "doesn't swallow stuff": today it swallows, and the contract's own declared errors (`NO_PAGE_CLIENT`, `PAGE_TIMEOUT`) arrive as exit-0 text.
 - Verb results are already JSON (`runRpc` writes `JSON.stringify(result)`); missing are a stable envelope and a JSON error shape. `init` has no JSON mode.
 - An unknown verb prints the parent help with no suggestion.
+- **The verb table has already drifted from the protocol, silently.** `PAGE_VERBS.effect` declares an `effect` flag, but `FIELD` has no `effect` entry and `allowedFields` filters out any name it does not know — so citty accepts `--effect foo` and the RPC is sent without it. `FIELD.action` allows three values where `PageQuerySchema` allows seven (`enable`, `disable`, `toggle`, `list` are rejected), and the `ext` verb's `extension`/`verb`/`argsJson` fields have no CLI representation at all. Two parallel descriptions of the same input, with the divergence swallowed rather than failing to compile — which is the structural reason the catalog cannot be built from `flags` + `FIELD`.
 
 ## What the references actually do (source-read 2026-08-04)
 
@@ -37,9 +38,13 @@ An **external** agent — a terminal claude/codex session shelling out to our CL
 
 ### 1. One catalog, four consumers
 
-`PAGE_VERBS` in `packages/cli/src/page.ts` (39 entries, driving both the page and react trees through `leafCommandsFor`) carries only `{targetsElement, flags}` today. It grows `summary` (one concrete line), `examples`, `category`, and optional `keywords` for synonyms ("type" → fill, "press" → click). `server.ts`'s hand-written subcommands get the same fields.
+**The catalog is a registry of every leaf command, not of page verbs.** `PAGE_VERBS` (39 entries, driving the page and react trees through `leafCommandsFor`) covers only `page.run` verbs; the tree also has `page changes`, seven `server` operations, and `open`. A catalog that misses those is a catalog an agent cannot trust, so the registry is one typed list of leaf commands with `PAGE_VERBS` as one section of it, and the guard test asserts coverage **both ways** — every registered command appears in the registry, and every registry entry resolves to a registered command.
 
-That table feeds exactly four consumers:
+Each entry carries `summary` (one concrete line), `examples`, `category`, optional `keywords` for synonyms ("type" → fill, "press" → click), and — critically — **its input as a real zod schema, not a flag-name list**.
+
+Per-verb schemas replace `flags` + `FIELD`. That pair is what drifted (see the baseline): two descriptions of one input, with unknown names filtered out instead of failing to compile. One schema per verb, narrowed from `PageQuerySchema`, becomes the single source for the citty args, the catalog signature, the typed facade, and validation — so a field that exists in the protocol and not in the CLI is a type error rather than a silently dropped argument. Requiredness and the target rules (`selector` vs `ref` vs `name` are alternatives, not three optionals) live in that schema too, because they are exactly what the loose union cannot express.
+
+That registry feeds exactly four consumers:
 
 1. **`--help` for humans** — citty `meta.description` reads `summary` instead of the generated template.
 2. **`conciv.catalog` inside the code sandbox** — the machine-readable catalog agents filter (section 2).
@@ -72,25 +77,33 @@ Consequences, stated plainly:
 
 ### 3. Execution: `conciv tools code`
 
-- `conciv tools code '<js>'` (also `--file <path>` or stdin) runs agent-written JavaScript and prints **one** JSON envelope.
+- `conciv tools code '<js>'` runs agent-written JavaScript and prints **one** JSON envelope.
 - The script body is an ES module body: top-level `await` and `return` both work, `import` does not (the body is wrapped, not evaluated as a module of its own).
+- **Exactly one source**, or it is a user error: the positional argument, `--file <path>`, `--run <name>`, or piped stdin. stdin is read only when it is not a TTY, so an interactive `conciv tools code` with no source prints usage and exits 1 instead of hanging on a read.
 
 **Mechanism: a child `node` process, not `isolated-vm`.** This is a correction to the obvious guess, made after reading the library surface:
 
-- `IsolateConfig.bindings` (`@tanstack/ai-code-mode`) is a flat `Record<string, ToolBinding>` where each binding is a JSON-schema'd single-argument `execute`. A nested `conciv.page.click(…)` facade and a live oRPC proxy cannot cross that boundary — only flat, schema-described functions can. Building the nice idiom on top would mean re-deriving it from JSON Schema inside the sandbox: strictly worse types than the ones the contract already has.
-- `isolated-vm` is an optional native addon. `probeIsolatedVm()` can legitimately report incompatible, which is why the in-chat path returns `null` and degrades to direct tools. A CLI command cannot degrade to nothing — `conciv tools code` must work on every machine that can run the CLI.
-- **Nothing needs transferring.** `RpcClient` is plain HTTP against an origin, so a child process rebuilds it itself from `CONCIV_PORT`. The runner writes the wrapped body to a temp module, spawns `node` on it, and reads one JSON document from its stdout.
+- `IsolateConfig.bindings` (`@tanstack/ai-code-mode`) is a flat `Record<string, ToolBinding>` where each binding is a JSON-schema'd single-argument `execute`. A live oRPC proxy cannot cross that boundary. A nested facade is not _impossible_ — generated sandbox JavaScript could wrap flat bindings — but it would be re-derived from JSON Schema inside the sandbox instead of using the contract's own types. The honest objection is duplication and worse types, not impossibility, and the spec says so rather than overclaiming.
+- `isolated-vm` is an optional native addon. `probeIsolatedVm()` can legitimately report incompatible, which is why the in-chat path returns `null` and degrades to direct tools. A CLI command cannot degrade to nothing — `conciv tools code` must work on every machine that can run the CLI. This, not impossibility, is what decides it.
 
-What the child buys, stated plainly: a real timeout (kill the child), real cancellation, and crash isolation. What it does not buy is a trust boundary — the caller already has a shell on this machine — and we say so instead of implying safety we do not provide. Cloudflare needs a Dynamic Worker isolate because the model's code runs inside _their_ service with credentials in scope; the in-chat path is that same case, which is why it isolates for real. Our CLI is not.
+**Three packaging rules the child mechanism lives or dies by:**
+
+1. **The runner ships inside the CLI's own `dist`; the agent's code never becomes a module of its own.** ESM bare-specifier resolution starts at the importing file's directory, so a temp file under the OS temp dir importing `@conciv/contract` fails with `ERR_MODULE_NOT_FOUND` even when the CLI is correctly installed — and a temp `.js` inherits the nearest `package.json` type and may be parsed as CJS. The parent spawns the shipped runner by absolute path and hands the body over as data (stdin or an argument), so every import resolves from inside the installed package. This is the difference between working in this monorepo and working in a consumer project.
+2. **The result does not travel on stdout.** The agent's code can `console.log`, and debugging code especially will — which would put two documents where the contract promises one. The child returns its value over a dedicated channel (IPC or a non-stdout descriptor); captured stdout and stderr become fields of the envelope, and only the parent ever writes the final JSON document.
+3. **`RpcClient` is plain HTTP against an origin**, so the child rebuilds the client itself from `CONCIV_PORT` — nothing live needs transferring.
+
+What the child buys, stated plainly: a real timeout (kill the child), real cancellation, and crash isolation. What it does not buy is a trust boundary — the caller already has a shell on this machine — and we say so instead of implying safety we do not provide. Cloudflare needs a Dynamic Worker isolate because the model's code runs inside _their_ service with credentials in scope; the in-chat path is that same case, which is why it isolates for real. Our CLI is not. And neither wrangler nor Code Mode validates our packaging, typechecking, or persistence choices — those need local tests, not borrowed authority.
 
 **Types come from oRPC, not a generator.** `packages/contract/src/client.ts` defines `RpcClient = ContractRouterClient<typeof contract>`; the whole API is end-to-end typed from one zod contract and the package ships its `.d.ts`. Because the child is a real module, it `import`s the real client — the contract is the enforcement, with no schema round-trip. Two thin additions:
 
-- **Per-verb narrowing** is the only thing the verb table still supplies. `page.run` takes `PageRunInputSchema` = `{verb, selector?, ref?, value?, …}` — one loose union, so `rpc.page.run({verb: 'click', value: 'x'})` type-checks while being nonsense. The `conciv.page.click(target)` facade narrows per verb from the table's `flags`; field types come free from zod.
-- **`conciv tools types`** writes the facade's `.d.ts` to `.conciv/conciv-tools.d.ts` (derived, never hand-written), so `--file script.ts` typechecks in a human's editor and an agent can read the signatures on demand.
+- **Per-verb narrowing** is the only thing the registry still supplies, and it comes from the per-verb zod schema (section 1), not from a flag-name list. `page.run` takes `PageRunInputSchema` = `{verb, selector?, ref?, value?, …}` — one loose union where every field is optional, so `rpc.page.run({verb: 'click', value: 'x'})` and `fill({ref: 'e1'})` with no value both type-check while being nonsense. The facade narrows per verb: allowed fields, **required** fields, and the target alternatives.
+- **`conciv tools types`** emits an importable typed module (plus its declarations) rather than a loose ambient `.d.ts`. An unrelated `.d.ts` sitting in a directory is not loaded into anybody's TypeScript program, so a file that merely exists would be decorative. A `--file script.ts` gets its types by importing the emitted module; if `--file` is to promise checking rather than only stripping, the runner invokes the compiler with a named config — stripping catches syntax, never a wrong argument. Which of those two `--file` promises we make is settled in the implementing ticket, with the honest version documented either way.
 
 **OpenAPI is deliberately not used.** `@orpc/openapi` is not installed and is not needed: OpenAPI is a serialization format for cross-language consumers, while ours is a JavaScript script importing the same package where the contract's TypeScript types are strictly better — no conversion, no drift. It would only earn its place with non-JS clients.
 
-**Discovery works with no dev server.** `conciv.catalog` is static data compiled from the verb table; filtering it makes no RPC call. Only executing a verb needs the running app. So an agent's first move — "what can conciv do about class names?" — never fails with a connection error, which is what makes the skill's opening instruction safe.
+**Discovery works with no dev server.** `conciv.catalog` is static data compiled from the registry at build time; filtering it makes no RPC call. Only executing a verb needs the running app. So an agent's first move — "what can conciv do about class names?" — never fails with a connection error, which is what makes the skill's opening instruction safe.
+
+The catalog carries a **JSON-safe signature per command** — field names, types, enum values, requiredness, target rules — compiled from the per-verb schemas during the CLI build. That is what makes `return conciv.catalog.verbs['page.fill']` worth reading; a name and a summary alone would not be a signature, and claiming otherwise while shipping `{targetsElement, flags}` would be a lie in the one surface agents rely on.
 
 ### 3a. Direct verb commands stay — for execution only
 
@@ -103,11 +116,13 @@ Their MCP surfaces collapse to a single `code` tool because an MCP client must p
 
 ### 3b. Snippets: successful programs become reusable
 
-- `conciv tools code '…' --save <name>` stores the script under `.conciv/snippets/<name>.js` after a **successful** run only.
-- `--describe <text>` (optional, only meaningful with `--save`) records what the snippet is for. Descriptions live in `.conciv/snippets/index.json` as `{name, description, savedAt}` — not parsed out of a comment in the script, because the description has to survive an agent rewriting the body.
-- `conciv tools snippets` lists saved names with their descriptions (`--json` for agents; a snippet saved without `--describe` lists `description: null` rather than a guess).
+- `conciv tools code '…' --save <name>` stores the script after a **successful** run only.
+- **They do not live under `.conciv/`.** Our own vite plugin writes runtime state there and the root `.gitignore` ignores the whole directory — and a nested `.gitignore` cannot re-include a file whose parent directory is excluded, so "git-visible snippets under `.conciv/`" was simply false. Team artifacts (snippets and the installed skill) go in a tracked `conciv/` directory; `.conciv/` stays ignored runtime state. Two directories is the price of the claim being true.
+- `--describe <text>` (optional, only meaningful with `--save`) records what the snippet is for. Metadata lives beside each snippet, per snippet — not in one shared index that two concurrent saves can clobber and a crash between two writes can desync. A snippet saved without `--describe` lists `description: null` rather than a guess.
+- Names are restricted to a portable slug (no separators, no traversal, no case-collisions), and saving over an existing name is refused unless `--force`. A path like `../../x` is a user error, not a write.
+- `conciv tools snippets` lists what is stored (`--json` for agents).
 - `conciv tools code --run <name>` re-executes a saved snippet; `--args '<json>'` arrives as a `params` binding.
-- Snippets are project-local and git-visible under `.conciv/`, so a team inherits them like any checked-in tooling and a human can read what an agent saved.
+- Snippets are project-local and readable, so a team inherits them like any checked-in tooling and a human can read what an agent saved.
 
 The loop the skill teaches: filter the catalog → write code → save it if it worked → re-run it by name next time.
 
@@ -118,19 +133,21 @@ Two classes, mirroring wrangler:
 - **User error** — the caller can fix it. One actionable line, no stack (stack behind a debug flag), exit 1. Connection failure becomes: `No conciv dev server on 127.0.0.1:5173. Start your app (pnpm dev), or point conciv at it with CONCIV_PORT=<port>.`
 - **Unexpected** — message + stack + "this looks like a bug", exit 1.
 
-Domain errors are already declared in the contract (`page.run` carries `.errors({NO_PAGE_CLIENT: {message: 'no widget connected'}, PAGE_TIMEOUT: …})`), so user-error text derives from those declarations instead of being invented per call site. Applies to `init` too — preflight refusals are user errors by definition. Under `--json`, errors are JSON; never a stack on stdout.
+**How a user error is recognised at runtime.** Not by importing the contract's declarations: TypeScript does not type thrown values, and `RpcClient` exposes no runtime error catalog. What the client actually receives is an `ORPCError` carrying `defined`, `code`, `status`, `message`, and `data` — and `defined === true` means precisely "this is an error the contract declared". So: `defined` errors are user errors, reported with their `code` and the server's message (which the contract's `.errors({NO_PAGE_CLIENT: …, PAGE_TIMEOUT: …})` declarations are the source of, server-side). Transport failures and the CLI's own validation are mapped locally, by hand, because nobody declared them. Everything else is the bug path. Applies to `init` too — preflight refusals are user errors by definition. Under `--json`, errors are JSON; never a stack on stdout.
 
 ### 5. Skills as the standing entry point
 
 `init` installs a conciv skill: ~15 lines covering what conciv is, the catalog-filter idiom, `code` for real work, direct verbs for one-shots, snippets, the dev-server requirement, and two worked examples. Standing cost ~200 tokens, flat forever regardless of catalog size.
 
-**Where it lands, per harness, without inventing paths.** We detect four harnesses (`claude`, `codex`, `opencode`, `pi` — `harness-detect.ts`). Only claude has a skills location we already own and write to: the connect plugin we generate under `.conciv/`, so the skill ships as a file inside it. For the other three we have not verified a skills convention, so we do not guess one: the skill is written once to `.conciv/skill.md` and the marked AGENTS.md section becomes a pointer to it. Adding a real per-harness path later is a one-line addition to the same step, and is out of scope here.
+**Where it lands, per harness, without inventing paths.** We detect four harnesses (`claude`, `codex`, `opencode`, `pi` — `harness-detect.ts`). Only claude has a skills location we already own and write to: the connect plugin we generate under `.conciv/`, so the skill ships as a file inside it. For the other three we have not verified a skills convention, so we do not guess one: the skill is written once to `conciv/skill.md` — the tracked directory, alongside snippets, for the same reason `.conciv/` cannot hold it (gitignored) — and the marked AGENTS.md section becomes a pointer to it. Adding a real per-harness path later is a one-line addition to the same step, and is out of scope here.
 
 Either way the AGENTS.md section stops being a mini-catalog — it names conciv, the dev-server requirement, and where the skill is. It no longer lists verbs, because listing verbs in a standing file is exactly the context cost this design removes.
 
 ### 6. Output envelope
 
-`{ok: true, data}` / `{ok: false, error: {kind: 'user' | 'unexpected', message, hint?}}` for verbs and `code`; for `init`, the ledger it already builds (`{ok, steps: [{id, title, status, detail?, cards}], next}`). Under `--json` all human decoration (clack frames, colors, spinners) is suppressed and stdout is exactly one JSON document. `code` and `snippets --json` are agent-only surfaces and always emit the envelope, so `--json` there is accepted and inert rather than a second mode. A failing envelope always pairs with exit 1 — the exit-0 error payload in the baseline is the bug this closes. Exit codes otherwise keep their meaning — 0 for a run that completed with manual steps, per the init spec's decision 7 — which makes `--json` the documented way to detect partial success.
+`{ok: true, data}` / `{ok: false, error: {kind: 'user' | 'unexpected', message, hint?}}` for verbs and `code`; for `init`, the ledger it already builds (`{ok, steps: [{id, title, status, detail?, cards}], next}`). Under `--json` all human decoration (clack frames, colors, spinners) is suppressed and stdout is exactly one JSON document. `code` and `snippets --json` are agent-only surfaces and always emit the envelope, so `--json` there is accepted and inert rather than a second mode.
+
+For `init`, `--json` is not a serialization step bolted on at the end: the pipeline emits incrementally through spinners and output callbacks, so a run that only stringifies the ledger last would still have leaked clack frames on the way. It is a **silent implementation of the existing `InitOutput` seam**, selected before the first `intro`, collecting what the human surface would have drawn. And interactivity is decided from both relevant streams, not stdout alone — today a redirected stdout with an interactive stdin is misclassified as non-interactive. A failing envelope always pairs with exit 1 — the exit-0 error payload in the baseline is the bug this closes. Exit codes otherwise keep their meaning — 0 for a run that completed with manual steps, per the init spec's decision 7 — which makes `--json` the documented way to detect partial success.
 
 ### 7. Did-you-mean
 
@@ -138,23 +155,27 @@ An unknown verb or flag prints the closest known name (Levenshtein over the tabl
 
 ## Migration (expand → migrate → contract; CI green at every step)
 
-1. **Expand** — add the optional `summary`/`examples`/`category`/`keywords` fields, the error classes, the envelope, and the shared non-interactive helper alongside what exists. Nothing breaks; generated descriptions still render.
-2. **Migrate, one surface per batch** — page verbs, then react, then server, then init: fill the table fields, switch that surface to the factory, convert failures to user errors, add `--json`. Each batch independently green.
-3. **Code mode** — `conciv tools code` + `types`: the typed oRPC client plus the per-verb narrowing facade on the node isolate driver.
-4. **Catalog binding** — expose `conciv.catalog` in the sandbox; this is the discovery surface (no search/describe commands are ever added).
-5. **Snippets** — `--save`, `snippets`, `--run <name>` under `.conciv/snippets/`.
+1. **Expand** — add the optional registry fields, the error classes, the envelope, and the shared non-interactive helper alongside what exists. Nothing breaks; generated descriptions still render.
+2. **Migrate, one surface per batch** — page verbs, then react, then server (and `open`, and `page changes`), then init: give each leaf its per-verb schema, fill the registry fields, convert failures to user errors, add `--json`. Each batch independently green; the drifted `effect`/`action`/`ext` fields are fixed by the schema, not patched by hand.
+3. **Code mode** — `conciv tools code` + `types`: the shipped runner, the typed oRPC client, and the per-verb narrowing facade.
+4. **Catalog binding** — expose `conciv.catalog` (with compiled signatures) in the sandbox; this is the discovery surface (no search/describe commands are ever added).
+5. **Snippets** — `--save`, `snippets`, `--run <name>` in the tracked `conciv/` directory.
 6. **Skills** — init installs them, teaching filter → code → save → re-run; the AGENTS.md section shrinks.
 7. **Contract** — delete the generated-description path and the raw-error escape; add the registry guard test.
 
 ## Testing
 
-- **Registry guard**: walk every registered command; assert `summary` exists, is not equal to its own path, and every declared flag has a `describe`. This is what makes the original bug unrepeatable.
+- **Registry guard, both directions**: walk every registered command and assert `summary` exists, is not equal to its own path, and every declared flag has a `describe`; then walk the registry and assert every entry resolves to a registered command. One direction alone lets `open` or `page changes` fall out of the catalog while help still looks fine.
+- **Schema/protocol agreement**: a verb's schema accepts exactly the fields the protocol accepts for it — the regression test for the swallowed `--effect`, the four missing `action` values, and the unrepresented `ext` fields.
+- **Consumer install**: `conciv tools code` runs from a project that installed the CLI from a packed tarball, not only from inside this monorepo — the failure mode is module resolution, so the monorepo cannot detect it.
+- **Stdout is not the channel**: a script that `console.log`s still yields exactly one JSON document on stdout, with the logs inside the envelope.
 - **Catalog discovery**: a filter script over `conciv.catalog` returns only the matched subset; it still works with **no dev server running**; and no command prints the catalog in full (the property the whole design rests on).
 - **Code mode**: a script calling two bindings returns one JSON value; a thrown script surfaces as a user error, not a stack; the timeout kills the child and reports it as a user error; the per-verb facade rejects a flag the verb does not accept (the narrowing the loose union cannot express).
 - **Exit codes**: a contract-declared domain error (`NO_PAGE_CLIENT`) exits 1 with `{ok: false}` — the regression test for today's exit-0 swallow.
-- **Snippets**: a successful `--save` writes the file, a failing run does not; `--run <name>` re-executes; `--args` reaches `params`; `snippets --json` lists what is stored.
-- **Errors**: connection failure renders the user-error text with no stack and exit 1; an unexpected throw takes the bug path; contract-declared errors surface with their declared messages.
-- **Non-TTY**: every prompting command exits 1 with the instruction rather than hanging.
+- **Snippets**: a successful `--save` writes the file, a failing run does not; `--run <name>` re-executes; `--args` reaches `params`; `snippets --json` lists what is stored; a traversal name and a duplicate name are refused; a saved snippet is visible to plain `git status` (the claim `.conciv/` could not support).
+- **Errors**: connection failure renders the user-error text with no stack and exit 1; an unexpected throw takes the bug path; a `defined` oRPC error surfaces with its code and declared message.
+- **Non-TTY**: every prompting command exits 1 with the instruction rather than hanging, and `conciv tools code` with no source on a TTY prints usage instead of blocking on a stdin read.
+- **Source precedence**: supplying two of positional / `--file` / `--run` / piped stdin is a user error, not a silent winner.
 - **Skill install**: files land in the right per-harness location; re-run is idempotent.
 
 ## Out of scope
