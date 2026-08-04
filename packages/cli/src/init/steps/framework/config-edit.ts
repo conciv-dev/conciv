@@ -1,5 +1,7 @@
 import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
+import {structuredPatch} from 'diff'
+import picocolors from 'picocolors'
 import type {InitContext} from '../../pipeline.js'
 
 export type ConfigFile = {name: string; path: string; content: string}
@@ -11,23 +13,20 @@ export function readConfig(cwd: string, configFile: string | null): ConfigFile |
   return {name: configFile, path, content: readFileSync(path, 'utf8')}
 }
 
-function unifiedDiff(name: string, before: string, after: string): string {
-  const beforeLines = before.split('\n')
-  const afterLines = after.split('\n')
-  let start = 0
-  while (start < beforeLines.length && start < afterLines.length && beforeLines[start] === afterLines[start]) {
-    start += 1
-  }
-  let beforeEnd = beforeLines.length
-  let afterEnd = afterLines.length
-  while (beforeEnd > start && afterEnd > start && beforeLines[beforeEnd - 1] === afterLines[afterEnd - 1]) {
-    beforeEnd -= 1
-    afterEnd -= 1
-  }
-  const removed = beforeLines.slice(start, beforeEnd).map((line) => `-${line}`)
-  const added = afterLines.slice(start, afterEnd).map((line) => `+${line}`)
-  const hunk = `@@ -${start + 1},${beforeEnd - start} +${start + 1},${afterEnd - start} @@`
-  return [`--- ${name}`, `+++ ${name}`, hunk, ...removed, ...added].join('\n')
+function colorDiffLine(line: string): string {
+  if (line.startsWith('+')) return picocolors.green(line)
+  if (line.startsWith('-')) return picocolors.red(line)
+  return line
+}
+
+function coloredDiff(name: string, before: string, after: string): string {
+  const patch = structuredPatch(name, name, before, after, undefined, undefined, {context: 2})
+  const header = [picocolors.dim(`--- ${name}`), picocolors.dim(`+++ ${name}`)]
+  const body = patch.hunks.flatMap((hunk) => [
+    picocolors.cyan(`@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`),
+    ...hunk.lines.map(colorDiffLine),
+  ])
+  return [...header, ...body].join('\n')
 }
 
 export function restoreBackupOnExit(path: string, original: string): () => void {
@@ -42,5 +41,5 @@ export function writeConfigChange(ctx: InitContext, config: ConfigFile, output: 
   const release = restoreBackupOnExit(config.path, config.content)
   writeFileSync(config.path, output)
   release()
-  ctx.report(unifiedDiff(config.name, config.content, output))
+  ctx.report(coloredDiff(config.name, config.content, output))
 }
