@@ -12,6 +12,8 @@ User rulings (binding, in the order they were settled):
 - oRPC generates the SDK; we do not write or codegen one
 - the external agent reaches the registry through a **code-mode MCP server**, modelled on `cloudflare/mcp` —
   "let's do the MCP like they did", "this seems like the right one to inspire from"
+- **one** code-mode tool, with the catalog as a binding rather than a second tool
+- **reads auto-allow, mutations gate**, decided from each tool's own metadata
 
 ## Reference implementation — read it before writing any part of this
 
@@ -36,7 +38,7 @@ Where to look, by concern:
 
 | concern                        | their file                                                               | what to take                                          |
 | ------------------------------ | ------------------------------------------------------------------------ | ----------------------------------------------------- |
-| the two tools, trust split     | `src/tools/search.ts`, `src/tools/execute.ts`                            | isolate config per tool, description structure        |
+| the trust split                | `src/tools/search.ts`, `src/tools/execute.ts`                            | isolate config per tool, description structure        |
 | ambient types in a description | `src/constants.ts` (`CLOUDFLARE_TYPES`), `src/openapi.ts` (`SPEC_TYPES`) | what belongs in context                               |
 | result capping                 | `src/truncate.ts`                                                        | the cap and its notice                                |
 | tool error shape               | `src/utils/errors.ts`                                                    | `formatError` → `{content, isError: true}`            |
@@ -124,40 +126,49 @@ Discovery stays code-only, as already settled: no search command, no describe co
 
 This mirrors wrangler, which we verified rather than assumed: `experimental_getWranglerCommands()` returns a `CommandRegistry` with a walkable definition tree, and wrangler consumes it itself for shell completion.
 
-### The agent surface: two code-mode tools
+### The agent surface: one code-mode tool
 
 An external agent — Claude Code in a terminal — reaches the registry through MCP, and the MCP server exposes
-**two tools, whatever the registry contains**. The model writes code; it never receives a tool per capability.
+**one tool, whatever the registry contains**. The model writes code; it never receives a tool per capability.
 
 **Reference: `cloudflare/mcp` at `0702302` — `src/server.ts`, `src/tools/search.ts`, `src/tools/execute.ts`.
 Read those three before building this section.**
 
-| tool              | contents                         | trust                                                 |
-| ----------------- | -------------------------------- | ----------------------------------------------------- |
-| `search({code})`  | the catalog, read-only           | pure; no tool execution, so nothing to gate           |
-| `execute({code})` | every registry tool as a binding | each binding call passes the existing permission gate |
+| tool              | contents                                                   | trust                                                                 |
+| ----------------- | ---------------------------------------------------------- | --------------------------------------------------------------------- |
+| `execute({code})` | every registry tool as a binding, plus a `catalog` binding | reads auto-allow; a mutating call passes the existing permission gate |
 
-Two corrections to how this spec first described the reference. Their server registers **three** tools, not two
-— `docs`, `search`, `execute` (`cf-mcp/src/server.ts:21-23`); their own `AGENTS.md` says "just two tools" and is
-stale against its source. Two tools is **our** decision, arrived at by omitting their `docs`, not a property of
-theirs. And their trust split is available to them cheaply because the Workers loader takes arbitrary module
-source, so they interpolate the spec into a network-free isolate as data.
+**Ruled: one tool, with the catalog as a binding.** The alternative was a separate read-only `search` mirroring
+the reference, and it is not free here. Their split is cheap because the Workers loader takes arbitrary module
+source, so they interpolate the spec into a network-free isolate **as data**. We cannot: `createCodeModeTool`
+throws when given zero tools (`create-code-mode-tool.ts:102-103`), so there is no binding-free sandbox;
+`IsolateConfig` accepts only `bindings`, `timeout` and `memoryLimit` (`types.ts:27-41`), so there is no channel
+for baking a catalog in; and the driver installs functions rather than transferable object graphs
+(`isolate-driver.ts:193-228`). The catalog therefore reaches the sandbox as a binding either way, and a separate
+`search` would mean re-implementing the body of `createCodeModeTool` against `driver.createContext` to buy one
+thing — `readOnlyHint` on a provably non-executing tool. One tool is fewer concepts, no duplicated sandbox path,
+and discovery plus action in a single round trip.
 
-**We cannot do that, and the search tool is work we write.** `createCodeModeTool` throws when given zero tools
-(`create-code-mode-tool.ts:102-103`), so there is no binding-free sandbox; `IsolateConfig` accepts only
-`bindings`, `timeout` and `memoryLimit` (`types.ts:27-41`), so there is no channel for baking a catalog in as
-data; and the driver installs functions rather than transferable object graphs
-(`isolate-driver.ts:193-228`), so the catalog reaches the sandbox as **a binding**, not as an embedded value.
-Building `search` as a genuinely separate read-only tool therefore means constructing a context against
-`driver.createContext` directly with the catalog as its only binding — roughly the body of
-`createCodeModeTool`, re-implemented. That is the price, and it buys one thing: `readOnlyHint` on a tool that
-provably cannot execute a capability, which is what lets a client auto-approve it.
+Discovery is therefore code against the `catalog` binding, inside the same sandbox:
 
-The alternative is one tool, with the catalog as a binding inside `execute`. Fewer concepts, no
-re-implementation, and search plus execution can happen in a single round trip — at the cost of every discovery
-call going through the approval path that execution uses. **This is the open decision.**
+```js
+const found = await catalog.search((tool) => tool.summary.includes('class'))
+```
 
-**The trust boundary is real either way, and it is why their two are split.** In their `search.ts` the
+**Ruled: reads auto-allow, mutations gate.** This is new behaviour and the reason it needs stating. Built-in
+capabilities are **not gated today** — `packages/core/src/app.ts:229-234` builds the risky set from extension
+tools only, and `packages/core/src/api/mcp.ts:102` registers built-ins directly, bypassing the decider extension
+tools go through at `:104-110`. So an external agent currently reaches every built-in unprompted, `page eval`
+included. After this, each binding consults the registry's own `mutating` metadata: a read runs, a mutation
+prompts. That is what makes the metadata load-bearing rather than documentation, and it means a snapshot or a
+text read never trains anyone to click through a prompt.
+
+Note two corrections to how this spec first described the reference. Their server registers **three** tools —
+`docs`, `search`, `execute` (`cf-mcp/src/server.ts:21-23`); their own `AGENTS.md` says "just two tools" and is
+stale against its source. Our count is our decision, not a property of theirs.
+
+**Their split still shows why the trust boundary is real, and we now enforce it per binding instead of per
+tool.** In their `search.ts` the
 isolate is created with `globalOutbound: null` and the tool is annotated `readOnlyHint: true`; in `execute.ts`
 it gets a proxy that rejects every host but the API base and attaches the token _outside_ the code isolate,
 which their comment states plainly: "token comes from props, never enters user code isolate". Our equivalent
@@ -342,28 +353,17 @@ Two guardrails keep that from decaying into "made green at the end":
 - **Errors** — a declared tool error arrives typed and narrowable, carries its code through the CLI as a user error, and is visible in the catalog before the call.
 - **Extensions** — a project extension's tool appears in the CLI catalog with the app down, and is callable with it up; two extensions claiming one name fail loudly at load.
 - **Split** — a browser-only tool's definition survives the node strip while its handler does not.
-- **Agent surface** — the MCP server lists exactly two tools with a registry of any size; no tool description
-  contains a tool name from the registry; `search` cannot execute a tool; a binding call inside `execute` is
-  gated, and a denial surfaces as an exception where the code called it; a result over the cap arrives
-  truncated with the notice attached. Their suite is worth mirroring: `tests/executor.test.ts`,
-  `tests/truncate.test.ts`, `tests/mcp-client.test.ts` in `cloudflare/mcp` at `0702302`.
+- **Agent surface** — the MCP server lists exactly one tool with a registry of any size; no tool description
+  contains a tool name from the registry; a read through the `catalog` binding needs no approval; a mutating
+  binding call is gated, and a denial surfaces as an exception where the code called it; a result over the cap
+  arrives truncated with the notice attached. Their suite is worth mirroring: `tests/executor.test.ts`,
+  `tests/truncate.test.ts` in `cloudflare/mcp` at `0702302`.
 
-## Open decisions, and constraints found in review
+## Constraints found in review
 
 Two reviews (fable and codex `gpt-5.6-sol`) read this spec against the code and the reference. Their confirmed
-findings are folded into the sections above. What is left needs a decision or a named work item.
-
-**Decision 1 — one tool or two.** Priced in the agent-surface section: two costs a re-implementation of
-`createCodeModeTool` against `driver.createContext`, and buys a provably non-executing tool a client can
-auto-approve. One is fewer concepts and one round trip, and puts discovery behind the approval path.
-
-**Decision 2 — do built-in capabilities become gated?** They are not gated today. `packages/core/src/app.ts:229-234`
-builds the risky set from **extension** tools only, and `packages/core/src/api/mcp.ts:102` registers the
-built-in tools directly, bypassing the decider that extension tools go through at `:104-110`. So "each binding
-call passes the existing permission gate" is new behaviour, not a description. Folding ~37 page verbs into gated
-bindings would start prompting where nothing prompted before. Either that is the intent — say so, and let
-read-only metadata auto-allow — or built-ins stay ungated and the trust split applies only to extensions. This
-has to be chosen, not discovered during implementation.
+findings are folded into the sections above, and both open decisions are now settled — one tool with the catalog
+as a binding, and reads auto-allow while mutations gate. What is left is named work.
 
 Work items the design implies and did not name:
 
