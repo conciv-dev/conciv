@@ -18,6 +18,29 @@ User rulings (binding, in the order they were settled):
 - **every capability declares an output schema**, not only an input — "we need to have schema for all as much as we can"
 - **the authoring API stays one call and one binding** — "the API must stay nice and sweeeet"
 
+## The goal
+
+**Every capability, including every extension's, is discoverable by an agent writing code — at a context cost
+that does not grow as capabilities are added.** That is the point of this work. The registry, the typed errors and
+the deleted parallel lists are all means to it.
+
+Three things follow, and they are requirements rather than consequences:
+
+- **Code mode is the surface.** One tool, bindings supplied by the registry, discovery through a catalog binding
+  inside the sandbox. Nothing enumerates capabilities in any description, so the cost of the eighty-fourth
+  capability is the same as the cost of the second.
+- **`conciv init` lands with it.** Init is what leaves a project able to use any of this: the installed skill
+  teaches the code-mode surface, and the marked `AGENTS.md` section stops listing command groups — a mini-catalog
+  is the same context bloat in a different file. Init and the registry ship as one story, not one after the other.
+- **Existing extension definitions get rewritten, as many as it takes.** No compatibility shim, no two ways to
+  declare a capability. Measured: **37 `defineTool` calls** across three extensions — recorder 3, tanstack 12,
+  whiteboard 22 — plus 2 `pageVerbs` sites in tanstack. The other four in-repo extensions declare no tools and are
+  untouched. (Whiteboard's suite is CI-only by standing rule, so its 22 are verified in CI, not locally.)
+
+For scale, which is the whole argument: the registry lands at roughly **83 capabilities** — 38 page verbs, 7
+server operations, `open`, and those 37 extension tools. Exposed one-tool-per-capability, that is the shape
+Cloudflare measured at 2,594 endpoints and 244k tokens. Exposed as code mode, it is one tool description.
+
 ## Reference implementation — read it before writing any part of this
 
 Everything about the agent surface is modelled on a real, working, open-source server. **Read the source, not
