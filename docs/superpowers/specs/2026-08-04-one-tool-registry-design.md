@@ -507,6 +507,41 @@ defects:
   `server` are ordinary method names, so the transform silently deletes calls it was never aimed at. It must
   match calls on a tool or extension builder, not any member call with those names.
 
+### The remaining unknowns, closed
+
+**Sandbox binding names — `external_` prefixed, and a dotted name is a hard error.** `createCodeMode` builds
+each binding as `external_<tool.name>`, and the driver evaluates a function _declaration_ with that name, so
+`page.fill` produces `external_page.fill` and fails at eval with `SyntaxError: Unexpected token '.'`. Verified by
+running it. `external_page_fill({value: 'hello'})` returns `{"success":true,"result":{"filled":true}}`. Mangling is
+mandatory; `sanitizeIdentifier` in `packages/core/src/chat/code-mode.ts` already implements the rule, so the
+registry only has to keep and expose the path-to-binding mapping.
+
+**The type stubs come free from the schemas.** The generated system prompt already contains
+`declare function external_page_fill(input: External_page_fillInput): Promise<External_page_fillOutput>;` derived
+from the tool's own schemas. This is what makes the output-schema requirement pay for itself — the ambient types
+an agent needs are generated, never hand-written. Output schemas are also _enforced_: an extra key in a handler's
+return is stripped before the agent sees it.
+
+**Secret-parameter scanning defaults to `'warn'`** — a `console.warn`, non-fatal
+(`validate-bindings.ts`, options `ignore` / `warn` / `throw` / callback, matched on word boundaries so
+`accessToken` hits and `tokenizer` does not). The library calls it "best-effort heuristic, not a security
+boundary". We set **`throw`, everywhere**: a credential in a capability's input schema is a design error, not a
+runtime condition.
+
+**Custom events from a bridged tool do reach the stream, on every harness.** This decides whether action cards
+survive code mode away from claude, and the answer is yes: all four adapters — `ai-acp`, `ai-claude-code`,
+`ai-codex`, `ai-opencode` — create a `BridgeEventChannel`, and `acp` is what pi and gemini run on. The bridge's
+own contract states the stakes: "Without it those events are silently dropped — the bridge runs out-of-band from
+the main tool executor, so the executor's own `emitCustomEvent` never reaches a bridged tool. The harness adapter
+supplies one that injects a CUSTOM chunk into its live output stream."
+
+**`isolated-vm` is compatible here** — `probeIsolatedVm()` returns `{"compatible":true}`, and a full
+`createCodeMode` execution ran end to end during these spikes.
+
+Nothing in this design is now unverified. The one remaining piece of known work before execution is #239: five
+type errors in `@conciv/core` from the `ai-sandbox` 0.3.0 restructure, deliberately left red so it is the first
+thing anyone fixes.
+
 ## Constraints found in review
 
 Two reviews (fable and codex `gpt-5.6-sol`) read this spec against the code and the reference. Their confirmed
