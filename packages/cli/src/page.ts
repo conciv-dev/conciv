@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {defineCommand, type ArgDef, type ArgsDef, type SubCommandsDef} from 'citty'
 import {PAGE_QUERY_KINDS, type PageQueryKind} from '@conciv/protocol/page-types'
 import type {PageRunInput} from '@conciv/protocol/page-types'
+import {userFailure} from './failure.js'
 import {runRpc} from './request.js'
 
 type VerbSpec = {targetsElement: boolean; flags: readonly string[]}
@@ -89,8 +90,9 @@ function schemaFor(verb: PageQueryKind): z.ZodType<Record<string, unknown>> {
 }
 
 function pageInput(verb: PageQueryKind, raw: unknown): PageRunInput {
-  const params = schemaFor(verb).parse(raw)
-  const present = Object.entries(params).filter(([, value]) => value !== undefined && value !== '')
+  const parsed = schemaFor(verb).safeParse(raw)
+  if (!parsed.success) throw userFailure(z.prettifyError(parsed.error))
+  const present = Object.entries(parsed.data).filter(([, value]) => value !== undefined && value !== '')
   return {verb, ...Object.fromEntries(present)}
 }
 

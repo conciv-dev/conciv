@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import {defineCommand} from 'citty'
+import {userFailure} from './failure.js'
 import {runRpc} from './request.js'
 
 const OpenArgs = z.object({file: z.string(), line: z.coerce.number().optional()})
@@ -11,7 +12,8 @@ export const openCommand = defineCommand({
     line: {type: 'string', description: 'line number to jump to'},
   },
   run: ({args}) => {
-    const parsed = OpenArgs.parse(args)
-    return runRpc((rpc) => rpc.editor.open({file: parsed.file, line: parsed.line}))
+    const parsed = OpenArgs.safeParse(args)
+    if (!parsed.success) throw userFailure(z.prettifyError(parsed.error))
+    return runRpc((rpc) => rpc.editor.open({file: parsed.data.file, line: parsed.data.line}))
   },
 })

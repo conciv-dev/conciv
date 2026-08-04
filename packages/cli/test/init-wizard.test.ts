@@ -70,7 +70,7 @@ describe('approvePlan', () => {
       }),
       output: recorderOutput(events),
     })
-    expect(approved).toEqual({framework: true, harnesses: ['claude', 'codex']})
+    expect(approved).toEqual({decision: 'selections', selections: {framework: true, harnesses: ['claude', 'codex']}})
     expect(events).toEqual(['plan:selected:claude+codex'])
   })
 
@@ -88,7 +88,7 @@ describe('approvePlan', () => {
       }),
       output: recorderOutput(events),
     })
-    expect(approved).toBe('dry-run')
+    expect(approved).toEqual({decision: 'dry-run', plan: 'the plan'})
     expect(events).toEqual(['plan:the plan'])
   })
 
@@ -115,7 +115,7 @@ describe('approvePlan', () => {
       }),
       output: recorderOutput(events),
     })
-    expect(approved).toEqual(adjusted)
+    expect(approved).toEqual({decision: 'selections', selections: adjusted})
     expect(events).toEqual([
       'plan:selected:claude+codex:true',
       'decide',
@@ -135,7 +135,7 @@ describe('approvePlan', () => {
       prompts: harness(events, {decide: async () => 'cancelled'}),
       output: recorderOutput(events),
     })
-    expect(approved).toBe('cancelled')
+    expect(approved).toEqual({decision: 'cancelled'})
   })
 
   it('treats a cancel inside adjust as cancelled', async () => {
@@ -154,6 +154,6 @@ describe('approvePlan', () => {
       }),
       output: recorderOutput(events),
     })
-    expect(approved).toBe('cancelled')
+    expect(approved).toEqual({decision: 'cancelled'})
   })
 })

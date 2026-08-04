@@ -51,6 +51,11 @@ export type InitOutput = {
   failure: (message: string) => void
 }
 
+export type PlanApproval =
+  | {decision: 'selections'; selections: ConfirmedSelections}
+  | {decision: 'cancelled'}
+  | {decision: 'dry-run'; plan: string}
+
 export type ApprovePlan = {
   yes: boolean
   dryRun: boolean
@@ -66,17 +71,18 @@ export function renderPlan(rows: PlanRow[], harnesses: HarnessRow[]): string {
   return [...lines, '', harnessLine(harnesses)].join('\n')
 }
 
-export async function approvePlan(args: ApprovePlan): Promise<ConfirmedSelections | 'cancelled' | 'dry-run'> {
+export async function approvePlan(args: ApprovePlan): Promise<PlanApproval> {
   let selections: ConfirmedSelections = {framework: true, harnesses: args.found.harnesses.map((one) => one.id)}
   for (;;) {
-    args.output.plan(await args.renderSelected(selections))
-    if (args.yes) return selections
-    if (args.dryRun) return 'dry-run'
+    const plan = await args.renderSelected(selections)
+    args.output.plan(plan)
+    if (args.yes) return {decision: 'selections', selections}
+    if (args.dryRun) return {decision: 'dry-run', plan}
     const decision = await args.prompts.decide()
-    if (decision === 'cancelled') return 'cancelled'
-    if (decision === 'proceed') return selections
+    if (decision === 'cancelled') return {decision: 'cancelled'}
+    if (decision === 'proceed') return {decision: 'selections', selections}
     const adjusted = await args.prompts.adjust(args.found, selections)
-    if (adjusted === 'cancelled') return 'cancelled'
+    if (adjusted === 'cancelled') return {decision: 'cancelled'}
     selections = adjusted
   }
 }
@@ -105,7 +111,7 @@ function harnessMark(row: HarnessRow): string {
 }
 
 export function interactiveTerminal(): boolean {
-  return isTTY(process.stdout) && !isCI()
+  return isTTY(process.stdout) && process.stdin.isTTY === true && !isCI()
 }
 
 function settleStepLine(active: ReturnType<typeof spinner>, result: StepResult): void {

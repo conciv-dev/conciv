@@ -54,6 +54,12 @@ export type InitStep = {
 
 export type InitOptions = {yes: boolean; dryRun: boolean; force: boolean; cwd: string}
 
+export type InitResult =
+  | {outcome: 'refused'; reason: string}
+  | {outcome: 'cancelled'; reason: string}
+  | {outcome: 'planned'; plan: string}
+  | {outcome: 'completed'; steps: LedgerEntry[]; next: string[]}
+
 export type SpawnBin = (bin: string, args: string[]) => Promise<{code: number; output: string}>
 
 export type InitRuntime = {
@@ -146,23 +152,17 @@ function quietContext(cwd: string, yes: boolean): InitContext {
   return {cwd, yes, dryRun: true, report: () => {}, note: () => {}, backup: () => {}}
 }
 
-export async function runInit(options: InitOptions, overrides: Partial<InitRuntime> = {}): Promise<LedgerEntry[]> {
+export async function runInit(options: InitOptions, overrides: Partial<InitRuntime> = {}): Promise<InitResult> {
   const runtime: InitRuntime = {...defaultRuntime(), ...overrides}
   runtime.output.intro('conciv init')
   if (!options.yes && !options.dryRun && !runtime.interactive()) {
-    runtime.output.error('Non-interactive terminal — re-run with --yes or --dry-run')
-    runtime.output.failure('conciv init stopped — nothing changed.')
-    process.exitCode = 1
-    return []
+    return refuse(runtime, 'Non-interactive terminal — re-run with --yes or --dry-run')
   }
   const detecting = runtime.output.spinner('Detecting your project…')
   const checked = await preflight(options.cwd, options.force)
   if (!checked.ok) {
     detecting.fail('Cannot run here')
-    runtime.output.error(checked.reason)
-    runtime.output.failure('conciv init stopped — nothing changed.')
-    process.exitCode = 1
-    return []
+    return refuse(runtime, checked.reason)
   }
   const detected = await detectProject(options.cwd)
   const found = detectHarnesses(runtime.env)
@@ -179,17 +179,17 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     prompts: runtime.prompts,
     output: runtime.output,
   })
-  if (approved === 'cancelled') {
+  if (approved.decision === 'cancelled') {
     runtime.output.cancelled('Nothing changed.')
-    return []
+    return {outcome: 'cancelled', reason: 'cancelled — nothing changed'}
   }
-  if (approved === 'dry-run') {
+  if (approved.decision === 'dry-run') {
     runtime.output.outro('Dry run — nothing changed.')
-    return []
+    return {outcome: 'planned', plan: approved.plan}
   }
   const backups = guardBackups()
   backups.remember(captureFile(consentFile(options.cwd)))
-  writeConsent(options.cwd, approved.harnesses)
+  writeConsent(options.cwd, approved.selections.harnesses)
   const settings: RunSettings = {
     cwd: options.cwd,
     yes: options.yes,
@@ -203,10 +203,21 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
         runtime.exit(130)
       }),
   }
-  const entries = await runSteps(stepList(options.cwd, detected, approved, runtime), settings, runtime.output)
+  const entries = await runSteps(
+    stepList(options.cwd, detected, approved.selections, runtime),
+    settings,
+    runtime.output,
+  )
   backups.release()
-  emitOutro(runtime.output, entries, nextSteps(detected.packageManager))
-  return entries
+  const next = nextSteps(detected.packageManager)
+  emitOutro(runtime.output, entries, next)
+  return {outcome: 'completed', steps: entries, next}
+}
+
+function refuse(runtime: InitRuntime, reason: string): InitResult {
+  runtime.output.error(reason)
+  runtime.output.failure('conciv init stopped — nothing changed.')
+  return {outcome: 'refused', reason}
 }
 
 export async function runSteps(steps: InitStep[], settings: RunSettings, output: InitOutput): Promise<LedgerEntry[]> {
