@@ -13,6 +13,7 @@ import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import type {ConcivDb} from '@conciv/db'
+import {FIRST_CHUNK_TIMEOUT_MS, READER_FIRST_APPEND_GRACE_MS} from './run-timing.js'
 import type {AskRegistry} from './ask.js'
 import type {AttachmentExpanders} from './run.js'
 import type {LiveRuns} from './live-runs.js'
@@ -46,10 +47,6 @@ export type ChatDeps = {
 }
 
 export type ChatEnv = {Variables: {chat: ChatDeps}}
-
-export const FIRST_CHUNK_TIMEOUT_MS = 30_000
-
-const READER_FIRST_APPEND_GRACE_MS = 5_000
 
 export function makeRunControl(firstChunkTimeoutMs?: number): {
   durability: (runId: string) => StreamDurability

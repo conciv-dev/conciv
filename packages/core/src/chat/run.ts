@@ -28,7 +28,8 @@ import {
   setRunMessages,
   type ConcivDb,
 } from '@conciv/db'
-import {FIRST_CHUNK_TIMEOUT_MS, type ChatDeps} from './runtime.js'
+import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
+import type {ChatDeps} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot} from './transcript.js'
