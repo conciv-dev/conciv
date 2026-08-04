@@ -367,15 +367,27 @@ as a binding, and reads auto-allow while mutations gate. What is left is named w
 
 Work items the design implies and did not name:
 
-- **The registry's type must be an augmentable interface, not `typeof registry`.** `RouterClient<T>` maps
-  `[K in keyof TRouter]` (`@orpc/server@1.14.7/dist/index.d.mts:789-790`), so a tool an extension registers at
-  runtime is callable — the client is a pure path Proxy — but `client.deploy.ship` is a property missing from
-  the type, and a compile error. Module augmentation is the fix already ruled for extension types, and it only
-  works against an **interface**: a type alias derived from the runtime object is closed to it. Deciding this
-  when the registry type is first written is free; changing it afterwards is not. No cast and no `call(path,
-input)` escape are needed — an extension that ships a declaration is fully typed, and one authored ad hoc in
-  `conciv/extensions/` with no declaration is still reachable through the CLI and the sandbox, both stringly
-  typed by nature.
+- **Extension tool types reuse the augmentation pattern we already have, widened — nothing new is invented.**
+  `RouterClient<T>` maps `[K in keyof TRouter]` (`@orpc/server@1.14.7/dist/index.d.mts:789-790`), so a tool an
+  extension registers at runtime is callable — the client is a pure path Proxy — but absent from the type. The
+  existing answer is one **derived** line, not a hand-written shape:
+
+  ```ts
+  declare module '@conciv/protocol/config-types' {
+    interface ExtensionConfigRegistry extends RegisterExtension<typeof demo> {}
+  }
+  ```
+
+  (`packages/extension/test/config-registry.test-d.ts:9-11`.) `RegisterExtension` reads the name and config
+  schema off the builder itself (`define-extension.ts:93-98`). The gap for tools is one underscore: the same
+  conditional already captures the tools type and discards it —
+  `ExtensionBuilder<infer Name, infer Schema, infer _Tools, …>`. Project `_Tools` instead of dropping it, and
+  have the tool client read the same registry interface. No cast, no escape hatch, and no second mechanism.
+
+  While doing it, converge the two augmentation targets. `apps/conciv/src/extensions/highlight.tsx:141-145`
+  augments `Register` in `@conciv/extension` and **hand-writes** `{context: Record<never, never>}`, restating
+  what the builder already knows. Derived is the model; a third target would be the wrong direction.
+
 - **Bindings are built once.** `makeCodeMode` converts a tool array into static bindings at construction
   (`packages/core/src/chat/code-mode.ts:73-90`, `create-code-mode-tool.ts:106-108`). An extension that loads
   after the server is built will not appear. Either version the registry and rebuild on change, or use a
