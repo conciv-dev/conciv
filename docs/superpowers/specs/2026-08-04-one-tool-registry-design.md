@@ -367,10 +367,15 @@ as a binding, and reads auto-allow while mutations gate. What is left is named w
 
 Work items the design implies and did not name:
 
-- **A runtime-registered procedure is not reachable through the typed proxy.** `RouterClient<T>` maps `keyof T`,
-  so an extension's tool is a compile error rather than `any`, and reaching it needs a cast, which is banned.
-  The registry needs an explicit escape — a typed `call(path: string[], input: unknown)` — or extension tools
-  are callable only through the sandbox and the CLI.
+- **The registry's type must be an augmentable interface, not `typeof registry`.** `RouterClient<T>` maps
+  `[K in keyof TRouter]` (`@orpc/server@1.14.7/dist/index.d.mts:789-790`), so a tool an extension registers at
+  runtime is callable — the client is a pure path Proxy — but `client.deploy.ship` is a property missing from
+  the type, and a compile error. Module augmentation is the fix already ruled for extension types, and it only
+  works against an **interface**: a type alias derived from the runtime object is closed to it. Deciding this
+  when the registry type is first written is free; changing it afterwards is not. No cast and no `call(path,
+input)` escape are needed — an extension that ships a declaration is fully typed, and one authored ad hoc in
+  `conciv/extensions/` with no declaration is still reachable through the CLI and the sandbox, both stringly
+  typed by nature.
 - **Bindings are built once.** `makeCodeMode` converts a tool array into static bindings at construction
   (`packages/core/src/chat/code-mode.ts:73-90`, `create-code-mode-tool.ts:106-108`). An extension that loads
   after the server is built will not appear. Either version the registry and rebuild on change, or use a
