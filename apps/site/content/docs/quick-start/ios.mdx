@@ -4,9 +4,8 @@ description: Attach conciv to a native iOS app running in the simulator.
 ---
 
 <Callout type="warn">
-  Early alpha. The iOS SDK is on the `0.0.x` line, so the bridge protocol and public API can change
-  without notice. The iOS simulator is the only supported target today. Match the SwiftPM version to
-  the `@conciv/*` npm version you run.
+  Early alpha. The iOS SDK is on the `0.0.x` line, so the bridge protocol and public API can change without notice. The
+  iOS simulator is the only supported target today. Match the SwiftPM version to the `@conciv/*` npm version you run.
 </Callout>
 
 conciv drives a native iOS app the same way it drives a web app: a transparent overlay and launcher
@@ -73,21 +72,18 @@ ConcivWidget.attach(launcher: .native)
 ```
 
 <Callout type="info">
-  No `Info.plist` changes. The app reaches the dev core over `http://127.0.0.1`, and App Transport
-  Security does not apply to the loopback address, so plain HTTP works with no
-  `NSAppTransportSecurity` keys. The local-network privacy prompt skips loopback too, so no usage
-  string either. Point an app at a Mac by LAN address instead (a physical device over Wi-Fi, which
-  conciv does not support yet) and the two keys answer different questions:
-  `NSLocalNetworkUsageDescription` is the purpose string iOS shows before letting the app reach other
-  devices on the network, whatever the protocol, and `NSAllowsLocalNetworking` is the ATS exception
-  that permits plain HTTP to those hosts. That setup needs the usage string, and the ATS exception on
-  top only while the URL stays `http://`.
+  No `Info.plist` changes. The app reaches the dev core over `http://127.0.0.1`, and App Transport Security does not
+  apply to the loopback address, so plain HTTP works with no `NSAppTransportSecurity` keys. The local-network privacy
+  prompt skips loopback too, so no usage string either. Point an app at a Mac by LAN address instead (a physical device
+  over Wi-Fi, which conciv does not support yet) and the two keys answer different questions:
+  `NSLocalNetworkUsageDescription` is the purpose string iOS shows before letting the app reach other devices on the
+  network, whatever the protocol, and `NSAllowsLocalNetworking` is the ATS exception that permits plain HTTP to those
+  hosts. That setup needs the usage string, and the ATS exception on top only while the URL stays `http://`.
 </Callout>
 
 <Callout type="warn">
-  `attach()` compiles to a no-op in a Release build: no overlay, no WebView, no dev-core URL. Nothing
-  conciv ships to TestFlight or the App Store, so a Release build shows nothing. Run a Debug build to
-  see the widget.
+  `attach()` compiles to a no-op in a Release build: no overlay, no WebView, no dev-core URL. Nothing conciv ships to
+  TestFlight or the App Store, so a Release build shows nothing. Run a Debug build to see the widget.
 </Callout>
 
 </Step>
@@ -140,7 +136,7 @@ block the widget still works; only the `ios.*` build tools are unavailable.
 
 - `CONCIV_URL` if set. `ios.run` injects it for you as `SIMCTL_CHILD_CONCIV_URL`, which the app reads
   as `CONCIV_URL`; to launch by hand pass `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl
-  launch booted dev.conciv.YourApp`.
+launch booted dev.conciv.YourApp`.
 - Otherwise the pairing file at `~/.conciv/dev-endpoint.json`. A dev core that serves the native page
   writes it on startup and deletes it on shutdown, and the simulator reads the host home directory, so
   this is the zero-config path.
@@ -178,9 +174,7 @@ need to be sure which core the app talks to.
       width={1206}
       height={2622}
     />
-    <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">
-      The agent panel over your app
-    </figcaption>
+    <figcaption className="mt-2 text-center text-sm text-fd-muted-foreground">The agent panel over your app</figcaption>
   </figure>
   <figure className="m-0">
     <ImageZoom
