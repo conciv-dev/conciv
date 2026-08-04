@@ -1,0 +1,67 @@
+---
+title: Connect your agents
+description: Teach coding agents the conciv CLI.
+---
+
+Agents use the conciv CLI directly. `conciv tools` is self-describing: agents run
+`conciv tools --help` to discover every command, and the CLI finds your running dev server itself.
+No MCP config, no addresses, nothing to maintain.
+
+<Tabs items={['init', 'Manual']}>
+
+<Tab value="init">
+
+```bash
+npx conciv@latest init
+```
+
+init scans for installed harnesses (claude, codex, opencode, pi) and asks which ones to teach in a
+multiselect. Consenting writes a marked conciv section into AGENTS.md (and CLAUDE.md if you keep
+one); re-running init updates that section in place. claude is the one harness with a deeper
+integration: init also installs the conciv-connect plugin through claude's native plugin manager,
+scoped to the project.
+
+init refuses a dirty git tree; commit first or pass `--force`. `--dry-run` prints the plan without
+touching anything.
+
+</Tab>
+
+<Tab value="Manual">
+
+### Teach your agents the conciv CLI
+
+Paste this section into AGENTS.md (and CLAUDE.md if you keep one):
+
+```md
+<!-- conciv:start -->
+
+## conciv
+
+conciv connects coding agents to the app running in the browser.
+
+Run `conciv tools --help` to discover every command. The CLI finds the running dev server itself: no config, no addresses.
+
+- `conciv tools page` — read and drive the live page: snapshot, click, fill, edit, eval
+- `conciv tools react` — inspect and edit live React components
+- `conciv tools server` — inspect and nudge the dev server: config, urls, resolve, reload
+
+These commands need the dev server running.
+
+<!-- conciv:end -->
+```
+
+### Install the conciv claude plugin
+
+init generates the plugin files under `.conciv/claude-connect`. Register the generated conciv
+marketplace and install the connect plugin with the claude CLI:
+
+```bash
+claude plugin marketplace add .conciv/claude-connect
+claude plugin install conciv-connect@conciv --scope local
+```
+
+</Tab>
+
+</Tabs>
+
+Next: [Usage](/docs/usage) to see what the agent can do.

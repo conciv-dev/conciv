@@ -6,6 +6,25 @@ description: Add conciv to a Vite app.
 Vite is the full integration. The plugin boots the engine, bridges the live page, and injects the
 widget for you.
 
+<Tabs items={['init', 'Manual']}>
+
+<Tab value="init">
+
+```bash
+npx conciv@latest init
+```
+
+init detects Vite from your package.json, installs `@conciv/it` with your package manager, and adds
+the `@conciv/it/plugin/vite` plugin to your Vite config. If it cannot prove the shape of your
+config, it prints the exact snippet to paste instead.
+
+init refuses a dirty git tree; commit first or pass `--force`. `--dry-run` prints the plan without
+touching anything.
+
+</Tab>
+
+<Tab value="Manual">
+
 <Steps>
 <Step>
 
@@ -66,6 +85,10 @@ vite dev
 
 </Step>
 </Steps>
+
+</Tab>
+
+</Tabs>
 
 <Callout type="warn">
   Keep conciv out of production. Gate it on the dev command, or set `enabled`. See [Configuration](/docs/configuration).

@@ -10,6 +10,7 @@ export function agentsSection(consented: HarnessId[]): string {
   const setUpFor = consented.length > 0 ? ['', `Set up for: ${consented.join(', ')}.`] : []
   return [
     startMarker,
+    '',
     '## conciv',
     '',
     'conciv connects coding agents to the app running in the browser.',
@@ -22,6 +23,7 @@ export function agentsSection(consented: HarnessId[]): string {
     '',
     'These commands need the dev server running.',
     ...setUpFor,
+    '',
     endMarker,
   ].join('\n')
 }
@@ -84,7 +86,7 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
     verify: async (ctx) => (await detect(ctx)) === 'present',
     manualCard: () => ({
       title: 'Teach your agents the conciv CLI',
-      body: 'Paste this section into AGENTS.md (and CLAUDE.md if you keep one):',
+      body: 'Paste this section into AGENTS.md (and CLAUDE.md if you keep one). Full steps: https://conciv.dev/docs/quick-start/agents',
       snippet: agentsSection(consented()),
     }),
   }

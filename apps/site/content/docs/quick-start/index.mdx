@@ -1,8 +1,18 @@
 ---
 title: Quick start
-description: Add conciv to your app. Pick your bundler and follow the steps.
+description: One command sets your app up for conciv. Or pick your bundler and wire it by hand.
 icon: Zap
 ---
+
+## One command
+
+```bash
+npx conciv@latest init
+```
+
+init detects your bundler and package manager, installs `@conciv/it`, wires your config, and
+teaches your installed agent harnesses the conciv CLI. It refuses a dirty git tree (commit first or
+pass `--force`), and `--dry-run` prints the plan without touching anything.
 
 ## Prerequisites
 
@@ -51,3 +61,6 @@ a plain production preview.
 
 Using Rollup or esbuild? See the [Rollup](/docs/quick-start/rollup) and
 [esbuild](/docs/quick-start/esbuild) notes.
+
+Working with coding agents? [Connect your agents](/docs/quick-start/agents) covers what init
+teaches them and how to wire it by hand.

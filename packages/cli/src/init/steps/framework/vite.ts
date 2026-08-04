@@ -11,7 +11,7 @@ export default defineConfig({plugins: [conciv()]})`
 function snippetCard(): ManualCard {
   return {
     title: 'Wire the conciv vite plugin',
-    body: 'conciv could not prove the shape of your vite config. Add the plugin yourself:',
+    body: 'conciv could not prove the shape of your vite config. Add the plugin yourself. Full steps: https://conciv.dev/docs/quick-start/vite',
     snippet: quickStartSnippet,
   }
 }

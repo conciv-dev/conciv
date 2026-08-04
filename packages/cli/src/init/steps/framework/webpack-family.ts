@@ -18,7 +18,7 @@ function pluginModule(name: FamilyName): string {
 function configCard(name: FamilyName): ManualCard {
   return {
     title: `Wire the conciv ${name} plugin`,
-    body: `conciv could not prove the shape of your ${name} config. Add the plugin yourself:`,
+    body: `conciv could not prove the shape of your ${name} config. Add the plugin yourself. Full steps: https://conciv.dev/docs/quick-start/${name}`,
     snippet: `const conciv = require('${pluginModule(name)}')
 
 module.exports = {

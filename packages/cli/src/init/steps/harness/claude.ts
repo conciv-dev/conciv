@@ -40,7 +40,7 @@ function installArgs(): string[] {
 function installCard(root: string): ManualCard {
   return {
     title: 'Install the conciv claude plugin',
-    body: 'Register the generated conciv marketplace and install the connect plugin with the claude CLI:',
+    body: 'Register the generated conciv marketplace and install the connect plugin with the claude CLI. Full steps: https://conciv.dev/docs/quick-start/agents',
     snippet: [`claude ${marketplaceAddArgs(root).join(' ')}`, `claude ${installArgs().join(' ')}`].join('\n'),
   }
 }

@@ -6,6 +6,25 @@ description: Add conciv to a webpack app.
 The webpack entry boots the engine, but it does not inject the widget for you. You add the widget
 script yourself and point `widgetUrl` at the bundle.
 
+<Tabs items={['init', 'Manual']}>
+
+<Tab value="init">
+
+```bash
+npx conciv@latest init
+```
+
+init detects webpack from your package.json, installs `@conciv/it` with your package manager, and
+adds the `@conciv/it/plugin/webpack` plugin to your webpack config. Widget injection stays manual:
+init prints a card telling you to serve `@conciv/widget/global` and set `widgetUrl`.
+
+init refuses a dirty git tree; commit first or pass `--force`. `--dry-run` prints the plan without
+touching anything.
+
+</Tab>
+
+<Tab value="Manual">
+
 <Steps>
 <Step>
 
@@ -38,6 +57,10 @@ added to your page. See [Configuration](/docs/configuration#widgeturl).
 
 </Step>
 </Steps>
+
+</Tab>
+
+</Tabs>
 
 <Callout>
   webpack is less complete than [Vite](/docs/quick-start/vite). The live page bridge is Vite only. Chat, tests, and
