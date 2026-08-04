@@ -6,6 +6,8 @@ test('folder-installed tanstack extension boots the widget and shows its compose
   await page.goto('/', {waitUntil: 'domcontentloaded'})
   await expectWidgetBoots(page, failures)
 
-  const chip = page.getByRole('dialog', {name: 'conciv chat agent'}).getByText('TanStack', {exact: true})
+  const chip = page
+    .getByRole('dialog', {name: 'conciv chat agent'})
+    .getByRole('status', {name: 'TanStack inspector active'})
   await expect(chip).toBeVisible()
 })

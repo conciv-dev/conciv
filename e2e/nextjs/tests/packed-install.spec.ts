@@ -54,7 +54,9 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
   }
 
   function chip(page: Page) {
-    return page.getByRole('dialog', {name: 'conciv chat agent'}).getByText('TanStack', {exact: true})
+    return page
+      .getByRole('dialog', {name: 'conciv chat agent'})
+      .getByRole('status', {name: 'TanStack inspector active'})
   }
 
   async function gotoAndOpen(page: Page): Promise<void> {
