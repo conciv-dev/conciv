@@ -201,8 +201,7 @@ This is not one function call. citty parses non-strictly, so there is no unknown
 - **Unknown flags**: a mistyped flag is rejected with a suggestion — the regression test for today's successful no-op.
 - **Gate policy**: `conciv tools code` is classified `ask`, read-only verbs stay auto-allowed, and the classification does not change when the snippet contains a semicolon.
 - **init results**: a cancelled run under `--json` reports a refusal with a reason, never `{ok: true}` with an empty step list.
-- **Skill install**: writing the skill happens even when the claude plugin is already installed — the case the presence check currently skips.
-- **Skill install**: files land in the right per-harness location; re-run is idempotent.
+- **Skill install**: files land in the right per-harness location and a re-run is idempotent — including the case the presence check currently skips, where the claude plugin is already installed and the skill would silently never be written.
 
 ## Out of scope
 
