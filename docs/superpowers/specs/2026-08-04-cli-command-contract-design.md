@@ -113,7 +113,9 @@ Cloudflare's isolate exists for exactly this reason on their side, and our in-ch
 
 **Discovery works with no dev server.** `conciv.catalog` is static data compiled from the registry at build time; filtering it makes no RPC call. Only executing a verb needs the running app. So an agent's first move — "what can conciv do about class names?" — never fails with a connection error, which is what makes the skill's opening instruction safe.
 
-Scope, stated so nobody over-reads it: the catalog covers the page, react, server, and open leaves. Extension-contributed `ext` verbs arrive at runtime and cannot appear in a build-time catalog, so "what can conciv do" structurally omits the extensible half — the skill says so rather than letting an agent conclude the catalog is exhaustive.
+Scope, stated so nobody over-reads it: the built-in leaves (page, react, server, open) are compiled into the catalog with full signatures. Extension-contributed `ext` verbs are declared in code and registered at runtime, so their signatures cannot be compiled in.
+
+But the agent is not left blind there either, and it does not need the server to find out: extensions are files in `conciv/extensions/` — the same directory the plugin globs — so the catalog reads that directory and lists which extensions a project has, each marked as carrying verbs known only at runtime. An agent filtering the catalog learns "this project has a `deploy` extension, ask the running app what it exposes" instead of concluding conciv cannot deploy. The skill says which half is which rather than letting the catalog read as exhaustive.
 
 The catalog carries a **JSON-safe signature per command** — field names, types, enum values, requiredness, target rules — compiled from the per-verb schemas during the CLI build. That is what makes `return conciv.catalog.verbs['page.fill']` worth reading; a name and a summary alone would not be a signature, and claiming otherwise while shipping `{targetsElement, flags}` would be a lie in the one surface agents rely on.
 
@@ -129,7 +131,7 @@ Their MCP surfaces collapse to a single `code` tool because an MCP client must p
 ### 3b. Snippets: successful programs become reusable
 
 - `conciv tools code '…' --save <name>` stores the script after a **successful** run only.
-- **They do not live under `.conciv/`.** Our own vite plugin writes runtime state there and the root `.gitignore` ignores the whole directory — and a nested `.gitignore` cannot re-include a file whose parent directory is excluded, so "git-visible snippets under `.conciv/`" was simply false. Team artifacts (snippets and the installed skill) go in a tracked `conciv/` directory; `.conciv/` stays ignored runtime state. Two directories is the price of the claim being true.
+- **They live in `conciv/snippets/`, beside `conciv/extensions/`.** Not under `.conciv/`: our own vite plugin writes runtime state there, the root `.gitignore` excludes the whole directory, and a nested `.gitignore` cannot re-include a file whose parent is excluded — so "git-visible snippets under `.conciv/`" was false. There is no need to invent a location: `conciv/extensions/` is already the documented checked-in user-source convention (`EXTENSION_DIR`, and the docs tell users to create it), so snippets are a sibling inside a directory the project already commits. `conciv/` is user source; `.conciv/` is run state. The split already existed.
 - `--describe <text>` (optional, only meaningful with `--save`) records what the snippet is for. Metadata lives beside each snippet, per snippet — not in one shared index that two concurrent saves can clobber and a crash between two writes can desync. A snippet saved without `--describe` lists `description: null` rather than a guess.
 - Names are restricted to a portable slug (no separators, no traversal, no case-collisions), and saving over an existing name is refused unless `--force`. A path like `../../x` is a user error, not a write.
 - `conciv tools snippets` lists what is stored (`--json` for agents).
@@ -157,7 +159,9 @@ Transport failures are mapped locally by hand, because nobody declared them. So 
 
 **Where it lands, per harness, without inventing paths.** We detect four harnesses (`claude`, `codex`, `opencode`, `pi` — `harness-detect.ts`). Only claude has a skills location we already own and write to: the connect plugin we generate under `.conciv/`, so the skill ships as a file inside it.
 
-**And that step will not run on the machines that need it most.** The claude step's `detect` returns `present` when the plugin merely appears in claude's installed-plugins file, and a step reporting `present` never applies — so on any machine where the connect plugin is already installed, the skill is never written, while the run reports success and the idempotence test passes. `detect` has to compare the generated files against the installed cache copy (the same content predicate the harness attach path already uses), not check for presence. For the other three we have not verified a skills convention, so we do not guess one: the skill is written once to `conciv/skill.md` — the tracked directory, alongside snippets, for the same reason `.conciv/` cannot hold it (gitignored) — and the marked AGENTS.md section becomes a pointer to it. Adding a real per-harness path later is a one-line addition to the same step, and is out of scope here.
+For the other three we have not verified a skills convention, so we do not guess one: the skill is written once to `conciv/skill.md` — beside `conciv/extensions/` and `conciv/snippets/`, the directory projects already commit, since `.conciv/` is gitignored — and the marked AGENTS.md section becomes a pointer to it. Adding a real per-harness path later is a one-line addition to the same step, and is out of scope here.
+
+**And the claude half will not run on the machines that need it most.** That step's `detect` returns `present` when the plugin merely appears in claude's installed-plugins file, and a step reporting `present` never applies — so wherever the connect plugin is already installed, the skill is never written, while the run reports success and the idempotence test passes. `detect` has to compare the generated files against the installed cache copy (the same content predicate the harness attach path already uses), not check for presence.
 
 Either way the AGENTS.md section stops being a mini-catalog — it names conciv, the dev-server requirement, and where the skill is. It no longer lists verbs, because listing verbs in a standing file is exactly the context cost this design removes.
 
@@ -181,7 +185,7 @@ This is not one function call. citty parses non-strictly, so there is no unknown
 2. **Migrate, one surface per batch** — page verbs, then react, then server (and `open`, and `page changes`), then init: give each leaf its per-verb schema, fill the registry fields, convert failures to user errors, add `--json`. Each batch independently green; the drifted `effect`/`action`/`ext` fields are fixed by the schema, not patched by hand.
 3. **Code mode** — `conciv tools code` + `types`: the shipped runner, the typed oRPC client, and the per-verb narrowing facade.
 4. **Catalog binding** — expose `conciv.catalog` (with compiled signatures) in the sandbox; this is the discovery surface (no search/describe commands are ever added).
-5. **Snippets** — `--save`, `snippets`, `--run <name>` in the tracked `conciv/` directory.
+5. **Snippets** — `--save`, `snippets`, `--run <name>` in `conciv/snippets/`, beside the existing `conciv/extensions/`.
 6. **Skills** — init installs them, teaching filter → code → save → re-run; the AGENTS.md section shrinks.
 7. **Contract** — delete the generated-description path and the raw-error escape; add the registry guard test.
 
