@@ -1,7 +1,21 @@
-import {cancel, confirm, intro, isCancel, log, multiselect, note, outro, select, spinner} from '@clack/prompts'
+import {
+  cancel,
+  confirm,
+  intro,
+  isCancel,
+  isCI,
+  isTTY,
+  log,
+  multiselect,
+  note,
+  outro,
+  select,
+  spinner,
+} from '@clack/prompts'
 import pc from 'picocolors'
 import type {Framework} from './detect.js'
 import type {FoundHarness, HarnessId} from './harness-detect.js'
+import type {StepNote, StepStatus} from './ledger.js'
 
 export type FoundSelections = {framework: Framework; harnesses: FoundHarness[]}
 export type ConfirmedSelections = {framework: boolean; harnesses: HarnessId[]}
@@ -18,11 +32,19 @@ export type PlanPrompts = {
 
 export type SpinnerHandle = {stop: (summary: string) => void; fail: (summary: string) => void}
 
+export type StepResult = {status: StepStatus; summary: string}
+
+export type StepHandle = {settle: (result: StepResult) => void}
+
 export type InitOutput = {
   intro: (title: string) => void
   spinner: (message: string) => SpinnerHandle
   plan: (body: string) => void
+  step: (title: string) => StepHandle
+  note: (payload: StepNote) => void
   line: (text: string) => void
+  success: (message: string) => void
+  warn: (message: string) => void
   error: (message: string) => void
   cancelled: (message: string) => void
   outro: (message: string) => void
@@ -82,6 +104,24 @@ function harnessMark(row: HarnessRow): string {
   return pc.dim(`○ ${row.id} (not found)`)
 }
 
+export function interactiveTerminal(): boolean {
+  return isTTY(process.stdout) && !isCI()
+}
+
+function settleStepLine(active: ReturnType<typeof spinner>, result: StepResult): void {
+  if (result.status === 'manual') {
+    active.clear()
+    log.warn(result.summary)
+    return
+  }
+  if (result.status === 'skipped') {
+    active.clear()
+    log.message(pc.dim(result.summary))
+    return
+  }
+  active.stop(result.summary)
+}
+
 export const clackOutput: InitOutput = {
   intro: (title) => intro(title),
   spinner: (message) => {
@@ -90,7 +130,15 @@ export const clackOutput: InitOutput = {
     return {stop: (summary) => active.stop(summary), fail: (summary) => active.error(summary)}
   },
   plan: (body) => note(body, 'Plan'),
+  step: (title) => {
+    const active = spinner()
+    active.start(title)
+    return {settle: (result) => settleStepLine(active, result)}
+  },
+  note: (payload) => note(payload.body, payload.title),
   line: (text) => log.message(text),
+  success: (message) => log.success(message),
+  warn: (message) => log.warn(message),
   error: (message) => log.error(message),
   cancelled: (message) => cancel(message),
   outro: (message) => outro(message),

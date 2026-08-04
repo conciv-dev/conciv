@@ -1,7 +1,8 @@
 import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {Detected} from '../../detect.js'
-import type {InitContext, InitStep, ManualCard} from '../../pipeline.js'
+import type {ManualCard} from '../../ledger.js'
+import type {InitContext, InitStep} from '../../pipeline.js'
 import {readConfig, writeConfigChange} from './config-edit.js'
 import {wrapDefaultExport} from './engine.js'
 
@@ -85,6 +86,8 @@ export function nextjsStep(detected: Detected): InitStep {
   return {
     id: 'framework',
     title: 'Wire next.js',
+    running: 'Wiring next.js…',
+    completed: 'Wired next.js',
     detect: async (ctx) => (allWired(ctx.cwd, detected.configFile) ? 'present' : 'missing'),
     plan: async () => ({
       summary: `wrap ${detected.configFile ?? 'your next config'} with withConciv and create ${instrumentationName} + ${clientName}`,

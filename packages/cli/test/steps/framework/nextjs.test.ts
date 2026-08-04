@@ -3,7 +3,6 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import type {Detected} from '../../../src/init/detect.js'
-import type {InitContext} from '../../../src/init/pipeline.js'
 import {runSteps} from '../../../src/init/pipeline.js'
 import {nextjsStep} from '../../../src/init/steps/framework/nextjs.js'
 import {stepContext} from './step-context.js'
@@ -13,7 +12,7 @@ const fixturesDir = join(import.meta.dirname, '..', '..', 'fixtures')
 const instrumentationContent = "export {register} from '@conciv/it/plugin/nextjs'\n"
 const clientContent = "import '@conciv/it/plugin/nextjs/widget'\n"
 
-function project(fixtureName: string | null): {cwd: string; detected: Detected; reports: string[]; ctx: InitContext} {
+function project(fixtureName: string | null): {cwd: string; detected: Detected} & ReturnType<typeof stepContext> {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-nextjs-'))
   writeFileSync(join(cwd, 'package.json'), JSON.stringify({name: 'app', dependencies: {next: '^15.0.0'}}))
   const configFile = fixtureName === null ? null : 'next.config.ts'
@@ -26,11 +25,11 @@ function project(fixtureName: string | null): {cwd: string; detected: Detected; 
 
 describe('nextjsStep', () => {
   it('lands all three wires on a fresh project with exact instrumentation contents', async () => {
-    const {cwd, detected, reports, ctx} = project('next.config.ts')
+    const {cwd, detected, events, settings, output, ctx} = project('next.config.ts')
     const step = nextjsStep(detected)
     expect(step.id).toBe('framework')
     expect(await step.detect(ctx)).toBe('missing')
-    const ledger = await runSteps([step], ctx)
+    const ledger = await runSteps([step], settings, output)
     expect(ledger.map((entry) => entry.status)).toEqual(['done'])
     const config = readFileSync(join(cwd, 'next.config.ts'), 'utf8')
     expect(config).toContain("import {withConciv} from '@conciv/it/plugin/nextjs'")
@@ -39,24 +38,25 @@ describe('nextjsStep', () => {
     expect(readFileSync(join(cwd, 'instrumentation-client.ts'), 'utf8')).toBe(clientContent)
     expect(await step.detect(ctx)).toBe('present')
     expect(await step.verify(ctx)).toBe(true)
-    const diff = reports.join('\n')
+    expect(events).toContain('line:created instrumentation.ts')
+    const diff = events.filter((event) => event.startsWith('note:next.config.ts:')).join('\n')
     expect(diff).toContain('--- next.config.ts')
     expect(diff).toContain('+export default withConciv(nextConfig)')
   })
 
   it('reports already on the second run through the pipeline', async () => {
-    const {detected, ctx} = project('next.config.ts')
-    const first = await runSteps([nextjsStep(detected)], ctx)
+    const {detected, settings, output} = project('next.config.ts')
+    const first = await runSteps([nextjsStep(detected)], settings, output)
     expect(first.map((entry) => entry.status)).toEqual(['done'])
-    const second = await runSteps([nextjsStep(detected)], ctx)
+    const second = await runSteps([nextjsStep(detected)], settings, output)
     expect(second.map((entry) => entry.status)).toEqual(['already'])
   })
 
   it('cards a pre-existing custom instrumentation.ts while the other wires still land', async () => {
-    const {cwd, detected, ctx} = project('next.config.ts')
+    const {cwd, detected, settings, output} = project('next.config.ts')
     const custom = "export function register() {\n  console.log('mine')\n}\n"
     writeFileSync(join(cwd, 'instrumentation.ts'), custom)
-    const ledger = await runSteps([nextjsStep(detected)], ctx)
+    const ledger = await runSteps([nextjsStep(detected)], settings, output)
     expect(ledger.map((entry) => entry.status)).toEqual(['manual'])
     const entry = ledger[0]
     if (!entry) throw new Error('expected a ledger entry')
@@ -70,8 +70,8 @@ describe('nextjsStep', () => {
   })
 
   it('re-runs only the remaining wires when the config is already wrapped', async () => {
-    const {cwd, detected, ctx} = project('next.config.ts')
-    const first = await runSteps([nextjsStep(detected)], ctx)
+    const {cwd, detected, settings, output, ctx} = project('next.config.ts')
+    const first = await runSteps([nextjsStep(detected)], settings, output)
     expect(first.map((entry) => entry.status)).toEqual(['done'])
     const wiredConfig = readFileSync(join(cwd, 'next.config.ts'), 'utf8')
     writeFileSync(join(cwd, 'instrumentation-client.ts'), '')
@@ -84,16 +84,16 @@ describe('nextjsStep', () => {
   })
 
   it('wraps a foreign-wrapped config outside-in', async () => {
-    const {cwd, detected, ctx} = project('next.config.wrapped.ts')
-    const ledger = await runSteps([nextjsStep(detected)], ctx)
+    const {cwd, detected, settings, output} = project('next.config.wrapped.ts')
+    const ledger = await runSteps([nextjsStep(detected)], settings, output)
     expect(ledger.map((entry) => entry.status)).toEqual(['done'])
     const config = readFileSync(join(cwd, 'next.config.ts'), 'utf8')
     expect(config).toContain('export default withConciv(withSentry(nextConfig))')
   })
 
   it('cards the config wire when there is no config file and still writes instrumentation', async () => {
-    const {cwd, detected, ctx} = project(null)
-    const ledger = await runSteps([nextjsStep(detected)], ctx)
+    const {cwd, detected, settings, output} = project(null)
+    const ledger = await runSteps([nextjsStep(detected)], settings, output)
     expect(ledger.map((entry) => entry.status)).toEqual(['manual'])
     expect(ledger[0]?.cards).toHaveLength(1)
     expect(ledger[0]?.cards[0]?.title).toContain('config')
@@ -102,12 +102,11 @@ describe('nextjsStep', () => {
   })
 
   it('dry-run plans without touching anything', async () => {
-    const {cwd, detected, reports, ctx} = project('next.config.ts')
+    const {cwd, detected, events, settings, output} = project('next.config.ts')
     const before = readFileSync(join(cwd, 'next.config.ts'), 'utf8')
-    const dryCtx: InitContext = {...ctx, dryRun: true}
-    const ledger = await runSteps([nextjsStep(detected)], dryCtx)
+    const ledger = await runSteps([nextjsStep(detected)], {...settings, dryRun: true}, output)
     expect(ledger.map((entry) => entry.status)).toEqual(['skipped'])
-    expect(reports.join('\n')).toContain('next.config.ts')
+    expect(events.join('\n')).toContain('next.config.ts')
     expect(readFileSync(join(cwd, 'next.config.ts'), 'utf8')).toBe(before)
     expect(existsSync(join(cwd, 'instrumentation.ts'))).toBe(false)
     expect(existsSync(join(cwd, 'instrumentation-client.ts'))).toBe(false)

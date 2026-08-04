@@ -84,11 +84,11 @@ function changedPaths(cloneDir: string): string[] {
 
 function runInitCli(
   cloneDir: string,
-  env: {PATH: string; HOME: string},
-  flag = '--yes',
+  env: Record<string, string>,
+  flags: string[] = ['--yes'],
 ): Promise<{code: number; output: string}> {
   return new Promise((settle, reject) => {
-    execFile(process.execPath, [cliBin, 'init', flag], {cwd: cloneDir, env}, (error, stdout, stderr) => {
+    execFile(process.execPath, [cliBin, 'init', ...flags], {cwd: cloneDir, env}, (error, stdout, stderr) => {
       if (error === null) {
         settle({code: 0, output: `${stdout}${stderr}`})
         return
@@ -116,8 +116,13 @@ function expectPlanPreview(output: string, detection: string, frameworkRow: RegE
 
 function expectCommonOutcome(cloneDir: string, outcome: {code: number; output: string}): void {
   expect(outcome.code, outcome.output).toBe(0)
-  expect(outcome.output).toContain('✎ Install @conciv/it')
-  expect(outcome.output).toContain('○ Install the conciv claude plugin')
+  expect(outcome.output).toContain('Install @conciv/it — needs a manual step')
+  expect(outcome.output).toContain('Install the conciv claude plugin — skipped: not selected')
+  expect(outcome.output).toContain('manual step below')
+  expect(outcome.output).toContain('Next steps — start your app:')
+  expect(outcome.output).toContain('ask your agent to run conciv tools --help')
+  expect(outcome.output).toContain('docs: https://conciv.dev/docs/quick-start')
+  expect(outcome.output).toContain('└')
   expect(readFileSync(join(cloneDir, 'package.json'), 'utf8')).not.toContain('@conciv/it')
   expect(readFileSync(join(cloneDir, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
   expect(JSON.parse(readFileSync(join(cloneDir, '.conciv', 'harnesses.json'), 'utf8'))).toEqual({harnesses: []})
@@ -170,11 +175,33 @@ describe('conciv init against consumer-app clones', () => {
     const cloneDir = cloneApp('vite-vanilla')
     stripViteWiring(cloneDir)
     commitClone(cloneDir)
-    const outcome = await runInitCli(cloneDir, minimalTools(), '--dry-run')
+    const outcome = await runInitCli(cloneDir, minimalTools(), ['--dry-run'])
     expect(outcome.code, outcome.output).toBe(0)
     expectPlanPreview(outcome.output, 'vite (vite.config.ts)', /Wire the vite config\s+vite\.config\.ts/)
     expect(outcome.output).toContain('Dry run — nothing changed.')
     expect(changedPaths(cloneDir)).toEqual([])
+  })
+
+  it('refuses a non-interactive terminal without --yes and touches nothing', async () => {
+    const cloneDir = cloneApp('vite-vanilla')
+    stripViteWiring(cloneDir)
+    commitClone(cloneDir)
+    const outcome = await runInitCli(cloneDir, minimalTools(), [])
+    expect(outcome.code, outcome.output).toBe(1)
+    expect(outcome.output).toContain('Non-interactive terminal — re-run with --yes or --dry-run')
+    expect(outcome.output).not.toContain('Plan')
+    expect(changedPaths(cloneDir)).toEqual([])
+  })
+
+  it('prints no color escapes under NO_COLOR', async () => {
+    const cloneDir = cloneApp('vite-vanilla')
+    stripViteWiring(cloneDir)
+    commitClone(cloneDir)
+    const outcome = await runInitCli(cloneDir, {...minimalTools(), NO_COLOR: '1'})
+    expect(outcome.code, outcome.output).toBe(0)
+    expect(outcome.output).toContain('Wired vite.config.ts')
+    const colorEscape = new RegExp(`${String.fromCharCode(27)}\\[\\d+(;\\d+)*m`)
+    expect(outcome.output).not.toMatch(colorEscape)
   })
 
   it('refuses a dirty clone with exit code 1 and touches nothing', async () => {

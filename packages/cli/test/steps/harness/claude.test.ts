@@ -24,7 +24,7 @@ type Fixture = {
   cwd: string
   home: string
   recordFile: string
-  ctx: ReturnType<typeof stepContext>['ctx']
+  harness: ReturnType<typeof stepContext>
   io: ClaudeIo
 }
 
@@ -73,7 +73,7 @@ function fixture(opts: {exitCode: number}): Fixture {
         })
       }),
   }
-  return {cwd, home, recordFile, ctx: stepContext(cwd).ctx, io}
+  return {cwd, home, recordFile, harness: stepContext(cwd), io}
 }
 
 function recordedArgv(recordFile: string): string[] {
@@ -85,10 +85,10 @@ const claudeConsent: HarnessId[] = ['claude']
 
 describe('claudeStep', () => {
   it('installs the connect plugin through the claude plugin manager with the exact argv sequence', async () => {
-    const {cwd, recordFile, ctx, io} = fixture({exitCode: 0})
+    const {cwd, recordFile, harness, io} = fixture({exitCode: 0})
     const step = claudeStep(() => claudeConsent, io)
     expect(step.id).toBe('claude')
-    const ledger = await runSteps([step], ctx)
+    const ledger = await runSteps([step], harness.settings, harness.output)
     expect(ledger.map((entry) => entry.status)).toEqual(['done'])
     const stateDir = join(cwd, '.conciv')
     expect(recordedArgv(recordFile)).toEqual([
@@ -101,8 +101,8 @@ describe('claudeStep', () => {
   })
 
   it('cards out with the install commands when the claude cli exits non-zero', async () => {
-    const {ctx, io} = fixture({exitCode: 1})
-    const ledger = await runSteps([claudeStep(() => claudeConsent, io)], ctx)
+    const {harness, io} = fixture({exitCode: 1})
+    const ledger = await runSteps([claudeStep(() => claudeConsent, io)], harness.settings, harness.output)
     expect(ledger.map((entry) => entry.status)).toEqual(['manual'])
     const cards = ledger[0]?.cards ?? []
     expect(cards).toHaveLength(1)
@@ -111,17 +111,17 @@ describe('claudeStep', () => {
   })
 
   it('reports already from installed_plugins.json without spawning anything', async () => {
-    const {home, recordFile, ctx, io} = fixture({exitCode: 0})
+    const {home, recordFile, harness, io} = fixture({exitCode: 0})
     mkdirSync(join(home, '.claude', 'plugins'), {recursive: true})
     writeFileSync(join(home, '.claude', 'plugins', 'installed_plugins.json'), INSTALLED_STATE)
-    const ledger = await runSteps([claudeStep(() => claudeConsent, io)], ctx)
+    const ledger = await runSteps([claudeStep(() => claudeConsent, io)], harness.settings, harness.output)
     expect(ledger.map((entry) => entry.status)).toEqual(['already'])
     expect(existsSync(recordFile)).toBe(false)
   })
 
   it('skips without spawning when claude is not in the consent record', async () => {
-    const {recordFile, ctx, io} = fixture({exitCode: 0})
-    const ledger = await runSteps([claudeStep(() => [], io)], ctx)
+    const {recordFile, harness, io} = fixture({exitCode: 0})
+    const ledger = await runSteps([claudeStep(() => [], io)], harness.settings, harness.output)
     expect(ledger.map((entry) => entry.status)).toEqual(['skipped'])
     expect(ledger[0]?.detail).toBe('not selected')
     expect(existsSync(recordFile)).toBe(false)

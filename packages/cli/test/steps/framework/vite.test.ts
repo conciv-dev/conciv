@@ -3,9 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import type {Detected} from '../../../src/init/detect.js'
-import type {InitContext} from '../../../src/init/pipeline.js'
 import {runSteps} from '../../../src/init/pipeline.js'
-import {restoreBackupOnExit} from '../../../src/init/steps/framework/config-edit.js'
 import {viteStep} from '../../../src/init/steps/framework/vite.js'
 import {stepContext} from './step-context.js'
 
@@ -14,7 +12,7 @@ const fixturesDir = join(import.meta.dirname, '..', '..', 'fixtures')
 const quickStartSnippet = `import conciv from '@conciv/it/plugin/vite'
 export default defineConfig({plugins: [conciv()]})`
 
-function project(fixtureName: string | null): {cwd: string; detected: Detected; reports: string[]; ctx: InitContext} {
+function project(fixtureName: string | null): {cwd: string; detected: Detected} & ReturnType<typeof stepContext> {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-vite-'))
   writeFileSync(join(cwd, 'package.json'), JSON.stringify({name: 'app', devDependencies: {vite: '^7.0.0'}}))
   const configFile = fixtureName === null ? null : 'vite.config.ts'
@@ -27,7 +25,7 @@ function project(fixtureName: string | null): {cwd: string; detected: Detected; 
 
 describe('viteStep', () => {
   it('applies onto the vite-react fixture, reports a unified diff, and flips detect to present', async () => {
-    const {cwd, detected, reports, ctx} = project('vite.config.react.ts')
+    const {cwd, detected, notes, backups, ctx} = project('vite.config.react.ts')
     const step = viteStep(detected)
     expect(step.id).toBe('framework')
     expect(await step.detect(ctx)).toBe('missing')
@@ -37,7 +35,11 @@ describe('viteStep', () => {
     expect(written).toContain('plugins: [react(), conciv()]')
     expect(await step.detect(ctx)).toBe('present')
     expect(await step.verify(ctx)).toBe(true)
-    const diff = reports.join('\n')
+    expect(backups).toEqual([
+      {path: join(cwd, 'vite.config.ts'), content: readFileSync(join(fixturesDir, 'vite.config.react.ts'), 'utf8')},
+    ])
+    expect(notes.map((note) => note.title)).toEqual(['vite.config.ts'])
+    const diff = notes.map((note) => note.body).join('\n')
     expect(diff).toContain('--- vite.config.ts')
     expect(diff).toContain('+++ vite.config.ts')
     expect(diff).toContain('-  plugins: [react()],')
@@ -46,17 +48,17 @@ describe('viteStep', () => {
   })
 
   it('reports already on the second run through the pipeline', async () => {
-    const {detected, ctx} = project('vite.config.react.ts')
-    const first = await runSteps([viteStep(detected)], ctx)
+    const {detected, settings, output} = project('vite.config.react.ts')
+    const first = await runSteps([viteStep(detected)], settings, output)
     expect(first.map((entry) => entry.status)).toEqual(['done'])
-    const second = await runSteps([viteStep(detected)], ctx)
+    const second = await runSteps([viteStep(detected)], settings, output)
     expect(second.map((entry) => entry.status)).toEqual(['already'])
   })
 
   it('cards the no-plugins fixture with exactly the quick-start snippet and leaves the file alone', async () => {
-    const {cwd, detected, ctx} = project('vite.config.no-plugins.ts')
+    const {cwd, detected, settings, output} = project('vite.config.no-plugins.ts')
     const before = readFileSync(join(cwd, 'vite.config.ts'), 'utf8')
-    const ledger = await runSteps([viteStep(detected)], ctx)
+    const ledger = await runSteps([viteStep(detected)], settings, output)
     expect(ledger).toEqual([
       {
         id: 'framework',
@@ -82,33 +84,19 @@ describe('viteStep', () => {
   })
 
   it('dry-run plans without touching the file', async () => {
-    const {cwd, detected, reports, ctx} = project('vite.config.react.ts')
+    const {cwd, detected, events, settings, output} = project('vite.config.react.ts')
     const before = readFileSync(join(cwd, 'vite.config.ts'), 'utf8')
-    const dryCtx: InitContext = {...ctx, dryRun: true}
-    const ledger = await runSteps([viteStep(detected)], dryCtx)
+    const ledger = await runSteps([viteStep(detected)], {...settings, dryRun: true}, output)
     expect(ledger.map((entry) => entry.status)).toEqual(['skipped'])
-    expect(reports.join('\n')).toContain('vite.config.ts')
+    expect(events.join('\n')).toContain('vite.config.ts')
     expect(readFileSync(join(cwd, 'vite.config.ts'), 'utf8')).toBe(before)
   })
 
-  it('removes the restore exit listener after a successful apply', async () => {
-    const {detected, ctx} = project('vite.config.react.ts')
-    const baseline = process.listeners('exit').length
+  it('remembers the original config so an interrupted run can restore it', async () => {
+    const {cwd, detected, backups, ctx} = project('vite.config.react.ts')
+    const original = readFileSync(join(cwd, 'vite.config.ts'), 'utf8')
     expect(await viteStep(detected).apply(ctx)).toEqual({status: 'done'})
-    expect(process.listeners('exit').length).toBe(baseline)
-  })
-
-  it('restoreBackupOnExit rewrites the original content when the process exits before release', () => {
-    const cwd = mkdtempSync(join(tmpdir(), 'conciv-vite-backup-'))
-    const target = join(cwd, 'vite.config.ts')
-    writeFileSync(target, 'original')
-    const release = restoreBackupOnExit(target, 'original')
-    writeFileSync(target, 'clobbered mid-write')
-    process.emit('exit', 0)
-    expect(readFileSync(target, 'utf8')).toBe('original')
-    release()
-    writeFileSync(target, 'after release')
-    process.emit('exit', 0)
-    expect(readFileSync(target, 'utf8')).toBe('after release')
+    expect(backups).toEqual([{path: join(cwd, 'vite.config.ts'), content: original}])
+    expect(readFileSync(join(cwd, 'vite.config.ts'), 'utf8')).not.toBe(original)
   })
 })

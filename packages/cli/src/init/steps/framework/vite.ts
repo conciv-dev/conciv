@@ -1,5 +1,6 @@
 import type {Detected} from '../../detect.js'
-import type {InitStep, ManualCard} from '../../pipeline.js'
+import type {ManualCard} from '../../ledger.js'
+import type {InitStep} from '../../pipeline.js'
 import {readConfig, writeConfigChange} from './config-edit.js'
 import {addToPluginsArray} from './engine.js'
 
@@ -23,10 +24,16 @@ function detectWired(cwd: string, configFile: string | null): 'missing' | 'prese
   return 'missing'
 }
 
+function configName(detected: Detected): string {
+  return detected.configFile ?? 'your vite config'
+}
+
 export function viteStep(detected: Detected): InitStep {
   return {
     id: 'framework',
     title: 'Wire the vite config',
+    running: `Wiring ${configName(detected)}…`,
+    completed: `Wired ${configName(detected)}`,
     detect: async (ctx) => detectWired(ctx.cwd, detected.configFile),
     plan: async () => ({
       summary: `add the ${pluginModule} plugin to ${detected.configFile ?? 'your vite config'}`,

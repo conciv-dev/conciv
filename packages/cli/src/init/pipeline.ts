@@ -2,7 +2,9 @@ import {execFile} from 'node:child_process'
 import {homedir} from 'node:os'
 import {detectProject, type Detected} from './detect.js'
 import {detectHarnesses, harnessIds, type FoundHarness} from './harness-detect.js'
-import {renderOutro} from './outro.js'
+import {guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
+import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan} from './ledger.js'
+import {emitOutro} from './outro.js'
 import {preflight} from './preflight.js'
 import {fallbackStep} from './steps/framework/fallback.js'
 import {nextjsStep} from './steps/framework/nextjs.js'
@@ -16,6 +18,7 @@ import {
   approvePlan,
   clackOutput,
   clackPrompts,
+  interactiveTerminal,
   renderPlan,
   type ConfirmedSelections,
   type HarnessRow,
@@ -24,30 +27,30 @@ import {
   type PlanRow,
 } from './wizard.js'
 
-export type StepStatus = 'done' | 'already' | 'manual' | 'skipped'
+export type RunSettings = {
+  cwd: string
+  yes: boolean
+  dryRun: boolean
+  backup: (file: FileBackup) => void
+  interrupt: (recover: () => void) => () => void
+}
 
-export type ManualCard = {title: string; body: string; snippet?: string}
-
-export type StepOutcome =
-  | {status: 'done'}
-  | {status: 'skipped'; detail?: string}
-  | {status: 'manual'; cards: ManualCard[]; detail?: string}
-
-export type StepPlan = {summary: string; wouldEdit: string[]}
+export type InitContext = Omit<RunSettings, 'interrupt'> & {
+  report: (line: string) => void
+  note: (note: StepNote) => void
+}
 
 export type InitStep = {
   id: string
   title: string
+  running: string
+  completed: string
   detect: (ctx: InitContext) => Promise<'missing' | 'present'>
   plan: (ctx: InitContext) => Promise<StepPlan>
   apply: (ctx: InitContext) => Promise<StepOutcome>
   verify: (ctx: InitContext) => Promise<boolean>
   manualCard: (ctx: InitContext) => ManualCard
 }
-
-export type InitContext = {cwd: string; yes: boolean; dryRun: boolean; report: (line: string) => void}
-
-export type LedgerEntry = {id: string; title: string; status: StepStatus; cards: ManualCard[]; detail?: string}
 
 export type InitOptions = {yes: boolean; dryRun: boolean; force: boolean; cwd: string}
 
@@ -59,7 +62,11 @@ export type InitRuntime = {
   prompts: PlanPrompts
   env: {PATH: string; HOME: string}
   output: InitOutput
+  interactive: () => boolean
+  exit: (code: number) => void
 }
+
+type Emission = {kind: 'line'; text: string} | {kind: 'note'; note: StepNote}
 
 function spawnBin(bin: string, args: string[]): Promise<{code: number; output: string}> {
   return new Promise((settle, reject) => {
@@ -84,6 +91,8 @@ function defaultRuntime(): InitRuntime {
     prompts: clackPrompts,
     env: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? homedir()},
     output: clackOutput,
+    interactive: interactiveTerminal,
+    exit: (code) => process.exit(code),
   }
 }
 
@@ -102,7 +111,7 @@ function nextSteps(packageManager: string): string[] {
 function stepList(cwd: string, detected: Detected, selections: ConfirmedSelections, runtime: InitRuntime): InitStep[] {
   const consented = () => readConsent(cwd)
   return [
-    installItStep(runtime.addDependency),
+    installItStep(runtime.addDependency, detected.packageManager),
     ...(selections.framework ? [frameworkStep(detected)] : []),
     agentsMdStep(consented),
     claudeStep(consented, {home: runtime.env.HOME, run: runtime.spawn}),
@@ -133,9 +142,19 @@ async function planRows(steps: InitStep[], ctx: InitContext): Promise<PlanRow[]>
   return rows
 }
 
+function quietContext(cwd: string, yes: boolean): InitContext {
+  return {cwd, yes, dryRun: true, report: () => {}, note: () => {}, backup: () => {}}
+}
+
 export async function runInit(options: InitOptions, overrides: Partial<InitRuntime> = {}): Promise<LedgerEntry[]> {
   const runtime: InitRuntime = {...defaultRuntime(), ...overrides}
   runtime.output.intro('conciv init')
+  if (!options.yes && !options.dryRun && !runtime.interactive()) {
+    runtime.output.error('Non-interactive terminal — re-run with --yes or --dry-run')
+    runtime.output.failure('conciv init stopped — nothing changed.')
+    process.exitCode = 1
+    return []
+  }
   const detecting = runtime.output.spinner('Detecting your project…')
   const checked = await preflight(options.cwd, options.force)
   if (!checked.ok) {
@@ -148,14 +167,13 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   const detected = await detectProject(options.cwd)
   const found = detectHarnesses(runtime.env)
   detecting.stop(detectionSummary(detected, found))
-  const planContext: InitContext = {cwd: options.cwd, yes: options.yes, dryRun: true, report: () => {}}
   const approved = await approvePlan({
     yes: options.yes,
     dryRun: options.dryRun,
     found: {framework: detected.framework, harnesses: found},
     renderSelected: async (selections) =>
       renderPlan(
-        await planRows(stepList(options.cwd, detected, selections, runtime), planContext),
+        await planRows(stepList(options.cwd, detected, selections, runtime), quietContext(options.cwd, options.yes)),
         harnessRows(found, selections),
       ),
     prompts: runtime.prompts,
@@ -170,26 +188,81 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     return []
   }
   writeConsent(options.cwd, approved.harnesses)
-  const context: InitContext = {
+  const backups = guardBackups()
+  const settings: RunSettings = {
     cwd: options.cwd,
     yes: options.yes,
     dryRun: false,
-    report: (line) => runtime.output.line(line),
+    backup: backups.remember,
+    interrupt: (recover) =>
+      onInterrupt(() => {
+        recover()
+        backups.restore()
+        runtime.output.cancelled('Interrupted — your config was restored.')
+        runtime.exit(130)
+      }),
   }
-  const entries = await runSteps(stepList(options.cwd, detected, approved, runtime), context)
-  runtime.output.line(renderOutro(entries, nextSteps(detected.packageManager)))
+  const entries = await runSteps(stepList(options.cwd, detected, approved, runtime), settings, runtime.output)
+  backups.release()
+  emitOutro(runtime.output, entries, nextSteps(detected.packageManager))
   return entries
 }
 
-export async function runSteps(steps: InitStep[], ctx: InitContext): Promise<LedgerEntry[]> {
+export async function runSteps(steps: InitStep[], settings: RunSettings, output: InitOutput): Promise<LedgerEntry[]> {
   const entries: LedgerEntry[] = []
   for (const current of steps) {
-    entries.push(await runOne(current, ctx))
+    entries.push(await runOne(current, settings, output))
   }
   return entries
 }
 
-async function runOne(step: InitStep, ctx: InitContext): Promise<LedgerEntry> {
+async function runOne(step: InitStep, settings: RunSettings, output: InitOutput): Promise<LedgerEntry> {
+  const emissions: Emission[] = []
+  const {interrupt, ...base} = settings
+  const ctx: InitContext = {
+    ...base,
+    report: (text) => {
+      emissions.push({kind: 'line', text})
+    },
+    note: (note) => {
+      emissions.push({kind: 'note', note})
+    },
+  }
+  const line = output.step(step.running)
+  const release = interrupt(() => {
+    line.settle({status: 'skipped', summary: `${step.title} — interrupted`})
+  })
+  const entry = await settleStep(step, ctx).finally(release)
+  line.settle({status: entry.status, summary: stepSummary(step, entry)})
+  for (const emission of emissions) emit(output, emission)
+  return entry
+}
+
+function emit(output: InitOutput, emission: Emission): void {
+  if (emission.kind === 'note') {
+    output.note(emission.note)
+    return
+  }
+  output.line(emission.text)
+}
+
+function stepSummary(step: InitStep, entry: LedgerEntry): string {
+  if (entry.status === 'done') return step.completed
+  if (entry.status === 'already') return `${step.title} — already wired`
+  const reason = firstLine(entry.detail)
+  if (entry.status === 'skipped') return `${step.title} — skipped${reason === null ? '' : `: ${reason}`}`
+  if (reason === null) return `${step.title} — needs a manual step (see the card below)`
+  return `${step.title} — needs a manual step: ${reason}`
+}
+
+function firstLine(detail: string | undefined): string | null {
+  if (detail === undefined) return null
+  const [first] = detail.split('\n')
+  if (first === undefined || first.trim().length === 0) return null
+  return first.trim()
+}
+
+async function settleStep(step: InitStep, ctx: InitContext): Promise<LedgerEntry> {
   const found = await step.detect(ctx).catch(() => 'missing' as const)
   if (found === 'present') return {id: step.id, title: step.title, status: 'already', cards: []}
   if (ctx.dryRun) {

@@ -3,7 +3,6 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import type {Detected, Framework} from '../../../src/init/detect.js'
-import type {InitContext} from '../../../src/init/pipeline.js'
 import {runSteps} from '../../../src/init/pipeline.js'
 import {fallbackStep} from '../../../src/init/steps/framework/fallback.js'
 import {webpackFamilyStep} from '../../../src/init/steps/framework/webpack-family.js'
@@ -11,7 +10,7 @@ import {stepContext} from './step-context.js'
 
 const fixturesDir = join(import.meta.dirname, '..', '..', 'fixtures')
 
-type Project = {cwd: string; detected: Detected; reports: string[]; ctx: InitContext}
+type Project = {cwd: string; detected: Detected} & ReturnType<typeof stepContext>
 
 function project(framework: Framework, configFile: string | null, fixtureName: string | null): Project {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-webpack-family-'))
@@ -41,10 +40,10 @@ describe('webpackFamilyStep', () => {
   })
 
   it('reports already on the second pipeline run over a wired CJS config', async () => {
-    const {detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs.js')
-    const first = await runSteps([webpackFamilyStep(detected)], ctx)
+    const {detected, settings, output} = project('webpack', 'webpack.config.js', 'webpack.config.cjs.js')
+    const first = await runSteps([webpackFamilyStep(detected)], settings, output)
     expect(first.map((entry) => entry.status)).toEqual(['manual'])
-    const second = await runSteps([webpackFamilyStep(detected)], ctx)
+    const second = await runSteps([webpackFamilyStep(detected)], settings, output)
     expect(second.map((entry) => entry.status)).toEqual(['already'])
   })
 
@@ -91,22 +90,21 @@ module.exports = {
   })
 
   it('dry-run plans without touching the file', async () => {
-    const {cwd, detected, reports, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs.js')
+    const {cwd, detected, events, settings, output} = project('webpack', 'webpack.config.js', 'webpack.config.cjs.js')
     const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
-    const dryCtx: InitContext = {...ctx, dryRun: true}
-    const ledger = await runSteps([webpackFamilyStep(detected)], dryCtx)
+    const ledger = await runSteps([webpackFamilyStep(detected)], {...settings, dryRun: true}, output)
     expect(ledger.map((entry) => entry.status)).toEqual(['skipped'])
-    expect(reports.join('\n')).toContain('webpack.config.js')
+    expect(events.join('\n')).toContain('webpack.config.js')
     expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
   })
 })
 
 describe('fallbackStep', () => {
   it('cards a rollup project with the build-only caveat and writes nothing', async () => {
-    const {cwd, detected, ctx} = project('rollup', 'rollup.config.mjs', 'rollup.config.basic.mjs')
+    const {cwd, detected, settings, output} = project('rollup', 'rollup.config.mjs', 'rollup.config.basic.mjs')
     const filesBefore = readdirSync(cwd).toSorted()
     const configBefore = readFileSync(join(cwd, 'rollup.config.mjs'), 'utf8')
-    const ledger = await runSteps([fallbackStep(detected)], ctx)
+    const ledger = await runSteps([fallbackStep(detected)], settings, output)
     expect(ledger.map((entry) => entry.status)).toEqual(['manual'])
     const card = ledger[0]?.cards[0]
     expect(card?.body).toContain('@conciv/it/plugin/rollup')

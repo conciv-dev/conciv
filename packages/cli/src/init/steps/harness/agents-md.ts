@@ -71,6 +71,8 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
   return {
     id: 'agents',
     title: 'Teach agents the conciv CLI',
+    running: 'Teaching agents the conciv CLI…',
+    completed: 'Wrote the conciv section to AGENTS.md',
     detect,
     plan: async (ctx) => ({
       summary: 'add a marked conciv section to AGENTS.md teaching the conciv tools CLI',

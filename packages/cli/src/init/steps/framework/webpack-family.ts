@@ -1,5 +1,6 @@
 import type {Detected} from '../../detect.js'
-import type {InitStep, ManualCard} from '../../pipeline.js'
+import type {ManualCard} from '../../ledger.js'
+import type {InitStep} from '../../pipeline.js'
 import {readConfig, writeConfigChange} from './config-edit.js'
 import type {Transform} from './engine.js'
 import {addToPluginsArray, addToPluginsArrayRequire} from './engine.js'
@@ -55,6 +56,8 @@ export function webpackFamilyStep(detected: Detected): InitStep {
   return {
     id: 'framework',
     title: `Wire the ${name} config`,
+    running: `Wiring the ${name} config…`,
+    completed: `Wired the ${name} config`,
     detect: async (ctx) => detectWired(ctx.cwd, detected.configFile, name),
     plan: async () => ({
       summary: `add the ${pluginModule(name)} plugin to ${detected.configFile ?? `your ${name} config`}`,

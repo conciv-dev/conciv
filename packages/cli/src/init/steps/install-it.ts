@@ -2,7 +2,8 @@ import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {addDependencyCommand, addDevDependency, detectPackageManager} from 'nypm'
 import {z} from 'zod'
-import type {InitStep, ManualCard} from '../pipeline.js'
+import type {ManualCard} from '../ledger.js'
+import type {InitStep} from '../pipeline.js'
 
 const itName = '@conciv/it'
 
@@ -35,10 +36,12 @@ export const addWithNypm: AddDep = async (name, opts) => {
   await addDevDependency(name, {cwd: opts.cwd, silent: true})
 }
 
-export function installItStep(add: AddDep = addWithNypm): InitStep {
+export function installItStep(add: AddDep, packageManager: string): InitStep {
   return {
     id: 'install',
     title: `Install ${itName}`,
+    running: `Installing ${itName} with ${packageManager}…`,
+    completed: `Installed ${itName}`,
     detect: async (ctx) => (hasIt(readManifest(ctx.cwd)) ? 'present' : 'missing'),
     plan: async () => ({summary: `add ${itName} as a dev dependency`, wouldEdit: ['package.json']}),
     apply: async (ctx) => {

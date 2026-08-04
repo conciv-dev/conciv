@@ -8,7 +8,7 @@ import {hasIt, installItStep} from '../../src/init/steps/install-it.js'
 function project(manifest: object): InitContext {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-install-'))
   writeFileSync(join(cwd, 'package.json'), JSON.stringify(manifest))
-  return {cwd, yes: true, dryRun: false, report: () => {}}
+  return {cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: () => {}}
 }
 
 describe('hasIt', () => {
@@ -26,7 +26,7 @@ describe('hasIt', () => {
 
 describe('installItStep', () => {
   it('detects present and missing from the real package.json', async () => {
-    const step = installItStep(async () => {})
+    const step = installItStep(async () => {}, 'pnpm')
     expect(await step.detect(project({devDependencies: {'@conciv/it': '^0.0.17'}}))).toBe('present')
     expect(await step.detect(project({name: 'app'}))).toBe('missing')
   })
@@ -36,7 +36,7 @@ describe('installItStep', () => {
     const step = installItStep(async (name, opts) => {
       const manifestPath = join(opts.cwd, 'package.json')
       writeFileSync(manifestPath, JSON.stringify({name: 'app', devDependencies: {[name]: '^0.0.17'}}))
-    })
+    }, 'pnpm')
     expect(await step.apply(ctx)).toEqual({status: 'done'})
     expect(await step.detect(ctx)).toBe('present')
     expect(await step.verify(ctx)).toBe(true)
@@ -48,7 +48,7 @@ describe('installItStep', () => {
     const ctx = project({name: 'app', packageManager: 'pnpm@10.14.0'})
     const step = installItStep(async () => {
       throw new Error('registry unreachable')
-    })
+    }, 'pnpm')
     const outcome = await step.apply(ctx)
     expect(outcome).toEqual({
       status: 'manual',

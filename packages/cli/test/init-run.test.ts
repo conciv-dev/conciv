@@ -5,11 +5,13 @@ import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {claudeConnectDir} from '@conciv/harness/claude-connect-files'
-import {runInit, type InitRuntime, type LedgerEntry} from '../src/init/pipeline.js'
+import type {LedgerEntry} from '../src/init/ledger.js'
+import {runInit, type InitRuntime} from '../src/init/pipeline.js'
 import {readConsent} from '../src/init/steps/harness/consent.js'
-import type {InitOutput, PlanPrompts} from '../src/init/wizard.js'
+import type {PlanPrompts} from '../src/init/wizard.js'
+import {recorderOutput} from './support/init-output.js'
 
-const viteConfigSource = readFileSync(new URL('./fixtures/vite.config.vanilla.ts', import.meta.url), 'utf8')
+const fixturesDir = new URL('./fixtures/', import.meta.url)
 
 const manifestSchema = z.object({
   name: z.string(),
@@ -18,12 +20,15 @@ const manifestSchema = z.object({
   devDependencies: z.record(z.string(), z.string()),
 })
 
+type FixtureOptions = {configFixture?: string | null; vite?: boolean; claude?: boolean}
+
 type Fixture = {
   cwd: string
   home: string
   events: string[]
   spawned: string[]
   added: string[]
+  exits: number[]
   runtime: Partial<InitRuntime>
 }
 
@@ -32,43 +37,6 @@ function commitAll(cwd: string): void {
   execFileSync('git', ['-c', 'user.email=init@test', '-c', 'user.name=init', 'commit', '-m', 'seed', '--no-verify'], {
     cwd,
   })
-}
-
-function recorderOutput(events: string[]): InitOutput {
-  return {
-    intro: (title) => {
-      events.push(`intro:${title}`)
-    },
-    spinner: (message) => {
-      events.push(`spin:${message}`)
-      return {
-        stop: (summary) => {
-          events.push(`spin-stop:${summary}`)
-        },
-        fail: (summary) => {
-          events.push(`spin-fail:${summary}`)
-        },
-      }
-    },
-    plan: (body) => {
-      events.push(`plan:${body}`)
-    },
-    line: (text) => {
-      events.push(text)
-    },
-    error: (message) => {
-      events.push(`error:${message}`)
-    },
-    cancelled: (message) => {
-      events.push(`cancel:${message}`)
-    },
-    outro: (message) => {
-      events.push(`outro:${message}`)
-    },
-    failure: (message) => {
-      events.push(`failure:${message}`)
-    },
-  }
 }
 
 function recorderPrompts(events: string[]): PlanPrompts {
@@ -84,26 +52,32 @@ function recorderPrompts(events: string[]): PlanPrompts {
   }
 }
 
-function fixture(): Fixture {
+function fixture(options: FixtureOptions = {}): Fixture {
+  const {configFixture = 'vite.config.vanilla.ts', vite = true, claude = true} = options
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-init-run-'))
   const home = mkdtempSync(join(tmpdir(), 'conciv-init-home-'))
   const binDir = join(home, 'shim-bin')
   mkdirSync(binDir, {recursive: true})
-  writeFileSync(join(binDir, 'claude'), '#!/bin/sh\nexit 0\n')
-  chmodSync(join(binDir, 'claude'), 0o755)
+  if (claude) {
+    writeFileSync(join(binDir, 'claude'), '#!/bin/sh\nexit 0\n')
+    chmodSync(join(binDir, 'claude'), 0o755)
+  }
   const manifest = {
     name: 'fixture-app',
     version: '0.0.0',
     packageManager: 'pnpm@10.0.0',
-    devDependencies: {vite: '^8.0.0'},
+    devDependencies: vite ? {vite: '^8.0.0'} : {},
   }
   writeFileSync(join(cwd, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
-  writeFileSync(join(cwd, 'vite.config.ts'), viteConfigSource)
+  if (configFixture !== null) {
+    writeFileSync(join(cwd, 'vite.config.ts'), readFileSync(new URL(configFixture, fixturesDir), 'utf8'))
+  }
   execFileSync('git', ['init'], {cwd})
   commitAll(cwd)
   const events: string[] = []
   const spawned: string[] = []
   const added: string[] = []
+  const exits: number[] = []
   const runtime: Partial<InitRuntime> = {
     addDependency: async (name, opts) => {
       added.push(name)
@@ -125,13 +99,19 @@ function fixture(): Fixture {
     env: {PATH: binDir, HOME: home},
     prompts: recorderPrompts(events),
     output: recorderOutput(events),
+    interactive: () => true,
+    exit: (code) => {
+      exits.push(code)
+    },
   }
-  return {cwd, home, events, spawned, added, runtime}
+  return {cwd, home, events, spawned, added, exits, runtime}
 }
 
 const byId = (entries: LedgerEntry[]) => Object.fromEntries(entries.map((entry) => [entry.id, entry.status]))
 
 const plansOf = (events: string[]) => events.filter((event) => event.startsWith('plan:'))
+
+const settlesOf = (events: string[]) => events.filter((event) => event.startsWith('settle:'))
 
 describe('runInit', () => {
   it('wires a vite project end to end with --yes over the injected runtime', async () => {
@@ -163,6 +143,65 @@ describe('runInit', () => {
     const output = run.events.join('\n')
     expect(output).toContain('pnpm dev')
     expect(output).toContain('conciv tools --help')
+  })
+
+  it('runs every step as a live line that names the slow work and resolves in place', async () => {
+    const run = fixture()
+    await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
+    expect(run.events).toContain('step:Installing @conciv/it with pnpm…')
+    expect(run.events).toContain('step:Wiring vite.config.ts…')
+    expect(run.events).toContain('step:Installing the conciv claude plugin…')
+    expect(settlesOf(run.events)).toEqual([
+      'settle:done:Installed @conciv/it',
+      'settle:done:Wired vite.config.ts',
+      'settle:done:Wrote the conciv section to AGENTS.md',
+      'settle:done:Installed the conciv claude plugin',
+    ])
+    const stepAt = run.events.indexOf('step:Wiring vite.config.ts…')
+    const settleAt = run.events.indexOf('settle:done:Wired vite.config.ts')
+    expect(stepAt).toBeGreaterThan(-1)
+    expect(settleAt).toBeGreaterThan(stepAt)
+    expect(run.events).toContain('success:4 wired')
+  })
+
+  it('renders the applied config change as a note titled with the file, under its step', async () => {
+    const run = fixture()
+    await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
+    const diffNote = run.events.find((event) => event.startsWith('note:vite.config.ts:'))
+    expect(diffNote).toBeDefined()
+    expect(diffNote).toContain("+import conciv from '@conciv/it/plugin/vite'")
+    expect(run.events.indexOf('settle:done:Wired vite.config.ts')).toBeLessThan(run.events.indexOf(diffNote ?? ''))
+  })
+
+  it('resolves a step that can only card as a manual line with its own reason and keeps going', async () => {
+    const run = fixture({configFixture: 'vite.config.no-plugins.ts'})
+    const entries = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
+    expect(byId(entries)).toEqual({install: 'done', framework: 'manual', agents: 'done', claude: 'done'})
+    expect(process.exitCode).toBeUndefined()
+    expect(run.events).toContain('settle:manual:Wire the vite config — needs a manual step (see the card below)')
+    expect(run.events.some((event) => event.startsWith('note:Wire the conciv vite plugin:'))).toBe(true)
+    expect(run.events).toContain('warn:3 wired · 1 manual step below')
+    expect(run.events).toContain('settle:done:Installed the conciv claude plugin')
+  })
+
+  it('resolves an unselected step as skipped with its reason', async () => {
+    const run = fixture()
+    const entries = await runInit(
+      {yes: false, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        prompts: {
+          decide: async () => (run.events.includes('adjust') ? 'proceed' : 'adjust'),
+          adjust: async () => {
+            run.events.push('adjust')
+            return {framework: true, harnesses: []}
+          },
+        },
+      },
+    )
+    expect(byId(entries).claude).toBe('skipped')
+    expect(run.events).toContain('settle:skipped:Install the conciv claude plugin — skipped: not selected')
+    expect(run.spawned).toEqual([])
   })
 
   it('renders the plan before the first prompt and applies an adjusted selection', async () => {
@@ -213,6 +252,8 @@ describe('runInit', () => {
     expect(run.spawned).toHaveLength(2)
     const plans = plansOf(run.events)
     expect(plans[1]).toContain('already wired')
+    expect(run.events).toContain('settle:already:Install @conciv/it — already wired')
+    expect(run.events).toContain('success:4 already wired')
   })
 
   it('prints the plan and touches nothing with --dry-run', async () => {
@@ -221,6 +262,7 @@ describe('runInit', () => {
       {yes: false, dryRun: true, force: false, cwd: run.cwd},
       {
         ...run.runtime,
+        interactive: () => false,
         prompts: {
           decide: async () => {
             throw new Error('decide must not run under --dry-run')
@@ -242,6 +284,70 @@ describe('runInit', () => {
     expect(run.spawned).toEqual([])
   })
 
+  it('refuses a non-interactive terminal without --yes instead of waiting on an invisible prompt', async () => {
+    const run = fixture()
+    const entries = await runInit(
+      {yes: false, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        interactive: () => false,
+        prompts: {
+          decide: async () => {
+            throw new Error('decide must not run without a terminal')
+          },
+          adjust: async () => {
+            throw new Error('adjust must not run without a terminal')
+          },
+        },
+      },
+    )
+    expect(entries).toEqual([])
+    expect(process.exitCode).toBe(1)
+    process.exitCode = undefined
+    expect(run.events).toContain('error:Non-interactive terminal — re-run with --yes or --dry-run')
+    expect(run.events.some((event) => event.startsWith('failure:'))).toBe(true)
+    expect(plansOf(run.events)).toEqual([])
+    expect(run.added).toEqual([])
+    expect(run.spawned).toEqual([])
+  })
+
+  it('runs a non-interactive terminal to completion with --yes', async () => {
+    const run = fixture()
+    const entries = await runInit(
+      {yes: true, dryRun: false, force: false, cwd: run.cwd},
+      {...run.runtime, interactive: () => false},
+    )
+    expect(byId(entries)).toEqual({install: 'done', framework: 'done', agents: 'done', claude: 'done'})
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('restores the config, says so, and exits 130 when the run is interrupted mid-apply', async () => {
+    const run = fixture()
+    const original = readFileSync(join(run.cwd, 'vite.config.ts'), 'utf8')
+    const before = process.listeners('SIGINT')
+    let fired = false
+    await runInit(
+      {yes: true, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        spawn: async (bin, args) => {
+          if (!fired) {
+            fired = true
+            const added = process.listeners('SIGINT').filter((listener) => !before.includes(listener))
+            expect(added).toHaveLength(1)
+            added[0]?.('SIGINT')
+          }
+          return {code: 0, output: `${bin} ${args.join(' ')}`}
+        },
+      },
+    )
+    expect(fired).toBe(true)
+    expect(readFileSync(join(run.cwd, 'vite.config.ts'), 'utf8')).toBe(original)
+    expect(run.events).toContain('cancel:Interrupted — your config was restored.')
+    expect(run.exits).toEqual([130])
+    expect(process.listeners('SIGINT')).toEqual(before)
+  })
+
   it('refuses a dirty tree with the reason and exit code 1', async () => {
     const run = fixture()
     writeFileSync(join(run.cwd, 'dirty.txt'), 'uncommitted')
@@ -254,6 +360,35 @@ describe('runInit', () => {
     expect(run.events.some((event) => event.startsWith('failure:'))).toBe(true)
     expect(run.added).toEqual([])
     expect(run.spawned).toEqual([])
+  })
+
+  it('refuses a directory without a package.json with the reason and exit code 1', async () => {
+    const run = fixture()
+    const empty = mkdtempSync(join(tmpdir(), 'conciv-init-empty-'))
+    const entries = await runInit({yes: true, dryRun: false, force: false, cwd: empty}, run.runtime)
+    expect(entries).toEqual([])
+    expect(process.exitCode).toBe(1)
+    process.exitCode = undefined
+    expect(run.events).toContain('error:no package.json here — run init from your app directory')
+  })
+
+  it('plans the manual card honestly when no framework is detected', async () => {
+    const run = fixture({configFixture: null, vite: false})
+    const entries = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
+    expect(run.events).toContain('spin-stop:Detected: unknown · pnpm · harnesses: claude')
+    expect(plansOf(run.events)[0]).toContain('manual — prints instructions')
+    expect(byId(entries).framework).toBe('manual')
+    expect(run.events.some((event) => event.startsWith('note:Wire conciv with Vite:'))).toBe(true)
+  })
+
+  it('says no harnesses were found and still teaches agents the CLI', async () => {
+    const run = fixture({claude: false})
+    const entries = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
+    expect(run.events).toContain('spin-stop:Detected: vite (vite.config.ts) · pnpm · harnesses: none found')
+    expect(plansOf(run.events)[0]).toContain('Harnesses: none found')
+    expect(byId(entries).agents).toBe('done')
+    expect(byId(entries).claude).toBe('skipped')
+    expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
   })
 
   it('treats a wizard cancel as a clean no-op that changes nothing', async () => {

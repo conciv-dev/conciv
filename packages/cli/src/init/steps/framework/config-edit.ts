@@ -29,17 +29,8 @@ function coloredDiff(name: string, before: string, after: string): string {
   return [...header, ...body].join('\n')
 }
 
-export function restoreBackupOnExit(path: string, original: string): () => void {
-  const restore = () => writeFileSync(path, original)
-  process.on('exit', restore)
-  return () => {
-    process.off('exit', restore)
-  }
-}
-
 export function writeConfigChange(ctx: InitContext, config: ConfigFile, output: string): void {
-  const release = restoreBackupOnExit(config.path, config.content)
+  ctx.backup({path: config.path, content: config.content})
   writeFileSync(config.path, output)
-  release()
-  ctx.report(coloredDiff(config.name, config.content, output))
+  ctx.note({title: config.name, body: coloredDiff(config.name, config.content, output)})
 }

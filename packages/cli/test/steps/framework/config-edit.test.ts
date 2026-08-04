@@ -10,9 +10,10 @@ function renderChange(before: string, after: string): string {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-config-edit-'))
   const path = join(cwd, 'vite.config.ts')
   writeFileSync(path, before)
-  const {reports, ctx} = stepContext(cwd)
+  const {notes, ctx} = stepContext(cwd)
   writeConfigChange(ctx, {name: 'vite.config.ts', path, content: before}, after)
-  return stripVTControlCharacters(reports.join('\n'))
+  expect(notes.map((note) => note.title)).toEqual(['vite.config.ts'])
+  return stripVTControlCharacters(notes.map((note) => note.body).join('\n'))
 }
 
 const middle = Array.from({length: 20}, (value, index) => `const middle${index} = ${index}`).join('\n')

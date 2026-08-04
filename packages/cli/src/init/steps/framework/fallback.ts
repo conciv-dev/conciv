@@ -1,5 +1,6 @@
 import type {Detected} from '../../detect.js'
-import type {InitStep, ManualCard} from '../../pipeline.js'
+import type {ManualCard} from '../../ledger.js'
+import type {InitStep} from '../../pipeline.js'
 
 const viteSnippet = `import conciv from '@conciv/it/plugin/vite'
 export default defineConfig({plugins: [conciv()]})`
@@ -41,6 +42,8 @@ export function fallbackStep(detected: Detected): InitStep {
   return {
     id: 'framework',
     title: 'Framework wiring',
+    running: 'Checking how to wire your bundler…',
+    completed: 'Framework wiring ready',
     detect: async () => 'missing',
     plan: async () => ({summary: `print the manual wiring card for ${detected.framework}`, wouldEdit: []}),
     apply: async () => ({status: 'manual', cards: [cardFor(detected)]}),

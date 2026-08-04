@@ -4,46 +4,9 @@ import {
   renderPlan,
   type ConfirmedSelections,
   type FoundSelections,
-  type InitOutput,
   type PlanPrompts,
 } from '../src/init/wizard.js'
-
-function recorderOutput(events: string[]): InitOutput {
-  return {
-    intro: (title) => {
-      events.push(`intro:${title}`)
-    },
-    spinner: (message) => {
-      events.push(`spin:${message}`)
-      return {
-        stop: (summary) => {
-          events.push(`spin-stop:${summary}`)
-        },
-        fail: (summary) => {
-          events.push(`spin-fail:${summary}`)
-        },
-      }
-    },
-    plan: (body) => {
-      events.push(`plan:${body}`)
-    },
-    line: (text) => {
-      events.push(text)
-    },
-    error: (message) => {
-      events.push(`error:${message}`)
-    },
-    cancelled: (message) => {
-      events.push(`cancel:${message}`)
-    },
-    outro: (message) => {
-      events.push(`outro:${message}`)
-    },
-    failure: (message) => {
-      events.push(`failure:${message}`)
-    },
-  }
-}
+import {recorderOutput} from './support/init-output.js'
 
 const found: FoundSelections = {
   framework: 'vite',

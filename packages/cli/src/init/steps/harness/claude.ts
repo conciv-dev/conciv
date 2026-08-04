@@ -7,7 +7,8 @@ import {
   CLAUDE_CONNECT_INSTALL_TARGET,
 } from '@conciv/harness/claude-connect-files'
 import type {HarnessId} from '../../harness-detect.js'
-import type {InitContext, InitStep, ManualCard, StepOutcome} from '../../pipeline.js'
+import type {ManualCard, StepOutcome} from '../../ledger.js'
+import type {InitContext, InitStep} from '../../pipeline.js'
 
 export type ClaudeIo = {home: string; run: (bin: string, args: string[]) => Promise<{code: number; output: string}>}
 
@@ -79,6 +80,8 @@ export function claudeStep(consented: () => HarnessId[], io: ClaudeIo): InitStep
   return {
     id: 'claude',
     title: 'Install the conciv claude plugin',
+    running: 'Installing the conciv claude plugin…',
+    completed: 'Installed the conciv claude plugin',
     detect: async () => (pluginInstalled(io.home) ? 'present' : 'missing'),
     plan: async (ctx) => ({
       summary: `install ${CLAUDE_CONNECT_INSTALL_TARGET} through the claude plugin manager`,
