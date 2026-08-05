@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './connect-names.js'
+import {CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from '@conciv/claude-connect/names'
 
 export const TextBlock = z.object({type: z.literal('text'), text: z.string()})
 export const ThinkingBlock = z.object({type: z.literal('thinking'), thinking: z.string()})

@@ -2,10 +2,14 @@ import {existsSync, readFileSync, mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {claudeConnectDir} from '@conciv/harness/claude-connect-files'
+import {claudeConnectDir} from '@conciv/claude-connect/files'
 import {runInit} from '../src/init/pipeline.js'
-import {readConsent, writeConsent} from '../src/init/steps/harness/consent.js'
+import {writeConsent} from '../src/init/steps/harness/consent.js'
 import {commitAll, fixture, pendingChanges, recorderPrompts, statusById, stepsOf} from './support/init-fixture.js'
+
+function recordedConsent(cwd: string): unknown {
+  return JSON.parse(readFileSync(join(cwd, '.conciv', 'harnesses.json'), 'utf8'))
+}
 
 const plansOf = (events: string[]) => events.filter((event) => event.startsWith('plan:'))
 
@@ -26,7 +30,7 @@ describe('runInit', () => {
     expect(readFileSync(join(run.cwd, 'package.json'), 'utf8')).toContain('@conciv/it')
     expect(readFileSync(join(run.cwd, 'vite.config.ts'), 'utf8')).toContain('@conciv/it/plugin/vite')
     expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
-    expect(readConsent(run.cwd)).toEqual(['claude'])
+    expect(recordedConsent(run.cwd)).toEqual({harnesses: ['claude']})
     expect(run.spawned).toEqual([
       `claude plugin marketplace add ${claudeConnectDir(join(run.cwd, '.conciv'))}`,
       'claude plugin install conciv-connect@conciv --scope local',
@@ -147,7 +151,7 @@ describe('runInit', () => {
     expect(plans[1]).not.toContain('Wire the vite config')
     expect(plans[1]).toContain('○ claude (not selected)')
     expect(statusById(result)).toEqual({install: 'done', agents: 'done', claude: 'skipped'})
-    expect(readConsent(run.cwd)).toEqual([])
+    expect(recordedConsent(run.cwd)).toEqual({harnesses: []})
     expect(run.spawned).toEqual([])
   })
 

@@ -39,8 +39,8 @@
   "dependencies": {
     "@ast-grep/napi": "^0.45.0",
     "@clack/prompts": "^1.7.0",
+    "@conciv/claude-connect": "workspace:^",
     "@conciv/contract": "workspace:^",
-    "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "^1.14.7",
     "citty": "^0.2.2",

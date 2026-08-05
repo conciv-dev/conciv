@@ -3,9 +3,9 @@ import {tmpdir} from 'node:os'
 import {delimiter, dirname, join, relative} from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
+import {CLAUDE_CONNECT_BRIDGE_FILE} from '@conciv/claude-connect/bridge'
+import {claudeConnectDir, claudeConnectPluginFiles} from '@conciv/claude-connect/files'
 import {relatedCwd, meetsReloadFloor, parseLiveSessions, CLAUDE_RELOAD_COMMAND} from '../src/claude/attach.js'
-import {claudeConnectDir, claudeConnectPluginFiles} from '../src/claude/connect-plugin-files.js'
-import {CLAUDE_CONNECT_BRIDGE_FILE} from '../src/claude/connect-bridge.js'
 import {claude} from '../src/claude/index.js'
 
 const CONCIV_SESSION = SessionId.parse('conciv_attach_test')

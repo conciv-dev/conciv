@@ -2,10 +2,10 @@ import {readFileSync} from 'node:fs'
 import {join, relative} from 'node:path'
 import {z} from 'zod'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
-import {inside, sameCwd} from '../_shared/cwd.js'
-import {parseJsonOrNull} from '../_shared/json.js'
-import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_PLUGIN} from './connect-names.js'
-import {claudeConnectDir, CLAUDE_CONNECT_INSTALL_TARGET, CLAUDE_CONNECT_PLUGIN_VERSION} from './connect-plugin-files.js'
+import {parseJsonOrNull} from './json.js'
+import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_PLUGIN} from './names.js'
+import {inside, sameCwd} from './paths.js'
+import {claudeConnectDir, CLAUDE_CONNECT_INSTALL_TARGET, CLAUDE_CONNECT_PLUGIN_VERSION} from './plugin-files.js'
 
 const InstalledPluginsSchema = z.object({
   plugins: z.record(

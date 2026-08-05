@@ -4,8 +4,8 @@ import {
   claudeConnectDir,
   claudeConnectPluginBaseFiles,
   CLAUDE_CONNECT_INSTALL_TARGET,
-} from '@conciv/harness/claude-connect-files'
-import {claudeConfigDir, claudeConnectServesProject} from '@conciv/harness/claude-connect-state'
+} from '@conciv/claude-connect/files'
+import {claudeConfigDir, claudeConnectServesProject} from '@conciv/claude-connect/state'
 import type {HarnessId} from '../../harness-detect.js'
 import {captureFile} from '../../interrupt.js'
 import type {ManualCard, StepOutcome} from '../../ledger.js'

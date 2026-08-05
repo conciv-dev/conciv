@@ -1,10 +1,10 @@
-import {execFile} from 'node:child_process'
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {delimiter, dirname, join, relative} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
-import {claudeConnectDir, claudeConnectPluginFiles} from '@conciv/harness/claude-connect-files'
+import {claudeConnectDir, claudeConnectPluginFiles} from '@conciv/claude-connect/files'
+import {execFileOutcome} from '../../../src/init/exec.js'
 import type {HarnessId} from '../../../src/init/harness-detect.js'
 import {runSteps} from '../../../src/init/pipeline.js'
 import {claudeStep, type ClaudeIo} from '../../../src/init/steps/harness/claude.js'
@@ -49,25 +49,15 @@ function claudeIo(opts: {home: string; binDir: string; recordFile: string; exitC
   return {
     home: opts.home,
     run: (bin, args, cwd) =>
-      new Promise((settle, reject) => {
-        const env = {
+      execFileOutcome(bin, args, {
+        cwd,
+        env: {
           ...process.env,
           PATH: `${opts.binDir}${delimiter}${process.env.PATH ?? ''}`,
           HOME: opts.home,
           CONCIV_CLAUDE_RECORD: opts.recordFile,
           CONCIV_CLAUDE_EXIT: String(opts.exitCode),
-        }
-        execFile(bin, args, {env, cwd}, (error, stdout, stderr) => {
-          if (error === null) {
-            settle({code: 0, output: `${stdout}${stderr}`})
-            return
-          }
-          if (typeof error.code !== 'number') {
-            reject(error)
-            return
-          }
-          settle({code: error.code, output: `${stdout}${stderr}`})
-        })
+        },
       }),
   }
 }
