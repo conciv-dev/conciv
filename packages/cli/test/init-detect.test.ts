@@ -33,6 +33,24 @@ describe('detectFramework', () => {
     seed(cwd, {devDependencies: {'@rspack/cli': '1.0.0', webpack: '5.0.0'}})
     expect(detectFramework(cwd)).toEqual({framework: 'rspack', configFile: null})
   })
+  it('detects astro ahead of the vite it declares and finds astro.config.mjs', () => {
+    const cwd = dir()
+    seed(cwd, {dependencies: {astro: '5.0.0'}, devDependencies: {vite: '6.0.0'}})
+    writeFileSync(join(cwd, 'astro.config.mjs'), 'export default {}')
+    expect(detectFramework(cwd)).toEqual({framework: 'astro', configFile: 'astro.config.mjs'})
+  })
+  it('finds a cjs webpack config', () => {
+    const cwd = dir()
+    seed(cwd, {devDependencies: {webpack: '5.0.0'}})
+    writeFileSync(join(cwd, 'webpack.config.cjs'), 'module.exports = {}')
+    expect(detectFramework(cwd)).toEqual({framework: 'webpack', configFile: 'webpack.config.cjs'})
+  })
+  it('finds an mjs rspack config', () => {
+    const cwd = dir()
+    seed(cwd, {devDependencies: {'@rspack/core': '1.0.0'}})
+    writeFileSync(join(cwd, 'rspack.config.mjs'), 'export default {}')
+    expect(detectFramework(cwd)).toEqual({framework: 'rspack', configFile: 'rspack.config.mjs'})
+  })
   it('detects esbuild with no config file convention', () => {
     const cwd = dir()
     seed(cwd, {devDependencies: {esbuild: '0.24.0'}})

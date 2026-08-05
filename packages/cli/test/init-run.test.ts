@@ -307,6 +307,25 @@ describe('runInit', () => {
     expect(run.events.some((event) => event.startsWith('note:Wire conciv with Vite:'))).toBe(true)
   })
 
+  it('wires an astro project through the vite plugin step', async () => {
+    const run = fixture({configFixture: null, vite: false})
+    writeFileSync(
+      join(run.cwd, 'package.json'),
+      `${JSON.stringify({name: 'fixture-app', version: '0.0.0', packageManager: 'pnpm@10.0.0', devDependencies: {astro: '^5.0.0'}}, null, 2)}\n`,
+    )
+    writeFileSync(
+      join(run.cwd, 'astro.config.mjs'),
+      readFileSync(join(import.meta.dirname, 'fixtures', 'astro.config.mjs'), 'utf8'),
+    )
+    commitAll(run.cwd)
+    const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
+    expect(run.events).toContain('spin-stop:Detected: astro (astro.config.mjs) · pnpm · harnesses: claude')
+    expect(statusById(result).framework).toBe('done')
+    const written = readFileSync(join(run.cwd, 'astro.config.mjs'), 'utf8')
+    expect(written).toContain("import conciv from '@conciv/it/plugin/vite'")
+    expect(written).toContain('plugins: [conciv()]')
+  })
+
   it('says no harnesses were found and still teaches agents the CLI', async () => {
     const run = fixture({claude: false})
     const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)

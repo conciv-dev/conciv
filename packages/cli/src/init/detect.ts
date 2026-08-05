@@ -3,13 +3,18 @@ import {join} from 'node:path'
 import {detectPackageManager} from 'nypm'
 import {z} from 'zod'
 
-export type Framework = 'nextjs' | 'vite' | 'webpack' | 'rspack' | 'rollup' | 'esbuild' | 'unknown'
+export type Framework = 'nextjs' | 'astro' | 'vite' | 'webpack' | 'rspack' | 'rollup' | 'esbuild' | 'unknown'
 export type Detected = {framework: Framework; configFile: string | null; packageManager: string}
 
 type FrameworkRule = {framework: Framework; packages: string[]; configFiles: string[]}
 
 const frameworkRules: FrameworkRule[] = [
   {framework: 'nextjs', packages: ['next'], configFiles: ['next.config.ts', 'next.config.js', 'next.config.mjs']},
+  {
+    framework: 'astro',
+    packages: ['astro'],
+    configFiles: ['astro.config.mjs', 'astro.config.ts', 'astro.config.js'],
+  },
   {
     framework: 'vite',
     packages: ['vite'],
@@ -18,9 +23,13 @@ const frameworkRules: FrameworkRule[] = [
   {
     framework: 'rspack',
     packages: ['@rspack/core', '@rspack/cli'],
-    configFiles: ['rspack.config.js', 'rspack.config.ts'],
+    configFiles: ['rspack.config.js', 'rspack.config.ts', 'rspack.config.cjs', 'rspack.config.mjs'],
   },
-  {framework: 'webpack', packages: ['webpack'], configFiles: ['webpack.config.js', 'webpack.config.ts']},
+  {
+    framework: 'webpack',
+    packages: ['webpack'],
+    configFiles: ['webpack.config.js', 'webpack.config.ts', 'webpack.config.cjs', 'webpack.config.mjs'],
+  },
   {framework: 'rollup', packages: ['rollup'], configFiles: ['rollup.config.js', 'rollup.config.mjs']},
   {framework: 'esbuild', packages: ['esbuild'], configFiles: []},
 ]

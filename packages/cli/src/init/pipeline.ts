@@ -103,7 +103,7 @@ function defaultRuntime(): InitRuntime {
 }
 
 function frameworkStep(detected: Detected): InitStep {
-  if (detected.framework === 'vite') return viteStep(detected)
+  if (detected.framework === 'vite' || detected.framework === 'astro') return viteStep(detected)
   if (detected.framework === 'nextjs') return nextjsStep(detected)
   if (detected.framework === 'webpack' || detected.framework === 'rspack') return webpackFamilyStep(detected)
   return fallbackStep(detected)
