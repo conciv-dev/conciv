@@ -6,8 +6,9 @@ export type {
   ExtensionMeta,
   RegisterExtension,
 } from './define-extension.js'
-export {defineTool} from './define-tool.js'
-export type {ToolBuilder} from './define-tool.js'
+export {defineTool, isToolError, toolError} from './define-tool.js'
+export type {ToolBinding, ToolBuilder, ToolError, ToolErrorSpec, ToolErrors, ToolMeta} from './define-tool.js'
+export {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
 export {defineAttachment} from './define-attachment.js'
 export type {AnyAttachmentBuilder, AttachmentBuilder} from './define-attachment.js'
 export {imageResult} from './image-result.js'
