@@ -49,6 +49,7 @@ export type ExtensionTool = {
   streamTitle?: string
   approval?: 'ask'
   __execute?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
+  __serverRun?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
   __render?: ToolRenderer
 }
 

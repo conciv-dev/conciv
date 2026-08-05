@@ -2,7 +2,7 @@ import {expect, test} from 'vitest'
 import {z} from 'zod'
 import {createRouterClient, os, type AnyRouter} from '@orpc/server'
 import {isDefinedError, ORPCError} from '@orpc/client'
-import {defineTool, toolError} from '../src/define-tool.js'
+import {defineTool, isToolError, toolError} from '../src/define-tool.js'
 import {createToolRegistry, TOOL_TRANSPORT_ERRORS} from '../src/tool-registry.js'
 import {walkRegistryProcedures} from '../src/registry-walk.js'
 import {pageVerbError, type PageVerbErrorCode} from '../src/page-verbs.js'
@@ -59,7 +59,7 @@ function statusTool() {
   }).server(() => ({ok: true}))
 }
 
-test('the walk finds procedures added to the router object after construction, at nested paths', () => {
+test('oRPC pin: the walk finds procedures added to the router object after construction, at nested paths', () => {
   const early = os.input(z.object({})).handler(() => 'early')
   const router: Record<string, AnyRouter> = {alpha: {inner: early}}
   const late = os.input(z.object({})).handler(() => 'late')
@@ -68,7 +68,7 @@ test('the walk finds procedures added to the router object after construction, a
   expect(paths).toEqual(['alpha.inner', 'beta.deep.tool'])
 })
 
-test('the walk reports one procedure registered at two paths twice, so registration must guard duplicates', () => {
+test('oRPC pin: the walk reports one procedure registered at two paths twice, so registration must guard duplicates', () => {
   const procedure = os.input(z.object({})).handler(() => 'twice')
   const router: Record<string, AnyRouter> = {first: procedure, second: procedure}
   const entries = walkRegistryProcedures(router)
@@ -76,7 +76,7 @@ test('the walk reports one procedure registered at two paths twice, so registrat
   expect(entries[0]?.procedure).toBe(entries[1]?.procedure)
 })
 
-test('a procedure without its own meta silently inherits the $meta base default in the walk', () => {
+test('oRPC pin: a procedure without its own meta silently inherits the $meta base default in the walk', () => {
   const base = os.$meta<{summary: string}>({summary: 'inherited-default'})
   const router: Record<string, AnyRouter> = {
     bare: base.handler(() => null),
@@ -328,4 +328,181 @@ test('a successful client tool call forwards name and input over the page caller
   const client = createRouterClient(registry.router)
   await expect(clientTool(client, 'page.fill')({target: '#name'})).resolves.toEqual({filled: true})
   expect(calls).toEqual([['page.fill', {target: '#name'}]])
+})
+
+function bareServerTool(name: string, summary: string) {
+  return defineTool({
+    name,
+    description: 'd',
+    inputSchema: z.object({}),
+    outputSchema: z.object({}),
+    meta: {summary},
+  }).server(() => ({}))
+}
+
+test('registering a tool over an existing branch fails instead of clobbering the nested tools', () => {
+  const registry = createToolRegistry()
+  registry.register(fillTool().client(() => ({filled: true})))
+  expect(() => registry.register(bareServerTool('page', 'a tool claiming a branch name'))).toThrow(/overwrite/)
+  const client = createRouterClient(registry.router)
+  expect(typeof clientTool(client, 'page.fill')).toBe('function')
+})
+
+test('registering a nested tool under an existing tool name fails loudly', () => {
+  const registry = createToolRegistry()
+  registry.register(bareServerTool('page', 'a tool claiming a branch name'))
+  expect(() => registry.register(fillTool().client(() => ({filled: true})))).toThrow(/already names a registered tool/)
+})
+
+test('throwing a declared error without its declared data fails loudly instead of arriving defined:false', async () => {
+  const registry = createToolRegistry()
+  const locate = defineTool({
+    name: 'page.locate',
+    description: 'find an element',
+    inputSchema: z.object({target: z.string()}),
+    outputSchema: z.object({found: z.boolean()}),
+    errors: {ELEMENT_NOT_FOUND: {message: 'no element matched the target', data: z.object({target: z.string()})}},
+    meta: {summary: 'find an element on the page'},
+  }).server(() => {
+    throw toolError('ELEMENT_NOT_FOUND')
+  })
+  registry.register(locate)
+  const client = createRouterClient(registry.router)
+  const failure = await callCaught(clientTool(client, 'page.locate'), {target: '#missing'})
+  expect(isDefinedError(failure)).toBe(false)
+  expect(failure.message).toMatch(/page\.locate/)
+  expect(failure.message).toMatch(/ELEMENT_NOT_FOUND/)
+  expect(failure.message).toMatch(/declared/)
+})
+
+test('a transform input schema is validated once and the handler receives the transformed value', async () => {
+  const registry = createToolRegistry()
+  const parse = defineTool({
+    name: 'math.parse',
+    description: 'parse a number',
+    inputSchema: z.object({n: z.string().transform(Number)}),
+    outputSchema: z.object({value: z.number()}),
+    meta: {summary: 'turn a numeric string into a number'},
+  }).server((input) => ({value: input.n}))
+  registry.register(parse)
+  const client = createRouterClient(registry.router)
+  await expect(clientTool(client, 'math.parse')({n: '42'})).resolves.toEqual({value: 42})
+})
+
+test('registration context and the caller request reach a server handler', async () => {
+  const registry = createToolRegistry()
+  const seen: unknown[] = []
+  const probe = defineTool({
+    name: 'server.probe',
+    description: 'record ctx and request',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ok: z.boolean()}),
+    meta: {summary: 'record the execution context'},
+  }).server((_input, ctx, request) => {
+    seen.push(ctx, request)
+    return {ok: true}
+  })
+  registry.register(probe, {context: {db: 'handle'}})
+  const client = createRouterClient(registry.router, {context: {request: {sessionId: 's1', model: null}}})
+  await clientTool(client, 'server.probe')({})
+  expect(seen).toEqual([{db: 'handle'}, {sessionId: 's1', model: null}])
+})
+
+test('a toolError with an undeclared code rethrows the original error instead of a defined:false ORPCError', async () => {
+  const registry = createToolRegistry()
+  const typo = defineTool({
+    name: 'server.typo',
+    description: 'throws a typo code',
+    inputSchema: z.object({}),
+    outputSchema: z.object({}),
+    errors: {KNOWN: {message: 'a declared failure'}},
+    meta: {summary: 'a tool that throws an undeclared tool error'},
+  }).server(() => {
+    throw toolError('KNOWN_TYPO', {message: 'original failure text'})
+  })
+  registry.register(typo)
+  const client = createRouterClient(registry.router)
+  const failure = await callCaught(clientTool(client, 'server.typo'), {})
+  expect(isDefinedError(failure)).toBe(false)
+  expect(isToolError(failure)).toBe(true)
+  expect(failure.message).toBe('original failure text')
+})
+
+test('colliding mangled names get distinct deterministic sandbox bindings in list and get alike', () => {
+  const registry = createToolRegistry()
+  registry.register(fillTool().client(() => ({filled: true})))
+  registry.register(bareServerTool('page_fill', 'an underscore-named tool colliding after mangling'))
+  expect(registry.catalog.list().map((entry) => entry.sandboxBinding)).toEqual(['page_fill', 'page_fill_2'])
+  expect(registry.catalog.get('page_fill').sandboxBinding).toBe('page_fill_2')
+})
+
+test('a reserved-word tool name yields a valid sandbox identifier', () => {
+  const registry = createToolRegistry()
+  registry.register(bareServerTool('delete', 'remove something somewhere'))
+  expect(registry.catalog.list().map((entry) => entry.sandboxBinding)).toEqual(['_delete'])
+})
+
+test('client tool reachability follows the liveness callback on the same registry instance', () => {
+  const liveness = {connected: false}
+  const registry = createToolRegistry({
+    pageCaller: async () => ({filled: true}),
+    isPageConnected: () => liveness.connected,
+  })
+  registry.register(fillTool().client(() => ({filled: true})))
+  expect(registry.catalog.list().map((entry) => entry.reachable)).toEqual([false])
+  liveness.connected = true
+  expect(registry.catalog.list().map((entry) => entry.reachable)).toEqual([true])
+  expect(registry.catalog.get('page.fill').reachable).toBe(true)
+})
+
+test('the catalog reports input requiredness in input mode so defaulted fields stay optional', () => {
+  const registry = createToolRegistry()
+  const greet = defineTool({
+    name: 'server.greet',
+    description: 'greet someone',
+    inputSchema: z.object({greeting: z.string().default('hi'), name: z.string()}),
+    outputSchema: z.object({message: z.string()}),
+    meta: {summary: 'greet someone by name'},
+  }).server((input) => ({message: `${input.greeting} ${input.name}`}))
+  registry.register(greet)
+  expect(registry.catalog.get('server.greet').input).toMatchObject({required: ['name']})
+})
+
+test('a schema that cannot be represented in JSON Schema is rejected at registration, naming the tool', () => {
+  const registry = createToolRegistry()
+  const dated = defineTool({
+    name: 'server.now',
+    description: 'report the time',
+    inputSchema: z.object({}),
+    outputSchema: z.date(),
+    meta: {summary: 'report the current time'},
+  }).server(() => new Date())
+  expect(() => registry.register(dated)).toThrow(/server\.now.+output/)
+  expect(() => registry.catalog.get('server.now')).toThrow(/unknown tool/)
+})
+
+test('a summary that repeats the tool name with padding or casing is rejected', () => {
+  const spec = {name: 'page.fill', description: 'd', inputSchema: z.object({})}
+  expect(() => defineTool({...spec, meta: {summary: ' page.fill '}})).toThrow(/summary/)
+  expect(() => defineTool({...spec, meta: {summary: 'Page.fill'}})).toThrow(/summary/)
+})
+
+test('binding a tool twice fails loudly', () => {
+  const bound = statusTool()
+  expect(() => bound.client(() => ({ok: true}))).toThrow(/already has a server binding/)
+})
+
+test('prototype-chain segments are rejected at registration and leave Object.prototype untouched', () => {
+  const registry = createToolRegistry()
+  expect(() => registry.register(bareServerTool('__proto__.x', 'a tool with a hostile path segment'))).toThrow(
+    /forbidden/,
+  )
+  expect(() => registry.register(bareServerTool('constructor.x', 'a tool with a hostile path segment'))).toThrow(
+    /forbidden/,
+  )
+  expect(() => registry.register(bareServerTool('page.prototype', 'a tool with a hostile path segment'))).toThrow(
+    /forbidden/,
+  )
+  expect(Object.hasOwn(Object.prototype, 'x')).toBe(false)
+  expect(registry.catalog.list()).toEqual([])
 })

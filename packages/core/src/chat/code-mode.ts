@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {createCodeMode, type IsolateDriver} from '@tanstack/ai-code-mode'
 import {createNodeIsolateDriver, probeIsolatedVm} from '@tanstack/ai-isolate-node'
 import type {AnyTool} from '@tanstack/ai'
-import {sanitizeIdentifier, type ExtensionServerTool, type ToolRequest} from '@conciv/extension'
+import {sanitizeIdentifier, uniqueIdentifier, type ExtensionServerTool, type ToolRequest} from '@conciv/extension'
 import {toChatTool, type ToolRunContext} from './runtime.js'
 import type {PermissionGate} from './gate.js'
 import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
@@ -42,13 +42,6 @@ export function gatedToolRun(
       throw error
     }
   }
-}
-
-function uniqueIdentifier(base: string, taken: ReadonlySet<string>): string {
-  if (!taken.has(base)) return base
-  const suffix = {value: 2}
-  while (taken.has(`${base}_${suffix.value}`)) suffix.value += 1
-  return `${base}_${suffix.value}`
 }
 
 export function withBindingNames(

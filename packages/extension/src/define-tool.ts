@@ -44,7 +44,9 @@ function assertToolMeta(name: string, meta: ToolMeta | undefined): void {
   if (typeof meta.summary !== 'string' || meta.summary.trim() === '') {
     throw new Error(`tool "${name}": meta.summary must describe what the tool does`)
   }
-  if (meta.summary === name) throw new Error(`tool "${name}": meta.summary must not repeat the tool name`)
+  if (meta.summary.trim().toLowerCase() === name.trim().toLowerCase()) {
+    throw new Error(`tool "${name}": meta.summary must not repeat the tool name`)
+  }
 }
 
 function assertUnbound(name: string, binding: ToolBinding | undefined): void {
@@ -78,8 +80,10 @@ export function defineTool<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unkn
     server(execute) {
       assertUnbound(definition.name, builder.binding)
       builder.binding = 'server'
-      builder.__execute = async (raw, ctx, request) =>
-        execute(definition.inputSchema.parse(raw), ctx as Ctx, request as ToolRequest)
+      const invoke = async (parsed: z.infer<Schema>, ctx: unknown, request: ToolRequest | undefined) =>
+        execute(parsed, ctx as Ctx, request as ToolRequest)
+      builder.__execute = async (raw, ctx, request) => invoke(definition.inputSchema.parse(raw), ctx, request)
+      builder.__serverRun = async (input, ctx, request) => invoke(input as z.infer<Schema>, ctx, request)
       return builder
     },
     client(execute) {
