@@ -11,8 +11,6 @@ const ChangesSchema = z.array(
   z.object({verb: z.string(), selector: z.string().optional(), args: z.record(z.string(), z.unknown())}),
 )
 
-type AgentTool = {execute?: (input: unknown) => Promise<unknown>}
-
 async function connectWidget(kit: Kit, answerFor: (kind: string) => PageOutcome): Promise<{end: () => void}> {
   const ctrl = new AbortController()
   const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
@@ -57,10 +55,11 @@ describe('the agent reaches the page through the same implementation the CLI use
   async function agentPageTool(kit: Kit): Promise<(input: unknown) => Promise<unknown>> {
     const mcp = await createMCPClient({transport: {type: 'http', url: `${kit.base}/api/mcp`}})
     state.close = () => mcp.close()
-    const tools: AgentTool[] = await mcp.tools()
-    const page = tools.find((tool) => 'name' in tool && tool.name === 'conciv_page')
-    if (!page?.execute) throw new Error('conciv_page is not registered on /api/mcp')
-    return page.execute
+    const tools = await mcp.tools()
+    const page = tools.find((tool) => tool.name === 'conciv_page')
+    const execute = page?.execute
+    if (!execute) throw new Error('conciv_page is not registered on /api/mcp')
+    return async (input) => execute(input)
   }
 
   it('journals an agent-driven mutation exactly as the CLI path journals it', async () => {
