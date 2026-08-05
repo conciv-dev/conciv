@@ -17,6 +17,7 @@ export type {
   ToolErrorSpec,
   ToolErrors,
   ToolMeta,
+  ToolNameProblem,
 } from './define-tool.js'
 export {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
 export {defineAttachment} from './define-attachment.js'

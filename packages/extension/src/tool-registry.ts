@@ -3,11 +3,18 @@ import type {PageErrorCode} from '@conciv/protocol/page-types'
 import type {ExtensionRegistry} from '@conciv/protocol/config-types'
 import {os, type AnyRouter, type ORPCErrorConstructorMap, type Procedure} from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
-import {isToolError, type ToolBinding, type ToolErrors, type ToolMeta} from './define-tool.js'
+import {
+  isToolError,
+  type ToolBinding,
+  type ToolErrors,
+  type ToolMeta,
+  type ToolNamePathProblem,
+  type ToolNameProblem,
+} from './define-tool.js'
 import {isPageVerbError} from './page-verbs.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
 import {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
-import type {ToolRequest, UnionToIntersection} from './types.js'
+import type {CtxOf, ToolRequest, UnionToIntersection} from './types.js'
 
 export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding}
 
@@ -15,7 +22,7 @@ export type RegistryCallContext = {request?: ToolRequest}
 
 type RegisteredExtensionTools<Entry> = Entry extends {tools: infer Tools} ? Tools : Record<never, never>
 
-type AllRegisteredTools = UnionToIntersection<RegisteredExtensionTools<ExtensionRegistry[keyof ExtensionRegistry]>>
+type RegisteredToolsIn<Registry> = UnionToIntersection<RegisteredExtensionTools<Registry[keyof Registry]>>
 
 type ToolPathHead<Path extends string> = Path extends `${infer Head}.${string}` ? Head : Path
 
@@ -34,7 +41,35 @@ type ToolRouterNode<Tools> = {
     : ToolRouterNode<{[Path in keyof Tools as ToolPathTail<Extract<Path, string>, Head>]: Tools[Path]}>
 }
 
-export type ExtensionToolRouter = ToolRouterNode<AllRegisteredTools>
+type ToolNamesOfExtension<Registry, Name extends keyof Registry> = Extract<
+  keyof RegisteredExtensionTools<Registry[Name]>,
+  string
+>
+
+type ToolNamesAcross<Registry, Names extends keyof Registry> = Names extends unknown
+  ? ToolNamesOfExtension<Registry, Names>
+  : never
+
+type SharedToolNames<Registry, Names extends keyof Registry = keyof Registry> = Names extends unknown
+  ? Extract<ToolNamesOfExtension<Registry, Names>, ToolNamesAcross<Registry, Exclude<keyof Registry, Names>>>
+  : never
+
+type ToolNameProblemMessage<Tools> = Tools extends ToolNameProblem<infer Message extends string> ? Message : never
+
+type RegistryNameProblem<Registry> =
+  | ([ToolNameProblemMessage<RegisteredToolsIn<Registry>>] extends [never]
+      ? never
+      : ToolNameProblem<ToolNameProblemMessage<RegisteredToolsIn<Registry>>>)
+  | ([SharedToolNames<Registry>] extends [never]
+      ? never
+      : ToolNameProblem<`two extensions register a tool named "${SharedToolNames<Registry>}"`>)
+  | ToolNamePathProblem<ToolNamesAcross<Registry, keyof Registry>>
+
+export type ToolRouterFor<Registry> = [RegistryNameProblem<Registry>] extends [never]
+  ? ToolRouterNode<RegisteredToolsIn<Registry>>
+  : RegistryNameProblem<Registry>
+
+export type ExtensionToolRouter = ToolRouterFor<ExtensionRegistry>
 
 export const TOOL_TRANSPORT_ERRORS: ToolErrors = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
@@ -75,7 +110,7 @@ export type ToolSignature = ToolCatalogEntry & {
 
 export type ToolRegistry = {
   router: ExtensionToolRouter
-  register: (tool: AnyToolBuilder, options?: {context?: unknown}) => void
+  register: <Tool extends AnyToolBuilder>(tool: Tool, options?: {context?: CtxOf<Tool>}) => void
   catalog: {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
 }
 

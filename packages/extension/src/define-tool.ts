@@ -73,9 +73,46 @@ export type RegisteredTool<Schema extends z.ZodType, Output extends z.ZodType> =
   outputSchema: Output
 }
 
-export type RegisteredTools<Tools extends readonly unknown[]> = {
-  [Tool in Tools[number] as ToolNameOf<Tool>]: RegisteredTool<ToolInputSchemaOf<Tool>, ToolOutputSchemaOf<Tool>>
-}
+export type ToolNameProblem<Message extends string> = {toolNameProblem: Message}
+
+type ToolNamesIn<Tools extends readonly unknown[]> = ToolNameOf<Tools[number]>
+
+type DuplicateToolName<Tools extends readonly unknown[]> = Tools extends readonly [infer Head, ...infer Rest]
+  ? [ToolNameOf<Head>] extends [never]
+    ? DuplicateToolName<Rest>
+    : [ToolNameOf<Head>] extends [ToolNamesIn<Rest>]
+      ? ToolNameOf<Head>
+      : DuplicateToolName<Rest>
+  : never
+
+export type PrefixedToolNames<All extends string, Names extends string = All> = Names extends string
+  ? [Extract<All, `${Names}.${string}`>] extends [never]
+    ? never
+    : Names
+  : never
+
+export type EmptySegmentToolNames<Names extends string> = Extract<
+  Names,
+  '' | `.${string}` | `${string}.` | `${string}..${string}`
+>
+
+export type ToolNamePathProblem<Names extends string> =
+  | ([PrefixedToolNames<Names>] extends [never]
+      ? never
+      : ToolNameProblem<`tool "${PrefixedToolNames<Names>}" is also the prefix of another tool name`>)
+  | ([EmptySegmentToolNames<Names>] extends [never]
+      ? never
+      : ToolNameProblem<`tool name "${EmptySegmentToolNames<Names>}" has an empty path segment`>)
+
+type ToolTupleProblem<Tools extends readonly unknown[]> =
+  | ([DuplicateToolName<Tools>] extends [never]
+      ? never
+      : ToolNameProblem<`two tools are registered as "${DuplicateToolName<Tools>}"`>)
+  | ToolNamePathProblem<ToolNamesIn<Tools>>
+
+export type RegisteredTools<Tools extends readonly unknown[]> = [ToolTupleProblem<Tools>] extends [never]
+  ? {[Tool in Tools[number] as ToolNameOf<Tool>]: RegisteredTool<ToolInputSchemaOf<Tool>, ToolOutputSchemaOf<Tool>>}
+  : ToolTupleProblem<Tools>
 
 type ToolState = {
   binding?: ToolBinding
