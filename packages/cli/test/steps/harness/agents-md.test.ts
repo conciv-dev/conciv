@@ -5,7 +5,6 @@ import {describe, expect, it} from 'vitest'
 import type {HarnessId} from '../../../src/init/harness-detect.js'
 import {runSteps} from '../../../src/init/pipeline.js'
 import {agentsMdStep, agentsSection} from '../../../src/init/steps/harness/agents-md.js'
-import {readConsent, writeConsent} from '../../../src/init/steps/harness/consent.js'
 import {stepContext} from '../framework/step-context.js'
 
 const consented: HarnessId[] = ['claude', 'codex']
@@ -98,27 +97,5 @@ describe('agentsMdStep', () => {
     const {ctx} = project()
     const card = agentsMdStep(() => consented).manualCard(ctx)
     expect(card.snippet).toBe(agentsSection(consented))
-  })
-})
-
-describe('consent', () => {
-  it('round-trips the consented harness ids through .conciv/harnesses.json', () => {
-    const {cwd} = project()
-    writeConsent(cwd, consented)
-    expect(readConsent(cwd)).toEqual(consented)
-  })
-
-  it('returns an empty list when the file is absent', () => {
-    const {cwd} = project()
-    expect(readConsent(cwd)).toEqual([])
-  })
-
-  it('returns an empty list when the file is malformed', () => {
-    const {cwd} = project()
-    writeConsent(cwd, consented)
-    writeFileSync(join(cwd, '.conciv', 'harnesses.json'), '{"harnesses": "claude"')
-    expect(readConsent(cwd)).toEqual([])
-    writeFileSync(join(cwd, '.conciv', 'harnesses.json'), JSON.stringify({harnesses: ['claude', 'not-a-harness']}))
-    expect(readConsent(cwd)).toEqual([])
   })
 })

@@ -1,6 +1,6 @@
-import {execFile} from 'node:child_process'
 import {homedir} from 'node:os'
 import {detectProject, type Detected} from './detect.js'
+import {execFileOutcome, type CommandOutcome} from './exec.js'
 import {detectHarnesses, harnessIds, type FoundHarness} from './harness-detect.js'
 import {captureFile, guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
 import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan} from './ledger.js'
@@ -74,20 +74,8 @@ export type InitRuntime = {
 
 type Emission = {kind: 'line'; text: string} | {kind: 'note'; note: StepNote}
 
-function spawnBin(bin: string, args: string[], cwd: string): Promise<{code: number; output: string}> {
-  return new Promise((settle, reject) => {
-    execFile(bin, args, {cwd}, (error, stdout, stderr) => {
-      if (error === null) {
-        settle({code: 0, output: `${stdout}${stderr}`})
-        return
-      }
-      if (typeof error.code !== 'number') {
-        reject(error)
-        return
-      }
-      settle({code: error.code, output: `${stdout}${stderr}`})
-    })
-  })
+function spawnBin(bin: string, args: string[], cwd: string): Promise<CommandOutcome> {
+  return execFileOutcome(bin, args, {cwd})
 }
 
 function defaultRuntime(): InitRuntime {
