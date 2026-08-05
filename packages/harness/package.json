@@ -40,6 +40,10 @@
       "types": "./dist/claude/connect-plugin-files.d.ts",
       "import": "./dist/claude/connect-plugin-files.js"
     },
+    "./claude-connect-state": {
+      "types": "./dist/claude/connect-install-state.d.ts",
+      "import": "./dist/claude/connect-install-state.js"
+    },
     "./codex": {
       "types": "./dist/codex/index.d.ts",
       "import": "./dist/codex/index.js"

@@ -1,5 +1,10 @@
 import {realpathSync} from 'node:fs'
-import {resolve} from 'node:path'
+import {isAbsolute, relative, resolve} from 'node:path'
+
+export function inside(parent: string, child: string): boolean {
+  const step = relative(parent, child)
+  return step.length > 0 && !step.startsWith('..') && !isAbsolute(step)
+}
 
 export function realpathOrSelf(path: string): string {
   try {

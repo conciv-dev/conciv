@@ -60,7 +60,7 @@ export type InitResult =
   | {outcome: 'planned'; plan: string}
   | {outcome: 'completed'; steps: LedgerEntry[]; next: string[]}
 
-export type SpawnBin = (bin: string, args: string[]) => Promise<{code: number; output: string}>
+export type SpawnBin = (bin: string, args: string[], cwd: string) => Promise<{code: number; output: string}>
 
 export type InitRuntime = {
   addDependency: AddDep
@@ -74,9 +74,9 @@ export type InitRuntime = {
 
 type Emission = {kind: 'line'; text: string} | {kind: 'note'; note: StepNote}
 
-function spawnBin(bin: string, args: string[]): Promise<{code: number; output: string}> {
+function spawnBin(bin: string, args: string[], cwd: string): Promise<{code: number; output: string}> {
   return new Promise((settle, reject) => {
-    execFile(bin, args, (error, stdout, stderr) => {
+    execFile(bin, args, {cwd}, (error, stdout, stderr) => {
       if (error === null) {
         settle({code: 0, output: `${stdout}${stderr}`})
         return

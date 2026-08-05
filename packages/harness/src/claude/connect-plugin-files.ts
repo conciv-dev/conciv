@@ -63,11 +63,7 @@ function mcpManifest(opts: {mcpUrl: string}): string {
 
 const BRIDGE_FILE_MODE = 0o700
 
-export function claudeConnectPluginFiles(opts: {
-  stateDir: string
-  mcpUrl: string
-  hookUrl: string
-}): HarnessConnectFile[] {
+export function claudeConnectPluginBaseFiles(opts: {stateDir: string}): HarnessConnectFile[] {
   const root = claudeConnectDir(opts.stateDir)
   const plugin = join(root, CLAUDE_CONNECT_PLUGIN)
   return [
@@ -78,6 +74,14 @@ export function claudeConnectPluginFiles(opts: {
       contents: claudeConnectBridgeSource(),
       mode: BRIDGE_FILE_MODE,
     },
-    {path: join(plugin, '.mcp.json'), contents: mcpManifest(opts)},
   ]
+}
+
+export function claudeConnectPluginFiles(opts: {
+  stateDir: string
+  mcpUrl: string
+  hookUrl: string
+}): HarnessConnectFile[] {
+  const plugin = join(claudeConnectDir(opts.stateDir), CLAUDE_CONNECT_PLUGIN)
+  return [...claudeConnectPluginBaseFiles(opts), {path: join(plugin, '.mcp.json'), contents: mcpManifest(opts)}]
 }

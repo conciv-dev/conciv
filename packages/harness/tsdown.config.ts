@@ -6,6 +6,7 @@ export default defineConfig({
     'src/_shared/cwd.ts',
     'src/claude/index.ts',
     'src/claude/connect-plugin-files.ts',
+    'src/claude/connect-install-state.ts',
     'src/codex/index.ts',
     'src/gemini-cli/index.ts',
     'src/opencode/index.ts',

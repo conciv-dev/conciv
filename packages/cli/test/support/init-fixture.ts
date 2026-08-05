@@ -1,5 +1,5 @@
 import {execFileSync} from 'node:child_process'
-import {chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
+import {chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
@@ -70,6 +70,47 @@ export function statusById(result: InitResult): Record<string, string> {
   return Object.fromEntries(stepsOf(result).map((entry) => [entry.id, entry.status]))
 }
 
+function claudePluginsDir(home: string): string {
+  return join(home, '.claude', 'plugins')
+}
+
+function claudeCacheDir(home: string): string {
+  return join(claudePluginsDir(home), 'cache', 'conciv', 'conciv-connect', '0.0.0')
+}
+
+function copyPluginIntoCache(home: string, marketplaceRoot: string): void {
+  const pluginRoot = join(marketplaceRoot, 'conciv-connect')
+  cpSync(pluginRoot, claudeCacheDir(home), {recursive: true})
+}
+
+function recordClaudePluginState(opts: {home: string; cwd: string; args: string[]}): void {
+  const [command, action, step, path] = opts.args
+  if (command !== 'plugin') return
+  mkdirSync(claudePluginsDir(opts.home), {recursive: true})
+  if (action === 'marketplace' && step === 'add' && path !== undefined) {
+    writeFileSync(join(claudePluginsDir(opts.home), 'marketplace-source'), path)
+    writeFileSync(
+      join(claudePluginsDir(opts.home), 'known_marketplaces.json'),
+      JSON.stringify({conciv: {installLocation: path}}),
+    )
+    return
+  }
+  if (action !== 'install') return
+  const root = readFileSync(join(claudePluginsDir(opts.home), 'marketplace-source'), 'utf8')
+  copyPluginIntoCache(opts.home, root)
+  writeFileSync(
+    join(claudePluginsDir(opts.home), 'installed_plugins.json'),
+    JSON.stringify({
+      version: 2,
+      plugins: {
+        'conciv-connect@conciv': [
+          {scope: 'local', version: '0.0.0', installPath: claudeCacheDir(opts.home), projectPath: opts.cwd},
+        ],
+      },
+    }),
+  )
+}
+
 export function fixture(options: FixtureOptions = {}): Fixture {
   const {configFixture = 'vite.config.vanilla.ts', vite = true, claude = true} = options
   const {recordOutput = true, injectInteractive = true} = options
@@ -104,15 +145,9 @@ export function fixture(options: FixtureOptions = {}): Fixture {
       current.devDependencies[name] = '0.0.0'
       writeFileSync(join(opts.cwd, 'package.json'), `${JSON.stringify(current, null, 2)}\n`)
     },
-    spawn: async (bin, args) => {
+    spawn: async (bin, args, spawnCwd) => {
       spawned.push(`${bin} ${args.join(' ')}`)
-      if (args[0] === 'plugin' && args[1] === 'install') {
-        mkdirSync(join(home, '.claude', 'plugins'), {recursive: true})
-        writeFileSync(
-          join(home, '.claude', 'plugins', 'installed_plugins.json'),
-          JSON.stringify({version: 2, plugins: {'conciv-connect@conciv': [{scope: 'local'}]}}),
-        )
-      }
+      recordClaudePluginState({home, cwd: spawnCwd, args})
       return {code: 0, output: ''}
     },
     env: {PATH: binDir, HOME: home},
