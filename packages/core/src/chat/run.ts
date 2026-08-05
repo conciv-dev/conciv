@@ -461,15 +461,27 @@ export function isRunIdTakenError(error: unknown): error is Error {
   return error instanceof Error && error.name === RUN_ID_TAKEN_ERROR_NAME
 }
 
+async function prepareLaunchContent(deps: ChatDeps, sessionId: string, content: UserContent): Promise<UserContent> {
+  deps.onRunStart?.(sessionId)
+  await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
+  const userContent = await composeUserContent(deps.db, sessionId, content)
+  return expandUserParts(userContent, deps.attachmentExpanders)
+}
+
+async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Promise<never> {
+  const message = error instanceof Error ? error.message : String(error)
+  await deps.runs.update(runId, {status: 'failed', finishedAt: Date.now(), error: {message}})
+  throw error
+}
+
 export function makeSend(deps: ChatDeps): Send {
   return async (sessionId, runId, content) => {
-    const startedAt = performance.timeOrigin + performance.now()
+    const startedAt = deps.claimStartedAt()
     const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
     if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
-    deps.onRunStart?.(sessionId)
-    await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
-    const userContent = await composeUserContent(deps.db, sessionId, content)
-    const expanded = await expandUserParts(userContent, deps.attachmentExpanders)
+    const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
+      failClaimedRun(deps, runId, error),
+    )
     launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
     await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
     return runId

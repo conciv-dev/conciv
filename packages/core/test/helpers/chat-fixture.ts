@@ -26,7 +26,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const harness = createTestHarness(real)
   const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-fixture-'))
   const db = openDb(stateRoot)
-  const {durability, runControl, runs} = makeRunControl()
+  const {claimStartedAt, durability, runControl, runs} = makeRunControl()
   const chat: ChatDeps = {
     cwd: stateRoot,
     stateRoot,
@@ -39,6 +39,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     durability,
     runControl,
     runs,
+    claimStartedAt,
     liveRuns: createLiveRuns(),
     stream: createSessionStreams(),
     snapshots: createSnapshotCache(),

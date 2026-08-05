@@ -4,6 +4,7 @@ import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
 import {makeSend} from '../../src/chat/run.js'
+import {makeRunControl} from '../../src/chat/runtime.js'
 import {makeChatFixture, type ChatFixture} from '../helpers/chat-fixture.js'
 import {bootCoreApp} from '../helpers/boot.js'
 
@@ -90,6 +91,33 @@ describe('runId reuse (IT)', () => {
     await expect(send(fixture.sessionId, runId, 'reuse in window')).rejects.toMatchObject({name: 'RunIdTakenError'})
     release.resolve()
     await Promise.all(runs.map((run) => run.done))
+  })
+
+  it('claimStartedAt yields strictly increasing epoch values across rapid calls', () => {
+    const {claimStartedAt} = makeRunControl()
+    const before = Date.now()
+    let previous = claimStartedAt()
+    expect(previous).toBeGreaterThanOrEqual(before)
+    for (let call = 0; call < 10_000; call += 1) {
+      const next = claimStartedAt()
+      expect(next).toBeGreaterThan(previous)
+      previous = next
+    }
+    expect(previous).toBeLessThan(Date.now() + 1_000)
+  })
+
+  it('marks the claimed run failed when a pre-launch step throws', {timeout: 15_000}, async () => {
+    const fixture = await makeChatFixture()
+    fixture.chat.onRunStart = () => {
+      throw new Error('pre-launch boom')
+    }
+    const send = makeSend(fixture.chat)
+    const runId = 'run-id-prelaunch-fail-1'
+    await expect(send(fixture.sessionId, runId, 'first turn')).rejects.toThrow('pre-launch boom')
+    const record = await fixture.chat.runs.get(runId)
+    expect(record).toMatchObject({status: 'failed', error: {message: 'pre-launch boom'}})
+    expect(record?.finishedAt).toBeTypeOf('number')
+    await expect(fixture.chat.runs.findActiveRun(fixture.sessionId)).resolves.toBeNull()
   })
 
   it('rpc chat.send surfaces the rejection to the client', {timeout: 15_000}, async () => {

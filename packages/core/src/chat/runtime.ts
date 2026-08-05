@@ -35,6 +35,7 @@ export type ChatDeps = {
   durability: (runId: string) => StreamDurability
   runControl: RunController
   runs: RunStore
+  claimStartedAt: () => number
   liveRuns: LiveRuns
   stream: SessionStreams
   snapshots: SnapshotCache
@@ -50,7 +51,10 @@ export type ChatDeps = {
 
 export type ChatEnv = {Variables: {chat: ChatDeps}}
 
+const CLAIM_STEP_MS = 2 ** -10
+
 export function makeRunControl(firstChunkTimeoutMs?: number): {
+  claimStartedAt: () => number
   durability: (runId: string) => StreamDurability
   runControl: RunController
   runs: RunStore
@@ -60,7 +64,12 @@ export function makeRunControl(firstChunkTimeoutMs?: number): {
   const durability = (runId: string): StreamDurability =>
     memoryStream({runId: `${instanceKey}:${runId}`}, {firstChunkDeadlineMs})
   const runs = new InMemoryRunStore()
-  return {durability, runControl: new RunController({runs, durability}), runs}
+  let lastStartedAt = 0
+  const claimStartedAt = (): number => {
+    lastStartedAt = Math.max(Date.now(), lastStartedAt + CLAIM_STEP_MS)
+    return lastStartedAt
+  }
+  return {claimStartedAt, durability, runControl: new RunController({runs, durability}), runs}
 }
 
 type Registrable = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
