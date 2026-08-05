@@ -78,6 +78,19 @@ describe('the agent reaches the page through the same implementation the CLI use
     expect(afterAgent).toEqual(afterCli)
   }, 30_000)
 
+  it('journals one entry per mutation and no more, whichever surface drove it', async () => {
+    const kit = await bootKit({cwd: tmpdir()})
+    state.kit = kit
+    state.widget = await connectWidget(kit, () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
+    const execute = await agentPageTool(kit)
+
+    await execute({verb: 'fill', selector: '#email', value: 'a@b.c'})
+    await kit.rpc.page.run({verb: 'setattr', selector: '#a', attribute: 'data-state', value: 'open'})
+
+    const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
+    expect(changes.map((entry) => entry.verb)).toEqual(['fill', 'setattr'])
+  }, 30_000)
+
   it('never journals an agent-driven read', async () => {
     const kit = await bootKit({cwd: tmpdir()})
     state.kit = kit

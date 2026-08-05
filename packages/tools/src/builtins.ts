@@ -1,3 +1,4 @@
+import type {PageQueryKind} from '@conciv/protocol/page-types'
 import type {ToolMeta} from '@conciv/extension/tool'
 import {BUILTIN_PAGE_TOOLS, type BuiltinPageTool} from './builtins/page-tools.js'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from './builtins/server-tools.js'
@@ -5,6 +6,7 @@ import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from './builtins/server-tools.j
 export {BUILTIN_PAGE_TOOLS, type BuiltinPageTool} from './builtins/page-tools.js'
 export {
   BUILTIN_OPEN_TOOL,
+  BUILTIN_SERVER_TOOL,
   BUILTIN_SERVER_TOOLS,
   type OpenToolContext,
   type ServerToolContext,
@@ -34,16 +36,26 @@ function requireMeta(tool: BuiltinPageTool): ToolMeta {
   return meta
 }
 
-const PAGE_TOOL_META: Record<string, ToolMeta> = Object.fromEntries(
+const PAGE_TOOL_META: Partial<Record<PageQueryKind, ToolMeta>> = Object.fromEntries(
   BUILTIN_PAGE_TOOLS.map((tool) => [pageVerbOfTool(tool.name), requireMeta(tool)]),
 )
 
-export function pageVerbMutates(verb: string): boolean {
-  return PAGE_TOOL_META[verb]?.mutating === true
+const KINDS_WITHOUT_A_TOOL: readonly PageQueryKind[] = ['ext']
+
+function pageToolMeta(kind: PageQueryKind): ToolMeta | undefined {
+  const meta = PAGE_TOOL_META[kind]
+  if (meta === undefined && !KINDS_WITHOUT_A_TOOL.includes(kind)) {
+    throw new Error(`no built-in page tool declares "${kind}"`)
+  }
+  return meta
 }
 
-export function pageVerbMirrors(verb: string): boolean {
-  return PAGE_TOOL_META[verb]?.mirrors === true
+export function pageVerbMutates(kind: PageQueryKind): boolean {
+  return pageToolMeta(kind)?.mutating === true
+}
+
+export function pageVerbMirrors(kind: PageQueryKind): boolean {
+  return pageToolMeta(kind)?.mirrors === true
 }
 
 export function builtinToolNames(): string[] {

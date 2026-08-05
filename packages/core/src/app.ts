@@ -318,12 +318,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
   }
+  const sessionModel = (sessionId: string): string | null => modelOf(db, sessionId)
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
     askUi: () => askUi(asks, sessionId),
-    page: (query) => callPageTool(registry, pageEnv, query),
+    page: (query) => callPageTool(registry, pageEnv, query, {sessionId, model: sessionModel(sessionId)}),
     open: (file, line) => opts.openInEditor(file, line),
   })
-  const sessionModel = (sessionId: string): string | null => modelOf(db, sessionId)
 
   const decideMcpCall = async (sessionId: string, toolName: string, input: unknown): Promise<'allow' | 'deny'> => {
     if (!riskyMatches(risky, toolName)) return 'allow'

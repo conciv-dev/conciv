@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {PAGE_QUERY_KINDS, PageQuerySchema} from '@conciv/protocol/page-types'
+import {MIRROR_KINDS, MUTATING_KINDS, PAGE_QUERY_KINDS, PageQuerySchema} from '@conciv/protocol/page-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
   BUILTIN_OPEN_TOOL,
@@ -87,6 +87,13 @@ describe('built-in tool declarations', () => {
       return summary === tool.name || summary === `page ${verb}` || summary === verb
     })
     expect(echoes.map((tool) => tool.name)).toEqual([])
+  })
+
+  it('declares exactly the mutating and mirroring verbs the protocol lists, in both directions', () => {
+    const verbsWhere = (pick: (tool: (typeof BUILTIN_PAGE_TOOLS)[number]) => boolean): string[] =>
+      BUILTIN_PAGE_TOOLS.filter(pick).map((tool) => pageVerbOfTool(tool.name)).toSorted()
+    expect(verbsWhere((tool) => tool.meta?.mutating === true)).toEqual([...MUTATING_KINDS].toSorted())
+    expect(verbsWhere((tool) => tool.meta?.mirrors === true)).toEqual([...MIRROR_KINDS].toSorted())
   })
 
   it('reads mutating and mirroring off the declarations', () => {

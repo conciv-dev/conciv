@@ -38,3 +38,20 @@ test('streamTitle is carried onto the builder', () => {
   const tool = defineTool({name: 't', description: 'd', inputSchema: z.object({}), streamTitle: 'Running tests'})
   expect(tool.streamTitle).toBe('Running tests')
 })
+
+test('a client binding without a handler still claims the binding and refuses a second one', () => {
+  const base = defineTool({name: 't', description: 'd', inputSchema: z.object({n: z.number()})})
+  const forwarded = base.client()
+  expect(forwarded.binding).toBe('client')
+  expect(forwarded.__clientExecute).toBeUndefined()
+  expect(() => forwarded.client((input) => input.n)).toThrow(/already has a client binding/)
+  expect(() => forwarded.server((input) => input.n)).toThrow(/already has a client binding/)
+  expect(base.binding).toBeUndefined()
+})
+
+test('a client binding with a handler stores it without leaking into a handler-free sibling', async () => {
+  const base = defineTool({name: 't', description: 'd', inputSchema: z.object({n: z.number()})})
+  const forwarded = base.client((input) => input.n * 2)
+  expect(await forwarded.__clientExecute?.({n: 4})).toBe(8)
+  expect(base.client().__clientExecute).toBeUndefined()
+})

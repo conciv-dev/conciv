@@ -288,6 +288,7 @@ test('page failures map onto their declared transport error codes', async () => 
     ['unknown-verb', 'UNKNOWN_TOOL'],
     ['invalid-args', 'INVALID_ARGS'],
     ['no-widget', 'NO_PAGE_CLIENT'],
+    ['handler-error', 'HANDLER_ERROR'],
   ]
   for (const [pageCode, transportCode] of cases) {
     const registry = createToolRegistry({
@@ -521,4 +522,35 @@ test('the router type is fully populated while the runtime node starts empty and
   expect(Reflect.get(registry.router, 'server')).toBeUndefined()
   registry.register(statusTool())
   expect(Reflect.get(registry.router, 'server')).toBeDefined()
+})
+
+test('the registry answers has() only for the tools it registered, never for inherited members', () => {
+  const registry = createToolRegistry()
+  registry.register(statusTool())
+  expect(registry.has('server.status')).toBe(true)
+  expect(registry.has('server.missing')).toBe(false)
+  expect(registry.has('constructor')).toBe(false)
+  expect(registry.has('toString')).toBe(false)
+})
+
+test('calling an inherited member of the router client is refused instead of echoing the input back', async () => {
+  const registry = createToolRegistry()
+  registry.register(statusTool())
+  await expect(registry.call('server.status', {})).resolves.toEqual({ok: true})
+  await expect(registry.call('constructor', {smuggled: true})).rejects.toThrow(/unknown tool "constructor"/)
+  await expect(registry.call('toString', {})).rejects.toThrow(/unknown tool "toString"/)
+  await expect(registry.call('server.missing', {})).rejects.toThrow(/unknown tool "server\.missing"/)
+})
+
+test('the caller request reaches the page caller seam, so a forwarded call keeps its session identity', async () => {
+  const seen: unknown[] = []
+  const registry = createToolRegistry({
+    pageCaller: async (_tool, _input, request) => {
+      seen.push(request)
+      return {filled: true}
+    },
+  })
+  registry.register(fillTool().client())
+  await registry.call('page.fill', {target: '#name'}, {request: {sessionId: 's1', model: 'sonnet'}})
+  expect(seen).toEqual([{sessionId: 's1', model: 'sonnet'}])
 })

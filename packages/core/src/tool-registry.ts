@@ -1,6 +1,6 @@
 import {isPageFailure, PageQueryInputSchema, PageQueryKindSchema, type PageQuery} from '@conciv/protocol/page-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import {pageVerbError, toolError} from '@conciv/extension'
+import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ToolRegistry} from '@conciv/extension/registry'
 import {
   BUILTIN_OPEN_TOOL,
@@ -33,27 +33,32 @@ async function runPageTool(env: PageEnv, name: string, input: unknown): Promise<
   try {
     return await runVerb(env, PageQueryInputSchema.parse(input ?? {}), verb)
   } catch (error) {
-    throw toolFailureFromPage('page', verb, error)
+    throw attributedTo(name, toolFailureFromPage(name, verb, error))
   }
 }
 
-export function toolFailureFromPage(extension: string, verb: string, error: unknown): Error {
+function attributedTo(tool: string, failure: Error): Error {
+  return Object.assign(failure, {message: `${tool}: ${failure.message}`})
+}
+
+export function toolFailureFromPage(owner: string, verb: string, error: unknown): Error {
   if (!isPageFailure(error)) {
     const message = error instanceof Error ? error.message : String(error)
-    return pageVerbError('handler-error', extension, verb, message)
+    return pageVerbError('handler-error', owner, verb, message)
   }
   const raised = error.error.raised
   if (raised) return toolError(raised.code, {message: raised.message, data: raised.data})
-  return pageVerbError(error.error.code, extension, verb, error.error.message)
+  return pageVerbError(error.error.code, owner, verb, error.error.message)
 }
 
 export function callPageTool(
   registry: ToolRegistry,
   env: PageEnv,
   query: Omit<PageQuery, 'requestId'>,
+  request?: ToolRequest,
 ): Promise<unknown> {
   const {kind, ...input} = query
   const name = `${PAGE_TOOL_PREFIX}${kind}`
-  if (registry.has(name)) return registry.call(name, input)
+  if (registry.has(name)) return registry.call(name, input, {request})
   return runVerb(env, input, kind)
 }

@@ -2,7 +2,7 @@ import {z} from 'zod'
 import {asc, eq, lt} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {resolveHarnessModels} from '@conciv/harness'
-import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
+import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers, navigation} from '@conciv/db'
 import type {PageRunErrorName} from '@conciv/contract'
 import {listCommands} from '../../chat/commands.js'
@@ -36,26 +36,21 @@ function hasErrorCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code
 }
 
-async function callTool<T>(
+async function callTool<Output extends z.ZodType>(
   deps: RpcDeps,
-  name: string,
+  tool: {name: string; outputSchema?: Output},
   input: unknown,
-  output: {parse: (value: unknown) => T},
-  errors: BundlerErrors,
-): Promise<T> {
+  errors?: BundlerErrors,
+): Promise<z.output<Output>> {
+  const output = tool.outputSchema
+  if (output === undefined) throw new Error(`tool "${tool.name}" declares no output schema`)
   try {
-    return output.parse(await deps.registry.call(name, input))
+    return output.parse(await deps.registry.call(tool.name, input))
   } catch (error) {
-    if (hasErrorCode(error, 'NO_BUNDLER')) throw errors.NO_BUNDLER()
+    if (errors && hasErrorCode(error, 'NO_BUNDLER')) throw errors.NO_BUNDLER()
     throw error
   }
 }
-
-const OkSchema = z.object({ok: z.literal(true)})
-const ResolvedIdSchema = z.object({id: z.string().nullable()})
-const TransformedSchema = z.object({code: z.string().nullable()})
-const ServerUrlsSchema = z.object({local: z.array(z.string()), network: z.array(z.string())})
-const ModuleGraphSchema = z.array(ModuleNodeSchema)
 
 export function makeRpcRouter(deps: RpcDeps) {
   const chat = deps.chat
@@ -123,27 +118,26 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
     },
     server: {
-      config: os.server.config.handler(({errors}) => callTool(deps, 'server.config', {}, BundlerConfigSchema, errors)),
+      config: os.server.config.handler(({errors}) => callTool(deps, BUILTIN_SERVER_TOOL['server.config'], {}, errors)),
       resolve: os.server.resolve.handler(({input, errors}) =>
-        callTool(deps, 'server.resolve', input, ResolvedIdSchema, errors),
+        callTool(deps, BUILTIN_SERVER_TOOL['server.resolve'], input, errors),
       ),
       graph: os.server.graph.handler(({input, errors}) =>
-        callTool(deps, 'server.graph', input, ModuleGraphSchema, errors),
+        callTool(deps, BUILTIN_SERVER_TOOL['server.graph'], input, errors),
       ),
       transform: os.server.transform.handler(({input, errors}) =>
-        callTool(deps, 'server.transform', input, TransformedSchema, errors),
+        callTool(deps, BUILTIN_SERVER_TOOL['server.transform'], input, errors),
       ),
-      urls: os.server.urls.handler(({errors}) => callTool(deps, 'server.urls', {}, ServerUrlsSchema, errors)),
-      reload: os.server.reload.handler(({input, errors}) => callTool(deps, 'server.reload', input, OkSchema, errors)),
+      urls: os.server.urls.handler(({errors}) => callTool(deps, BUILTIN_SERVER_TOOL['server.urls'], {}, errors)),
+      reload: os.server.reload.handler(({input, errors}) =>
+        callTool(deps, BUILTIN_SERVER_TOOL['server.reload'], input, errors),
+      ),
       restart: os.server.restart.handler(({input, errors}) =>
-        callTool(deps, 'server.restart', input, OkSchema, errors),
+        callTool(deps, BUILTIN_SERVER_TOOL['server.restart'], input, errors),
       ),
     },
     editor: {
-      open: os.editor.open.handler(async ({input}) => {
-        await deps.registry.call('open', input)
-        return {ok: true as const}
-      }),
+      open: os.editor.open.handler(({input}) => callTool(deps, BUILTIN_OPEN_TOOL, input)),
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {

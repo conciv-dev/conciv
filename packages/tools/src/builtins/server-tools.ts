@@ -123,15 +123,17 @@ const restartTool = serverTool({
   },
 })
 
-export const BUILTIN_SERVER_TOOLS = [
-  configTool,
-  urlsTool,
-  resolveTool,
-  graphTool,
-  transformTool,
-  reloadTool,
-  restartTool,
-] as const
+export const BUILTIN_SERVER_TOOL = {
+  'server.config': configTool,
+  'server.urls': urlsTool,
+  'server.resolve': resolveTool,
+  'server.graph': graphTool,
+  'server.transform': transformTool,
+  'server.reload': reloadTool,
+  'server.restart': restartTool,
+} as const
+
+export const BUILTIN_SERVER_TOOLS = Object.values(BUILTIN_SERVER_TOOL)
 
 const OpenInput = z.object({
   file: z.string().min(1).describe('the file to open'),
