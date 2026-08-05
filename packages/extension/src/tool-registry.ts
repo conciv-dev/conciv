@@ -1,16 +1,40 @@
 import {z} from 'zod'
 import type {PageErrorCode} from '@conciv/protocol/page-types'
-import {os, type AnyRouter, type ORPCErrorConstructorMap} from '@orpc/server'
+import type {ExtensionRegistry} from '@conciv/protocol/config-types'
+import {os, type AnyRouter, type ORPCErrorConstructorMap, type Procedure} from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
 import {isToolError, type ToolBinding, type ToolErrors, type ToolMeta} from './define-tool.js'
 import {isPageVerbError} from './page-verbs.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
 import {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
-import type {ToolRequest} from './types.js'
+import type {ToolRequest, UnionToIntersection} from './types.js'
 
 export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding}
 
 export type RegistryCallContext = {request?: ToolRequest}
+
+type RegisteredExtensionTools<Entry> = Entry extends {tools: infer Tools} ? Tools : Record<never, never>
+
+type AllRegisteredTools = UnionToIntersection<RegisteredExtensionTools<ExtensionRegistry[keyof ExtensionRegistry]>>
+
+type ToolPathHead<Path extends string> = Path extends `${infer Head}.${string}` ? Head : Path
+
+type ToolPathTail<Path extends string, Head extends string> = Path extends `${Head}.${infer Tail}` ? Tail : never
+
+type ToolProcedure<Tool> = Tool extends {
+  inputSchema: infer Input extends z.ZodType
+  outputSchema: infer Output extends z.ZodType
+}
+  ? Procedure<RegistryCallContext, RegistryCallContext, Input, Output, Record<never, never>, RegistryToolMeta>
+  : never
+
+type ToolRouterNode<Tools> = {
+  [Head in ToolPathHead<Extract<keyof Tools, string>>]: Head extends keyof Tools
+    ? ToolProcedure<Tools[Head]>
+    : ToolRouterNode<{[Path in keyof Tools as ToolPathTail<Extract<Path, string>, Head>]: Tools[Path]}>
+}
+
+export type ExtensionToolRouter = ToolRouterNode<AllRegisteredTools>
 
 export const TOOL_TRANSPORT_ERRORS: ToolErrors = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
@@ -50,7 +74,7 @@ export type ToolSignature = ToolCatalogEntry & {
 }
 
 export type ToolRegistry = {
-  router: Record<string, AnyRouter>
+  router: ExtensionToolRouter
   register: (tool: AnyToolBuilder, options?: {context?: unknown}) => void
   catalog: {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
 }
@@ -58,7 +82,7 @@ export type ToolRegistry = {
 export function createToolRegistry(
   options: {pageCaller?: RegistryPageCaller; isPageConnected?: () => boolean} = {},
 ): ToolRegistry {
-  const router = emptyRouterNode()
+  const router = emptyRouterNode<ExtensionToolRouter>()
   const pageCaller = options.pageCaller
   const pageConnected = options.isPageConnected ?? (() => pageCaller !== undefined)
   return {
@@ -71,9 +95,8 @@ export function createToolRegistry(
   }
 }
 
-function emptyRouterNode(): Record<string, AnyRouter> {
-  const node: Record<string, AnyRouter> = Object.create(null)
-  return node
+function emptyRouterNode<Node>(): Node {
+  return Object.create(null)
 }
 
 type RegistryTool = AnyToolBuilder & {meta: ToolMeta; outputSchema: z.ZodType; binding: ToolBinding}
@@ -133,7 +156,7 @@ function insertProcedure(router: Record<string, AnyRouter>, segments: string[], 
 function ensureBranch(node: Record<string, AnyRouter>, segment: string): Record<string, AnyRouter> {
   const existing = node[segment]
   if (existing === undefined) {
-    const branch = emptyRouterNode()
+    const branch = emptyRouterNode<Record<string, AnyRouter>>()
     node[segment] = branch
     return branch
   }

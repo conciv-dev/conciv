@@ -3,11 +3,11 @@ import {z} from 'zod'
 import {defineTool} from '../src/define-tool.js'
 
 test('tool execute receives input and injected context', async () => {
-  const tool = defineTool<z.ZodObject<{n: z.ZodNumber}>, {factor: number}>({
+  const tool = defineTool({
     name: 't',
     description: 'd',
     inputSchema: z.object({n: z.number()}),
-  }).server((input, ctx) => input.n * ctx.factor)
+  }).server((input, ctx: {factor: number}) => input.n * ctx.factor)
   expect(await tool.__execute?.({n: 3}, {factor: 2})).toBe(6)
 })
 

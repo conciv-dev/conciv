@@ -1,7 +1,7 @@
 import {createSignal, createEffect, Show, onCleanup, onMount, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {createKeyHold} from '@tanstack/solid-hotkeys'
-import {defineExtension} from '@conciv/extension'
+import {defineExtension, type RegisterExtension} from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
 import {describe, locate, showToast, type Refs} from '@conciv/page'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
@@ -138,10 +138,8 @@ function HighlightSurface(): JSX.Element {
 
 const highlight = defineExtension({name: 'highlight', Surface: HighlightSurface})
 
-declare module '@conciv/extension' {
-  interface Register {
-    highlight: {context: Record<never, never>}
-  }
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof highlight> {}
 }
 
 export default highlight

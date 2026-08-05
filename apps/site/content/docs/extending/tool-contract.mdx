@@ -59,7 +59,7 @@ The node-side action. It receives three arguments:
 
 - `input` is already `inputSchema.parse`d, so it is fully typed.
 - `ctx` is the context your extension's `.server(...)` factory returned (see below). `unknown`
-  unless you type it.
+  unless you annotate the handler parameter.
 - `request` is `{sessionId: string; model: string | null}` for the calling chat session.
 
 The return value is the tool result. Return small structured data; the agent reads it verbatim.
@@ -75,11 +75,11 @@ const inputSchema = z.object({by: z.number().default(1)})
 
 type Ctx = {counter: {next: () => number}}
 
-const bump = defineTool<typeof inputSchema, Ctx>({
+const bump = defineTool({
   name: 'bump',
   description: 'Increment the counter.',
   inputSchema,
-}).server((input, ctx) => ({value: ctx.counter.next()}))
+}).server((input, ctx: Ctx) => ({value: ctx.counter.next()}))
 
 export default defineExtension({name: 'counter', tools: [bump]}).server(() => {
   let value = 0

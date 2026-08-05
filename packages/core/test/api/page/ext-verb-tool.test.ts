@@ -14,11 +14,11 @@ const pingVerbs = {ping: pageVerb(z.object({n: z.number()}), (args) => ({pong: a
 
 type PingCaller = PageCaller<typeof pingVerbs>
 
-const checkPing = defineTool<z.ZodObject<{n: z.ZodNumber}>, {page: PingCaller}>({
+const checkPing = defineTool({
   name: 'pinger.checkPing',
   description: 'calls the browser ping verb',
   inputSchema: z.object({n: z.number()}),
-}).server((input, ctx) => ctx.page.call('ping', {n: input.n}))
+}).server((input, ctx: {page: PingCaller}) => ctx.page.call('ping', {n: input.n}))
 
 const pinger = defineExtension({name: 'pinger', tools: [checkPing]})
 

@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import {Clapperboard} from 'lucide-solid'
-import {defineExtension} from '@conciv/extension'
+import {defineExtension, type RegisterExtension} from '@conciv/extension'
 import {RECORDER_NAME, recorderConfig} from './shared/protocol.js'
 import {recordingAttachment} from './shared/attachment.js'
 import {createRecorderStore} from './client/recorder-store.js'
@@ -25,5 +25,9 @@ export const recorder = defineExtension({
   views: [{id: 'recorder', label: 'Recorder', icon: Clapperboard, Component: RecorderPanelView}],
   Surface,
 }).client(() => ({value: {store: createRecorderStore()}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof recorder> {}
+}
 
 export default recorder

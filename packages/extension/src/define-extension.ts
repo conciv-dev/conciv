@@ -1,7 +1,7 @@
 import type {Component} from 'solid-js'
 import type {z} from 'zod'
 import type {ThemeTokens} from '@conciv/ui-kit-system'
-import type {ToolBuilder} from './define-tool.js'
+import type {RegisteredTools, ToolBuilder} from './define-tool.js'
 import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
   ClientFactoryResult,
@@ -18,7 +18,7 @@ import type {
 import type {PageVerbMap} from './page-verbs.js'
 import {useExtensionValue} from './host-context.js'
 
-export type AnyToolBuilder = ToolBuilder<z.ZodObject<z.ZodRawShape>, unknown>
+export type AnyToolBuilder = ToolBuilder<string, z.ZodObject<z.ZodRawShape>, z.ZodType, unknown>
 
 export type ExtensionMeta<
   Name extends string,
@@ -90,11 +90,17 @@ export type AnyExtension = ExtensionBuilder<
   PageVerbMap
 >
 
+type RegisteredConfig<Schema extends z.ZodType> = [Schema] extends [z.ZodNever] ? never : z.input<Schema>
+
 export type RegisterExtension<Extension> =
-  Extension extends ExtensionBuilder<infer Name, infer Schema, infer _Tools, infer _Attachments, infer _ClientValue>
-    ? [Schema] extends [z.ZodNever]
-      ? Record<never, never>
-      : {[Key in Name]: z.input<Schema>}
+  Extension extends ExtensionBuilder<infer Name, infer Schema, infer Tools, infer _Attachments, infer ClientValue>
+    ? {
+        [Key in Name]: {
+          config: RegisteredConfig<Schema>
+          context: ClientValue
+          tools: RegisteredTools<Tools>
+        }
+      }
     : Record<never, never>
 
 function parseExtensionConfig<Schema extends z.ZodType>(schema: Schema | undefined, raw: unknown): ConfigOf<Schema> {

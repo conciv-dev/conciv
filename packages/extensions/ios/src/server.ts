@@ -14,33 +14,33 @@ const LogsInput = z.object({
   limit: z.number().int().positive().max(5000).optional(),
 })
 
-const buildTool = defineTool<typeof BuildInput, IosToolContext>({
+const buildTool = defineTool({
   name: 'ios.build',
   description: 'Compile the native iOS project for the simulator and report build diagnostics.',
   inputSchema: BuildInput,
   approval: 'ask',
   streamTitle: 'Building iOS app',
-}).server((input, ctx) => runBuild(ctx, input))
+}).server((input, ctx: IosToolContext) => runBuild(ctx, input))
 
-const runTool = defineTool<typeof RunInput, IosToolContext>({
+const runTool = defineTool({
   name: 'ios.run',
   description: 'Boot the simulator, install the built app, and launch it so the change is visible.',
   inputSchema: RunInput,
   approval: 'ask',
   streamTitle: 'Launching iOS app',
-}).server((input, ctx) => runRun(ctx, input))
+}).server((input, ctx: IosToolContext) => runRun(ctx, input))
 
-const screenshotTool = defineTool<typeof ScreenshotInput, IosToolContext>({
+const screenshotTool = defineTool({
   name: 'ios.screenshot',
   description: 'Capture the current simulator screen as a PNG image to verify what is on screen.',
   inputSchema: ScreenshotInput,
-}).server((_input, ctx) => runScreenshot(ctx))
+}).server((_input, ctx: IosToolContext) => runScreenshot(ctx))
 
-const logsTool = defineTool<typeof LogsInput, IosToolContext>({
+const logsTool = defineTool({
   name: 'ios.logs',
   description: 'Return recent simulator log lines, optionally filtered by a log predicate.',
   inputSchema: LogsInput,
-}).server((input, ctx) => runLogs(ctx, input))
+}).server((input, ctx: IosToolContext) => runLogs(ctx, input))
 
 export default defineExtension({
   name: IOS_NAME,

@@ -7,7 +7,17 @@ export type {
   RegisterExtension,
 } from './define-extension.js'
 export {defineTool, isToolError, toolError} from './define-tool.js'
-export type {ToolBinding, ToolBuilder, ToolError, ToolErrorSpec, ToolErrors, ToolMeta} from './define-tool.js'
+export type {
+  RegisteredTool,
+  RegisteredTools,
+  ToolBinding,
+  ToolBuilder,
+  ToolDefinition,
+  ToolError,
+  ToolErrorSpec,
+  ToolErrors,
+  ToolMeta,
+} from './define-tool.js'
 export {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
 export {defineAttachment} from './define-attachment.js'
 export type {AnyAttachmentBuilder, AttachmentBuilder} from './define-attachment.js'
@@ -15,7 +25,7 @@ export {imageResult} from './image-result.js'
 export type {ContentPart} from '@tanstack/ai'
 export {collectAttachmentCards, collectToolRenderers} from './collect-client.js'
 export {getExtensionApi} from './extension-api.js'
-export type {ExtensionApi, ExtensionId, Register} from './extension-api.js'
+export type {ExtensionApi, ExtensionId} from './extension-api.js'
 export {getHostApi, HostApiProvider} from './hooks.js'
 export type {ConnectHostApi, HostWiring} from './host-context.js'
 export type {

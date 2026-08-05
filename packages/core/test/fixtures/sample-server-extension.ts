@@ -4,11 +4,11 @@ import {defineExtension, defineTool} from '@conciv/extension'
 
 export const sampleState = {disposed: false}
 
-const multiply = defineTool<z.ZodObject<{n: z.ZodNumber}>, {factor: number}>({
+const multiply = defineTool({
   name: 'sample_mul',
   description: 'multiply by the configured factor',
   inputSchema: z.object({n: z.number()}),
-}).server((input, ctx) => ({result: input.n * ctx.factor}))
+}).server((input, ctx: {factor: number}) => ({result: input.n * ctx.factor}))
 
 export const sampleConfig = z.object({factor: z.number().default(3)})
 

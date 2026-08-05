@@ -1,12 +1,11 @@
+import type {ExtensionRegistry} from '@conciv/protocol/config-types'
 import type {ExtensionSlot} from './types.js'
 import {getHostApi, useExtensionValue} from './hooks.js'
 
-export interface Register {}
+export type ExtensionId = keyof ExtensionRegistry extends never ? string : keyof ExtensionRegistry & string
 
-export type ExtensionId = keyof Register extends never ? string : keyof Register & string
-
-type ContextOf<Id> = Id extends keyof Register
-  ? Register[Id] extends {context: infer Context extends object}
+type ContextOf<Id> = Id extends keyof ExtensionRegistry
+  ? ExtensionRegistry[Id] extends {context: infer Context extends object}
     ? Context
     : object
   : object

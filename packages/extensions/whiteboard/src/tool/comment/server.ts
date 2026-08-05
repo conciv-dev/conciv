@@ -13,14 +13,6 @@ import {
   commentReplyDef,
   commentResolveDef,
   pinSetStateDef,
-  type CommentCreateInput,
-  type CommentDeleteInput,
-  type CommentListInput,
-  type CommentMoveInput,
-  type CommentReadInput,
-  type CommentReplyInput,
-  type CommentResolveInput,
-  type PinSetStateInput,
 } from './def.js'
 
 const commentByCid = async (ctx: WhiteboardToolContext, sessionId: string, cid: string) => {
@@ -70,8 +62,8 @@ const markPresence = (
   })
 }
 
-export const commentCreateTool = defineTool<typeof CommentCreateInput, WhiteboardToolContext>(commentCreateDef).server(
-  async (input, ctx, request) => {
+export const commentCreateTool = defineTool(commentCreateDef).server(
+  async (input, ctx: WhiteboardToolContext, request) => {
     const sessionId = ctx.sessionId(request)
     const now = Date.now()
     const enriched = await enrichAnchor(ctx.cwd, input.anchor ?? null)
@@ -113,8 +105,8 @@ export const commentCreateTool = defineTool<typeof CommentCreateInput, Whiteboar
   },
 )
 
-export const commentReplyTool = defineTool<typeof CommentReplyInput, WhiteboardToolContext>(commentReplyDef).server(
-  async (input, ctx, request) => {
+export const commentReplyTool = defineTool(commentReplyDef).server(
+  async (input, ctx: WhiteboardToolContext, request) => {
     const sessionId = ctx.sessionId(request)
     const parent = await commentByCid(ctx, sessionId, input.cid)
     const now = Date.now()
@@ -150,42 +142,38 @@ export const commentReplyTool = defineTool<typeof CommentReplyInput, WhiteboardT
   },
 )
 
-export const commentReadTool = defineTool<typeof CommentReadInput, WhiteboardToolContext>(commentReadDef).server(
-  async (input, ctx, request) => {
-    const sessionId = ctx.sessionId(request)
-    const root = await commentByCid(ctx, sessionId, input.cid)
-    const thread = await ctx.store.db
-      .select()
-      .from(comments)
-      .where(and(eq(comments.sessionId, sessionId), eq(comments.threadId, root.threadId)))
-    const replies = thread.filter((row) => row.parentId).toSorted((left, right) => left.createdAt - right.createdAt)
-    return {comment: root, replies}
-  },
-)
-
-export const commentListTool = defineTool<typeof CommentListInput, WhiteboardToolContext>(commentListDef).server(
-  async (input, ctx, request) => {
-    const sessionId = ctx.sessionId(request)
-    const rows = await ctx.store.db.select().from(comments).where(eq(comments.sessionId, sessionId))
-    const top = rows
-      .filter((row) => !row.parentId)
-      .filter((row) => (input.file ? row.anchorFile === input.file : true))
-      .filter((row) => (input.status ? row.status === input.status : true))
-    return {comments: top}
-  },
-)
-
-export const commentResolveTool = defineTool<typeof CommentResolveInput, WhiteboardToolContext>(
-  commentResolveDef,
-).server(async (input, ctx, request) => {
-  const now = Date.now()
-  const comment = await commentByCid(ctx, ctx.sessionId(request), input.cid)
-  await ctx.store.updateComment(comment.id, {status: 'resolved', resolvedAt: now, updatedAt: now})
-  return {cid: input.cid, status: 'resolved'}
+export const commentReadTool = defineTool(commentReadDef).server(async (input, ctx: WhiteboardToolContext, request) => {
+  const sessionId = ctx.sessionId(request)
+  const root = await commentByCid(ctx, sessionId, input.cid)
+  const thread = await ctx.store.db
+    .select()
+    .from(comments)
+    .where(and(eq(comments.sessionId, sessionId), eq(comments.threadId, root.threadId)))
+  const replies = thread.filter((row) => row.parentId).toSorted((left, right) => left.createdAt - right.createdAt)
+  return {comment: root, replies}
 })
 
-export const commentDeleteTool = defineTool<typeof CommentDeleteInput, WhiteboardToolContext>(commentDeleteDef).server(
-  async (input, ctx, request) => {
+export const commentListTool = defineTool(commentListDef).server(async (input, ctx: WhiteboardToolContext, request) => {
+  const sessionId = ctx.sessionId(request)
+  const rows = await ctx.store.db.select().from(comments).where(eq(comments.sessionId, sessionId))
+  const top = rows
+    .filter((row) => !row.parentId)
+    .filter((row) => (input.file ? row.anchorFile === input.file : true))
+    .filter((row) => (input.status ? row.status === input.status : true))
+  return {comments: top}
+})
+
+export const commentResolveTool = defineTool(commentResolveDef).server(
+  async (input, ctx: WhiteboardToolContext, request) => {
+    const now = Date.now()
+    const comment = await commentByCid(ctx, ctx.sessionId(request), input.cid)
+    await ctx.store.updateComment(comment.id, {status: 'resolved', resolvedAt: now, updatedAt: now})
+    return {cid: input.cid, status: 'resolved'}
+  },
+)
+
+export const commentDeleteTool = defineTool(commentDeleteDef).server(
+  async (input, ctx: WhiteboardToolContext, request) => {
     const sessionId = ctx.sessionId(request)
     const comment = await commentByCid(ctx, sessionId, input.cid)
     const isRoot = comment.threadId === comment.cid
@@ -207,22 +195,18 @@ export const commentDeleteTool = defineTool<typeof CommentDeleteInput, Whiteboar
   },
 )
 
-export const commentMoveTool = defineTool<typeof CommentMoveInput, WhiteboardToolContext>(commentMoveDef).server(
-  async (input, ctx, request) => {
-    const pin = await pinByCid(ctx, ctx.room(request), input.cid)
-    await ctx.store.updatePin(pin.id, {x: input.x, y: input.y})
-    markPresence(ctx, request, input.x, input.y)
-    return {cid: input.cid, x: input.x, y: input.y}
-  },
-)
+export const commentMoveTool = defineTool(commentMoveDef).server(async (input, ctx: WhiteboardToolContext, request) => {
+  const pin = await pinByCid(ctx, ctx.room(request), input.cid)
+  await ctx.store.updatePin(pin.id, {x: input.x, y: input.y})
+  markPresence(ctx, request, input.x, input.y)
+  return {cid: input.cid, x: input.x, y: input.y}
+})
 
-export const pinSetStateTool = defineTool<typeof PinSetStateInput, WhiteboardToolContext>(pinSetStateDef).server(
-  async (input, ctx, request) => {
-    const pin = await pinByCid(ctx, ctx.room(request), input.cid)
-    await ctx.store.updatePin(pin.id, {pinState: input.pinState})
-    return {cid: input.cid, pinState: input.pinState}
-  },
-)
+export const pinSetStateTool = defineTool(pinSetStateDef).server(async (input, ctx: WhiteboardToolContext, request) => {
+  const pin = await pinByCid(ctx, ctx.room(request), input.cid)
+  await ctx.store.updatePin(pin.id, {pinState: input.pinState})
+  return {cid: input.cid, pinState: input.pinState}
+})
 
 export const commentTools = [
   commentCreateTool,

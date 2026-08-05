@@ -17,11 +17,11 @@ test('carries connectGate through defineExtension', () => {
 })
 
 test('server factory receives api and returns context + app + dispose', () => {
-  const tool = defineTool<z.ZodObject<{n: z.ZodNumber}>, {factor: number}>({
+  const tool = defineTool({
     name: 'mul',
     description: 'd',
     inputSchema: z.object({n: z.number()}),
-  }).server((input, ctx) => input.n * ctx.factor)
+  }).server((input, ctx: {factor: number}) => input.n * ctx.factor)
   const ext = defineExtension({name: 'm', tools: [tool]}).server(() => {
     const app = new Hono().get('/ping', (c) => c.json({ok: true}))
     return {context: {factor: 10}, app, dispose: () => {}}

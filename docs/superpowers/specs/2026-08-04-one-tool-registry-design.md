@@ -557,19 +557,16 @@ Work items the design implies and did not name:
 
   ```ts
   declare module '@conciv/protocol/config-types' {
-    interface ExtensionConfigRegistry extends RegisterExtension<typeof demo> {}
+    interface ExtensionRegistry extends RegisterExtension<typeof demo> {}
   }
   ```
 
-  (`packages/extension/test/config-registry.test-d.ts:9-11`.) `RegisterExtension` reads the name and config
-  schema off the builder itself (`define-extension.ts:93-98`). The gap for tools is one underscore: the same
-  conditional already captures the tools type and discards it —
-  `ExtensionBuilder<infer Name, infer Schema, infer _Tools, …>`. Project `_Tools` instead of dropping it, and
-  have the tool client read the same registry interface. No cast, no escape hatch, and no second mechanism.
-
-  While doing it, converge the two augmentation targets. `apps/conciv/src/extensions/highlight.tsx:141-145`
-  augments `Register` in `@conciv/extension` and **hand-writes** `{context: Record<never, never>}`, restating
-  what the builder already knows. Derived is the model; a third target would be the wrong direction.
+  (`packages/extension/test/extension-registry.test-d.ts`.) `RegisterExtension` reads the name, the config
+  schema, the tools and the client context off the builder itself, and each registry entry carries
+  `{config, context, tools}`. `ExtensionRegistry` is the one augmentation target: `ConcivConfig['extensions']`
+  reads each entry's `config`, `getExtensionApi` reads its `context`, and `ToolRegistry['router']` is derived
+  from the registered tools, so `createRouterClient(registry.router)` types every extension tool call. No cast,
+  no escape hatch, and no second mechanism.
 
 - **Bindings are built once.** `makeCodeMode` converts a tool array into static bindings at construction
   (`packages/core/src/chat/code-mode.ts:73-90`, `create-code-mode-tool.ts:106-108`). An extension that loads
