@@ -55,10 +55,21 @@ const guard = defineTool({
   meta: {summary: 'check a factor against the allowed range'},
 }).server(() => ({accepted: true}))
 
+const pickerDef = toolDefinition({
+  name: 'demo.picker',
+  description: 'let the user pick an element in the page',
+  inputSchema: z.object({}),
+  outputSchema: z.object({picked: z.string()}),
+  errors: {PICK_CANCELLED: {message: 'the user dismissed the picker'}},
+  meta: {summary: 'let the user point at an element in the page'},
+})
+
+const pickerRenderer = defineTool(pickerDef).render(() => null)
+
 const demo = defineExtension({
   name: 'demo',
   configSchema: cfgSchema,
-  tools: [doubler, trebler, locator, guard],
+  tools: [doubler, trebler, locator, guard, pickerRenderer],
 }).client(() => ({
   value: {ratio: 2},
 }))
@@ -268,6 +279,12 @@ test('a client-bound tool carries its declared error alongside the transport cod
 
 test('a client-bound tool that declares nothing still carries the transport codes', () => {
   expectTypeOf<DefinedErrorOf<typeof client.demo.doubler>['code']>().toEqualTypeOf<TransportErrorCode>()
+})
+
+test('an unbound renderer declaration still reports the transport codes its runtime twin can raise', () => {
+  expectTypeOf<DefinedErrorOf<typeof client.demo.picker>['code']>().toEqualTypeOf<
+    'PICK_CANCELLED' | TransportErrorCode
+  >()
 })
 
 test('a server-bound tool carries its declared error and no transport code', () => {

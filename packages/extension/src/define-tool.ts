@@ -93,17 +93,19 @@ type ToolErrorsOf<Tool> = Tool extends {errors?: infer Errors}
     : Record<never, never>
   : Record<never, never>
 
+export type ProjectedToolBinding = ToolBinding | 'unknown'
+
 type ToolBindingOf<Tool> = Tool extends {binding?: infer Binding}
   ? [Extract<Binding, ToolBinding>] extends [never]
-    ? 'server'
+    ? 'unknown'
     : Extract<Binding, ToolBinding>
-  : 'server'
+  : 'unknown'
 
 export type RegisteredTool<
   Schema extends z.ZodType,
   Output extends z.ZodType,
   Errors extends ToolErrors,
-  Binding extends ToolBinding,
+  Binding extends ProjectedToolBinding,
 > = {
   inputSchema: Schema
   outputSchema: Output

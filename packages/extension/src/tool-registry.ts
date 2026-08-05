@@ -13,6 +13,7 @@ import type {AnyToolBuilder} from './define-extension.js'
 import {
   FORBIDDEN_TOOL_SEGMENTS,
   isToolError,
+  type ProjectedToolBinding,
   type ToolBinding,
   type ToolErrors,
   type ToolMeta,
@@ -36,15 +37,15 @@ type ToolPathHead<Path extends string> = Path extends `${infer Head}.${string}` 
 
 type ToolPathTail<Path extends string, Head extends string> = Path extends `${Head}.${infer Tail}` ? Tail : never
 
-type RegistryErrorMap<Errors extends ToolErrors, Binding extends ToolBinding> = Binding extends 'client'
-  ? MergedErrorMap<Errors, ToolTransportErrors>
-  : Errors
+type RegistryErrorMap<Errors extends ToolErrors, Binding extends ProjectedToolBinding> = Binding extends 'server'
+  ? Errors
+  : MergedErrorMap<Errors, ToolTransportErrors>
 
 type ToolProcedure<Tool> = Tool extends {
   inputSchema: infer Input extends z.ZodType
   outputSchema: infer Output extends z.ZodType
   errors: infer Errors extends ToolErrors
-  binding: infer Binding extends ToolBinding
+  binding: infer Binding extends ProjectedToolBinding
 }
   ? Procedure<
       RegistryCallContext,
