@@ -1,6 +1,7 @@
 import {expectTypeOf, test} from 'vitest'
 import {z} from 'zod'
 import type {RouterClient} from '@orpc/server'
+import {isDefinedError} from '@orpc/client'
 import type {Client, ORPCError} from '@orpc/client'
 import {
   defineExtension,
@@ -152,6 +153,15 @@ test('a registry with no name collision stays a usable router', () => {
 test('the derived client declares no errors, so isDefinedError narrows to never on it', () => {
   expectTypeOf<DoublerError>().toEqualTypeOf<Error>()
   expectTypeOf<Extract<DoublerError, ORPCError<string, unknown>>>().toEqualTypeOf<never>()
+})
+
+test('isDefinedError narrows the derived client error to never, not just the union check', () => {
+  function narrow(error: DoublerError) {
+    if (isDefinedError(error)) {
+      expectTypeOf(error).toEqualTypeOf<never>()
+    }
+  }
+  expectTypeOf(narrow).toBeFunction()
 })
 
 test('register only accepts the context its tool declared', () => {
