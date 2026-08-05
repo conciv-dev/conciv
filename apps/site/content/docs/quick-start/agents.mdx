@@ -24,10 +24,14 @@ whether or not any harness was found; the section names the harnesses you picked
 `Set up for:` line. Re-running init updates that section in place and reports it as
 `already wired` when it is current.
 
-claude is the one harness with a deeper integration: init also installs the conciv-connect plugin
-through claude's native plugin manager, scoped to the project. If the claude CLI is not selected the
-step resolves as `skipped: not selected`, and if the plugin manager fails init prints the two
-commands to run yourself.
+claude is the one harness with a deeper integration: init generates the plugin files under
+`.conciv/claude-connect` and installs them through claude's native plugin manager, scoped to the
+project. If the claude CLI is not selected the step resolves as `skipped: not selected`, and if the
+plugin manager fails init prints the two commands to run yourself.
+
+init writes the marketplace, the plugin manifest, and the MCP bridge, but no `.mcp.json`: the conciv
+dev server writes that manifest when it connects to a claude session, so the plugin always points at
+the address that is actually serving.
 
 init prints the whole plan and asks once before it writes anything; `--yes` approves it up front and
 `--dry-run` prints it and exits. It refuses a dirty git tree; commit first or pass `--force`.
@@ -60,13 +64,22 @@ These commands need the dev server running.
 
 ### Install the conciv claude plugin
 
-init generates the plugin files under `.conciv/claude-connect`. Register the generated conciv
-marketplace and install the connect plugin with the claude CLI:
+The plugin files are generated, not hand-written, so this one piece goes through init:
+
+```bash
+npx conciv@latest init
+```
+
+Pick claude at the prompt. init writes `.conciv/claude-connect` and installs the plugin for you.
+Run the two commands yourself only if init reports the step as manual:
 
 ```bash
 claude plugin marketplace add .conciv/claude-connect
 claude plugin install conciv-connect@conciv --scope local
 ```
+
+init writes no `.mcp.json` under the plugin. The conciv dev server writes that manifest when it
+connects to a claude session, so the plugin points at the address that is actually serving.
 
 </Tab>
 
