@@ -82,31 +82,27 @@ function isTopLevel(declarator: SgNode): boolean {
   return enclosing.kind() === 'export_statement' && enclosing.parent()?.kind() === 'program'
 }
 
-function bindsIdentifier(node: SgNode, name: string): boolean {
-  return node.findAll({rule: {kind: 'identifier'}}).some((identifier) => identifier.text() === name)
+function tokensOf(node: SgNode): SgNode[] {
+  const children = node.children()
+  if (children.length === 0) return [node]
+  return children.flatMap(tokensOf)
 }
 
-function declaresName(root: SgNode, name: string): boolean {
-  const declarators = root.findAll({rule: {kind: 'variable_declarator'}})
-  if (declarators.some((declarator) => declarator.field('name')?.text() === name)) return true
-  return root.findAll({rule: {kind: 'function_declaration'}}).some((fn) => fn.field('name')?.text() === name)
+function fillsField(node: SgNode, parentKind: string, field: string): boolean {
+  const parent = node.parent()
+  if (parent === null || parent.kind() !== parentKind) return false
+  return parent.field(field)?.range().start.index === node.range().start.index
 }
 
-function parameterBindsName(root: SgNode, name: string): boolean {
-  const parameterLists = root.findAll({rule: {kind: 'formal_parameters'}})
-  if (parameterLists.some((parameters) => bindsIdentifier(parameters, name))) return true
-  return root.findAll({rule: {kind: 'arrow_function'}}).some((arrow) => arrow.field('parameter')?.text() === name)
-}
-
-function importBindsName(root: SgNode, name: string): boolean {
-  return importStatements(root).some((statement) => {
-    const clause = importClauseOf(statement)
-    return clause !== null && bindsIdentifier(clause, name)
-  })
+function isRequireRead(token: SgNode): boolean {
+  if (fillsField(token, 'call_expression', 'function')) return true
+  return fillsField(token, 'member_expression', 'object')
 }
 
 function requireIsShadowed(root: SgNode): boolean {
-  return declaresName(root, 'require') || parameterBindsName(root, 'require') || importBindsName(root, 'require')
+  return tokensOf(root)
+    .filter((token) => token.text() === 'require')
+    .some((token) => !isRequireRead(token))
 }
 
 function bindsRequireAs(root: SgNode, requireFrom: string, name: string): boolean {

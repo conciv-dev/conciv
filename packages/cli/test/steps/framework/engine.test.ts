@@ -187,6 +187,18 @@ describe('binding provenance', () => {
     expect(addConcivRequire(source)).toEqual({matched: false, output: null})
   })
 
+  it('refuses require-call provenance in a CJS config that destructures require out of an object', () => {
+    const source = fixture('webpack.config.cjs-destructured-require.js')
+    expect(webpackRequireWired(source)).toBe(false)
+    expect(addConcivRequire(source)).toEqual({matched: false, output: null})
+  })
+
+  it('refuses require-call provenance in a CJS config that reassigns require', () => {
+    const source = fixture('webpack.config.cjs-reassigned-require.js')
+    expect(webpackRequireWired(source)).toBe(false)
+    expect(addConcivRequire(source)).toEqual({matched: false, output: null})
+  })
+
   it('still wires a CJS config that only reads require.resolve', () => {
     const source = fixture('webpack.config.cjs-require-resolve.js')
     expect(webpackRequireWired(source)).toBe(false)

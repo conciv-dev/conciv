@@ -22,6 +22,18 @@ function project(framework: Framework, configFile: string | null, fixtureName: s
   return {cwd, detected, ...stepContext(cwd)}
 }
 
+const untrustedConfigs = [
+  {
+    reason: 'destructures something else out of the plugin require',
+    fixtureName: 'webpack.config.cjs-foreign-require.js',
+  },
+  {reason: 'binds conciv.default() to another require', fixtureName: 'webpack.config.cjs-foreign-binding.js'},
+  {reason: 'hides the plugin require inside a function', fixtureName: 'webpack.config.cjs-nested-require.js'},
+  {reason: 'redeclares require itself', fixtureName: 'webpack.config.cjs-shadowed-require.js'},
+  {reason: 'destructures require out of an object', fixtureName: 'webpack.config.cjs-destructured-require.js'},
+  {reason: 'reassigns require', fixtureName: 'webpack.config.cjs-reassigned-require.js'},
+]
+
 describe('webpackFamilyStep', () => {
   it('wires a CJS webpack config with a require line and conciv.default(), still carding widgetUrl', async () => {
     const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs.js')
@@ -78,47 +90,18 @@ describe('webpackFamilyStep', () => {
     expect(await step.detect(ctx)).toBe('present')
   })
 
-  it('cards a CJS config that destructures something else out of the plugin require', async () => {
-    const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs-foreign-require.js')
-    const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
-    const outcome = await webpackFamilyStep(detected).apply(ctx)
-    if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-    expect(outcome.cards.map((card) => card.title)).toEqual(['Wire the conciv webpack plugin', 'Inject the widget'])
-    expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
-  })
-
-  it('cards a conciv.default() call bound to another require instead of reading it as wired', async () => {
-    const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs-foreign-binding.js')
-    const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
-    const step = webpackFamilyStep(detected)
-    expect(await step.detect(ctx)).toBe('missing')
-    const outcome = await step.apply(ctx)
-    if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-    expect(outcome.cards.map((card) => card.title)).toEqual(['Wire the conciv webpack plugin', 'Inject the widget'])
-    expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
-  })
-
-  it('cards a CJS config whose plugin require hides inside a function and leaves the file byte-identical', async () => {
-    const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs-nested-require.js')
-    const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
-    const step = webpackFamilyStep(detected)
-    expect(await step.detect(ctx)).toBe('missing')
-    const outcome = await step.apply(ctx)
-    if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-    expect(outcome.cards.map((card) => card.title)).toEqual(['Wire the conciv webpack plugin', 'Inject the widget'])
-    expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
-  })
-
-  it('cards a CJS config that rebinds require and leaves the file byte-identical', async () => {
-    const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs-shadowed-require.js')
-    const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
-    const step = webpackFamilyStep(detected)
-    expect(await step.detect(ctx)).toBe('missing')
-    const outcome = await step.apply(ctx)
-    if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-    expect(outcome.cards.map((card) => card.title)).toEqual(['Wire the conciv webpack plugin', 'Inject the widget'])
-    expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
-  })
+  for (const {reason, fixtureName} of untrustedConfigs) {
+    it(`cards a CJS config that ${reason} and leaves the file byte-identical`, async () => {
+      const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', fixtureName)
+      const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
+      const step = webpackFamilyStep(detected)
+      expect(await step.detect(ctx)).toBe('missing')
+      const outcome = await step.apply(ctx)
+      if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
+      expect(outcome.cards.map((card) => card.title)).toEqual(['Wire the conciv webpack plugin', 'Inject the widget'])
+      expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
+    })
+  }
 
   it('cards a CJS config without a plugins array and leaves the file byte-identical', async () => {
     const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs-no-plugins.js')
