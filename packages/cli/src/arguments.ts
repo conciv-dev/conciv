@@ -13,6 +13,13 @@ export type Resolved =
       token: string
       known: string[]
     }
+  | {
+      kind: 'arguments'
+      command: CommandDef
+      parent: CommandDef | undefined
+      label: string
+      problem: EnvelopeError
+    }
 
 const ENVELOPE_FLAGS: ArgsDef = {json: {type: 'boolean'}, help: {type: 'boolean', alias: 'h'}}
 
@@ -53,7 +60,10 @@ export async function resolveLeaf(root: CommandDef, rawArgs: string[]): Promise<
     const subs = await subCommandsOf(command)
     const known = Object.keys(subs)
     if (known.length === 0) return {kind: 'leaf', command, parent, rest, label}
-    const index = commandIndex(rest, await argsOf(command))
+    const args = await argsOf(command)
+    const index = commandIndex(rest, args)
+    const problem = argumentProblem(index < 0 ? rest : rest.slice(0, index), args, label)
+    if (problem !== null) return {kind: 'arguments', command, parent, label, problem}
     const token = index < 0 ? undefined : rest[index]
     if (token === undefined) return {kind: 'missing', command, parent, label}
     const next = await subCommandOf(subs, token)
@@ -66,6 +76,7 @@ export async function resolveLeaf(root: CommandDef, rawArgs: string[]): Promise<
 }
 
 export function commandProblem(resolved: Exclude<Resolved, {kind: 'leaf'}>): EnvelopeError {
+  if (resolved.kind === 'arguments') return resolved.problem
   if (resolved.kind === 'missing') {
     return {kind: 'user', message: `No command given for ${resolved.label}.`, hint: commandsHint(resolved.label)}
   }

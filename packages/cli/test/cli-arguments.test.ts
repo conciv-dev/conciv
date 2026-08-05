@@ -45,6 +45,29 @@ describe('conciv CLI argument rejection', () => {
     expect(answer.seen()).toMatchObject({kind: 'override', hookId: 2, json: 'true'})
   })
 
+  it('rejects an unknown flag placed before a nested subcommand instead of dropping it', async () => {
+    const kit = await bootCli(cleanups)
+    const answer = await answerNextQuery(kit, {ok: true})
+    expect(await runCli(main, ['tools', '--bogus', 'page', 'click', '#a'])).toBe(1)
+    expect(answer.seen()).toBeNull()
+    expect(failureText()).toContain('--bogus')
+  })
+
+  it('rejects an unknown flag placed before the very first subcommand', async () => {
+    const kit = await bootCli(cleanups)
+    const answer = await answerNextQuery(kit, {ok: true})
+    expect(await runCli(main, ['--bogus', 'tools', 'page', 'click', '#a'])).toBe(1)
+    expect(answer.seen()).toBeNull()
+    expect(failureText()).toContain('--bogus')
+  })
+
+  it('still accepts an envelope flag placed before a nested subcommand', async () => {
+    const kit = await bootCli(cleanups)
+    const answer = await answerNextQuery(kit, {ok: true})
+    expect(await runCli(main, ['tools', '--json', 'page', 'click', '#a'])).toBe(0)
+    expect(answer.seen()).toMatchObject({kind: 'click'})
+  })
+
   it('rejects an unknown subcommand with the closest verb', async () => {
     await bootCli(cleanups)
     expect(await runCli(main, ['tools', 'page', 'clik', '#a'])).toBe(1)
