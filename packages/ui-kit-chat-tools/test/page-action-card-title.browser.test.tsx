@@ -22,7 +22,7 @@ it('titles a click with the declared label', async () => {
   await expect.element(page.getByText('Clicked')).toBeVisible()
 })
 
-it('titles a fill with the declared label', async () => {
+it('titles a fill with the declared label and the typed value', async () => {
   mountView(() => (
     <PageActionCard
       part={part({verb: 'fill', selector: '#email', value: 'jane@example.com'})}
@@ -31,7 +31,7 @@ it('titles a fill with the declared label', async () => {
     />
   ))
 
-  await expect.element(page.getByText('Typed into a field')).toBeVisible()
+  await expect.element(page.getByText('Typed "jane@example.com"')).toBeVisible()
 })
 
 it('titles a tree read verb', async () => {
@@ -40,10 +40,10 @@ it('titles a tree read verb', async () => {
   await expect.element(page.getByText('Read the page tree')).toBeVisible()
 })
 
-it('titles a press with the declared label', async () => {
+it('titles a press with the declared label and the pressed key', async () => {
   mountView(() => <PageActionCard part={part({verb: 'press', key: 'Enter'})} result={undefined} ctx={ctx} />)
 
-  await expect.element(page.getByText('Pressed a key')).toBeVisible()
+  await expect.element(page.getByText('Pressed Enter')).toBeVisible()
 })
 
 it('falls back to a generic title when the verb is missing', async () => {

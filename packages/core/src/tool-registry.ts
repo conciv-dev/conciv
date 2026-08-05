@@ -1,4 +1,9 @@
-import {isPageFailure, PageQueryInputSchema, PageQueryKindSchema, type PageQuery} from '@conciv/protocol/page-types'
+import {
+  isPageFailure,
+  PageQueryInputSchema,
+  PageQueryKindSchema,
+  type PageQueryInput,
+} from '@conciv/protocol/page-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ToolRegistry} from '@conciv/extension/registry'
@@ -54,11 +59,15 @@ export function toolFailureFromPage(owner: string, verb: string, error: unknown)
 export function callPageTool(
   registry: ToolRegistry,
   env: PageEnv,
-  query: Omit<PageQuery, 'requestId'>,
+  query: PageQueryInput & {kind: string},
   request?: ToolRequest,
 ): Promise<unknown> {
   const {kind, ...input} = query
   const name = `${PAGE_TOOL_PREFIX}${kind}`
   if (registry.has(name)) return registry.call(name, input, {request})
-  return runVerb(env, input, kind)
+  const known = PageQueryKindSchema.safeParse(kind)
+  if (!known.success) {
+    return Promise.reject(pageVerbError('unknown-verb', name, kind, `the page does not know the verb "${kind}"`))
+  }
+  return runVerb(env, input, known.data)
 }

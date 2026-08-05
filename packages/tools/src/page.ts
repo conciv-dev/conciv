@@ -10,6 +10,12 @@ export const PageInput = PageQueryInputSchema.extend({
   hookId: z.number().optional(),
 })
 
+const PageToolArguments = PageQueryInputSchema.extend({
+  since: z.number().optional(),
+  timeout: z.number().optional(),
+  hookId: z.number().optional(),
+}).loose()
+
 const PAGE_TOOL_PREAMBLE =
   'Read and drive the live page and its React tree. Pick one capability with `verb`, and target an element by `ref` (from a snapshot), `selector`, or React component `name`. Every capability the running app offers is listed below.'
 
@@ -38,10 +44,10 @@ export function pageToolDescription(entries: readonly PageCapability[]): string 
   return [PAGE_TOOL_PREAMBLE, ...sections].join('\n\n')
 }
 
-export function pageInputFor(entries: readonly PageCapability[]): z.ZodObject<z.ZodRawShape> {
+export function pageInputFor(entries: readonly PageCapability[]) {
   const verbs = entries.map((entry) => pageVerbOfTool(entry.name))
   if (verbs.length === 0) throw new Error('conciv_page: the registry declares no page capabilities')
-  return PageInput.extend({verb: z.enum(verbs).describe('the capability to run')})
+  return PageToolArguments.extend({verb: z.enum(verbs).describe('the capability to run')})
 }
 
 export const PAGE_TOOL_NAME = 'conciv_page'

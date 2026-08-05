@@ -1,12 +1,36 @@
 import 'virtual:uno.css'
 import {z} from 'zod'
-import {expect, it} from 'vitest'
+import {page} from 'vitest/browser'
+import {afterEach, expect, it} from 'vitest'
 import {defineTool} from '@conciv/extension/tool'
 import type {AnyToolBuilder} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
+import {concivTools} from '@conciv/tools'
+import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {pageCapabilities, pageInputFor, pageToolDescription} from '@conciv/tools/defs'
 import {BUILTIN_PAGE_TOOLS, pageToolMetaOf} from '@conciv/tools/page-tools'
+import {PageActionCard} from '../src/styled/page-action-card.js'
 import {GENERIC_TOOL_ICON, toolIconRender} from '../src/styled/tool-icon.js'
+import {nowTitle} from '../src/primitives/tools/now-title.js'
+import {cleanupViews, mountView} from './mount-view.js'
+
+afterEach(() => {
+  cleanupViews()
+})
+
+const ctx: ToolViewCtx = {apiBase: '', harnessId: 'test', sendMessage: () => {}}
+
+function part(args: Record<string, unknown>): ToolCallPart {
+  return {
+    type: 'tool-call',
+    id: 'p1',
+    name: 'conciv_page',
+    arguments: JSON.stringify(args),
+    input: args,
+    state: 'complete',
+  }
+}
 
 const shipTool = defineTool({
   name: 'page.ship',
@@ -22,8 +46,6 @@ const shipTool = defineTool({
   },
 }).client()
 
-const declarations = [...BUILTIN_PAGE_TOOLS, shipTool]
-
 function registryWith(extra: AnyToolBuilder) {
   const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
   for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool)
@@ -31,7 +53,8 @@ function registryWith(extra: AnyToolBuilder) {
   return registry
 }
 
-it('one new declaration reaches the model, the label and the icon with no other change', () => {
+it('a newly declared capability reaches the model and survives its own advertised schema', async () => {
+  const calls: unknown[] = []
   const capabilities = pageCapabilities(registryWith(shipTool).catalog.list())
 
   const description = pageToolDescription(capabilities)
@@ -39,10 +62,35 @@ it('one new declaration reaches the model, the label and the icon with no other 
   expect(description).toContain('only once the user has approved the diff')
   expect(pageInputFor(capabilities).parse({verb: 'ship'})).toMatchObject({verb: 'ship'})
 
-  const meta = pageToolMetaOf('ship', declarations)
-  expect(meta?.label).toEqual({running: 'Shipping the page', done: 'Shipped the page'})
-  expect(toolIconRender(meta?.icon)).toBe(toolIconRender('pointer'))
-  expect(toolIconRender(meta?.icon)).not.toBe(GENERIC_TOOL_ICON)
+  const tools = concivTools({
+    capabilities: () => capabilities,
+    askUi: async () => ({answered: false, note: ''}),
+    page: async (query) => (calls.push(query), {ok: true}),
+    open: () => {},
+  })
+  const pageTool = tools.find((tool) => tool.name === 'conciv_page')
+  if (!pageTool) throw new Error('conciv_page tool missing')
+
+  await expect(pageTool.execute({verb: 'ship', note: 'after review'})).resolves.toMatchObject({ok: true})
+  expect(calls[0]).toMatchObject({kind: 'ship', note: 'after review'})
+})
+
+it('the card and the running title read a built-in declaration through the default source', async () => {
+  const declared = pageToolMetaOf('setattr')
+  if (!declared?.label) throw new Error('page.setattr declares no label')
+
+  mountView(() => (
+    <PageActionCard
+      part={part({verb: 'setattr', selector: '#hero', attribute: 'hidden'})}
+      result={undefined}
+      ctx={ctx}
+    />
+  ))
+
+  await expect.element(page.getByText(declared.label.done)).toBeVisible()
+  expect(nowTitle(part({verb: 'setattr'}))).toBe(declared.label.running)
+  expect(toolIconRender(declared.icon)).toBe(toolIconRender('edit'))
+  expect(toolIconRender(declared.icon)).not.toBe(GENERIC_TOOL_ICON)
 })
 
 it('a declaration with no icon key falls back to the generic icon', () => {

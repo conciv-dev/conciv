@@ -39,10 +39,19 @@ function VerbIcon(verb: PageQueryKind | undefined): JSX.Element {
 
 const GENERIC_PAGE_TITLE = 'Page action'
 
+function titleDetail(input: ReturnType<typeof readInput>): string {
+  if (input?.value) return ` "${input.value}"`
+  if (input?.key) return ` ${input.key}`
+  return ''
+}
+
 function pageTitle(part: ToolCallPart): string {
-  const verb = readInput(part)?.verb
+  const input = readInput(part)
+  const verb = input?.verb
   if (verb === undefined) return GENERIC_PAGE_TITLE
-  return pageToolMetaOf(verb)?.label?.done ?? GENERIC_PAGE_TITLE
+  const label = pageToolMetaOf(verb)?.label?.done
+  if (label === undefined) return GENERIC_PAGE_TITLE
+  return `${label}${titleDetail(input)}`
 }
 
 type SnapNode = {ref?: string; role?: string; name?: string; value?: string; state?: string[]}

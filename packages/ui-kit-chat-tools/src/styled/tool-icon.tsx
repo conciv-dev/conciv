@@ -1,5 +1,5 @@
 import type {JSX} from 'solid-js'
-import {Clock, Code, Component, Keyboard, MousePointerClick, ScanSearch, Wand2} from 'lucide-solid'
+import {CircleHelp, Clock, Code, Component, Keyboard, MousePointerClick, ScanSearch, Wand2} from 'lucide-solid'
 import {TOOL_ICON_KEYS, type ToolIconKey} from '@conciv/tools/page-tools'
 
 type IconRender = (props: {size: number}) => JSX.Element
@@ -14,7 +14,7 @@ const TOOL_ICON: Record<ToolIconKey, IconRender> = {
   wait: (props) => <Clock size={props.size} />,
 }
 
-export const GENERIC_TOOL_ICON: IconRender = (props) => <Wand2 size={props.size} />
+export const GENERIC_TOOL_ICON: IconRender = (props) => <CircleHelp size={props.size} />
 
 function isIconKey(key: string): key is ToolIconKey {
   return TOOL_ICON_KEYS.some((known) => known === key)

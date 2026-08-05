@@ -1,38 +1,44 @@
 ---
 name: react-introspection
-description: Use when the user asks about a React component on the live page, or you need to map a rendered element to its source file, read its props/hooks, dump the component tree, or find a component by name. Covers the conciv_page tool's locate/inspect/tree/find verbs. Reach for this instead of poking __REACT_DEVTOOLS_GLOBAL_HOOK__ or fiber keys via the eval verb.
+description: Use when the user asks about a React component on the live page, or you need to map a rendered element to its source file, read its props/hooks/state, dump the component tree, or find a component by name. The conciv_page tool's own description names its React capabilities and their arguments. Reach for this instead of poking __REACT_DEVTOOLS_GLOBAL_HOOK__ or fiber keys through the eval capability.
 ---
 
 # React introspection
 
-The live page is a React app. The `conciv_page` MCP tool has four React verbs that read the fiber
-tree directly (via bippy) and symbolicate through the dev server's source maps. Use them. Do NOT
-hand-roll fiber detection with the `eval` verb + `__REACT_DEVTOOLS_GLOBAL_HOOK__` or
-`__reactFiber$` keys; that is what these verbs already do, correctly and source-mapped.
+The live page is a React app. The `conciv_page` tool reads the fiber tree directly (via bippy) and
+symbolicates through the dev server's source maps. Use it. Do NOT hand-roll fiber detection with
+`eval` + `__REACT_DEVTOOLS_GLOBAL_HOOK__` or `__reactFiber$` keys; that is what these capabilities
+already do, correctly and source-mapped.
 
-Call `conciv_page` with a `verb` plus an element target: either a positional CSS `selector` or a
-`ref` (from the latest `conciv_page` `snapshot`). Prefer `ref`; refs go stale on re-render.
+## Which capabilities exist
 
-## Verbs (the `verb` argument to `conciv_page`)
+Read the `conciv_page` tool description. It lists every capability the running app offers, grouped
+by category, each with its own summary — the React ones are the `react` group. That list is
+generated from the running registry, so it is never stale, and it is the only place to look. Do not
+work from memory, and do not work from a list written in a file.
 
-- `locate`: resolve a rendered element to its component's source `file:line`. The "where does this
-  come from?" verb. Reply is symbolicated to a real source location (e.g. `app/page.tsx:17`),
-  derived from the owner stack, not the dev wrapper.
-- `inspect`: `{component, props, hooks}` for the element's nearest component. Props/hooks are
-  best-effort (serialized); hooks may be partial when no React DevTools hook is installed, which is
-  normal and not an error.
-- `tree`: the component tree (`{nodes}`) rooted at the element, or the page root if no target. Use
-  to understand structure.
-- `find`: find mounted instances by component `name` (`{matches}`). Use when the user names a
-  component but you don't have an element yet.
+Arguments are one flat object; only the fields relevant to the chosen capability apply. Target an
+element with a CSS `selector`, a `ref` from the latest snapshot, or a React component `name`. Prefer
+`ref`; refs go stale on re-render.
+
+## Why to reach for it
+
+- **"Where does this come from?"** — resolve a rendered element to its component's source
+  `file:line`, symbolicated to a real source location from the owner stack rather than the dev
+  wrapper. Then open and edit that real file.
+- **"What is it holding right now?"** — read the live values before reasoning about behaviour. They
+  are best-effort and serialized; partial hooks with no React DevTools hook installed are normal,
+  not an error.
+- **"What is the structure here?"** — walk the tree under an element, or find every mounted instance
+  of a component when the user names one but you have no element yet.
+- **"Is my hypothesis right?"** — patch a live value and watch the page, or record re-renders and
+  report what changed. Both are ephemeral: verify, then edit the real source.
 
 ## Typical flow
 
-1. Ground yourself: call `conciv_page` with `{verb: 'snapshot'}` to get refs, or
-   `{verb: 'find', name: '<Component>'}` if the user named a component.
-2. `{verb: 'locate', ref: '<r>'}` to jump to the source `file:line`, then open and edit that real
-   file directly.
-3. `{verb: 'inspect', ref: '<r>'}` when you need the live props/hooks to reason about state.
+1. Ground yourself: take a snapshot to get refs, or find the component by name if the user named it.
+2. Locate the element's source `file:line`, then open and edit that real file.
+3. Inspect the live values when you need them to reason about state.
 
-If a verb returns `no React fiber` / `no root element`, the element is outside a React tree or not
-hydrated yet; re-snapshot after the page settles rather than falling back to `eval`.
+If a capability returns `no React fiber` / `no root element`, the element is outside a React tree or
+not hydrated yet; re-snapshot after the page settles rather than falling back to `eval`.
