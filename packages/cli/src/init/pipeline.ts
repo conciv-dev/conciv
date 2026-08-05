@@ -12,7 +12,7 @@ import {viteStep} from './steps/framework/vite.js'
 import {webpackFamilyStep} from './steps/framework/webpack-family.js'
 import {agentsMdStep} from './steps/harness/agents-md.js'
 import {claudeStep} from './steps/harness/claude.js'
-import {consentFile, readConsent, writeConsent} from './steps/harness/consent.js'
+import {consentFile, writeConsent} from './steps/harness/consent.js'
 import {addWithNypm, installItStep, type AddDep} from './steps/install-it.js'
 import {
   approvePlan,
@@ -114,8 +114,8 @@ function nextSteps(packageManager: string): string[] {
   return [`start your app: ${dev}`, 'ask your agent to run conciv tools --help']
 }
 
-function stepList(cwd: string, detected: Detected, selections: ConfirmedSelections, runtime: InitRuntime): InitStep[] {
-  const consented = () => readConsent(cwd)
+function stepList(detected: Detected, selections: ConfirmedSelections, runtime: InitRuntime): InitStep[] {
+  const consented = () => selections.harnesses
   return [
     installItStep(runtime.addDependency, detected.packageManager),
     ...(selections.framework ? [frameworkStep(detected)] : []),
@@ -173,7 +173,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
     found: {framework: detected.framework, harnesses: found},
     renderSelected: async (selections) =>
       renderPlan(
-        await planRows(stepList(options.cwd, detected, selections, runtime), quietContext(options.cwd, options.yes)),
+        await planRows(stepList(detected, selections, runtime), quietContext(options.cwd, options.yes)),
         harnessRows(found, selections),
       ),
     prompts: runtime.prompts,
@@ -203,11 +203,7 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
         runtime.exit(130)
       }),
   }
-  const entries = await runSteps(
-    stepList(options.cwd, detected, approved.selections, runtime),
-    settings,
-    runtime.output,
-  )
+  const entries = await runSteps(stepList(detected, approved.selections, runtime), settings, runtime.output)
   backups.release()
   const next = nextSteps(detected.packageManager)
   emitOutro(runtime.output, entries, next)

@@ -2,6 +2,7 @@ import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {HarnessId} from '../../harness-detect.js'
 import {captureFile} from '../../interrupt.js'
+import type {ManualCard} from '../../ledger.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
 
 const startMarker = '<!-- conciv:start -->'
@@ -29,14 +30,29 @@ export function agentsSection(consented: HarnessId[]): string {
   ].join('\n')
 }
 
+type MarkerSpan = {kind: 'absent'} | {kind: 'block'; start: number; end: number} | {kind: 'mismatched'}
+
+function occurrences(content: string, marker: string): number {
+  return content.split(marker).length - 1
+}
+
+function markerSpan(content: string): MarkerSpan {
+  const starts = occurrences(content, startMarker)
+  const ends = occurrences(content, endMarker)
+  if (starts === 0 && ends === 0) return {kind: 'absent'}
+  if (starts !== 1 || ends !== 1) return {kind: 'mismatched'}
+  const start = content.indexOf(startMarker)
+  const end = content.indexOf(endMarker)
+  if (end < start) return {kind: 'mismatched'}
+  return {kind: 'block', start, end: end + endMarker.length}
+}
+
 function currentSpan(file: string): string | null {
   if (!existsSync(file)) return null
   const content = readFileSync(file, 'utf8')
-  const start = content.indexOf(startMarker)
-  if (start === -1) return null
-  const end = content.indexOf(endMarker, start)
-  if (end === -1) return null
-  return content.slice(start, end + endMarker.length)
+  const span = markerSpan(content)
+  if (span.kind !== 'block') return null
+  return content.slice(span.start, span.end)
 }
 
 function upsertSection(file: string, section: string): void {
@@ -45,14 +61,18 @@ function upsertSection(file: string, section: string): void {
     return
   }
   const content = readFileSync(file, 'utf8')
-  const start = content.indexOf(startMarker)
-  const end = start === -1 ? -1 : content.indexOf(endMarker, start)
-  if (start === -1 || end === -1) {
+  const span = markerSpan(content)
+  if (span.kind === 'mismatched') return
+  if (span.kind === 'absent') {
     const separator = content.endsWith('\n') ? '\n' : '\n\n'
     writeFileSync(file, `${content}${separator}${section}\n`)
     return
   }
-  writeFileSync(file, `${content.slice(0, start)}${section}${content.slice(end + endMarker.length)}`)
+  writeFileSync(file, `${content.slice(0, span.start)}${section}${content.slice(span.end)}`)
+}
+
+function mismatchedTargets(cwd: string): string[] {
+  return targets(cwd).filter((file) => existsSync(file) && markerSpan(readFileSync(file, 'utf8')).kind === 'mismatched')
 }
 
 function targets(cwd: string): string[] {
@@ -80,6 +100,14 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
       wouldEdit: targets(ctx.cwd).map((file) => file.slice(ctx.cwd.length + 1)),
     }),
     apply: async (ctx) => {
+      const mismatched = mismatchedTargets(ctx.cwd)
+      if (mismatched.length > 0) {
+        return {
+          status: 'manual',
+          cards: [manualCard(consented())],
+          detail: `${mismatched.map((file) => file.slice(ctx.cwd.length + 1)).join(', ')} has unpaired conciv markers`,
+        }
+      }
       const section = agentsSection(consented())
       for (const file of targets(ctx.cwd)) {
         ctx.backup(captureFile(file))
@@ -88,10 +116,14 @@ export function agentsMdStep(consented: () => HarnessId[]): InitStep {
       return {status: 'done'}
     },
     verify: async (ctx) => (await detect(ctx)) === 'present',
-    manualCard: () => ({
-      title: 'Teach your agents the conciv CLI',
-      body: 'Paste this section into AGENTS.md (and CLAUDE.md if you keep one). Full steps: https://conciv.dev/docs/quick-start/agents',
-      snippet: agentsSection(consented()),
-    }),
+    manualCard: () => manualCard(consented()),
+  }
+}
+
+function manualCard(consented: HarnessId[]): ManualCard {
+  return {
+    title: 'Teach your agents the conciv CLI',
+    body: 'Paste this section into AGENTS.md (and CLAUDE.md if you keep one). Full steps: https://conciv.dev/docs/quick-start/agents',
+    snippet: agentsSection(consented),
   }
 }

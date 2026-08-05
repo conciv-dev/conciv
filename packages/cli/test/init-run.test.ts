@@ -4,12 +4,18 @@ import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {claudeConnectDir} from '@conciv/harness/claude-connect-files'
 import {runInit} from '../src/init/pipeline.js'
-import {readConsent} from '../src/init/steps/harness/consent.js'
+import {readConsent, writeConsent} from '../src/init/steps/harness/consent.js'
 import {commitAll, fixture, pendingChanges, recorderPrompts, statusById, stepsOf} from './support/init-fixture.js'
 
 const plansOf = (events: string[]) => events.filter((event) => event.startsWith('plan:'))
 
 const settlesOf = (events: string[]) => events.filter((event) => event.startsWith('settle:'))
+
+function planLine(plan: string, title: string): string {
+  const line = plan.split('\n').find((row) => row.includes(title))
+  if (line === undefined) throw new Error(`plan has no row for ${title}`)
+  return line
+}
 
 describe('runInit', () => {
   it('wires a vite project end to end with --yes over the injected runtime', async () => {
@@ -163,6 +169,56 @@ describe('runInit', () => {
     expect(plans[1]).toContain('already wired')
     expect(run.events).toContain('settle:already:Install @conciv/it — already wired')
     expect(run.events).toContain('success:4 already wired')
+  })
+
+  it('plans the dry run against this run selections, not the harnesses a previous run recorded', async () => {
+    const run = fixture()
+    await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
+    writeConsent(run.cwd, ['claude', 'codex'])
+    commitAll(run.cwd)
+    const result = await runInit(
+      {yes: false, dryRun: true, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        interactive: () => false,
+        prompts: {
+          decide: async () => {
+            throw new Error('decide must not run under --dry-run')
+          },
+          adjust: async () => {
+            throw new Error('adjust must not run under --dry-run')
+          },
+        },
+      },
+    )
+    const plan = result.outcome === 'planned' ? result.plan : ''
+    expect(planLine(plan, 'Teach agents the conciv CLI')).toContain('already wired')
+    expect(planLine(plan, 'Teach agents the conciv CLI')).not.toContain('AGENTS.md')
+  })
+
+  it('re-renders the plan against the adjusted harness selection', async () => {
+    const run = fixture()
+    await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
+    commitAll(run.cwd)
+    const decisions: ('adjust' | 'proceed')[] = ['adjust', 'proceed']
+    await runInit(
+      {yes: false, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        prompts: {
+          decide: async () => {
+            const next = decisions.shift()
+            if (next === undefined) throw new Error('ran out of decisions')
+            return next
+          },
+          adjust: async () => ({framework: true, harnesses: []}),
+        },
+      },
+    )
+    const plans = plansOf(run.events).slice(-2)
+    expect(plans).toHaveLength(2)
+    expect(planLine(plans[1] ?? '', 'Teach agents the conciv CLI')).toContain('AGENTS.md')
+    expect(planLine(plans[0] ?? '', 'Teach agents the conciv CLI')).toContain('already wired')
   })
 
   it('prints the plan and touches nothing with --dry-run', async () => {
