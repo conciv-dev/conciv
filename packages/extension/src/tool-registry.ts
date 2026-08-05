@@ -1,11 +1,19 @@
 import {z} from 'zod'
 import type {PageErrorCode} from '@conciv/protocol/page-types'
 import type {ExtensionRegistry} from '@conciv/protocol/config-types'
-import {createRouterClient, os, type AnyRouter, type ORPCErrorConstructorMap, type Procedure} from '@orpc/server'
+import {
+  createRouterClient,
+  os,
+  type AnyRouter,
+  type MergedErrorMap,
+  type ORPCErrorConstructorMap,
+  type Procedure,
+} from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
 import {
   FORBIDDEN_TOOL_SEGMENTS,
   isToolError,
+  type ProjectedToolBinding,
   type ToolBinding,
   type ToolErrors,
   type ToolMeta,
@@ -29,11 +37,24 @@ type ToolPathHead<Path extends string> = Path extends `${infer Head}.${string}` 
 
 type ToolPathTail<Path extends string, Head extends string> = Path extends `${Head}.${infer Tail}` ? Tail : never
 
+type RegistryErrorMap<Errors extends ToolErrors, Binding extends ProjectedToolBinding> = Binding extends 'server'
+  ? Errors
+  : MergedErrorMap<Errors, ToolTransportErrors>
+
 type ToolProcedure<Tool> = Tool extends {
   inputSchema: infer Input extends z.ZodType
   outputSchema: infer Output extends z.ZodType
+  errors: infer Errors extends ToolErrors
+  binding: infer Binding extends ProjectedToolBinding
 }
-  ? Procedure<RegistryCallContext, RegistryCallContext, Input, Output, Record<never, never>, RegistryToolMeta>
+  ? Procedure<
+      RegistryCallContext,
+      RegistryCallContext,
+      Input,
+      Output,
+      RegistryErrorMap<Errors, Binding>,
+      RegistryToolMeta
+    >
   : never
 
 type ToolRouterNode<Tools> = {
@@ -72,13 +93,15 @@ export type ToolRouterFor<Registry> = [RegistryNameProblem<Registry>] extends [n
 
 export type ExtensionToolRouter = ToolRouterFor<ExtensionRegistry>
 
-export const TOOL_TRANSPORT_ERRORS: ToolErrors = {
+export const TOOL_TRANSPORT_ERRORS = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
   PAGE_TIMEOUT: {message: 'the page did not reply in time'},
   UNKNOWN_TOOL: {message: 'the page does not know this tool'},
   INVALID_ARGS: {message: 'the page rejected the arguments'},
   HANDLER_ERROR: {message: 'the page failed to run this tool'},
-}
+} satisfies ToolErrors
+
+export type ToolTransportErrors = typeof TOOL_TRANSPORT_ERRORS
 
 const PAGE_FAILURE_TO_TRANSPORT: Record<PageErrorCode, string> = {
   'no-widget': 'NO_PAGE_CLIENT',
