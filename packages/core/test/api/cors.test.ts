@@ -36,18 +36,22 @@ describe('corsMiddleware', () => {
   }
 
   it('403s a cross-origin (public site) request', async () => {
-    const res = await makeApp().request('http://127.0.0.1/api/ping', {headers: {origin: 'https://evil.com'}})
+    const res = await makeApp().request('http://127.0.0.1/api/ping', {
+      headers: {host: '127.0.0.1', origin: 'https://evil.com'},
+    })
     expect(res.status).toBe(403)
   })
 
   it('allows a loopback-origin request and reflects the origin', async () => {
-    const res = await makeApp().request('http://127.0.0.1/api/ping', {headers: {origin: 'http://localhost:5173'}})
+    const res = await makeApp().request('http://127.0.0.1/api/ping', {
+      headers: {host: '127.0.0.1', origin: 'http://localhost:5173'},
+    })
     expect(res.status).toBe(200)
     expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:5173')
   })
 
   it('allows a no-Origin request (CLI/MCP)', async () => {
-    const res = await makeApp().request('http://127.0.0.1/api/ping')
+    const res = await makeApp().request('http://127.0.0.1/api/ping', {headers: {host: '127.0.0.1'}})
     expect(res.status).toBe(200)
   })
 })

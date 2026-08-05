@@ -57,7 +57,7 @@ describe('attachment expand end-to-end (real send path, scripted harness)', () =
     ]
     const response = await made.app.request('/rpc/chat/send', {
       method: 'POST',
-      headers: {'content-type': 'application/json'},
+      headers: {'content-type': 'application/json', host: '127.0.0.1'},
       body: JSON.stringify({json: {sessionId, runId: 'expand-attachments-1', content}}),
     })
     expect(response.status).toBe(200)
@@ -65,7 +65,7 @@ describe('attachment expand end-to-end (real send path, scripted harness)', () =
     const sessionRunning = async (): Promise<boolean> => {
       const list = await made.app.request('/rpc/sessions/list', {
         method: 'POST',
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json', host: '127.0.0.1'},
         body: JSON.stringify({json: null}),
       })
       const payload: unknown = await list.json()

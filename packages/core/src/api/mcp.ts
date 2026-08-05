@@ -8,6 +8,7 @@ import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import {HTTPException} from 'hono/http-exception'
 import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {logError} from '../lib/debug.js'
+import {loopbackHostAllowlist} from '../lib/cors.js'
 
 export function sessionIdFromHeaders(headers: Headers): string | null {
   const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
@@ -134,6 +135,8 @@ export type McpVars = {
 }
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
+  const allowedHosts = loopbackHostAllowlist(c.req.header('host') ?? null)
+  if (allowedHosts.length === 0) return c.text('forbidden host', 403)
   const nativeId = nativeIdFromHeaders(c.req.raw.headers)
   const nativeOwner = nativeId ? await c.var.mcp.sessionForNativeId(nativeId) : null
   const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? nativeOwner ?? ''
@@ -143,6 +146,8 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
+    enableDnsRebindingProtection: true,
+    allowedHosts,
   })
   await buildServer(ctx, c.var.mcp.extensionTools, request, discovered, c.var.mcp.decide).connect(transport)
   return transport.handleRequest(c.req.raw)
