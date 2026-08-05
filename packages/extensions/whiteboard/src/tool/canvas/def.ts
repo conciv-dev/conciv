@@ -1,3 +1,4 @@
+import {toolDefinition} from '@conciv/extension/tool'
 import {z} from 'zod'
 
 const skeleton = z
@@ -32,16 +33,16 @@ export const CanvasCommitInput = z.object({})
 export const CanvasDiscardInput = z.object({})
 export const CanvasPreviewInput = z.object({})
 
-export const canvasReadDef = {
+export const canvasReadDef = toolDefinition({
   name: 'canvas.read',
   description:
     'List canvas elements. scope "live" (default) reads the published canvas; scope "draft" reads the hidden work-in-progress draft.',
   inputSchema: CanvasReadInput,
   promptSnippet:
     'Use canvas.read to see what is already drawn before adding more; pass scope "draft" to inspect the draft.',
-}
+})
 
-export const canvasSvgDef = {
+export const canvasSvgDef = toolDefinition({
   name: 'canvas.svg',
   description:
     'Draw by writing SVG markup (paths, shapes, text, fills). Converted in the browser into editable Excalidraw elements. Drawings land in the hidden draft; commit publishes them.',
@@ -49,83 +50,83 @@ export const canvasSvgDef = {
   streamTitle: 'Drawing on the canvas',
   promptSnippet:
     'Use canvas.svg for anything organic or illustrated: write SVG paths with layered fills, then iterate with canvas.preview before canvas.commit.',
-}
+})
 
-export const canvasDrawDef = {
+export const canvasDrawDef = toolDefinition({
   name: 'canvas.draw',
   description:
     'Add Excalidraw element skeletons (rectangle, ellipse, diamond, text, arrow, line) to the hidden draft; commit publishes them.',
   inputSchema: CanvasDrawInput,
   streamTitle: 'Drawing on the canvas',
   promptSnippet: 'Use canvas.draw to sketch shapes and text for the user; pass an array of element skeletons.',
-}
+})
 
-export const canvasDiagramDef = {
+export const canvasDiagramDef = toolDefinition({
   name: 'canvas.diagram',
   description: 'Render a Mermaid diagram (flowchart, sequence, class, ...) into the hidden draft; commit publishes it.',
   inputSchema: CanvasDiagramInput,
   streamTitle: 'Drawing a diagram',
   promptSnippet: 'Use canvas.diagram with Mermaid source to render a structured diagram on the canvas.',
-}
+})
 
-export const canvasConnectDef = {
+export const canvasConnectDef = toolDefinition({
   name: 'canvas.connect',
   description: 'Draw a binding arrow from one element to another by elementId.',
   inputSchema: CanvasConnectInput,
   promptSnippet: 'Use canvas.connect to link two existing elements with an arrow.',
-}
+})
 
-export const canvasUpdateDef = {
+export const canvasUpdateDef = toolDefinition({
   name: 'canvas.update',
   description: 'Patch fields of an existing canvas element by elementId.',
   inputSchema: CanvasUpdateInput,
   promptSnippet: 'Use canvas.update to change an element you previously drew.',
-}
+})
 
-export const canvasDeleteDef = {
+export const canvasDeleteDef = toolDefinition({
   name: 'canvas.delete',
   description: 'Remove an element from the canvas by elementId.',
   inputSchema: CanvasDeleteInput,
   approval: 'ask',
   promptSnippet: 'Use canvas.delete to remove an element. Destructive; the user is asked to confirm.',
-} as const
+})
 
-export const canvasClearDef = {
+export const canvasClearDef = toolDefinition({
   name: 'canvas.clear',
   description: 'Remove every element from the canvas.',
   inputSchema: CanvasClearInput,
   approval: 'ask',
   promptSnippet: 'Use canvas.clear to wipe the canvas. Destructive; the user is asked to confirm.',
-} as const
+})
 
-export const canvasExportDef = {
+export const canvasExportDef = toolDefinition({
   name: 'canvas.export',
   description:
     'Export the canvas: json returns elements; png returns a real Excalidraw rendering (requires an open canvas tab).',
   inputSchema: CanvasExportInput,
   promptSnippet: 'Use canvas.export with format png and scope draft for a ground-truth render before canvas.commit.',
-}
+})
 
-export const canvasCommitDef = {
+export const canvasCommitDef = toolDefinition({
   name: 'canvas.commit',
   description: 'Publish the hidden draft to the shared canvas. The agent cursor performs the drawing for the user.',
   inputSchema: CanvasCommitInput,
   streamTitle: 'Publishing the drawing',
   promptSnippet: 'Always finish a drawing with canvas.commit; until then the user sees nothing.',
-}
+})
 
-export const canvasDiscardDef = {
+export const canvasDiscardDef = toolDefinition({
   name: 'canvas.discard',
   description: 'Throw away the hidden draft without publishing anything.',
   inputSchema: CanvasDiscardInput,
   promptSnippet: 'Use canvas.discard to abandon a draft and start over.',
-}
+})
 
-export const canvasPreviewDef = {
+export const canvasPreviewDef = toolDefinition({
   name: 'canvas.preview',
   description:
     'Fast server-side PNG of the current hidden draft (approximate: plain shapes, no hand-drawn strokes). Use between refinements; canvas.export png is the ground truth.',
   inputSchema: CanvasPreviewInput,
   streamTitle: 'Checking the draft',
   promptSnippet: 'After drawing into the draft, call canvas.preview, critique the image, refine, repeat.',
-}
+})

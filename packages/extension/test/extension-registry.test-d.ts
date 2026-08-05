@@ -7,6 +7,7 @@ import {
   defineExtension,
   defineTool,
   getExtensionApi,
+  toolDefinition,
   type AnyToolBuilder,
   type ExtensionApi,
   type RegisteredTools,
@@ -26,7 +27,17 @@ const doubler = defineTool({
   meta: {summary: 'double the number it is given'},
 }).client((input) => ({doubled: input.value * 2}))
 
-const demo = defineExtension({name: 'demo', configSchema: cfgSchema, tools: [doubler]}).client(() => ({
+const treblerDef = toolDefinition({
+  name: 'demo.trebler',
+  description: 'triple a number',
+  inputSchema: z.object({value: z.number()}),
+  outputSchema: z.object({tripled: z.number()}),
+  meta: {summary: 'triple the number it is given'},
+})
+
+const trebler = defineTool(treblerDef).client((input) => ({tripled: input.value * 3}))
+
+const demo = defineExtension({name: 'demo', configSchema: cfgSchema, tools: [doubler, trebler]}).client(() => ({
   value: {ratio: 2},
 }))
 
@@ -67,6 +78,16 @@ const doublerTwin = defineTool({
   outputSchema: z.object({twice: z.number()}),
   meta: {summary: 'another tool that claims the same name'},
 }).client((input) => ({twice: input.amount * 2}))
+
+const treblerTwinDef = toolDefinition({
+  name: 'demo.trebler',
+  description: 'triple a number, differently',
+  inputSchema: z.object({amount: z.number()}),
+  outputSchema: z.object({thrice: z.number()}),
+  meta: {summary: 'another shared definition claiming the same name'},
+})
+
+const treblerTwin = defineTool(treblerTwinDef).client((input) => ({thrice: input.amount * 3}))
 
 const emptySegment = defineTool({
   name: 'page..fill',
@@ -137,6 +158,18 @@ test('an extension that never declared itself is not a known id', () => {
 test('an extension tool is reachable on the typed client, typed by its own schemas', () => {
   expectTypeOf(client.demo.doubler).parameter(0).toEqualTypeOf<{value: number}>()
   expectTypeOf(client.demo.doubler).returns.resolves.toEqualTypeOf<{doubled: number}>()
+})
+
+test('a tool declared through a shared definition reaches the client under its literal name', () => {
+  expectTypeOf(client.demo.trebler).parameter(0).toEqualTypeOf<{value: number}>()
+  expectTypeOf(client.demo.trebler).returns.resolves.toEqualTypeOf<{tripled: number}>()
+})
+
+test('a shared definition colliding with another tool resolves to a diagnostic', () => {
+  expectTypeOf<RegisteredTools<[typeof trebler, typeof treblerTwin]>>().toMatchTypeOf<ToolNameProblem<string>>()
+  expectTypeOf<RegisteredTools<[typeof doubler, typeof treblerTwin, typeof trebler]>>().toMatchTypeOf<
+    ToolNameProblem<string>
+  >()
 })
 
 test('the tool input type is enforced at the call site', () => {

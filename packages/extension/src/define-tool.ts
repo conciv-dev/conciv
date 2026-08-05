@@ -38,6 +38,14 @@ export type ToolDefinition<Name extends string, Schema extends z.ZodObject<z.Zod
   approval?: 'ask'
 }
 
+export function toolDefinition<
+  const Name extends string,
+  Schema extends z.ZodObject<z.ZodRawShape>,
+  Output extends z.ZodType,
+>(definition: ToolDefinition<Name, Schema, Output>): ToolDefinition<Name, Schema, Output> {
+  return definition
+}
+
 export type ToolBuilder<
   Name extends string = string,
   Schema extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>,

@@ -6,7 +6,7 @@ export type {
   ExtensionMeta,
   RegisterExtension,
 } from './define-extension.js'
-export {defineTool, isToolError, toolError} from './define-tool.js'
+export {defineTool, isToolError, toolDefinition, toolError} from './define-tool.js'
 export type {
   RegisteredTool,
   RegisteredTools,
