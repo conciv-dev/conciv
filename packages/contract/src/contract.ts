@@ -47,6 +47,8 @@ const pageRunErrors = {
 
 export type PageRunErrorName = keyof typeof pageRunErrors
 
+export const EditorOpenInputSchema = z.object({file: z.string(), line: z.number().int().min(1).optional()})
+
 export const contract = {
   sessions: {
     list: oc.input(z.object({includeHidden: z.boolean().optional()}).nullish()).output(z.array(SessionMetaSchema)),
@@ -131,7 +133,7 @@ export const contract = {
       .output(Ok),
   },
   editor: {
-    open: oc.input(z.object({file: z.string(), line: z.number().int().min(1).optional()})).output(Ok),
+    open: oc.input(EditorOpenInputSchema).output(Ok),
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {

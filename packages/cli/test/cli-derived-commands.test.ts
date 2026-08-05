@@ -46,6 +46,20 @@ describe('the CLI reads its commands from the tool declarations', () => {
     expect(answer.seen()).toBeNull()
   })
 
+  it('clears a field when the value is explicitly empty', async () => {
+    const kit = await bootCli(cleanups)
+    const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: ''}})
+    expect(await runCli(main, ['tools', 'page', 'fill', '#email', '--value', ''])).toBe(0)
+    expect(answer.seen()).toMatchObject({kind: 'fill', selector: '#email', value: ''})
+  })
+
+  it('still refuses a required flag that was never passed at all', async () => {
+    const kit = await bootCli(cleanups)
+    const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
+    expect(await runCli(main, ['tools', 'page', 'fill', '#email'])).toBe(1)
+    expect(answer.seen()).toBeNull()
+  })
+
   it("describes a verb by what it does, never by the verb's own command path", async () => {
     await bootCli(cleanups)
     const help = await helpFor(['tools', 'page', '--help'])
@@ -79,5 +93,26 @@ describe('the CLI reads its commands from the tool declarations', () => {
     })
     expect(await runCli(main, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(0)
     expect(reloaded).toEqual(['src/hot.ts'])
+  })
+
+  it('takes the positional the dev-server declaration names and leaves its other fields as flags', async () => {
+    const resolved: string[] = []
+    await bootCli(cleanups, {
+      bridge: {
+        id: 'positional-test',
+        config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
+        resolve: async (spec: string, importer?: string) => {
+          resolved.push(`${spec} from ${importer ?? 'nowhere'}`)
+          return {id: spec}
+        },
+        moduleGraph: () => [],
+        transform: async () => ({code: null}),
+        urls: () => ({local: ['http://localhost:3000'], network: []}),
+        reload: async () => {},
+        restart: async () => {},
+      },
+    })
+    expect(await runCli(main, ['tools', 'server', 'resolve', './x.ts', '--importer', 'src/a.ts'])).toBe(0)
+    expect(resolved).toEqual(['./x.ts from src/a.ts'])
   })
 })

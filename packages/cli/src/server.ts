@@ -2,7 +2,7 @@ import {defineCommand, type SubCommandsDef} from 'citty'
 import type {RpcClient} from '@conciv/contract'
 import {BUILTIN_SERVER_TOOLS, serverOperationOfTool} from '@conciv/tools/builtins'
 import {runRpc} from './request.js'
-import {firstRequiredField, toolCommand} from './tool-command.js'
+import {toolCommand} from './tool-command.js'
 
 type OperationCall = (input: unknown) => Promise<unknown>
 
@@ -24,7 +24,7 @@ function operationCommands(): SubCommandsDef {
         operation,
         toolCommand(tool, {
           name: operation,
-          positional: firstRequiredField(tool),
+          positional: tool.meta?.positional,
           run: (input) => runRpc((rpc) => callOperation(rpc, operation, input)),
         }),
       ]

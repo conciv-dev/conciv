@@ -28,10 +28,6 @@ function toolFields(tool: ToolDeclaration): ToolField[] {
   return Object.entries(declared.properties).map(([name, field]) => ({name, required: required.has(name), field}))
 }
 
-export function firstRequiredField(tool: ToolDeclaration): string | undefined {
-  return toolFields(tool).find((entry) => entry.required)?.name
-}
-
 function toolSummary(tool: ToolDeclaration): string {
   return tool.meta?.summary ?? tool.name
 }
@@ -67,7 +63,7 @@ function toolInput(tool: ToolDeclaration, raw: unknown): Record<string, unknown>
 
 function supplied(raw: unknown): Record<string, unknown> {
   if (typeof raw !== 'object' || raw === null) return {}
-  return Object.fromEntries(Object.entries(raw).filter(([, value]) => value !== undefined && value !== ''))
+  return Object.fromEntries(Object.entries(raw).filter(([, value]) => value !== undefined))
 }
 
 export function toolCommand(

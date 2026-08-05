@@ -7,11 +7,13 @@ export type ServerToolContext = {bundler: () => BundlerBridge | undefined}
 
 export type OpenToolContext = {openInEditor: (file: string, line?: number) => void}
 
-const NO_BUNDLER = {NO_BUNDLER: {message: 'no dev server is attached to conciv'}}
+const NO_BUNDLER_MESSAGE = 'no dev server is attached to conciv'
+
+const NO_BUNDLER = {NO_BUNDLER: {message: NO_BUNDLER_MESSAGE}}
 
 function requireBundler(ctx: ServerToolContext): BundlerBridge {
   const bundler = ctx.bundler()
-  if (!bundler) throw toolError('NO_BUNDLER', {message: 'no dev server is attached to conciv'})
+  if (!bundler) throw toolError('NO_BUNDLER', {message: NO_BUNDLER_MESSAGE})
   return bundler
 }
 
@@ -21,6 +23,7 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   input: z.ZodObject<Shape>
   output: Out
   mutating?: boolean
+  positional?: string
   keywords?: readonly string[]
   run: (input: z.infer<z.ZodObject<Shape>>, bundler: BundlerBridge) => Promise<z.infer<Out>> | z.infer<Out>
 }) {
@@ -37,6 +40,7 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       mutating: spec.mutating ?? false,
       mirrors: false,
       keywords: spec.keywords ?? [],
+      positional: spec.positional,
     },
   }).server((input, ctx: ServerToolContext) => spec.run(input, requireBundler(ctx)))
 }
@@ -62,6 +66,7 @@ const urlsTool = serverTool({
 const resolveTool = serverTool({
   operation: 'resolve',
   summary: 'report where an import specifier resolves',
+  positional: 'spec',
   keywords: ['import', 'alias'],
   input: z.object({
     spec: z.string().describe('the import specifier'),
@@ -74,6 +79,7 @@ const resolveTool = serverTool({
 const graphTool = serverTool({
   operation: 'graph',
   summary: 'report the importers and imported modules of a file',
+  positional: 'file',
   keywords: ['module', 'imports'],
   input: z.object({file: z.string().describe('the file to inspect')}),
   output: z.array(ModuleNodeSchema),
@@ -83,6 +89,7 @@ const graphTool = serverTool({
 const transformTool = serverTool({
   operation: 'transform',
   summary: 'report the transformed code the dev server serves for a url',
+  positional: 'url',
   keywords: ['compile', 'output'],
   input: z.object({url: z.string().describe('the module url')}),
   output: z.object({code: z.string().nullable()}),
@@ -93,6 +100,7 @@ const reloadTool = serverTool({
   operation: 'reload',
   summary: 'force a hot update of one module',
   mutating: true,
+  positional: 'file',
   keywords: ['hmr'],
   input: z.object({file: z.string().describe('the file to reload')}),
   output: OkResult,

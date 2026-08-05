@@ -7,6 +7,7 @@ export type ToolMeta = {
   mutating?: boolean
   mirrors?: boolean
   keywords?: readonly string[]
+  positional?: string
 }
 
 export type ToolErrorSpec = {message: string; data?: z.ZodType}

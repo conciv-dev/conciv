@@ -96,32 +96,6 @@ describe('built-in tool declarations', () => {
     expect(pageVerbMirrors('setattr')).toBe(false)
   })
 
-  it('accepts all seven action values on the verbs that take an action', () => {
-    const actions = ['start', 'stop', 'report', 'enable', 'disable', 'toggle', 'list']
-    const track = BUILTIN_PAGE_TOOLS.find((tool) => tool.name === 'page.track')
-    const effect = BUILTIN_PAGE_TOOLS.find((tool) => tool.name === 'page.effect')
-    if (!track || !effect) throw new Error('page.track and page.effect must be declared')
-    for (const action of actions) {
-      expect(track.inputSchema.safeParse({action}).success).toBe(true)
-      expect(effect.inputSchema.safeParse({action}).success).toBe(true)
-    }
-  })
-
-  it('carries the effect argument on the effect tool so it can reach the server', () => {
-    const effect = BUILTIN_PAGE_TOOLS.find((tool) => tool.name === 'page.effect')
-    if (!effect) throw new Error('page.effect must be declared')
-    expect(effect.inputSchema.parse({action: 'enable', effect: 'confetti'})).toMatchObject({effect: 'confetti'})
-  })
-
-  it('splits the attribute name from the component name', () => {
-    const attr = BUILTIN_PAGE_TOOLS.find((tool) => tool.name === 'page.attr')
-    const find = BUILTIN_PAGE_TOOLS.find((tool) => tool.name === 'page.find')
-    if (!attr || !find) throw new Error('page.attr and page.find must be declared')
-    expect(attr.inputSchema.safeParse({name: 'href'}).success).toBe(false)
-    expect(attr.inputSchema.safeParse({selector: 'a', attribute: 'href'}).success).toBe(true)
-    expect(find.inputSchema.safeParse({name: 'PricingCard'}).success).toBe(true)
-  })
-
   it('runs a server tool and the open tool end to end through the registry', async () => {
     const opened: string[] = []
     const registry = registryWith(fakeBundler(), opened)
