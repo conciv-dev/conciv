@@ -23,10 +23,10 @@ element with a CSS `selector`, a `ref` from the latest snapshot, or a React comp
 
 ## Why to reach for it
 
-- **"Where does this come from?"** — resolve a rendered element to its component's source
+- **"Where does this come from?"**: resolve a rendered element to its component's source
   `file:line`, symbolicated to a real source location from the owner stack rather than the dev
   wrapper. Then open and edit that real file.
-- **"What is it holding right now?"** — read the live values before reasoning about behaviour. They
+- **"What is it holding right now?"**: read the live values before reasoning about behaviour. They
   are best-effort and serialized; partial hooks with no React DevTools hook installed are normal,
   not an error.
 - **"What is the structure here?"** — walk the tree under an element, or find every mounted instance
