@@ -37,6 +37,15 @@ const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
+const pageRunErrors = {
+  NO_PAGE_CLIENT: {message: 'no widget connected'},
+  PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
+  UNKNOWN_VERB: {message: 'the page does not know this verb'},
+  INVALID_ARGS: {message: 'the page rejected the arguments'},
+  HANDLER_ERROR: {message: 'the page failed to run this verb'},
+}
+
+export type PageRunErrorName = keyof typeof pageRunErrors
 
 export const contract = {
   sessions: {
@@ -87,13 +96,7 @@ export const contract = {
       .output(Ok),
   },
   page: {
-    run: oc
-      .errors({
-        NO_PAGE_CLIENT: {message: 'no widget connected'},
-        PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
-      })
-      .input(PageRunInputSchema)
-      .output(PageRunResultSchema),
+    run: oc.errors(pageRunErrors).input(PageRunInputSchema).output(PageRunResultSchema),
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.output(z.array(PageChangeEntrySchema)),
     clearChanges: oc.output(Ok),

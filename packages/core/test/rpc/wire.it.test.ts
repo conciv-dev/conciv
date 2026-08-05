@@ -5,6 +5,7 @@ import {join, dirname} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
+import {PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {openSource} from '@conciv/extension/client'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
@@ -300,7 +301,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const first = await firstPromise
     if (first.done) throw new Error('page.queries ended before a query arrived')
     expect(first.value.requestId).toBeTruthy()
-    const replied = await kit.rpc.page.reply({requestId: first.value.requestId, data: {ok: true, value: 'snap'}})
+    const replied = await kit.rpc.page.reply({
+      requestId: first.value.requestId,
+      outcome: {ok: true, result: {ok: true, value: 'snap'}},
+    })
     expect(replied.ok).toBe(true)
     expect(await verbResult).toMatchObject({ok: true, value: 'snap'})
     abort.abort()
@@ -314,7 +318,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const answered = (async () => {
       const first = await iterator.next()
       if (first.done) throw new Error('page.queries ended before a query arrived')
-      await kit.rpc.page.reply({requestId: first.value.requestId, data: {ok: true, text: 'body text'}})
+      await kit.rpc.page.reply({
+        requestId: first.value.requestId,
+        outcome: {ok: true, result: {ok: true, text: 'body text'}},
+      })
     })()
     await new Promise((resolve) => setTimeout(resolve, 50))
     const result = await kit.rpc.page.run({verb: 'text', selector: 'body'})
@@ -331,7 +338,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const answered = (async () => {
       const first = await iterator.next()
       if (first.done) throw new Error('page.queries ended before a query arrived')
-      await kit.rpc.page.reply({requestId: first.value.requestId, data: {ok: true}})
+      await kit.rpc.page.reply({requestId: first.value.requestId, outcome: {ok: true, result: {ok: true}}})
     })()
     await new Promise((resolve) => setTimeout(resolve, 50))
     await kit.rpc.page.run({verb: 'fill', selector: '#name', value: 'Ada'})
@@ -409,9 +416,37 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
 
   it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
     const {kit} = await bootWire()
-    await expect(kit.rpc.page.reply({requestId: 'pq-nope', data: {}})).rejects.toMatchObject({
+    await expect(kit.rpc.page.reply({requestId: 'pq-nope', outcome: {ok: true, result: {}}})).rejects.toMatchObject({
       code: 'UNKNOWN_REQUEST',
     })
+  })
+
+  it('page.reply refuses a transport code the page invented, so codes stay declared', async () => {
+    const {kit} = await bootWire()
+    const response = await fetch(`${kit.base}/rpc/page/reply`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        json: {requestId: 'pq-nope', outcome: {ok: false, error: {code: 'weird-thing', message: 'boom'}}},
+      }),
+    })
+    expect(response.status).toBe(400)
+  })
+
+  it('page.reply refuses a transport code only the server may produce, so the page cannot forge one', async () => {
+    const {kit} = await bootWire()
+    const statuses: number[] = []
+    for (const code of PAGE_TRANSPORT_ERROR_CODES) {
+      const response = await fetch(`${kit.base}/rpc/page/reply`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          json: {requestId: 'pq-nope', outcome: {ok: false, error: {code, message: 'boom'}}},
+        }),
+      })
+      statuses.push(response.status)
+    }
+    expect(statuses).toEqual(PAGE_TRANSPORT_ERROR_CODES.map(() => 400))
   })
 
   it('conciv_ui blocks the run until chat.uiReply lands the answer as the tool result', async () => {

@@ -1,4 +1,6 @@
-import type {PageVerbMap} from '@conciv/extension'
+import {isToolError, type PageVerbMap} from '@conciv/extension'
+import {isPageFailure} from '@conciv/protocol/page-types'
+import {badArgs, fail, failRaised, unknownVerb} from './page-failure.js'
 
 const registry = new Map<string, PageVerbMap>()
 
@@ -29,26 +31,32 @@ export function bindExtensionPageVerbs(
   }
 }
 
-type Dispatch = {result: unknown} | {error: {code: string; message: string}}
+function rethrow(error: unknown): never {
+  if (isPageFailure(error)) throw error
+  if (!isToolError(error)) fail(error instanceof Error ? error.message : String(error))
+  failRaised({
+    code: error.code,
+    message: error.message,
+    ...(isJsonSerializable(error.data) ? {data: error.data} : {}),
+  })
+}
 
 export async function dispatchExtVerb(
   extension: string,
   verb: string,
   argsJson: string | undefined,
-): Promise<Dispatch> {
+): Promise<{result: unknown}> {
   const def = registry.get(extension)?.[verb]
-  if (!def) return {error: {code: 'unknown-verb', message: `${extension}.${verb} is not registered`}}
+  if (!def) unknownVerb(`${extension}.${verb} is not registered`)
   const raw = argsJson ? safeJson(argsJson) : {}
   try {
     const outcome = await def.dispatch(raw)
-    if (!outcome.ok) return {error: {code: 'invalid-args', message: outcome.message}}
+    if (!outcome.ok) badArgs(outcome.message)
     const result = outcome.value ?? null
-    if (!isJsonSerializable(result)) {
-      return {error: {code: 'handler-error', message: `${extension}.${verb} returned a non-serializable result`}}
-    }
+    if (!isJsonSerializable(result)) fail(`${extension}.${verb} returned a non-serializable result`)
     return {result}
   } catch (error) {
-    return {error: {code: 'handler-error', message: error instanceof Error ? error.message : String(error)}}
+    rethrow(error)
   }
 }
 
@@ -56,17 +64,30 @@ function isJsonSerializable(value: unknown): boolean {
   return isStructurallySerializable(value, new Set<object>())
 }
 
-function isStructurallySerializable(value: unknown, seen: Set<object>): boolean {
+function isSerializablePrimitive(value: unknown): boolean {
   if (value === null) return true
   if (typeof value === 'string' || typeof value === 'boolean') return true
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'object') return false
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isStructurallySerializable(value: unknown, seen: Set<object>): boolean {
+  if (value === null || typeof value !== 'object') return isSerializablePrimitive(value)
   if (seen.has(value)) return false
+  const children = transmittedValues(value)
+  if (!children) return false
   seen.add(value)
-  const children = Array.isArray(value) ? value : Object.values(value)
   const ok = children.every((child) => isStructurallySerializable(child, seen))
   seen.delete(value)
   return ok
+}
+
+function transmittedValues(value: object): unknown[] | null {
+  if (Array.isArray(value)) return value
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) return null
+  const values: unknown[] = []
+  for (const key in value) values.push(Reflect.get(value, key))
+  return values
 }
 
 function safeJson(text: string): unknown {

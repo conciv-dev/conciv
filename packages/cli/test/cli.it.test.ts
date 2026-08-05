@@ -21,7 +21,7 @@ afterEach(async () => {
 describe('conciv CLI (IT, real served core, typed rpc)', () => {
   it('page fill drives page.run and prints one success envelope with exit 0', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
     const code = await runCli(main, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c'])
     expect(answer.seen()).toMatchObject({kind: 'fill', selector: '#email', value: 'a@b.c'})
     expect(code).toBe(0)
@@ -30,11 +30,26 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
 
   it('accepts --json on a verb and still prints exactly one document', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
     const code = await runCli(main, ['tools', 'page', 'fill', '#email', '--value', 'x', '--json'])
     expect(answer.seen()).toMatchObject({kind: 'fill', selector: '#email'})
     expect(code).toBe(0)
     expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
+  })
+
+  it('a page verb the browser refuses fails as a user error with the declared code and exit 1', async () => {
+    const kit = await bootCli(cleanups)
+    const answer = await answerNextQuery(kit, {
+      ok: false,
+      error: {code: 'invalid-args', message: 'no element for selector #email'},
+    })
+    const code = await runCli(main, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c'])
+    expect(answer.seen()).toMatchObject({kind: 'fill', selector: '#email'})
+    expect(code).toBe(1)
+    expect(onlyDocument(written)).toEqual({
+      ok: false,
+      error: {kind: 'user', code: 'INVALID_ARGS', message: 'no element for selector #email'},
+    })
   })
 
   it('page snapshot with no widget fails as a user error with the declared code and exit 1', async () => {
@@ -59,7 +74,7 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
 
   it('page wait with an invalid --state is a user error before any rpc call', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
     const code = await runCli(main, ['tools', 'page', 'wait', '#x', '--state', 'bogus'])
     expect(code).toBe(1)
     expect(answer.seen()).toBeNull()
@@ -80,7 +95,7 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
 
   it('page changes lists the journal in an envelope and --clear resets it', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
     await runCli(main, ['tools', 'page', 'fill', '#name', '--value', 'Ada'])
     expect(answer.seen()).toMatchObject({kind: 'fill'})
     written.length = 0

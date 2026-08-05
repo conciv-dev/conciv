@@ -38,7 +38,7 @@ async function serveQueries(rpc: RpcClient, driver: PageDriver, signal: AbortSig
     const parsed = PageQuerySchema.safeParse(item.query)
     if (!parsed.success) continue
     const requestId = item.requestId
-    void driver.execute(parsed.data).then((data) => rpc.page.reply({requestId, data}).catch(() => {}))
+    void driver.execute(parsed.data).then((outcome) => rpc.page.reply({requestId, outcome}).catch(() => {}))
   }
 }
 

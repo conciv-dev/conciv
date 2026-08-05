@@ -1,5 +1,10 @@
-import {HTTPException} from 'hono/http-exception'
-import {isMutating, type PageQuery, type PageQueryInput} from '@conciv/protocol/page-types'
+import {
+  isMutating,
+  pageFailure,
+  type PageOutcome,
+  type PageQuery,
+  type PageQueryInput,
+} from '@conciv/protocol/page-types'
 import {symbolicateFrames, type RawFrame} from './editor/symbolicate.js'
 
 export type ChangeEntry = {
@@ -70,14 +75,14 @@ function makePending<T>(): Pending<T> {
 
 export type PageBus = {
   ask: (query: Omit<PageQuery, 'requestId'>) => Promise<Record<string, unknown>>
-  resolve: (requestId: string, data: Record<string, unknown>) => boolean
+  resolve: (requestId: string, outcome: PageOutcome) => boolean
   subscribe: (emit: (frame: unknown) => void) => () => void
 }
 
 export type PageEnv = {journal: Journal; root: string; bus: PageBus}
 
 export function makePageBus(timeoutMs = 5000): PageBus {
-  const pending = makePending<Record<string, unknown>>()
+  const pending = makePending<PageOutcome>()
   const subscribers = new Set<(frame: unknown) => void>()
   const idState = {n: 0}
 
@@ -87,16 +92,16 @@ export function makePageBus(timeoutMs = 5000): PageBus {
   }
 
   async function ask(query: Omit<PageQuery, 'requestId'>): Promise<Record<string, unknown>> {
-    if (subscribers.size === 0) throw new HTTPException(503, {message: 'no widget connected'})
+    if (subscribers.size === 0) throw pageFailure('no-widget', 'no widget connected')
     idState.n += 1
     const requestId = `pq${idState.n}`
     const ms = typeof query.timeout === 'number' ? query.timeout + 1000 : timeoutMs
     for (const emit of subscribers) emit({requestId, ...query})
-    try {
-      return await pending.await(requestId, ms)
-    } catch {
-      throw new HTTPException(504, {message: 'page did not reply (no widget connected?)'})
-    }
+    const outcome = await pending.await(requestId, ms).catch(() => {
+      throw pageFailure('timeout', 'page did not reply (no widget connected?)')
+    })
+    if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
+    return outcome.result
   }
 
   return {ask, resolve: pending.resolve, subscribe}

@@ -26,7 +26,7 @@ function failureText(): string {
 describe('conciv CLI argument rejection', () => {
   it('rejects a mistyped flag with the closest known flag and never runs the verb', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {}})
     const code = await runCli(main, ['tools', 'page', 'click', '--refs', 'e12'])
     expect(code).toBe(1)
     expect(answer.seen()).toBeNull()
@@ -40,14 +40,14 @@ describe('conciv CLI argument rejection', () => {
     expect(await runCli(main, ['tools', 'react', 'override', '#a', '--hook-idx', '2'])).toBe(1)
     expect(failureText()).toContain('--hookId')
     written.length = 0
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {}})
     expect(await runCli(main, ['tools', 'react', 'override', '#a', '--hook-id', '2', '--json', 'true'])).toBe(0)
     expect(answer.seen()).toMatchObject({kind: 'override', hookId: 2, json: 'true'})
   })
 
   it('rejects an unknown flag placed before a nested subcommand instead of dropping it', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {}})
     expect(await runCli(main, ['tools', '--bogus', 'page', 'click', '#a'])).toBe(1)
     expect(answer.seen()).toBeNull()
     expect(failureText()).toContain('--bogus')
@@ -55,7 +55,7 @@ describe('conciv CLI argument rejection', () => {
 
   it('rejects an unknown flag placed before the very first subcommand', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {}})
     expect(await runCli(main, ['--bogus', 'tools', 'page', 'click', '#a'])).toBe(1)
     expect(answer.seen()).toBeNull()
     expect(failureText()).toContain('--bogus')
@@ -63,7 +63,7 @@ describe('conciv CLI argument rejection', () => {
 
   it('still accepts an envelope flag placed before a nested subcommand', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {}})
     expect(await runCli(main, ['tools', '--json', 'page', 'click', '#a'])).toBe(0)
     expect(answer.seen()).toMatchObject({kind: 'click'})
   })
@@ -84,7 +84,7 @@ describe('conciv CLI argument rejection', () => {
 
   it('rejects a positional passed as a flag and says how to pass it', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {}})
     expect(await runCli(main, ['tools', 'page', 'click', '--selector', '#a'])).toBe(1)
     expect(answer.seen()).toBeNull()
     expect(failureText()).toContain('selector')
@@ -92,7 +92,7 @@ describe('conciv CLI argument rejection', () => {
 
   it('rejects an extra positional instead of dropping it', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true})
+    const answer = await answerNextQuery(kit, {ok: true, result: {}})
     expect(await runCli(main, ['tools', 'page', 'click', '#a', '#b'])).toBe(1)
     expect(answer.seen()).toBeNull()
     expect(failureText()).toContain('#b')
