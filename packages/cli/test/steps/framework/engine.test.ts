@@ -17,8 +17,22 @@ function fixture(name: string): string {
 
 const vitePluginImport = "import conciv from '@conciv/it/plugin/vite'"
 
+const webpackModule = '@conciv/it/plugin/webpack'
+
 function addConciv(source: string) {
   return addToPluginsArray(source, 'conciv', '@conciv/it/plugin/vite', 'conciv()', {importStyle: 'default'})
+}
+
+function addConcivRequire(source: string) {
+  return addToPluginsArrayRequire(source, 'conciv', webpackModule, 'conciv.default()')
+}
+
+function viteWired(source: string): boolean {
+  return pluginCallWired(source, '@conciv/it/plugin/vite', 'conciv()', {importStyle: 'default'})
+}
+
+function webpackRequireWired(source: string): boolean {
+  return pluginCallWired(source, webpackModule, 'conciv.default()', {importStyle: 'require'})
 }
 
 function preservedLines(source: string, marker: string): string[] {
@@ -80,7 +94,7 @@ describe('addToPluginsArray', () => {
 
   it('adds the missing call when only the plugin require is present', () => {
     const source = fixture('webpack.config.cjs-require-only.js')
-    const result = addToPluginsArrayRequire(source, 'conciv', '@conciv/it/plugin/webpack', 'conciv.default()')
+    const result = addConcivRequire(source)
     expect(result.matched).toBe(true)
     if (result.output === null) throw new Error('matched transform must carry output')
     expect(result.output).toContain('plugins: [conciv.default()]')
@@ -100,23 +114,77 @@ describe('addToPluginsArray', () => {
 describe('pluginCallWired', () => {
   it('is false while only the import is present and true once the call lands', () => {
     const source = fixture('vite.config.import-only.ts')
-    expect(pluginCallWired(source, '@conciv/it/plugin/vite', 'conciv()')).toBe(false)
+    expect(viteWired(source)).toBe(false)
     const result = addConciv(source)
     if (result.output === null) throw new Error('matched transform must carry output')
-    expect(pluginCallWired(result.output, '@conciv/it/plugin/vite', 'conciv()')).toBe(true)
+    expect(viteWired(result.output)).toBe(true)
   })
 
   it('is false while only the require is present and true once the call lands', () => {
     const source = fixture('webpack.config.cjs-require-only.js')
-    const module = '@conciv/it/plugin/webpack'
-    expect(pluginCallWired(source, module, 'conciv.default()')).toBe(false)
-    const result = addToPluginsArrayRequire(source, 'conciv', module, 'conciv.default()')
+    expect(webpackRequireWired(source)).toBe(false)
+    const result = addConcivRequire(source)
     if (result.output === null) throw new Error('matched transform must carry output')
-    expect(pluginCallWired(result.output, module, 'conciv.default()')).toBe(true)
+    expect(webpackRequireWired(result.output)).toBe(true)
   })
 
   it('is false for a plugins array outside the exported config', () => {
-    expect(pluginCallWired(fixture('vite.config.foreign-plugins.ts'), '@conciv/it/plugin/vite', 'conciv()')).toBe(false)
+    expect(viteWired(fixture('vite.config.foreign-plugins.ts'))).toBe(false)
+  })
+})
+
+describe('binding provenance', () => {
+  it('refuses a config that imports something else from the plugin module', () => {
+    expect(addConciv(fixture('vite.config.foreign-import.ts'))).toEqual({matched: false, output: null})
+  })
+
+  it('refuses a conciv() call bound to another module and does not read it as wired', () => {
+    const source = fixture('vite.config.foreign-binding.ts')
+    expect(viteWired(source)).toBe(false)
+    expect(addConciv(source)).toEqual({matched: false, output: null})
+  })
+
+  it('refuses an aliased named import that shadows the default binding name', () => {
+    const source = fixture('vite.config.aliased-import.ts')
+    expect(viteWired(source)).toBe(false)
+    expect(addConciv(source)).toEqual({matched: false, output: null})
+  })
+
+  it('refuses a namespace import where the default import is expected', () => {
+    const source = fixture('vite.config.namespace-import.ts')
+    expect(viteWired(source)).toBe(false)
+    expect(addConciv(source)).toEqual({matched: false, output: null})
+  })
+
+  it('wires a config whose only reference to the plugin module is a type-only import', () => {
+    const result = addConciv(fixture('vite.config.type-import.ts'))
+    expect(result.matched).toBe(true)
+    if (result.output === null) throw new Error('matched transform must carry output')
+    expect(result.output).toContain(vitePluginImport)
+    expect(result.output).toContain('plugins: [conciv()]')
+    expect(viteWired(result.output)).toBe(true)
+  })
+
+  it('refuses a CJS config that destructures something else out of the plugin require', () => {
+    expect(addConcivRequire(fixture('webpack.config.cjs-foreign-require.js'))).toEqual({matched: false, output: null})
+  })
+
+  it('refuses a CJS conciv.default() call bound to another require', () => {
+    const source = fixture('webpack.config.cjs-foreign-binding.js')
+    expect(webpackRequireWired(source)).toBe(false)
+    expect(addConcivRequire(source)).toEqual({matched: false, output: null})
+  })
+
+  it('refuses a next config that imports something else from the plugin module', () => {
+    const source = fixture('next.config.foreign-import.ts')
+    expect(defaultExportWrapped(source, 'withConciv', '@conciv/it/plugin/nextjs')).toBe(false)
+    expect(wrapConciv(source)).toEqual({matched: false, output: null})
+  })
+
+  it('refuses a withConciv wrapper bound to another module', () => {
+    const source = fixture('next.config.foreign-wrapper.ts')
+    expect(defaultExportWrapped(source, 'withConciv', '@conciv/it/plugin/nextjs')).toBe(false)
+    expect(wrapConciv(source)).toEqual({matched: false, output: null})
   })
 })
 

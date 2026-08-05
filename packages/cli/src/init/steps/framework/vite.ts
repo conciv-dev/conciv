@@ -21,7 +21,7 @@ function snippetCard(): ManualCard {
 function detectWired(cwd: string, configFile: string | null): 'missing' | 'present' {
   const config = readConfig(cwd, configFile)
   if (config === null) return 'missing'
-  if (pluginCallWired(config.content, pluginModule, pluginCall)) return 'present'
+  if (pluginCallWired(config.content, pluginModule, pluginCall, {importStyle: 'default'})) return 'present'
   return 'missing'
 }
 

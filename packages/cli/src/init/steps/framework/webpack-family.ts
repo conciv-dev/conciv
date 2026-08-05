@@ -56,7 +56,8 @@ function transformConfig(content: string, name: FamilyName): Transform {
 function detectWired(cwd: string, configFile: string | null, name: FamilyName): 'missing' | 'present' {
   const config = readConfig(cwd, configFile)
   if (config === null) return 'missing'
-  if (pluginCallWired(config.content, pluginModule(name), pluginCall(config.content))) return 'present'
+  const importStyle = isCommonJs(config.content) ? 'require' : 'default'
+  if (pluginCallWired(config.content, pluginModule(name), pluginCall(config.content), {importStyle})) return 'present'
   return 'missing'
 }
 

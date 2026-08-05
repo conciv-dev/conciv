@@ -95,6 +95,24 @@ describe('viteStep', () => {
     expect(await step.verify(ctx)).toBe(true)
   })
 
+  it('cards a config that imports something else from the plugin module and leaves the file alone', async () => {
+    const {cwd, detected, settings, output} = project('vite.config.foreign-import.ts')
+    const before = readFileSync(join(cwd, 'vite.config.ts'), 'utf8')
+    const ledger = await runSteps([viteStep(detected)], settings, output)
+    expect(ledger.map((entry) => entry.status)).toEqual(['manual'])
+    expect(ledger[0]?.cards[0]?.snippet).toBe(quickStartSnippet)
+    expect(readFileSync(join(cwd, 'vite.config.ts'), 'utf8')).toBe(before)
+  })
+
+  it('cards a conciv() call bound to another module instead of reading it as wired', async () => {
+    const {cwd, detected, ctx, settings, output} = project('vite.config.foreign-binding.ts')
+    const before = readFileSync(join(cwd, 'vite.config.ts'), 'utf8')
+    expect(await viteStep(detected).detect(ctx)).toBe('missing')
+    const ledger = await runSteps([viteStep(detected)], settings, output)
+    expect(ledger.map((entry) => entry.status)).toEqual(['manual'])
+    expect(readFileSync(join(cwd, 'vite.config.ts'), 'utf8')).toBe(before)
+  })
+
   it('cards when the project has no config file', async () => {
     const {detected, ctx} = project(null)
     const outcome = await viteStep(detected).apply(ctx)

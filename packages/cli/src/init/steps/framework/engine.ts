@@ -14,11 +14,91 @@ function importStatements(root: SgNode): SgNode[] {
   return root.findAll({rule: {kind: 'import_statement'}})
 }
 
-function importsFrom(root: SgNode, importFrom: string): boolean {
-  return importStatements(root).some((statement) => {
-    const specifier = statement.field('source')
-    return specifier !== null && specifier.text().slice(1, -1) === importFrom
+type BindingStyle = 'default' | 'named' | 'require'
+
+type BindingState = 'bound' | 'conflict' | 'absent'
+
+function moduleSpecifierOf(statement: SgNode): string | null {
+  const specifier = statement.field('source')
+  if (specifier === null) return null
+  return specifier.text().slice(1, -1)
+}
+
+function isTypeOnly(node: SgNode): boolean {
+  return node.children().some((child) => child.kind() === 'type')
+}
+
+function valueImportsOf(root: SgNode, importFrom: string): SgNode[] {
+  return importStatements(root).filter(
+    (statement) => !isTypeOnly(statement) && moduleSpecifierOf(statement) === importFrom,
+  )
+}
+
+function importClauseOf(statement: SgNode): SgNode | null {
+  return statement.children().find((child) => child.kind() === 'import_clause') ?? null
+}
+
+function bindsDefaultAs(statement: SgNode, name: string): boolean {
+  const clause = importClauseOf(statement)
+  if (clause === null) return false
+  return clause.children().some((child) => child.kind() === 'identifier' && child.text() === name)
+}
+
+function bindsNamedAs(statement: SgNode, name: string): boolean {
+  const clause = importClauseOf(statement)
+  if (clause === null) return false
+  return clause
+    .children()
+    .filter((child) => child.kind() === 'named_imports')
+    .flatMap((named) => named.children().filter((child) => child.kind() === 'import_specifier'))
+    .some((specifier) => {
+      if (isTypeOnly(specifier)) return false
+      const imported = specifier.field('name')?.text()
+      const local = specifier.field('alias')?.text() ?? imported
+      return imported === name && local === name
+    })
+}
+
+function requiredModuleOf(declarator: SgNode): string | null {
+  const value = declarator.field('value')
+  if (value === null || value.kind() !== 'call_expression') return null
+  if (value.field('function')?.text() !== 'require') return null
+  const argument = value
+    .field('arguments')
+    ?.children()
+    .find((child) => child.isNamed())
+  if (argument === undefined) return null
+  return argument.text().slice(1, -1)
+}
+
+function bindsRequireAs(root: SgNode, requireFrom: string, name: string): boolean {
+  return root.findAll({rule: {kind: 'variable_declarator'}}).some((declarator) => {
+    if (requiredModuleOf(declarator) !== requireFrom) return false
+    const target = declarator.field('name')
+    return target !== null && target.kind() === 'identifier' && target.text() === name
   })
+}
+
+function boundToModule(root: SgNode, moduleFrom: string, name: string, style: BindingStyle): boolean {
+  if (style === 'require') return bindsRequireAs(root, moduleFrom, name)
+  if (style === 'default') return valueImportsOf(root, moduleFrom).some((statement) => bindsDefaultAs(statement, name))
+  return valueImportsOf(root, moduleFrom).some((statement) => bindsNamedAs(statement, name))
+}
+
+function referencesModule(root: SgNode, moduleFrom: string, style: BindingStyle): boolean {
+  if (style === 'require') return requiresFrom(root, moduleFrom)
+  return valueImportsOf(root, moduleFrom).length > 0
+}
+
+function usesIdentifier(root: SgNode, name: string): boolean {
+  return root.findAll({rule: {kind: 'identifier'}}).some((node) => node.text() === name)
+}
+
+function bindingState(root: SgNode, moduleFrom: string, name: string, style: BindingStyle): BindingState {
+  if (boundToModule(root, moduleFrom, name, style)) return 'bound'
+  if (referencesModule(root, moduleFrom, style)) return 'conflict'
+  if (usesIdentifier(root, name)) return 'conflict'
+  return 'absent'
 }
 
 function importEdit(root: SgNode, line: string): Edit {
@@ -131,6 +211,13 @@ function calleeOf(callExpr: string): string {
   return callExpr.slice(0, callExpr.indexOf('('))
 }
 
+function bindingOf(callExpr: string): string {
+  const callee = calleeOf(callExpr)
+  const dot = callee.indexOf('.')
+  if (dot === -1) return callee
+  return callee.slice(0, dot)
+}
+
 function callsPlugin(array: SgNode, callExpr: string): boolean {
   return array
     .children()
@@ -143,9 +230,14 @@ function commit(root: SgNode, source: string, edits: Edit[]): Transform {
   return {matched: true, output: root.commitEdits(edits)}
 }
 
-export function pluginCallWired(source: string, importFrom: string, callExpr: string): boolean {
+export function pluginCallWired(
+  source: string,
+  importFrom: string,
+  callExpr: string,
+  opts: {importStyle: 'default' | 'require'},
+): boolean {
   const root = parse(Lang.TypeScript, source).root()
-  if (!importsFrom(root, importFrom) && !requiresFrom(root, importFrom)) return false
+  if (bindingState(root, importFrom, bindingOf(callExpr), opts.importStyle) !== 'bound') return false
   const array = pluginsArray(root)
   if (array === null) return false
   return callsPlugin(array, callExpr)
@@ -153,7 +245,7 @@ export function pluginCallWired(source: string, importFrom: string, callExpr: st
 
 export function defaultExportWrapped(source: string, wrapperName: string, importFrom: string): boolean {
   const root = parse(Lang.TypeScript, source).root()
-  if (!importsFrom(root, importFrom)) return false
+  if (bindingState(root, importFrom, wrapperName, 'named') !== 'bound') return false
   const expression = defaultExportExpression(root)
   if (expression === null || expression.kind() !== 'call_expression') return false
   return expression.field('function')?.text() === wrapperName
@@ -169,11 +261,11 @@ export function addToPluginsArray(
   const root = parse(Lang.TypeScript, source).root()
   const array = pluginsArray(root)
   if (!array) return unmatched
+  const state = bindingState(root, importFrom, importName, opts.importStyle)
+  if (state === 'conflict') return unmatched
   const callEdits = callsPlugin(array, callExpr) ? [] : [appendEdit(source, array, callExpr)]
-  const importEdits = importsFrom(root, importFrom)
-    ? []
-    : [importEdit(root, importLine(importName, importFrom, opts.importStyle))]
-  return commit(root, source, [...callEdits, ...importEdits])
+  if (state === 'bound') return commit(root, source, callEdits)
+  return commit(root, source, [...callEdits, importEdit(root, importLine(importName, importFrom, opts.importStyle))])
 }
 
 function requiresFrom(root: SgNode, requireFrom: string): boolean {
@@ -197,11 +289,12 @@ export function addToPluginsArrayRequire(
   if (importStatements(root).length > 0) return unmatched
   const array = pluginsArray(root)
   if (!array) return unmatched
+  const state = bindingState(root, requireFrom, bindingName, 'require')
+  if (state === 'conflict') return unmatched
   const callEdits = callsPlugin(array, callExpr) ? [] : [appendEdit(source, array, callExpr)]
-  const requireEdits = requiresFrom(root, requireFrom)
-    ? []
-    : [{startPos: 0, endPos: 0, insertedText: `const ${bindingName} = require('${requireFrom}')\n`}]
-  return commit(root, source, [...callEdits, ...requireEdits])
+  if (state === 'bound') return commit(root, source, callEdits)
+  const requireEdit = {startPos: 0, endPos: 0, insertedText: `const ${bindingName} = require('${requireFrom}')\n`}
+  return commit(root, source, [...callEdits, requireEdit])
 }
 
 const wrappableKinds: ReadonlySet<string | number> = new Set(['identifier', 'call_expression', 'member_expression'])
@@ -210,10 +303,10 @@ export function wrapDefaultExport(source: string, wrapperName: string, importFro
   const root = parse(Lang.TypeScript, source).root()
   const expression = defaultExportExpression(root)
   if (!expression || !wrappableKinds.has(expression.kind())) return unmatched
+  const state = bindingState(root, importFrom, wrapperName, 'named')
+  if (state === 'conflict') return unmatched
   const wrapped = expression.kind() === 'call_expression' && expression.field('function')?.text() === wrapperName
   const wrapEdits = wrapped ? [] : [expression.replace(`${wrapperName}(${expression.text()})`)]
-  const importEdits = importsFrom(root, importFrom)
-    ? []
-    : [importEdit(root, importLine(wrapperName, importFrom, 'named'))]
-  return commit(root, source, [...wrapEdits, ...importEdits])
+  if (state === 'bound') return commit(root, source, wrapEdits)
+  return commit(root, source, [...wrapEdits, importEdit(root, importLine(wrapperName, importFrom, 'named'))])
 }

@@ -101,6 +101,25 @@ describe('nextjsStep', () => {
     expect(await step.verify(ctx)).toBe(true)
   })
 
+  it('cards a config that imports something else from the plugin module and leaves it alone', async () => {
+    const {cwd, detected, settings, output} = project('next.config.foreign-import.ts')
+    const before = readFileSync(join(cwd, 'next.config.ts'), 'utf8')
+    const ledger = await runSteps([nextjsStep(detected)], settings, output)
+    expect(ledger.map((entry) => entry.status)).toEqual(['manual'])
+    expect(ledger[0]?.cards.map((card) => card.title)).toEqual(['Wrap your next config'])
+    expect(readFileSync(join(cwd, 'next.config.ts'), 'utf8')).toBe(before)
+  })
+
+  it('cards a withConciv wrapper bound to another module instead of reading it as wired', async () => {
+    const {cwd, detected, settings, output, ctx} = project('next.config.foreign-wrapper.ts')
+    const before = readFileSync(join(cwd, 'next.config.ts'), 'utf8')
+    expect(await nextjsStep(detected).detect(ctx)).toBe('missing')
+    const ledger = await runSteps([nextjsStep(detected)], settings, output)
+    expect(ledger.map((entry) => entry.status)).toEqual(['manual'])
+    expect(ledger[0]?.cards.map((card) => card.title)).toEqual(['Wrap your next config'])
+    expect(readFileSync(join(cwd, 'next.config.ts'), 'utf8')).toBe(before)
+  })
+
   it('cards the config wire when there is no config file and still writes instrumentation', async () => {
     const {cwd, detected, settings, output} = project(null)
     const ledger = await runSteps([nextjsStep(detected)], settings, output)
