@@ -1303,9 +1303,6 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1334,6 +1331,9 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit

@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineTool} from '@conciv/extension'
+import {defineTool} from '@conciv/extension/tool'
 import {PagePositionSchema, PageWaitStateSchema} from '@conciv/protocol/page-types'
 import {AnyRecord, ElementTarget, OkResult, type BuiltinCategory} from './shared.js'
 

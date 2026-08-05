@@ -1,4 +1,4 @@
-import type {ToolMeta} from '@conciv/extension'
+import type {ToolMeta} from '@conciv/extension/tool'
 import {BUILTIN_PAGE_TOOLS, type BuiltinPageTool} from './builtins/page-tools.js'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from './builtins/server-tools.js'
 

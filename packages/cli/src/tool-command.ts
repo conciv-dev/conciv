@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {defineCommand, type ArgDef, type ArgsDef, type CommandDef} from 'citty'
-import type {ToolMeta} from '@conciv/extension'
+import type {ToolMeta} from '@conciv/extension/tool'
 import {userFailure} from './failure.js'
 
 export type ToolDeclaration = {

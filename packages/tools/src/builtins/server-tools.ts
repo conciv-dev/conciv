@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineTool, toolError} from '@conciv/extension'
+import {defineTool, toolError} from '@conciv/extension/tool'
 import {BundlerConfigSchema, ModuleNodeSchema, type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {OkResult, type BuiltinCategory} from './shared.js'
 
