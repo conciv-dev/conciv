@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {approvalIds} from './run-events.js'
@@ -5,13 +6,15 @@ import {makeRpcClient} from './session.js'
 
 export type CallTool = (name: string, input: unknown) => Promise<unknown>
 
-type McpClient = Awaited<ReturnType<typeof createMCPClient>>
+const ExecuteReplySchema = z.object({result: z.unknown()}).loose()
 
-async function resolveTool(mcp: McpClient, name: string) {
-  const listed = (await mcp.tools()).find((entry) => entry.name === name)
-  if (listed) return listed
-  await mcp.callTool('conciv_discover_tools', {names: [name]})
-  return (await mcp.tools()).find((entry) => entry.name === name)
+function callThroughCatalog(name: string, input: unknown): string {
+  return `
+    const found = await external_catalog({name: ${JSON.stringify(name)}})
+    const call = globalThis[found.call]
+    if (typeof call !== 'function') throw new Error('binding missing: ' + found.call)
+    return await call(${JSON.stringify(input ?? {})})
+  `
 }
 
 export function makeCallTool(apiBase: string, session: string): CallTool {
@@ -20,14 +23,16 @@ export function makeCallTool(apiBase: string, session: string): CallTool {
       transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
     })
     try {
-      const tool = await resolveTool(mcp, name)
-      if (!tool?.execute) throw new Error(`tool ${name} not on /api/mcp`)
-      const result = await tool.execute(input)
-      if (typeof result !== 'string') return result
+      const execute = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
+      if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
+      const raw = await execute.execute({typescriptCode: callThroughCatalog(name, input)})
+      if (typeof raw !== 'string') return raw
       try {
-        return JSON.parse(result)
+        const reply = ExecuteReplySchema.safeParse(JSON.parse(raw))
+        if (reply.success && 'result' in reply.data) return reply.data.result
+        return JSON.parse(raw)
       } catch {
-        return result
+        return raw
       }
     } finally {
       await mcp.close()

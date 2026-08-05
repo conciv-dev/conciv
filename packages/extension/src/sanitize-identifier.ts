@@ -1,5 +1,3 @@
-export const SANDBOX_BINDING_PREFIX = 'external_'
-
 const UNSAFE_IDENTIFIER_CHARS = /[^A-Za-z0-9_$]/g
 const LEADING_DIGIT = /^[0-9]/
 

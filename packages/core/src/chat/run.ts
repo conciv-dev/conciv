@@ -32,7 +32,7 @@ import type {ChatDeps} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot} from './transcript.js'
-import {makeRunGate, withConcivGate, withConcivSandbox, type PermissionGate} from './gate.js'
+import {makeAskGate, makeRunGate, withConcivGate, withConcivSandbox, type PermissionGate} from './gate.js'
 import {makeCodeMode} from './code-mode.js'
 import {codeModeToolChunks} from './code-mode-parts.js'
 import {makeToolNameNormalizer, normalizeChunkToolName} from './tool-names.js'
@@ -104,9 +104,9 @@ function codeModeExtras(
   deps: ChatDeps,
   sessionId: string,
   model: string | null,
-  gate: PermissionGate,
+  askGate: PermissionGate,
 ): {systemPrompts: string[]; tools: AnyTool[]} {
-  const codeMode = makeCodeMode(deps.extensionServerTools(), {sessionId, model}, gate)
+  const codeMode = makeCodeMode(() => deps.codeModeCapabilities(sessionId), {sessionId, model}, askGate)
   const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
   return {systemPrompts, tools: [...deps.tools(sessionId), ...(codeMode?.tools ?? [])]}
 }
@@ -125,14 +125,15 @@ async function buildRunStream(
   deps: ChatDeps,
   sessionId: string,
   req: RunRequest,
-  gate: PermissionGate,
+  gates: {gate: PermissionGate; askGate: PermissionGate},
   abort: AbortController,
 ): Promise<AsyncIterable<StreamChunk>> {
+  const gate = gates.gate
   const model = (await rowById(deps.db, sessionId))?.model ?? null
   const resumeSessionId = deps.harness.capabilities.resume
     ? resumableToken(deps.harness, deps.cwd, await nativeIdFor(deps.db, sessionId), deps.claudeHome)
     : null
-  const extras = codeModeExtras(deps, sessionId, model, gate)
+  const extras = codeModeExtras(deps, sessionId, model, gates.askGate)
   const config = deps.harness.chatConfig({
     cwd: deps.cwd,
     sessionId,
@@ -321,16 +322,17 @@ async function* runStream(
     events: {onMessagesChange: (messages) => setRunMessages(deps.db, sessionId, messages)},
   })
   processor.addUserMessage(userParts(req.content))
-  const gate = makeRunGate({
+  const gateDeps = {
     sessionId,
     asks: deps.asks,
-    emit: (chunk) => void runLog.append([chunk]).catch(() => {}),
-    risky: deps.risky,
-  })
+    emit: (chunk: StreamChunk) => void runLog.append([chunk]).catch(() => {}),
+  }
+  const gate = makeRunGate({...gateDeps, risky: deps.risky})
+  const askGate = makeAskGate(gateDeps)
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
   try {
     deps.stream.publish(sessionId, aguiSnapshotFor(await sessionSnapshot(deps, sessionId)))
-    const stream = await buildRunStream(deps, sessionId, req, gate, abort)
+    const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, abort)
     const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
     const bounded = boundFirstChunk(stream, timeoutMs, () => {
       outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`

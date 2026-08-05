@@ -1,8 +1,5 @@
 export type CallTool = (name: string, input: unknown) => Promise<unknown>
 
-type AiMcp = typeof import('@tanstack/ai-mcp')
-type McpClient = Awaited<ReturnType<AiMcp['createMCPClient']>>
-
 export async function resolveSession(apiBase: string): Promise<string> {
   const {makeRpcClient} = await import('@conciv/contract')
   const client = makeRpcClient(apiBase)
@@ -10,11 +7,11 @@ export async function resolveSession(apiBase: string): Promise<string> {
   return sessionId
 }
 
-async function resolveTool(mcp: McpClient, name: string) {
-  const listed = (await mcp.tools()).find((entry) => entry.name === name)
-  if (listed) return listed
-  await mcp.callTool('conciv_discover_tools', {names: [name]})
-  return (await mcp.tools()).find((entry) => entry.name === name)
+function callThroughCatalog(name: string, input: unknown): string {
+  return [
+    `const found = await external_catalog({name: ${JSON.stringify(name)}})`,
+    `return await globalThis[found.call](${JSON.stringify(input ?? {})})`,
+  ].join('\n')
 }
 
 export function makeCallTool(apiBase: string, session: string): CallTool {
@@ -27,15 +24,13 @@ export function makeCallTool(apiBase: string, session: string): CallTool {
       transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
     })
     try {
-      const tool = await resolveTool(mcp, name)
-      if (!tool?.execute) throw new Error(`tool ${name} not on /api/mcp`)
-      const result = await tool.execute(input)
-      if (typeof result !== 'string') return result
-      try {
-        return JSON.parse(result)
-      } catch {
-        return result
-      }
+      const execute = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
+      if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
+      const raw = await execute.execute({typescriptCode: callThroughCatalog(name, input)})
+      if (typeof raw !== 'string') return raw
+      const parsed: unknown = JSON.parse(raw)
+      if (typeof parsed === 'object' && parsed !== null && 'result' in parsed) return parsed.result
+      return parsed
     } finally {
       await mcp.close()
     }

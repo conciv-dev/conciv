@@ -17,12 +17,14 @@ const acme = defineExtension({name: 'acme', tools: [echo]})
 async function echoedSession(base: string, headers: Record<string, string>): Promise<string> {
   const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`, headers}})
   try {
-    await mcp.callTool('conciv_discover_tools', {names: ['acme_echo_session']})
-    const tool = (await mcp.tools()).find((candidate) => candidate.name === 'acme_echo_session')
-    if (!tool?.execute) throw new Error('acme_echo_session not registered on /api/mcp')
-    const raw = await tool.execute({})
-    const text = typeof raw === 'string' ? raw : JSON.stringify(raw)
-    return z.object({sessionId: z.string()}).parse(JSON.parse(text)).sessionId
+    const tool = (await mcp.tools()).find((candidate) => candidate.name === 'execute_typescript')
+    if (!tool?.execute) throw new Error('execute_typescript not registered on /api/mcp')
+    const raw = await tool.execute({typescriptCode: 'return await external_acme_echo_session({})'})
+    const reply = z
+      .object({result: z.object({sessionId: z.string()})})
+      .loose()
+      .parse(JSON.parse(z.string().parse(raw)))
+    return reply.result.sessionId
   } finally {
     await mcp.close()
   }

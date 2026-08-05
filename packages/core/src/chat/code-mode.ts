@@ -1,13 +1,29 @@
 import {randomUUID} from 'node:crypto'
-import {createCodeMode, type IsolateDriver} from '@tanstack/ai-code-mode'
+import {z} from 'zod'
+import {
+  createCodeMode,
+  generateTypeStubs,
+  toolsToBindings,
+  type IsolateDriver,
+  type ToolBinding,
+} from '@tanstack/ai-code-mode'
 import {createNodeIsolateDriver, probeIsolatedVm} from '@tanstack/ai-isolate-node'
 import type {AnyTool} from '@tanstack/ai'
-import {sanitizeIdentifier, uniqueIdentifier, type ExtensionServerTool, type ToolRequest} from '@conciv/extension'
+import {sanitizeIdentifier, uniqueIdentifier, type ToolRequest} from '@conciv/extension'
+import type {CodeCapability} from './capabilities.js'
 import {toChatTool, type ToolRunContext} from './runtime.js'
 import type {PermissionGate} from './gate.js'
 import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
 
 const CODE_MODE_TIMEOUT_MS = 150_000
+
+const CAPABILITY_BINDING_PREFIX = 'external_'
+
+const CATALOG_TOOL_NAME = 'catalog'
+
+export const CATALOG_CALL_HINT = 'await external_catalog({})'
+
+const CATEGORY_SAMPLE_LIMIT = 6
 
 let cachedDriver: IsolateDriver | null = null
 
@@ -18,59 +34,222 @@ function getDriver(): IsolateDriver | null {
   return cachedDriver
 }
 
+function declaredCodeOf(error: unknown): string | null {
+  if (!(error instanceof Error)) return null
+  if (!('code' in error) || typeof error.code !== 'string' || error.code === '') return null
+  return error.code
+}
+
+function encodeDeclaredError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error)
+  const code = declaredCodeOf(error)
+  if (code === null || message.startsWith(`${code}:`)) {
+    return error instanceof Error ? error : new Error(message)
+  }
+  return new Error(`${code}: ${message}`)
+}
+
 export function gatedToolRun(
-  tool: ExtensionServerTool,
+  capability: CodeCapability,
   request: ToolRequest,
   gate: PermissionGate,
 ): (args: unknown, context?: ToolRunContext) => Promise<unknown> {
   return async (args, context) => {
     const callId = randomUUID()
     const emit = context?.emitCustomEvent ?? (() => {})
-    emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name: tool.name, input: args})
-    const decision = await gate.decide(tool.name, args, request.sessionId, callId)
-    if (decision === 'deny') {
-      const refusal = `Tool "${tool.name}" was denied by the user`
-      emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: refusal})
-      throw new Error(refusal)
+    emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name: capability.name, input: args})
+    if (capability.mutating) {
+      const decision = await gate.decide(capability.name, args, request.sessionId, callId)
+      if (decision === 'deny') {
+        const refusal = `Tool "${capability.name}" was denied by the user`
+        emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: refusal})
+        throw new Error(refusal)
+      }
     }
     try {
-      const result = await tool.execute(args, request)
+      const result = await capability.execute(args, request)
       emit(CODE_MODE_TOOL_RESULT_EVENT, {callId, result})
       return result
     } catch (error) {
-      emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: error instanceof Error ? error.message : String(error)})
-      throw error
+      const encoded = encodeDeclaredError(error)
+      emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: encoded.message})
+      throw encoded
     }
   }
 }
 
-export function withBindingNames(
-  extensionTools: ExtensionServerTool[],
-): {tool: ExtensionServerTool; bindingName: string}[] {
+export type NamedCapability = {capability: CodeCapability; bindingName: string}
+
+export function withBindingNames(capabilities: CodeCapability[]): NamedCapability[] {
   const taken = new Set<string>()
-  return extensionTools.map((tool) => {
-    const bindingName = uniqueIdentifier(sanitizeIdentifier(tool.name), taken)
+  return capabilities.map((capability) => {
+    const bindingName = uniqueIdentifier(sanitizeIdentifier(capability.name), taken)
     taken.add(bindingName)
-    return {tool, bindingName}
+    return {capability, bindingName}
   })
 }
 
-export function makeCodeMode(
-  extensionTools: ExtensionServerTool[],
+type BoundCapability = NamedCapability & {binding: ToolBinding}
+
+function bindCapabilities(
+  capabilities: CodeCapability[],
   request: ToolRequest,
   gate: PermissionGate,
-): {tools: AnyTool[]; systemPrompt: string} | null {
-  if (extensionTools.length === 0) return null
+): BoundCapability[] {
+  const named = withBindingNames(capabilities)
+  const record = toolsToBindings(
+    named.map((entry) =>
+      toChatTool(
+        {
+          name: entry.bindingName,
+          description: entry.capability.description,
+          inputSchema: entry.capability.inputSchema,
+        },
+        gatedToolRun(entry.capability, request, gate),
+        {lazy: true},
+      ),
+    ),
+    CAPABILITY_BINDING_PREFIX,
+  )
+  const bindings = Object.values(record)
+  return named.map((entry, index) => {
+    const binding = bindings[index]
+    if (binding === undefined) throw new Error('the built bindings drifted from the capability list')
+    return {...entry, binding}
+  })
+}
+
+const JsonRecordSchema = z.record(z.string(), z.unknown())
+
+function jsonRecord(value: unknown, where: string): Record<string, unknown> {
+  const parsed = JsonRecordSchema.safeParse(value)
+  if (!parsed.success) throw new Error(`${where}: the schema did not serialize to an object`)
+  return parsed.data
+}
+
+const CatalogQuerySchema = z.object({
+  search: z.string().optional(),
+  name: z.string().optional(),
+})
+
+function catalogList(bound: BoundCapability[], search: string | undefined): unknown {
+  const term = search?.toLowerCase() ?? ''
+  const entries = bound.filter(({capability, bindingName}) => {
+    if (term === '') return true
+    const haystack = `${capability.name} ${bindingName} ${capability.summary} ${capability.category}`.toLowerCase()
+    return haystack.includes(term)
+  })
+  return {
+    tools: entries.map(({capability, binding}) => ({
+      call: binding.name,
+      name: capability.name,
+      summary: capability.summary,
+      category: capability.category,
+      mutating: capability.mutating,
+      reachable: capability.reachable,
+    })),
+  }
+}
+
+function capabilityDetail(bound: BoundCapability[], name: string): unknown {
+  const found = bound.find(
+    ({capability, bindingName, binding}) => capability.name === name || bindingName === name || binding.name === name,
+  )
+  if (!found) throw new Error(`unknown capability "${name}"; call catalog({}) to list what exists`)
+  const signature = found.capability.signature()
+  const output = signature.output === undefined ? undefined : jsonRecord(signature.output, `${name} output`)
+  return {
+    call: found.binding.name,
+    name: found.capability.name,
+    description: found.capability.description,
+    category: found.capability.category,
+    mutating: found.capability.mutating,
+    reachable: found.capability.reachable,
+    input: signature.input,
+    output: signature.output,
+    errors: signature.errors,
+    typeStub: generateTypeStubs({
+      [found.binding.name]: {
+        name: found.binding.name,
+        description: found.capability.description,
+        inputSchema: jsonRecord(signature.input, `${name} input`),
+        outputSchema: output,
+        execute: async () => undefined,
+      },
+    }),
+  }
+}
+
+function catalogTool(current: () => BoundCapability[]): ReturnType<typeof toChatTool> {
+  return toChatTool(
+    {
+      name: CATALOG_TOOL_NAME,
+      description:
+        'List and inspect every capability in this sandbox: catalog({}) or catalog({search}) lists entries with the exact function name to call, catalog({name}) returns one full typed signature.',
+      inputSchema: CatalogQuerySchema,
+    },
+    async (args) => {
+      const query = CatalogQuerySchema.parse(args ?? {})
+      const bound = current()
+      if (query.name !== undefined) return capabilityDetail(bound, query.name)
+      return catalogList(bound, query.search)
+    },
+  )
+}
+
+function rankedCategories(capabilities: CodeCapability[]): string[] {
+  const counts = new Map<string, number>()
+  for (const capability of capabilities) {
+    counts.set(capability.category, (counts.get(capability.category) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .toSorted(([leftName, left], [rightName, right]) => right - left || leftName.localeCompare(rightName))
+    .slice(0, CATEGORY_SAMPLE_LIMIT)
+    .map(([name]) => name)
+}
+
+const CATALOG_PROMPT = `### Capability catalog
+
+Inside execute_typescript, \`${CATALOG_CALL_HINT}\` lists every available capability with the exact function name to call, \`await external_catalog({search})\` filters that list, and \`await external_catalog({name})\` returns one full typed signature. Discover through the catalog instead of guessing a signature.`
+
+export type CodeMode = {
+  tool: AnyTool
+  tools: AnyTool[]
+  systemPrompt: string
+  categories: string[]
+  run: (typescriptCode: string, context?: ToolRunContext) => Promise<unknown>
+}
+
+export function makeCodeMode(
+  capabilities: () => CodeCapability[],
+  request: ToolRequest,
+  gate: PermissionGate,
+  options: {timeoutMs?: number} = {},
+): CodeMode | null {
+  const snapshot = capabilities()
+  if (snapshot.length === 0) return null
   const driver = getDriver()
   if (driver === null) return null
-  const tools = withBindingNames(extensionTools).map(({tool, bindingName}) =>
-    toChatTool({...tool, name: bindingName}, gatedToolRun(tool, request, gate), {lazy: true}),
-  )
   const codeMode = createCodeMode({
     driver,
-    tools,
-    timeout: CODE_MODE_TIMEOUT_MS,
-    lazyToolsConfig: {includeDescription: 'first-sentence'},
+    tools: [catalogTool(() => bindCapabilities(capabilities(), request, gate))],
+    timeout: options.timeoutMs ?? CODE_MODE_TIMEOUT_MS,
+    onSecretParameter: 'throw',
+    getSkillBindings: async () => {
+      const bound = bindCapabilities(capabilities(), request, gate)
+      return Object.fromEntries(bound.map((entry) => [entry.binding.name, entry.binding]))
+    },
   })
-  return {tools: codeMode.tools, systemPrompt: codeMode.systemPrompt}
+  const tool: AnyTool = codeMode.tool
+  return {
+    tool,
+    tools: [...codeMode.tools],
+    systemPrompt: [codeMode.systemPrompt, CATALOG_PROMPT].join('\n\n'),
+    categories: rankedCategories(snapshot),
+    run: (typescriptCode, context) => {
+      const execute = tool.execute
+      if (!execute) throw new Error('the code mode tool has no execute')
+      return Promise.resolve(execute({typescriptCode}, context))
+    },
+  }
 }

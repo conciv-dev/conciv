@@ -1,5 +1,5 @@
 export type {ConcivServerTool, ConcivToolContext, PageCapability} from './types.js'
-export {concivTools} from './server.js'
+export {concivSandboxTools, concivTools} from './server.js'
 
 export {PAGE_TOOL_NAME, PageInput, pageCapabilities, pageInputFor, pageToolDescription} from './page.js'
 export {concivUiToolDef} from './ui.js'

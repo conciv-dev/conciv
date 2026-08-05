@@ -25,6 +25,7 @@ test('buildChatTools yields conciv + extension tools bound to the session', asyn
         name: 'ext_tool',
         description: 'extension tool',
         inputSchema: z.object({}),
+        mutating: false,
         execute: async (_input, request) => request,
       },
     ],
@@ -45,7 +46,15 @@ test('extension tools are lazy, conciv tools are eager', () => {
       page: async () => ({ok: false as const, error: 'none'}),
       open: () => {},
     }),
-    [{name: 'ext_tool', description: 'extension tool', inputSchema: z.object({}), execute: async () => 'ok'}],
+    [
+      {
+        name: 'ext_tool',
+        description: 'extension tool',
+        inputSchema: z.object({}),
+        mutating: false,
+        execute: async () => 'ok',
+      },
+    ],
     () => null,
   )('session-1')
   const extension = tools.find((tool) => tool.name === 'ext_tool')

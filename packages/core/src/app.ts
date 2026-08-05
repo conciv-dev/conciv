@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
@@ -21,7 +20,7 @@ import {
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
-import {concivTools, type ConcivToolContext} from '@conciv/tools'
+import {concivSandboxTools, concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import {
   ensureAgentRow,
@@ -33,7 +32,13 @@ import {
 } from './chat/session-rows.js'
 import {buildChatTools, makeRunControl, type ChatDeps} from './chat/runtime.js'
 import {askUi, createAskRegistry} from './chat/ask.js'
-import {makeConcivSandbox, makeRunGate, riskyMatches} from './chat/gate.js'
+import {makeAskGate, makeConcivSandbox} from './chat/gate.js'
+import {
+  assistCapabilities,
+  extensionCapabilities,
+  registryCapabilities,
+  type CodeCapability,
+} from './chat/capabilities.js'
 import {createSessionStreams} from './chat/subscribe.js'
 import {createSnapshotCache} from './chat/transcript.js'
 import {createLiveRuns} from './chat/live-runs.js'
@@ -142,6 +147,7 @@ export function buildExtensionTools(extension: AnyExtension, context: unknown): 
         description,
         inputSchema: tool.inputSchema,
         approval: tool.approval,
+        mutating: tool.meta?.mutating ?? tool.approval === 'ask',
         execute: (input: unknown, request: ToolRequest) => run(input, context, request),
       },
     ]
@@ -326,12 +332,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     capabilities: () => registry.catalog.list(),
   })
 
-  const decideMcpCall = async (sessionId: string, toolName: string, input: unknown): Promise<'allow' | 'deny'> => {
-    if (!riskyMatches(risky, toolName)) return 'allow'
-    if (!sessionId) return 'deny'
-    const gate = makeRunGate({sessionId, asks, emit: (chunk) => stream.publish(sessionId, chunk), risky})
-    return gate.decide(toolName, input, sessionId, randomUUID())
-  }
+  const codeModeCapabilities = (sessionId: string): CodeCapability[] => [
+    ...registryCapabilities(registry),
+    ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+    ...extensionCapabilities(extensionTools),
+  ]
 
   const toolList: ChatTool[] = [
     ...concivTools(makeToolCtx('')).map((tool) => ({name: tool.name, description: tool.description})),
@@ -364,7 +369,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     risky,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     toolNames: new Set(toolList.map((tool) => tool.name)),
-    extensionServerTools: () => extensionTools,
+    codeModeCapabilities,
     attachmentExpanders,
     onRunStart: (sessionId) => runStartListeners.forEach((listener) => listener(sessionId)),
     onRunEnd,
@@ -395,11 +400,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       chat: chatDeps,
       mcp: {
-        makeCtx: makeToolCtx,
-        extensionTools,
+        capabilities: codeModeCapabilities,
+        askGate: (sessionId) => makeAskGate({sessionId, asks, emit: (chunk) => stream.publish(sessionId, chunk)}),
+        publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
         sessionModel,
-        discovered: new Map(),
-        decide: decideMcpCall,
         sessionForNativeId: async (nativeId) => (await rowByNativeId(db, nativeId))?.id ?? null,
       },
     },

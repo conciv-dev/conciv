@@ -12,55 +12,55 @@ const draw = defineTool({
 
 const acme = defineExtension({name: 'acme', tools: [draw]})
 
-describe('/api/mcp extension tools', () => {
-  it('registers an extension tool and round-trips a call', async () => {
+async function execute(base: string, typescriptCode: string): Promise<unknown> {
+  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+  try {
+    const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
+    if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')
+    const raw = await tool.execute({typescriptCode})
+    const parsed = z
+      .object({result: z.unknown()})
+      .loose()
+      .parse(JSON.parse(z.string().parse(raw)))
+    return parsed.result
+  } finally {
+    await mcp.close()
+  }
+}
+
+describe('/api/mcp extension tools through the sandbox', () => {
+  it('discovers an extension tool through the catalog binding and calls it in the same round trip', async () => {
     const kit = await bootKit({extensions: [acme]})
-    const {base, cleanup: close} = kit
-    const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
-      const initial = (await mcp.tools()).map((t) => t.name)
-      expect(initial).toEqual(expect.arrayContaining(['conciv_ui', 'conciv_discover_tools']))
-      expect(initial).not.toContain('acme_draw')
-      await mcp.callTool('conciv_discover_tools', {names: ['acme_draw']})
-      const tools = await mcp.tools()
-      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['acme_draw', 'conciv_ui']))
-      const drawTool = tools.find((t) => t.name === 'acme_draw')
-      if (!drawTool?.execute) throw new Error('acme_draw not registered on /api/mcp')
-      const result = await drawTool.execute({shape: 'square'})
-      expect(JSON.stringify(result)).toContain('square')
+      const result = await execute(
+        kit.base,
+        `
+          const found = await external_catalog({search: 'acme'})
+          const entry = found.tools.find((tool) => tool.name === 'acme_draw')
+          if (!entry) throw new Error('acme_draw missing from the catalog')
+          const detail = await external_catalog({name: entry.name})
+          const drawn = await external_acme_draw({shape: 'square'})
+          return {call: entry.call, stub: detail.typeStub, drawn}
+        `,
+      )
+      const shaped = z.object({call: z.string(), stub: z.string(), drawn: z.unknown()}).parse(result)
+      expect(shaped.call).toBe('external_acme_draw')
+      expect(shaped.stub).toContain('external_acme_draw')
+      expect(JSON.stringify(shaped.drawn)).toContain('square')
     } finally {
-      await mcp.close()
-      await close()
+      await kit.cleanup()
     }
   }, 30_000)
 
-  it('conciv_extensions scaffolds + validates on the new contract over /api/mcp', async () => {
+  it('keeps the extension-authoring capability reachable through the sandbox', async () => {
     const kit = await bootKit()
-    const {base, cleanup: close} = kit
-    const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
-      const tools = await mcp.tools()
-      const ext = tools.find((t) => t.name === 'conciv_extensions')
-      if (!ext?.execute) throw new Error('conciv_extensions not registered on /api/mcp')
-
-      const full = JSON.stringify(await ext.execute({verb: 'scaffold', kind: 'full', name: 'demo'}))
-      expect(full).toContain('defineExtension({name:')
-      expect(full).toContain('useSlot')
-      expect(full).toContain('.client(')
-
-      const catalog = JSON.stringify(await ext.execute({verb: 'catalog'}))
-      for (const slot of ['header', 'footer', 'composer', 'empty', 'status', 'widget']) expect(catalog).toContain(slot)
-
-      const bad = JSON.stringify(
-        await ext.execute({
-          verb: 'validate',
-          source: "export default defineExtension({name: 'x', theme: {'pw-nope': 'red'}})",
-        }),
-      )
-      expect(bad).toContain('pw-nope')
+      const result = await execute(kit.base, "return await external_conciv_extensions({verb: 'catalog'})")
+      const json = JSON.stringify(result)
+      expect(json).toContain('pw-accent')
+      expect(json).toContain('clientSurfaces')
     } finally {
-      await mcp.close()
-      await close()
+      await kit.cleanup()
     }
   }, 30_000)
 })

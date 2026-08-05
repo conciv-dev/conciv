@@ -1,4 +1,5 @@
 import {describe, it, expect} from 'vitest'
+import {z} from 'zod'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
 import {tmpdir} from 'node:os'
@@ -38,6 +39,25 @@ async function boot(opts: {root?: string; extensions?: ConcivConfig['extensions'
   return {base: `http://127.0.0.1:${engine.port}`, engine}
 }
 
+async function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
+  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+  try {
+    const execute = (await mcp.tools()).find((candidate) => candidate.name === 'execute_typescript')
+    if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
+    const typescriptCode = [
+      `const found = await external_catalog({name: ${JSON.stringify(name)}})`,
+      `return await globalThis[found.call](${JSON.stringify(input)})`,
+    ].join('\n')
+    const parsed = z
+      .object({result: z.unknown()})
+      .loose()
+      .parse(JSON.parse(String(await execute.execute({typescriptCode}))))
+    return parsed.result
+  } finally {
+    await mcp.close()
+  }
+}
+
 describe('test-runner extension booted in the real engine (IT)', () => {
   it('serves a TestRunResult shape on status under the default vitest config', async () => {
     const {base, engine} = await boot()
@@ -54,22 +74,15 @@ describe('test-runner extension booted in the real engine (IT)', () => {
     }
   }, 30_000)
 
-  it('registers test_runner on /api/mcp and round-trips to the injected manager', async () => {
+  it('reaches test_runner through the sandbox on /api/mcp and round-trips to the injected manager', async () => {
     const {base, engine} = await boot()
     try {
-      const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
-      await mcp.callTool('conciv_discover_tools', {names: ['test_runner']})
-      const tool = (await mcp.tools()).find((candidate) => candidate.name === 'test_runner')
-      if (!tool?.execute) throw new Error('test_runner not registered')
-
-      const status = JSON.parse(String(await tool.execute({action: 'status'}))) as {
-        summary: {passed: number}
-        tests: unknown[]
-      }
+      const status = z
+        .object({summary: z.object({passed: z.number()}).loose(), tests: z.array(z.unknown())})
+        .loose()
+        .parse(await callViaSandbox(base, 'test_runner', {action: 'status'}))
       expect(typeof status.summary.passed).toBe('number')
       expect(Array.isArray(status.tests)).toBe(true)
-
-      await mcp.close()
     } finally {
       await engine.stop()
     }

@@ -1,9 +1,8 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {tmpdir} from 'node:os'
-import {createMCPClient} from '@tanstack/ai-mcp'
 import type {PageOutcome} from '@conciv/protocol/page-types'
-import type {Kit} from '@conciv/harness-testkit'
+import {makeApprovingCallTool, type Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../editor/fixtures.js'
 
@@ -53,14 +52,12 @@ describe('the agent reaches the page through the same implementation the CLI use
     await cleanupChunks()
   })
 
-  async function agentPageTool(kit: Kit): Promise<(input: unknown) => Promise<unknown>> {
-    const mcp = await createMCPClient({transport: {type: 'http', url: `${kit.base}/api/mcp`}})
-    state.close = () => mcp.close()
-    const tools = await mcp.tools()
-    const page = tools.find((tool) => tool.name === 'conciv_page')
-    const execute = page?.execute
-    if (!execute) throw new Error('conciv_page is not registered on /api/mcp')
-    return async (input) => execute(input)
+  async function agentPageTool(
+    kit: Kit,
+  ): Promise<(input: {verb: string} & Record<string, unknown>) => Promise<unknown>> {
+    const session = await kit.session()
+    const call = makeApprovingCallTool(kit.base, session)
+    return async ({verb, ...input}) => call(`page.${verb}`, input)
   }
 
   it('journals an agent-driven mutation exactly as the CLI path journals it', async () => {
