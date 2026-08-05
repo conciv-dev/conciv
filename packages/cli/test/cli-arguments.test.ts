@@ -1,21 +1,11 @@
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {main} from '../src/bin.js'
 import {runCli} from '../src/run.js'
 import {answerNextQuery, bootCli} from './support/cli-app.js'
-import {captureStdout, onlyDocument} from './support/stdout.js'
+import {onlyDocument} from './support/stdout.js'
+import {cliSession} from './support/cli-session.js'
 
-const cleanups: (() => Promise<void>)[] = []
-const written: string[] = []
-
-beforeEach(() => {
-  captureStdout(written)
-})
-
-afterEach(async () => {
-  vi.restoreAllMocks()
-  delete process.env.CONCIV_PORT
-  for (const cleanup of cleanups.splice(0)) await cleanup()
-})
+const {cleanups, written} = cliSession()
 
 function failureText(): string {
   const parsed = onlyDocument(written)

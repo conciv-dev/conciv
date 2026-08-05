@@ -22,7 +22,7 @@ const DeclaredInput = z.object({
 
 type ToolField = {name: string; required: boolean; field: z.infer<typeof DeclaredField>}
 
-export function toolFields(tool: ToolDeclaration): ToolField[] {
+function toolFields(tool: ToolDeclaration): ToolField[] {
   const declared = DeclaredInput.parse(z.toJSONSchema(tool.inputSchema, {io: 'input'}))
   const required = new Set(declared.required)
   return Object.entries(declared.properties).map(([name, field]) => ({name, required: required.has(name), field}))
@@ -32,7 +32,7 @@ export function firstRequiredField(tool: ToolDeclaration): string | undefined {
   return toolFields(tool).find((entry) => entry.required)?.name
 }
 
-export function toolSummary(tool: ToolDeclaration): string {
+function toolSummary(tool: ToolDeclaration): string {
   return tool.meta?.summary ?? tool.name
 }
 
@@ -59,7 +59,7 @@ function toolArgs(tool: ToolDeclaration, positional: string | undefined): ArgsDe
   return args
 }
 
-export function toolInput(tool: ToolDeclaration, raw: unknown): Record<string, unknown> {
+function toolInput(tool: ToolDeclaration, raw: unknown): Record<string, unknown> {
   const parsed = tool.inputSchema.safeParse(supplied(raw))
   if (!parsed.success) throw userFailure(z.prettifyError(parsed.error))
   return Object.fromEntries(Object.entries(parsed.data).filter(([, value]) => value !== undefined))

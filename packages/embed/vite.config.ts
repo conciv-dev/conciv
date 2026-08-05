@@ -4,10 +4,10 @@ import solid from 'vite-plugin-solid'
 
 const EXTERNAL_PREFIXES = ['solid-js/', '@ark-ui/', '@conciv/']
 
+const INLINED_PREFIXES = ['@conciv/page', '@conciv/app', '@conciv/tools']
+
 const isExternal = (id: string): boolean => {
-  if (id.startsWith('@conciv/page')) return false
-  if (id.startsWith('@conciv/app')) return false
-  if (id.startsWith('@conciv/tools')) return false
+  if (INLINED_PREFIXES.some((prefix) => id.startsWith(prefix))) return false
   return id === 'solid-js' || EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))
 }
 
