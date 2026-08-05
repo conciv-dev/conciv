@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import type {PageErrorCode} from '@conciv/protocol/page-types'
 import type {ExtensionRegistry} from '@conciv/protocol/config-types'
-import {os, type AnyRouter, type ORPCErrorConstructorMap, type Procedure} from '@orpc/server'
+import {createRouterClient, os, type AnyRouter, type ORPCErrorConstructorMap, type Procedure} from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
 import {
   FORBIDDEN_TOOL_SEGMENTS,
@@ -116,6 +116,8 @@ export type ToolRegistration<Ctx> = unknown extends Ctx
 export type ToolRegistry = {
   router: ExtensionToolRouter
   register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<CtxOf<Tool>>) => void
+  has: (name: string) => boolean
+  call: (name: string, input: unknown, options?: {request?: ToolRequest}) => Promise<unknown>
   catalog: {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
 }
 
@@ -129,6 +131,8 @@ export function createToolRegistry(
     router,
     register: (tool: AnyToolBuilder, registration?: {context?: unknown}) =>
       registerTool(router, tool, pageCaller, registration?.context),
+    has: (name) => walkRegistryProcedures(router).some((entry) => entry.path.join('.') === name),
+    call: (name, input, options = {}) => callTool(router, name, input, options.request),
     catalog: {
       list: () => catalogEntries(walkRegistryProcedures(router), pageConnected()),
       get: (name) => toolSignature(router, name, pageConnected()),
@@ -138,6 +142,24 @@ export function createToolRegistry(
 
 function emptyRouterNode<Node>(): Node {
   return Object.create(null)
+}
+
+function toolMember(node: unknown, segment: string): unknown {
+  if (node === null || (typeof node !== 'object' && typeof node !== 'function')) return undefined
+  return Reflect.get(node, segment)
+}
+
+function callTool(
+  router: ExtensionToolRouter,
+  name: string,
+  input: unknown,
+  request: ToolRequest | undefined,
+): Promise<unknown> {
+  const client = createRouterClient(router, {context: {request}})
+  const target = name.split('.').reduce<unknown>(toolMember, client)
+  if (typeof target !== 'function') return Promise.reject(new Error(`unknown tool "${name}"`))
+  const result: unknown = target(input)
+  return Promise.resolve(result)
 }
 
 type RegistryTool = AnyToolBuilder & {meta: ToolMeta; outputSchema: z.ZodType; binding: ToolBinding}

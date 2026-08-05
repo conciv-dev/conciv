@@ -100,7 +100,8 @@ export const PageQuerySchema = z.object({
     .string()
     .optional()
     .describe('the value to set: input value for fill/select, CSS value for setstyle, attribute value for setattr'),
-  name: z.string().optional().describe('attribute name for setattr/removeattr/attr, or React component name'),
+  name: z.string().optional().describe('React component name'),
+  attribute: z.string().optional().describe('attribute name for setattr/removeattr/attr'),
   class: z.string().optional().describe('class name for addclass/removeclass'),
   prop: z.string().optional().describe('CSS property name for setstyle, e.g. color or font-size'),
   text: z.string().optional().describe('text for settext, or the full stylesheet string for css'),

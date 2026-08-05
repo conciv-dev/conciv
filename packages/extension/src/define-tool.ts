@@ -54,7 +54,7 @@ export type ToolBuilder<
   server: <HandlerCtx>(
     execute: (input: z.infer<Schema>, ctx: HandlerCtx, request: ToolRequest) => Promise<unknown> | unknown,
   ) => ToolBuilder<Name, Schema, Output, HandlerCtx>
-  client: (execute: (input: z.infer<Schema>) => Promise<unknown> | unknown) => ToolBuilder<Name, Schema, Output, Ctx>
+  client: (execute?: (input: z.infer<Schema>) => Promise<unknown> | unknown) => ToolBuilder<Name, Schema, Output, Ctx>
   render: (renderer: ToolRenderer) => ToolBuilder<Name, Schema, Output, Ctx>
 }
 
@@ -135,6 +135,13 @@ type ToolState = {
   serverRun?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
   clientExecute?: (input: unknown) => Promise<unknown>
   render?: ToolRenderer
+=======
+  server: (
+    execute: (input: z.infer<Schema>, ctx: Ctx, request: ToolRequest) => Promise<unknown> | unknown,
+  ) => ToolBuilder<Schema, Ctx>
+  client: (execute?: (input: z.infer<Schema>) => Promise<unknown> | unknown) => ToolBuilder<Schema, Ctx>
+  render: (renderer: ToolRenderer) => ToolBuilder<Schema, Ctx>
+>>>>>>> 13a46dda (feat(tools): declare every built-in capability as a registry tool)
 }
 
 function assertToolMeta(name: string, meta: ToolMeta | undefined): void {
@@ -186,9 +193,10 @@ function toolBuilder<Name extends string, Schema extends z.ZodObject<z.ZodRawSha
     },
     client(execute) {
       assertUnbound(definition.name, state.binding)
+      const clientState = {...state, binding: 'client' as const}
+      if (execute === undefined) return toolBuilder<Name, Schema, Output, Ctx>(definition, clientState)
       return toolBuilder<Name, Schema, Output, Ctx>(definition, {
-        ...state,
-        binding: 'client',
+        ...clientState,
         clientExecute: async (raw) => execute(definition.inputSchema.parse(raw)),
       })
     },
