@@ -4,6 +4,7 @@ import type {ExtensionRegistry} from '@conciv/protocol/config-types'
 import {os, type AnyRouter, type ORPCErrorConstructorMap, type Procedure} from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
 import {
+  FORBIDDEN_TOOL_SEGMENTS,
   isToolError,
   type ToolBinding,
   type ToolErrors,
@@ -108,9 +109,13 @@ export type ToolSignature = ToolCatalogEntry & {
   errors: ToolSignatureError[]
 }
 
+export type ToolRegistration<Ctx> = unknown extends Ctx
+  ? [registration?: {context?: Ctx}]
+  : [registration: {context: Ctx}]
+
 export type ToolRegistry = {
   router: ExtensionToolRouter
-  register: <Tool extends AnyToolBuilder>(tool: Tool, options?: {context?: CtxOf<Tool>}) => void
+  register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<CtxOf<Tool>>) => void
   catalog: {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
 }
 
@@ -122,7 +127,8 @@ export function createToolRegistry(
   const pageConnected = options.isPageConnected ?? (() => pageCaller !== undefined)
   return {
     router,
-    register: (tool, registration = {}) => registerTool(router, tool, pageCaller, registration.context),
+    register: (tool: AnyToolBuilder, registration?: {context?: unknown}) =>
+      registerTool(router, tool, pageCaller, registration?.context),
     catalog: {
       list: () => catalogEntries(walkRegistryProcedures(router), pageConnected()),
       get: (name) => toolSignature(router, name, pageConnected()),
@@ -166,15 +172,13 @@ function registerTool(
   insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, context))
 }
 
-const FORBIDDEN_SEGMENTS = ['__proto__', 'constructor', 'prototype']
-
 function insertProcedure(router: Record<string, AnyRouter>, segments: string[], procedure: AnyRouter): void {
   const leaf = segments.at(-1)
   if (leaf === undefined || segments.some((segment) => segment === '')) {
     throw new Error('tool names use non-empty dot-separated segments')
   }
   const name = segments.join('.')
-  const forbidden = segments.find((segment) => FORBIDDEN_SEGMENTS.includes(segment))
+  const forbidden = segments.find((segment) => FORBIDDEN_TOOL_SEGMENTS.some((reserved) => reserved === segment))
   if (forbidden !== undefined) throw new Error(`tool "${name}": "${forbidden}" is a forbidden path segment`)
   const parent = segments.slice(0, -1).reduce(ensureBranch, router)
   const existing = parent[leaf]

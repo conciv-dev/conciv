@@ -96,6 +96,18 @@ export type EmptySegmentToolNames<Names extends string> = Extract<
   '' | `.${string}` | `${string}.` | `${string}..${string}`
 >
 
+export const FORBIDDEN_TOOL_SEGMENTS = ['__proto__', 'constructor', 'prototype'] as const
+
+export type ForbiddenToolSegment = (typeof FORBIDDEN_TOOL_SEGMENTS)[number]
+
+export type ForbiddenSegmentToolNames<Names extends string> = Extract<
+  Names,
+  | ForbiddenToolSegment
+  | `${ForbiddenToolSegment}.${string}`
+  | `${string}.${ForbiddenToolSegment}`
+  | `${string}.${ForbiddenToolSegment}.${string}`
+>
+
 export type ToolNamePathProblem<Names extends string> =
   | ([PrefixedToolNames<Names>] extends [never]
       ? never
@@ -103,6 +115,9 @@ export type ToolNamePathProblem<Names extends string> =
   | ([EmptySegmentToolNames<Names>] extends [never]
       ? never
       : ToolNameProblem<`tool name "${EmptySegmentToolNames<Names>}" has an empty path segment`>)
+  | ([ForbiddenSegmentToolNames<Names>] extends [never]
+      ? never
+      : ToolNameProblem<`tool name "${ForbiddenSegmentToolNames<Names>}" uses a path segment that walks the prototype chain`>)
 
 type ToolTupleProblem<Tools extends readonly unknown[]> =
   | ([DuplicateToolName<Tools>] extends [never]

@@ -76,13 +76,39 @@ const emptySegment = defineTool({
   meta: {summary: 'a tool whose name has an empty path segment'},
 }).client(() => ({ok: true}))
 
+const leadingForbidden = defineTool({
+  name: '__proto__.x',
+  description: 'a name that starts with a prototype-chain segment',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ok: z.boolean()}),
+  meta: {summary: 'a tool whose name starts with a hostile path segment'},
+}).client(() => ({ok: true}))
+
+const middleForbidden = defineTool({
+  name: 'page.constructor.x',
+  description: 'a name with a prototype-chain segment in the middle',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ok: z.boolean()}),
+  meta: {summary: 'a tool whose name carries a hostile path segment in the middle'},
+}).client(() => ({ok: true}))
+
+const trailingForbidden = defineTool({
+  name: 'page.prototype',
+  description: 'a name that ends with a prototype-chain segment',
+  inputSchema: z.object({}),
+  outputSchema: z.object({ok: z.boolean()}),
+  meta: {summary: 'a tool whose name ends with a hostile path segment'},
+}).client(() => ({ok: true}))
+
 const prefixed = defineExtension({name: 'prefixed', tools: [page, pageFill]})
 const twin = defineExtension({name: 'twin', tools: [doublerTwin]})
 const hollow = defineExtension({name: 'hollow', tools: [emptySegment]})
+const hostile = defineExtension({name: 'hostile', tools: [trailingForbidden]})
 
 type PrefixedRegistry = RegisterExtension<typeof prefixed>
 type TwinRegistry = RegisterExtension<typeof demo> & RegisterExtension<typeof twin>
 type HollowRegistry = RegisterExtension<typeof hollow>
+type HostileRegistry = RegisterExtension<typeof hostile>
 
 declare const registry: ToolRegistry
 
@@ -141,6 +167,18 @@ test('a tool name with an empty path segment resolves to a diagnostic, never an 
   expectTypeOf<RouterClient<ToolRouterFor<HollowRegistry>>>().toBeObject()
 })
 
+test('a prototype-chain path segment resolves to a diagnostic in every position', () => {
+  expectTypeOf<RegisteredTools<[typeof leadingForbidden]>>().toMatchTypeOf<ToolNameProblem<string>>()
+  expectTypeOf<RegisteredTools<[typeof middleForbidden]>>().toMatchTypeOf<ToolNameProblem<string>>()
+  expectTypeOf<RegisteredTools<[typeof trailingForbidden]>>().toMatchTypeOf<ToolNameProblem<string>>()
+})
+
+test('a registry carrying a prototype-chain segment is not a usable router', () => {
+  expectTypeOf<ToolRouterFor<HostileRegistry>>().toMatchTypeOf<ToolNameProblem<string>>()
+  // @ts-expect-error a forbidden path segment is not a usable router
+  expectTypeOf<RouterClient<ToolRouterFor<HostileRegistry>>>().toBeObject()
+})
+
 test('two tools in one extension claiming one name resolve to a diagnostic', () => {
   expectTypeOf<RegisteredTools<[typeof doubler, typeof doublerTwin]>>().toMatchTypeOf<ToolNameProblem<string>>()
 })
@@ -168,6 +206,15 @@ test('register only accepts the context its tool declared', () => {
   registry.register(scaler, {context: {factor: 2}})
   // @ts-expect-error the tool's handler declares ctx: {factor: number}
   registry.register(scaler, {context: {}})
+})
+
+test('a tool whose handler declares a context cannot be registered without one', () => {
+  // @ts-expect-error the tool's handler declares ctx: {factor: number}, so a context is required
+  registry.register(scaler)
+})
+
+test('a context-free tool still registers with no options at all', () => {
+  registry.register(doubler)
 })
 
 test('a heterogeneous registration loop still type-checks', () => {
