@@ -19,7 +19,7 @@ const REWRITE_BANNED_TERMS = [
 
 const PREEXISTING_DEV_BUNDLER_NAMES = ['BundlerBridge']
 
-const PREEXISTING_MODULES = ['packages/harness/src/claude/connect-bridge.ts', 'packages/oxlint-plugin/src/']
+const PREEXISTING_MODULES = ['packages/claude-connect/src/bridge.ts', 'packages/oxlint-plugin/src/']
 
 const DEV_BUNDLER_BRIDGE_PATHS = [
   'packages/core/src/app.ts',
@@ -39,6 +39,7 @@ const NATIVE_AND_REACT_BRIDGE_PATHS = [
 ]
 
 const PRE_REWRITE_BRIDGE_PATHS = [
+  'packages/claude-connect/src/',
   'packages/harness/src/claude/',
   'packages/harness/src/codex/index.ts',
   'packages/core/src/chat/tool-names.ts',
@@ -81,7 +82,11 @@ const PREEXISTING_TERM_SITES = [
   },
   {
     term: 'manager',
-    paths: ['packages/extensions/test-runner/src/', 'packages/extensions/test-runner/vitest.config.ts'],
+    paths: [
+      'packages/extensions/test-runner/src/',
+      'packages/extensions/test-runner/vitest.config.ts',
+      'packages/cli/src/init/',
+    ],
   },
   {term: 'pipeline', paths: ['packages/extension-testkit/src/test-host-config.ts']},
   {

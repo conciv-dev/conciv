@@ -1,13 +1,7 @@
 import {expect, test} from 'vitest'
-import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
-import {testHost} from './canvas-it-helpers.js'
+import {openCanvas, testHost} from './canvas-it-helpers.js'
 import {getExtensionTestApi} from '@conciv/extension-testkit'
-
-const openCanvas = async (page: Page): Promise<void> => {
-  await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
-  await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
-}
 
 const ANCHOR_NULL = 'thread anchor is null while open'
 

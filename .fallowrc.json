@@ -9,6 +9,7 @@
     "packages/aidx/**",
     "packages/extensions/tanstack/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
+    "packages/cli/test/fixtures/**",
     "apps/examples/**",
     "e2e/astro/**",
     "e2e/nextjs/**",
@@ -40,7 +41,7 @@
   "ignoreDependencies": [
     "collections",
     "@conciv/app-extensions",
-    "@conciv/cli",
+    "conciv",
     "jazz-napi",
     "@oxlint/plugins",
     "@ark-ui/solid",
@@ -81,6 +82,7 @@
   ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
+    "@conciv/claude-connect",
     "@conciv/core",
     "@conciv/embed",
     "@conciv/extension",

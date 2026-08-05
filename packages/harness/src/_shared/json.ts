@@ -1,7 +1,1 @@
-export function parseJsonOrNull(raw: string): unknown {
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
-}
+export {parseJsonOrNull} from '@conciv/claude-connect/json'

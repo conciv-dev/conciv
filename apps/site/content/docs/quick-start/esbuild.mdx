@@ -3,8 +3,27 @@ title: esbuild
 description: esbuild support status.
 ---
 
+<Tabs items={['init', 'Manual']}>
+
+<Tab value="init">
+
+```bash
+npx conciv@latest init
+```
+
+init detects esbuild and prints a card instead of wiring anything: the `@conciv/it/plugin/esbuild`
+entry exists but is a build-only no-op today. It does not boot the engine or inject the widget yet.
+
+</Tab>
+
+<Tab value="Manual">
+
 <Callout type="warn">
   The esbuild entry exists but is a build-only no-op today. It does not boot the engine or inject the widget yet.
 </Callout>
+
+</Tab>
+
+</Tabs>
 
 Use [Vite](/docs/quick-start/vite) for the full experience.

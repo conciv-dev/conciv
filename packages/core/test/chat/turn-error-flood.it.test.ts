@@ -3,8 +3,8 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit} from '@conciv/harness-testkit'
-import {defineExtension} from '@conciv/extension'
 import {bootCoreApp} from '../helpers/boot.js'
+import {makeRunEndProbe} from '../helpers/run-end-probe.js'
 
 const FAIL = 'harness exited with code 143'
 
@@ -36,12 +36,7 @@ async function failingTurn(harness: HarnessAdapter): Promise<{seedCalls: string[
   const original = console.error
   const calls: string[] = []
   console.error = (...args: unknown[]) => void calls.push(args.map((a) => String(a)).join(' '))
-  const runEnd = {resolve: (_sessionId: string) => {}}
-  const runEnded = new Promise<string>((resolve) => (runEnd.resolve = resolve))
-  const probe = defineExtension({name: 'run-end-probe'}).server(() => ({
-    context: {},
-    turnEnd: (sessionId: string) => runEnd.resolve(sessionId),
-  }))
+  const {probe, runEnded} = makeRunEndProbe()
   const kit = await createTestkit(harness, bootCoreApp({extensions: [probe]})).setup()
   try {
     const id = await kit.session()

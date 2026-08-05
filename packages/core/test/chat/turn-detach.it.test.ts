@@ -4,9 +4,9 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit, type RunStream} from '@conciv/harness-testkit'
-import {defineExtension} from '@conciv/extension'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
+import {makeRunEndProbe} from '../helpers/run-end-probe.js'
 
 const claude = requireClaude()
 const dirs: string[] = []
@@ -119,12 +119,7 @@ describe('detached turns (IT)', () => {
   })
 
   it('the turn completes with zero subscribers and persists usage', async () => {
-    const runEnd = {resolve: (_sessionId: string) => {}}
-    const runEnded = new Promise<string>((resolve) => (runEnd.resolve = resolve))
-    const probe = defineExtension({name: 'run-end-probe'}).server(() => ({
-      context: {},
-      turnEnd: (sessionId: string) => runEnd.resolve(sessionId),
-    }))
+    const {probe, runEnded} = makeRunEndProbe()
     const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {}, extensions: [probe]})).setup()
     state.kit = kit
     const id = await kit.session()

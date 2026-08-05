@@ -1,0 +1,12 @@
+diff --git a/dist/esm/handle.js b/dist/esm/handle.js
+index 9f5186beb7624b9e062561b4cb7d037497c030e3..a92469e2044d691ba11eb18196b1e9739008c26d 100644
+--- a/dist/esm/handle.js
++++ b/dist/esm/handle.js
+@@ -614,6 +614,7 @@ var LocalProcessHandle = class {
+ 			detached: spawnDetached
+ 		});
+ 		this.track(child);
++		child.stdin.on("error", () => {});
+ 		if (opts?.signal) opts.signal.addEventListener("abort", () => killTree(child, void 0, this.options.logger), { once: true });
+ 		const handle = {
+ 			pid: child.pid ?? -1,

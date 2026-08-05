@@ -51,10 +51,10 @@ describe('banned-vocabulary', () => {
     expect(flaggedNames(findings)).toEqual(['epochCount'])
   })
 
-  test('exempts the pre-existing claude connect-bridge module entirely', async () => {
-    expect(
-      await lintFixture('vocabulary/packages/harness/src/claude/connect-bridge.ts', 'conciv(banned-vocabulary)'),
-    ).toEqual([])
+  test('exempts the pre-existing claude connect bridge module entirely', async () => {
+    expect(await lintFixture('vocabulary/packages/claude-connect/src/bridge.ts', 'conciv(banned-vocabulary)')).toEqual(
+      [],
+    )
   })
 })
 

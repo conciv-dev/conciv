@@ -105,7 +105,7 @@ another channel.
 collection:
 
 - Shape: `{version, entries: PairingEntry[]}`. `PairingEntry` = `{bundleId, apiBase, token, pid,
-  startedAt, projectRoot?}`. `apiBase` carries the `/t/<token>` prefix when a token was minted.
+startedAt, projectRoot?}`. `apiBase` carries the `/t/<token>` prefix when a token was minted.
 - **Primary key is `bundleId`.** It is the only identity both sides share: the SDK has
   `Bundle.main.bundleIdentifier`, but cannot reliably know the Mac-side `.xcodeproj` or workspace path
   at runtime. `projectRoot` is secondary metadata only, never the SDK's required matching input.
@@ -299,28 +299,28 @@ blocks or is blocked by this plan.
 ## Task breakdown
 
 - [ ] P-a: versioned atomic multi-entry pairing contract keyed by bundle id (schema, locking, pruning,
-  cleanup, duplicate behavior). Transport itself is already proven by spike (host file read,
-  `/t/<token>/health`, `/t/<token>/native`, prefix-preserving RPC/SSE/WS); its permanent e2e lands in P-g.
-  Keep port-probe fallback dead for tokenized cores; Simulator-only, device stays plan 10
+      cleanup, duplicate behavior). Transport itself is already proven by spike (host file read,
+      `/t/<token>/health`, `/t/<token>/native`, prefix-preserving RPC/SSE/WS); its permanent e2e lands in P-g.
+      Keep port-probe fallback dead for tokenized cores; Simulator-only, device stays plan 10
 - [ ] P-b: implement endpoint collection in core (upsert/prune under lock) and Swift (collection decode,
-  select by `Bundle.main.bundleIdentifier`); tests for concurrency, dead-pid, duplicate, version mismatch
+      select by `Bundle.main.bundleIdentifier`); tests for concurrency, dead-pid, duplicate, version mismatch
 - [ ] P-c: discovery model (`xcodebuild -list -json`, explicit `-workspace`/`-project`, per-scheme build
-  settings, product-type app-target validation, proximity tiers, `Package.swift` non-goal); absent-config
-  activation across tool registration, server context, and system prompt (core change plus tests);
-  field-by-field partial-override merge; per-process immutable cache; new simulator resolution
+      settings, product-type app-target validation, proximity tiers, `Package.swift` non-goal); absent-config
+      activation across tool registration, server context, and system prompt (core change plus tests);
+      field-by-field partial-override merge; per-process immutable cache; new simulator resolution
 - [ ] P-d: dependency-safe shared boot composition exported from `@conciv/it` (not core, not a new
-  package), consumed by both the vite plugin and the CLI; add the CLI's runtime dependencies
+      package), consumed by both the vite plugin and the CLI; add the CLI's runtime dependencies
 - [ ] P-e: `start` subcommand: per-run token, direct port-0 bind with `--port` and conflict diagnostics,
-  authenticated per-harness preflight with `--harness` > env > Claude precedence, foreground signal
-  cleanup, `--json` versioned readiness schema with exit codes, `--project`/`--simulator-udid` flags,
-  prerequisite checks
+      authenticated per-harness preflight with `--harness` > env > Claude precedence, foreground signal
+      cleanup, `--json` versioned readiness schema with exit codes, `--project`/`--simulator-udid` flags,
+      prerequisite checks
 - [ ] P-f: launcher script and mirror assembly: exact pre-action line and quoting, proven checkout
-  formula (`$BUILD_DIR/../../SourcePackages/checkouts`) across default/custom DerivedData with
-  soft-fail-plus-override for `-clonedSourcePackagesDirPath`, `EnvironmentBuildable` app-target reference
-  requirement, shared-scheme placement, pre-resolution no-op, detached lifecycle (pid file, lock,
-  process-group, log redirect, `conciv stop`, stale-version restart, exit-0-on-missing-prereqs,
-  bundle-id-keyed health check); fixtures for derivation and pre-action generation
+      formula (`$BUILD_DIR/../../SourcePackages/checkouts`) across default/custom DerivedData with
+      soft-fail-plus-override for `-clonedSourcePackagesDirPath`, `EnvironmentBuildable` app-target reference
+      requirement, shared-scheme placement, pre-resolution no-op, detached lifecycle (pid file, lock,
+      process-group, log redirect, `conciv stop`, stale-version restart, exit-0-on-missing-prereqs,
+      bundle-id-keyed health check); fixtures for derivation and pre-action generation
 - [ ] P-g: real Xcode/simulator e2e: CLI-booted core plus demo app consume loop, converting the transport
-  spike into a permanent automated test over the file-based pairing transport
+      spike into a permanent automated test over the file-based pairing transport
 - [ ] P-h: quick-start rewrite and override-docs deletion, gated on all prior phases and the multi-project
-  fixtures; keep an advanced override accordion
+      fixtures; keep an advanced override accordion

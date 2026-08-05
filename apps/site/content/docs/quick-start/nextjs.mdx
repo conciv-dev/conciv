@@ -6,6 +6,25 @@ description: Add conciv to a Next.js app.
 Next.js needs three small wires: the config wrapper, the server register hook, and the client
 widget.
 
+<Tabs items={['init', 'Manual']}>
+
+<Tab value="init">
+
+```bash
+npx conciv@latest init
+```
+
+init detects Next.js from your package.json, installs `@conciv/it` with your package manager, wraps
+your next config with `withConciv`, and creates `instrumentation.ts` and `instrumentation-client.ts`.
+If it cannot prove the shape of your config, it prints the exact snippet to paste instead.
+
+init prints the whole plan and asks once before it writes anything; `--yes` approves it up front and
+`--dry-run` prints it and exits. It refuses a dirty git tree; commit first or pass `--force`.
+
+</Tab>
+
+<Tab value="Manual">
+
 <Steps>
 <Step>
 
@@ -87,5 +106,9 @@ These three files sit at your project root next to `next.config.ts`:
   <File name="instrumentation.ts" />
   <File name="instrumentation-client.ts" />
 </Files>
+
+</Tab>
+
+</Tabs>
 
 Next: [Usage](/docs/usage) to see what the agent can do.

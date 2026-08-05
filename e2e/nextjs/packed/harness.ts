@@ -38,12 +38,21 @@ export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
 const DEV_ENDPOINT_DIR = join(tmpdir(), 'conciv-it-dev-endpoint')
 
-type PackageInfo = {dir: string; deps: Record<string, string>}
+type PackageInfo = {dir: string; version: string; deps: Record<string, string>}
 
 type ParsedManifest = {
   name?: string
+  version?: string
   dependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
+}
+
+function isWorkspaceName(name: string): boolean {
+  return name === 'conciv' || name.startsWith('@conciv/')
+}
+
+function tarballName(name: string, version: string): string {
+  return `${name.replace('@', '').replace('/', '-')}-${version}.tgz`
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
@@ -55,6 +64,9 @@ function parseManifest(raw: unknown, manifestPath: string): ParsedManifest {
   if (typeof raw !== 'object' || raw === null) throw new Error(`invalid manifest at ${manifestPath}`)
   const name = 'name' in raw ? raw.name : undefined
   if (name !== undefined && typeof name !== 'string') throw new Error(`invalid manifest name at ${manifestPath}`)
+  const version = 'version' in raw ? raw.version : undefined
+  if (version !== undefined && typeof version !== 'string')
+    throw new Error(`invalid manifest version at ${manifestPath}`)
   const dependencies = 'dependencies' in raw ? raw.dependencies : undefined
   if (dependencies !== undefined && !isStringRecord(dependencies)) {
     throw new Error(`invalid manifest dependencies at ${manifestPath}`)
@@ -63,7 +75,7 @@ function parseManifest(raw: unknown, manifestPath: string): ParsedManifest {
   if (peerDependencies !== undefined && !isStringRecord(peerDependencies)) {
     throw new Error(`invalid manifest peerDependencies at ${manifestPath}`)
   }
-  return {name, dependencies, peerDependencies}
+  return {name, version, dependencies, peerDependencies}
 }
 
 function readWorkspacePackages(): Map<string, PackageInfo> {
@@ -81,8 +93,13 @@ function readWorkspacePackages(): Map<string, PackageInfo> {
     const manifestPath = join(dir, 'package.json')
     if (!existsSync(manifestPath)) continue
     const manifest = parseManifest(JSON.parse(readFileSync(manifestPath, 'utf8')), manifestPath)
-    if (!manifest.name?.startsWith('@conciv/')) continue
-    byName.set(manifest.name, {dir, deps: {...manifest.dependencies, ...manifest.peerDependencies}})
+    if (manifest.name === undefined || !isWorkspaceName(manifest.name)) continue
+    if (manifest.version === undefined) throw new Error(`workspace package ${manifest.name} has no version`)
+    byName.set(manifest.name, {
+      dir,
+      version: manifest.version,
+      deps: {...manifest.dependencies, ...manifest.peerDependencies},
+    })
   }
   return byName
 }
@@ -97,7 +114,7 @@ export function computeClosure(): string[] {
     seen.add(name)
     const info = byName.get(name)
     if (!info) continue
-    for (const dep of Object.keys(info.deps)) if (dep.startsWith('@conciv/')) stack.push(dep)
+    for (const dep of Object.keys(info.deps)) if (isWorkspaceName(dep)) stack.push(dep)
   }
   return [...seen].toSorted()
 }
@@ -127,15 +144,12 @@ export async function buildAndPack(): Promise<{tgzDir: string; overrides: Record
     }),
   )
   const overrides: Record<string, string> = {}
-  const tarballs = readdirSync(tgzDir)
   for (const name of closure) {
-    const base = name.replace('@conciv/', 'conciv-')
-    const file = tarballs.find((candidate) => {
-      const match = candidate.match(/^(conciv-.+)-\d+\.\d+\.\d+\.tgz$/)
-      return match !== null && match[1] === base
-    })
-    if (file === undefined) throw new Error(`no tarball packed for ${name}`)
-    overrides[name] = `file:${join(tgzDir, file)}`
+    const info = byName.get(name)
+    if (!info) throw new Error(`missing workspace package ${name}`)
+    const file = join(tgzDir, tarballName(name, info.version))
+    if (!existsSync(file)) throw new Error(`no tarball packed for ${name} at ${file}`)
+    overrides[name] = `file:${file}`
   }
   return {tgzDir, overrides, closure}
 }
@@ -277,16 +291,17 @@ export async function setupFixture(): Promise<Fixture> {
   return {root, appDir, tgzDir, closure}
 }
 
+const REGISTRY_PINNED = /(?<![\w/@-])(?:@conciv\/[a-z0-9-]+|conciv)@(?!file:)\d/
+
 export function assertClosed(root: string): void {
   const lock = readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8')
   const leaks: string[] = []
   for (const line of lock.split('\n')) {
-    if (!line.includes('@conciv/')) continue
-    const registryPinned = /@conciv\/[a-z0-9-]+@(?!file:)\d/.test(line)
-    if (registryPinned || line.includes('registry.npmjs.org')) leaks.push(line.trim())
+    if (!line.includes('conciv')) continue
+    if (REGISTRY_PINNED.test(line) || line.includes('registry.npmjs.org')) leaks.push(line.trim())
   }
   if (leaks.length > 0) {
-    throw new Error(`fixture install not closed; registry-resolved @conciv packages:\n${leaks.join('\n')}`)
+    throw new Error(`fixture install not closed; registry-resolved conciv packages:\n${leaks.join('\n')}`)
   }
 }
 

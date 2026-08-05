@@ -4,6 +4,7 @@ import {eq} from 'drizzle-orm'
 import {
   chat,
   EventType,
+  RUN_ACCEPTED_EVENT,
   StreamProcessor,
   type AnyTool,
   type ContentPart,
@@ -26,6 +27,7 @@ import {
   setRunMessages,
   type ConcivDb,
 } from '@conciv/db'
+import {FIRST_CHUNK_TIMEOUT_MS} from './run-timing.js'
 import type {ChatDeps} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
@@ -163,10 +165,14 @@ async function buildRunStream(
   })
 }
 
-const LIFECYCLE_TYPES = new Set<string>([EventType.RUN_STARTED, EventType.RUN_FINISHED, EventType.RUN_ERROR])
-
 function stampRunId(chunk: StreamChunk, runId: string): StreamChunk {
-  if (!LIFECYCLE_TYPES.has(chunk.type)) return chunk
+  if (
+    chunk.type !== EventType.RUN_STARTED &&
+    chunk.type !== EventType.RUN_FINISHED &&
+    chunk.type !== EventType.RUN_ERROR
+  ) {
+    return chunk
+  }
   if ('runId' in chunk && chunk.runId === runId) return chunk
   return {...chunk, runId}
 }
@@ -238,8 +244,6 @@ async function* foldRunStream(
     }
   }
 }
-
-const FIRST_CHUNK_TIMEOUT_MS = 30_000
 
 async function firstOrTimeout(
   iterator: AsyncIterator<StreamChunk>,
@@ -313,6 +317,8 @@ async function* runStream(
   req: RunRequest,
   abort: AbortController,
 ): AsyncGenerator<StreamChunk> {
+  yield {type: EventType.CUSTOM, name: RUN_ACCEPTED_EVENT, value: {}, timestamp: Date.now()}
+  const runLog = deps.durability(req.runId)
   const processor = new StreamProcessor({
     events: {onMessagesChange: (messages) => setRunMessages(deps.db, sessionId, messages)},
   })
@@ -320,7 +326,7 @@ async function* runStream(
   const gate = makeRunGate({
     sessionId,
     asks: deps.asks,
-    emit: (chunk) => void deps.runLog.append(req.runId, chunk).catch(() => {}),
+    emit: (chunk) => void runLog.append([chunk]).catch(() => {}),
     risky: deps.risky,
   })
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
@@ -340,8 +346,7 @@ async function* runStream(
   yield runEndChunkFor(sessionId, req, outcome)
 }
 
-async function launchRun(deps: ChatDeps, sessionId: string, req: RunRequest): Promise<LiveRun> {
-  await deps.runLog.open({runId: req.runId, threadId: sessionId})
+function launchRun(deps: ChatDeps, sessionId: string, req: RunRequest): LiveRun {
   const abort = new AbortController()
   const handle = deps.runControl.start({
     runId: req.runId,
@@ -444,13 +449,40 @@ async function composeUserContent(db: ConcivDb, sessionId: string, content: User
 
 export type Send = (sessionId: string, runId: string, content: UserContent) => Promise<string>
 
+const RUN_ID_TAKEN_ERROR_NAME = 'RunIdTakenError'
+
+function runIdTakenError(runId: string): Error {
+  const error = new Error(`run ${runId} already exists; a runId cannot be reused`)
+  error.name = RUN_ID_TAKEN_ERROR_NAME
+  return error
+}
+
+export function isRunIdTakenError(error: unknown): error is Error {
+  return error instanceof Error && error.name === RUN_ID_TAKEN_ERROR_NAME
+}
+
+async function prepareLaunchContent(deps: ChatDeps, sessionId: string, content: UserContent): Promise<UserContent> {
+  deps.onRunStart?.(sessionId)
+  await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
+  const userContent = await composeUserContent(deps.db, sessionId, content)
+  return expandUserParts(userContent, deps.attachmentExpanders)
+}
+
+async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Promise<never> {
+  const message = error instanceof Error ? error.message : String(error)
+  await deps.runs.update(runId, {status: 'failed', finishedAt: Date.now(), error: {message}})
+  throw error
+}
+
 export function makeSend(deps: ChatDeps): Send {
   return async (sessionId, runId, content) => {
-    deps.onRunStart?.(sessionId)
-    await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
-    const userContent = await composeUserContent(deps.db, sessionId, content)
-    const expanded = await expandUserParts(userContent, deps.attachmentExpanders)
-    await launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
+    const startedAt = deps.claimStartedAt()
+    const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
+    if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
+    const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
+      failClaimedRun(deps, runId, error),
+    )
+    launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
     await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
     return runId
   }
@@ -467,7 +499,7 @@ export function makeCompactor(deps: ChatDeps): Compactor {
     deps.onRunStart?.(sessionId)
     const history = await sessionSnapshot(deps, sessionId)
     await addCompactMarker(deps.db, sessionId, history.length)
-    const live = await launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
+    const live = launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
     await live.done
   }
 

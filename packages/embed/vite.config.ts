@@ -6,6 +6,7 @@ const EXTERNAL_PREFIXES = ['solid-js/', '@ark-ui/', '@conciv/']
 
 const isExternal = (id: string): boolean => {
   if (id.startsWith('@conciv/page')) return false
+  if (id.startsWith('@conciv/app')) return false
   return id === 'solid-js' || EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))
 }
 

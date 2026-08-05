@@ -1,0 +1,71 @@
+{
+  "name": "@conciv/claude-connect",
+  "version": "0.0.17",
+  "description": "Internal to conciv (installed automatically, do not install directly). Generates the conciv claude plugin files and reads their install state.",
+  "keywords": [
+    "claude",
+    "conciv",
+    "plugin"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/claude-connect"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    "./bridge": {
+      "types": "./dist/bridge.d.ts",
+      "import": "./dist/bridge.js"
+    },
+    "./files": {
+      "types": "./dist/plugin-files.d.ts",
+      "import": "./dist/plugin-files.js"
+    },
+    "./json": {
+      "types": "./dist/json.d.ts",
+      "import": "./dist/json.js"
+    },
+    "./names": {
+      "types": "./dist/names.d.ts",
+      "import": "./dist/names.js"
+    },
+    "./paths": {
+      "types": "./dist/paths.d.ts",
+      "import": "./dist/paths.js"
+    },
+    "./state": {
+      "types": "./dist/install-state.d.ts",
+      "import": "./dist/install-state.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/protocol": "workspace:^",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
+    "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
+    "tsdown": "^0.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

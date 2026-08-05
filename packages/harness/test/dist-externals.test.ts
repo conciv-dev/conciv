@@ -1,41 +1,70 @@
 import {readdirSync, readFileSync, statSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
+import {parseSync} from 'oxc-parser'
 import {describe, expect, it} from 'vitest'
 
 const distDir = fileURLToPath(new URL('../dist', import.meta.url))
 
-function collectChunks(dir: string): string[] {
-  const chunks: string[] = []
+type Chunk = {file: string; code: string}
+
+function collectChunks(dir: string): Chunk[] {
+  const chunks: Chunk[] = []
   for (const name of readdirSync(dir)) {
     const full = join(dir, name)
     if (statSync(full).isDirectory()) {
       chunks.push(...collectChunks(full))
     } else if (name.endsWith('.js')) {
-      chunks.push(readFileSync(full, 'utf8'))
+      chunks.push({file: full, code: readFileSync(full, 'utf8')})
     }
   }
   return chunks
 }
 
-const chunks = collectChunks(distDir)
+function stripQuotes(text: string): string {
+  if (/^['"].*['"]$/.test(text)) return text.slice(1, -1)
+  return text
+}
 
-const imported = (pattern: RegExp) => chunks.some((code) => pattern.test(code))
+function moduleSources(chunk: Chunk): string[] {
+  const parsed = parseSync(chunk.file, chunk.code, {sourceType: 'module'})
+  if (parsed.errors.length > 0) throw new Error(`failed to parse dist chunk ${chunk.file}`)
+  const staticSources = parsed.module.staticImports.map((statement) => statement.moduleRequest.value)
+  const reexportSources = parsed.module.staticExports.flatMap((statement) =>
+    statement.entries.flatMap((entry) => (entry.moduleRequest ? [entry.moduleRequest.value] : [])),
+  )
+  const dynamicSources = parsed.module.dynamicImports.map((statement) =>
+    stripQuotes(chunk.code.slice(statement.moduleRequest.start, statement.moduleRequest.end)),
+  )
+  return [...staticSources, ...reexportSources, ...dynamicSources]
+}
+
+const chunks = collectChunks(distDir)
+const sources = chunks.flatMap(moduleSources)
+
+const importsPackage = (name: string) => sources.some((source) => source === name || source.startsWith(`${name}/`))
 
 describe('harness dist keeps @tanstack/ai-sandbox free of peer edges (#107)', () => {
   it('bundles the @tanstack/ai-* adapters instead of importing them', () => {
-    expect(imported(/from\s*["']@tanstack\/ai-(acp|claude-code|codex|opencode)["']/)).toBe(false)
+    for (const adapter of [
+      '@tanstack/ai-acp',
+      '@tanstack/ai-claude-code',
+      '@tanstack/ai-codex',
+      '@tanstack/ai-opencode',
+    ]) {
+      expect(importsPackage(adapter), `dist imports ${adapter}`).toBe(false)
+    }
   })
 
   it('externalizes @tanstack/ai-sandbox so capability-handle identity is shared with core', () => {
-    expect(imported(/from\s*["']@tanstack\/ai-sandbox["']/)).toBe(true)
+    expect(importsPackage('@tanstack/ai-sandbox')).toBe(true)
   })
 
   it('externalizes @tanstack/ai', () => {
-    expect(imported(/from\s*["']@tanstack\/ai(\/[\w-]+)?["']/)).toBe(true)
+    expect(importsPackage('@tanstack/ai')).toBe(true)
   })
 
   it('bundles no private capability-handle copy (identity mismatch breaks chat() validate)', () => {
-    expect(chunks.some((code) => code.includes('createCapability()('))).toBe(false)
+    expect(chunks.some((chunk) => chunk.code.includes('createCapability()('))).toBe(false)
   })
 })

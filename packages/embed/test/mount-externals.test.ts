@@ -27,7 +27,7 @@ describe('embed mount build shares one Ark environment instance with extensions'
   })
 
   it('inlines the private conciv app and @conciv/page', () => {
-    expect(externalized('conciv/router')).toBe(false)
+    expect(externalized('@conciv/app/router')).toBe(false)
     expect(externalized('@conciv/page')).toBe(false)
   })
 

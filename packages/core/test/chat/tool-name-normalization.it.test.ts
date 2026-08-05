@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto'
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
@@ -29,7 +30,7 @@ async function snapshotToolNames(kit: Kit, harness: TestHarness, wireName: strin
   const sessionId = await kit.session()
   harness.script.scriptToolCall(wireName, {}, {blocking: false})
   const stream = await kit.attach(sessionId)
-  await kit.rpc.chat.send({runId: 'tool-name-normalization-1', sessionId, text: 'ping the probe'})
+  await kit.rpc.chat.send({runId: randomUUID(), sessionId, text: 'ping the probe'})
   const events = await stream.done({hangGuardMs: 10_000})
   return events.toolCalls().map((call) => call.name)
 }

@@ -18,7 +18,6 @@ function asError(value: unknown): Error {
 export function useChatSession(options: UseChatSessionOptions): ChatSession {
   const connection = chatConnection(options.rpc, options.sessionId, options.connection ?? {})
   const chat = useChat({
-    id: options.sessionId,
     threadId: options.sessionId,
     connection,
     live: true,

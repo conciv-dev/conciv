@@ -22,8 +22,8 @@
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
-    "@tanstack/ai": "^0.42.0",
-    "@tanstack/ai-mcp": "0.2.4",
+    "@tanstack/ai": "^0.43.0",
+    "@tanstack/ai-mcp": "0.2.6",
     "zod": "^4.4.3"
   },
   "devDependencies": {

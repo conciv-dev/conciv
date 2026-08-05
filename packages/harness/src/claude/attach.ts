@@ -1,7 +1,7 @@
 import {spawn} from 'node:child_process'
-import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {homedir} from 'node:os'
-import {dirname, isAbsolute, join, relative} from 'node:path'
+import {dirname} from 'node:path'
 import {z} from 'zod'
 import type {
   HarnessAttach,
@@ -11,14 +11,14 @@ import type {
   HarnessConnectFile,
   HarnessLiveSession,
 } from '@conciv/protocol/harness-types'
-import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
+import {claudeConnectDir, claudeConnectPluginFiles, CLAUDE_CONNECT_INSTALL_TARGET} from '@conciv/claude-connect/files'
+import {CLAUDE_CONNECT_MARKETPLACE} from '@conciv/claude-connect/names'
+import {claudeConfigDir, claudeConnectServesProject, claudeInstallRecords} from '@conciv/claude-connect/state'
+import {inside, realpathOrSelf} from '../_shared/cwd.js'
 import {parseJsonOrNull} from '../_shared/json.js'
-import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE, CLAUDE_CONNECT_BRIDGE_URL_VAR} from './connect-bridge.js'
-import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './connect-names.js'
 
 export const CLAUDE_RELOAD_COMMAND = '/reload-plugins --force'
 export const CLAUDE_RELOAD_MIN_VERSION = '2.1.163'
-export const CLAUDE_CONNECT_ROOT = 'claude-connect'
 
 const VERSION_TIMEOUT_MS = 10_000
 const AGENTS_TIMEOUT_MS = 5_000
@@ -88,11 +88,6 @@ function runClaude(argv: string[], opts: {cwd?: string; timeoutMs: number}): Pro
   })
 }
 
-function inside(parent: string, child: string): boolean {
-  const step = relative(parent, child)
-  return step.length > 0 && !step.startsWith('..') && !isAbsolute(step)
-}
-
 export function relatedCwd(sessionCwd: string, cwd: string): boolean {
   const from = realpathOrSelf(sessionCwd)
   const to = realpathOrSelf(cwd)
@@ -136,81 +131,6 @@ export function meetsReloadFloor(version: string, floor = CLAUDE_RELOAD_MIN_VERS
   return true
 }
 
-export function claudeConnectDir(stateDir: string): string {
-  return join(stateDir, CLAUDE_CONNECT_ROOT)
-}
-
-function marketplaceManifest(): string {
-  return `${JSON.stringify(
-    {
-      name: CLAUDE_CONNECT_MARKETPLACE,
-      owner: {name: 'conciv'},
-      plugins: [
-        {
-          name: CLAUDE_CONNECT_PLUGIN,
-          source: `./${CLAUDE_CONNECT_PLUGIN}`,
-          description: 'Connects a running claude session to the conciv widget.',
-        },
-      ],
-    },
-    null,
-    2,
-  )}\n`
-}
-
-const CLAUDE_CONNECT_PLUGIN_VERSION = '0.0.0'
-
-function pluginManifest(): string {
-  return `${JSON.stringify(
-    {
-      name: CLAUDE_CONNECT_PLUGIN,
-      version: CLAUDE_CONNECT_PLUGIN_VERSION,
-      description: 'Connects a running claude session to the conciv widget.',
-      author: {name: 'conciv'},
-    },
-    null,
-    2,
-  )}\n`
-}
-
-function mcpManifest(opts: {mcpUrl: string}): string {
-  return `${JSON.stringify(
-    {
-      mcpServers: {
-        [CLAUDE_CONNECT_MCP_SERVER]: {
-          type: 'stdio',
-          command: 'node',
-          args: [`\${CLAUDE_PLUGIN_ROOT}/bin/${CLAUDE_CONNECT_BRIDGE_FILE}`],
-          env: {[CLAUDE_CONNECT_BRIDGE_URL_VAR]: opts.mcpUrl},
-        },
-      },
-    },
-    null,
-    2,
-  )}\n`
-}
-
-const BRIDGE_FILE_MODE = 0o700
-
-export function claudeConnectPluginFiles(opts: {
-  stateDir: string
-  mcpUrl: string
-  hookUrl: string
-}): HarnessConnectFile[] {
-  const root = claudeConnectDir(opts.stateDir)
-  const plugin = join(root, CLAUDE_CONNECT_PLUGIN)
-  return [
-    {path: join(root, '.claude-plugin', 'marketplace.json'), contents: marketplaceManifest()},
-    {path: join(plugin, '.claude-plugin', 'plugin.json'), contents: pluginManifest()},
-    {
-      path: join(plugin, 'bin', CLAUDE_CONNECT_BRIDGE_FILE),
-      contents: claudeConnectBridgeSource(),
-      mode: BRIDGE_FILE_MODE,
-    },
-    {path: join(plugin, '.mcp.json'), contents: mcpManifest(opts)},
-  ]
-}
-
 type VersionProbe = {status: 'ok'; version: string} | {status: 'failed'; detail: string}
 
 async function claudeVersion(): Promise<VersionProbe> {
@@ -243,84 +163,12 @@ function writeConnectFiles(files: HarnessConnectFile[]): void {
   }
 }
 
-function claudeConfigDir(): string {
-  const override = process.env.CLAUDE_CONFIG_DIR
-  return override === undefined || override.length === 0 ? join(homedir(), '.claude') : override
-}
-
-function pluginCacheDir(): string {
-  return join(
-    claudeConfigDir(),
-    'plugins',
-    'cache',
-    CLAUDE_CONNECT_MARKETPLACE,
-    CLAUDE_CONNECT_PLUGIN,
-    CLAUDE_CONNECT_PLUGIN_VERSION,
-  )
-}
-
-function readTextOrNull(path: string): string | null {
-  try {
-    return readFileSync(path, 'utf8')
-  } catch {
-    return null
-  }
-}
-
-function readJsonFile(path: string): unknown {
-  const raw = readTextOrNull(path)
-  return raw === null ? null : parseJsonOrNull(raw)
-}
-
-function cachedCopyMatches(files: HarnessConnectFile[], stateDir: string): boolean {
-  const pluginRoot = join(claudeConnectDir(stateDir), CLAUDE_CONNECT_PLUGIN)
-  const cacheRoot = pluginCacheDir()
-  const owned = files.filter((file) => inside(pluginRoot, file.path))
-  if (owned.length === 0) return false
-  return owned.every((file) => readTextOrNull(join(cacheRoot, relative(pluginRoot, file.path))) === file.contents)
-}
-
-const InstalledPluginsSchema = z.object({
-  plugins: z.record(
-    z.string(),
-    z.array(z.object({scope: z.string(), installPath: z.string(), projectPath: z.string().optional()})),
-  ),
-})
-
-type InstalledPluginRecord = z.infer<typeof InstalledPluginsSchema>['plugins'][string][number]
-
-function recordCoversProject(record: InstalledPluginRecord, root: string): boolean {
-  if (record.scope !== 'local') return false
-  if (record.projectPath === undefined) return false
-  return sameCwd(record.projectPath, root) && sameCwd(record.installPath, pluginCacheDir())
-}
-
-function installedRecords(): InstalledPluginRecord[] {
-  const parsed = InstalledPluginsSchema.safeParse(
-    readJsonFile(join(claudeConfigDir(), 'plugins', 'installed_plugins.json')),
-  )
-  if (!parsed.success) return []
-  return parsed.data.plugins[`${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`] ?? []
-}
-
-function installRecorded(root: string): boolean {
-  return installedRecords().some((record) => recordCoversProject(record, root))
-}
-
-const KnownMarketplacesSchema = z.record(z.string(), z.unknown())
-const MarketplaceEntrySchema = z.object({installLocation: z.string()})
-
-function marketplaceRegistered(stateDir: string): boolean {
-  const listed = KnownMarketplacesSchema.safeParse(
-    readJsonFile(join(claudeConfigDir(), 'plugins', 'known_marketplaces.json')),
-  )
-  if (!listed.success) return false
-  const entry = MarketplaceEntrySchema.safeParse(listed.data[CLAUDE_CONNECT_MARKETPLACE])
-  return entry.success && sameCwd(entry.data.installLocation, claudeConnectDir(stateDir))
+function configDir(): string {
+  return claudeConfigDir({home: homedir(), override: process.env.CLAUDE_CONFIG_DIR})
 }
 
 function alreadyServing(files: HarnessConnectFile[], opts: HarnessAttachInstall): boolean {
-  return marketplaceRegistered(opts.stateDir) && installRecorded(opts.root) && cachedCopyMatches(files, opts.stateDir)
+  return claudeConnectServesProject({configDir: configDir(), stateDir: opts.stateDir, root: opts.root, files})
 }
 
 async function install(opts: HarnessAttachInstall): Promise<HarnessAttachResult> {
@@ -337,22 +185,16 @@ async function install(opts: HarnessAttachInstall): Promise<HarnessAttachResult>
     await runClaude(['plugin', 'marketplace', 'add', root], {cwd: opts.root, timeoutMs: PLUGIN_TIMEOUT_MS}),
   )
   if (added !== null) return failure(added)
-  await runClaude(
-    ['plugin', 'uninstall', `${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`, '--scope', 'local'],
-    {
-      cwd: opts.root,
-      timeoutMs: PLUGIN_TIMEOUT_MS,
-    },
-  )
+  await runClaude(['plugin', 'uninstall', CLAUDE_CONNECT_INSTALL_TARGET, '--scope', 'local'], {
+    cwd: opts.root,
+    timeoutMs: PLUGIN_TIMEOUT_MS,
+  })
   const installed = stepFailure(
     'plugin install',
-    await runClaude(
-      ['plugin', 'install', `${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`, '--scope', 'local'],
-      {
-        cwd: opts.root,
-        timeoutMs: PLUGIN_TIMEOUT_MS,
-      },
-    ),
+    await runClaude(['plugin', 'install', CLAUDE_CONNECT_INSTALL_TARGET, '--scope', 'local'], {
+      cwd: opts.root,
+      timeoutMs: PLUGIN_TIMEOUT_MS,
+    }),
   )
   if (installed !== null) return failure(installed)
   return {ok: true, reloadCommand: CLAUDE_RELOAD_COMMAND}
@@ -369,15 +211,12 @@ function failure(detail: string): HarnessAttachResult {
 }
 
 async function uninstall(opts: HarnessAttachRemoval): Promise<void> {
-  await runClaude(
-    ['plugin', 'uninstall', `${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`, '--scope', 'local'],
-    {
-      cwd: opts.root,
-      timeoutMs: PLUGIN_TIMEOUT_MS,
-    },
-  )
+  await runClaude(['plugin', 'uninstall', CLAUDE_CONNECT_INSTALL_TARGET, '--scope', 'local'], {
+    cwd: opts.root,
+    timeoutMs: PLUGIN_TIMEOUT_MS,
+  })
   rmSync(claudeConnectDir(opts.stateDir), {recursive: true, force: true})
-  if (installedRecords().length > 0) return
+  if (claudeInstallRecords(configDir()).length > 0) return
   await runClaude(['plugin', 'marketplace', 'remove', CLAUDE_CONNECT_MARKETPLACE], {
     cwd: opts.root,
     timeoutMs: PLUGIN_TIMEOUT_MS,

@@ -1,7 +1,7 @@
 {
-  "name": "@conciv/cli",
+  "name": "conciv",
   "version": "0.0.17",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv agent-facing CLI: `conciv tools` (drive the live page/vite/tests). citty command tree, zod-validated args.",
+  "description": "The conciv front door: `npx conciv@latest init` sets your project up end to end, and `conciv tools` gives your coding agent the live page, React tree, and dev server.",
   "keywords": [
     "ai-agent",
     "cli",
@@ -37,10 +37,16 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@ast-grep/napi": "^0.45.0",
+    "@clack/prompts": "^1.7.0",
+    "@conciv/claude-connect": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "^1.14.7",
     "citty": "^0.2.2",
+    "diff": "^9.0.0",
+    "nypm": "^0.6.9",
+    "picocolors": "^1.1.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

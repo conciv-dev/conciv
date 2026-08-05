@@ -25,7 +25,7 @@ function packageNameFor(dir: string): string | null {
   return resolved
 }
 
-const isConcivName = (name: string) => name === 'conciv' || name.startsWith('@conciv/')
+const isConcivName = (name: string) => name.startsWith('@conciv/')
 
 export function concivSrcEntry(resolvedPath: string): string | null {
   if (resolvedPath.includes('node_modules')) return null

@@ -11,7 +11,7 @@ import {
   CLAUDE_CONNECT_BRIDGE_TIMEOUT_VAR,
   CLAUDE_CONNECT_BRIDGE_URL_VAR,
   claudeConnectBridgeSource,
-} from '../src/claude/connect-bridge.js'
+} from '../src/bridge.js'
 
 const CLAUDE_SESSION = 'sess-1'
 

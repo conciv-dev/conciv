@@ -33,8 +33,7 @@ import {
   rowByNativeId,
   sweepEmptyRows,
 } from './chat/session-rows.js'
-import {InMemoryRunEventLog, RunController} from '@tanstack/ai-sandbox'
-import {buildChatTools, type ChatDeps} from './chat/runtime.js'
+import {buildChatTools, makeRunControl, type ChatDeps} from './chat/runtime.js'
 import {askUi, createAskRegistry} from './chat/ask.js'
 import {makeConcivSandbox, makeRunGate, riskyMatches} from './chat/gate.js'
 import {createSessionStreams} from './chat/subscribe.js'
@@ -221,8 +220,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const db = openDb(opts.cfg.stateRoot)
   const asks = createAskRegistry()
-  const runLog = new InMemoryRunEventLog()
-  const runControl = new RunController(runLog)
+  const {claimStartedAt, durability, runControl, runs} = makeRunControl(opts.firstChunkTimeoutMs)
   const liveRuns = createLiveRuns()
   const stream = createSessionStreams()
   const snapshots = createSnapshotCache()
@@ -373,8 +371,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sandbox: makeConcivSandbox(opts.cwd),
     db,
     asks,
-    runLog,
+    durability,
     runControl,
+    runs,
+    claimStartedAt,
     liveRuns,
     stream,
     snapshots,

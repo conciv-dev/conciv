@@ -121,15 +121,15 @@ test('every real workspace package lands in a shard unless it owns a dedicated C
 
 test('the workspace apps are sharded alongside the packages', () => {
   const planned = plannedPackages(join(import.meta.dirname, '..', '..', '..')).map((entry) => entry.name)
-  expect(planned).toContain('conciv')
+  expect(planned).toContain('@conciv/app')
   expect(planned).toContain('site')
 })
 
 test('a package with a dedicated CI job is kept out of the shard matrix', () => {
   const root = mkdtempSync(join(tmpdir(), 'shards-'))
   writeManifest(root, 'apps/storybook', {name: 'conciv-storybook', version: '1.0.0'})
-  writeManifest(root, 'apps/conciv', {name: 'conciv', version: '1.0.0'})
-  expect(plannedPackages(root).map((entry) => entry.name)).toEqual(['conciv'])
+  writeManifest(root, 'apps/conciv', {name: '@conciv/app', version: '1.0.0'})
+  expect(plannedPackages(root).map((entry) => entry.name)).toEqual(['@conciv/app'])
 })
 
 test('e2ePackages keeps only workspace packages that actually define a test:e2e script', () => {
@@ -144,6 +144,7 @@ test('e2ePackages keeps only workspace packages that actually define a test:e2e 
 test('every real e2e consumer app plus the site lands in the e2e matrix, and e2e-utils does not', () => {
   const names = e2ePackages(join(import.meta.dirname, '..', '..', '..')).map((entry) => entry.name)
   expect(names).toContain('conciv-e2e-vite-react')
+  expect(names).toContain('conciv-e2e-init')
   expect(names).toContain(E2E_HARNESS_PACKAGE)
   expect(names).toContain('site')
   expect(names).not.toContain('@conciv/e2e-utils')
