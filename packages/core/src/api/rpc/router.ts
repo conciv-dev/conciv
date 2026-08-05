@@ -1,7 +1,8 @@
+import {z} from 'zod'
 import {asc, eq, lt} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {resolveHarnessModels} from '@conciv/harness'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers, navigation} from '@conciv/db'
 import type {PageRunErrorName} from '@conciv/contract'
 import {listCommands} from '../../chat/commands.js'
@@ -31,10 +32,24 @@ function pageError(error: unknown, errors: PageErrors): Error {
   return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message})
 }
 
-function requireBridge(deps: RpcDeps, errors: BundlerErrors): BundlerBridge {
-  const bridge = deps.bundler()
-  if (!bridge) throw errors.NO_BUNDLER()
-  return bridge
+function hasErrorCode(error: unknown, code: string): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+}
+
+async function callTool<Output extends z.ZodType>(
+  deps: RpcDeps,
+  tool: {name: string; outputSchema?: Output},
+  input: unknown,
+  errors?: BundlerErrors,
+): Promise<z.output<Output>> {
+  const output = tool.outputSchema
+  if (output === undefined) throw new Error(`tool "${tool.name}" declares no output schema`)
+  try {
+    return output.parse(await deps.registry.call(tool.name, input))
+  } catch (error) {
+    if (errors && hasErrorCode(error, 'NO_BUNDLER')) throw errors.NO_BUNDLER()
+    throw error
+  }
 }
 
 export function makeRpcRouter(deps: RpcDeps) {
@@ -103,27 +118,26 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
     },
     server: {
-      config: os.server.config.handler(({errors}) => requireBridge(deps, errors).config()),
+      config: os.server.config.handler(({errors}) => callTool(deps, BUILTIN_SERVER_TOOL['server.config'], {}, errors)),
       resolve: os.server.resolve.handler(({input, errors}) =>
-        requireBridge(deps, errors).resolve(input.spec, input.importer),
+        callTool(deps, BUILTIN_SERVER_TOOL['server.resolve'], input, errors),
       ),
-      graph: os.server.graph.handler(({input, errors}) => requireBridge(deps, errors).moduleGraph(input.file)),
-      transform: os.server.transform.handler(({input, errors}) => requireBridge(deps, errors).transform(input.url)),
-      urls: os.server.urls.handler(({errors}) => requireBridge(deps, errors).urls()),
-      reload: os.server.reload.handler(async ({input, errors}) => {
-        await requireBridge(deps, errors).reload(input.file)
-        return {ok: true as const}
-      }),
-      restart: os.server.restart.handler(async ({input, errors}) => {
-        await requireBridge(deps, errors).restart(input.force)
-        return {ok: true as const}
-      }),
+      graph: os.server.graph.handler(({input, errors}) =>
+        callTool(deps, BUILTIN_SERVER_TOOL['server.graph'], input, errors),
+      ),
+      transform: os.server.transform.handler(({input, errors}) =>
+        callTool(deps, BUILTIN_SERVER_TOOL['server.transform'], input, errors),
+      ),
+      urls: os.server.urls.handler(({errors}) => callTool(deps, BUILTIN_SERVER_TOOL['server.urls'], {}, errors)),
+      reload: os.server.reload.handler(({input, errors}) =>
+        callTool(deps, BUILTIN_SERVER_TOOL['server.reload'], input, errors),
+      ),
+      restart: os.server.restart.handler(({input, errors}) =>
+        callTool(deps, BUILTIN_SERVER_TOOL['server.restart'], input, errors),
+      ),
     },
     editor: {
-      open: os.editor.open.handler(({input}) => {
-        deps.openInEditor(input.file, input.line)
-        return {ok: true as const}
-      }),
+      open: os.editor.open.handler(({input}) => callTool(deps, BUILTIN_OPEN_TOOL, input)),
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {

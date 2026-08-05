@@ -231,7 +231,7 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
 
   text: onEl((el) => ({text: (el.textContent ?? '').slice(0, DOM_CAP)})),
   value: onEl((el) => ({value: isField(el) ? el.value : null})),
-  attr: onEl((el, query) => ({value: el.getAttribute(query.name ?? '')})),
+  attr: onEl((el, query) => ({value: el.getAttribute(query.attribute ?? '')})),
 
   click: onEl((el) => {
     if (!(el instanceof HTMLElement)) badArgs('click target is not an HTMLElement')
@@ -275,13 +275,13 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
   }),
 
   setattr: onEl((el, query) => {
-    if (!query.name) badArgs('setattr needs name (and value)')
-    el.setAttribute(query.name, query.value ?? '')
+    if (!query.attribute) badArgs('setattr needs an attribute (and value)')
+    el.setAttribute(query.attribute, query.value ?? '')
     return ok()
   }),
   removeattr: onEl((el, query) => {
-    if (!query.name) badArgs('removeattr needs name')
-    el.removeAttribute(query.name)
+    if (!query.attribute) badArgs('removeattr needs an attribute')
+    el.removeAttribute(query.attribute)
     return ok()
   }),
   addclass: onEl((el, query) => {

@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import type {PageErrorCode} from '@conciv/protocol/page-types'
 import type {ExtensionRegistry} from '@conciv/protocol/config-types'
-import {os, type AnyRouter, type ORPCErrorConstructorMap, type Procedure} from '@orpc/server'
+import {createRouterClient, os, type AnyRouter, type ORPCErrorConstructorMap, type Procedure} from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
 import {
   FORBIDDEN_TOOL_SEGMENTS,
@@ -77,16 +77,18 @@ export const TOOL_TRANSPORT_ERRORS: ToolErrors = {
   PAGE_TIMEOUT: {message: 'the page did not reply in time'},
   UNKNOWN_TOOL: {message: 'the page does not know this tool'},
   INVALID_ARGS: {message: 'the page rejected the arguments'},
+  HANDLER_ERROR: {message: 'the page failed to run this tool'},
 }
 
-const PAGE_FAILURE_TO_TRANSPORT: Partial<Record<PageErrorCode, string>> = {
+const PAGE_FAILURE_TO_TRANSPORT: Record<PageErrorCode, string> = {
   'no-widget': 'NO_PAGE_CLIENT',
   timeout: 'PAGE_TIMEOUT',
   'unknown-verb': 'UNKNOWN_TOOL',
   'invalid-args': 'INVALID_ARGS',
+  'handler-error': 'HANDLER_ERROR',
 }
 
-export type RegistryPageCaller = (tool: string, input: unknown) => Promise<unknown>
+export type RegistryPageCaller = (tool: string, input: unknown, request: ToolRequest | undefined) => Promise<unknown>
 
 export type ToolCatalogEntry = {
   name: string
@@ -116,6 +118,8 @@ export type ToolRegistration<Ctx> = unknown extends Ctx
 export type ToolRegistry = {
   router: ExtensionToolRouter
   register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<CtxOf<Tool>>) => void
+  has: (name: string) => boolean
+  call: (name: string, input: unknown, options?: {request?: ToolRequest}) => Promise<unknown>
   catalog: {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
 }
 
@@ -125,10 +129,14 @@ export function createToolRegistry(
   const router = emptyRouterNode<ExtensionToolRouter>()
   const pageCaller = options.pageCaller
   const pageConnected = options.isPageConnected ?? (() => pageCaller !== undefined)
+  const has = (name: string): boolean => walkRegistryProcedures(router).some((entry) => entry.path.join('.') === name)
   return {
     router,
     register: (tool: AnyToolBuilder, registration?: {context?: unknown}) =>
       registerTool(router, tool, pageCaller, registration?.context),
+    has,
+    call: (name, input, options = {}) =>
+      has(name) ? callTool(router, name, input, options.request) : Promise.reject(new Error(`unknown tool "${name}"`)),
     catalog: {
       list: () => catalogEntries(walkRegistryProcedures(router), pageConnected()),
       get: (name) => toolSignature(router, name, pageConnected()),
@@ -138,6 +146,24 @@ export function createToolRegistry(
 
 function emptyRouterNode<Node>(): Node {
   return Object.create(null)
+}
+
+function toolMember(node: unknown, segment: string): unknown {
+  if (node === null || (typeof node !== 'object' && typeof node !== 'function')) return undefined
+  return Reflect.get(node, segment)
+}
+
+function callTool(
+  router: ExtensionToolRouter,
+  name: string,
+  input: unknown,
+  request: ToolRequest | undefined,
+): Promise<unknown> {
+  const client = createRouterClient(router, {context: {request}})
+  const target = name.split('.').reduce<unknown>(toolMember, client)
+  if (typeof target !== 'function') return Promise.reject(new Error(`unknown tool "${name}"`))
+  const result: unknown = target(input)
+  return Promise.resolve(result)
 }
 
 type RegistryTool = AnyToolBuilder & {meta: ToolMeta; outputSchema: z.ZodType; binding: ToolBinding}
@@ -219,7 +245,9 @@ function compileTool(tool: RegistryTool, pageCaller: RegistryPageCaller | undefi
       runServerTool(tool, input, context, call.request, declaredErrors, errors),
     )
   }
-  return procedure.handler(({input, errors}) => forwardToolToPage(tool, input, declaredErrors, errors, pageCaller))
+  return procedure.handler(({input, errors, context: call}) =>
+    forwardToolToPage(tool, input, declaredErrors, errors, pageCaller, call.request),
+  )
 }
 
 async function runServerTool(
@@ -245,10 +273,11 @@ async function forwardToolToPage(
   declaredErrors: ToolErrors,
   errors: ToolErrorConstructors,
   pageCaller: RegistryPageCaller | undefined,
+  request: ToolRequest | undefined,
 ): Promise<unknown> {
   if (pageCaller === undefined) throw transportError(errors, 'NO_PAGE_CLIENT', `${tool.name}: no widget connected`)
   try {
-    return await pageCaller(tool.name, input)
+    return await pageCaller(tool.name, input, request)
   } catch (error) {
     throw pageFailure(tool, declaredErrors, error, errors)
   }

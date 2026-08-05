@@ -1306,6 +1306,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/tools':
+        specifier: workspace:^
+        version: link:../tools
       '@orpc/client':
         specifier: ^1.14.7
         version: 1.14.7(@opentelemetry/api@1.9.1)
@@ -1328,6 +1331,9 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
@@ -2682,6 +2688,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/tools':
+        specifier: workspace:^
+        version: link:../tools
       bippy:
         specifier: 0.5.41
         version: 0.5.41(react@19.2.7)

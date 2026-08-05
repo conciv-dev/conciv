@@ -6,6 +6,7 @@ const distDir = fileURLToPath(new URL('../dist/', import.meta.url))
 const chunkName = readdirSync(distDir).find((name) => /^mount-impl.*\.js$/.test(name)) ?? ''
 const mount = chunkName ? readFileSync(distDir + chunkName, 'utf8') : ''
 const entry = readFileSync(distDir + 'mount.js', 'utf8')
+const globalBundle = readFileSync(distDir + 'conciv-widget.global.js', 'utf8')
 
 const externalized = (specifier: string) => new RegExp(`from\\s*["']${specifier.replace('/', '\\/')}`).test(mount)
 
@@ -26,9 +27,15 @@ describe('embed mount build shares one Ark environment instance with extensions'
     expect(externalized('solid-js')).toBe(true)
   })
 
-  it('inlines the private conciv app and @conciv/page', () => {
+  it('inlines the private conciv app, @conciv/page, and the built-in tool declarations it reads', () => {
     expect(externalized('@conciv/app/router')).toBe(false)
     expect(externalized('@conciv/page')).toBe(false)
+    expect(externalized('@conciv/tools')).toBe(false)
+  })
+
+  it('ships only the page declarations, never the dev-server ones the widget cannot call', () => {
+    expect(globalBundle).toContain('type a value into a form field')
+    expect(globalBundle).not.toContain('restart the dev server')
   })
 
   it('emits the app graph as a mount-impl chunk', () => {

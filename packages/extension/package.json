@@ -32,6 +32,10 @@
       "types": "./dist/catalog.d.ts",
       "import": "./dist/catalog.js"
     },
+    "./tool": {
+      "types": "./dist/define-tool.d.ts",
+      "import": "./dist/define-tool.js"
+    },
     "./registry": {
       "types": "./dist/tool-registry.d.ts",
       "import": "./dist/tool-registry.js"

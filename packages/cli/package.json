@@ -42,6 +42,7 @@
     "@conciv/claude-connect": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/tools": "workspace:^",
     "@orpc/client": "^1.14.7",
     "citty": "^0.2.2",
     "diff": "^9.0.0",
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",
+    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",

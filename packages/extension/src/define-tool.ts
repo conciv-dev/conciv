@@ -7,6 +7,7 @@ export type ToolMeta = {
   mutating?: boolean
   mirrors?: boolean
   keywords?: readonly string[]
+  positional?: string
 }
 
 export type ToolErrorSpec = {message: string; data?: z.ZodType}
@@ -54,7 +55,7 @@ export type ToolBuilder<
   server: <HandlerCtx>(
     execute: (input: z.infer<Schema>, ctx: HandlerCtx, request: ToolRequest) => Promise<unknown> | unknown,
   ) => ToolBuilder<Name, Schema, Output, HandlerCtx>
-  client: (execute: (input: z.infer<Schema>) => Promise<unknown> | unknown) => ToolBuilder<Name, Schema, Output, Ctx>
+  client: (execute?: (input: z.infer<Schema>) => Promise<unknown> | unknown) => ToolBuilder<Name, Schema, Output, Ctx>
   render: (renderer: ToolRenderer) => ToolBuilder<Name, Schema, Output, Ctx>
 }
 
@@ -186,9 +187,10 @@ function toolBuilder<Name extends string, Schema extends z.ZodObject<z.ZodRawSha
     },
     client(execute) {
       assertUnbound(definition.name, state.binding)
+      const clientState: ToolState = {...state, binding: 'client'}
+      if (execute === undefined) return toolBuilder<Name, Schema, Output, Ctx>(definition, clientState)
       return toolBuilder<Name, Schema, Output, Ctx>(definition, {
-        ...state,
-        binding: 'client',
+        ...clientState,
         clientExecute: async (raw) => execute(definition.inputSchema.parse(raw)),
       })
     },

@@ -1,4 +1,5 @@
 import type {PageError} from '@conciv/protocol/page-types'
+import {BUILTIN_PAGE_TOOLS, PAGE_TOOL_PREFIX} from '@conciv/tools/page-tools'
 import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
 import {installReactBridge} from '../src/react-bridge.js'
 import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
@@ -16,10 +17,19 @@ const formState = () => page.getByText(/^subscribed:/)
 
 type Query = Parameters<PageDriver['execute']>[0]
 
+const declaredOutputOf = (kind: string) => {
+  const tool = BUILTIN_PAGE_TOOLS.find((candidate) => candidate.name === `${PAGE_TOOL_PREFIX}${kind}`)
+  const output = tool?.outputSchema
+  if (!output) throw new Error(`no built-in tool declares an output for page.${kind}`)
+  return output
+}
+
 const resultOf = async (query: Query): Promise<Record<string, unknown>> => {
   const outcome = await driver.execute(query)
   if (!outcome.ok) throw new Error(`expected a result for ${query.kind}, got ${outcome.error.code}`)
-  return {...outcome.result}
+  const result = {...outcome.result}
+  expect(declaredOutputOf(query.kind).parse(result)).toEqual(result)
+  return result
 }
 
 const failureOf = async (query: Query): Promise<PageError> => {
@@ -160,9 +170,13 @@ describe('dom verbs', () => {
   })
 
   it('mutates attributes, classes, styles, text, and structure', async () => {
-    await resultOf({kind: 'setattr', selector: '#prose', name: 'data-mark', value: 'on'})
+    await resultOf({kind: 'setattr', selector: '#prose', attribute: 'data-mark', value: 'on'})
     expect(document.querySelector('#prose')?.getAttribute('data-mark')).toBe('on')
-    await resultOf({kind: 'removeattr', selector: '#prose', name: 'data-mark'})
+    expect(await failureOf({kind: 'setattr', selector: '#prose', name: 'data-mark', value: 'on'})).toEqual({
+      code: 'invalid-args',
+      message: 'setattr needs an attribute (and value)',
+    })
+    await resultOf({kind: 'removeattr', selector: '#prose', attribute: 'data-mark'})
     expect(document.querySelector('#prose')?.hasAttribute('data-mark')).toBe(false)
     await resultOf({kind: 'addclass', selector: '#prose', class: 'hot'})
     expect(document.querySelector('#prose')?.classList.contains('hot')).toBe(true)
