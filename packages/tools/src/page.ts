@@ -29,12 +29,7 @@ function capabilityLine(entry: PageCapability): string {
 }
 
 function groupOrder(entries: readonly PageCapability[]): string[] {
-  const seen: string[] = []
-  for (const entry of entries) {
-    const group = entry.category ?? 'other'
-    if (!seen.includes(group)) seen.push(group)
-  }
-  return seen
+  return [...new Set(entries.map((entry) => entry.category ?? 'other'))]
 }
 
 export function pageToolDescription(entries: readonly PageCapability[]): string {
