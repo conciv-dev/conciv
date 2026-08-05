@@ -24,7 +24,7 @@ export function pageCapabilities(entries: readonly PageCapability[]): PageCapabi
 }
 
 function capabilityLine(entry: PageCapability): string {
-  const hint = entry.hint ? ` — ${entry.hint}` : ''
+  const hint = entry.hint ? ` - ${entry.hint}` : ''
   return `- ${pageVerbOfTool(entry.name)}: ${entry.summary}${hint}`
 }
 

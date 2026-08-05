@@ -13,7 +13,7 @@ already do, correctly and source-mapped.
 ## Which capabilities exist
 
 Read the `conciv_page` tool description. It lists every capability the running app offers, grouped
-by category, each with its own summary — the React ones are the `react` group. That list is
+by category, each with its own summary - the React ones are the `react` group. That list is
 generated from the running registry, so it is never stale, and it is the only place to look. Do not
 work from memory, and do not work from a list written in a file.
 
@@ -29,9 +29,9 @@ element with a CSS `selector`, a `ref` from the latest snapshot, or a React comp
 - **"What is it holding right now?"**: read the live values before reasoning about behaviour. They
   are best-effort and serialized; partial hooks with no React DevTools hook installed are normal,
   not an error.
-- **"What is the structure here?"** — walk the tree under an element, or find every mounted instance
+- **"What is the structure here?"** - walk the tree under an element, or find every mounted instance
   of a component when the user names one but you have no element yet.
-- **"Is my hypothesis right?"** — patch a live value and watch the page, or record re-renders and
+- **"Is my hypothesis right?"** - patch a live value and watch the page, or record re-renders and
   report what changed. Both are ephemeral: verify, then edit the real source.
 
 ## Typical flow
