@@ -175,6 +175,29 @@ describe('binding provenance', () => {
     expect(addConcivRequire(source)).toEqual({matched: false, output: null})
   })
 
+  it('refuses a require nested in a function as provenance for a top-level conciv.default() call', () => {
+    const source = fixture('webpack.config.cjs-nested-require.js')
+    expect(webpackRequireWired(source)).toBe(false)
+    expect(addConcivRequire(source)).toEqual({matched: false, output: null})
+  })
+
+  it('refuses require-call provenance in a CJS config that rebinds require itself', () => {
+    const source = fixture('webpack.config.cjs-shadowed-require.js')
+    expect(webpackRequireWired(source)).toBe(false)
+    expect(addConcivRequire(source)).toEqual({matched: false, output: null})
+  })
+
+  it('still wires a CJS config that only reads require.resolve', () => {
+    const source = fixture('webpack.config.cjs-require-resolve.js')
+    expect(webpackRequireWired(source)).toBe(false)
+    const result = addConcivRequire(source)
+    expect(result.matched).toBe(true)
+    if (result.output === null) throw new Error('matched transform must carry output')
+    expect(result.output).toContain("const conciv = require('@conciv/it/plugin/webpack')")
+    expect(result.output).toContain('plugins: [conciv.default()]')
+    expect(webpackRequireWired(result.output)).toBe(true)
+  })
+
   it('refuses a next config that imports something else from the plugin module', () => {
     const source = fixture('next.config.foreign-import.ts')
     expect(defaultExportWrapped(source, 'withConciv', '@conciv/it/plugin/nextjs')).toBe(false)

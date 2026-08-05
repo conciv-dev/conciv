@@ -71,8 +71,47 @@ function requiredModuleOf(declarator: SgNode): string | null {
   return argument.text().slice(1, -1)
 }
 
+const declarationKinds: ReadonlySet<string | number> = new Set(['lexical_declaration', 'variable_declaration'])
+
+function isTopLevel(declarator: SgNode): boolean {
+  const declaration = declarator.parent()
+  if (declaration === null || !declarationKinds.has(declaration.kind())) return false
+  const enclosing = declaration.parent()
+  if (enclosing === null) return false
+  if (enclosing.kind() === 'program') return true
+  return enclosing.kind() === 'export_statement' && enclosing.parent()?.kind() === 'program'
+}
+
+function bindsIdentifier(node: SgNode, name: string): boolean {
+  return node.findAll({rule: {kind: 'identifier'}}).some((identifier) => identifier.text() === name)
+}
+
+function declaresName(root: SgNode, name: string): boolean {
+  const declarators = root.findAll({rule: {kind: 'variable_declarator'}})
+  if (declarators.some((declarator) => declarator.field('name')?.text() === name)) return true
+  return root.findAll({rule: {kind: 'function_declaration'}}).some((fn) => fn.field('name')?.text() === name)
+}
+
+function parameterBindsName(root: SgNode, name: string): boolean {
+  const parameterLists = root.findAll({rule: {kind: 'formal_parameters'}})
+  if (parameterLists.some((parameters) => bindsIdentifier(parameters, name))) return true
+  return root.findAll({rule: {kind: 'arrow_function'}}).some((arrow) => arrow.field('parameter')?.text() === name)
+}
+
+function importBindsName(root: SgNode, name: string): boolean {
+  return importStatements(root).some((statement) => {
+    const clause = importClauseOf(statement)
+    return clause !== null && bindsIdentifier(clause, name)
+  })
+}
+
+function requireIsShadowed(root: SgNode): boolean {
+  return declaresName(root, 'require') || parameterBindsName(root, 'require') || importBindsName(root, 'require')
+}
+
 function bindsRequireAs(root: SgNode, requireFrom: string, name: string): boolean {
   return root.findAll({rule: {kind: 'variable_declarator'}}).some((declarator) => {
+    if (!isTopLevel(declarator)) return false
     if (requiredModuleOf(declarator) !== requireFrom) return false
     const target = declarator.field('name')
     return target !== null && target.kind() === 'identifier' && target.text() === name
@@ -95,6 +134,7 @@ function usesIdentifier(root: SgNode, name: string): boolean {
 }
 
 function bindingState(root: SgNode, moduleFrom: string, name: string, style: BindingStyle): BindingState {
+  if (style === 'require' && requireIsShadowed(root)) return 'conflict'
   if (boundToModule(root, moduleFrom, name, style)) return 'bound'
   if (referencesModule(root, moduleFrom, style)) return 'conflict'
   if (usesIdentifier(root, name)) return 'conflict'
