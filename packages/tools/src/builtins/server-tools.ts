@@ -3,7 +3,7 @@ import {defineTool, toolError} from '@conciv/extension'
 import {BundlerConfigSchema, ModuleNodeSchema, type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {OkResult, type BuiltinCategory} from './shared.js'
 
-export type ServerToolContext = {bundler: () => BundlerBridge | null}
+export type ServerToolContext = {bundler: () => BundlerBridge | undefined}
 
 export type OpenToolContext = {openInEditor: (file: string, line?: number) => void}
 

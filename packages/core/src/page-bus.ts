@@ -1,10 +1,5 @@
-import {
-  isMutating,
-  pageFailure,
-  type PageOutcome,
-  type PageQuery,
-  type PageQueryInput,
-} from '@conciv/protocol/page-types'
+import {pageFailure, type PageOutcome, type PageQuery, type PageQueryInput} from '@conciv/protocol/page-types'
+import {pageVerbMutates} from '@conciv/tools/builtins'
 import {symbolicateFrames, type RawFrame} from './editor/symbolicate.js'
 
 export type ChangeEntry = {
@@ -75,6 +70,7 @@ function makePending<T>(): Pending<T> {
 
 export type PageBus = {
   ask: (query: Omit<PageQuery, 'requestId'>) => Promise<Record<string, unknown>>
+  connected: () => boolean
   resolve: (requestId: string, outcome: PageOutcome) => boolean
   subscribe: (emit: (frame: unknown) => void) => () => void
 }
@@ -104,7 +100,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     return outcome.result
   }
 
-  return {ask, resolve: pending.resolve, subscribe}
+  return {ask, connected: () => subscribers.size > 0, resolve: pending.resolve, subscribe}
 }
 
 function frameRequestId(frame: unknown): string | null {
@@ -156,7 +152,7 @@ export async function runVerb(
   verb: PageQuery['kind'],
 ): Promise<Record<string, unknown>> {
   const data = await env.bus.ask({kind: verb, ...input})
-  if (isMutating(verb)) {
+  if (pageVerbMutates(verb)) {
     env.journal.append({verb, ref: input.ref, selector: input.selector, args: pageArgs(input)}, Date.now())
   }
   if (verb === 'locate' && !data.source && Array.isArray(data.frames)) {

@@ -5,7 +5,6 @@ import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import {isPageFailure} from '@conciv/protocol/page-types'
 import {
   type AnyExtension,
   type AttachmentDocumentPart,
@@ -18,7 +17,6 @@ import {
   type ServerSessions,
   type ToolRequest,
   pageVerbError,
-  toolError,
 } from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
@@ -43,11 +41,12 @@ import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} fr
 import {modelOf, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
-import {makePageBus} from './page-bus.js'
+import {makePageBus, runVerb, type PageEnv} from './page-bus.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {extensionRpcMiddleware, rpcMiddleware} from './api/rpc/mount.js'
 import {makeJournal} from './page-bus.js'
+import {callPageTool, makeBuiltinRegistry, toolFailureFromPage} from './tool-registry.js'
 import {logError} from './lib/debug.js'
 import type {OpenInEditor} from './editor/open.js'
 
@@ -101,16 +100,6 @@ function narrowExtensionApp(name: string, app: unknown): Hono | null {
 }
 
 type CallPageVerb = (extension: string, verb: string, argsJson: string) => Promise<unknown>
-
-function pageCallFailure(extension: string, verb: string, error: unknown): Error {
-  if (!isPageFailure(error)) {
-    const message = error instanceof Error ? error.message : String(error)
-    return pageVerbError('handler-error', extension, verb, message)
-  }
-  const raised = error.error.raised
-  if (raised) return toolError(raised.code, {message: raised.message, data: raised.data})
-  return pageVerbError(error.error.code, extension, verb, error.error.message)
-}
 
 function scopedPageCaller(extension: string, callPageVerb: CallPageVerb): PageCaller<PageVerbMap> {
   return {
@@ -226,9 +215,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const pageBus = makePageBus()
 
+  const pageEnv: PageEnv = {journal: makeJournal(), root: opts.cwd, bus: pageBus}
+
+  const registry = makeBuiltinRegistry({
+    page: pageEnv,
+    bundler: () => opts.bridge,
+    openInEditor: opts.openInEditor,
+  })
+
   const callPageVerb: CallPageVerb = async (extension, verb, argsJson) => {
-    const reply = await pageBus.ask({kind: 'ext', extension, verb, argsJson}).catch((error: unknown) => {
-      throw pageCallFailure(extension, verb, error)
+    const reply = await runVerb(pageEnv, {extension, verb, argsJson}, 'ext').catch((error: unknown) => {
+      throw toolFailureFromPage(extension, verb, error)
     })
     return reply.result
   }
@@ -323,7 +320,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
     askUi: () => askUi(asks, sessionId),
-    page: (query) => pageBus.ask(query),
+    page: (query) => callPageTool(registry, pageEnv, query),
     open: (file, line) => opts.openInEditor(file, line),
   })
   const sessionModel = (sessionId: string): string | null => modelOf(db, sessionId)
@@ -382,17 +379,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const send = makeSend(chatDeps)
 
-  const pageEnv = {journal: makeJournal(), root: opts.cwd, bus: pageBus}
-
   const rpc = makeRpcRouter({
     chat: chatDeps,
     tools: toolList,
     compactor,
     send,
-    openInEditor: opts.openInEditor,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     page: pageEnv,
-    bundler: () => opts.bridge,
+    registry,
   })
 
   const app = composeRoutes(

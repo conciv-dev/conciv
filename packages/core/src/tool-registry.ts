@@ -1,0 +1,59 @@
+import {isPageFailure, PageQueryInputSchema, PageQueryKindSchema, type PageQuery} from '@conciv/protocol/page-types'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import {pageVerbError, toolError} from '@conciv/extension'
+import {createToolRegistry, type ToolRegistry} from '@conciv/extension/registry'
+import {
+  BUILTIN_OPEN_TOOL,
+  BUILTIN_PAGE_TOOLS,
+  BUILTIN_SERVER_TOOLS,
+  PAGE_TOOL_PREFIX,
+  pageVerbOfTool,
+} from '@conciv/tools/builtins'
+import {runVerb, type PageEnv} from './page-bus.js'
+
+export type BuiltinRegistryDeps = {
+  page: PageEnv
+  bundler: () => BundlerBridge | undefined
+  openInEditor: (file: string, line?: number) => void
+}
+
+export function makeBuiltinRegistry(deps: BuiltinRegistryDeps): ToolRegistry {
+  const registry = createToolRegistry({
+    pageCaller: (name, input) => runPageTool(deps.page, name, input),
+    isPageConnected: () => deps.page.bus.connected(),
+  })
+  for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool)
+  for (const tool of BUILTIN_SERVER_TOOLS) registry.register(tool, {context: {bundler: deps.bundler}})
+  registry.register(BUILTIN_OPEN_TOOL, {context: {openInEditor: deps.openInEditor}})
+  return registry
+}
+
+async function runPageTool(env: PageEnv, name: string, input: unknown): Promise<unknown> {
+  const verb = PageQueryKindSchema.parse(pageVerbOfTool(name))
+  try {
+    return await runVerb(env, PageQueryInputSchema.parse(input ?? {}), verb)
+  } catch (error) {
+    throw toolFailureFromPage('page', verb, error)
+  }
+}
+
+export function toolFailureFromPage(extension: string, verb: string, error: unknown): Error {
+  if (!isPageFailure(error)) {
+    const message = error instanceof Error ? error.message : String(error)
+    return pageVerbError('handler-error', extension, verb, message)
+  }
+  const raised = error.error.raised
+  if (raised) return toolError(raised.code, {message: raised.message, data: raised.data})
+  return pageVerbError(error.error.code, extension, verb, error.error.message)
+}
+
+export function callPageTool(
+  registry: ToolRegistry,
+  env: PageEnv,
+  query: Omit<PageQuery, 'requestId'>,
+): Promise<unknown> {
+  const {kind, ...input} = query
+  const name = `${PAGE_TOOL_PREFIX}${kind}`
+  if (registry.has(name)) return registry.call(name, input)
+  return runVerb(env, input, kind)
+}

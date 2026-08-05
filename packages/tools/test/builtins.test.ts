@@ -18,15 +18,15 @@ function errorCode(error: unknown): string {
   return String(error.code)
 }
 
-function registryWith(bridge: BundlerBridge | null, opened: string[] = []) {
+function registryWith(bundler: BundlerBridge | undefined, opened: string[] = []) {
   const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
   for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool)
-  for (const tool of BUILTIN_SERVER_TOOLS) registry.register(tool, {context: {bundler: () => bridge}})
+  for (const tool of BUILTIN_SERVER_TOOLS) registry.register(tool, {context: {bundler: () => bundler}})
   registry.register(BUILTIN_OPEN_TOOL, {context: {openInEditor: (file: string) => opened.push(file)}})
   return registry
 }
 
-function fakeBridge(): BundlerBridge {
+function fakeBundler(): BundlerBridge {
   return {
     id: 'fake',
     config: () => ({root: '/app', base: '/', mode: 'development', aliases: [], plugins: ['conciv']}),
@@ -44,11 +44,11 @@ describe('built-in tool declarations', () => {
     const verbs = BUILTIN_PAGE_TOOLS.map((tool) => pageVerbOfTool(tool.name))
     const expected = PAGE_QUERY_KINDS.filter((kind) => kind !== 'ext')
     expect(verbs.toSorted()).toEqual(expected.toSorted())
-    expect(() => registryWith(fakeBridge())).not.toThrow()
+    expect(() => registryWith(fakeBundler())).not.toThrow()
   })
 
   it('lists every built-in in the catalog with its binding kind', () => {
-    const catalog = registryWith(fakeBridge()).catalog.list()
+    const catalog = registryWith(fakeBundler()).catalog.list()
     expect(catalog.map((entry) => entry.name).toSorted()).toEqual(builtinToolNames().toSorted())
     const bindings = new Map(catalog.map((entry) => [entry.name, entry.binding]))
     expect(bindings.get('page.fill')).toBe('client')
@@ -124,7 +124,7 @@ describe('built-in tool declarations', () => {
 
   it('runs a server tool and the open tool end to end through the registry', async () => {
     const opened: string[] = []
-    const registry = registryWith(fakeBridge(), opened)
+    const registry = registryWith(fakeBundler(), opened)
     await expect(registry.call('server.urls', {})).resolves.toEqual({
       local: ['http://localhost:5173/'],
       network: [],
@@ -155,7 +155,7 @@ describe('built-in tool declarations', () => {
   })
 
   it('raises its declared NO_BUNDLER error when no dev server is attached', async () => {
-    const registry = registryWith(null)
+    const registry = registryWith(undefined)
     const failure = await registry.call('server.config', {}).then(
       () => null,
       (error: unknown) => error,
