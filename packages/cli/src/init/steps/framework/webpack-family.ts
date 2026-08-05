@@ -3,7 +3,7 @@ import type {ManualCard} from '../../ledger.js'
 import type {InitStep} from '../../pipeline.js'
 import {readConfig, writeConfigChange} from './config-edit.js'
 import type {Transform} from './engine.js'
-import {addToPluginsArray, addToPluginsArrayRequire, pluginCallWired} from './engine.js'
+import {addToPluginsArray, addToPluginsArrayRequire, moduleStyle, pluginCallWired} from './engine.js'
 
 type FamilyName = 'webpack' | 'rspack'
 
@@ -37,27 +37,25 @@ The live page bridge is Vite only. Chat, tests, and approvals work once the engi
   }
 }
 
-function isCommonJs(content: string): boolean {
-  return content.includes('module.exports')
-}
-
-function pluginCall(content: string): string {
-  if (isCommonJs(content)) return 'conciv.default()'
+function pluginCall(style: 'cjs' | 'esm'): string {
+  if (style === 'cjs') return 'conciv.default()'
   return 'conciv()'
 }
 
 function transformConfig(content: string, name: FamilyName): Transform {
-  if (isCommonJs(content)) {
-    return addToPluginsArrayRequire(content, 'conciv', pluginModule(name), pluginCall(content))
-  }
-  return addToPluginsArray(content, 'conciv', pluginModule(name), pluginCall(content), {importStyle: 'default'})
+  const style = moduleStyle(content)
+  if (style === 'ambiguous') return {matched: false, output: null}
+  if (style === 'cjs') return addToPluginsArrayRequire(content, 'conciv', pluginModule(name), pluginCall(style))
+  return addToPluginsArray(content, 'conciv', pluginModule(name), pluginCall(style), {importStyle: 'default'})
 }
 
 function detectWired(cwd: string, configFile: string | null, name: FamilyName): 'missing' | 'present' {
   const config = readConfig(cwd, configFile)
   if (config === null) return 'missing'
-  const importStyle = isCommonJs(config.content) ? 'require' : 'default'
-  if (pluginCallWired(config.content, pluginModule(name), pluginCall(config.content), {importStyle})) return 'present'
+  const style = moduleStyle(config.content)
+  if (style === 'ambiguous') return 'missing'
+  const importStyle = style === 'cjs' ? 'require' : 'default'
+  if (pluginCallWired(config.content, pluginModule(name), pluginCall(style), {importStyle})) return 'present'
   return 'missing'
 }
 

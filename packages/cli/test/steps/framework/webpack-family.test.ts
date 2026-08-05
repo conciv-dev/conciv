@@ -22,6 +22,14 @@ function project(framework: Framework, configFile: string | null, fixtureName: s
   return {cwd, detected, ...stepContext(cwd)}
 }
 
+async function unwiredCardTitles(detected: Detected, ctx: Project['ctx']): Promise<string[]> {
+  const step = webpackFamilyStep(detected)
+  expect(await step.detect(ctx)).toBe('missing')
+  const outcome = await step.apply(ctx)
+  if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
+  return outcome.cards.map((card) => card.title)
+}
+
 const untrustedConfigs = [
   {
     reason: 'destructures something else out of the plugin require',
@@ -69,6 +77,27 @@ describe('webpackFamilyStep', () => {
     expect(written).toContain('plugins: [new TerserPlugin(), conciv()],')
   })
 
+  it('treats an ESM config that only mentions module.exports in a string as ESM', async () => {
+    const {cwd, detected, ctx} = project(
+      'webpack',
+      'webpack.config.js',
+      'webpack.config.esm-mentions-module-exports.js',
+    )
+    expect(await unwiredCardTitles(detected, ctx)).toEqual(['Inject the widget'])
+    const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
+    expect(written).toContain("import conciv from '@conciv/it/plugin/webpack'")
+    expect(written).toContain('conciv()')
+    expect(written).not.toContain('require(')
+    expect(await webpackFamilyStep(detected).detect(ctx)).toBe('present')
+  })
+
+  it('cards a config that mixes both module styles instead of guessing one', async () => {
+    const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.ambiguous-both-styles.js')
+    const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
+    expect(await unwiredCardTitles(detected, ctx)).toEqual(['Wire the conciv webpack plugin', 'Inject the widget'])
+    expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
+  })
+
   it('picks the rspack module path for rspack projects', async () => {
     const {cwd, detected, ctx} = project('rspack', 'rspack.config.js', 'rspack.config.esm.js')
     const outcome = await webpackFamilyStep(detected).apply(ctx)
@@ -94,11 +123,7 @@ describe('webpackFamilyStep', () => {
     it(`cards a CJS config that ${reason} and leaves the file byte-identical`, async () => {
       const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', fixtureName)
       const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
-      const step = webpackFamilyStep(detected)
-      expect(await step.detect(ctx)).toBe('missing')
-      const outcome = await step.apply(ctx)
-      if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
-      expect(outcome.cards.map((card) => card.title)).toEqual(['Wire the conciv webpack plugin', 'Inject the widget'])
+      expect(await unwiredCardTitles(detected, ctx)).toEqual(['Wire the conciv webpack plugin', 'Inject the widget'])
       expect(readFileSync(join(cwd, 'webpack.config.js'), 'utf8')).toBe(before)
     })
   }

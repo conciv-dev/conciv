@@ -169,10 +169,37 @@ function defaultExportExpression(root: SgNode): SgNode | null {
   return statement.children().find((child) => child.isNamed()) ?? null
 }
 
-function moduleExportsExpression(root: SgNode): SgNode | null {
-  const assignments = root
+function assignmentsTo(root: SgNode, matches: (target: string) => boolean): SgNode[] {
+  return root
     .findAll({rule: {kind: 'assignment_expression'}})
-    .filter((assignment) => assignment.field('left')?.text() === 'module.exports')
+    .filter((assignment) => matches(assignment.field('left')?.text() ?? ''))
+}
+
+function isModuleExports(target: string): boolean {
+  return target === 'module.exports'
+}
+
+function isModuleExportsMember(target: string): boolean {
+  return isModuleExports(target) || target.startsWith('module.exports.')
+}
+
+function topLevelModuleStatements(root: SgNode): SgNode[] {
+  return root.children().filter((child) => child.kind() === 'import_statement' || child.kind() === 'export_statement')
+}
+
+export type ModuleStyle = 'cjs' | 'esm' | 'ambiguous'
+
+export function moduleStyle(source: string): ModuleStyle {
+  const root = parse(Lang.TypeScript, source).root()
+  const esm = topLevelModuleStatements(root).length > 0
+  const commonJs = assignmentsTo(root, isModuleExportsMember).length > 0
+  if (esm === commonJs) return 'ambiguous'
+  if (commonJs) return 'cjs'
+  return 'esm'
+}
+
+function moduleExportsExpression(root: SgNode): SgNode | null {
+  const assignments = assignmentsTo(root, isModuleExports)
   const assignment = assignments[0]
   if (!assignment || assignments.length > 1) return null
   return assignment.field('right')
