@@ -1,9 +1,10 @@
-import {ok, err, type PageQuery, type PageQueryKind, type PageResult} from '@conciv/protocol/page-types'
+import {ok, pageFailure, type PageQuery, type PageQueryKind, type PageResult} from '@conciv/protocol/page-types'
 import {buildSnapshot, describeElement, DOM_CAP, type Refs} from './page-snapshot.js'
 import {dehydrate, navigatePath} from './dehydrate.js'
 import * as react from './react-bridge.js'
 import {startTracking, stopTracking, report as trackReport} from './render-tracker.js'
 import {dispatchExtVerb} from './page-verb-registry.js'
+import {badArgs, fail} from './page-failure.js'
 
 export type ConsoleEntry = {level: string; ts: number; text: string}
 
@@ -69,12 +70,14 @@ function serialize(value: unknown): unknown {
 
 function waitFor(selector: string, state: 'visible' | 'hidden', timeout: number): Promise<PageResult> {
   const deadline = Date.now() + timeout
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const tick = (): void => {
       const el = document.querySelector(selector)
       const visible = el instanceof HTMLElement && el.offsetParent !== null
       if (state === 'visible' ? visible : !visible) return resolve(ok({state}))
-      if (Date.now() > deadline) return resolve(err(`wait timed out for ${selector} (${state})`))
+      if (Date.now() > deadline) {
+        return reject(pageFailure('handler-error', `wait timed out for ${selector} (${state})`))
+      }
       setTimeout(tick, 100)
     }
     tick()
@@ -96,16 +99,15 @@ function isField(el: Element): el is HTMLInputElement | HTMLSelectElement | HTML
 }
 
 function toggleChecked(el: Element, desired: boolean, verb: 'check' | 'uncheck'): PageResult {
-  if (!(el instanceof HTMLInputElement)) return err(`${verb} target is not an input`)
+  if (!(el instanceof HTMLInputElement)) badArgs(`${verb} target is not an input`)
   if (el.checked === desired) return ok({checked: desired})
-  if (el.type === 'radio' && !desired)
-    return err('cannot uncheck a radio; check another radio in the same group instead')
+  if (el.type === 'radio' && !desired) badArgs('cannot uncheck a radio; check another radio in the same group instead')
   el.click()
   return ok({checked: el.checked})
 }
 
 function onEl(fn: (el: Element, query: PageQuery) => PageResult): PageHandler {
-  return ({el, query}) => (el ? fn(el, query) : err('no target element'))
+  return ({el, query}) => (el ? fn(el, query) : badArgs('no target element'))
 }
 const INSERT_POS: Record<string, InsertPosition> = {
   before: 'beforebegin',
@@ -169,16 +171,16 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
 
   locate: async ({el, refs}: PageContext) => {
     const result = el ? await react.locate(el, refs) : null
-    return result ?? err('no React fiber: element may be outside a React tree or not hydrated yet')
+    return result ?? fail('no React fiber: element may be outside a React tree or not hydrated yet')
   },
   inspect: async ({el, query}: PageContext) => {
     const result = el ? await react.inspect(el) : null
-    if (!result) return err('no React fiber for element')
+    if (!result) fail('no React fiber for element')
     const root = {props: result.props, state: result.state, hooks: result.hooks}
 
     if (query.path) {
       const hit = navigatePath(root, query.path)
-      if (!hit.found) return err(`path not found: ${query.path}`)
+      if (!hit.found) badArgs(`path not found: ${query.path}`)
       return {component: result.component, path: query.path, value: dehydrate(hit.value)}
     }
     return {
@@ -190,25 +192,25 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     }
   },
   override: async ({el, query}: PageContext) => {
-    if (!el) return err('no target element')
-    if (!query.target) return err('override requires --target (props|state|hooks|context)')
+    if (!el) badArgs('no target element')
+    if (!query.target) badArgs('override requires --target (props|state|hooks|context)')
     let value: unknown
     try {
       value = query.json === undefined ? undefined : JSON.parse(query.json)
     } catch {
-      return err(`--json is not valid JSON: ${query.json}`)
+      badArgs(`--json is not valid JSON: ${query.json}`)
     }
     const path = query.path ? query.path.split('.') : []
     const result = await react.override(el, query.target, path, value, query.hookId)
-    if ('error' in result) return err(result.error)
+    if ('error' in result) fail(result.error)
     return ok({target: query.target, path: query.path ?? '', value})
   },
   tree: async ({query, refs}: PageContext) => {
     const root = query.selector ? document.querySelector(query.selector) : document.body
-    return root ? await react.tree(root, refs) : err('no root element')
+    return root ? await react.tree(root, refs) : badArgs('no root element')
   },
   find: ({query, refs}: PageContext) =>
-    query.name ? react.find(query.name, refs) : err('find requires a component name (--name)'),
+    query.name ? react.find(query.name, refs) : badArgs('find requires a component name (--name)'),
 
   track: ({query}: PageContext) => {
     const action = query.action ?? 'report'
@@ -220,19 +222,19 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     return trackReport({name: query.name})
   },
 
-  effect: () => err('effects not initialized'),
+  effect: () => fail('effects not initialized'),
   ext: ({query}) => dispatchExtVerb(query.extension ?? '', query.verb ?? '', query.argsJson),
   wait: ({query}) =>
     query.selector
       ? waitFor(query.selector, query.state ?? 'visible', query.timeout ?? 5000)
-      : err('wait requires a selector'),
+      : badArgs('wait requires a selector'),
 
   text: onEl((el) => ({text: (el.textContent ?? '').slice(0, DOM_CAP)})),
   value: onEl((el) => ({value: isField(el) ? el.value : null})),
   attr: onEl((el, query) => ({value: el.getAttribute(query.name ?? '')})),
 
   click: onEl((el) => {
-    if (!(el instanceof HTMLElement)) return err('click target is not an HTMLElement')
+    if (!(el instanceof HTMLElement)) badArgs('click target is not an HTMLElement')
     el.click()
     return ok()
   }),
@@ -247,18 +249,18 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
   }),
   submit: onEl((el) => {
     const form = el instanceof HTMLFormElement ? el : el.closest('form')
-    if (!form) return err('no form to submit')
+    if (!form) badArgs('no form to submit')
     form.requestSubmit()
     return ok()
   }),
   fill: onEl((el, query) => {
-    if (!isField(el)) return err('fill target is not an input/textarea/select')
+    if (!isField(el)) badArgs('fill target is not an input/textarea/select')
     setNative(el, 'value', query.value ?? '')
     fireInput(el)
     return ok({value: el.value})
   }),
   select: onEl((el, query) => {
-    if (!(el instanceof HTMLSelectElement)) return err('select target is not a <select>')
+    if (!(el instanceof HTMLSelectElement)) badArgs('select target is not a <select>')
     setNative(el, 'value', query.value ?? '')
     fireInput(el)
     return ok({value: el.value})
@@ -273,38 +275,38 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
   }),
 
   setattr: onEl((el, query) => {
-    if (!query.name) return err('setattr needs name (and value)')
+    if (!query.name) badArgs('setattr needs name (and value)')
     el.setAttribute(query.name, query.value ?? '')
     return ok()
   }),
   removeattr: onEl((el, query) => {
-    if (!query.name) return err('removeattr needs name')
+    if (!query.name) badArgs('removeattr needs name')
     el.removeAttribute(query.name)
     return ok()
   }),
   addclass: onEl((el, query) => {
-    if (!query.class) return err('addclass needs class')
+    if (!query.class) badArgs('addclass needs class')
     el.classList.add(query.class)
     return ok()
   }),
   removeclass: onEl((el, query) => {
-    if (!query.class) return err('removeclass needs class')
+    if (!query.class) badArgs('removeclass needs class')
     el.classList.remove(query.class)
     return ok()
   }),
   setstyle: onEl((el, query) => {
-    if (!(el instanceof HTMLElement)) return err('setstyle target is not an HTMLElement')
-    if (!query.prop || query.value === undefined) return err('setstyle needs prop and value')
+    if (!(el instanceof HTMLElement)) badArgs('setstyle target is not an HTMLElement')
+    if (!query.prop || query.value === undefined) badArgs('setstyle needs prop and value')
     el.style.setProperty(query.prop, query.value)
     return ok()
   }),
   settext: onEl((el, query) => {
-    if (query.text === undefined) return err('settext needs text')
+    if (query.text === undefined) badArgs('settext needs text')
     el.textContent = query.text
     return ok()
   }),
   sethtml: onEl((el, query) => {
-    if (query.html === undefined) return err('sethtml needs html')
+    if (query.html === undefined) badArgs('sethtml needs html')
     el.innerHTML = query.html
     return ok()
   }),
@@ -313,13 +315,13 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     return ok()
   }),
   insert: onEl((el, query) => {
-    if (!query.html) return err('insert needs html')
+    if (!query.html) badArgs('insert needs html')
     el.insertAdjacentHTML(INSERT_POS[query.position ?? 'append'] ?? 'beforeend', query.html)
     return ok()
   }),
 
   css: ({query}) => {
-    if (!query.text) return err('css needs text (a stylesheet string)')
+    if (!query.text) badArgs('css needs text (a stylesheet string)')
     const style = document.createElement('style')
     style.setAttribute('data-vibe-css', '')
     style.textContent = query.text

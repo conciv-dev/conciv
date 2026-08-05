@@ -128,7 +128,40 @@ export type PageQuery = z.infer<typeof PageQuerySchema>
 export const PageQueryInputSchema = PageQuerySchema.omit({kind: true, requestId: true})
 export type PageQueryInput = z.infer<typeof PageQueryInputSchema>
 
-export const PageReplySchema = z.object({requestId: z.string(), data: z.record(z.string(), z.unknown()).default({})})
+export const PAGE_ERROR_CODES = ['no-widget', 'unknown-verb', 'invalid-args', 'handler-error', 'timeout'] as const
+export type PageErrorCode = (typeof PAGE_ERROR_CODES)[number]
+const PageRaisedErrorSchema = z.object({
+  code: z.string().min(1),
+  message: z.string(),
+  data: z.unknown().optional(),
+})
+export type PageRaisedError = z.infer<typeof PageRaisedErrorSchema>
+
+const PageErrorSchema = z.object({
+  code: z.enum(PAGE_ERROR_CODES),
+  message: z.string(),
+  raised: PageRaisedErrorSchema.optional(),
+})
+export type PageError = z.infer<typeof PageErrorSchema>
+
+const PageOutcomeSchema = z.discriminatedUnion('ok', [
+  z.object({ok: z.literal(true), result: z.record(z.string(), z.unknown()).default({})}),
+  z.object({ok: z.literal(false), error: PageErrorSchema}),
+])
+export type PageOutcome = z.infer<typeof PageOutcomeSchema>
+
+export type PageFailure = Error & {readonly isPageFailure: true; error: PageError}
+
+export function pageFailure(code: PageErrorCode, message: string, raised?: PageRaisedError): PageFailure {
+  const error: PageError = raised === undefined ? {code, message} : {code, message, raised}
+  return Object.assign(new Error(message), {isPageFailure: true as const, error})
+}
+
+export function isPageFailure(value: unknown): value is PageFailure {
+  return value instanceof Error && 'isPageFailure' in value && value.isPageFailure === true
+}
+
+export const PageReplySchema = z.object({requestId: z.string(), outcome: PageOutcomeSchema})
 export type PageReply = z.infer<typeof PageReplySchema>
 
 export const PageRunInputSchema = PageQueryInputSchema.extend({verb: PageQueryKindSchema})
@@ -150,12 +183,6 @@ export type PageResult = Record<string, unknown>
 
 export function ok(data: Record<string, unknown> = {}): PageResult {
   return {ok: true, ...data}
-}
-export function err(message: string): PageResult {
-  return {error: message}
-}
-export function isError(result: PageResult): boolean {
-  return typeof result.error === 'string'
 }
 
 const MUTATING = new Set<string>(MUTATING_KINDS)

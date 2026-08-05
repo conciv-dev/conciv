@@ -1,5 +1,5 @@
 import {asc, eq, lt} from 'drizzle-orm'
-import {HTTPException} from 'hono/http-exception'
+import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {resolveHarnessModels} from '@conciv/harness'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {drafts, markers, navigation} from '@conciv/db'
@@ -12,13 +12,21 @@ import {os, type RpcDeps} from './mount.js'
 
 const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
 
-type PageErrors = {NO_PAGE_CLIENT: () => Error; PAGE_TIMEOUT: () => Error}
+type PageErrorName = 'NO_PAGE_CLIENT' | 'PAGE_TIMEOUT' | 'UNKNOWN_VERB' | 'INVALID_ARGS' | 'HANDLER_ERROR'
+type PageErrors = Record<PageErrorName, (options: {message: string}) => Error>
 type BundlerErrors = {NO_BUNDLER: () => Error}
 
+const PAGE_RUN_ERROR: Record<PageErrorCode, PageErrorName> = {
+  'no-widget': 'NO_PAGE_CLIENT',
+  timeout: 'PAGE_TIMEOUT',
+  'unknown-verb': 'UNKNOWN_VERB',
+  'invalid-args': 'INVALID_ARGS',
+  'handler-error': 'HANDLER_ERROR',
+}
+
 function pageError(error: unknown, errors: PageErrors): Error {
-  if (error instanceof HTTPException && error.status === 503) return errors.NO_PAGE_CLIENT()
-  if (error instanceof HTTPException && error.status === 504) return errors.PAGE_TIMEOUT()
-  return error instanceof Error ? error : new Error(String(error))
+  if (!isPageFailure(error)) return error instanceof Error ? error : new Error(String(error))
+  return errors[PAGE_RUN_ERROR[error.error.code]]({message: error.error.message})
 }
 
 function requireBridge(deps: RpcDeps, errors: BundlerErrors): BundlerBridge {
@@ -88,7 +96,7 @@ export function makeRpcRouter(deps: RpcDeps) {
         yield* pageQueryStream(deps.page.bus, signal ?? new AbortController().signal)
       }),
       reply: os.page.reply.handler(({input, errors}) => {
-        if (!deps.page.bus.resolve(input.requestId, input.data)) throw errors.UNKNOWN_REQUEST()
+        if (!deps.page.bus.resolve(input.requestId, input.outcome)) throw errors.UNKNOWN_REQUEST()
         return {ok: true as const}
       }),
     },

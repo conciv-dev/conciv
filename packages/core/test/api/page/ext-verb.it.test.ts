@@ -1,13 +1,16 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {tmpdir} from 'node:os'
 import {z} from 'zod'
+import type {PageError, PageErrorCode, PageOutcome} from '@conciv/protocol/page-types'
 import {
   defineExtension,
   definePageVerbs,
   isPageVerbError,
+  isToolError,
   pageVerb,
   type PageCaller,
   type PageVerbError,
+  type ToolError,
 } from '@conciv/extension'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
@@ -25,8 +28,7 @@ const SeenQuerySchema = z.object({
 })
 
 type SeenQuery = z.infer<typeof SeenQuerySchema>
-type WidgetReply = Record<string, unknown>
-type ReplyFor = (query: SeenQuery) => WidgetReply
+type ReplyFor = (query: SeenQuery) => PageOutcome
 
 function seenQuery(query: unknown): SeenQuery | null {
   const parsed = SeenQuerySchema.safeParse(query)
@@ -43,6 +45,16 @@ async function expectPageVerbError(call: Promise<unknown>): Promise<PageVerbErro
   return failure
 }
 
+async function expectToolError(call: Promise<unknown>): Promise<ToolError> {
+  const failure = await call.then(
+    () => null,
+    (error: unknown) => error,
+  )
+  expect(isToolError(failure)).toBe(true)
+  if (!isToolError(failure)) throw new Error('expected a ToolError')
+  return failure
+}
+
 async function connectWidget(kit: Kit, replyFor: ReplyFor): Promise<{seen: SeenQuery[]; end: () => void}> {
   const ctrl = new AbortController()
   const seen: SeenQuery[] = []
@@ -53,7 +65,7 @@ async function connectWidget(kit: Kit, replyFor: ReplyFor): Promise<{seen: SeenQ
         const shape = seenQuery(query)
         if (!shape) continue
         seen.push(shape)
-        void kit.rpc.page.reply({requestId, data: replyFor(shape)}).catch(() => {})
+        void kit.rpc.page.reply({requestId, outcome: replyFor(shape)}).catch(() => {})
       }
     } catch {}
   }
@@ -105,11 +117,11 @@ describe('server.page.call end to end (IT, real core app + real page bus + real 
   it('routes a server page-verb call through the bus to the widget and returns its result', async () => {
     const kit = await boot()
     const widget = await connectWidget(kit, (query) => {
-      if (query.kind !== 'ext') return {}
+      if (query.kind !== 'ext') return {ok: true, result: {}}
       const raw = query.argsJson ? JSON.parse(query.argsJson) : {}
       const parsed = pingVerbs.ping.args.safeParse(raw)
-      if (!parsed.success) return {error: {code: 'invalid-args', message: parsed.error.message}}
-      return {result: pingVerbs.ping.handler(parsed.data)}
+      if (!parsed.success) return {ok: false, error: {code: 'invalid-args', message: parsed.error.message}}
+      return {ok: true, result: {result: pingVerbs.ping.handler(parsed.data)}}
     })
     state.widget = widget
     if (!state.page) throw new Error('server page caller not captured')
@@ -135,28 +147,38 @@ describe('server.page.call end to end (IT, real core app + real page bus + real 
     expect(failure.verb).toBe('ping')
   })
 
-  it('maps a browser-reported error code straight through to a PageVerbError', async () => {
+  async function callAgainstFailure(error: PageError): Promise<PageVerbError> {
     const kit = await boot()
-    state.widget = await connectWidget(kit, () => ({error: {code: 'unknown-verb', message: 'nope'}}))
+    state.widget = await connectWidget(kit, () => ({ok: false, error}))
     if (!state.page) throw new Error('server page caller not captured')
-    const failure = await expectPageVerbError(state.page.call('ping', {n: 1}))
-    expect(failure.code).toBe('unknown-verb')
+    return expectPageVerbError(state.page.call('ping', {n: 1}))
+  }
+
+  const BROWSER_CODES: PageErrorCode[] = ['unknown-verb', 'invalid-args', 'handler-error', 'timeout', 'no-widget']
+
+  it.each(BROWSER_CODES)('carries the browser-reported code %s straight through to the caller', async (code) => {
+    const failure = await callAgainstFailure({code, message: `the page said ${code}`})
+    expect(failure.code).toBe(code)
+    expect(failure.message).toBe(`the page said ${code}`)
+    expect(failure.extension).toBe('pinger')
+    expect(failure.verb).toBe('ping')
   })
 
-  it('maps a browser-reported invalid-args code straight through to a PageVerbError', async () => {
+  it('carries the code a browser capability raised about its own work to the caller', async () => {
     const kit = await boot()
-    state.widget = await connectWidget(kit, () => ({error: {code: 'invalid-args', message: 'bad args'}}))
+    state.widget = await connectWidget(kit, () => ({
+      ok: false,
+      error: {
+        code: 'handler-error',
+        message: 'slow down',
+        raised: {code: 'RATE_LIMITED', message: 'slow down', data: {retryAfter: 30}},
+      },
+    }))
     if (!state.page) throw new Error('server page caller not captured')
-    const failure = await expectPageVerbError(state.page.call('ping', {n: 1}))
-    expect(failure.code).toBe('invalid-args')
-  })
-
-  it('maps an unrecognized browser error code to handler-error', async () => {
-    const kit = await boot()
-    state.widget = await connectWidget(kit, () => ({error: {code: 'weird-thing', message: 'boom'}}))
-    if (!state.page) throw new Error('server page caller not captured')
-    const failure = await expectPageVerbError(state.page.call('ping', {n: 1}))
-    expect(failure.code).toBe('handler-error')
+    const failure = await expectToolError(state.page.call('ping', {n: 1}))
+    expect(failure.code).toBe('RATE_LIMITED')
+    expect(failure.message).toBe('slow down')
+    expect(failure.data).toEqual({retryAfter: 30})
   })
 
   it('maps a connected-but-never-replying widget to a timeout PageVerbError (real bus timeout)', async () => {

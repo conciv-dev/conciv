@@ -1,8 +1,9 @@
 import {z} from 'zod'
+import type {PageErrorCode} from '@conciv/protocol/page-types'
 import {os, type AnyRouter, type ORPCErrorConstructorMap} from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
 import {isToolError, type ToolBinding, type ToolErrors, type ToolMeta} from './define-tool.js'
-import {isPageVerbError, type PageVerbErrorCode} from './page-verbs.js'
+import {isPageVerbError} from './page-verbs.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
 import {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
 import type {ToolRequest} from './types.js'
@@ -18,7 +19,7 @@ export const TOOL_TRANSPORT_ERRORS: ToolErrors = {
   INVALID_ARGS: {message: 'the page rejected the arguments'},
 }
 
-const PAGE_FAILURE_TO_TRANSPORT: Partial<Record<PageVerbErrorCode, string>> = {
+const PAGE_FAILURE_TO_TRANSPORT: Partial<Record<PageErrorCode, string>> = {
   'no-widget': 'NO_PAGE_CLIENT',
   timeout: 'PAGE_TIMEOUT',
   'unknown-verb': 'UNKNOWN_TOOL',

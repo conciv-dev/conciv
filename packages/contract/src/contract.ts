@@ -91,6 +91,9 @@ export const contract = {
       .errors({
         NO_PAGE_CLIENT: {message: 'no widget connected'},
         PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
+        UNKNOWN_VERB: {message: 'the page does not know this verb'},
+        INVALID_ARGS: {message: 'the page rejected the arguments'},
+        HANDLER_ERROR: {message: 'the page failed to run this verb'},
       })
       .input(PageRunInputSchema)
       .output(PageRunResultSchema),

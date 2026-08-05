@@ -21,7 +21,9 @@ describe('extension pageVerbs mount lifecycle', () => {
     expect(await dispatchExtVerb('counter', 'bump', '{}')).toEqual({result: {count: 2}})
 
     dispose()
-    expect(await dispatchExtVerb('counter', 'bump', '{}')).toMatchObject({error: {code: 'unknown-verb'}})
+    await expect(dispatchExtVerb('counter', 'bump', '{}')).rejects.toMatchObject({
+      error: {code: 'unknown-verb'},
+    })
   })
 
   it('unregisters the verbs even when the client dispose throws', async () => {
@@ -36,7 +38,9 @@ describe('extension pageVerbs mount lifecycle', () => {
 
     expect(await dispatchExtVerb('throwing', 'ping', '{}')).toEqual({result: {ok: true}})
     expect(() => dispose()).toThrow('client dispose blew up')
-    expect(await dispatchExtVerb('throwing', 'ping', '{}')).toMatchObject({error: {code: 'unknown-verb'}})
+    await expect(dispatchExtVerb('throwing', 'ping', '{}')).rejects.toMatchObject({
+      error: {code: 'unknown-verb'},
+    })
   })
 
   it('calls the client dispose even when no pageVerbs are present', async () => {
@@ -46,6 +50,8 @@ describe('extension pageVerbs mount lifecycle', () => {
     })
     dispose()
     expect(disposed).toBe(true)
-    expect(await dispatchExtVerb('bare', 'anything', '{}')).toMatchObject({error: {code: 'unknown-verb'}})
+    await expect(dispatchExtVerb('bare', 'anything', '{}')).rejects.toMatchObject({
+      error: {code: 'unknown-verb'},
+    })
   })
 })

@@ -1,3 +1,4 @@
+import type {PageError} from '@conciv/protocol/page-types'
 import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
 import {installReactBridge} from '../src/react-bridge.js'
 import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
@@ -13,9 +14,18 @@ const leaf = () => page.getByRole('button', {name: /^A:/})
 const counter = () => page.getByRole('status')
 const formState = () => page.getByText(/^subscribed:/)
 
-const resultOf = async (query: Parameters<PageDriver['execute']>[0]): Promise<Record<string, unknown>> => {
-  const result = await driver.execute(query)
-  return typeof result === 'object' && result !== null ? {...result} : {}
+type Query = Parameters<PageDriver['execute']>[0]
+
+const resultOf = async (query: Query): Promise<Record<string, unknown>> => {
+  const outcome = await driver.execute(query)
+  if (!outcome.ok) throw new Error(`expected a result for ${query.kind}, got ${outcome.error.code}`)
+  return {...outcome.result}
+}
+
+const failureOf = async (query: Query): Promise<PageError> => {
+  const outcome = await driver.execute(query)
+  if (outcome.ok) throw new Error(`expected a failure for ${query.kind}, got a result`)
+  return outcome.error
 }
 
 beforeAll(async () => {
@@ -25,6 +35,7 @@ beforeAll(async () => {
     <input id="field" type="text" />
     <form id="frm"><button id="inner" type="button">inner</button></form>
     <p id="prose">hello page</p>
+    <span id="failprobe">probe</span>
   `
   document.body.appendChild(container)
   const mount = document.createElement('div')
@@ -60,11 +71,52 @@ describe('target resolution', () => {
     expect(String(viaName.text)).toContain('A:')
   })
 
-  it('explains each way a target can be missing', async () => {
-    expect(await resultOf({kind: 'click', ref: 'v999'})).toEqual({error: 'stale ref v999; re-run page snapshot'})
-    expect(await resultOf({kind: 'click', name: 'Nope'})).toEqual({error: 'no React component named "Nope" found'})
-    expect(await resultOf({kind: 'click', selector: '#missing'})).toEqual({error: 'no element for selector #missing'})
-    expect(await resultOf({kind: 'click'})).toEqual({error: 'no target: pass --ref, --selector, or --name'})
+  it('explains each way a target can be missing, as an invalid-args failure', async () => {
+    expect(await failureOf({kind: 'click', ref: 'v999'})).toEqual({
+      code: 'invalid-args',
+      message: 'stale ref v999; re-run page snapshot',
+    })
+    expect(await failureOf({kind: 'click', name: 'Nope'})).toEqual({
+      code: 'invalid-args',
+      message: 'no React component named "Nope" found',
+    })
+    expect(await failureOf({kind: 'click', selector: '#missing'})).toEqual({
+      code: 'invalid-args',
+      message: 'no element for selector #missing',
+    })
+    expect(await failureOf({kind: 'click'})).toEqual({
+      code: 'invalid-args',
+      message: 'no target: pass --ref, --selector, or --name',
+    })
+  })
+})
+
+describe('failures are distinguishable from results', () => {
+  it('reports a handler that throws as handler-error carrying the thrown message', async () => {
+    const throwing = makeDomPageDriver({
+      handlers: {
+        text: () => {
+          throw new Error('kaboom')
+        },
+      },
+    })
+    const outcome = await throwing.execute({kind: 'text', selector: '#failprobe'})
+    expect(outcome).toEqual({ok: false, error: {code: 'handler-error', message: 'kaboom'}})
+    throwing.dispose()
+  })
+
+  it('reports an unregistered extension verb as unknown-verb', async () => {
+    expect(await failureOf({kind: 'ext', extension: 'nobody', verb: 'nothing'})).toEqual({
+      code: 'unknown-verb',
+      message: 'nobody.nothing is not registered',
+    })
+  })
+
+  it('wraps a successful handler result under ok, leaving the result untouched', async () => {
+    expect(await driver.execute({kind: 'text', selector: '#failprobe'})).toEqual({
+      ok: true,
+      result: {text: 'probe'},
+    })
   })
 })
 
@@ -78,8 +130,9 @@ describe('dom verbs', () => {
   it('fills form fields with native events', async () => {
     expect(await resultOf({kind: 'fill', selector: '#field', value: 'typed'})).toEqual({ok: true, value: 'typed'})
     expect(await resultOf({kind: 'value', selector: '#field'})).toEqual({value: 'typed'})
-    expect(await resultOf({kind: 'fill', selector: '#prose', value: 'x'})).toEqual({
-      error: 'fill target is not an input/textarea/select',
+    expect(await failureOf({kind: 'fill', selector: '#prose', value: 'x'})).toEqual({
+      code: 'invalid-args',
+      message: 'fill target is not an input/textarea/select',
     })
   })
 
@@ -96,8 +149,9 @@ describe('dom verbs', () => {
     expect(await resultOf({kind: 'check', selector: '#plan-pro'})).toEqual({ok: true, checked: true})
     await expect.element(formState()).toHaveTextContent('plan: pro')
 
-    expect(await resultOf({kind: 'uncheck', selector: '#plan-pro'})).toEqual({
-      error: 'cannot uncheck a radio; check another radio in the same group instead',
+    expect(await failureOf({kind: 'uncheck', selector: '#plan-pro'})).toEqual({
+      code: 'invalid-args',
+      message: 'cannot uncheck a radio; check another radio in the same group instead',
     })
     await expect.element(formState()).toHaveTextContent('plan: pro')
 
@@ -133,8 +187,9 @@ describe('dom verbs', () => {
       ok: true,
       state: 'visible',
     })
-    expect(await resultOf({kind: 'wait', selector: '#missing', state: 'visible', timeout: 150})).toEqual({
-      error: 'wait timed out for #missing (visible)',
+    expect(await failureOf({kind: 'wait', selector: '#missing', state: 'visible', timeout: 150})).toEqual({
+      code: 'handler-error',
+      message: 'wait timed out for #missing (visible)',
     })
   })
 
@@ -157,17 +212,20 @@ describe('react verbs through the driver', () => {
     expect(full.component).toBe('Leaf')
     const byPath = await resultOf({kind: 'inspect', name: 'Leaf', path: 'props.label'})
     expect(byPath.value).toBe('A')
-    expect(await resultOf({kind: 'inspect', name: 'Leaf', path: 'props.missing.deep'})).toEqual({
-      error: 'path not found: props.missing.deep',
+    expect(await failureOf({kind: 'inspect', name: 'Leaf', path: 'props.missing.deep'})).toEqual({
+      code: 'invalid-args',
+      message: 'path not found: props.missing.deep',
     })
   })
 
   it('overrides props and validates its inputs', async () => {
-    expect(await resultOf({kind: 'override', name: 'Counter'})).toEqual({
-      error: 'override requires --target (props|state|hooks|context)',
+    expect(await failureOf({kind: 'override', name: 'Counter'})).toEqual({
+      code: 'invalid-args',
+      message: 'override requires --target (props|state|hooks|context)',
     })
-    expect(await resultOf({kind: 'override', name: 'Counter', target: 'state', json: '{nope'})).toEqual({
-      error: '--json is not valid JSON: {nope',
+    expect(await failureOf({kind: 'override', name: 'Counter', target: 'state', json: '{nope'})).toEqual({
+      code: 'invalid-args',
+      message: '--json is not valid JSON: {nope',
     })
     const set = await resultOf({kind: 'override', name: 'Counter', target: 'state', path: 'value', json: '77'})
     expect(set.ok).toBe(true)

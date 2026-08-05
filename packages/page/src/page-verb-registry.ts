@@ -1,4 +1,6 @@
-import type {PageVerbMap} from '@conciv/extension'
+import {isToolError, type PageVerbMap} from '@conciv/extension'
+import {isPageFailure} from '@conciv/protocol/page-types'
+import {badArgs, fail, failRaised, unknownVerb} from './page-failure.js'
 
 const registry = new Map<string, PageVerbMap>()
 
@@ -29,26 +31,32 @@ export function bindExtensionPageVerbs(
   }
 }
 
-type Dispatch = {result: unknown} | {error: {code: string; message: string}}
+function rethrow(error: unknown): never {
+  if (isPageFailure(error)) throw error
+  if (!isToolError(error)) fail(error instanceof Error ? error.message : String(error))
+  failRaised({
+    code: error.code,
+    message: error.message,
+    ...(isJsonSerializable(error.data) ? {data: error.data} : {}),
+  })
+}
 
 export async function dispatchExtVerb(
   extension: string,
   verb: string,
   argsJson: string | undefined,
-): Promise<Dispatch> {
+): Promise<{result: unknown}> {
   const def = registry.get(extension)?.[verb]
-  if (!def) return {error: {code: 'unknown-verb', message: `${extension}.${verb} is not registered`}}
+  if (!def) unknownVerb(`${extension}.${verb} is not registered`)
   const raw = argsJson ? safeJson(argsJson) : {}
   try {
     const outcome = await def.dispatch(raw)
-    if (!outcome.ok) return {error: {code: 'invalid-args', message: outcome.message}}
+    if (!outcome.ok) badArgs(outcome.message)
     const result = outcome.value ?? null
-    if (!isJsonSerializable(result)) {
-      return {error: {code: 'handler-error', message: `${extension}.${verb} returned a non-serializable result`}}
-    }
+    if (!isJsonSerializable(result)) fail(`${extension}.${verb} returned a non-serializable result`)
     return {result}
   } catch (error) {
-    return {error: {code: 'handler-error', message: error instanceof Error ? error.message : String(error)}}
+    rethrow(error)
   }
 }
 

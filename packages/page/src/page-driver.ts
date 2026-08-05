@@ -1,15 +1,28 @@
-import {err, type PageQuery, type PageQueryKind, type PageResult} from '@conciv/protocol/page-types'
+import {
+  isPageFailure,
+  type PageError,
+  type PageOutcome,
+  type PageQuery,
+  type PageQueryKind,
+  type PageResult,
+} from '@conciv/protocol/page-types'
 import {DOM_HANDLERS, ELEMENT_KINDS, resolveTarget, startConsoleBuffer, type PageHandler} from './page-handlers.js'
 import type {Refs} from './page-snapshot.js'
 import {mirrorPageAction, mirrorsKind} from './page-mirror.js'
+import {badArgs, unknownVerb} from './page-failure.js'
 
-export type PageDriver = {execute: (query: PageQuery) => Promise<PageResult>; refs: Refs; dispose: () => void}
+export type PageDriver = {execute: (query: PageQuery) => Promise<PageOutcome>; refs: Refs; dispose: () => void}
 
-function missingTargetError(query: PageQuery): PageResult {
-  if (query.ref) return err(`stale ref ${query.ref}; re-run page snapshot`)
-  if (query.name) return err(`no React component named "${query.name}" found`)
-  if (query.selector) return err(`no element for selector ${query.selector}`)
-  return err('no target: pass --ref, --selector, or --name')
+function missingTarget(query: PageQuery): never {
+  if (query.ref) badArgs(`stale ref ${query.ref}; re-run page snapshot`)
+  if (query.name) badArgs(`no React component named "${query.name}" found`)
+  if (query.selector) badArgs(`no element for selector ${query.selector}`)
+  badArgs('no target: pass --ref, --selector, or --name')
+}
+
+function pageErrorOf(error: unknown): PageError {
+  if (isPageFailure(error)) return error.error
+  return {code: 'handler-error', message: error instanceof Error ? error.message : String(error)}
 }
 
 export function makeDomPageDriver(
@@ -22,17 +35,21 @@ export function makeDomPageDriver(
     ...deps.handlers,
   }
 
-  async function execute(query: PageQuery): Promise<PageResult> {
+  async function run(query: PageQuery): Promise<PageResult> {
     const handler = handlers[query.kind]
-    if (!handler) return err(`unknown page action ${query.kind}`)
+    if (!handler) unknownVerb(`unknown page action ${query.kind}`)
     const needsEl = ELEMENT_KINDS.has(query.kind)
     const el = needsEl ? resolveTarget(query, refs) : null
-    if (needsEl && !el) return missingTargetError(query)
+    if (needsEl && !el) missingTarget(query)
     if (el && mirrorsKind(query.kind)) mirrorPageAction(el)
+    return handler({query, el, refs, consoleBuf})
+  }
+
+  async function execute(query: PageQuery): Promise<PageOutcome> {
     try {
-      return await handler({query, el, refs, consoleBuf})
-    } catch (e) {
-      return err(String(e))
+      return {ok: true, result: await run(query)}
+    } catch (error) {
+      return {ok: false, error: pageErrorOf(error)}
     }
   }
 

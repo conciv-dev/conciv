@@ -5,7 +5,8 @@ import {isDefinedError, ORPCError} from '@orpc/client'
 import {defineTool, isToolError, toolError} from '../src/define-tool.js'
 import {createToolRegistry, TOOL_TRANSPORT_ERRORS} from '../src/tool-registry.js'
 import {walkRegistryProcedures} from '../src/registry-walk.js'
-import {pageVerbError, type PageVerbErrorCode} from '../src/page-verbs.js'
+import type {PageErrorCode} from '@conciv/protocol/page-types'
+import {pageVerbError} from '../src/page-verbs.js'
 
 type ToolCall = (input: unknown) => Promise<unknown>
 
@@ -282,7 +283,7 @@ test('calling a client tool with no page client raises NO_PAGE_CLIENT as a defin
 })
 
 test('page failures map onto their declared transport error codes', async () => {
-  const cases: [PageVerbErrorCode, string][] = [
+  const cases: [PageErrorCode, string][] = [
     ['timeout', 'PAGE_TIMEOUT'],
     ['unknown-verb', 'UNKNOWN_TOOL'],
     ['invalid-args', 'INVALID_ARGS'],

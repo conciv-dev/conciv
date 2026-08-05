@@ -1,4 +1,5 @@
 import type {z} from 'zod'
+import type {PageErrorCode} from '@conciv/protocol/page-types'
 
 export type PageVerbDispatchResult = {ok: true; value: unknown} | {ok: false; message: string}
 
@@ -38,27 +39,14 @@ export type PageCaller<M extends PageVerbMap> = {
   call<K extends keyof M & string>(verb: K, args: z.input<M[K]['args']>): Promise<Awaited<ReturnType<M[K]['handler']>>>
 }
 
-export const PAGE_VERB_ERROR_CODES = ['no-widget', 'unknown-verb', 'invalid-args', 'handler-error', 'timeout'] as const
-
-export type PageVerbErrorCode = (typeof PAGE_VERB_ERROR_CODES)[number]
-
-export function isPageVerbErrorCode(code: string): code is PageVerbErrorCode {
-  return PAGE_VERB_ERROR_CODES.some((known) => known === code)
-}
-
 export type PageVerbError = Error & {
   readonly isPageVerbError: true
-  code: PageVerbErrorCode
+  code: PageErrorCode
   extension: string
   verb: string
 }
 
-export function pageVerbError(
-  code: PageVerbErrorCode,
-  extension: string,
-  verb: string,
-  message: string,
-): PageVerbError {
+export function pageVerbError(code: PageErrorCode, extension: string, verb: string, message: string): PageVerbError {
   return Object.assign(new Error(message), {isPageVerbError: true as const, code, extension, verb})
 }
 

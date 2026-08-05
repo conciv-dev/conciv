@@ -1,3 +1,4 @@
+import type {PageOutcome} from '@conciv/protocol/page-types'
 import {createFakeHarness, createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {ResolvedConcivConfig} from '@conciv/core/config'
@@ -47,26 +48,23 @@ async function answerFirst(
   kit: Kit,
   queries: Queries,
   state: QueryState,
-  data: Record<string, unknown>,
+  outcome: PageOutcome,
   abort: AbortController,
 ): Promise<void> {
   const first = await queries.next()
   if (first.done) return
   const query = first.value.query
   state.seen = typeof query === 'object' && query !== null ? {...query} : {}
-  await kit.rpc.page.reply({requestId: first.value.requestId, data})
+  await kit.rpc.page.reply({requestId: first.value.requestId, outcome})
   abort.abort()
   await queries.return(undefined)
 }
 
-export async function answerNextQuery(
-  kit: Kit,
-  data: Record<string, unknown>,
-): Promise<{seen: () => SeenQuery | null}> {
+export async function answerNextQuery(kit: Kit, outcome: PageOutcome): Promise<{seen: () => SeenQuery | null}> {
   const abort = new AbortController()
   const queries = await kit.rpc.page.queries(undefined, {signal: abort.signal})
   const state: QueryState = {seen: null}
-  void answerFirst(kit, queries, state, data, abort).catch(() => {})
+  void answerFirst(kit, queries, state, outcome, abort).catch(() => {})
   await new Promise((resolve) => setTimeout(resolve, 50))
   return {seen: () => state.seen}
 }
