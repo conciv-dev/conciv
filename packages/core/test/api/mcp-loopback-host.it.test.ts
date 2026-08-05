@@ -80,10 +80,12 @@ describe('/api/mcp loopback host guard (IT, real http)', () => {
     expect(reply.body).toContain('conciv')
   }, 15_000)
 
-  it('rejects a hostile Host with no Origin', async () => {
+  it('rejects a hostile Host with no Origin, naming the host as the failed check', async () => {
     const served = await serve()
     const reply = await postMcpOverHttp(served.port, `evil.com:${served.port}`)
     expect(reply.status).toBe(403)
+    expect(reply.body).toBe('forbidden host')
+    expect(reply.body).not.toContain('origin')
   }, 15_000)
 
   it('accepts the bracketed IPv6 loopback authority on any port', async () => {
@@ -121,5 +123,16 @@ describe('/api/mcp loopback host guard (route surface, hosts the wire cannot car
   it('rejects a Host with a second colon-separated segment past the port', async () => {
     const res = await postMcpOnRoute(await makeCoreApp(), '127.0.0.1:4321:evil.com')
     expect(res.status).toBe(403)
+  }, 15_000)
+
+  it('rejects a Host that hides a hostile authority behind loopback userinfo', async () => {
+    const res = await postMcpOnRoute(await makeCoreApp(), `127.0.0.1@evil.com:4321`)
+    expect(res.status).toBe(403)
+  }, 15_000)
+
+  it('rejects a Host whose loopback hostname is demoted to userinfo', async () => {
+    const res = await postMcpOnRoute(await makeCoreApp(), `evil.com@127.0.0.1:4321`)
+    expect(res.status).toBe(403)
+    expect(await res.text()).toBe('forbidden host')
   }, 15_000)
 })

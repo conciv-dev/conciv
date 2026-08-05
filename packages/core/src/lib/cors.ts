@@ -50,9 +50,8 @@ export function corsMiddleware(): MiddlewareHandler<{Variables: CorsVars}> {
   return async (c, next) => {
     const extra = new Set(c.var.cors.allowedOrigins)
     const origin = c.req.header('origin') ?? null
-    if (!originAllowed(origin, extra) || !hostAllowed(c.req.header('host') ?? null)) {
-      return c.text('forbidden origin', 403)
-    }
+    if (!hostAllowed(c.req.header('host') ?? null)) return c.text('forbidden host', 403)
+    if (!originAllowed(origin, extra)) return c.text('forbidden origin', 403)
     const corsHandler = cors({
       origin: (candidate) => (originAllowed(candidate, extra) ? candidate : ''),
       credentials: true,
