@@ -8,16 +8,6 @@ export type {
 } from './define-extension.js'
 export {defineTool, isToolError, toolError} from './define-tool.js'
 export type {ToolBinding, ToolBuilder, ToolError, ToolErrorSpec, ToolErrors, ToolMeta} from './define-tool.js'
-export {createToolRegistry, TOOL_TRANSPORT_ERRORS} from './tool-registry.js'
-export type {
-  RegistryCallContext,
-  RegistryPageCaller,
-  RegistryToolMeta,
-  ToolCatalogEntry,
-  ToolRegistry,
-  ToolSignature,
-  ToolSignatureError,
-} from './tool-registry.js'
 export {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
 export {defineAttachment} from './define-attachment.js'
 export type {AnyAttachmentBuilder, AttachmentBuilder} from './define-attachment.js'

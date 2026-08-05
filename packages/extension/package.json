@@ -31,6 +31,10 @@
     "./catalog": {
       "types": "./dist/catalog.d.ts",
       "import": "./dist/catalog.js"
+    },
+    "./registry": {
+      "types": "./dist/tool-registry.d.ts",
+      "import": "./dist/tool-registry.js"
     }
   },
   "publishConfig": {
