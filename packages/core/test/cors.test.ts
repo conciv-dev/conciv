@@ -13,7 +13,7 @@ describe('cors PATCH', () => {
       .get('/x', (c) => c.text('ok'))
     const res = await app.request('http://127.0.0.1/x', {
       method: 'OPTIONS',
-      headers: {origin: 'http://localhost:3000', 'access-control-request-method': 'PATCH'},
+      headers: {host: '127.0.0.1', origin: 'http://localhost:3000', 'access-control-request-method': 'PATCH'},
     })
     expect(res.headers.get('access-control-allow-methods')).toContain('PATCH')
   })

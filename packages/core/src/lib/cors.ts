@@ -2,30 +2,46 @@ import {cors} from 'hono/cors'
 import type {MiddlewareHandler} from 'hono'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 
-const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
+const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'] as const
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(LOOPBACK_HOSTNAMES)
 
-function hostnameOf(value: string): string | null {
+function parseUrl(value: string): URL | null {
   try {
-    return new URL(value).hostname
+    return new URL(value)
   } catch {
     return null
   }
 }
 
-function isLoopback(value: string): boolean {
-  const host = hostnameOf(value)
-  return host !== null && LOOPBACK_HOSTS.has(host)
+function isLoopbackUrl(url: URL | null): boolean {
+  if (!url) return false
+  return LOOPBACK_HOSTS.has(url.hostname)
 }
 
 export function originAllowed(origin: string | null, extra: ReadonlySet<string>): boolean {
   if (!origin) return true
-  return isLoopback(origin) || extra.has(origin)
+  return isLoopbackUrl(parseUrl(origin)) || extra.has(origin)
+}
+
+function loopbackAuthority(host: string | null): URL | null {
+  if (!host) return null
+  const url = parseUrl(`http://${host}`)
+  if (!url) return null
+  if (url.username !== '' || url.password !== '') return null
+  if (url.pathname !== '/' || url.search !== '' || url.hash !== '') return null
+  if (!isLoopbackUrl(url)) return null
+  return url
+}
+
+export function loopbackHostAllowlist(host: string | null): string[] {
+  const url = loopbackAuthority(host)
+  if (!url) return []
+  const port = url.port === '' ? '' : `:${url.port}`
+  return LOOPBACK_HOSTNAMES.map((hostname) => `${hostname}${port}`)
 }
 
 function hostAllowed(host: string | null): boolean {
-  if (!host) return true
-  const hostname = host.split(':')[0] ?? host
-  return LOOPBACK_HOSTS.has(hostname)
+  return loopbackAuthority(host) !== null
 }
 
 export type CorsVars = {cors: {allowedOrigins: string[]}}
