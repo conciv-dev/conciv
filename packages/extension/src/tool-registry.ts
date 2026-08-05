@@ -88,11 +88,7 @@ const PAGE_FAILURE_TO_TRANSPORT: Record<PageErrorCode, string> = {
   'handler-error': 'HANDLER_ERROR',
 }
 
-export type RegistryPageCaller = (
-  tool: string,
-  input: unknown,
-  request: ToolRequest | undefined,
-) => Promise<unknown>
+export type RegistryPageCaller = (tool: string, input: unknown, request: ToolRequest | undefined) => Promise<unknown>
 
 export type ToolCatalogEntry = {
   name: string
@@ -133,17 +129,14 @@ export function createToolRegistry(
   const router = emptyRouterNode<ExtensionToolRouter>()
   const pageCaller = options.pageCaller
   const pageConnected = options.isPageConnected ?? (() => pageCaller !== undefined)
-  const has = (name: string): boolean =>
-    walkRegistryProcedures(router).some((entry) => entry.path.join('.') === name)
+  const has = (name: string): boolean => walkRegistryProcedures(router).some((entry) => entry.path.join('.') === name)
   return {
     router,
     register: (tool: AnyToolBuilder, registration?: {context?: unknown}) =>
       registerTool(router, tool, pageCaller, registration?.context),
     has,
     call: (name, input, options = {}) =>
-      has(name)
-        ? callTool(router, name, input, options.request)
-        : Promise.reject(new Error(`unknown tool "${name}"`)),
+      has(name) ? callTool(router, name, input, options.request) : Promise.reject(new Error(`unknown tool "${name}"`)),
     catalog: {
       list: () => catalogEntries(walkRegistryProcedures(router), pageConnected()),
       get: (name) => toolSignature(router, name, pageConnected()),

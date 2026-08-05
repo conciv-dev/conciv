@@ -38,10 +38,15 @@ describe('a built-in tool call carries who asked and how it failed', () => {
     })
     for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool)
     const env = envAsking(async () => ({}))
-    await callPageTool(registry, env, {kind: 'fill', selector: '#email', value: 'a@b.c'}, {
-      sessionId: 's7',
-      model: 'sonnet',
-    })
+    await callPageTool(
+      registry,
+      env,
+      {kind: 'fill', selector: '#email', value: 'a@b.c'},
+      {
+        sessionId: 's7',
+        model: 'sonnet',
+      },
+    )
     expect(seen).toEqual([{sessionId: 's7', model: 'sonnet'}])
   })
 

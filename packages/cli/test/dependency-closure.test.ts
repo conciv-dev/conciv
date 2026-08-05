@@ -66,6 +66,18 @@ function packageNameOf(specifier: string): {name: string; subpath: string} {
   return {name, subpath: specifier.slice(name.length + 1)}
 }
 
+function existingFile(candidate: string | undefined): string | undefined {
+  return candidate !== undefined && existsSync(candidate) ? candidate : undefined
+}
+
+function resolvedFrom(file: string, specifier: string, workspaces: Record<string, string>): string | undefined {
+  if (specifier.startsWith('.')) return existingFile(resolve(dirname(file), specifier))
+  const {name, subpath} = packageNameOf(specifier)
+  const packageDir = workspaces[name]
+  if (packageDir === undefined) return undefined
+  return existingFile(exportedFile(packageDir, subpath))
+}
+
 function runtimeClosure(entry: string): Set<string> {
   const workspaces = workspaceDirsByName()
   const visited = new Set<string>()
@@ -76,17 +88,9 @@ function runtimeClosure(entry: string): Set<string> {
     if (file === undefined || visited.has(file)) continue
     visited.add(file)
     for (const specifier of specifiersIn(file)) {
-      if (specifier.startsWith('.')) {
-        const next = resolve(dirname(file), specifier)
-        if (existsSync(next)) queue.push(next)
-        continue
-      }
-      external.add(specifier)
-      const {name, subpath} = packageNameOf(specifier)
-      const packageDir = workspaces[name]
-      if (packageDir === undefined) continue
-      const next = exportedFile(packageDir, subpath)
-      if (next !== undefined && existsSync(next)) queue.push(next)
+      if (!specifier.startsWith('.')) external.add(specifier)
+      const next = resolvedFrom(file, specifier, workspaces)
+      if (next !== undefined) queue.push(next)
     }
   }
   return external

@@ -91,7 +91,9 @@ describe('built-in tool declarations', () => {
 
   it('declares exactly the mutating and mirroring verbs the protocol lists, in both directions', () => {
     const verbsWhere = (pick: (tool: (typeof BUILTIN_PAGE_TOOLS)[number]) => boolean): string[] =>
-      BUILTIN_PAGE_TOOLS.filter(pick).map((tool) => pageVerbOfTool(tool.name)).toSorted()
+      BUILTIN_PAGE_TOOLS.filter(pick)
+        .map((tool) => pageVerbOfTool(tool.name))
+        .toSorted()
     expect(verbsWhere((tool) => tool.meta?.mutating === true)).toEqual([...MUTATING_KINDS].toSorted())
     expect(verbsWhere((tool) => tool.meta?.mirrors === true)).toEqual([...MIRROR_KINDS].toSorted())
   })
