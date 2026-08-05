@@ -165,7 +165,7 @@ const evalTool = pageTool({
   category: 'edit-live',
   icon: 'script',
   label: {running: 'Running a script', done: 'Ran a script'},
-  hint: 'the last resort: reach for inspect, track and override first',
+  hint: 'the last resort: for React props, state or hooks use the react capabilities first, and for anything else prefer the dedicated read, act and edit-live capabilities',
   mutating: true,
   keywords: ['script', 'javascript'],
   input: z.object({code: z.string().describe('javascript to run in the page, awaited')}),
@@ -262,10 +262,11 @@ const trackTool = pageTool({
 
 const effectTool = pageTool({
   verb: 'effect',
-  summary: 'drive a registered page effect',
+  summary: 'run a named visual effect the host page installed, by name plus an action',
   category: 'act',
   icon: 'edit',
   label: {running: 'Driving an effect', done: 'Drove an effect'},
+  hint: 'only a host that passes effect handlers to its page driver has any; without them every call fails with "effects not initialized"',
   keywords: ['effects'],
   input: z.object({
     action: ActionEnum.optional(),
