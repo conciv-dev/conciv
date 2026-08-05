@@ -3,7 +3,7 @@ import type {ManualCard} from '../../ledger.js'
 import type {InitStep} from '../../pipeline.js'
 import {readConfig, writeConfigChange} from './config-edit.js'
 import type {Transform} from './engine.js'
-import {addToPluginsArray, addToPluginsArrayRequire} from './engine.js'
+import {addToPluginsArray, addToPluginsArrayRequire, pluginCallWired} from './engine.js'
 
 type FamilyName = 'webpack' | 'rspack'
 
@@ -37,17 +37,26 @@ The live page bridge is Vite only. Chat, tests, and approvals work once the engi
   }
 }
 
+function isCommonJs(content: string): boolean {
+  return content.includes('module.exports')
+}
+
+function pluginCall(content: string): string {
+  if (isCommonJs(content)) return 'conciv.default()'
+  return 'conciv()'
+}
+
 function transformConfig(content: string, name: FamilyName): Transform {
-  if (content.includes('module.exports')) {
-    return addToPluginsArrayRequire(content, 'conciv', pluginModule(name), 'conciv.default()')
+  if (isCommonJs(content)) {
+    return addToPluginsArrayRequire(content, 'conciv', pluginModule(name), pluginCall(content))
   }
-  return addToPluginsArray(content, 'conciv', pluginModule(name), 'conciv()', {importStyle: 'default'})
+  return addToPluginsArray(content, 'conciv', pluginModule(name), pluginCall(content), {importStyle: 'default'})
 }
 
 function detectWired(cwd: string, configFile: string | null, name: FamilyName): 'missing' | 'present' {
   const config = readConfig(cwd, configFile)
   if (config === null) return 'missing'
-  if (config.content.includes(pluginModule(name))) return 'present'
+  if (pluginCallWired(config.content, pluginModule(name), pluginCall(config.content))) return 'present'
   return 'missing'
 }
 

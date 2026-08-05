@@ -5,9 +5,10 @@ import {captureFile} from '../../interrupt.js'
 import type {ManualCard} from '../../ledger.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
 import {readConfig, writeConfigChange} from './config-edit.js'
-import {wrapDefaultExport} from './engine.js'
+import {defaultExportWrapped, wrapDefaultExport} from './engine.js'
 
 const pluginModule = '@conciv/it/plugin/nextjs'
+const wrapperName = 'withConciv'
 const widgetModule = '@conciv/it/plugin/nextjs/widget'
 const instrumentationName = 'instrumentation.ts'
 const clientName = 'instrumentation-client.ts'
@@ -53,7 +54,7 @@ function fileState(cwd: string, name: string, line: string): FileState {
 function configWired(cwd: string, configFile: string | null): boolean {
   const config = readConfig(cwd, configFile)
   if (config === null) return false
-  return config.content.includes(pluginModule)
+  return defaultExportWrapped(config.content, wrapperName, pluginModule)
 }
 
 function allWired(cwd: string, configFile: string | null): boolean {
@@ -68,7 +69,7 @@ function wireConfig(ctx: InitContext, configFile: string | null): ManualCard | n
   if (configWired(ctx.cwd, configFile)) return null
   const config = readConfig(ctx.cwd, configFile)
   if (config === null) return configCard()
-  const transformed = wrapDefaultExport(config.content, 'withConciv', pluginModule)
+  const transformed = wrapDefaultExport(config.content, wrapperName, pluginModule)
   if (!transformed.matched || transformed.output === null) return configCard()
   writeConfigChange(ctx, config, transformed.output)
   return null

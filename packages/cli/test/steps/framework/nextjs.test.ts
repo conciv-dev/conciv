@@ -91,6 +91,16 @@ describe('nextjsStep', () => {
     expect(config).toContain('export default withConciv(withSentry(nextConfig))')
   })
 
+  it('treats a lone withConciv import as unwired and wraps the export', async () => {
+    const {cwd, detected, settings, output, ctx} = project('next.config.import-only.ts')
+    const step = nextjsStep(detected)
+    expect(await step.detect(ctx)).toBe('missing')
+    const ledger = await runSteps([step], settings, output)
+    expect(ledger.map((entry) => entry.status)).toEqual(['done'])
+    expect(readFileSync(join(cwd, 'next.config.ts'), 'utf8')).toContain('export default withConciv(nextConfig)')
+    expect(await step.verify(ctx)).toBe(true)
+  })
+
   it('cards the config wire when there is no config file and still writes instrumentation', async () => {
     const {cwd, detected, settings, output} = project(null)
     const ledger = await runSteps([nextjsStep(detected)], settings, output)

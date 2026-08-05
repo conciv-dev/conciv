@@ -29,17 +29,6 @@ function importEdit(root: SgNode, line: string): Edit {
   return {startPos: at, endPos: at, insertedText: `\n${line}`}
 }
 
-const functionKinds: ReadonlySet<string | number> = new Set([
-  'arrow_function',
-  'function_expression',
-  'function_declaration',
-  'method_definition',
-])
-
-function insideFunction(node: SgNode): boolean {
-  return node.ancestors().some((ancestor) => functionKinds.has(ancestor.kind()))
-}
-
 function appendEdit(source: string, array: SgNode, callExpr: string): Edit {
   const closing = array.range().end.index - 1
   const elements = array.children().filter((child) => child.isNamed())
@@ -55,13 +44,119 @@ function appendEdit(source: string, array: SgNode, callExpr: string): Edit {
   return {startPos: at, endPos: at, insertedText: `\n${indent}${callExpr},`}
 }
 
+function defaultExportExpression(root: SgNode): SgNode | null {
+  const statements = root
+    .findAll({rule: {kind: 'export_statement'}})
+    .filter((statement) => statement.children().some((child) => child.kind() === 'default'))
+  const statement = statements[0]
+  if (!statement || statements.length > 1) return null
+  return statement.children().find((child) => child.isNamed()) ?? null
+}
+
+function moduleExportsExpression(root: SgNode): SgNode | null {
+  const assignments = root
+    .findAll({rule: {kind: 'assignment_expression'}})
+    .filter((assignment) => assignment.field('left')?.text() === 'module.exports')
+  const assignment = assignments[0]
+  if (!assignment || assignments.length > 1) return null
+  return assignment.field('right')
+}
+
+function exportedExpression(root: SgNode): SgNode | null {
+  return defaultExportExpression(root) ?? moduleExportsExpression(root)
+}
+
+const configWrapperNames: ReadonlySet<string> = new Set(['defineConfig'])
+
+function wrapperArgument(call: SgNode): SgNode | null {
+  if (!configWrapperNames.has(call.field('function')?.text() ?? '')) return null
+  const args =
+    call
+      .field('arguments')
+      ?.children()
+      .filter((child) => child.isNamed()) ?? []
+  const first = args[0]
+  if (!first || args.length > 1) return null
+  return first
+}
+
+function declaredValue(root: SgNode, name: string): SgNode | null {
+  const declarators = root
+    .findAll({rule: {kind: 'variable_declarator'}})
+    .filter((declarator) => declarator.field('name')?.text() === name)
+  const declarator = declarators[0]
+  if (!declarator || declarators.length > 1) return null
+  return declarator.field('value')
+}
+
+function resolvedExpression(root: SgNode, expression: SgNode): SgNode | null {
+  if (expression.kind() !== 'identifier') return expression
+  return declaredValue(root, expression.text())
+}
+
+function exportedConfigObject(root: SgNode): SgNode | null {
+  const exported = exportedExpression(root)
+  if (exported === null) return null
+  const expression = resolvedExpression(root, exported)
+  if (expression === null) return null
+  const object = expression.kind() === 'call_expression' ? wrapperArgument(expression) : expression
+  if (object === null || object.kind() !== 'object') return null
+  return object
+}
+
+function objectPairs(object: SgNode): SgNode[] {
+  return object.children().filter((child) => child.kind() === 'pair')
+}
+
+function nestedObjects(object: SgNode): SgNode[] {
+  return objectPairs(object).flatMap((pair) => {
+    const value = pair.field('value')
+    if (value === null || value.kind() !== 'object') return []
+    return [value]
+  })
+}
+
 function pluginsArray(root: SgNode): SgNode | null {
-  const pairs = root
-    .findAll({rule: {kind: 'pair'}})
+  const object = exportedConfigObject(root)
+  if (object === null) return null
+  const pairs = [object, ...nestedObjects(object)]
+    .flatMap(objectPairs)
     .filter((pair) => pair.field('key')?.text() === 'plugins' && pair.field('value')?.kind() === 'array')
   const pair = pairs[0]
-  if (!pair || pairs.length > 1 || insideFunction(pair)) return null
+  if (!pair || pairs.length > 1) return null
   return pair.field('value')
+}
+
+function calleeOf(callExpr: string): string {
+  return callExpr.slice(0, callExpr.indexOf('('))
+}
+
+function callsPlugin(array: SgNode, callExpr: string): boolean {
+  return array
+    .children()
+    .filter((child) => child.isNamed())
+    .some((element) => element.kind() === 'call_expression' && element.field('function')?.text() === calleeOf(callExpr))
+}
+
+function commit(root: SgNode, source: string, edits: Edit[]): Transform {
+  if (edits.length === 0) return {matched: true, output: source}
+  return {matched: true, output: root.commitEdits(edits)}
+}
+
+export function pluginCallWired(source: string, importFrom: string, callExpr: string): boolean {
+  const root = parse(Lang.TypeScript, source).root()
+  if (!importsFrom(root, importFrom) && !requiresFrom(root, importFrom)) return false
+  const array = pluginsArray(root)
+  if (array === null) return false
+  return callsPlugin(array, callExpr)
+}
+
+export function defaultExportWrapped(source: string, wrapperName: string, importFrom: string): boolean {
+  const root = parse(Lang.TypeScript, source).root()
+  if (!importsFrom(root, importFrom)) return false
+  const expression = defaultExportExpression(root)
+  if (expression === null || expression.kind() !== 'call_expression') return false
+  return expression.field('function')?.text() === wrapperName
 }
 
 export function addToPluginsArray(
@@ -72,14 +167,13 @@ export function addToPluginsArray(
   opts: {importStyle: 'default' | 'named'},
 ): Transform {
   const root = parse(Lang.TypeScript, source).root()
-  if (importsFrom(root, importFrom)) return {matched: true, output: source}
   const array = pluginsArray(root)
   if (!array) return unmatched
-  const edits = [
-    appendEdit(source, array, callExpr),
-    importEdit(root, importLine(importName, importFrom, opts.importStyle)),
-  ]
-  return {matched: true, output: root.commitEdits(edits)}
+  const callEdits = callsPlugin(array, callExpr) ? [] : [appendEdit(source, array, callExpr)]
+  const importEdits = importsFrom(root, importFrom)
+    ? []
+    : [importEdit(root, importLine(importName, importFrom, opts.importStyle))]
+  return commit(root, source, [...callEdits, ...importEdits])
 }
 
 function requiresFrom(root: SgNode, requireFrom: string): boolean {
@@ -100,32 +194,26 @@ export function addToPluginsArrayRequire(
   callExpr: string,
 ): Transform {
   const root = parse(Lang.TypeScript, source).root()
-  if (requiresFrom(root, requireFrom)) return {matched: true, output: source}
   if (importStatements(root).length > 0) return unmatched
   const array = pluginsArray(root)
   if (!array) return unmatched
-  const edits = [
-    appendEdit(source, array, callExpr),
-    {startPos: 0, endPos: 0, insertedText: `const ${bindingName} = require('${requireFrom}')\n`},
-  ]
-  return {matched: true, output: root.commitEdits(edits)}
+  const callEdits = callsPlugin(array, callExpr) ? [] : [appendEdit(source, array, callExpr)]
+  const requireEdits = requiresFrom(root, requireFrom)
+    ? []
+    : [{startPos: 0, endPos: 0, insertedText: `const ${bindingName} = require('${requireFrom}')\n`}]
+  return commit(root, source, [...callEdits, ...requireEdits])
 }
 
 const wrappableKinds: ReadonlySet<string | number> = new Set(['identifier', 'call_expression', 'member_expression'])
 
 export function wrapDefaultExport(source: string, wrapperName: string, importFrom: string): Transform {
   const root = parse(Lang.TypeScript, source).root()
-  if (importsFrom(root, importFrom)) return {matched: true, output: source}
-  const defaults = root
-    .findAll({rule: {kind: 'export_statement'}})
-    .filter((statement) => statement.children().some((child) => child.kind() === 'default'))
-  const statement = defaults[0]
-  if (!statement || defaults.length > 1) return unmatched
-  const expression = statement.children().find((child) => child.isNamed())
+  const expression = defaultExportExpression(root)
   if (!expression || !wrappableKinds.has(expression.kind())) return unmatched
-  const edits = [
-    expression.replace(`${wrapperName}(${expression.text()})`),
-    importEdit(root, importLine(wrapperName, importFrom, 'named')),
-  ]
-  return {matched: true, output: root.commitEdits(edits)}
+  const wrapped = expression.kind() === 'call_expression' && expression.field('function')?.text() === wrapperName
+  const wrapEdits = wrapped ? [] : [expression.replace(`${wrapperName}(${expression.text()})`)]
+  const importEdits = importsFrom(root, importFrom)
+    ? []
+    : [importEdit(root, importLine(wrapperName, importFrom, 'named'))]
+  return commit(root, source, [...wrapEdits, ...importEdits])
 }

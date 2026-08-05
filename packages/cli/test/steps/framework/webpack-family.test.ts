@@ -67,6 +67,17 @@ describe('webpackFamilyStep', () => {
     expect(outcome.cards[0]?.body).toContain('rspack')
   })
 
+  it('treats a lone plugin require as unwired and lands the call', async () => {
+    const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs-require-only.js')
+    const step = webpackFamilyStep(detected)
+    expect(await step.detect(ctx)).toBe('missing')
+    const outcome = await step.apply(ctx)
+    if (outcome.status !== 'manual') throw new Error('expected a manual outcome')
+    const written = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')
+    expect(written).toContain('plugins: [conciv.default()]')
+    expect(await step.detect(ctx)).toBe('present')
+  })
+
   it('cards a CJS config without a plugins array and leaves the file byte-identical', async () => {
     const {cwd, detected, ctx} = project('webpack', 'webpack.config.js', 'webpack.config.cjs-no-plugins.js')
     const before = readFileSync(join(cwd, 'webpack.config.js'), 'utf8')

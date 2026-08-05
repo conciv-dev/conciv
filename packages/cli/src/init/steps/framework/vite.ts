@@ -2,9 +2,10 @@ import type {Detected} from '../../detect.js'
 import type {ManualCard} from '../../ledger.js'
 import type {InitStep} from '../../pipeline.js'
 import {readConfig, writeConfigChange} from './config-edit.js'
-import {addToPluginsArray} from './engine.js'
+import {addToPluginsArray, pluginCallWired} from './engine.js'
 
 const pluginModule = '@conciv/it/plugin/vite'
+const pluginCall = 'conciv()'
 
 const quickStartSnippet = `import conciv from '${pluginModule}'
 export default defineConfig({plugins: [conciv()]})`
@@ -20,7 +21,7 @@ function snippetCard(): ManualCard {
 function detectWired(cwd: string, configFile: string | null): 'missing' | 'present' {
   const config = readConfig(cwd, configFile)
   if (config === null) return 'missing'
-  if (config.content.includes(pluginModule)) return 'present'
+  if (pluginCallWired(config.content, pluginModule, pluginCall)) return 'present'
   return 'missing'
 }
 
@@ -42,7 +43,7 @@ export function viteStep(detected: Detected): InitStep {
     apply: async (ctx) => {
       const config = readConfig(ctx.cwd, detected.configFile)
       if (config === null) return {status: 'manual', cards: [snippetCard()]}
-      const transformed = addToPluginsArray(config.content, 'conciv', pluginModule, 'conciv()', {
+      const transformed = addToPluginsArray(config.content, 'conciv', pluginModule, pluginCall, {
         importStyle: 'default',
       })
       if (!transformed.matched || transformed.output === null) return {status: 'manual', cards: [snippetCard()]}

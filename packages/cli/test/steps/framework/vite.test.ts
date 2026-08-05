@@ -76,6 +76,25 @@ describe('viteStep', () => {
     expect(readFileSync(join(cwd, 'vite.config.ts'), 'utf8')).toBe(before)
   })
 
+  it('cards a config whose only plugins array sits outside the export and leaves the file alone', async () => {
+    const {cwd, detected, settings, output} = project('vite.config.foreign-plugins.ts')
+    const before = readFileSync(join(cwd, 'vite.config.ts'), 'utf8')
+    const ledger = await runSteps([viteStep(detected)], settings, output)
+    expect(ledger.map((entry) => entry.status)).toEqual(['manual'])
+    expect(ledger[0]?.cards[0]?.snippet).toBe(quickStartSnippet)
+    expect(readFileSync(join(cwd, 'vite.config.ts'), 'utf8')).toBe(before)
+  })
+
+  it('treats a lone plugin import as unwired and lands the call', async () => {
+    const {cwd, detected, ctx} = project('vite.config.import-only.ts')
+    const step = viteStep(detected)
+    expect(await step.detect(ctx)).toBe('missing')
+    expect(await step.apply(ctx)).toEqual({status: 'done'})
+    const written = readFileSync(join(cwd, 'vite.config.ts'), 'utf8')
+    expect(written).toContain('plugins: [conciv()]')
+    expect(await step.verify(ctx)).toBe(true)
+  })
+
   it('cards when the project has no config file', async () => {
     const {detected, ctx} = project(null)
     const outcome = await viteStep(detected).apply(ctx)
