@@ -7,6 +7,7 @@ import {
   defineExtension,
   defineTool,
   getExtensionApi,
+  toolDefinition,
   type AnyToolBuilder,
   type ExtensionApi,
   type RegisteredTools,
@@ -26,7 +27,50 @@ const doubler = defineTool({
   meta: {summary: 'double the number it is given'},
 }).client((input) => ({doubled: input.value * 2}))
 
-const demo = defineExtension({name: 'demo', configSchema: cfgSchema, tools: [doubler]}).client(() => ({
+const treblerDef = toolDefinition({
+  name: 'demo.trebler',
+  description: 'triple a number',
+  inputSchema: z.object({value: z.number()}),
+  outputSchema: z.object({tripled: z.number()}),
+  meta: {summary: 'triple the number it is given'},
+})
+
+const trebler = defineTool(treblerDef).client((input) => ({tripled: input.value * 3}))
+
+const locator = defineTool({
+  name: 'demo.locator',
+  description: 'find an element on the page',
+  inputSchema: z.object({target: z.string()}),
+  outputSchema: z.object({found: z.boolean()}),
+  errors: {ELEMENT_NOT_FOUND: {message: 'no element matched the target', data: z.object({target: z.string()})}},
+  meta: {summary: 'find an element on the page by selector'},
+}).client(() => ({found: true}))
+
+const guard = defineTool({
+  name: 'demo.guard',
+  description: 'reject a factor that is too large',
+  inputSchema: z.object({factor: z.number()}),
+  outputSchema: z.object({accepted: z.boolean()}),
+  errors: {FACTOR_TOO_LARGE: {message: 'the factor exceeds the allowed range'}},
+  meta: {summary: 'check a factor against the allowed range'},
+}).server(() => ({accepted: true}))
+
+const pickerDef = toolDefinition({
+  name: 'demo.picker',
+  description: 'let the user pick an element in the page',
+  inputSchema: z.object({}),
+  outputSchema: z.object({picked: z.string()}),
+  errors: {PICK_CANCELLED: {message: 'the user dismissed the picker'}},
+  meta: {summary: 'let the user point at an element in the page'},
+})
+
+const pickerRenderer = defineTool(pickerDef).render(() => null)
+
+const demo = defineExtension({
+  name: 'demo',
+  configSchema: cfgSchema,
+  tools: [doubler, trebler, locator, guard, pickerRenderer],
+}).client(() => ({
   value: {ratio: 2},
 }))
 
@@ -67,6 +111,16 @@ const doublerTwin = defineTool({
   outputSchema: z.object({twice: z.number()}),
   meta: {summary: 'another tool that claims the same name'},
 }).client((input) => ({twice: input.amount * 2}))
+
+const treblerTwinDef = toolDefinition({
+  name: 'demo.trebler',
+  description: 'triple a number, differently',
+  inputSchema: z.object({amount: z.number()}),
+  outputSchema: z.object({thrice: z.number()}),
+  meta: {summary: 'another shared definition claiming the same name'},
+})
+
+const treblerTwin = defineTool(treblerTwinDef).client((input) => ({thrice: input.amount * 3}))
 
 const emptySegment = defineTool({
   name: 'page..fill',
@@ -112,10 +166,18 @@ type HostileRegistry = RegisterExtension<typeof hostile>
 
 declare const registry: ToolRegistry
 
-type DoublerError =
-  typeof client.demo.doubler extends Client<infer _Context, infer _Input, infer _Output, infer Failure>
-    ? Failure
-    : never
+type FailureOf<Procedure> =
+  Procedure extends Client<infer _Context, infer _Input, infer _Output, infer Failure> ? Failure : never
+
+type DefinedErrorOf<Procedure> = Extract<FailureOf<Procedure>, ORPCError<string, unknown>>
+
+type DoublerError = FailureOf<typeof client.demo.doubler>
+
+type LocatorError = FailureOf<typeof client.demo.locator>
+
+type GuardError = FailureOf<typeof client.demo.guard>
+
+type TransportErrorCode = 'NO_PAGE_CLIENT' | 'PAGE_TIMEOUT' | 'UNKNOWN_TOOL' | 'INVALID_ARGS' | 'HANDLER_ERROR'
 
 test('config key + value type are derived from the registry (z.input, defaults optional)', () => {
   expectTypeOf<NonNullable<ConcivConfig['extensions']>['demo']>().toMatchTypeOf<
@@ -137,6 +199,18 @@ test('an extension that never declared itself is not a known id', () => {
 test('an extension tool is reachable on the typed client, typed by its own schemas', () => {
   expectTypeOf(client.demo.doubler).parameter(0).toEqualTypeOf<{value: number}>()
   expectTypeOf(client.demo.doubler).returns.resolves.toEqualTypeOf<{doubled: number}>()
+})
+
+test('a tool declared through a shared definition reaches the client under its literal name', () => {
+  expectTypeOf(client.demo.trebler).parameter(0).toEqualTypeOf<{value: number}>()
+  expectTypeOf(client.demo.trebler).returns.resolves.toEqualTypeOf<{tripled: number}>()
+})
+
+test('a shared definition colliding with another tool resolves to a diagnostic', () => {
+  expectTypeOf<RegisteredTools<[typeof trebler, typeof treblerTwin]>>().toMatchTypeOf<ToolNameProblem<string>>()
+  expectTypeOf<RegisteredTools<[typeof doubler, typeof treblerTwin, typeof trebler]>>().toMatchTypeOf<
+    ToolNameProblem<string>
+  >()
 })
 
 test('the tool input type is enforced at the call site', () => {
@@ -188,18 +262,45 @@ test('a registry with no name collision stays a usable router', () => {
   expectTypeOf<RouterClient<ToolRegistry['router']>>().toBeObject()
 })
 
-test('the derived client declares no errors, so isDefinedError narrows to never on it', () => {
-  expectTypeOf<DoublerError>().toEqualTypeOf<Error>()
-  expectTypeOf<Extract<DoublerError, ORPCError<string, unknown>>>().toEqualTypeOf<never>()
-})
-
-test('isDefinedError narrows the derived client error to never, not just the union check', () => {
-  function narrow(error: DoublerError) {
-    if (isDefinedError(error)) {
-      expectTypeOf(error).toEqualTypeOf<never>()
-    }
+test('a declared tool error narrows through isDefinedError with its code and its data type', () => {
+  function narrow(error: LocatorError) {
+    if (!isDefinedError(error)) return
+    if (error.code !== 'ELEMENT_NOT_FOUND') return
+    expectTypeOf(error.data).toEqualTypeOf<{target: string}>()
   }
   expectTypeOf(narrow).toBeFunction()
+})
+
+test('a client-bound tool carries its declared error alongside the transport codes', () => {
+  expectTypeOf<DefinedErrorOf<typeof client.demo.locator>['code']>().toEqualTypeOf<
+    'ELEMENT_NOT_FOUND' | TransportErrorCode
+  >()
+})
+
+test('a client-bound tool that declares nothing still carries the transport codes', () => {
+  expectTypeOf<DefinedErrorOf<typeof client.demo.doubler>['code']>().toEqualTypeOf<TransportErrorCode>()
+})
+
+test('an unbound renderer declaration still reports the transport codes its runtime twin can raise', () => {
+  expectTypeOf<DefinedErrorOf<typeof client.demo.picker>['code']>().toEqualTypeOf<
+    'PICK_CANCELLED' | TransportErrorCode
+  >()
+})
+
+test('a server-bound tool carries its declared error and no transport code', () => {
+  expectTypeOf<DefinedErrorOf<typeof client.demo.guard>['code']>().toEqualTypeOf<'FACTOR_TOO_LARGE'>()
+})
+
+test('an undeclared error stays outside the defined-error union', () => {
+  function narrow(error: GuardError) {
+    if (isDefinedError(error)) return
+    expectTypeOf(error).toEqualTypeOf<Error>()
+  }
+  expectTypeOf(narrow).toBeFunction()
+})
+
+test('the declared failure union still admits a plain thrown Error', () => {
+  expectTypeOf<Error>().toMatchTypeOf<DoublerError>()
 })
 
 test('register only accepts the context its tool declared', () => {

@@ -1,3 +1,4 @@
+import {toolDefinition} from '@conciv/extension/tool'
 import {z} from 'zod'
 
 const authorKind = z.enum(['human', 'ai'])
@@ -35,63 +36,63 @@ export const CommentMoveInput = z.object({
 })
 export const PinSetStateInput = z.object({cid: z.string(), pinState: z.enum(['locked', 'offset'])})
 
-export const commentCreateDef = {
+export const commentCreateDef = toolDefinition({
   name: 'comment.create',
   description: 'Pin a comment to the canvas, optionally anchored to a source element.',
   inputSchema: CommentCreateInput,
   streamTitle: 'Leaving a comment',
   promptSnippet:
     'Use comment.create to leave a pinned note on the canvas for the user to see. x/y are scene coordinates in canvas space (use the x/y of an element from canvas.read to pin near it).',
-}
+})
 
-export const commentReplyDef = {
+export const commentReplyDef = toolDefinition({
   name: 'comment.reply',
   description: 'Add a threaded reply to an existing comment.',
   inputSchema: CommentReplyInput,
   promptSnippet: 'Use comment.reply to answer a comment; the reply joins the same thread.',
-}
+})
 
-export const commentReadDef = {
+export const commentReadDef = toolDefinition({
   name: 'comment.read',
   description: 'Read a comment and its full thread of replies.',
   inputSchema: CommentReadInput,
   promptSnippet: 'Use comment.read to see a comment and everything in its thread.',
-}
+})
 
-export const commentListDef = {
+export const commentListDef = toolDefinition({
   name: 'comment.list',
   description: 'List top-level comments, scoped to the session or all, optionally by file or status.',
   inputSchema: CommentListInput,
   promptSnippet: 'Use comment.list to find existing comments before adding more; scope "session" for the current one.',
-}
+})
 
-export const commentResolveDef = {
+export const commentResolveDef = toolDefinition({
   name: 'comment.resolve',
   description: 'Mark a comment resolved.',
   inputSchema: CommentResolveInput,
   approval: 'ask',
   promptSnippet: 'Use comment.resolve once a comment has been addressed.',
-} as const
+})
 
-export const commentDeleteDef = {
+export const commentDeleteDef = toolDefinition({
   name: 'comment.delete',
   description: 'Remove a comment; deleting a thread root removes the whole thread and its canvas pin.',
   inputSchema: CommentDeleteInput,
   approval: 'ask',
   promptSnippet:
     'Use comment.delete to remove a comment the user no longer wants; deleting the first comment removes the whole thread.',
-} as const
+})
 
-export const commentMoveDef = {
+export const commentMoveDef = toolDefinition({
   name: 'comment.move',
   description: 'Move a comment pin to new canvas coordinates.',
   inputSchema: CommentMoveInput,
   promptSnippet: 'Use comment.move to reposition a comment pin on the canvas; x/y are scene coordinates.',
-}
+})
 
-export const pinSetStateDef = {
+export const pinSetStateDef = toolDefinition({
   name: 'pin.setState',
   description: 'Set a pin to locked (tracks its element) or offset (floats at a custom position).',
   inputSchema: PinSetStateInput,
   promptSnippet: 'Use pin.setState to lock a pin to its element or let it float at an offset.',
-}
+})
