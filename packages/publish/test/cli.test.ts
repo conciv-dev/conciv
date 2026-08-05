@@ -27,13 +27,18 @@ test('accepts scoped conciv package names', () => {
 })
 
 test('rejects foreign scopes and flag-like package names (argument injection)', () => {
-  for (const bad of ['@evil/pkg', 'core', 'rogue', '--registry=https://evil.dev', '@conciv/Core', '@conciv/a b', '']) {
+  for (const bad of [
+    '@evil/pkg',
+    'core',
+    'rogue',
+    'conciv',
+    '--registry=https://evil.dev',
+    '@conciv/Core',
+    '@conciv/a b',
+    '',
+  ]) {
     expect(() => assertValidPackageName(bad), bad).toThrow(/invalid package name/)
   }
-})
-
-test('accepts the bare conciv front-door name', () => {
-  expect(() => assertValidPackageName('conciv')).not.toThrow()
 })
 
 async function publicWorkspace(names: string[]): Promise<string> {
@@ -48,15 +53,15 @@ async function publicWorkspace(names: string[]): Promise<string> {
   return root
 }
 
-test('assertPublicSet accepts the full public set including the bare conciv package', async () => {
+test('assertPublicSet accepts the full public set', async () => {
   const root = await publicWorkspace([...PUBLIC_PACKAGES])
   await expect(assertPublicSet(root)).resolves.toBeUndefined()
   await rm(root, {recursive: true, force: true})
 })
 
-test('assertPublicSet reports the bare conciv package when the workspace lost it', async () => {
-  const root = await publicWorkspace(PUBLIC_PACKAGES.filter((name) => name !== 'conciv'))
-  await expect(assertPublicSet(root)).rejects.toThrow(/missing: \[conciv\]/)
+test('assertPublicSet reports the cli package when the workspace lost it', async () => {
+  const root = await publicWorkspace(PUBLIC_PACKAGES.filter((name) => name !== '@conciv/cli'))
+  await expect(assertPublicSet(root)).rejects.toThrow(/missing: \[@conciv\/cli\]/)
   await rm(root, {recursive: true, force: true})
 })
 

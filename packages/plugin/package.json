@@ -71,13 +71,13 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/cli": "workspace:^",
     "@conciv/core": "workspace:^",
     "@conciv/embed": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "chokidar": "^5.0.0",
-    "conciv": "workspace:^",
     "knitwork": "^1.3.0",
     "launch-editor": "^2.14.1",
     "unplugin": "^3.0.0"

@@ -6,7 +6,7 @@ use to drive the running app.
 ## Set a project up
 
 ```bash
-npx conciv@latest init
+npx @conciv/cli@latest init
 ```
 
 init detects your bundler, package manager, and installed agent harnesses, then prints the whole
