@@ -49,6 +49,7 @@
           "__server",
           "__render",
           "__execute",
+          "__clientExecute",
           "__card",
           "__expand",
           "__ctx",
