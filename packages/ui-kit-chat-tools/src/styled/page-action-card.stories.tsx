@@ -29,7 +29,7 @@ export const Clicked: Story = {
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('Clicked #submit')).toBeVisible()
+    await expect(c.getByText('Clicked')).toBeVisible()
   },
 }
 

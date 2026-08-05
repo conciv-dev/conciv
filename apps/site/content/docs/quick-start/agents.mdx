@@ -16,7 +16,7 @@ npx conciv@latest init
 ```
 
 init scans for installed harnesses (claude, codex, opencode, pi) and lists what it found in the plan
-it prints before doing anything — `● claude` for a harness it will teach, `○ codex (not found)` for
+it prints before doing anything - `● claude` for a harness it will teach, `○ codex (not found)` for
 one that is not installed. Pick `Adjust` at the prompt to choose the harnesses in a multiselect.
 
 Approving the plan writes a marked conciv section into AGENTS.md (and CLAUDE.md if you keep one),
@@ -53,9 +53,9 @@ conciv connects coding agents to the app running in the browser.
 
 Run `conciv tools --help` to discover every command. The CLI finds the running dev server itself: no config, no addresses.
 
-- `conciv tools page` — read and drive the live page: snapshot, click, fill, edit, eval
-- `conciv tools react` — inspect and edit live React components
-- `conciv tools server` — inspect and nudge the dev server: config, urls, resolve, reload
+- `conciv tools page` - read and drive the live page; `--help` lists every capability
+- `conciv tools react` - inspect and edit live React components
+- `conciv tools server` - inspect and nudge the dev server; `--help` lists every capability
 
 These commands need the dev server running.
 

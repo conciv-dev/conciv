@@ -3357,6 +3357,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset

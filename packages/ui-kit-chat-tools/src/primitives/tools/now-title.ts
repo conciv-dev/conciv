@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import type {ToolCallPart} from '@tanstack/ai-client'
+import {pageToolMetaOf} from '@conciv/tools/page-tools'
 
 const Hint = z.object({
   command: z.string().optional(),
@@ -28,24 +29,6 @@ export function humanToolName(name: string): string {
   return name
 }
 
-const PAGE_VERB: Record<string, string> = {
-  click: 'Clicking',
-  fill: 'Typing',
-  select: 'Selecting',
-  check: 'Checking',
-  uncheck: 'Unchecking',
-  press: 'Pressing a key',
-  hover: 'Hovering',
-  scroll: 'Scrolling',
-  submit: 'Submitting',
-  find: 'Finding elements',
-  locate: 'Locating',
-  inspect: 'Inspecting',
-  tree: 'Reading the page',
-  wait: 'Waiting',
-  eval: 'Running a script',
-}
-
 type HintData = z.infer<typeof Hint>
 
 const runningTitle = (h: HintData): string => (h.command ? `Running ${clip(h.command)}` : 'Running a command')
@@ -55,7 +38,8 @@ const readingTitle = (h: HintData): string => {
   return file ? `Reading ${base(file)}` : 'Reading a file'
 }
 const searchingTitle = (h: HintData): string => (h.pattern ? `Searching ${clip(h.pattern, 32)}` : 'Searching')
-const pageTitle = (h: HintData): string => (h.verb && PAGE_VERB[h.verb]) || 'Page action'
+const pageTitle = (h: HintData): string =>
+  (h.verb === undefined ? undefined : pageToolMetaOf(h.verb)?.label?.running) ?? 'Page action'
 
 const TITLE_BY_TOOL: Record<string, (h: HintData) => string> = {
   Bash: runningTitle,

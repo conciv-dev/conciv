@@ -4,10 +4,12 @@ import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from './builtins/server-tools.j
 export {
   BUILTIN_PAGE_TOOLS,
   PAGE_TOOL_PREFIX,
+  pageToolMetaOf,
   pageVerbMirrors,
   pageVerbMutates,
   pageVerbOfTool,
   type BuiltinPageTool,
+  type PageToolDeclaration,
 } from './builtins/page-tools.js'
 export {
   BUILTIN_OPEN_TOOL,

@@ -220,6 +220,10 @@ test('the catalog lists every tool with path, summary, binding, and the sandbox-
       sandboxBinding: 'page_fill',
       binding: 'client',
       summary: 'type text into a field',
+      category: 'act',
+      hint: undefined,
+      icon: undefined,
+      label: undefined,
       reachable: false,
     },
     {
@@ -228,6 +232,10 @@ test('the catalog lists every tool with path, summary, binding, and the sandbox-
       sandboxBinding: 'server_status',
       binding: 'server',
       summary: 'report whether the server is healthy',
+      category: 'read',
+      hint: undefined,
+      icon: undefined,
+      label: undefined,
       reachable: true,
     },
   ])
@@ -553,4 +561,53 @@ test('the caller request reaches the page caller seam, so a forwarded call keeps
   registry.register(fillTool().client())
   await registry.call('page.fill', {target: '#name'}, {request: {sessionId: 's1', model: 'sonnet'}})
   expect(seen).toEqual([{sessionId: 's1', model: 'sonnet'}])
+})
+
+test('a cosmetic icon key this version does not know still lists, so one skewed extension cannot down the catalog', () => {
+  const skewed = defineTool({
+    name: 'page.sparkle',
+    description: 'declared against a newer icon vocabulary',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ok: z.boolean()}),
+    meta: {summary: 'declared against a newer icon vocabulary', category: 'act'},
+  }).client(() => ({ok: true}))
+  const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
+  registry.register(skewed)
+  for (const entry of walkRegistryProcedures(registry.router)) Object.assign(entry.meta, {icon: 'sparkle'})
+
+  const listed = registry.catalog.list()
+  expect(listed).toHaveLength(1)
+  expect(listed[0]).toMatchObject({name: 'page.sparkle', summary: 'declared against a newer icon vocabulary'})
+  expect(listed[0]?.icon).toBeUndefined()
+  expect(registry.catalog.get('page.sparkle').icon).toBeUndefined()
+})
+
+test('registering a tool whose cosmetic meta is malformed fails loudly and names the tool', () => {
+  const broken = defineTool({
+    name: 'page.broken',
+    description: 'declares an empty label',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ok: z.boolean()}),
+    meta: {summary: 'declares an empty label', category: 'act'},
+  }).client(() => ({ok: true}))
+  Object.assign(broken.meta ?? {}, {icon: 'sparkle', label: {running: '', done: ''}})
+  const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
+
+  expect(() => registry.register(broken)).toThrow(/tool "page\.broken"/)
+  expect(() => registry.register(broken)).toThrow(/meta\.icon must be one of/)
+  expect(registry.has('page.broken')).toBe(false)
+})
+
+test('the full signature carries the CLI positional field the meta declares', () => {
+  const positional = defineTool({
+    name: 'page.text',
+    description: 'read the visible text of an element',
+    inputSchema: z.object({selector: z.string().optional()}),
+    outputSchema: z.object({text: z.string()}),
+    meta: {summary: 'read the visible text of an element', category: 'read', positional: 'selector'},
+  }).client(() => ({text: ''}))
+  const registry = createToolRegistry({pageCaller: async () => ({text: ''})})
+  registry.register(positional)
+
+  expect(registry.catalog.get('page.text').positional).toBe('selector')
 })

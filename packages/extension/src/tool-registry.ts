@@ -13,9 +13,12 @@ import type {AnyToolBuilder} from './define-extension.js'
 import {
   FORBIDDEN_TOOL_SEGMENTS,
   isToolError,
+  TOOL_ICON_KEYS,
   type ProjectedToolBinding,
   type ToolBinding,
   type ToolErrors,
+  type ToolIconKey,
+  type ToolLabel,
   type ToolMeta,
   type ToolNamePathProblem,
   type ToolNameProblem,
@@ -119,13 +122,17 @@ export type ToolCatalogEntry = {
   sandboxBinding: string
   binding: ToolBinding
   summary: string
+  category?: string
+  hint?: string
+  icon?: ToolIconKey
+  label?: ToolLabel
   reachable: boolean
 }
 
 export type ToolSignatureError = {code: string; message: string; transport: boolean}
 
 export type ToolSignature = ToolCatalogEntry & {
-  category?: string
+  positional?: string
   mutating: boolean
   mirrors: boolean
   keywords: readonly string[]
@@ -209,6 +216,14 @@ function assertRegistryTool(tool: AnyToolBuilder): asserts tool is RegistryTool 
   if (violated) throw new Error(`tool "${tool.name}": ${violated.reason}`)
 }
 
+function assertToolCosmetics(tool: RegistryTool): void {
+  const parsed = StrictToolCosmetics.safeParse(tool.meta)
+  if (parsed.success) return
+  throw new Error(
+    `tool "${tool.name}": meta.icon must be one of ${TOOL_ICON_KEYS.join(', ')} and meta.label must carry non-empty running and done text: ${parsed.error.message}`,
+  )
+}
+
 function registerTool(
   router: Record<string, AnyRouter>,
   tool: AnyToolBuilder,
@@ -216,6 +231,7 @@ function registerTool(
   context: unknown,
 ): void {
   assertRegistryTool(tool)
+  assertToolCosmetics(tool)
   toJsonSchema(tool.inputSchema, `tool "${tool.name}" input`, 'input')
   toJsonSchema(tool.outputSchema, `tool "${tool.name}" output`, 'output')
   insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, context))
@@ -353,12 +369,27 @@ const RegistryToolMetaSchema = z.object({
   mutating: z.boolean().optional(),
   mirrors: z.boolean().optional(),
   keywords: z.array(z.string()).optional(),
+  positional: z.string().optional(),
+  hint: z.string().optional(),
+  icon: z.string().optional(),
+  label: z.object({running: z.string(), done: z.string()}).optional(),
 })
+
+const StrictToolCosmetics = z.object({
+  icon: z.enum(TOOL_ICON_KEYS).optional(),
+  label: z.object({running: z.string().min(1), done: z.string().min(1)}).optional(),
+})
+
+function knownIconKey(icon: string | undefined): ToolIconKey | undefined {
+  return TOOL_ICON_KEYS.find((known) => known === icon)
+}
 
 function readToolMeta(entry: RegistryWalkEntry): z.infer<typeof RegistryToolMetaSchema> {
   const parsed = RegistryToolMetaSchema.safeParse(entry.meta)
   if (!parsed.success) {
-    throw new Error(`registry procedure at "${entry.path.join('.')}" carries no tool metadata`)
+    throw new Error(
+      `registry procedure at "${entry.path.join('.')}" carries unreadable tool metadata: ${parsed.error.message}`,
+    )
   }
   return parsed.data
 }
@@ -375,6 +406,10 @@ function catalogEntries(entries: RegistryWalkEntry[], pageConnected: boolean): T
       sandboxBinding,
       binding: meta.binding,
       summary: meta.summary,
+      category: meta.category,
+      hint: meta.hint,
+      icon: knownIconKey(meta.icon),
+      label: meta.label,
       reachable: meta.binding === 'server' || pageConnected,
     }
   })
@@ -389,7 +424,7 @@ function toolSignature(router: Record<string, AnyRouter>, name: string, pageConn
   const meta = readToolMeta(entry)
   return {
     ...listed,
-    category: meta.category,
+    positional: meta.positional,
     mutating: meta.mutating ?? false,
     mirrors: meta.mirrors ?? false,
     keywords: meta.keywords ?? [],

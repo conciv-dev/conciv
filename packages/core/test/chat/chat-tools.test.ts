@@ -15,6 +15,7 @@ test('converts a registrable tool and executes with parsed args', async () => {
 test('buildChatTools yields conciv + extension tools bound to the session', async () => {
   const tools = buildChatTools(
     () => ({
+      capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
       askUi: async () => ({answered: false, note: ''}),
       page: async () => ({ok: false as const, error: 'none'}),
       open: () => {},
@@ -39,6 +40,7 @@ test('buildChatTools yields conciv + extension tools bound to the session', asyn
 test('extension tools are lazy, conciv tools are eager', () => {
   const tools = buildChatTools(
     () => ({
+      capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
       askUi: async () => ({answered: false, note: ''}),
       page: async () => ({ok: false as const, error: 'none'}),
       open: () => {},
