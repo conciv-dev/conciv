@@ -104,9 +104,9 @@ const reloadTool = serverTool({
   keywords: ['hmr'],
   input: z.object({file: z.string().describe('the file to reload')}),
   output: OkResult,
-  run: async (input, bundler) => {
+  run: async (input, bundler): Promise<{ok: true}> => {
     await bundler.reload(input.file)
-    return {ok: true} as const
+    return {ok: true}
   },
 })
 
@@ -117,9 +117,9 @@ const restartTool = serverTool({
   keywords: ['rebundle'],
   input: z.object({force: z.boolean().optional().describe('force a full restart')}),
   output: OkResult,
-  run: async (input, bundler) => {
+  run: async (input, bundler): Promise<{ok: true}> => {
     await bundler.restart(input.force ?? false)
-    return {ok: true} as const
+    return {ok: true}
   },
 })
 
@@ -137,7 +137,7 @@ export const BUILTIN_SERVER_TOOLS = Object.values(BUILTIN_SERVER_TOOL)
 
 const OpenInput = z.object({
   file: z.string().min(1).describe('the file to open'),
-  line: z.coerce.number().optional().describe('line number to jump to'),
+  line: z.coerce.number().int().min(1).optional().describe('line number to jump to'),
 })
 
 export const BUILTIN_OPEN_TOOL = defineTool({
@@ -152,9 +152,7 @@ export const BUILTIN_OPEN_TOOL = defineTool({
     mirrors: false,
     keywords: ['editor', 'source'],
   },
-}).server((input, ctx: OpenToolContext) => {
+}).server((input, ctx: OpenToolContext): {ok: true; file: string; line?: number} => {
   ctx.openInEditor(input.file, input.line)
-  return input.line === undefined
-    ? {ok: true as const, file: input.file}
-    : {ok: true as const, file: input.file, line: input.line}
+  return input.line === undefined ? {ok: true, file: input.file} : {ok: true, file: input.file, line: input.line}
 })

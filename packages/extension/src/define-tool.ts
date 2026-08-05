@@ -187,7 +187,7 @@ function toolBuilder<Name extends string, Schema extends z.ZodObject<z.ZodRawSha
     },
     client(execute) {
       assertUnbound(definition.name, state.binding)
-      const clientState = {...state, binding: 'client' as const}
+      const clientState: ToolState = {...state, binding: 'client'}
       if (execute === undefined) return toolBuilder<Name, Schema, Output, Ctx>(definition, clientState)
       return toolBuilder<Name, Schema, Output, Ctx>(definition, {
         ...clientState,

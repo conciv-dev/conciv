@@ -1,10 +1,14 @@
 import {describe, expect, it, vi} from 'vitest'
+import {z} from 'zod'
 import {main} from '../src/bin.js'
 import {runCli} from '../src/run.js'
 import {answerNextQuery, bootCli} from './support/cli-app.js'
 import {cliSession} from './support/cli-session.js'
+import {onlyDocument} from './support/stdout.js'
 
-const {cleanups} = cliSession()
+const {cleanups, written} = cliSession()
+
+const FailureSchema = z.object({ok: z.literal(false), error: z.object({kind: z.enum(['user', 'unexpected'])})})
 
 async function helpFor(argv: string[]): Promise<string> {
   const logged: string[] = []
@@ -114,5 +118,24 @@ describe('the CLI reads its commands from the tool declarations', () => {
     })
     expect(await runCli(main, ['tools', 'server', 'resolve', './x.ts', '--importer', 'src/a.ts'])).toBe(0)
     expect(resolved).toEqual(['./x.ts from src/a.ts'])
+  })
+
+  it('rejects a non-positive line number as a plain user mistake, not a bug', async () => {
+    await bootCli(cleanups)
+    expect(await runCli(main, ['tools', 'open', 'src/a.ts', '--line', '0'])).toBe(1)
+    expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
+  })
+
+  it('rejects a fractional line number as a plain user mistake, not a bug', async () => {
+    await bootCli(cleanups)
+    expect(await runCli(main, ['tools', 'open', 'src/a.ts', '--line', '1.5'])).toBe(1)
+    expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
+  })
+
+  it('opens at a positive integer line number', async () => {
+    const opened: {file: string; line?: number}[] = []
+    await bootCli(cleanups, {openInEditor: (file, line) => opened.push({file, line})})
+    expect(await runCli(main, ['tools', 'open', 'src/a.ts', '--line', '3'])).toBe(0)
+    expect(opened).toEqual([{file: 'src/a.ts', line: 3}])
   })
 })

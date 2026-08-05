@@ -36,11 +36,12 @@ function agentPageResult(result: unknown): unknown {
 }
 
 describe('the agent reaches the page through the same implementation the CLI uses', () => {
-  const state = {
-    kit: undefined as Kit | undefined,
-    widget: undefined as {end: () => void} | undefined,
-    close: undefined as (() => Promise<void>) | undefined,
-  }
+  const state: {kit: Kit | undefined; widget: {end: () => void} | undefined; close: (() => Promise<void>) | undefined} =
+    {
+      kit: undefined,
+      widget: undefined,
+      close: undefined,
+    }
 
   afterEach(async () => {
     state.widget?.end()
