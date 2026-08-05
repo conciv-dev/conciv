@@ -4,6 +4,7 @@ import {concivTools} from '../src/tools.js'
 describe('conciv_ui tool', () => {
   it('pends on ctx.askUi and returns the answer as the tool result', async () => {
     const tools = concivTools({
+      capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
       askUi: async () => ({answered: true, value: 'dark'}),
       page: async () => ({}),
       open: () => {},
@@ -17,6 +18,7 @@ describe('conciv_ui tool', () => {
   it('rejects malformed input at the zod boundary before asking', async () => {
     const asked = {count: 0}
     const tools = concivTools({
+      capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
       askUi: async () => {
         asked.count += 1
         return {answered: false, note: ''}

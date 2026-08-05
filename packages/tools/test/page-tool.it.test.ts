@@ -5,6 +5,7 @@ describe('conciv_page tool', () => {
   it('forwards the verb+args to ctx.page and returns its result', async () => {
     const calls: unknown[] = []
     const tools = concivTools({
+      capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
       askUi: async () => ({answered: false, note: ''}),
       page: async (q) => (calls.push(q), {ok: true}),
       open: () => {},

@@ -16,13 +16,13 @@ function part(args: Record<string, unknown>): ToolCallPart {
   return {type: 'tool-call', id: 'p1', name: 'conciv_page', arguments: JSON.stringify(args), state: 'complete'}
 }
 
-it('titles a click by its selector', async () => {
+it('titles a click with the declared label', async () => {
   mountView(() => <PageActionCard part={part({verb: 'click', selector: '#submit'})} result={undefined} ctx={ctx} />)
 
-  await expect.element(page.getByText('Clicked #submit')).toBeVisible()
+  await expect.element(page.getByText('Clicked')).toBeVisible()
 })
 
-it('titles a fill with the typed value', async () => {
+it('titles a fill with the declared label', async () => {
   mountView(() => (
     <PageActionCard
       part={part({verb: 'fill', selector: '#email', value: 'jane@example.com'})}
@@ -31,7 +31,7 @@ it('titles a fill with the typed value', async () => {
     />
   ))
 
-  await expect.element(page.getByText('Typed "jane@example.com" into #email')).toBeVisible()
+  await expect.element(page.getByText('Typed into a field')).toBeVisible()
 })
 
 it('titles a tree read verb', async () => {
@@ -40,10 +40,10 @@ it('titles a tree read verb', async () => {
   await expect.element(page.getByText('Read the page tree')).toBeVisible()
 })
 
-it('titles a press with the key that was pressed', async () => {
+it('titles a press with the declared label', async () => {
   mountView(() => <PageActionCard part={part({verb: 'press', key: 'Enter'})} result={undefined} ctx={ctx} />)
 
-  await expect.element(page.getByText('Pressed Enter')).toBeVisible()
+  await expect.element(page.getByText('Pressed a key')).toBeVisible()
 })
 
 it('falls back to a generic title when the verb is missing', async () => {

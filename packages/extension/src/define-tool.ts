@@ -1,6 +1,12 @@
 import type {z} from 'zod'
 import type {ExtensionTool, ToolRenderer, ToolRequest} from './types.js'
 
+export const TOOL_ICON_KEYS = ['read', 'pointer', 'keyboard', 'react', 'edit', 'script', 'wait'] as const
+
+export type ToolIconKey = (typeof TOOL_ICON_KEYS)[number]
+
+export type ToolLabel = {running: string; done: string}
+
 export type ToolMeta = {
   summary: string
   category?: string
@@ -8,6 +14,9 @@ export type ToolMeta = {
   mirrors?: boolean
   keywords?: readonly string[]
   positional?: string
+  hint?: string
+  icon?: ToolIconKey
+  label?: ToolLabel
 }
 
 export type ToolErrorSpec = {message: string; data?: z.ZodType}

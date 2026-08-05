@@ -6,8 +6,11 @@ import type {AnyToolBuilder} from './define-extension.js'
 import {
   FORBIDDEN_TOOL_SEGMENTS,
   isToolError,
+  TOOL_ICON_KEYS,
   type ToolBinding,
   type ToolErrors,
+  type ToolIconKey,
+  type ToolLabel,
   type ToolMeta,
   type ToolNamePathProblem,
   type ToolNameProblem,
@@ -96,13 +99,16 @@ export type ToolCatalogEntry = {
   sandboxBinding: string
   binding: ToolBinding
   summary: string
+  category?: string
+  hint?: string
+  icon?: ToolIconKey
+  label?: ToolLabel
   reachable: boolean
 }
 
 export type ToolSignatureError = {code: string; message: string; transport: boolean}
 
 export type ToolSignature = ToolCatalogEntry & {
-  category?: string
   mutating: boolean
   mirrors: boolean
   keywords: readonly string[]
@@ -330,6 +336,9 @@ const RegistryToolMetaSchema = z.object({
   mutating: z.boolean().optional(),
   mirrors: z.boolean().optional(),
   keywords: z.array(z.string()).optional(),
+  hint: z.string().optional(),
+  icon: z.enum(TOOL_ICON_KEYS).optional(),
+  label: z.object({running: z.string().min(1), done: z.string().min(1)}).optional(),
 })
 
 function readToolMeta(entry: RegistryWalkEntry): z.infer<typeof RegistryToolMetaSchema> {
@@ -352,6 +361,10 @@ function catalogEntries(entries: RegistryWalkEntry[], pageConnected: boolean): T
       sandboxBinding,
       binding: meta.binding,
       summary: meta.summary,
+      category: meta.category,
+      hint: meta.hint,
+      icon: meta.icon,
+      label: meta.label,
       reachable: meta.binding === 'server' || pageConnected,
     }
   })
@@ -366,7 +379,6 @@ function toolSignature(router: Record<string, AnyRouter>, name: string, pageConn
   const meta = readToolMeta(entry)
   return {
     ...listed,
-    category: meta.category,
     mutating: meta.mutating ?? false,
     mirrors: meta.mirrors ?? false,
     keywords: meta.keywords ?? [],

@@ -1,6 +1,6 @@
 import {UiInputSchema} from '@conciv/protocol/ui-types'
 import type {ConcivServerTool, ConcivToolContext} from './types.js'
-import {concivPageToolDef, PageInput} from './page.js'
+import {PAGE_TOOL_NAME, PageInput, pageCapabilities, pageInputFor, pageToolDescription} from './page.js'
 import {concivUiToolDef} from './ui.js'
 import {concivOpenToolDef, OpenInput} from './open.js'
 import {buildCatalog, scaffold, validateSource} from '@conciv/extension/catalog'
@@ -19,14 +19,15 @@ function concivUiServerTool(ctx: ConcivToolContext): ConcivServerTool {
 }
 
 function concivPageServerTool(ctx: ConcivToolContext): ConcivServerTool {
-  const tool = concivPageToolDef.server(async ({verb, ...input}) => ctx.page({kind: verb, ...input}))
-  const run = tool.execute
-  if (!run) throw new Error('conciv_page: server tool has no execute')
+  const capabilities = pageCapabilities(ctx.capabilities())
   return {
-    name: tool.name,
-    description: tool.description,
-    inputSchema: PageInput,
-    execute: async (input) => run(PageInput.parse(input)),
+    name: PAGE_TOOL_NAME,
+    description: pageToolDescription(capabilities),
+    inputSchema: pageInputFor(capabilities),
+    execute: async (raw) => {
+      const {verb, ...input} = PageInput.parse(raw)
+      return ctx.page({kind: verb, ...input})
+    },
   }
 }
 

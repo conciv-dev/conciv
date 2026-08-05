@@ -29,11 +29,11 @@ const changesCommand = defineCommand({
 })
 
 export const pageCommand = defineCommand({
-  meta: {name: 'page', description: 'read & drive the live page (snapshot, click, fill, edit, eval, …)'},
+  meta: {name: 'page', description: 'read & drive the live page; run --help for every capability'},
   subCommands: {...verbCommands(BUILTIN_PAGE_TOOLS), changes: changesCommand},
 })
 
 export const reactCommand = defineCommand({
-  meta: {name: 'react', description: 'inspect & edit live React components (inspect, tree, find, override, track)'},
+  meta: {name: 'react', description: 'inspect & edit live React components; run --help for every capability'},
   subCommands: verbCommands(BUILTIN_PAGE_TOOLS.filter((tool) => tool.meta?.category === REACT_CATEGORY)),
 })

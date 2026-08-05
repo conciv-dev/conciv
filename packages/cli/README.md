@@ -26,9 +26,9 @@ conciv tools --help
 `conciv tools` is self-describing, and it finds your running dev server itself: no MCP config, no
 addresses.
 
-- `conciv tools page` — read and drive the live page: snapshot, click, fill, edit, eval
+- `conciv tools page` — read and drive the live page; `--help` lists every capability
 - `conciv tools react` — inspect and edit live React components
-- `conciv tools server` — inspect and nudge the dev server: config, urls, resolve, reload
+- `conciv tools server` — inspect and nudge the dev server; `--help` lists every capability
 - `conciv tools open` — open a file in the user's editor
 
 These commands need the dev server running.

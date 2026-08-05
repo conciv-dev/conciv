@@ -1,12 +1,14 @@
 import {Show, Switch, Match, For, type JSX} from 'solid-js'
-import {Keyboard, MousePointerClick, ScanSearch, Wand2, Target, MoveUpRight} from 'lucide-solid'
+import {Target, MoveUpRight} from 'lucide-solid'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import {PageInput} from '@conciv/tools/defs'
-import {MUTATING_KINDS, mirrorsKind, type PageQueryKind} from '@conciv/protocol/page-types'
+import {pageToolMetaOf, pageVerbMirrors, pageVerbMutates} from '@conciv/tools/page-tools'
+import type {PageQueryKind} from '@conciv/protocol/page-types'
 import {ToolCard, parseInput, resultText, parseResultPayload} from '@conciv/ui-kit-chat'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {formatHtml} from '../page-format.js'
+import {toolIconRender} from './tool-icon.js'
 
 const CODE_OPTIONS: FileOptions<undefined> = {theme: {light: 'github-light', dark: 'github-dark'}, themeType: 'system'}
 const OUT_OPTIONS: FileOptions<undefined> = {
@@ -26,82 +28,21 @@ function target(input: ReturnType<typeof readInput>): string | undefined {
   return input?.selector || input?.name || input?.ref || undefined
 }
 
-const MUTATES = new Set<PageQueryKind>(MUTATING_KINDS)
 function isRead(verb: PageQueryKind | undefined): boolean {
-  return verb !== undefined && !MUTATES.has(verb)
+  return verb !== undefined && !pageVerbMutates(verb)
 }
 
-const TYPE_VERBS = new Set<PageQueryKind>(['fill', 'press'])
-const POINTER_VERBS = new Set<PageQueryKind>(['click', 'hover', 'check', 'uncheck', 'select', 'submit', 'scroll'])
 function VerbIcon(verb: PageQueryKind | undefined): JSX.Element {
-  if (verb && TYPE_VERBS.has(verb)) return <Keyboard size={14} />
-  if (verb && POINTER_VERBS.has(verb)) return <MousePointerClick size={14} />
-  if (isRead(verb)) return <ScanSearch size={14} />
-  return <Wand2 size={14} />
+  const Icon = toolIconRender(verb === undefined ? undefined : pageToolMetaOf(verb)?.icon)
+  return <Icon size={14} />
 }
 
-type TitleContext = {
-  at: string
-  value: string | undefined
-  key: string | undefined
-}
-
-function changedAttributeTitle(ctx: TitleContext): string {
-  return `Changed an attribute${ctx.at}`
-}
-
-function changedClassTitle(ctx: TitleContext): string {
-  return `Changed a class${ctx.at}`
-}
-
-const TITLES: Record<PageQueryKind, (ctx: TitleContext) => string> = {
-  click: (ctx) => `Clicked${ctx.at || ' element'}`,
-  fill: (ctx) => (ctx.value ? `Typed "${ctx.value}" into${ctx.at || ' field'}` : `Filled${ctx.at || ' field'}`),
-  select: (ctx) => (ctx.value ? `Selected "${ctx.value}"` : `Selected an option${ctx.at}`),
-  check: (ctx) => `Checked${ctx.at || ' box'}`,
-  uncheck: (ctx) => `Unchecked${ctx.at || ' box'}`,
-  press: (ctx) => `Pressed ${ctx.key ?? 'a key'}`,
-  hover: (ctx) => `Hovered${ctx.at || ' element'}`,
-  scroll: () => 'Scrolled the page',
-  submit: (ctx) => `Submitted${ctx.at || ' the form'}`,
-  find: (ctx) => `Found${ctx.at || ' elements'}`,
-  locate: (ctx) => `Located${ctx.at || ' element'}`,
-  inspect: (ctx) => `Inspected${ctx.at || ' element'}`,
-  tree: () => 'Read the page tree',
-  dom: (ctx) => `Read the DOM${ctx.at}`,
-  snapshot: () => 'Captured a snapshot',
-  text: (ctx) => `Read the text${ctx.at}`,
-  value: (ctx) => `Read a value${ctx.at}`,
-  attr: (ctx) => `Read an attribute${ctx.at}`,
-  exists: (ctx) => `Checked if${ctx.at || ' an element'} exists`,
-  query: (ctx) => `Queried${ctx.at || ' the page'}`,
-  console: () => 'Read the console',
-  route: () => 'Read the route',
-  track: () => 'Tracked changes',
-  wait: (ctx) => `Waited for${ctx.at || ' the page'}`,
-  override: (ctx) => `Overrode${ctx.at || ' a value'}`,
-  setattr: changedAttributeTitle,
-  removeattr: changedAttributeTitle,
-  addclass: changedClassTitle,
-  removeclass: changedClassTitle,
-  setstyle: (ctx) => `Styled${ctx.at || ' an element'}`,
-  settext: (ctx) => `Set text${ctx.at}`,
-  sethtml: (ctx) => `Set HTML${ctx.at}`,
-  remove: (ctx) => `Removed${ctx.at || ' an element'}`,
-  insert: (ctx) => `Inserted${ctx.at || ' content'}`,
-  css: () => 'Injected CSS',
-  eval: () => 'Ran a script on the page',
-  effect: (ctx) => `effect${ctx.at}`,
-  ext: (ctx) => `ext${ctx.at}`,
-}
+const GENERIC_PAGE_TITLE = 'Page action'
 
 function pageTitle(part: ToolCallPart): string {
-  const input = readInput(part)
-  if (input?.verb === undefined) return 'Page action'
-  const targetEl = target(input)
-  const at = targetEl ? ` ${targetEl}` : ''
-  const value = input?.value || input?.text
-  return TITLES[input.verb]({at, value, key: input?.key})
+  const verb = readInput(part)?.verb
+  if (verb === undefined) return GENERIC_PAGE_TITLE
+  return pageToolMetaOf(verb)?.label?.done ?? GENERIC_PAGE_TITLE
 }
 
 type SnapNode = {ref?: string; role?: string; name?: string; value?: string; state?: string[]}
@@ -207,7 +148,7 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
   const showResult = () => (isRead(verb()) || verb() === 'eval') && resultText(props.result).length > 0
   const showMirror = () => {
     const value = verb()
-    return value !== undefined && mirrorsKind(value)
+    return value !== undefined && pageVerbMirrors(value)
   }
   return (
     <ToolCard Icon={() => VerbIcon(verb())} title={pageTitle(props.part)} part={props.part} result={props.result}>

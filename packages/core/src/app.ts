@@ -323,6 +323,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     askUi: () => askUi(asks, sessionId),
     page: (query) => callPageTool(registry, pageEnv, query, {sessionId, model: sessionModel(sessionId)}),
     open: (file, line) => opts.openInEditor(file, line),
+    capabilities: () => registry.catalog.list(),
   })
 
   const decideMcpCall = async (sessionId: string, toolName: string, input: unknown): Promise<'allow' | 'deny'> => {

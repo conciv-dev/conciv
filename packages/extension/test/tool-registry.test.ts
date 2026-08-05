@@ -220,6 +220,10 @@ test('the catalog lists every tool with path, summary, binding, and the sandbox-
       sandboxBinding: 'page_fill',
       binding: 'client',
       summary: 'type text into a field',
+      category: 'act',
+      hint: undefined,
+      icon: undefined,
+      label: undefined,
       reachable: false,
     },
     {
@@ -228,6 +232,10 @@ test('the catalog lists every tool with path, summary, binding, and the sandbox-
       sandboxBinding: 'server_status',
       binding: 'server',
       summary: 'report whether the server is healthy',
+      category: 'read',
+      hint: undefined,
+      icon: undefined,
+      label: undefined,
       reachable: true,
     },
   ])
