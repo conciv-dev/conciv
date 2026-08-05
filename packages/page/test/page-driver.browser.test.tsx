@@ -1,4 +1,5 @@
 import type {PageError} from '@conciv/protocol/page-types'
+import {BUILTIN_PAGE_TOOLS, PAGE_TOOL_PREFIX} from '@conciv/tools/page-tools'
 import {makeDomPageDriver, type PageDriver} from '../src/page-driver.js'
 import {installReactBridge} from '../src/react-bridge.js'
 import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
@@ -16,10 +17,19 @@ const formState = () => page.getByText(/^subscribed:/)
 
 type Query = Parameters<PageDriver['execute']>[0]
 
+const declaredOutputOf = (kind: string) => {
+  const tool = BUILTIN_PAGE_TOOLS.find((candidate) => candidate.name === `${PAGE_TOOL_PREFIX}${kind}`)
+  const output = tool?.outputSchema
+  if (!output) throw new Error(`no built-in tool declares an output for page.${kind}`)
+  return output
+}
+
 const resultOf = async (query: Query): Promise<Record<string, unknown>> => {
   const outcome = await driver.execute(query)
   if (!outcome.ok) throw new Error(`expected a result for ${query.kind}, got ${outcome.error.code}`)
-  return {...outcome.result}
+  const result = {...outcome.result}
+  expect(declaredOutputOf(query.kind).parse(result)).toEqual(result)
+  return result
 }
 
 const failureOf = async (query: Query): Promise<PageError> => {

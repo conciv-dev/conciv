@@ -31,6 +31,10 @@
     "./builtins": {
       "types": "./dist/builtins.d.ts",
       "import": "./dist/builtins.js"
+    },
+    "./page-tools": {
+      "types": "./dist/builtins/page-tools.d.ts",
+      "import": "./dist/builtins/page-tools.js"
     }
   },
   "publishConfig": {

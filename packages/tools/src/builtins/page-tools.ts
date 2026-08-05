@@ -1,6 +1,6 @@
 import {z} from 'zod'
-import {defineTool} from '@conciv/extension/tool'
-import {PagePositionSchema, PageWaitStateSchema} from '@conciv/protocol/page-types'
+import {defineTool, type ToolMeta} from '@conciv/extension/tool'
+import {PagePositionSchema, PageWaitStateSchema, type PageQueryKind} from '@conciv/protocol/page-types'
 import {AnyRecord, ElementTarget, OkResult, type BuiltinCategory} from './shared.js'
 
 function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
@@ -478,3 +478,38 @@ export const BUILTIN_PAGE_TOOLS = [
 ] as const
 
 export type BuiltinPageTool = (typeof BUILTIN_PAGE_TOOLS)[number]
+
+export const PAGE_TOOL_PREFIX = 'page.'
+
+export function pageVerbOfTool(name: string): string {
+  if (!name.startsWith(PAGE_TOOL_PREFIX)) throw new Error(`"${name}" is not a page tool`)
+  return name.slice(PAGE_TOOL_PREFIX.length)
+}
+
+function requireMeta(tool: BuiltinPageTool): ToolMeta {
+  const meta = tool.meta
+  if (meta === undefined) throw new Error(`tool "${tool.name}" declares no meta`)
+  return meta
+}
+
+const PAGE_TOOL_META: Partial<Record<PageQueryKind, ToolMeta>> = Object.fromEntries(
+  BUILTIN_PAGE_TOOLS.map((tool) => [pageVerbOfTool(tool.name), requireMeta(tool)]),
+)
+
+const KINDS_WITHOUT_A_TOOL: readonly PageQueryKind[] = ['ext']
+
+function pageToolMeta(kind: PageQueryKind): ToolMeta | undefined {
+  const meta = PAGE_TOOL_META[kind]
+  if (meta === undefined && !KINDS_WITHOUT_A_TOOL.includes(kind)) {
+    throw new Error(`no built-in page tool declares "${kind}"`)
+  }
+  return meta
+}
+
+export function pageVerbMutates(kind: PageQueryKind): boolean {
+  return pageToolMeta(kind)?.mutating === true
+}
+
+export function pageVerbMirrors(kind: PageQueryKind): boolean {
+  return pageToolMeta(kind)?.mirrors === true
+}
