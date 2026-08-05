@@ -59,7 +59,7 @@ async function postMcpOnRoute(app: AppType, host?: string): Promise<Response> {
 }
 
 describe('/api/mcp loopback host guard (IT, real http)', () => {
-  const state = {served: undefined as ServedApp | undefined}
+  const state: {served: ServedApp | undefined} = {served: undefined}
 
   afterEach(async () => {
     await state.served?.close()
