@@ -1,7 +1,7 @@
 import type {Component} from 'solid-js'
 import type {z} from 'zod'
 import type {ThemeTokens} from '@conciv/ui-kit-system'
-import type {RegisteredTools, ToolBuilder} from './define-tool.js'
+import type {RegisteredTools, ToolBinding, ToolBuilder, ToolErrors} from './define-tool.js'
 import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
   ClientFactoryResult,
@@ -18,7 +18,14 @@ import type {
 import type {PageVerbMap} from './page-verbs.js'
 import {useExtensionValue} from './host-context.js'
 
-export type AnyToolBuilder = ToolBuilder<string, z.ZodObject<z.ZodRawShape>, z.ZodType, unknown>
+export type AnyToolBuilder = ToolBuilder<
+  string,
+  z.ZodObject<z.ZodRawShape>,
+  z.ZodType,
+  ToolErrors,
+  ToolBinding | undefined,
+  unknown
+>
 
 export type ExtensionMeta<
   Name extends string,
