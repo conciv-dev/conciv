@@ -217,7 +217,7 @@ test('the catalog lists every tool with path, summary, binding, and the sandbox-
     {
       name: 'page.fill',
       path: ['page', 'fill'],
-      sandboxBinding: 'page_fill',
+      sandboxBinding: 'external_page_fill',
       binding: 'client',
       summary: 'type text into a field',
       category: 'act',
@@ -229,7 +229,7 @@ test('the catalog lists every tool with path, summary, binding, and the sandbox-
     {
       name: 'server.status',
       path: ['server', 'status'],
-      sandboxBinding: 'server_status',
+      sandboxBinding: 'external_server_status',
       binding: 'server',
       summary: 'report whether the server is healthy',
       category: 'read',
@@ -252,7 +252,7 @@ test('the catalog returns one tool full signature: fields, requiredness, enums, 
   registry.register(fillTool().client(() => ({filled: true})))
   const signature = registry.catalog.get('page.fill')
   expect(signature.name).toBe('page.fill')
-  expect(signature.sandboxBinding).toBe('page_fill')
+  expect(signature.sandboxBinding).toBe('external_page_fill')
   expect(signature.category).toBe('act')
   expect(signature.mutating).toBe(true)
   expect(signature.mirrors).toBe(true)
@@ -442,14 +442,14 @@ test('colliding mangled names get distinct deterministic sandbox bindings in lis
   const registry = createToolRegistry()
   registry.register(fillTool().client(() => ({filled: true})))
   registry.register(bareServerTool('page_fill', 'an underscore-named tool colliding after mangling'))
-  expect(registry.catalog.list().map((entry) => entry.sandboxBinding)).toEqual(['page_fill', 'page_fill_2'])
-  expect(registry.catalog.get('page_fill').sandboxBinding).toBe('page_fill_2')
+  expect(registry.catalog.list().map((entry) => entry.sandboxBinding)).toEqual(['external_page_fill', 'external_page_fill_2'])
+  expect(registry.catalog.get('page_fill').sandboxBinding).toBe('external_page_fill_2')
 })
 
 test('a reserved-word tool name yields a valid sandbox identifier', () => {
   const registry = createToolRegistry()
   registry.register(bareServerTool('delete', 'remove something somewhere'))
-  expect(registry.catalog.list().map((entry) => entry.sandboxBinding)).toEqual(['_delete'])
+  expect(registry.catalog.list().map((entry) => entry.sandboxBinding)).toEqual(['external__delete'])
 })
 
 test('client tool reachability follows the liveness callback on the same registry instance', () => {

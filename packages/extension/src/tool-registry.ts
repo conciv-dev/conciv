@@ -25,7 +25,7 @@ import {
 } from './define-tool.js'
 import {isPageVerbError} from './page-verbs.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
-import {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
+import {SANDBOX_BINDING_PREFIX, sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
 import type {CtxOf, ToolRequest, UnionToIntersection} from './types.js'
 
 export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding}
@@ -398,12 +398,12 @@ function catalogEntries(entries: RegistryWalkEntry[], pageConnected: boolean): T
   const taken = new Set<string>()
   return entries.map((entry) => {
     const meta = readToolMeta(entry)
-    const sandboxBinding = uniqueIdentifier(sanitizeIdentifier(meta.name), taken)
-    taken.add(sandboxBinding)
+    const identifier = uniqueIdentifier(sanitizeIdentifier(meta.name), taken)
+    taken.add(identifier)
     return {
       name: meta.name,
       path: entry.path,
-      sandboxBinding,
+      sandboxBinding: `${SANDBOX_BINDING_PREFIX}${identifier}`,
       binding: meta.binding,
       summary: meta.summary,
       category: meta.category,

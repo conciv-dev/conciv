@@ -106,9 +106,7 @@ function codeModeExtras(
   model: string | null,
   gate: PermissionGate,
 ): {systemPrompts: string[]; tools: AnyTool[]} {
-  const codeMode = deps.harness.capabilities.codeMode
-    ? makeCodeMode(deps.extensionServerTools(), {sessionId, model}, gate)
-    : null
+  const codeMode = makeCodeMode(deps.extensionServerTools(), {sessionId, model}, gate)
   const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
   return {systemPrompts, tools: [...deps.tools(sessionId), ...(codeMode?.tools ?? [])]}
 }
