@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {tmpdir} from 'node:os'
 import {z} from 'zod'
-import type {PageError, PageErrorCode, PageOutcome} from '@conciv/protocol/page-types'
+import type {PageError, PageOutcome, PageReportedErrorCode} from '@conciv/protocol/page-types'
 import {
   defineExtension,
   definePageVerbs,
@@ -154,9 +154,9 @@ describe('server.page.call end to end (IT, real core app + real page bus + real 
     return expectPageVerbError(state.page.call('ping', {n: 1}))
   }
 
-  const BROWSER_CODES: PageErrorCode[] = ['unknown-verb', 'invalid-args', 'handler-error', 'timeout', 'no-widget']
+  const REPORTED_CODES: PageReportedErrorCode[] = ['unknown-verb', 'invalid-args', 'handler-error']
 
-  it.each(BROWSER_CODES)('carries the browser-reported code %s straight through to the caller', async (code) => {
+  it.each(REPORTED_CODES)('carries the browser-reported code %s straight through to the caller', async (code) => {
     const failure = await callAgainstFailure({code, message: `the page said ${code}`})
     expect(failure.code).toBe(code)
     expect(failure.message).toBe(`the page said ${code}`)

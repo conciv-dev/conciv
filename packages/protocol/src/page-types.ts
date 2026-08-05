@@ -128,8 +128,11 @@ export type PageQuery = z.infer<typeof PageQuerySchema>
 export const PageQueryInputSchema = PageQuerySchema.omit({kind: true, requestId: true})
 export type PageQueryInput = z.infer<typeof PageQueryInputSchema>
 
-export const PAGE_ERROR_CODES = ['no-widget', 'unknown-verb', 'invalid-args', 'handler-error', 'timeout'] as const
+export const PAGE_REPORTED_ERROR_CODES = ['unknown-verb', 'invalid-args', 'handler-error'] as const
+export const PAGE_TRANSPORT_ERROR_CODES = ['no-widget', 'timeout'] as const
+export const PAGE_ERROR_CODES = [...PAGE_REPORTED_ERROR_CODES, ...PAGE_TRANSPORT_ERROR_CODES] as const
 export type PageErrorCode = (typeof PAGE_ERROR_CODES)[number]
+export type PageReportedErrorCode = (typeof PAGE_REPORTED_ERROR_CODES)[number]
 const PageRaisedErrorSchema = z.object({
   code: z.string().min(1),
   message: z.string(),
@@ -137,8 +140,8 @@ const PageRaisedErrorSchema = z.object({
 })
 export type PageRaisedError = z.infer<typeof PageRaisedErrorSchema>
 
-const PageErrorSchema = z.object({
-  code: z.enum(PAGE_ERROR_CODES),
+export const PageErrorSchema = z.object({
+  code: z.enum(PAGE_REPORTED_ERROR_CODES),
   message: z.string(),
   raised: PageRaisedErrorSchema.optional(),
 })
@@ -150,10 +153,12 @@ const PageOutcomeSchema = z.discriminatedUnion('ok', [
 ])
 export type PageOutcome = z.infer<typeof PageOutcomeSchema>
 
-export type PageFailure = Error & {readonly isPageFailure: true; error: PageError}
+export type PageFailureError = {code: PageErrorCode; message: string; raised?: PageRaisedError}
+
+export type PageFailure = Error & {readonly isPageFailure: true; error: PageFailureError}
 
 export function pageFailure(code: PageErrorCode, message: string, raised?: PageRaisedError): PageFailure {
-  const error: PageError = raised === undefined ? {code, message} : {code, message, raised}
+  const error: PageFailureError = raised === undefined ? {code, message} : {code, message, raised}
   return Object.assign(new Error(message), {isPageFailure: true as const, error})
 }
 

@@ -1,7 +1,7 @@
 import {describe, it, expect, afterEach} from 'vitest'
 import {z} from 'zod'
 import {tmpdir} from 'node:os'
-import type {PageErrorCode, PageOutcome} from '@conciv/protocol/page-types'
+import type {PageOutcome, PageReportedErrorCode} from '@conciv/protocol/page-types'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../editor/fixtures.js'
@@ -77,7 +77,7 @@ describe('page.run page-bus (IT, real server, typed rpc)', () => {
     expect(changes).toMatchObject([{verb: 'fill', selector: '#email', args: {value: 'a@b.c'}}])
   })
 
-  const FAILURE_CODES: [PageErrorCode, string][] = [
+  const FAILURE_CODES: [PageReportedErrorCode, string][] = [
     ['invalid-args', 'INVALID_ARGS'],
     ['unknown-verb', 'UNKNOWN_VERB'],
     ['handler-error', 'HANDLER_ERROR'],

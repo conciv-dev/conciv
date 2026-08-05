@@ -1,7 +1,13 @@
 import {describe, it, expect, beforeEach} from 'vitest'
 import {z} from 'zod'
 import {pageVerb, toolError} from '@conciv/extension'
+import {isPageFailure, type PageRaisedError} from '@conciv/protocol/page-types'
 import {registerExtensionPageVerbs, clearExtensionPageVerbs, dispatchExtVerb} from '../src/page-verb-registry.js'
+
+function raisedOf(failure: unknown): PageRaisedError | undefined {
+  if (!isPageFailure(failure)) throw new Error('expected a page failure')
+  return failure.error.raised
+}
 
 describe('ext verb dispatch', () => {
   beforeEach(() => clearExtensionPageVerbs())
@@ -55,6 +61,35 @@ describe('ext verb dispatch', () => {
     expect(failure).toMatchObject({error: {code: 'handler-error', raised: {code: 'BROKEN'}}})
     expect(JSON.stringify(failure)).not.toContain('self')
   })
+  it('drops raised data whose keys ride on a prototype, since the wire would transmit them too', async () => {
+    registerExtensionPageVerbs('demo', {
+      inherited: pageVerb(z.object({}), () => {
+        const data: Record<string, unknown> = Object.create({leaked: 'from the prototype'})
+        data.own = 'kept'
+        throw toolError('BROKEN', {message: 'bad payload', data})
+      }),
+    })
+    const failure = await dispatchExtVerb('demo', 'inherited', '{}').then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(raisedOf(failure)).toEqual({code: 'BROKEN', message: 'bad payload'})
+  })
+
+  it('keeps raised data on a null-prototype object, which the wire transmits key for key', async () => {
+    registerExtensionPageVerbs('demo', {
+      bare: pageVerb(z.object({}), () => {
+        const data: Record<string, unknown> = Object.assign(Object.create(null), {retryAfter: 30})
+        throw toolError('BROKEN', {message: 'bad payload', data})
+      }),
+    })
+    const failure = await dispatchExtVerb('demo', 'bare', '{}').then(
+      () => null,
+      (error: unknown) => error,
+    )
+    expect(raisedOf(failure)).toEqual({code: 'BROKEN', message: 'bad payload', data: {retryAfter: 30}})
+  })
+
   it('falls back to empty args when argsJson is malformed and the schema allows it', async () => {
     registerExtensionPageVerbs('demo', {ping: pageVerb(z.object({}).partial(), () => ({ok: true}))})
     expect(await dispatchExtVerb('demo', 'ping', 'not json')).toEqual({result: {ok: true}})

@@ -1,5 +1,6 @@
 import {
   isPageFailure,
+  PageErrorSchema,
   type PageError,
   type PageOutcome,
   type PageQuery,
@@ -21,8 +22,12 @@ function missingTarget(query: PageQuery): never {
 }
 
 function pageErrorOf(error: unknown): PageError {
-  if (isPageFailure(error)) return error.error
-  return {code: 'handler-error', message: error instanceof Error ? error.message : String(error)}
+  if (!isPageFailure(error)) {
+    return {code: 'handler-error', message: error instanceof Error ? error.message : String(error)}
+  }
+  const reported = PageErrorSchema.safeParse(error.error)
+  if (reported.success) return reported.data
+  return {code: 'handler-error', message: error.error.message}
 }
 
 export function makeDomPageDriver(
