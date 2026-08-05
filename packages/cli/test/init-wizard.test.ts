@@ -92,6 +92,24 @@ describe('approvePlan', () => {
     expect(events).toEqual(['plan:the plan'])
   })
 
+  it('dry-run wins when both --yes and --dry-run are passed together', async () => {
+    const events: string[] = []
+    const approved = await approvePlan({
+      yes: true,
+      dryRun: true,
+      found,
+      renderSelected: async () => 'the plan',
+      prompts: harness(events, {
+        decide: async () => {
+          throw new Error('decide must not run under --dry-run')
+        },
+      }),
+      output: recorderOutput(events),
+    })
+    expect(approved).toEqual({decision: 'dry-run', plan: 'the plan'})
+    expect(events).toEqual(['plan:the plan'])
+  })
+
   it('renders the plan before the first prompt and loops adjust with a re-rendered plan', async () => {
     const events: string[] = []
     const decisions = ['adjust', 'proceed'] satisfies ('adjust' | 'proceed')[]

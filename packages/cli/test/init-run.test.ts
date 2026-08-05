@@ -253,6 +253,34 @@ describe('runInit', () => {
     expect(run.spawned).toEqual([])
   })
 
+  it('prints the plan and touches nothing when --yes and --dry-run are passed together', async () => {
+    const run = fixture()
+    const result = await runInit(
+      {yes: true, dryRun: true, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        interactive: () => false,
+        prompts: {
+          decide: async () => {
+            throw new Error('decide must not run under --dry-run')
+          },
+          adjust: async () => {
+            throw new Error('adjust must not run under --dry-run')
+          },
+        },
+      },
+    )
+    expect(result.outcome).toBe('planned')
+    expect(result.outcome === 'planned' ? result.plan : '').toContain('Install @conciv/it')
+    const plans = plansOf(run.events)
+    expect(plans).toHaveLength(1)
+    expect(plans[0]).toContain('Install @conciv/it')
+    expect(run.events).toContain('outro:Dry run — nothing changed.')
+    expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
+    expect(run.added).toEqual([])
+    expect(run.spawned).toEqual([])
+  })
+
   it('refuses a non-interactive terminal without --yes instead of waiting on an invisible prompt', async () => {
     const run = fixture()
     const result = await runInit(

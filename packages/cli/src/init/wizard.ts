@@ -76,8 +76,8 @@ export async function approvePlan(args: ApprovePlan): Promise<PlanApproval> {
   for (;;) {
     const plan = await args.renderSelected(selections)
     args.output.plan(plan)
-    if (args.yes) return {decision: 'selections', selections}
     if (args.dryRun) return {decision: 'dry-run', plan}
+    if (args.yes) return {decision: 'selections', selections}
     const decision = await args.prompts.decide()
     if (decision === 'cancelled') return {decision: 'cancelled'}
     if (decision === 'proceed') return {decision: 'selections', selections}
