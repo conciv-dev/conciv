@@ -160,9 +160,13 @@ describe('dom verbs', () => {
   })
 
   it('mutates attributes, classes, styles, text, and structure', async () => {
-    await resultOf({kind: 'setattr', selector: '#prose', name: 'data-mark', value: 'on'})
+    await resultOf({kind: 'setattr', selector: '#prose', attribute: 'data-mark', value: 'on'})
     expect(document.querySelector('#prose')?.getAttribute('data-mark')).toBe('on')
-    await resultOf({kind: 'removeattr', selector: '#prose', name: 'data-mark'})
+    expect(await failureOf({kind: 'setattr', selector: '#prose', name: 'data-mark', value: 'on'})).toEqual({
+      code: 'invalid-args',
+      message: 'setattr needs an attribute (and value)',
+    })
+    await resultOf({kind: 'removeattr', selector: '#prose', attribute: 'data-mark'})
     expect(document.querySelector('#prose')?.hasAttribute('data-mark')).toBe(false)
     await resultOf({kind: 'addclass', selector: '#prose', class: 'hot'})
     expect(document.querySelector('#prose')?.classList.contains('hot')).toBe(true)

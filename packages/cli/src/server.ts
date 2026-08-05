@@ -1,44 +1,38 @@
-import {defineCommand} from 'citty'
+import {defineCommand, type SubCommandsDef} from 'citty'
+import type {RpcClient} from '@conciv/contract'
+import {BUILTIN_SERVER_TOOLS, serverOperationOfTool} from '@conciv/tools/builtins'
 import {runRpc} from './request.js'
+import {firstRequiredField, toolCommand} from './tool-command.js'
+
+type OperationCall = (input: unknown) => Promise<unknown>
+
+function isOperationCall(value: unknown): value is OperationCall {
+  return typeof value === 'function'
+}
+
+function callOperation(rpc: RpcClient, operation: string, input: Record<string, unknown>): Promise<unknown> {
+  const call: unknown = Reflect.get(rpc.server, operation)
+  if (!isOperationCall(call)) throw new Error(`the server does not implement "${operation}"`)
+  return call(input)
+}
+
+function operationCommands(): SubCommandsDef {
+  return Object.fromEntries(
+    BUILTIN_SERVER_TOOLS.map((tool) => {
+      const operation = serverOperationOfTool(tool.name)
+      return [
+        operation,
+        toolCommand(tool, {
+          name: operation,
+          positional: firstRequiredField(tool),
+          run: (input) => runRpc((rpc) => callOperation(rpc, operation, input)),
+        }),
+      ]
+    }),
+  )
+}
 
 export const serverCommand = defineCommand({
   meta: {name: 'server', description: 'inspect & nudge the live dev server'},
-  subCommands: {
-    config: defineCommand({
-      meta: {name: 'config', description: 'resolved root, base, aliases, plugins'},
-      run: () => runRpc((rpc) => rpc.server.config(undefined)),
-    }),
-    urls: defineCommand({
-      meta: {name: 'urls', description: 'the dev server urls'},
-      run: () => runRpc((rpc) => rpc.server.urls(undefined)),
-    }),
-    resolve: defineCommand({
-      meta: {name: 'resolve', description: 'where an import resolves'},
-      args: {
-        spec: {type: 'positional', required: true, description: 'the import specifier'},
-        importer: {type: 'string', description: 'resolve as if imported from this file'},
-      },
-      run: ({args}) => runRpc((rpc) => rpc.server.resolve({spec: args.spec, importer: args.importer})),
-    }),
-    graph: defineCommand({
-      meta: {name: 'graph', description: 'importers + imported modules of a file'},
-      args: {file: {type: 'positional', required: true, description: 'the file to inspect'}},
-      run: ({args}) => runRpc((rpc) => rpc.server.graph({file: args.file})),
-    }),
-    transform: defineCommand({
-      meta: {name: 'transform', description: 'the transformed code the server serves for a url'},
-      args: {url: {type: 'positional', required: true, description: 'the module url'}},
-      run: ({args}) => runRpc((rpc) => rpc.server.transform({url: args.url})),
-    }),
-    reload: defineCommand({
-      meta: {name: 'reload', description: 'force-HMR a module'},
-      args: {file: {type: 'positional', required: true, description: 'the file to reload'}},
-      run: ({args}) => runRpc((rpc) => rpc.server.reload({file: args.file})),
-    }),
-    restart: defineCommand({
-      meta: {name: 'restart', description: 'restart / re-bundle deps'},
-      args: {force: {type: 'boolean', description: 'force a full restart'}},
-      run: ({args}) => runRpc((rpc) => rpc.server.restart({force: args.force ?? false})),
-    }),
-  },
+  subCommands: operationCommands(),
 })

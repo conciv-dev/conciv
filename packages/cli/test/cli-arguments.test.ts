@@ -41,8 +41,10 @@ describe('conciv CLI argument rejection', () => {
     expect(failureText()).toContain('--hookId')
     written.length = 0
     const answer = await answerNextQuery(kit, {ok: true, result: {}})
-    expect(await runCli(main, ['tools', 'react', 'override', '#a', '--hook-id', '2', '--json', 'true'])).toBe(0)
-    expect(answer.seen()).toMatchObject({kind: 'override', hookId: 2, json: 'true'})
+    expect(
+      await runCli(main, ['tools', 'react', 'override', '#a', '--target', 'hooks', '--hook-id', '2', '--json', 'true']),
+    ).toBe(0)
+    expect(answer.seen()).toMatchObject({kind: 'override', target: 'hooks', hookId: 2, json: 'true'})
   })
 
   it('rejects an unknown flag placed before a nested subcommand instead of dropping it', async () => {

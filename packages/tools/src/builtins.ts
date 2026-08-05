@@ -13,9 +13,19 @@ export type {BuiltinCategory} from './builtins/shared.js'
 
 export const PAGE_TOOL_PREFIX = 'page.'
 
+export const SERVER_TOOL_PREFIX = 'server.'
+
+function withoutPrefix(name: string, prefix: string, family: string): string {
+  if (!name.startsWith(prefix)) throw new Error(`"${name}" is not a ${family} tool`)
+  return name.slice(prefix.length)
+}
+
 export function pageVerbOfTool(name: string): string {
-  if (!name.startsWith(PAGE_TOOL_PREFIX)) throw new Error(`"${name}" is not a page tool`)
-  return name.slice(PAGE_TOOL_PREFIX.length)
+  return withoutPrefix(name, PAGE_TOOL_PREFIX, 'page')
+}
+
+export function serverOperationOfTool(name: string): string {
+  return withoutPrefix(name, SERVER_TOOL_PREFIX, 'dev-server')
 }
 
 function requireMeta(tool: BuiltinPageTool): ToolMeta {

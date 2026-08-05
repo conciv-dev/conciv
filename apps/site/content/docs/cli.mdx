@@ -23,6 +23,8 @@ thread.
 
 Read and drive the live page. Element-targeting verbs take a CSS selector positionally, or
 `--ref` (an element ref from the latest snapshot), or `--name` (a React component name).
+The attribute verbs — `attr`, `setattr`, `removeattr` — name the attribute with `--attribute`,
+so `--name` always means the component.
 
 - **Read**: `route`, `dom`, `query`, `console`, `text`, `value`, `attr`, `exists`, `snapshot`,
   `locate`, `css`
@@ -52,8 +54,9 @@ conciv tools react inspect --name PricingCard
 conciv tools react override --name PricingCard --target props --path plan --json '"pro"'
 ```
 
-`override` patches `props`, `state`, `hooks`, or `context` on the live instance. `track` records
-re-renders (`--action start | stop | report`).
+`override` patches `props`, `state`, `hooks`, or `context` on the live instance and needs
+`--target`. `track` records re-renders (`--action start | stop | report`); `--action` accepts every
+value the page protocol declares — `start`, `stop`, `report`, `enable`, `disable`, `toggle`, `list`.
 
 ### `server`
 
