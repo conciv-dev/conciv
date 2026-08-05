@@ -1,5 +1,5 @@
 import {SquareTerminal} from 'lucide-solid'
-import {defineExtension} from '@conciv/extension'
+import {defineExtension, type RegisterExtension} from '@conciv/extension'
 import {TERMINAL_NAME} from './shared/protocol.js'
 import {TerminalPanelView} from './client/terminal-panel-view.js'
 import {TerminalActions} from './client/terminal-actions.js'
@@ -17,5 +17,9 @@ export const terminal = defineExtension({
     },
   ],
 }).client(() => ({value: {store: createTerminalStore()}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof terminal> {}
+}
 
 export default terminal

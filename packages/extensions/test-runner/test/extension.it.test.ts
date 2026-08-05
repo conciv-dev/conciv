@@ -6,13 +6,11 @@ import {mkdtempSync} from 'node:fs'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {start, type Engine} from '@conciv/core'
 import type {ConcivConfig} from '@conciv/core/config'
-import {makeExtRpcClient, type AnyExtension} from '@conciv/extension'
+import {makeExtRpcClient, type AnyExtension, type RegisterExtension} from '@conciv/extension'
 import testRunnerExtension, {type TestRunnerRouter} from '../src/server.js'
 
 declare module '@conciv/protocol/config-types' {
-  interface ExtensionConfigRegistry {
-    'test-runner': {runner?: 'vitest' | 'jest' | 'node-test' | 'playwright'}
-  }
+  interface ExtensionRegistry extends RegisterExtension<typeof testRunnerExtension> {}
 }
 
 const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/vitest-app')

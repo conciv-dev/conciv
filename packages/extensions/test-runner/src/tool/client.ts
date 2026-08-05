@@ -1,5 +1,5 @@
 import {defineTool} from '@conciv/extension'
-import {testToolDef, TestInput} from './def.js'
+import {testToolDef} from './def.js'
 import {TestCard} from './card.js'
 
-export const testToolClient = defineTool<typeof TestInput>(testToolDef).render(TestCard)
+export const testToolClient = defineTool(testToolDef).render(TestCard)

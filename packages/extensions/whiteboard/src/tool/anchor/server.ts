@@ -4,7 +4,7 @@ import {defineTool} from '@conciv/extension'
 import {comments} from '../../server/db/schema.js'
 import {loadResolver} from '../../anchor/load-resolver.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
-import {anchorResolveDef, type AnchorResolveInput} from './def.js'
+import {anchorResolveDef} from './def.js'
 
 const StoredAnchor = z.object({
   source: z.object({
@@ -26,16 +26,14 @@ const StoredAnchor = z.object({
     .optional(),
 })
 
-export const anchorResolveTool = defineTool<typeof AnchorResolveInput, WhiteboardToolContext>(anchorResolveDef).server(
-  async (input, ctx) => {
-    const [row] = await ctx.store.db.select().from(comments).where(eq(comments.cid, input.cid))
-    if (!row) throw new Error(`comment ${input.cid} not found`)
-    const parsed = StoredAnchor.safeParse(row.anchor)
-    if (!parsed.success) return {status: 'orphaned'}
-    const resolver = await loadResolver(ctx.cwd)
-    const result = await resolver.resolve(parsed.data)
-    return {status: result.status, anchor: result.anchor, candidates: result.candidates, diff: result.diff}
-  },
-)
+export const anchorResolveTool = defineTool(anchorResolveDef).server(async (input, ctx: WhiteboardToolContext) => {
+  const [row] = await ctx.store.db.select().from(comments).where(eq(comments.cid, input.cid))
+  if (!row) throw new Error(`comment ${input.cid} not found`)
+  const parsed = StoredAnchor.safeParse(row.anchor)
+  if (!parsed.success) return {status: 'orphaned'}
+  const resolver = await loadResolver(ctx.cwd)
+  const result = await resolver.resolve(parsed.data)
+  return {status: result.status, anchor: result.anchor, candidates: result.candidates, diff: result.diff}
+})
 
 export const anchorTools = [anchorResolveTool]

@@ -1,16 +1,76 @@
 import {z} from 'zod'
 import type {PageErrorCode} from '@conciv/protocol/page-types'
-import {os, type AnyRouter, type ORPCErrorConstructorMap} from '@orpc/server'
+import type {ExtensionRegistry} from '@conciv/protocol/config-types'
+import {os, type AnyRouter, type ORPCErrorConstructorMap, type Procedure} from '@orpc/server'
 import type {AnyToolBuilder} from './define-extension.js'
-import {isToolError, type ToolBinding, type ToolErrors, type ToolMeta} from './define-tool.js'
+import {
+  FORBIDDEN_TOOL_SEGMENTS,
+  isToolError,
+  type ToolBinding,
+  type ToolErrors,
+  type ToolMeta,
+  type ToolNamePathProblem,
+  type ToolNameProblem,
+} from './define-tool.js'
 import {isPageVerbError} from './page-verbs.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
 import {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
-import type {ToolRequest} from './types.js'
+import type {CtxOf, ToolRequest, UnionToIntersection} from './types.js'
 
 export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding}
 
 export type RegistryCallContext = {request?: ToolRequest}
+
+type RegisteredExtensionTools<Entry> = Entry extends {tools: infer Tools} ? Tools : Record<never, never>
+
+type RegisteredToolsIn<Registry> = UnionToIntersection<RegisteredExtensionTools<Registry[keyof Registry]>>
+
+type ToolPathHead<Path extends string> = Path extends `${infer Head}.${string}` ? Head : Path
+
+type ToolPathTail<Path extends string, Head extends string> = Path extends `${Head}.${infer Tail}` ? Tail : never
+
+type ToolProcedure<Tool> = Tool extends {
+  inputSchema: infer Input extends z.ZodType
+  outputSchema: infer Output extends z.ZodType
+}
+  ? Procedure<RegistryCallContext, RegistryCallContext, Input, Output, Record<never, never>, RegistryToolMeta>
+  : never
+
+type ToolRouterNode<Tools> = {
+  [Head in ToolPathHead<Extract<keyof Tools, string>>]: Head extends keyof Tools
+    ? ToolProcedure<Tools[Head]>
+    : ToolRouterNode<{[Path in keyof Tools as ToolPathTail<Extract<Path, string>, Head>]: Tools[Path]}>
+}
+
+type ToolNamesOfExtension<Registry, Name extends keyof Registry> = Extract<
+  keyof RegisteredExtensionTools<Registry[Name]>,
+  string
+>
+
+type ToolNamesAcross<Registry, Names extends keyof Registry> = Names extends unknown
+  ? ToolNamesOfExtension<Registry, Names>
+  : never
+
+type SharedToolNames<Registry, Names extends keyof Registry = keyof Registry> = Names extends unknown
+  ? Extract<ToolNamesOfExtension<Registry, Names>, ToolNamesAcross<Registry, Exclude<keyof Registry, Names>>>
+  : never
+
+type ToolNameProblemMessage<Tools> = Tools extends ToolNameProblem<infer Message extends string> ? Message : never
+
+type RegistryNameProblem<Registry> =
+  | ([ToolNameProblemMessage<RegisteredToolsIn<Registry>>] extends [never]
+      ? never
+      : ToolNameProblem<ToolNameProblemMessage<RegisteredToolsIn<Registry>>>)
+  | ([SharedToolNames<Registry>] extends [never]
+      ? never
+      : ToolNameProblem<`two extensions register a tool named "${SharedToolNames<Registry>}"`>)
+  | ToolNamePathProblem<ToolNamesAcross<Registry, keyof Registry>>
+
+export type ToolRouterFor<Registry> = [RegistryNameProblem<Registry>] extends [never]
+  ? ToolRouterNode<RegisteredToolsIn<Registry>>
+  : RegistryNameProblem<Registry>
+
+export type ExtensionToolRouter = ToolRouterFor<ExtensionRegistry>
 
 export const TOOL_TRANSPORT_ERRORS: ToolErrors = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
@@ -49,21 +109,26 @@ export type ToolSignature = ToolCatalogEntry & {
   errors: ToolSignatureError[]
 }
 
+export type ToolRegistration<Ctx> = unknown extends Ctx
+  ? [registration?: {context?: Ctx}]
+  : [registration: {context: Ctx}]
+
 export type ToolRegistry = {
-  router: Record<string, AnyRouter>
-  register: (tool: AnyToolBuilder, options?: {context?: unknown}) => void
+  router: ExtensionToolRouter
+  register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<CtxOf<Tool>>) => void
   catalog: {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
 }
 
 export function createToolRegistry(
   options: {pageCaller?: RegistryPageCaller; isPageConnected?: () => boolean} = {},
 ): ToolRegistry {
-  const router = emptyRouterNode()
+  const router = emptyRouterNode<ExtensionToolRouter>()
   const pageCaller = options.pageCaller
   const pageConnected = options.isPageConnected ?? (() => pageCaller !== undefined)
   return {
     router,
-    register: (tool, registration = {}) => registerTool(router, tool, pageCaller, registration.context),
+    register: (tool: AnyToolBuilder, registration?: {context?: unknown}) =>
+      registerTool(router, tool, pageCaller, registration?.context),
     catalog: {
       list: () => catalogEntries(walkRegistryProcedures(router), pageConnected()),
       get: (name) => toolSignature(router, name, pageConnected()),
@@ -71,9 +136,8 @@ export function createToolRegistry(
   }
 }
 
-function emptyRouterNode(): Record<string, AnyRouter> {
-  const node: Record<string, AnyRouter> = Object.create(null)
-  return node
+function emptyRouterNode<Node>(): Node {
+  return Object.create(null)
 }
 
 type RegistryTool = AnyToolBuilder & {meta: ToolMeta; outputSchema: z.ZodType; binding: ToolBinding}
@@ -108,15 +172,13 @@ function registerTool(
   insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, context))
 }
 
-const FORBIDDEN_SEGMENTS = ['__proto__', 'constructor', 'prototype']
-
 function insertProcedure(router: Record<string, AnyRouter>, segments: string[], procedure: AnyRouter): void {
   const leaf = segments.at(-1)
   if (leaf === undefined || segments.some((segment) => segment === '')) {
     throw new Error('tool names use non-empty dot-separated segments')
   }
   const name = segments.join('.')
-  const forbidden = segments.find((segment) => FORBIDDEN_SEGMENTS.includes(segment))
+  const forbidden = segments.find((segment) => FORBIDDEN_TOOL_SEGMENTS.some((reserved) => reserved === segment))
   if (forbidden !== undefined) throw new Error(`tool "${name}": "${forbidden}" is a forbidden path segment`)
   const parent = segments.slice(0, -1).reduce(ensureBranch, router)
   const existing = parent[leaf]
@@ -133,7 +195,7 @@ function insertProcedure(router: Record<string, AnyRouter>, segments: string[], 
 function ensureBranch(node: Record<string, AnyRouter>, segment: string): Record<string, AnyRouter> {
   const existing = node[segment]
   if (existing === undefined) {
-    const branch = emptyRouterNode()
+    const branch = emptyRouterNode<Record<string, AnyRouter>>()
     node[segment] = branch
     return branch
   }

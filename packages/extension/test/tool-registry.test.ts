@@ -507,3 +507,18 @@ test('prototype-chain segments are rejected at registration and leave Object.pro
   expect(Object.hasOwn(Object.prototype, 'x')).toBe(false)
   expect(registry.catalog.list()).toEqual([])
 })
+
+test('a tool name with an empty path segment is rejected at registration', () => {
+  const registry = createToolRegistry()
+  expect(() => registry.register(bareServerTool('page..fill', 'a tool whose name has an empty segment'))).toThrow(
+    /non-empty dot-separated segments/,
+  )
+  expect(registry.catalog.list()).toEqual([])
+})
+
+test('the router type is fully populated while the runtime node starts empty and fills on register', () => {
+  const registry = createToolRegistry()
+  expect(Reflect.get(registry.router, 'server')).toBeUndefined()
+  registry.register(statusTool())
+  expect(Reflect.get(registry.router, 'server')).toBeDefined()
+})

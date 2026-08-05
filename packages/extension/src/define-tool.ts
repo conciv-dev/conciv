@@ -24,19 +24,117 @@ export function isToolError(value: unknown): value is ToolError {
   return value instanceof Error && 'isToolError' in value && value.isToolError === true
 }
 
-export type ToolBuilder<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unknown> = ExtensionTool & {
+export type ToolDefinition<Name extends string, Schema extends z.ZodObject<z.ZodRawShape>, Output extends z.ZodType> = {
+  name: Name
+  description: string
   inputSchema: Schema
-  outputSchema?: z.ZodType
+  outputSchema?: Output
+  errors?: ToolErrors
+  meta?: ToolMeta
+  promptSnippet?: string
+  promptGuidelines?: string[]
+  streamTitle?: string
+  approval?: 'ask'
+}
+
+export type ToolBuilder<
+  Name extends string = string,
+  Schema extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>,
+  Output extends z.ZodType = z.ZodType,
+  Ctx = unknown,
+> = Omit<ExtensionTool, 'name' | 'inputSchema'> & {
+  name: Name
+  inputSchema: Schema
+  outputSchema?: Output
   errors?: ToolErrors
   meta?: ToolMeta
   binding?: ToolBinding
   __ctx?: Ctx
   __clientExecute?: (input: unknown) => Promise<unknown>
-  server: (
-    execute: (input: z.infer<Schema>, ctx: Ctx, request: ToolRequest) => Promise<unknown> | unknown,
-  ) => ToolBuilder<Schema, Ctx>
-  client: (execute: (input: z.infer<Schema>) => Promise<unknown> | unknown) => ToolBuilder<Schema, Ctx>
-  render: (renderer: ToolRenderer) => ToolBuilder<Schema, Ctx>
+  server: <HandlerCtx>(
+    execute: (input: z.infer<Schema>, ctx: HandlerCtx, request: ToolRequest) => Promise<unknown> | unknown,
+  ) => ToolBuilder<Name, Schema, Output, HandlerCtx>
+  client: (execute: (input: z.infer<Schema>) => Promise<unknown> | unknown) => ToolBuilder<Name, Schema, Output, Ctx>
+  render: (renderer: ToolRenderer) => ToolBuilder<Name, Schema, Output, Ctx>
+}
+
+type ToolNameOf<Tool> = Tool extends {name: infer Name extends string} ? (string extends Name ? never : Name) : never
+
+type ToolInputSchemaOf<Tool> = Tool extends {inputSchema: infer Schema extends z.ZodType} ? Schema : z.ZodNever
+
+type ToolOutputSchemaOf<Tool> = Tool extends {outputSchema?: infer Schema}
+  ? NonNullable<Schema> extends z.ZodType
+    ? NonNullable<Schema>
+    : z.ZodUnknown
+  : z.ZodUnknown
+
+export type RegisteredTool<Schema extends z.ZodType, Output extends z.ZodType> = {
+  inputSchema: Schema
+  outputSchema: Output
+}
+
+export type ToolNameProblem<Message extends string> = {toolNameProblem: Message}
+
+type ToolNamesIn<Tools extends readonly unknown[]> = ToolNameOf<Tools[number]>
+
+type DuplicateToolName<Tools extends readonly unknown[]> = Tools extends readonly [infer Head, ...infer Rest]
+  ? [ToolNameOf<Head>] extends [never]
+    ? DuplicateToolName<Rest>
+    : [ToolNameOf<Head>] extends [ToolNamesIn<Rest>]
+      ? ToolNameOf<Head>
+      : DuplicateToolName<Rest>
+  : never
+
+export type PrefixedToolNames<All extends string, Names extends string = All> = Names extends string
+  ? [Extract<All, `${Names}.${string}`>] extends [never]
+    ? never
+    : Names
+  : never
+
+export type EmptySegmentToolNames<Names extends string> = Extract<
+  Names,
+  '' | `.${string}` | `${string}.` | `${string}..${string}`
+>
+
+export const FORBIDDEN_TOOL_SEGMENTS = ['__proto__', 'constructor', 'prototype'] as const
+
+export type ForbiddenToolSegment = (typeof FORBIDDEN_TOOL_SEGMENTS)[number]
+
+export type ForbiddenSegmentToolNames<Names extends string> = Extract<
+  Names,
+  | ForbiddenToolSegment
+  | `${ForbiddenToolSegment}.${string}`
+  | `${string}.${ForbiddenToolSegment}`
+  | `${string}.${ForbiddenToolSegment}.${string}`
+>
+
+export type ToolNamePathProblem<Names extends string> =
+  | ([PrefixedToolNames<Names>] extends [never]
+      ? never
+      : ToolNameProblem<`tool "${PrefixedToolNames<Names>}" is also the prefix of another tool name`>)
+  | ([EmptySegmentToolNames<Names>] extends [never]
+      ? never
+      : ToolNameProblem<`tool name "${EmptySegmentToolNames<Names>}" has an empty path segment`>)
+  | ([ForbiddenSegmentToolNames<Names>] extends [never]
+      ? never
+      : ToolNameProblem<`tool name "${ForbiddenSegmentToolNames<Names>}" uses a path segment that walks the prototype chain`>)
+
+type ToolTupleProblem<Tools extends readonly unknown[]> =
+  | ([DuplicateToolName<Tools>] extends [never]
+      ? never
+      : ToolNameProblem<`two tools are registered as "${DuplicateToolName<Tools>}"`>)
+  | ToolNamePathProblem<ToolNamesIn<Tools>>
+
+export type RegisteredTools<Tools extends readonly unknown[]> = [ToolTupleProblem<Tools>] extends [never]
+  ? {[Tool in Tools[number] as ToolNameOf<Tool>]: RegisteredTool<ToolInputSchemaOf<Tool>, ToolOutputSchemaOf<Tool>>}
+  : ToolTupleProblem<Tools>
+
+type ToolState = {
+  binding?: ToolBinding
+  execute?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
+  serverRun?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
+  clientExecute?: (input: unknown) => Promise<unknown>
+  render?: ToolRenderer
 }
 
 function assertToolMeta(name: string, meta: ToolMeta | undefined): void {
@@ -53,20 +151,11 @@ function assertUnbound(name: string, binding: ToolBinding | undefined): void {
   if (binding !== undefined) throw new Error(`tool "${name}" already has a ${binding} binding`)
 }
 
-export function defineTool<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unknown>(definition: {
-  name: string
-  description: string
-  inputSchema: Schema
-  outputSchema?: z.ZodType
-  errors?: ToolErrors
-  meta?: ToolMeta
-  promptSnippet?: string
-  promptGuidelines?: string[]
-  streamTitle?: string
-  approval?: 'ask'
-}): ToolBuilder<Schema, Ctx> {
-  assertToolMeta(definition.name, definition.meta)
-  const builder: ToolBuilder<Schema, Ctx> = {
+function toolBuilder<Name extends string, Schema extends z.ZodObject<z.ZodRawShape>, Output extends z.ZodType, Ctx>(
+  definition: ToolDefinition<Name, Schema, Output>,
+  state: ToolState,
+): ToolBuilder<Name, Schema, Output, Ctx> {
+  return {
     name: definition.name,
     description: definition.description,
     inputSchema: definition.inputSchema,
@@ -77,25 +166,43 @@ export function defineTool<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unkn
     promptGuidelines: definition.promptGuidelines,
     streamTitle: definition.streamTitle,
     approval: definition.approval,
-    server(execute) {
-      assertUnbound(definition.name, builder.binding)
-      builder.binding = 'server'
+    binding: state.binding,
+    __execute: state.execute,
+    __serverRun: state.serverRun,
+    __clientExecute: state.clientExecute,
+    __render: state.render,
+    server<HandlerCtx>(
+      execute: (input: z.infer<Schema>, ctx: HandlerCtx, request: ToolRequest) => Promise<unknown> | unknown,
+    ) {
+      assertUnbound(definition.name, state.binding)
       const invoke = async (parsed: z.infer<Schema>, ctx: unknown, request: ToolRequest | undefined) =>
-        execute(parsed, ctx as Ctx, request as ToolRequest)
-      builder.__execute = async (raw, ctx, request) => invoke(definition.inputSchema.parse(raw), ctx, request)
-      builder.__serverRun = async (input, ctx, request) => invoke(input as z.infer<Schema>, ctx, request)
-      return builder
+        execute(parsed, ctx as HandlerCtx, request as ToolRequest)
+      return toolBuilder<Name, Schema, Output, HandlerCtx>(definition, {
+        ...state,
+        binding: 'server',
+        execute: async (raw, ctx, request) => invoke(definition.inputSchema.parse(raw), ctx, request),
+        serverRun: async (input, ctx, request) => invoke(input as z.infer<Schema>, ctx, request),
+      })
     },
     client(execute) {
-      assertUnbound(definition.name, builder.binding)
-      builder.binding = 'client'
-      builder.__clientExecute = async (raw) => execute(definition.inputSchema.parse(raw))
-      return builder
+      assertUnbound(definition.name, state.binding)
+      return toolBuilder<Name, Schema, Output, Ctx>(definition, {
+        ...state,
+        binding: 'client',
+        clientExecute: async (raw) => execute(definition.inputSchema.parse(raw)),
+      })
     },
     render(renderer) {
-      builder.__render = renderer
-      return builder
+      return toolBuilder<Name, Schema, Output, Ctx>(definition, {...state, render: renderer})
     },
   }
-  return builder
+}
+
+export function defineTool<
+  const Name extends string,
+  Schema extends z.ZodObject<z.ZodRawShape>,
+  Output extends z.ZodType,
+>(definition: ToolDefinition<Name, Schema, Output>): ToolBuilder<Name, Schema, Output, unknown> {
+  assertToolMeta(definition.name, definition.meta)
+  return toolBuilder<Name, Schema, Output, unknown>(definition, {})
 }

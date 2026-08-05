@@ -20,12 +20,14 @@ export interface ConcivSettingsInit extends WidgetConfig {
   launcher?: 'native' | 'mascot' | false
 }
 
-export interface ExtensionConfigRegistry {}
+export interface ExtensionRegistry {}
+
+export type RegisteredExtensionConfig<Entry> = Entry extends {config: infer Config} ? Config : never
 
 export interface ConcivConfig {
   enabled?: boolean
 
-  extensions?: {[Name in keyof ExtensionConfigRegistry]?: ExtensionConfigRegistry[Name]}
+  extensions?: {[Name in keyof ExtensionRegistry]?: RegisteredExtensionConfig<ExtensionRegistry[Name]>}
   widgetUrl?: string
 
   widget?: WidgetConfig | false
