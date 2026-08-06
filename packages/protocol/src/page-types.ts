@@ -126,6 +126,18 @@ export const PageQuerySchema = z.object({
 
 export type PageQuery = z.infer<typeof PageQuerySchema>
 
+export const PageToolQuerySchema = z.object({
+  requestId: z.string().optional(),
+  kind: z.literal('tool'),
+  name: z.string().min(1).describe('registry tool name whose client body runs in the page'),
+  input: z.record(z.string(), z.unknown()).describe('schema-validated input for the named tool'),
+  timeout: z.coerce.number().optional(),
+})
+export type PageToolQuery = z.infer<typeof PageToolQuerySchema>
+
+export const PageWireQuerySchema = z.union([PageToolQuerySchema, PageQuerySchema])
+export type PageWireQuery = z.infer<typeof PageWireQuerySchema>
+
 export const PageQueryInputSchema = PageQuerySchema.omit({kind: true, requestId: true})
 export type PageQueryInput = z.infer<typeof PageQueryInputSchema>
 

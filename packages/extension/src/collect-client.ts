@@ -1,5 +1,25 @@
 import type {AnyExtension} from './define-extension.js'
+import type {ClientToolCtx} from './define-tool.js'
 import type {AttachmentCardEntry, ToolRenderer} from './types.js'
+
+export type ClientToolEntry = {
+  name: string
+  mirrors: boolean
+  execute: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
+}
+
+export function collectClientTools(builders: AnyExtension[]): ClientToolEntry[] {
+  const seen = new Set<string>()
+  const entries: ClientToolEntry[] = []
+  for (const builder of builders)
+    for (const tool of builder.tools ?? []) {
+      const execute = tool.__clientExecute
+      if (!execute || seen.has(tool.name)) continue
+      seen.add(tool.name)
+      entries.push({name: tool.name, mirrors: tool.meta?.mirrors ?? false, execute})
+    }
+  return entries
+}
 
 export function collectToolRenderers(
   builders: AnyExtension[],

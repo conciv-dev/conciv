@@ -1,5 +1,6 @@
-import {PageQuerySchema} from '@conciv/protocol/page-types'
+import {PageWireQuerySchema} from '@conciv/protocol/page-types'
 import type {RpcClient} from '@conciv/contract'
+import type {ClientToolEntry} from '@conciv/extension'
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
 
 export {makeDomPageDriver, type PageDriver} from './page-driver.js'
@@ -35,7 +36,7 @@ async function sleep(ms: number, signal: AbortSignal): Promise<void> {
 async function serveQueries(rpc: RpcClient, driver: PageDriver, signal: AbortSignal): Promise<void> {
   const iterator = await rpc.page.queries(undefined, {signal})
   for await (const item of iterator) {
-    const parsed = PageQuerySchema.safeParse(item.query)
+    const parsed = PageWireQuerySchema.safeParse(item.query)
     if (!parsed.success) continue
     const requestId = item.requestId
     void driver.execute(parsed.data).then((outcome) => rpc.page.reply({requestId, outcome}).catch(() => {}))
@@ -53,10 +54,15 @@ async function pump(rpc: RpcClient, driver: PageDriver, signal: AbortSignal): Pr
   }
 }
 
-export function startPagePlane(opts: {rpc: RpcClient; document: Document; driver?: PageDriver}): {
+export function startPagePlane(opts: {
+  rpc: RpcClient
+  document: Document
+  driver?: PageDriver
+  tools?: readonly ClientToolEntry[]
+}): {
   dispose: () => void
 } {
-  const driver = opts.driver ?? makeDomPageDriver()
+  const driver = opts.driver ?? makeDomPageDriver({tools: opts.tools})
   const abort = new AbortController()
   void pump(opts.rpc, driver, abort.signal)
   return {dispose: () => abort.abort()}

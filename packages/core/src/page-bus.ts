@@ -1,4 +1,10 @@
-import {pageFailure, type PageOutcome, type PageQuery, type PageQueryInput} from '@conciv/protocol/page-types'
+import {
+  pageFailure,
+  type PageOutcome,
+  type PageQuery,
+  type PageQueryInput,
+  type PageToolQuery,
+} from '@conciv/protocol/page-types'
 import {pageVerbMutates} from '@conciv/tools/builtins'
 import {symbolicateFrames, type RawFrame} from './editor/symbolicate.js'
 
@@ -68,8 +74,10 @@ function makePending<T>(): Pending<T> {
   return {await: awaitReply, resolve}
 }
 
+export type PageAskQuery = Omit<PageQuery, 'requestId'> | Omit<PageToolQuery, 'requestId'>
+
 export type PageBus = {
-  ask: (query: Omit<PageQuery, 'requestId'>) => Promise<Record<string, unknown>>
+  ask: (query: PageAskQuery) => Promise<Record<string, unknown>>
   connected: () => boolean
   resolve: (requestId: string, outcome: PageOutcome) => boolean
   subscribe: (emit: (frame: unknown) => void) => () => void
@@ -87,7 +95,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     return () => subscribers.delete(emit)
   }
 
-  async function ask(query: Omit<PageQuery, 'requestId'>): Promise<Record<string, unknown>> {
+  async function ask(query: PageAskQuery): Promise<Record<string, unknown>> {
     if (subscribers.size === 0) throw pageFailure('no-widget', 'no widget connected')
     idState.n += 1
     const requestId = `pq${idState.n}`

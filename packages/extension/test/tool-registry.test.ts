@@ -298,7 +298,7 @@ test('page failures map onto their declared transport error codes', async () => 
   for (const [pageCode, transportCode] of cases) {
     const registry = createToolRegistry({
       pageCaller: async (tool) => {
-        throw pageVerbError(pageCode, 'core', tool, `page failed with ${pageCode}`)
+        throw pageVerbError(pageCode, 'core', tool.name, `page failed with ${pageCode}`)
       },
     })
     registry.register(fillTool().client(() => ({filled: true})))
@@ -324,7 +324,7 @@ test('an undeclared page failure stays distinguishable from the declared transpo
 })
 
 test('a successful client tool call forwards name and input over the page caller seam', async () => {
-  const calls: [string, unknown][] = []
+  const calls: [{name: string; mutating: boolean}, unknown][] = []
   const registry = createToolRegistry({
     pageCaller: async (tool, input) => {
       calls.push([tool, input])
@@ -334,7 +334,7 @@ test('a successful client tool call forwards name and input over the page caller
   registry.register(fillTool().client(() => ({filled: true})))
   const client = createRouterClient(registry.router)
   await expect(clientTool(client, 'page.fill')({target: '#name'})).resolves.toEqual({filled: true})
-  expect(calls).toEqual([['page.fill', {target: '#name'}]])
+  expect(calls).toEqual([[{name: 'page.fill', mutating: true}, {target: '#name'}]])
 })
 
 function bareServerTool(name: string, summary: string) {

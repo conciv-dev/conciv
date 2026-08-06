@@ -122,7 +122,7 @@ describe('built-in tool declarations', () => {
   })
 
   it('runs a browser tool end to end over the page caller seam', async () => {
-    const calls: [string, unknown][] = []
+    const calls: [{name: string; mutating: boolean}, unknown][] = []
     const registry = createToolRegistry({
       pageCaller: async (tool, input) => {
         calls.push([tool, input])
@@ -134,7 +134,12 @@ describe('built-in tool declarations', () => {
       ok: true,
       value: 'a@b.c',
     })
-    expect(calls).toEqual([['page.fill', {selector: '#email', value: 'a@b.c'}]])
+    expect(calls).toEqual([
+      [
+        {name: 'page.fill', mutating: true},
+        {selector: '#email', value: 'a@b.c'},
+      ],
+    ])
   })
 
   it('raises its declared NO_BUNDLER error when no dev server is attached', async () => {

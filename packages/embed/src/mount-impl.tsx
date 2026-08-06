@@ -3,7 +3,7 @@ import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeDeferredRpcClient, makeRebindableRpcClient} from '@conciv/contract'
 import {createWebStorageHistory} from '@conciv/storage-history'
-import type {AnyExtension} from '@conciv/extension'
+import {collectClientTools, type AnyExtension} from '@conciv/extension'
 import type {GrabProvider} from '@conciv/grab'
 import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
 import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
@@ -64,7 +64,7 @@ type BootNormalConfig = {
 
 async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
   const {rpc, rebind: rebindClient} = makeRebindableRpcClient(config.apiBase)
-  const driver = makeDomPageDriver()
+  const driver = makeDomPageDriver({tools: collectClientTools(config.extensions)})
   window.__CONCIV_PAGE_DRIVER__ = driver
 
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
@@ -120,7 +120,7 @@ type BootConnectConfig = {
 
 function bootConnect(config: BootConnectConfig): BootResult {
   const deferred = makeDeferredRpcClient()
-  const driver = makeDomPageDriver()
+  const driver = makeDomPageDriver({tools: collectClientTools(config.extensions)})
   window.__CONCIV_PAGE_DRIVER__ = driver
 
   let boundApiBase: string | undefined

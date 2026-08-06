@@ -51,6 +51,7 @@ import {openSourceFromFrames} from './editor/open-source.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {extensionRpcMiddleware, rpcMiddleware} from './api/rpc/mount.js'
 import {makeJournal} from './page-bus.js'
+import type {ToolRegistry} from '@conciv/extension/registry'
 import {callPageTool, makeBuiltinRegistry, toolFailureFromPage} from './tool-registry.js'
 import {logError} from './lib/debug.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -155,6 +156,11 @@ export function buildExtensionTools(extension: AnyExtension, context: unknown): 
   })
 }
 
+function registerExtensionClientTools(registry: ToolRegistry, extensions: AnyExtension[]): void {
+  for (const extension of extensions)
+    for (const tool of extension.tools ?? []) if (tool.__clientExecute) registry.register(tool)
+}
+
 function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   const owners = new Map<string, string>()
   for (const [source, names] of sources) {
@@ -200,6 +206,7 @@ export type MadeApp = {
   app: AppType
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
+  registry: ToolRegistry
 }
 
 const RUN_DRAIN_TIMEOUT_MS = 5_000
@@ -242,6 +249,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     bundler: () => opts.bridge,
     openInEditor: opts.openInEditor,
   })
+
+  registerExtensionClientTools(registry, opts.extensions ?? [])
 
   const callPageVerb: CallPageVerb = async (extension, verb, argsJson) => {
     const reply = await runVerb(pageEnv, {extension, verb, argsJson}, 'ext').catch((error: unknown) => {
@@ -447,5 +456,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     db.$client.close()
   }
 
-  return {app, dispose, extensionContexts}
+  return {app, dispose, extensionContexts, registry}
 }
