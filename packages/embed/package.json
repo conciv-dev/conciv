@@ -66,6 +66,7 @@
     "@conciv/extension-recorder": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

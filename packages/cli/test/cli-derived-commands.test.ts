@@ -2,7 +2,7 @@ import {describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
 import {main} from '../src/bin.js'
 import {runCli} from '../src/run.js'
-import {answerNextQuery, bootCli} from './support/cli-app.js'
+import {answerNextQuery, approvedSession, bootCli} from './support/cli-app.js'
 import {cliSession} from './support/cli-session.js'
 import {onlyDocument} from './support/stdout.js'
 
@@ -22,6 +22,7 @@ async function helpFor(argv: string[]): Promise<string> {
 describe('the CLI reads its commands from the tool declarations', () => {
   it('sends the effect argument to the server instead of dropping it', async () => {
     const kit = await bootCli(cleanups)
+    await approvedSession(kit, cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {effect: 'confetti', enabled: true}})
     expect(await runCli(main, ['tools', 'page', 'effect', '--action', 'enable', '--effect', 'confetti'])).toBe(0)
     expect(answer.seen()).toMatchObject({name: 'page.effect', input: {action: 'enable', effect: 'confetti'}})
@@ -36,6 +37,7 @@ describe('the CLI reads its commands from the tool declarations', () => {
 
   it('names the attribute of an edit separately from the React component name', async () => {
     const kit = await bootCli(cleanups)
+    await approvedSession(kit, cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
     expect(await runCli(main, ['tools', 'page', 'setattr', '#a', '--attribute', 'data-state', '--value', 'open'])).toBe(
       0,
@@ -55,6 +57,7 @@ describe('the CLI reads its commands from the tool declarations', () => {
 
   it('clears a field when the value is explicitly empty', async () => {
     const kit = await bootCli(cleanups)
+    await approvedSession(kit, cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: ''}})
     expect(await runCli(main, ['tools', 'page', 'fill', '#email', '--value', ''])).toBe(0)
     expect(answer.seen()).toMatchObject({name: 'page.fill', input: {selector: '#email', value: ''}})

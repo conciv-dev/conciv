@@ -1,5 +1,5 @@
 import type {PageOutcome} from '@conciv/protocol/page-types'
-import {createFakeHarness, createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
+import {approvalIds, createFakeHarness, createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 import type {ResolvedConcivConfig} from '@conciv/core/config'
 
@@ -36,6 +36,29 @@ export async function bootCli(cleanups: (() => Promise<void>)[], extras: BootExt
   cleanups.push(() => kit.cleanup())
   process.env.CONCIV_PORT = new URL(kit.base).port
   return kit
+}
+
+export async function approvedSession(kit: Kit, cleanups: (() => Promise<void>)[]): Promise<string> {
+  const sessionId = await kit.session()
+  process.env.CONCIV_SESSION_ID = sessionId
+  const abort = new AbortController()
+  const stream = await kit.rpc.chat.subscribe({sessionId}, {signal: abort.signal})
+  const decided = new Set<string>()
+  const pump = (async () => {
+    for await (const chunk of stream) {
+      for (const approvalId of approvalIds(chunk)) {
+        if (decided.has(approvalId)) continue
+        decided.add(approvalId)
+        await kit.rpc.chat.permissionDecision({approvalId, approved: true})
+      }
+    }
+  })()
+  cleanups.push(async () => {
+    delete process.env.CONCIV_SESSION_ID
+    abort.abort()
+    await pump.catch(() => {})
+  })
+  return sessionId
 }
 
 export type SeenQuery = Record<string, unknown>

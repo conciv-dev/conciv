@@ -2,6 +2,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {z} from 'zod'
+import {makeApprovingRegistryCall, type CallTool} from '@conciv/harness-testkit'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
 
@@ -19,11 +20,13 @@ const SnapshotSchema = z.object({
 let browser: Browser
 let kit: EmbedKit
 let host: {base: string; close: () => Promise<void>}
+let mutate: CallTool
 
 beforeAll(async () => {
   browser = await chromium.launch()
   kit = await bootEmbedKit()
   host = await serveHost(() => handleHostPage(HOST_BODY))
+  mutate = makeApprovingRegistryCall(kit.base, await kit.session())
 }, 60_000)
 
 afterAll(async () => {
@@ -73,7 +76,7 @@ describe('the page-tool dispatcher serves registry page tools under bootConnect'
   })
 
   it('a mutating tool acts on the page, journals by declared meta, and fires the browser mirror', async () => {
-    await expect(kit.rpc.registry.call({name: 'page.click', input: {selector: '#press-btn'}})).resolves.toMatchObject({
+    await expect(mutate('page.click', {selector: '#press-btn'})).resolves.toMatchObject({
       ok: true,
     })
     await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#clicked-flag'}})).resolves.toMatchObject(
@@ -99,37 +102,41 @@ describe('the page-tool dispatcher serves registry page tools under bootConnect'
 
   describe('the page.effect verb drives host-registered effects', () => {
     it('lists the highlight effect the widget registers', async () => {
-      await expect(kit.rpc.registry.call({name: 'page.effect', input: {action: 'list'}})).resolves.toMatchObject({
+      await expect(mutate('page.effect', {action: 'list'})).resolves.toMatchObject({
         effects: [{name: 'highlight', enabled: false}],
       })
     })
 
     it('enable shows the highlight inspector on the page, disable reverts, toggle flips', async () => {
-      await expect(
-        kit.rpc.registry.call({name: 'page.effect', input: {action: 'enable', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: true})
+      await expect(mutate('page.effect', {action: 'enable', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: true,
+      })
       await expectLocator(page.locator('[data-conciv-capture]')).toHaveCount(1, {timeout: 10_000})
 
-      await expect(
-        kit.rpc.registry.call({name: 'page.effect', input: {action: 'disable', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: false})
+      await expect(mutate('page.effect', {action: 'disable', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: false,
+      })
       await expectLocator(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
 
-      await expect(
-        kit.rpc.registry.call({name: 'page.effect', input: {action: 'toggle', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: true})
+      await expect(mutate('page.effect', {action: 'toggle', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: true,
+      })
       await expectLocator(page.locator('[data-conciv-capture]')).toHaveCount(1, {timeout: 10_000})
 
-      await expect(
-        kit.rpc.registry.call({name: 'page.effect', input: {action: 'toggle', effect: 'highlight'}}),
-      ).resolves.toMatchObject({effect: 'highlight', enabled: false})
+      await expect(mutate('page.effect', {action: 'toggle', effect: 'highlight'})).resolves.toMatchObject({
+        effect: 'highlight',
+        enabled: false,
+      })
       await expectLocator(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
     })
 
     it('an unknown effect name rejects with the declared error', async () => {
-      await expect(
-        kit.rpc.registry.call({name: 'page.effect', input: {action: 'enable', effect: 'confetti'}}),
-      ).rejects.toMatchObject({code: 'UNKNOWN_EFFECT'})
+      await expect(mutate('page.effect', {action: 'enable', effect: 'confetti'})).rejects.toMatchObject({
+        code: 'UNKNOWN_EFFECT',
+      })
     })
   })
 })

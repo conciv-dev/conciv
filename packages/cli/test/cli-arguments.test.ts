@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest'
 import {main} from '../src/bin.js'
 import {runCli} from '../src/run.js'
-import {answerNextQuery, bootCli} from './support/cli-app.js'
+import {answerNextQuery, approvedSession, bootCli} from './support/cli-app.js'
 import {onlyDocument} from './support/stdout.js'
 import {cliSession} from './support/cli-session.js'
 
@@ -27,6 +27,7 @@ describe('conciv CLI argument rejection', () => {
 
   it('rejects a mistyped kebab spelling of a real flag and keeps accepting the real one', async () => {
     const kit = await bootCli(cleanups)
+    await approvedSession(kit, cleanups)
     expect(await runCli(main, ['tools', 'react', 'override', '#a', '--hook-idx', '2'])).toBe(1)
     expect(failureText()).toContain('--hookId')
     written.length = 0
@@ -58,6 +59,7 @@ describe('conciv CLI argument rejection', () => {
 
   it('still accepts an envelope flag placed before a nested subcommand', async () => {
     const kit = await bootCli(cleanups)
+    await approvedSession(kit, cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
     expect(await runCli(main, ['tools', '--json', 'page', 'click', '#a'])).toBe(0)
     expect(answer.seen()).toMatchObject({name: 'page.click'})

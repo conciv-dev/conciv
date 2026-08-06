@@ -6,7 +6,7 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
-import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
+import {createTestHarness, makeApprovingRegistryCall, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {openSource} from '@conciv/extension/client'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
@@ -344,7 +344,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       })
     })()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    await kit.rpc.registry.call({name: 'page.fill', input: {selector: '#name', value: 'Ada'}})
+    await makeApprovingRegistryCall(kit.base, await kit.session())('page.fill', {selector: '#name', value: 'Ada'})
     await answered
     const changes = await kit.rpc.page.changes(undefined)
     expect(changes.map((entry) => entry.verb)).toEqual(['page.fill'])

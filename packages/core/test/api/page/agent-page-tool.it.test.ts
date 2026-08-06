@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {tmpdir} from 'node:os'
-import {makeApprovingCallTool, type Kit} from '@conciv/harness-testkit'
+import {makeApprovingCallTool, makeApprovingRegistryCall, type Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 import {connectWidget} from '../../helpers/fake-widget.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../editor/fixtures.js'
@@ -54,7 +54,7 @@ describe('the agent reaches the page through the same implementation the CLI use
     expect(afterAgent).toMatchObject([{verb: 'page.fill', selector: '#email', args: {value: 'a@b.c'}}])
 
     await kit.rpc.page.clearChanges(undefined)
-    await kit.rpc.registry.call({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}})
+    await makeApprovingRegistryCall(kit.base, await kit.session())('page.fill', {selector: '#email', value: 'a@b.c'})
     const afterCli = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
     expect(afterAgent).toEqual(afterCli)
   }, 30_000)
@@ -66,7 +66,11 @@ describe('the agent reaches the page through the same implementation the CLI use
     const execute = await agentPageTool(kit)
 
     await execute({verb: 'fill', selector: '#email', value: 'a@b.c'})
-    await kit.rpc.registry.call({name: 'page.setattr', input: {selector: '#a', attribute: 'data-state', value: 'open'}})
+    await makeApprovingRegistryCall(kit.base, await kit.session())('page.setattr', {
+      selector: '#a',
+      attribute: 'data-state',
+      value: 'open',
+    })
 
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
     expect(changes.map((entry) => entry.verb)).toEqual(['page.fill', 'page.setattr'])

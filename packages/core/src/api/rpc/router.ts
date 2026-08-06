@@ -1,12 +1,15 @@
+import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {asc, eq, lt} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
+import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers, navigation} from '@conciv/db'
 import type {RegistryCallErrorName, ToolCommandSignature} from '@conciv/contract'
 import {listCommands} from '../../chat/commands.js'
+import {makeAskGate} from '../../chat/gate.js'
 import {pageQueryStream} from '../../page-bus.js'
 import {symbolicateFrames} from '../../editor/symbolicate.js'
 import {chatRouter} from './chat.js'
@@ -34,6 +37,28 @@ function registryCallError(error: unknown, errors: RegistryErrors): Error {
 
 function hasErrorCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+}
+
+function callerSessionId(request: Request): string {
+  const raw = request.headers.get(CONCIV_SESSION_HEADER)?.trim() ?? ''
+  return isSessionId(raw) ? raw : ''
+}
+
+async function decideMutatingCall(
+  deps: RpcDeps,
+  name: string,
+  input: unknown,
+  request: Request,
+): Promise<'allow' | 'deny' | 'no-session'> {
+  if (!deps.registry.catalog.get(name).mutating) return 'allow'
+  const sessionId = callerSessionId(request)
+  if (sessionId === '') return 'no-session'
+  const gate = makeAskGate({
+    sessionId,
+    asks: deps.chat.asks,
+    emit: (chunk) => deps.chat.stream.publish(sessionId, chunk),
+  })
+  return gate.decide(name, input, sessionId, randomUUID())
 }
 
 async function callTool<Output extends z.ZodType>(
@@ -112,8 +137,15 @@ export function makeRpcRouter(deps: RpcDeps) {
           }
         }),
       ),
-      call: os.registry.call.handler(async ({input, errors}) => {
+      call: os.registry.call.handler(async ({input, context, errors}) => {
         if (!deps.registry.has(input.name)) throw errors.UNKNOWN_TOOL()
+        const decision = await decideMutatingCall(deps, input.name, input.input, context.request)
+        if (decision === 'no-session') {
+          throw errors.APPROVAL_DENIED({
+            message: `"${input.name}" mutates the page and needs approval, but no session is attached to ask through; run from a conciv-launched terminal or set ${CONCIV_SESSION_HEADER} (CONCIV_SESSION_ID for the CLI)`,
+          })
+        }
+        if (decision === 'deny') throw errors.APPROVAL_DENIED({message: `"${input.name}" was denied by the user`})
         try {
           return await deps.registry.call(input.name, input.input)
         } catch (error) {

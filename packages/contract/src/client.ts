@@ -5,8 +5,10 @@ import {contract} from './contract.js'
 
 export type RpcClient = ContractRouterClient<typeof contract>
 
-export function makeRpcClient(apiBase: string): RpcClient {
-  const link = new RPCLink({url: `${apiBase}/rpc`})
+export type RpcClientOptions = {headers?: Record<string, string>}
+
+export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): RpcClient {
+  const link = new RPCLink({url: `${apiBase}/rpc`, ...(options.headers ? {headers: options.headers} : {})})
   return createORPCClient(link)
 }
 

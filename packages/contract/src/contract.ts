@@ -41,6 +41,7 @@ const registryCallErrors = {
   UNKNOWN_TOOL: {message: 'no registered tool answers to that name'},
   INVALID_ARGS: {message: 'the tool rejected the arguments'},
   HANDLER_ERROR: {message: 'the tool failed to run'},
+  APPROVAL_DENIED: {message: 'the mutating call was not approved'},
 }
 
 export type RegistryCallErrorName = keyof typeof registryCallErrors
