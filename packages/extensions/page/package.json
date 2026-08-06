@@ -1,7 +1,7 @@
 {
   "name": "@conciv/extension-page",
   "version": "0.0.17",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The page built-in extension: the browser page verbs declared as extension tools, with their browser bodies running on the @conciv/page primitives.",
+  "description": "Scaffold for the built-in page extension package, whose verb declarations as extension tools arrive in later phases of the page-as-extension epic.",
   "keywords": [
     "browser",
     "conciv",
