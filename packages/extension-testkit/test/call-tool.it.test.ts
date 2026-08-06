@@ -33,3 +33,15 @@ test('an oversized tool reply fails loud, and aggregating inside the sandbox sta
     await stop()
   }
 }, 30_000)
+
+test('a tool result merely shaped like the truncation envelope passes through untouched', async () => {
+  const {apiBase, stop} = await bootExtensionServer(ping)
+  try {
+    const session = await resolveSession(apiBase)
+    const callTool = makeCallTool(apiBase, session)
+    const result = await callTool('ping.decoy', {})
+    expect(result).toEqual({truncated: true, reason: 'looks like an envelope', head: 'not really'})
+  } finally {
+    await stop()
+  }
+}, 30_000)

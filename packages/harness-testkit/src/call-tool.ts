@@ -10,7 +10,9 @@ export type RunTypescript = (typescriptCode: string) => Promise<unknown>
 
 const ExecuteReplySchema = z.object({result: z.unknown()}).loose()
 
-const TruncatedReplySchema = z.object({truncated: z.literal(true), reason: z.string(), head: z.string()}).loose()
+const TruncatedReplySchema = z
+  .object({'conciv:truncated': z.literal(true), reason: z.string(), head: z.string()})
+  .loose()
 
 function callThroughCatalog(name: string, input: unknown): string {
   return `

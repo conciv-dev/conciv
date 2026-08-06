@@ -99,14 +99,24 @@ function wellFormedSlice(text: string, length: number): string {
   return sliced
 }
 
+const TRUNCATION_MARKER = 'conciv:truncated'
+
+function truncationEnvelope(reason: string, headSource: string): string {
+  return JSON.stringify({
+    [TRUNCATION_MARKER]: true,
+    truncated: true,
+    reason,
+    advice: 'narrow the request or aggregate inside the sandbox and return less data',
+    head: wellFormedSlice(headSource, TRUNCATION_HEAD_CHARS),
+  })
+}
+
 function cappedText(body: string): string {
   if (body.length <= RESULT_CAP_CHARS) return body
-  return JSON.stringify({
-    truncated: true,
-    reason: `the serialized result is ${body.length} characters and the cap is ${RESULT_CAP_CHARS}`,
-    advice: 'narrow the request or aggregate inside the sandbox and return less data',
-    head: wellFormedSlice(body, TRUNCATION_HEAD_CHARS),
-  })
+  return truncationEnvelope(
+    `the serialized result is ${body.length} characters and the cap is ${RESULT_CAP_CHARS}`,
+    body,
+  )
 }
 
 function declaredCodesOf(capabilities: CodeCapability[]): Set<string> {
@@ -134,13 +144,36 @@ function errorReply(result: z.infer<typeof ExecuteResultSchema>, declaredCodes: 
   return {content: [{type: 'text', text: cappedText(safeStringify(payload, 'execution error'))}], isError: true}
 }
 
-function cappedPart(part: TextContent | ImageContent): TextContent | ImageContent {
-  if (part.type !== 'text') return part
-  return {type: 'text', text: cappedText(part.text)}
+function cappedParts(parts: (TextContent | ImageContent)[]): (TextContent | ImageContent)[] {
+  const totalTextChars = parts.reduce((total, part) => (part.type === 'text' ? total + part.text.length : total), 0)
+  if (totalTextChars <= RESULT_CAP_CHARS) return parts
+  const kept: (TextContent | ImageContent)[] = []
+  const dropped: string[] = []
+  let budget = RESULT_CAP_CHARS
+  for (const part of parts) {
+    if (part.type !== 'text') {
+      kept.push(part)
+      continue
+    }
+    if (dropped.length === 0 && part.text.length <= budget) {
+      budget -= part.text.length
+      kept.push(part)
+      continue
+    }
+    dropped.push(part.text)
+  }
+  kept.push({
+    type: 'text',
+    text: truncationEnvelope(
+      `the content parts carry ${totalTextChars} characters of text and the cap is ${RESULT_CAP_CHARS}`,
+      dropped[0] ?? '',
+    ),
+  })
+  return kept
 }
 
 function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply {
-  if (isContentPartArray(result.result)) return {content: result.result.map(partToContent).map(cappedPart)}
+  if (isContentPartArray(result.result)) return {content: cappedParts(result.result.map(partToContent))}
   const body = safeStringify({result: result.result ?? null, logs: result.logs ?? []}, 'execution result')
   return {content: [{type: 'text', text: cappedText(body)}]}
 }

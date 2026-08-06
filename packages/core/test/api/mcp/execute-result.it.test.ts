@@ -51,7 +51,13 @@ const gush = defineTool({
   inputSchema: z.object({}),
 }).server(() => [{type: 'text', content: 'x'.repeat(80_000)}])
 
-const probe = defineExtension({name: 'probe', tools: [snap, flood, explode, grumble, ratelimit, gush]})
+const spray = defineTool({
+  name: 'probe_spray',
+  description: 'returns many mid-size text parts',
+  inputSchema: z.object({}),
+}).server(() => Array.from({length: 12}, (_, index) => ({type: 'text', content: `part-${index}:${'y'.repeat(9_000)}`})))
+
+const probe = defineExtension({name: 'probe', tools: [snap, flood, explode, grumble, ratelimit, gush, spray]})
 
 type ExecuteOutcome = {ok: true; raw: unknown} | {ok: false; message: string}
 
@@ -149,6 +155,26 @@ describe('/api/mcp execute result mapping', () => {
         .object({truncated: z.literal(true), reason: z.string(), advice: z.string(), head: z.string()})
         .parse(JSON.parse(text))
       expect(envelope.head.startsWith('xxx')).toBe(true)
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
+  it('caps the aggregate across many text parts, not just each part alone', async () => {
+    const kit = await bootKit({extensions: [probe]})
+    try {
+      const outcome = await execute(kit.base, 'return await external_probe_spray({})')
+      if (!outcome.ok) throw new Error(outcome.message)
+      const parts = z.array(z.object({type: z.literal('text'), content: z.string()})).parse(outcome.raw)
+      const total = parts.reduce((sum, part) => sum + part.content.length, 0)
+      expect(total).toBeLessThan(60_000)
+      const tail = parts.at(-1)
+      const envelope = z
+        .object({truncated: z.literal(true), reason: z.string(), head: z.string()})
+        .loose()
+        .parse(JSON.parse(tail?.content ?? ''))
+      expect(envelope.reason).toMatch(/\d/)
+      expect(envelope.head.startsWith('part-')).toBe(true)
     } finally {
       await kit.cleanup()
     }
