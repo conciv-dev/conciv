@@ -1,5 +1,5 @@
 import {spawn, type ChildProcess} from 'node:child_process'
-import {execFile} from 'node:child_process'
+import {execFile, execFileSync} from 'node:child_process'
 import {
   closeSync,
   existsSync,
@@ -38,17 +38,13 @@ export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
 const DEV_ENDPOINT_DIR = join(tmpdir(), 'conciv-it-dev-endpoint')
 
-type PackageInfo = {dir: string; version: string; deps: Record<string, string>}
+export type PackageInfo = {dir: string; version: string | undefined; deps: Record<string, string>}
 
 type ParsedManifest = {
   name?: string
   version?: string
   dependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
-}
-
-function isWorkspaceName(name: string): boolean {
-  return name.startsWith('@conciv/')
 }
 
 function tarballName(name: string, version: string): string {
@@ -78,23 +74,29 @@ function parseManifest(raw: unknown, manifestPath: string): ParsedManifest {
   return {name, version, dependencies, peerDependencies}
 }
 
-function readWorkspacePackages(): Map<string, PackageInfo> {
-  const listing = readdirSync(join(WORKSPACE_ROOT, 'packages'), {withFileTypes: true})
-  const roots: string[] = []
-  for (const entry of listing) {
-    if (!entry.isDirectory()) continue
-    roots.push(join(WORKSPACE_ROOT, 'packages', entry.name))
-    const nested = readdirSync(join(WORKSPACE_ROOT, 'packages', entry.name), {withFileTypes: true})
-    for (const child of nested)
-      if (child.isDirectory()) roots.push(join(WORKSPACE_ROOT, 'packages', entry.name, child.name))
-  }
+function workspaceMemberDirs(): string[] {
+  const listed: unknown = JSON.parse(
+    execFileSync('pnpm', ['list', '--recursive', '--depth', '-1', '--json'], {
+      cwd: WORKSPACE_ROOT,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    }),
+  )
+  if (!Array.isArray(listed)) throw new Error('pnpm list did not return a workspace array')
+  return listed.flatMap((entry) => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const path = Reflect.get(entry, 'path')
+    return typeof path === 'string' && path !== WORKSPACE_ROOT ? [path] : []
+  })
+}
+
+export function workspacePackages(): Map<string, PackageInfo> {
   const byName = new Map<string, PackageInfo>()
-  for (const dir of roots) {
+  for (const dir of workspaceMemberDirs()) {
     const manifestPath = join(dir, 'package.json')
     if (!existsSync(manifestPath)) continue
     const manifest = parseManifest(JSON.parse(readFileSync(manifestPath, 'utf8')), manifestPath)
-    if (manifest.name === undefined || !isWorkspaceName(manifest.name)) continue
-    if (manifest.version === undefined) throw new Error(`workspace package ${manifest.name} has no version`)
+    if (manifest.name === undefined) continue
     byName.set(manifest.name, {
       dir,
       version: manifest.version,
@@ -104,19 +106,22 @@ function readWorkspacePackages(): Map<string, PackageInfo> {
   return byName
 }
 
-export function computeClosure(): string[] {
-  const byName = readWorkspacePackages()
+export function closureOf(packages: ReadonlyMap<string, PackageInfo>, roots: string[]): string[] {
   const seen = new Set<string>()
-  const stack = [...CLOSURE_ROOTS]
+  const stack = [...roots]
   while (stack.length > 0) {
     const name = stack.pop()
-    if (name === undefined || seen.has(name) || !byName.has(name)) continue
+    if (name === undefined || seen.has(name)) continue
+    const info = packages.get(name)
+    if (info === undefined) continue
     seen.add(name)
-    const info = byName.get(name)
-    if (!info) continue
-    for (const dep of Object.keys(info.deps)) if (isWorkspaceName(dep)) stack.push(dep)
+    for (const dep of Object.keys(info.deps)) if (packages.has(dep)) stack.push(dep)
   }
   return [...seen].toSorted()
+}
+
+export function computeClosure(): string[] {
+  return closureOf(workspacePackages(), CLOSURE_ROOTS)
 }
 
 const NON_INTERACTIVE_ENV = {...process.env, CI: 'true'}
@@ -132,8 +137,8 @@ async function run(command: string, args: string[], cwd: string): Promise<void> 
 }
 
 export async function buildAndPack(): Promise<{tgzDir: string; overrides: Record<string, string>; closure: string[]}> {
-  const byName = readWorkspacePackages()
-  const closure = computeClosure()
+  const byName = workspacePackages()
+  const closure = closureOf(byName, CLOSURE_ROOTS)
   await run('pnpm', ['turbo', 'run', 'build', ...closure.flatMap((name) => ['--filter', name])], WORKSPACE_ROOT)
   const tgzDir = mkdtempSync(join(tmpdir(), 'conciv-packed-tgz-'))
   await Promise.all(
@@ -147,6 +152,7 @@ export async function buildAndPack(): Promise<{tgzDir: string; overrides: Record
   for (const name of closure) {
     const info = byName.get(name)
     if (!info) throw new Error(`missing workspace package ${name}`)
+    if (info.version === undefined) throw new Error(`workspace package ${name} has no version to pack`)
     const file = join(tgzDir, tarballName(name, info.version))
     if (!existsSync(file)) throw new Error(`no tarball packed for ${name} at ${file}`)
     overrides[name] = `file:${file}`
