@@ -1,5 +1,5 @@
 import {pageFailure, ok, type PageResult} from '@conciv/protocol/page-types'
-import type {ClientToolCtx, ClientToolLocator} from '@conciv/extension'
+import {toolError, type ClientToolCtx, type ClientToolLocator} from '@conciv/extension'
 import {
   buildSnapshot,
   dehydrate,
@@ -205,7 +205,30 @@ const trackTool = trackDef.client((input) => {
   return trackReport({name: input.name})
 })
 
-const effectTool = effectDef.client(() => fail('effects not initialized'))
+const effectTool = effectDef.client((input, ctx) => {
+  const action = input.action ?? 'list'
+  if (action === 'list') {
+    return {
+      effects: ctx.effects.map((effect) => ({
+        name: effect.name,
+        description: effect.description,
+        enabled: effect.enabled(),
+      })),
+    }
+  }
+  if (input.effect === undefined) badArgs(`action ${action} needs an effect name; action list shows what exists`)
+  const effect = ctx.effects.find((candidate) => candidate.name === input.effect)
+  if (!effect) {
+    const registered = ctx.effects.map((candidate) => candidate.name).join(', ')
+    throw toolError('UNKNOWN_EFFECT', {
+      message: `no effect named "${input.effect}"; registered: ${registered === '' ? 'none' : registered}`,
+    })
+  }
+  if (action !== 'report') {
+    effect.set(action === 'toggle' ? !effect.enabled() : action === 'enable' || action === 'start')
+  }
+  return {effect: effect.name, enabled: effect.enabled()}
+})
 
 const waitTool = waitDef.client((input) =>
   input.selector

@@ -353,12 +353,3 @@ describe('stale refs', () => {
     })
   })
 })
-
-describe('the effect stub', () => {
-  it('fails honestly, as documented in the catalog hint', async () => {
-    expect(await failureOf('effect', {effect: 'confetti'})).toEqual({
-      code: 'handler-error',
-      message: 'effects not initialized',
-    })
-  })
-})

@@ -5,7 +5,7 @@ import {
   type PageOutcome,
   type PageQuery,
 } from '@conciv/protocol/page-types'
-import type {ClientToolEntry} from '@conciv/extension'
+import type {ClientEffect, ClientToolEntry} from '@conciv/extension'
 import {startConsoleBuffer} from './console-buffer.js'
 import type {Refs} from './page-snapshot.js'
 import {makePageToolDispatcher} from './page-tool-dispatcher.js'
@@ -21,10 +21,12 @@ function pageErrorOf(error: unknown): PageError {
   return {code: 'handler-error', message: error.error.message}
 }
 
-export function makeDomPageDriver(deps: {tools?: readonly ClientToolEntry[]; refs?: Refs} = {}): PageDriver {
+export function makeDomPageDriver(
+  deps: {tools?: readonly ClientToolEntry[]; effects?: readonly ClientEffect[]; refs?: Refs} = {},
+): PageDriver {
   const refs: Refs = deps.refs ?? {map: new Map(), n: 0}
   const {buf: consoleBuf, dispose} = startConsoleBuffer()
-  const dispatch = makePageToolDispatcher(deps.tools ?? [], refs, consoleBuf)
+  const dispatch = makePageToolDispatcher(deps.tools ?? [], refs, consoleBuf, deps.effects ?? [])
 
   async function execute(query: PageQuery): Promise<PageOutcome> {
     try {

@@ -55,8 +55,16 @@ export type ExtensionTool = {
   __render?: ToolRenderer
 }
 
+export type ClientEffect = {
+  name: string
+  description: string
+  set: (enabled: boolean) => void
+  enabled: () => boolean
+}
+
 export type ClientFactoryResult<ClientReturnValue extends object> = {
   value: ClientReturnValue
+  effects?: readonly ClientEffect[]
   dispose?: () => void
 }
 

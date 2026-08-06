@@ -1,6 +1,6 @@
 import type {AnyExtension} from './define-extension.js'
 import type {ClientToolCtx} from './define-tool.js'
-import type {AttachmentCardEntry, ToolRenderer} from './types.js'
+import type {AttachmentCardEntry, ClientEffect, ToolRenderer} from './types.js'
 
 export type ClientToolEntry = {
   name: string
@@ -17,6 +17,18 @@ export function collectClientTools(builders: AnyExtension[]): ClientToolEntry[] 
       if (!execute || seen.has(tool.name)) continue
       seen.add(tool.name)
       entries.push({name: tool.name, mirrors: tool.meta?.mirrors ?? false, execute})
+    }
+  return entries
+}
+
+export function collectClientEffects(instances: readonly {effects?: readonly ClientEffect[]}[]): ClientEffect[] {
+  const seen = new Set<string>()
+  const entries: ClientEffect[] = []
+  for (const instance of instances)
+    for (const effect of instance.effects ?? []) {
+      if (seen.has(effect.name)) continue
+      seen.add(effect.name)
+      entries.push(effect)
     }
   return entries
 }

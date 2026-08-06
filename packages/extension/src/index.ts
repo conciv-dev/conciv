@@ -27,7 +27,12 @@ export {defineAttachment} from './define-attachment.js'
 export type {AnyAttachmentBuilder, AttachmentBuilder} from './define-attachment.js'
 export {imageResult} from './image-result.js'
 export type {ContentPart} from '@tanstack/ai'
-export {collectAttachmentCards, collectClientTools, collectToolRenderers} from './collect-client.js'
+export {
+  collectAttachmentCards,
+  collectClientEffects,
+  collectClientTools,
+  collectToolRenderers,
+} from './collect-client.js'
 export type {ClientToolEntry} from './collect-client.js'
 export {getExtensionApi} from './extension-api.js'
 export type {ExtensionApi, ExtensionId} from './extension-api.js'
@@ -38,6 +43,7 @@ export type {
   AttachmentCardProps,
   AttachmentDocumentPart,
   AttachmentExpand,
+  ClientEffect,
   ClientFactoryResult,
   ConfigOf,
   ConnectGate,
