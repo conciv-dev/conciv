@@ -209,7 +209,7 @@ test('a tool registered after the client was created is callable', async () => {
   await expect(clientTool(client, 'server.status')({})).resolves.toEqual({ok: true})
 })
 
-test('the catalog lists every tool with path, summary, binding, and the sandbox-safe binding name', () => {
+test('the catalog lists every tool with path, summary and binding', () => {
   const registry = createToolRegistry()
   registry.register(fillTool().client(() => ({filled: true})))
   registry.register(statusTool())
@@ -217,7 +217,6 @@ test('the catalog lists every tool with path, summary, binding, and the sandbox-
     {
       name: 'page.fill',
       path: ['page', 'fill'],
-      sandboxBinding: 'page_fill',
       binding: 'client',
       summary: 'type text into a field',
       category: 'act',
@@ -229,7 +228,6 @@ test('the catalog lists every tool with path, summary, binding, and the sandbox-
     {
       name: 'server.status',
       path: ['server', 'status'],
-      sandboxBinding: 'server_status',
       binding: 'server',
       summary: 'report whether the server is healthy',
       category: 'read',
@@ -252,7 +250,6 @@ test('the catalog returns one tool full signature: fields, requiredness, enums, 
   registry.register(fillTool().client(() => ({filled: true})))
   const signature = registry.catalog.get('page.fill')
   expect(signature.name).toBe('page.fill')
-  expect(signature.sandboxBinding).toBe('page_fill')
   expect(signature.category).toBe('act')
   expect(signature.mutating).toBe(true)
   expect(signature.mirrors).toBe(true)
@@ -438,20 +435,6 @@ test('a toolError with an undeclared code rethrows the original error instead of
   expect(failure.message).toBe('original failure text')
 })
 
-test('colliding mangled names get distinct deterministic sandbox bindings in list and get alike', () => {
-  const registry = createToolRegistry()
-  registry.register(fillTool().client(() => ({filled: true})))
-  registry.register(bareServerTool('page_fill', 'an underscore-named tool colliding after mangling'))
-  expect(registry.catalog.list().map((entry) => entry.sandboxBinding)).toEqual(['page_fill', 'page_fill_2'])
-  expect(registry.catalog.get('page_fill').sandboxBinding).toBe('page_fill_2')
-})
-
-test('a reserved-word tool name yields a valid sandbox identifier', () => {
-  const registry = createToolRegistry()
-  registry.register(bareServerTool('delete', 'remove something somewhere'))
-  expect(registry.catalog.list().map((entry) => entry.sandboxBinding)).toEqual(['_delete'])
-})
-
 test('client tool reachability follows the liveness callback on the same registry instance', () => {
   const liveness = {connected: false}
   const registry = createToolRegistry({
@@ -610,4 +593,24 @@ test('the full signature carries the CLI positional field the meta declares', ()
   registry.register(positional)
 
   expect(registry.catalog.get('page.text').positional).toBe('selector')
+})
+
+test('sandboxTools carries the live zod schema, metadata and a callable run per tool', async () => {
+  const registry = createToolRegistry({pageCaller: async () => ({filled: true})})
+  registry.register(fillTool().client(() => ({filled: true})))
+  registry.register(statusTool())
+  const tools = registry.sandboxTools()
+  expect(tools.map((tool) => tool.name)).toEqual(['page.fill', 'server.status'])
+  expect(tools.map((tool) => tool.mutating)).toEqual([true, false])
+  const status = tools[1]
+  if (!status) throw new Error('server.status missing')
+  expect(status.schema.safeParse({}).success).toBe(true)
+  await expect(status.run({}, {sessionId: 'conciv_x', model: null})).resolves.toEqual({ok: true})
+})
+
+test('sandboxTools sees a tool registered after the registry was handed out', () => {
+  const registry = createToolRegistry()
+  expect(registry.sandboxTools()).toEqual([])
+  registry.register(statusTool())
+  expect(registry.sandboxTools().map((tool) => tool.name)).toEqual(['server.status'])
 })

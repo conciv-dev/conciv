@@ -1,7 +1,6 @@
 import {expect, test} from 'vitest'
 import {z} from 'zod'
 import {Hono} from 'hono'
-import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../helpers/boot.js'
 
@@ -23,11 +22,8 @@ test('two extensions mount isolated namespaces; both routes serve and both tools
   try {
     expect(((await (await fetch(`${base}/api/ext/alpha/where`)).json()) as {who: string}).who).toBe('alpha')
     expect(((await (await fetch(`${base}/api/ext/beta/where`)).json()) as {who: string}).who).toBe('beta')
-    const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
-    await mcp.callTool('conciv_discover_tools', {names: ['alpha_do', 'beta_do']})
-    const names = (await mcp.tools()).map((candidate) => candidate.name)
-    expect(names).toEqual(expect.arrayContaining(['alpha_do', 'beta_do']))
-    await mcp.close()
+    expect(JSON.stringify(await kit.callTool('alpha_do', {}))).toContain('alpha_do')
+    expect(JSON.stringify(await kit.callTool('beta_do', {}))).toContain('beta_do')
   } finally {
     await close()
   }
@@ -36,7 +32,7 @@ test('two extensions mount isolated namespaces; both routes serve and both tools
 test('a tool-name collision across extensions is rejected at mount', async () => {
   const a = defineExtension({name: 'a', tools: [toolNamed('dup_tool')]})
   const b = defineExtension({name: 'b', tools: [toolNamed('dup_tool')]})
-  await expect(bootKit({extensions: [a, b]})).rejects.toThrow(/collision/)
+  await expect(bootKit({extensions: [a, b]})).rejects.toThrow(/"dup_tool".*extension "a".*extension "b"/)
 })
 
 test('an extension-name collision is rejected at mount', async () => {

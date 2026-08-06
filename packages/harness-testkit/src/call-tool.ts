@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {approvalIds} from './run-events.js'
@@ -5,33 +6,60 @@ import {makeRpcClient} from './session.js'
 
 export type CallTool = (name: string, input: unknown) => Promise<unknown>
 
-type McpClient = Awaited<ReturnType<typeof createMCPClient>>
+export type RunTypescript = (typescriptCode: string) => Promise<unknown>
 
-async function resolveTool(mcp: McpClient, name: string) {
-  const listed = (await mcp.tools()).find((entry) => entry.name === name)
-  if (listed) return listed
-  await mcp.callTool('conciv_discover_tools', {names: [name]})
-  return (await mcp.tools()).find((entry) => entry.name === name)
+const ExecuteReplySchema = z.object({result: z.unknown()}).loose()
+
+const TruncatedReplySchema = z
+  .object({'conciv:truncated': z.literal(true), reason: z.string(), head: z.string()})
+  .loose()
+
+function callThroughCatalog(name: string, input: unknown): string {
+  return `
+    const found = await external_catalog({name: ${JSON.stringify(name)}})
+    const call = globalThis[found.call]
+    if (typeof call !== 'function') throw new Error('binding missing: ' + found.call)
+    return await call(${JSON.stringify(input ?? {})})
+  `
 }
 
-export function makeCallTool(apiBase: string, session: string): CallTool {
-  return async (name, input) => {
+function decodeReply(raw: string): unknown {
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    const reply = ExecuteReplySchema.safeParse(parsed)
+    if (reply.success && 'result' in reply.data) return reply.data.result
+    return parsed
+  } catch {
+    return raw
+  }
+}
+
+export function makeRunTypescript(apiBase: string, session: string): RunTypescript {
+  return async (typescriptCode) => {
     const mcp = await createMCPClient({
       transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
     })
     try {
-      const tool = await resolveTool(mcp, name)
-      if (!tool?.execute) throw new Error(`tool ${name} not on /api/mcp`)
-      const result = await tool.execute(input)
-      if (typeof result !== 'string') return result
-      try {
-        return JSON.parse(result)
-      } catch {
-        return result
-      }
+      const execute = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
+      if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
+      const raw = await execute.execute({typescriptCode})
+      if (typeof raw !== 'string') return raw
+      return decodeReply(raw)
     } finally {
       await mcp.close()
     }
+  }
+}
+
+export function makeCallTool(apiBase: string, session: string): CallTool {
+  const runTypescript = makeRunTypescript(apiBase, session)
+  return async (name, input) => {
+    const reply = await runTypescript(callThroughCatalog(name, input))
+    const truncated = TruncatedReplySchema.safeParse(reply)
+    if (!truncated.success) return reply
+    throw new Error(
+      `the reply for tool "${name}" was truncated (${truncated.data.reason}); aggregate inside the sandbox with makeRunTypescript instead of pulling the full result`,
+    )
   }
 }
 

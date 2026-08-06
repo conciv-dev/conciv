@@ -25,7 +25,6 @@ import {
 } from './define-tool.js'
 import {isPageVerbError} from './page-verbs.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
-import {sanitizeIdentifier, uniqueIdentifier} from './sanitize-identifier.js'
 import type {CtxOf, ToolRequest, UnionToIntersection} from './types.js'
 
 export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding}
@@ -119,7 +118,6 @@ export type RegistryPageCaller = (tool: string, input: unknown, request: ToolReq
 export type ToolCatalogEntry = {
   name: string
   path: readonly string[]
-  sandboxBinding: string
   binding: ToolBinding
   summary: string
   category?: string
@@ -145,12 +143,18 @@ export type ToolRegistration<Ctx> = unknown extends Ctx
   ? [registration?: {context?: Ctx}]
   : [registration: {context: Ctx}]
 
+export type SandboxTool = ToolSignature & {
+  schema: z.ZodObject<z.ZodRawShape>
+  run: (input: unknown, request: ToolRequest) => Promise<unknown>
+}
+
 export type ToolRegistry = {
   router: ExtensionToolRouter
   register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<CtxOf<Tool>>) => void
   has: (name: string) => boolean
   call: (name: string, input: unknown, options?: {request?: ToolRequest}) => Promise<unknown>
   catalog: {list: () => ToolCatalogEntry[]; get: (name: string) => ToolSignature}
+  sandboxTools: () => SandboxTool[]
 }
 
 export function createToolRegistry(
@@ -171,6 +175,7 @@ export function createToolRegistry(
       list: () => catalogEntries(walkRegistryProcedures(router), pageConnected()),
       get: (name) => toolSignature(router, name, pageConnected()),
     },
+    sandboxTools: () => sandboxToolList(router, pageConnected()),
   }
 }
 
@@ -395,15 +400,11 @@ function readToolMeta(entry: RegistryWalkEntry): z.infer<typeof RegistryToolMeta
 }
 
 function catalogEntries(entries: RegistryWalkEntry[], pageConnected: boolean): ToolCatalogEntry[] {
-  const taken = new Set<string>()
   return entries.map((entry) => {
     const meta = readToolMeta(entry)
-    const sandboxBinding = uniqueIdentifier(sanitizeIdentifier(meta.name), taken)
-    taken.add(sandboxBinding)
     return {
       name: meta.name,
       path: entry.path,
-      sandboxBinding,
       binding: meta.binding,
       summary: meta.summary,
       category: meta.category,
@@ -415,12 +416,7 @@ function catalogEntries(entries: RegistryWalkEntry[], pageConnected: boolean): T
   })
 }
 
-function toolSignature(router: Record<string, AnyRouter>, name: string, pageConnected: boolean): ToolSignature {
-  const walked = walkRegistryProcedures(router)
-  const index = walked.findIndex((candidate) => candidate.path.join('.') === name)
-  const entry = walked[index]
-  const listed = catalogEntries(walked, pageConnected)[index]
-  if (entry === undefined || listed === undefined) throw new Error(`unknown tool "${name}"`)
+function signatureOf(entry: RegistryWalkEntry, listed: ToolCatalogEntry): ToolSignature {
   const meta = readToolMeta(entry)
   return {
     ...listed,
@@ -428,10 +424,38 @@ function toolSignature(router: Record<string, AnyRouter>, name: string, pageConn
     mutating: meta.mutating ?? false,
     mirrors: meta.mirrors ?? false,
     keywords: meta.keywords ?? [],
-    input: toJsonSchema(entry.inputSchema, `tool "${name}" input`, 'input'),
-    output: toJsonSchema(entry.outputSchema, `tool "${name}" output`, 'output'),
+    input: toJsonSchema(entry.inputSchema, `tool "${listed.name}" input`, 'input'),
+    output: toJsonSchema(entry.outputSchema, `tool "${listed.name}" output`, 'output'),
     errors: declaredErrorList(entry),
   }
+}
+
+function toolSignature(router: Record<string, AnyRouter>, name: string, pageConnected: boolean): ToolSignature {
+  const walked = walkRegistryProcedures(router)
+  const index = walked.findIndex((candidate) => candidate.path.join('.') === name)
+  const entry = walked[index]
+  const listed = catalogEntries(walked, pageConnected)[index]
+  if (entry === undefined || listed === undefined) throw new Error(`unknown tool "${name}"`)
+  return signatureOf(entry, listed)
+}
+
+function isObjectSchema(schema: unknown): schema is z.ZodObject<z.ZodRawShape> {
+  return isZodSchema(schema) && typeof Reflect.get(schema, 'shape') === 'object'
+}
+
+function sandboxToolList(router: ExtensionToolRouter, pageConnected: boolean): SandboxTool[] {
+  const walked = walkRegistryProcedures(router)
+  const listed = catalogEntries(walked, pageConnected)
+  return walked.map((entry, index) => {
+    const base = listed[index]
+    if (base === undefined) throw new Error('the catalog drifted from the registry walk')
+    if (!isObjectSchema(entry.inputSchema)) throw new Error(`tool "${base.name}" input: not an object schema`)
+    return {
+      ...signatureOf(entry, base),
+      schema: entry.inputSchema,
+      run: (input, request) => callTool(router, base.name, input, request),
+    }
+  })
 }
 
 function isZodSchema(schema: unknown): schema is z.ZodType {

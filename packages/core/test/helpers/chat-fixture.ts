@@ -46,7 +46,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     risky: new Set<string>(),
     tools: () => [],
     toolNames: new Set<string>(),
-    extensionServerTools: () => [],
+    codeModeCapabilities: () => [],
     attachmentExpanders: {},
   }
   const sessionId = 'conciv_fixture'

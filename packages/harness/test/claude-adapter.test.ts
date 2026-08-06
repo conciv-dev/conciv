@@ -14,7 +14,6 @@ describe('claude harness adapter', () => {
       mcp: 'http',
       slashCommands: 'live',
       imageInput: 'fileRef',
-      codeMode: true,
     })
     expect(typeof claude.chatConfig).toBe('function')
   })

@@ -70,3 +70,7 @@ function concivExtensionsServerTool(): ConcivServerTool {
 export function concivTools(ctx: ConcivToolContext): ConcivServerTool[] {
   return [concivUiServerTool(ctx), concivPageServerTool(ctx), concivOpenServerTool(ctx), concivExtensionsServerTool()]
 }
+
+export function concivSandboxTools(ctx: ConcivToolContext): ConcivServerTool[] {
+  return [concivUiServerTool(ctx), concivExtensionsServerTool()]
+}

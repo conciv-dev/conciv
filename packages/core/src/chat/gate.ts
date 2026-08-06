@@ -76,23 +76,34 @@ export type PermissionGate = {
   decide(toolName: string, toolInput: unknown, sessionId: string, toolUseId: string): Promise<'allow' | 'deny'>
 }
 
-export type RunGateDeps = {
+export type AskGateDeps = {
   sessionId: string
   asks: AskRegistry
   emit: (chunk: StreamChunk) => void
-  risky: ReadonlySet<string>
   timeoutMs?: number
 }
 
-export function makeRunGate(deps: RunGateDeps): PermissionGate {
+export type RunGateDeps = AskGateDeps & {risky: ReadonlySet<string>}
+
+export function makeAskGate(deps: AskGateDeps): PermissionGate {
   return {
     decide: async (toolName, toolInput, _sessionId, toolUseId) => {
-      if (!needsApproval(toolName, toolInput, deps.risky)) return 'allow'
+      if (!deps.sessionId) return 'deny'
       const approvalId = randomUUID()
       deps.asks.open(deps.sessionId, approvalId)
       deps.emit(aguiApprovalRequestedFor({toolCallId: toolUseId, toolName, input: toolInput, approvalId}))
       const approved = await deps.asks.waitFor(deps.sessionId, approvalId, deps.timeoutMs ?? ASK_TIMEOUT_MS)
       return approved === true ? 'allow' : 'deny'
+    },
+  }
+}
+
+export function makeRunGate(deps: RunGateDeps): PermissionGate {
+  const ask = makeAskGate(deps)
+  return {
+    decide: async (toolName, toolInput, sessionId, toolUseId) => {
+      if (!needsApproval(toolName, toolInput, deps.risky)) return 'allow'
+      return ask.decide(toolName, toolInput, sessionId, toolUseId)
     },
   }
 }

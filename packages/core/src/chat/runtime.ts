@@ -14,6 +14,7 @@ import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import type {ConcivDb} from '@conciv/db'
+import type {CodeCapability} from './capabilities.js'
 import {FIRST_CHUNK_TIMEOUT_MS, READER_FIRST_APPEND_GRACE_MS} from './run-timing.js'
 import type {AskRegistry} from './ask.js'
 import type {AttachmentExpanders} from './run.js'
@@ -42,7 +43,7 @@ export type ChatDeps = {
   risky: ReadonlySet<string>
   tools: (sessionId: string) => AnyTool[]
   toolNames: ReadonlySet<string>
-  extensionServerTools: () => ExtensionServerTool[]
+  codeModeCapabilities: (sessionId: string) => CodeCapability[]
   attachmentExpanders: AttachmentExpanders
   onRunStart?: (sessionId: string) => void
   onRunEnd?: (sessionId: string) => Promise<void>

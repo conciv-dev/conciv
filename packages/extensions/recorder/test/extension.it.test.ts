@@ -53,6 +53,30 @@ function fixtureStream(base: number): RrwebEvent[] {
   ]
 }
 
+async function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
+  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+  try {
+    const tools = await mcp.tools()
+    expect(tools.map((tool) => tool.name)).toEqual(['execute_typescript'])
+    const execute = tools[0]
+    if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
+    const typescriptCode = [
+      `const found = await external_catalog({name: ${JSON.stringify(name)}})`,
+      `return await globalThis[found.call](${JSON.stringify(input)})`,
+    ].join('\n')
+    return await execute.execute({typescriptCode})
+  } finally {
+    await mcp.close()
+  }
+}
+
+function envelopeResult(raw: unknown): unknown {
+  return z
+    .object({result: z.unknown()})
+    .loose()
+    .parse(JSON.parse(z.string().parse(raw))).result
+}
+
 describe('recorder extension booted in the real engine (IT)', () => {
   beforeEach(() => {
     phases.length = 0
@@ -112,21 +136,13 @@ describe('recorder extension booted in the real engine (IT)', () => {
     }
   }, 30_000)
 
-  it('registers the three tools on /api/mcp and recording_pull returns the action log', async () => {
+  it('exposes one execute tool on /api/mcp and recording_pull returns the action log as text', async () => {
     const {base, engine} = await boot()
     try {
       await recorderClient(base).flush({clientId: 'c1', events: fixtureStream(Date.now() - 2000)})
-      const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
-      await mcp.callTool('conciv_discover_tools', {names: ['recording_start', 'recording_stop', 'recording_pull']})
-      const tools = await mcp.tools()
-      const names = tools.map((tool) => tool.name)
-      expect(names).toEqual(expect.arrayContaining(['recording_start', 'recording_stop', 'recording_pull']))
-      const pull = tools.find((tool) => tool.name === 'recording_pull')
-      if (!pull?.execute) throw new Error('recording_pull not registered')
-      const raw = String(await pull.execute({secondsBack: 60, keyframes: 0}))
-      expect(raw).toContain('click')
-      expect(raw).toContain('Buy')
-      await mcp.close()
+      const log = z.string().parse(await callViaSandbox(base, 'recording_pull', {secondsBack: 60, keyframes: 0}))
+      expect(log).toContain('click')
+      expect(log).toContain('Buy')
     } finally {
       await engine.stop()
     }
@@ -146,20 +162,16 @@ describe('recorder extension booted in the real engine (IT)', () => {
           if (sawMessage([message], {live: true})) wentLive.resolve(message)
         }
       })()
-      const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
-      mark('createMCPClient')
-      await mcp.callTool('conciv_discover_tools', {names: ['recording_start', 'recording_stop']})
-      mark('discover')
-      const tools = await mcp.tools()
-      mark('tools')
-      const startRecording = tools.find((tool) => tool.name === 'recording_start')
-      const stopRecording = tools.find((tool) => tool.name === 'recording_stop')
-      if (!startRecording?.execute || !stopRecording?.execute) throw new Error('tools missing')
-      const started = z.object({captureId: z.string()}).parse(JSON.parse(String(await startRecording.execute({}))))
+      const started = z
+        .object({captureId: z.string()})
+        .loose()
+        .parse(envelopeResult(await callViaSandbox(base, 'recording_start', {})))
       mark('start.execute')
       await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
       mark('flush')
-      const stopped = String(await stopRecording.execute({captureId: started.captureId, keyframes: 0}))
+      const stopped = z
+        .string()
+        .parse(await callViaSandbox(base, 'recording_stop', {captureId: started.captureId, keyframes: 0}))
       mark('stop.execute')
       expect(stopped).toContain('click')
       expect(await wentLive.promise).toEqual({live: true})
@@ -167,8 +179,6 @@ describe('recorder extension booted in the real engine (IT)', () => {
       abort.abort()
       await pump.catch(() => {})
       mark('pump')
-      await mcp.close()
-      mark('mcp.close')
     } finally {
       await engine.stop()
       mark('engine.stop')

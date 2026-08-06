@@ -2,18 +2,25 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {chat, EventType, StreamProcessor, type StreamChunk, type TextOptions} from '@tanstack/ai'
 import {makeTextAdapter} from '@conciv/harness'
-import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
+import type {ToolRequest} from '@conciv/extension'
 import {makeCodeMode} from '../../src/chat/code-mode.js'
 import {codeModeToolChunks} from '../../src/chat/code-mode-parts.js'
+import type {CodeCapability} from '../../src/chat/capabilities.js'
 
 const request: ToolRequest = {sessionId: 'conciv_x', model: null}
 const allowGate = {decide: async () => 'allow' as const}
 
-const canvas: ExtensionServerTool = {
+const canvas: CodeCapability = {
   name: 'canvas.svg',
   description: 'canvas.svg draws a shape. Extra prose here.',
+  summary: 'canvas.svg draws a shape',
+  category: 'extension',
+  mutating: false,
+  reachable: true,
+  errors: [],
   inputSchema: z.object({}),
   execute: async () => 'drew',
+  signature: () => ({input: z.toJSONSchema(z.object({}), {io: 'input'}), output: undefined, errors: []}),
 }
 
 const PARENT_CALL_ID = 'exec-parent-1'
@@ -72,7 +79,7 @@ function foldedMessages(chunks: StreamChunk[]): ReturnType<StreamProcessor['getM
 
 describe('code-mode nested-call parent id from real execution (IT, real chat + real isolate + real fold)', () => {
   it('threads the execute_typescript call id onto emitted gated-tool events without hand-injection', async () => {
-    const codeMode = makeCodeMode([canvas], request, allowGate)
+    const codeMode = makeCodeMode(() => [canvas], request, allowGate)
     if (!codeMode) throw new Error('code mode unavailable: isolated-vm probe reported incompatible')
 
     const chunks: StreamChunk[] = []

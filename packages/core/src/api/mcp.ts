@@ -1,14 +1,18 @@
+import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import {concivTools, type ConcivToolContext} from '@conciv/tools'
-import {isContentPartArray, type ContentPart} from '@tanstack/ai'
-import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
+import {EventType, isContentPartArray, type ContentPart, type StreamChunk} from '@tanstack/ai'
+import type {ToolRequest} from '@conciv/extension'
 import {HTTPException} from 'hono/http-exception'
 import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {logError} from '../lib/debug.js'
 import {loopbackHostAllowlist} from '../lib/cors.js'
+import type {CodeCapability} from '../chat/capabilities.js'
+import type {PermissionGate} from '../chat/gate.js'
+import {makeCodeMode, type CodeMode} from '../chat/code-mode.js'
+import {CODE_MODE_TOOL_CALL_EVENT, codeModeToolChunks} from '../chat/code-mode-parts.js'
 
 export function sessionIdFromHeaders(headers: Headers): string | null {
   const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
@@ -21,10 +25,10 @@ export function nativeIdFromHeaders(headers: Headers): string | null {
   return headers.get(CONCIV_CLAUDE_SESSION_HEADER)?.trim() || null
 }
 
-type RegistrableTool = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
-
 type TextContent = {type: 'text'; text: string}
 type ImageContent = {type: 'image'; data: string; mimeType: string}
+
+type ExecuteReply = {content: (TextContent | ImageContent)[]; isError?: boolean}
 
 function safeStringify(value: unknown, context: string): string {
   try {
@@ -43,95 +47,247 @@ function partToContent(part: ContentPart): TextContent | ImageContent {
   return {type: 'text', text: safeStringify(part, `content part of type "${part.type}"`)}
 }
 
-function toContent(result: unknown): (TextContent | ImageContent)[] {
-  if (isContentPartArray(result)) return result.map(partToContent)
-  return [{type: 'text', text: safeStringify(result, 'tool result')}]
-}
+const EXECUTE_TOOL_NAME = 'execute_typescript'
 
-function registerTool(server: McpServer, tool: RegistrableTool, run: (args: unknown) => Promise<unknown>): void {
-  server.registerTool(tool.name, {description: tool.description, inputSchema: tool.inputSchema.shape}, async (args) => {
-    try {
-      return {content: toContent(await run(args))}
-    } catch (error) {
-      logError(`[mcp] tool "${tool.name}" failed: ${String(error)}`)
-      throw error
-    }
-  })
-}
+const RESULT_CAP_CHARS = 50_000
 
-const DISCOVER_TOOL_NAME = 'conciv_discover_tools'
+const TRUNCATION_HEAD_CHARS = 4_000
 
-const discoverInput = z.object({names: z.array(z.string())})
+const ExecuteInputSchema = z.object({
+  typescriptCode: z
+    .string()
+    .describe(
+      'TypeScript to run in the sandbox. Call capabilities as async sandbox functions, discover them with `await external_catalog({})`, and return a value to pass results back.',
+    ),
+})
 
-const discoverDescription =
-  'Reveal the full description and JSON input schema of extension tools by name so they become listed and callable in this session. Metadata only; this never runs the requested tools.'
+const ExecuteResultSchema = z.object({
+  success: z.boolean(),
+  result: z.unknown().optional(),
+  logs: z.array(z.string()).optional(),
+  error: z.object({message: z.string(), name: z.string().optional(), line: z.number().optional()}).optional(),
+})
 
-function toolMetadata(tool: ExtensionServerTool): {name: string; description: string; inputSchema: unknown} {
-  return {name: tool.name, description: tool.description, inputSchema: z.toJSONSchema(tool.inputSchema)}
-}
+const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): /
 
-function registerDiscoverTool(server: McpServer, extensionTools: ExtensionServerTool[], discovered: Set<string>): void {
-  const byName = new Map(extensionTools.map((tool) => [tool.name, tool]))
-  server.registerTool(
-    DISCOVER_TOOL_NAME,
-    {description: discoverDescription, inputSchema: discoverInput.shape},
-    (args) => {
-      const found: ReturnType<typeof toolMetadata>[] = []
-      const unknown: string[] = []
-      for (const name of args.names) {
-        const tool = byName.get(name)
-        if (!tool) {
-          unknown.push(name)
-          continue
-        }
-        discovered.add(name)
-        found.push(toolMetadata(tool))
-      }
-      return {content: toContent({discovered: found, unknown})}
-    },
+function executeDescription(categories: string[]): string {
+  const sample = categories.length > 0 ? ` Capability categories include ${categories.join(', ')}.` : ''
+  return (
+    'Run TypeScript in a secure sandbox wired to this project. Every capability is an async external_* function, and `await external_catalog({search?, name?})` lists them or returns one full typed signature; discovery and calls happen in the same execution.' +
+    sample +
+    ' Return a value to pass results back; console.log output is captured.'
   )
 }
 
-function buildServer(
-  ctx: ConcivToolContext,
-  extensionTools: ExtensionServerTool[],
-  request: ToolRequest,
-  discovered: Set<string>,
-  decide: McpToolDecider,
-): McpServer {
-  const server = new McpServer({name: 'conciv', version: '0.0.0'})
-  for (const tool of concivTools(ctx)) registerTool(server, tool, (args) => tool.execute(args))
-  if (extensionTools.length > 0) registerDiscoverTool(server, extensionTools, discovered)
-  for (const tool of extensionTools) {
-    if (!discovered.has(tool.name)) continue
-    registerTool(server, tool, async (args) => {
-      const decision = await decide(request.sessionId, tool.name, args)
-      if (decision === 'deny') throw new Error(`Tool "${tool.name}" was denied by the user`)
-      return tool.execute(args, request)
-    })
+function serverInstructions(categories: string[]): string {
+  const sample = categories.length > 0 ? `Capability categories include ${categories.join(', ')}.\n` : ''
+  return `This server exposes one tool: ${EXECUTE_TOOL_NAME}. It runs TypeScript in a sandbox where every project capability is an async external_* function.
+${sample}
+Workflow: call \`await external_catalog({})\` (or \`external_catalog({search})\`) inside the sandbox to list capabilities with the exact function name each one answers to, \`await external_catalog({name})\` for a full typed signature, then call the function and return a value.
+
+Rules of the sandbox:
+- Mutating capabilities may pause for user approval; a denial throws an Error exactly where your code called the function.
+- A capability's declared error code arrives as a "CODE: message" prefix on the thrown error's message (typed error objects do not survive the isolate boundary).
+- Each execution is isolated: no state, imports, network, or file system carry over between calls.
+- Oversized results are truncated to an envelope carrying the reason and a head sample; return less data instead of retrying.`
+}
+
+function wellFormedSlice(text: string, length: number): string {
+  const sliced = text.slice(0, length)
+  const last = sliced.charCodeAt(sliced.length - 1)
+  if (last >= 0xd800 && last <= 0xdbff) return sliced.slice(0, -1)
+  return sliced
+}
+
+const TRUNCATION_MARKER = 'conciv:truncated'
+
+function truncationEnvelope(reason: string, headSource: string): string {
+  return JSON.stringify({
+    [TRUNCATION_MARKER]: true,
+    truncated: true,
+    reason,
+    advice: 'narrow the request or aggregate inside the sandbox and return less data',
+    head: wellFormedSlice(headSource, TRUNCATION_HEAD_CHARS),
+  })
+}
+
+function cappedText(body: string): string {
+  if (body.length <= RESULT_CAP_CHARS) return body
+  return truncationEnvelope(
+    `the serialized result is ${body.length} characters and the cap is ${RESULT_CAP_CHARS}`,
+    body,
+  )
+}
+
+function declaredCodesOf(capabilities: CodeCapability[]): Set<string> {
+  return new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code)))
+}
+
+function decodeDeclaredCode(message: string, declaredCodes: Set<string>): string | undefined {
+  const candidate = DECLARED_ERROR_PREFIX.exec(message)?.[1]
+  if (candidate === undefined) return undefined
+  if (!declaredCodes.has(candidate)) return undefined
+  return candidate
+}
+
+function errorReply(result: z.infer<typeof ExecuteResultSchema>, declaredCodes: Set<string>): ExecuteReply {
+  const message = result.error?.message ?? 'execution failed'
+  const code = decodeDeclaredCode(message, declaredCodes)
+  const payload = {
+    error: {
+      message,
+      ...(result.error?.name === undefined ? {} : {name: result.error.name}),
+      ...(code === undefined ? {} : {code}),
+    },
+    ...(result.logs === undefined || result.logs.length === 0 ? {} : {logs: result.logs}),
   }
+  return {content: [{type: 'text', text: cappedText(safeStringify(payload, 'execution error'))}], isError: true}
+}
+
+function cappedParts(parts: (TextContent | ImageContent)[]): (TextContent | ImageContent)[] {
+  const totalTextChars = parts.reduce((total, part) => (part.type === 'text' ? total + part.text.length : total), 0)
+  if (totalTextChars <= RESULT_CAP_CHARS) return parts
+  const kept: (TextContent | ImageContent)[] = []
+  const dropped: string[] = []
+  let budget = RESULT_CAP_CHARS
+  for (const part of parts) {
+    if (part.type !== 'text') {
+      kept.push(part)
+      continue
+    }
+    if (dropped.length === 0 && part.text.length <= budget) {
+      budget -= part.text.length
+      kept.push(part)
+      continue
+    }
+    dropped.push(part.text)
+  }
+  kept.push({
+    type: 'text',
+    text: truncationEnvelope(
+      `the content parts carry ${totalTextChars} characters of text and the cap is ${RESULT_CAP_CHARS}`,
+      dropped[0] ?? '',
+    ),
+  })
+  return kept
+}
+
+function logsPart(logs: string[]): TextContent[] {
+  if (logs.length === 0) return []
+  return [{type: 'text', text: cappedText(safeStringify({logs}, 'execution logs'))}]
+}
+
+function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply {
+  if (isContentPartArray(result.result)) {
+    return {content: cappedParts([...result.result.map(partToContent), ...logsPart(result.logs ?? [])])}
+  }
+  const body = safeStringify({result: result.result ?? null, logs: result.logs ?? []}, 'execution result')
+  return {content: [{type: 'text', text: cappedText(body)}]}
+}
+
+type PublishChunks = (chunks: StreamChunk[]) => void
+
+function executeStartChunks(executionId: string, typescriptCode: string): StreamChunk[] {
+  return [
+    {
+      type: EventType.TOOL_CALL_START,
+      toolCallId: executionId,
+      toolCallName: EXECUTE_TOOL_NAME,
+      toolName: EXECUTE_TOOL_NAME,
+    },
+    {type: EventType.TOOL_CALL_ARGS, toolCallId: executionId, delta: JSON.stringify({typescriptCode})},
+    {type: EventType.TOOL_CALL_END, toolCallId: executionId},
+  ]
+}
+
+function executeResultChunk(executionId: string, reply: ExecuteReply): StreamChunk {
+  const text = reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
+  return {
+    type: EventType.TOOL_CALL_RESULT,
+    messageId: `${executionId}-result`,
+    toolCallId: executionId,
+    content: text || JSON.stringify({result: 'non-text content'}),
+    state: reply.isError === true ? 'output-error' : 'output-available',
+  }
+}
+
+function sandboxEventContext(
+  executionId: string,
+  publish: PublishChunks,
+): {
+  emitCustomEvent: (eventName: string, value: Record<string, unknown>) => void
+} {
+  return {
+    emitCustomEvent: (eventName, value) => {
+      const stamped = eventName === CODE_MODE_TOOL_CALL_EVENT ? {...value, toolCallId: executionId} : value
+      const mapped = codeModeToolChunks({
+        type: EventType.CUSTOM,
+        name: eventName,
+        value: stamped,
+        timestamp: Date.now(),
+      })
+      if (mapped) publish(mapped)
+    },
+  }
+}
+
+async function runExecute(
+  codeMode: CodeMode,
+  typescriptCode: string,
+  publish: PublishChunks,
+  declaredCodes: () => Set<string>,
+): Promise<ExecuteReply> {
+  const executionId = randomUUID()
+  publish(executeStartChunks(executionId, typescriptCode))
+  const raw = await codeMode
+    .run(typescriptCode, sandboxEventContext(executionId, publish))
+    .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
+  const parsed = ExecuteResultSchema.safeParse(raw)
+  const result = parsed.success
+    ? parsed.data
+    : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
+  const reply = result.success ? successReply(result) : errorReply(result, declaredCodes())
+  publish([executeResultChunk(executionId, reply)])
+  return reply
+}
+
+type McpDeps = {
+  capabilities: (sessionId: string) => CodeCapability[]
+  askGate: (sessionId: string) => PermissionGate
+  publish: (sessionId: string, chunk: StreamChunk) => void
+  sessionModel: (sessionId: string) => string | null
+  sessionForNativeId: (nativeId: string) => Promise<string | null>
+}
+
+export type McpVars = {mcp: McpDeps}
+
+function buildServer(deps: McpDeps, request: ToolRequest): McpServer {
+  const codeMode = makeCodeMode(() => deps.capabilities(request.sessionId), request, deps.askGate(request.sessionId))
+  const server = new McpServer(
+    {name: 'conciv', version: '0.0.0'},
+    {instructions: serverInstructions(codeMode?.categories ?? [])},
+  )
+  if (codeMode === null) {
+    logError('[mcp] code mode is unavailable (isolated-vm incompatible or an empty registry); no tools registered')
+    return server
+  }
+  const publish: PublishChunks = request.sessionId
+    ? (chunks) => chunks.forEach((chunk) => deps.publish(request.sessionId, chunk))
+    : () => {}
+  const declaredCodes = () => declaredCodesOf(deps.capabilities(request.sessionId))
+  server.registerTool(
+    EXECUTE_TOOL_NAME,
+    {description: executeDescription(codeMode.categories), inputSchema: ExecuteInputSchema.shape},
+    async (args) => {
+      try {
+        return await runExecute(codeMode, args.typescriptCode, publish, declaredCodes)
+      } catch (error) {
+        logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
+        throw error
+      }
+    },
+  )
   return server
-}
-
-function discoveredNamesFor(store: Map<string, Set<string>>, sessionId: string): Set<string> {
-  const existing = store.get(sessionId)
-  if (existing) return existing
-  const created = new Set<string>()
-  store.set(sessionId, created)
-  return created
-}
-
-export type McpToolDecider = (sessionId: string, toolName: string, input: unknown) => Promise<'allow' | 'deny'>
-
-export type McpVars = {
-  mcp: {
-    makeCtx: (sessionId: string) => ConcivToolContext
-    extensionTools: ExtensionServerTool[]
-    sessionModel: (sessionId: string) => string | null
-    discovered: Map<string, Set<string>>
-    decide: McpToolDecider
-    sessionForNativeId: (nativeId: string) => Promise<string | null>
-  }
 }
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
@@ -140,16 +296,14 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   const nativeId = nativeIdFromHeaders(c.req.raw.headers)
   const nativeOwner = nativeId ? await c.var.mcp.sessionForNativeId(nativeId) : null
   const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? nativeOwner ?? ''
-  const ctx = c.var.mcp.makeCtx(sessionId)
   const request: ToolRequest = {sessionId, model: c.var.mcp.sessionModel(sessionId)}
-  const discovered = discoveredNamesFor(c.var.mcp.discovered, sessionId)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
     enableDnsRebindingProtection: true,
     allowedHosts,
   })
-  await buildServer(ctx, c.var.mcp.extensionTools, request, discovered, c.var.mcp.decide).connect(transport)
+  await buildServer(c.var.mcp, request).connect(transport)
   return transport.handleRequest(c.req.raw)
 })
 
