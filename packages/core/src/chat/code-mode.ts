@@ -7,7 +7,6 @@ import {
   type IsolateDriver,
   type ToolBinding,
 } from '@tanstack/ai-code-mode'
-import {createNodeIsolateDriver, probeIsolatedVm} from '@tanstack/ai-isolate-node'
 import type {AnyTool} from '@tanstack/ai'
 import {sanitizeIdentifier, uniqueIdentifier, type ToolRequest} from '@conciv/extension'
 import type {CodeCapability} from './capabilities.js'
@@ -25,13 +24,18 @@ export const CATALOG_CALL_HINT = 'await external_catalog({})'
 
 const CATEGORY_SAMPLE_LIMIT = 6
 
-let cachedDriver: IsolateDriver | null = null
+let driverLoad: Promise<IsolateDriver | null> | null = null
 
-function getDriver(): IsolateDriver | null {
-  if (cachedDriver) return cachedDriver
-  if (!probeIsolatedVm().compatible) return null
-  cachedDriver = createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
-  return cachedDriver
+async function importDriver(): Promise<IsolateDriver | null> {
+  const loaded = await import('@tanstack/ai-isolate-node').catch(() => null)
+  if (loaded === null) return null
+  if (!loaded.probeIsolatedVm().compatible) return null
+  return loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
+}
+
+function loadDriver(): Promise<IsolateDriver | null> {
+  driverLoad ??= importDriver()
+  return driverLoad
 }
 
 function declaredCodeOf(error: unknown): string | null {
@@ -222,15 +226,15 @@ export type CodeMode = {
   run: (typescriptCode: string, context?: ToolRunContext) => Promise<unknown>
 }
 
-export function makeCodeMode(
+export async function makeCodeMode(
   capabilities: () => CodeCapability[],
   request: ToolRequest,
   gate: PermissionGate,
   options: {timeoutMs?: number} = {},
-): CodeMode | null {
+): Promise<CodeMode | null> {
   const snapshot = capabilities()
   if (snapshot.length === 0) return null
-  const driver = getDriver()
+  const driver = await loadDriver()
   if (driver === null) return null
   const codeMode = createCodeMode({
     driver,

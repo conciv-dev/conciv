@@ -261,9 +261,9 @@ type McpDeps = {
 
 export type McpVars = {mcp: McpDeps}
 
-function buildServer(deps: McpDeps, request: ToolRequest): McpServer {
+async function buildServer(deps: McpDeps, request: ToolRequest): Promise<McpServer> {
   const gate = deps.askGate(request.sessionId)
-  const codeMode = makeCodeMode(() => deps.capabilities(request.sessionId), request, gate)
+  const codeMode = await makeCodeMode(() => deps.capabilities(request.sessionId), request, gate)
   const server = new McpServer(
     {name: 'conciv', version: '0.0.0'},
     {instructions: serverInstructions(codeMode?.categories ?? [])},
@@ -304,7 +304,8 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
     enableDnsRebindingProtection: true,
     allowedHosts,
   })
-  await buildServer(c.var.mcp, request).connect(transport)
+  const server = await buildServer(c.var.mcp, request)
+  await server.connect(transport)
   return transport.handleRequest(c.req.raw)
 })
 
