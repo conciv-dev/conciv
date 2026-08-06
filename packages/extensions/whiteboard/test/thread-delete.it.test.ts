@@ -8,7 +8,7 @@ test('deleting a thread root removes its replies and pin', async () => {
     await openCanvas(api.page)
     const cid = crypto.randomUUID()
     await createFloatingComment(api, cid, 'thread to delete')
-    await api.callTool('comment.reply', {cid, parts: [{type: 'text', text: 'a reply that should also go'}]})
+    await api.callToolApproved('comment.reply', {cid, parts: [{type: 'text', text: 'a reply that should also go'}]})
 
     const pin = api.page.getByRole('button', {name: /comment, open/})
     await pin.waitFor({timeout: 30_000})

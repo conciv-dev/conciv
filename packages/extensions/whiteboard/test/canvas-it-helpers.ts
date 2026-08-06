@@ -16,7 +16,10 @@ export const openCanvas = async (page: Page): Promise<{cx: number; cy: number}> 
   return {cx: width / 2, cy: height / 2}
 }
 
-export type ToolCaller = {callTool: (name: string, input: unknown) => Promise<unknown>}
+export type ToolCaller = {
+  callTool: (name: string, input: unknown) => Promise<unknown>
+  callToolApproved: (name: string, input: unknown) => Promise<unknown>
+}
 
 export const createFloatingComment = (
   api: ToolCaller,
@@ -24,7 +27,7 @@ export const createFloatingComment = (
   text: string,
   options: {authorModel?: string} = {},
 ): Promise<unknown> =>
-  api.callTool('comment.create', {
+  api.callToolApproved('comment.create', {
     cid,
     kind: 'floating',
     parts: [{type: 'text', text}],

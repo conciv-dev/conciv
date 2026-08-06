@@ -10,7 +10,7 @@ test('png export round-trips through the island with excalidraw rendering', asyn
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await api.callTool('canvas.svg', {
+    await api.callToolApproved('canvas.svg', {
       svg: "<svg viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='#f0a860'/></svg>",
       x: 100,
       y: 100,

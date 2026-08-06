@@ -12,7 +12,9 @@ const Listed = z
   })
   .loose()
 
-const Detail = z.object({name: z.string(), output: z.unknown(), errors: z.array(z.unknown())}).loose()
+const Detail = z
+  .object({name: z.string(), output: z.unknown(), errors: z.array(z.object({code: z.string()}).loose())})
+  .loose()
 
 const DECLARED_MUTATING: Record<string, boolean> = {
   'canvas.read': false,
@@ -57,12 +59,30 @@ test('the sandbox catalog carries all twenty-two whiteboard declarations with ho
   }
 })
 
-test('a whiteboard declaration exposes its output schema and declared errors through the catalog', async () => {
+const DECLARED_ERRORS: Record<string, string[]> = {
+  'canvas.svg': ['INVALID_SVG'],
+  'canvas.diagram': ['DIAGRAM_TOO_LARGE'],
+  'canvas.export': ['EXPORT_TIMEOUT'],
+  'canvas.commit': ['COMMIT_TIMEOUT'],
+  'comment.reply': ['COMMENT_NOT_FOUND'],
+  'comment.read': ['COMMENT_NOT_FOUND'],
+  'comment.resolve': ['COMMENT_NOT_FOUND'],
+  'comment.delete': ['COMMENT_NOT_FOUND'],
+  'comment.move': ['PIN_NOT_FOUND'],
+  'pin.setState': ['PIN_NOT_FOUND'],
+  'anchor.resolve': ['COMMENT_NOT_FOUND'],
+}
+
+test('every whiteboard declaration exposes its output schema and declared errors through the catalog', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
-    const detail = Detail.parse(await api.runTypescript("return await external_catalog({name: 'canvas.svg'})"))
-    expect(JSON.stringify(detail.output)).toContain('pending')
-    expect(JSON.stringify(detail.errors)).toContain('INVALID_SVG')
+    const svg = Detail.parse(await api.runTypescript("return await external_catalog({name: 'canvas.svg'})"))
+    expect(JSON.stringify(svg.output)).toContain('pending')
+    for (const [name, codes] of Object.entries(DECLARED_ERRORS)) {
+      const detail = Detail.parse(await api.runTypescript(`return await external_catalog({name: '${name}'})`))
+      const declared = detail.errors.map((error) => error.code)
+      for (const code of codes) expect(declared, name).toContain(code)
+    }
   } finally {
     await api.dispose()
   }
