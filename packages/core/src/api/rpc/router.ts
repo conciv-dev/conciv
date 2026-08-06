@@ -9,7 +9,7 @@ import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers, navigation} from '@conciv/db'
 import type {RegistryCallErrorName, ToolCommandSignature} from '@conciv/contract'
 import {listCommands} from '../../chat/commands.js'
-import {makeAskGate} from '../../chat/gate.js'
+import {makeAskGate, requiresApproval} from '../../chat/gate.js'
 import {rowById} from '../../chat/session-rows.js'
 import {pageQueryStream} from '../../page-bus.js'
 import {symbolicateFrames} from '../../editor/symbolicate.js'
@@ -40,12 +40,22 @@ function hasErrorCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code
 }
 
-function callerSessionId(request: Request): string {
-  const raw = request.headers.get(CONCIV_SESSION_HEADER)?.trim() ?? ''
-  return isSessionId(raw) ? raw : ''
-}
-
 type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
+
+function callerSessionId(name: string, request: Request, errors: ApprovalErrors): string {
+  const raw = request.headers.get(CONCIV_SESSION_HEADER)?.trim() ?? ''
+  if (raw === '') {
+    throw errors.APPROVAL_DENIED({
+      message: `"${name}" requires approval and no session is attached to ask through; run from a conciv-launched terminal or send ${CONCIV_SESSION_HEADER} (CONCIV_SESSION_ID for the CLI)`,
+    })
+  }
+  if (!isSessionId(raw)) {
+    throw errors.APPROVAL_DENIED({
+      message: `"${name}" requires approval but the ${CONCIV_SESSION_HEADER} header carries a malformed session id`,
+    })
+  }
+  return raw
+}
 
 async function approveAskGatedCall(
   deps: RpcDeps,
@@ -54,13 +64,8 @@ async function approveAskGatedCall(
   request: Request,
   errors: ApprovalErrors,
 ): Promise<void> {
-  if (deps.registry.catalog.get(name).approval !== 'ask') return
-  const sessionId = callerSessionId(request)
-  if (sessionId === '') {
-    throw errors.APPROVAL_DENIED({
-      message: `"${name}" requires approval and no session is attached to ask through; run from a conciv-launched terminal or send ${CONCIV_SESSION_HEADER} (CONCIV_SESSION_ID for the CLI)`,
-    })
-  }
+  if (!requiresApproval(deps.registry.catalog.get(name))) return
+  const sessionId = callerSessionId(name, request, errors)
   if ((await rowById(deps.chat.db, sessionId)) === null) {
     throw errors.APPROVAL_DENIED({
       message: `"${name}" requires approval but session "${sessionId}" does not exist`,
@@ -75,6 +80,7 @@ async function approveAskGatedCall(
     sessionId,
     asks: deps.chat.asks,
     emit: (chunk) => deps.chat.stream.publish(sessionId, chunk),
+    ...(deps.askTimeoutMs === undefined ? {} : {timeoutMs: deps.askTimeoutMs}),
   })
   const decision = await gate.decide(name, input, sessionId, randomUUID())
   if (decision === 'allow') return

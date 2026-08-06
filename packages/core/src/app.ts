@@ -31,7 +31,8 @@ import {
 } from './chat/session-rows.js'
 import {buildChatTools, makeRunControl, type ChatDeps} from './chat/runtime.js'
 import {askUi, createAskRegistry} from './chat/ask.js'
-import {makeAskGate, makeConcivSandbox} from './chat/gate.js'
+import {makeAskGate, requiresApproval} from './chat/gate.js'
+import {makeConcivSandbox} from './chat/sandbox.js'
 import {
   assistCapabilities,
   extensionCapabilities,
@@ -81,6 +82,8 @@ export type MakeAppOpts = {
   onShutdown?: () => void
 
   firstChunkTimeoutMs?: number
+
+  askTimeoutMs?: number
 
   nativePageDir?: string
 
@@ -155,7 +158,7 @@ export function buildExtensionTools(extension: AnyExtension, context: unknown): 
         description: toolDescription(tool),
         inputSchema: tool.inputSchema,
         approval: tool.approval,
-        mutating: tool.approval === 'ask' || (tool.meta?.mutating ?? false),
+        mutating: requiresApproval(tool) || (tool.meta?.mutating ?? false),
         errors: declaredToolErrors(tool),
         execute: (input: unknown, request: ToolRequest) => run(input, context, request),
       },
@@ -183,7 +186,7 @@ function registryBackedTool(tool: AnyToolBuilder, registry: ToolRegistry): Exten
     description: toolDescription(tool),
     inputSchema: tool.inputSchema,
     approval: tool.approval,
-    mutating: tool.approval === 'ask' || (tool.meta?.mutating ?? false),
+    mutating: requiresApproval(tool) || (tool.meta?.mutating ?? false),
     errors: declaredToolErrors(tool),
     execute: (input: unknown, request: ToolRequest) => registry.call(tool.name, input, {request}),
   }
@@ -262,7 +265,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const risky = new Set(
     (opts.extensions ?? [])
       .flatMap((extension) => extension.tools ?? [])
-      .filter((tool) => tool.approval === 'ask')
+      .filter((tool) => requiresApproval(tool))
       .map((tool) => tool.name),
   )
 
@@ -385,7 +388,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .list()
       .flatMap((entry) => {
         const signature = registry.catalog.get(entry.name)
-        if (signature.approval === 'ask') return []
+        if (requiresApproval(signature)) return []
         const [group, operation] = [entry.path.slice(0, -1).join(' '), entry.path.at(-1)]
         if (operation === undefined) return []
         const command = group === '' ? `conciv tools ${operation}` : `conciv tools ${group} ${operation}`
@@ -473,6 +476,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     page: pageEnv,
     registry,
+    ...(opts.askTimeoutMs === undefined ? {} : {askTimeoutMs: opts.askTimeoutMs}),
   })
 
   const app = composeRoutes(

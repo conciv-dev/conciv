@@ -2,22 +2,14 @@ import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {defineChatMiddleware, type AnyTool, type StreamChunk} from '@tanstack/ai'
 import {
-  defineSandbox,
   defineSandboxPolicy,
   evaluateCommand,
   nodeHttpBridgeProvisioner,
-  provideSandbox,
-  provideSandboxPolicy,
   provideToolBridgeProvisioner,
-  SandboxCapability,
   ToolBridgeProvisionerCapability,
-  type SandboxDefinition,
-  type SandboxHandle,
   type PolicyDecision,
-  type SandboxProcess,
   type ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
-import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
 import {ASK_TIMEOUT_MS, type AskRegistry} from './ask.js'
 import {makeToolNameNormalizer} from './tool-names.js'
@@ -74,7 +66,17 @@ function needsApproval(toolName: string, toolInput: unknown, deps: RunGateDeps):
   return classifyCommand(parsed.success ? parsed.data.command : '', deps.commandAllows?.() ?? []) !== 'allow'
 }
 
+export function requiresApproval(subject: {approval?: 'ask'}): boolean {
+  return subject.approval === 'ask'
+}
+
 export type PermissionDecision = 'allow' | 'deny' | 'timeout'
+
+export function approvalRefusal(toolName: string, decision: PermissionDecision): string | null {
+  if (decision === 'allow') return null
+  if (decision === 'deny') return `Tool "${toolName}" was denied by the user`
+  return `Tool "${toolName}" received no approval decision (the ask timed out)`
+}
 
 export type PermissionGate = {
   decide(toolName: string, toolInput: unknown, sessionId: string, toolUseId: string): Promise<PermissionDecision>
@@ -116,16 +118,6 @@ export function makeRunGate(deps: RunGateDeps): PermissionGate {
   }
 }
 
-export function makeConcivSandbox(cwd: string): SandboxDefinition {
-  return defineSandbox({
-    id: 'conciv',
-    provider: localProcessSandbox({dir: cwd}),
-    policy: defineSandboxPolicy({default: 'ask'}),
-    fileEvents: false,
-    lifecycle: {reuse: 'thread', destroyOnComplete: false},
-  })
-}
-
 function requestFields(request: {tool_name?: string; input?: unknown}): {
   toolName: string
   input: unknown
@@ -147,7 +139,8 @@ function gatedTools(tools: AnyTool[], gate: PermissionGate, sessionId: string): 
       ...tool,
       execute: async (args: unknown, context: unknown) => {
         const decision = await gate.decide(tool.name, args, sessionId, randomUUID())
-        if (decision !== 'allow') throw new Error(`Tool "${tool.name}" was denied by the user`)
+        const refusal = approvalRefusal(tool.name, decision)
+        if (refusal !== null) throw new Error(refusal)
         return execute(args, context)
       },
     }
@@ -181,67 +174,6 @@ export function withConcivGate(gate: PermissionGate, sessionId: string) {
     provides: [ToolBridgeProvisionerCapability],
     setup(ctx) {
       provideToolBridgeProvisioner(ctx, gateProvisioner(gate, sessionId))
-    },
-  })
-}
-
-const SIGKILL_ESCALATION_MS = 2000
-
-function abortSafeProcess(inner: SandboxProcess): SandboxProcess {
-  return {
-    exec: inner.exec,
-    spawn: async (command, options) => {
-      const {signal, ...rest} = options ?? {}
-      const spawned = await inner.spawn(command, rest)
-      const live = {value: true}
-      const settle = () => {
-        live.value = false
-      }
-      void spawned.wait().then(settle, settle)
-      if (!signal) return spawned
-      const killIfLive = () => {
-        if (spawned.pid <= 0 || !live.value) return
-        void spawned.kill()
-        const escalate = setTimeout(() => {
-          if (live.value) void spawned.kill('SIGKILL')
-        }, SIGKILL_ESCALATION_MS)
-        escalate.unref?.()
-      }
-      if (!signal.aborted) {
-        signal.addEventListener('abort', killIfLive, {once: true})
-        return spawned
-      }
-      killIfLive()
-      return {...spawned, stdin: {write: () => Promise.resolve(), end: () => Promise.resolve()}}
-    },
-  }
-}
-
-function abortSafeHandle(handle: SandboxHandle): SandboxHandle {
-  return {
-    id: handle.id,
-    provider: handle.provider,
-    capabilities: handle.capabilities,
-    fs: handle.fs,
-    git: handle.git,
-    process: abortSafeProcess(handle.process),
-    ports: handle.ports,
-    env: handle.env,
-    destroy: () => handle.destroy(),
-    ...(handle.workspaceRoot !== undefined ? {workspaceRoot: handle.workspaceRoot} : {}),
-    ...(handle.snapshot ? {snapshot: handle.snapshot} : {}),
-    ...(handle.fork ? {fork: handle.fork} : {}),
-  }
-}
-
-export function withConcivSandbox(definition: SandboxDefinition) {
-  return defineChatMiddleware({
-    name: 'conciv-sandbox',
-    provides: [SandboxCapability],
-    async setup(ctx) {
-      const handle = await definition.ensure({threadId: ctx.threadId, runId: ctx.runId, signal: ctx.signal})
-      provideSandbox(ctx, abortSafeHandle(handle))
-      if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
     },
   })
 }

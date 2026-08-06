@@ -182,6 +182,27 @@ describe('approval-declared tools gate at the RPC boundary (server.restart)', ()
     })
   }, 40_000)
 
+  it('a malformed session header is refused as malformed, not as session-missing', async () => {
+    const kit = await bootGated()
+    const rpc = sessionRpcOf(kit, 'not-a-session-id')
+    await expect(rpc.server.restart({})).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: expect.stringContaining('malformed'),
+    })
+  }, 40_000)
+
+  it('an unanswered ask expires over the real wire into the no-decision refusal', async () => {
+    const kit = await bootKit({cwd: tmpdir(), bridge: restartBridge(), askTimeoutMs: 500})
+    cleanups.push(() => kit.cleanup())
+    const sessionId = await createdSession(kit)
+    await kit.attach(sessionId)
+    const rpc = sessionRpcOf(kit, sessionId)
+    await expect(rpc.server.restart({})).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: expect.stringContaining('no approval decision'),
+    })
+  }, 40_000)
+
   it('a session that does not exist is refused', async () => {
     const kit = await bootGated()
     const rpc = sessionRpcOf(kit, `conciv_${randomUUID()}`)
