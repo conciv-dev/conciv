@@ -23,6 +23,7 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   input: z.ZodObject<Shape>
   output: Out
   mutating?: boolean
+  approval?: 'ask'
   positional?: string
   keywords?: readonly string[]
   run: (input: z.infer<z.ZodObject<Shape>>, bundler: BundlerBridge) => Promise<z.infer<Out>> | z.infer<Out>
@@ -34,6 +35,7 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
     inputSchema: spec.input,
     outputSchema: spec.output,
     errors: NO_BUNDLER,
+    approval: spec.approval,
     meta: {
       summary: spec.summary,
       category,
@@ -100,6 +102,7 @@ const reloadTool = serverTool({
   operation: 'reload',
   summary: 'force a hot update of one module',
   mutating: true,
+  approval: 'ask',
   positional: 'file',
   keywords: ['hmr'],
   input: z.object({file: z.string().describe('the file to reload')}),
@@ -114,6 +117,7 @@ const restartTool = serverTool({
   operation: 'restart',
   summary: 'restart the dev server and re-bundle its dependencies',
   mutating: true,
+  approval: 'ask',
   keywords: ['rebundle'],
   input: z.object({force: z.boolean().optional().describe('force a full restart')}),
   output: OkResult,

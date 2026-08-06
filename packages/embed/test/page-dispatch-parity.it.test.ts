@@ -2,7 +2,6 @@ import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {z} from 'zod'
-import {makeApprovingRegistryCall, type CallTool} from '@conciv/harness-testkit'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, hostPage, serveHost} from './helpers/host.js'
 
@@ -29,7 +28,7 @@ afterAll(async () => {
   await browser.close()
 })
 
-type BootedPath = {kit: EmbedKit; page: Page; mutate: CallTool}
+type BootedPath = {kit: EmbedKit; page: Page}
 
 async function buttonRef(kit: EmbedKit): Promise<string> {
   const snapshot = SnapshotSchema.parse(await kit.rpc.registry.call({name: 'page.snapshot', input: {}}))
@@ -63,8 +62,8 @@ function verbGroupBattery(boot: () => BootedPath): void {
   })
 
   it('act: page.click acts on the page, journals, and fires the browser mirror', async () => {
-    const {kit, page, mutate} = boot()
-    await expect(mutate('page.click', {selector: '#press-btn'})).resolves.toMatchObject({
+    const {kit, page} = boot()
+    await expect(kit.rpc.registry.call({name: 'page.click', input: {selector: '#press-btn'}})).resolves.toMatchObject({
       ok: true,
     })
     await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#clicked-flag'}})).resolves.toMatchObject(
@@ -76,10 +75,10 @@ function verbGroupBattery(boot: () => BootedPath): void {
   })
 
   it('edit-live: page.settext rewrites the DOM and journals by declared meta', async () => {
-    const {kit, mutate} = boot()
-    await expect(mutate('page.settext', {selector: '#title', text: 'Rewritten title'})).resolves.toMatchObject({
-      ok: true,
-    })
+    const {kit} = boot()
+    await expect(
+      kit.rpc.registry.call({name: 'page.settext', input: {selector: '#title', text: 'Rewritten title'}}),
+    ).resolves.toMatchObject({ok: true})
     await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#title'}})).resolves.toMatchObject({
       text: 'Rewritten title',
     })
@@ -92,11 +91,9 @@ describe('bootNormal: the widget embed serves every verb group through the dispa
   let kit: EmbedKit
   let host: {base: string; close: () => Promise<void>}
   let page: Page
-  let mutate: CallTool
 
   beforeAll(async () => {
     kit = await bootEmbedKit()
-    mutate = makeApprovingRegistryCall(kit.base, await kit.session())
     host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}))
     page = await browser.newPage()
     const subscribed = page.waitForResponse((response) => response.url().endsWith('/rpc/page/queries'), {
@@ -117,18 +114,16 @@ describe('bootNormal: the widget embed serves every verb group through the dispa
     await kit.rpc.page.clearChanges(undefined)
   })
 
-  verbGroupBattery(() => ({kit, page, mutate}))
+  verbGroupBattery(() => ({kit, page}))
 })
 
 describe('bootConnect: the connect handle serves the same verb groups through the dispatcher', () => {
   let kit: EmbedKit
   let host: {base: string; close: () => Promise<void>}
   let page: Page
-  let mutate: CallTool
 
   beforeAll(async () => {
     kit = await bootEmbedKit()
-    mutate = makeApprovingRegistryCall(kit.base, await kit.session())
     host = await serveHost(() => handleHostPage(HOST_BODY))
     page = await browser.newPage()
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
@@ -159,5 +154,5 @@ describe('bootConnect: the connect handle serves the same verb groups through th
     await kit.rpc.page.clearChanges(undefined)
   })
 
-  verbGroupBattery(() => ({kit, page, mutate}))
+  verbGroupBattery(() => ({kit, page}))
 })

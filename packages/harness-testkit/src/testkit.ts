@@ -17,6 +17,7 @@ export {
   makeApprovingRegistryCall,
   makeCallTool,
   makeRunTypescript,
+  withAutoApproval,
   type CallTool,
   type RunTypescript,
 } from './call-tool.js'

@@ -142,7 +142,8 @@ async function buildRunStream(
     env: deps.harnessEnv?.(sessionId) ?? process.env,
     kind: req.kind,
     hasTools: extras.tools.length > 0,
-    decide: (toolName, input, toolUseId) => gate.decide(toolName, input, sessionId, toolUseId),
+    decide: async (toolName, input, toolUseId) =>
+      (await gate.decide(toolName, input, sessionId, toolUseId)) === 'allow' ? 'allow' : 'deny',
   })
   const messages = await turnMessages(deps, sessionId, {
     resumable: resumeSessionId !== null,
@@ -330,7 +331,6 @@ async function* runStream(
   const gate = makeRunGate({
     ...gateDeps,
     risky: deps.risky,
-    mutatingToolCall: deps.mutatingToolCall,
     commandAllows: deps.commandAllows,
   })
   const askGate = makeAskGate(gateDeps)

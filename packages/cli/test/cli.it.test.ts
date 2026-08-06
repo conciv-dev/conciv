@@ -19,10 +19,22 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup()
 })
 
+function restartCapableBridge() {
+  return defineBundlerBridge({
+    id: 'cli-restart-test',
+    config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
+    resolve: async (spec) => ({id: spec}),
+    moduleGraph: (file) => [{url: file, importers: [], importedModules: []}],
+    transform: async () => ({code: null}),
+    urls: () => ({local: [], network: []}),
+    reload: async () => {},
+    restart: async () => {},
+  })
+}
+
 describe('conciv CLI (IT, real served core, typed rpc)', () => {
   it('page fill drives registry.call and prints one success envelope with exit 0', async () => {
     const kit = await bootCli(cleanups)
-    await approvedSession(kit, cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'a@b.c'}})
     const code = await runCli(main, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c'])
     expect(answer.seen()).toMatchObject({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}})
@@ -32,7 +44,6 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
 
   it('accepts --json on a verb and still prints exactly one document', async () => {
     const kit = await bootCli(cleanups)
-    await approvedSession(kit, cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'x'}})
     const code = await runCli(main, ['tools', 'page', 'fill', '#email', '--value', 'x', '--json'])
     expect(answer.seen()).toMatchObject({name: 'page.fill', input: {selector: '#email'}})
@@ -42,7 +53,6 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
 
   it('a page verb the browser refuses fails as a user error with the declared code and exit 1', async () => {
     const kit = await bootCli(cleanups)
-    await approvedSession(kit, cleanups)
     const answer = await answerNextQuery(kit, {
       ok: false,
       error: {code: 'invalid-args', message: 'no element for selector #email'},
@@ -54,15 +64,6 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
       ok: false,
       error: {kind: 'user', code: 'INVALID_ARGS', message: 'page.fill: no element for selector #email'},
     })
-  })
-
-  it('a mutating page verb with no session context is refused before it reaches the page', async () => {
-    const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'x'}})
-    const code = await runCli(main, ['tools', 'page', 'fill', '#email', '--value', 'x'])
-    expect(code).toBe(1)
-    expect(answer.seen()).toBeNull()
-    expect(onlyDocument(written)).toMatchObject({ok: false, error: {kind: 'user', code: 'APPROVAL_DENIED'}})
   })
 
   it('page snapshot with no widget fails as a user error with the declared code and exit 1', async () => {
@@ -108,7 +109,6 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
 
   it('page changes lists the journal in an envelope and --clear resets it', async () => {
     const kit = await bootCli(cleanups)
-    await approvedSession(kit, cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'Ada'}})
     await runCli(main, ['tools', 'page', 'fill', '#name', '--value', 'Ada'])
     expect(answer.seen()).toMatchObject({name: 'page.fill'})
@@ -121,6 +121,24 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
     written.length = 0
     expect(await runCli(main, ['tools', 'page', 'changes'])).toBe(0)
     expect(onlyDocument(written)).toEqual({ok: true, data: []})
+  })
+
+  it('server restart without a session context is refused with exit 1', async () => {
+    const bridge = restartCapableBridge()
+    await bootCli(cleanups, {bridge})
+    const code = await runCli(main, ['tools', 'server', 'restart'])
+    expect(code).toBe(1)
+    expect(onlyDocument(written)).toMatchObject({ok: false, error: {kind: 'user', code: 'APPROVAL_DENIED'}})
+  })
+
+  it('server restart prompts through the session and an approval lets it run', async () => {
+    const bridge = restartCapableBridge()
+    const kit = await bootCli(cleanups, {bridge})
+    const session = await approvedSession(kit, cleanups)
+    const code = await runCli(main, ['tools', 'server', 'restart'])
+    expect(code).toBe(0)
+    expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
+    expect(session.approved()).toHaveLength(1)
   })
 
   it('server graph round-trips a real bundler bridge inside the envelope', async () => {

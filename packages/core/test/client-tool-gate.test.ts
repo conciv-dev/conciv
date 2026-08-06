@@ -23,6 +23,20 @@ function attrProbeTool() {
   }).client()
 }
 
+function askProbeTool(ran: {value: boolean} = {value: false}) {
+  return defineTool({
+    name: 'probe.reset',
+    description: 'destructive probe that declares it needs approval',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ok: z.literal(true)}),
+    approval: 'ask',
+    meta: {summary: 'reset the probe state', category: 'extension', mutating: true},
+  }).server((): {ok: true} => {
+    ran.value = true
+    return {ok: true}
+  })
+}
+
 type BrowserPeer = (query: z.infer<typeof PageQuerySchema>) =>
   | {ok: true; result: Record<string, unknown>}
   | {
@@ -79,37 +93,55 @@ describe('registry page tools ride the final {requestId, name, input} envelope o
   })
 })
 
-describe('a mutating page tool prompts through the same decide() gate path as extension tools', () => {
-  it('emits an approval ask for the mutating tool and forwards after approval', async () => {
-    const {registry} = bootRegistry(() => ({ok: true, result: {ok: true}}))
-    const asks = createAskRegistry()
-    const holder = {settle: (_chunk: unknown): void => {}}
-    const chunkArrived = new Promise<unknown>((resolve) => {
-      holder.settle = resolve
-    })
-    const gate = makeAskGate({sessionId: 's1', asks, emit: (chunk) => holder.settle(chunk), timeoutMs: 5_000})
-    const click = capabilityNamed(registryCapabilities(registry), 'page.click')
-    expect(click.mutating).toBe(true)
-    const pending = gatedToolRun(click, {sessionId: 's1', model: null}, gate)({selector: '#go'})
-    const chunk = ApprovalChunkSchema.parse(await chunkArrived)
-    expect(asks.reply('s1', chunk.value.approval.id, true)).toBe(true)
-    await expect(pending).resolves.toMatchObject({ok: true})
-  })
-
-  it('a denied ask blocks the mutating tool before it reaches the page', async () => {
+describe('page tools pass gatedToolRun ungated; only approval-declared capabilities prompt', () => {
+  it('a mutating page tool runs without any approval ask', async () => {
     const {registry, frames} = bootRegistry(() => ({ok: true, result: {ok: true}}))
     const asks = createAskRegistry()
+    const emitted: unknown[] = []
+    const gate = makeAskGate({sessionId: 's1', asks, emit: (chunk) => emitted.push(chunk), timeoutMs: 5_000})
+    const click = capabilityNamed(registryCapabilities(registry), 'page.click')
+    expect(click.mutating).toBe(true)
+    expect(click.approval).toBeUndefined()
+    await expect(gatedToolRun(click, {sessionId: 's1', model: null}, gate)({selector: '#go'})).resolves.toMatchObject({
+      ok: true,
+    })
+    expect(emitted).toEqual([])
+    expect(frames).toMatchObject([{name: 'page.click'}])
+  })
+
+  it('an approval-declared capability prompts, and approval releases it', async () => {
+    const {registry} = bootRegistry(() => ({ok: true, result: {ok: true}}))
+    registry.register(askProbeTool(), {owner: 'a test registrant'})
+    const asks = createAskRegistry()
     const holder = {settle: (_chunk: unknown): void => {}}
     const chunkArrived = new Promise<unknown>((resolve) => {
       holder.settle = resolve
     })
     const gate = makeAskGate({sessionId: 's1', asks, emit: (chunk) => holder.settle(chunk), timeoutMs: 5_000})
-    const click = capabilityNamed(registryCapabilities(registry), 'page.click')
-    const pending = gatedToolRun(click, {sessionId: 's1', model: null}, gate)({selector: '#go'})
+    const reset = capabilityNamed(registryCapabilities(registry), 'probe.reset')
+    expect(reset.approval).toBe('ask')
+    const pending = gatedToolRun(reset, {sessionId: 's1', model: null}, gate)({})
+    const chunk = ApprovalChunkSchema.parse(await chunkArrived)
+    expect(asks.reply('s1', chunk.value.approval.id, true)).toBe(true)
+    await expect(pending).resolves.toEqual({ok: true})
+  })
+
+  it('a denied ask blocks the approval-declared capability before it runs', async () => {
+    const {registry} = bootRegistry(() => ({ok: true, result: {ok: true}}))
+    const ran = {value: false}
+    registry.register(askProbeTool(ran), {owner: 'a test registrant'})
+    const asks = createAskRegistry()
+    const holder = {settle: (_chunk: unknown): void => {}}
+    const chunkArrived = new Promise<unknown>((resolve) => {
+      holder.settle = resolve
+    })
+    const gate = makeAskGate({sessionId: 's1', asks, emit: (chunk) => holder.settle(chunk), timeoutMs: 5_000})
+    const reset = capabilityNamed(registryCapabilities(registry), 'probe.reset')
+    const pending = gatedToolRun(reset, {sessionId: 's1', model: null}, gate)({})
     const chunk = ApprovalChunkSchema.parse(await chunkArrived)
     expect(asks.reply('s1', chunk.value.approval.id, false)).toBe(true)
     await expect(pending).rejects.toThrow(/denied/)
-    expect(frames).toEqual([])
+    expect(ran.value).toBe(false)
   })
 
   it('a read tool never consults the gate', async () => {

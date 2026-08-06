@@ -2,7 +2,7 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {z} from 'zod'
 import {tmpdir} from 'node:os'
 import type {PageReportedErrorCode} from '@conciv/protocol/page-types'
-import {makeApprovingRegistryCall, type Kit} from '@conciv/harness-testkit'
+import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 import {connectWidget} from '../../helpers/fake-widget.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../editor/fixtures.js'
@@ -18,10 +18,6 @@ const LocateSchema = z.looseObject({
 
 function callPage(kit: Kit, name: string, input: Record<string, unknown> = {}): Promise<unknown> {
   return kit.rpc.registry.call({name, input})
-}
-
-async function callMutating(kit: Kit, name: string, input: Record<string, unknown>): Promise<unknown> {
-  return makeApprovingRegistryCall(kit.base, await kit.session())(name, input)
 }
 
 describe('registry.call page-bus (IT, real server, typed rpc)', () => {
@@ -73,10 +69,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
   it('round-trips a fill action and the journal records it', async () => {
     const kit = await setup()
     state.widget = await connectWidget(kit, () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
-    expect(await callMutating(kit, 'page.fill', {selector: '#email', value: 'a@b.c'})).toEqual({
-      ok: true,
-      value: 'a@b.c',
-    })
+    expect(await callPage(kit, 'page.fill', {selector: '#email', value: 'a@b.c'})).toEqual({ok: true, value: 'a@b.c'})
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
     expect(changes).toMatchObject([{verb: 'page.fill', selector: '#email', args: {value: 'a@b.c'}}])
   })
@@ -102,7 +95,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
       ok: false,
       error: {code: 'invalid-args', message: 'no element for selector #email'},
     }))
-    await expect(callMutating(kit, 'page.fill', {selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
+    await expect(callPage(kit, 'page.fill', {selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
       code: 'INVALID_ARGS',
     })
     expect(ChangesSchema.parse(await kit.rpc.page.changes(undefined))).toEqual([])
@@ -114,7 +107,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
       name === 'page.text' ? {ok: true, result: {text: 'hi'}} : {ok: true, result: {ok: true}},
     )
     await callPage(kit, 'page.text', {selector: '#h'})
-    await callMutating(kit, 'page.click', {selector: '.btn'})
+    await callPage(kit, 'page.click', {selector: '.btn'})
     expect(ChangesSchema.parse(await kit.rpc.page.changes(undefined))).toHaveLength(1)
     await kit.rpc.page.clearChanges(undefined)
     expect(ChangesSchema.parse(await kit.rpc.page.changes(undefined))).toEqual([])

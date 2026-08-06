@@ -69,14 +69,15 @@ const BashInputSchema = z.object({command: z.string()})
 
 function needsApproval(toolName: string, toolInput: unknown, deps: RunGateDeps): boolean {
   if (riskyMatches(deps.risky, toolName)) return true
-  if (deps.mutatingToolCall?.(toolName, toolInput) === true) return true
   if (toolName !== 'Bash') return false
   const parsed = BashInputSchema.safeParse(toolInput)
   return classifyCommand(parsed.success ? parsed.data.command : '', deps.commandAllows?.() ?? []) !== 'allow'
 }
 
+export type PermissionDecision = 'allow' | 'deny' | 'timeout'
+
 export type PermissionGate = {
-  decide(toolName: string, toolInput: unknown, sessionId: string, toolUseId: string): Promise<'allow' | 'deny'>
+  decide(toolName: string, toolInput: unknown, sessionId: string, toolUseId: string): Promise<PermissionDecision>
 }
 
 export type AskGateDeps = {
@@ -88,7 +89,6 @@ export type AskGateDeps = {
 
 export type RunGateDeps = AskGateDeps & {
   risky: ReadonlySet<string>
-  mutatingToolCall?: (toolName: string, input: unknown) => boolean
   commandAllows?: () => readonly string[]
 }
 
@@ -100,7 +100,8 @@ export function makeAskGate(deps: AskGateDeps): PermissionGate {
       deps.asks.open(deps.sessionId, approvalId)
       deps.emit(aguiApprovalRequestedFor({toolCallId: toolUseId, toolName, input: toolInput, approvalId}))
       const approved = await deps.asks.waitFor(deps.sessionId, approvalId, deps.timeoutMs ?? ASK_TIMEOUT_MS)
-      return approved === true ? 'allow' : 'deny'
+      if (approved === true) return 'allow'
+      return approved === false ? 'deny' : 'timeout'
     },
   }
 }
@@ -146,7 +147,7 @@ function gatedTools(tools: AnyTool[], gate: PermissionGate, sessionId: string): 
       ...tool,
       execute: async (args: unknown, context: unknown) => {
         const decision = await gate.decide(tool.name, args, sessionId, randomUUID())
-        if (decision === 'deny') throw new Error(`Tool "${tool.name}" was denied by the user`)
+        if (decision !== 'allow') throw new Error(`Tool "${tool.name}" was denied by the user`)
         return execute(args, context)
       },
     }

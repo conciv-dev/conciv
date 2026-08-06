@@ -10,6 +10,7 @@ import {drafts, markers, navigation} from '@conciv/db'
 import type {RegistryCallErrorName, ToolCommandSignature} from '@conciv/contract'
 import {listCommands} from '../../chat/commands.js'
 import {makeAskGate} from '../../chat/gate.js'
+import {rowById} from '../../chat/session-rows.js'
 import {pageQueryStream} from '../../page-bus.js'
 import {symbolicateFrames} from '../../editor/symbolicate.js'
 import {chatRouter} from './chat.js'
@@ -44,21 +45,43 @@ function callerSessionId(request: Request): string {
   return isSessionId(raw) ? raw : ''
 }
 
-async function decideMutatingCall(
+type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
+
+async function approveAskGatedCall(
   deps: RpcDeps,
   name: string,
   input: unknown,
   request: Request,
-): Promise<'allow' | 'deny' | 'no-session'> {
-  if (!deps.registry.catalog.get(name).mutating) return 'allow'
+  errors: ApprovalErrors,
+): Promise<void> {
+  if (deps.registry.catalog.get(name).approval !== 'ask') return
   const sessionId = callerSessionId(request)
-  if (sessionId === '') return 'no-session'
+  if (sessionId === '') {
+    throw errors.APPROVAL_DENIED({
+      message: `"${name}" requires approval and no session is attached to ask through; run from a conciv-launched terminal or send ${CONCIV_SESSION_HEADER} (CONCIV_SESSION_ID for the CLI)`,
+    })
+  }
+  if ((await rowById(deps.chat.db, sessionId)) === null) {
+    throw errors.APPROVAL_DENIED({
+      message: `"${name}" requires approval but session "${sessionId}" does not exist`,
+    })
+  }
+  if (!deps.chat.stream.listening(sessionId)) {
+    throw errors.APPROVAL_DENIED({
+      message: `"${name}" requires approval but nothing is attached to session "${sessionId}" to answer; open the widget on that session and retry`,
+    })
+  }
   const gate = makeAskGate({
     sessionId,
     asks: deps.chat.asks,
     emit: (chunk) => deps.chat.stream.publish(sessionId, chunk),
   })
-  return gate.decide(name, input, sessionId, randomUUID())
+  const decision = await gate.decide(name, input, sessionId, randomUUID())
+  if (decision === 'allow') return
+  if (decision === 'deny') throw errors.APPROVAL_DENIED({message: `"${name}" was denied by the user`})
+  throw errors.APPROVAL_DENIED({
+    message: `"${name}" received no approval decision (the ask timed out or the session stopped)`,
+  })
 }
 
 async function callTool<Output extends z.ZodType>(
@@ -139,13 +162,7 @@ export function makeRpcRouter(deps: RpcDeps) {
       ),
       call: os.registry.call.handler(async ({input, context, errors}) => {
         if (!deps.registry.has(input.name)) throw errors.UNKNOWN_TOOL()
-        const decision = await decideMutatingCall(deps, input.name, input.input, context.request)
-        if (decision === 'no-session') {
-          throw errors.APPROVAL_DENIED({
-            message: `"${input.name}" mutates the page and needs approval, but no session is attached to ask through; run from a conciv-launched terminal or set ${CONCIV_SESSION_HEADER} (CONCIV_SESSION_ID for the CLI)`,
-          })
-        }
-        if (decision === 'deny') throw errors.APPROVAL_DENIED({message: `"${input.name}" was denied by the user`})
+        await approveAskGatedCall(deps, input.name, input.input, context.request, errors)
         try {
           return await deps.registry.call(input.name, input.input)
         } catch (error) {
@@ -180,12 +197,14 @@ export function makeRpcRouter(deps: RpcDeps) {
         callTool(deps, BUILTIN_SERVER_TOOL['server.transform'], input, errors),
       ),
       urls: os.server.urls.handler(({errors}) => callTool(deps, BUILTIN_SERVER_TOOL['server.urls'], {}, errors)),
-      reload: os.server.reload.handler(({input, errors}) =>
-        callTool(deps, BUILTIN_SERVER_TOOL['server.reload'], input, errors),
-      ),
-      restart: os.server.restart.handler(({input, errors}) =>
-        callTool(deps, BUILTIN_SERVER_TOOL['server.restart'], input, errors),
-      ),
+      reload: os.server.reload.handler(async ({input, context, errors}) => {
+        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.reload'].name, input, context.request, errors)
+        return callTool(deps, BUILTIN_SERVER_TOOL['server.reload'], input, errors)
+      }),
+      restart: os.server.restart.handler(async ({input, context, errors}) => {
+        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.restart'].name, input, context.request, errors)
+        return callTool(deps, BUILTIN_SERVER_TOOL['server.restart'], input, errors)
+      }),
     },
     editor: {
       open: os.editor.open.handler(({input}) => callTool(deps, BUILTIN_OPEN_TOOL, input)),

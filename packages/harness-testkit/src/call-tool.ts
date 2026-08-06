@@ -63,10 +63,11 @@ export function makeCallTool(apiBase: string, session: string): CallTool {
   }
 }
 
-async function withAutoApproval<Result>(
+export async function withAutoApproval<Result>(
   rpc: ReturnType<typeof makeRpcClient>,
   session: string,
   run: () => Promise<Result>,
+  onApproved?: (approvalId: string) => void,
 ): Promise<Result> {
   const abort = new AbortController()
   const stream = await rpc.chat.subscribe({sessionId: session}, {signal: abort.signal})
@@ -77,6 +78,7 @@ async function withAutoApproval<Result>(
         if (decided.has(approvalId)) continue
         decided.add(approvalId)
         await rpc.chat.permissionDecision({approvalId, approved: true})
+        onApproved?.(approvalId)
       }
     }
   })()

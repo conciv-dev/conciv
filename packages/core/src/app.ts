@@ -54,7 +54,6 @@ import {makeJournal} from './page-bus.js'
 import {makeBuiltinRegistry} from './tool-registry.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
-import {PAGE_TOOL_NAME} from '@conciv/tools'
 import {logError} from './lib/debug.js'
 import type {OpenInEditor} from './editor/open.js'
 
@@ -174,8 +173,8 @@ function registerExtensionTools(registry: ToolRegistry, sources: RegistryToolSou
   }
 }
 
-function markRiskyMutating(risky: ReadonlySet<string>, capabilities: CodeCapability[]): CodeCapability[] {
-  return capabilities.map((capability) => (risky.has(capability.name) ? {...capability, mutating: true} : capability))
+function markRiskyAsk(risky: ReadonlySet<string>, capabilities: CodeCapability[]): CodeCapability[] {
+  return capabilities.map((capability) => (risky.has(capability.name) ? {...capability, approval: 'ask'} : capability))
 }
 
 function registryBackedTool(tool: AnyToolBuilder, registry: ToolRegistry): ExtensionServerTool {
@@ -381,24 +380,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     capabilities: () => registry.catalog.list(),
   })
 
-  const pageCallMutates = (input: unknown): boolean => {
-    if (typeof input !== 'object' || input === null) return false
-    const verb = Reflect.get(input, 'verb')
-    if (typeof verb !== 'string') return false
-    const name = `${PAGE_TOOL_PREFIX}${verb}`
-    if (!registry.has(name)) return false
-    return registry.catalog.get(name).mutating
-  }
-
-  const mutatingToolCall = (toolName: string, input: unknown): boolean =>
-    toolName === PAGE_TOOL_NAME && pageCallMutates(input)
-
-  const readOnlyCommandAllows = (): string[] =>
+  const askFreeCommandAllows = (): string[] =>
     registry.catalog
       .list()
       .flatMap((entry) => {
         const signature = registry.catalog.get(entry.name)
-        if (signature.mutating) return []
+        if (signature.approval === 'ask') return []
         const [group, operation] = [entry.path.slice(0, -1).join(' '), entry.path.at(-1)]
         if (operation === undefined) return []
         const command = group === '' ? `conciv tools ${operation}` : `conciv tools ${group} ${operation}`
@@ -424,7 +411,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const forwardedExtensionTools = mounted.flatMap((entry) => entry.forwardedTools)
 
   const codeModeCapabilities = (sessionId: string): CodeCapability[] =>
-    markRiskyMutating(risky, [
+    markRiskyAsk(risky, [
       ...registryCapabilities(registry),
       ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
       ...extensionCapabilities(forwardedExtensionTools),
@@ -459,8 +446,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     stream,
     snapshots,
     risky,
-    mutatingToolCall,
-    commandAllows: readOnlyCommandAllows,
+    commandAllows: askFreeCommandAllows,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     toolNames: new Set(toolList.map((tool) => tool.name)),
     codeModeCapabilities,

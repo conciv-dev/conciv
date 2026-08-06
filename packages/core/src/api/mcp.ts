@@ -251,9 +251,11 @@ async function runExecute(
   return reply
 }
 
+export type McpGateSurface = {server: () => McpServer | null}
+
 type McpDeps = {
   capabilities: (sessionId: string) => CodeCapability[]
-  askGate: (sessionId: string) => PermissionGate
+  askGate: (sessionId: string, surface: McpGateSurface) => PermissionGate
   publish: (sessionId: string, chunk: StreamChunk) => void
   sessionModel: (sessionId: string) => string | null
   sessionForNativeId: (nativeId: string) => Promise<string | null>
@@ -262,11 +264,14 @@ type McpDeps = {
 export type McpVars = {mcp: McpDeps}
 
 function buildServer(deps: McpDeps, request: ToolRequest): McpServer {
-  const codeMode = makeCodeMode(() => deps.capabilities(request.sessionId), request, deps.askGate(request.sessionId))
+  const surface: {server: McpServer | null} = {server: null}
+  const gate = deps.askGate(request.sessionId, {server: () => surface.server})
+  const codeMode = makeCodeMode(() => deps.capabilities(request.sessionId), request, gate)
   const server = new McpServer(
     {name: 'conciv', version: '0.0.0'},
     {instructions: serverInstructions(codeMode?.categories ?? [])},
   )
+  surface.server = server
   if (codeMode === null) {
     logError('[mcp] code mode is unavailable (isolated-vm incompatible or an empty registry); no tools registered')
     return server

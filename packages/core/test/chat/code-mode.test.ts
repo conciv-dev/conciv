@@ -21,6 +21,7 @@ const untouchableGate: PermissionGate = {
 function capability(
   name: string,
   options: {
+    approval?: 'ask'
     mutating?: boolean
     category?: string
     inputSchema?: z.ZodObject<z.ZodRawShape>
@@ -33,6 +34,7 @@ function capability(
     description: `${name} does a thing. Extra prose here.`,
     summary: `${name} does a thing`,
     category: options.category ?? 'extension',
+    ...(options.approval === undefined ? {} : {approval: options.approval}),
     mutating: options.mutating ?? false,
     reachable: true,
     errors: [],
@@ -165,9 +167,10 @@ describe('code mode sandbox execution', () => {
     expect(result.result).toBe('drew')
   })
 
-  test('denies a mutating capability and the denial lands where the code called it', async () => {
+  test('denies an approval-declared capability and the denial lands where the code called it', async () => {
     const ran = {value: false}
     const gated = capability('canvas.delete', {
+      approval: 'ask',
       mutating: true,
       execute: async () => {
         ran.value = true
@@ -317,6 +320,7 @@ describe('gatedToolRun', () => {
   test('deny reply blocks execute and throws a refusal', async () => {
     const ran = {value: false}
     const gated = capability('canvas.delete', {
+      approval: 'ask',
       mutating: true,
       execute: async () => {
         ran.value = true
@@ -332,6 +336,7 @@ describe('gatedToolRun', () => {
     const {gate, asks, approvalId} = replyingGate(5_000)
     const ran = {value: false}
     const gated = capability('canvas.delete', {
+      approval: 'ask',
       mutating: true,
       execute: async () => {
         ran.value = true
@@ -378,7 +383,7 @@ describe('code mode per-tool call events', () => {
   test('gatedToolRun decides with the same id it stamps on the emitted call and result', async () => {
     const {events, context} = capturingContext()
     const decideIds: string[] = []
-    const dotted = capability('canvas.svg', {mutating: true, execute: async () => 'drew'})
+    const dotted = capability('canvas.svg', {approval: 'ask', mutating: true, execute: async () => 'drew'})
     const run = gatedToolRun(dotted, request, {
       decide: async (_toolName, _toolInput, _sessionId, toolUseId) => {
         decideIds.push(toolUseId)
@@ -395,7 +400,7 @@ describe('code mode per-tool call events', () => {
 
   test('gatedToolRun emits conciv:tool_error on deny', async () => {
     const {events, context} = capturingContext()
-    const gated = capability('canvas.delete', {mutating: true, execute: async () => 'deleted'})
+    const gated = capability('canvas.delete', {approval: 'ask', mutating: true, execute: async () => 'deleted'})
     const run = gatedToolRun(gated, request, denyingGate())
     await expect(run({}, context)).rejects.toThrow(/denied/i)
     const failure = events.find((event) => event.name === 'conciv:tool_error')
