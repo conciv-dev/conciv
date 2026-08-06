@@ -7,10 +7,7 @@ export function assertValidTag(tag: string): void {
   }
 }
 
-const BARE_PACKAGE_ALLOWLIST = ['conciv']
-
 export function assertValidPackageName(name: string): void {
-  if (BARE_PACKAGE_ALLOWLIST.includes(name)) return
   if (!/^@conciv\/[a-z][a-z0-9-]*$/.test(name)) {
     throw new Error(`invalid package name ${JSON.stringify(name)}: must match /^@conciv\\/[a-z][a-z0-9-]*$/`)
   }
@@ -21,7 +18,7 @@ const PACKAGE_GROUPS = ['packages', 'packages/extensions']
 export const PUBLIC_PACKAGES = [
   '@conciv/it',
   '@conciv/plugin',
-  'conciv',
+  '@conciv/cli',
   '@conciv/try',
   '@conciv/core',
   '@conciv/serve',
@@ -103,7 +100,7 @@ export async function assertPublicSet(cwd: string): Promise<void> {
   const found = (await readManifests(cwd))
     .filter((pkg) => !pkg.private)
     .map((pkg) => pkg.name)
-    .filter((name): name is string => typeof name === 'string' && (name === 'conciv' || name.startsWith('@conciv/')))
+    .filter((name): name is string => typeof name === 'string' && name.startsWith('@conciv/'))
   const unexpected = found.filter((name) => !PUBLIC_PACKAGES.includes(name))
   const missing = PUBLIC_PACKAGES.filter((name) => !found.includes(name))
   if (unexpected.length > 0 || missing.length > 0) {

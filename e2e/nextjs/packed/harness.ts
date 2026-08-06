@@ -48,7 +48,7 @@ type ParsedManifest = {
 }
 
 function isWorkspaceName(name: string): boolean {
-  return name === 'conciv' || name.startsWith('@conciv/')
+  return name.startsWith('@conciv/')
 }
 
 function tarballName(name: string, version: string): string {
@@ -291,7 +291,7 @@ export async function setupFixture(): Promise<Fixture> {
   return {root, appDir, tgzDir, closure}
 }
 
-const REGISTRY_PINNED = /(?<![\w/@-])(?:@conciv\/[a-z0-9-]+|conciv)@(?!file:)\d/
+const REGISTRY_PINNED = /(?<![\w/@-])@conciv\/[a-z0-9-]+@(?!file:)\d/
 
 export function assertClosed(root: string): void {
   const lock = readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8')
