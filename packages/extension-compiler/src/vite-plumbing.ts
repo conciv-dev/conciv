@@ -88,8 +88,10 @@ export function transformConcivModule(
     const stamped = addSourceToJsx(code, id, ctx.root)
     return compileExtensionSolid(stamped?.code ?? code, id, ssr)
   }
-  if (isExtensionModule(id))
-    return splitExtension(code, id, 'browser').then((split) => compileExtensionSolid(split?.code ?? code, id, ssr))
+  if (isExtensionModule(id)) {
+    const split = splitExtension(code, id, 'browser')
+    return compileExtensionSolid(split?.code ?? code, id, ssr)
+  }
   if (ctx.deferToTsd) return null
   return addSourceToJsx(code, id, ctx.root)
 }

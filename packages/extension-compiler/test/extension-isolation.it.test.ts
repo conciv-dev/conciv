@@ -10,7 +10,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const ID = '/proj/conciv/extensions/iso.tsx'
 
 async function compileClient(source: string): Promise<string> {
-  const split = await splitExtension(source, ID, 'browser')
+  const split = splitExtension(source, ID, 'browser')
   const compiled = await compileExtensionSolid(split?.code ?? source, ID, false)
   if (!compiled) throw new Error('compile produced no output')
   return compiled.code
@@ -42,5 +42,10 @@ function Surface() {
   it('the server load never executes the client (Component / .client) halves', async () => {
     const builders = await loadServerExtensions(join(here, 'fixtures', 'iso-extensions'), [])
     expect(builders.flatMap((builder) => (builder.tools ?? []).map((tool) => tool.name))).toContain('iso_tool')
+  }, 30_000)
+
+  it('a capability declared in an imported module is split on the server too', async () => {
+    const builders = await loadServerExtensions(join(here, 'fixtures', 'nested-extensions'), [])
+    expect(builders.flatMap((builder) => (builder.tools ?? []).map((tool) => tool.name))).toContain('nested_tool')
   }, 30_000)
 })
