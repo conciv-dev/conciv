@@ -36,8 +36,13 @@ function urlIn(text) {
   }
 }
 
-function noEndpointAt(dir) {
-  return {url: null, reason: \`no \${stateDirName}/\${endpointFileName} at or above \${dir}\`}
+function noEndpointFileAt(dir) {
+  const path = join(dir, stateDirName, endpointFileName)
+  return {url: null, reason: \`the conciv project at \${dir} has no running conciv dev server (expected \${path})\`}
+}
+
+function noProjectFound(startDir) {
+  return {url: null, reason: \`no \${stateDirName} project directory found from \${startDir} upward\`}
 }
 
 function endpoint() {
@@ -47,13 +52,13 @@ function endpoint() {
     if (existsSync(join(dir, stateDirName))) {
       const path = join(dir, stateDirName, endpointFileName)
       const text = readTextOrNull(path)
-      if (text === null) return noEndpointAt(dir)
+      if (text === null) return noEndpointFileAt(dir)
       const url = urlIn(text)
       if (url === null) return {url: null, reason: \`\${path} names no running conciv dev server\`}
       return {url, reason: ''}
     }
     const parent = dirname(dir)
-    if (parent === dir) return noEndpointAt(startDir)
+    if (parent === dir) return noProjectFound(startDir)
     dir = parent
   }
 }
