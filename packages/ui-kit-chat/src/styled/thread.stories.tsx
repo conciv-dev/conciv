@@ -40,7 +40,17 @@ function ThreadApp(props: {theme?: string; expose: (chat: UseChatReturn) => void
       class={`${props.theme ?? ''} rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden`}
     >
       <ChatProvider chat={chat}>
-        <Thread welcome={<Welcome />} composer={<Composer />} />
+        <Thread>
+          <Thread.Viewport>
+            <Thread.Welcome>
+              <Welcome />
+            </Thread.Welcome>
+            <Thread.Messages />
+          </Thread.Viewport>
+          <Thread.Composer>
+            <Composer />
+          </Thread.Composer>
+        </Thread>
       </ChatProvider>
     </div>
   )
@@ -110,15 +120,17 @@ function SlotsApp(): JSX.Element {
   return (
     <div class="chat-theme-dark rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
       <ChatProvider chat={chat}>
-        <Thread
-          turnPrefix={renderDivider}
-          viewportFooter={<NowLine title="Running pnpm test" onStop={() => chat.stop()} />}
-          composer={
+        <Thread>
+          <Thread.Viewport>
+            <Thread.Messages turnPrefix={renderDivider} />
+            <NowLine title="Running pnpm test" onStop={() => chat.stop()} />
+          </Thread.Viewport>
+          <Thread.Composer>
             <Composer
               busy={<span class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)]">Compacting…</span>}
             />
-          }
-        />
+          </Thread.Composer>
+        </Thread>
       </ChatProvider>
     </div>
   )
@@ -136,7 +148,14 @@ function ShiftApp(): JSX.Element {
   return (
     <div class="chat-theme-dark rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
       <ChatProvider chat={chat}>
-        <Thread composer={<Composer />} />
+        <Thread>
+          <Thread.Viewport>
+            <Thread.Messages />
+          </Thread.Viewport>
+          <Thread.Composer>
+            <Composer />
+          </Thread.Composer>
+        </Thread>
       </ChatProvider>
     </div>
   )
