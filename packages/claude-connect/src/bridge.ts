@@ -11,24 +11,13 @@ const CLAUDE_SESSION_VAR = 'CLAUDE_CODE_SESSION_ID'
 const BRIDGE_TIMEOUT_MS = 180_000
 
 export function claudeConnectBridgeSource(): string {
-  return `import {readFileSync} from 'node:fs'
+  return `import {existsSync, readFileSync} from 'node:fs'
 import {dirname, join, resolve} from 'node:path'
 import {createInterface} from 'node:readline'
 
 const stateDirName = '${CONCIV_STATE_DIR}'
 const endpointFileName = '${CLAUDE_CONNECT_ENDPOINT_FILE}'
 const claudeSessionId = process.env.${CLAUDE_SESSION_VAR} ?? ''
-
-function endpointPaths() {
-  const found = []
-  let dir = resolve(process.cwd())
-  for (;;) {
-    found.push(join(dir, stateDirName, endpointFileName))
-    const parent = dirname(dir)
-    if (parent === dir) return found
-    dir = parent
-  }
-}
 
 function readTextOrNull(path) {
   try {
@@ -47,15 +36,31 @@ function urlIn(text) {
   }
 }
 
+function noEndpointFileAt(dir) {
+  const path = join(dir, stateDirName, endpointFileName)
+  return {url: null, reason: \`the conciv project at \${dir} has no running conciv dev server (expected \${path})\`}
+}
+
+function noProjectFound(startDir) {
+  return {url: null, reason: \`no \${stateDirName} project directory found from \${startDir} upward\`}
+}
+
 function endpoint() {
-  for (const path of endpointPaths()) {
-    const text = readTextOrNull(path)
-    if (text === null) continue
-    const url = urlIn(text)
-    if (url === null) return {url: null, reason: \`\${path} names no running conciv dev server\`}
-    return {url, reason: ''}
+  const startDir = resolve(process.cwd())
+  let dir = startDir
+  for (;;) {
+    if (existsSync(join(dir, stateDirName))) {
+      const path = join(dir, stateDirName, endpointFileName)
+      const text = readTextOrNull(path)
+      if (text === null) return noEndpointFileAt(dir)
+      const url = urlIn(text)
+      if (url === null) return {url: null, reason: \`\${path} names no running conciv dev server\`}
+      return {url, reason: ''}
+    }
+    const parent = dirname(dir)
+    if (parent === dir) return noProjectFound(startDir)
+    dir = parent
   }
-  return {url: null, reason: \`no \${stateDirName}/\${endpointFileName} at or above \${process.cwd()}\`}
 }
 
 function idOf(line) {

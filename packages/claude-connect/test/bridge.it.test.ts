@@ -414,4 +414,32 @@ describe('claude connect bridge project resolution', () => {
     expect(errorMessage(frame)).toContain(stranger)
     expect(served.recorded).toEqual([])
   })
+
+  it('refuses to bridge a nested project whose own .conciv has no endpoint, never reaching the parent server', async () => {
+    const parentServed = await serveEcho()
+    const parent = projectServedBy('nested-parent', parentServed.url)
+    const child = join(parent, 'child')
+    mkdirSync(concivStateDir(child), {recursive: true})
+    const lines = await bridgeLines({cwd: child, input: [rpcCall(27, 'canvas.draw')], expected: 1})
+    const frame = onlyFrame(lines)
+
+    expect(frame.id).toBe(27)
+    expect(errorMessage(frame)).toContain(child)
+    expect(parentServed.recorded).toEqual([])
+  })
+
+  it('bridges a nested project whose own .conciv has an endpoint, never reaching the parent server', async () => {
+    const parentServed = await serveEcho()
+    const childServed = await serveEcho()
+    const parent = projectServedBy('nested-parent-served', parentServed.url)
+    const child = join(parent, 'child')
+    mkdirSync(child, {recursive: true})
+    pointProjectAt(child, childServed.url)
+    const lines = await bridgeLines({cwd: child, input: [rpcCall(28, 'canvas.draw')], expected: 1})
+    const frame = onlyFrame(lines)
+
+    expect(frame.id).toBe(28)
+    expect(childServed.recorded.map((entry) => callId(entry.body))).toEqual([28])
+    expect(parentServed.recorded).toEqual([])
+  })
 })
