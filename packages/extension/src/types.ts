@@ -81,6 +81,7 @@ export type ServerHarness = {
 export type ServerApi<Config, Verbs extends PageVerbMap = Record<never, never>> = {
   config: Config
   cwd: string
+  basePath: string
   stateDir: string
   sessions: ServerSessions
   harness: ServerHarness
