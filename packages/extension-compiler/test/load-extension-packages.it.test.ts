@@ -2,7 +2,7 @@ import {test, expect, afterAll} from 'vitest'
 import {mkdtempSync, writeFileSync, mkdirSync, rmSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {loadExtensionPackages} from '../src/extensions.js'
+import {loadExtensionPackages, resolvePackageEntry} from '../src/extensions.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const roots: string[] = []
@@ -56,6 +56,17 @@ test('resolves specifiers the app root itself cannot resolve', async () => {
   await expect(rootLevelLoad).rejects.toThrow()
   const loaded = await loadExtensionPackages(root, '@conciv/fixture-resolver/entry', ['@fixture/ext'])
   expect(loaded).toHaveLength(1)
+})
+
+test('resolvePackageEntry returns the entry file path through the resolver package the root cannot see', () => {
+  const root = fixtureRoot({
+    'server.js': "export default {name: 'fixture-server'}\n",
+    'client.js': "export default {name: 'fixture-client'}\n",
+  })
+  expect(() => resolvePackageEntry(root, '@fixture/ext', '@fixture/ext')).toThrow()
+  expect(resolvePackageEntry(root, '@conciv/fixture-resolver/entry', '@fixture/ext')).toBe(
+    join(root, 'node_modules/@conciv/fixture-resolver/node_modules/@fixture/ext/server.js'),
+  )
 })
 
 test('a package without a default export is fatal and names the specifier', async () => {

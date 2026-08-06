@@ -3,6 +3,7 @@ import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {makeOpenInEditor} from './open-editor.js'
+import {widgetBundleFile} from './widget-bundle.js'
 import {type Builtins, loadServerExtensions} from '@conciv/extension-compiler/extensions'
 
 export function makeEngineBooter(options: ConcivConfig, root: string, builtins: Builtins): () => Promise<Engine> {
@@ -21,6 +22,7 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
         extensions,
         nativePageDir: builtins.nativePageDir,
         devEndpointDir: options.devEndpointDir,
+        widgetBundleFile: widgetBundleFile(builtins.embedEntry),
         childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
       }),
     )

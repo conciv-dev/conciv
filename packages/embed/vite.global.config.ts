@@ -4,10 +4,10 @@ import solid from 'vite-plugin-solid'
 
 export default defineConfig({
   plugins: [solid()],
-  define: {'define.amd': 'false', 'process.env.NODE_ENV': '"production"'},
+  define: {'define.amd': 'false', 'process.env.NODE_ENV': '"development"'},
   build: {
     lib: {
-      entry: fileURLToPath(new URL('test/fixtures/global-entry.ts', import.meta.url)),
+      entry: fileURLToPath(new URL('src/global-entry.ts', import.meta.url)),
       formats: ['iife'],
       name: 'ConcivWidget',
       fileName: () => 'conciv-widget.global.js',

@@ -16,7 +16,6 @@ export async function bootClientKit(opts: {extensions?: AnyExtension[]} = {}): P
     const {app, dispose} = await makeApp({
       cfg: {
         enabled: true,
-        widgetUrl: undefined,
         stateRoot: env.stateRoot,
         harness: env.harness.id,
         harnessBin: undefined,

@@ -6,7 +6,6 @@ export {defineConfig} from '@conciv/protocol/config-types'
 
 export interface ResolvedConcivConfig {
   enabled: boolean
-  widgetUrl: string | undefined
   stateRoot: string
   harness: string
   harnessBin: string | undefined
@@ -25,7 +24,6 @@ export function resolveConfig(options: ConcivConfig, root: string): ResolvedConc
   const env = process.env
   return {
     enabled: options.enabled ?? true,
-    widgetUrl: options.widgetUrl ?? env.CONCIV_WIDGET_URL,
     stateRoot: options.stateRoot ?? env.CONCIV_STATE_ROOT ?? root,
     harness: options.harness ?? env.CONCIV_HARNESS ?? 'claude',
     harnessBin:

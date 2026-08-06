@@ -1,24 +1,20 @@
 /// <reference lib="dom" />
 
 const port = process.env.NEXT_PUBLIC_CONCIV_PORT
+const configuredWidgetUrl = process.env.NEXT_PUBLIC_CONCIV_WIDGET_URL
 
-async function startWidget(): Promise<void> {
+function startWidget(): void {
   window.__CONCIV_API_BASE__ = `http://127.0.0.1:${port}`
-  const [{entries}, {mountConciv}, {dedupeExtensions}] = await Promise.all([
-    import('@conciv/app-extensions'),
-    import('@conciv/embed'),
-    import('@conciv/extension-compiler/dedupe'),
-  ])
-  const picked = dedupeExtensions(entries)
-  for (const drop of picked.dropped) console.warn('conciv extension dropped:', drop.source, drop.reason)
-  mountConciv(picked.extensions)
+  const script = document.createElement('script')
+  script.src = configuredWidgetUrl ?? `http://127.0.0.1:${port}/widget.js`
+  document.body.appendChild(script)
 }
 
 if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'production') {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => void startWidget(), {once: true})
+    document.addEventListener('DOMContentLoaded', () => startWidget(), {once: true})
   } else {
-    void startWidget()
+    startWidget()
   }
 }
 

@@ -22,7 +22,6 @@ describe('makeApp harness DI', () => {
     const {dispose} = await makeApp({
       cfg: {
         enabled: true,
-        widgetUrl: undefined,
         stateRoot,
         harness: 'claude',
         harnessBin: undefined,

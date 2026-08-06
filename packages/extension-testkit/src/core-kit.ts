@@ -17,7 +17,6 @@ export async function bootCoreKit(opts: {
     const {app, dispose} = await makeApp({
       cfg: {
         enabled: true,
-        widgetUrl: undefined,
         stateRoot: env.stateRoot,
         harness: env.harness.id,
         harnessBin: undefined,

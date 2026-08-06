@@ -11,7 +11,6 @@ import {requireClaude} from '../helpers/adapters.js'
 function cfgFor(stateRoot: string): ResolvedConcivConfig {
   return {
     enabled: true,
-    widgetUrl: undefined,
     stateRoot,
     harness: 'claude',
     harnessBin: undefined,

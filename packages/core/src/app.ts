@@ -1,5 +1,7 @@
 import {existsSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import {Hono} from 'hono'
+import type {Context} from 'hono'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -85,6 +87,8 @@ export type MakeAppOpts = {
   nativePageDir?: string
 
   nativeUrl?: () => string | undefined
+
+  widgetBundleFile?: string
 }
 
 export function slug(name: string): string {
@@ -212,7 +216,19 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
 
 export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 
-function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>, onShutdown?: () => void) {
+async function widgetAssetResponse(c: Context, file: string | undefined, contentType: string): Promise<Response> {
+  if (file === undefined) return c.json({message: 'widget bundle not configured'}, 404)
+  try {
+    const bytes = await readFile(file)
+    return c.body(new Uint8Array(bytes), 200, {'content-type': contentType, 'cache-control': 'no-cache'})
+  } catch {
+    return c.json({message: 'widget bundle not built'}, 404)
+  }
+}
+
+type ComposeOpts = {onShutdown?: () => void; widgetBundleFile?: string}
+
+function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>, opts: ComposeOpts) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
@@ -227,9 +243,14 @@ function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>, on
     })
     .use(corsMiddleware())
     .get('/health', (c) => c.json({ok: true, harness: vars.chat.harness.id}))
+    .get('/widget.js', (c) => widgetAssetResponse(c, opts.widgetBundleFile, 'text/javascript; charset=utf-8'))
+    .get('/conciv-widget.global.js.map', (c) => {
+      const map = opts.widgetBundleFile === undefined ? undefined : `${opts.widgetBundleFile}.map`
+      return widgetAssetResponse(c, map, 'application/json; charset=utf-8')
+    })
     .post('/api/shutdown', (c) => {
-      if (!onShutdown) return c.json({message: 'shutdown not supported'}, 404)
-      setTimeout(onShutdown, 50)
+      if (!opts.onShutdown) return c.json({message: 'shutdown not supported'}, 404)
+      setTimeout(opts.onShutdown, 50)
       return c.json({ok: true})
     })
     .use('/rpc/*', rpcMiddleware(rpc))
@@ -477,7 +498,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       },
     },
     rpc,
-    opts.onShutdown,
+    {onShutdown: opts.onShutdown, widgetBundleFile: opts.widgetBundleFile},
   )
 
   if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))

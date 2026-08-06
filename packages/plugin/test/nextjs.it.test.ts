@@ -3,7 +3,12 @@ import {fileURLToPath} from 'node:url'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {withConciv, CONCIV_DEFAULT_PORT} from '../src/core/nextjs.js'
 
-const ENV_KEYS = ['NEXT_PUBLIC_CONCIV_PORT', 'CONCIV_OPTIONS'] as const
+const ENV_KEYS = [
+  'NEXT_PUBLIC_CONCIV_PORT',
+  'NEXT_PUBLIC_CONCIV_WIDGET_URL',
+  'CONCIV_OPTIONS',
+  'CONCIV_WIDGET_URL',
+] as const
 const saved: Record<string, string | undefined> = {}
 
 beforeEach(() => {
@@ -32,6 +37,24 @@ describe('withConciv', () => {
     const cfg = withConciv({}, {port: 5000})
     expect(cfg.env?.NEXT_PUBLIC_CONCIV_PORT).toBe('5000')
     expect(JSON.parse(cfg.env?.CONCIV_OPTIONS ?? '{}').port).toBe(5000)
+  })
+
+  it('inlines a configured widgetUrl so the shim loads the bundle from the host-chosen URL', () => {
+    const cfg = withConciv({}, {widgetUrl: 'http://127.0.0.1:9000/custom-widget.js'})
+    expect(cfg.env?.NEXT_PUBLIC_CONCIV_WIDGET_URL).toBe('http://127.0.0.1:9000/custom-widget.js')
+    expect(process.env.NEXT_PUBLIC_CONCIV_WIDGET_URL).toBe('http://127.0.0.1:9000/custom-widget.js')
+  })
+
+  it('falls back to the CONCIV_WIDGET_URL environment override', () => {
+    process.env.CONCIV_WIDGET_URL = 'http://127.0.0.1:9000/env-widget.js'
+    const cfg = withConciv({})
+    expect(cfg.env?.NEXT_PUBLIC_CONCIV_WIDGET_URL).toBe('http://127.0.0.1:9000/env-widget.js')
+  })
+
+  it('leaves the widget url unset by default so the shim targets the engine route', () => {
+    const cfg = withConciv({})
+    expect(cfg.env?.NEXT_PUBLIC_CONCIV_WIDGET_URL).toBeUndefined()
+    expect(process.env.NEXT_PUBLIC_CONCIV_WIDGET_URL).toBeUndefined()
   })
 
   it('is a passthrough when disabled', () => {

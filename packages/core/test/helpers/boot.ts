@@ -42,7 +42,6 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
   return async (env) => {
     const cfg: ResolvedConcivConfig = {
       enabled: true,
-      widgetUrl: undefined,
       stateRoot: env.stateRoot,
       harness: env.harness.id,
       harnessBin: undefined,

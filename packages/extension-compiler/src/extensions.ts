@@ -1,6 +1,6 @@
 import {readdirSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {pathToFileURL} from 'node:url'
+import {fileURLToPath, pathToFileURL} from 'node:url'
 import {createJiti, type Jiti, type JSXOptions, type TransformOptions, type TransformResult} from 'jiti'
 import type {AnyExtension} from '@conciv/extension'
 import {splitExtension} from './split-extension.js'
@@ -64,6 +64,12 @@ export function listExtensionFiles(root: string): string[] {
     if (isMissingDirError(error)) return []
     throw error
   }
+}
+
+export function resolvePackageEntry(root: string, resolveFrom: string, specifier: string): string {
+  const rootJiti = createJiti(pathToFileURL(join(root, 'noop.js')).href)
+  const packageJiti = createJiti(rootJiti.esmResolve(resolveFrom))
+  return fileURLToPath(packageJiti.esmResolve(specifier))
 }
 
 export async function loadExtensionPackages(

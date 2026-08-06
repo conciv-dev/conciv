@@ -27,7 +27,6 @@ async function bootApp(fake: ReturnType<typeof createFakeHarness>): Promise<Made
   const made = await makeApp({
     cfg: {
       enabled: true,
-      widgetUrl: undefined,
       stateRoot,
       harness: fake.id,
       harnessBin: undefined,

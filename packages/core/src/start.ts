@@ -30,6 +30,7 @@ export type StartOpts = {
   harness?: HarnessAdapter
   nativePageDir?: string
   devEndpointDir?: string
+  widgetBundleFile?: string
 }
 
 export type Engine = {
@@ -137,6 +138,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     onShutdown: opts.onShutdown,
     nativePageDir: opts.nativePageDir,
     nativeUrl,
+    widgetBundleFile: opts.widgetBundleFile,
   }
   const {app, dispose, extensionContexts} = await makeApp(appOpts)
 

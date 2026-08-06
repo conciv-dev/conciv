@@ -12,7 +12,6 @@ function bootCliApp(extras: BootExtras): BootApp {
   return async (env) => {
     const cfg: ResolvedConcivConfig = {
       enabled: true,
-      widgetUrl: undefined,
       stateRoot: env.stateRoot,
       harness: env.harness.id,
       harnessBin: undefined,
