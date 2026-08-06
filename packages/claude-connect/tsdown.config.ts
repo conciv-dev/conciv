@@ -3,6 +3,7 @@ import {defineConfig} from 'tsdown'
 export default defineConfig({
   entry: [
     'src/bridge.ts',
+    'src/endpoint.ts',
     'src/install-state.ts',
     'src/json.ts',
     'src/names.ts',

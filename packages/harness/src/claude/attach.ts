@@ -11,6 +11,7 @@ import type {
   HarnessConnectFile,
   HarnessLiveSession,
 } from '@conciv/protocol/harness-types'
+import {claudeConnectEndpointFile, claudeConnectEndpointPath} from '@conciv/claude-connect/endpoint'
 import {claudeConnectDir, claudeConnectPluginFiles, CLAUDE_CONNECT_INSTALL_TARGET} from '@conciv/claude-connect/files'
 import {CLAUDE_CONNECT_MARKETPLACE} from '@conciv/claude-connect/names'
 import {claudeConfigDir, claudeConnectServesProject, claudeInstallRecords} from '@conciv/claude-connect/state'
@@ -177,8 +178,8 @@ async function install(opts: HarnessAttachInstall): Promise<HarnessAttachResult>
   if (!meetsReloadFloor(probe.version))
     return failure(`claude ${probe.version} lacks ${CLAUDE_RELOAD_COMMAND} (needs ${CLAUDE_RELOAD_MIN_VERSION}+)`)
   const root = claudeConnectDir(opts.stateDir)
-  const files = claudeConnectPluginFiles({stateDir: opts.stateDir, mcpUrl: opts.mcpUrl, hookUrl: opts.hookUrl})
-  writeConnectFiles(files)
+  const files = claudeConnectPluginFiles({stateDir: opts.stateDir})
+  writeConnectFiles([...files, claudeConnectEndpointFile({stateDir: opts.stateDir, mcpUrl: opts.mcpUrl})])
   if (alreadyServing(files, opts)) return {ok: true, reloadCommand: CLAUDE_RELOAD_COMMAND}
   const added = stepFailure(
     'marketplace add',
@@ -216,6 +217,7 @@ async function uninstall(opts: HarnessAttachRemoval): Promise<void> {
     timeoutMs: PLUGIN_TIMEOUT_MS,
   })
   rmSync(claudeConnectDir(opts.stateDir), {recursive: true, force: true})
+  rmSync(claudeConnectEndpointPath(opts.stateDir), {force: true})
   if (claudeInstallRecords(configDir()).length > 0) return
   await runClaude(['plugin', 'marketplace', 'remove', CLAUDE_CONNECT_MARKETPLACE], {
     cwd: opts.root,

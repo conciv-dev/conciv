@@ -1,8 +1,8 @@
 import {CONCIV_CLAUDE_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_STATE_DIR} from '@conciv/protocol/state-types'
+import {CLAUDE_CONNECT_ENDPOINT_FILE} from './endpoint.js'
 
 export const CLAUDE_CONNECT_BRIDGE_FILE = 'conciv-mcp-bridge.mjs'
-
-export const CLAUDE_CONNECT_BRIDGE_URL_VAR = 'CONCIV_MCP_URL'
 
 export const CLAUDE_CONNECT_BRIDGE_TIMEOUT_VAR = 'CONCIV_MCP_TIMEOUT_MS'
 
@@ -11,10 +11,52 @@ const CLAUDE_SESSION_VAR = 'CLAUDE_CODE_SESSION_ID'
 const BRIDGE_TIMEOUT_MS = 180_000
 
 export function claudeConnectBridgeSource(): string {
-  return `import {createInterface} from 'node:readline'
+  return `import {readFileSync} from 'node:fs'
+import {dirname, join, resolve} from 'node:path'
+import {createInterface} from 'node:readline'
 
-const url = process.env.${CLAUDE_CONNECT_BRIDGE_URL_VAR} ?? ''
+const stateDirName = '${CONCIV_STATE_DIR}'
+const endpointFileName = '${CLAUDE_CONNECT_ENDPOINT_FILE}'
 const claudeSessionId = process.env.${CLAUDE_SESSION_VAR} ?? ''
+
+function endpointPaths() {
+  const found = []
+  let dir = resolve(process.cwd())
+  for (;;) {
+    found.push(join(dir, stateDirName, endpointFileName))
+    const parent = dirname(dir)
+    if (parent === dir) return found
+    dir = parent
+  }
+}
+
+function readTextOrNull(path) {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+function urlIn(text) {
+  try {
+    const value = JSON.parse(text).mcpUrl
+    return typeof value === 'string' && value.length > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+function endpoint() {
+  for (const path of endpointPaths()) {
+    const text = readTextOrNull(path)
+    if (text === null) continue
+    const url = urlIn(text)
+    if (url === null) return {url: null, reason: \`\${path} names no running conciv dev server\`}
+    return {url, reason: ''}
+  }
+  return {url: null, reason: \`no \${stateDirName}/\${endpointFileName} at or above \${process.cwd()}\`}
+}
 
 function idOf(line) {
   try {
@@ -69,7 +111,9 @@ function parsed(text) {
 }
 
 async function send(line) {
-  const response = await fetch(url, {
+  const resolved = endpoint()
+  if (resolved.url === null) return failed(line, resolved.reason)
+  const response = await fetch(resolved.url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

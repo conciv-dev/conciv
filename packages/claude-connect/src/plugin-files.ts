@@ -1,6 +1,6 @@
 import {join} from 'node:path'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
-import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE, CLAUDE_CONNECT_BRIDGE_URL_VAR} from './bridge.js'
+import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE} from './bridge.js'
 import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './names.js'
 
 export const CLAUDE_CONNECT_ROOT = 'claude-connect'
@@ -44,7 +44,7 @@ function pluginManifest(): string {
   )}\n`
 }
 
-function mcpManifest(opts: {mcpUrl: string}): string {
+function mcpManifest(): string {
   return `${JSON.stringify(
     {
       mcpServers: {
@@ -52,7 +52,6 @@ function mcpManifest(opts: {mcpUrl: string}): string {
           type: 'stdio',
           command: 'node',
           args: [`\${CLAUDE_PLUGIN_ROOT}/bin/${CLAUDE_CONNECT_BRIDGE_FILE}`],
-          env: {[CLAUDE_CONNECT_BRIDGE_URL_VAR]: opts.mcpUrl},
         },
       },
     },
@@ -63,7 +62,7 @@ function mcpManifest(opts: {mcpUrl: string}): string {
 
 const BRIDGE_FILE_MODE = 0o700
 
-export function claudeConnectPluginBaseFiles(opts: {stateDir: string}): HarnessConnectFile[] {
+export function claudeConnectPluginFiles(opts: {stateDir: string}): HarnessConnectFile[] {
   const root = claudeConnectDir(opts.stateDir)
   const plugin = join(root, CLAUDE_CONNECT_PLUGIN)
   return [
@@ -74,14 +73,6 @@ export function claudeConnectPluginBaseFiles(opts: {stateDir: string}): HarnessC
       contents: claudeConnectBridgeSource(),
       mode: BRIDGE_FILE_MODE,
     },
+    {path: join(plugin, '.mcp.json'), contents: mcpManifest()},
   ]
-}
-
-export function claudeConnectPluginFiles(opts: {
-  stateDir: string
-  mcpUrl: string
-  hookUrl: string
-}): HarnessConnectFile[] {
-  const plugin = join(claudeConnectDir(opts.stateDir), CLAUDE_CONNECT_PLUGIN)
-  return [...claudeConnectPluginBaseFiles(opts), {path: join(plugin, '.mcp.json'), contents: mcpManifest(opts)}]
 }
