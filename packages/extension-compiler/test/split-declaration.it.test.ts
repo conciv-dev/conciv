@@ -41,6 +41,25 @@ export const shot = defineAttachment({mime: 'image/png'})
   .card(() => document.title + navigator.userAgent)
   .server(() => ({expanded: 'SERVER_BODY'}))`
 
+const REASSIGNED_RECEIVER = `import {defineTool} from '@conciv/extension'
+import {foreignBuilder} from './foreign.js'
+
+let receiver = defineTool({name: 'shifty'})
+receiver = foreignBuilder
+
+export const out = receiver.server(() => 'FOREIGN_SERVER_BODY')`
+
+const FOREIGN_IMPORT = `import {defineTool} from 'other-builders'
+import {defineAttachment} from '@conciv/extension'
+
+export const foreign = defineTool({name: 'foreign'}).server(() => 'FOREIGN_SERVER_BODY')
+
+export const ours = defineAttachment({mime: 'image/png'}).server(() => ({expanded: 'OURS_SERVER_BODY'}))`
+
+const ALIASED_IMPORT = `import {defineTool as makeTool} from '@conciv/extension/tool'
+
+export const aliased = makeTool({name: 'aliased'}).server(() => 'ALIAS_SERVER_BODY')`
+
 describe('splitExtension declaration matching', () => {
   it('processes a module that declares capabilities without declaring an extension', () => {
     const browser = splitExtension(CAPABILITY_ONLY, ID, 'browser')
@@ -92,6 +111,27 @@ describe('splitExtension declaration matching', () => {
       expect(code).toContain('socket.server()')
       expect(code).toContain('deck.card()')
     }
+  })
+
+  it('leaves a terminator alone when its receiver binding is reassigned', () => {
+    const out = splitExtension(REASSIGNED_RECEIVER, ID, 'browser')
+    const code = out?.code ?? ''
+    expect(code).toContain('receiver.server(')
+    expect(code).toContain('FOREIGN_SERVER_BODY')
+  })
+
+  it('recognizes a declaration call only when it is imported from @conciv/extension', () => {
+    const out = splitExtension(FOREIGN_IMPORT, ID, 'browser')
+    const code = out?.code ?? ''
+    expect(code).toContain('FOREIGN_SERVER_BODY')
+    expect(code).not.toContain('OURS_SERVER_BODY')
+  })
+
+  it('follows an aliased declaration import from a @conciv/extension subpath', () => {
+    const out = splitExtension(ALIASED_IMPORT, ID, 'browser')
+    const code = out?.code ?? ''
+    expect(code).not.toContain('.server(')
+    expect(code).not.toContain('ALIAS_SERVER_BODY')
   })
 
   it('drops the handler instead of emptying it, leaving no reference to browser-only globals on the server', () => {

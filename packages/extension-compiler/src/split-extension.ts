@@ -7,6 +7,8 @@ type DeclarationKind = 'extension' | 'tool' | 'attachment'
 
 const CONTRACT_MARKER = /\bdefine(?:Extension|Tool|Attachment)\b/
 
+const DECLARATION_PACKAGE = '@conciv/extension'
+
 const DECLARATION_CALLS: Record<string, DeclarationKind> = {
   defineExtension: 'extension',
   defineTool: 'tool',
@@ -22,14 +24,21 @@ const TERMINATOR_NAMES = new Set(
   Object.values(STRIPPED_TERMINATOR).flatMap((terminatorOf) => Object.values(terminatorOf)),
 )
 
+function isDeclarationPackage(source: string): boolean {
+  return source === DECLARATION_PACKAGE || source.startsWith(`${DECLARATION_PACKAGE}/`)
+}
+
+function declarationKindOfImport(specifier: t.ImportSpecifier, source: t.Node): DeclarationKind | null {
+  if (!t.isImportDeclaration(source) || !isDeclarationPackage(source.source.value)) return null
+  const imported = specifier.imported
+  return DECLARATION_CALLS[t.isIdentifier(imported) ? imported.name : imported.value] ?? null
+}
+
 function declarationKindOfBinding(name: string, path: NodePath, seen: Set<t.Node>): DeclarationKind | null {
   const binding = path.scope.getBinding(name)
-  if (!binding) return DECLARATION_CALLS[name] ?? null
+  if (!binding || !binding.constant) return null
   const declaration = binding.path.node
-  if (t.isImportSpecifier(declaration)) {
-    const imported = declaration.imported
-    return DECLARATION_CALLS[t.isIdentifier(imported) ? imported.name : imported.value] ?? null
-  }
+  if (t.isImportSpecifier(declaration)) return declarationKindOfImport(declaration, binding.path.parent)
   if (t.isVariableDeclarator(declaration) && declaration.init) return declarationKindOf(declaration.init, path, seen)
   return null
 }
