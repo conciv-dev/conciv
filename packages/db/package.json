@@ -16,8 +16,7 @@
     "directory": "packages/db"
   },
   "files": [
-    "dist",
-    "drizzle"
+    "dist"
   ],
   "type": "module",
   "exports": {
@@ -31,6 +30,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "gen:migrations": "node scripts/gen-migrations.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
