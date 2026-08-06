@@ -1,4 +1,4 @@
-import {defineExtension} from '@conciv/extension'
+import {defineExtension, toolError} from '@conciv/extension'
 import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js'
 import {makeServerFnTraceRing} from './server/serverfn-trace.js'
 import {readRouteManifest} from './server/route-manifest.js'
@@ -49,7 +49,7 @@ export const tanstack = defineExtension({
     const adapter = makeTanstackAdapter({
       page: server.page,
       buildErrors: () => {
-        if (!bundlerAvailable) throw new Error('bundler bridge unavailable')
+        if (!bundlerAvailable) throw toolError('BUNDLER_UNAVAILABLE', {message: 'bundler bridge unavailable'})
         return ring.list()
       },
       routeManifest: () => readRouteManifest(server.cwd),

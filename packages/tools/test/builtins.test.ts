@@ -20,9 +20,13 @@ function errorCode(error: unknown): string {
 
 function registryWith(bundler: BundlerBridge | undefined, opened: string[] = []) {
   const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-  for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool)
-  for (const tool of BUILTIN_SERVER_TOOLS) registry.register(tool, {context: {bundler: () => bundler}})
-  registry.register(BUILTIN_OPEN_TOOL, {context: {openInEditor: (file: string) => opened.push(file)}})
+  for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool, {owner: 'a test registrant'})
+  for (const tool of BUILTIN_SERVER_TOOLS)
+    registry.register(tool, {owner: 'a test registrant', context: {bundler: () => bundler}})
+  registry.register(BUILTIN_OPEN_TOOL, {
+    owner: 'a test registrant',
+    context: {openInEditor: (file: string) => opened.push(file)},
+  })
   return registry
 }
 
@@ -129,7 +133,7 @@ describe('built-in tool declarations', () => {
         return {ok: true, value: 'a@b.c'}
       },
     })
-    for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool)
+    for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool, {owner: 'a test registrant'})
     await expect(registry.call('page.fill', {selector: '#email', value: 'a@b.c'})).resolves.toEqual({
       ok: true,
       value: 'a@b.c',

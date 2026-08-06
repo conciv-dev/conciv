@@ -36,7 +36,7 @@ describe('a built-in tool call carries who asked and how it failed', () => {
         return {ok: true, value: 'a@b.c'}
       },
     })
-    for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool)
+    for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool, {owner: 'a test registrant'})
     const env = envAsking(async () => ({}))
     await callPageTool(
       registry,

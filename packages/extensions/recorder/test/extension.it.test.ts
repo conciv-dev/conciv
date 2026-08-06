@@ -70,6 +70,17 @@ async function callViaSandbox(base: string, name: string, input: unknown): Promi
   }
 }
 
+async function runSandboxCode(base: string, typescriptCode: string): Promise<unknown> {
+  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+  try {
+    const execute = (await mcp.tools()).find((tool) => tool.name === 'execute_typescript')
+    if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
+    return await execute.execute({typescriptCode})
+  } finally {
+    await mcp.close()
+  }
+}
+
 function envelopeResult(raw: unknown): unknown {
   return z
     .object({result: z.unknown()})
@@ -143,6 +154,26 @@ describe('recorder extension booted in the real engine (IT)', () => {
       const log = z.string().parse(await callViaSandbox(base, 'recording_pull', {secondsBack: 60, keyframes: 0}))
       expect(log).toContain('click')
       expect(log).toContain('Buy')
+    } finally {
+      await engine.stop()
+    }
+  }, 30_000)
+
+  it('the sandbox catalog carries the recorder declaration: summary, category and output schema', async () => {
+    const {base, engine} = await boot()
+    try {
+      const listed = z
+        .object({tools: z.array(z.object({name: z.string(), summary: z.string(), category: z.string()}).loose())})
+        .loose()
+        .parse(envelopeResult(await runSandboxCode(base, "return await external_catalog({search: 'recording_pull'})")))
+      const entry = listed.tools.find((tool) => tool.name === 'recording_pull')
+      expect(entry?.category).toBe('recorder')
+      expect(entry?.summary.toLowerCase()).toContain('recording')
+      const detail = z
+        .object({output: z.unknown()})
+        .loose()
+        .parse(envelopeResult(await runSandboxCode(base, "return await external_catalog({name: 'recording_pull'})")))
+      expect(detail.output).toBeDefined()
     } finally {
       await engine.stop()
     }

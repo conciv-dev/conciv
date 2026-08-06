@@ -6,6 +6,7 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
   type AnyExtension,
+  type AnyToolBuilder,
   type AttachmentDocumentPart,
   type ContentPart,
   type ExtensionServerTool,
@@ -17,6 +18,7 @@ import {
   type ToolRequest,
   pageVerbError,
 } from '@conciv/extension'
+import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
@@ -134,25 +136,65 @@ function buildAttachmentExpanders(
   return entries
 }
 
+function toolDescription(tool: AnyToolBuilder): string {
+  return [tool.description, tool.promptSnippet, ...(tool.promptGuidelines ?? [])].filter(Boolean).join('\n\n')
+}
+
+function declaredToolErrors(tool: AnyToolBuilder): {code: string; message: string}[] {
+  return Object.entries(tool.errors ?? {}).map(([code, spec]) => ({code, message: spec.message}))
+}
+
+function isRegistryDeclared(tool: AnyToolBuilder): boolean {
+  return tool.binding === 'server' && (tool.meta !== undefined || tool.outputSchema !== undefined)
+}
+
+function registryDeclaredTools(extension: AnyExtension): AnyToolBuilder[] {
+  return (extension.tools ?? []).filter(isRegistryDeclared)
+}
+
 export function buildExtensionTools(extension: AnyExtension, context: unknown): ExtensionServerTool[] {
   return (extension.tools ?? []).flatMap((tool) => {
+    if (isRegistryDeclared(tool)) return []
     const run = tool.__execute
     if (!run) return []
-    const description = [tool.description, tool.promptSnippet, ...(tool.promptGuidelines ?? [])]
-      .filter(Boolean)
-      .join('\n\n')
     return [
       {
         name: tool.name,
-        description,
+        description: toolDescription(tool),
         inputSchema: tool.inputSchema,
         approval: tool.approval,
         mutating: tool.approval === 'ask' || (tool.meta?.mutating ?? false),
-        errors: Object.entries(tool.errors ?? {}).map(([code, spec]) => ({code, message: spec.message})),
+        errors: declaredToolErrors(tool),
         execute: (input: unknown, request: ToolRequest) => run(input, context, request),
       },
     ]
   })
+}
+
+type RegistryToolSource = {extensionName: string; registryTools: AnyToolBuilder[]; context: unknown}
+
+function registerExtensionTools(registry: ToolRegistry, sources: RegistryToolSource[]): void {
+  for (const source of sources) {
+    for (const tool of source.registryTools) {
+      registry.register(tool, {owner: `extension "${source.extensionName}"`, context: source.context})
+    }
+  }
+}
+
+function markRiskyMutating(risky: ReadonlySet<string>, capabilities: CodeCapability[]): CodeCapability[] {
+  return capabilities.map((capability) => (risky.has(capability.name) ? {...capability, mutating: true} : capability))
+}
+
+function registryBackedTool(tool: AnyToolBuilder, registry: ToolRegistry): ExtensionServerTool {
+  return {
+    name: tool.name,
+    description: toolDescription(tool),
+    inputSchema: tool.inputSchema,
+    approval: tool.approval,
+    mutating: tool.approval === 'ask' || (tool.meta?.mutating ?? false),
+    errors: declaredToolErrors(tool),
+    execute: (input: unknown, request: ToolRequest) => registry.call(tool.name, input, {request}),
+  }
 }
 
 function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
@@ -279,11 +321,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
     const context = result?.context
+    const forwardedTools = buildExtensionTools(extension, context)
+    const registryTools = registryDeclaredTools(extension)
     return {
       extensionName: extension.name,
       app: narrowExtensionApp(extension.name, result?.app),
       router: result?.router,
-      tools: buildExtensionTools(extension, context),
+      forwardedTools,
+      registryTools,
+      tools: [...forwardedTools, ...registryTools.map((tool) => registryBackedTool(tool, registry))],
       attachmentExpanders: buildAttachmentExpanders(extension, context),
       context,
       dispose: result?.dispose,
@@ -350,11 +396,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ]),
   ])
 
-  const codeModeCapabilities = (sessionId: string): CodeCapability[] => [
-    ...registryCapabilities(registry),
-    ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-    ...extensionCapabilities(extensionTools),
-  ]
+  registerExtensionTools(registry, mounted)
+
+  const forwardedExtensionTools = mounted.flatMap((entry) => entry.forwardedTools)
+
+  const codeModeCapabilities = (sessionId: string): CodeCapability[] =>
+    markRiskyMutating(risky, [
+      ...registryCapabilities(registry),
+      ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+      ...extensionCapabilities(forwardedExtensionTools),
+    ])
 
   const toolList: ChatTool[] = [
     ...concivTools(makeToolCtx('')).map((tool) => ({name: tool.name, description: tool.description})),

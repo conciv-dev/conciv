@@ -27,9 +27,11 @@ export function makeBuiltinRegistry(deps: BuiltinRegistryDeps): ToolRegistry {
     pageCaller: (name, input) => runPageTool(deps.page, name, input),
     isPageConnected: () => deps.page.bus.connected(),
   })
-  for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool)
-  for (const tool of BUILTIN_SERVER_TOOLS) registry.register(tool, {context: {bundler: deps.bundler}})
-  registry.register(BUILTIN_OPEN_TOOL, {context: {openInEditor: deps.openInEditor}})
+  for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool, {owner: 'a built-in page tool'})
+  for (const tool of BUILTIN_SERVER_TOOLS) {
+    registry.register(tool, {owner: 'a built-in server tool', context: {bundler: deps.bundler}})
+  }
+  registry.register(BUILTIN_OPEN_TOOL, {owner: 'a built-in editor tool', context: {openInEditor: deps.openInEditor}})
   return registry
 }
 
