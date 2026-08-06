@@ -18,7 +18,7 @@ export default defineExtension({name: 'canvas', tools: [draw]})
 
 describe('splitExtension', () => {
   it('browser: collapses .server(), keeps .client()/.render(), drops node-only imports', async () => {
-    const out = await splitExtension(SOURCE, ID, 'browser')
+    const out = splitExtension(SOURCE, ID, 'browser')
     expect(out).not.toBeNull()
     const code = out!.code
     expect(code).not.toContain('.server(')
@@ -31,7 +31,7 @@ describe('splitExtension', () => {
   })
 
   it('node: collapses .client()/.render(), keeps .server(), drops client-only imports', async () => {
-    const out = await splitExtension(SOURCE, ID, 'node')
+    const out = splitExtension(SOURCE, ID, 'node')
     expect(out).not.toBeNull()
     const code = out!.code
     expect(code).not.toContain('.client(')
@@ -44,14 +44,14 @@ describe('splitExtension', () => {
   })
 
   it('returns null for a file that does not use defineExtension', async () => {
-    const out = await splitExtension(`export const x = api.server(() => 1)`, ID, 'browser')
+    const out = splitExtension(`export const x = api.server(() => 1)`, ID, 'browser')
     expect(out).toBeNull()
   })
 
   it('round-trips a scaffolded full extension through both sides', async () => {
     const source = scaffold('full', {name: 'demo'})
-    const browser = await splitExtension(source, ID, 'browser')
-    const node = await splitExtension(source, ID, 'node')
+    const browser = splitExtension(source, ID, 'browser')
+    const node = splitExtension(source, ID, 'node')
     expect(browser).not.toBeNull()
     expect(node).not.toBeNull()
     expect(browser!.code).not.toContain('.server(')

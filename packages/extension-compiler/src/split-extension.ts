@@ -1,22 +1,63 @@
-import {parseAsync, transformFromAstAsync, traverse, types as t} from '@babel/core'
+import {parseSync, transformFromAstSync, traverse, types as t, type NodePath} from '@babel/core'
 import {deadCodeElimination, findReferencedIdentifiers} from 'babel-dead-code-elimination'
-
-const CONTRACT_MARKER = 'defineExtension'
-
-const STRIP_FOR: Record<SplitEnv, ReadonlySet<string>> = {
-  browser: new Set(['server']),
-  node: new Set(['client', 'render']),
-}
 
 export type SplitEnv = 'browser' | 'node'
 
-export async function splitExtension(
-  code: string,
-  id: string,
-  env: SplitEnv,
-): Promise<{code: string; map: string | null} | null> {
-  if (!code.includes(CONTRACT_MARKER)) return null
-  const ast = await parseAsync(code, {
+type DeclarationKind = 'extension' | 'tool' | 'attachment'
+
+const CONTRACT_MARKER = /\bdefine(?:Extension|Tool|Attachment)\b/
+
+const DECLARATION_PACKAGE = '@conciv/extension'
+
+const DECLARATION_CALLS: Record<string, DeclarationKind> = {
+  defineExtension: 'extension',
+  defineTool: 'tool',
+  defineAttachment: 'attachment',
+}
+
+const STRIPPED_TERMINATOR: Record<SplitEnv, Record<DeclarationKind, string>> = {
+  browser: {extension: 'server', tool: 'server', attachment: 'server'},
+  node: {extension: 'client', tool: 'render', attachment: 'card'},
+}
+
+const TERMINATOR_NAMES = new Set(
+  Object.values(STRIPPED_TERMINATOR).flatMap((terminatorOf) => Object.values(terminatorOf)),
+)
+
+function isDeclarationPackage(source: string): boolean {
+  return source === DECLARATION_PACKAGE || source.startsWith(`${DECLARATION_PACKAGE}/`)
+}
+
+function declarationKindOfImport(specifier: t.ImportSpecifier, source: t.Node): DeclarationKind | null {
+  if (!t.isImportDeclaration(source) || !isDeclarationPackage(source.source.value)) return null
+  const imported = specifier.imported
+  return DECLARATION_CALLS[t.isIdentifier(imported) ? imported.name : imported.value] ?? null
+}
+
+function declarationKindOfBinding(name: string, path: NodePath, seen: Set<t.Node>): DeclarationKind | null {
+  const binding = path.scope.getBinding(name)
+  if (!binding || !binding.constant) return null
+  const declaration = binding.path.node
+  if (t.isImportSpecifier(declaration)) return declarationKindOfImport(declaration, binding.path.parent)
+  if (t.isVariableDeclarator(declaration) && declaration.init) return declarationKindOf(declaration.init, path, seen)
+  return null
+}
+
+function declarationKindOf(node: t.Node, path: NodePath, seen: Set<t.Node>): DeclarationKind | null {
+  if (seen.has(node)) return null
+  seen.add(node)
+  if (t.isIdentifier(node)) return declarationKindOfBinding(node.name, path, seen)
+  if (!t.isCallExpression(node)) return null
+  const callee = node.callee
+  if (t.isIdentifier(callee)) return declarationKindOfBinding(callee.name, path, seen)
+  if (t.isMemberExpression(callee) && t.isIdentifier(callee.property) && TERMINATOR_NAMES.has(callee.property.name))
+    return declarationKindOf(callee.object, path, seen)
+  return null
+}
+
+export function splitExtension(code: string, id: string, env: SplitEnv): {code: string; map: string | null} | null {
+  if (!CONTRACT_MARKER.test(code)) return null
+  const ast = parseSync(code, {
     filename: id,
     babelrc: false,
     configFile: false,
@@ -25,19 +66,21 @@ export async function splitExtension(
   if (!ast) return null
 
   const referenced = findReferencedIdentifiers(ast)
-  const strip = STRIP_FOR[env]
+  const strippedTerminator = STRIPPED_TERMINATOR[env]
   traverse(ast, {
     CallExpression(path) {
       const callee = path.node.callee
       if (!t.isMemberExpression(callee)) return
-      if (!t.isIdentifier(callee.property) || !strip.has(callee.property.name)) return
+      if (!t.isIdentifier(callee.property) || !TERMINATOR_NAMES.has(callee.property.name)) return
       if (!t.isExpression(callee.object)) return
+      const kind = declarationKindOf(callee.object, path, new Set())
+      if (kind === null || strippedTerminator[kind] !== callee.property.name) return
       path.replaceWith(callee.object)
     },
   })
   deadCodeElimination(ast, referenced)
 
-  const result = await transformFromAstAsync(ast, code, {
+  const result = transformFromAstSync(ast, code, {
     filename: id,
     babelrc: false,
     configFile: false,

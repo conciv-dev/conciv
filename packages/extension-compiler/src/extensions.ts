@@ -1,7 +1,7 @@
 import {readdirSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {pathToFileURL} from 'node:url'
-import {createJiti} from 'jiti'
+import {createJiti, type Jiti, type JSXOptions, type TransformOptions, type TransformResult} from 'jiti'
 import type {AnyExtension} from '@conciv/extension'
 import {splitExtension} from './split-extension.js'
 import {dedupeExtensions, EXTENSION_GLOB, type ExtensionEntry} from './dedupe-extensions.js'
@@ -84,6 +84,23 @@ export async function loadExtensionPackages(
   )
 }
 
+const EXTENSION_JSX: JSXOptions = {runtime: 'automatic', importSource: 'solid-js'}
+
+function splitThenTransform(base: Jiti, options: TransformOptions): TransformResult {
+  const split = options.filename === undefined ? null : splitExtension(options.source, options.filename, 'node')
+  return {code: base.transform({...options, source: split?.code ?? options.source})}
+}
+
+function createSplittingJiti(root: string): Jiti {
+  const parentUrl = pathToFileURL(join(root, 'noop.js')).href
+  const base = createJiti(parentUrl, {jsx: EXTENSION_JSX})
+  return createJiti(parentUrl, {
+    jsx: EXTENSION_JSX,
+    fsCache: false,
+    transform: (options) => splitThenTransform(base, options),
+  })
+}
+
 export async function loadServerExtensions(
   root: string,
   builtinServerExtensions: readonly AnyExtension[],
@@ -94,14 +111,11 @@ export async function loadServerExtensions(
   }))
   const files = listExtensionFiles(root).map((name) => join(root, EXTENSION_DIR, name))
   if (files.length === 0) return dedupeExtensions(builtinEntries).extensions
-  const jiti = createJiti(pathToFileURL(join(root, 'noop.js')).href, {
-    jsx: {runtime: 'automatic', importSource: 'solid-js'},
-  })
+  const jiti = createSplittingJiti(root)
   const folderEntries: ExtensionEntry[] = []
   for (const file of files) {
     const source = readFileSync(file, 'utf8')
-    const split = await splitExtension(source, file, 'node')
-    const evaluated = await jiti.evalModule(split?.code ?? source, {filename: file})
+    const evaluated = await jiti.evalModule(source, {filename: file})
     const value = evaluated && typeof evaluated === 'object' && 'default' in evaluated ? evaluated.default : undefined
     if (value === undefined) throw new Error(`conciv extension ${file} has no default export`)
     folderEntries.push({extension: value, source: file})
