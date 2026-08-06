@@ -57,7 +57,8 @@ describe('a built-in tool call carries who asked and how it failed', () => {
   })
 
   it('journals mutating calls from declaration meta and leaves reads out', async () => {
-    const env = envAsking(async () => ({ok: true}))
+    const answers: Record<string, unknown>[] = [{text: 'hi'}, {ok: true}]
+    const env = envAsking(async () => answers.shift() ?? {})
     const registry = makeBuiltinRegistry({page: env, bundler: () => undefined, openInEditor: () => {}})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
     await registry.call('page.text', {selector: '#h'})

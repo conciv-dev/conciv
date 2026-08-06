@@ -101,7 +101,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
     state.widget = await connectWidget(kit, () => ({ok: false, error: {code, message: `${code} says no`}}))
     await expect(callPage(kit, 'page.text', {selector: '#h'})).rejects.toMatchObject({
       code: rpcCode,
-      message: `${code} says no`,
+      message: `page.text: ${code} says no`,
     })
   })
 

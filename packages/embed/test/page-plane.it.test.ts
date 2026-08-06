@@ -49,7 +49,7 @@ describe('startPagePlane executes registry page tools in the browser', () => {
     const page = await openHostPage()
     await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#not-here'}})).rejects.toMatchObject({
       code: 'INVALID_ARGS',
-      message: 'no element for selector #not-here',
+      message: 'page.text: no element for selector #not-here',
     })
     await page.close()
   })
