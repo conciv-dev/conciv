@@ -32,7 +32,7 @@ test('two extensions mount isolated namespaces; both routes serve and both tools
 test('a tool-name collision across extensions is rejected at mount', async () => {
   const a = defineExtension({name: 'a', tools: [toolNamed('dup_tool')]})
   const b = defineExtension({name: 'b', tools: [toolNamed('dup_tool')]})
-  await expect(bootKit({extensions: [a, b]})).rejects.toThrow(/collision/)
+  await expect(bootKit({extensions: [a, b]})).rejects.toThrow(/"dup_tool".*extension "a".*extension "b"/)
 })
 
 test('an extension-name collision is rejected at mount', async () => {

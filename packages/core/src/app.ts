@@ -155,6 +155,19 @@ export function buildExtensionTools(extension: AnyExtension, context: unknown): 
   })
 }
 
+function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
+  const owners = new Map<string, string>()
+  for (const [source, names] of sources) {
+    for (const name of names) {
+      const existing = owners.get(name)
+      if (existing !== undefined) {
+        throw new Error(`capability name "${name}" is declared by both ${existing} and ${source}`)
+      }
+      owners.set(name, source)
+    }
+  }
+}
+
 export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 
 function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>, onShutdown?: () => void) {
@@ -261,7 +274,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     transcriptMessages: history ? (token) => history.messages(opts.cwd, token, opts.claudeHome) : undefined,
     connectPlan: harness.connect?.plan,
   }
-  const seenTools = new Set<string>()
   const seenNames = new Set<string>()
   const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
 
@@ -313,10 +325,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     mounted.map((entry) => [entry.extensionName, entry.context]),
   )
   const extensionTools = mounted.flatMap((entry) => entry.tools)
-  extensionTools.forEach((tool) => {
-    if (seenTools.has(tool.name)) throw new Error(`extension tool name collision: "${tool.name}"`)
-    seenTools.add(tool.name)
-  })
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
   const onRunEnd = async (sessionId: string): Promise<void> => {
@@ -332,6 +340,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     open: (file, line) => opts.openInEditor(file, line),
     capabilities: () => registry.catalog.list(),
   })
+
+  assertUniqueCapabilityNames([
+    ['a built-in registry tool', registry.sandboxTools().map((tool) => tool.name)],
+    ['a conciv assist tool', concivSandboxTools(makeToolCtx('')).map((tool) => tool.name)],
+    ...mounted.map((entry): [string, string[]] => [
+      `extension "${entry.extensionName}"`,
+      entry.tools.map((tool) => tool.name),
+    ]),
+  ])
 
   const codeModeCapabilities = (sessionId: string): CodeCapability[] => [
     ...registryCapabilities(registry),

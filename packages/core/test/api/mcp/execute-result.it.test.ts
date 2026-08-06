@@ -160,6 +160,17 @@ describe('/api/mcp execute result mapping', () => {
     }
   }, 30_000)
 
+  it('captured logs survive a content-part result as a trailing text part', async () => {
+    const kit = await bootKit({extensions: [probe]})
+    try {
+      const outcome = await execute(kit.base, "console.log('sandbox-log-probe'); return await external_probe_snap({})")
+      if (!outcome.ok) throw new Error(outcome.message)
+      expect(JSON.stringify(outcome.raw)).toContain('sandbox-log-probe')
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
   it('caps the aggregate across many text parts, not just each part alone', async () => {
     const kit = await bootKit({extensions: [probe]})
     try {

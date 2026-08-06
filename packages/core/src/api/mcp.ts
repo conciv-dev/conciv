@@ -73,7 +73,7 @@ const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): /
 function executeDescription(categories: string[]): string {
   const sample = categories.length > 0 ? ` Capability categories include ${categories.join(', ')}.` : ''
   return (
-    'Run TypeScript in a secure sandbox wired to this project. Every capability is an async external_* function, and `await external_catalog({search?, name?})` lists them or returns one full typed signature — discovery and calls happen in the same execution.' +
+    'Run TypeScript in a secure sandbox wired to this project. Every capability is an async external_* function, and `await external_catalog({search?, name?})` lists them or returns one full typed signature; discovery and calls happen in the same execution.' +
     sample +
     ' Return a value to pass results back; console.log output is captured.'
   )
@@ -172,8 +172,15 @@ function cappedParts(parts: (TextContent | ImageContent)[]): (TextContent | Imag
   return kept
 }
 
+function logsPart(logs: string[]): TextContent[] {
+  if (logs.length === 0) return []
+  return [{type: 'text', text: cappedText(safeStringify({logs}, 'execution logs'))}]
+}
+
 function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply {
-  if (isContentPartArray(result.result)) return {content: cappedParts(result.result.map(partToContent))}
+  if (isContentPartArray(result.result)) {
+    return {content: cappedParts([...result.result.map(partToContent), ...logsPart(result.logs ?? [])])}
+  }
   const body = safeStringify({result: result.result ?? null, logs: result.logs ?? []}, 'execution result')
   return {content: [{type: 'text', text: cappedText(body)}]}
 }
