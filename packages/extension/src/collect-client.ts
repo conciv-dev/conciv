@@ -21,13 +21,21 @@ export function collectClientTools(builders: AnyExtension[]): ClientToolEntry[] 
   return entries
 }
 
-export function collectClientEffects(instances: readonly {effects?: readonly ClientEffect[]}[]): ClientEffect[] {
-  const seen = new Set<string>()
+export function collectClientEffects(
+  instances: readonly {name: string; effects?: readonly ClientEffect[]}[],
+): ClientEffect[] {
+  const owners = new Map<string, string>()
   const entries: ClientEffect[] = []
   for (const instance of instances)
     for (const effect of instance.effects ?? []) {
-      if (seen.has(effect.name)) continue
-      seen.add(effect.name)
+      const owner = owners.get(effect.name)
+      if (owner) {
+        console.warn(
+          `[conciv] extension "${instance.name}" declares effect "${effect.name}" already registered by extension "${owner}"; keeping "${owner}"'s effect`,
+        )
+        continue
+      }
+      owners.set(effect.name, instance.name)
       entries.push(effect)
     }
   return entries

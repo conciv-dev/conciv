@@ -1,5 +1,5 @@
 import {pageFailure, ok, type PageResult} from '@conciv/protocol/page-types'
-import {toolError, type ClientToolCtx, type ClientToolLocator} from '@conciv/extension'
+import {toolError, type ClientEffect, type ClientToolCtx, type ClientToolLocator} from '@conciv/extension'
 import {
   buildSnapshot,
   dehydrate,
@@ -205,28 +205,33 @@ const trackTool = trackDef.client((input) => {
   return trackReport({name: input.name})
 })
 
+function listEffects(effects: readonly ClientEffect[], requestedEffect: string | undefined) {
+  if (requestedEffect !== undefined) badArgs('action list does not take an effect name; it reports every effect')
+  return {
+    effects: effects.map((effect) => ({name: effect.name, description: effect.description, enabled: effect.enabled()})),
+  }
+}
+
+function requireEffect(effects: readonly ClientEffect[], name: string | undefined, action: string): ClientEffect {
+  if (name === undefined) badArgs(`action ${action} needs an effect name; action list shows what exists`)
+  const effect = effects.find((candidate) => candidate.name === name)
+  if (effect) return effect
+  const registered = effects.map((candidate) => candidate.name).join(', ')
+  throw toolError('UNKNOWN_EFFECT', {
+    message: `no effect named "${name}"; registered: ${registered === '' ? 'none' : registered}`,
+  })
+}
+
+function driveEffect(effect: ClientEffect, action: string): void {
+  if (action === 'report') return
+  effect.set(action === 'toggle' ? !effect.enabled() : action === 'enable' || action === 'start')
+}
+
 const effectTool = effectDef.client((input, ctx) => {
   const action = input.action ?? 'list'
-  if (action === 'list') {
-    return {
-      effects: ctx.effects.map((effect) => ({
-        name: effect.name,
-        description: effect.description,
-        enabled: effect.enabled(),
-      })),
-    }
-  }
-  if (input.effect === undefined) badArgs(`action ${action} needs an effect name; action list shows what exists`)
-  const effect = ctx.effects.find((candidate) => candidate.name === input.effect)
-  if (!effect) {
-    const registered = ctx.effects.map((candidate) => candidate.name).join(', ')
-    throw toolError('UNKNOWN_EFFECT', {
-      message: `no effect named "${input.effect}"; registered: ${registered === '' ? 'none' : registered}`,
-    })
-  }
-  if (action !== 'report') {
-    effect.set(action === 'toggle' ? !effect.enabled() : action === 'enable' || action === 'start')
-  }
+  if (action === 'list') return listEffects(ctx.effects, input.effect)
+  const effect = requireEffect(ctx.effects, input.effect, action)
+  driveEffect(effect, action)
   return {effect: effect.name, enabled: effect.enabled()}
 })
 

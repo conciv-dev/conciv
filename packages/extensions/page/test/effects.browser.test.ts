@@ -46,7 +46,10 @@ const effectFailure = async (input: Record<string, unknown>): Promise<PageError>
 beforeAll(() => {
   driver = makeDomPageDriver({
     tools: collectClientTools([pageExtension]),
-    effects: collectClientEffects([{effects: [installBanner()]}, {effects: [installBanner()]}]),
+    effects: collectClientEffects([
+      {name: 'fixture-a', effects: [installBanner()]},
+      {name: 'fixture-b', effects: [installBanner()]},
+    ]),
   })
 })
 
@@ -94,5 +97,16 @@ describe('the page.effect verb drives registered host effects', () => {
     const failure = await effectFailure({action: 'enable'})
     expect(failure.code).toBe('invalid-args')
     expect(failure.message).toContain('list')
+  })
+
+  it('list rejects a passed effect name as invalid args instead of ignoring it', async () => {
+    const failure = await effectFailure({action: 'list', effect: 'banner'})
+    expect(failure.code).toBe('invalid-args')
+    expect(failure.message).toContain('list')
+  })
+
+  it('report on a disabled effect truthfully returns enabled: false', async () => {
+    expect(await effectResult({action: 'report', effect: 'banner'})).toEqual({effect: 'banner', enabled: false})
+    await expect.element(banner()).not.toBeInTheDocument()
   })
 })

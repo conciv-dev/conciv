@@ -76,7 +76,9 @@ function mountedClientTools(router: MountedRouter): ClientToolEntry[] {
 }
 
 function mountedClientEffects(router: MountedRouter): ClientEffect[] {
-  return collectClientEffects(router.options.context.instances)
+  return collectClientEffects(
+    router.options.context.instances.map((instance) => ({name: instance.extension.name, effects: instance.effects})),
+  )
 }
 
 async function bootNormal(config: BootNormalConfig): Promise<BootResult> {

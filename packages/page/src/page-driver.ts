@@ -25,8 +25,9 @@ export function makeDomPageDriver(
   deps: {tools?: readonly ClientToolEntry[]; effects?: readonly ClientEffect[]; refs?: Refs} = {},
 ): PageDriver {
   const refs: Refs = deps.refs ?? {map: new Map(), n: 0}
-  const {buf: consoleBuf, dispose} = startConsoleBuffer()
-  const dispatch = makePageToolDispatcher(deps.tools ?? [], refs, consoleBuf, deps.effects ?? [])
+  const effects = deps.effects ?? []
+  const {buf: consoleBuf, dispose: disposeConsoleBuffer} = startConsoleBuffer()
+  const dispatch = makePageToolDispatcher(deps.tools ?? [], refs, consoleBuf, effects)
 
   async function execute(query: PageQuery): Promise<PageOutcome> {
     try {
@@ -34,6 +35,11 @@ export function makeDomPageDriver(
     } catch (error) {
       return {ok: false, error: pageErrorOf(error)}
     }
+  }
+
+  function dispose(): void {
+    for (const effect of effects) if (effect.enabled()) effect.set(false)
+    disposeConsoleBuffer()
   }
 
   return {execute, refs, dispose}
