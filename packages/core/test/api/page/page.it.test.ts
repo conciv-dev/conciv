@@ -1,9 +1,10 @@
 import {describe, it, expect, afterEach} from 'vitest'
 import {z} from 'zod'
 import {tmpdir} from 'node:os'
-import type {PageOutcome, PageReportedErrorCode} from '@conciv/protocol/page-types'
+import type {PageReportedErrorCode} from '@conciv/protocol/page-types'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
+import {connectWidget} from '../../helpers/fake-widget.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../editor/fixtures.js'
 
 const ChangesSchema = z.array(
@@ -14,23 +15,6 @@ const LocateSchema = z.looseObject({
   component: z.string().optional(),
   source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
 })
-
-async function connectWidget(kit: Kit, answerFor: (name: string) => PageOutcome): Promise<{end: () => void}> {
-  const ctrl = new AbortController()
-  const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
-  void (async () => {
-    try {
-      for await (const {requestId, query} of iterator) {
-        const name =
-          typeof query === 'object' && query !== null && 'name' in query && typeof query.name === 'string'
-            ? query.name
-            : ''
-        void kit.rpc.page.reply({requestId, outcome: answerFor(name)}).catch(() => {})
-      }
-    } catch {}
-  })()
-  return {end: () => ctrl.abort()}
-}
 
 function callPage(kit: Kit, name: string, input: Record<string, unknown> = {}): Promise<unknown> {
   return kit.rpc.registry.call({name, input})

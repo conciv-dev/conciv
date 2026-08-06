@@ -1,31 +1,14 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {tmpdir} from 'node:os'
-import type {PageOutcome} from '@conciv/protocol/page-types'
 import {makeApprovingCallTool, type Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
+import {connectWidget} from '../../helpers/fake-widget.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../editor/fixtures.js'
 
 const ChangesSchema = z.array(
   z.object({verb: z.string(), selector: z.string().optional(), args: z.record(z.string(), z.unknown())}),
 )
-
-async function connectWidget(kit: Kit, answerFor: (name: string) => PageOutcome): Promise<{end: () => void}> {
-  const ctrl = new AbortController()
-  const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
-  void (async () => {
-    try {
-      for await (const {requestId, query} of iterator) {
-        const name =
-          typeof query === 'object' && query !== null && 'name' in query && typeof query.name === 'string'
-            ? query.name
-            : ''
-        void kit.rpc.page.reply({requestId, outcome: answerFor(name)}).catch(() => {})
-      }
-    } catch {}
-  })()
-  return {end: () => ctrl.abort()}
-}
 
 const SourceSchema = z.object({source: z.object({file: z.string(), line: z.number(), column: z.number()})})
 
