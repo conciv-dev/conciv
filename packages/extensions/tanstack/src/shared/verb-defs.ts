@@ -9,8 +9,6 @@ import type {
   RouterCurrent,
 } from '@conciv/protocol/framework-types'
 
-export const TANSTACK_VERB_PREFIX = 'tanstack.'
-
 const FrameworkInfoSchema: z.ZodType<FrameworkInfo> = z.object({
   name: z.enum(['nextjs', 'tanstack-start', 'vue', 'solid-start', 'astro']),
   version: z.string().nullable(),
@@ -83,7 +81,7 @@ function verbTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   result: Out
 }) {
   return defineTool({
-    name: `${TANSTACK_VERB_PREFIX}${spec.verb}`,
+    name: `tanstack.${spec.verb}`,
     description: spec.summary,
     inputSchema: spec.input,
     outputSchema: z.object({result: spec.result}),

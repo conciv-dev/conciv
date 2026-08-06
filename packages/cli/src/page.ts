@@ -20,7 +20,7 @@ function verbOf(signature: ToolCommandSignature): string {
   return signature.name.slice(PAGE_TOOL_PREFIX.length)
 }
 
-export function verbCommands(signatures: readonly ToolCommandSignature[]): SubCommandsDef {
+function verbCommands(signatures: readonly ToolCommandSignature[]): SubCommandsDef {
   return Object.fromEntries(
     signatures.map((signature) => {
       const verb = verbOf(signature)
