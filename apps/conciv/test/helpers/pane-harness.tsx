@@ -13,6 +13,7 @@ import {
 import {makeAppData} from '../../src/data/app-data.js'
 import {parseConcivSettings} from '../../src/data/settings.js'
 import {makeLayerStack} from '../../src/shell/dialogs.js'
+import {makeComposerFocusBus} from '../../src/shell/composer-focus.js'
 import {CORE_BASE} from './fake-core.js'
 
 export const PANE_SESSION = 'conciv_1'
@@ -45,6 +46,7 @@ export function mountPane(view: (pane: PaneContextValue) => JSX.Element): PaneMo
     queryClient,
     announce: (message) => setAnnounced((entries) => [...entries, message]),
     layers: makeLayerStack(),
+    composer: makeComposerFocusBus(),
     suppressed: () => undefined,
     fabPosition: () => 'bottom-right',
     instances: [],

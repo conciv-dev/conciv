@@ -19,6 +19,7 @@ import {
   AppContext,
   useAppData,
   useAppQueryClient,
+  useComposerFocus,
   useConnected,
   useLayers,
   useRpc,
@@ -27,6 +28,7 @@ import {
   type AppContextValue,
 } from '../app/context.js'
 import {makeLayerStack} from '../shell/dialogs.js'
+import {makeComposerFocusBus} from '../shell/composer-focus.js'
 import {ShellFab} from '../shell/fab.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
@@ -101,6 +103,7 @@ function RootComponent() {
     queryClient: app.queryClient,
     announce,
     layers,
+    composer: makeComposerFocusBus(),
     suppressed,
     fabPosition: fab.position,
     instances: app.instances,
@@ -151,6 +154,7 @@ function RootChrome(props: {
   const queryClient = useAppQueryClient()
   const settings = useSettings()
   const layers = useLayers()
+  const composerBus = useComposerFocus()
   const suppressed = useSuppressed()
   const connected = useConnected()
   const router = useRouter()
@@ -214,6 +218,7 @@ function RootChrome(props: {
   }
   const closePanel = () => {
     setOpenIntent(false)
+    composerBus.cancelRequest()
     setShutter(router, false)
     if (fabEl?.isConnected) {
       fabEl.focus()
@@ -289,6 +294,20 @@ function RootChrome(props: {
   if (settings.quickTerminal.enabled) {
     for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
   }
+
+  createEffect(() => {
+    if (panelOpen()) composerBus.flush()
+  })
+  const focusComposer = () => {
+    if (panelOpen()) {
+      composerBus.focusNow()
+      return
+    }
+    composerBus.requestFocus()
+    void openPanel()
+  }
+  createHotkey('Mod+/', togglePanel)
+  createHotkey('Shift+Escape', focusComposer, {ignoreInputs: false})
 
   return (
     <div

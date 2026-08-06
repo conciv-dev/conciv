@@ -4,6 +4,7 @@ import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ChevronDown, PictureInPicture2, Unplug} from 'lucide-solid'
 import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {createHotkey} from '@tanstack/solid-hotkeys'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useDisconnect, useGrabProvider, useInstances, useRpc} from '../app/context.js'
 import {PaneContext, makeGrabStore, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
@@ -81,6 +82,22 @@ function PanelSession(): JSX.Element {
 
   const grabStore = makeGrabStore()
 
+  const rootSearch = Route.useSearch()
+  const shutterVisible = () => rootSearch().open === true
+  const hasTerminalView = () => views().some((view) => view.id === 'terminal')
+  createHotkey(
+    'Mod+Alt+T',
+    () => switchView(activeView() === 'terminal' ? 'chat' : 'terminal'),
+    () => ({enabled: shutterVisible() && hasTerminalView() && !leaveGuard(), ignoreInputs: true}),
+  )
+
+  const [switcherOpen, setSwitcherOpen] = createSignal(false)
+  createHotkey(
+    'Mod+Shift+S',
+    () => setSwitcherOpen(true),
+    () => ({enabled: shutterVisible()}),
+  )
+
   useBlocker({
     shouldBlockFn: ({current, next}) =>
       running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
@@ -115,6 +132,8 @@ function PanelSession(): JSX.Element {
           activeId={() => params().sessionId}
           onActivate={activate}
           onNewSession={() => void newSession()}
+          open={switcherOpen()}
+          onOpenChange={setSwitcherOpen}
         />
         <ContextTracker usage={usage()} />
         <Show when={connectMode && disconnect}>

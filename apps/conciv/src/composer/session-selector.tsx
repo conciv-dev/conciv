@@ -56,6 +56,8 @@ export function SessionSelector(props: {
   activeId: () => string | null
   onActivate: (id: string) => void
   onNewSession: () => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
@@ -124,6 +126,17 @@ export function SessionSelector(props: {
     focusSearch()
   }
 
+  const onOpened = () => {
+    setNow(Date.now())
+    setQuery('')
+    filter('')
+    appData.invalidateSessions()
+    focusSearch()
+  }
+  createEffect(() => {
+    if (props.open === true) onOpened()
+  })
+
   const select = (id: string) => {
     if (!id || id === activeId()) return
     const title = rows().find((s) => s.id === id)?.title ?? id
@@ -149,13 +162,10 @@ export function SessionSelector(props: {
         setQuery(d.inputValue)
         filter(d.inputValue)
       }}
+      open={props.open}
       onOpenChange={(d) => {
-        if (d.open) {
-          setNow(Date.now())
-          setQuery('')
-          filter('')
-          appData.invalidateSessions()
-        }
+        props.onOpenChange?.(d.open)
+        if (d.open && props.open === undefined) onOpened()
       }}
       openOnClick
       selectionBehavior="clear"

@@ -1,4 +1,4 @@
-import {createEffect, createMemo, createResource, For, onMount, Show, untrack, type JSX} from 'solid-js'
+import {createEffect, createMemo, createResource, For, onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import {useChatSession} from '@conciv/client'
 import {
@@ -23,7 +23,7 @@ import {collectToolRenderers, HostApiProvider} from '@conciv/extension'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments} from './pane-attachments.js'
 import {resolveGrabSource} from './grab-source-resolve.js'
-import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
+import {useAnnounce, useAppData, useComposerFocus, useInstances, useRpc} from '../app/context.js'
 import {usePane, type StagedGrab} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
 import {foldToolDurations} from './tool-durations.js'
@@ -200,6 +200,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const compacting = () => compact.isPending
 
   const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
+  const composerFocus = useComposerFocus()
+  onCleanup(() => {
+    if (inputEl) composerFocus.unregister(inputEl)
+  })
   const insert = (text: string) => {
     composerApi.current?.append(text)
     focusInput()
@@ -344,6 +348,8 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                             AttachmentComponent={PaneAttachment}
                             inputRef={(element) => {
                               inputEl = element
+                              composerFocus.register(element)
+                              onMount(() => composerFocus.flush())
                             }}
                             busy={compacting() ? <CompactSpinner /> : undefined}
                             popover={<TriggerMenus sessionId={sessionId} />}

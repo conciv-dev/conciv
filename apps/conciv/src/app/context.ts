@@ -7,6 +7,7 @@ import type {AppData} from '../data/app-data.js'
 import type {ConcivSettings} from '../data/settings.js'
 import type {ConcivEnvironment} from '../router.js'
 import type {LayerStack} from '../shell/dialogs.js'
+import type {ComposerFocusBus} from '../shell/composer-focus.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
 
 export type AppContextValue = {
@@ -17,6 +18,7 @@ export type AppContextValue = {
   queryClient: QueryClient
   announce: (message: string, assertive?: boolean) => void
   layers: LayerStack
+  composer: ComposerFocusBus
   suppressed: () => '' | undefined
   fabPosition: Accessor<TriggerPosition>
   instances: ExtensionInstance[]
@@ -59,6 +61,10 @@ export function useAnnounce(): (message: string, assertive?: boolean) => void {
 
 export function useLayers(): LayerStack {
   return useAppScope('useLayers', (app) => app.layers)
+}
+
+export function useComposerFocus(): ComposerFocusBus {
+  return useAppScope('useComposerFocus', (app) => app.composer)
 }
 
 export function useSuppressed(): () => '' | undefined {
