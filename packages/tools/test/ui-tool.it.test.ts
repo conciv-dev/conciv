@@ -7,7 +7,7 @@ describe('conciv_ui tool', () => {
       capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
       askUi: async () => ({answered: true, value: 'dark'}),
       page: async () => ({}),
-      open: () => {},
+      open: async () => ({ok: true}),
     })
     const ui = tools.find((tool) => tool.name === 'conciv_ui')
     if (!ui) throw new Error('conciv_ui tool missing')
@@ -24,7 +24,7 @@ describe('conciv_ui tool', () => {
         return {answered: false, note: ''}
       },
       page: async () => ({}),
-      open: () => {},
+      open: async () => ({ok: true}),
     })
     const ui = tools.find((tool) => tool.name === 'conciv_ui')
     if (!ui) throw new Error('conciv_ui tool missing')

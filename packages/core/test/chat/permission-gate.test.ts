@@ -13,6 +13,11 @@ const fixture = (timeoutMs?: number) => {
     asks,
     emit: (chunk) => emitted.push(chunk),
     risky,
+    mutatingToolCall: (toolName, input) =>
+      toolName === 'conciv_page' &&
+      typeof input === 'object' &&
+      input !== null &&
+      Reflect.get(input, 'verb') === 'click',
     timeoutMs: timeoutMs ?? 100,
   })
   const approvalId = (): string | undefined => emitted.flatMap(approvalIds)[0]
@@ -75,5 +80,19 @@ describe('run gate on awaitReply', () => {
     if (id === undefined) throw new Error('no approval id')
     asks.reply('conciv_x', id, false)
     expect(await pending).toBe('deny')
+  })
+})
+
+describe('run gate on mutating page calls', () => {
+  it('a mutating conciv_page verb prompts through decide() and a read passes', async () => {
+    const {gate, asks, approvalId} = fixture(5_000)
+    expect(await gate.decide('conciv_page', {verb: 'text', selector: '#h'}, 'conciv_x', 'tu-page-read')).toBe('allow')
+    const pending = gate.decide('conciv_page', {verb: 'click', selector: '.buy'}, 'conciv_x', 'tu-page-click')
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    const id = approvalId()
+    expect(id).toBeDefined()
+    if (id === undefined) throw new Error('no approval id')
+    asks.reply('conciv_x', id, true)
+    expect(await pending).toBe('allow')
   })
 })

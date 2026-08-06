@@ -12,6 +12,7 @@ const CatalogSchema = z.array(ToolCommandSignatureSchema)
 
 async function fetchPageSignatures(): Promise<ToolCommandSignature[]> {
   const outcome = await runRpc((rpc) => rpc.registry.catalog(undefined))
+  if (outcome.report !== 'json') throw new Error('the registry catalog returned no data')
   return CatalogSchema.parse(outcome.data).filter((signature) => signature.name.startsWith(PAGE_TOOL_PREFIX))
 }
 

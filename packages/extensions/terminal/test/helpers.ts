@@ -6,7 +6,6 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveApp} from '@conciv/harness-testkit'
 import {
   makeExtRpcClient,
-  noWidgetPageCaller,
   type ServerApi,
   type ServerHarness,
   type ServerSessions,
@@ -113,7 +112,13 @@ export async function startTerminalServer(
     stateDir,
     sessions,
     harness,
-    page: noWidgetPageCaller('terminal'),
+    page: {
+      call: () => Promise.reject(new Error('terminal tests attach no page')),
+    },
+    tools: {
+      call: () => Promise.reject(new Error('terminal tests attach no tool registry')),
+    },
+    symbolicate: async () => null,
     nativeUrl: () => undefined,
   }
   const result = await terminalExtension.__server?.(api)

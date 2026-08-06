@@ -29,10 +29,10 @@ export function hostPage(opts: {apiBase: string; widget?: string; body?: string;
   </body></html>`
 }
 
-export function handleHostPage(): string {
+export function handleHostPage(body?: string): string {
   const handleBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-handle.global.js'), 'utf8')
   return `<!doctype html><html><head></head><body>
-    <div id="probe">page-bus-ok</div>
+    ${body ?? '<div id="probe">page-bus-ok</div>'}
     <script>${handleBundle}</script>
   </body></html>`
 }

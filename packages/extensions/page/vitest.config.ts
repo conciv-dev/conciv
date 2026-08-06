@@ -3,15 +3,30 @@ import {playwright} from '@vitest/browser-playwright'
 import {ciTest} from '@conciv/vitest-config'
 
 export default defineConfig({
-  esbuild: {jsx: 'automatic', jsxImportSource: 'react'},
   test: {
     ...ciTest(),
-    include: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
-    browser: {
-      enabled: true,
-      headless: true,
-      provider: playwright({}),
-      instances: [{browser: 'chromium'}],
-    },
+    projects: [
+      {
+        test: {
+          name: 'unit',
+          environment: 'node',
+          include: ['test/**/*.test.ts'],
+          exclude: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
+        },
+      },
+      {
+        esbuild: {jsx: 'automatic', jsxImportSource: 'react'},
+        test: {
+          name: 'browser',
+          include: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({}),
+            instances: [{browser: 'chromium'}],
+          },
+        },
+      },
+    ],
   },
 })
