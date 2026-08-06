@@ -21,7 +21,7 @@
     "./test-host": "./src/test-host-config.ts"
   },
   "scripts": {
-    "build": "vite build -c vite.test-host.config.ts",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run"

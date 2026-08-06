@@ -1,9 +1,10 @@
 import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
+import {testHost} from '@conciv/extension-testkit/test-host'
 
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [solid(), testHost()],
   build: {
     lib: {
       entry: fileURLToPath(new URL('src/client.tsx', import.meta.url)),

@@ -1,6 +1,6 @@
-import {join} from 'node:path'
+import {join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import type {Plugin, PluginOption, UserConfig} from 'vite'
+import {build, type Plugin, type PluginOption, type ResolvedConfig, type UserConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
 import {presetConciv} from '@conciv/uno-preset'
@@ -40,6 +40,38 @@ function extensionUnderTestPlugin(clientEntry: string): Plugin {
     name: 'conciv-testkit-extension-under-test',
     resolveId: (id) => (id === VIRTUAL_ID ? RESOLVED_VIRTUAL_ID : null),
     load: (id) => (id === RESOLVED_VIRTUAL_ID ? `export {default} from ${JSON.stringify(clientEntry)}` : null),
+  }
+}
+
+export type TestHostPluginOptions = {
+  clientEntry?: string
+  root?: string
+  plugins?: PluginOption[]
+}
+
+function resolveClientEntry(options: TestHostPluginOptions, config: ResolvedConfig): string {
+  if (options.clientEntry) return options.clientEntry
+  const library = config.build.lib
+  if (library && typeof library.entry === 'string') return resolve(config.root, library.entry)
+  throw new Error('testHost needs a clientEntry when the surrounding build has no single library entry')
+}
+
+export function testHost(options: TestHostPluginOptions = {}): Plugin {
+  let clientEntry = ''
+  let outDir = ''
+  return {
+    name: 'conciv-testkit-test-host',
+    apply: 'build',
+    configResolved(config) {
+      clientEntry = resolveClientEntry(options, config)
+      outDir = join(config.root, 'dist', 'test-host')
+    },
+    closeBundle: async () => {
+      await build({
+        configFile: false,
+        ...testHostConfig({clientEntry, outDir, root: options.root, plugins: options.plugins}),
+      })
+    },
   }
 }
 
