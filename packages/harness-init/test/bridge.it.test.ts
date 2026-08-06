@@ -8,8 +8,8 @@ import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {CONCIV_CLAUDE_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {CLAUDE_CONNECT_BRIDGE_TIMEOUT_VAR, claudeConnectBridgeSource} from '../src/bridge.js'
-import {claudeConnectEndpointFile} from '../src/endpoint.js'
+import {CLAUDE_CONNECT_BRIDGE_TIMEOUT_VAR, claudeConnectBridgeSource} from '../src/claude/bridge.js'
+import {claudeConnectEndpointFile} from '../src/claude/endpoint.js'
 
 const CLAUDE_SESSION = 'sess-1'
 

@@ -9,7 +9,7 @@ import type {
   HarnessSessionSummary,
   TranscriptHandle,
 } from '@conciv/protocol/harness-types'
-import {parseJsonOrNull} from '../_shared/json.js'
+import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 

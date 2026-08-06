@@ -31,6 +31,7 @@ export const codex = defineHarness({
     mcp: 'http',
     slashCommands: 'none',
     imageInput: false,
+    init: 'none',
   },
   chatConfig: codexChatConfig,
   models: ['gpt-5.5', ...CODEX_MODELS].map((id) => ({id, name: id, group: 'Codex'})),

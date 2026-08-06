@@ -19,7 +19,7 @@ const REWRITE_BANNED_TERMS = [
 
 const PREEXISTING_DEV_BUNDLER_NAMES = ['BundlerBridge']
 
-const PREEXISTING_MODULES = ['packages/claude-connect/src/bridge.ts', 'packages/oxlint-plugin/src/']
+const PREEXISTING_MODULES = ['packages/harness-init/src/claude/bridge.ts', 'packages/oxlint-plugin/src/']
 
 const DEV_BUNDLER_BRIDGE_PATHS = [
   'packages/core/src/app.ts',
@@ -39,7 +39,7 @@ const NATIVE_AND_REACT_BRIDGE_PATHS = [
 ]
 
 const PRE_REWRITE_BRIDGE_PATHS = [
-  'packages/claude-connect/src/',
+  'packages/harness-init/src/',
   'packages/harness/src/claude/',
   'packages/harness/src/codex/index.ts',
   'packages/core/src/chat/tool-names.ts',

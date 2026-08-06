@@ -46,6 +46,7 @@ export const opencode = defineHarness({
     mcp: 'http',
     slashCommands: 'none',
     imageInput: false,
+    init: 'none',
   },
   chatConfig: opencodeChatConfig,
   models: OPENCODE_MODELS.map((id) => ({id, name: id, group: 'OpenCode'})),

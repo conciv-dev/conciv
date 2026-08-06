@@ -15,6 +15,7 @@ const baseCaps = {
   mcp: 'none',
   slashCommands: 'none',
   imageInput: false,
+  init: 'none',
 } as const
 
 function hangingGenerator(signal: AbortSignal | undefined): AsyncIterable<StreamChunk> {

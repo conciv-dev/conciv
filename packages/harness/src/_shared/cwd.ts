@@ -1,1 +1,1 @@
-export {inside, realpathOrSelf, sameCwd} from '@conciv/claude-connect/paths'
+export {inside, realpathOrSelf, sameCwd} from '@conciv/harness-init/paths'

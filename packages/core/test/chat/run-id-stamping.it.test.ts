@@ -14,6 +14,7 @@ const baseCaps = {
   mcp: 'none',
   slashCommands: 'none',
   imageInput: false,
+  init: 'none',
 } as const
 
 async function* innerIdGenerator(): AsyncGenerator<StreamChunk> {

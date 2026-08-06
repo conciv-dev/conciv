@@ -1,9 +1,9 @@
 import {join, relative} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {CLAUDE_CONNECT_BRIDGE_FILE} from '../src/bridge.js'
-import {claudeConnectEndpointFile, claudeConnectEndpointPath} from '../src/endpoint.js'
+import {CLAUDE_CONNECT_BRIDGE_FILE} from '../src/claude/bridge.js'
+import {claudeConnectEndpointFile, claudeConnectEndpointPath} from '../src/claude/endpoint.js'
 import {inside} from '../src/paths.js'
-import {claudeConnectDir, claudeConnectPluginFiles} from '../src/plugin-files.js'
+import {claudeConnectDir, claudeConnectPluginFiles} from '../src/claude/plugin-files.js'
 
 const FIRST_URL = 'http://127.0.0.1:4242/api/mcp'
 const SECOND_URL = 'http://127.0.0.1:5173/api/mcp'

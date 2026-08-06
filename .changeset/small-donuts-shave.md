@@ -1,5 +1,5 @@
 ---
-'@conciv/claude-connect': patch
+'@conciv/harness-init': patch
 '@conciv/harness': patch
 'conciv': patch
 ---

@@ -11,12 +11,16 @@ import type {
   HarnessConnectFile,
   HarnessLiveSession,
 } from '@conciv/protocol/harness-types'
-import {claudeConnectEndpointFile, claudeConnectEndpointPath} from '@conciv/claude-connect/endpoint'
-import {claudeConnectDir, claudeConnectPluginFiles, CLAUDE_CONNECT_INSTALL_TARGET} from '@conciv/claude-connect/files'
-import {CLAUDE_CONNECT_MARKETPLACE} from '@conciv/claude-connect/names'
-import {claudeConfigDir, claudeConnectServesProject, claudeInstallRecords} from '@conciv/claude-connect/state'
+import {claudeConnectEndpointFile, claudeConnectEndpointPath} from '@conciv/harness-init/claude/endpoint'
+import {
+  claudeConnectDir,
+  claudeConnectPluginFiles,
+  CLAUDE_CONNECT_INSTALL_TARGET,
+} from '@conciv/harness-init/claude/files'
+import {CLAUDE_CONNECT_MARKETPLACE} from '@conciv/harness-init/claude/names'
+import {claudeConfigDir, claudeConnectServesProject, claudeInstallRecords} from '@conciv/harness-init/claude/state'
 import {inside, realpathOrSelf} from '../_shared/cwd.js'
-import {parseJsonOrNull} from '../_shared/json.js'
+import {parseJsonOrNull} from '@conciv/harness-init/json'
 
 export const CLAUDE_RELOAD_COMMAND = '/reload-plugins --force'
 export const CLAUDE_RELOAD_MIN_VERSION = '2.1.163'

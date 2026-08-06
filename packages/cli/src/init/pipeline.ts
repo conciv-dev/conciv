@@ -1,7 +1,7 @@
 import {homedir} from 'node:os'
 import {detectProject, type Detected} from './detect.js'
 import {execFileOutcome, type CommandOutcome} from './exec.js'
-import {detectHarnesses, harnessIds, type FoundHarness} from './harness-detect.js'
+import {detectHarnesses, harnessFileInits, harnessIds, type FoundHarness} from './harness-detect.js'
 import {captureFile, guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
 import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan} from './ledger.js'
 import {emitOutro} from './outro.js'
@@ -11,8 +11,8 @@ import {nextjsStep} from './steps/framework/nextjs.js'
 import {viteStep} from './steps/framework/vite.js'
 import {webpackFamilyStep} from './steps/framework/webpack-family.js'
 import {agentsMdStep} from './steps/harness/agents-md.js'
-import {claudeStep} from './steps/harness/claude.js'
 import {consentFile, writeConsent} from './steps/harness/consent.js'
+import {harnessInitStep} from './steps/harness/install-harness.js'
 import {addWithNypm, installItStep, type AddDep} from './steps/install-it.js'
 import {
   approvePlan,
@@ -108,7 +108,7 @@ function stepList(detected: Detected, selections: ConfirmedSelections, runtime: 
     installItStep(runtime.addDependency, detected.packageManager),
     ...(selections.framework ? [frameworkStep(detected)] : []),
     agentsMdStep(consented),
-    claudeStep(consented, {home: runtime.env.HOME, run: runtime.spawn}),
+    ...harnessFileInits.map((init) => harnessInitStep(init, consented, {home: runtime.env.HOME, run: runtime.spawn})),
   ]
 }
 

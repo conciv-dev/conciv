@@ -1261,34 +1261,6 @@ importers:
         specifier: ^4.1.8
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  packages/claude-connect:
-    dependencies:
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../protocol
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@conciv/vitest-config':
-        specifier: workspace:*
-        version: link:../vitest-config
-      '@types/node':
-        specifier: ^22.19.21
-        version: 22.20.0
-      '@vitest/coverage-v8':
-        specifier: ^4.1.8
-        version: 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
-      tsdown:
-        specifier: ^0.22.4
-        version: 0.22.4(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^4.1.8
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
-
   packages/cli:
     dependencies:
       '@ast-grep/napi':
@@ -1297,12 +1269,12 @@ importers:
       '@clack/prompts':
         specifier: ^1.7.0
         version: 1.7.0
-      '@conciv/claude-connect':
-        specifier: workspace:^
-        version: link:../claude-connect
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
+      '@conciv/harness-init':
+        specifier: workspace:^
+        version: link:../harness-init
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2511,9 +2483,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.179
         version: 0.3.179(@anthropic-ai/sdk@0.104.2(zod@4.4.3))(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(zod@4.4.3)
-      '@conciv/claude-connect':
+      '@conciv/harness-init':
         specifier: workspace:^
-        version: link:../claude-connect
+        version: link:../harness-init
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2560,6 +2532,34 @@ importers:
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/harness-init:
+    dependencies:
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.20.0
+      '@vitest/coverage-v8':
+        specifier: ^4.1.8
+        version: 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
+      tsdown:
+        specifier: ^0.22.4
+        version: 0.22.4(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

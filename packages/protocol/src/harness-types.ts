@@ -14,6 +14,8 @@ export type HarnessCapabilities = {
   slashCommands: 'live' | 'files' | 'none'
 
   imageInput: 'native' | 'fileRef' | false
+
+  init: 'files' | 'none'
 }
 
 export type HarnessImage = {mediaType: string; dataBase64: string}
@@ -58,6 +60,37 @@ export type HarnessConnectPlan = {
 }
 
 export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPlan}
+
+export type HarnessInitDetection = {bin: string; configDir: string[]}
+
+export type HarnessInitCommand = {bin: string; args: string[]}
+
+export type HarnessInitCard = {title: string; body: string; snippet: string}
+
+export type HarnessInitProject = {cwd: string; stateDir: string}
+
+export type HarnessInitPlan = {root: string; files: HarnessConnectFile[]; commands: HarnessInitCommand[]}
+
+type HarnessInitBase<Id extends string> = {
+  harnessId: Id
+  detection: HarnessInitDetection
+  agentsMdNote?: string
+}
+
+export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {
+  init: 'files'
+  title: string
+  running: string
+  completed: string
+  planSummary: string
+  plan(project: HarnessInitProject): HarnessInitPlan
+  installed(project: HarnessInitProject & {home: string}): boolean
+  manualCard(root: string): HarnessInitCard
+}
+
+export type HarnessInitContribution<Id extends string = string> =
+  | HarnessInit<Id>
+  | (HarnessInitBase<Id> & {init: 'none'})
 
 export type TerminalOpenRequest = {bin: string; args: string[]}
 
@@ -184,6 +217,10 @@ export type HarnessAdapter = HarnessAdapterBase &
   (
     | {capabilities: HarnessCapabilities & {slashCommands: 'live' | 'files'}; commands: HarnessCommands}
     | {capabilities: HarnessCapabilities & {slashCommands: 'none'}; commands?: undefined}
+  ) &
+  (
+    | {capabilities: HarnessCapabilities & {init: 'files'}; init: HarnessInit}
+    | {capabilities: HarnessCapabilities & {init: 'none'}; init?: undefined}
   )
 
 export function defineHarness<T extends HarnessAdapter>(adapter: T): T {
