@@ -226,6 +226,28 @@ describe('react verbs through the dispatcher', () => {
   })
 })
 
+describe('stale refs', () => {
+  it('a snapshot ref whose element React removed fails as stale instead of acting on a detached node', async () => {
+    const ephemeral = document.createElement('button')
+    ephemeral.id = 'ephemeral-btn'
+    ephemeral.textContent = 'Ephemeral target'
+    container.appendChild(ephemeral)
+    const snapshot = await resultOf('snapshot')
+    const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : []
+    const entry = nodes.flatMap((node) =>
+      typeof node === 'object' && node !== null && 'name' in node && node.name === 'Ephemeral target' ? [node] : [],
+    )[0]
+    const ref = entry && 'ref' in entry ? String(entry.ref) : ''
+    expect(ref).not.toBe('')
+    expect(await resultOf('text', {ref})).toEqual({text: 'Ephemeral target'})
+    ephemeral.remove()
+    expect(await failureOf('text', {ref})).toEqual({
+      code: 'invalid-args',
+      message: `stale ref ${ref}; re-run page snapshot`,
+    })
+  })
+})
+
 describe('the effect stub', () => {
   it('fails honestly, as documented in the catalog hint', async () => {
     expect(await failureOf('effect', {effect: 'confetti'})).toEqual({

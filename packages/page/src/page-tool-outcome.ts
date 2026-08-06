@@ -22,7 +22,7 @@ export function isJsonSerializable(value: unknown): boolean {
 }
 
 function isSerializablePrimitive(value: unknown): boolean {
-  if (value === null || value === undefined) return true
+  if (value === null) return true
   if (typeof value === 'string' || typeof value === 'boolean') return true
   return typeof value === 'number' && Number.isFinite(value)
 }

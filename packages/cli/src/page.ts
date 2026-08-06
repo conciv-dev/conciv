@@ -1,6 +1,7 @@
 import {z} from 'zod'
 import {defineCommand, type SubCommandsDef} from 'citty'
 import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
+import {userFailure} from './failure.js'
 import {runRpc} from './request.js'
 import {wireToolCommand} from './tool-command.js'
 
@@ -20,7 +21,12 @@ function verbOf(signature: ToolCommandSignature): string {
   return signature.name.slice(PAGE_TOOL_PREFIX.length)
 }
 
-function verbCommands(signatures: readonly ToolCommandSignature[]): SubCommandsDef {
+function pageVerbSubCommands(signatures: readonly ToolCommandSignature[]): SubCommandsDef {
+  if (signatures.length === 0) {
+    throw userFailure('the running server declares no page capabilities', {
+      hint: 'page tools come from the page extension the conciv core mounts; update or restart the dev server',
+    })
+  }
   return Object.fromEntries(
     signatures.map((signature) => {
       const verb = verbOf(signature)
@@ -28,7 +34,7 @@ function verbCommands(signatures: readonly ToolCommandSignature[]): SubCommandsD
         verb,
         wireToolCommand(signature, {
           name: verb,
-          positional: 'selector',
+          positional: signature.positional,
           run: (input) => runRpc((rpc) => rpc.registry.call({name: signature.name, input})),
         }),
       ]
@@ -44,11 +50,11 @@ const changesCommand = defineCommand({
 
 export const pageCommand = defineCommand({
   meta: {name: 'page', description: 'read & drive the live page; run --help for every capability'},
-  subCommands: async () => ({...verbCommands(await fetchPageSignatures()), changes: changesCommand}),
+  subCommands: async () => ({...pageVerbSubCommands(await fetchPageSignatures()), changes: changesCommand}),
 })
 
 export const reactCommand = defineCommand({
   meta: {name: 'react', description: 'inspect & edit live React components; run --help for every capability'},
   subCommands: async () =>
-    verbCommands((await fetchPageSignatures()).filter((signature) => signature.category === REACT_CATEGORY)),
+    pageVerbSubCommands((await fetchPageSignatures()).filter((signature) => signature.category === REACT_CATEGORY)),
 })

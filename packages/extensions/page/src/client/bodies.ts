@@ -185,7 +185,7 @@ const overrideTool = overrideDef.client(async (input, ctx) => {
   const path = input.path ? input.path.split('.') : []
   const result = await reactBridge.override(el, input.target, path, value, input.hookId)
   if ('error' in result) fail(result.error)
-  return ok({target: input.target, path: input.path ?? '', value})
+  return ok({target: input.target, path: input.path ?? '', ...(value === undefined ? {} : {value})})
 })
 
 const treeTool = treeDef.client(async (input, ctx) => {

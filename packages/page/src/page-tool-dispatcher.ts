@@ -10,7 +10,10 @@ import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
 export type PageToolDispatch = (query: PageQuery) => Promise<PageResult>
 
 function locatorTarget(locator: ClientToolLocator, refs: Refs): Element | null {
-  if (locator.ref !== undefined) return refs.map.get(locator.ref)?.deref() ?? null
+  if (locator.ref !== undefined) {
+    const el = refs.map.get(locator.ref)?.deref()
+    return el?.isConnected ? el : null
+  }
   if (locator.selector !== undefined) return document.querySelector(locator.selector)
   if (locator.name !== undefined) return elementByName(locator.name)
   return null

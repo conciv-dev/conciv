@@ -51,9 +51,17 @@ const misbehaved = defineTool({
   meta: {summary: 'return a non-record result', category: 'read'},
 }).client(() => 42)
 
+const undefinedLeaker = defineTool({
+  name: 'probe.undef',
+  description: 'returns a record whose values JSON would silently drop or nullify',
+  inputSchema: z.object({where: z.enum(['object', 'array'])}),
+  outputSchema: z.object({}),
+  meta: {summary: 'return a record carrying undefined values', category: 'read'},
+}).client((input) => (input.where === 'object' ? {value: undefined} : {values: ['kept', undefined]}))
+
 const probes = defineExtension({
   name: 'probes',
-  tools: [readText, mirroredClick, refMaker, raiser, misbehaved],
+  tools: [readText, mirroredClick, refMaker, raiser, misbehaved, undefinedLeaker],
 }).client(() => ({value: {}}))
 
 let host: HTMLElement
@@ -128,6 +136,35 @@ describe('the page-tool dispatcher', () => {
     expect(await driver.execute({name: 'probe.badresult', input: {}})).toEqual({
       ok: false,
       error: {code: 'handler-error', message: 'probe.badresult returned a non-serializable result'},
+    })
+  })
+
+  it.each(['object', 'array'] as const)(
+    'refuses a result carrying undefined in an %s, which JSON would silently mutate in transit',
+    async (where) => {
+      expect(await driver.execute({name: 'probe.undef', input: {where}})).toEqual({
+        ok: false,
+        error: {code: 'handler-error', message: 'probe.undef returned a non-serializable result'},
+      })
+    },
+  )
+
+  it('treats a ref to a detached element as stale, not as a live target', async () => {
+    const ephemeral = document.createElement('p')
+    ephemeral.id = 'ephemeral'
+    ephemeral.textContent = 'about to vanish'
+    host.appendChild(ephemeral)
+    const marked = await driver.execute({name: 'probe.mark', input: {selector: '#ephemeral'}})
+    if (!marked.ok) throw new Error('mark failed')
+    const ref = String(marked.result.ref)
+    expect(await driver.execute({name: 'probe.text', input: {ref}})).toEqual({
+      ok: true,
+      result: {text: 'about to vanish'},
+    })
+    ephemeral.remove()
+    expect(await driver.execute({name: 'probe.text', input: {ref}})).toEqual({
+      ok: false,
+      error: {code: 'invalid-args', message: `stale ref ${ref}; re-run page snapshot`},
     })
   })
 })

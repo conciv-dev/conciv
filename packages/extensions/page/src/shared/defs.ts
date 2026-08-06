@@ -71,6 +71,7 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       mutating: spec.mutating ?? false,
       mirrors: spec.mirrors ?? false,
       keywords: spec.keywords ?? [],
+      ...('selector' in spec.input.shape ? {positional: 'selector'} : {}),
     },
   })
 }

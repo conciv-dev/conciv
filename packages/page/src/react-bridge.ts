@@ -89,10 +89,10 @@ function compositeNames(fiber: Fiber): string[] {
 function rawFrames(fiber: Fiber): RawFrame[] {
   const stack = hasDebugStack(fiber) ? fiber._debugStack.stack : getFallbackOwnerStack(fiber)
   return parseStack(formatOwnerStack(stack)).map((fr) => ({
-    fileName: fr.fileName,
-    line: fr.lineNumber,
-    column: fr.columnNumber,
-    fn: fr.functionName,
+    ...(fr.fileName === undefined ? {} : {fileName: fr.fileName}),
+    ...(fr.lineNumber === undefined ? {} : {line: fr.lineNumber}),
+    ...(fr.columnNumber === undefined ? {} : {column: fr.columnNumber}),
+    ...(fr.functionName === undefined ? {} : {fn: fr.functionName}),
   }))
 }
 

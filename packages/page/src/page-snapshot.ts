@@ -17,8 +17,8 @@ export function describeElement(el: Element): Record<string, unknown> {
   const style = getComputedStyle(el)
   return {
     tagName: el.tagName.toLowerCase(),
-    id: el.id || undefined,
-    className: typeof el.className === 'string' ? el.className : undefined,
+    ...(el.id === '' ? {} : {id: el.id}),
+    ...(typeof el.className === 'string' ? {className: el.className} : {}),
     rect: {x: rect.x, y: rect.y, w: rect.width, h: rect.height},
     computedStyle: Object.fromEntries(CURATED_STYLE.map((k) => [k, style.getPropertyValue(k)])),
   }
@@ -95,12 +95,14 @@ const elementValue = (el: Element): string | undefined =>
 
 function snapNode(el: Element, addRef: RefAdder): SnapNode {
   const state = nodeState(el)
+  const name = accessibleName(el)
+  const value = elementValue(el)
   return {
     ref: addRef(el),
     role: roleOf(el),
-    name: accessibleName(el) || undefined,
-    value: elementValue(el),
-    state: state.length > 0 ? state : undefined,
+    ...(name === '' ? {} : {name}),
+    ...(value === undefined ? {} : {value}),
+    ...(state.length > 0 ? {state} : {}),
   }
 }
 
