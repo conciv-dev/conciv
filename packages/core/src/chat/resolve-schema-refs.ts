@@ -1,7 +1,11 @@
 const POINTER_PREFIX = '#/'
 
 function decodePointerToken(token: string): string {
-  return decodeURIComponent(token).replaceAll('~1', '/').replaceAll('~0', '~')
+  try {
+    return decodeURIComponent(token).replaceAll('~1', '/').replaceAll('~0', '~')
+  } catch {
+    return token.replaceAll('~1', '/').replaceAll('~0', '~')
+  }
 }
 
 function pointerTarget(reference: string, root: Record<string, unknown>): unknown {

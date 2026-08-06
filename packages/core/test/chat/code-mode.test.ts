@@ -35,6 +35,7 @@ function capability(
     category: options.category ?? 'extension',
     mutating: options.mutating ?? false,
     reachable: true,
+    errors: [],
     inputSchema,
     execute: options.execute ?? (async () => 'ok'),
     signature: () => ({input: z.toJSONSchema(inputSchema, {io: 'input'}), output: undefined, errors: []}),
@@ -265,6 +266,18 @@ describe('declared errors in the sandbox', () => {
     const seen = z.array(z.string()).parse(result.result)
     expect(seen[0]).toBe('CODE_A: first failure')
     expect(seen[1]).toBe('CODE_B: second failure')
+  })
+
+  test('normalizes a space-less declared prefix so the code stays parseable', async () => {
+    const jam = capability('acme.jam', {
+      execute: async () => {
+        throw toolError('CODE_A', {message: 'CODE_A:jam'})
+      },
+    })
+    const code = 'try { await external_acme_jam({}) } catch (error) { return error.message }'
+    const result = await runSandbox(codeModeOf([jam], allowGate).tools, code)
+    expect(result.success).toBe(true)
+    expect(result.result).toBe('CODE_A: jam')
   })
 })
 

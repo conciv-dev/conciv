@@ -43,10 +43,10 @@ function declaredCodeOf(error: unknown): string | null {
 function encodeDeclaredError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
   const code = declaredCodeOf(error)
-  if (code === null || message.startsWith(`${code}:`)) {
-    return error instanceof Error ? error : new Error(message)
-  }
-  return new Error(`${code}: ${message}`)
+  if (code === null) return error instanceof Error ? error : new Error(message)
+  if (message.startsWith(`${code}: `)) return error instanceof Error ? error : new Error(message)
+  const bare = message.startsWith(`${code}:`) ? message.slice(code.length + 1).trimStart() : message
+  return new Error(`${code}: ${bare}`)
 }
 
 export function gatedToolRun(

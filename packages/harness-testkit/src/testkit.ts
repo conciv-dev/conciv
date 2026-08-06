@@ -12,7 +12,7 @@ export {
 export {createTestHarness, type TestHarness} from './create-test-harness.js'
 export {createFakeHarness, type FakeHarness} from './create-fake-harness.js'
 export {harnessAvailable} from './harness-available.js'
-export {makeApprovingCallTool, makeCallTool, type CallTool} from './call-tool.js'
+export {makeApprovingCallTool, makeCallTool, makeRunTypescript, type CallTool, type RunTypescript} from './call-tool.js'
 export {approvalIds} from './run-events.js'
 export {makeRpcClient, resolveSession, type RpcClient} from './session.js'
 export {harnessModes, type HarnessMode} from './harness-modes.js'

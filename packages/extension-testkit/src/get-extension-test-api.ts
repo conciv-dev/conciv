@@ -2,7 +2,14 @@ import type {Page} from 'playwright'
 import type {AnyExtension} from '@conciv/extension'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {bootExtensionServer} from './boot-server.js'
-import {makeApprovingCallTool, makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
+import {
+  makeApprovingCallTool,
+  makeCallTool,
+  makeRunTypescript,
+  resolveSession,
+  type CallTool,
+  type RunTypescript,
+} from '@conciv/harness-testkit'
 import {launch} from './launch.js'
 
 export type HostEngine = {apiBase: string; session: string}
@@ -21,6 +28,7 @@ export type ExtensionTestApi = {
   callTool: CallTool
 
   callToolApproved: CallTool
+  runTypescript: RunTypescript
   session: string
   apiBase: string
   serverContext: unknown
@@ -43,6 +51,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
     page,
     callTool: makeCallTool(apiBase, session),
     callToolApproved: makeApprovingCallTool(apiBase, session),
+    runTypescript: makeRunTypescript(apiBase, session),
     session,
     apiBase,
     serverContext: extensionContexts[extension.server.name],

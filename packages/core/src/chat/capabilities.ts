@@ -17,33 +17,39 @@ export type CodeCapability = {
   category: string
   mutating: boolean
   reachable: boolean
+  errors: {code: string; message: string}[]
   inputSchema: z.ZodObject<z.ZodRawShape>
   execute: (input: unknown, request: ToolRequest) => Promise<unknown>
   signature: () => CapabilitySignature
 }
 
 function firstSentence(text: string): string {
-  const period = text.indexOf('. ')
-  const cut = period === -1 ? text.indexOf('\n') : period + 1
-  return (cut === -1 ? text : text.slice(0, cut)).trim()
+  const lead = text.trimStart()
+  const period = lead.indexOf('. ')
+  const cut = period === -1 ? lead.indexOf('\n') : period + 1
+  return (cut === -1 ? lead : lead.slice(0, cut)).trim()
 }
 
 export function registryCapabilities(registry: ToolRegistry): CodeCapability[] {
-  return registry.sandboxTools().map((tool) => ({
-    name: tool.name,
-    description: tool.hint === undefined ? tool.summary : `${tool.summary}. ${tool.hint}`,
-    summary: tool.summary,
-    category: tool.category ?? 'other',
-    mutating: tool.mutating,
-    reachable: tool.reachable,
-    inputSchema: tool.schema,
-    execute: tool.run,
-    signature: () => ({
-      input: resolveSchemaRefs(tool.input),
-      output: resolveSchemaRefs(tool.output),
-      errors: tool.errors.map(({code, message}) => ({code, message})),
-    }),
-  }))
+  return registry.sandboxTools().map((tool) => {
+    const errors = tool.errors.map(({code, message}) => ({code, message}))
+    return {
+      name: tool.name,
+      description: tool.hint === undefined ? tool.summary : `${tool.summary}. ${tool.hint}`,
+      summary: tool.summary,
+      category: tool.category ?? 'other',
+      mutating: tool.mutating,
+      reachable: tool.reachable,
+      errors,
+      inputSchema: tool.schema,
+      execute: tool.run,
+      signature: () => ({
+        input: resolveSchemaRefs(tool.input),
+        output: resolveSchemaRefs(tool.output),
+        errors,
+      }),
+    }
+  })
 }
 
 export function extensionCapabilities(tools: ExtensionServerTool[]): CodeCapability[] {
@@ -54,12 +60,13 @@ export function extensionCapabilities(tools: ExtensionServerTool[]): CodeCapabil
     category: 'extension',
     mutating: tool.mutating,
     reachable: true,
+    errors: tool.errors,
     inputSchema: tool.inputSchema,
     execute: tool.execute,
     signature: () => ({
       input: resolveSchemaRefs(z.toJSONSchema(tool.inputSchema, {io: 'input'})),
       output: undefined,
-      errors: [],
+      errors: tool.errors,
     }),
   }))
 }
@@ -72,6 +79,7 @@ export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] 
     category: 'assist',
     mutating: false,
     reachable: true,
+    errors: [],
     inputSchema: tool.inputSchema,
     execute: (input) => tool.execute(input),
     signature: () => ({

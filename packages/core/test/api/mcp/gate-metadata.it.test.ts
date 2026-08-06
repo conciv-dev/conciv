@@ -13,6 +13,23 @@ const wipe = defineTool({
 
 const acme = defineExtension({name: 'acme', tools: [wipe]})
 
+const purge = defineTool({
+  name: 'askme.purge',
+  description: 'Purge the archive.',
+  inputSchema: z.object({}),
+  approval: 'ask',
+}).server(() => ({purged: true}))
+
+const shred = defineTool({
+  name: 'askme.shred',
+  description: 'Shred a document.',
+  inputSchema: z.object({}),
+  approval: 'ask',
+  meta: {summary: 'shred a document', mutating: false},
+}).server(() => ({shredded: true}))
+
+const askme = defineExtension({name: 'askme', tools: [purge, shred]})
+
 type Outcome = {ok: boolean; message: string}
 
 async function callViaSandbox(kit: Kit, session: string, name: string, input: unknown): Promise<Outcome> {
@@ -20,6 +37,17 @@ async function callViaSandbox(kit: Kit, session: string, name: string, input: un
     (value) => ({ok: true, message: JSON.stringify(value)}),
     (error: unknown) => ({ok: false, message: String(error)}),
   )
+}
+
+async function decideNextApproval(
+  kit: Kit,
+  stream: Awaited<ReturnType<Kit['attach']>>,
+  approved: boolean,
+): Promise<void> {
+  const asked = await stream.waitFor((chunk) => approvalIds(chunk).length > 0, {hangGuardMs: 10_000})
+  const approvalId = approvalIds(asked)[0]
+  if (approvalId === undefined) throw new Error('no approval id on the stream')
+  await kit.rpc.chat.permissionDecision({approvalId, approved})
 }
 
 describe('/api/mcp gate decisions come from registry metadata', () => {
@@ -67,6 +95,36 @@ describe('/api/mcp gate decisions come from registry metadata', () => {
       const outcome = await pending
       expect(outcome.ok).toBe(true)
       expect(outcome.message).toContain('wiped')
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
+  it('an EXTENSION tool with approval ask and no meta flag prompts', async () => {
+    const kit = await bootKit({extensions: [askme]})
+    try {
+      const session = await kit.session()
+      const stream = await kit.attach(session)
+      const pending = callViaSandbox(kit, session, 'askme.purge', {})
+      await decideNextApproval(kit, stream, true)
+      const outcome = await pending
+      expect(outcome.ok).toBe(true)
+      expect(outcome.message).toContain('purged')
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
+  it('an EXTENSION tool with approval ask keeps prompting even when meta declares mutating false', async () => {
+    const kit = await bootKit({extensions: [askme]})
+    try {
+      const session = await kit.session()
+      const stream = await kit.attach(session)
+      const pending = callViaSandbox(kit, session, 'askme.shred', {})
+      await decideNextApproval(kit, stream, false)
+      const outcome = await pending
+      expect(outcome.ok).toBe(false)
+      expect(outcome.message).toContain('denied')
     } finally {
       await kit.cleanup()
     }

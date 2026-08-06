@@ -17,6 +17,7 @@ const canvas: CodeCapability = {
   category: 'extension',
   mutating: false,
   reachable: true,
+  errors: [],
   inputSchema: z.object({}),
   execute: async () => 'drew',
   signature: () => ({input: z.toJSONSchema(z.object({}), {io: 'input'}), output: undefined, errors: []}),

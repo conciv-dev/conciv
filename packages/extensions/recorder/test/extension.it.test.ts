@@ -56,20 +56,25 @@ function fixtureStream(base: number): RrwebEvent[] {
 async function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
   const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
   try {
-    const execute = (await mcp.tools()).find((candidate) => candidate.name === 'execute_typescript')
+    const tools = await mcp.tools()
+    expect(tools.map((tool) => tool.name)).toEqual(['execute_typescript'])
+    const execute = tools[0]
     if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
     const typescriptCode = [
       `const found = await external_catalog({name: ${JSON.stringify(name)}})`,
       `return await globalThis[found.call](${JSON.stringify(input)})`,
     ].join('\n')
-    const parsed = z
-      .object({result: z.unknown()})
-      .loose()
-      .parse(JSON.parse(String(await execute.execute({typescriptCode}))))
-    return parsed.result
+    return await execute.execute({typescriptCode})
   } finally {
     await mcp.close()
   }
+}
+
+function envelopeResult(raw: unknown): unknown {
+  return z
+    .object({result: z.unknown()})
+    .loose()
+    .parse(JSON.parse(z.string().parse(raw))).result
 }
 
 describe('recorder extension booted in the real engine (IT)', () => {
@@ -131,13 +136,13 @@ describe('recorder extension booted in the real engine (IT)', () => {
     }
   }, 30_000)
 
-  it('registers the three tools on /api/mcp and recording_pull returns the action log', async () => {
+  it('exposes one execute tool on /api/mcp and recording_pull returns the action log as text', async () => {
     const {base, engine} = await boot()
     try {
       await recorderClient(base).flush({clientId: 'c1', events: fixtureStream(Date.now() - 2000)})
-      const raw = JSON.stringify(await callViaSandbox(base, 'recording_pull', {secondsBack: 60, keyframes: 0}))
-      expect(raw).toContain('click')
-      expect(raw).toContain('Buy')
+      const log = z.string().parse(await callViaSandbox(base, 'recording_pull', {secondsBack: 60, keyframes: 0}))
+      expect(log).toContain('click')
+      expect(log).toContain('Buy')
     } finally {
       await engine.stop()
     }
@@ -157,13 +162,16 @@ describe('recorder extension booted in the real engine (IT)', () => {
           if (sawMessage([message], {live: true})) wentLive.resolve(message)
         }
       })()
-      const started = z.object({captureId: z.string()}).parse(await callViaSandbox(base, 'recording_start', {}))
+      const started = z
+        .object({captureId: z.string()})
+        .loose()
+        .parse(envelopeResult(await callViaSandbox(base, 'recording_start', {})))
       mark('start.execute')
       await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
       mark('flush')
-      const stopped = JSON.stringify(
-        await callViaSandbox(base, 'recording_stop', {captureId: started.captureId, keyframes: 0}),
-      )
+      const stopped = z
+        .string()
+        .parse(await callViaSandbox(base, 'recording_stop', {captureId: started.captureId, keyframes: 0}))
       mark('stop.execute')
       expect(stopped).toContain('click')
       expect(await wentLive.promise).toEqual({live: true})

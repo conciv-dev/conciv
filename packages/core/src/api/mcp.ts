@@ -109,9 +109,20 @@ function cappedText(body: string): string {
   })
 }
 
-function errorReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply {
+function declaredCodesOf(capabilities: CodeCapability[]): Set<string> {
+  return new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code)))
+}
+
+function decodeDeclaredCode(message: string, declaredCodes: Set<string>): string | undefined {
+  const candidate = DECLARED_ERROR_PREFIX.exec(message)?.[1]
+  if (candidate === undefined) return undefined
+  if (!declaredCodes.has(candidate)) return undefined
+  return candidate
+}
+
+function errorReply(result: z.infer<typeof ExecuteResultSchema>, declaredCodes: Set<string>): ExecuteReply {
   const message = result.error?.message ?? 'execution failed'
-  const code = DECLARED_ERROR_PREFIX.exec(message)?.[1]
+  const code = decodeDeclaredCode(message, declaredCodes)
   const payload = {
     error: {
       message,
@@ -123,8 +134,13 @@ function errorReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply {
   return {content: [{type: 'text', text: cappedText(safeStringify(payload, 'execution error'))}], isError: true}
 }
 
+function cappedPart(part: TextContent | ImageContent): TextContent | ImageContent {
+  if (part.type !== 'text') return part
+  return {type: 'text', text: cappedText(part.text)}
+}
+
 function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply {
-  if (isContentPartArray(result.result)) return {content: result.result.map(partToContent)}
+  if (isContentPartArray(result.result)) return {content: result.result.map(partToContent).map(cappedPart)}
   const body = safeStringify({result: result.result ?? null, logs: result.logs ?? []}, 'execution result')
   return {content: [{type: 'text', text: cappedText(body)}]}
 }
@@ -175,7 +191,12 @@ function sandboxEventContext(
   }
 }
 
-async function runExecute(codeMode: CodeMode, typescriptCode: string, publish: PublishChunks): Promise<ExecuteReply> {
+async function runExecute(
+  codeMode: CodeMode,
+  typescriptCode: string,
+  publish: PublishChunks,
+  declaredCodes: () => Set<string>,
+): Promise<ExecuteReply> {
   const executionId = randomUUID()
   publish(executeStartChunks(executionId, typescriptCode))
   const raw = await codeMode
@@ -185,7 +206,7 @@ async function runExecute(codeMode: CodeMode, typescriptCode: string, publish: P
   const result = parsed.success
     ? parsed.data
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
-  const reply = result.success ? successReply(result) : errorReply(result)
+  const reply = result.success ? successReply(result) : errorReply(result, declaredCodes())
   publish([executeResultChunk(executionId, reply)])
   return reply
 }
@@ -213,12 +234,13 @@ function buildServer(deps: McpDeps, request: ToolRequest): McpServer {
   const publish: PublishChunks = request.sessionId
     ? (chunks) => chunks.forEach((chunk) => deps.publish(request.sessionId, chunk))
     : () => {}
+  const declaredCodes = () => declaredCodesOf(deps.capabilities(request.sessionId))
   server.registerTool(
     EXECUTE_TOOL_NAME,
     {description: executeDescription(codeMode.categories), inputSchema: ExecuteInputSchema.shape},
     async (args) => {
       try {
-        return await runExecute(codeMode, args.typescriptCode, publish)
+        return await runExecute(codeMode, args.typescriptCode, publish, declaredCodes)
       } catch (error) {
         logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
         throw error

@@ -60,6 +60,16 @@ describe('resolveSchemaRefs', () => {
     expect(resolved).toEqual({type: 'object', properties: {value: {type: 'string'}}})
   })
 
+  test('a pointer token with a bare percent resolves literally instead of throwing', () => {
+    const schema = {
+      type: 'object',
+      properties: {value: {$ref: '#/$defs/100%'}},
+      $defs: {'100%': {type: 'string'}},
+    }
+    const resolved = resolveSchemaRefs(schema)
+    expect(resolved).toEqual({type: 'object', properties: {value: {type: 'string'}}})
+  })
+
   test('leaves an unresolvable reference as unknown-shaped instead of throwing', () => {
     const schema = {type: 'object', properties: {value: {$ref: '#/$defs/missing'}}}
     const resolved = resolveSchemaRefs(schema)

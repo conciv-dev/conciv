@@ -147,7 +147,8 @@ export function buildExtensionTools(extension: AnyExtension, context: unknown): 
         description,
         inputSchema: tool.inputSchema,
         approval: tool.approval,
-        mutating: tool.meta?.mutating ?? tool.approval === 'ask',
+        mutating: tool.approval === 'ask' || (tool.meta?.mutating ?? false),
+        errors: Object.entries(tool.errors ?? {}).map(([code, spec]) => ({code, message: spec.message})),
         execute: (input: unknown, request: ToolRequest) => run(input, context, request),
       },
     ]

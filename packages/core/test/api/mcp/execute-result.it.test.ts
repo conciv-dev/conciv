@@ -28,7 +28,30 @@ const explode = defineTool({
   throw toolError('PROBE_BROKE', {message: 'wires crossed'})
 })
 
-const probe = defineExtension({name: 'probe', tools: [snap, flood, explode]})
+const grumble = defineTool({
+  name: 'probe_grumble',
+  description: 'fails with an undeclared prefix-shaped message',
+  inputSchema: z.object({}),
+}).server(() => {
+  throw new Error('EACCES: permission denied')
+})
+
+const ratelimit = defineTool({
+  name: 'probe_ratelimit',
+  description: 'fails with a declared code already embedded in the message',
+  inputSchema: z.object({}),
+  errors: {RATE_LIMITED: {message: 'slow down'}},
+}).server(() => {
+  throw toolError('RATE_LIMITED', {message: 'RATE_LIMITED:retry later'})
+})
+
+const gush = defineTool({
+  name: 'probe_gush',
+  description: 'returns a content-part array with a huge text part',
+  inputSchema: z.object({}),
+}).server(() => [{type: 'text', content: 'x'.repeat(80_000)}])
+
+const probe = defineExtension({name: 'probe', tools: [snap, flood, explode, grumble, ratelimit, gush]})
 
 type ExecuteOutcome = {ok: true; raw: unknown} | {ok: false; message: string}
 
@@ -84,6 +107,48 @@ describe('/api/mcp execute result mapping', () => {
       expect(outcome.message).toContain('PROBE_BROKE')
       expect(outcome.message).toContain('"code":"PROBE_BROKE"')
       expect(outcome.message).toContain('wires crossed')
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
+  it('never decodes a code from an undeclared prefix-shaped message', async () => {
+    const kit = await bootKit({extensions: [probe]})
+    try {
+      const outcome = await execute(kit.base, 'return await external_probe_grumble({})')
+      expect(outcome.ok).toBe(false)
+      if (outcome.ok) return
+      expect(outcome.message).toContain('EACCES: permission denied')
+      expect(outcome.message).not.toContain('"code"')
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
+  it('round-trips a declared code whose message already carries a space-less prefix', async () => {
+    const kit = await bootKit({extensions: [probe]})
+    try {
+      const outcome = await execute(kit.base, 'return await external_probe_ratelimit({})')
+      expect(outcome.ok).toBe(false)
+      if (outcome.ok) return
+      expect(outcome.message).toContain('"code":"RATE_LIMITED"')
+      expect(outcome.message).toContain('retry later')
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
+
+  it('caps an oversized text part inside a content-part array', async () => {
+    const kit = await bootKit({extensions: [probe]})
+    try {
+      const outcome = await execute(kit.base, 'return await external_probe_gush({})')
+      if (!outcome.ok) throw new Error(outcome.message)
+      const text = z.string().parse(outcome.raw)
+      expect(text.length).toBeLessThan(20_000)
+      const envelope = z
+        .object({truncated: z.literal(true), reason: z.string(), advice: z.string(), head: z.string()})
+        .parse(JSON.parse(text))
+      expect(envelope.head.startsWith('xxx')).toBe(true)
     } finally {
       await kit.cleanup()
     }
