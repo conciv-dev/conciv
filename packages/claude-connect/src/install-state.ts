@@ -82,13 +82,17 @@ function marketplaceRegistered(state: ClaudeConnectInstallState): boolean {
   )
   if (!listed.success) return false
   const entry = MarketplaceEntrySchema.safeParse(listed.data[CLAUDE_CONNECT_MARKETPLACE])
-  return entry.success && sameCwd(entry.data.installLocation, claudeConnectDir(state.stateDir))
+  if (!entry.success) return false
+  return copyMatches(state, claudeConnectDir(state.stateDir), entry.data.installLocation)
 }
 
 function cachedCopyMatches(state: ClaudeConnectInstallState): boolean {
   const pluginRoot = join(claudeConnectDir(state.stateDir), CLAUDE_CONNECT_PLUGIN)
-  const cacheRoot = claudePluginCacheDir(state.configDir)
-  const owned = state.files.filter((file) => inside(pluginRoot, file.path))
+  return copyMatches(state, pluginRoot, claudePluginCacheDir(state.configDir))
+}
+
+function copyMatches(state: ClaudeConnectInstallState, sourceRoot: string, copyRoot: string): boolean {
+  const owned = state.files.filter((file) => inside(sourceRoot, file.path))
   if (owned.length === 0) return false
-  return owned.every((file) => readTextOrNull(join(cacheRoot, relative(pluginRoot, file.path))) === file.contents)
+  return owned.every((file) => readTextOrNull(join(copyRoot, relative(sourceRoot, file.path))) === file.contents)
 }

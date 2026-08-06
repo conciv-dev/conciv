@@ -24,6 +24,10 @@
       "types": "./dist/bridge.d.ts",
       "import": "./dist/bridge.js"
     },
+    "./endpoint": {
+      "types": "./dist/endpoint.d.ts",
+      "import": "./dist/endpoint.js"
+    },
     "./files": {
       "types": "./dist/plugin-files.d.ts",
       "import": "./dist/plugin-files.js"

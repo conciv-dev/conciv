@@ -12,8 +12,6 @@ import {stepContext} from '../framework/step-context.js'
 
 const INSTALL_COMMAND = 'claude plugin install conciv-connect@conciv --scope local'
 
-const LIVE_MCP_URL = 'http://127.0.0.1:5173/api/mcp'
-
 type Fixture = {
   cwd: string
   home: string
@@ -83,20 +81,24 @@ function pluginCacheDir(home: string): string {
   return join(home, '.claude', 'plugins', 'cache', 'conciv', 'conciv-connect', '0.0.0')
 }
 
-function connectFiles(stateDir: string, mcpUrl: string): HarnessConnectFile[] {
-  return claudeConnectPluginFiles({stateDir, mcpUrl, hookUrl: ''})
+function connectFiles(stateDir: string): HarnessConnectFile[] {
+  return claudeConnectPluginFiles({stateDir})
 }
 
-function urlFreeFiles(stateDir: string): HarnessConnectFile[] {
-  return connectFiles(stateDir, '').filter((file) => !file.path.endsWith('.mcp.json'))
+function writeTree(stateDir: string): void {
+  for (const file of connectFiles(stateDir)) {
+    mkdirSync(dirname(file.path), {recursive: true})
+    writeFileSync(file.path, file.contents)
+  }
 }
 
-function seedInstalled(opts: {home: string; cwd: string; mcpUrl: string}): void {
+function seedInstalled(opts: {home: string; cwd: string; marketplaceRoot?: string}): void {
   const stateDir = join(opts.cwd, '.conciv')
-  const marketplaceRoot = claudeConnectDir(stateDir)
-  const pluginRoot = join(marketplaceRoot, 'conciv-connect')
+  writeTree(stateDir)
+  const marketplaceRoot = opts.marketplaceRoot ?? claudeConnectDir(stateDir)
+  const pluginRoot = join(claudeConnectDir(stateDir), 'conciv-connect')
   const cache = pluginCacheDir(opts.home)
-  for (const file of connectFiles(stateDir, opts.mcpUrl)) {
+  for (const file of connectFiles(stateDir)) {
     const step = relative(pluginRoot, file.path)
     if (step.startsWith('..')) continue
     const target = join(cache, step)
@@ -136,17 +138,17 @@ describe('claudeStep', () => {
       `plugin marketplace add ${claudeConnectDir(stateDir)}`,
       'plugin install conciv-connect@conciv --scope local',
     ])
-    for (const file of urlFreeFiles(stateDir)) {
+    for (const file of connectFiles(stateDir)) {
       expect(readFileSync(file.path, 'utf8')).toBe(file.contents)
     }
   })
 
-  it('leaves the mcp manifest to the running dev server instead of baking an empty url', async () => {
+  it('writes an mcp manifest that names no dev server', async () => {
     const {cwd, harness, io} = fixture({exitCode: 0})
     const ledger = await runSteps([claudeStep(() => claudeConsent, io)], harness.settings, harness.output)
     expect(ledger.map((entry) => entry.status)).toEqual(['done'])
     const manifest = join(claudeConnectDir(join(cwd, '.conciv')), 'conciv-connect', '.mcp.json')
-    expect(existsSync(manifest)).toBe(false)
+    expect(readFileSync(manifest, 'utf8')).not.toContain('http')
   })
 
   it('cards out with the install commands when the claude cli exits non-zero', async () => {
@@ -170,7 +172,7 @@ describe('claudeStep', () => {
 
   it('reports already when this project owns the recorded install', async () => {
     const project = fixture({exitCode: 0})
-    seedInstalled({home: project.home, cwd: project.cwd, mcpUrl: ''})
+    seedInstalled({home: project.home, cwd: project.cwd})
     const ledger = await runSteps(
       [claudeStep(() => claudeConsent, project.io)],
       project.harness.settings,
@@ -180,9 +182,15 @@ describe('claudeStep', () => {
     expect(existsSync(project.recordFile)).toBe(false)
   })
 
-  it('stays already once a running dev server has rewritten the cached mcp manifest', async () => {
+  it('stays already after a second project registers the marketplace from its own copy', async () => {
     const project = fixture({exitCode: 0})
-    seedInstalled({home: project.home, cwd: project.cwd, mcpUrl: LIVE_MCP_URL})
+    const other = siblingProject(project)
+    writeTree(join(other.cwd, '.conciv'))
+    seedInstalled({
+      home: project.home,
+      cwd: project.cwd,
+      marketplaceRoot: claudeConnectDir(join(other.cwd, '.conciv')),
+    })
     const ledger = await runSteps(
       [claudeStep(() => claudeConsent, project.io)],
       project.harness.settings,
@@ -207,7 +215,7 @@ describe('claudeStep', () => {
       second.harness.output,
     )
     expect(ledger.map((entry) => entry.status)).toEqual(['done'])
-    for (const file of urlFreeFiles(join(second.cwd, '.conciv'))) {
+    for (const file of connectFiles(join(second.cwd, '.conciv'))) {
       expect(readFileSync(file.path, 'utf8')).toBe(file.contents)
     }
     expect(recordedArgv(first.recordFile)).toEqual([
@@ -228,7 +236,7 @@ describe('claudeStep', () => {
 
   it('skips a deselected claude even when the plugin is already installed for this project', async () => {
     const project = fixture({exitCode: 0})
-    seedInstalled({home: project.home, cwd: project.cwd, mcpUrl: ''})
+    seedInstalled({home: project.home, cwd: project.cwd})
     const ledger = await runSteps([claudeStep(() => [], project.io)], project.harness.settings, project.harness.output)
     expect(ledger.map((entry) => entry.status)).toEqual(['skipped'])
     expect(ledger[0]?.detail).toBe('not selected')

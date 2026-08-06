@@ -1,10 +1,6 @@
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {dirname, join, relative} from 'node:path'
-import {
-  claudeConnectDir,
-  claudeConnectPluginBaseFiles,
-  CLAUDE_CONNECT_INSTALL_TARGET,
-} from '@conciv/claude-connect/files'
+import {claudeConnectDir, claudeConnectPluginFiles, CLAUDE_CONNECT_INSTALL_TARGET} from '@conciv/claude-connect/files'
 import {claudeConfigDir, claudeConnectServesProject} from '@conciv/claude-connect/state'
 import type {HarnessId} from '../../harness-detect.js'
 import {captureFile} from '../../interrupt.js'
@@ -26,7 +22,7 @@ function pluginServesProject(cwd: string, io: ClaudeIo): boolean {
     configDir: claudeConfigDir({home: io.home, override: process.env.CLAUDE_CONFIG_DIR}),
     stateDir,
     root: cwd,
-    files: claudeConnectPluginBaseFiles({stateDir}),
+    files: claudeConnectPluginFiles({stateDir}),
   })
 }
 
@@ -51,7 +47,7 @@ function installCard(root: string): ManualCard {
 }
 
 function writePluginFiles(ctx: InitContext, stateDir: string): void {
-  for (const file of claudeConnectPluginBaseFiles({stateDir})) {
+  for (const file of claudeConnectPluginFiles({stateDir})) {
     mkdirSync(dirname(file.path), {recursive: true})
     ctx.backup(captureFile(file.path))
     writeFileSync(file.path, file.contents, {mode: file.mode ?? 0o600})
