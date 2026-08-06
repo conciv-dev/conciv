@@ -338,7 +338,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const answered = (async () => {
       const first = await iterator.next()
       if (first.done) throw new Error('page.queries ended before a query arrived')
-      await kit.rpc.page.reply({requestId: first.value.requestId, outcome: {ok: true, result: {ok: true, value: 'Ada'}}})
+      await kit.rpc.page.reply({
+        requestId: first.value.requestId,
+        outcome: {ok: true, result: {ok: true, value: 'Ada'}},
+      })
     })()
     await new Promise((resolve) => setTimeout(resolve, 50))
     await kit.rpc.registry.call({name: 'page.fill', input: {selector: '#name', value: 'Ada'}})
@@ -354,7 +357,9 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
 
   it('registry.call with no connected page reports NO_PAGE_CLIENT', async () => {
     const {kit} = await bootWire()
-    await expect(kit.rpc.registry.call({name: 'page.snapshot', input: {}})).rejects.toMatchObject({code: 'NO_PAGE_CLIENT'})
+    await expect(kit.rpc.registry.call({name: 'page.snapshot', input: {}})).rejects.toMatchObject({
+      code: 'NO_PAGE_CLIENT',
+    })
   })
 
   it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
@@ -363,7 +368,9 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
     const consumed = iterator.next()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    await expect(kit.rpc.registry.call({name: 'page.wait', input: {selector: 'body', timeout: 100}})).rejects.toMatchObject({
+    await expect(
+      kit.rpc.registry.call({name: 'page.wait', input: {selector: 'body', timeout: 100}}),
+    ).rejects.toMatchObject({
       code: 'PAGE_TIMEOUT',
     })
     abort.abort()

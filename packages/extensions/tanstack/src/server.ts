@@ -37,29 +37,29 @@ export const tanstack = defineExtension({
     ...TANSTACK_VERB_DEFS.map((def) => def.client()),
   ],
 }).server((server) => {
-    const ring = makeDiagnosticsRing()
-    const serverFnRing = makeServerFnTraceRing()
-    const bundler = server.bundler
-    const bundlerAvailable = typeof bundler?.subscribe === 'function'
-    const unsubscribe = bundler?.subscribe?.((diagnostic) => {
-      if (diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(diagnostic))
-      serverFnRing.observe(diagnostic)
-    })
-    const adapter = makeTanstackAdapter({
-      tools: server.tools,
-      buildErrors: () => {
-        if (!bundlerAvailable) throw toolError('BUNDLER_UNAVAILABLE', {message: 'bundler bridge unavailable'})
-        return ring.list()
-      },
-      routeManifest: () => readRouteManifest(server.cwd),
-      serverFnTraces: (count) => serverFnRing.traces(count),
-      serverFns: () => serverFnRing.functions(),
-      bundlerSubscribe: (listener) => bundler?.subscribe?.(listener) ?? (() => {}),
-    })
-    return {
-      context: {adapter},
-      dispose: () => unsubscribe?.(),
-    }
+  const ring = makeDiagnosticsRing()
+  const serverFnRing = makeServerFnTraceRing()
+  const bundler = server.bundler
+  const bundlerAvailable = typeof bundler?.subscribe === 'function'
+  const unsubscribe = bundler?.subscribe?.((diagnostic) => {
+    if (diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(diagnostic))
+    serverFnRing.observe(diagnostic)
   })
+  const adapter = makeTanstackAdapter({
+    tools: server.tools,
+    buildErrors: () => {
+      if (!bundlerAvailable) throw toolError('BUNDLER_UNAVAILABLE', {message: 'bundler bridge unavailable'})
+      return ring.list()
+    },
+    routeManifest: () => readRouteManifest(server.cwd),
+    serverFnTraces: (count) => serverFnRing.traces(count),
+    serverFns: () => serverFnRing.functions(),
+    bundlerSubscribe: (listener) => bundler?.subscribe?.(listener) ?? (() => {}),
+  })
+  return {
+    context: {adapter},
+    dispose: () => unsubscribe?.(),
+  }
+})
 
 export default tanstack

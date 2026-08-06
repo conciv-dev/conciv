@@ -4,12 +4,7 @@ import {RPCHandler} from '@orpc/server/fetch'
 import type {AnyRouter} from '@orpc/server'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveApp} from '@conciv/harness-testkit'
-import {
-  makeExtRpcClient,
-  type ServerApi,
-  type ServerHarness,
-  type ServerSessions,
-} from '@conciv/extension'
+import {makeExtRpcClient, type ServerApi, type ServerHarness, type ServerSessions} from '@conciv/extension'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
 

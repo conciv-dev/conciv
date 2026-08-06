@@ -37,7 +37,11 @@ describe('a built-in tool call carries who asked and how it failed', () => {
       },
     })
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
-    await registry.call('page.fill', {selector: '#email', value: 'a@b.c'}, {request: {sessionId: 's7', model: 'sonnet'}})
+    await registry.call(
+      'page.fill',
+      {selector: '#email', value: 'a@b.c'},
+      {request: {sessionId: 's7', model: 'sonnet'}},
+    )
     expect(seen).toEqual([{sessionId: 's7', model: 'sonnet'}])
   })
 

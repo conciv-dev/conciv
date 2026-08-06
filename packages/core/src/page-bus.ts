@@ -140,10 +140,6 @@ export async function* pageQueryStream(
   }
 }
 
-export function askPage(
-  bus: PageBus,
-  name: string,
-  input: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
+export function askPage(bus: PageBus, name: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
   return bus.ask({name, input})
 }

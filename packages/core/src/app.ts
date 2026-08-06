@@ -101,7 +101,12 @@ function requireHarness(id: string): HarnessAdapter {
   return found
 }
 
-function symbolicable(frame: {fileName?: string; line?: number; column?: number; fn?: string}): frame is SymbolicableFrame {
+function symbolicable(frame: {
+  fileName?: string
+  line?: number
+  column?: number
+  fn?: string
+}): frame is SymbolicableFrame {
   return typeof frame.fileName === 'string' && typeof frame.line === 'number'
 }
 
