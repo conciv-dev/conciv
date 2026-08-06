@@ -1,9 +1,8 @@
 import {Show, Switch, Match, For, type JSX} from 'solid-js'
 import {Target, MoveUpRight} from 'lucide-solid'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
-import {PageInput} from '@conciv/tools/defs'
-import {pageToolMetaOf, pageVerbMirrors, pageVerbMutates} from '@conciv/tools/page-tools'
-import type {PageQueryKind} from '@conciv/protocol/page-types'
+import {z} from 'zod'
+import {pageToolMetaOf, pageVerbMirrors, pageVerbMutates} from '@conciv/extension-page/defs'
 import {ToolCard, parseInput, resultText, parseResultPayload} from '@conciv/ui-kit-chat'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
@@ -20,19 +19,29 @@ const OUT_OPTIONS: FileOptions<undefined> = {
 const OUT_CLASS =
   'block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
 
-function readInput(part: ToolCallPart): ReturnType<typeof parseInput<typeof PageInput>> {
-  return parseInput(PageInput, part)
+const PageCallInput = z.looseObject({
+  verb: z.string().optional(),
+  selector: z.string().optional(),
+  ref: z.string().optional(),
+  name: z.string().optional(),
+  value: z.string().optional(),
+  key: z.string().optional(),
+  code: z.string().optional(),
+})
+
+function readInput(part: ToolCallPart): ReturnType<typeof parseInput<typeof PageCallInput>> {
+  return parseInput(PageCallInput, part)
 }
 
 function target(input: ReturnType<typeof readInput>): string | undefined {
   return input?.selector || input?.name || input?.ref || undefined
 }
 
-function isRead(verb: PageQueryKind | undefined): boolean {
+function isRead(verb: string | undefined): boolean {
   return verb !== undefined && !pageVerbMutates(verb)
 }
 
-function VerbIcon(verb: PageQueryKind | undefined): JSX.Element {
+function VerbIcon(verb: string | undefined): JSX.Element {
   const Icon = toolIconRender(verb === undefined ? undefined : pageToolMetaOf(verb)?.icon)
   return <Icon size={14} />
 }

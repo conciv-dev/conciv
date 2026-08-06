@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import type {ToolCallPart} from '@tanstack/ai-client'
-import {pageToolMetaOf} from '@conciv/tools/page-tools'
+import {pageToolMetaOf} from '@conciv/extension-page/defs'
 
 const Hint = z.object({
   command: z.string().optional(),

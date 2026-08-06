@@ -3,7 +3,7 @@ import {buildErrorToAppError, makeDiagnosticsRing} from './server/diagnostics.js
 import {makeServerFnTraceRing} from './server/serverfn-trace.js'
 import {readRouteManifest} from './server/route-manifest.js'
 import {makeTanstackAdapter} from './server/adapter.js'
-import type {tanstackVerbs} from './client/verbs.js'
+import {TANSTACK_VERB_DEFS} from './shared/verb-defs.js'
 import {
   backServer,
   buildErrorsServer,
@@ -34,10 +34,9 @@ export const tanstack = defineExtension({
     buildErrorsServer,
     routeManifestServer,
     serverFnTraceServer,
+    ...TANSTACK_VERB_DEFS.map((def) => def.client()),
   ],
-})
-  .pageVerbs<typeof tanstackVerbs>()
-  .server((server) => {
+}).server((server) => {
     const ring = makeDiagnosticsRing()
     const serverFnRing = makeServerFnTraceRing()
     const bundler = server.bundler
@@ -47,7 +46,7 @@ export const tanstack = defineExtension({
       serverFnRing.observe(diagnostic)
     })
     const adapter = makeTanstackAdapter({
-      page: server.page,
+      tools: server.tools,
       buildErrors: () => {
         if (!bundlerAvailable) throw toolError('BUNDLER_UNAVAILABLE', {message: 'bundler bridge unavailable'})
         return ring.list()

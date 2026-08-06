@@ -45,6 +45,7 @@
     "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/extension-ios": "workspace:^",
+    "@conciv/extension-page": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/protocol": "workspace:^",

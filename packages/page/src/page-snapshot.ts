@@ -1,4 +1,5 @@
 export type Refs = {map: Map<string, WeakRef<Element>>; n: number}
+export type RefAdder = (el: Element) => string
 export type SnapNode = {
   ref: string
   role: string
@@ -92,10 +93,10 @@ const elementValue = (el: Element): string | undefined =>
     ? el.value
     : undefined
 
-function snapNode(el: Element, refs: Refs): SnapNode {
+function snapNode(el: Element, addRef: RefAdder): SnapNode {
   const state = nodeState(el)
   return {
-    ref: addRef(el, refs),
+    ref: addRef(el),
     role: roleOf(el),
     name: accessibleName(el) || undefined,
     value: elementValue(el),
@@ -103,12 +104,10 @@ function snapNode(el: Element, refs: Refs): SnapNode {
   }
 }
 
-export function buildSnapshot(root: Element, refs: Refs): SnapNode[] {
-  refs.map.clear()
-  refs.n = 0
+export function buildSnapshot(root: Element, addRef: RefAdder): SnapNode[] {
   const out: SnapNode[] = []
   const walk = (el: Element): void => {
-    if (isInteresting(el)) out.push(snapNode(el, refs))
+    if (isInteresting(el)) out.push(snapNode(el, addRef))
     for (const child of Array.from(el.children)) walk(child)
   }
   walk(root)

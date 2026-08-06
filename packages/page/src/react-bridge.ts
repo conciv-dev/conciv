@@ -12,7 +12,7 @@ import {
 import {parseStack, hasDebugStack, getFallbackOwnerStack, formatOwnerStack} from 'bippy/source'
 import {installTracker} from './render-tracker.js'
 import {sourceFromAttr} from './source-attr.js'
-import {addRef, type Refs} from './page-snapshot.js'
+import type {RefAdder} from './page-snapshot.js'
 
 export type {
   RawFrame,
@@ -110,24 +110,24 @@ function hostElementOf(composite: Fiber): Element | null {
   return host?.stateNode instanceof Element ? host.stateNode : null
 }
 
-function ownerOf(f: Fiber, refs: Refs): Owner {
+function ownerOf(f: Fiber, addRef: RefAdder): Owner {
   const el = hostElementOf(f)
-  return {component: getDisplayName(f) || '?', ref: el ? addRef(el, refs) : ''}
+  return {component: getDisplayName(f) || '?', ref: el ? addRef(el) : ''}
 }
 
-function ownerChain(fiber: Fiber, refs: Refs, limit = 12): Owner[] {
+function ownerChain(fiber: Fiber, addRef: RefAdder, limit = 12): Owner[] {
   return getFiberStack(fiber)
     .filter((f: Fiber) => isCompositeFiber(f))
     .slice(0, limit)
-    .map((f: Fiber) => ownerOf(f, refs))
+    .map((f: Fiber) => ownerOf(f, addRef))
 }
 
-export async function locate(el: Element, refs: Refs): Promise<LocateResult | null> {
+export async function locate(el: Element, addRef: RefAdder): Promise<LocateResult | null> {
   const fiber = await fiberForEl(el)
   if (!fiber) return null
   const names = compositeNames(fiber)
   const frames = rawFrames(fiber)
-  const owners = ownerChain(fiber, refs)
+  const owners = ownerChain(fiber, addRef)
   const source = sourceFromAttr(el)
 
   return {component: frames[0]?.fn ?? names[0] ?? null, stack: names, frames, owners, ...(source ? {source} : {})}
@@ -269,7 +269,7 @@ export async function override(
 
 export async function tree(
   root: Element,
-  refs: Refs,
+  addRef: RefAdder,
   opts: {maxDepth?: number; maxNodes?: number} = {},
 ): Promise<TreeResult> {
   const maxDepth = opts.maxDepth ?? 4
@@ -290,7 +290,7 @@ export async function tree(
       return false
     }
     counters.count++
-    const tn = treeNodeFor(node, refs)
+    const tn = treeNodeFor(node, addRef)
     byFiber.set(node, tn)
     attachTreeNode(byFiber, out, node, tn)
     return false
@@ -318,9 +318,9 @@ function recordTruncation(byFiber: Map<Fiber, TreeNode>, node: Fiber): void {
   if (anc) anc.truncated = (anc.truncated ?? 0) + 1
 }
 
-function treeNodeFor(node: Fiber, refs: Refs): TreeNode {
+function treeNodeFor(node: Fiber, addRef: RefAdder): TreeNode {
   const el = hostElementOf(node)
-  return {component: getDisplayName(node) || '?', ref: el ? addRef(el, refs) : '', children: []}
+  return {component: getDisplayName(node) || '?', ref: el ? addRef(el) : '', children: []}
 }
 
 function attachTreeNode(byFiber: Map<Fiber, TreeNode>, out: TreeNode[], node: Fiber, tn: TreeNode): void {
@@ -376,7 +376,7 @@ export function elementByName(name: string): Element | null {
 
 export function find(
   name: string,
-  refs: Refs,
+  addRef: RefAdder,
   limit = 20,
 ): {matches: {ref: string; component: string}[]; total: number} {
   const matches: {ref: string; component: string}[] = []
@@ -386,7 +386,7 @@ export function find(
       const el = isNamedComposite(node, name) ? hostElementOf(node) : null
       if (!el) return false
       counter.total++
-      if (matches.length < limit) matches.push({ref: addRef(el, refs), component: name})
+      if (matches.length < limit) matches.push({ref: addRef(el), component: name})
       return false
     })
   }

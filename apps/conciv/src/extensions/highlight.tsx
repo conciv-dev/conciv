@@ -3,7 +3,7 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {defineExtension, type RegisterExtension} from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
-import {describe, locate, showToast, type Refs} from '@conciv/page'
+import {addRef, describe, locate, showToast, type Refs} from '@conciv/page'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
 import {elementAt} from '../lib/element-at.js'
 import {resolveApiBase} from '../lib/api-base.js'
@@ -54,7 +54,7 @@ function HighlightInspector(props: {onExit: () => void}): JSX.Element {
     if (!h) return
     e.preventDefault()
     e.stopPropagation()
-    const loc = await locate(h.host, refs)
+    const loc = await locate(h.host, (el) => addRef(el, refs))
     const result = loc ? await openSource(resolveApiBase(), loc) : 'no-source'
     const out = OPEN_RESULT[result]
     showToast(out.label(h.file ?? h.tag), out.tone)

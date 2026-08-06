@@ -1,7 +1,7 @@
 {
   "name": "@conciv/extension-page",
   "version": "0.0.17",
-  "description": "Scaffold for the built-in page extension package, whose verb declarations as extension tools arrive in later phases of the page-as-extension epic.",
+  "description": "Internal conciv.dev built-in extension: every page verb as a defineTool().client() declaration, its browser body running through the page-tool dispatcher.",
   "keywords": [
     "browser",
     "conciv",
@@ -40,7 +40,11 @@
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./defs": {
+      "types": "./dist/shared/defs.d.ts",
+      "import": "./dist/shared/defs.js"
+    }
   },
   "publishConfig": {
     "access": "public"
@@ -50,14 +54,26 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@conciv/extension": "workspace:^"
+    "@conciv/extension": "workspace:^",
+    "@conciv/page": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^22.19.21",
+    "@conciv/vitest-config": "workspace:*",
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/browser-playwright": "4.1.10",
+    "playwright": "^1.61.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "tsdown": "^0.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   }
 }

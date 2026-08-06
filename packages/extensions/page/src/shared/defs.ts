@@ -1,15 +1,46 @@
 import {z} from 'zod'
-import {defineTool, TOOL_ICON_KEYS, type ToolIconKey, type ToolLabel, type ToolMeta} from '@conciv/extension/tool'
+import {defineTool, type ToolBuilder, type ToolErrors, type ToolIconKey, type ToolLabel, type ToolMeta} from '@conciv/extension/tool'
 
-export {TOOL_ICON_KEYS}
-export type {ToolIconKey, ToolLabel, ToolMeta}
-import {PagePositionSchema, PageWaitStateSchema, type PageQueryKind} from '@conciv/protocol/page-types'
-import {AnyRecord, ElementTarget, OkResult, type BuiltinCategory} from './shared.js'
+export const PAGE_EXTENSION_NAME = 'page'
+
+export const PAGE_TOOL_PREFIX = 'page.'
+
+export function pageVerbOfTool(name: string): string {
+  if (!name.startsWith(PAGE_TOOL_PREFIX)) throw new Error(`"${name}" is not a page tool`)
+  return name.slice(PAGE_TOOL_PREFIX.length)
+}
+
+export const PagePositionSchema = z.enum(['before', 'after', 'prepend', 'append'])
+export const PageWaitStateSchema = z.enum(['visible', 'hidden'])
+
+export type PagePosition = z.infer<typeof PagePositionSchema>
+export type PageWaitState = z.infer<typeof PageWaitStateSchema>
+
+const AnyRecord = z.record(z.string(), z.unknown())
+
+const OkResult = z.object({ok: z.literal(true)})
+
+export const ElementTarget = {
+  selector: z.string().optional().describe('CSS selector for the target element'),
+  ref: z.string().optional().describe('element ref from the latest snapshot'),
+  name: z.string().optional().describe('React component name (targets the first match)'),
+}
+
+export type PageToolCategory = 'read' | 'act' | 'edit-live' | 'react'
+
+type PageToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBuilder<
+  string,
+  z.ZodObject<Shape>,
+  Out,
+  ToolErrors,
+  undefined,
+  unknown
+>
 
 function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   verb: string
   summary: string
-  category: BuiltinCategory
+  category: PageToolCategory
   icon: ToolIconKey
   label: ToolLabel
   input: z.ZodObject<Shape>
@@ -18,7 +49,7 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   mutating?: boolean
   mirrors?: boolean
   keywords?: readonly string[]
-}) {
+}): PageToolDef<Shape, Out> {
   return defineTool({
     name: `page.${spec.verb}`,
     description: spec.summary,
@@ -34,7 +65,7 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       mirrors: spec.mirrors ?? false,
       keywords: spec.keywords ?? [],
     },
-  }).client()
+  })
 }
 
 const target = z.object(ElementTarget)
@@ -47,7 +78,7 @@ const ActionEnum = z
   .enum(['start', 'stop', 'report', 'enable', 'disable', 'toggle', 'list'])
   .describe('what to do: start, stop, report, enable, disable, toggle, list')
 
-const routeTool = pageTool({
+export const routeDef = pageTool({
   verb: 'route',
   summary: 'report the current url of the live page',
   category: 'read',
@@ -58,7 +89,7 @@ const routeTool = pageTool({
   output: z.object({pathname: z.string(), search: z.string(), href: z.string()}),
 })
 
-const domTool = pageTool({
+export const domDef = pageTool({
   verb: 'dom',
   summary: 'return the outer HTML of an element or of the whole body',
   category: 'read',
@@ -69,7 +100,7 @@ const domTool = pageTool({
   output: z.object({html: z.string()}),
 })
 
-const queryTool = pageTool({
+export const queryDef = pageTool({
   verb: 'query',
   summary: 'describe every element matching a selector',
   category: 'read',
@@ -80,7 +111,7 @@ const queryTool = pageTool({
   output: z.object({count: z.number(), elements: z.array(AnyRecord)}),
 })
 
-const consoleTool = pageTool({
+export const consoleDef = pageTool({
   verb: 'console',
   summary: 'read the buffered browser console output',
   category: 'read',
@@ -91,7 +122,7 @@ const consoleTool = pageTool({
   output: z.object({entries: z.array(z.object({level: z.string(), ts: z.number(), text: z.string()}))}),
 })
 
-const textTool = pageTool({
+export const textDef = pageTool({
   verb: 'text',
   summary: 'read the visible text of an element',
   category: 'read',
@@ -102,7 +133,7 @@ const textTool = pageTool({
   output: z.object({text: z.string()}),
 })
 
-const valueTool = pageTool({
+export const valueDef = pageTool({
   verb: 'value',
   summary: 'read the current value of a form field',
   category: 'read',
@@ -113,7 +144,7 @@ const valueTool = pageTool({
   output: z.object({value: z.string().nullable()}),
 })
 
-const attrTool = pageTool({
+export const attrDef = pageTool({
   verb: 'attr',
   summary: 'read one attribute of an element',
   category: 'read',
@@ -124,7 +155,7 @@ const attrTool = pageTool({
   output: z.object({value: z.string().nullable()}),
 })
 
-const existsTool = pageTool({
+export const existsDef = pageTool({
   verb: 'exists',
   summary: 'report whether a selector matches anything',
   category: 'read',
@@ -135,7 +166,7 @@ const existsTool = pageTool({
   output: z.object({exists: z.boolean(), count: z.number()}),
 })
 
-const snapshotTool = pageTool({
+export const snapshotDef = pageTool({
   verb: 'snapshot',
   summary: 'take an accessibility snapshot with a ref for every control',
   category: 'read',
@@ -147,7 +178,7 @@ const snapshotTool = pageTool({
   output: z.object({nodes: z.array(AnyRecord)}),
 })
 
-const cssTool = pageTool({
+export const cssDef = pageTool({
   verb: 'css',
   summary: 'inject a stylesheet into the live page',
   category: 'edit-live',
@@ -159,7 +190,7 @@ const cssTool = pageTool({
   output: OkResult,
 })
 
-const evalTool = pageTool({
+export const evalDef = pageTool({
   verb: 'eval',
   summary: 'run javascript in the page and return its result',
   category: 'edit-live',
@@ -172,7 +203,7 @@ const evalTool = pageTool({
   output: z.object({result: z.unknown()}),
 })
 
-const locateTool = pageTool({
+export const locateDef = pageTool({
   verb: 'locate',
   summary: 'find the source location that rendered an element',
   category: 'react',
@@ -189,7 +220,7 @@ const locateTool = pageTool({
   }),
 })
 
-const inspectTool = pageTool({
+export const inspectDef = pageTool({
   verb: 'inspect',
   summary: 'read props, state, hooks and context of a live component',
   category: 'react',
@@ -204,7 +235,7 @@ const inspectTool = pageTool({
   output: z.looseObject({component: z.string().optional()}),
 })
 
-const treeTool = pageTool({
+export const treeDef = pageTool({
   verb: 'tree',
   summary: 'walk the live React tree under an element',
   category: 'react',
@@ -215,7 +246,7 @@ const treeTool = pageTool({
   output: z.looseObject({}),
 })
 
-const findTool = pageTool({
+export const findDef = pageTool({
   verb: 'find',
   summary: 'find every mounted instance of a React component',
   category: 'react',
@@ -226,7 +257,7 @@ const findTool = pageTool({
   output: z.looseObject({}),
 })
 
-const overrideTool = pageTool({
+export const overrideDef = pageTool({
   verb: 'override',
   summary: 'patch props, state, hooks or context on a live component',
   category: 'react',
@@ -245,7 +276,7 @@ const overrideTool = pageTool({
   output: z.looseObject({ok: z.literal(true), target: z.string(), path: z.string()}),
 })
 
-const trackTool = pageTool({
+export const trackDef = pageTool({
   verb: 'track',
   summary: 'record and report React re-renders',
   category: 'react',
@@ -260,13 +291,13 @@ const trackTool = pageTool({
   output: z.looseObject({}),
 })
 
-const effectTool = pageTool({
+export const effectDef = pageTool({
   verb: 'effect',
   summary: 'run a named visual effect the host page installed, by name plus an action',
   category: 'act',
   icon: 'edit',
   label: {running: 'Driving an effect', done: 'Drove an effect'},
-  hint: 'only a host that passes effect handlers to its page driver has any; without them every call fails with "effects not initialized"',
+  hint: 'a documented stub: no host effect registry exists yet, so every call fails with "effects not initialized"',
   keywords: ['effects'],
   input: z.object({
     action: ActionEnum.optional(),
@@ -275,7 +306,7 @@ const effectTool = pageTool({
   output: z.looseObject({}),
 })
 
-const waitTool = pageTool({
+export const waitDef = pageTool({
   verb: 'wait',
   summary: 'wait until a selector becomes visible or hidden',
   category: 'act',
@@ -291,7 +322,7 @@ const waitTool = pageTool({
   output: z.object({ok: z.literal(true), state: PageWaitStateSchema}),
 })
 
-const clickTool = pageTool({
+export const clickDef = pageTool({
   verb: 'click',
   summary: 'click an element',
   category: 'act',
@@ -304,7 +335,7 @@ const clickTool = pageTool({
   output: OkResult,
 })
 
-const hoverTool = pageTool({
+export const hoverDef = pageTool({
   verb: 'hover',
   summary: 'hover the pointer over an element',
   category: 'act',
@@ -317,7 +348,7 @@ const hoverTool = pageTool({
   output: OkResult,
 })
 
-const scrollTool = pageTool({
+export const scrollDef = pageTool({
   verb: 'scroll',
   summary: 'scroll an element into view',
   category: 'act',
@@ -330,7 +361,7 @@ const scrollTool = pageTool({
   output: OkResult,
 })
 
-const submitTool = pageTool({
+export const submitDef = pageTool({
   verb: 'submit',
   summary: 'submit the form owning an element',
   category: 'act',
@@ -343,7 +374,7 @@ const submitTool = pageTool({
   output: OkResult,
 })
 
-const fillTool = pageTool({
+export const fillDef = pageTool({
   verb: 'fill',
   summary: 'type a value into a form field',
   category: 'act',
@@ -356,7 +387,7 @@ const fillTool = pageTool({
   output: z.object({ok: z.literal(true), value: z.string()}),
 })
 
-const selectTool = pageTool({
+export const selectDef = pageTool({
   verb: 'select',
   summary: 'choose an option in a select element',
   category: 'act',
@@ -369,7 +400,7 @@ const selectTool = pageTool({
   output: z.object({ok: z.literal(true), value: z.string()}),
 })
 
-const checkTool = pageTool({
+export const checkDef = pageTool({
   verb: 'check',
   summary: 'check a checkbox or radio',
   category: 'act',
@@ -382,7 +413,7 @@ const checkTool = pageTool({
   output: z.object({ok: z.literal(true), checked: z.boolean()}),
 })
 
-const uncheckTool = pageTool({
+export const uncheckDef = pageTool({
   verb: 'uncheck',
   summary: 'uncheck a checkbox',
   category: 'act',
@@ -395,7 +426,7 @@ const uncheckTool = pageTool({
   output: z.object({ok: z.literal(true), checked: z.boolean()}),
 })
 
-const pressTool = pageTool({
+export const pressDef = pageTool({
   verb: 'press',
   summary: 'send a key to an element',
   category: 'act',
@@ -408,7 +439,7 @@ const pressTool = pageTool({
   output: OkResult,
 })
 
-const setattrTool = pageTool({
+export const setattrDef = pageTool({
   verb: 'setattr',
   summary: 'set an attribute on an element',
   category: 'edit-live',
@@ -424,7 +455,7 @@ const setattrTool = pageTool({
   output: OkResult,
 })
 
-const removeattrTool = pageTool({
+export const removeattrDef = pageTool({
   verb: 'removeattr',
   summary: 'remove an attribute from an element',
   category: 'edit-live',
@@ -436,7 +467,7 @@ const removeattrTool = pageTool({
   output: OkResult,
 })
 
-const addclassTool = pageTool({
+export const addclassDef = pageTool({
   verb: 'addclass',
   summary: 'add a class to an element',
   category: 'edit-live',
@@ -448,7 +479,7 @@ const addclassTool = pageTool({
   output: OkResult,
 })
 
-const removeclassTool = pageTool({
+export const removeclassDef = pageTool({
   verb: 'removeclass',
   summary: 'remove a class from an element',
   category: 'edit-live',
@@ -460,7 +491,7 @@ const removeclassTool = pageTool({
   output: OkResult,
 })
 
-const setstyleTool = pageTool({
+export const setstyleDef = pageTool({
   verb: 'setstyle',
   summary: 'set one inline style property on an element',
   category: 'edit-live',
@@ -476,7 +507,7 @@ const setstyleTool = pageTool({
   output: OkResult,
 })
 
-const settextTool = pageTool({
+export const settextDef = pageTool({
   verb: 'settext',
   summary: 'replace the text content of an element',
   category: 'edit-live',
@@ -488,7 +519,7 @@ const settextTool = pageTool({
   output: OkResult,
 })
 
-const sethtmlTool = pageTool({
+export const sethtmlDef = pageTool({
   verb: 'sethtml',
   summary: 'replace the inner HTML of an element',
   category: 'edit-live',
@@ -500,7 +531,7 @@ const sethtmlTool = pageTool({
   output: OkResult,
 })
 
-const removeTool = pageTool({
+export const removeDef = pageTool({
   verb: 'remove',
   summary: 'remove an element from the page',
   category: 'edit-live',
@@ -512,7 +543,7 @@ const removeTool = pageTool({
   output: OkResult,
 })
 
-const insertTool = pageTool({
+export const insertDef = pageTool({
   verb: 'insert',
   summary: 'insert an HTML fragment around an element',
   category: 'edit-live',
@@ -528,78 +559,54 @@ const insertTool = pageTool({
   output: OkResult,
 })
 
-export const BUILTIN_PAGE_TOOLS = [
-  routeTool,
-  domTool,
-  queryTool,
-  consoleTool,
-  textTool,
-  valueTool,
-  attrTool,
-  existsTool,
-  snapshotTool,
-  locateTool,
-  treeTool,
-  inspectTool,
-  overrideTool,
-  findTool,
-  trackTool,
-  effectTool,
-  waitTool,
-  clickTool,
-  fillTool,
-  selectTool,
-  checkTool,
-  uncheckTool,
-  pressTool,
-  hoverTool,
-  scrollTool,
-  submitTool,
-  setattrTool,
-  removeattrTool,
-  addclassTool,
-  removeclassTool,
-  setstyleTool,
-  settextTool,
-  sethtmlTool,
-  removeTool,
-  insertTool,
-  cssTool,
-  evalTool,
+export const PAGE_TOOL_DEFS = [
+  routeDef,
+  domDef,
+  queryDef,
+  consoleDef,
+  textDef,
+  valueDef,
+  attrDef,
+  existsDef,
+  snapshotDef,
+  locateDef,
+  treeDef,
+  inspectDef,
+  overrideDef,
+  findDef,
+  trackDef,
+  effectDef,
+  waitDef,
+  clickDef,
+  fillDef,
+  selectDef,
+  checkDef,
+  uncheckDef,
+  pressDef,
+  hoverDef,
+  scrollDef,
+  submitDef,
+  setattrDef,
+  removeattrDef,
+  addclassDef,
+  removeclassDef,
+  setstyleDef,
+  settextDef,
+  sethtmlDef,
+  removeDef,
+  insertDef,
+  cssDef,
+  evalDef,
 ] as const
 
-export type BuiltinPageTool = (typeof BUILTIN_PAGE_TOOLS)[number]
-
-export type PageToolDeclaration = {name: string; meta?: ToolMeta}
-
-export const PAGE_TOOL_PREFIX = 'page.'
-
-export function pageVerbOfTool(name: string): string {
-  if (!name.startsWith(PAGE_TOOL_PREFIX)) throw new Error(`"${name}" is not a page tool`)
-  return name.slice(PAGE_TOOL_PREFIX.length)
+export function pageToolMetaOf(verb: string): ToolMeta | undefined {
+  return PAGE_TOOL_DEFS.find((def) => def.name === `${PAGE_TOOL_PREFIX}${verb}`)?.meta
 }
 
-export function pageToolMetaOf(
-  verb: string,
-  tools: readonly PageToolDeclaration[] = BUILTIN_PAGE_TOOLS,
-): ToolMeta | undefined {
-  return tools.find((tool) => tool.name === `${PAGE_TOOL_PREFIX}${verb}`)?.meta
+export function pageVerbMutates(verb: string): boolean {
+  return pageToolMetaOf(verb)?.mutating === true
 }
 
-const KINDS_WITHOUT_A_TOOL: readonly PageQueryKind[] = ['ext']
-
-function pageToolMeta(kind: PageQueryKind): ToolMeta | undefined {
-  const meta = pageToolMetaOf(kind)
-  if (meta === undefined && !KINDS_WITHOUT_A_TOOL.includes(kind)) {
-    throw new Error(`no built-in page tool declares "${kind}"`)
-  }
-  return meta
-}
-
-export function pageVerbMutates(kind: PageQueryKind): boolean {
-  return pageToolMeta(kind)?.mutating === true
-}
-
-export function pageVerbMirrors(kind: PageQueryKind): boolean {
-  return pageToolMeta(kind)?.mirrors === true
+export function pageVerbMirrors(verb: string): boolean {
+  return pageToolMetaOf(verb)?.mirrors === true
 }

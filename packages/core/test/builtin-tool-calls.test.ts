@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {BUILTIN_PAGE_TOOLS} from '@conciv/tools/builtins'
+import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {pageFailure, type PageOutcome} from '@conciv/protocol/page-types'
-import {callPageTool, makeBuiltinRegistry} from '../src/tool-registry.js'
+import {makeBuiltinRegistry} from '../src/tool-registry.js'
 import {makeJournal, type PageBus, type PageEnv} from '../src/page-bus.js'
 
 const DeclaredFailure = z.object({code: z.string(), defined: z.boolean(), message: z.string()})
@@ -28,7 +28,7 @@ async function failureOf(call: Promise<unknown>): Promise<unknown> {
 }
 
 describe('a built-in tool call carries who asked and how it failed', () => {
-  it('carries the calling session into the page caller for a built-in page tool', async () => {
+  it('carries the calling session into the page caller for a registry page tool', async () => {
     const seen: unknown[] = []
     const registry = createToolRegistry({
       pageCaller: async (_tool, _input, request) => {
@@ -36,17 +36,8 @@ describe('a built-in tool call carries who asked and how it failed', () => {
         return {ok: true, value: 'a@b.c'}
       },
     })
-    for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool, {owner: 'a test registrant'})
-    const env = envAsking(async () => ({}))
-    await callPageTool(
-      registry,
-      env,
-      {kind: 'fill', selector: '#email', value: 'a@b.c'},
-      {
-        sessionId: 's7',
-        model: 'sonnet',
-      },
-    )
+    for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
+    await registry.call('page.fill', {selector: '#email', value: 'a@b.c'}, {request: {sessionId: 's7', model: 'sonnet'}})
     expect(seen).toEqual([{sessionId: 's7', model: 'sonnet'}])
   })
 
@@ -58,9 +49,19 @@ describe('a built-in tool call carries who asked and how it failed', () => {
       bundler: () => undefined,
       openInEditor: () => {},
     })
+    for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
     const failure = DeclaredFailure.parse(await failureOf(registry.call('page.eval', {code: 'boom()'})))
     expect(failure.code).toBe('HANDLER_ERROR')
     expect(failure.defined).toBe(true)
     expect(failure.message).toContain('page.eval')
+  })
+
+  it('journals mutating calls from declaration meta and leaves reads out', async () => {
+    const env = envAsking(async () => ({ok: true}))
+    const registry = makeBuiltinRegistry({page: env, bundler: () => undefined, openInEditor: () => {}})
+    for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
+    await registry.call('page.text', {selector: '#h'})
+    await registry.call('page.click', {selector: '.btn'})
+    expect(env.journal.list()).toMatchObject([{verb: 'page.click', selector: '.btn'}])
   })
 })

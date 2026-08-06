@@ -23,7 +23,7 @@ import {
   type ToolNamePathProblem,
   type ToolNameProblem,
 } from './define-tool.js'
-import {isPageVerbError} from './page-verbs.js'
+import {isPageVerbError} from './page-errors.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
 import type {CtxOf, ToolRequest, UnionToIntersection} from './types.js'
 
@@ -113,7 +113,13 @@ const PAGE_FAILURE_TO_TRANSPORT: Record<PageErrorCode, string> = {
   'handler-error': 'HANDLER_ERROR',
 }
 
-export type RegistryPageCaller = (tool: string, input: unknown, request: ToolRequest | undefined) => Promise<unknown>
+export type ForwardedPageTool = {name: string; mutating: boolean}
+
+export type RegistryPageCaller = (
+  tool: ForwardedPageTool,
+  input: unknown,
+  request: ToolRequest | undefined,
+) => Promise<unknown>
 
 export type ToolCatalogEntry = {
   name: string
@@ -342,7 +348,7 @@ async function forwardToolToPage(
 ): Promise<unknown> {
   if (pageCaller === undefined) throw transportError(errors, 'NO_PAGE_CLIENT', `${tool.name}: no widget connected`)
   try {
-    return await pageCaller(tool.name, input, request)
+    return await pageCaller({name: tool.name, mutating: tool.meta.mutating ?? false}, input, request)
   } catch (error) {
     throw pageFailure(tool, declaredErrors, error, errors)
   }

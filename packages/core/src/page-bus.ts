@@ -1,6 +1,4 @@
-import {pageFailure, type PageOutcome, type PageQuery, type PageQueryInput} from '@conciv/protocol/page-types'
-import {pageVerbMutates} from '@conciv/tools/builtins'
-import {symbolicateFrames, type RawFrame} from './editor/symbolicate.js'
+import {pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
 
 export type ChangeEntry = {
   seq: number
@@ -91,7 +89,8 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     if (subscribers.size === 0) throw pageFailure('no-widget', 'no widget connected')
     idState.n += 1
     const requestId = `pq${idState.n}`
-    const ms = typeof query.timeout === 'number' ? query.timeout + 1000 : timeoutMs
+    const declared = query.input['timeout']
+    const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
     for (const emit of subscribers) emit({requestId, ...query})
     const outcome = await pending.await(requestId, ms).catch(() => {
       throw pageFailure('timeout', 'page did not reply (no widget connected?)')
@@ -141,22 +140,10 @@ export async function* pageQueryStream(
   }
 }
 
-function pageArgs(input: PageQueryInput): Record<string, unknown> {
-  const {ref: _ref, selector: _selector, since: _since, ...rest} = input
-  return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
-}
-
-export async function runVerb(
-  env: PageEnv,
-  input: PageQueryInput,
-  verb: PageQuery['kind'],
+export function askPage(
+  bus: PageBus,
+  name: string,
+  input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const data = await env.bus.ask({kind: verb, ...input})
-  if (pageVerbMutates(verb)) {
-    env.journal.append({verb, ref: input.ref, selector: input.selector, args: pageArgs(input)}, Date.now())
-  }
-  if (verb === 'locate' && !data.source && Array.isArray(data.frames)) {
-    return {...data, source: await symbolicateFrames(data.frames as RawFrame[], env.root)}
-  }
-  return data
+  return bus.ask({name, input})
 }

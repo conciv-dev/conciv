@@ -297,21 +297,21 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
     const firstPromise = iterator.next()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    const verbResult = kit.rpc.page.run({verb: 'snapshot'})
+    const verbResult = kit.rpc.registry.call({name: 'page.snapshot', input: {}})
     const first = await firstPromise
     if (first.done) throw new Error('page.queries ended before a query arrived')
     expect(first.value.requestId).toBeTruthy()
     const replied = await kit.rpc.page.reply({
       requestId: first.value.requestId,
-      outcome: {ok: true, result: {ok: true, value: 'snap'}},
+      outcome: {ok: true, result: {nodes: [{ref: 'v1', role: 'button', name: 'snap'}]}},
     })
     expect(replied.ok).toBe(true)
-    expect(await verbResult).toMatchObject({ok: true, value: 'snap'})
+    expect(await verbResult).toEqual({nodes: [{ref: 'v1', role: 'button', name: 'snap'}]})
     abort.abort()
     await iterator.return(undefined).catch(() => {})
   })
 
-  it('page.run round-trips a verb through the rpc queries subscriber', async () => {
+  it('registry.call round-trips a page tool through the rpc queries subscriber', async () => {
     const {kit} = await bootWire()
     const abort = new AbortController()
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
@@ -320,31 +320,31 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       if (first.done) throw new Error('page.queries ended before a query arrived')
       await kit.rpc.page.reply({
         requestId: first.value.requestId,
-        outcome: {ok: true, result: {ok: true, text: 'body text'}},
+        outcome: {ok: true, result: {text: 'body text'}},
       })
     })()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    const result = await kit.rpc.page.run({verb: 'text', selector: 'body'})
-    expect(result).toMatchObject({ok: true, text: 'body text'})
+    const result = await kit.rpc.registry.call({name: 'page.text', input: {selector: 'body'}})
+    expect(result).toEqual({text: 'body text'})
     await answered
     abort.abort()
     await iterator.return(undefined).catch(() => {})
   })
 
-  it('a mutating page.run lands in page.changes and clearChanges empties it', async () => {
+  it('a mutating registry.call lands in page.changes and clearChanges empties it', async () => {
     const {kit} = await bootWire()
     const abort = new AbortController()
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
     const answered = (async () => {
       const first = await iterator.next()
       if (first.done) throw new Error('page.queries ended before a query arrived')
-      await kit.rpc.page.reply({requestId: first.value.requestId, outcome: {ok: true, result: {ok: true}}})
+      await kit.rpc.page.reply({requestId: first.value.requestId, outcome: {ok: true, result: {ok: true, value: 'Ada'}}})
     })()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    await kit.rpc.page.run({verb: 'fill', selector: '#name', value: 'Ada'})
+    await kit.rpc.registry.call({name: 'page.fill', input: {selector: '#name', value: 'Ada'}})
     await answered
     const changes = await kit.rpc.page.changes(undefined)
-    expect(changes.map((entry) => entry.verb)).toEqual(['fill'])
+    expect(changes.map((entry) => entry.verb)).toEqual(['page.fill'])
     expect(changes[0]).toMatchObject({selector: '#name', args: {value: 'Ada'}})
     await kit.rpc.page.clearChanges(undefined)
     expect(await kit.rpc.page.changes(undefined)).toEqual([])
@@ -352,18 +352,18 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     await iterator.return(undefined).catch(() => {})
   })
 
-  it('page.run with no connected page reports NO_PAGE_CLIENT', async () => {
+  it('registry.call with no connected page reports NO_PAGE_CLIENT', async () => {
     const {kit} = await bootWire()
-    await expect(kit.rpc.page.run({verb: 'snapshot'})).rejects.toMatchObject({code: 'NO_PAGE_CLIENT'})
+    await expect(kit.rpc.registry.call({name: 'page.snapshot', input: {}})).rejects.toMatchObject({code: 'NO_PAGE_CLIENT'})
   })
 
-  it('page.run reports PAGE_TIMEOUT when the page never replies', async () => {
+  it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
     const {kit} = await bootWire()
     const abort = new AbortController()
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
     const consumed = iterator.next()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    await expect(kit.rpc.page.run({verb: 'text', selector: 'body', timeout: 100})).rejects.toMatchObject({
+    await expect(kit.rpc.registry.call({name: 'page.wait', input: {selector: 'body', timeout: 100}})).rejects.toMatchObject({
       code: 'PAGE_TIMEOUT',
     })
     abort.abort()

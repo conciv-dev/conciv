@@ -3,7 +3,8 @@ import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeDeferredRpcClient, makeRebindableRpcClient} from '@conciv/contract'
 import {createWebStorageHistory} from '@conciv/storage-history'
-import type {AnyExtension} from '@conciv/extension'
+import {collectClientTools, type AnyExtension, type ClientToolEntry} from '@conciv/extension'
+import pageExtension from '@conciv/extension-page/client'
 import type {GrabProvider} from '@conciv/grab'
 import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
 import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
@@ -62,10 +63,12 @@ type BootNormalConfig = {
   connectMode?: boolean
 }
 
+function mountedClientTools(router: {options: {context: {instances: {extension: AnyExtension}[]}}}): ClientToolEntry[] {
+  return collectClientTools(router.options.context.instances.map((instance) => instance.extension))
+}
+
 async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
   const {rpc, rebind: rebindClient} = makeRebindableRpcClient(config.apiBase)
-  const driver = makeDomPageDriver()
-  window.__CONCIV_PAGE_DRIVER__ = driver
 
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
   const [apiBase, setApiBase] = createSignal(config.apiBase)
@@ -86,6 +89,8 @@ async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
     connectionGeneration,
   })
   window.__TSR_ROUTER__ = hostRouter
+  const driver = makeDomPageDriver({tools: mountedClientTools(router)})
+  window.__CONCIV_PAGE_DRIVER__ = driver
 
   const container = document.createElement('div')
   config.root.appendChild(container)
@@ -120,8 +125,6 @@ type BootConnectConfig = {
 
 function bootConnect(config: BootConnectConfig): BootResult {
   const deferred = makeDeferredRpcClient()
-  const driver = makeDomPageDriver()
-  window.__CONCIV_PAGE_DRIVER__ = driver
 
   let boundApiBase: string | undefined
   let planeDispose: (() => void) | undefined
@@ -147,6 +150,8 @@ function bootConnect(config: BootConnectConfig): BootResult {
     apiBase,
   })
   window.__TSR_ROUTER__ = hostRouter
+  const driver = makeDomPageDriver({tools: mountedClientTools(router)})
+  window.__CONCIV_PAGE_DRIVER__ = driver
 
   const container = document.createElement('div')
   config.root.appendChild(container)
@@ -162,7 +167,8 @@ function bootConnect(config: BootConnectConfig): BootResult {
 }
 
 async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
-  const extensions = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
+  const supplied = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
+  const extensions = [pageExtension, ...supplied]
   const settings = parseConcivSettings(init.settings ? JSON.stringify(init.settings) : metaContent('pw-widget'))
   const grabProvider = init.grabProvider
   const apiBase = init.apiBase ?? resolveApiBase()

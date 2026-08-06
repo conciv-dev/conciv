@@ -10,13 +10,10 @@ import {
   type AttachmentDocumentPart,
   type ContentPart,
   type ExtensionServerTool,
-  type PageCaller,
-  type PageVerbMap,
   type ServerHarness,
   type ServerResult,
   type ServerSessions,
   type ToolRequest,
-  pageVerbError,
 } from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
@@ -48,12 +45,16 @@ import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} fr
 import {modelOf, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
-import {makePageBus, runVerb, type PageEnv} from './page-bus.js'
+import {askPage, makePageBus, type PageEnv} from './page-bus.js'
 import {openSourceFromFrames} from './editor/open-source.js'
+import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {extensionRpcMiddleware, rpcMiddleware} from './api/rpc/mount.js'
 import {makeJournal} from './page-bus.js'
-import {callPageTool, makeBuiltinRegistry, toolFailureFromPage} from './tool-registry.js'
+import {makeBuiltinRegistry} from './tool-registry.js'
+import pageServerExtension from '@conciv/extension-page/server'
+import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
+import {PAGE_TOOL_NAME} from '@conciv/tools'
 import {logError} from './lib/debug.js'
 import type {OpenInEditor} from './editor/open.js'
 
@@ -100,27 +101,14 @@ function requireHarness(id: string): HarnessAdapter {
   return found
 }
 
+function symbolicable(frame: {fileName?: string; line?: number; column?: number; fn?: string}): frame is SymbolicableFrame {
+  return typeof frame.fileName === 'string' && typeof frame.line === 'number'
+}
+
 function narrowExtensionApp(name: string, app: unknown): Hono | null {
   if (app === undefined) return null
   if (!(app instanceof Hono)) throw new Error(`extension "${name}" returned a non-hono app`)
   return app
-}
-
-type CallPageVerb = (extension: string, verb: string, argsJson: string) => Promise<unknown>
-
-function scopedPageCaller(extension: string, callPageVerb: CallPageVerb): PageCaller<PageVerbMap> {
-  return {
-    call(verb, args) {
-      let argsJson: string
-      try {
-        argsJson = JSON.stringify(args ?? {})
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        return Promise.reject(pageVerbError('invalid-args', extension, verb, message))
-      }
-      return callPageVerb(extension, verb, argsJson)
-    },
-  }
 }
 
 function buildAttachmentExpanders(
@@ -145,7 +133,7 @@ function declaredToolErrors(tool: AnyToolBuilder): {code: string; message: strin
 }
 
 function isRegistryDeclared(tool: AnyToolBuilder): boolean {
-  return tool.binding === 'server' && (tool.meta !== undefined || tool.outputSchema !== undefined)
+  return tool.binding !== undefined && (tool.meta !== undefined || tool.outputSchema !== undefined)
 }
 
 function registryDeclaredTools(extension: AnyExtension): AnyToolBuilder[] {
@@ -242,6 +230,7 @@ export type MadeApp = {
   app: AppType
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
+  registry: ToolRegistry
 }
 
 const RUN_DRAIN_TIMEOUT_MS = 5_000
@@ -285,13 +274,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     openInEditor: opts.openInEditor,
   })
 
-  const callPageVerb: CallPageVerb = async (extension, verb, argsJson) => {
-    const reply = await runVerb(pageEnv, {extension, verb, argsJson}, 'ext').catch((error: unknown) => {
-      throw toolFailureFromPage(extension, verb, error)
-    })
-    return reply.result
-  }
-
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
     recordToken: async (sessionId, token) => {
@@ -329,7 +311,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       router: result?.router,
       forwardedTools,
       registryTools,
-      tools: [...forwardedTools, ...registryTools.map((tool) => registryBackedTool(tool, registry))],
+      tools: [
+        ...forwardedTools,
+        ...registryTools.filter((tool) => tool.binding === 'server').map((tool) => registryBackedTool(tool, registry)),
+      ],
       attachmentExpanders: buildAttachmentExpanders(extension, context),
       context,
       dispose: result?.dispose,
@@ -345,7 +330,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         cwd: opts.cwd,
         sessions: serverSessions,
         harness: serverHarness,
-        page: scopedPageCaller(extension.name, callPageVerb),
+        page: {call: (name, input) => askPage(pageBus, name, input)},
+        tools: {call: (name, input) => registry.call(name, input)},
+        symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
         bundler: opts.bridge,
         nativeUrl,
       })
@@ -356,8 +343,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }
   }
 
+  const extensions = [pageServerExtension, ...(opts.extensions ?? [])]
+
   const mountResults = await Promise.all(
-    (opts.extensions ?? []).map((extension) => {
+    extensions.map((extension) => {
       if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
       seenNames.add(extension.name)
       return mountExtension(extension)
@@ -382,10 +371,39 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const sessionModel = (sessionId: string): string | null => modelOf(db, sessionId)
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
     askUi: () => askUi(asks, sessionId),
-    page: (query) => callPageTool(registry, pageEnv, query, {sessionId, model: sessionModel(sessionId)}),
-    open: (file, line) => opts.openInEditor(file, line),
+    page: (name, input) => registry.call(name, input, {request: {sessionId, model: sessionModel(sessionId)}}),
+    open: (file, line) => registry.call('open', {file, line}),
     capabilities: () => registry.catalog.list(),
   })
+
+  const pageCallMutates = (input: unknown): boolean => {
+    if (typeof input !== 'object' || input === null) return false
+    const verb = Reflect.get(input, 'verb')
+    if (typeof verb !== 'string') return false
+    const name = `${PAGE_TOOL_PREFIX}${verb}`
+    if (!registry.has(name)) return false
+    return registry.catalog.get(name).mutating
+  }
+
+  const mutatingToolCall = (toolName: string, input: unknown): boolean =>
+    toolName === PAGE_TOOL_NAME && pageCallMutates(input)
+
+  const readOnlyCommandAllows = (): string[] =>
+    registry.catalog
+      .list()
+      .flatMap((entry) => {
+        const signature = registry.catalog.get(entry.name)
+        if (signature.mutating) return []
+        const [group, operation] = [entry.path.slice(0, -1).join(' '), entry.path.at(-1)]
+        if (operation === undefined) return []
+        const command = group === '' ? `conciv tools ${operation}` : `conciv tools ${group} ${operation}`
+        const aliases = [command, `${command} *`]
+        if (entry.name.startsWith(PAGE_TOOL_PREFIX) && signature.category === 'react') {
+          aliases.push(`conciv tools react ${operation}`, `conciv tools react ${operation} *`)
+        }
+        return aliases
+      })
+      .concat(['conciv tools page changes', 'conciv tools page changes *'])
 
   assertUniqueCapabilityNames([
     ['a built-in registry tool', registry.sandboxTools().map((tool) => tool.name)],
@@ -436,6 +454,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     stream,
     snapshots,
     risky,
+    mutatingToolCall,
+    commandAllows: readOnlyCommandAllows,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     toolNames: new Set(toolList.map((tool) => tool.name)),
     codeModeCapabilities,
@@ -498,5 +518,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     db.$client.close()
   }
 
-  return {app, dispose, extensionContexts}
+  return {app, dispose, extensionContexts, registry}
 }
