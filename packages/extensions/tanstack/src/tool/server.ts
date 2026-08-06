@@ -1,4 +1,4 @@
-import {defineTool} from '@conciv/extension'
+import {defineTool, toolError} from '@conciv/extension'
 import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
 import {
   backDef,
@@ -69,9 +69,13 @@ export const buildErrorsServer = defineTool(buildErrorsDef).server((_input, ctx:
   ctx.adapter.server.errors.snapshot(),
 )
 
-export const routeManifestServer = defineTool(routeManifestDef).server((_input, ctx: ToolCtx) =>
-  ctx.adapter.server.manifest.routes(),
-)
+export const routeManifestServer = defineTool(routeManifestDef).server(async (_input, ctx: ToolCtx) => {
+  try {
+    return await ctx.adapter.server.manifest.routes()
+  } catch (error) {
+    throw toolError('MANIFEST_UNREADABLE', {message: error instanceof Error ? error.message : String(error)})
+  }
+})
 
 export const serverFnTraceServer = defineTool(serverFnTraceDef).server(async (input, ctx: ToolCtx) => {
   if (!ctx.adapter.serverFunctions) return {traces: [], functions: []}

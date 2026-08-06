@@ -92,7 +92,7 @@ test('tanstack_navigate drives real TanStack Router navigation on the running ap
 
   await waitForWidget(api.page)
 
-  await api.callTool('tanstack_navigate', {to: '/form'})
+  await api.callToolApproved('tanstack_navigate', {to: '/form'})
 
   await expectLocator(api.page.getByRole('heading', {name: 'Form page'})).toBeVisible()
   expect(routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.pathname).toBe('/form')
@@ -131,12 +131,12 @@ test('tanstack_query_invalidate no-ops on unknown keys and refetches the real ke
   expect(before.status).toBe('success')
   expect(before.updatedAt).not.toBeNull()
 
-  await api.callTool('tanstack_query_invalidate', {key: JSON.stringify(['nope', 'nope'])})
+  await api.callToolApproved('tanstack_query_invalidate', {key: JSON.stringify(['nope', 'nope'])})
   const afterUnknown = await readDemo()
   expect(afterUnknown.updatedAt).toBe(before.updatedAt)
   expect(afterUnknown.state).toBe(before.state)
 
-  await api.callTool('tanstack_query_invalidate', {key: demoKey})
+  await api.callToolApproved('tanstack_query_invalidate', {key: demoKey})
   const after = await readDemo()
   expect(after.updatedAt).toBeGreaterThan(before.updatedAt ?? 0)
 })

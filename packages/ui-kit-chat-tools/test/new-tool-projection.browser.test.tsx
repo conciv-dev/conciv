@@ -48,8 +48,8 @@ const shipTool = defineTool({
 
 function registryWith(extra: AnyToolBuilder) {
   const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-  for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool)
-  registry.register(extra)
+  for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool, {owner: 'a built-in page tool'})
+  registry.register(extra, {owner: 'a test registrant'})
   return registry
 }
 

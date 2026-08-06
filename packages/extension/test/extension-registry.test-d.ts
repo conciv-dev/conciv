@@ -304,23 +304,28 @@ test('the declared failure union still admits a plain thrown Error', () => {
 })
 
 test('register only accepts the context its tool declared', () => {
-  registry.register(scaler, {context: {factor: 2}})
+  registry.register(scaler, {owner: 'a test registrant', context: {factor: 2}})
   // @ts-expect-error the tool's handler declares ctx: {factor: number}
-  registry.register(scaler, {context: {}})
+  registry.register(scaler, {owner: 'a test registrant', context: {}})
 })
 
 test('a tool whose handler declares a context cannot be registered without one', () => {
   // @ts-expect-error the tool's handler declares ctx: {factor: number}, so a context is required
-  registry.register(scaler)
+  registry.register(scaler, {owner: 'a test registrant'})
 })
 
-test('a context-free tool still registers with no options at all', () => {
-  registry.register(doubler)
+test('every registration names its registrant', () => {
+  // @ts-expect-error a registration must name its owner so a collision can name both
+  registry.register(doubler, {})
+})
+
+test('a context-free tool still registers with just an owner', () => {
+  registry.register(doubler, {owner: 'a test registrant'})
 })
 
 test('a heterogeneous registration loop still type-checks', () => {
   const tools: AnyToolBuilder[] = [scaler, doubler]
-  for (const tool of tools) registry.register(tool, {context: {factor: 2}})
+  for (const tool of tools) registry.register(tool, {owner: 'a test registrant', context: {factor: 2}})
 })
 
 test('extension context must satisfy the intersection of its tools Ctx', () => {

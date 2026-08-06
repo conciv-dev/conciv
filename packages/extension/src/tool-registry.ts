@@ -140,8 +140,8 @@ export type ToolSignature = ToolCatalogEntry & {
 }
 
 export type ToolRegistration<Ctx> = unknown extends Ctx
-  ? [registration?: {context?: Ctx}]
-  : [registration: {context: Ctx}]
+  ? [registration: {owner: string; context?: Ctx}]
+  : [registration: {owner: string; context: Ctx}]
 
 export type SandboxTool = ToolSignature & {
   schema: z.ZodObject<z.ZodRawShape>
@@ -161,22 +161,37 @@ export function createToolRegistry(
   options: {pageCaller?: RegistryPageCaller; isPageConnected?: () => boolean} = {},
 ): ToolRegistry {
   const router = emptyRouterNode<ExtensionToolRouter>()
+  const owners = new Map<string, string>()
   const pageCaller = options.pageCaller
   const pageConnected = options.isPageConnected ?? (() => pageCaller !== undefined)
-  const has = (name: string): boolean => walkRegistryProcedures(router).some((entry) => entry.path.join('.') === name)
+  const walked = (): RegistryWalkEntry[] => namedConsistently(walkRegistryProcedures(router))
+  const has = (name: string): boolean => walked().some((entry) => entry.path.join('.') === name)
   return {
     router,
-    register: (tool: AnyToolBuilder, registration?: {context?: unknown}) =>
-      registerTool(router, tool, pageCaller, registration?.context),
+    register: (tool: AnyToolBuilder, registration: {owner: string; context?: unknown}) =>
+      registerTool(router, tool, pageCaller, registration, owners),
     has,
     call: (name, input, options = {}) =>
       has(name) ? callTool(router, name, input, options.request) : Promise.reject(new Error(`unknown tool "${name}"`)),
     catalog: {
-      list: () => catalogEntries(walkRegistryProcedures(router), pageConnected()),
-      get: (name) => toolSignature(router, name, pageConnected()),
+      list: () => catalogEntries(walked(), pageConnected()),
+      get: (name) => toolSignature(walked(), name, pageConnected()),
     },
-    sandboxTools: () => sandboxToolList(router, pageConnected()),
+    sandboxTools: () => sandboxToolList(router, walked(), pageConnected()),
   }
+}
+
+function namedConsistently(entries: RegistryWalkEntry[]): RegistryWalkEntry[] {
+  for (const entry of entries) {
+    const path = entry.path.join('.')
+    const declared = entry.meta['name']
+    if (declared !== path) {
+      throw new Error(
+        `the registry procedure at "${path}" declares the tool name "${String(declared)}" and would be uncallable by that name; a declared name must match its registered path`,
+      )
+    }
+  }
+  return entries
 }
 
 function emptyRouterNode<Node>(): Node {
@@ -233,13 +248,19 @@ function registerTool(
   router: Record<string, AnyRouter>,
   tool: AnyToolBuilder,
   pageCaller: RegistryPageCaller | undefined,
-  context: unknown,
+  registration: {owner: string; context?: unknown},
+  owners: Map<string, string>,
 ): void {
   assertRegistryTool(tool)
   assertToolCosmetics(tool)
   toJsonSchema(tool.inputSchema, `tool "${tool.name}" input`, 'input')
   toJsonSchema(tool.outputSchema, `tool "${tool.name}" output`, 'output')
-  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, context))
+  const holder = owners.get(tool.name)
+  if (holder !== undefined) {
+    throw new Error(`tool "${tool.name}" is declared by both ${holder} and ${registration.owner}`)
+  }
+  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, registration.context))
+  owners.set(tool.name, registration.owner)
 }
 
 function insertProcedure(router: Record<string, AnyRouter>, segments: string[], procedure: AnyRouter): void {
@@ -430,8 +451,7 @@ function signatureOf(entry: RegistryWalkEntry, listed: ToolCatalogEntry): ToolSi
   }
 }
 
-function toolSignature(router: Record<string, AnyRouter>, name: string, pageConnected: boolean): ToolSignature {
-  const walked = walkRegistryProcedures(router)
+function toolSignature(walked: RegistryWalkEntry[], name: string, pageConnected: boolean): ToolSignature {
   const index = walked.findIndex((candidate) => candidate.path.join('.') === name)
   const entry = walked[index]
   const listed = catalogEntries(walked, pageConnected)[index]
@@ -443,8 +463,11 @@ function isObjectSchema(schema: unknown): schema is z.ZodObject<z.ZodRawShape> {
   return isZodSchema(schema) && typeof Reflect.get(schema, 'shape') === 'object'
 }
 
-function sandboxToolList(router: ExtensionToolRouter, pageConnected: boolean): SandboxTool[] {
-  const walked = walkRegistryProcedures(router)
+function sandboxToolList(
+  router: ExtensionToolRouter,
+  walked: RegistryWalkEntry[],
+  pageConnected: boolean,
+): SandboxTool[] {
   const listed = catalogEntries(walked, pageConnected)
   return walked.map((entry, index) => {
     const base = listed[index]

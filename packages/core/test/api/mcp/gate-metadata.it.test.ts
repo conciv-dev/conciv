@@ -8,6 +8,7 @@ const wipe = defineTool({
   name: 'acme.wipe',
   description: 'Erase the whole canvas.',
   inputSchema: z.object({}),
+  outputSchema: z.object({wiped: z.boolean()}),
   meta: {summary: 'erase the whole canvas', mutating: true},
 }).server(() => ({wiped: true}))
 
@@ -24,6 +25,7 @@ const shred = defineTool({
   name: 'askme.shred',
   description: 'Shred a document.',
   inputSchema: z.object({}),
+  outputSchema: z.object({shredded: z.boolean()}),
   approval: 'ask',
   meta: {summary: 'shred a document', mutating: false},
 }).server(() => ({shredded: true}))
