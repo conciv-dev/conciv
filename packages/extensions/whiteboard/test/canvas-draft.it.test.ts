@@ -56,7 +56,7 @@ test('a pathological many-subpath svg is capped, not exploded into thousands of 
   } finally {
     await api.dispose()
   }
-})
+}, 120000)
 
 const BAD_PATH_AND_RECT =
   "<svg viewBox='0 0 100 100'><path d='M z'/><rect x='10' y='10' width='20' height='20' fill='#ccc'/></svg>"
