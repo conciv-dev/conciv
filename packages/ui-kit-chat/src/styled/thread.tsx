@@ -1,5 +1,4 @@
 import {
-  children,
   createContext,
   createMemo,
   Index,
@@ -9,6 +8,7 @@ import {
   useContext,
   type Component,
   type JSX,
+  type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {ArrowDown, Brain, FilePen, FileText, List, Search, Terminal, Wrench} from 'lucide-solid'
@@ -31,30 +31,16 @@ import {FOCUS} from './classes.js'
 
 export type ThreadComponents = {
   AssistantMessage?: Component
-  Welcome?: Component
   ToolFallback?: ToolUIComponent
 }
 
-export type ThreadProps = {
+export type ThreadRootProps = ParentProps<{class?: string}>
+
+export type ThreadMessagesProps = {
   components?: ThreadComponents
-
   tools?: ToolCardEntry[]
-  welcome?: JSX.Element
-  composer?: JSX.Element
-
   turnPrefix?: (turn: Turn) => JSX.Element
-
-  viewportFooter?: JSX.Element
-
-  viewportRef?: (element: HTMLElement) => void
-
-  overlay?: JSX.Element
-
-  notices?: JSX.Element
-
   attachmentCards?: readonly AttachmentCardSlot[]
-
-  class?: string
 }
 
 function asThinking(part: MessagePart | undefined): Extract<MessagePart, {type: 'thinking'}> | null {
@@ -236,10 +222,42 @@ function AssistantMessageView(): JSX.Element {
 
 const MESSAGES_COMPONENTS = {UserMessage: UserTurn, AssistantMessage: AssistantMessageView}
 
-export function Thread(props: ThreadProps): JSX.Element {
-  const composerSlot = children(() => props.composer)
-  const viewportFooterSlot = children(() => props.viewportFooter)
-  const noticesSlot = children(() => props.notices)
+function ThreadRoot(props: ThreadRootProps): JSX.Element {
+  return (
+    <div
+      class={`flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)] ${props.class ?? ''}`}
+    >
+      {props.children}
+    </div>
+  )
+}
+
+function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void}>): JSX.Element {
+  return (
+    <ThreadPrimitive.Viewport
+      ref={props.ref}
+      class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 relative overflow-y-auto"
+      role="log"
+      aria-live="off"
+    >
+      {props.children}
+      <div class="h-0 pointer-events-none self-center bottom-2 sticky z-10 overflow-visible">
+        <ThreadPrimitive.ScrollToBottom
+          class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer pointer-events-auto [background:var(--chat-glass)] [border:1px_solid_var(--chat-line)] [box-shadow:var(--chat-shadow-sm)] [color:var(--chat-accent-link)] [transition:opacity_120ms_var(--chat-ease),color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] items-center bottom-0 left-1/2 absolute data-[at-bottom]:opacity-0 data-[at-bottom]:invisible -translate-x-1/2 data-[at-bottom]:[transition:opacity_120ms_var(--chat-ease),color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),visibility_0s_linear_120ms] hover:[border-color:var(--chat-accent)] hover:[color:var(--chat-accent-hi)] ${FOCUS}`}
+        >
+          <ArrowDown size={12} aria-hidden="true" />
+          Latest
+        </ThreadPrimitive.ScrollToBottom>
+      </div>
+    </ThreadPrimitive.Viewport>
+  )
+}
+
+function ThreadWelcome(props: ParentProps): JSX.Element {
+  return <ThreadPrimitive.Empty>{props.children}</ThreadPrimitive.Empty>
+}
+
+function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
   return (
     <ThreadConfigContext.Provider
       value={{
@@ -250,41 +268,21 @@ export function Thread(props: ThreadProps): JSX.Element {
         attachmentCards: () => props.attachmentCards ?? [],
       }}
     >
-      <div
-        class={`flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)] ${props.class ?? ''}`}
-      >
-        <ThreadPrimitive.Viewport
-          ref={props.viewportRef}
-          class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 relative overflow-y-auto"
-          role="log"
-          aria-live="off"
-        >
-          <ThreadPrimitive.Empty>
-            <Show when={props.components?.Welcome} fallback={props.welcome}>
-              {(welcome) => <Dynamic component={welcome()} />}
-            </Show>
-          </ThreadPrimitive.Empty>
-          <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
-          <Show when={viewportFooterSlot()}>{viewportFooterSlot()}</Show>
-          {props.overlay}
-          <div class="h-0 pointer-events-none self-center bottom-2 sticky z-10 overflow-visible">
-            <ThreadPrimitive.ScrollToBottom
-              class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer pointer-events-auto [background:var(--chat-glass)] [border:1px_solid_var(--chat-line)] [box-shadow:var(--chat-shadow-sm)] [color:var(--chat-accent-link)] [transition:opacity_120ms_var(--chat-ease),color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] items-center bottom-0 left-1/2 absolute data-[at-bottom]:opacity-0 data-[at-bottom]:invisible -translate-x-1/2 data-[at-bottom]:[transition:opacity_120ms_var(--chat-ease),color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),visibility_0s_linear_120ms] hover:[border-color:var(--chat-accent)] hover:[color:var(--chat-accent-hi)] ${FOCUS}`}
-            >
-              <ArrowDown size={12} aria-hidden="true" />
-              Latest
-            </ThreadPrimitive.ScrollToBottom>
-          </div>
-        </ThreadPrimitive.Viewport>
-        <Show when={noticesSlot()}>
-          <div class="px-2 shrink-0 empty:hidden">{noticesSlot()}</div>
-        </Show>
-        <Show when={composerSlot()}>
-          <div class="p-2 shrink-0 [border-top:1px_solid_var(--chat-line)]">{composerSlot()}</div>
-        </Show>
-      </div>
+      <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
     </ThreadConfigContext.Provider>
   )
 }
+
+function ThreadComposer(props: ParentProps): JSX.Element {
+  return <div class="p-2 shrink-0 [border-top:1px_solid_var(--chat-line)]">{props.children}</div>
+}
+
+export const Thread = Object.assign(ThreadRoot, {
+  Root: ThreadRoot,
+  Viewport: ThreadViewport,
+  Welcome: ThreadWelcome,
+  Messages: ThreadMessages,
+  Composer: ThreadComposer,
+})
 
 export type {ToolCardProps}
