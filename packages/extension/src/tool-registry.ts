@@ -242,6 +242,15 @@ function assertRegistryTool(tool: AnyToolBuilder): asserts tool is RegistryTool 
   if (violated) throw new Error(`tool "${tool.name}": ${violated.reason}`)
 }
 
+function assertPositionalField(tool: RegistryTool): void {
+  const positional = tool.meta.positional
+  if (positional === undefined) return
+  if (positional in tool.inputSchema.shape) return
+  throw new Error(
+    `tool "${tool.name}": meta.positional names "${positional}" but the input schema declares no such field`,
+  )
+}
+
 function assertToolCosmetics(tool: RegistryTool): void {
   const parsed = StrictToolCosmetics.safeParse(tool.meta)
   if (parsed.success) return
@@ -259,6 +268,7 @@ function registerTool(
 ): void {
   assertRegistryTool(tool)
   assertToolCosmetics(tool)
+  assertPositionalField(tool)
   toJsonSchema(tool.inputSchema, `tool "${tool.name}" input`, 'input')
   toJsonSchema(tool.outputSchema, `tool "${tool.name}" output`, 'output')
   const holder = owners.get(tool.name)

@@ -695,3 +695,17 @@ test('malformed input to a registered tool is a validation error, not a swallowe
   registry.register(double, {owner: 'core'})
   await expect(registry.call('math.double', {n: 'zero'})).rejects.toThrow(/input/i)
 })
+
+test('a meta.positional naming a field the input schema does not declare is rejected at registration', () => {
+  const registry = createToolRegistry()
+  const drifted = defineTool({
+    name: 'page.drifted',
+    description: 'declares a positional its schema does not carry',
+    inputSchema: z.object({selector: z.string().optional()}),
+    outputSchema: z.object({ok: z.literal(true)}),
+    meta: {summary: 'declare a drifted positional', positional: 'selectr'},
+  }).client()
+  expect(() => registry.register(drifted, {owner: 'a test registrant'})).toThrow(
+    /meta\.positional names "selectr" but the input schema declares no such field/,
+  )
+})

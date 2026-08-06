@@ -79,6 +79,8 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
 const target = z.object(ElementTarget)
 const noInput = z.object({})
 
+const SelectorOnly = z.string().optional().describe('CSS selector for the target element')
+
 const AttributeName = z.string().describe('attribute name, e.g. href or data-state')
 const ComponentName = z.string().describe('React component name')
 const ClassName = z.string().describe('class name to add or remove')
@@ -115,7 +117,7 @@ export const queryDef = pageTool({
   icon: 'read',
   label: {running: 'Querying the page', done: 'Queried the page'},
   keywords: ['selector', 'match'],
-  input: target,
+  input: z.object({selector: SelectorOnly}),
   output: z.object({count: z.number(), elements: z.array(AnyRecord)}),
 })
 
@@ -170,7 +172,7 @@ export const existsDef = pageTool({
   icon: 'read',
   label: {running: 'Checking existence', done: 'Checked existence'},
   keywords: ['present'],
-  input: target,
+  input: z.object({selector: SelectorOnly}),
   output: z.object({exists: z.boolean(), count: z.number()}),
 })
 
@@ -182,7 +184,7 @@ export const snapshotDef = pageTool({
   label: {running: 'Capturing a snapshot', done: 'Captured a snapshot'},
   hint: 'act on every ref from one snapshot before taking another',
   keywords: ['accessibility', 'refs'],
-  input: target,
+  input: z.object({selector: SelectorOnly}),
   output: z.object({nodes: z.array(AnyRecord)}),
 })
 
@@ -221,7 +223,7 @@ export const locateDef = pageTool({
   keywords: ['source', 'file'],
   input: target,
   output: z.looseObject({
-    component: z.string().optional(),
+    component: z.string().nullable().optional(),
     stack: z.array(z.string()).optional(),
     frames: z.array(AnyRecord).optional(),
     source: z.object({file: z.string(), line: z.number(), column: z.number()}).nullish(),
@@ -240,7 +242,7 @@ export const inspectDef = pageTool({
     ...ElementTarget,
     path: z.string().optional().describe('dot-path to drill into, e.g. props.user.address'),
   }),
-  output: z.looseObject({component: z.string().optional()}),
+  output: z.looseObject({component: z.string().nullable().optional()}),
 })
 
 export const treeDef = pageTool({
@@ -323,7 +325,7 @@ export const waitDef = pageTool({
   hint: 'only when the page needs to settle',
   keywords: ['until', 'appear'],
   input: z.object({
-    ...ElementTarget,
+    selector: SelectorOnly,
     state: PageWaitStateSchema.optional().describe('state to wait for'),
     timeout: z.coerce.number().optional().describe('max wait in ms'),
   }),

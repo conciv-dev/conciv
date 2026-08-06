@@ -130,8 +130,8 @@ const routeTool = routeDef.client(() => ({
 const consoleTool = consoleDef.client((input, ctx) => ({entries: ctx.consoleEntries(input.since)}))
 
 const domTool = domDef.client((input, ctx) => {
-  const root = hasLocator(input) ? ctx.resolve(input) : ctx.document.body
-  return {html: (root?.outerHTML ?? '').slice(0, DOM_CAP)}
+  const root = hasLocator(input) ? ctx.target(input) : ctx.document.body
+  return {html: root.outerHTML.slice(0, DOM_CAP)}
 })
 
 const queryTool = queryDef.client((input, ctx) => {

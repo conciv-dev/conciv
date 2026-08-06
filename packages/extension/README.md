@@ -79,32 +79,43 @@ prompts for user approval on every surface.
 Only tools declared by extensions the widget actually mounted are dispatchable — a failed client
 mount contributes no browser tools.
 
-### Every failure is a typed `PageVerbError`
+### Every failure is a declared registry error
 
-A forwarded browser call rejects with the tool's declared transport errors (`NO_PAGE_CLIENT`,
-`PAGE_TIMEOUT`, `UNKNOWN_TOOL`, `INVALID_ARGS`, `HANDLER_ERROR`); on the raw page seam these map
-from a `PageVerbError` (guard it with `isPageVerbError`) carrying a `code`, the owning name, and
-the verb:
+`server.tools.call` goes through the tool registry, and the registry converts every page failure
+into one of the tool's **declared transport errors** before rejecting — a typed oRPC error whose
+`code` is uppercase. By the time your `catch` runs there is no `PageVerbError` left to guard for;
+match on the declared code instead:
 
-| `code`          | Meaning                                                              |
-| --------------- | -------------------------------------------------------------------- |
-| `no-widget`     | No widget is connected, so the verb cannot run in any browser.       |
-| `timeout`       | A widget is connected but never replied within the page-bus timeout. |
-| `unknown-verb`  | No mounted extension declares a client tool by that name.            |
-| `invalid-args`  | The arguments failed the verb's zod schema.                          |
-| `handler-error` | The handler threw, or returned a non-JSON-serializable value.        |
+| Declared code    | Meaning                                                               |
+| ---------------- | --------------------------------------------------------------------- |
+| `NO_PAGE_CLIENT` | No widget is connected, so the body cannot run in any browser.        |
+| `PAGE_TIMEOUT`   | A widget is connected but never replied within the page-bus timeout.  |
+| `UNKNOWN_TOOL`   | No mounted extension declares a client tool by that name.             |
+| `INVALID_ARGS`   | The arguments failed the tool's zod schema, or the target is missing. |
+| `HANDLER_ERROR`  | The body threw, or returned a non-JSON-serializable value.            |
+
+A `toolError(code)` thrown by the browser body whose code the declaration lists under `errors`
+is rebuilt as that declared error instead of `HANDLER_ERROR`.
 
 ```ts
-import {isPageVerbError} from '@conciv/extension'
+function declaredCode(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return null
+  return typeof error.code === 'string' ? error.code : null
+}
 
 try {
   await server.tools.call('demo.routerState', {})
 } catch (error) {
-  if (isPageVerbError(error) && error.code === 'no-widget') {
+  if (declaredCode(error) === 'NO_PAGE_CLIENT') {
     // degrade gracefully — nothing is looking at the page
   }
 }
 ```
+
+`isPageVerbError` still exists, but it only fires on the **raw page seam** — `server.page.call`,
+the unwrapped browser ask that skips the registry (used, for example, by a server handler that
+wraps its own client body). There the rejection is a lowercase-coded `PageVerbError`
+(`no-widget`, `timeout`, `unknown-verb`, `invalid-args`, `handler-error`).
 
 ### Loading / error card contract
 

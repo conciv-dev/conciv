@@ -45,6 +45,10 @@ beforeAll(async () => {
     <form id="frm"><button id="inner" type="button">inner</button></form>
     <p id="prose">hello page</p>
     <span id="failprobe">probe</span>
+    <select id="sel"><option value="a">A</option><option value="b">B</option></select>
+    <button id="hovbtn">hover me</button>
+    <div id="styled">styled</div>
+    <div id="htmlhost"><i>old</i></div>
   `
   document.body.appendChild(container)
   const mount = document.createElement('div')
@@ -223,6 +227,108 @@ describe('react verbs through the dispatcher', () => {
     ).toBe(true)
     const stopped = await resultOf('track', {action: 'stop'})
     expect(stopped.tracking).toBe(false)
+  })
+})
+
+describe('act and edit-live verbs', () => {
+  it('selects an option with native change events', async () => {
+    const changes: string[] = []
+    document.querySelector('#sel')?.addEventListener('change', (event) => {
+      const el = event.target
+      if (el instanceof HTMLSelectElement) changes.push(el.value)
+    })
+    expect(await resultOf('select', {selector: '#sel', value: 'b'})).toEqual({ok: true, value: 'b'})
+    expect(changes).toEqual(['b'])
+    expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'b'})
+  })
+
+  it('submits the form owning the target without navigating', async () => {
+    const submitted: string[] = []
+    document.querySelector('#frm')?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      submitted.push('submitted')
+    })
+    expect(await resultOf('submit', {selector: '#inner'})).toEqual({ok: true})
+    expect(submitted).toEqual(['submitted'])
+  })
+
+  it('presses a key so keydown and keyup both reach the element', async () => {
+    const keys: string[] = []
+    document.querySelector('#field')?.addEventListener('keydown', (event) => {
+      if (event instanceof KeyboardEvent) keys.push(`down:${event.key}`)
+    })
+    document.querySelector('#field')?.addEventListener('keyup', (event) => {
+      if (event instanceof KeyboardEvent) keys.push(`up:${event.key}`)
+    })
+    expect(await resultOf('press', {selector: '#field', key: 'Enter'})).toEqual({ok: true})
+    expect(keys).toEqual(['down:Enter', 'up:Enter'])
+  })
+
+  it('hovers with bubbling mouseover and mouseenter', async () => {
+    const seen: string[] = []
+    document.querySelector('#hovbtn')?.addEventListener('mouseover', () => seen.push('over'))
+    document.querySelector('#hovbtn')?.addEventListener('mouseenter', () => seen.push('enter'))
+    expect(await resultOf('hover', {selector: '#hovbtn'})).toEqual({ok: true})
+    expect(seen).toEqual(['over', 'enter'])
+  })
+
+  it('scrolls a far-away element into view', async () => {
+    const spacer = document.createElement('div')
+    spacer.style.height = '3000px'
+    const landmark = document.createElement('p')
+    landmark.id = 'far-down'
+    landmark.textContent = 'down here'
+    document.body.append(spacer, landmark)
+    expect(window.scrollY).toBe(0)
+    expect(await resultOf('scroll', {selector: '#far-down'})).toEqual({ok: true})
+    await vi.waitFor(() => {
+      if (window.scrollY === 0) throw new Error('the page has not scrolled yet')
+    })
+    window.scrollTo(0, 0)
+    spacer.remove()
+    landmark.remove()
+  })
+
+  it('replaces inner HTML with sethtml', async () => {
+    expect(await resultOf('sethtml', {selector: '#htmlhost', html: '<em id="fresh">new</em>'})).toEqual({ok: true})
+    expect(document.querySelector('#htmlhost')?.innerHTML).toBe('<em id="fresh">new</em>')
+  })
+
+  it('sets one inline style property with setstyle', async () => {
+    expect(await resultOf('setstyle', {selector: '#styled', prop: 'color', value: 'rgb(1, 2, 3)'})).toEqual({ok: true})
+    const el = document.querySelector('#styled')
+    expect(el instanceof HTMLElement ? el.style.getPropertyValue('color') : '').toBe('rgb(1, 2, 3)')
+  })
+})
+
+describe('console reads', () => {
+  it('since is inclusive: an entry stamped exactly at since is returned, one past it is not', async () => {
+    console.log('console-marker-inclusive')
+    const all = await resultOf('console')
+    const entries = Array.isArray(all.entries) ? all.entries : []
+    const marker = entries.flatMap((entry) =>
+      typeof entry === 'object' && entry !== null && 'text' in entry && entry.text === 'console-marker-inclusive'
+        ? [entry]
+        : [],
+    )[0]
+    const ts = marker && 'ts' in marker && typeof marker.ts === 'number' ? marker.ts : Number.NaN
+    expect(Number.isNaN(ts)).toBe(false)
+    const atSince = await resultOf('console', {since: ts})
+    const atEntries = Array.isArray(atSince.entries) ? atSince.entries : []
+    expect(
+      atEntries.some(
+        (entry) =>
+          typeof entry === 'object' && entry !== null && 'text' in entry && entry.text === 'console-marker-inclusive',
+      ),
+    ).toBe(true)
+    const pastSince = await resultOf('console', {since: ts + 1})
+    const pastEntries = Array.isArray(pastSince.entries) ? pastSince.entries : []
+    expect(
+      pastEntries.some(
+        (entry) =>
+          typeof entry === 'object' && entry !== null && 'text' in entry && entry.text === 'console-marker-inclusive',
+      ),
+    ).toBe(false)
   })
 })
 
