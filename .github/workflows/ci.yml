@@ -400,8 +400,31 @@ jobs:
       # surface a visible error (proving spawn + stream + error plumbing), never hang or
       # vanish. pi is a stub harness and never spawns its binary. Only the shard that
       # owns conciv-e2e-harnesses pays for this install.
-      - run: sfw npm install -g @anthropic-ai/claude-code@2.1.212 @openai/codex@0.144.5 @google/gemini-cli@0.51.0 opencode-ai@1.18.3
+      # sfw exits 0 even when it crashes mid-install ("Socket Firewall encountered an
+      # unexpected error: TypeError: fetch failed"), so a green step used to mean nothing
+      # and the missing CLI surfaced much later as `claude: not found` inside a turn
+      # assertion. Success is keyed on the binaries resolving, never on the exit code.
+      - name: Install harness CLIs
         if: matrix.harnesses
+        run: |
+          packages="@anthropic-ai/claude-code@2.1.212 @openai/codex@0.144.5 @google/gemini-cli@0.51.0 opencode-ai@1.18.3"
+          missing=""
+          for attempt in 1 2 3; do
+            sfw npm install -g $packages || echo "attempt ${attempt}: sfw npm install -g reported a failure"
+            missing=""
+            for binary in claude codex gemini opencode; do
+              command -v "$binary" >/dev/null 2>&1 || missing="${missing} ${binary}"
+            done
+            if [ -z "$missing" ]; then
+              exit 0
+            fi
+            echo "attempt ${attempt}: harness CLIs still missing:${missing}"
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 15))
+            fi
+          done
+          echo "::error::harness CLI install failed after 3 attempts; missing binaries:${missing}"
+          exit 1
       # Consumer-shape suites: dist widget in CLI-scaffolded apps (root e2e/) plus the
       # site's own e2e suite. test:e2e is cache:false in turbo.json, so every run
       # exercises the real servers; --concurrency=1 keeps a shard's apps serial because

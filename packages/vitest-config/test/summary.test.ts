@@ -50,11 +50,18 @@ function report(overrides: {status?: string; failureMessages?: string[]; fileSta
 function playwrightTest(overrides: {
   status?: string
   projectName?: string
-  results?: {status: string; duration: number; errors?: {message: string}[]}[]
+  annotations?: {type: string; description?: string}[]
+  results?: {
+    status: string
+    duration: number
+    errors?: {message: string}[]
+    annotations?: {type: string; description?: string}[]
+  }[]
 }) {
   return {
     projectName: overrides.projectName ?? 'chromium',
     status: overrides.status ?? 'expected',
+    annotations: overrides.annotations ?? [],
     results: overrides.results ?? [{status: 'passed', duration: 1500, errors: []}],
   }
 }
@@ -87,6 +94,7 @@ test('parseReport counts passes, failures, skips and strips ansi from failure me
     durationMs: 8,
     retries: 0,
     message: 'expected 1 to be 2',
+    annotations: [],
   })
 })
 
@@ -109,7 +117,14 @@ test('parseReport surfaces file-level errors when no assertion ran', () => {
   expect(parsed).toHaveLength(1)
   expect(parsed[0]?.failed).toBe(1)
   expect(parsed[0]?.cases).toEqual([
-    {title: 'test/boom.test.ts', status: 'failed', durationMs: 5, retries: 0, message: 'transform crashed'},
+    {
+      title: 'test/boom.test.ts',
+      status: 'failed',
+      durationMs: 5,
+      retries: 0,
+      message: 'transform crashed',
+      annotations: [],
+    },
   ])
 })
 
@@ -159,6 +174,7 @@ test('parseReport parses playwright json reports with retries and stripped ansi 
     durationMs: 1700,
     retries: 1,
     message: 'launcher not visible',
+    annotations: [],
   })
 })
 
@@ -187,7 +203,90 @@ test('parseReport surfaces playwright global errors as failures', () => {
     durationMs: 0,
     retries: 0,
     message: 'web server timed out',
+    annotations: [],
   })
+})
+
+test('parseReport carries playwright annotations from the test and from every retry', () => {
+  const parsed = parseReport(
+    'conciv-e2e-harnesses',
+    playwrightReport({
+      tests: [
+        playwrightTest({
+          projectName: 'gemini-cli',
+          annotations: [{type: 'turn-outcome', description: 'gemini-cli: Please set an Auth method'}],
+          results: [
+            {
+              status: 'passed',
+              duration: 1200,
+              errors: [],
+              annotations: [
+                {type: 'turn-outcome', description: 'gemini-cli: Please set an Auth method'},
+                {type: 'turn-outcome', description: 'gemini-cli: first attempt hung'},
+              ],
+            },
+          ],
+        }),
+      ],
+    }),
+  )
+  expect(parsed[0]?.cases[0]?.annotations).toEqual([
+    {type: 'turn-outcome', description: 'gemini-cli: Please set an Auth method'},
+    {type: 'turn-outcome', description: 'gemini-cli: first attempt hung'},
+  ])
+})
+
+test('a shard report keeps the annotations of a passing case through the round trip', () => {
+  const shard: PackageSummary[] = [
+    {
+      name: 'conciv-e2e-harnesses (codex)',
+      passed: 1,
+      failed: 0,
+      flaky: 0,
+      skipped: 0,
+      timeMs: 900,
+      cases: [
+        {
+          title: 'full app boots with the configured harness',
+          status: 'passed',
+          durationMs: 900,
+          retries: 0,
+          message: '',
+          annotations: [{type: 'turn-outcome', description: 'codex: You are not signed in'}],
+        },
+      ],
+      coverage: null,
+    },
+  ]
+  expect(parseSummaries(JSON.stringify(shard))).toEqual(shard)
+})
+
+test('renderSummary with details shows the annotations of a passing case', () => {
+  const output = renderSummary(
+    [
+      {
+        name: 'conciv-e2e-harnesses (opencode)',
+        passed: 1,
+        failed: 0,
+        flaky: 0,
+        skipped: 0,
+        timeMs: 900,
+        cases: [
+          {
+            title: 'boots',
+            status: 'passed',
+            durationMs: 900,
+            retries: 0,
+            message: '',
+            annotations: [{type: 'turn-outcome', description: 'opencode: no <provider> configured'}],
+          },
+        ],
+        coverage: null,
+      },
+    ],
+    {details: true, title: 'E2e consumer apps'},
+  )
+  expect(output).toContain('<pre>turn-outcome: opencode: no &lt;provider&gt; configured</pre>')
 })
 
 test('renderSummary with details renders one collapsible per-test table per package', () => {
@@ -253,8 +352,15 @@ test('shard reports survive a JSON round trip and merge into one table', () => {
       skipped: 0,
       timeMs: 1_000,
       cases: [
-        {title: 'a', status: 'passed', durationMs: 5, retries: 0, message: ''},
-        {title: 'b', status: 'flaky', durationMs: 7, retries: 1, message: ''},
+        {title: 'a', status: 'passed', durationMs: 5, retries: 0, message: '', annotations: []},
+        {
+          title: 'b',
+          status: 'flaky',
+          durationMs: 7,
+          retries: 1,
+          message: '',
+          annotations: [{type: 'turn-outcome', description: 'claude: 401 unauthorized'}],
+        },
       ],
       coverage: {covered: 5, total: 10},
     },
@@ -268,8 +374,8 @@ test('shard reports survive a JSON round trip and merge into one table', () => {
       skipped: 1,
       timeMs: 2_000,
       cases: [
-        {title: 'explodes', status: 'failed', durationMs: 9, retries: 0, message: 'boom'},
-        {title: 'ignored', status: 'skipped', durationMs: 0, retries: 0, message: ''},
+        {title: 'explodes', status: 'failed', durationMs: 9, retries: 0, message: 'boom', annotations: []},
+        {title: 'ignored', status: 'skipped', durationMs: 0, retries: 0, message: '', annotations: []},
       ],
       coverage: null,
     },
@@ -291,7 +397,7 @@ test('parseSummaries recomputes counts instead of trusting a shard report', () =
         flaky: 0,
         skipped: 0,
         timeMs: 1,
-        cases: [{title: 't', status: 'failed', durationMs: 1, retries: 0, message: 'boom'}],
+        cases: [{title: 't', status: 'failed', durationMs: 1, retries: 0, message: 'boom', annotations: []}],
         coverage: null,
       },
     ]),
@@ -317,7 +423,16 @@ test('a failure message cannot break out of its code fence to inject markdown', 
       flaky: 0,
       skipped: 0,
       timeMs: 1,
-      cases: [{title: 't', status: 'failed', durationMs: 1, retries: 0, message: '```\n## injected heading\n```'}],
+      cases: [
+        {
+          title: 't',
+          status: 'failed',
+          durationMs: 1,
+          retries: 0,
+          message: '```\n## injected heading\n```',
+          annotations: [],
+        },
+      ],
       coverage: null,
     },
   ])
@@ -334,7 +449,7 @@ test('an enormous failure message is truncated so it cannot blow the job-summary
       flaky: 0,
       skipped: 0,
       timeMs: 1,
-      cases: [{title: 't', status: 'failed', durationMs: 1, retries: 0, message: 'x'.repeat(20_000)}],
+      cases: [{title: 't', status: 'failed', durationMs: 1, retries: 0, message: 'x'.repeat(20_000), annotations: []}],
       coverage: null,
     },
   ])
@@ -369,6 +484,7 @@ test('a test title cannot terminate its html block and inject markdown', () => {
             durationMs: 1,
             retries: 0,
             message: 'boom',
+            annotations: [],
           },
         ],
         coverage: null,

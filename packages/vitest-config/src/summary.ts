@@ -8,12 +8,15 @@ export type Coverage = {covered: number; total: number}
 
 export type CaseStatus = 'passed' | 'failed' | 'flaky' | 'skipped'
 
+export type CaseAnnotation = {type: string; description: string}
+
 export type CaseResult = {
   title: string
   status: CaseStatus
   durationMs: number
   retries: number
   message: string
+  annotations: CaseAnnotation[]
 }
 
 export type PackageSummary = {
@@ -128,6 +131,7 @@ function vitestCase(result: Record<string, unknown>): CaseResult {
     durationMs: asNumber(result.duration),
     retries: 0,
     message: stripVTControlCharacters(messages.join('\n')),
+    annotations: [],
   }
 }
 
@@ -144,6 +148,7 @@ function fileCrashCase(file: Record<string, unknown>): CaseResult {
     durationMs: fileDuration(file),
     retries: 0,
     message: stripVTControlCharacters(asString(file.message)),
+    annotations: [],
   }
 }
 
@@ -181,6 +186,19 @@ const PLAYWRIGHT_STATUS: Record<string, CaseStatus> = {
 
 type ProjectCase = {project: string; result: CaseResult}
 
+function annotationKey(annotation: CaseAnnotation): string {
+  return `${annotation.type}\n${annotation.description}`
+}
+
+function toAnnotation(entry: Record<string, unknown>): CaseAnnotation {
+  return {type: asString(entry.type), description: asString(entry.description)}
+}
+
+function uniqueAnnotations(entries: Record<string, unknown>[]): CaseAnnotation[] {
+  const byKey = new Map(entries.map(toAnnotation).map((annotation) => [annotationKey(annotation), annotation]))
+  return [...byKey.values()]
+}
+
 function playwrightCase(titles: string[], spec: Record<string, unknown>, test: Record<string, unknown>): ProjectCase {
   const results = toRecords(test.results)
   const messages = results.flatMap((result) => toRecords(result.errors).map((error) => asString(error.message)))
@@ -192,6 +210,10 @@ function playwrightCase(titles: string[], spec: Record<string, unknown>, test: R
       durationMs: results.reduce((total, result) => total + asNumber(result.duration), 0),
       retries: Math.max(0, results.length - 1),
       message: stripVTControlCharacters(messages.join('\n')),
+      annotations: uniqueAnnotations([
+        ...toRecords(test.annotations),
+        ...results.flatMap((result) => toRecords(result.annotations)),
+      ]),
     },
   }
 }
@@ -213,6 +235,7 @@ function playwrightGlobalCrashes(report: Record<string, unknown>): CaseResult[] 
     durationMs: 0,
     retries: 0,
     message: stripVTControlCharacters(asString(error.message)),
+    annotations: [],
   }))
 }
 
@@ -294,6 +317,7 @@ function toCaseResult(value: unknown): CaseResult {
     durationMs: asNumber(record.durationMs),
     retries: asNumber(record.retries),
     message: stripVTControlCharacters(asString(record.message)),
+    annotations: uniqueAnnotations(toRecords(record.annotations)),
   }
 }
 
@@ -408,6 +432,10 @@ function failureSection(summary: PackageSummary): string[] {
   )
 }
 
+function noteRow(body: string): string {
+  return `<tr><td colspan="4"><pre>${escapeHtml(body)}</pre></td></tr>`
+}
+
 function caseRows(entry: CaseResult): string[] {
   const cells = [
     inlineText(entry.title),
@@ -416,8 +444,9 @@ function caseRows(entry: CaseResult): string[] {
     blankIfZero(entry.retries),
   ]
   const testRow = `<tr><td>${cells.join('</td><td>')}</td></tr>`
-  if (entry.message === '') return [testRow]
-  return [testRow, `<tr><td colspan="4"><pre>${escapeHtml(entry.message)}</pre></td></tr>`]
+  const annotationRows = entry.annotations.map((annotation) => noteRow(`${annotation.type}: ${annotation.description}`))
+  if (entry.message === '') return [testRow, ...annotationRows]
+  return [testRow, ...annotationRows, noteRow(entry.message)]
 }
 
 function detailsLabel(summary: PackageSummary): string {
