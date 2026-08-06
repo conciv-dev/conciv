@@ -4,7 +4,7 @@ import {makeExtRpcClient} from '@conciv/extension'
 import {type RecorderRouter} from '../src/server.js'
 import {RECORDER_MIME, RECORDER_NAME, recordingRefJson} from '../src/shared/protocol.js'
 import {useRecorderTestApi} from './helpers/test-api.js'
-import {addMarker} from './helpers/fixtures.js'
+import {addMarker, startLiveCapture} from './helpers/fixtures.js'
 
 const api = useRecorderTestApi()
 
@@ -18,6 +18,7 @@ async function attachThroughForm(name: string, text: string): Promise<void> {
 
 describe('recording card in the testkit host (real chips, real store)', () => {
   it('renders the real chip with poster + Play, plays over a real fetch, and shows expired for a dead id', async () => {
+    await startLiveCapture(api())
     await addMarker(api().page)
     await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})
 

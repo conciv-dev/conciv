@@ -13,6 +13,7 @@ export const VIEWER_LEASE_MS = 20_000
 export type CaptureControl = {
   subscribe(emit: (control: RecorderControl) => void): () => void
   emit(control: RecorderControl): void
+  isLive(): boolean
   startCapture(): {captureId: string; startTs: number}
   stopCapture(captureId: string): {startTs: number; stopTs: number} | null
   releaseAllCaptures(): void
@@ -70,6 +71,7 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
       return () => listeners.delete(listener)
     },
     emit,
+    isLive,
     startCapture() {
       const captureId = randomUUID()
       const startTs = now()

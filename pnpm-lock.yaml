@@ -2663,6 +2663,9 @@ importers:
       '@conciv/extension-ios':
         specifier: workspace:^
         version: link:../extensions/ios
+      '@conciv/extension-recorder':
+        specifier: workspace:^
+        version: link:../extensions/recorder
       '@conciv/extension-terminal':
         specifier: workspace:^
         version: link:../extensions/terminal
