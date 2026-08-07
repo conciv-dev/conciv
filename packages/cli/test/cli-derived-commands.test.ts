@@ -2,7 +2,7 @@ import {describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
 import {main} from '../src/bin.js'
 import {runCli} from '../src/run.js'
-import {answerNextQuery, bootCli} from './support/cli-app.js'
+import {answerNextQuery, approvedSession, bootCli} from './support/cli-app.js'
 import {cliSession} from './support/cli-session.js'
 import {onlyDocument} from './support/stdout.js'
 
@@ -22,25 +22,28 @@ async function helpFor(argv: string[]): Promise<string> {
 describe('the CLI reads its commands from the tool declarations', () => {
   it('sends the effect argument to the server instead of dropping it', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true, result: {}})
+    const answer = await answerNextQuery(kit, {ok: true, result: {effect: 'confetti', enabled: true}})
     expect(await runCli(main, ['tools', 'page', 'effect', '--action', 'enable', '--effect', 'confetti'])).toBe(0)
-    expect(answer.seen()).toMatchObject({kind: 'effect', action: 'enable', effect: 'confetti'})
+    expect(answer.seen()).toMatchObject({name: 'page.effect', input: {action: 'enable', effect: 'confetti'}})
   })
 
   it('accepts every action value the protocol declares, not only the first three', async () => {
     const kit = await bootCli(cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {}})
     expect(await runCli(main, ['tools', 'react', 'track', '--action', 'toggle'])).toBe(0)
-    expect(answer.seen()).toMatchObject({kind: 'track', action: 'toggle'})
+    expect(answer.seen()).toMatchObject({name: 'page.track', input: {action: 'toggle'}})
   })
 
   it('names the attribute of an edit separately from the React component name', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true, result: {}})
+    const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
     expect(await runCli(main, ['tools', 'page', 'setattr', '#a', '--attribute', 'data-state', '--value', 'open'])).toBe(
       0,
     )
-    expect(answer.seen()).toMatchObject({kind: 'setattr', attribute: 'data-state', value: 'open'})
+    expect(answer.seen()).toMatchObject({
+      name: 'page.setattr',
+      input: {selector: '#a', attribute: 'data-state', value: 'open'},
+    })
   })
 
   it('rejects an edit that names no attribute rather than sending a nameless one', async () => {
@@ -54,7 +57,7 @@ describe('the CLI reads its commands from the tool declarations', () => {
     const kit = await bootCli(cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: ''}})
     expect(await runCli(main, ['tools', 'page', 'fill', '#email', '--value', ''])).toBe(0)
-    expect(answer.seen()).toMatchObject({kind: 'fill', selector: '#email', value: ''})
+    expect(answer.seen()).toMatchObject({name: 'page.fill', input: {selector: '#email', value: ''}})
   })
 
   it('still refuses a required flag that was never passed at all', async () => {
@@ -81,7 +84,7 @@ describe('the CLI reads its commands from the tool declarations', () => {
 
   it('derives a dev-server operation and its positional from the declaration', async () => {
     const reloaded: string[] = []
-    await bootCli(cleanups, {
+    const kit = await bootCli(cleanups, {
       bridge: {
         id: 'derived-test',
         config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
@@ -95,8 +98,10 @@ describe('the CLI reads its commands from the tool declarations', () => {
         restart: async () => {},
       },
     })
+    const session = await approvedSession(kit, cleanups)
     expect(await runCli(main, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(0)
     expect(reloaded).toEqual(['src/hot.ts'])
+    expect(session.approved()).toHaveLength(1)
   })
 
   it('takes the positional the dev-server declaration names and leaves its other fields as flags', async () => {

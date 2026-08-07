@@ -9,7 +9,7 @@ const create = async (
   text: string,
   model: string,
 ): Promise<void> => {
-  await api.callTool('comment.create', {
+  await api.callToolApproved('comment.create', {
     cid: crypto.randomUUID(),
     kind: 'floating',
     parts: [{type: 'text', text}],

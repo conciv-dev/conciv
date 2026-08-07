@@ -1,5 +1,5 @@
 import {and, eq} from 'drizzle-orm'
-import {defineTool} from '@conciv/extension'
+import {defineTool, toolError} from '@conciv/extension'
 import {json, type JsonValue} from '../../shared/rows.js'
 import {comments, pins} from '../../server/db/schema.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
@@ -20,7 +20,7 @@ const commentByCid = async (ctx: WhiteboardToolContext, sessionId: string, cid: 
     .select()
     .from(comments)
     .where(and(eq(comments.sessionId, sessionId), eq(comments.cid, cid)))
-  if (!row) throw new Error(`comment ${cid} not found`)
+  if (!row) throw toolError('COMMENT_NOT_FOUND', {message: `comment ${cid} not found`})
   return row
 }
 
@@ -29,7 +29,7 @@ const pinByCid = async (ctx: WhiteboardToolContext, room: string, cid: string) =
     .select()
     .from(pins)
     .where(and(eq(pins.room, room), eq(pins.cid, cid)))
-  if (!row) throw new Error(`no pin for comment ${cid}`)
+  if (!row) throw toolError('PIN_NOT_FOUND', {message: `no pin for comment ${cid}`})
   return row
 }
 

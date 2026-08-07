@@ -60,15 +60,56 @@ it('builds the composer busy slot exactly once', async () => {
   await expectSingleInstance('composer busy')
 })
 
-it('builds the thread viewport footer slot exactly once', async () => {
+it('builds thread viewport children exactly once', async () => {
   const Probe = createSlotProbe('thread footer')
   mountView(() => (
     <ChatHost>
-      <Thread viewportFooter={<Probe />} />
+      <Thread>
+        <Thread.Viewport>
+          <Thread.Messages />
+          <Probe />
+        </Thread.Viewport>
+      </Thread>
     </ChatHost>
   ))
 
   await expectSingleInstance('thread footer')
+})
+
+it('builds thread welcome children exactly once', async () => {
+  const Probe = createSlotProbe('thread welcome')
+  mountView(() => (
+    <ChatHost>
+      <Thread>
+        <Thread.Viewport>
+          <Thread.Welcome>
+            <Probe />
+          </Thread.Welcome>
+          <Thread.Messages />
+        </Thread.Viewport>
+      </Thread>
+    </ChatHost>
+  ))
+
+  await expectSingleInstance('thread welcome')
+})
+
+it('builds thread composer children exactly once', async () => {
+  const Probe = createSlotProbe('thread composer region')
+  mountView(() => (
+    <ChatHost>
+      <Thread>
+        <Thread.Viewport>
+          <Thread.Messages />
+        </Thread.Viewport>
+        <Thread.Composer>
+          <Probe />
+        </Thread.Composer>
+      </Thread>
+    </ChatHost>
+  ))
+
+  await expectSingleInstance('thread composer region')
 })
 
 it('builds the model selector trigger slot exactly once', async () => {

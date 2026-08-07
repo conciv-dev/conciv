@@ -1,7 +1,7 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/tools.ts', 'src/defs.ts', 'src/builtins.ts', 'src/builtins/page-tools.ts'],
+  entry: ['src/tools.ts', 'src/defs.ts', 'src/builtins.ts'],
   format: 'esm',
   fixedExtension: false,
   dts: true,

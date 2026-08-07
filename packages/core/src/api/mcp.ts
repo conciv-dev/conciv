@@ -262,7 +262,8 @@ type McpDeps = {
 export type McpVars = {mcp: McpDeps}
 
 function buildServer(deps: McpDeps, request: ToolRequest): McpServer {
-  const codeMode = makeCodeMode(() => deps.capabilities(request.sessionId), request, deps.askGate(request.sessionId))
+  const gate = deps.askGate(request.sessionId)
+  const codeMode = makeCodeMode(() => deps.capabilities(request.sessionId), request, gate)
   const server = new McpServer(
     {name: 'conciv', version: '0.0.0'},
     {instructions: serverInstructions(codeMode?.categories ?? [])},

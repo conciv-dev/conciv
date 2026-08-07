@@ -20,6 +20,7 @@ export type RpcDeps = {
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   page: PageEnv
   registry: ToolRegistry
+  askTimeoutMs?: number
 }
 
 export const os = implement(contract).$context<RpcContext>()

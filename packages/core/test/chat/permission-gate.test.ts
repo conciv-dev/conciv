@@ -19,6 +19,13 @@ const fixture = (timeoutMs?: number) => {
   return {asks, emitted, approvalId, gate}
 }
 
+const settledApprovalId = async (approvalId: () => string | undefined): Promise<string> => {
+  await new Promise((resolve) => setTimeout(resolve, 60))
+  const id = approvalId()
+  if (id === undefined) throw new Error('no approval id')
+  return id
+}
+
 describe('run gate on awaitReply', () => {
   it('allows a safe tool outright (no approval part)', async () => {
     const {gate, emitted} = fixture()
@@ -34,7 +41,7 @@ describe('run gate on awaitReply', () => {
     'mcp__conciv__canvas_delete',
   ])('gates %s: every caller path names the same risky tool', async (name) => {
     const {gate} = fixture(30)
-    expect(await gate.decide(name, {id: 'r1'}, 'conciv_x', 'tu2')).toBe('deny')
+    expect(await gate.decide(name, {id: 'r1'}, 'conciv_x', 'tu2')).toBe('timeout')
   })
 
   it.each(['canvas.read', 'mcp__conciv__canvas.draw', 'mcp__tanstack__canvas.read'])(
@@ -48,32 +55,32 @@ describe('run gate on awaitReply', () => {
   it('fires an approval request for a bridge-visible risky tool name (does not execute silently)', async () => {
     const {gate, asks, approvalId} = fixture(5_000)
     const pending = gate.decide('mcp__tanstack__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu3b')
-    await new Promise((resolve) => setTimeout(resolve, 60))
-    const id = approvalId()
-    expect(id).toBeDefined()
-    if (id === undefined) throw new Error('no approval id')
-    asks.reply('conciv_x', id, false)
+    asks.reply('conciv_x', await settledApprovalId(approvalId), false)
     expect(await pending).toBe('deny')
   })
 
   it('risky tool with no folded part gets a synthetic part, annotated with the approval, and an approve reply allows', async () => {
     const {gate, asks, approvalId} = fixture(5_000)
     const pending = gate.decide('mcp__conciv__canvas.delete', {id: 'r1'}, 'conciv_x', 'tu4')
-    await new Promise((resolve) => setTimeout(resolve, 60))
-    const id = approvalId()
-    expect(id).toBeDefined()
-    if (id === undefined) throw new Error('no approval id')
-    asks.reply('conciv_x', id, true)
+    asks.reply('conciv_x', await settledApprovalId(approvalId), true)
     expect(await pending).toBe('allow')
   })
 
   it('a deny reply denies', async () => {
     const {gate, asks, approvalId} = fixture(5_000)
     const pending = gate.decide('Bash', {command: 'rm -rf /tmp/x'}, 'conciv_x', 'tu5')
-    await new Promise((resolve) => setTimeout(resolve, 60))
-    const id = approvalId()
-    if (id === undefined) throw new Error('no approval id')
-    asks.reply('conciv_x', id, false)
+    asks.reply('conciv_x', await settledApprovalId(approvalId), false)
     expect(await pending).toBe('deny')
+  })
+})
+
+describe('run gate on page calls', () => {
+  it('conciv_page passes without approval for reads and mutations alike', async () => {
+    const {gate, emitted} = fixture(5_000)
+    expect(await gate.decide('conciv_page', {verb: 'text', selector: '#h'}, 'conciv_x', 'tu-page-read')).toBe('allow')
+    expect(await gate.decide('conciv_page', {verb: 'click', selector: '.buy'}, 'conciv_x', 'tu-page-click')).toBe(
+      'allow',
+    )
+    expect(emitted).toEqual([])
   })
 })

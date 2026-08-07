@@ -1,4 +1,5 @@
-import type {PageCaller} from '@conciv/extension'
+import type {z} from 'zod'
+import type {ServerToolCaller} from '@conciv/extension'
 import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {
   defineFrameworkAdapter,
@@ -10,12 +11,27 @@ import {
   type ServerRouteInfo,
   type Unsubscribe,
 } from '@conciv/protocol/framework-types'
-import type {tanstackVerbs} from '../client/verbs.js'
+import {
+  backDef,
+  dataEntriesDef,
+  dataGetDef,
+  dataInvalidateDef,
+  dataRefetchDef,
+  detectDef,
+  errorsSnapshotDef,
+  navigateDef,
+  queryCacheDef,
+  queryInvalidateDef,
+  queryRefetchDef,
+  routeTreeDef,
+  routerInvalidateDef,
+  routerStateDef,
+} from '../shared/verb-defs.js'
 
 type BundlerSubscribe = (listener: (diagnostic: BundlerDiagnostic) => void) => Unsubscribe
 
 export type TanstackAdapterDeps = {
-  page: PageCaller<typeof tanstackVerbs>
+  tools: ServerToolCaller
   buildErrors: () => AppError[]
   routeManifest: () => Promise<ServerRouteInfo[]>
   serverFnTraces: (count?: number) => ServerFnTrace[]
@@ -31,61 +47,72 @@ function toFrameworkEvent(diagnostic: BundlerDiagnostic): FrameworkEvent {
   return {kind: 'requestTrace', at: diagnostic.timestamp, message: null, detail: diagnostic}
 }
 
+function makeVerbCaller(tools: ServerToolCaller) {
+  return async <Out extends z.ZodType>(
+    def: {name: string; outputSchema?: Out},
+    input: Record<string, unknown>,
+  ): Promise<z.output<Out>> => {
+    const output = def.outputSchema
+    if (output === undefined) throw new Error(`tanstack verb "${def.name}" declares no output schema`)
+    return output.parse(await tools.call(def.name, input))
+  }
+}
+
 export function makeTanstackAdapter(deps: TanstackAdapterDeps): FrameworkAdapter {
-  const {page} = deps
+  const call = makeVerbCaller(deps.tools)
   return defineFrameworkAdapter({
     name: 'tanstack-start',
     capabilities: {queryCache: true, serverFunctions: true, rscPayload: false, isr: false, middleware: false},
     client: {
       detect: async () => {
         try {
-          return await page.call('detect', {})
+          return (await call(detectDef, {})).result
         } catch {
           return null
         }
       },
       routes: {
-        current: () => page.call('routerState', {}),
-        tree: () => page.call('routeTree', {}),
+        current: async () => (await call(routerStateDef, {})).result,
+        tree: async () => (await call(routeTreeDef, {})).result,
       },
       navigation: {
         navigate: async (input) => {
-          await page.call('navigate', {
+          await call(navigateDef, {
             to: input.to,
-            params: input.params,
-            search: input.search,
-            replace: input.replace,
+            ...(input.params === undefined ? {} : {params: input.params}),
+            ...(input.search === undefined ? {} : {search: input.search}),
+            ...(input.replace === undefined ? {} : {replace: input.replace}),
           })
         },
         back: async () => {
-          await page.call('back', {})
+          await call(backDef, {})
         },
         refresh: async () => {
-          await page.call('routerInvalidate', {})
+          await call(routerInvalidateDef, {})
         },
       },
       data: {
-        entries: () => page.call('dataEntries', {}),
-        get: (key) => page.call('dataGet', {routeId: key}),
+        entries: async () => (await call(dataEntriesDef, {})).result,
+        get: async (key) => (await call(dataGetDef, {routeId: key})).result,
         invalidate: async (key) => {
-          await page.call('dataInvalidate', {routeId: key})
+          await call(dataInvalidateDef, {routeId: key})
         },
         refetch: async (key) => {
-          await page.call('dataRefetch', {routeId: key})
+          await call(dataRefetchDef, {routeId: key})
         },
       },
       errors: {
-        snapshot: () => page.call('errorsSnapshot', {}),
+        snapshot: async () => (await call(errorsSnapshotDef, {})).result,
       },
     },
     queryCache: {
-      queries: async () => (await page.call('queryCache', {})).queries,
-      mutations: async () => (await page.call('queryCache', {})).mutations,
+      queries: async () => (await call(queryCacheDef, {})).result.queries,
+      mutations: async () => (await call(queryCacheDef, {})).result.mutations,
       invalidate: async (key) => {
-        await page.call('queryInvalidate', {key})
+        await call(queryInvalidateDef, {key})
       },
       refetch: async (key) => {
-        await page.call('queryRefetch', {key})
+        await call(queryRefetchDef, {key})
       },
     },
     serverFunctions: {

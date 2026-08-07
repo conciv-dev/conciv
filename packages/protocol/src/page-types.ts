@@ -1,133 +1,12 @@
 import {z} from 'zod'
 
-export const PAGE_QUERY_KINDS = [
-  'route',
-  'dom',
-  'query',
-  'console',
-  'text',
-  'value',
-  'attr',
-  'exists',
-  'snapshot',
-  'locate',
-  'tree',
-  'inspect',
-  'override',
-  'find',
-  'track',
-  'effect',
-  'wait',
-  'click',
-  'fill',
-  'select',
-  'check',
-  'uncheck',
-  'press',
-  'hover',
-  'scroll',
-  'submit',
-  'setattr',
-  'removeattr',
-  'addclass',
-  'removeclass',
-  'setstyle',
-  'settext',
-  'sethtml',
-  'remove',
-  'insert',
-  'css',
-  'eval',
-  'ext',
-] as const
-
-export type PageQueryKind = (typeof PAGE_QUERY_KINDS)[number]
-
-export const MUTATING_KINDS = [
-  'override',
-  'click',
-  'fill',
-  'select',
-  'check',
-  'uncheck',
-  'press',
-  'hover',
-  'scroll',
-  'submit',
-  'setattr',
-  'removeattr',
-  'addclass',
-  'removeclass',
-  'setstyle',
-  'settext',
-  'sethtml',
-  'remove',
-  'insert',
-  'css',
-  'eval',
-] as const satisfies readonly PageQueryKind[]
-
-export const MIRROR_KINDS = [
-  'click',
-  'fill',
-  'select',
-  'check',
-  'uncheck',
-  'press',
-  'hover',
-  'scroll',
-  'submit',
-] as const satisfies readonly PageQueryKind[]
-
-export function mirrorsKind(kind: PageQueryKind): boolean {
-  return (MIRROR_KINDS as readonly PageQueryKind[]).includes(kind)
-}
-
-export const PageQueryKindSchema = z.enum(PAGE_QUERY_KINDS)
-export const PagePositionSchema = z.enum(['before', 'after', 'prepend', 'append'])
-export const PageWaitStateSchema = z.enum(['visible', 'hidden'])
-
-export type PagePosition = z.infer<typeof PagePositionSchema>
-export type PageWaitState = z.infer<typeof PageWaitStateSchema>
-
 export const PageQuerySchema = z.object({
   requestId: z.string().optional(),
-  kind: PageQueryKindSchema,
-  selector: z.string().optional().describe('CSS selector for the target element'),
-  ref: z.string().optional().describe('element ref from the latest snapshot'),
-  since: z.coerce.number().optional(),
-  value: z
-    .string()
-    .optional()
-    .describe('the value to set: input value for fill/select, CSS value for setstyle, attribute value for setattr'),
-  name: z.string().optional().describe('React component name'),
-  attribute: z.string().optional().describe('attribute name for setattr/removeattr/attr'),
-  class: z.string().optional().describe('class name for addclass/removeclass'),
-  prop: z.string().optional().describe('CSS property name for setstyle, e.g. color or font-size'),
-  text: z.string().optional().describe('text for settext, or the full stylesheet string for css'),
-  html: z.string().optional().describe('HTML fragment for sethtml/insert'),
-  key: z.string().optional().describe('keyboard key for press, e.g. Enter'),
-  position: PagePositionSchema.optional(),
-  state: PageWaitStateSchema.optional(),
-  timeout: z.coerce.number().optional(),
-  code: z.string().optional(),
-
-  path: z.string().optional(),
-
-  target: z.enum(['props', 'state', 'hooks', 'context']).optional(),
-  hookId: z.coerce.number().optional(),
-  json: z.string().optional(),
-  effect: z.string().optional(),
-  action: z.enum(['start', 'stop', 'report', 'enable', 'disable', 'toggle', 'list']).optional(),
-  extension: z.string().optional().describe('extension name owning the verb (ext kind)'),
-  verb: z.string().optional().describe('extension page verb name (ext kind)'),
-  argsJson: z.string().optional().describe('JSON-encoded args for the ext verb'),
+  name: z.string().min(1).describe('registry tool name whose client body runs in the page'),
+  input: z.record(z.string(), z.unknown()).describe('schema-validated input for the named tool'),
 })
 
 export type PageQuery = z.infer<typeof PageQuerySchema>
-
-export const PageQueryInputSchema = PageQuerySchema.omit({kind: true, requestId: true})
-export type PageQueryInput = z.infer<typeof PageQueryInputSchema>
 
 export const PAGE_REPORTED_ERROR_CODES = ['unknown-verb', 'invalid-args', 'handler-error'] as const
 export const PAGE_TRANSPORT_ERROR_CODES = ['no-widget', 'timeout'] as const
@@ -170,11 +49,6 @@ export function isPageFailure(value: unknown): value is PageFailure {
 export const PageReplySchema = z.object({requestId: z.string(), outcome: PageOutcomeSchema})
 export type PageReply = z.infer<typeof PageReplySchema>
 
-export const PageRunInputSchema = PageQueryInputSchema.extend({verb: PageQueryKindSchema})
-export type PageRunInput = z.infer<typeof PageRunInputSchema>
-
-export const PageRunResultSchema = z.record(z.string(), z.unknown())
-
 export const PageChangeEntrySchema = z.object({
   seq: z.number(),
   ts: z.number(),
@@ -191,19 +65,16 @@ export function ok(data: Record<string, unknown> = {}): PageResult {
   return {ok: true, ...data}
 }
 
-const MUTATING = new Set<string>(MUTATING_KINDS)
-export function isMutating(kind: string): boolean {
-  return MUTATING.has(kind)
-}
-
 export const RawFrameSchema = z.object({
   fileName: z.string().optional(),
   line: z.number().optional(),
   column: z.number().optional(),
   fn: z.string().optional(),
 })
+export type RawFrame = z.infer<typeof RawFrameSchema>
 export const OpenSourceSchema = z.object({frames: z.array(RawFrameSchema)})
 export const SourceLocSchema = z.object({file: z.string(), line: z.number(), column: z.number()})
+export type SourceLoc = z.infer<typeof SourceLocSchema>
 export const SymbolicateFrameSchema = z.object({
   fileName: z.string().min(1),
   line: z.number().int().min(1),
