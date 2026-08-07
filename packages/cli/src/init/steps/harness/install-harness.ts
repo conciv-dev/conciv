@@ -3,7 +3,7 @@ import {dirname, join, relative} from 'node:path'
 import type {HarnessInit, HarnessInitCommand, HarnessInitPlan} from '@conciv/protocol/harness-types'
 import type {HarnessId} from '../../harness-detect.js'
 import {captureFile} from '../../interrupt.js'
-import type {ManualCard, StepOutcome} from '../../ledger.js'
+import type {StepOutcome} from '../../ledger.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
 
 export type HarnessInitIo = {
@@ -38,10 +38,6 @@ async function runCommand(ctx: InitContext, io: HarnessInitIo, command: HarnessI
   return reason.length === 0 ? `${rendered} failed` : `${rendered} failed: ${reason}`
 }
 
-function installCard(init: HarnessInit<HarnessId>, root: string): ManualCard {
-  return init.manualCard(root)
-}
-
 async function applyInit(
   ctx: InitContext,
   init: HarnessInit<HarnessId>,
@@ -53,7 +49,7 @@ async function applyInit(
   writePlanFiles(ctx, plan)
   for (const command of plan.commands) {
     const failed = await runCommand(ctx, io, command)
-    if (failed !== null) return {status: 'manual', cards: [installCard(init, plan.root)], detail: failed}
+    if (failed !== null) return {status: 'manual', cards: [init.manualCard(plan.root)], detail: failed}
   }
   return {status: 'done'}
 }
@@ -80,6 +76,6 @@ export function harnessInitStep(
     }),
     apply: (ctx) => applyInit(ctx, init, consented, io),
     verify: async (ctx) => serves(init, ctx.cwd, consented, io),
-    manualCard: (ctx) => installCard(init, init.plan(projectOf(ctx.cwd)).root),
+    manualCard: (ctx) => init.manualCard(init.plan(projectOf(ctx.cwd)).root),
   }
 }

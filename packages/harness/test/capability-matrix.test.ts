@@ -49,6 +49,21 @@ describe('harness capability matrix', () => {
     }
   })
 
+  it('each adapter init sidecar is the registered contribution, not a copy', () => {
+    const contributionsById = new Map(Object.entries(initContributions))
+    for (const adapter of listHarnesses()) {
+      if (adapter.init === undefined) continue
+      expect(adapter.init).toBe(contributionsById.get(adapter.id))
+    }
+  })
+
+  it('every init contribution corresponds to a registered harness id', () => {
+    const harnessIds = new Set(listHarnesses().map((adapter) => adapter.id))
+    for (const id of Object.keys(initContributions)) {
+      expect(harnessIds.has(id), id).toBe(true)
+    }
+  })
+
   it('claude exposes listSessions for the session selector', () => {
     const claude = listHarnesses().find((a) => a.id === 'claude')
     expect(typeof claude?.history?.list).toBe('function')
