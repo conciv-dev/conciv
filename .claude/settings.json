@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "hooks": {
     "PreToolUse": [
@@ -14,10 +13,7 @@
       }
     ]
   },
-  "enabledPlugins": {}
-=======
   "enabledPlugins": {
     "fallow@fallow-skills": true
   }
->>>>>>> f786acd3 (changes)
 }
