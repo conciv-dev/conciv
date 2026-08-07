@@ -18,7 +18,6 @@ export type ComposerProps = {
   inputLabel?: string
   children?: JSX.Element
   busy?: JSX.Element
-  popover?: JSX.Element
   inputRef?: (element: HTMLTextAreaElement) => void
   attachmentAdapter?: AttachmentAdapter
   AttachmentComponent?: Component<{removable?: boolean}>
@@ -66,7 +65,6 @@ function TrailingControls(): JSX.Element {
 export function Composer(props: ComposerProps): JSX.Element {
   return (
     <ComposerPrimitive.Root attachmentAdapter={props.attachmentAdapter} class="flex flex-col gap-1.5 relative">
-      {props.popover}
       <div class="rounded-[var(--chat-radius-md)] flex flex-col [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] empty:hidden">
         <ComposerPrimitive.Queue>
           {() => (

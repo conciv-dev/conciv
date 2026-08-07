@@ -30,8 +30,6 @@ export type RichTextFieldHandle = {
   appendText: (text: string) => void
 }
 
-const FIELD =
-  'w-full relative bg-pw-sunken text-[0.8125rem] text-pw-text rounded-pw-md [border:1px_solid_var(--pw-line)] focus-within:[border-color:var(--pw-accent-line)] [&[data-disabled]]:opacity-60'
 const VIEWPORT = 'w-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 const EDITABLE =
   'px-2 py-1.5 leading-5 whitespace-pre-wrap break-words [outline:none] [&_[data-chip]]:text-pw-accent-hi [&_[data-chip]]:bg-pw-accent-08 [&_[data-chip]]:rounded-pw-sm [&_[data-chip]]:px-0.5'
@@ -139,6 +137,7 @@ export function RichTextField(props: {
   disabled?: boolean
   minRows?: number
   maxRows?: number
+  class?: string
   viewportClass?: string
   editableClass?: string
   onPaste?: (event: ClipboardEvent) => boolean
@@ -261,7 +260,7 @@ export function RichTextField(props: {
   const placeholderText = () => props.value === '' && props.placeholder
 
   return (
-    <div class={FIELD} data-disabled={props.disabled ? '' : undefined}>
+    <div class={`w-full relative ${props.class ?? ''}`} data-disabled={props.disabled ? '' : undefined}>
       <ScrollArea.Root>
         <ScrollArea.Viewport class={viewportClass()} style={capHeight()}>
           <ScrollArea.Content>

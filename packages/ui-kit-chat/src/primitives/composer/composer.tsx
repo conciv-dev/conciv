@@ -33,16 +33,6 @@ import {
 import {QueueItemProvider, type QueuedMessage} from '../queue-item/queue-item.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useComposerHandlers} from './composer-handlers.js'
-import {
-  TriggerPopover,
-  TriggerPopoverBack,
-  TriggerPopoverCategories,
-  TriggerPopoverCategoryItem,
-  TriggerPopoverItem,
-  TriggerPopoverItems,
-  TriggerPopoverRoot,
-  useTriggerPopoverRootOptional,
-} from './trigger/trigger-popover.js'
 
 type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
   attachmentAdapter?: AttachmentAdapter
@@ -189,23 +179,6 @@ async function addPastedFiles(
 ): Promise<void> {
   if (!enabled) return
   await Promise.allSettled(pastedFiles(event).map((file) => add(file)))
-}
-
-type TriggerAriaProps = {
-  'aria-haspopup'?: 'listbox'
-  'aria-expanded'?: boolean
-  'aria-controls'?: string
-  'aria-activedescendant'?: string
-}
-
-function triggerAriaProps(active: {popoverId: string; highlightedItemId: string | undefined} | null): TriggerAriaProps {
-  if (!active) return {}
-  return {
-    'aria-haspopup': 'listbox',
-    'aria-expanded': true,
-    'aria-controls': active.popoverId,
-    'aria-activedescendant': active.highlightedItemId,
-  }
 }
 
 function Root(props: FormProps): JSX.Element {
@@ -370,7 +343,6 @@ function Input(props: InputProps): JSX.Element {
   const composer = useComposer()
   const handlers = useComposerHandlers()
   const context = useComposerContext()
-  const triggerRoot = useTriggerPopoverRootOptional()
   const [local, rest] = splitProps(props, [
     'submitMode',
     'cancelOnEscape',
@@ -393,28 +365,16 @@ function Input(props: InputProps): JSX.Element {
   onMount(() => {
     if (local.focusOnThreadSwitched) element?.focus()
   })
-  const openTrigger = () => triggerRoot?.triggers().find((trigger) => trigger.scope.open())
-  let composing = false
-  let lastCursorPosition = -1
-  const syncCursor = (target: HTMLTextAreaElement) => {
-    if (composing) return
-    const position = target.selectionStart ?? target.value.length
-    if (position === lastCursorPosition) return
-    lastCursorPosition = position
-    const triggers = triggerRoot?.triggers() ?? []
-    for (const trigger of triggers) trigger.scope.setCursorPosition(position)
-  }
   const cancelViaHandlers = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
   const onKeyDown = (event: ComposerKeyboardEvent) => {
     forwardKeyDown(event, local.onKeyDown)
     if (event.isComposing) return
-    if (openTrigger()?.scope.handleKeyDown(event)) return
     if (shouldCancelOnEscape(event, local.cancelOnEscape ?? true, composer.canCancel())) {
       event.preventDefault()
       cancelViaHandlers()
       return
     }
-    if (event.key !== 'Enter' || event.isComposing) return
+    if (event.key !== 'Enter') return
     if (!wantsEnterSubmit(event, local.submitMode ?? 'enter')) return
     event.preventDefault()
     event.currentTarget.form?.requestSubmit()
@@ -431,23 +391,9 @@ function Input(props: InputProps): JSX.Element {
         if (typeof forwardRef === 'function') forwardRef(node)
       }}
       value={composer.text()}
-      onInput={(event) => {
-        composer.setText(event.currentTarget.value)
-        syncCursor(event.currentTarget)
-      }}
-      onCompositionStart={() => {
-        composing = true
-      }}
-      onCompositionEnd={(event) => {
-        composing = false
-        syncCursor(event.currentTarget)
-      }}
-      onSelect={(event) => syncCursor(event.currentTarget)}
-      onKeyUp={(event) => syncCursor(event.currentTarget)}
-      onClick={(event) => syncCursor(event.currentTarget)}
+      onInput={(event) => composer.setText(event.currentTarget.value)}
       onKeyDown={onKeyDown}
       onPaste={onPaste}
-      {...triggerAriaProps(triggerRoot?.activeAria() ?? null)}
       {...rest}
     />
   )
@@ -667,12 +613,5 @@ export const Composer = Object.assign(Root, {
   Dictate,
   StopDictation,
   DictationTranscript,
-  TriggerPopoverRoot,
-  TriggerPopover,
-  TriggerPopoverCategories,
-  TriggerPopoverCategoryItem,
-  TriggerPopoverItems,
-  TriggerPopoverItem,
-  TriggerPopoverBack,
   Queue,
 })

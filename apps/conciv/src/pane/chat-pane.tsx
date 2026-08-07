@@ -5,12 +5,10 @@ import {
   AttachmentByMime,
   ChatProvider,
   ComposerHandlersProvider,
-  ComposerPrimitive,
   NowLine,
   Thread,
   ToolProvider,
   pairResults,
-  useComposer,
   useComposerContext,
   type Turn,
 } from '@conciv/ui-kit-chat'
@@ -29,7 +27,7 @@ import {usePane, type StagedGrab} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
 import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
-import {TriggerMenus} from './trigger-menus.js'
+import {useComposerTriggerSources} from './trigger-sources.js'
 import {GrabReference} from './grab-reference.js'
 import {CompactSpinner, ConversationSkeleton, Divider, ThinkingBubble} from './indicators.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
@@ -93,21 +91,16 @@ function grabTexts(grabs: ReadonlyArray<StagedGrab>): string[] {
 }
 
 type ComposerApi = {
-  append: (text: string) => void
   addAttachment: (file: File) => Promise<void>
 }
 
 function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Element {
   const pane = usePane()
-  const composer = useComposer()
   const context = useComposerContext()
   onMount(() => {
     const restored = context.grabs()
     if (restored.length > 0) pane.grabStore.stageTexts(restored)
-    props.onReady({
-      append: (text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text),
-      addAttachment: context.addAttachment,
-    })
+    props.onReady({addAttachment: context.addAttachment})
     for (const file of pane.attachments.drain()) void context.addAttachment(file)
   })
   createEffect(() => context.setGrabs(grabTexts(pane.grabStore.grabs())))
@@ -216,9 +209,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   }))
   const compacting = () => compact.isPending
 
+  const triggerSources = useComposerTriggerSources(sessionId)
   const focusInput = () => requestAnimationFrame(() => inputHandle?.focus())
   const insert = (text: string) => {
-    composerApi.current?.append(text)
+    inputHandle?.append(text)
     focusInput()
   }
   const attach = (file: File) => {
@@ -295,7 +289,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
               onCancel: () => chat.stop(),
             }}
           >
-            <ComposerPrimitive.TriggerPopoverRoot>
+            <div class="contents">
               <ExtensionSurface name="header" instances={instances} />
               <ExtensionSurface name="widget" instances={instances} />
               <div
@@ -364,7 +358,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                           }}
                           onSelectionChange={storage().noteSelection}
                           busy={compacting() ? <CompactSpinner /> : undefined}
-                          popover={<TriggerMenus sessionId={sessionId} />}
+                          triggers={triggerSources}
                         >
                           <ComposerActions
                             sessionId={sessionId}
@@ -386,7 +380,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                   </Thread.Composer>
                 </Thread>
               </div>
-            </ComposerPrimitive.TriggerPopoverRoot>
+            </div>
           </ComposerHandlersProvider>
         </ToolProvider>
       </ChatProvider>
