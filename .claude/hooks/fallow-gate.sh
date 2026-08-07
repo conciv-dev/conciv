@@ -6,6 +6,8 @@ set -euo pipefail
 # Requires bash and jq. On Windows run via git-bash or WSL.
 # Blocks Claude Code git commit and git push when fallow audit returns verdict fail.
 # Runtime errors fail open with a single stderr notice so skips stay visible.
+# The audit runs in the git tree targeted by the command (git -C <path>, a
+# leading cd <path> &&, or the hook's .cwd), not the hook process's own cwd.
 #
 # Version floor (FALLOW_GATE_MIN_VERSION, default 2.85.0). The gate passes
 # --gate-marker agent (added in v2.85.0) so Impact can record containment;
@@ -23,9 +25,30 @@ fi
 
 INPUT="$(cat)"
 CMD="$(jq -r '.tool_input.command // empty' <<<"$INPUT")"
+HOOK_CWD="$(jq -r '.cwd // empty' <<<"$INPUT")"
 
-if ! printf '%s\n' "$CMD" | grep -Eq '(^|[[:space:];|&()])git[[:space:]]+(commit|push)([[:space:]]|$)'; then
+if ! printf '%s\n' "$CMD" | grep -Eq '(^|[[:space:];|&()])git([[:space:]]+[^[:space:]]+){0,4}[[:space:]]+(commit|push)([[:space:]]|$)'; then
   exit 0
+fi
+
+TARGET_DIR=""
+if [[ "$CMD" =~ git[[:space:]]+-C[[:space:]]+\'([^\']+)\' ]] || [[ "$CMD" =~ git[[:space:]]+-C[[:space:]]+\"([^\"]+)\" ]] || [[ "$CMD" =~ git[[:space:]]+-C[[:space:]]+([^[:space:]]+) ]]; then
+  TARGET_DIR="${BASH_REMATCH[1]}"
+elif [[ "$CMD" =~ ^[[:space:]]*cd[[:space:]]+\'([^\']+)\'[[:space:]]*\&\& ]] || [[ "$CMD" =~ ^[[:space:]]*cd[[:space:]]+\"([^\"]+)\"[[:space:]]*\&\& ]] || [[ "$CMD" =~ ^[[:space:]]*cd[[:space:]]+([^[:space:]]+)[[:space:]]*\&\& ]]; then
+  TARGET_DIR="${BASH_REMATCH[1]}"
+elif [ -n "$HOOK_CWD" ]; then
+  TARGET_DIR="$HOOK_CWD"
+fi
+
+if [ -z "$TARGET_DIR" ] || [ ! -d "$TARGET_DIR" ]; then
+  if [ -n "$TARGET_DIR" ]; then
+    echo "fallow-gate: derived target dir '$TARGET_DIR' does not exist, falling back." >&2
+  fi
+  if [ -n "$HOOK_CWD" ] && [ -d "$HOOK_CWD" ]; then
+    TARGET_DIR="$HOOK_CWD"
+  else
+    TARGET_DIR="$PWD"
+  fi
 fi
 
 if command -v fallow >/dev/null 2>&1; then
@@ -65,7 +88,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if "${RUNNER[@]}" audit --format json --quiet --explain --gate-marker agent >"$TMP_JSON" 2>"$TMP_ERR"; then
+if (cd "$TARGET_DIR" && "${RUNNER[@]}" audit --format json --quiet --explain --gate-marker agent) >"$TMP_JSON" 2>"$TMP_ERR"; then
   STATUS=0
 else
   STATUS=$?
