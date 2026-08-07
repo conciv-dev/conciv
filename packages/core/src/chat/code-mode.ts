@@ -11,7 +11,7 @@ import type {AnyTool} from '@tanstack/ai'
 import {sanitizeIdentifier, uniqueIdentifier, type ToolRequest} from '@conciv/extension'
 import type {CodeCapability} from './capabilities.js'
 import {toChatTool, type ToolRunContext} from './runtime.js'
-import {approvalRefusal, requiresApproval, type PermissionGate} from './gate.js'
+import {approvalRefusal, noListenerRefusal, requiresApproval, type PermissionGate} from './gate.js'
 import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
 import {logError} from '../lib/debug.js'
 
@@ -56,22 +56,27 @@ function encodeDeclaredError(error: unknown): Error {
   return new Error(`${code}: ${bare}`)
 }
 
+export type SessionListening = (sessionId: string) => boolean
+
 export function gatedToolRun(
   capability: CodeCapability,
   request: ToolRequest,
   gate: PermissionGate,
+  listening: SessionListening,
 ): (args: unknown, context?: ToolRunContext) => Promise<unknown> {
   return async (args, context) => {
     const callId = randomUUID()
     const emit = context?.emitCustomEvent ?? (() => {})
     emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name: capability.name, input: args})
+    const refuse = (refusal: string): never => {
+      emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: refusal})
+      throw new Error(refusal)
+    }
     if (requiresApproval(capability)) {
+      if (!listening(request.sessionId)) refuse(noListenerRefusal(capability.name, request.sessionId))
       const decision = await gate.decide(capability.name, args, request.sessionId, callId)
       const refusal = approvalRefusal(capability.name, decision)
-      if (refusal !== null) {
-        emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: refusal})
-        throw new Error(refusal)
-      }
+      if (refusal !== null) refuse(refusal)
     }
     try {
       const result = await capability.execute(args, request)
@@ -102,6 +107,7 @@ function bindCapabilities(
   capabilities: CodeCapability[],
   request: ToolRequest,
   gate: PermissionGate,
+  listening: SessionListening,
 ): BoundCapability[] {
   const named = withBindingNames(capabilities)
   const record = toolsToBindings(
@@ -112,7 +118,7 @@ function bindCapabilities(
           description: entry.capability.description,
           inputSchema: entry.capability.inputSchema,
         },
-        gatedToolRun(entry.capability, request, gate),
+        gatedToolRun(entry.capability, request, gate, listening),
         {lazy: true},
       ),
     ),
@@ -233,19 +239,20 @@ export async function makeCodeMode(
   capabilities: () => CodeCapability[],
   request: ToolRequest,
   gate: PermissionGate,
-  options: {timeoutMs?: number} = {},
+  options: {listening: SessionListening; timeoutMs?: number},
 ): Promise<CodeMode | null> {
   const snapshot = capabilities()
   if (snapshot.length === 0) return null
   const driver = await loadDriver()
   if (driver === null) return null
+  const listening = options.listening
   const codeMode = createCodeMode({
     driver,
-    tools: [catalogTool(() => bindCapabilities(capabilities(), request, gate))],
+    tools: [catalogTool(() => bindCapabilities(capabilities(), request, gate, listening))],
     timeout: options.timeoutMs ?? CODE_MODE_TIMEOUT_MS,
     onSecretParameter: 'throw',
     getSkillBindings: async () => {
-      const bound = bindCapabilities(capabilities(), request, gate)
+      const bound = bindCapabilities(capabilities(), request, gate, listening)
       return Object.fromEntries(bound.map((entry) => [entry.binding.name, entry.binding]))
     },
   })

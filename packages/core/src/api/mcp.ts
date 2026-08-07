@@ -254,6 +254,7 @@ async function runExecute(
 type McpDeps = {
   capabilities: (sessionId: string) => CodeCapability[]
   askGate: (sessionId: string) => PermissionGate
+  listening: (sessionId: string) => boolean
   publish: (sessionId: string, chunk: StreamChunk) => void
   sessionModel: (sessionId: string) => string | null
   sessionForNativeId: (nativeId: string) => Promise<string | null>
@@ -263,7 +264,9 @@ export type McpVars = {mcp: McpDeps}
 
 async function buildServer(deps: McpDeps, request: ToolRequest): Promise<McpServer> {
   const gate = deps.askGate(request.sessionId)
-  const codeMode = await makeCodeMode(() => deps.capabilities(request.sessionId), request, gate)
+  const codeMode = await makeCodeMode(() => deps.capabilities(request.sessionId), request, gate, {
+    listening: deps.listening,
+  })
   const server = new McpServer(
     {name: 'conciv', version: '0.0.0'},
     {instructions: serverInstructions(codeMode?.categories ?? [])},

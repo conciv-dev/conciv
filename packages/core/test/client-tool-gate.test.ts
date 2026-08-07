@@ -10,6 +10,8 @@ import {gatedToolRun} from '../src/chat/code-mode.js'
 import {makeAskGate} from '../src/chat/gate.js'
 import {createAskRegistry} from '../src/chat/ask.js'
 
+const attached = () => true
+
 const ApprovalChunkSchema = z.object({value: z.object({approval: z.object({id: z.string()})})})
 
 function attrProbeTool() {
@@ -102,7 +104,9 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
     const click = capabilityNamed(registryCapabilities(registry), 'page.click')
     expect(click.mutating).toBe(true)
     expect(click.approval).toBeUndefined()
-    await expect(gatedToolRun(click, {sessionId: 's1', model: null}, gate)({selector: '#go'})).resolves.toMatchObject({
+    await expect(
+      gatedToolRun(click, {sessionId: 's1', model: null}, gate, attached)({selector: '#go'}),
+    ).resolves.toMatchObject({
       ok: true,
     })
     expect(emitted).toEqual([])
@@ -120,7 +124,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
     const gate = makeAskGate({sessionId: 's1', asks, emit: (chunk) => holder.settle(chunk), timeoutMs: 5_000})
     const reset = capabilityNamed(registryCapabilities(registry), 'probe.reset')
     expect(reset.approval).toBe('ask')
-    const pending = gatedToolRun(reset, {sessionId: 's1', model: null}, gate)({})
+    const pending = gatedToolRun(reset, {sessionId: 's1', model: null}, gate, attached)({})
     const chunk = ApprovalChunkSchema.parse(await chunkArrived)
     expect(asks.reply('s1', chunk.value.approval.id, true)).toBe(true)
     await expect(pending).resolves.toEqual({ok: true})
@@ -137,7 +141,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
     })
     const gate = makeAskGate({sessionId: 's1', asks, emit: (chunk) => holder.settle(chunk), timeoutMs: 5_000})
     const reset = capabilityNamed(registryCapabilities(registry), 'probe.reset')
-    const pending = gatedToolRun(reset, {sessionId: 's1', model: null}, gate)({})
+    const pending = gatedToolRun(reset, {sessionId: 's1', model: null}, gate, attached)({})
     const chunk = ApprovalChunkSchema.parse(await chunkArrived)
     expect(asks.reply('s1', chunk.value.approval.id, false)).toBe(true)
     await expect(pending).rejects.toThrow(/denied/)
@@ -150,7 +154,7 @@ describe('page tools pass gatedToolRun ungated; only approval-declared capabilit
     const gate = makeAskGate({sessionId: '', asks, emit: () => {}, timeoutMs: 100})
     const text = capabilityNamed(registryCapabilities(registry), 'page.text')
     expect(text.mutating).toBe(false)
-    const run = gatedToolRun(text, {sessionId: '', model: null}, gate)
+    const run = gatedToolRun(text, {sessionId: '', model: null}, gate, attached)
     await expect(run({selector: '#probe'})).resolves.toMatchObject({text: 'hello'})
   })
 })
