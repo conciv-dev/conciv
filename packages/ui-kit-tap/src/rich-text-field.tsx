@@ -1,14 +1,25 @@
-import {Show, createEffect, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
+import {Show, createEffect, createSignal, createUniqueId, onCleanup, onMount, type JSX} from 'solid-js'
 import {Editor, type CommandProps} from '@tiptap/core'
 import type {EditorView} from '@tiptap/pm/view'
 import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
+import {Mention} from '@tiptap/extension-mention'
 import {UndoRedo} from '@tiptap/extensions'
 import {EditorState, Selection} from '@tiptap/pm/state'
 import {Fragment, Slice, type Schema} from '@tiptap/pm/model'
 import {ScrollArea} from '@conciv/ui-kit-system'
 import {buildDocument, positionToOffset, projectDocument} from './lowering.js'
+import {TriggerListbox} from './trigger-popover.js'
+import {
+  ChipForwardDelete,
+  triggerSuggestion,
+  type RichTextFieldTriggerItem,
+  type RichTextFieldTriggerSource,
+  type TriggerPopoverState,
+} from './trigger-suggestions.js'
+
+export type {RichTextFieldTriggerItem, RichTextFieldTriggerSource}
 
 export type RichTextFieldSelection = {start: number; end: number}
 
@@ -22,7 +33,8 @@ export type RichTextFieldHandle = {
 const FIELD =
   'w-full relative bg-pw-sunken text-[0.8125rem] text-pw-text rounded-pw-md [border:1px_solid_var(--pw-line)] focus-within:[border-color:var(--pw-accent-line)] [&[data-disabled]]:opacity-60'
 const VIEWPORT = 'w-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-const EDITABLE = 'px-2 py-1.5 leading-5 whitespace-pre-wrap break-words [outline:none]'
+const EDITABLE =
+  'px-2 py-1.5 leading-5 whitespace-pre-wrap break-words [outline:none] [&_[data-chip]]:text-pw-accent-hi [&_[data-chip]]:bg-pw-accent-08 [&_[data-chip]]:rounded-pw-sm [&_[data-chip]]:px-0.5'
 const PLACEHOLDER = 'pointer-events-none absolute left-2 top-1.5 leading-5 text-[0.8125rem] text-pw-text-3 select-none'
 
 function plainTextSlice(schema: Schema, text: string): Slice | null {
@@ -88,17 +100,30 @@ function appendCommand(text: string) {
   }
 }
 
+type EditablePopup = {expanded: boolean; controls: string; activeOption: string | undefined}
+
+function popupAttributes(popup: EditablePopup): Record<string, string> {
+  return {
+    'aria-haspopup': 'listbox',
+    'aria-expanded': popup.expanded ? 'true' : 'false',
+    ...(popup.expanded ? {'aria-controls': popup.controls} : {}),
+    ...(popup.activeOption ? {'aria-activedescendant': popup.activeOption} : {}),
+  }
+}
+
 function editableAttributes(options: {
   label: string
   disabled: boolean | undefined
   editableClass: string | undefined
   minRows: number | undefined
+  popup: EditablePopup
 }): Record<string, string> {
   return {
     role: 'textbox',
     'aria-multiline': 'true',
     'aria-label': options.label,
     ...(options.disabled ? {'aria-disabled': 'true'} : {}),
+    ...popupAttributes(options.popup),
     class: `${EDITABLE} ${options.editableClass ?? ''}`,
     style: `min-height: ${rowHeight(options.minRows ?? 1)}`,
   }
@@ -118,9 +143,24 @@ export function RichTextField(props: {
   editableClass?: string
   onPaste?: (event: ClipboardEvent) => boolean
   onReady?: (handle: RichTextFieldHandle) => void
+  slashTrigger?: RichTextFieldTriggerSource
+  mentionTrigger?: RichTextFieldTriggerSource
 }): JSX.Element {
   let host: HTMLDivElement | undefined
   const [editorInstance, setEditorInstance] = createSignal<Editor | null>(null)
+  const [popover, setPopover] = createSignal<TriggerPopoverState | null>(null)
+  const fieldId = createUniqueId()
+  const listboxId = `rich-text-field-${fieldId}-listbox`
+  const optionId = (item: RichTextFieldTriggerItem) => `rich-text-field-${fieldId}-option-${item.id}`
+  const popoverAccess = {state: popover, update: (state: TriggerPopoverState | null) => setPopover(state)}
+  const popoverHasOptions = () => (popover()?.items.length ?? 0) > 0
+  const enterBypassed = (view: EditorView, event: KeyboardEvent) =>
+    event.key !== 'Enter' || enterInsideComposition(view, event) || popoverHasOptions()
+  const activeOptionId = () => {
+    const state = popover()
+    const item = state ? state.items[state.activeIndex] : undefined
+    return item ? optionId(item) : undefined
+  }
 
   onMount(() => {
     if (!host) return
@@ -131,7 +171,7 @@ export function RichTextField(props: {
         handleKeyDown: (view, event) => {
           const history = chordHistoryCommand(event)
           if (history) return applyHistory(editor, history)
-          if (event.key !== 'Enter' || enterInsideComposition(view, event)) return false
+          if (enterBypassed(view, event)) return false
           return submitOnEnter(editor, event, props.onSubmit)
         },
         handlePaste: (_view, event) => {
@@ -151,7 +191,23 @@ export function RichTextField(props: {
         const {from, to} = instance.state.selection
         handler({start: positionToOffset(json, from), end: positionToOffset(json, to)})
       },
-      extensions: [Document, Paragraph, Text, UndoRedo],
+      extensions: [
+        Document,
+        Paragraph,
+        Text,
+        UndoRedo,
+        ChipForwardDelete,
+        Mention.configure({
+          HTMLAttributes: {'data-chip': ''},
+          deleteTriggerWithBackspace: true,
+          renderText: ({node}) => `${String(node.attrs.mentionSuggestionChar)}${String(node.attrs.id)}`,
+          renderHTML: ({options, node}) => ['span', options.HTMLAttributes, String(node.attrs.label ?? node.attrs.id)],
+          suggestions: [
+            triggerSuggestion({char: '/', source: () => props.slashTrigger, access: popoverAccess}),
+            triggerSuggestion({char: '@', source: () => props.mentionTrigger, access: popoverAccess}),
+          ],
+        }),
+      ],
     })
     setEditorInstance(editor)
     props.onReady?.({
@@ -195,6 +251,7 @@ export function RichTextField(props: {
         disabled: props.disabled,
         editableClass: props.editableClass,
         minRows: props.minRows,
+        popup: {expanded: popover() !== null, controls: listboxId, activeOption: activeOptionId()},
       }),
     })
   })
@@ -216,6 +273,7 @@ export function RichTextField(props: {
         </ScrollArea.Scrollbar>
       </ScrollArea.Root>
       <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
+      <TriggerListbox state={popover()} listboxId={listboxId} optionId={optionId} />
     </div>
   )
 }

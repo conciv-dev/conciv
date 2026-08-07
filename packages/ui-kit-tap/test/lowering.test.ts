@@ -28,6 +28,16 @@ describe('projectDocument', () => {
   test('adjacent chips lower back to back', () => {
     expect(projectDocument(doc(paragraph(chip('/', 'a', '/a'), chip('@', 'b', 'b'))))).toBe('/a@b')
   })
+
+  test('chips adjacent to newlines keep the line structure', () => {
+    const document = doc(
+      paragraph(text('a '), chip('@', 'ai:opus', '@Opus')),
+      paragraph(chip('/', 'clear', '/clear'), text(' b')),
+      paragraph(),
+      paragraph(chip('@', 'ai:haiku', '@Haiku')),
+    )
+    expect(projectDocument(document)).toBe('a @ai:opus\n/clear b\n\n@ai:haiku')
+  })
 })
 
 describe('idempotence', () => {
