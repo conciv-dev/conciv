@@ -1,7 +1,7 @@
 ---
 '@conciv/harness-init': patch
 '@conciv/harness': patch
-'conciv': patch
+'@conciv/cli': patch
 ---
 
 Every harness now declares init as a capability (`'files' | 'none'`), backed by a per-harness init
