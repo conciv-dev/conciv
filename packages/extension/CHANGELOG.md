@@ -1,5 +1,17 @@
 # @conciv/extension
 
+## 0.0.18
+
+### Patch Changes
+
+- [#251](https://github.com/conciv-dev/conciv/pull/251) [`1e1b01b`](https://github.com/conciv-dev/conciv/commit/1e1b01b36c3b5c282d51a6689b8a18810a330fc2) Thanks [@omridevk](https://github.com/omridevk)! - Tools declared through a shared definition object (the pattern that lets a client and a server file agree on one contract) kept their name only as a widened `string`, so they were silently absent from the typed registry client and invisible to the tool-name collision diagnostics. A `toolDefinition()` helper on the UI-free `@conciv/extension/tool` subpath gives those objects an inference site that preserves the literal name, and every shared definition across the bundled extensions now goes through it. A tool's declared `errors` are carried through to the typed client too: `isDefinedError` narrows a call-site failure to the declared code with its `data` type instead of collapsing to `never`. Only a tool that is provably server-bound carries its declared errors alone; a client-bound declaration, and a renderer-only one (which cannot know how its separately compiled runtime twin is bound), both additionally expose the transport codes the forwarding layer can raise.
+
+- Updated dependencies [[`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd)]:
+  - @conciv/protocol@0.0.18
+  - @conciv/contract@0.0.18
+  - @conciv/grab@0.0.18
+  - @conciv/ui-kit-system@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @conciv/page
 
+## 0.0.18
+
+### Patch Changes
+
+- [#173](https://github.com/conciv-dev/conciv/pull/173) [`3077460`](https://github.com/conciv-dev/conciv/commit/307746013f8dbdc03e1cd98673aaa4e574b81342) Thanks [@omridevk](https://github.com/omridevk)! - Grab text is grounded in real source: composed from the full `data-conciv-source` annotation when present, with fiber frames symbolicated through core's sourcemap resolver as fallback, instead of react-grab's minified copy string. The try panel surfaces a clear hint when Chrome's local-network-access permission is denied, and conciv.dev mounts the live widget on every page behind a root-declared `widget` search param.
+
+- Updated dependencies [[`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`1e1b01b`](https://github.com/conciv-dev/conciv/commit/1e1b01b36c3b5c282d51a6689b8a18810a330fc2)]:
+  - @conciv/protocol@0.0.18
+  - @conciv/extension@0.0.18
+  - @conciv/contract@0.0.18
+  - @conciv/grab@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes

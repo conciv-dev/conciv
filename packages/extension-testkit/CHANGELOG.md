@@ -1,5 +1,21 @@
 # @conciv/extension-testkit
 
+## 0.0.18
+
+### Patch Changes
+
+- Updated dependencies [[`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`1e1b01b`](https://github.com/conciv-dev/conciv/commit/1e1b01b36c3b5c282d51a6689b8a18810a330fc2), [`3f9bf5d`](https://github.com/conciv-dev/conciv/commit/3f9bf5dc25bcf911e788ef53547436f46cab11b6), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`05142ed`](https://github.com/conciv-dev/conciv/commit/05142ed5d738309686e35d9231139229b07bd408)]:
+  - @conciv/core@0.0.18
+  - @conciv/ui-kit-chat@0.0.18
+  - @conciv/protocol@0.0.18
+  - @conciv/extension@0.0.18
+  - @conciv/extension-compiler@0.0.18
+  - @conciv/contract@0.0.18
+  - @conciv/harness-testkit@0.0.18
+  - @conciv/grab@0.0.18
+  - @conciv/ui-kit-system@0.0.18
+  - @conciv/uno-preset@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes

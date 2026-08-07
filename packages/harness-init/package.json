@@ -1,6 +1,6 @@
 {
   "name": "@conciv/harness-init",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "Internal to conciv (installed automatically, do not install directly). Per-harness init contributions: detection markers, generated plugin files, and install state.",
   "keywords": [
     "conciv",

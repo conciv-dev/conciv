@@ -1,5 +1,30 @@
 # @conciv/ui-kit-chat
 
+## 0.0.18
+
+### Patch Changes
+
+- [#212](https://github.com/conciv-dev/conciv/pull/212) [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd) Thanks [@omridevk](https://github.com/omridevk)! - Fix double-constructed JSX props and tighten composer state handling.
+
+  - `ToolChip`'s `tip` and `Terminal`'s `rail` resolve their JSX prop through a `children()` memo, so a
+    component passed as that prop is built once instead of two or three times.
+  - The model selector no longer disappears when the model list fails to load: it renders a retry
+    affordance, announces the failure, and restores the picker once the retry succeeds.
+  - Thread auto-scroll runs off an explicit machine, and reactive-scope listeners and timers go through
+    solid-primitives so they clean themselves up with their owner.
+
+- [#175](https://github.com/conciv-dev/conciv/pull/175) [`3f9bf5d`](https://github.com/conciv-dev/conciv/commit/3f9bf5dc25bcf911e788ef53547436f46cab11b6) Thanks [@omridevk](https://github.com/omridevk)! - Load shiki grammars and themes lazily so code-splitting consumers don't hoist doubly-reachable modules.
+
+- [#212](https://github.com/conciv-dev/conciv/pull/212) [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd) Thanks [@omridevk](https://github.com/omridevk)! - ModelSelector no longer drops keystrokes typed right after the trigger is tapped. The combobox open
+  state is owned by the machine unless a consumer passes `open`, so the list opens in the same turn as
+  the trigger activation instead of after a round trip through Solid.
+- Updated dependencies [[`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd)]:
+  - @conciv/protocol@0.0.18
+  - @conciv/solid-diffs@0.0.18
+  - @conciv/solid-streamdown@0.0.18
+  - @conciv/storage-history@0.0.18
+  - @conciv/ui-kit-system@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # conciv-e2e-vite-solid
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.18
+
 ## 0.0.9
 
 ### Patch Changes

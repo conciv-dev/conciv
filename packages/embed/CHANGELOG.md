@@ -1,5 +1,27 @@
 # @conciv/embed
 
+## 0.0.18
+
+### Patch Changes
+
+- [#170](https://github.com/conciv-dev/conciv/pull/170) [`47c5423`](https://github.com/conciv-dev/conciv/commit/47c5423107f588c9bf5cc94faa5348fc769ef89e) Thanks [@omridevk](https://github.com/omridevk)! - Widget navigation is no longer clobbered by a slow write. The widget now stamps each navigation write with the moment the navigation happened and the server keeps only the newest one, so a request that gets delayed on the network can no longer resurrect a view the user already left. A freshly loaded page continues from the stored stamp, so it still wins over a write the page it replaced left in flight, and the server ignores stamps more than a day ahead of its own clock so a badly wrong client clock cannot wedge navigation saving.
+
+- Updated dependencies [[`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`1e1b01b`](https://github.com/conciv-dev/conciv/commit/1e1b01b36c3b5c282d51a6689b8a18810a330fc2), [`830fc5d`](https://github.com/conciv-dev/conciv/commit/830fc5d17b3bf6ce146b413bb7ddb372ad2c821a), [`3f9bf5d`](https://github.com/conciv-dev/conciv/commit/3f9bf5dc25bcf911e788ef53547436f46cab11b6), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`42a0ad0`](https://github.com/conciv-dev/conciv/commit/42a0ad0273cbf8b1b48d197c363f4f77da75dc69), [`32b49c3`](https://github.com/conciv-dev/conciv/commit/32b49c36a2c62210391449a1b2f01095d8ece57f)]:
+  - @conciv/ui-kit-chat@0.0.18
+  - @conciv/protocol@0.0.18
+  - @conciv/extension@0.0.18
+  - @conciv/extension-ios@0.0.18
+  - @conciv/extension-page@0.0.18
+  - @conciv/ui-kit-chat-tools@0.0.18
+  - @conciv/client@0.0.18
+  - @conciv/contract@0.0.18
+  - @conciv/grab@0.0.18
+  - @conciv/mascot@0.0.18
+  - @conciv/solid-diffs@0.0.18
+  - @conciv/solid-streamdown@0.0.18
+  - @conciv/storage-history@0.0.18
+  - @conciv/ui-kit-system@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes

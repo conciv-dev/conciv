@@ -1,5 +1,17 @@
 # @conciv/extension-tanstack
 
+## 0.0.18
+
+### Patch Changes
+
+- Updated dependencies [[`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`1e1b01b`](https://github.com/conciv-dev/conciv/commit/1e1b01b36c3b5c282d51a6689b8a18810a330fc2), [`3f9bf5d`](https://github.com/conciv-dev/conciv/commit/3f9bf5dc25bcf911e788ef53547436f46cab11b6), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`3077460`](https://github.com/conciv-dev/conciv/commit/307746013f8dbdc03e1cd98673aaa4e574b81342)]:
+  - @conciv/ui-kit-chat@0.0.18
+  - @conciv/protocol@0.0.18
+  - @conciv/extension@0.0.18
+  - @conciv/page@0.0.18
+  - @conciv/ui-kit-chat-tools@0.0.18
+  - @conciv/ui-kit-system@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes

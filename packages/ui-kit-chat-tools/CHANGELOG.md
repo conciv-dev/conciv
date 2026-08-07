@@ -1,5 +1,17 @@
 # @conciv/ui-kit-chat-tools
 
+## 0.0.18
+
+### Patch Changes
+
+- Updated dependencies [[`b687236`](https://github.com/conciv-dev/conciv/commit/b687236db6e3793f1ecb909ebafa7bf1ed02ff8f), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`3f9bf5d`](https://github.com/conciv-dev/conciv/commit/3f9bf5dc25bcf911e788ef53547436f46cab11b6), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`42a0ad0`](https://github.com/conciv-dev/conciv/commit/42a0ad0273cbf8b1b48d197c363f4f77da75dc69), [`32b49c3`](https://github.com/conciv-dev/conciv/commit/32b49c36a2c62210391449a1b2f01095d8ece57f)]:
+  - @conciv/tools@0.0.18
+  - @conciv/ui-kit-chat@0.0.18
+  - @conciv/protocol@0.0.18
+  - @conciv/extension-page@0.0.18
+  - @conciv/solid-diffs@0.0.18
+  - @conciv/ui-kit-system@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@conciv/oxlint-plugin",
-  "version": "0.0.16",
+  "version": "0.0.18",
   "private": true,
   "description": "Repo-local oxlint JS plugin: the conciv lint rules (no-comments, no-locator-poll, router-idioms) wired into .oxlintrc.json.",
   "homepage": "https://conciv.dev",

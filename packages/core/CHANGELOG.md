@@ -1,5 +1,26 @@
 # @conciv/core
 
+## 0.0.18
+
+### Patch Changes
+
+- [#212](https://github.com/conciv-dev/conciv/pull/212) [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd) Thanks [@omridevk](https://github.com/omridevk)! - Clean-room rewrite of the chat stack: the client rides `@tanstack/ai` subscribe/send/stop with server-stamped runIds, core rebuilds around six small chat modules with a MESSAGES_SNAPSHOT-led wire, and the composer moves into ui-kit-chat with draft persistence and refresh. The old bridge/epoch/adopt machinery is deleted and banned from the codebase by lint.
+
+- [#212](https://github.com/conciv-dev/conciv/pull/212) [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd) Thanks [@omridevk](https://github.com/omridevk)! - Track in-flight chat runs and drain them when the app is disposed, so a shutdown no longer races a
+  turn's teardown (leftover harness temp files, writes against a closed database). `makeApp` now
+  returns a single `dispose()` that drains runs, runs extension disposers, and closes the sqlite
+  handle, replacing the separate `disposers`/`closeDb` pair callers could forget. The MCP route also
+  closes its per-request server and transport instead of leaking one per POST.
+- Updated dependencies [[`b687236`](https://github.com/conciv-dev/conciv/commit/b687236db6e3793f1ecb909ebafa7bf1ed02ff8f), [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd), [`1e1b01b`](https://github.com/conciv-dev/conciv/commit/1e1b01b36c3b5c282d51a6689b8a18810a330fc2), [`90ed432`](https://github.com/conciv-dev/conciv/commit/90ed432ccf967c05f1858c8c13d15ee57c33fb6c), [`42a0ad0`](https://github.com/conciv-dev/conciv/commit/42a0ad0273cbf8b1b48d197c363f4f77da75dc69), [`32b49c3`](https://github.com/conciv-dev/conciv/commit/32b49c36a2c62210391449a1b2f01095d8ece57f), [`ce52c4f`](https://github.com/conciv-dev/conciv/commit/ce52c4ff059e2c701fa81d18b68a793df2b937e8)]:
+  - @conciv/tools@0.0.18
+  - @conciv/protocol@0.0.18
+  - @conciv/extension@0.0.18
+  - @conciv/db@0.0.18
+  - @conciv/extension-page@0.0.18
+  - @conciv/harness@0.0.18
+  - @conciv/contract@0.0.18
+  - @conciv/serve@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes
