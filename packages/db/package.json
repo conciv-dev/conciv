@@ -29,8 +29,9 @@
     "access": "public"
   },
   "scripts": {
-    "build": "node scripts/gen-migrations.ts && tsdown",
-    "typecheck": "node scripts/gen-migrations.ts && tsc -p tsconfig.json --noEmit",
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "gen-migrations": "node scripts/gen-migrations.ts",
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
