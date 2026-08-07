@@ -7,8 +7,8 @@ type Ctx = {recorder: RecorderRuntime}
 const START_ATTACH_TIMEOUT_MS = 5000
 
 export const startTool = defineTool(startToolDef).server(async (_input, ctx: Ctx) => {
-  const {captureId, startTs} = ctx.recorder.control.startCapture()
-  const covered = await ctx.recorder.control.awaitCoverage(startTs, START_ATTACH_TIMEOUT_MS)
+  const {captureId, startTs, appendCursor} = ctx.recorder.control.startCapture()
+  const covered = await ctx.recorder.control.awaitAppendAfter(appendCursor, START_ATTACH_TIMEOUT_MS)
   if (covered) return {captureId, startedAt: startTs}
   ctx.recorder.control.stopCapture(captureId)
   return {error: 'no page client attached within 5s; the app page with the widget must be open to record'}
