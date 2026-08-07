@@ -2,6 +2,7 @@ import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {z} from 'zod'
+import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, hostPage, serveHost} from './helpers/host.js'
 
@@ -133,15 +134,7 @@ describe('bootConnect: the connect handle serves the same verb groups through th
       window.concivTestHandle = window.ConcivHandle.makeConnectHandle()
       void window.concivTestHandle.mount(el)
     })
-    await expectLocator(page.getByRole('status', {name: 'connect pane ready'})).toBeVisible({timeout: 30_000})
-    const subscribed = page.waitForResponse((response) => response.url().endsWith('/rpc/page/queries'), {
-      timeout: 30_000,
-    })
-    await page.evaluate(
-      (base) => window.dispatchEvent(new CustomEvent('embedtest:connect', {detail: {base}})),
-      kit.base,
-    )
-    await subscribed
+    await completeConnectHandshake(page, kit.base)
   }, 60_000)
 
   afterAll(async () => {

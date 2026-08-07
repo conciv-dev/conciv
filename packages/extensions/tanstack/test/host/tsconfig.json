@@ -8,5 +8,6 @@
     "jsx": "react-jsx",
     "jsxImportSource": "react"
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["conciv"]
 }
