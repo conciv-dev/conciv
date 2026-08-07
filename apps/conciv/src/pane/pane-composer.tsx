@@ -4,6 +4,7 @@ import {ArrowUp, Clock, Paperclip, RefreshCw, Square} from 'lucide-solid'
 import {ComposerPrimitive, QueueItem, AttachmentUI, type AttachmentAdapter} from '@conciv/ui-kit-chat'
 import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
+import {ComposerInputAdapter, type ComposerInputHandle, type SelectionOffsets} from './composer-input-adapter.js'
 
 export type PaneComposerProps = {
   draftStorage: WebStorage
@@ -13,7 +14,8 @@ export type PaneComposerProps = {
   children?: JSX.Element
   busy?: JSX.Element
   popover?: JSX.Element
-  inputRef?: (element: HTMLTextAreaElement) => void
+  onInputReady?: (handle: ComposerInputHandle) => void
+  onSelectionChange?: (offsets: SelectionOffsets) => void
   attachmentAdapter?: AttachmentAdapter
   AttachmentComponent?: Component<{removable?: boolean}>
 }
@@ -83,13 +85,13 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
         />
       </div>
       <div class="px-1.5 pb-1.5 pt-1 rounded-[var(--chat-radius-md)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:border-color_120ms_var(--chat-ease)] focus-within:[border-color:var(--chat-accent)]">
-        <ComposerPrimitive.Input
-          unstyled
-          ref={props.inputRef}
+        <ComposerInputAdapter
           placeholder={props.placeholder}
           class={INPUT}
-          aria-label={props.inputLabel}
+          inputLabel={props.inputLabel}
           addAttachmentOnPaste={props.attachmentAdapter !== undefined}
+          onReady={props.onInputReady}
+          onSelectionChange={props.onSelectionChange}
         />
         <div class="pt-0.5 flex gap-1 items-center">
           <Show when={props.attachmentAdapter}>

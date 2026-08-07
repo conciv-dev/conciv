@@ -38,6 +38,7 @@ import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {NoticeToaster, notify} from '../shell/notices.js'
 import {makeDraftStorage} from './draft-storage.js'
+import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {checkSend, type SendVerdict} from './send-checks.js'
 
@@ -127,7 +128,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const working = () => isThinking() || isStreaming()
   const disconnected = () => chat.connectionStatus() !== 'connected'
 
-  let inputEl: HTMLTextAreaElement | undefined
+  let inputHandle: ComposerInputHandle | undefined
   const composerApi = {current: null as ComposerApi | null}
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
@@ -210,7 +211,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   }))
   const compacting = () => compact.isPending
 
-  const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
+  const focusInput = () => requestAnimationFrame(() => inputHandle?.focus())
   const insert = (text: string) => {
     composerApi.current?.append(text)
     focusInput()
@@ -346,15 +347,16 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                     <Show when={draftStorage()}>
                       {(storage) => (
                         <PaneComposer
-                          draftStorage={storage()}
+                          draftStorage={storage().storage}
                           draftKey={sessionId}
                           placeholder="Ask a question…"
                           inputLabel="Message the conciv agent"
                           attachmentAdapter={attachments().adapter}
                           AttachmentComponent={PaneAttachment}
-                          inputRef={(element) => {
-                            inputEl = element
+                          onInputReady={(handle) => {
+                            inputHandle = handle
                           }}
+                          onSelectionChange={storage().noteSelection}
                           busy={compacting() ? <CompactSpinner /> : undefined}
                           popover={<TriggerMenus sessionId={sessionId} />}
                         >
