@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {pageVerbError, isPageVerbError} from '../src/page-verbs.js'
+import {pageVerbError, isPageVerbError} from '../src/page-errors.js'
 
 describe('pageVerbError', () => {
   it('builds a typed, guardable error carrying extension and verb', () => {

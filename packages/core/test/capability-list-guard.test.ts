@@ -137,14 +137,14 @@ function parenthesisDelta(char: string): number {
   return 0
 }
 
-function declarationDepthAfter(codeText: string, depthBefore: number): number {
+function declarationDepthAfter(codeText: string, depthBefore: number, opener: RegExp): number {
   let depth = depthBefore
   let cursor = 0
   while (cursor < codeText.length) {
     if (depth === 0) {
-      const opener = DECLARATION_OPENER.exec(codeText.slice(cursor))
-      if (!opener) return 0
-      cursor += opener.index + opener[0].length
+      const opened = opener.exec(codeText.slice(cursor))
+      if (!opened) return 0
+      cursor += opened.index + opened[0].length
       depth = 1
       continue
     }
@@ -154,18 +154,68 @@ function declarationDepthAfter(codeText: string, depthBefore: number): number {
   return depth
 }
 
-function declaredNamesIn(text: string): string[] {
-  const segments = segmentSource(text)
+function harvestNames(segments: Segment[], opener: RegExp, fieldAtEnd: RegExp, nameOf: (value: string) => string) {
   const names: string[] = []
   let depth = 0
   segments.forEach((segment, segmentIndex) => {
     if (segment.kind !== 'code') return
-    depth = declarationDepthAfter(segment.text, depth)
+    depth = declarationDepthAfter(segment.text, depth, opener)
     if (depth === 0) return
-    if (!NAME_FIELD_AT_END.test(segment.text)) return
+    if (!fieldAtEnd.test(segment.text)) return
     const following = segments[segmentIndex + 1]
-    if (following?.kind === 'single') names.push(following.text)
+    if (following?.kind === 'single') names.push(nameOf(following.text))
   })
+  return names
+}
+
+type DeclarationFactory = {functionName: string; namePrefix: string; specField: string}
+
+const FUNCTION_DECLARATION = /function\s+([A-Za-z_$][\w$]*)/g
+
+const SPEC_FIELD_INTERPOLATION = /^\s*[A-Za-z_$][\w$]*\.([A-Za-z_$][\w$]*)\s*$/
+
+function templatedNameFactoryAt(
+  segments: Segment[],
+  segmentIndex: number,
+  enclosingFunction: string,
+): DeclarationFactory | undefined {
+  if (enclosingFunction === '') return undefined
+  const prefix = segments[segmentIndex + 1]
+  if (prefix?.kind !== 'template' || prefix.text === '') return undefined
+  const interpolation = segments[segmentIndex + 2]
+  if (interpolation?.kind !== 'code') return undefined
+  const specField = SPEC_FIELD_INTERPOLATION.exec(interpolation.text)?.[1]
+  if (specField === undefined) return undefined
+  return {functionName: enclosingFunction, namePrefix: prefix.text, specField}
+}
+
+function declarationFactoriesIn(segments: Segment[]): DeclarationFactory[] {
+  const factories: DeclarationFactory[] = []
+  let depth = 0
+  let enclosingFunction = ''
+  segments.forEach((segment, segmentIndex) => {
+    if (segment.kind !== 'code') return
+    for (const declaration of segment.text.matchAll(FUNCTION_DECLARATION)) enclosingFunction = declaration[1] ?? ''
+    depth = declarationDepthAfter(segment.text, depth, DECLARATION_OPENER)
+    if (depth === 0 || !NAME_FIELD_AT_END.test(segment.text)) return
+    const factory = templatedNameFactoryAt(segments, segmentIndex, enclosingFunction)
+    if (factory !== undefined) factories.push(factory)
+  })
+  return factories
+}
+
+function factoryCallNames(segments: Segment[], factory: DeclarationFactory): string[] {
+  const opener = new RegExp(`(?<![\\w$.])${factory.functionName}\\s*\\(`)
+  const fieldAtEnd = new RegExp(`(?:^|[^\\w$.])${factory.specField}:\\s*$`)
+  return harvestNames(segments, opener, fieldAtEnd, (verb) => `${factory.namePrefix}${verb}`)
+}
+
+function declaredNamesIn(text: string): string[] {
+  const segments = segmentSource(text)
+  const names = harvestNames(segments, DECLARATION_OPENER, NAME_FIELD_AT_END, (name) => name)
+  for (const factory of declarationFactoriesIn(segments)) {
+    names.push(...factoryCallNames(segments, factory))
+  }
   return names
 }
 
@@ -283,6 +333,17 @@ describe('capability lists live in the registry declarations only', () => {
     expect(
       foreignNamesIn(text, ['alpha.one', 'alpha.two', 'alpha.three'], new Set(declaredNamesIn(text)), false),
     ).toEqual(['alpha.two', 'alpha.three'])
+  })
+
+  test('a local declaration factory templating the tool name is harvested at its call sites', () => {
+    const text = [
+      'function alphaTool(spec: {verb: string; summary: string}) {',
+      '  return defineTool({name: `alpha.${spec.verb}`, description: spec.summary})',
+      '}',
+      "const oneDef = alphaTool({verb: 'one', summary: 'the first tool'})",
+      "const twoDef = alphaTool({verb: 'two', summary: 'the second tool'})",
+    ].join('\n')
+    expect(declaredNamesIn(text)).toEqual(['alpha.one', 'alpha.two'])
   })
 
   test('a defineTool( mention inside a string exempts nothing', () => {

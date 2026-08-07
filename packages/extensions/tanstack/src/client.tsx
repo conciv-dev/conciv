@@ -1,7 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import {defineExtension, getHostApi} from '@conciv/extension'
 import {InspectorChip} from './client/inspector-chip.js'
-import {tanstackVerbs} from './client/verbs.js'
+import {tanstackVerbTools} from './client/verbs.js'
 import {installRuntimeErrorListeners} from './client/error-ring.js'
 import {
   backClient,
@@ -45,10 +45,10 @@ export const tanstack = defineExtension({
     buildErrorsClient,
     routeManifestClient,
     serverFnTraceClient,
+    ...tanstackVerbTools,
   ],
 }).client(() => ({
   value: {},
-  pageVerbs: tanstackVerbs,
   dispose: installRuntimeErrorListeners(),
 }))
 

@@ -4,13 +4,7 @@ import {RPCHandler} from '@orpc/server/fetch'
 import type {AnyRouter} from '@orpc/server'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveApp} from '@conciv/harness-testkit'
-import {
-  makeExtRpcClient,
-  noWidgetPageCaller,
-  type ServerApi,
-  type ServerHarness,
-  type ServerSessions,
-} from '@conciv/extension'
+import {makeExtRpcClient, type ServerApi, type ServerHarness, type ServerSessions} from '@conciv/extension'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
 
@@ -113,7 +107,13 @@ export async function startTerminalServer(
     stateDir,
     sessions,
     harness,
-    page: noWidgetPageCaller('terminal'),
+    page: {
+      call: () => Promise.reject(new Error('terminal tests attach no page')),
+    },
+    tools: {
+      call: () => Promise.reject(new Error('terminal tests attach no tool registry')),
+    },
+    symbolicate: async () => null,
     nativeUrl: () => undefined,
   }
   const result = await terminalExtension.__server?.(api)

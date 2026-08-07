@@ -1,5 +1,6 @@
 import {PageQuerySchema} from '@conciv/protocol/page-types'
 import type {RpcClient} from '@conciv/contract'
+import type {ClientToolEntry} from '@conciv/extension'
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
 
 export {makeDomPageDriver, type PageDriver} from './page-driver.js'
@@ -7,15 +8,10 @@ export {grabApi} from './grab-api.js'
 export {picking, cancelPick} from './react-grab/picking.js'
 export {getReactGrabAdapter, type ReactGrabAdapter} from './react-grab/adapter.js'
 export {describe, locate, installReactBridge, rootFibers} from './react-bridge.js'
-export {dehydrate, type DehydrateOptions} from './dehydrate.js'
+export {dehydrate, navigatePath, type DehydrateOptions} from './dehydrate.js'
 export {showToast} from './effect-toast.js'
-export {addRef, type Refs} from './page-snapshot.js'
-export {
-  registerExtensionPageVerbs,
-  unregisterExtensionPageVerbs,
-  clearExtensionPageVerbs,
-  bindExtensionPageVerbs,
-} from './page-verb-registry.js'
+export {addRef, buildSnapshot, describeElement, DOM_CAP, type RefAdder, type Refs} from './page-snapshot.js'
+export {startTracking, stopTracking, report as trackReport} from './render-tracker.js'
 export * as reactBridge from './react-bridge.js'
 
 async function sleep(ms: number, signal: AbortSignal): Promise<void> {
@@ -53,10 +49,15 @@ async function pump(rpc: RpcClient, driver: PageDriver, signal: AbortSignal): Pr
   }
 }
 
-export function startPagePlane(opts: {rpc: RpcClient; document: Document; driver?: PageDriver}): {
+export function startPagePlane(opts: {
+  rpc: RpcClient
+  document: Document
+  driver?: PageDriver
+  tools?: readonly ClientToolEntry[]
+}): {
   dispose: () => void
 } {
-  const driver = opts.driver ?? makeDomPageDriver()
+  const driver = opts.driver ?? makeDomPageDriver({tools: opts.tools})
   const abort = new AbortController()
   void pump(opts.rpc, driver, abort.signal)
   return {dispose: () => abort.abort()}

@@ -45,6 +45,7 @@
     "@conciv/contract": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/extension-ios": "workspace:^",
+    "@conciv/extension-page": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/protocol": "workspace:^",
@@ -68,6 +69,7 @@
     "@conciv/page": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@solid-primitives/event-listener": "^2.4.6",
     "@types/node": "^26.1.0",
     "@unocss/postcss": "^66.7.2",
     "@unocss/reset": "^66.7.2",
@@ -79,7 +81,8 @@
     "unocss": "^66.7.2",
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "zod": "^4.4.3"
   },
   "engines": {
     "node": ">=22.13"

@@ -16,8 +16,6 @@ import {
   OpenSourceSchema,
   PageChangeEntrySchema,
   PageReplySchema,
-  PageRunInputSchema,
-  PageRunResultSchema,
   SourceLocSchema,
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
@@ -37,15 +35,30 @@ const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
-const pageRunErrors = {
+const registryCallErrors = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
   PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
-  UNKNOWN_VERB: {message: 'the page does not know this verb'},
-  INVALID_ARGS: {message: 'the page rejected the arguments'},
-  HANDLER_ERROR: {message: 'the page failed to run this verb'},
+  UNKNOWN_TOOL: {message: 'no registered tool answers to that name'},
+  INVALID_ARGS: {message: 'the tool rejected the arguments'},
+  HANDLER_ERROR: {message: 'the tool failed to run'},
 }
 
-export type PageRunErrorName = keyof typeof pageRunErrors
+export type RegistryCallErrorName = keyof typeof registryCallErrors
+
+export const ToolCommandSignatureSchema = z.object({
+  name: z.string(),
+  path: z.array(z.string()),
+  binding: z.enum(['server', 'client']),
+  summary: z.string(),
+  category: z.string().optional(),
+  hint: z.string().optional(),
+  positional: z.string().optional(),
+  mutating: z.boolean(),
+  reachable: z.boolean(),
+  input: z.unknown(),
+})
+
+export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
 
 export const EditorOpenInputSchema = z.object({file: z.string(), line: z.number().int().min(1).optional()})
 
@@ -97,8 +110,14 @@ export const contract = {
       .input(SessionIdInput.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))
       .output(Ok),
   },
+  registry: {
+    catalog: oc.output(z.array(ToolCommandSignatureSchema)),
+    call: oc
+      .errors(registryCallErrors)
+      .input(z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())}))
+      .output(z.unknown()),
+  },
   page: {
-    run: oc.errors(pageRunErrors).input(PageRunInputSchema).output(PageRunResultSchema),
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.output(z.array(PageChangeEntrySchema)),
     clearChanges: oc.output(Ok),

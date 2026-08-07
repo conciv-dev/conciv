@@ -1,6 +1,19 @@
 import {expect, test} from 'vitest'
 import {z} from 'zod'
-import {defineTool} from '../src/define-tool.js'
+import {defineTool, type ClientToolCtx} from '../src/define-tool.js'
+
+const unusedCtx: ClientToolCtx = {
+  get document(): Document {
+    throw new Error('this test never touches the document')
+  },
+  target: () => {
+    throw new Error('this test never resolves a target')
+  },
+  resolve: () => null,
+  addRef: () => 'v1',
+  resetRefs: () => {},
+  consoleEntries: () => [],
+}
 
 test('tool execute receives input and injected context', async () => {
   const tool = defineTool({
@@ -52,6 +65,6 @@ test('a client binding without a handler still claims the binding and refuses a 
 test('a client binding with a handler stores it without leaking into a handler-free sibling', async () => {
   const base = defineTool({name: 't', description: 'd', inputSchema: z.object({n: z.number()})})
   const forwarded = base.client((input) => input.n * 2)
-  expect(await forwarded.__clientExecute?.({n: 4})).toBe(8)
+  expect(await forwarded.__clientExecute?.({n: 4}, unusedCtx)).toBe(8)
   expect(base.client().__clientExecute).toBeUndefined()
 })

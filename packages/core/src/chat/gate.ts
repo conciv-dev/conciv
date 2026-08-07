@@ -43,20 +43,22 @@ const GIT_READ_ONLY_SUBCOMMANDS = ['status', 'diff', 'log', 'show', 'branch']
 
 const SHELL_METACHARACTER_PATTERNS = ['*;*', '*&*', '*|*', '*`*', '*$*', '*>*', '*<*']
 
-const commandPolicy = defineSandboxPolicy({
-  default: 'ask',
-  commands: {
-    ask: SHELL_METACHARACTER_PATTERNS,
-    allow: [
-      ...READ_ONLY_COMMANDS.flatMap((command) => [command, `${command} *`]),
-      ...GIT_READ_ONLY_SUBCOMMANDS.flatMap((subcommand) => [`git ${subcommand}`, `git ${subcommand} *`]),
-      'conciv tools*',
-    ],
-  },
-})
+function commandPolicy(extraAllows: readonly string[]) {
+  return defineSandboxPolicy({
+    default: 'ask',
+    commands: {
+      ask: SHELL_METACHARACTER_PATTERNS,
+      allow: [
+        ...READ_ONLY_COMMANDS.flatMap((command) => [command, `${command} *`]),
+        ...GIT_READ_ONLY_SUBCOMMANDS.flatMap((subcommand) => [`git ${subcommand}`, `git ${subcommand} *`]),
+        ...extraAllows,
+      ],
+    },
+  })
+}
 
-export function classifyCommand(command: string): PolicyDecision {
-  return evaluateCommand(command, commandPolicy)
+export function classifyCommand(command: string, extraAllows: readonly string[] = []): PolicyDecision {
+  return evaluateCommand(command, commandPolicy(extraAllows))
 }
 
 export function riskyMatches(risky: ReadonlySet<string>, toolName: string): boolean {
@@ -65,11 +67,12 @@ export function riskyMatches(risky: ReadonlySet<string>, toolName: string): bool
 
 const BashInputSchema = z.object({command: z.string()})
 
-function needsApproval(toolName: string, toolInput: unknown, risky: ReadonlySet<string>): boolean {
-  if (riskyMatches(risky, toolName)) return true
+function needsApproval(toolName: string, toolInput: unknown, deps: RunGateDeps): boolean {
+  if (riskyMatches(deps.risky, toolName)) return true
+  if (deps.mutatingToolCall?.(toolName, toolInput) === true) return true
   if (toolName !== 'Bash') return false
   const parsed = BashInputSchema.safeParse(toolInput)
-  return classifyCommand(parsed.success ? parsed.data.command : '') !== 'allow'
+  return classifyCommand(parsed.success ? parsed.data.command : '', deps.commandAllows?.() ?? []) !== 'allow'
 }
 
 export type PermissionGate = {
@@ -83,7 +86,11 @@ export type AskGateDeps = {
   timeoutMs?: number
 }
 
-export type RunGateDeps = AskGateDeps & {risky: ReadonlySet<string>}
+export type RunGateDeps = AskGateDeps & {
+  risky: ReadonlySet<string>
+  mutatingToolCall?: (toolName: string, input: unknown) => boolean
+  commandAllows?: () => readonly string[]
+}
 
 export function makeAskGate(deps: AskGateDeps): PermissionGate {
   return {
@@ -102,7 +109,7 @@ export function makeRunGate(deps: RunGateDeps): PermissionGate {
   const ask = makeAskGate(deps)
   return {
     decide: async (toolName, toolInput, sessionId, toolUseId) => {
-      if (!needsApproval(toolName, toolInput, deps.risky)) return 'allow'
+      if (!needsApproval(toolName, toolInput, deps)) return 'allow'
       return ask.decide(toolName, toolInput, sessionId, toolUseId)
     },
   }

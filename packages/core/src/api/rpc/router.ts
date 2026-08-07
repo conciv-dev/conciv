@@ -1,12 +1,13 @@
 import {z} from 'zod'
 import {asc, eq, lt} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
+import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers, navigation} from '@conciv/db'
-import type {PageRunErrorName} from '@conciv/contract'
+import type {RegistryCallErrorName, ToolCommandSignature} from '@conciv/contract'
 import {listCommands} from '../../chat/commands.js'
-import {pageQueryStream, runVerb} from '../../page-bus.js'
+import {pageQueryStream} from '../../page-bus.js'
 import {symbolicateFrames} from '../../editor/symbolicate.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
@@ -17,19 +18,18 @@ const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
 export const PAGE_ERROR_NAME = {
   'no-widget': 'NO_PAGE_CLIENT',
   timeout: 'PAGE_TIMEOUT',
-  'unknown-verb': 'UNKNOWN_VERB',
+  'unknown-verb': 'UNKNOWN_TOOL',
   'invalid-args': 'INVALID_ARGS',
   'handler-error': 'HANDLER_ERROR',
-} as const satisfies Record<PageErrorCode, PageRunErrorName>
+} as const satisfies Record<PageErrorCode, RegistryCallErrorName>
 
-type MappedPageErrorName = (typeof PAGE_ERROR_NAME)[PageErrorCode]
-type UnmappedPageErrorName = Exclude<PageRunErrorName, MappedPageErrorName>
-type PageErrors = Record<PageRunErrorName, (options: {message: string}) => Error> & Record<UnmappedPageErrorName, never>
+type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string}) => Error>
 type BundlerErrors = {NO_BUNDLER: () => Error}
 
-function pageError(error: unknown, errors: PageErrors): Error {
-  if (!isPageFailure(error)) return error instanceof Error ? error : new Error(String(error))
-  return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message})
+function registryCallError(error: unknown, errors: RegistryErrors): Error {
+  if (isPageVerbError(error)) return errors[PAGE_ERROR_NAME[error.code]]({message: error.message})
+  if (isPageFailure(error)) return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message})
+  return error instanceof Error ? error : new Error(String(error))
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {
@@ -94,15 +94,34 @@ export function makeRpcRouter(deps: RpcDeps) {
         return {ok: true as const, applied: Number(result.changes) > 0}
       }),
     },
-    page: {
-      run: os.page.run.handler(async ({input, errors}) => {
-        const {verb, ...query} = input
+    registry: {
+      catalog: os.registry.catalog.handler((): ToolCommandSignature[] =>
+        deps.registry.catalog.list().map((entry) => {
+          const signature = deps.registry.catalog.get(entry.name)
+          return {
+            name: entry.name,
+            path: [...entry.path],
+            binding: entry.binding,
+            summary: entry.summary,
+            category: entry.category,
+            hint: entry.hint,
+            positional: signature.positional,
+            mutating: signature.mutating,
+            reachable: entry.reachable,
+            input: signature.input,
+          }
+        }),
+      ),
+      call: os.registry.call.handler(async ({input, errors}) => {
+        if (!deps.registry.has(input.name)) throw errors.UNKNOWN_TOOL()
         try {
-          return await runVerb(deps.page, query, verb)
+          return await deps.registry.call(input.name, input.input)
         } catch (error) {
-          throw pageError(error, errors)
+          throw registryCallError(error, errors)
         }
       }),
+    },
+    page: {
       symbolicate: os.page.symbolicate.handler(({input}) => symbolicateFrames(input.frames, deps.page.root)),
       changes: os.page.changes.handler(() => deps.page.journal.list()),
       clearChanges: os.page.clearChanges.handler(() => {

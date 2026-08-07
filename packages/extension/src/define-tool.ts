@@ -26,6 +26,19 @@ export type ToolBinding = 'server' | 'client'
 
 export type ToolError = Error & {readonly isToolError: true; code: string; data?: unknown}
 
+export type ClientToolLocator = {ref?: string; selector?: string; name?: string}
+
+export type ClientConsoleEntry = {level: string; ts: number; text: string}
+
+export type ClientToolCtx = {
+  document: Document
+  target: (locator: ClientToolLocator) => Element
+  resolve: (locator: ClientToolLocator) => Element | null
+  addRef: (el: Element) => string
+  resetRefs: () => void
+  consoleEntries: (since?: number) => ClientConsoleEntry[]
+}
+
 export function toolError(code: string, options: {message?: string; data?: unknown} = {}): ToolError {
   return Object.assign(new Error(options.message ?? code), {isToolError: true as const, code, data: options.data})
 }
@@ -76,12 +89,12 @@ export type ToolBuilder<
   meta?: ToolMeta
   binding?: Binding
   __ctx?: Ctx
-  __clientExecute?: (input: unknown) => Promise<unknown>
+  __clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
   server: <HandlerCtx>(
     execute: (input: z.infer<Schema>, ctx: HandlerCtx, request: ToolRequest) => Promise<unknown> | unknown,
   ) => ToolBuilder<Name, Schema, Output, Errors, 'server', HandlerCtx>
   client: (
-    execute?: (input: z.infer<Schema>) => Promise<unknown> | unknown,
+    execute?: (input: z.infer<Schema>, ctx: ClientToolCtx) => Promise<unknown> | unknown,
   ) => ToolBuilder<Name, Schema, Output, Errors, 'client', Ctx>
   render: (renderer: ToolRenderer) => ToolBuilder<Name, Schema, Output, Errors, Binding, Ctx>
 }
@@ -189,7 +202,7 @@ type ToolState<Binding extends ToolBinding | undefined> = {
   binding?: Binding
   execute?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
   serverRun?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
-  clientExecute?: (input: unknown) => Promise<unknown>
+  clientExecute?: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
   render?: ToolRenderer
 }
 
@@ -255,7 +268,7 @@ function toolBuilder<
       }
       return toolBuilder<Name, Schema, Output, Errors, 'client', Ctx>(definition, {
         ...clientState,
-        clientExecute: async (raw) => execute(definition.inputSchema.parse(raw)),
+        clientExecute: async (raw, ctx) => execute(definition.inputSchema.parse(raw), ctx),
       })
     },
     render(renderer) {

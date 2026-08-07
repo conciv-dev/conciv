@@ -327,7 +327,12 @@ async function* runStream(
     asks: deps.asks,
     emit: (chunk: StreamChunk) => void runLog.append([chunk]).catch(() => {}),
   }
-  const gate = makeRunGate({...gateDeps, risky: deps.risky})
+  const gate = makeRunGate({
+    ...gateDeps,
+    risky: deps.risky,
+    mutatingToolCall: deps.mutatingToolCall,
+    commandAllows: deps.commandAllows,
+  })
   const askGate = makeAskGate(gateDeps)
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
   try {
