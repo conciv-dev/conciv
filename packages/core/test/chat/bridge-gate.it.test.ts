@@ -59,6 +59,20 @@ test('permission tool denies when the gate denies', async () => {
   await bridge.close()
 })
 
+test('a gate timeout on a bridged tool reads as no decision, not a user denial', async () => {
+  const gate = {decide: async () => 'timeout' as const}
+  const slow = toolDefinition({
+    name: 'slow_tool',
+    description: 'never gets an answer',
+    inputSchema: z.object({}),
+  }).server(async () => ({}))
+  const bridge = await gateProvisioner(gate, 'session-4').provision([slow], {provider: 'local-process'})
+  const result = await callBridgeTool(bridge, 'slow_tool', {})
+  expect(result).toContain('received no approval decision (the ask timed out)')
+  expect(result).not.toContain('denied by the user')
+  await bridge.close()
+})
+
 test('bridged tool calls route through the gate before executing', async () => {
   const decided: string[] = []
   let ran = 0

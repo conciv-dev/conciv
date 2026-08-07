@@ -21,6 +21,7 @@ const untouchableGate: PermissionGate = {
 function capability(
   name: string,
   options: {
+    approval?: 'ask'
     mutating?: boolean
     category?: string
     inputSchema?: z.ZodObject<z.ZodRawShape>
@@ -33,6 +34,7 @@ function capability(
     description: `${name} does a thing. Extra prose here.`,
     summary: `${name} does a thing`,
     category: options.category ?? 'extension',
+    ...(options.approval === undefined ? {} : {approval: options.approval}),
     mutating: options.mutating ?? false,
     reachable: true,
     errors: [],
@@ -69,7 +71,7 @@ function codeModeOf(
   return result
 }
 
-function denyingGate(): PermissionGate {
+function expiringGate(): PermissionGate {
   return makeAskGate({sessionId: 'conciv_x', asks: createAskRegistry(), emit: () => {}, timeoutMs: 30})
 }
 
@@ -165,19 +167,21 @@ describe('code mode sandbox execution', () => {
     expect(result.result).toBe('drew')
   })
 
-  test('denies a mutating capability and the denial lands where the code called it', async () => {
+  test('an unanswered approval-declared capability fails with the no-decision wording where the code called it', async () => {
     const ran = {value: false}
     const gated = capability('canvas.delete', {
+      approval: 'ask',
       mutating: true,
       execute: async () => {
         ran.value = true
         return 'deleted'
       },
     })
-    const codeMode = codeModeOf([gated], denyingGate())
+    const codeMode = codeModeOf([gated], expiringGate())
     const result = await runSandbox(codeMode.tools, 'return await external_canvas_delete({})')
     expect(result.success).toBe(false)
-    expect(result.error?.message).toMatch(/denied/i)
+    expect(result.error?.message).toContain('received no approval decision')
+    expect(result.error?.message).toContain('the ask timed out')
     expect(ran.value).toBe(false)
   })
 
@@ -199,6 +203,25 @@ describe('catalog binding', () => {
       .parse(result.result)
     expect(listed.tools.map((entry) => entry.call)).toEqual(['external_canvas_svg', 'external_server_status'])
     expect(listed.tools.map((entry) => entry.name)).toEqual(['canvas.svg', 'server.status'])
+  })
+
+  test('surfaces the approval declaration in the list and the detail so the model can predict a prompt', async () => {
+    const tools = codeModeOf(
+      [capability('canvas.delete', {approval: 'ask', mutating: true}), capability('canvas.read')],
+      allowGate,
+    )
+    const listed = await runSandbox(tools.tools, 'return await external_catalog({})')
+    const entries = z
+      .object({tools: z.array(z.object({name: z.string(), approval: z.literal('ask').optional()}).loose())})
+      .parse(listed.result).tools
+    expect(entries.find((entry) => entry.name === 'canvas.delete')?.approval).toBe('ask')
+    expect(entries.find((entry) => entry.name === 'canvas.read')?.approval).toBeUndefined()
+    const detail = await runSandbox(tools.tools, "return await external_catalog({name: 'canvas.delete'})")
+    const parsed = z
+      .object({approval: z.literal('ask').optional()})
+      .loose()
+      .parse(detail.result)
+    expect(parsed.approval).toBe('ask')
   })
 
   test('filters by search term across name, summary and category', async () => {
@@ -314,17 +337,38 @@ describe('per-call isolation', () => {
 })
 
 describe('gatedToolRun', () => {
-  test('deny reply blocks execute and throws a refusal', async () => {
+  test('an ask that expires blocks execute and throws the no-decision refusal', async () => {
     const ran = {value: false}
     const gated = capability('canvas.delete', {
+      approval: 'ask',
       mutating: true,
       execute: async () => {
         ran.value = true
         return 'deleted'
       },
     })
-    const run = gatedToolRun(gated, request, denyingGate())
-    await expect(run({})).rejects.toThrow(/denied/i)
+    const run = gatedToolRun(gated, request, expiringGate())
+    await expect(run({})).rejects.toThrow('received no approval decision (the ask timed out)')
+    expect(ran.value).toBe(false)
+  })
+
+  test('a deny reply blocks execute and throws the denial wording, distinct from a timeout', async () => {
+    const {gate, asks, approvalId} = replyingGate(5_000)
+    const ran = {value: false}
+    const gated = capability('canvas.delete', {
+      approval: 'ask',
+      mutating: true,
+      execute: async () => {
+        ran.value = true
+        return 'deleted'
+      },
+    })
+    const pending = gatedToolRun(gated, request, gate)({})
+    await sleep(60)
+    const id = approvalId()
+    if (id === undefined) throw new Error('no approval id')
+    asks.reply('conciv_x', id, false)
+    await expect(pending).rejects.toThrow('was denied by the user')
     expect(ran.value).toBe(false)
   })
 
@@ -332,6 +376,7 @@ describe('gatedToolRun', () => {
     const {gate, asks, approvalId} = replyingGate(5_000)
     const ran = {value: false}
     const gated = capability('canvas.delete', {
+      approval: 'ask',
       mutating: true,
       execute: async () => {
         ran.value = true
@@ -378,7 +423,7 @@ describe('code mode per-tool call events', () => {
   test('gatedToolRun decides with the same id it stamps on the emitted call and result', async () => {
     const {events, context} = capturingContext()
     const decideIds: string[] = []
-    const dotted = capability('canvas.svg', {mutating: true, execute: async () => 'drew'})
+    const dotted = capability('canvas.svg', {approval: 'ask', mutating: true, execute: async () => 'drew'})
     const run = gatedToolRun(dotted, request, {
       decide: async (_toolName, _toolInput, _sessionId, toolUseId) => {
         decideIds.push(toolUseId)
@@ -393,13 +438,13 @@ describe('code mode per-tool call events', () => {
     expect(result?.value.callId).toBe(call?.value.callId)
   })
 
-  test('gatedToolRun emits conciv:tool_error on deny', async () => {
+  test('gatedToolRun emits conciv:tool_error on an unanswered ask', async () => {
     const {events, context} = capturingContext()
-    const gated = capability('canvas.delete', {mutating: true, execute: async () => 'deleted'})
-    const run = gatedToolRun(gated, request, denyingGate())
-    await expect(run({}, context)).rejects.toThrow(/denied/i)
+    const gated = capability('canvas.delete', {approval: 'ask', mutating: true, execute: async () => 'deleted'})
+    const run = gatedToolRun(gated, request, expiringGate())
+    await expect(run({}, context)).rejects.toThrow(/no approval decision/)
     const failure = events.find((event) => event.name === 'conciv:tool_error')
-    expect(failure?.value).toMatchObject({error: expect.stringMatching(/denied/i)})
+    expect(failure?.value).toMatchObject({error: expect.stringMatching(/no approval decision/)})
     expect(events.some((event) => event.name === 'conciv:tool_result')).toBe(false)
   })
 

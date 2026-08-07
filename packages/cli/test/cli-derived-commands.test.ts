@@ -2,7 +2,7 @@ import {describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
 import {main} from '../src/bin.js'
 import {runCli} from '../src/run.js'
-import {answerNextQuery, bootCli} from './support/cli-app.js'
+import {answerNextQuery, approvedSession, bootCli} from './support/cli-app.js'
 import {cliSession} from './support/cli-session.js'
 import {onlyDocument} from './support/stdout.js'
 
@@ -84,7 +84,7 @@ describe('the CLI reads its commands from the tool declarations', () => {
 
   it('derives a dev-server operation and its positional from the declaration', async () => {
     const reloaded: string[] = []
-    await bootCli(cleanups, {
+    const kit = await bootCli(cleanups, {
       bridge: {
         id: 'derived-test',
         config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
@@ -98,8 +98,10 @@ describe('the CLI reads its commands from the tool declarations', () => {
         restart: async () => {},
       },
     })
+    const session = await approvedSession(kit, cleanups)
     expect(await runCli(main, ['tools', 'server', 'reload', 'src/hot.ts'])).toBe(0)
     expect(reloaded).toEqual(['src/hot.ts'])
+    expect(session.approved()).toHaveLength(1)
   })
 
   it('takes the positional the dev-server declaration names and leaves its other fields as flags', async () => {

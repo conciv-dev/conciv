@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {main} from '../src/bin.js'
 import {runCli} from '../src/run.js'
-import {answerNextQuery, bootCli} from './support/cli-app.js'
+import {answerNextQuery, approvedSession, bootCli} from './support/cli-app.js'
 import {captureStdout, onlyDocument} from './support/stdout.js'
 
 const cleanups: (() => Promise<void>)[] = []
@@ -15,8 +15,22 @@ beforeEach(() => {
 afterEach(async () => {
   vi.restoreAllMocks()
   delete process.env.CONCIV_PORT
+  delete process.env.CONCIV_SESSION_ID
   for (const cleanup of cleanups.splice(0)) await cleanup()
 })
+
+function restartCapableBridge() {
+  return defineBundlerBridge({
+    id: 'cli-restart-test',
+    config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [], plugins: []}),
+    resolve: async (spec) => ({id: spec}),
+    moduleGraph: (file) => [{url: file, importers: [], importedModules: []}],
+    transform: async () => ({code: null}),
+    urls: () => ({local: [], network: []}),
+    reload: async () => {},
+    restart: async () => {},
+  })
+}
 
 describe('conciv CLI (IT, real served core, typed rpc)', () => {
   it('page fill drives registry.call and prints one success envelope with exit 0', async () => {
@@ -107,6 +121,24 @@ describe('conciv CLI (IT, real served core, typed rpc)', () => {
     written.length = 0
     expect(await runCli(main, ['tools', 'page', 'changes'])).toBe(0)
     expect(onlyDocument(written)).toEqual({ok: true, data: []})
+  })
+
+  it('server restart without a session context is refused with exit 1', async () => {
+    const bridge = restartCapableBridge()
+    await bootCli(cleanups, {bridge})
+    const code = await runCli(main, ['tools', 'server', 'restart'])
+    expect(code).toBe(1)
+    expect(onlyDocument(written)).toMatchObject({ok: false, error: {kind: 'user', code: 'APPROVAL_DENIED'}})
+  })
+
+  it('server restart prompts through the session and an approval lets it run', async () => {
+    const bridge = restartCapableBridge()
+    const kit = await bootCli(cleanups, {bridge})
+    const session = await approvedSession(kit, cleanups)
+    const code = await runCli(main, ['tools', 'server', 'restart'])
+    expect(code).toBe(0)
+    expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true}})
+    expect(session.approved()).toHaveLength(1)
   })
 
   it('server graph round-trips a real bundler bridge inside the envelope', async () => {

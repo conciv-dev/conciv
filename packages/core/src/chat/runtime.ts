@@ -41,7 +41,6 @@ export type ChatDeps = {
   stream: SessionStreams
   snapshots: SnapshotCache
   risky: ReadonlySet<string>
-  mutatingToolCall: (toolName: string, input: unknown) => boolean
   commandAllows: () => readonly string[]
   tools: (sessionId: string) => AnyTool[]
   toolNames: ReadonlySet<string>

@@ -1,5 +1,6 @@
 import {safe, toORPCError, type ORPCError} from '@orpc/client'
 import {z} from 'zod'
+import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
@@ -27,9 +28,15 @@ function defaultOrigin(): string {
   return `http://127.0.0.1:${port}`
 }
 
+function sessionHeaders(): Record<string, string> {
+  const sessionId = process.env.CONCIV_SESSION_ID ?? ''
+  if (!isSessionId(sessionId)) return {}
+  return {[CONCIV_SESSION_HEADER]: sessionId}
+}
+
 export async function runRpc(call: (rpc: RpcClient) => Promise<unknown>): Promise<CliOutcome> {
   const origin = defaultOrigin()
-  const result = await safe(call(makeRpcClient(origin)))
+  const result = await safe(call(makeRpcClient(origin, {headers: sessionHeaders()})))
   if (result.isSuccess) return {report: 'json', data: result.data}
   if (result.isDefined) throw rpcFailure(toORPCError(result.error))
   if (offline(result.error, 0)) throw offlineFailure(origin)

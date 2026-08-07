@@ -35,12 +35,14 @@ const SendAccepted = z.object({ok: z.literal(true), runId: z.string()})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
+const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
 const registryCallErrors = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
   PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
   UNKNOWN_TOOL: {message: 'no registered tool answers to that name'},
   INVALID_ARGS: {message: 'the tool rejected the arguments'},
   HANDLER_ERROR: {message: 'the tool failed to run'},
+  APPROVAL_DENIED: {message: 'the call was not approved'},
 }
 
 export type RegistryCallErrorName = keyof typeof registryCallErrors
@@ -143,11 +145,11 @@ export const contract = {
       .output(z.object({code: z.string().nullable()})),
     urls: oc.errors(noBundler).output(z.object({local: z.array(z.string()), network: z.array(z.string())})),
     reload: oc
-      .errors(noBundler)
+      .errors({...noBundler, ...approvalDenied})
       .input(z.object({file: z.string()}))
       .output(Ok),
     restart: oc
-      .errors(noBundler)
+      .errors({...noBundler, ...approvalDenied})
       .input(z.object({force: z.boolean().default(false)}))
       .output(Ok),
   },

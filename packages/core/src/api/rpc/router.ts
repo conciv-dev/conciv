@@ -1,12 +1,16 @@
+import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {asc, eq, lt} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
+import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers, navigation} from '@conciv/db'
 import type {RegistryCallErrorName, ToolCommandSignature} from '@conciv/contract'
 import {listCommands} from '../../chat/commands.js'
+import {makeAskGate, requiresApproval} from '../../chat/gate.js'
+import {rowById} from '../../chat/session-rows.js'
 import {pageQueryStream} from '../../page-bus.js'
 import {symbolicateFrames} from '../../editor/symbolicate.js'
 import {chatRouter} from './chat.js'
@@ -34,6 +38,56 @@ function registryCallError(error: unknown, errors: RegistryErrors): Error {
 
 function hasErrorCode(error: unknown, code: string): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === code
+}
+
+type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
+
+function callerSessionId(name: string, request: Request, errors: ApprovalErrors): string {
+  const raw = request.headers.get(CONCIV_SESSION_HEADER)?.trim() ?? ''
+  if (raw === '') {
+    throw errors.APPROVAL_DENIED({
+      message: `"${name}" requires approval and no session is attached to ask through; run from a conciv-launched terminal or send ${CONCIV_SESSION_HEADER} (CONCIV_SESSION_ID for the CLI)`,
+    })
+  }
+  if (!isSessionId(raw)) {
+    throw errors.APPROVAL_DENIED({
+      message: `"${name}" requires approval but the ${CONCIV_SESSION_HEADER} header carries a malformed session id`,
+    })
+  }
+  return raw
+}
+
+async function approveAskGatedCall(
+  deps: RpcDeps,
+  name: string,
+  input: unknown,
+  request: Request,
+  errors: ApprovalErrors,
+): Promise<void> {
+  if (!requiresApproval(deps.registry.catalog.get(name))) return
+  const sessionId = callerSessionId(name, request, errors)
+  if ((await rowById(deps.chat.db, sessionId)) === null) {
+    throw errors.APPROVAL_DENIED({
+      message: `"${name}" requires approval but session "${sessionId}" does not exist`,
+    })
+  }
+  if (!deps.chat.stream.listening(sessionId)) {
+    throw errors.APPROVAL_DENIED({
+      message: `"${name}" requires approval but nothing is attached to session "${sessionId}" to answer; open the widget on that session and retry`,
+    })
+  }
+  const gate = makeAskGate({
+    sessionId,
+    asks: deps.chat.asks,
+    emit: (chunk) => deps.chat.stream.publish(sessionId, chunk),
+    ...(deps.askTimeoutMs === undefined ? {} : {timeoutMs: deps.askTimeoutMs}),
+  })
+  const decision = await gate.decide(name, input, sessionId, randomUUID())
+  if (decision === 'allow') return
+  if (decision === 'deny') throw errors.APPROVAL_DENIED({message: `"${name}" was denied by the user`})
+  throw errors.APPROVAL_DENIED({
+    message: `"${name}" received no approval decision (the ask timed out or the session stopped)`,
+  })
 }
 
 async function callTool<Output extends z.ZodType>(
@@ -112,8 +166,9 @@ export function makeRpcRouter(deps: RpcDeps) {
           }
         }),
       ),
-      call: os.registry.call.handler(async ({input, errors}) => {
+      call: os.registry.call.handler(async ({input, context, errors}) => {
         if (!deps.registry.has(input.name)) throw errors.UNKNOWN_TOOL()
+        await approveAskGatedCall(deps, input.name, input.input, context.request, errors)
         try {
           return await deps.registry.call(input.name, input.input)
         } catch (error) {
@@ -148,12 +203,14 @@ export function makeRpcRouter(deps: RpcDeps) {
         callTool(deps, BUILTIN_SERVER_TOOL['server.transform'], input, errors),
       ),
       urls: os.server.urls.handler(({errors}) => callTool(deps, BUILTIN_SERVER_TOOL['server.urls'], {}, errors)),
-      reload: os.server.reload.handler(({input, errors}) =>
-        callTool(deps, BUILTIN_SERVER_TOOL['server.reload'], input, errors),
-      ),
-      restart: os.server.restart.handler(({input, errors}) =>
-        callTool(deps, BUILTIN_SERVER_TOOL['server.restart'], input, errors),
-      ),
+      reload: os.server.reload.handler(async ({input, context, errors}) => {
+        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.reload'].name, input, context.request, errors)
+        return callTool(deps, BUILTIN_SERVER_TOOL['server.reload'], input, errors)
+      }),
+      restart: os.server.restart.handler(async ({input, context, errors}) => {
+        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.restart'].name, input, context.request, errors)
+        return callTool(deps, BUILTIN_SERVER_TOOL['server.restart'], input, errors)
+      }),
     },
     editor: {
       open: os.editor.open.handler(({input}) => callTool(deps, BUILTIN_OPEN_TOOL, input)),

@@ -15,6 +15,7 @@ export type CodeCapability = {
   description: string
   summary: string
   category: string
+  approval?: 'ask'
   mutating: boolean
   reachable: boolean
   errors: {code: string; message: string}[]
@@ -38,6 +39,7 @@ export function registryCapabilities(registry: ToolRegistry): CodeCapability[] {
       description: tool.hint === undefined ? tool.summary : `${tool.summary}. ${tool.hint}`,
       summary: tool.summary,
       category: tool.category ?? 'other',
+      ...(tool.approval === undefined ? {} : {approval: tool.approval}),
       mutating: tool.mutating,
       reachable: tool.reachable,
       errors,
@@ -58,6 +60,7 @@ export function extensionCapabilities(tools: ExtensionServerTool[]): CodeCapabil
     description: tool.description,
     summary: firstSentence(tool.description),
     category: 'extension',
+    ...(tool.approval === undefined ? {} : {approval: tool.approval}),
     mutating: tool.mutating,
     reachable: true,
     errors: tool.errors,

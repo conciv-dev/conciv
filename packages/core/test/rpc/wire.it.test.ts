@@ -6,7 +6,8 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
-import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
+import {createTestHarness, makeRpcClient, withAutoApproval, type Kit, type TestHarness} from '@conciv/harness-testkit'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {openSource} from '@conciv/extension/client'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
@@ -378,10 +379,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     await iterator.return(undefined).catch(() => {})
   })
 
-  it('server.* without a bundler bridge reports NO_BUNDLER', async () => {
+  it('server reads without a bundler bridge report NO_BUNDLER, ask-gated writes refuse first', async () => {
     const {kit} = await bootWire()
     await expect(kit.rpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
-    await expect(kit.rpc.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
+    await expect(kit.rpc.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
   })
 
   it('server.* round-trips a real bundler bridge', async () => {
@@ -415,9 +416,13 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     ])
     expect(await kit.rpc.server.transform({url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
     expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
-    expect(await kit.rpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
+    const {sessionId} = await kit.rpc.sessions.create(undefined)
+    const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    await withAutoApproval(kit.rpc, sessionId, async () => {
+      expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
+      expect(await sessionRpc.server.restart({force: true})).toEqual({ok: true})
+    })
     expect(reloaded).toEqual(['src/hot.ts'])
-    expect(await kit.rpc.server.restart({force: true})).toEqual({ok: true})
     expect(restarted).toEqual([true])
   })
 

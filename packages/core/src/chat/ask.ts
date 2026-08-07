@@ -86,6 +86,14 @@ export function createAskRegistry(): AskRegistry {
       const value = await ask.promise
       clearTimeout(timer)
       state.asks.delete(key)
+      if (
+        bySession.get(sessionId) === state &&
+        state.asks.size === 0 &&
+        state.uiCalls.length === 0 &&
+        state.uiWaiters.size === 0
+      ) {
+        bySession.delete(sessionId)
+      }
       return value
     },
     cancel: (sessionId) => {

@@ -27,7 +27,7 @@ import {isPageVerbError} from './page-errors.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
 import type {CtxOf, ToolRequest, UnionToIntersection} from './types.js'
 
-export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding}
+export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding; approval?: 'ask'}
 
 export type RegistryCallContext = {request?: ToolRequest}
 
@@ -137,6 +137,7 @@ export type ToolSignatureError = {code: string; message: string; transport: bool
 
 export type ToolSignature = ToolCatalogEntry & {
   positional?: string
+  approval?: 'ask'
   mutating: boolean
   mirrors: boolean
   keywords: readonly string[]
@@ -317,7 +318,12 @@ const registryBase = os
 type ToolErrorConstructors = ORPCErrorConstructorMap<ToolErrors>
 
 function compileTool(tool: RegistryTool, pageCaller: RegistryPageCaller | undefined, context: unknown): AnyRouter {
-  const meta: RegistryToolMeta = {...tool.meta, name: tool.name, binding: tool.binding}
+  const meta: RegistryToolMeta = {
+    ...tool.meta,
+    name: tool.name,
+    binding: tool.binding,
+    ...(tool.approval === undefined ? {} : {approval: tool.approval}),
+  }
   const declaredErrors: ToolErrors =
     tool.binding === 'client' ? {...tool.errors, ...TOOL_TRANSPORT_ERRORS} : (tool.errors ?? {})
   const procedure = registryBase.meta(meta).errors(declaredErrors).input(tool.inputSchema).output(tool.outputSchema)
@@ -407,6 +413,7 @@ const RegistryToolMetaSchema = z.object({
   name: z.string().min(1),
   binding: z.enum(['server', 'client']),
   summary: z.string().min(1),
+  approval: z.literal('ask').optional(),
   category: z.string().optional(),
   mutating: z.boolean().optional(),
   mirrors: z.boolean().optional(),
@@ -458,6 +465,7 @@ function signatureOf(entry: RegistryWalkEntry, listed: ToolCatalogEntry): ToolSi
   return {
     ...listed,
     positional: meta.positional,
+    approval: meta.approval,
     mutating: meta.mutating ?? false,
     mirrors: meta.mirrors ?? false,
     keywords: meta.keywords ?? [],

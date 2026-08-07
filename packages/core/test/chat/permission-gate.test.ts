@@ -13,11 +13,6 @@ const fixture = (timeoutMs?: number) => {
     asks,
     emit: (chunk) => emitted.push(chunk),
     risky,
-    mutatingToolCall: (toolName, input) =>
-      toolName === 'conciv_page' &&
-      typeof input === 'object' &&
-      input !== null &&
-      Reflect.get(input, 'verb') === 'click',
     timeoutMs: timeoutMs ?? 100,
   })
   const approvalId = (): string | undefined => emitted.flatMap(approvalIds)[0]
@@ -46,7 +41,7 @@ describe('run gate on awaitReply', () => {
     'mcp__conciv__canvas_delete',
   ])('gates %s: every caller path names the same risky tool', async (name) => {
     const {gate} = fixture(30)
-    expect(await gate.decide(name, {id: 'r1'}, 'conciv_x', 'tu2')).toBe('deny')
+    expect(await gate.decide(name, {id: 'r1'}, 'conciv_x', 'tu2')).toBe('timeout')
   })
 
   it.each(['canvas.read', 'mcp__conciv__canvas.draw', 'mcp__tanstack__canvas.read'])(
@@ -79,12 +74,13 @@ describe('run gate on awaitReply', () => {
   })
 })
 
-describe('run gate on mutating page calls', () => {
-  it('a mutating conciv_page verb prompts through decide() and a read passes', async () => {
-    const {gate, asks, approvalId} = fixture(5_000)
+describe('run gate on page calls', () => {
+  it('conciv_page passes without approval for reads and mutations alike', async () => {
+    const {gate, emitted} = fixture(5_000)
     expect(await gate.decide('conciv_page', {verb: 'text', selector: '#h'}, 'conciv_x', 'tu-page-read')).toBe('allow')
-    const pending = gate.decide('conciv_page', {verb: 'click', selector: '.buy'}, 'conciv_x', 'tu-page-click')
-    asks.reply('conciv_x', await settledApprovalId(approvalId), true)
-    expect(await pending).toBe('allow')
+    expect(await gate.decide('conciv_page', {verb: 'click', selector: '.buy'}, 'conciv_x', 'tu-page-click')).toBe(
+      'allow',
+    )
+    expect(emitted).toEqual([])
   })
 })

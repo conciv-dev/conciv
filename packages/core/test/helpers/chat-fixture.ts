@@ -4,7 +4,7 @@ import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
 import {openDb, type ConcivDb} from '@conciv/db'
-import {makeConcivSandbox} from '../../src/chat/gate.js'
+import {makeConcivSandbox} from '../../src/chat/sandbox.js'
 import {createAskRegistry} from '../../src/chat/ask.js'
 import {createSessionStreams} from '../../src/chat/subscribe.js'
 import {createSnapshotCache} from '../../src/chat/transcript.js'
@@ -43,7 +43,6 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     liveRuns: createLiveRuns(),
     stream: createSessionStreams(),
     snapshots: createSnapshotCache(),
-    mutatingToolCall: () => false,
     commandAllows: () => [],
     risky: new Set<string>(),
     tools: () => [],
