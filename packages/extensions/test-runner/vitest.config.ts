@@ -90,6 +90,7 @@ export default defineConfig({
           include: ['test/**/*.it.test.ts'],
           exclude: ['test/fixtures/**', 'node_modules/**', 'dist/**'],
           testTimeout: 30_000,
+          fileParallelism: false,
         },
       },
       {

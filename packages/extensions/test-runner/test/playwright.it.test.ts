@@ -4,7 +4,7 @@ import {dirname, join} from 'node:path'
 import type {TestRunnerManager} from '../src/runner/contract.js'
 import {makeChildManager, isRunnerUnavailable, type ChildRunnerSpec} from '../src/runner/driver.js'
 import {playwright as playwrightAdapter} from '../src/runners/playwright/adapter.js'
-import {tsxSpawnFor, errorSpawnRunner} from './helpers.js'
+import {tsxSpawnFor, errorSpawnRunner, silentExitSpawnRunner, killedSpawnRunner, captureRunError} from './helpers.js'
 
 const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/playwright-app')
 const childTs = new URL('../src/runners/playwright/child.ts', import.meta.url)
@@ -76,10 +76,24 @@ describe('playwright adapter against a real fixture (IT)', () => {
     const mgr = makeChildManager(playwrightSpec, fixture, {
       spawnRunner: errorSpawnRunner('playwright not found in the app'),
     })
-    const runErr = await mgr.run({}).then(
-      () => null,
-      (e: unknown) => e,
-    )
+    const runErr = await captureRunError(mgr)
     expect(isRunnerUnavailable(runErr)).toBe(true)
+  })
+
+  it('names the exit code when the child dies silently with no output', async () => {
+    const mgr = makeChildManager(playwrightSpec, fixture, {spawnRunner: silentExitSpawnRunner(7)})
+    const runErr = await captureRunError(mgr)
+    expect(isRunnerUnavailable(runErr)).toBe(true)
+    expect(runErr).toBeInstanceOf(Error)
+    expect((runErr as Error).message).toContain('exit code 7')
+    expect((runErr as Error).message).toContain('signal null')
+  })
+
+  it('names the signal when the child is killed with no output', async () => {
+    const mgr = makeChildManager(playwrightSpec, fixture, {spawnRunner: killedSpawnRunner('SIGKILL')})
+    const runErr = await captureRunError(mgr)
+    expect(isRunnerUnavailable(runErr)).toBe(true)
+    expect(runErr).toBeInstanceOf(Error)
+    expect((runErr as Error).message).toContain('signal SIGKILL')
   })
 })

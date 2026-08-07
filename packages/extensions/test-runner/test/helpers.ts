@@ -2,6 +2,7 @@ import {spawn} from 'node:child_process'
 import {createRequire} from 'node:module'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import type {SpawnRunner} from '../src/runner/driver.js'
+import type {RunArgs, TestRunnerManager} from '../src/runner/contract.js'
 
 const require = createRequire(import.meta.url)
 const tsxEntry = pathToFileURL(require.resolve('tsx')).href
@@ -25,4 +26,28 @@ export function errorSpawnRunner(reason: string): SpawnRunner {
     spawn(process.execPath, ['-e', "require('fs').writeSync(3, process.argv[1] + '\\n')", payload], {
       stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
     })
+}
+
+export function silentExitSpawnRunner(exitCode: number): SpawnRunner {
+  return () =>
+    spawn(process.execPath, ['-e', `process.exit(${exitCode})`], {
+      stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+    })
+}
+
+export function killedSpawnRunner(signal: NodeJS.Signals): SpawnRunner {
+  return () => {
+    const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], {
+      stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+    })
+    setTimeout(() => child.kill(signal), 50)
+    return child
+  }
+}
+
+export function captureRunError(mgr: TestRunnerManager, args: RunArgs = {}): Promise<unknown> {
+  return mgr.run(args).then(
+    () => null,
+    (e: unknown) => e,
+  )
 }

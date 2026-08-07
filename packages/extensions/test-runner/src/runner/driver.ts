@@ -74,10 +74,14 @@ export function makeChildManager(
         lifecycle.child = null
         reject(unavailable(e.message))
       })
-      child.on('close', () => {
+      child.on('close', (code, signal) => {
         lifecycle.child = null
         if (errState.reason !== null) {
           reject(unavailable(errState.reason))
+          return
+        }
+        if (messages.length === 0 && (code !== 0 || signal !== null)) {
+          reject(unavailable(`child exited without producing results (exit code ${code}, signal ${signal})`))
           return
         }
         resolve(messages)

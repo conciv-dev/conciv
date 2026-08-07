@@ -4,7 +4,7 @@ import {dirname, join} from 'node:path'
 import type {TestRunnerManager} from '../src/runner/contract.js'
 import {makeChildManager, isRunnerUnavailable, type ChildRunnerSpec} from '../src/runner/driver.js'
 import {vitest as vitestAdapter} from '../src/runners/vitest/adapter.js'
-import {tsxSpawnFor, errorSpawnRunner} from './helpers.js'
+import {tsxSpawnFor, errorSpawnRunner, captureRunError} from './helpers.js'
 
 const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/vitest-app')
 const childTs = new URL('../src/runners/vitest/child.ts', import.meta.url)
@@ -67,10 +67,7 @@ describe('vitest adapter against a real fixture app (IT)', () => {
     const mgr = makeChildManager(vitestSpec, fixture, {
       spawnRunner: errorSpawnRunner("Cannot find module 'vitest/node'"),
     })
-    const runErr = await mgr.run({}).then(
-      () => null,
-      (e: unknown) => e,
-    )
+    const runErr = await captureRunError(mgr)
     expect(isRunnerUnavailable(runErr)).toBe(true)
     expect(runErr instanceof Error ? runErr.message : '').toContain('vitest unavailable')
     expect(mgr.emitSnapshot()).toMatchObject({type: 'snapshot', watching: false})
