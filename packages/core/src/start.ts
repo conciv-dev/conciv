@@ -44,6 +44,14 @@ type FetchHandler = (request: Request) => Response | Promise<Response>
 
 const PERSISTED_PORT_ATTEMPTS = 4
 const PERSISTED_PORT_RETRY_MS = 300
+const ACCESS_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/
+
+function assertValidAccessToken(accessToken: string | undefined): void {
+  if (accessToken === undefined || ACCESS_TOKEN_PATTERN.test(accessToken)) return
+  throw new Error(
+    'conciv: accessToken must contain only letters, digits, underscores, and hyphens ([A-Za-z0-9_-]+); other characters corrupt the /t/<token> mount pattern and its URLs',
+  )
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -91,6 +99,7 @@ export function composeSystemPrompt(
 }
 
 export async function start(opts: StartOpts): Promise<Engine> {
+  assertValidAccessToken(opts.accessToken)
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
 
