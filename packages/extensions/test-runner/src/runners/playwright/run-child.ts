@@ -31,7 +31,9 @@ function resolveCli(cwd: string): string {
   throw new Error('playwright not found in the app (install @playwright/test)')
 }
 
-function runCli(cwd: string, cliArgs: string[]): Promise<{report: string; stderr: string}> {
+type CliResult = {report: string; stderr: string; code: number | null; signal: NodeJS.Signals | null}
+
+function runCli(cwd: string, cliArgs: string[]): Promise<CliResult> {
   const cliPath = resolveCli(cwd)
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, 'test', ...cliArgs, '--reporter=json'], {cwd, env: process.env})
@@ -40,8 +42,21 @@ function runCli(cwd: string, cliArgs: string[]): Promise<{report: string; stderr
     child.stdout?.on('data', (d: Buffer) => (report += d.toString()))
     child.stderr?.on('data', (d: Buffer) => (stderr += d.toString()))
     child.on('error', reject)
-    child.on('close', () => resolve({report, stderr}))
+    child.on('close', (code, signal) => resolve({report, stderr, code, signal}))
   })
+}
+
+const OUTPUT_TAIL_LENGTH = 500
+
+function tail(text: string): string {
+  return text.length > OUTPUT_TAIL_LENGTH ? text.slice(-OUTPUT_TAIL_LENGTH) : text
+}
+
+function describeMissingReport(cliResult: CliResult): string {
+  const parts = [`exit code ${cliResult.code}, signal ${cliResult.signal}`]
+  if (cliResult.stderr.trim()) parts.push(`stderr: ${tail(cliResult.stderr.trim())}`)
+  if (cliResult.report.trim()) parts.push(`stdout: ${tail(cliResult.report.trim())}`)
+  return `playwright produced no JSON report (${parts.join(', ')})`
 }
 
 function summarize(rows: TestRow[]): Summary {
@@ -57,9 +72,9 @@ function summarize(rows: TestRow[]): Summary {
 async function runTests(cwd: string, argv: string[]): Promise<void> {
   const patterns = flagValues(argv, '--pattern')
   const name = flagValue(argv, '--name')
-  const {report, stderr} = await runCli(cwd, [...patterns, ...(name ? ['-g', name] : [])])
-  if (!report.trim().startsWith('{')) throw new Error(stderr.trim() || 'playwright produced no JSON report')
-  const rows = parsePlaywrightReport(report)
+  const cliResult = await runCli(cwd, [...patterns, ...(name ? ['-g', name] : [])])
+  if (!cliResult.report.trim().startsWith('{')) throw new Error(describeMissingReport(cliResult))
+  const rows = parsePlaywrightReport(cliResult.report)
   const files = [...new Set(rows.map((r) => r.file))]
   send({type: 'run-start', runId: 'pw1', files})
   for (const row of rows) send({type: 'test', ...row})
@@ -68,10 +83,10 @@ async function runTests(cwd: string, argv: string[]): Promise<void> {
 }
 
 async function runList(cwd: string): Promise<void> {
-  const {report, stderr} = await runCli(cwd, ['--list'])
-  if (!report.trim().startsWith('{')) throw new Error(stderr.trim() || 'playwright produced no JSON report')
+  const cliResult = await runCli(cwd, ['--list'])
+  if (!cliResult.report.trim().startsWith('{')) throw new Error(describeMissingReport(cliResult))
 
-  const files = [...new Set(parsePlaywrightReport(report).map((r) => r.file))]
+  const files = [...new Set(parsePlaywrightReport(cliResult.report).map((r) => r.file))]
   send({type: 'list', files: files.map((f) => ({file: join(cwd, f), relPath: f}))})
 }
 
