@@ -101,13 +101,13 @@ function compactContent(deps: ChatDeps): UserContent {
   return deps.harness.capabilities.compaction ? '/compact' : COMPACT_FALLBACK_PROMPT
 }
 
-function codeModeExtras(
+async function codeModeExtras(
   deps: ChatDeps,
   sessionId: string,
   model: string | null,
   askGate: PermissionGate,
-): {systemPrompts: string[]; tools: AnyTool[]} {
-  const codeMode = makeCodeMode(() => deps.codeModeCapabilities(sessionId), {sessionId, model}, askGate)
+): Promise<{systemPrompts: string[]; tools: AnyTool[]}> {
+  const codeMode = await makeCodeMode(() => deps.codeModeCapabilities(sessionId), {sessionId, model}, askGate)
   const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
   return {systemPrompts, tools: [...deps.tools(sessionId), ...(codeMode?.tools ?? [])]}
 }
@@ -134,7 +134,7 @@ async function buildRunStream(
   const resumeSessionId = deps.harness.capabilities.resume
     ? resumableToken(deps.harness, deps.cwd, await nativeIdFor(deps.db, sessionId), deps.claudeHome)
     : null
-  const extras = codeModeExtras(deps, sessionId, model, gates.askGate)
+  const extras = await codeModeExtras(deps, sessionId, model, gates.askGate)
   const config = deps.harness.chatConfig({
     cwd: deps.cwd,
     sessionId,

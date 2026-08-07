@@ -61,12 +61,12 @@ async function runSandbox(tools: AnyTool[], typescriptCode: string): Promise<Cod
   return CodeResultSchema.parse(await entry.execute({typescriptCode}, {}))
 }
 
-function codeModeOf(
+async function codeModeOf(
   capabilities: CodeCapability[],
   gate: PermissionGate,
   options: {timeoutMs?: number} = {},
-): CodeMode {
-  const result = makeCodeMode(() => capabilities, request, gate, options)
+): Promise<CodeMode> {
+  const result = await makeCodeMode(() => capabilities, request, gate, options)
   if (!result) throw new Error('code mode unavailable: isolated-vm probe reported incompatible')
   return result
 }
@@ -87,12 +87,12 @@ function replyingGate(timeoutMs: number): {
 }
 
 describe('makeCodeMode', () => {
-  test('returns null for an empty capability list', () => {
-    expect(makeCodeMode(() => [], request, allowGate)).toBeNull()
+  test('returns null for an empty capability list', async () => {
+    await expect(makeCodeMode(() => [], request, allowGate)).resolves.toBeNull()
   })
 
-  test('exposes one tool whose prompt documents only the catalog, never a capability', () => {
-    const result = makeCodeMode(
+  test('exposes one tool whose prompt documents only the catalog, never a capability', async () => {
+    const result = await makeCodeMode(
       () => [capability('safe_tool'), capability('risky_tool', {mutating: true})],
       request,
       allowGate,
@@ -107,12 +107,12 @@ describe('makeCodeMode', () => {
 
   test('fails an execution when a capability declares a credential-shaped parameter', async () => {
     const leaky = capability('leaky', {inputSchema: z.object({apiKey: z.string()})})
-    const result = await runSandbox(codeModeOf([leaky], allowGate).tools, 'return 1')
+    const result = await runSandbox((await codeModeOf([leaky], allowGate)).tools, 'return 1')
     expect(result.success).toBe(false)
     expect(result.error?.message).toMatch(/secret/i)
   })
 
-  test('ranks a bounded category sample', () => {
+  test('ranks a bounded category sample', async () => {
     const capabilities = [
       capability('a.one', {category: 'read'}),
       capability('a.two', {category: 'read'}),
@@ -123,7 +123,7 @@ describe('makeCodeMode', () => {
       capability('f.one', {category: 'extension'}),
       capability('g.one', {category: 'assist'}),
     ]
-    const result = codeModeOf(capabilities, allowGate)
+    const result = await codeModeOf(capabilities, allowGate)
     expect(result.categories.length).toBeLessThanOrEqual(6)
     expect(result.categories[0]).toBe('read')
   })
@@ -153,7 +153,7 @@ describe('withBindingNames', () => {
 
 describe('code mode sandbox execution', () => {
   test('runs a trivial script when a dotted tool is registered', async () => {
-    const result = await runSandbox(codeModeOf([capability('canvas.svg')], allowGate).tools, 'return 1')
+    const result = await runSandbox((await codeModeOf([capability('canvas.svg')], allowGate)).tools, 'return 1')
     expect(result.error?.message).toBeUndefined()
     expect(result.success).toBe(true)
     expect(result.result).toBe(1)
@@ -161,7 +161,10 @@ describe('code mode sandbox execution', () => {
 
   test('exposes a dotted tool as a callable sanitized binding', async () => {
     const dotted = capability('canvas.svg', {execute: async () => 'drew'})
-    const result = await runSandbox(codeModeOf([dotted], allowGate).tools, 'return await external_canvas_svg({})')
+    const result = await runSandbox(
+      (await codeModeOf([dotted], allowGate)).tools,
+      'return await external_canvas_svg({})',
+    )
     expect(result.error?.message).toBeUndefined()
     expect(result.success).toBe(true)
     expect(result.result).toBe('drew')
@@ -177,7 +180,7 @@ describe('code mode sandbox execution', () => {
         return 'deleted'
       },
     })
-    const codeMode = codeModeOf([gated], expiringGate())
+    const codeMode = await codeModeOf([gated], expiringGate())
     const result = await runSandbox(codeMode.tools, 'return await external_canvas_delete({})')
     expect(result.success).toBe(false)
     expect(result.error?.message).toContain('received no approval decision')
@@ -187,7 +190,10 @@ describe('code mode sandbox execution', () => {
 
   test('a read never consults the gate', async () => {
     const read = capability('canvas.read', {execute: async () => 'read'})
-    const result = await runSandbox(codeModeOf([read], untouchableGate).tools, 'return await external_canvas_read({})')
+    const result = await runSandbox(
+      (await codeModeOf([read], untouchableGate)).tools,
+      'return await external_canvas_read({})',
+    )
     expect(result.success).toBe(true)
     expect(result.result).toBe('read')
   })
@@ -195,7 +201,10 @@ describe('code mode sandbox execution', () => {
 
 describe('catalog binding', () => {
   test('lists every capability with its callable sandbox name', async () => {
-    const tools = codeModeOf([capability('canvas.svg'), capability('server.status', {category: 'read'})], allowGate)
+    const tools = await codeModeOf(
+      [capability('canvas.svg'), capability('server.status', {category: 'read'})],
+      allowGate,
+    )
     const result = await runSandbox(tools.tools, 'return await external_catalog({})')
     expect(result.success).toBe(true)
     const listed = z
@@ -206,7 +215,7 @@ describe('catalog binding', () => {
   })
 
   test('surfaces the approval declaration in the list and the detail so the model can predict a prompt', async () => {
-    const tools = codeModeOf(
+    const tools = await codeModeOf(
       [capability('canvas.delete', {approval: 'ask', mutating: true}), capability('canvas.read')],
       allowGate,
     )
@@ -225,9 +234,8 @@ describe('catalog binding', () => {
   })
 
   test('filters by search term across name, summary and category', async () => {
-    const tools = codeModeOf(
-      [capability('canvas.svg'), capability('server.status', {category: 'read'})],
-      allowGate,
+    const tools = (
+      await codeModeOf([capability('canvas.svg'), capability('server.status', {category: 'read'})], allowGate)
     ).tools
     const result = await runSandbox(tools, "return await external_catalog({search: 'status'})")
     const listed = z.object({tools: z.array(z.object({name: z.string()}))}).parse(result.result)
@@ -237,7 +245,7 @@ describe('catalog binding', () => {
   test('returns one full signature with a type stub naming the real sandbox function', async () => {
     const drawn = capability('canvas.svg', {inputSchema: z.object({shape: z.string()})})
     const result = await runSandbox(
-      codeModeOf([drawn], allowGate).tools,
+      (await codeModeOf([drawn], allowGate)).tools,
       "return await external_catalog({name: 'canvas.svg'})",
     )
     expect(result.success).toBe(true)
@@ -252,7 +260,7 @@ describe('catalog binding', () => {
 
   test('a capability mounted after construction is discoverable and callable in the same sandbox', async () => {
     const capabilities: CodeCapability[] = [capability('canvas.svg')]
-    const codeMode = makeCodeMode(() => capabilities, request, allowGate)
+    const codeMode = await makeCodeMode(() => capabilities, request, allowGate)
     if (!codeMode) throw new Error('no code mode')
     capabilities.push(capability('late.arrival', {execute: async () => 'made it'}))
     const listed = await runSandbox(codeMode.tools, 'return await external_catalog({})')
@@ -284,7 +292,7 @@ describe('declared errors in the sandbox', () => {
       }
       return seen
     `
-    const result = await runSandbox(codeModeOf([flaky], allowGate).tools, code)
+    const result = await runSandbox((await codeModeOf([flaky], allowGate)).tools, code)
     expect(result.success).toBe(true)
     const seen = z.array(z.string()).parse(result.result)
     expect(seen[0]).toBe('CODE_A: first failure')
@@ -298,7 +306,7 @@ describe('declared errors in the sandbox', () => {
       },
     })
     const code = 'try { await external_acme_jam({}) } catch (error) { return error.message }'
-    const result = await runSandbox(codeModeOf([jam], allowGate).tools, code)
+    const result = await runSandbox((await codeModeOf([jam], allowGate)).tools, code)
     expect(result.success).toBe(true)
     expect(result.result).toBe('CODE_A: jam')
   })
@@ -306,7 +314,7 @@ describe('declared errors in the sandbox', () => {
 
 describe('per-call isolation', () => {
   test('state set in one execution never leaks into the next', async () => {
-    const tools = codeModeOf([capability('canvas.svg')], allowGate).tools
+    const tools = (await codeModeOf([capability('canvas.svg')], allowGate)).tools
     const first = await runSandbox(tools, "globalThis.leak = 'poison'; return 'set'")
     expect(first.success).toBe(true)
     const second = await runSandbox(tools, 'return typeof globalThis.leak')
@@ -315,7 +323,7 @@ describe('per-call isolation', () => {
   })
 
   test('an endless loop dies at the timeout and the sandbox stays usable', async () => {
-    const tools = codeModeOf([capability('canvas.svg')], allowGate, {timeoutMs: 500}).tools
+    const tools = (await codeModeOf([capability('canvas.svg')], allowGate, {timeoutMs: 500})).tools
     const looped = await runSandbox(tools, 'while (true) {}')
     expect(looped.success).toBe(false)
     const after = await runSandbox(tools, 'return 2')
@@ -324,7 +332,7 @@ describe('per-call isolation', () => {
   }, 20_000)
 
   test('a memory bomb dies at the limit and the sandbox stays usable', async () => {
-    const tools = codeModeOf([capability('canvas.svg')], allowGate).tools
+    const tools = (await codeModeOf([capability('canvas.svg')], allowGate)).tools
     const bombed = await runSandbox(tools, "const hoard = []; while (true) hoard.push('x'.repeat(1_000_000))").then(
       (result) => result,
       (error: unknown) => ({success: false, error: {message: String(error)}}),
@@ -463,7 +471,7 @@ describe('code mode per-tool call events', () => {
   test('the real sandbox threads the events through a binding call', async () => {
     const {events, context} = capturingContext()
     const dotted = capability('canvas.svg', {execute: async () => 'drew'})
-    const tools = codeModeOf([dotted], allowGate).tools
+    const tools = (await codeModeOf([dotted], allowGate)).tools
     const entry = tools.find((candidate) => candidate.name === 'execute_typescript')
     if (!entry?.execute) throw new Error('no execute_typescript tool')
     const outcome = CodeResultSchema.parse(
