@@ -129,8 +129,19 @@ describe('terminal extension routes', () => {
       expect(await dedicated.rpc.open({sessionId, model: 'claude-x'})).toEqual({alive: true})
       expect(captured).toHaveLength(1)
       expect(captured[0]?.model).toBe('claude-x')
-      expect(captured[0]?.mcpUrl).toMatch(/\/api\/mcp$/)
+      expect(captured[0]?.mcpUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/api\/mcp$/)
       expect(captured[0]?.concivSessionId).toBe(sessionId)
+    } finally {
+      await dedicated.close()
+    }
+  })
+
+  it('spawns with an mcp url that carries the app base path', async () => {
+    const {harness, captured} = recordingHarness()
+    const dedicated = await startTerminalServer(harness, {basePath: '/t/tok-terminal'})
+    try {
+      expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
+      expect(captured[0]?.mcpUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/t\/tok-terminal\/api\/mcp$/)
     } finally {
       await dedicated.close()
     }

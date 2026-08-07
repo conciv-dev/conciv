@@ -96,6 +96,7 @@ export type ServerToolCaller = {
 export type ServerApi<Config> = {
   config: Config
   cwd: string
+  basePath: string
   stateDir: string
   sessions: ServerSessions
   harness: ServerHarness

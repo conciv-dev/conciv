@@ -38,6 +38,7 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
     expect(await runEnded).toBe(sessionId)
     expect(server.sessions.chatBusy(sessionId)).toBe(false)
 
+    expect(server.basePath).toBe('')
     expect(server.harness.id).toBe('claude')
     expect(typeof server.harness.ttyCommand).toBe('function')
     expect(await server.harness.transcriptExists?.('no-such-token')).toBe(false)

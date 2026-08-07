@@ -335,6 +335,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         stateDir: concivStateDir(opts.cfg.stateRoot),
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
+        basePath: opts.basePath ?? '',
         sessions: serverSessions,
         harness: serverHarness,
         page: {call: (name, input) => askPage(pageBus, name, input)},

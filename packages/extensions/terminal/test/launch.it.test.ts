@@ -35,7 +35,7 @@ describe('terminal launch and connect command', () => {
   })
 
   const start = async (harness = connectingHarness().harness): Promise<TerminalTestServer> => {
-    const server = await startTerminalServer(harness, tempDir('conciv-launch-state-'))
+    const server = await startTerminalServer(harness, {stateDir: tempDir('conciv-launch-state-')})
     started.push(server)
     return server
   }
@@ -48,6 +48,17 @@ describe('terminal launch and connect command', () => {
     expect(command).toContain("CONCIV_LAUNCH='yes'")
     expect(command).toContain("'fake-cli' '--session' 'new'")
     expect(command).toMatch(/'--mcp' 'http:\/\/127\.0\.0\.1:\d+\/api\/mcp'/)
+  })
+
+  it('renders a connect command whose mcp url carries the app base path', async () => {
+    const sessionId = `conciv_${randomUUID()}`
+    const server = await startTerminalServer(connectingHarness().harness, {
+      basePath: '/t/tok-launch',
+      stateDir: tempDir('conciv-launch-state-'),
+    })
+    started.push(server)
+    const {command} = await server.rpc.connectCommand({sessionId})
+    expect(command).toMatch(/'--mcp' 'http:\/\/127\.0\.0\.1:\d+\/t\/tok-launch\/api\/mcp'/)
   })
 
   it('passes the session identity and no resume to the plan for a session with no native id', async () => {

@@ -69,11 +69,13 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/core": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
+    "@tanstack/ai": "^0.43.0",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
     "@vitest/browser-playwright": "4.1.10",

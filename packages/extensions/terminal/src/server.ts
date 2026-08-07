@@ -53,12 +53,16 @@ function resumable({server}: TerminalRuntime, harnessSessionId: string | null): 
   return server.harness.transcriptExists?.(harnessSessionId) ?? true
 }
 
+function apiBase(runtime: TerminalRuntime, request: Request): string {
+  return `${new URL(request.url).origin}${runtime.server.basePath}`
+}
+
 async function connectContext(
   runtime: TerminalRuntime,
   sessionId: SessionId,
   harnessSessionId: string | null,
   model: string | null,
-  origin: string,
+  base: string,
 ): Promise<HarnessConnectContext> {
   const {server} = runtime
   return {
@@ -69,7 +73,7 @@ async function connectContext(
     resume: resumable(runtime, harnessSessionId),
     owned: true,
     model: model ?? (await server.sessions.model(sessionId)),
-    mcpUrl: `${origin}/api/mcp`,
+    mcpUrl: `${base}/api/mcp`,
     hookUrl: null,
   }
 }
@@ -86,25 +90,25 @@ async function connectPlanFor(
   runtime: TerminalRuntime,
   sessionId: SessionId,
   model: string | null,
-  origin: string,
+  base: string,
 ): Promise<HarnessConnectPlan | null> {
   const plan = runtime.server.harness.connectPlan
   if (!plan) return null
   const harnessSessionId = await runtime.server.sessions.resumeToken(sessionId)
-  return plan(await connectContext(runtime, sessionId, harnessSessionId, model, origin))
+  return plan(await connectContext(runtime, sessionId, harnessSessionId, model, base))
 }
 
 async function openTtySession(
   runtime: TerminalRuntime,
   sessionId: SessionId,
   size: TerminalOpenRequest,
-  origin: string,
+  base: string,
 ): Promise<void> {
   const {server, tty} = runtime
   const ttyCommand = server.harness.ttyCommand
   if (!ttyCommand) throw new Error(`harness "${server.harness.id}" has no terminal mode`)
   const harnessSessionId = await mintHarnessSession(runtime, sessionId)
-  const ctx = await connectContext(runtime, sessionId, harnessSessionId, size.model ?? null, origin)
+  const ctx = await connectContext(runtime, sessionId, harnessSessionId, size.model ?? null, base)
   server.harness.release?.(sessionId)
   const session = tty.open(sessionId, ttyCommand(ctx), server.cwd)
   if (size.cols && size.rows) session.resize(size.cols, size.rows)
@@ -132,7 +136,7 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
         const {sessionId, ...size} = input
         if (!server.harness.ttyCommand) throw errors.NO_TTY()
         if (reuseAlive(tty.get(sessionId), size)) return {alive: true}
-        await openTtySession(runtime, sessionId, size, new URL(context.request.url).origin)
+        await openTtySession(runtime, sessionId, size, apiBase(runtime, context.request))
         return {alive: true}
       }),
     close: terminalOs
@@ -158,8 +162,12 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .input(LaunchInputSchema)
       .output(z.object({ok: z.boolean()}))
       .handler(async ({input, context, errors}) => {
-        const origin = new URL(context.request.url).origin
-        const plan = await connectPlanFor(runtime, input.sessionId, input.model ?? null, origin)
+        const plan = await connectPlanFor(
+          runtime,
+          input.sessionId,
+          input.model ?? null,
+          apiBase(runtime, context.request),
+        )
         if (!plan) throw errors.NO_CONNECT()
         const {server} = runtime
         return {ok: await launchConnectPlan(plan, {cwd: server.cwd, stateDir: server.stateDir})}
@@ -169,8 +177,7 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .input(SessionInputSchema)
       .output(z.object({command: z.string()}))
       .handler(async ({input, context, errors}) => {
-        const origin = new URL(context.request.url).origin
-        const plan = await connectPlanFor(runtime, input.sessionId, null, origin)
+        const plan = await connectPlanFor(runtime, input.sessionId, null, apiBase(runtime, context.request))
         if (!plan) throw errors.NO_CONNECT()
         return {command: renderConnectCommand(plan, runtime.server.cwd)}
       }),
