@@ -12,7 +12,7 @@ test('a comment pin is projected to screen and tracks canvas pan', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     const {cx, cy} = await openCanvas(api.page)
-    await api.callTool('comment.create', {
+    await api.callToolApproved('comment.create', {
       cid: crypto.randomUUID(),
       kind: 'floating',
       parts: [{type: 'text', text: 'pan test'}],
