@@ -78,6 +78,10 @@ export function approvalRefusal(toolName: string, decision: PermissionDecision):
   return `Tool "${toolName}" received no approval decision (the ask timed out)`
 }
 
+export function noListenerRefusal(toolName: string, sessionId: string): string {
+  return `Tool "${toolName}" requires approval but nothing is attached to session "${sessionId}" to answer; open the widget on that session and retry`
+}
+
 export type PermissionGate = {
   decide(toolName: string, toolInput: unknown, sessionId: string, toolUseId: string): Promise<PermissionDecision>
 }

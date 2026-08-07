@@ -34,26 +34,38 @@ function decodeReply(raw: string): unknown {
   }
 }
 
-export function makeRunTypescript(apiBase: string, session: string): RunTypescript {
+export type McpCallOptions = {deadlineMs?: number; label?: string}
+
+const DEFAULT_DEADLINE_MS = 60_000
+
+const DEFAULT_LABEL = 'execute_typescript'
+
+export function makeRunTypescript(apiBase: string, session: string, options: McpCallOptions = {}): RunTypescript {
+  const deadlineMs = options.deadlineMs ?? DEFAULT_DEADLINE_MS
+  const label = options.label ?? DEFAULT_LABEL
   return async (typescriptCode) => {
     const mcp = await createMCPClient({
       transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
     })
+    const deadline = AbortSignal.timeout(deadlineMs)
     try {
       const execute = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
       if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
-      const raw = await execute.execute({typescriptCode})
+      const raw = await execute.execute({typescriptCode}, {abortSignal: deadline, emitCustomEvent: () => {}})
       if (typeof raw !== 'string') return raw
       return decodeReply(raw)
+    } catch (error) {
+      if (!deadline.aborted) throw error
+      throw new Error(`runTypescript(${label}) exceeded ${deadlineMs}ms waiting on the MCP execute`, {cause: error})
     } finally {
       await mcp.close()
     }
   }
 }
 
-export function makeCallTool(apiBase: string, session: string): CallTool {
-  const runTypescript = makeRunTypescript(apiBase, session)
+export function makeCallTool(apiBase: string, session: string, options: McpCallOptions = {}): CallTool {
   return async (name, input) => {
+    const runTypescript = makeRunTypescript(apiBase, session, {...options, label: options.label ?? name})
     const reply = await runTypescript(callThroughCatalog(name, input))
     const truncated = TruncatedReplySchema.safeParse(reply)
     if (!truncated.success) return reply
@@ -90,9 +102,9 @@ export async function withAutoApproval<Result>(
   }
 }
 
-export function makeApprovingCallTool(apiBase: string, session: string): CallTool {
+export function makeApprovingCallTool(apiBase: string, session: string, options: McpCallOptions = {}): CallTool {
   const rpc = makeRpcClient(apiBase)
-  const call = makeCallTool(apiBase, session)
+  const call = makeCallTool(apiBase, session, options)
   return (name, input) => withAutoApproval(rpc, session, () => call(name, input))
 }
 

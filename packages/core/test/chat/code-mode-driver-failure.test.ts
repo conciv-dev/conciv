@@ -18,8 +18,8 @@ const {makeCodeMode} = await import(pathToFileURL(process.argv[2]).href)
 const capabilities = () => [{name: 'noop'}]
 const request = {sessionId: 'conciv_probe', model: null}
 const gate = {decide: async () => 'allow'}
-const first = await makeCodeMode(capabilities, request, gate)
-const second = await makeCodeMode(capabilities, request, gate)
+const first = await makeCodeMode(capabilities, request, gate, {listening: () => true})
+const second = await makeCodeMode(capabilities, request, gate, {listening: () => true})
 console.log(JSON.stringify({firstUnavailable: first === null, secondUnavailable: second === null}))
 `
 

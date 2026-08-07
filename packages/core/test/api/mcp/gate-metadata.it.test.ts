@@ -133,7 +133,8 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     try {
       const outcome = await callViaSandbox(kit, '', 'askme.purge', {})
       expect(outcome.ok).toBe(false)
-      expect(outcome.message).toContain('denied')
+      expect(outcome.message).toContain('askme.purge')
+      expect(outcome.message).toContain('nothing is attached')
     } finally {
       await kit.cleanup()
     }
