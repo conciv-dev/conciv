@@ -25,6 +25,8 @@ const healthyTool = defineTool({
   name: 'healthy.ok',
   description: 'a healthy tool',
   inputSchema: z.object({}),
+  outputSchema: z.object({ok: z.boolean()}),
+  meta: {summary: 'answer that the extension is healthy', category: 'fixture', mutating: false},
 }).server(() => ({ok: true}))
 
 describe('extension mount isolation (real makeApp)', () => {

@@ -8,13 +8,17 @@ const canvasDelete = defineTool({
   name: 'canvas.delete',
   description: 'Remove an element from the canvas by elementId.',
   inputSchema: z.object({elementId: z.string()}),
+  outputSchema: z.object({removed: z.string()}),
   approval: 'ask',
+  meta: {summary: 'remove an element from the canvas', category: 'fixture', mutating: true},
 }).server((input) => ({removed: input.elementId}))
 
 const canvasDraw = defineTool({
   name: 'canvas.draw',
   description: 'Draw an element on the canvas.',
   inputSchema: z.object({elementId: z.string()}),
+  outputSchema: z.object({drew: z.string()}),
+  meta: {summary: 'draw an element on the canvas', category: 'fixture', mutating: false},
 }).server((input) => ({drew: input.elementId}))
 
 const whiteboardish = defineExtension({name: 'whiteboardish', tools: [canvasDelete, canvasDraw]})

@@ -69,6 +69,10 @@
       "types": "./dist/usage-types.d.ts",
       "import": "./dist/usage-types.js"
     },
+    "./tool-icon-types": {
+      "types": "./dist/tool-icon-types.d.ts",
+      "import": "./dist/tool-icon-types.js"
+    },
     "./tool-view-types": {
       "types": "./dist/tool-view-types.d.ts",
       "import": "./dist/tool-view-types.js"

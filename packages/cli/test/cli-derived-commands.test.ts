@@ -1,5 +1,6 @@
 import {describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
+import {defineExtension, defineTool} from '@conciv/extension'
 import {main} from '../src/bin.js'
 import {runCli} from '../src/run.js'
 import {answerNextQuery, approvedSession, bootCli} from './support/cli-app.js'
@@ -19,7 +20,30 @@ async function helpFor(argv: string[]): Promise<string> {
   return logged.join('\n')
 }
 
+const beacon = defineTool({
+  name: 'page.beacon',
+  description: 'Raise the acme beacon over the page.',
+  inputSchema: z.object({height: z.number().int().min(1)}),
+  outputSchema: z.object({raised: z.boolean()}),
+  meta: {
+    summary: 'raise the acme beacon over the page',
+    category: 'act',
+    icon: 'pointer',
+    label: {running: 'Raising the beacon', done: 'Raised the beacon'},
+    mutating: true,
+    mirrors: true,
+  },
+}).client()
+
+const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
+
 describe('the CLI reads its commands from the tool declarations', () => {
+  it('derives a page verb whose declaration carries card cosmetics the CLI itself ignores', async () => {
+    await bootCli(cleanups, {extensions: [beaconExtension]})
+    const help = await helpFor(['tools', 'page', '--help'])
+    expect(help).toContain('raise the acme beacon over the page')
+  })
+
   it('sends the effect argument to the server instead of dropping it', async () => {
     const kit = await bootCli(cleanups)
     const answer = await answerNextQuery(kit, {ok: true, result: {effect: 'confetti', enabled: true}})

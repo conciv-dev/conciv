@@ -14,6 +14,7 @@
   "exports": {
     ".": "./src/get-extension-test-api.ts",
     "./card-harness": "./src/card-harness.tsx",
+    "./connect-handshake": "./src/connect-handshake.ts",
     "./core-kit": "./src/core-kit.ts",
     "./framework-fake": "./src/framework-fake.ts",
     "./host/grab": "./src/host/grab.ts",

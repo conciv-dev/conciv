@@ -8,6 +8,8 @@ const multiply = defineTool({
   name: 'sample_mul',
   description: 'multiply by the configured factor',
   inputSchema: z.object({n: z.number()}),
+  outputSchema: z.object({result: z.number()}),
+  meta: {summary: 'multiply by the configured factor', category: 'fixture', mutating: false},
 }).server((input, ctx: {factor: number}) => ({result: input.n * ctx.factor}))
 
 export const sampleConfig = z.object({factor: z.number().default(3)})

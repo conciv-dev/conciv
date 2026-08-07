@@ -33,12 +33,7 @@ import {buildChatTools, makeRunControl, type ChatDeps} from './chat/runtime.js'
 import {askUi, createAskRegistry} from './chat/ask.js'
 import {makeAskGate, requiresApproval} from './chat/gate.js'
 import {makeConcivSandbox} from './chat/sandbox.js'
-import {
-  assistCapabilities,
-  extensionCapabilities,
-  registryCapabilities,
-  type CodeCapability,
-} from './chat/capabilities.js'
+import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
 import {createSessionStreams} from './chat/subscribe.js'
 import {createSnapshotCache} from './chat/transcript.js'
 import {createLiveRuns} from './chat/live-runs.js'
@@ -139,34 +134,7 @@ function declaredToolErrors(tool: AnyToolBuilder): {code: string; message: strin
   return Object.entries(tool.errors ?? {}).map(([code, spec]) => ({code, message: spec.message}))
 }
 
-function isRegistryDeclared(tool: AnyToolBuilder): boolean {
-  return tool.binding !== undefined && (tool.meta !== undefined || tool.outputSchema !== undefined)
-}
-
-function registryDeclaredTools(extension: AnyExtension): AnyToolBuilder[] {
-  return (extension.tools ?? []).filter(isRegistryDeclared)
-}
-
-export function buildExtensionTools(extension: AnyExtension, context: unknown): ExtensionServerTool[] {
-  return (extension.tools ?? []).flatMap((tool) => {
-    if (isRegistryDeclared(tool)) return []
-    const run = tool.__execute
-    if (!run) return []
-    return [
-      {
-        name: tool.name,
-        description: toolDescription(tool),
-        inputSchema: tool.inputSchema,
-        approval: tool.approval,
-        mutating: requiresApproval(tool) || (tool.meta?.mutating ?? false),
-        errors: declaredToolErrors(tool),
-        execute: (input: unknown, request: ToolRequest) => run(input, context, request),
-      },
-    ]
-  })
-}
-
-type RegistryToolSource = {extensionName: string; registryTools: AnyToolBuilder[]; context: unknown}
+type RegistryToolSource = {extensionName: string; registryTools: readonly AnyToolBuilder[]; context: unknown}
 
 function registerExtensionTools(registry: ToolRegistry, sources: RegistryToolSource[]): void {
   for (const source of sources) {
@@ -176,8 +144,13 @@ function registerExtensionTools(registry: ToolRegistry, sources: RegistryToolSou
   }
 }
 
-function markRiskyAsk(risky: ReadonlySet<string>, capabilities: CodeCapability[]): CodeCapability[] {
-  return capabilities.map((capability) => (risky.has(capability.name) ? {...capability, approval: 'ask'} : capability))
+function approvalGatedNames(registry: ToolRegistry): Set<string> {
+  return new Set(
+    registry.catalog
+      .list()
+      .filter((entry) => requiresApproval(registry.catalog.get(entry.name)))
+      .map((entry) => entry.name),
+  )
 }
 
 function registryBackedTool(tool: AnyToolBuilder, registry: ToolRegistry): ExtensionServerTool {
@@ -262,12 +235,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const liveRuns = createLiveRuns()
   const stream = createSessionStreams()
   const snapshots = createSnapshotCache()
-  const risky = new Set(
-    (opts.extensions ?? [])
-      .flatMap((extension) => extension.tools ?? [])
-      .filter((tool) => requiresApproval(tool))
-      .map((tool) => tool.name),
-  )
 
   const runStartListeners: ((sessionId: string) => void)[] = []
 
@@ -310,18 +277,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
     const context = result?.context
-    const forwardedTools = buildExtensionTools(extension, context)
-    const registryTools = registryDeclaredTools(extension)
+    const registryTools = extension.tools ?? []
     return {
       extensionName: extension.name,
       app: narrowExtensionApp(extension.name, result?.app),
       router: result?.router,
-      forwardedTools,
       registryTools,
-      tools: [
-        ...forwardedTools,
-        ...registryTools.filter((tool) => tool.binding === 'server').map((tool) => registryBackedTool(tool, registry)),
-      ],
+      tools: registryTools
+        .filter((tool) => tool.binding === 'server')
+        .map((tool) => registryBackedTool(tool, registry)),
       attachmentExpanders: buildAttachmentExpanders(extension, context),
       context,
       dispose: result?.dispose,
@@ -412,14 +376,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   registerExtensionTools(registry, mounted)
 
-  const forwardedExtensionTools = mounted.flatMap((entry) => entry.forwardedTools)
+  const risky = approvalGatedNames(registry)
 
-  const codeModeCapabilities = (sessionId: string): CodeCapability[] =>
-    markRiskyAsk(risky, [
-      ...registryCapabilities(registry),
-      ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-      ...extensionCapabilities(forwardedExtensionTools),
-    ])
+  const codeModeCapabilities = (sessionId: string): CodeCapability[] => [
+    ...registryCapabilities(registry),
+    ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+  ]
 
   const toolList: ChatTool[] = [
     ...concivTools(makeToolCtx('')).map((tool) => ({name: tool.name, description: tool.description})),

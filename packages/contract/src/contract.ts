@@ -20,6 +20,7 @@ import {
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
 import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
+import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
@@ -55,7 +56,13 @@ export const ToolCommandSignatureSchema = z.object({
   category: z.string().optional(),
   hint: z.string().optional(),
   positional: z.string().optional(),
+  icon: z.enum(TOOL_ICON_KEYS).optional().catch(undefined),
+  label: z
+    .object({running: z.string().min(1), done: z.string().min(1)})
+    .optional()
+    .catch(undefined),
   mutating: z.boolean(),
+  mirrors: z.boolean(),
   reachable: z.boolean(),
   input: z.unknown(),
 })

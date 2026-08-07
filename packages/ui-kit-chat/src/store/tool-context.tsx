@@ -1,9 +1,14 @@
 import {createContext, useContext} from 'solid-js'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
 
-const inert: ToolViewCtx = {apiBase: '', harnessId: '', sendMessage: () => {}}
+export const INERT_TOOL_CTX: ToolViewCtx = {
+  apiBase: '',
+  harnessId: '',
+  sendMessage: () => {},
+  catalog: INERT_TOOL_CATALOG,
+}
 
-const ToolContext = createContext<ToolViewCtx>(inert)
+const ToolContext = createContext<ToolViewCtx>(INERT_TOOL_CTX)
 
 export const ToolProvider = ToolContext.Provider
 

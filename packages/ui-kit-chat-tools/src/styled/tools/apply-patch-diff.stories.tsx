@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {ApplyPatchDiff} from './apply-patch-diff.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/ApplyPatchDiff'}
@@ -20,8 +20,6 @@ const PATCH = `*** Begin Patch
 +export const ZERO = 0
 *** End Patch`
 
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}}
-
 function part(state: ToolCallPart['state']): ToolCallPart {
   return {type: 'tool-call', id: 't1', name: 'apply_patch', arguments: JSON.stringify({patchText: PATCH}), state}
 }
@@ -32,7 +30,8 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 }
 
 export const Complete: Story = {
-  render: () => frame('chat-theme-dark', <ApplyPatchDiff part={part('complete')} result={doneResult} ctx={ctx} />),
+  render: () =>
+    frame('chat-theme-dark', <ApplyPatchDiff part={part('complete')} result={doneResult} ctx={INERT_TOOL_CTX} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('apply_patch')).toBeVisible()
@@ -46,9 +45,12 @@ export const Complete: Story = {
 
 export const Running: Story = {
   render: () =>
-    frame('chat-theme-conciv', <ApplyPatchDiff part={part('input-streaming')} result={undefined} ctx={ctx} />),
+    frame(
+      'chat-theme-conciv',
+      <ApplyPatchDiff part={part('input-streaming')} result={undefined} ctx={INERT_TOOL_CTX} />,
+    ),
 }
 
 export const Neutral: Story = {
-  render: () => frame('', <ApplyPatchDiff part={part('complete')} result={doneResult} ctx={ctx} />),
+  render: () => frame('', <ApplyPatchDiff part={part('complete')} result={doneResult} ctx={INERT_TOOL_CTX} />),
 }

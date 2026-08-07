@@ -2,14 +2,12 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {ToolLookupCard} from './tool-lookup-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/ToolLookupCard'}
 export default meta
 type Story = StoryObj
-
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}}
 
 function part(args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {type: 'tool-call', id: 't1', name: 'ToolSearch', arguments: JSON.stringify(args), state}
@@ -29,7 +27,7 @@ export const Complete: Story = {
       <ToolLookupCard
         part={part({query: 'select:mcp__tanstack__conciv_page', max_results: 5})}
         result={result({tools: 1})}
-        ctx={ctx}
+        ctx={INERT_TOOL_CTX}
       />,
     ),
   play: async ({canvasElement}) => {

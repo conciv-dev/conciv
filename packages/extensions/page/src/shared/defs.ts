@@ -1,12 +1,6 @@
 import {z} from 'zod'
-import {
-  defineTool,
-  type ToolBuilder,
-  type ToolErrors,
-  type ToolIconKey,
-  type ToolLabel,
-  type ToolMeta,
-} from '@conciv/extension/tool'
+import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
+import {defineTool, type ToolBuilder, type ToolErrors, type ToolMeta} from '@conciv/extension/tool'
 
 export const PAGE_EXTENSION_NAME = 'page'
 

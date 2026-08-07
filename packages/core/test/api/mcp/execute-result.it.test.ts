@@ -7,23 +7,33 @@ import {bootKit} from '../../helpers/boot.js'
 const PNG_RED_4x4 =
   'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
 
+const ContentParts = z.array(z.object({type: z.string()}).loose())
+
+const NeverReturns = z.object({})
+
 const snap = defineTool({
   name: 'probe_snap',
   description: 'returns a png',
   inputSchema: z.object({}),
+  outputSchema: ContentParts,
+  meta: {summary: 'return a png image', category: 'fixture', mutating: false},
 }).server(() => imageResult('image/png', PNG_RED_4x4, {width: 4}))
 
 const flood = defineTool({
   name: 'probe_flood',
   description: 'returns a huge string',
   inputSchema: z.object({}),
+  outputSchema: z.object({payload: z.string()}),
+  meta: {summary: 'return a huge string', category: 'fixture', mutating: false},
 }).server(() => ({payload: 'x'.repeat(80_000)}))
 
 const explode = defineTool({
   name: 'probe_explode',
   description: 'always fails with a declared code',
   inputSchema: z.object({}),
+  outputSchema: NeverReturns,
   errors: {PROBE_BROKE: {message: 'the probe broke'}},
+  meta: {summary: 'always fail with a declared code', category: 'fixture', mutating: false},
 }).server(() => {
   throw toolError('PROBE_BROKE', {message: 'wires crossed'})
 })
@@ -32,6 +42,8 @@ const grumble = defineTool({
   name: 'probe_grumble',
   description: 'fails with an undeclared prefix-shaped message',
   inputSchema: z.object({}),
+  outputSchema: NeverReturns,
+  meta: {summary: 'fail with an undeclared prefix-shaped message', category: 'fixture', mutating: false},
 }).server(() => {
   throw new Error('EACCES: permission denied')
 })
@@ -40,7 +52,9 @@ const ratelimit = defineTool({
   name: 'probe_ratelimit',
   description: 'fails with a declared code already embedded in the message',
   inputSchema: z.object({}),
+  outputSchema: NeverReturns,
   errors: {RATE_LIMITED: {message: 'slow down'}},
+  meta: {summary: 'fail with a declared code embedded in the message', category: 'fixture', mutating: false},
 }).server(() => {
   throw toolError('RATE_LIMITED', {message: 'RATE_LIMITED:retry later'})
 })
@@ -49,12 +63,16 @@ const gush = defineTool({
   name: 'probe_gush',
   description: 'returns a content-part array with a huge text part',
   inputSchema: z.object({}),
+  outputSchema: ContentParts,
+  meta: {summary: 'return a content-part array with a huge text part', category: 'fixture', mutating: false},
 }).server(() => [{type: 'text', content: 'x'.repeat(80_000)}])
 
 const spray = defineTool({
   name: 'probe_spray',
   description: 'returns many mid-size text parts',
   inputSchema: z.object({}),
+  outputSchema: ContentParts,
+  meta: {summary: 'return many mid-size text parts', category: 'fixture', mutating: false},
 }).server(() => Array.from({length: 12}, (_, index) => ({type: 'text', content: `part-${index}:${'y'.repeat(9_000)}`})))
 
 const probe = defineExtension({name: 'probe', tools: [snap, flood, explode, grumble, ratelimit, gush, spray]})

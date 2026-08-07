@@ -14,12 +14,11 @@ import {PageActionCard} from '../src/styled/page-action-card.js'
 import {GENERIC_TOOL_ICON, toolIconRender} from '../src/styled/tool-icon.js'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
 import {cleanupViews, mountView} from './mount-view.js'
+import {registryCatalogView} from './registry-catalog-view.js'
 
 afterEach(() => {
   cleanupViews()
 })
-
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'test', sendMessage: () => {}}
 
 function part(args: Record<string, unknown>): ToolCallPart {
   return {
@@ -51,6 +50,13 @@ function registryWith(extra: AnyToolBuilder) {
   for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
   registry.register(extra, {owner: 'a test registrant'})
   return registry
+}
+
+const ctx: ToolViewCtx = {
+  apiBase: '',
+  harnessId: 'test',
+  sendMessage: () => {},
+  catalog: registryCatalogView(registryWith(shipTool)),
 }
 
 it('a newly declared capability reaches the model and survives its own advertised schema', async () => {
@@ -88,7 +94,7 @@ it('the card and the running title read a built-in declaration through the defau
   ))
 
   await expect.element(page.getByText(declared.label.done)).toBeVisible()
-  expect(nowTitle(part({verb: 'setattr'}))).toBe(declared.label.running)
+  expect(nowTitle(part({verb: 'setattr'}), ctx.catalog)).toBe(declared.label.running)
   expect(toolIconRender(declared.icon)).toBe(toolIconRender('edit'))
   expect(toolIconRender(declared.icon)).not.toBe(GENERIC_TOOL_ICON)
 })

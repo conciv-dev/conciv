@@ -8,12 +8,14 @@ import {PageActionCard} from '../src/styled/page-action-card.js'
 import {GENERIC_TOOL_ICON, toolIconRender} from '../src/styled/tool-icon.js'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
 import {cleanupViews, mountView} from './mount-view.js'
+import {builtinPageRegistry, registryCatalogView} from './registry-catalog-view.js'
 
 afterEach(() => {
   cleanupViews()
 })
 
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'test', sendMessage: () => {}}
+const catalog = registryCatalogView(builtinPageRegistry())
+const ctx: ToolViewCtx = {apiBase: '', harnessId: 'test', sendMessage: () => {}, catalog}
 
 function part(args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {type: 'tool-call', id: 'p1', name: 'conciv_page', arguments: JSON.stringify(args), input: args, state}
@@ -35,7 +37,7 @@ it('the card titles every registry page tool from its declaration, never the gen
     const done = def.meta?.label?.done
     const running = def.meta?.label?.running
     if (done === undefined || running === undefined) throw new Error(`${def.name} declares no label`)
-    expect(nowTitle(part({verb}, 'input-streaming')), `${def.name} running title`).toBe(running)
+    expect(nowTitle(part({verb}, 'input-streaming'), catalog), `${def.name} running title`).toBe(running)
     mountView(() => <PageActionCard part={part({verb})} result={undefined} ctx={ctx} />)
     await expect.element(page.getByText(done, {exact: false})).toBeVisible()
     expect(document.body.textContent).not.toContain(GENERIC_PAGE_TITLE)

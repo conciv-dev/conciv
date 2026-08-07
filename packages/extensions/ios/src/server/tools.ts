@@ -1,9 +1,10 @@
 import {arch as osArch} from 'node:os'
 import {existsSync, mkdirSync, readdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
+import {z} from 'zod'
 import {imageResult, type ContentPart} from '@conciv/extension'
 import {DEFAULT_DEVELOPER_DIR, type IosConfig} from '../shared/meta.js'
-import {parseDiagnostics, type Diagnostic} from './diagnostics.js'
+import {DiagnosticSchema, parseDiagnostics, type Diagnostic} from './diagnostics.js'
 import type {RunResult, SimctlRunner} from './simctl-runner.js'
 
 export type IosToolContext = {
@@ -13,23 +14,62 @@ export type IosToolContext = {
   nativeUrl?: () => string | undefined
 }
 
-export type NotConfigured = {ok: false; error: string}
+const NotConfiguredSchema = z.object({ok: z.literal(false), error: z.string()})
 
-export type BuildOutput =
-  | NotConfigured
-  | {ok: boolean; appPath: string | null; durationMs: number; diagnostics: Diagnostic[]}
+export type NotConfigured = z.infer<typeof NotConfiguredSchema>
 
-export type RunStage = 'resolve-simulator' | 'boot' | 'artifact' | 'install' | 'launch'
+export const BuildOutputSchema = z.union([
+  z.object({
+    ok: z.boolean(),
+    appPath: z.string().nullable(),
+    durationMs: z.number(),
+    diagnostics: z.array(DiagnosticSchema),
+  }),
+  NotConfiguredSchema,
+])
 
-export type RunFailure = {ok: false; udid: string; bundleId: string; stage: RunStage; error: string}
+export type BuildOutput = z.infer<typeof BuildOutputSchema>
 
-export type RunOutput = NotConfigured | {ok: true; udid: string; bundleId: string; pid?: number} | RunFailure
+const RunStageSchema = z.enum(['resolve-simulator', 'boot', 'artifact', 'install', 'launch'])
 
-export type LogsSuccess = {ok: true; lines: string[]}
+type RunStage = z.infer<typeof RunStageSchema>
 
-export type LogsFailure = {ok: false; lines: string[]; error: string}
+const RunFailureSchema = z.object({
+  ok: z.literal(false),
+  udid: z.string(),
+  bundleId: z.string(),
+  stage: RunStageSchema,
+  error: z.string(),
+})
 
-export type LogsOutput = NotConfigured | LogsSuccess | LogsFailure
+export type RunFailure = z.infer<typeof RunFailureSchema>
+
+export const RunOutputSchema = z.union([
+  z.object({ok: z.literal(true), udid: z.string(), bundleId: z.string(), pid: z.number().optional()}),
+  RunFailureSchema,
+  NotConfiguredSchema,
+])
+
+export type RunOutput = z.infer<typeof RunOutputSchema>
+
+const LogsSuccessSchema = z.object({ok: z.literal(true), lines: z.array(z.string())})
+
+const LogsFailureSchema = z.object({ok: z.literal(false), lines: z.array(z.string()), error: z.string()})
+
+export type LogsFailure = z.infer<typeof LogsFailureSchema>
+
+export const LogsOutputSchema = z.union([LogsSuccessSchema, LogsFailureSchema, NotConfiguredSchema])
+
+export type LogsOutput = z.infer<typeof LogsOutputSchema>
+
+const ScreenshotImagePart = z.object({type: z.literal('image')}).loose()
+
+const ScreenshotTextPart = z.object({type: z.literal('text'), content: z.string()}).loose()
+
+export const ScreenshotOutputSchema = z.union([
+  z.array(z.union([ScreenshotImagePart, ScreenshotTextPart])),
+  NotConfiguredSchema,
+])
 
 const NOT_CONFIGURED: NotConfigured = {ok: false, error: 'ios extension not configured'}
 

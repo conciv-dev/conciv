@@ -8,6 +8,8 @@ const echo = defineTool({
   name: 'acme_echo_session',
   description: 'Echo the request session back',
   inputSchema: z.object({}),
+  outputSchema: z.object({sessionId: z.string().nullable()}),
+  meta: {summary: 'echo the request session back', category: 'fixture', mutating: false},
 }).server((_input, _ctx, request) => ({sessionId: request.sessionId}))
 
 const acme = defineExtension({name: 'acme', tools: [echo]})

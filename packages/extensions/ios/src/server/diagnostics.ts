@@ -1,4 +1,13 @@
-export type Diagnostic = {file: string; line: number; message: string; severity: 'error' | 'warning'}
+import {z} from 'zod'
+
+export const DiagnosticSchema = z.object({
+  file: z.string(),
+  line: z.number(),
+  message: z.string(),
+  severity: z.enum(['error', 'warning']),
+})
+
+export type Diagnostic = z.infer<typeof DiagnosticSchema>
 
 const DIAGNOSTIC_LINE = /^(.*?):(\d+):(?:\d+): (error|warning): (.*)$/
 

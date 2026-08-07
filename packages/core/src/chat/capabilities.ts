@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
+import type {ToolRequest} from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ConcivServerTool} from '@conciv/tools'
 import {resolveSchemaRefs} from './resolve-schema-refs.js'
@@ -52,26 +52,6 @@ export function registryCapabilities(registry: ToolRegistry): CodeCapability[] {
       }),
     }
   })
-}
-
-export function extensionCapabilities(tools: ExtensionServerTool[]): CodeCapability[] {
-  return tools.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    summary: firstSentence(tool.description),
-    category: 'extension',
-    ...(tool.approval === undefined ? {} : {approval: tool.approval}),
-    mutating: tool.mutating,
-    reachable: true,
-    errors: tool.errors,
-    inputSchema: tool.inputSchema,
-    execute: tool.execute,
-    signature: () => ({
-      input: resolveSchemaRefs(z.toJSONSchema(tool.inputSchema, {io: 'input'})),
-      output: undefined,
-      errors: tool.errors,
-    }),
-  }))
 }
 
 export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] {

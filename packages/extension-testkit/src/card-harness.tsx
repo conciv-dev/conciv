@@ -1,9 +1,9 @@
 import {afterEach} from 'vitest'
 import {render} from 'solid-js/web'
 import type {Component} from 'solid-js'
-import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CATALOG, type ToolCardProps, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
 
-const defaultCtx: ToolViewCtx = {apiBase: '', harnessId: 'claude', sendMessage: () => {}}
+const defaultCtx: ToolViewCtx = {apiBase: '', harnessId: 'claude', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
 
 const disposers: (() => void)[] = []
 

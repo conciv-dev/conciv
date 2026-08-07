@@ -20,7 +20,9 @@ const deployRun = defineTool({
   name: 'deploy_run',
   description: 'Deploy the current branch',
   inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
+  outputSchema: z.object({url: z.string()}),
   promptSnippet: 'You can deploy with the deploy_run tool.',
+  meta: {summary: 'deploy the current branch', category: 'deploy', mutating: true},
 })
   .server(({env}) => ({url: `https://${env}.example.com`}))
   .render((props) => <div data-pw-deploy-card>Deploying… ({props.part.name})</div>)
