@@ -35,9 +35,8 @@ async function importDriver(): Promise<IsolateDriver | null> {
 
 function loadDriver(): Promise<IsolateDriver | null> {
   driverLoad ??= importDriver().catch((error: unknown) => {
-    driverLoad = null
     logError(`[core] @tanstack/ai-isolate-node failed to load: ${String(error)}`)
-    throw error
+    return null
   })
   return driverLoad
 }

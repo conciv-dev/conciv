@@ -53,21 +53,22 @@ describe('isolate driver load memoization', () => {
     expect(importCount).toBe(1)
   })
 
-  test('a failing driver load rejects the caller and a later call retries instead of staying dead', async () => {
-    const state = {attempt: 0}
-    vi.doMock('@tanstack/ai-isolate-node', () => ({
-      probeIsolatedVm: () => {
-        state.attempt += 1
-        if (state.attempt === 1) throw new Error('native addon failed to load')
-        return {compatible: true}
-      },
-      createNodeIsolateDriver: () => ({}),
-    }))
+  test('a failing driver load degrades to unavailable and logs once', async () => {
+    let importCount = 0
+    vi.doMock('@tanstack/ai-isolate-node', () => {
+      importCount += 1
+      return {
+        probeIsolatedVm: () => {
+          throw new Error('native addon failed to load')
+        },
+        createNodeIsolateDriver: () => ({}),
+      }
+    })
     const {makeCodeMode} = await import('../../src/chat/code-mode.js')
     const capabilities = [capability('safe_tool')]
-    await expect(makeCodeMode(() => capabilities, request, allowGate)).rejects.toThrow('native addon failed to load')
-    const retried = await makeCodeMode(() => capabilities, request, allowGate)
-    expect(retried).not.toBeNull()
-    expect(state.attempt).toBe(2)
+    await expect(makeCodeMode(() => capabilities, request, allowGate)).resolves.toBeNull()
+    const second = await makeCodeMode(() => capabilities, request, allowGate)
+    expect(second).toBeNull()
+    expect(importCount).toBe(1)
   })
 })
