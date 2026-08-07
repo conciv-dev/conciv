@@ -12,13 +12,9 @@ import {
 } from 'solid-js'
 import {Check, ChevronDown, Loader, ShieldQuestion, X} from 'lucide-solid'
 import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
-import {
-  INERT_TOOL_CATALOG,
-  type ToolCardEntry,
-  type ToolUIComponent,
-  type ToolViewCtx,
-} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolUIComponent, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {Collapsible} from '@conciv/ui-kit-system'
+import {INERT_TOOL_CTX} from '../store/tool-context.js'
 import {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from '../primitives/activity/activity.js'
 import {
   childCallsFor,
@@ -47,13 +43,7 @@ type ActivityConfig = {
 const ActivityConfigContext = createContext<ActivityConfig>({
   tools: () => [],
   fallback: () => ToolFallback,
-  ctx: () => ({
-    apiBase: '',
-    harnessId: '',
-    sendMessage: () => {},
-    catalog: INERT_TOOL_CATALOG,
-    respondApproval: () => {},
-  }),
+  ctx: () => ({...INERT_TOOL_CTX, respondApproval: () => {}}),
 })
 
 export type ActivityProps = ParentProps<{

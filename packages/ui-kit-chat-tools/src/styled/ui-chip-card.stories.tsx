@@ -2,14 +2,12 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {UiCard} from './ui-chip-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/tools/UiCard'}
 export default meta
 type Story = StoryObj
-
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
 
 function part(args: Record<string, unknown>): ToolCallPart {
   return {type: 'tool-call', id: 'u1', name: 'conciv_ui', arguments: JSON.stringify(args), state: 'complete'}
@@ -22,7 +20,7 @@ export const Form: Story = {
   render: () =>
     frame(
       'chat-theme-dark',
-      <UiCard part={part({kind: 'form', question: 'Pick a primary color'})} result={undefined} ctx={ctx} />,
+      <UiCard part={part({kind: 'form', question: 'Pick a primary color'})} result={undefined} ctx={INERT_TOOL_CTX} />,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
@@ -33,5 +31,6 @@ export const Form: Story = {
 }
 
 export const Choices: Story = {
-  render: () => frame('chat-theme-conciv', <UiCard part={part({kind: 'choices'})} result={undefined} ctx={ctx} />),
+  render: () =>
+    frame('chat-theme-conciv', <UiCard part={part({kind: 'choices'})} result={undefined} ctx={INERT_TOOL_CTX} />),
 }

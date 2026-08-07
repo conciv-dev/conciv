@@ -3,6 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {PageActionCard} from './page-action-card.js'
 
@@ -19,7 +20,7 @@ const catalog: ToolCatalogView = {
   },
 }
 
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, catalog}
+const ctx: ToolViewCtx = {...INERT_TOOL_CTX, catalog}
 
 function part(args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {type: 'tool-call', id: 'p1', name: 'conciv_page', arguments: JSON.stringify(args), state}

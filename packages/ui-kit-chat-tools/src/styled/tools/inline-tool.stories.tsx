@@ -2,14 +2,12 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {EditInline, ExtensionsInline, GrepInline, ReadInline, ToolCallInline} from './inline-tool.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/InlineTool'}
 export default meta
 type Story = StoryObj
-
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
 
 function part(name: string, args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {type: 'tool-call', id: name, name, arguments: JSON.stringify(args), state}
@@ -34,14 +32,22 @@ export const Rows: Story = {
         <ReadInline
           part={part('read', {file_path: 'packages/ui-kit-chat/src/styled/thread.tsx'})}
           result={done}
-          ctx={ctx}
+          ctx={INERT_TOOL_CTX}
         />
-        <EditInline part={part('edit', {file_path: 'src/composer/model-selector.tsx'})} result={done} ctx={ctx} />
-        <GrepInline part={part('grep', {pattern: 'useChat'}, 'input-complete')} result={undefined} ctx={ctx} />
+        <EditInline
+          part={part('edit', {file_path: 'src/composer/model-selector.tsx'})}
+          result={done}
+          ctx={INERT_TOOL_CTX}
+        />
+        <GrepInline
+          part={part('grep', {pattern: 'useChat'}, 'input-complete')}
+          result={undefined}
+          ctx={INERT_TOOL_CTX}
+        />
         <ToolCallInline
           part={part('mcp_lookup', {query: 'tanstack ai client'})}
           result={{type: 'tool-result', toolCallId: 'q', content: 'err', state: 'error'}}
-          ctx={ctx}
+          ctx={INERT_TOOL_CTX}
         />
       </>,
     ),
@@ -59,16 +65,16 @@ export const Extensions: Story = {
     frame(
       'chat-theme-dark',
       <>
-        <ExtensionsInline part={part('conciv_extensions', {verb: 'catalog'})} result={done} ctx={ctx} />
+        <ExtensionsInline part={part('conciv_extensions', {verb: 'catalog'})} result={done} ctx={INERT_TOOL_CTX} />
         <ExtensionsInline
           part={part('conciv_extensions', {verb: 'scaffold', kind: 'tool-renderer', name: 'weather'})}
           result={done}
-          ctx={ctx}
+          ctx={INERT_TOOL_CTX}
         />
         <ExtensionsInline
           part={part('conciv_extensions', {verb: 'validate', source: 'export default defineExtension({})'})}
           result={done}
-          ctx={ctx}
+          ctx={INERT_TOOL_CTX}
         />
       </>,
     ),
@@ -83,5 +89,5 @@ export const Extensions: Story = {
 
 export const Neutral: Story = {
   render: () =>
-    frame('', <ReadInline part={part('read', {file_path: 'a/b/c/deep/file.ts'})} result={done} ctx={ctx} />),
+    frame('', <ReadInline part={part('read', {file_path: 'a/b/c/deep/file.ts'})} result={done} ctx={INERT_TOOL_CTX} />),
 }

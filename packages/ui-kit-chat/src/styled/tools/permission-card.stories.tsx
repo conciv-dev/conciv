@@ -2,7 +2,8 @@ import {createSignal, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX} from '../../store/tool-context.js'
 import {PermissionCard} from './permission-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/tools/PermissionCard'}
@@ -25,13 +26,7 @@ const pendingPart: ToolCallPart = {
 export const Pending: Story = {
   render: () => {
     const [decided, setDecided] = createSignal<boolean | null>(null)
-    const ctx: ToolViewCtx = {
-      apiBase: '',
-      harnessId: 'story',
-      sendMessage: () => {},
-      catalog: INERT_TOOL_CATALOG,
-      respondApproval: (_id, approved) => setDecided(approved),
-    }
+    const ctx: ToolViewCtx = {...INERT_TOOL_CTX, respondApproval: (_id, approved) => setDecided(approved)}
     return frame(
       'chat-theme-dark',
       <>
@@ -58,13 +53,7 @@ export const Settled: Story = {
       <PermissionCard
         part={{...pendingPart, state: 'complete'}}
         result={undefined}
-        ctx={{
-          apiBase: '',
-          harnessId: 'story',
-          sendMessage: () => {},
-          catalog: INERT_TOOL_CATALOG,
-          respondApproval: () => {},
-        }}
+        ctx={{...INERT_TOOL_CTX, respondApproval: () => {}}}
       />,
     ),
   play: async ({canvasElement}) => {

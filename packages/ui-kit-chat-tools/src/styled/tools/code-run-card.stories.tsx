@@ -2,14 +2,12 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {CodeRunCard} from './code-run-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/CodeRunCard'}
 export default meta
 type Story = StoryObj
-
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
 
 const CODE = `const drawn = await external_canvas_draw({elements})\nconsole.log('committed', drawn.ids)\nreturn drawn.ids`
 
@@ -44,7 +42,8 @@ async function codeText(root: HTMLElement): Promise<string> {
 }
 
 export const Running: Story = {
-  render: () => frame('chat-theme-dark', <CodeRunCard part={part('input-complete')} result={undefined} ctx={ctx} />),
+  render: () =>
+    frame('chat-theme-dark', <CodeRunCard part={part('input-complete')} result={undefined} ctx={INERT_TOOL_CTX} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('run code')).toBeVisible()
@@ -57,7 +56,7 @@ export const Running: Story = {
 }
 
 export const Success: Story = {
-  render: () => frame('chat-theme-dark', <CodeRunCard part={part()} result={okResult} ctx={ctx} />),
+  render: () => frame('chat-theme-dark', <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
@@ -70,7 +69,7 @@ export const Success: Story = {
 }
 
 export const Failure: Story = {
-  render: () => frame('chat-theme-dark', <CodeRunCard part={part()} result={failResult} ctx={ctx} />),
+  render: () => frame('chat-theme-dark', <CodeRunCard part={part()} result={failResult} ctx={INERT_TOOL_CTX} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
@@ -83,5 +82,5 @@ export const Failure: Story = {
 }
 
 export const Conciv: Story = {
-  render: () => frame('chat-theme-conciv', <CodeRunCard part={part()} result={okResult} ctx={ctx} />),
+  render: () => frame('chat-theme-conciv', <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} />),
 }

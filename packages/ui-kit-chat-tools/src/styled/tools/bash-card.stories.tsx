@@ -2,14 +2,12 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {BashCard} from './bash-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/BashCard'}
 export default meta
 type Story = StoryObj
-
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
 
 function part(args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {type: 'tool-call', id: 'b1', name: 'bash', arguments: JSON.stringify(args), state}
@@ -35,7 +33,7 @@ export const Complete: Story = {
       <BashCard
         part={part({command: 'pnpm test', description: 'Run the unit tests'})}
         result={result({stdout: '✓ 42 passed\n✓ all green', exitCode: 0})}
-        ctx={ctx}
+        ctx={INERT_TOOL_CTX}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -55,7 +53,7 @@ export const Error: Story = {
       <BashCard
         part={part({command: 'pnpm build'})}
         result={result({stdout: '', stderr: 'error TS2345: type mismatch', exitCode: 1})}
-        ctx={ctx}
+        ctx={INERT_TOOL_CTX}
       />,
     ),
 }
@@ -64,7 +62,7 @@ export const Running: Story = {
   render: () =>
     frame(
       'chat-theme-conciv',
-      <BashCard part={part({command: 'sleep 5'}, 'input-complete')} result={undefined} ctx={ctx} />,
+      <BashCard part={part({command: 'sleep 5'}, 'input-complete')} result={undefined} ctx={INERT_TOOL_CTX} />,
     ),
 }
 
@@ -74,7 +72,11 @@ export const AnsiOutput: Story = {
   render: () =>
     frame(
       'chat-theme-dark',
-      <BashCard part={part({command: 'pnpm test'})} result={result({stdout: ANSI_STDOUT, exitCode: 0})} ctx={ctx} />,
+      <BashCard
+        part={part({command: 'pnpm test'})}
+        result={result({stdout: ANSI_STDOUT, exitCode: 0})}
+        ctx={INERT_TOOL_CTX}
+      />,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)

@@ -2,14 +2,12 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {FileReadCard} from './file-read-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/FileReadCard'}
 export default meta
 type Story = StoryObj
-
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
 
 function part(name: string, args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {type: 'tool-call', id: 'r1', name, arguments: JSON.stringify(args), state}
@@ -28,7 +26,7 @@ export const Read: Story = {
   render: () =>
     frame(
       'chat-theme-dark',
-      <FileReadCard part={part('Read', {file_path: 'src/math.ts'})} result={result(SOURCE)} ctx={ctx} />,
+      <FileReadCard part={part('Read', {file_path: 'src/math.ts'})} result={result(SOURCE)} ctx={INERT_TOOL_CTX} />,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
@@ -48,7 +46,7 @@ export const WithRange: Story = {
       <FileReadCard
         part={part('Read', {file_path: 'src/big.ts', offset: 40, limit: 20})}
         result={result(SOURCE)}
-        ctx={ctx}
+        ctx={INERT_TOOL_CTX}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -61,7 +59,11 @@ export const Opened: Story = {
   render: () =>
     frame(
       'chat-theme-conciv',
-      <FileReadCard part={part('conciv_open', {file: 'src/app.tsx', line: 12})} result={undefined} ctx={ctx} />,
+      <FileReadCard
+        part={part('conciv_open', {file: 'src/app.tsx', line: 12})}
+        result={undefined}
+        ctx={INERT_TOOL_CTX}
+      />,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
@@ -73,6 +75,10 @@ export const Running: Story = {
   render: () =>
     frame(
       'chat-theme-dark',
-      <FileReadCard part={part('Read', {file_path: 'src/slow.ts'}, 'input-complete')} result={undefined} ctx={ctx} />,
+      <FileReadCard
+        part={part('Read', {file_path: 'src/slow.ts'}, 'input-complete')}
+        result={undefined}
+        ctx={INERT_TOOL_CTX}
+      />,
     ),
 }
