@@ -2,7 +2,7 @@ import {createFakeHarness, createTestkit, type FakeHarness, type Kit} from '@con
 import {makeApp} from '@conciv/core/app'
 import type {AnyExtension} from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
-import type {HarnessModel} from '@conciv/protocol/harness-types'
+import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 
 export type CoreKit = Kit & {harness: FakeHarness; registry: ToolRegistry}
 
@@ -11,9 +11,15 @@ export async function bootCoreKit(opts: {
   text?: string
   extensions?: AnyExtension[]
   models?: HarnessModel[]
+  commands?: HarnessCommand[]
   nativePageDir?: string
 }): Promise<CoreKit> {
-  const harness = createFakeHarness({id: opts.id, text: opts.text ?? 'Hello from conciv', models: opts.models})
+  const harness = createFakeHarness({
+    id: opts.id,
+    text: opts.text ?? 'Hello from conciv',
+    models: opts.models,
+    commands: opts.commands,
+  })
   const captured: {registry?: ToolRegistry} = {}
   const kit = await createTestkit(harness, async (env) => {
     const {app, dispose, registry} = await makeApp({

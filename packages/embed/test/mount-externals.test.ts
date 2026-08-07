@@ -19,6 +19,10 @@ describe('embed mount build shares one Ark environment instance with extensions'
     expect(externalized('@conciv/ui-kit-chat')).toBe(true)
   })
 
+  it('externalizes ui-kit-tap so extensions share one editor and Solid/Ark copy', () => {
+    expect(externalized('@conciv/ui-kit-tap')).toBe(true)
+  })
+
   it('externalizes @ark-ui rather than bundling a second copy', () => {
     expect(externalized('@ark-ui/')).toBe(true)
   })

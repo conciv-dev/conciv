@@ -28,7 +28,7 @@ describe('panel open focuses the composer', () => {
     await openPanel(page)
     await expectLocator(composer(page)).toBeFocused({timeout: 10_000})
     await page.keyboard.type('typed without clicking')
-    await expectLocator(composer(page)).toHaveValue('typed without clicking')
+    await expectLocator(composer(page)).toHaveText('typed without clicking')
     await page.close()
   })
 })

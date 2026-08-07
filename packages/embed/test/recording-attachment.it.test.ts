@@ -104,7 +104,7 @@ describe('recording attachment end to end in the real widget', () => {
     await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
     const composerAfterModal = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await composerAfterModal.fill('still alive after replay')
-    await expectLocator(composerAfterModal).toHaveValue('still alive after replay')
+    await expectLocator(composerAfterModal).toHaveText('still alive after replay')
     await page.close()
   }, 120_000)
 })

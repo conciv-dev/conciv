@@ -67,6 +67,7 @@ function TriggerHarness(props: {mode?: Mode}) {
   return (
     <div class="p-4 flex flex-col gap-3 max-w-100">
       <RichTextField
+        class="text-[0.8125rem] text-pw-text rounded-pw-md bg-pw-sunken [border:1px_solid_var(--pw-line)] [&[data-disabled]]:opacity-60 focus-within:[border-color:var(--pw-accent-line)]"
         value={value()}
         onValueChange={setValue}
         onSubmit={() => {
@@ -204,6 +205,7 @@ export const ChipAtomicForwardDelete: Story = {
     await selectFirstSlashItem(canvas, '"/clear "')
     await userEvent.keyboard('x')
     await expectValue(canvas, '"/clear x"')
+    await expectSelection(canvas, '8:8')
     modifySelection(editor, 'move', 'backward', {granularity: 'lineboundary'})
     await expectSelection(canvas, '0:0')
     await userEvent.keyboard('{Delete}')
@@ -219,6 +221,7 @@ export const RangeCutAcrossChips: Story = {
     await selectFirstSlashItem(canvas, '"hi /clear "')
     await userEvent.keyboard('yo')
     await expectValue(canvas, '"hi /clear yo"')
+    await expectSelection(canvas, '12:12')
     modifySelection(editor, 'extend', 'backward', {granularity: 'character', count: 4})
     await expectSelection(canvas, '3:12')
     await userEvent.keyboard('{Backspace}')
@@ -397,6 +400,7 @@ export const TrailingSpaceNotDuplicated: Story = {
     const {canvas, editor} = await openEditor(canvasElement)
     await userEvent.keyboard(' b')
     await expectValue(canvas, '" b"')
+    await expectSelection(canvas, '2:2')
     modifySelection(editor, 'move', 'backward', {granularity: 'lineboundary'})
     await expectSelection(canvas, '0:0')
     await userEvent.keyboard('@')

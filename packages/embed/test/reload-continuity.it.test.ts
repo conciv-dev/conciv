@@ -35,7 +35,7 @@ describe('reload continuity through the db-backed navigation row', () => {
 
     await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
     await expectLocator(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
-    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveValue(
+    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText(
       'an unsent draft survives',
       {timeout: 30_000},
     )

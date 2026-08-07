@@ -4,6 +4,9 @@ import {expect, userEvent, waitFor, within} from 'storybook/test'
 import {Button} from '@conciv/ui-kit-system'
 import {RichTextField, type RichTextFieldHandle, type RichTextFieldSelection} from './rich-text-field.js'
 
+const FIELD_SKIN =
+  'bg-pw-sunken text-[0.8125rem] text-pw-text rounded-pw-md [border:1px_solid_var(--pw-line)] focus-within:[border-color:var(--pw-accent-line)] [&[data-disabled]]:opacity-60'
+
 function Harness(props: {initialValue?: string; placeholder?: string; disabled?: boolean; consumeFilePaste?: boolean}) {
   const [value, setValue] = createSignal(props.initialValue ?? '')
   const [submitted, setSubmitted] = createSignal('')
@@ -13,6 +16,7 @@ function Harness(props: {initialValue?: string; placeholder?: string; disabled?:
   return (
     <div class="p-4 flex flex-col gap-3 max-w-100">
       <RichTextField
+        class={FIELD_SKIN}
         value={value()}
         onValueChange={setValue}
         onSubmit={() => {
