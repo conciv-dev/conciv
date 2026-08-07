@@ -34,16 +34,19 @@ async function withStartedEngine(
 
 describe('start pairing file', () => {
   it('writes the endpoint on boot when a native page is served and removes it on stop', async () => {
-    await withStartedEngine({accessToken: 'paired-token', serveNativePage: true}, async (engine, endpointDir) => {
-      const endpoint = readDevEndpoint(endpointDir)
-      expect(endpoint).toEqual({
-        apiBase: `http://127.0.0.1:${engine.port}/t/paired-token`,
-        token: 'paired-token',
-        pid: process.pid,
-      })
-      await engine.stop()
-      expect(readDevEndpoint(endpointDir)).toBeNull()
-    })
+    await withStartedEngine(
+      {accessToken: 'c56a4180-65aa-42ec-a945-5fd21dec0538', serveNativePage: true},
+      async (engine, endpointDir) => {
+        const endpoint = readDevEndpoint(endpointDir)
+        expect(endpoint).toEqual({
+          apiBase: `http://127.0.0.1:${engine.port}/t/c56a4180-65aa-42ec-a945-5fd21dec0538`,
+          token: 'c56a4180-65aa-42ec-a945-5fd21dec0538',
+          pid: process.pid,
+        })
+        await engine.stop()
+        expect(readDevEndpoint(endpointDir)).toBeNull()
+      },
+    )
   })
 
   it('serves /native and writes a tokenless endpoint with no ios config (the zero-config widget path)', async () => {

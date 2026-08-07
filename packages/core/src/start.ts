@@ -1,5 +1,6 @@
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
+import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
@@ -44,13 +45,12 @@ type FetchHandler = (request: Request) => Response | Promise<Response>
 
 const PERSISTED_PORT_ATTEMPTS = 4
 const PERSISTED_PORT_RETRY_MS = 300
-const ACCESS_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/
+const accessTokenMessage = 'conciv: accessToken must be a UUID pairing token'
+const AccessTokenSchema = z.uuid(accessTokenMessage).optional()
 
-function assertValidAccessToken(accessToken: string | undefined): void {
-  if (accessToken === undefined || ACCESS_TOKEN_PATTERN.test(accessToken)) return
-  throw new Error(
-    'conciv: accessToken must contain only letters, digits, underscores, and hyphens ([A-Za-z0-9_-]+); other characters corrupt the /t/<token> mount pattern and its URLs',
-  )
+function assertAccessToken(accessToken: string | undefined): void {
+  const parsed = AccessTokenSchema.safeParse(accessToken)
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? accessTokenMessage)
 }
 
 function delay(ms: number): Promise<void> {
@@ -99,7 +99,7 @@ export function composeSystemPrompt(
 }
 
 export async function start(opts: StartOpts): Promise<Engine> {
-  assertValidAccessToken(opts.accessToken)
+  assertAccessToken(opts.accessToken)
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
 

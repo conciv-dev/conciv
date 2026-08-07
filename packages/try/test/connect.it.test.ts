@@ -20,7 +20,7 @@ describe('conciv connect', () => {
 
   beforeAll(async () => {
     shared = await runConnect({
-      token: 'tok-shared',
+      token: '11111111-1111-4111-8111-111111111111',
       harnessAdapter: createFakeHarness({id: 'fake-shared'}),
       origin: 'http://127.0.0.1:1',
       onEvent: (event) => {
@@ -42,7 +42,7 @@ describe('conciv connect', () => {
       {type: 'seeded', seeded: false},
       {type: 'started', port: shared.port, harness: 'fake-shared'},
     ])
-    const health = await fetch(`http://127.0.0.1:${shared.port}/t/tok-shared/health`)
+    const health = await fetch(`http://127.0.0.1:${shared.port}/t/11111111-1111-4111-8111-111111111111/health`)
     expect(health.status).toBe(200)
     expect(await sharedConnected.promise).toEqual({type: 'client-connected'})
     expect(sharedEvents).toHaveLength(3)
@@ -63,7 +63,7 @@ describe('conciv connect', () => {
   it('rejects unsupported workspace paths instead of seeding them', async () => {
     await expect(
       runConnect({
-        token: 'tok-path',
+        token: '22222222-2222-4222-8222-222222222222',
         workspace: '/tmp/user-workspace',
         harnessAdapter: createFakeHarness({id: 'fake-path'}),
       }),
@@ -71,7 +71,10 @@ describe('conciv connect', () => {
   })
 
   it('mounts the terminal extension and reports no-terminal-mode for a tty-less harness', async () => {
-    const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${shared.port}/t/tok-shared`, 'terminal')
+    const rpc = makeExtRpcClient<TerminalRouter>(
+      `http://127.0.0.1:${shared.port}/t/11111111-1111-4111-8111-111111111111`,
+      'terminal',
+    )
     const sessionId = `conciv_${randomUUID()}`
     expect(await rpc.state({sessionId})).toEqual({alive: false, busy: false})
     await expect(rpc.open({sessionId})).rejects.toMatchObject({
@@ -83,7 +86,7 @@ describe('conciv connect', () => {
   it('opens a live pty rooted in the throwaway workspace for a tty-capable harness', async () => {
     const captured: HarnessConnectContext[] = []
     const engine = await runConnect({
-      token: 'tok-tty',
+      token: '33333333-3333-4333-8333-333333333333',
       harnessAdapter: createFakeHarness({
         id: 'fake-tty',
         tty: {
@@ -96,7 +99,10 @@ describe('conciv connect', () => {
       origin: 'http://127.0.0.1:1',
     })
     engines.push(engine)
-    const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${engine.port}/t/tok-tty`, 'terminal')
+    const rpc = makeExtRpcClient<TerminalRouter>(
+      `http://127.0.0.1:${engine.port}/t/33333333-3333-4333-8333-333333333333`,
+      'terminal',
+    )
     const sessionId = `conciv_${randomUUID()}`
     expect(await rpc.open({sessionId})).toEqual({alive: true})
     expect(captured[0]?.cwd).toBe(engine.cfg.stateRoot)
@@ -106,9 +112,12 @@ describe('conciv connect', () => {
   it.skipIf(process.env.CI || !harnessAvailable(claude))(
     'opens a live claude tty in the throwaway workspace',
     async () => {
-      const engine = await runConnect({token: 'tok-claude-tty', origin: 'http://127.0.0.1:1'})
+      const engine = await runConnect({token: '44444444-4444-4444-8444-444444444444', origin: 'http://127.0.0.1:1'})
       engines.push(engine)
-      const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${engine.port}/t/tok-claude-tty`, 'terminal')
+      const rpc = makeExtRpcClient<TerminalRouter>(
+        `http://127.0.0.1:${engine.port}/t/44444444-4444-4444-8444-444444444444`,
+        'terminal',
+      )
       const sessionId = `conciv_${randomUUID()}`
       expect(await rpc.open({sessionId})).toEqual({alive: true})
       expect((await rpc.state({sessionId})).alive).toBe(true)
@@ -118,13 +127,13 @@ describe('conciv connect', () => {
 
   it('skips the port held by a running engine', async () => {
     const engine = await runConnect({
-      token: 'tok-second',
+      token: '55555555-5555-4555-8555-555555555555',
       harnessAdapter: createFakeHarness({id: 'fake-second'}),
       origin: 'http://127.0.0.1:1',
     })
     engines.push(engine)
     expect(engine.port).not.toBe(shared.port)
-    const health = await fetch(`http://127.0.0.1:${engine.port}/t/tok-second/health`)
+    const health = await fetch(`http://127.0.0.1:${engine.port}/t/55555555-5555-4555-8555-555555555555/health`)
     expect(health.status).toBe(200)
   }, 20_000)
 
@@ -150,13 +159,13 @@ describe('conciv connect', () => {
     await new Promise<void>((resolve) => last.close(() => resolve()))
     blockers.forEach((blocker) => closers.push(() => blocker.close()))
     const engine = await runConnect({
-      token: 'tok-last',
+      token: '66666666-6666-4666-8666-666666666666',
       harnessAdapter: createFakeHarness({id: 'fake-last'}),
       origin: 'http://127.0.0.1:1',
     })
     engines.push(engine)
     expect(engine.port).toBe(freePort)
-    const health = await fetch(`http://127.0.0.1:${freePort}/t/tok-last/health`)
+    const health = await fetch(`http://127.0.0.1:${freePort}/t/66666666-6666-4666-8666-666666666666/health`)
     expect(health.status).toBe(200)
   }, 30_000)
 })

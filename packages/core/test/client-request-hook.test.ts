@@ -12,15 +12,15 @@ test('onClientRequest fires once on the first token request', async () => {
       options: {harnessBin: 'true', stateRoot: root},
       root,
       launchEditor: () => {},
-      accessToken: 'tok-hook',
+      accessToken: '0b6f9c2e-8f6d-4a5c-9e1f-2d3a4b5c6d7e',
       onClientRequest: () => {
         fired += 1
       },
     })
     try {
       expect(fired).toBe(0)
-      await fetch(`http://127.0.0.1:${engine.port}/t/tok-hook/health`)
-      await fetch(`http://127.0.0.1:${engine.port}/t/tok-hook/health`)
+      await fetch(`http://127.0.0.1:${engine.port}/t/0b6f9c2e-8f6d-4a5c-9e1f-2d3a4b5c6d7e/health`)
+      await fetch(`http://127.0.0.1:${engine.port}/t/0b6f9c2e-8f6d-4a5c-9e1f-2d3a4b5c6d7e/health`)
       expect(fired).toBe(1)
     } finally {
       await engine.stop()

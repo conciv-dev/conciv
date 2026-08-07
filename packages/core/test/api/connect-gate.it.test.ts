@@ -13,7 +13,7 @@ beforeAll(async () => {
     root: mkdtempSync(join(tmpdir(), 'conciv-gate-')),
     launchEditor: () => {},
     harness: createFakeHarness({id: 'fake-gate'}),
-    accessToken: 'tok-123',
+    accessToken: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
   })
 }, 30_000)
 
@@ -23,7 +23,7 @@ afterAll(async () => {
 
 describe('token-gated core', () => {
   it('serves health under the token prefix', async () => {
-    const res = await fetch(`http://127.0.0.1:${engine.port}/t/tok-123/health`)
+    const res = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ok: true, harness: 'fake-gate'})
   })
@@ -36,11 +36,14 @@ describe('token-gated core', () => {
   })
 
   it('serves rpc under the prefix', async () => {
-    const res = await fetch(`http://127.0.0.1:${engine.port}/t/tok-123/rpc/sessions/list`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: '{"json":null}',
-    })
+    const res = await fetch(
+      `http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/rpc/sessions/list`,
+      {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: '{"json":null}',
+      },
+    )
     expect(res.status).toBe(200)
   })
 })

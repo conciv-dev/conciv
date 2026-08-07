@@ -17,18 +17,21 @@ async function bootWithToken(root: string, accessToken: string): Promise<Engine>
   })
 }
 
-test('a token containing a Hono param marker refuses to boot with a constraint-naming error', async () => {
-  const root = tempRoot()
-  let engine: Engine | undefined
-  try {
-    await expect(async () => {
-      engine = await bootWithToken(root, ':a')
-    }).rejects.toThrow('accessToken must contain only letters, digits, underscores, and hyphens')
-  } finally {
-    await engine?.stop()
-    rmSync(root, {recursive: true, force: true})
-  }
-})
+test.each([':a', '*', 'a/b', 'a%2Fb', 'tokeñ', '', 'abc'])(
+  'the invalid token %j refuses to boot with a constraint-naming error',
+  async (token) => {
+    const root = tempRoot()
+    let engine: Engine | undefined
+    try {
+      await expect(async () => {
+        engine = await bootWithToken(root, token)
+      }).rejects.toThrow('accessToken must be a UUID pairing token')
+    } finally {
+      await engine?.stop()
+      rmSync(root, {recursive: true, force: true})
+    }
+  },
+)
 
 test('a wildcard-degrading token never mounts, so no foreign prefix is served', async () => {
   const root = tempRoot()
