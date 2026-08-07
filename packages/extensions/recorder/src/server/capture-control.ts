@@ -16,7 +16,6 @@ export type CaptureControl = {
   isLive(): boolean
   startCapture(): {captureId: string; startTs: number}
   stopCapture(captureId: string): {startTs: number; stopTs: number} | null
-  releaseAllCaptures(): void
   renewViewer(viewerId: string): boolean
   dropViewer(viewerId: string): void
   awaitCoverage(ts: number, timeoutMs: number): Promise<boolean>
@@ -76,7 +75,7 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
       const captureId = randomUUID()
       const startTs = now()
       captures.set(captureId, {startTs, expiresAt: startTs + CAPTURE_TTL_MS})
-      emit({live: true})
+      emit({live: true, snapshot: true, flush: true})
       return {captureId, startTs}
     },
     stopCapture(captureId) {
@@ -85,11 +84,6 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
       captures.delete(captureId)
       emit({flush: true, live: isLive()})
       return {startTs: capture.startTs, stopTs: now()}
-    },
-    releaseAllCaptures() {
-      if (captures.size === 0) return
-      captures.clear()
-      if (!isLive()) emit({live: false})
     },
     renewViewer(viewerId) {
       const known = viewers.has(viewerId)

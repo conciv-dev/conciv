@@ -16,7 +16,10 @@ describe('lazy capture lifecycle (real browser)', () => {
     })
 
     await addMarker(page)
+    await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})
+    const idlePullStartedAt = Date.now()
     const idlePull = JSON.stringify(await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0}))
+    expect(Date.now() - idlePullStartedAt).toBeLessThan(1000)
     expect(flushCount).toBe(0)
     expect(idlePull).not.toContain('click')
 
@@ -33,5 +36,13 @@ describe('lazy capture lifecycle (real browser)', () => {
     await addMarker(page)
     await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})
     expect(flushCount).toBe(settledCount)
+  }, 120_000)
+
+  it('a click issued immediately after recording_start lands in the capture', async () => {
+    const started = z.object({captureId: z.string()}).parse(await api().callTool('recording_start', {}))
+    await api().page.getByRole('button', {name: 'Add marker'}).click()
+    const stopped = JSON.stringify(await api().callTool('recording_stop', {captureId: started.captureId, keyframes: 0}))
+    expect(stopped).toContain('click')
+    expect(stopped).toContain('Add marker')
   }, 120_000)
 })

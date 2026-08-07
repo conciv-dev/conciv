@@ -4,9 +4,14 @@ import {pullToolDef, startToolDef, stopToolDef} from './def.js'
 
 type Ctx = {recorder: RecorderRuntime}
 
-export const startTool = defineTool(startToolDef).server((_input, ctx: Ctx) => {
+const START_ATTACH_TIMEOUT_MS = 5000
+
+export const startTool = defineTool(startToolDef).server(async (_input, ctx: Ctx) => {
   const {captureId, startTs} = ctx.recorder.control.startCapture()
-  return {captureId, startedAt: startTs}
+  const covered = await ctx.recorder.control.awaitCoverage(startTs, START_ATTACH_TIMEOUT_MS)
+  if (covered) return {captureId, startedAt: startTs}
+  ctx.recorder.control.stopCapture(captureId)
+  return {error: 'no page client attached within 5s; the app page with the widget must be open to record'}
 })
 
 export const stopTool = defineTool(stopToolDef).server(async ({captureId, keyframes}, ctx: Ctx) => {
@@ -18,7 +23,9 @@ export const stopTool = defineTool(stopToolDef).server(async ({captureId, keyfra
 
 export const pullTool = defineTool(pullToolDef).server(async ({secondsBack, keyframes}, ctx: Ctx) => {
   const toTs = Date.now()
-  ctx.recorder.control.emit({flush: true})
-  await ctx.recorder.control.awaitNextAppend(1500)
+  if (ctx.recorder.control.isLive()) {
+    ctx.recorder.control.emit({flush: true})
+    await ctx.recorder.control.awaitNextAppend(1500)
+  }
   return pullWindow(ctx.recorder, toTs - secondsBack * 1000, toTs, keyframes)
 })

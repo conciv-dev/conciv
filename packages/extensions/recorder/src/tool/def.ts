@@ -19,15 +19,15 @@ const RecordingWindow = z.array(z.union([RecordingImagePart, RecordingTextPart])
 export const startToolDef = toolDefinition({
   name: 'recording_start',
   description:
-    "Start a marked recording of the user's app page. Returns a captureId. Use before performing page actions you want to review, then call recording_stop.",
+    "Start a marked recording of the user's app page. Waits for the page to attach and begin streaming, then returns a captureId, so acting right after it returns is safe. Use before performing page actions you want to review, then call recording_stop.",
   inputSchema: StartInput,
-  outputSchema: z.object({captureId: z.string(), startedAt: z.number()}),
+  outputSchema: z.union([z.object({error: z.string()}), z.object({captureId: z.string(), startedAt: z.number()})]),
   meta: {
     summary: 'start a marked recording of the app page',
     category: 'recorder',
     mutating: false,
     keywords: ['record', 'capture'],
-    hint: 'stop it with recording_stop to get the action log',
+    hint: 'stop it with recording_stop to get the action log; answers with an error field when no page is open',
   },
 })
 
@@ -49,14 +49,14 @@ export const stopToolDef = toolDefinition({
 export const pullToolDef = toolDefinition({
   name: 'recording_pull',
   description:
-    'Pull the last N seconds of the always-on page recording (flight recorder). Returns a semantic action log plus keyframe screenshots. Use when the user refers to something that just happened in their app, or after an error.',
+    'Pull the last N seconds of the on-demand page recording. Recording happens only while a requested recording is live, so data exists only during or after a recording_start; start one before acting. Returns a semantic action log plus keyframe screenshots.',
   inputSchema: PullInput,
   outputSchema: RecordingWindow,
   meta: {
-    summary: 'pull the last seconds of the always-on page recording',
+    summary: 'pull the last seconds of the on-demand page recording',
     category: 'recorder',
     mutating: false,
-    keywords: ['record', 'flight', 'replay'],
-    hint: 'use when the user refers to something that just happened in their app',
+    keywords: ['record', 'replay'],
+    hint: 'nothing was recorded unless a recording was requested; call recording_start first',
   },
 })

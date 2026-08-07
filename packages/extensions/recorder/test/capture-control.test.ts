@@ -4,14 +4,17 @@ import {VIEWER_LEASE_MS, createCaptureControl} from '../src/server/capture-contr
 import type {RecorderControl} from '../src/shared/protocol.js'
 
 describe('createCaptureControl', () => {
-  it('broadcasts live=true on capture start and live=false on stop', () => {
+  it('broadcasts live plus a fresh snapshot request on capture start and live=false on stop', () => {
     const ring = createEventRing({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 5000)
     const seen: RecorderControl[] = []
     control.subscribe((message) => seen.push(message))
     const {captureId} = control.startCapture()
     const range = control.stopCapture(captureId)
-    expect(seen).toEqual([{live: true}, {flush: true, live: false}])
+    expect(seen).toEqual([
+      {live: true, snapshot: true, flush: true},
+      {flush: true, live: false},
+    ])
     expect(range).toEqual({startTs: 5000, stopTs: 5000})
   })
 
@@ -28,23 +31,9 @@ describe('createCaptureControl', () => {
     const {captureId} = control.startCapture()
     vi.advanceTimersByTime(10 * 60 * 1000 + 30_000)
     expect(control.stopCapture(captureId)).toBeNull()
-    expect(seen).toEqual([{live: true}, {live: false}])
+    expect(seen).toEqual([{live: true, snapshot: true, flush: true}, {live: false}])
     control.dispose()
     vi.useRealTimers()
-  })
-
-  it('releaseAllCaptures empties actives and emits live=false once', () => {
-    const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
-    const seen: RecorderControl[] = []
-    control.subscribe((message) => seen.push(message))
-    const first = control.startCapture()
-    control.startCapture()
-    control.releaseAllCaptures()
-    expect(seen).toEqual([{live: true}, {live: true}, {live: false}])
-    expect(control.stopCapture(first.captureId)).toBeNull()
-    control.releaseAllCaptures()
-    expect(seen).toEqual([{live: true}, {live: true}, {live: false}])
-    control.dispose()
   })
 
   it('viewer presence drives live cadence without clobbering captures', () => {
@@ -55,7 +44,7 @@ describe('createCaptureControl', () => {
     expect(seen).toEqual([{live: true}])
     const {captureId} = control.startCapture()
     control.dropViewer('viewer-1')
-    expect(seen.at(-1)).toEqual({live: true})
+    expect(seen.at(-1)).toEqual({live: true, snapshot: true, flush: true})
     control.stopCapture(captureId)
     expect(seen.at(-1)).toEqual({flush: true, live: false})
     control.dispose()
