@@ -10,6 +10,8 @@ const probe = defineTool({
   name: 'probe.ping',
   description: 'Ping the probe.',
   inputSchema: z.object({}),
+  outputSchema: z.object({pong: z.boolean()}),
+  meta: {summary: 'ping the probe', category: 'fixture', mutating: false},
 }).server(() => ({pong: true}))
 
 const extension = defineExtension({name: 'probe', tools: [probe]})

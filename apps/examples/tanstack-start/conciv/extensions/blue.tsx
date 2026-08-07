@@ -5,6 +5,8 @@ const hello = defineTool({
   name: 'acme_hello',
   description: 'Return a friendly greeting for a name',
   inputSchema: z.object({name: z.string()}),
+  outputSchema: z.object({greeting: z.string()}),
+  meta: {summary: 'return a friendly greeting for a name', category: 'acme', mutating: false},
 }).server(({name}) => ({greeting: `Hello, ${name}!`}))
 
 const blue = defineExtension({

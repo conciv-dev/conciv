@@ -11,6 +11,8 @@ const draw = defineTool({
   name: 'acme_draw',
   description: 'Draw a shape on the canvas',
   inputSchema: z.object({shape: z.string()}),
+  outputSchema: z.object({drawn: z.string()}),
+  meta: {summary: 'draw a shape on the canvas', category: 'fixture', mutating: false},
 }).server((input) => ({drawn: input.shape}))
 
 const acme = defineExtension({name: 'acme', tools: [draw]})

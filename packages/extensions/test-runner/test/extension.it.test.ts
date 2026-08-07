@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
 import {tmpdir} from 'node:os'
 import {mkdtempSync} from 'node:fs'
-import {createMCPClient} from '@tanstack/ai-mcp'
+import {makeCallTool} from '@conciv/harness-testkit'
 import {start, type Engine} from '@conciv/core'
 import type {ConcivConfig} from '@conciv/core/config'
 import {makeExtRpcClient, type AnyExtension, type RegisterExtension} from '@conciv/extension'
@@ -39,23 +39,8 @@ async function boot(opts: {root?: string; extensions?: ConcivConfig['extensions'
   return {base: `http://127.0.0.1:${engine.port}`, engine}
 }
 
-async function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
-  const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
-  try {
-    const execute = (await mcp.tools()).find((candidate) => candidate.name === 'execute_typescript')
-    if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
-    const typescriptCode = [
-      `const found = await external_catalog({name: ${JSON.stringify(name)}})`,
-      `return await globalThis[found.call](${JSON.stringify(input)})`,
-    ].join('\n')
-    const parsed = z
-      .object({result: z.unknown()})
-      .loose()
-      .parse(JSON.parse(String(await execute.execute({typescriptCode}))))
-    return parsed.result
-  } finally {
-    await mcp.close()
-  }
+function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
+  return makeCallTool(base, '')(name, input)
 }
 
 describe('test-runner extension booted in the real engine (IT)', () => {

@@ -5,7 +5,13 @@ import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../helpers/boot.js'
 
 function toolNamed(name: string) {
-  return defineTool({name, description: 'd', inputSchema: z.object({})}).server(() => ({ok: name}))
+  return defineTool({
+    name,
+    description: 'd',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ok: z.string()}),
+    meta: {summary: `run ${name}`, category: 'fixture', mutating: false},
+  }).server(() => ({ok: name}))
 }
 
 test('two extensions mount isolated namespaces; both routes serve and both tools register', async () => {

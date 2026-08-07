@@ -18,6 +18,14 @@ const lens = defineTool({
 
 const acme = defineExtension({name: 'acme', tools: [lens]})
 
+const halfDeclared = defineTool({
+  name: 'acme_dial',
+  description: 'Turn the acme dial without declaring meta or an output schema.',
+  inputSchema: z.object({turns: z.number().int()}),
+}).server((input) => ({turns: input.turns}))
+
+const legacy = defineExtension({name: 'legacy-acme', tools: [halfDeclared]})
+
 const CatalogDetailSchema = z
   .object({name: z.string(), category: z.string(), output: z.unknown(), errors: z.array(z.unknown())})
   .loose()
@@ -90,5 +98,9 @@ describe('registry-declared extension tools ride the tool registry into the sand
     } finally {
       await kit.cleanup()
     }
+  }, 30_000)
+
+  it('refuses to boot a tool declared without meta and an output schema instead of forwarding it', async () => {
+    await expect(bootKit({extensions: [acme, legacy]})).rejects.toThrow(/acme_dial/)
   }, 30_000)
 })

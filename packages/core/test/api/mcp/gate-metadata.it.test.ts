@@ -20,7 +20,9 @@ const purge = defineTool({
   name: 'askme.purge',
   description: 'Purge the archive.',
   inputSchema: z.object({}),
+  outputSchema: z.object({purged: z.boolean()}),
   approval: 'ask',
+  meta: {summary: 'purge the archive'},
 }).server(() => ({purged: true}))
 
 const shred = defineTool({
@@ -98,7 +100,7 @@ describe('/api/mcp gate decisions come from the approval declaration, not mutati
     }
   }, 30_000)
 
-  it('an EXTENSION tool with approval ask and no meta flag prompts', async () => {
+  it('an EXTENSION tool with approval ask and no mutating flag prompts', async () => {
     const kit = await bootKit({extensions: [askme]})
     try {
       const session = await kit.session()

@@ -1882,6 +1882,12 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@conciv/core':
+        specifier: workspace:^
+        version: link:../../core
+      '@conciv/harness-testkit':
+        specifier: workspace:^
+        version: link:../../harness-testkit
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -2274,6 +2280,9 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../../core
+      '@conciv/harness-testkit':
+        specifier: workspace:^
+        version: link:../../harness-testkit
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -2283,9 +2292,6 @@ importers:
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
-      '@tanstack/ai-mcp':
-        specifier: ^0.2.6
-        version: 0.2.6(@opentelemetry/api@1.9.1)(zod@4.4.3)
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
