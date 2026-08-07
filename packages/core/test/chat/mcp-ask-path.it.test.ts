@@ -11,11 +11,20 @@ const shredder = defineTool({
   approval: 'ask',
 }).server((input) => ({shredded: input.documentId}))
 
+const stall = {controller: new AbortController()}
+
 const forever = defineTool({
   name: 'vault.stall',
-  description: 'A handler that never settles.',
+  description: 'A handler that settles only when the test releases it.',
   inputSchema: z.object({}),
-}).server(() => new Promise<{never: true}>(() => {}))
+}).server(
+  () =>
+    new Promise<{released: true}>((resolve) => {
+      const signal = stall.controller.signal
+      if (signal.aborted) return resolve({released: true})
+      signal.addEventListener('abort', () => resolve({released: true}), {once: true})
+    }),
+)
 
 const vault = defineExtension({name: 'vault', tools: [shredder, forever]})
 
@@ -69,19 +78,26 @@ describe('the MCP ask path is bounded', () => {
     }
   }, 45_000)
 
-  it('rejects a stalled testkit call with a deadline error naming the tool', async () => {
+  it('rejects a stalled testkit call with a deadline error naming the tool and the client-only scope', async () => {
+    stall.controller = new AbortController()
     const {kit, session} = await bootVault(30_000)
     try {
       const call = makeCallTool(kit.base, session, {deadlineMs: 3_000})
       const started = performance.now()
-      const outcome = await settle(call('vault.stall', {}))
-      const elapsed = performance.now() - started
-      expect(outcome.ok).toBe(false)
-      expect(outcome.ok ? '' : outcome.message).toContain(
-        'runTypescript(vault.stall) exceeded 3000ms waiting on the MCP execute',
+      const failure = await call('vault.stall', {}).then(
+        () => null,
+        (error: unknown) => error,
       )
+      const elapsed = performance.now() - started
+      if (!(failure instanceof Error)) throw new Error(`expected a deadline Error, got ${String(failure)}`)
+      expect(failure.message).toBe(
+        'runTypescript(vault.stall) exceeded 3000ms waiting on the MCP execute; the server-side run continues until its own timeout',
+      )
+      expect(failure.cause).toBeInstanceOf(Error)
+      expect(String(failure.cause)).toMatch(/abort/i)
       expect(elapsed).toBeLessThan(10_000)
     } finally {
+      stall.controller.abort()
       await kit.cleanup()
     }
   }, 45_000)

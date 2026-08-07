@@ -40,6 +40,10 @@ const DEFAULT_DEADLINE_MS = 60_000
 
 const DEFAULT_LABEL = 'execute_typescript'
 
+function deadlineMessage(label: string, deadlineMs: number): string {
+  return `runTypescript(${label}) exceeded ${deadlineMs}ms waiting on the MCP execute; the server-side run continues until its own timeout`
+}
+
 export function makeRunTypescript(apiBase: string, session: string, options: McpCallOptions = {}): RunTypescript {
   const deadlineMs = options.deadlineMs ?? DEFAULT_DEADLINE_MS
   const label = options.label ?? DEFAULT_LABEL
@@ -56,9 +60,9 @@ export function makeRunTypescript(apiBase: string, session: string, options: Mcp
       return decodeReply(raw)
     } catch (error) {
       if (!deadline.aborted) throw error
-      throw new Error(`runTypescript(${label}) exceeded ${deadlineMs}ms waiting on the MCP execute`, {cause: error})
+      throw new Error(deadlineMessage(label, deadlineMs), {cause: error})
     } finally {
-      await mcp.close()
+      await mcp.close().catch(() => {})
     }
   }
 }
