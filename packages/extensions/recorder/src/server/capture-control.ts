@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import type {RecorderControl} from '../shared/protocol.js'
 
 type AppendSource = {
-  onAppend(listener: (lastTs: number) => void): () => void
+  onAppend(listener: () => void): () => void
   head(): number
 }
 
@@ -12,14 +12,13 @@ export const VIEWER_LEASE_MS = 20_000
 
 export type CaptureControl = {
   subscribe(emit: (control: RecorderControl) => void): () => void
-  emit(control: RecorderControl): void
+  emit(control: RecorderControl): number
   isLive(): boolean
   startCapture(): {captureId: string; startTs: number; appendCursor: number}
-  stopCapture(captureId: string): {startTs: number; stopTs: number} | null
+  stopCapture(captureId: string): {startTs: number; stopTs: number; appendCursor: number} | null
   renewViewer(viewerId: string): boolean
   dropViewer(viewerId: string): void
   awaitAppendAfter(appendCursor: number, timeoutMs: number): Promise<boolean>
-  awaitNextAppend(timeoutMs: number): Promise<boolean>
   dispose(): void
 }
 
@@ -28,8 +27,10 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
   const captures = new Map<string, {startTs: number; expiresAt: number}>()
   const viewers = new Map<string, number>()
 
-  const emit = (control: RecorderControl): void => {
+  const emit = (control: RecorderControl): number => {
+    const appendCursor = ring.head()
     for (const listener of listeners) listener(control)
+    return appendCursor
   }
 
   const isLive = (): boolean => captures.size > 0 || viewers.size > 0
@@ -87,17 +88,16 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
     startCapture() {
       const captureId = randomUUID()
       const startTs = now()
-      const appendCursor = ring.head()
       captures.set(captureId, {startTs, expiresAt: startTs + CAPTURE_TTL_MS})
-      emit({live: true, snapshot: true, flush: true})
+      const appendCursor = emit({live: true, snapshot: true, flush: true})
       return {captureId, startTs, appendCursor}
     },
     stopCapture(captureId) {
       const capture = captures.get(captureId)
       if (capture === undefined) return null
       captures.delete(captureId)
-      emit({flush: true, live: isLive()})
-      return {startTs: capture.startTs, stopTs: now()}
+      const appendCursor = emit({flush: true, live: isLive()})
+      return {startTs: capture.startTs, stopTs: now(), appendCursor}
     },
     renewViewer(viewerId) {
       const known = viewers.has(viewerId)
@@ -110,7 +110,6 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
       if (!isLive()) emit({live: false})
     },
     awaitAppendAfter,
-    awaitNextAppend: (timeoutMs) => awaitAppendAfter(ring.head(), timeoutMs),
     dispose() {
       clearInterval(sweepTimer)
     },

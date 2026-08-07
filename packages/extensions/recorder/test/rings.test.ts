@@ -42,10 +42,12 @@ describe('per-client rings', () => {
 
   it('aggregates onAppend across clients', () => {
     const rings = createClientRings({windowMs: 60_000})
-    const seen: number[] = []
-    rings.onAppend((lastTs) => seen.push(lastTs))
+    let notified = 0
+    rings.onAppend(() => {
+      notified += 1
+    })
     rings.append('a', [event(5)])
     rings.append('b', [event(9)])
-    expect(seen).toEqual([5, 9])
+    expect(notified).toBe(2)
   })
 })

@@ -448,7 +448,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       chat: chatDeps,
       mcp: {
         capabilities: codeModeCapabilities,
-        askGate: (sessionId) => makeAskGate({sessionId, asks, emit: (chunk) => stream.publish(sessionId, chunk)}),
+        askGate: (sessionId) =>
+          makeAskGate({
+            sessionId,
+            asks,
+            emit: (chunk) => stream.publish(sessionId, chunk),
+            ...(opts.askTimeoutMs === undefined ? {} : {timeoutMs: opts.askTimeoutMs}),
+          }),
+        listening: (sessionId) => stream.listening(sessionId),
         publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
         sessionModel,
         sessionForNativeId: async (nativeId) => (await rowByNativeId(db, nativeId))?.id ?? null,

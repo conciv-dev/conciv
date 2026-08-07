@@ -12,7 +12,7 @@ describe('token-scoped native page', () => {
     const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-native-dist-'))
     const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-native-ep-'))
     writeFileSync(join(nativeDir, BUNDLE), 'globalThis.__conciv_native_loaded = true')
-    const token = 'tok-abc123'
+    const token = '9bfa1f66-6060-4c6e-8a2e-4a0e0c3d5b1a'
     const engine = await start({
       options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
       root,

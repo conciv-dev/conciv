@@ -61,8 +61,8 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
       }),
     reset: recorderOs.output(z.object({ok: z.literal(true)})).handler(async () => {
       runtime.rings.clear()
-      runtime.control.emit({snapshot: true, flush: true})
-      await runtime.control.awaitNextAppend(1500)
+      const appendCursor = runtime.control.emit({snapshot: true, flush: true})
+      await runtime.control.awaitAppendAfter(appendCursor, 1500)
       return {ok: true}
     }),
     log: recorderOs

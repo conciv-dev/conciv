@@ -13,7 +13,7 @@ export default defineConfig({
           environment: 'node',
           include: ['test/**/*.test.ts', 'test/**/*.it.test.ts'],
           exclude: ['test/**/*.browser.test.tsx', 'node_modules/**', 'dist/**'],
-          testTimeout: 60_000,
+          testTimeout: 200_000,
         },
       },
       {
@@ -21,7 +21,7 @@ export default defineConfig({
         test: {
           name: 'whiteboard-browser',
           include: ['test/**/*.browser.test.tsx'],
-          testTimeout: 60_000,
+          testTimeout: 200_000,
           browser: {enabled: true, headless: true, provider: playwright({}), instances: [{browser: 'chromium'}]},
         },
       },

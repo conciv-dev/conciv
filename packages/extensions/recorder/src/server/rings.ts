@@ -10,16 +10,15 @@ export type ClientRings = {
   window(range?: {fromTs?: number; toTs?: number}, clientId?: string): RrwebEvent[]
   since(cursor: number, clientId?: string): RrwebEvent[]
   head(clientId?: string): number
-  lastTs(): number
   clear(): void
-  onAppend(listener: (lastTs: number) => void): () => void
+  onAppend(listener: () => void): () => void
 }
 
 type Entry = {ring: EventRing; touchedAt: number; unsubscribe: () => void}
 
 export function createClientRings(opts: {windowMs: number; maxBytes?: number}): ClientRings {
   const entries = new Map<string, Entry>()
-  const listeners = new Set<(lastTs: number) => void>()
+  const listeners = new Set<() => void>()
   const sequence = createSequence()
   let active: string | null = null
 
@@ -51,8 +50,8 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
     const existing = entries.get(clientId)
     if (existing) return existing
     const ring = createEventRing({...opts, sequence})
-    const unsubscribe = ring.onAppend((lastTs) => {
-      for (const listener of listeners) listener(lastTs)
+    const unsubscribe = ring.onAppend(() => {
+      for (const listener of listeners) listener()
     })
     const created = {ring, touchedAt: Date.now(), unsubscribe}
     entries.set(clientId, created)
@@ -75,7 +74,6 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
     window: (range = {}, clientId) => resolve(clientId)?.window(range) ?? [],
     since: (cursor, clientId) => resolve(clientId)?.since(cursor) ?? [],
     head: (clientId) => resolve(clientId)?.head() ?? 0,
-    lastTs: () => resolve()?.lastTs() ?? 0,
     clear() {
       for (const entry of entries.values()) entry.unsubscribe()
       entries.clear()

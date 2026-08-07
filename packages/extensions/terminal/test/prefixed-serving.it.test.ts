@@ -11,7 +11,7 @@ import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter, HarnessConnectContext} from '@conciv/protocol/harness-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
 
-const TOKEN = 'tok-prefixed-wire'
+const TOKEN = '8a1e7d5c-3b2f-4e6a-9c0d-1f2e3a4b5c6d'
 
 describe('prefixed serving over the real wire (start with an access token)', () => {
   const captured: HarnessConnectContext[] = []
@@ -48,7 +48,7 @@ describe('prefixed serving over the real wire (start with an access token)', () 
   })
 
   afterAll(async () => {
-    await engine.stop()
+    await engine?.stop()
     rmSync(root, {recursive: true, force: true})
   })
 

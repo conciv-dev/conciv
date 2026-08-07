@@ -12,6 +12,8 @@ const request: ToolRequest = {sessionId: 'conciv_x', model: null}
 
 const allowGate = {decide: async () => 'allow' as const}
 
+const attached = () => true
+
 const untouchableGate: PermissionGate = {
   decide: async () => {
     throw new Error('the gate must not be consulted for a read')
@@ -66,7 +68,7 @@ async function codeModeOf(
   gate: PermissionGate,
   options: {timeoutMs?: number} = {},
 ): Promise<CodeMode> {
-  const result = await makeCodeMode(() => capabilities, request, gate, options)
+  const result = await makeCodeMode(() => capabilities, request, gate, {...options, listening: attached})
   if (!result) throw new Error('code mode unavailable: isolated-vm probe reported incompatible')
   return result
 }
@@ -88,7 +90,7 @@ function replyingGate(timeoutMs: number): {
 
 describe('makeCodeMode', () => {
   test('returns null for an empty capability list', async () => {
-    await expect(makeCodeMode(() => [], request, allowGate)).resolves.toBeNull()
+    await expect(makeCodeMode(() => [], request, allowGate, {listening: attached})).resolves.toBeNull()
   })
 
   test('exposes one tool whose prompt documents only the catalog, never a capability', async () => {
@@ -96,6 +98,7 @@ describe('makeCodeMode', () => {
       () => [capability('safe_tool'), capability('risky_tool', {mutating: true})],
       request,
       allowGate,
+      {listening: attached},
     )
     expect(result).not.toBeNull()
     if (!result) throw new Error('no code mode')
@@ -260,7 +263,7 @@ describe('catalog binding', () => {
 
   test('a capability mounted after construction is discoverable and callable in the same sandbox', async () => {
     const capabilities: CodeCapability[] = [capability('canvas.svg')]
-    const codeMode = await makeCodeMode(() => capabilities, request, allowGate)
+    const codeMode = await makeCodeMode(() => capabilities, request, allowGate, {listening: attached})
     if (!codeMode) throw new Error('no code mode')
     capabilities.push(capability('late.arrival', {execute: async () => 'made it'}))
     const listed = await runSandbox(codeMode.tools, 'return await external_catalog({})')
@@ -355,8 +358,31 @@ describe('gatedToolRun', () => {
         return 'deleted'
       },
     })
-    const run = gatedToolRun(gated, request, expiringGate())
+    const run = gatedToolRun(gated, request, expiringGate(), attached)
     await expect(run({})).rejects.toThrow('received no approval decision (the ask timed out)')
+    expect(ran.value).toBe(false)
+  })
+
+  test('an unattached session refuses an approval-gated capability without waiting for the ask', async () => {
+    const ran = {value: false}
+    const gated = capability('canvas.delete', {
+      approval: 'ask',
+      mutating: true,
+      execute: async () => {
+        ran.value = true
+        return 'deleted'
+      },
+    })
+    const asked = {value: false}
+    const neverAnswers = {
+      decide: async () => {
+        asked.value = true
+        return new Promise<'allow'>(() => {})
+      },
+    }
+    const run = gatedToolRun(gated, request, neverAnswers, () => false)
+    await expect(run({})).rejects.toThrow('nothing is attached to session "conciv_x" to answer')
+    expect(asked.value).toBe(false)
     expect(ran.value).toBe(false)
   })
 
@@ -371,7 +397,7 @@ describe('gatedToolRun', () => {
         return 'deleted'
       },
     })
-    const pending = gatedToolRun(gated, request, gate)({})
+    const pending = gatedToolRun(gated, request, gate, attached)({})
     await sleep(60)
     const id = approvalId()
     if (id === undefined) throw new Error('no approval id')
@@ -391,7 +417,7 @@ describe('gatedToolRun', () => {
         return 'deleted'
       },
     })
-    const run = gatedToolRun(gated, request, gate)
+    const run = gatedToolRun(gated, request, gate, attached)
     const pending = run({})
     await sleep(60)
     const id = approvalId()
@@ -419,7 +445,7 @@ describe('code mode per-tool call events', () => {
       inputSchema: z.object({shape: z.string()}),
       execute: async () => 'drew',
     })
-    const run = gatedToolRun(dotted, request, allowGate)
+    const run = gatedToolRun(dotted, request, allowGate, attached)
     await expect(run({shape: 'circle'}, context)).resolves.toBe('drew')
     const call = events.find((event) => event.name === 'conciv:tool_call')
     expect(call?.value).toMatchObject({name: 'canvas.svg', input: {shape: 'circle'}})
@@ -432,12 +458,17 @@ describe('code mode per-tool call events', () => {
     const {events, context} = capturingContext()
     const decideIds: string[] = []
     const dotted = capability('canvas.svg', {approval: 'ask', mutating: true, execute: async () => 'drew'})
-    const run = gatedToolRun(dotted, request, {
-      decide: async (_toolName, _toolInput, _sessionId, toolUseId) => {
-        decideIds.push(toolUseId)
-        return 'allow' as const
+    const run = gatedToolRun(
+      dotted,
+      request,
+      {
+        decide: async (_toolName, _toolInput, _sessionId, toolUseId) => {
+          decideIds.push(toolUseId)
+          return 'allow' as const
+        },
       },
-    })
+      attached,
+    )
     await expect(run({}, context)).resolves.toBe('drew')
     const call = events.find((event) => event.name === 'conciv:tool_call')
     const result = events.find((event) => event.name === 'conciv:tool_result')
@@ -449,7 +480,7 @@ describe('code mode per-tool call events', () => {
   test('gatedToolRun emits conciv:tool_error on an unanswered ask', async () => {
     const {events, context} = capturingContext()
     const gated = capability('canvas.delete', {approval: 'ask', mutating: true, execute: async () => 'deleted'})
-    const run = gatedToolRun(gated, request, expiringGate())
+    const run = gatedToolRun(gated, request, expiringGate(), attached)
     await expect(run({}, context)).rejects.toThrow(/no approval decision/)
     const failure = events.find((event) => event.name === 'conciv:tool_error')
     expect(failure?.value).toMatchObject({error: expect.stringMatching(/no approval decision/)})
@@ -463,7 +494,7 @@ describe('code mode per-tool call events', () => {
         throw new Error('draw failed')
       },
     })
-    const run = gatedToolRun(broken, request, allowGate)
+    const run = gatedToolRun(broken, request, allowGate, attached)
     await expect(run({}, context)).rejects.toThrow('draw failed')
     expect(events.find((event) => event.name === 'conciv:tool_error')?.value).toMatchObject({error: 'draw failed'})
   })
