@@ -21,7 +21,6 @@
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@conciv/tools": "workspace:^",
     "bippy": "0.5.41",
     "react-grab": "^0.1.44",
     "solid-js": "^1.9.13"

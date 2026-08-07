@@ -23,11 +23,11 @@ import {
   type ToolNamePathProblem,
   type ToolNameProblem,
 } from './define-tool.js'
-import {isPageVerbError} from './page-verbs.js'
+import {isPageVerbError} from './page-errors.js'
 import {isRegistryBranch, walkRegistryProcedures, type RegistryWalkEntry} from './registry-walk.js'
 import type {CtxOf, ToolRequest, UnionToIntersection} from './types.js'
 
-export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding}
+export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding; approval?: 'ask'}
 
 export type RegistryCallContext = {request?: ToolRequest}
 
@@ -113,7 +113,13 @@ const PAGE_FAILURE_TO_TRANSPORT: Record<PageErrorCode, string> = {
   'handler-error': 'HANDLER_ERROR',
 }
 
-export type RegistryPageCaller = (tool: string, input: unknown, request: ToolRequest | undefined) => Promise<unknown>
+export type ForwardedPageTool = {name: string; mutating: boolean}
+
+export type RegistryPageCaller = (
+  tool: ForwardedPageTool,
+  input: unknown,
+  request: ToolRequest | undefined,
+) => Promise<unknown>
 
 export type ToolCatalogEntry = {
   name: string
@@ -131,6 +137,7 @@ export type ToolSignatureError = {code: string; message: string; transport: bool
 
 export type ToolSignature = ToolCatalogEntry & {
   positional?: string
+  approval?: 'ask'
   mutating: boolean
   mirrors: boolean
   keywords: readonly string[]
@@ -236,6 +243,15 @@ function assertRegistryTool(tool: AnyToolBuilder): asserts tool is RegistryTool 
   if (violated) throw new Error(`tool "${tool.name}": ${violated.reason}`)
 }
 
+function assertPositionalField(tool: RegistryTool): void {
+  const positional = tool.meta.positional
+  if (positional === undefined) return
+  if (positional in tool.inputSchema.shape) return
+  throw new Error(
+    `tool "${tool.name}": meta.positional names "${positional}" but the input schema declares no such field`,
+  )
+}
+
 function assertToolCosmetics(tool: RegistryTool): void {
   const parsed = StrictToolCosmetics.safeParse(tool.meta)
   if (parsed.success) return
@@ -253,6 +269,7 @@ function registerTool(
 ): void {
   assertRegistryTool(tool)
   assertToolCosmetics(tool)
+  assertPositionalField(tool)
   toJsonSchema(tool.inputSchema, `tool "${tool.name}" input`, 'input')
   toJsonSchema(tool.outputSchema, `tool "${tool.name}" output`, 'output')
   const holder = owners.get(tool.name)
@@ -301,7 +318,12 @@ const registryBase = os
 type ToolErrorConstructors = ORPCErrorConstructorMap<ToolErrors>
 
 function compileTool(tool: RegistryTool, pageCaller: RegistryPageCaller | undefined, context: unknown): AnyRouter {
-  const meta: RegistryToolMeta = {...tool.meta, name: tool.name, binding: tool.binding}
+  const meta: RegistryToolMeta = {
+    ...tool.meta,
+    name: tool.name,
+    binding: tool.binding,
+    ...(tool.approval === undefined ? {} : {approval: tool.approval}),
+  }
   const declaredErrors: ToolErrors =
     tool.binding === 'client' ? {...tool.errors, ...TOOL_TRANSPORT_ERRORS} : (tool.errors ?? {})
   const procedure = registryBase.meta(meta).errors(declaredErrors).input(tool.inputSchema).output(tool.outputSchema)
@@ -342,7 +364,7 @@ async function forwardToolToPage(
 ): Promise<unknown> {
   if (pageCaller === undefined) throw transportError(errors, 'NO_PAGE_CLIENT', `${tool.name}: no widget connected`)
   try {
-    return await pageCaller(tool.name, input, request)
+    return await pageCaller({name: tool.name, mutating: tool.meta.mutating ?? false}, input, request)
   } catch (error) {
     throw pageFailure(tool, declaredErrors, error, errors)
   }
@@ -391,6 +413,7 @@ const RegistryToolMetaSchema = z.object({
   name: z.string().min(1),
   binding: z.enum(['server', 'client']),
   summary: z.string().min(1),
+  approval: z.literal('ask').optional(),
   category: z.string().optional(),
   mutating: z.boolean().optional(),
   mirrors: z.boolean().optional(),
@@ -442,6 +465,7 @@ function signatureOf(entry: RegistryWalkEntry, listed: ToolCatalogEntry): ToolSi
   return {
     ...listed,
     positional: meta.positional,
+    approval: meta.approval,
     mutating: meta.mutating ?? false,
     mirrors: meta.mirrors ?? false,
     keywords: meta.keywords ?? [],

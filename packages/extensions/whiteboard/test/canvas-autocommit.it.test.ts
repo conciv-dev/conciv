@@ -10,7 +10,7 @@ test('turn end commits an abandoned draft', async () => {
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await api.callTool('canvas.svg', {
+    await api.callToolApproved('canvas.svg', {
       svg: "<svg viewBox='0 0 10 10'><rect x='1' y='1' width='8' height='8' fill='#ccc'/></svg>",
       x: 0,
       y: 0,

@@ -1,0 +1,158 @@
+import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
+import {chromium, type Browser, type Page} from 'playwright'
+import {z} from 'zod'
+import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
+import {handleHostPage, hostPage, serveHost} from './helpers/host.js'
+
+const HOST_BODY = `
+  <div id="probe">page-bus-ok</div>
+  <h1 id="title">Embed page</h1>
+  <button id="press-btn" onclick="document.getElementById('clicked-flag').textContent='clicked'">Press target</button>
+  <output id="clicked-flag"></output>
+`
+
+const SnapshotSchema = z.object({
+  nodes: z.array(z.looseObject({ref: z.string(), role: z.string(), name: z.string().optional()})),
+})
+
+const ChangesSchema = z.array(z.object({verb: z.string()}).loose())
+
+let browser: Browser
+
+beforeAll(async () => {
+  browser = await chromium.launch()
+}, 60_000)
+
+afterAll(async () => {
+  await browser.close()
+})
+
+type BootedPath = {kit: EmbedKit; page: Page}
+
+async function buttonRef(kit: EmbedKit): Promise<string> {
+  const snapshot = SnapshotSchema.parse(await kit.rpc.registry.call({name: 'page.snapshot', input: {}}))
+  const node = snapshot.nodes.find((entry) => entry.role === 'button' && entry.name === 'Press target')
+  if (!node) throw new Error('the snapshot did not list the press button')
+  return node.ref
+}
+
+function verbGroupBattery(boot: () => BootedPath): void {
+  it('read: page.text reports the live DOM', async () => {
+    const {kit} = boot()
+    await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#probe'}})).resolves.toMatchObject({
+      text: 'page-bus-ok',
+    })
+  })
+
+  it('read: page.attr resolves a snapshot ref through the shared refs machinery', async () => {
+    const {kit} = boot()
+    const ref = await buttonRef(kit)
+    await expect(kit.rpc.registry.call({name: 'page.attr', input: {ref, attribute: 'id'}})).resolves.toMatchObject({
+      value: 'press-btn',
+    })
+  })
+
+  it('react: page.locate fails structurally on a page without a React tree', async () => {
+    const {kit} = boot()
+    await expect(kit.rpc.registry.call({name: 'page.locate', input: {selector: '#title'}})).rejects.toMatchObject({
+      code: 'HANDLER_ERROR',
+      message: expect.stringContaining('no React fiber'),
+    })
+  })
+
+  it('act: page.click acts on the page, journals, and fires the browser mirror', async () => {
+    const {kit, page} = boot()
+    await expect(kit.rpc.registry.call({name: 'page.click', input: {selector: '#press-btn'}})).resolves.toMatchObject({
+      ok: true,
+    })
+    await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#clicked-flag'}})).resolves.toMatchObject(
+      {text: 'clicked'},
+    )
+    const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
+    expect(changes.map((entry) => entry.verb)).toContain('page.click')
+    await expectLocator(page.locator('[data-conciv-cursor]')).toHaveCount(1, {timeout: 10_000})
+  })
+
+  it('edit-live: page.settext rewrites the DOM and journals by declared meta', async () => {
+    const {kit} = boot()
+    await expect(
+      kit.rpc.registry.call({name: 'page.settext', input: {selector: '#title', text: 'Rewritten title'}}),
+    ).resolves.toMatchObject({ok: true})
+    await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#title'}})).resolves.toMatchObject({
+      text: 'Rewritten title',
+    })
+    const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
+    expect(changes.map((entry) => entry.verb)).toContain('page.settext')
+  })
+}
+
+describe('bootNormal: the widget embed serves every verb group through the dispatcher', () => {
+  let kit: EmbedKit
+  let host: {base: string; close: () => Promise<void>}
+  let page: Page
+
+  beforeAll(async () => {
+    kit = await bootEmbedKit()
+    host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}))
+    page = await browser.newPage()
+    const subscribed = page.waitForResponse((response) => response.url().endsWith('/rpc/page/queries'), {
+      timeout: 30_000,
+    })
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 30_000})
+    await subscribed
+  }, 60_000)
+
+  afterAll(async () => {
+    await page.close()
+    await host.close()
+    await kit.cleanup()
+  })
+
+  afterEach(async () => {
+    await kit.rpc.page.clearChanges(undefined)
+  })
+
+  verbGroupBattery(() => ({kit, page}))
+})
+
+describe('bootConnect: the connect handle serves the same verb groups through the dispatcher', () => {
+  let kit: EmbedKit
+  let host: {base: string; close: () => Promise<void>}
+  let page: Page
+
+  beforeAll(async () => {
+    kit = await bootEmbedKit()
+    host = await serveHost(() => handleHostPage(HOST_BODY))
+    page = await browser.newPage()
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await page.evaluate(() => {
+      const el = document.createElement('div')
+      document.body.appendChild(el)
+      window.concivTestHandle = window.ConcivHandle.makeConnectHandle()
+      void window.concivTestHandle.mount(el)
+    })
+    await expectLocator(page.getByRole('status', {name: 'connect pane ready'})).toBeVisible({timeout: 30_000})
+    const subscribed = page.waitForResponse((response) => response.url().endsWith('/rpc/page/queries'), {
+      timeout: 30_000,
+    })
+    await page.evaluate(
+      (base) => window.dispatchEvent(new CustomEvent('embedtest:connect', {detail: {base}})),
+      kit.base,
+    )
+    await subscribed
+  }, 60_000)
+
+  afterAll(async () => {
+    await page.close()
+    await host.close()
+    await kit.cleanup()
+  })
+
+  afterEach(async () => {
+    await kit.rpc.page.clearChanges(undefined)
+  })
+
+  verbGroupBattery(() => ({kit, page}))
+})

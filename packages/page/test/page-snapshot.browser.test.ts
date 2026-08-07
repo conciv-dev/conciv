@@ -1,7 +1,10 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {buildSnapshot, describeElement, type Refs, type SnapNode} from '../src/page-snapshot.js'
+import {addRef, buildSnapshot, describeElement, type RefAdder, type Refs, type SnapNode} from '../src/page-snapshot.js'
 
-const makeRefs = (): Refs => ({map: new Map(), n: 0})
+const makeRefs = (): RefAdder => {
+  const refs: Refs = {map: new Map(), n: 0}
+  return (el) => addRef(el, refs)
+}
 
 function mount(html: string): HTMLElement {
   const host = document.createElement('div')
@@ -94,9 +97,9 @@ describe('buildSnapshot', () => {
   })
 
   it('mints sequential live refs that dereference to the elements', () => {
-    const refs = makeRefs()
+    const refs: Refs = {map: new Map(), n: 0}
     const host = mount('<button>a</button><a href="#">b</a>')
-    const nodes = buildSnapshot(host, refs)
+    const nodes = buildSnapshot(host, (el) => addRef(el, refs))
     expect(nodes.map((node) => node.ref)).toEqual(['v1', 'v2'])
     expect(refs.map.get('v1')?.deref()?.tagName).toBe('BUTTON')
     expect(refs.map.get('v2')?.deref()?.tagName).toBe('A')

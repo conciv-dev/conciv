@@ -1,4 +1,5 @@
 export type Refs = {map: Map<string, WeakRef<Element>>; n: number}
+export type RefAdder = (el: Element) => string
 export type SnapNode = {
   ref: string
   role: string
@@ -16,8 +17,8 @@ export function describeElement(el: Element): Record<string, unknown> {
   const style = getComputedStyle(el)
   return {
     tagName: el.tagName.toLowerCase(),
-    id: el.id || undefined,
-    className: typeof el.className === 'string' ? el.className : undefined,
+    ...(el.id === '' ? {} : {id: el.id}),
+    ...(typeof el.className === 'string' ? {className: el.className} : {}),
     rect: {x: rect.x, y: rect.y, w: rect.width, h: rect.height},
     computedStyle: Object.fromEntries(CURATED_STYLE.map((k) => [k, style.getPropertyValue(k)])),
   }
@@ -92,23 +93,23 @@ const elementValue = (el: Element): string | undefined =>
     ? el.value
     : undefined
 
-function snapNode(el: Element, refs: Refs): SnapNode {
+function snapNode(el: Element, addRef: RefAdder): SnapNode {
   const state = nodeState(el)
+  const name = accessibleName(el)
+  const value = elementValue(el)
   return {
-    ref: addRef(el, refs),
+    ref: addRef(el),
     role: roleOf(el),
-    name: accessibleName(el) || undefined,
-    value: elementValue(el),
-    state: state.length > 0 ? state : undefined,
+    ...(name === '' ? {} : {name}),
+    ...(value === undefined ? {} : {value}),
+    ...(state.length > 0 ? {state} : {}),
   }
 }
 
-export function buildSnapshot(root: Element, refs: Refs): SnapNode[] {
-  refs.map.clear()
-  refs.n = 0
+export function buildSnapshot(root: Element, addRef: RefAdder): SnapNode[] {
   const out: SnapNode[] = []
   const walk = (el: Element): void => {
-    if (isInteresting(el)) out.push(snapNode(el, refs))
+    if (isInteresting(el)) out.push(snapNode(el, addRef))
     for (const child of Array.from(el.children)) walk(child)
   }
   walk(root)

@@ -4,22 +4,13 @@ import {
   type PageError,
   type PageOutcome,
   type PageQuery,
-  type PageQueryKind,
-  type PageResult,
 } from '@conciv/protocol/page-types'
-import {DOM_HANDLERS, ELEMENT_KINDS, resolveTarget, startConsoleBuffer, type PageHandler} from './page-handlers.js'
+import type {ClientEffect, ClientToolEntry} from '@conciv/extension'
+import {startConsoleBuffer} from './console-buffer.js'
 import type {Refs} from './page-snapshot.js'
-import {mirrorPageAction, mirrorsKind} from './page-mirror.js'
-import {badArgs, unknownVerb} from './page-failure.js'
+import {makePageToolDispatcher} from './page-tool-dispatcher.js'
 
 export type PageDriver = {execute: (query: PageQuery) => Promise<PageOutcome>; refs: Refs; dispose: () => void}
-
-function missingTarget(query: PageQuery): never {
-  if (query.ref) badArgs(`stale ref ${query.ref}; re-run page snapshot`)
-  if (query.name) badArgs(`no React component named "${query.name}" found`)
-  if (query.selector) badArgs(`no element for selector ${query.selector}`)
-  badArgs('no target: pass --ref, --selector, or --name')
-}
 
 function pageErrorOf(error: unknown): PageError {
   if (!isPageFailure(error)) {
@@ -31,31 +22,24 @@ function pageErrorOf(error: unknown): PageError {
 }
 
 export function makeDomPageDriver(
-  deps: {handlers?: Partial<Record<PageQueryKind, PageHandler>>; refs?: Refs} = {},
+  deps: {tools?: readonly ClientToolEntry[]; effects?: readonly ClientEffect[]; refs?: Refs} = {},
 ): PageDriver {
   const refs: Refs = deps.refs ?? {map: new Map(), n: 0}
-  const {buf: consoleBuf, dispose} = startConsoleBuffer()
-  const handlers: Record<PageQueryKind, PageHandler> = {
-    ...DOM_HANDLERS,
-    ...deps.handlers,
-  }
-
-  async function run(query: PageQuery): Promise<PageResult> {
-    const handler = handlers[query.kind]
-    if (!handler) unknownVerb(`unknown page action ${query.kind}`)
-    const needsEl = ELEMENT_KINDS.has(query.kind)
-    const el = needsEl ? resolveTarget(query, refs) : null
-    if (needsEl && !el) missingTarget(query)
-    if (el && mirrorsKind(query.kind)) mirrorPageAction(el)
-    return handler({query, el, refs, consoleBuf})
-  }
+  const effects = deps.effects ?? []
+  const {buf: consoleBuf, dispose: disposeConsoleBuffer} = startConsoleBuffer()
+  const dispatch = makePageToolDispatcher(deps.tools ?? [], refs, consoleBuf, effects)
 
   async function execute(query: PageQuery): Promise<PageOutcome> {
     try {
-      return {ok: true, result: await run(query)}
+      return {ok: true, result: await dispatch(query)}
     } catch (error) {
       return {ok: false, error: pageErrorOf(error)}
     }
+  }
+
+  function dispose(): void {
+    for (const effect of effects) if (effect.enabled()) effect.set(false)
+    disposeConsoleBuffer()
   }
 
   return {execute, refs, dispose}

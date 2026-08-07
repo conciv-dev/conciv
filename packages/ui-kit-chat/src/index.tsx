@@ -173,7 +173,7 @@ export {useThreadAutoScroll} from './behaviors/use-thread-auto-scroll.js'
 export {useTopAnchorReserve} from './behaviors/use-top-anchor-reserve.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'
 
-export {Thread, type ThreadComponents, type ThreadProps} from './styled/thread.js'
+export {Thread, type ThreadComponents, type ThreadMessagesProps, type ThreadRootProps} from './styled/thread.js'
 export {Composer, type ComposerProps} from './styled/composer.js'
 export {Markdown, type MarkdownProps} from './styled/markdown.js'
 export {Reasoning, type ReasoningProps} from './styled/reasoning.js'

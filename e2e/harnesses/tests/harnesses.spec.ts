@@ -12,6 +12,15 @@ const expected: Record<HarnessApp, {model: string; group: string} | null> = {
 
 const isHarnessName = (name: string): name is HarnessApp => Object.hasOwn(expected, name)
 
+const outcomePattern: Record<HarnessApp, RegExp> = {
+  claude: /^Agent process exited with code 1$/m,
+  codex:
+    /^Reconnecting\.\.\. \d+\/\d+ \(unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: wss:\/\/api\.openai\.com\/v1\/responses/m,
+  'gemini-cli': /^Gemini API key is missing or not configured\.$/m,
+  opencode: /^Unexpected server error\. Check server logs for details\.$/m,
+  pi: /^pi is not installed or not yet supported$/m,
+}
+
 test('full app boots with the configured harness and exposes its real model catalog', async ({page}, testInfo) => {
   const projectName = testInfo.project.name
   if (!isHarnessName(projectName)) throw new Error(`unexpected harness project ${projectName}`)
@@ -46,5 +55,5 @@ test('full app boots with the configured harness and exposes its real model cata
   const outcome = ((await errorAlert.count()) > 0 ? await errorAlert.innerText() : await reply.innerText()).trim()
   testInfo.annotations.push({type: 'turn-outcome', description: `${projectName}: ${outcome}`})
   expect(outcome).not.toBe('')
-  expect(outcome).not.toMatch(/enoent|spawn .* failed|: not found|no such file|is not recognized|exited with code 127/i)
+  expect(outcome).toMatch(outcomePattern[projectName])
 })

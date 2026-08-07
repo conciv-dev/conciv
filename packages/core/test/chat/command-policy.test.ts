@@ -26,9 +26,13 @@ describe('classifyCommand', () => {
     expect(classifyCommand('ls a\nb\nrm -rf /')).toBe('ask')
   })
 
-  it('allows the agent CLI, but still gates it when composed with a pipe or redirect', () => {
-    expect(classifyCommand('conciv tools page snapshot')).toBe('allow')
-    expect(classifyCommand('conciv tools page changes | tee evil.txt')).toBe('ask')
-    expect(classifyCommand('conciv ui confirm --question x')).toBe('ask')
+  it('allows only catalog-derived read-only CLI commands, and gates everything else', () => {
+    const allows = ['conciv tools page snapshot', 'conciv tools page snapshot *', 'conciv tools page changes']
+    expect(classifyCommand('conciv tools page snapshot', allows)).toBe('allow')
+    expect(classifyCommand('conciv tools page changes', allows)).toBe('allow')
+    expect(classifyCommand('conciv tools page click --selector .buy', allows)).toBe('ask')
+    expect(classifyCommand('conciv tools page snapshot', [])).toBe('ask')
+    expect(classifyCommand('conciv tools page changes | tee evil.txt', allows)).toBe('ask')
+    expect(classifyCommand('conciv ui confirm --question x', allows)).toBe('ask')
   })
 })
