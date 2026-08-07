@@ -1,29 +1,13 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {chromium, type Browser} from 'playwright'
-import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
-import {hostPage, serveHost} from './helpers/host.js'
+import {describe, expect, it} from 'vitest'
+import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 
-let browser: Browser
-let kit: EmbedKit
-let host: {base: string; close: () => Promise<void>}
-
-beforeAll(async () => {
-  browser = await chromium.launch()
-  kit = await bootEmbedKit()
-  host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
-}, 60_000)
-
-afterAll(async () => {
-  await browser.close()
-  await host.close()
-  await kit.cleanup()
-})
+const suite = setupWidgetSuite()
 
 describe('draft persistence carries the caret offsets', () => {
   it('persists the draft text with the caret position after the debounce', async () => {
-    const page = await browser.newPage()
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    const page = await suite.browser().newPage()
+    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
 
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -38,10 +22,10 @@ describe('draft persistence carries the caret offsets', () => {
     await input.pressSequentially('say ')
     await persisted
 
-    const state = await kit.rpc.navigation.get(undefined)
+    const state = await suite.kit().rpc.navigation.get(undefined)
     const panelEntry = state?.entries.find((entry) => entry.href.startsWith('/panel/'))
     const sessionId = (panelEntry?.href.split('/')[2] ?? '').split('?')[0] ?? ''
-    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({
+    expect(await suite.kit().rpc.drafts.get({sessionId})).toMatchObject({
       text: 'say hello!',
       selectionStart: 4,
       selectionEnd: 4,

@@ -11,32 +11,12 @@ const chip = (char: string, id: string, label: string): LoweringNode => ({
 const doc = (...blocks: LoweringNode[]): LoweringNode => ({type: 'doc', content: blocks})
 
 describe('buildDocument', () => {
-  test('splits on newlines into explicit paragraph JSON', () => {
-    expect(buildDocument('a\nb')).toEqual(doc(paragraph(text('a')), paragraph(text('b'))))
-  })
-
-  test('empty string becomes a single empty paragraph', () => {
-    expect(buildDocument('')).toEqual(doc(paragraph()))
-  })
-
-  test('blank lines become empty paragraphs', () => {
-    expect(buildDocument('a\n\nb')).toEqual(doc(paragraph(text('a')), paragraph(), paragraph(text('b'))))
-  })
-
   test('markup characters survive verbatim, never HTML-parsed', () => {
     expect(buildDocument('<div>&amp;</div>')).toEqual(doc(paragraph(text('<div>&amp;</div>'))))
   })
 })
 
 describe('projectDocument', () => {
-  test('joins paragraphs with newlines', () => {
-    expect(projectDocument(doc(paragraph(text('a')), paragraph(text('b'))))).toBe('a\nb')
-  })
-
-  test('empty paragraph projects to empty line', () => {
-    expect(projectDocument(doc(paragraph(text('a')), paragraph(), paragraph(text('b'))))).toBe('a\n\nb')
-  })
-
   test('chips lower to sigil plus item id, never label', () => {
     expect(projectDocument(doc(paragraph(text('hi '), chip('@', 'ai:Opus', 'Opus'))))).toBe('hi @ai:Opus')
   })

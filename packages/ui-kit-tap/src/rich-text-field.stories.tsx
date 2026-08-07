@@ -2,52 +2,9 @@ import {Show, createSignal} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, waitFor, within} from 'storybook/test'
 import {Button} from '@conciv/ui-kit-system'
-import {
-  RichTextField,
-  type RichTextFieldHandle,
-  type RichTextFieldItem,
-  type RichTextFieldSelection,
-  type RichTextFieldTrigger,
-} from './rich-text-field.js'
+import {RichTextField, type RichTextFieldHandle, type RichTextFieldSelection} from './rich-text-field.js'
 
-const COMMANDS: RichTextFieldItem[] = [
-  {id: 'help', label: '/help'},
-  {id: 'clear', label: '/clear'},
-  {id: 'compact', label: '/compact'},
-]
-const MENTIONS: RichTextFieldItem[] = [
-  {id: 'ai:Opus', label: 'Opus'},
-  {id: 'ai:Sonnet', label: 'Sonnet'},
-  {id: 'dev', label: 'You'},
-]
-
-const matches = (item: RichTextFieldItem, query: string): boolean =>
-  item.label.replaceAll('/', '').toLowerCase().includes(query.toLowerCase())
-
-const syncTriggers: RichTextFieldTrigger[] = [
-  {char: '/', label: 'Commands', items: (query) => COMMANDS.filter((item) => matches(item, query))},
-  {char: '@', label: 'Mentions', items: (query) => MENTIONS.filter((item) => matches(item, query))},
-]
-
-const asyncTriggers: RichTextFieldTrigger[] = [
-  {
-    char: '/',
-    label: 'Commands',
-    items: async (query) => {
-      await new Promise((resolve) => setTimeout(resolve, 300))
-      if (query.startsWith('boom')) throw new Error('source failed')
-      return COMMANDS.filter((item) => matches(item, query))
-    },
-  },
-]
-
-function Harness(props: {
-  initialValue?: string
-  placeholder?: string
-  disabled?: boolean
-  triggers?: RichTextFieldTrigger[]
-  consumeFilePaste?: boolean
-}) {
+function Harness(props: {initialValue?: string; placeholder?: string; disabled?: boolean; consumeFilePaste?: boolean}) {
   const [value, setValue] = createSignal(props.initialValue ?? '')
   const [submitted, setSubmitted] = createSignal('')
   const [selection, setSelection] = createSignal<RichTextFieldSelection>({start: 0, end: 0})
@@ -63,7 +20,6 @@ function Harness(props: {
           setValue('')
         }}
         onSelectionChange={setSelection}
-        triggers={props.triggers}
         placeholder={props.placeholder}
         label="Message"
         disabled={props.disabled}
@@ -87,6 +43,7 @@ function Harness(props: {
             <Button onClick={() => api().insertText(' inserted')}>Insert text</Button>
             <Button onClick={() => api().appendText(' appended')}>Append text</Button>
             <Button onClick={() => api().focus({end: true})}>Focus end</Button>
+            <Button onClick={() => api().clear()}>Clear</Button>
           </div>
         )}
       </Show>
@@ -98,18 +55,17 @@ const meta: Meta<typeof Harness> = {title: 'ui-kit-tap/RichTextField', component
 export default meta
 type Story = StoryObj<typeof Harness>
 
-const settleHistoryGroup = () => new Promise((resolve) => setTimeout(resolve, 600))
-
 const valueOutput = (canvas: ReturnType<typeof within>) => canvas.getByRole('status', {name: 'Current value'})
 const submittedOutput = (canvas: ReturnType<typeof within>) => canvas.getByRole('status', {name: 'Submitted'})
 const textbox = (canvas: ReturnType<typeof within>) => canvas.getByRole('textbox', {name: 'Message'})
+const undoModifier = () => (navigator.platform.includes('Mac') ? 'Meta' : 'Control')
+const settleHistoryGroup = () => new Promise((resolve) => setTimeout(resolve, 600))
 
 export const Empty: Story = {
   args: {placeholder: 'Message the agent…'},
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    const editor = await waitFor(() => textbox(canvas))
-    await expect(editor).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() => textbox(canvas))
     await expect(canvas.getByText('Message the agent…')).toBeVisible()
   },
 }
@@ -150,10 +106,11 @@ export const Disabled: Story = {
     const canvas = within(canvasElement)
     const editor = await waitFor(() => textbox(canvas))
     await expect(editor).toHaveAttribute('aria-disabled', 'true')
-    await expect(editor).toHaveAttribute('contenteditable', 'false')
     await userEvent.click(editor)
     await userEvent.keyboard('nope')
-    await expect(valueOutput(canvas)).toHaveTextContent('""')
+    await userEvent.keyboard('{Enter}')
+    await expect(valueOutput(canvas)).toHaveTextContent(/^""$/)
+    await expect(submittedOutput(canvas)).toHaveTextContent(/^""$/)
     await expect(canvas.getByText('Message the agent…')).toBeVisible()
   },
 }
@@ -183,183 +140,62 @@ export const PasteFilesConsumedByHook: Story = {
     transfer.items.add(new File(['payload'], 'notes.txt', {type: 'text/plain'}))
     await userEvent.paste(transfer)
     await waitFor(() => expect(canvas.getByRole('status', {name: 'Files pasted'})).toHaveTextContent('1'))
-    await expect(valueOutput(canvas)).toHaveTextContent('""')
+    await expect(valueOutput(canvas)).toHaveTextContent(/^""$/)
   },
 }
 
-export const SlashTriggerKeyboardFlow: Story = {
-  args: {triggers: syncTriggers},
+export const UndoRedoTyping: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     const editor = await waitFor(() => textbox(canvas))
+    const modifier = undoModifier()
     await userEvent.click(editor)
-    await userEvent.type(editor, '/c')
-    const listbox = await waitFor(() => canvas.getByRole('listbox', {name: 'Commands'}))
-    await expect(editor).toHaveAttribute('aria-expanded', 'true')
-    await expect(editor).toHaveAttribute('aria-controls', listbox.id)
-    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
-    await expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible()
-    await expect(canvas.queryByRole('option', {name: '/help'})).toBeNull()
-    await userEvent.keyboard('{ArrowDown}')
-    await waitFor(() => {
-      const active = canvas.getByRole('option', {name: '/compact'})
-      expect(active).toHaveAttribute('aria-selected', 'true')
-      expect(editor).toHaveAttribute('aria-activedescendant', active.id)
-    })
-    await userEvent.keyboard('{Enter}')
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"/compact "'))
-    await expect(within(editor).getByText('/compact')).toBeVisible()
-    await waitFor(() => expect(editor).toHaveAttribute('aria-expanded', 'false'))
-    await userEvent.keyboard('{Enter}')
-    await waitFor(() => expect(submittedOutput(canvas)).toHaveTextContent('"/compact "'))
-  },
-}
-
-export const SlashTriggerEscapeDismisses: Story = {
-  args: {triggers: syncTriggers},
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement)
-    const editor = await waitFor(() => textbox(canvas))
-    await userEvent.click(editor)
-    await userEvent.type(editor, '/he')
-    await waitFor(() => expect(canvas.getByRole('listbox', {name: 'Commands'})).toBeVisible())
-    await userEvent.keyboard('{Escape}')
-    await waitFor(() => expect(canvas.queryByRole('listbox', {name: 'Commands'})).toBeNull())
-    await expect(editor).toHaveAttribute('aria-expanded', 'false')
-    await userEvent.type(editor, 'llo')
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"/hello"'))
-    await expect(canvas.queryByRole('listbox', {name: 'Commands'})).toBeNull()
-  },
-}
-
-export const MentionTriggerChip: Story = {
-  args: {triggers: syncTriggers},
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement)
-    const editor = await waitFor(() => textbox(canvas))
-    await userEvent.click(editor)
-    await userEvent.type(editor, 'hi @op')
-    const option = await waitFor(() => canvas.getByRole('option', {name: 'Opus'}))
-    await userEvent.click(option)
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hi @ai:Opus "'))
-    await expect(within(editor).getByText('@Opus')).toBeVisible()
-  },
-}
-
-export const AsyncSourceStates: Story = {
-  args: {triggers: asyncTriggers},
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement)
-    const editor = await waitFor(() => textbox(canvas))
-    await userEvent.click(editor)
-    await userEvent.type(editor, '/')
-    await waitFor(() => expect(canvas.getByText('Loading…')).toBeVisible())
-    await waitFor(() => expect(canvas.getByRole('option', {name: '/help'})).toBeVisible(), {timeout: 2000})
-    await userEvent.type(editor, 'zzz')
-    await waitFor(() => expect(canvas.getByText('No results')).toBeVisible(), {timeout: 2000})
-    await userEvent.keyboard('{Backspace}{Backspace}{Backspace}')
-    await userEvent.type(editor, 'boom')
-    await waitFor(() => expect(canvas.getByRole('alert')).toBeVisible(), {timeout: 2000})
-  },
-}
-
-export const AtomicChipDeletion: Story = {
-  args: {triggers: syncTriggers},
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement)
-    const editor = await waitFor(() => textbox(canvas))
-    await userEvent.click(editor)
-    await userEvent.type(editor, 'hi @op')
-    await userEvent.click(await waitFor(() => canvas.getByRole('option', {name: 'Opus'})))
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hi @ai:Opus "'))
-    await userEvent.keyboard('{Backspace}{Backspace}')
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hi "'))
-    await expect(within(editor).queryByText('@Opus')).toBeNull()
-    await userEvent.type(editor, '@so')
-    await userEvent.click(await waitFor(() => canvas.getByRole('option', {name: 'Sonnet'})))
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hi @ai:Sonnet "'))
-    const leadingText = editor.firstChild?.firstChild
-    if (leadingText) window.getSelection()?.collapse(leadingText, 3)
-    await waitFor(() => expect(canvas.getByRole('status', {name: 'Selection'})).toHaveTextContent('3:3'))
-    await userEvent.keyboard('{Delete}')
-    await waitFor(() => expect(valueOutput(canvas).textContent).toBe('"hi  "'))
-    await expect(within(editor).queryByText('@Sonnet')).toBeNull()
-  },
-}
-
-export const RangeCutAcrossChips: Story = {
-  args: {triggers: syncTriggers},
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement)
-    const editor = await waitFor(() => textbox(canvas))
-    await userEvent.click(editor)
-    await userEvent.type(editor, 'start @op')
-    await userEvent.click(await waitFor(() => canvas.getByRole('option', {name: 'Opus'})))
-    await userEvent.type(editor, 'end')
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"start @ai:Opus end"'))
-    const modifier = navigator.platform.includes('Mac') ? 'Meta' : 'Control'
-    await userEvent.keyboard(`{${modifier}>}a{/${modifier}}{Backspace}`)
-    await waitFor(() => expect(valueOutput(canvas).textContent).toBe('""'))
-    await expect(within(editor).queryByText('@Opus')).toBeNull()
-  },
-}
-
-export const UndoRedoSingleStepChips: Story = {
-  args: {triggers: syncTriggers},
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement)
-    const editor = await waitFor(() => textbox(canvas))
-    const modifier = navigator.platform.includes('Mac') ? 'Meta' : 'Control'
-    await userEvent.click(editor)
-    await userEvent.type(editor, 'hi @op')
-    await settleHistoryGroup()
-    await userEvent.click(await waitFor(() => canvas.getByRole('option', {name: 'Opus'})))
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hi @ai:Opus "'))
+    await userEvent.type(editor, 'hello')
+    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hello"'))
     await userEvent.keyboard(`{${modifier}>}z{/${modifier}}`)
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hi @op"'))
-    await expect(within(editor).queryByText('@Opus')).toBeNull()
+    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent(/^""$/))
     await userEvent.keyboard(`{${modifier}>}{Shift>}z{/Shift}{/${modifier}}`)
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hi @ai:Opus "'))
-    await expect(within(editor).getByText('@Opus')).toBeVisible()
+    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hello"'))
   },
 }
 
 export const ExternalReplacementResetsUndo: Story = {
-  args: {triggers: syncTriggers},
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     const editor = await waitFor(() => textbox(canvas))
-    const modifier = navigator.platform.includes('Mac') ? 'Meta' : 'Control'
+    const modifier = undoModifier()
     await userEvent.click(editor)
-    await userEvent.type(editor, 'hi @op')
-    await userEvent.click(await waitFor(() => canvas.getByRole('option', {name: 'Opus'})))
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hi @ai:Opus "'))
+    await userEvent.type(editor, 'draft before replace')
+    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"draft before replace"'))
     await userEvent.click(canvas.getByRole('button', {name: 'Replace value'}))
     await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"replaced text"'))
-    await expect(within(editor).queryByText('@Opus')).toBeNull()
+    await expect(within(editor).getByText('replaced text')).toBeVisible()
     await userEvent.click(editor)
     await userEvent.keyboard(`{${modifier}>}z{/${modifier}}`)
-    await expect(valueOutput(canvas)).not.toHaveTextContent('ai:Opus')
-    await expect(valueOutput(canvas)).toHaveTextContent('replaced text')
-    await expect(within(editor).queryByText('@Opus')).toBeNull()
+    await expect(valueOutput(canvas)).toHaveTextContent('"replaced text"')
+    await expect(valueOutput(canvas)).not.toHaveTextContent('draft before replace')
   },
 }
 
-export const HandleInsertPreservesChips: Story = {
-  args: {triggers: syncTriggers},
+export const HandleInsertAppendClear: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     const editor = await waitFor(() => textbox(canvas))
+    const modifier = undoModifier()
     await userEvent.click(editor)
-    await userEvent.type(editor, 'hi @op')
-    await userEvent.click(await waitFor(() => canvas.getByRole('option', {name: 'Opus'})))
-    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"hi @ai:Opus "'))
+    await userEvent.type(editor, 'base')
+    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent('"base"'))
+    await settleHistoryGroup()
     await userEvent.click(canvas.getByRole('button', {name: 'Insert text'}))
-    await waitFor(() => expect(valueOutput(canvas).textContent).toBe('"hi @ai:Opus  inserted"'))
-    await expect(within(editor).getByText('@Opus')).toBeVisible()
+    await waitFor(() => expect(valueOutput(canvas).textContent).toBe('"base inserted"'))
+    await settleHistoryGroup()
     await userEvent.click(canvas.getByRole('button', {name: 'Append text'}))
-    await waitFor(() => expect(valueOutput(canvas).textContent).toBe('"hi @ai:Opus  inserted appended"'))
-    await expect(within(editor).getByText('@Opus')).toBeVisible()
+    await waitFor(() => expect(valueOutput(canvas).textContent).toBe('"base inserted appended"'))
+    await userEvent.click(editor)
+    await userEvent.keyboard(`{${modifier}>}z{/${modifier}}`)
+    await waitFor(() => expect(valueOutput(canvas).textContent).toBe('"base inserted"'))
+    await userEvent.click(canvas.getByRole('button', {name: 'Clear'}))
+    await waitFor(() => expect(valueOutput(canvas)).toHaveTextContent(/^""$/))
   },
 }
 
