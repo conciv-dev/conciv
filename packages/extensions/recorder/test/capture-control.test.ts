@@ -15,7 +15,7 @@ describe('createCaptureControl', () => {
       {live: true, snapshot: true, flush: true},
       {flush: true, live: false},
     ])
-    expect(range).toEqual({startTs: 5000, stopTs: 5000})
+    expect(range).toEqual({startTs: 5000, stopTs: 5000, appendCursor: 0})
   })
 
   it('stopCapture with an unknown id returns null', () => {
@@ -142,6 +142,30 @@ describe('createCaptureControl', () => {
     ring.append('fresh', [{type: 2, data: {}, timestamp: 900}])
     await expect(firstPending).resolves.toBe(true)
     await expect(secondPending).resolves.toBe(true)
+    control.dispose()
+  })
+
+  it('stop coverage counts a flush answered before the wait registers', async () => {
+    const ring = createEventRing({windowMs: 60_000})
+    const control = createCaptureControl(ring, () => 1000)
+    const {captureId} = control.startCapture()
+    control.subscribe((message) => {
+      if (message.flush) ring.append('fast', [{type: 2, data: {}, timestamp: 1200}])
+    })
+    const range = control.stopCapture(captureId)
+    if (!range) throw new Error('capture vanished')
+    await expect(control.awaitAppendAfter(range.appendCursor, 50)).resolves.toBe(true)
+    control.dispose()
+  })
+
+  it('emit returns the pre-broadcast cursor so a synchronous flush response still counts', async () => {
+    const ring = createEventRing({windowMs: 60_000})
+    const control = createCaptureControl(ring, () => 1000)
+    control.subscribe((message) => {
+      if (message.flush) ring.append('fast', [{type: 2, data: {}, timestamp: 1200}])
+    })
+    const appendCursor = control.emit({flush: true})
+    await expect(control.awaitAppendAfter(appendCursor, 50)).resolves.toBe(true)
     control.dispose()
   })
 

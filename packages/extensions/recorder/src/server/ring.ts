@@ -6,9 +6,8 @@ export type EventRing = {
   since(cursor: number): RrwebEvent[]
   head(): number
   bytes(): number
-  lastTs(): number
   clear(): void
-  onAppend(listener: (lastTs: number) => void): () => void
+  onAppend(listener: () => void): () => void
 }
 
 type Stored = {event: RrwebEvent; bytes: number; seq: number}
@@ -29,7 +28,7 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number; sequ
   let stored: Stored[] = []
   let totalBytes = 0
   let head = 0
-  const listeners = new Set<(lastTs: number) => void>()
+  const listeners = new Set<() => void>()
 
   const evict = (): void => {
     const newest = stored.at(-1)?.event.timestamp ?? 0
@@ -63,8 +62,7 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number; sequ
         : [...stored, ...incoming].toSorted((a, b) => a.event.timestamp - b.event.timestamp || a.seq - b.seq)
       totalBytes += incoming.reduce((sum, item) => sum + item.bytes, 0)
       evict()
-      const last = stored.at(-1)?.event.timestamp ?? 0
-      for (const listener of listeners) listener(last)
+      for (const listener of listeners) listener()
     },
     window(range = {}) {
       const toTs = range.toTs ?? Number.POSITIVE_INFINITY
@@ -79,7 +77,6 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number; sequ
     since: (cursor) => stored.filter((item) => item.seq > cursor).map((item) => item.event),
     head: () => head,
     bytes: () => totalBytes,
-    lastTs: () => stored.at(-1)?.event.timestamp ?? 0,
     clear() {
       stored = []
       totalBytes = 0

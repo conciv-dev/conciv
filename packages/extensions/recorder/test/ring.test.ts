@@ -11,7 +11,6 @@ describe('createEventRing', () => {
     ring.append('a', [snapshot(1000), incremental(3000)])
     ring.append('b', [incremental(2000)])
     expect(ring.window().map((event) => event.timestamp)).toEqual([1000, 2000, 3000])
-    expect(ring.lastTs()).toBe(3000)
   })
 
   it('evicts events older than windowMs relative to the newest event', () => {
@@ -81,16 +80,17 @@ describe('createEventRing', () => {
     ring.append('a', [snapshot(1000), incremental(2000)])
     ring.clear()
     expect(ring.window()).toEqual([])
-    expect(ring.lastTs()).toBe(0)
   })
 
-  it('notifies onAppend listeners with the new lastTs', () => {
+  it('notifies onAppend listeners until they unsubscribe', () => {
     const ring = createEventRing({windowMs: 60_000})
-    const seen: number[] = []
-    const off = ring.onAppend((ts) => seen.push(ts))
+    let notified = 0
+    const off = ring.onAppend(() => {
+      notified += 1
+    })
     ring.append('a', [snapshot(1000)])
     off()
     ring.append('a', [incremental(2000)])
-    expect(seen).toEqual([1000])
+    expect(notified).toBe(1)
   })
 })
