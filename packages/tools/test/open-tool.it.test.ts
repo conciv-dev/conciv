@@ -8,7 +8,7 @@ describe('conciv_open tool', () => {
       capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
       askUi: async () => ({answered: false, note: ''}),
       page: async () => ({}),
-      open: (file, line) => calls.push([file, line]),
+      open: async (file, line) => (calls.push([file, line]), {ok: true}),
     })
     const open = tools.find((t) => t.name === 'conciv_open')
     if (!open) throw new Error('conciv_open tool missing')

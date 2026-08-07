@@ -17,7 +17,7 @@ test('the inbox shows empty, single-comment, and no-results edge states', async 
     await openInbox(api.page)
     await api.page.getByText('No comments yet').waitFor({timeout: 30_000})
 
-    await api.callTool('comment.create', {
+    await api.callToolApproved('comment.create', {
       cid: crypto.randomUUID(),
       kind: 'floating',
       parts: [{type: 'text', text: 'a lonely note'}],

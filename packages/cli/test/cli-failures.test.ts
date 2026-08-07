@@ -79,6 +79,30 @@ describe('conciv CLI failure reporting', () => {
     expect(error.stack).toBeUndefined()
   })
 
+  it('page --help with no dev server fails as the standard envelope, not an unhandled rejection', async () => {
+    process.env.CONCIV_PORT = String(await closedPort())
+    const code = await runCli(main, ['tools', 'page', '--help'])
+    expect(code).toBe(1)
+    const error = failure()
+    expect(error.kind).toBe('user')
+    expect(error.message).toContain('No conciv dev server')
+    expect(error.hint).toContain('CONCIV_PORT')
+  })
+
+  it('a server whose catalog declares no page capabilities is reported, not silently shrunk', async () => {
+    process.env.CONCIV_PORT = String(
+      await listen((_request, response) => {
+        response.writeHead(200, {'content-type': 'application/json'})
+        response.end(JSON.stringify({json: []}))
+      }),
+    )
+    const code = await runCli(main, ['tools', 'page', 'snapshot'])
+    expect(code).toBe(1)
+    const error = failure()
+    expect(error.kind).toBe('user')
+    expect(error.message).toContain('no page capabilities')
+  })
+
   it('reports an alien server on the port as a probable bug, with the stack', async () => {
     process.env.CONCIV_PORT = String(await listen((_request, response) => response.end('not a rpc reply')))
     const code = await runCli(main, ['tools', 'server', 'urls'])

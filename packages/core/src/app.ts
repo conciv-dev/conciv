@@ -10,13 +10,10 @@ import {
   type AttachmentDocumentPart,
   type ContentPart,
   type ExtensionServerTool,
-  type PageCaller,
-  type PageVerbMap,
   type ServerHarness,
   type ServerResult,
   type ServerSessions,
   type ToolRequest,
-  pageVerbError,
 } from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
@@ -34,7 +31,8 @@ import {
 } from './chat/session-rows.js'
 import {buildChatTools, makeRunControl, type ChatDeps} from './chat/runtime.js'
 import {askUi, createAskRegistry} from './chat/ask.js'
-import {makeAskGate, makeConcivSandbox} from './chat/gate.js'
+import {makeAskGate, requiresApproval} from './chat/gate.js'
+import {makeConcivSandbox} from './chat/sandbox.js'
 import {
   assistCapabilities,
   extensionCapabilities,
@@ -48,12 +46,15 @@ import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} fr
 import {modelOf, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
-import {makePageBus, runVerb, type PageEnv} from './page-bus.js'
+import {askPage, makePageBus, type PageEnv} from './page-bus.js'
 import {openSourceFromFrames} from './editor/open-source.js'
+import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
 import {extensionRpcMiddleware, rpcMiddleware} from './api/rpc/mount.js'
 import {makeJournal} from './page-bus.js'
-import {callPageTool, makeBuiltinRegistry, toolFailureFromPage} from './tool-registry.js'
+import {makeBuiltinRegistry} from './tool-registry.js'
+import pageServerExtension from '@conciv/extension-page/server'
+import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {logError} from './lib/debug.js'
 import type {OpenInEditor} from './editor/open.js'
 
@@ -82,6 +83,8 @@ export type MakeAppOpts = {
 
   firstChunkTimeoutMs?: number
 
+  askTimeoutMs?: number
+
   nativePageDir?: string
 
   nativeUrl?: () => string | undefined
@@ -100,27 +103,19 @@ function requireHarness(id: string): HarnessAdapter {
   return found
 }
 
+function symbolicable(frame: {
+  fileName?: string
+  line?: number
+  column?: number
+  fn?: string
+}): frame is SymbolicableFrame {
+  return typeof frame.fileName === 'string' && typeof frame.line === 'number'
+}
+
 function narrowExtensionApp(name: string, app: unknown): Hono | null {
   if (app === undefined) return null
   if (!(app instanceof Hono)) throw new Error(`extension "${name}" returned a non-hono app`)
   return app
-}
-
-type CallPageVerb = (extension: string, verb: string, argsJson: string) => Promise<unknown>
-
-function scopedPageCaller(extension: string, callPageVerb: CallPageVerb): PageCaller<PageVerbMap> {
-  return {
-    call(verb, args) {
-      let argsJson: string
-      try {
-        argsJson = JSON.stringify(args ?? {})
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        return Promise.reject(pageVerbError('invalid-args', extension, verb, message))
-      }
-      return callPageVerb(extension, verb, argsJson)
-    },
-  }
 }
 
 function buildAttachmentExpanders(
@@ -145,7 +140,7 @@ function declaredToolErrors(tool: AnyToolBuilder): {code: string; message: strin
 }
 
 function isRegistryDeclared(tool: AnyToolBuilder): boolean {
-  return tool.binding === 'server' && (tool.meta !== undefined || tool.outputSchema !== undefined)
+  return tool.binding !== undefined && (tool.meta !== undefined || tool.outputSchema !== undefined)
 }
 
 function registryDeclaredTools(extension: AnyExtension): AnyToolBuilder[] {
@@ -163,7 +158,7 @@ export function buildExtensionTools(extension: AnyExtension, context: unknown): 
         description: toolDescription(tool),
         inputSchema: tool.inputSchema,
         approval: tool.approval,
-        mutating: tool.approval === 'ask' || (tool.meta?.mutating ?? false),
+        mutating: requiresApproval(tool) || (tool.meta?.mutating ?? false),
         errors: declaredToolErrors(tool),
         execute: (input: unknown, request: ToolRequest) => run(input, context, request),
       },
@@ -181,8 +176,8 @@ function registerExtensionTools(registry: ToolRegistry, sources: RegistryToolSou
   }
 }
 
-function markRiskyMutating(risky: ReadonlySet<string>, capabilities: CodeCapability[]): CodeCapability[] {
-  return capabilities.map((capability) => (risky.has(capability.name) ? {...capability, mutating: true} : capability))
+function markRiskyAsk(risky: ReadonlySet<string>, capabilities: CodeCapability[]): CodeCapability[] {
+  return capabilities.map((capability) => (risky.has(capability.name) ? {...capability, approval: 'ask'} : capability))
 }
 
 function registryBackedTool(tool: AnyToolBuilder, registry: ToolRegistry): ExtensionServerTool {
@@ -191,7 +186,7 @@ function registryBackedTool(tool: AnyToolBuilder, registry: ToolRegistry): Exten
     description: toolDescription(tool),
     inputSchema: tool.inputSchema,
     approval: tool.approval,
-    mutating: tool.approval === 'ask' || (tool.meta?.mutating ?? false),
+    mutating: requiresApproval(tool) || (tool.meta?.mutating ?? false),
     errors: declaredToolErrors(tool),
     execute: (input: unknown, request: ToolRequest) => registry.call(tool.name, input, {request}),
   }
@@ -242,6 +237,7 @@ export type MadeApp = {
   app: AppType
   dispose: () => Promise<void>
   extensionContexts: Record<string, unknown>
+  registry: ToolRegistry
 }
 
 const RUN_DRAIN_TIMEOUT_MS = 5_000
@@ -269,7 +265,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const risky = new Set(
     (opts.extensions ?? [])
       .flatMap((extension) => extension.tools ?? [])
-      .filter((tool) => tool.approval === 'ask')
+      .filter((tool) => requiresApproval(tool))
       .map((tool) => tool.name),
   )
 
@@ -284,13 +280,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     bundler: () => opts.bridge,
     openInEditor: opts.openInEditor,
   })
-
-  const callPageVerb: CallPageVerb = async (extension, verb, argsJson) => {
-    const reply = await runVerb(pageEnv, {extension, verb, argsJson}, 'ext').catch((error: unknown) => {
-      throw toolFailureFromPage(extension, verb, error)
-    })
-    return reply.result
-  }
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
@@ -329,7 +318,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       router: result?.router,
       forwardedTools,
       registryTools,
-      tools: [...forwardedTools, ...registryTools.map((tool) => registryBackedTool(tool, registry))],
+      tools: [
+        ...forwardedTools,
+        ...registryTools.filter((tool) => tool.binding === 'server').map((tool) => registryBackedTool(tool, registry)),
+      ],
       attachmentExpanders: buildAttachmentExpanders(extension, context),
       context,
       dispose: result?.dispose,
@@ -345,7 +337,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         cwd: opts.cwd,
         sessions: serverSessions,
         harness: serverHarness,
-        page: scopedPageCaller(extension.name, callPageVerb),
+        page: {call: (name, input) => askPage(pageBus, name, input)},
+        tools: {call: (name, input) => registry.call(name, input)},
+        symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
         bundler: opts.bridge,
         nativeUrl,
       })
@@ -356,8 +350,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }
   }
 
+  const extensions = [pageServerExtension, ...(opts.extensions ?? [])]
+
   const mountResults = await Promise.all(
-    (opts.extensions ?? []).map((extension) => {
+    extensions.map((extension) => {
       if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
       seenNames.add(extension.name)
       return mountExtension(extension)
@@ -382,10 +378,27 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const sessionModel = (sessionId: string): string | null => modelOf(db, sessionId)
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
     askUi: () => askUi(asks, sessionId),
-    page: (query) => callPageTool(registry, pageEnv, query, {sessionId, model: sessionModel(sessionId)}),
-    open: (file, line) => opts.openInEditor(file, line),
+    page: (name, input) => registry.call(name, input, {request: {sessionId, model: sessionModel(sessionId)}}),
+    open: (file, line) => registry.call('open', {file, line}),
     capabilities: () => registry.catalog.list(),
   })
+
+  const askFreeCommandAllows = (): string[] =>
+    registry.catalog
+      .list()
+      .flatMap((entry) => {
+        const signature = registry.catalog.get(entry.name)
+        if (requiresApproval(signature)) return []
+        const [group, operation] = [entry.path.slice(0, -1).join(' '), entry.path.at(-1)]
+        if (operation === undefined) return []
+        const command = group === '' ? `conciv tools ${operation}` : `conciv tools ${group} ${operation}`
+        const aliases = [command, `${command} *`]
+        if (entry.name.startsWith(PAGE_TOOL_PREFIX) && signature.category === 'react') {
+          aliases.push(`conciv tools react ${operation}`, `conciv tools react ${operation} *`)
+        }
+        return aliases
+      })
+      .concat(['conciv tools page changes', 'conciv tools page changes *'])
 
   assertUniqueCapabilityNames([
     ['a built-in registry tool', registry.sandboxTools().map((tool) => tool.name)],
@@ -401,7 +414,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const forwardedExtensionTools = mounted.flatMap((entry) => entry.forwardedTools)
 
   const codeModeCapabilities = (sessionId: string): CodeCapability[] =>
-    markRiskyMutating(risky, [
+    markRiskyAsk(risky, [
       ...registryCapabilities(registry),
       ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
       ...extensionCapabilities(forwardedExtensionTools),
@@ -436,6 +449,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     stream,
     snapshots,
     risky,
+    commandAllows: askFreeCommandAllows,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     toolNames: new Set(toolList.map((tool) => tool.name)),
     codeModeCapabilities,
@@ -462,6 +476,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     page: pageEnv,
     registry,
+    ...(opts.askTimeoutMs === undefined ? {} : {askTimeoutMs: opts.askTimeoutMs}),
   })
 
   const app = composeRoutes(
@@ -498,5 +513,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     db.$client.close()
   }
 
-  return {app, dispose, extensionContexts}
+  return {app, dispose, extensionContexts, registry}
 }

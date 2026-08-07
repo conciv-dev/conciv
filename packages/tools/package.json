@@ -31,10 +31,6 @@
     "./builtins": {
       "types": "./dist/builtins.d.ts",
       "import": "./dist/builtins.js"
-    },
-    "./page-tools": {
-      "types": "./dist/builtins/page-tools.d.ts",
-      "import": "./dist/builtins/page-tools.js"
     }
   },
   "publishConfig": {
@@ -50,6 +46,7 @@
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
+    "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@tanstack/ai": "^0.43.0",
     "zod": "^4.4.3"

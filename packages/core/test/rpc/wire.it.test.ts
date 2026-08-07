@@ -6,7 +6,8 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {EventType, StreamProcessor, type StreamChunk} from '@tanstack/ai'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
-import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
+import {createTestHarness, makeRpcClient, withAutoApproval, type Kit, type TestHarness} from '@conciv/harness-testkit'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {openSource} from '@conciv/extension/client'
 import {requireClaude, requireTranscriptPath} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
@@ -297,21 +298,21 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
     const firstPromise = iterator.next()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    const verbResult = kit.rpc.page.run({verb: 'snapshot'})
+    const verbResult = kit.rpc.registry.call({name: 'page.snapshot', input: {}})
     const first = await firstPromise
     if (first.done) throw new Error('page.queries ended before a query arrived')
     expect(first.value.requestId).toBeTruthy()
     const replied = await kit.rpc.page.reply({
       requestId: first.value.requestId,
-      outcome: {ok: true, result: {ok: true, value: 'snap'}},
+      outcome: {ok: true, result: {nodes: [{ref: 'v1', role: 'button', name: 'snap'}]}},
     })
     expect(replied.ok).toBe(true)
-    expect(await verbResult).toMatchObject({ok: true, value: 'snap'})
+    expect(await verbResult).toEqual({nodes: [{ref: 'v1', role: 'button', name: 'snap'}]})
     abort.abort()
     await iterator.return(undefined).catch(() => {})
   })
 
-  it('page.run round-trips a verb through the rpc queries subscriber', async () => {
+  it('registry.call round-trips a page tool through the rpc queries subscriber', async () => {
     const {kit} = await bootWire()
     const abort = new AbortController()
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
@@ -320,31 +321,34 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       if (first.done) throw new Error('page.queries ended before a query arrived')
       await kit.rpc.page.reply({
         requestId: first.value.requestId,
-        outcome: {ok: true, result: {ok: true, text: 'body text'}},
+        outcome: {ok: true, result: {text: 'body text'}},
       })
     })()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    const result = await kit.rpc.page.run({verb: 'text', selector: 'body'})
-    expect(result).toMatchObject({ok: true, text: 'body text'})
+    const result = await kit.rpc.registry.call({name: 'page.text', input: {selector: 'body'}})
+    expect(result).toEqual({text: 'body text'})
     await answered
     abort.abort()
     await iterator.return(undefined).catch(() => {})
   })
 
-  it('a mutating page.run lands in page.changes and clearChanges empties it', async () => {
+  it('a mutating registry.call lands in page.changes and clearChanges empties it', async () => {
     const {kit} = await bootWire()
     const abort = new AbortController()
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
     const answered = (async () => {
       const first = await iterator.next()
       if (first.done) throw new Error('page.queries ended before a query arrived')
-      await kit.rpc.page.reply({requestId: first.value.requestId, outcome: {ok: true, result: {ok: true}}})
+      await kit.rpc.page.reply({
+        requestId: first.value.requestId,
+        outcome: {ok: true, result: {ok: true, value: 'Ada'}},
+      })
     })()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    await kit.rpc.page.run({verb: 'fill', selector: '#name', value: 'Ada'})
+    await kit.rpc.registry.call({name: 'page.fill', input: {selector: '#name', value: 'Ada'}})
     await answered
     const changes = await kit.rpc.page.changes(undefined)
-    expect(changes.map((entry) => entry.verb)).toEqual(['fill'])
+    expect(changes.map((entry) => entry.verb)).toEqual(['page.fill'])
     expect(changes[0]).toMatchObject({selector: '#name', args: {value: 'Ada'}})
     await kit.rpc.page.clearChanges(undefined)
     expect(await kit.rpc.page.changes(undefined)).toEqual([])
@@ -352,18 +356,22 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     await iterator.return(undefined).catch(() => {})
   })
 
-  it('page.run with no connected page reports NO_PAGE_CLIENT', async () => {
+  it('registry.call with no connected page reports NO_PAGE_CLIENT', async () => {
     const {kit} = await bootWire()
-    await expect(kit.rpc.page.run({verb: 'snapshot'})).rejects.toMatchObject({code: 'NO_PAGE_CLIENT'})
+    await expect(kit.rpc.registry.call({name: 'page.snapshot', input: {}})).rejects.toMatchObject({
+      code: 'NO_PAGE_CLIENT',
+    })
   })
 
-  it('page.run reports PAGE_TIMEOUT when the page never replies', async () => {
+  it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
     const {kit} = await bootWire()
     const abort = new AbortController()
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
     const consumed = iterator.next()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    await expect(kit.rpc.page.run({verb: 'text', selector: 'body', timeout: 100})).rejects.toMatchObject({
+    await expect(
+      kit.rpc.registry.call({name: 'page.wait', input: {selector: 'body', timeout: 100}}),
+    ).rejects.toMatchObject({
       code: 'PAGE_TIMEOUT',
     })
     abort.abort()
@@ -371,10 +379,10 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     await iterator.return(undefined).catch(() => {})
   })
 
-  it('server.* without a bundler bridge reports NO_BUNDLER', async () => {
+  it('server reads without a bundler bridge report NO_BUNDLER, ask-gated writes refuse first', async () => {
     const {kit} = await bootWire()
     await expect(kit.rpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
-    await expect(kit.rpc.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
+    await expect(kit.rpc.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
   })
 
   it('server.* round-trips a real bundler bridge', async () => {
@@ -408,9 +416,13 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     ])
     expect(await kit.rpc.server.transform({url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
     expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
-    expect(await kit.rpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
+    const {sessionId} = await kit.rpc.sessions.create(undefined)
+    const sessionRpc = makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    await withAutoApproval(kit.rpc, sessionId, async () => {
+      expect(await sessionRpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
+      expect(await sessionRpc.server.restart({force: true})).toEqual({ok: true})
+    })
     expect(reloaded).toEqual(['src/hot.ts'])
-    expect(await kit.rpc.server.restart({force: true})).toEqual({ok: true})
     expect(restarted).toEqual([true])
   })
 

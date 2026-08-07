@@ -2,10 +2,13 @@ import {componentHostAt, describe as describeHost, find, inspect, locate, overri
 import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
 import {page} from 'vitest/browser'
 import {createRoot, type Root} from 'react-dom/client'
-import type {Refs} from '../src/page-snapshot.js'
+import {addRef as addRefTo, type RefAdder, type Refs} from '../src/page-snapshot.js'
 import {FixtureApp} from './fixtures/react-app.js'
 
-const makeRefs = (): Refs => ({map: new Map(), n: 0})
+const makeRefs = (): {refs: Refs; addRef: RefAdder} => {
+  const refs: Refs = {map: new Map(), n: 0}
+  return {refs, addRef: (el) => addRefTo(el, refs)}
+}
 
 const leafText = () => page.getByRole('button')
 const classText = () => page.getByRole('status')
@@ -42,8 +45,8 @@ afterAll(() => {
 
 describe('locate', () => {
   it('names the component and walks the composite owner chain', async () => {
-    const refs = makeRefs()
-    const result = await locate(leaf(), refs)
+    const {addRef} = makeRefs()
+    const result = await locate(leaf(), addRef)
     expect(result).not.toBeNull()
     expect(result?.stack).toContain('Leaf')
     expect(result?.stack).toContain('Branch')
@@ -53,7 +56,7 @@ describe('locate', () => {
 
   it('reads a data-conciv-source attribute into a source location', async () => {
     leaf().setAttribute('data-conciv-source', 'src/app/leaf.tsx:12:7')
-    const result = await locate(leaf(), makeRefs())
+    const result = await locate(leaf(), makeRefs().addRef)
     expect(result?.source).toEqual({file: 'src/app/leaf.tsx', line: 12, column: 7})
     leaf().removeAttribute('data-conciv-source')
   })
@@ -128,7 +131,7 @@ describe('override', () => {
 
 describe('tree + find', () => {
   it('builds the composite tree from a root element', async () => {
-    const result = await tree(container, makeRefs())
+    const result = await tree(container, makeRefs().addRef)
     const names: string[] = []
     const collect = (nodes: typeof result.nodes): void => {
       for (const node of nodes) {
@@ -144,13 +147,13 @@ describe('tree + find', () => {
   })
 
   it('truncates beyond maxNodes and attributes the cut to an ancestor', async () => {
-    const result = await tree(container, makeRefs(), {maxNodes: 1})
+    const result = await tree(container, makeRefs().addRef, {maxNodes: 1})
     expect(result.truncated).toBeGreaterThan(0)
   })
 
   it('finds rendered components by display name', () => {
-    const refs = makeRefs()
-    const result = find('Leaf', refs)
+    const {refs, addRef} = makeRefs()
+    const result = find('Leaf', addRef)
     expect(result.total).toBeGreaterThanOrEqual(1)
     expect(result.matches[0]?.component).toBe('Leaf')
     const ref = result.matches[0]?.ref

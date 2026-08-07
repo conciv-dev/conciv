@@ -8,7 +8,7 @@ test('moving over the open canvas does not storm the sync feed (no write feedbac
   try {
     const {cx, cy} = await openCanvas(api.page)
 
-    await api.callTool('comment.create', {
+    await api.callToolApproved('comment.create', {
       cid: crypto.randomUUID(),
       kind: 'floating',
       parts: [{type: 'text', text: 'quiescence probe'}],

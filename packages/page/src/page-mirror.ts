@@ -1,5 +1,4 @@
 import {overlayLayer} from './overlay.js'
-export {pageVerbMirrors as mirrorsKind} from '@conciv/tools/page-tools'
 
 const ACCENT = '#ff40e0'
 const CURSOR_MS = 240

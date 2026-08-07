@@ -140,6 +140,9 @@ true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` requir
 
 - Whiteboard (TanStack DB over libSQL): never write to the db inside a collection subscription,
   effect, or render body: it triggers a re-render storm. Writes go in event handlers only.
+- The whiteboard test suite (`packages/extensions/whiteboard/test`) runs in CI only, never locally:
+  not one test, not `--filter`'d. Local gates for whiteboard changes are typecheck/build/lint;
+  behavior evidence comes from a green CI run on the PR.
 - The widget bundle must externalize every `@conciv/extension/*` subpath and shared Ark/Solid deps;
   a second bundled copy splits the Solid/Ark context and extension popovers render at 0,0. Guarded
   by the mount-externals build test; don't weaken it.

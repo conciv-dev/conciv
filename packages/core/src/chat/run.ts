@@ -32,7 +32,8 @@ import type {ChatDeps} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot} from './transcript.js'
-import {makeAskGate, makeRunGate, withConcivGate, withConcivSandbox, type PermissionGate} from './gate.js'
+import {makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
+import {withConcivSandbox} from './sandbox.js'
 import {makeCodeMode} from './code-mode.js'
 import {codeModeToolChunks} from './code-mode-parts.js'
 import {makeToolNameNormalizer, normalizeChunkToolName} from './tool-names.js'
@@ -142,7 +143,8 @@ async function buildRunStream(
     env: deps.harnessEnv?.(sessionId) ?? process.env,
     kind: req.kind,
     hasTools: extras.tools.length > 0,
-    decide: (toolName, input, toolUseId) => gate.decide(toolName, input, sessionId, toolUseId),
+    decide: async (toolName, input, toolUseId) =>
+      (await gate.decide(toolName, input, sessionId, toolUseId)) === 'allow' ? 'allow' : 'deny',
   })
   const messages = await turnMessages(deps, sessionId, {
     resumable: resumeSessionId !== null,
@@ -327,7 +329,11 @@ async function* runStream(
     asks: deps.asks,
     emit: (chunk: StreamChunk) => void runLog.append([chunk]).catch(() => {}),
   }
-  const gate = makeRunGate({...gateDeps, risky: deps.risky})
+  const gate = makeRunGate({
+    ...gateDeps,
+    risky: deps.risky,
+    commandAllows: deps.commandAllows,
+  })
   const askGate = makeAskGate(gateDeps)
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
   try {

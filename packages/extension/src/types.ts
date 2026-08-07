@@ -7,7 +7,7 @@ import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {HarnessConnectContext, HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
-import type {PageCaller, PageVerbMap} from './page-verbs.js'
+import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -55,9 +55,16 @@ export type ExtensionTool = {
   __render?: ToolRenderer
 }
 
-export type ClientFactoryResult<ClientReturnValue extends object, Verbs extends PageVerbMap = Record<never, never>> = {
+export type ClientEffect = {
+  name: string
+  description: string
+  set: (enabled: boolean) => void
+  enabled: () => boolean
+}
+
+export type ClientFactoryResult<ClientReturnValue extends object> = {
   value: ClientReturnValue
-  pageVerbs?: Verbs
+  effects?: readonly ClientEffect[]
   dispose?: () => void
 }
 
@@ -78,13 +85,23 @@ export type ServerHarness = {
   transcriptMessages?: (token: string) => Promise<UIMessage[]>
 }
 
-export type ServerApi<Config, Verbs extends PageVerbMap = Record<never, never>> = {
+export type ServerPageCaller = {
+  call: (name: string, input: Record<string, unknown>) => Promise<Record<string, unknown>>
+}
+
+export type ServerToolCaller = {
+  call: (name: string, input: unknown) => Promise<unknown>
+}
+
+export type ServerApi<Config> = {
   config: Config
   cwd: string
   stateDir: string
   sessions: ServerSessions
   harness: ServerHarness
-  page: PageCaller<Verbs>
+  page: ServerPageCaller
+  tools: ServerToolCaller
+  symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   bundler?: BundlerBridge
   nativeUrl: () => string | undefined
 }

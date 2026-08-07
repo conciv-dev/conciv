@@ -12,7 +12,7 @@ import type {AnyTool} from '@tanstack/ai'
 import {sanitizeIdentifier, uniqueIdentifier, type ToolRequest} from '@conciv/extension'
 import type {CodeCapability} from './capabilities.js'
 import {toChatTool, type ToolRunContext} from './runtime.js'
-import type {PermissionGate} from './gate.js'
+import {approvalRefusal, requiresApproval, type PermissionGate} from './gate.js'
 import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
 
 const CODE_MODE_TIMEOUT_MS = 150_000
@@ -58,10 +58,10 @@ export function gatedToolRun(
     const callId = randomUUID()
     const emit = context?.emitCustomEvent ?? (() => {})
     emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name: capability.name, input: args})
-    if (capability.mutating) {
+    if (requiresApproval(capability)) {
       const decision = await gate.decide(capability.name, args, request.sessionId, callId)
-      if (decision === 'deny') {
-        const refusal = `Tool "${capability.name}" was denied by the user`
+      const refusal = approvalRefusal(capability.name, decision)
+      if (refusal !== null) {
         emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: refusal})
         throw new Error(refusal)
       }
@@ -145,6 +145,7 @@ function catalogList(bound: BoundCapability[], search: string | undefined): unkn
       name: capability.name,
       summary: capability.summary,
       category: capability.category,
+      ...(capability.approval === undefined ? {} : {approval: capability.approval}),
       mutating: capability.mutating,
       reachable: capability.reachable,
     })),
@@ -163,6 +164,7 @@ function capabilityDetail(bound: BoundCapability[], name: string): unknown {
     name: found.capability.name,
     description: found.capability.description,
     category: found.capability.category,
+    ...(found.capability.approval === undefined ? {} : {approval: found.capability.approval}),
     mutating: found.capability.mutating,
     reachable: found.capability.reachable,
     input: signature.input,
