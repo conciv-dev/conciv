@@ -29,6 +29,7 @@ const config: StorybookConfig = {
           '@tiptap/extension-text',
           '@tiptap/extension-hard-break',
           '@tiptap/extension-mention',
+          '@tiptap/extensions',
           'unified',
           'remark-parse',
           'remark-rehype',
