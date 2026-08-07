@@ -33,15 +33,24 @@ describe('recording attachment end to end in the real widget', () => {
   it('composes the card chip, sends log text to the model, renders the durable transcript card', async () => {
     const page = await browser.newPage()
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+
+    await openPanel(page)
+    const firstFlush = page.waitForResponse((response) => response.url().includes('/rpc/ext/recorder/flush'), {
+      timeout: 30_000,
+    })
+    await page.getByRole('tab', {name: 'Recorder'}).click()
+    await firstFlush
+
+    const interactionFlush = page.waitForResponse((response) => response.url().includes('/rpc/ext/recorder/flush'), {
+      timeout: 30_000,
+    })
     await page.getByRole('button', {name: 'Embed fixture'}).click()
     await page.getByRole('button', {name: 'Embed fixture'}).click()
 
     const recorderRpc = makeExtRpcClient<RecorderRouter>(kit.base, 'recorder')
-    await page.waitForResponse((response) => response.url().includes('/rpc/ext/recorder/flush'), {timeout: 30_000})
+    await interactionFlush
     expect((await recorderRpc.window({})).events.length).toBeGreaterThanOrEqual(2)
 
-    await openPanel(page)
-    await page.getByRole('tab', {name: 'Recorder'}).click()
     const send = page.getByRole('button', {name: 'Send to agent'})
     await send.waitFor({state: 'visible', timeout: 15_000})
     await send.click()

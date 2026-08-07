@@ -3,7 +3,7 @@ import type {RecorderControl} from '../shared/protocol.js'
 
 type AppendSource = {
   onAppend(listener: (lastTs: number) => void): () => void
-  lastTs(): number
+  head(): number
 }
 
 const CAPTURE_TTL_MS = 10 * 60 * 1000
@@ -13,12 +13,12 @@ export const VIEWER_LEASE_MS = 20_000
 export type CaptureControl = {
   subscribe(emit: (control: RecorderControl) => void): () => void
   emit(control: RecorderControl): void
-  startCapture(): {captureId: string; startTs: number}
+  isLive(): boolean
+  startCapture(): {captureId: string; startTs: number; appendCursor: number}
   stopCapture(captureId: string): {startTs: number; stopTs: number} | null
-  releaseAllCaptures(): void
   renewViewer(viewerId: string): boolean
   dropViewer(viewerId: string): void
-  awaitCoverage(ts: number, timeoutMs: number): Promise<boolean>
+  awaitAppendAfter(appendCursor: number, timeoutMs: number): Promise<boolean>
   awaitNextAppend(timeoutMs: number): Promise<boolean>
   dispose(): void
 }
@@ -64,18 +64,33 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
   const sweepTimer = setInterval(sweep, CAPTURE_SWEEP_MS)
   sweepTimer.unref?.()
 
+  const awaitAppendAfter = (appendCursor: number, timeoutMs: number): Promise<boolean> => {
+    if (ring.head() > appendCursor) return Promise.resolve(true)
+    return new Promise((resolve) => {
+      const finish = (appended: boolean): void => {
+        off()
+        clearTimeout(timer)
+        resolve(appended)
+      }
+      const off = ring.onAppend(() => finish(true))
+      const timer = setTimeout(() => finish(false), timeoutMs)
+    })
+  }
+
   return {
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
     emit,
+    isLive,
     startCapture() {
       const captureId = randomUUID()
       const startTs = now()
+      const appendCursor = ring.head()
       captures.set(captureId, {startTs, expiresAt: startTs + CAPTURE_TTL_MS})
-      emit({live: true})
-      return {captureId, startTs}
+      emit({live: true, snapshot: true, flush: true})
+      return {captureId, startTs, appendCursor}
     },
     stopCapture(captureId) {
       const capture = captures.get(captureId)
@@ -83,11 +98,6 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
       captures.delete(captureId)
       emit({flush: true, live: isLive()})
       return {startTs: capture.startTs, stopTs: now()}
-    },
-    releaseAllCaptures() {
-      if (captures.size === 0) return
-      captures.clear()
-      if (!isLive()) emit({live: false})
     },
     renewViewer(viewerId) {
       const known = viewers.has(viewerId)
@@ -99,31 +109,8 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
       if (!viewers.delete(viewerId)) return
       if (!isLive()) emit({live: false})
     },
-    awaitNextAppend(timeoutMs) {
-      return new Promise((resolve) => {
-        const finish = (appended: boolean): void => {
-          off()
-          clearTimeout(timer)
-          resolve(appended)
-        }
-        const off = ring.onAppend(() => finish(true))
-        const timer = setTimeout(() => finish(false), timeoutMs)
-      })
-    },
-    awaitCoverage(ts, timeoutMs) {
-      if (ring.lastTs() >= ts) return Promise.resolve(true)
-      return new Promise((resolve) => {
-        const finish = (covered: boolean): void => {
-          off()
-          clearTimeout(timer)
-          resolve(covered)
-        }
-        const off = ring.onAppend((lastTs) => {
-          if (lastTs >= ts) finish(true)
-        })
-        const timer = setTimeout(() => finish(false), timeoutMs)
-      })
-    },
+    awaitAppendAfter,
+    awaitNextAppend: (timeoutMs) => awaitAppendAfter(ring.head(), timeoutMs),
     dispose() {
       clearInterval(sweepTimer)
     },

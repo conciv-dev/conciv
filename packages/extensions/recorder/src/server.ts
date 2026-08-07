@@ -94,7 +94,11 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
         }),
     }),
     control: recorderOs.output(eventIterator(RecorderControlSchema)).handler(async function* ({signal}) {
-      yield* subscriptionIterator((emit) => runtime.control.subscribe(emit), signal)
+      yield* subscriptionIterator((emit) => {
+        const unsubscribe = runtime.control.subscribe(emit)
+        emit({live: runtime.control.isLive()})
+        return unsubscribe
+      }, signal)
     }),
   })
 }
@@ -122,7 +126,6 @@ export default defineExtension({
   return {
     context: {recorder: runtime},
     router: makeRecorderRouter(runtime),
-    turnEnd: () => control.releaseAllCaptures(),
     dispose: async () => {
       control.dispose()
       await rendererCache.dispose()

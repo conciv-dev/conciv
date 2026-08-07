@@ -68,6 +68,7 @@
     "@conciv/embed": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",
     "@conciv/extension-ios": "workspace:^",
+    "@conciv/extension-recorder": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-test-runner": "workspace:^",
     "@conciv/extension-whiteboard": "workspace:^",

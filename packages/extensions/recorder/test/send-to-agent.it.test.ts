@@ -1,11 +1,12 @@
 import {describe, expect, it} from 'vitest'
 import {useRecorderTestApi} from './helpers/test-api.js'
-import {addMarker} from './helpers/fixtures.js'
+import {addMarker, startLiveCapture} from './helpers/fixtures.js'
 
 const api = useRecorderTestApi()
 
 describe('send to agent (real browser, real store)', () => {
   it('saves the recording and attaches the real card chip, not a txt note', async () => {
+    await startLiveCapture(api())
     await addMarker(api().page)
     await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})
 

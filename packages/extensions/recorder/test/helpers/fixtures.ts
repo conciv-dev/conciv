@@ -1,4 +1,10 @@
+import {z} from 'zod'
 import type {Page} from 'playwright-core'
+import type {ExtensionTestApi} from '@conciv/extension-testkit'
+
+export async function startLiveCapture(api: ExtensionTestApi): Promise<{captureId: string}> {
+  return z.object({captureId: z.string()}).parse(await api.callTool('recording_start', {}))
+}
 
 export async function addMarker(page: Page): Promise<string> {
   await page.getByRole('button', {name: 'Add marker'}).click()

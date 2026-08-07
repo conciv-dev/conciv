@@ -1,12 +1,23 @@
-import {describe, expect, it} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {z} from 'zod'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {RecorderRouter} from '../src/server.js'
 import {useRecorderTestApi} from './helpers/test-api.js'
-import {addMarker} from './helpers/fixtures.js'
+import {addMarker, startLiveCapture} from './helpers/fixtures.js'
 
 const api = useRecorderTestApi()
+
+const suiteCapture: {captureId?: string} = {}
+
+beforeAll(async () => {
+  suiteCapture.captureId = (await startLiveCapture(api())).captureId
+}, 60_000)
+
+afterAll(async () => {
+  if (!suiteCapture.captureId) return
+  await api().callTool('recording_stop', {captureId: suiteCapture.captureId, keyframes: 0})
+}, 60_000)
 
 function recorderRpc() {
   return makeExtRpcClient<RecorderRouter>(api().apiBase, 'recorder')

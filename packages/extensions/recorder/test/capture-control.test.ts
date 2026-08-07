@@ -4,14 +4,17 @@ import {VIEWER_LEASE_MS, createCaptureControl} from '../src/server/capture-contr
 import type {RecorderControl} from '../src/shared/protocol.js'
 
 describe('createCaptureControl', () => {
-  it('broadcasts live=true on capture start and live=false on stop', () => {
+  it('broadcasts live plus a fresh snapshot request on capture start and live=false on stop', () => {
     const ring = createEventRing({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 5000)
     const seen: RecorderControl[] = []
     control.subscribe((message) => seen.push(message))
     const {captureId} = control.startCapture()
     const range = control.stopCapture(captureId)
-    expect(seen).toEqual([{live: true}, {flush: true, live: false}])
+    expect(seen).toEqual([
+      {live: true, snapshot: true, flush: true},
+      {flush: true, live: false},
+    ])
     expect(range).toEqual({startTs: 5000, stopTs: 5000})
   })
 
@@ -28,23 +31,9 @@ describe('createCaptureControl', () => {
     const {captureId} = control.startCapture()
     vi.advanceTimersByTime(10 * 60 * 1000 + 30_000)
     expect(control.stopCapture(captureId)).toBeNull()
-    expect(seen).toEqual([{live: true}, {live: false}])
+    expect(seen).toEqual([{live: true, snapshot: true, flush: true}, {live: false}])
     control.dispose()
     vi.useRealTimers()
-  })
-
-  it('releaseAllCaptures empties actives and emits live=false once', () => {
-    const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
-    const seen: RecorderControl[] = []
-    control.subscribe((message) => seen.push(message))
-    const first = control.startCapture()
-    control.startCapture()
-    control.releaseAllCaptures()
-    expect(seen).toEqual([{live: true}, {live: true}, {live: false}])
-    expect(control.stopCapture(first.captureId)).toBeNull()
-    control.releaseAllCaptures()
-    expect(seen).toEqual([{live: true}, {live: true}, {live: false}])
-    control.dispose()
   })
 
   it('viewer presence drives live cadence without clobbering captures', () => {
@@ -55,7 +44,7 @@ describe('createCaptureControl', () => {
     expect(seen).toEqual([{live: true}])
     const {captureId} = control.startCapture()
     control.dropViewer('viewer-1')
-    expect(seen.at(-1)).toEqual({live: true})
+    expect(seen.at(-1)).toEqual({live: true, snapshot: true, flush: true})
     control.stopCapture(captureId)
     expect(seen.at(-1)).toEqual({flush: true, live: false})
     control.dispose()
@@ -98,16 +87,72 @@ describe('createCaptureControl', () => {
     vi.useRealTimers()
   })
 
-  it('awaitCoverage resolves once the ring covers the timestamp', async () => {
+  it('awaitAppendAfter resolves once a fresh append lands', async () => {
     const ring = createEventRing({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 0)
-    const pending = control.awaitCoverage(2000, 1000)
+    const pending = control.awaitAppendAfter(ring.head(), 1000)
     ring.append('a', [{type: 2, data: {}, timestamp: 2500}])
     await expect(pending).resolves.toBe(true)
+    control.dispose()
   })
 
-  it('awaitCoverage resolves false on timeout', async () => {
-    const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
-    await expect(control.awaitCoverage(99_999, 30)).resolves.toBe(false)
+  it('awaitAppendAfter resolves false on timeout', async () => {
+    const ring = createEventRing({windowMs: 60_000})
+    const control = createCaptureControl(ring, () => 0)
+    await expect(control.awaitAppendAfter(ring.head(), 30)).resolves.toBe(false)
+    control.dispose()
+  })
+
+  it('start coverage is not satisfied by events retained from before the start emit', async () => {
+    const ring = createEventRing({windowMs: 60_000})
+    const control = createCaptureControl(ring, () => 1000)
+    ring.append('skewed', [{type: 2, data: {}, timestamp: 5000}])
+    const {captureId, appendCursor} = control.startCapture()
+    await expect(control.awaitAppendAfter(appendCursor, 50)).resolves.toBe(false)
+    control.stopCapture(captureId)
+    control.dispose()
+  })
+
+  it('a fresh append from a client with a lagging clock covers the start', async () => {
+    const ring = createEventRing({windowMs: 60_000})
+    const control = createCaptureControl(ring, () => 1000)
+    const {appendCursor} = control.startCapture()
+    const pending = control.awaitAppendAfter(appendCursor, 200)
+    ring.append('fresh', [{type: 2, data: {}, timestamp: 900}])
+    await expect(pending).resolves.toBe(true)
+    control.dispose()
+  })
+
+  it('an append landing between the start emit and the wait still counts', async () => {
+    const ring = createEventRing({windowMs: 60_000})
+    const control = createCaptureControl(ring, () => 1000)
+    const {appendCursor} = control.startCapture()
+    ring.append('fresh', [{type: 2, data: {}, timestamp: 900}])
+    await expect(control.awaitAppendAfter(appendCursor, 50)).resolves.toBe(true)
+    control.dispose()
+  })
+
+  it('two concurrent starts both resolve on the next fresh append', async () => {
+    const ring = createEventRing({windowMs: 60_000})
+    const control = createCaptureControl(ring, () => 1000)
+    const first = control.startCapture()
+    const second = control.startCapture()
+    const firstPending = control.awaitAppendAfter(first.appendCursor, 200)
+    const secondPending = control.awaitAppendAfter(second.appendCursor, 200)
+    ring.append('fresh', [{type: 2, data: {}, timestamp: 900}])
+    await expect(firstPending).resolves.toBe(true)
+    await expect(secondPending).resolves.toBe(true)
+    control.dispose()
+  })
+
+  it('an append landing after the timeout fires does not flip the result', async () => {
+    const ring = createEventRing({windowMs: 60_000})
+    const control = createCaptureControl(ring, () => 1000)
+    const {appendCursor} = control.startCapture()
+    const pending = control.awaitAppendAfter(appendCursor, 20)
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    ring.append('late', [{type: 2, data: {}, timestamp: 2000}])
+    await expect(pending).resolves.toBe(false)
+    control.dispose()
   })
 })

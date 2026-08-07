@@ -179,6 +179,17 @@ describe('recorder extension booted in the real engine (IT)', () => {
     }
   }, 30_000)
 
+  it('recording_start with no page client attached answers with a clear error instead of a captureId', async () => {
+    const {base, engine} = await boot()
+    try {
+      const reply = JSON.stringify(await callViaSandbox(base, 'recording_start', {}))
+      expect(reply).not.toContain('captureId')
+      expect(reply).toContain('no page client')
+    } finally {
+      await engine.stop()
+    }
+  }, 30_000)
+
   it('start/stop capture emits control events to subscribers and returns the marked window', async () => {
     const {base, engine} = await boot()
     mark('boot')
@@ -190,22 +201,28 @@ describe('recorder extension booted in the real engine (IT)', () => {
       const wentLive = Promise.withResolvers<unknown>()
       const pump = (async () => {
         for await (const message of control) {
-          if (sawMessage([message], {live: true})) wentLive.resolve(message)
+          if (sawMessage([message], {live: true, snapshot: true, flush: true})) {
+            wentLive.resolve(message)
+            break
+          }
         }
       })()
+      const startReply = callViaSandbox(base, 'recording_start', {})
+      await wentLive.promise
+      mark('live-before-start-returns')
+      await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
+      mark('flush')
       const started = z
         .object({captureId: z.string()})
         .loose()
-        .parse(envelopeResult(await callViaSandbox(base, 'recording_start', {})))
+        .parse(envelopeResult(await startReply))
       mark('start.execute')
-      await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
-      mark('flush')
       const stopped = z
         .string()
         .parse(await callViaSandbox(base, 'recording_stop', {captureId: started.captureId, keyframes: 0}))
       mark('stop.execute')
       expect(stopped).toContain('click')
-      expect(await wentLive.promise).toEqual({live: true})
+      expect(await wentLive.promise).toEqual({live: true, snapshot: true, flush: true})
       mark('live-event')
       abort.abort()
       await pump.catch(() => {})
