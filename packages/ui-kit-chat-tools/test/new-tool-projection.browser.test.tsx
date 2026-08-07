@@ -9,7 +9,7 @@ import {concivTools} from '@conciv/tools'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {pageCapabilities, pageInputFor, pageToolDescription} from '@conciv/tools/defs'
-import {BUILTIN_PAGE_TOOLS, pageToolMetaOf} from '@conciv/tools/page-tools'
+import {PAGE_TOOL_DEFS, pageToolMetaOf} from '@conciv/extension-page/defs'
 import {PageActionCard} from '../src/styled/page-action-card.js'
 import {GENERIC_TOOL_ICON, toolIconRender} from '../src/styled/tool-icon.js'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
@@ -48,7 +48,7 @@ const shipTool = defineTool({
 
 function registryWith(extra: AnyToolBuilder) {
   const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-  for (const tool of BUILTIN_PAGE_TOOLS) registry.register(tool, {owner: 'a built-in page tool'})
+  for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
   registry.register(extra, {owner: 'a test registrant'})
   return registry
 }
@@ -65,14 +65,14 @@ it('a newly declared capability reaches the model and survives its own advertise
   const tools = concivTools({
     capabilities: () => capabilities,
     askUi: async () => ({answered: false, note: ''}),
-    page: async (query) => (calls.push(query), {ok: true}),
-    open: () => {},
+    page: async (name, input) => (calls.push([name, input]), {ok: true}),
+    open: async () => ({ok: true}),
   })
   const pageTool = tools.find((tool) => tool.name === 'conciv_page')
   if (!pageTool) throw new Error('conciv_page tool missing')
 
   await expect(pageTool.execute({verb: 'ship', note: 'after review'})).resolves.toMatchObject({ok: true})
-  expect(calls[0]).toMatchObject({kind: 'ship', note: 'after review'})
+  expect(calls[0]).toEqual(['page.ship', {note: 'after review'}])
 })
 
 it('the card and the running title read a built-in declaration through the default source', async () => {
@@ -104,5 +104,5 @@ it('a declaration with no icon key falls back to the generic icon', () => {
 
   const capabilities = pageCapabilities(registryWith(plainTool).catalog.list())
   expect(pageToolDescription(capabilities)).toContain('- plain: do something the widget has no icon for')
-  expect(toolIconRender(pageToolMetaOf('plain', [plainTool])?.icon)).toBe(GENERIC_TOOL_ICON)
+  expect(toolIconRender(plainTool.meta?.icon)).toBe(GENERIC_TOOL_ICON)
 })

@@ -54,6 +54,7 @@
     "@conciv/contract": "workspace:^",
     "@conciv/db": "workspace:^",
     "@conciv/extension": "workspace:^",
+    "@conciv/extension-page": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",

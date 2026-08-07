@@ -18,7 +18,7 @@ test('buildChatTools yields conciv + extension tools bound to the session', asyn
       capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
       askUi: async () => ({answered: false, note: ''}),
       page: async () => ({ok: false as const, error: 'none'}),
-      open: () => {},
+      open: async () => ({ok: true}),
     }),
     [
       {
@@ -45,7 +45,7 @@ test('extension tools are lazy, conciv tools are eager', () => {
       capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
       askUi: async () => ({answered: false, note: ''}),
       page: async () => ({ok: false as const, error: 'none'}),
-      open: () => {},
+      open: async () => ({ok: true}),
     }),
     [
       {

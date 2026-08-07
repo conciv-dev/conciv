@@ -1,5 +1,5 @@
 import {and, eq} from 'drizzle-orm'
-import {defineTool, imageResult} from '@conciv/extension'
+import {defineTool, imageResult, toolError} from '@conciv/extension'
 import type {JsonValue} from '../../shared/rows.js'
 import {canvasPending, canvasReplies} from '../../server/db/schema.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
@@ -30,7 +30,11 @@ const canvasReadTool = defineTool(canvasReadDef).server(async (input, ctx: White
 })
 
 const canvasSvgTool = defineTool(canvasSvgDef).server(async (input, ctx: WhiteboardToolContext, request) => {
-  validateSvg(input.svg)
+  try {
+    validateSvg(input.svg)
+  } catch (error) {
+    throw toolError('INVALID_SVG', {message: error instanceof Error ? error.message : String(error)})
+  }
   const pending = await ctx.store.insertPending({
     id: crypto.randomUUID(),
     room: ctx.room(request),
@@ -75,7 +79,9 @@ const canvasExportTool = defineTool(canvasExportDef).server(async (input, ctx: W
     }
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error('export timed out: no canvas tab is connected (canvas.preview works without one)')
+  throw toolError('EXPORT_TIMEOUT', {
+    message: 'export timed out: no canvas tab is connected (canvas.preview works without one)',
+  })
 })
 
 const canvasDrawTool = defineTool(canvasDrawDef).server(async (input, ctx: WhiteboardToolContext, request) => {
@@ -91,7 +97,7 @@ const canvasDrawTool = defineTool(canvasDrawDef).server(async (input, ctx: White
 
 const canvasDiagramTool = defineTool(canvasDiagramDef).server(async (input, ctx: WhiteboardToolContext, request) => {
   const edges = (input.mermaid.match(EDGE_PATTERN) ?? []).length
-  if (edges > MAX_EDGES) throw new Error(`diagram exceeds ${MAX_EDGES} edges`)
+  if (edges > MAX_EDGES) throw toolError('DIAGRAM_TOO_LARGE', {message: `diagram exceeds ${MAX_EDGES} edges`})
   const pending = await ctx.store.insertPending({
     id: crypto.randomUUID(),
     room: ctx.room(request),
@@ -159,7 +165,7 @@ const canvasCommitTool = defineTool(canvasCommitDef).server(async (_input, ctx: 
     if (!remaining.length) return {committed: true, elements: drafts.length}
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error('commit timed out: no canvas tab is connected to perform it')
+  throw toolError('COMMIT_TIMEOUT', {message: 'commit timed out: no canvas tab is connected to perform it'})
 })
 
 const canvasDiscardTool = defineTool(canvasDiscardDef).server(async (_input, ctx: WhiteboardToolContext, request) => {

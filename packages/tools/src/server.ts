@@ -1,5 +1,6 @@
 import {UiInputSchema} from '@conciv/protocol/ui-types'
 import type {ConcivServerTool, ConcivToolContext} from './types.js'
+import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {PAGE_TOOL_NAME, pageCapabilities, pageInputFor, pageToolDescription} from './page.js'
 import {concivUiToolDef} from './ui.js'
 import {concivOpenToolDef, OpenInput} from './open.js'
@@ -27,14 +28,14 @@ function concivPageServerTool(ctx: ConcivToolContext): ConcivServerTool {
     inputSchema,
     execute: async (raw) => {
       const {verb, ...input} = inputSchema.parse(raw)
-      return ctx.page({kind: verb, ...input})
+      return ctx.page(`${PAGE_TOOL_PREFIX}${verb}`, input)
     },
   }
 }
 
 function concivOpenServerTool(ctx: ConcivToolContext): ConcivServerTool {
   const tool = concivOpenToolDef.server(async ({file, line}) => {
-    ctx.open(file, line)
+    await ctx.open(file, line)
     return {ok: true, file, ...(line === undefined ? {} : {line})}
   })
   const run = tool.execute

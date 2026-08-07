@@ -10,7 +10,7 @@ test('preview returns a real png of the draft without any browser round-trip', a
   const api = await getExtensionTestApi({server: whiteboard, host: testHost})
   try {
     await openCanvas(api.page)
-    await api.callTool('canvas.svg', {
+    await api.callToolApproved('canvas.svg', {
       svg: "<svg viewBox='0 0 100 100'><rect x='10' y='10' width='80' height='80' fill='#f0a860'/></svg>",
       x: 50,
       y: 50,

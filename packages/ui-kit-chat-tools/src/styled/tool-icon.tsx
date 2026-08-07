@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import {CircleHelp, Clock, Code, Component, Keyboard, MousePointerClick, ScanSearch, Wand2} from 'lucide-solid'
-import {TOOL_ICON_KEYS, type ToolIconKey} from '@conciv/tools/page-tools'
+import {TOOL_ICON_KEYS, type ToolIconKey} from '@conciv/extension/tool'
 
 type IconRender = (props: {size: number}) => JSX.Element
 

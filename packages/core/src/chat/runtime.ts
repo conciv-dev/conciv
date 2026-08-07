@@ -41,6 +41,7 @@ export type ChatDeps = {
   stream: SessionStreams
   snapshots: SnapshotCache
   risky: ReadonlySet<string>
+  commandAllows: () => readonly string[]
   tools: (sessionId: string) => AnyTool[]
   toolNames: ReadonlySet<string>
   codeModeCapabilities: (sessionId: string) => CodeCapability[]

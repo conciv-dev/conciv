@@ -40,7 +40,11 @@ function ThreadApp(props: {cards: readonly AttachmentCardSlot[]}): JSX.Element {
   onMount(() => void chat.sendMessage({content: userParts}).catch(() => {}))
   return (
     <ChatProvider chat={chat}>
-      <Thread attachmentCards={props.cards} />
+      <Thread>
+        <Thread.Viewport>
+          <Thread.Messages attachmentCards={props.cards} />
+        </Thread.Viewport>
+      </Thread>
     </ChatProvider>
   )
 }
