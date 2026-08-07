@@ -96,4 +96,40 @@ describe('the page-tool dispatcher serves registry page tools under bootConnect'
       code: 'INVALID_ARGS',
     })
   })
+
+  describe('the page.effect verb drives host-registered effects', () => {
+    it('lists the highlight effect the widget registers', async () => {
+      await expect(kit.rpc.registry.call({name: 'page.effect', input: {action: 'list'}})).resolves.toMatchObject({
+        effects: [{name: 'highlight', enabled: false}],
+      })
+    })
+
+    it('enable shows the highlight inspector on the page, disable reverts, toggle flips', async () => {
+      await expect(
+        kit.rpc.registry.call({name: 'page.effect', input: {action: 'enable', effect: 'highlight'}}),
+      ).resolves.toMatchObject({effect: 'highlight', enabled: true})
+      await expectLocator(page.locator('[data-conciv-capture]')).toHaveCount(1, {timeout: 10_000})
+
+      await expect(
+        kit.rpc.registry.call({name: 'page.effect', input: {action: 'disable', effect: 'highlight'}}),
+      ).resolves.toMatchObject({effect: 'highlight', enabled: false})
+      await expectLocator(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
+
+      await expect(
+        kit.rpc.registry.call({name: 'page.effect', input: {action: 'toggle', effect: 'highlight'}}),
+      ).resolves.toMatchObject({effect: 'highlight', enabled: true})
+      await expectLocator(page.locator('[data-conciv-capture]')).toHaveCount(1, {timeout: 10_000})
+
+      await expect(
+        kit.rpc.registry.call({name: 'page.effect', input: {action: 'toggle', effect: 'highlight'}}),
+      ).resolves.toMatchObject({effect: 'highlight', enabled: false})
+      await expectLocator(page.locator('[data-conciv-capture]')).toHaveCount(0, {timeout: 10_000})
+    })
+
+    it('an unknown effect name rejects with the declared error', async () => {
+      await expect(
+        kit.rpc.registry.call({name: 'page.effect', input: {action: 'enable', effect: 'confetti'}}),
+      ).rejects.toMatchObject({code: 'UNKNOWN_EFFECT'})
+    })
+  })
 })

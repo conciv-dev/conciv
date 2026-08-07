@@ -56,12 +56,14 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   mutating?: boolean
   mirrors?: boolean
   keywords?: readonly string[]
+  errors?: ToolErrors
 }): PageToolDef<Shape, Out> {
   return defineTool({
     name: `page.${spec.verb}`,
     description: spec.summary,
     inputSchema: spec.input,
     outputSchema: spec.output,
+    errors: spec.errors,
     meta: {
       summary: spec.summary,
       category: spec.category,
@@ -303,17 +305,22 @@ export const trackDef = pageTool({
 
 export const effectDef = pageTool({
   verb: 'effect',
-  summary: 'run a named visual effect the host page installed, by name plus an action',
+  summary: 'enable, disable, toggle, report or list the visual effects the host page registered',
   category: 'act',
   icon: 'edit',
   label: {running: 'Driving an effect', done: 'Drove an effect'},
-  hint: 'a documented stub: no host effect registry exists yet, so every call fails with "effects not initialized"',
-  keywords: ['effects'],
+  hint: 'action list reports every registered effect and whether it is enabled',
+  mutating: true,
+  keywords: ['effects', 'overlay', 'highlight'],
   input: z.object({
     action: ActionEnum.optional(),
-    effect: z.string().optional().describe('the effect to drive'),
+    effect: z.string().optional().describe('the registered effect to drive; action list shows what exists'),
   }),
-  output: z.looseObject({}),
+  output: z.union([
+    z.object({effect: z.string(), enabled: z.boolean()}),
+    z.object({effects: z.array(z.object({name: z.string(), description: z.string(), enabled: z.boolean()}))}),
+  ]),
+  errors: {UNKNOWN_EFFECT: {message: 'no effect is registered under that name'}},
 })
 
 export const waitDef = pageTool({

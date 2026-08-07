@@ -22,7 +22,7 @@ async function helpFor(argv: string[]): Promise<string> {
 describe('the CLI reads its commands from the tool declarations', () => {
   it('sends the effect argument to the server instead of dropping it', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true, result: {}})
+    const answer = await answerNextQuery(kit, {ok: true, result: {effect: 'confetti', enabled: true}})
     expect(await runCli(main, ['tools', 'page', 'effect', '--action', 'enable', '--effect', 'confetti'])).toBe(0)
     expect(answer.seen()).toMatchObject({name: 'page.effect', input: {action: 'enable', effect: 'confetti'}})
   })

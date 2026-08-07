@@ -1,5 +1,5 @@
 import type {z} from 'zod'
-import type {ExtensionTool, ToolRenderer, ToolRequest} from './types.js'
+import type {ClientEffect, ExtensionTool, ToolRenderer, ToolRequest} from './types.js'
 
 export const TOOL_ICON_KEYS = ['read', 'pointer', 'keyboard', 'react', 'edit', 'script', 'wait'] as const
 
@@ -37,6 +37,7 @@ export type ClientToolCtx = {
   addRef: (el: Element) => string
   resetRefs: () => void
   consoleEntries: (since?: number) => ClientConsoleEntry[]
+  effects: readonly ClientEffect[]
 }
 
 export function toolError(code: string, options: {message?: string; data?: unknown} = {}): ToolError {

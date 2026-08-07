@@ -1,4 +1,4 @@
-import type {ClientToolCtx, ClientToolEntry, ClientToolLocator} from '@conciv/extension'
+import type {ClientEffect, ClientToolCtx, ClientToolEntry, ClientToolLocator} from '@conciv/extension'
 import type {PageQuery, PageResult} from '@conciv/protocol/page-types'
 import {addRef, type Refs} from './page-snapshot.js'
 import type {ConsoleEntry} from './console-buffer.js'
@@ -26,7 +26,12 @@ function missingTarget(locator: ClientToolLocator): never {
   badArgs('no target: pass ref, selector, or name')
 }
 
-function callCtx(tool: ClientToolEntry, refs: Refs, consoleBuf: ConsoleEntry[]): ClientToolCtx {
+function callCtx(
+  tool: ClientToolEntry,
+  refs: Refs,
+  consoleBuf: ConsoleEntry[],
+  effects: readonly ClientEffect[],
+): ClientToolCtx {
   const resolve = (locator: ClientToolLocator): Element | null => locatorTarget(locator, refs)
   return {
     document,
@@ -43,6 +48,7 @@ function callCtx(tool: ClientToolEntry, refs: Refs, consoleBuf: ConsoleEntry[]):
       refs.n = 0
     },
     consoleEntries: (since) => consoleBuf.filter((entry) => entry.ts >= (since ?? 0)),
+    effects,
   }
 }
 
@@ -57,13 +63,14 @@ export function makePageToolDispatcher(
   tools: readonly ClientToolEntry[],
   refs: Refs,
   consoleBuf: ConsoleEntry[],
+  effects: readonly ClientEffect[],
 ): PageToolDispatch {
   const byName = new Map(tools.map((tool) => [tool.name, tool] as const))
   return async (query) => {
     const tool = byName.get(query.name)
     if (!tool) unknownVerb(`no mounted extension declares a client tool named "${query.name}"`)
     try {
-      const result = await tool.execute(query.input, callCtx(tool, refs, consoleBuf))
+      const result = await tool.execute(query.input, callCtx(tool, refs, consoleBuf, effects))
       const record = plainRecordOf(result)
       if (!record || !isJsonSerializable(record)) fail(`${query.name} returned a non-serializable result`)
       return record

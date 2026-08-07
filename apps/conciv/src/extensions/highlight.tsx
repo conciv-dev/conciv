@@ -123,20 +123,39 @@ function HighlightInspector(props: {onExit: () => void}): JSX.Element {
 }
 
 function HighlightSurface(): JSX.Element {
+  const context = highlight.useContext()
   const altHeld = createKeyHold('Alt')
-  const [active, setActive] = createSignal(false)
+  const [held, setHeld] = createSignal(false)
   createEffect(() => {
-    if (!altHeld()) return setActive(false)
-    if (!isEditing()) setActive(true)
+    if (!altHeld()) return setHeld(false)
+    if (!isEditing()) setHeld(true)
   })
+  const active = () => held() || context.driven()
+  const exit = () => {
+    setHeld(false)
+    context.setDriven(false)
+  }
   return (
     <Show when={active()}>
-      <HighlightInspector onExit={() => setActive(false)} />
+      <HighlightInspector onExit={exit} />
     </Show>
   )
 }
 
-const highlight = defineExtension({name: 'highlight', Surface: HighlightSurface})
+const highlight = defineExtension({name: 'highlight', Surface: HighlightSurface}).client(() => {
+  const [driven, setDriven] = createSignal(false)
+  return {
+    value: {driven, setDriven},
+    effects: [
+      {
+        name: 'highlight',
+        description: 'outline the element under the pointer and open its source on click',
+        set: (enabled: boolean) => setDriven(enabled),
+        enabled: driven,
+      },
+    ],
+  }
+})
 
 declare module '@conciv/protocol/config-types' {
   interface ExtensionRegistry extends RegisterExtension<typeof highlight> {}

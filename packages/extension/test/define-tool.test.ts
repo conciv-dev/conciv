@@ -13,6 +13,7 @@ const unusedCtx: ClientToolCtx = {
   addRef: () => 'v1',
   resetRefs: () => {},
   consoleEntries: () => [],
+  effects: [],
 }
 
 test('tool execute receives input and injected context', async () => {

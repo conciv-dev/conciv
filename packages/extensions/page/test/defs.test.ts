@@ -7,6 +7,7 @@ const MUTATING_VERBS = [
   'check',
   'click',
   'css',
+  'effect',
   'eval',
   'fill',
   'hover',

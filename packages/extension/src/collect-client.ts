@@ -1,6 +1,6 @@
 import type {AnyExtension} from './define-extension.js'
 import type {ClientToolCtx} from './define-tool.js'
-import type {AttachmentCardEntry, ToolRenderer} from './types.js'
+import type {AttachmentCardEntry, ClientEffect, ToolRenderer} from './types.js'
 
 export type ClientToolEntry = {
   name: string
@@ -17,6 +17,26 @@ export function collectClientTools(builders: AnyExtension[]): ClientToolEntry[] 
       if (!execute || seen.has(tool.name)) continue
       seen.add(tool.name)
       entries.push({name: tool.name, mirrors: tool.meta?.mirrors ?? false, execute})
+    }
+  return entries
+}
+
+export function collectClientEffects(
+  instances: readonly {name: string; effects?: readonly ClientEffect[]}[],
+): ClientEffect[] {
+  const owners = new Map<string, string>()
+  const entries: ClientEffect[] = []
+  for (const instance of instances)
+    for (const effect of instance.effects ?? []) {
+      const owner = owners.get(effect.name)
+      if (owner) {
+        console.warn(
+          `[conciv] extension "${instance.name}" declares effect "${effect.name}" already registered by extension "${owner}"; keeping "${owner}"'s effect`,
+        )
+        continue
+      }
+      owners.set(effect.name, instance.name)
+      entries.push(effect)
     }
   return entries
 }

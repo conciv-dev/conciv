@@ -3,7 +3,13 @@ import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeDeferredRpcClient, makeRebindableRpcClient} from '@conciv/contract'
 import {createWebStorageHistory} from '@conciv/storage-history'
-import {collectClientTools, type AnyExtension, type ClientToolEntry} from '@conciv/extension'
+import {
+  collectClientEffects,
+  collectClientTools,
+  type AnyExtension,
+  type ClientEffect,
+  type ClientToolEntry,
+} from '@conciv/extension'
 import pageExtension from '@conciv/extension-page/client'
 import type {GrabProvider} from '@conciv/grab'
 import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
@@ -63,8 +69,16 @@ type BootNormalConfig = {
   connectMode?: boolean
 }
 
-function mountedClientTools(router: {options: {context: {instances: {extension: AnyExtension}[]}}}): ClientToolEntry[] {
+type MountedRouter = {options: {context: {instances: {extension: AnyExtension; effects: readonly ClientEffect[]}[]}}}
+
+function mountedClientTools(router: MountedRouter): ClientToolEntry[] {
   return collectClientTools(router.options.context.instances.map((instance) => instance.extension))
+}
+
+function mountedClientEffects(router: MountedRouter): ClientEffect[] {
+  return collectClientEffects(
+    router.options.context.instances.map((instance) => ({name: instance.extension.name, effects: instance.effects})),
+  )
 }
 
 async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
@@ -89,7 +103,7 @@ async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
     connectionGeneration,
   })
   window.__TSR_ROUTER__ = hostRouter
-  const driver = makeDomPageDriver({tools: mountedClientTools(router)})
+  const driver = makeDomPageDriver({tools: mountedClientTools(router), effects: mountedClientEffects(router)})
   window.__CONCIV_PAGE_DRIVER__ = driver
 
   const container = document.createElement('div')
@@ -150,7 +164,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     apiBase,
   })
   window.__TSR_ROUTER__ = hostRouter
-  const driver = makeDomPageDriver({tools: mountedClientTools(router)})
+  const driver = makeDomPageDriver({tools: mountedClientTools(router), effects: mountedClientEffects(router)})
   window.__CONCIV_PAGE_DRIVER__ = driver
 
   const container = document.createElement('div')
