@@ -13,6 +13,7 @@ import type {CodeCapability} from './capabilities.js'
 import {toChatTool, type ToolRunContext} from './runtime.js'
 import {approvalRefusal, requiresApproval, type PermissionGate} from './gate.js'
 import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
+import {logError} from '../lib/debug.js'
 
 const CODE_MODE_TIMEOUT_MS = 150_000
 
@@ -27,14 +28,17 @@ const CATEGORY_SAMPLE_LIMIT = 6
 let driverLoad: Promise<IsolateDriver | null> | null = null
 
 async function importDriver(): Promise<IsolateDriver | null> {
-  const loaded = await import('@tanstack/ai-isolate-node').catch(() => null)
-  if (loaded === null) return null
+  const loaded = await import('@tanstack/ai-isolate-node')
   if (!loaded.probeIsolatedVm().compatible) return null
   return loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
 }
 
 function loadDriver(): Promise<IsolateDriver | null> {
-  driverLoad ??= importDriver()
+  driverLoad ??= importDriver().catch((error: unknown) => {
+    driverLoad = null
+    logError(`[core] @tanstack/ai-isolate-node failed to load: ${String(error)}`)
+    throw error
+  })
   return driverLoad
 }
 
