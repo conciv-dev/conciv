@@ -1,7 +1,7 @@
 import {createContext, createMemo, createSignal, untrack, useContext, type Accessor, type JSX} from 'solid-js'
 import {useLiveQuery} from '@tanstack/solid-db'
 import {getHostApi} from '@conciv/extension'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {MentionSegment} from '@conciv/ui-kit-tap'
 import {useWhiteboardDb} from '../db.js'
 import type {CommentRow, JsonValue, PinRow} from '../../shared/rows.js'
@@ -34,7 +34,7 @@ export function createCommentsModel(
 ) {
   const db = useWhiteboardDb()
   const accountId = (): string => db.accountId()
-  const ctx: ToolViewCtx = {apiBase, harnessId: '', sendMessage: () => {}}
+  const ctx: ToolViewCtx = {apiBase, harnessId: '', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
 
   const commentRows = useLiveQuery((q) => q.from({row: db.comments}))
   const pinRows = useLiveQuery((q) => q.from({row: db.pins}))

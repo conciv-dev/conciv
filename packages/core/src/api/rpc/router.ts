@@ -160,7 +160,10 @@ export function makeRpcRouter(deps: RpcDeps) {
             category: entry.category,
             hint: entry.hint,
             positional: signature.positional,
+            icon: entry.icon,
+            label: entry.label,
             mutating: signature.mutating,
+            mirrors: signature.mirrors,
             reachable: entry.reachable,
             input: signature.input,
           }

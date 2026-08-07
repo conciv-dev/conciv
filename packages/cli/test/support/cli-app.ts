@@ -6,6 +6,7 @@ import type {ResolvedConcivConfig} from '@conciv/core/config'
 export type BootExtras = {
   bridge?: Parameters<typeof makeApp>[0]['bridge']
   openInEditor?: (file: string, line?: number) => void
+  extensions?: Parameters<typeof makeApp>[0]['extensions']
 }
 
 function bootCliApp(extras: BootExtras): BootApp {
@@ -26,6 +27,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       openInEditor: extras.openInEditor ?? (() => {}),
       harness: env.harness,
       bridge: extras.bridge,
+      extensions: extras.extensions,
     })
     return {fetch: app.fetch, dispose}
   }

@@ -2,14 +2,24 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {PageActionCard} from './page-action-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/tools/PageActionCard'}
 export default meta
 type Story = StoryObj
 
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}}
+const catalog: ToolCatalogView = {
+  loaded: () => true,
+  meta: (name) => {
+    const declared = PAGE_TOOL_DEFS.find((def) => def.name === name)?.meta
+    if (!declared) return undefined
+    return {...declared, mutating: declared.mutating === true, mirrors: declared.mirrors === true}
+  },
+}
+
+const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, catalog}
 
 function part(args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {type: 'tool-call', id: 'p1', name: 'conciv_page', arguments: JSON.stringify(args), state}

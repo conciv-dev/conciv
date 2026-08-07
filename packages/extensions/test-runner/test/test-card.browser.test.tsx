@@ -1,7 +1,7 @@
 import {describe, it, expect, afterEach} from 'vitest'
 import {render} from 'solid-js/web'
 import {page} from 'vitest/browser'
-import type {ToolViewCtx, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CATALOG, type ToolViewCtx, type ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {HostApiProvider} from '@conciv/extension'
 import {TestCard} from '../src/tool/card.js'
 
@@ -51,7 +51,12 @@ afterEach(() => {
 describe('TestCard (real browser)', () => {
   it('renders the pass/fail tree and expands a failure row to Fix this + Open file:line', async () => {
     const sent: string[] = []
-    const ctx: ToolViewCtx = {apiBase: '', harnessId: 'claude', sendMessage: (text) => sent.push(text)}
+    const ctx: ToolViewCtx = {
+      apiBase: '',
+      harnessId: 'claude',
+      sendMessage: (text) => sent.push(text),
+      catalog: INERT_TOOL_CATALOG,
+    }
     mountCard(
       {result: {type: 'tool-result', toolCallId: 't1', content: JSON.stringify(RESULT), state: 'complete'}},
       ctx,
@@ -70,7 +75,7 @@ describe('TestCard (real browser)', () => {
   })
 
   it('opens a real EventSource and builds the tree live when result is null', async () => {
-    const ctx: ToolViewCtx = {apiBase: '', harnessId: 'claude', sendMessage: () => {}}
+    const ctx: ToolViewCtx = {apiBase: '', harnessId: 'claude', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
     mountCard({result: undefined}, ctx)
 
     await expect.element(page.getByText('works')).toBeVisible()

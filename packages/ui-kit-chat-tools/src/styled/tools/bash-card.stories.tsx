@@ -2,14 +2,14 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {BashCard} from './bash-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/BashCard'}
 export default meta
 type Story = StoryObj
 
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}}
+const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
 
 function part(args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {type: 'tool-call', id: 'b1', name: 'bash', arguments: JSON.stringify(args), state}

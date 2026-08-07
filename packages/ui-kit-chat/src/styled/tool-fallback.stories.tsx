@@ -2,14 +2,20 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ToolFallback} from './tool-fallback.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/ToolFallback'}
 export default meta
 type Story = StoryObj
 
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, respondApproval: () => {}}
+const ctx: ToolViewCtx = {
+  apiBase: '',
+  harnessId: 'story',
+  sendMessage: () => {},
+  catalog: INERT_TOOL_CATALOG,
+  respondApproval: () => {},
+}
 
 function part(args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {type: 'tool-call', id: 'x1', name: 'mcp__weather__forecast', arguments: JSON.stringify(args), state}

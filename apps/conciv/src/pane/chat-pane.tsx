@@ -16,14 +16,14 @@ import {
 } from '@conciv/ui-kit-chat'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
 import type {MessagePart, MultimodalContent, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
 import {collectToolRenderers, HostApiProvider} from '@conciv/extension'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments} from './pane-attachments.js'
 import {resolveGrabSource} from './grab-source-resolve.js'
-import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
+import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
 import {usePane, type StagedGrab} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
 import {foldToolDurations} from './tool-durations.js'
@@ -72,12 +72,16 @@ function callSettled(part: ToolCallPart, result: ToolResultPart | undefined): bo
   return result?.state === 'complete' || result?.state === 'error' || part.output !== undefined
 }
 
-function activeCallTitle(parts: ReadonlyArray<MessagePart>, titleByName: Record<string, string>): string | null {
+function activeCallTitle(
+  parts: ReadonlyArray<MessagePart>,
+  catalog: ToolCatalogView,
+  titleByName: Record<string, string>,
+): string | null {
   const {byCallId} = pairResults(parts)
   let title: string | null = null
   for (const part of parts) {
     if (part.type !== 'tool-call' || !part.id) continue
-    title = callSettled(part, byCallId.get(part.id)) ? title : nowTitle(part, titleByName)
+    title = callSettled(part, byCallId.get(part.id)) ? title : nowTitle(part, catalog, titleByName)
   }
   return title
 }
@@ -112,6 +116,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const rpc = useRpc()
   const appData = useAppData()
   const announce = useAnnounce()
+  const connected = useConnected()
   const instances = useInstances()
   const pane = usePane()
   const sessionId = untrack(() => props.sessionId)
@@ -127,6 +132,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
+  const registryCatalog = useQuery(() => ({...appData.utils.registry.catalog.queryOptions(), enabled: connected()}))
+  const catalog: ToolCatalogView = {
+    loaded: () => registryCatalog.data !== undefined,
+    meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
+  }
   const [draftStorage] = createResource(() => makeDraftStorage(rpc, sessionId))
 
   const startedAt = new Map<string, number>()
@@ -139,6 +149,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     apiBase: '',
     harnessId: meta.data?.harness.id ?? '',
     sendMessage: (text) => void chat.sendMessage(text),
+    catalog,
     respondApproval: (approvalId, approved) => {
       void rpc.chat.permissionDecision({approvalId, approved}).catch(() => {})
     },
@@ -169,7 +180,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     const messages = chat.messages()
     const last = messages[messages.length - 1]
     if (!last || last.role !== 'assistant') return null
-    return activeCallTitle(last.parts, streamTitles())
+    return activeCallTitle(last.parts, catalog, streamTitles())
   }
 
   createEffect<boolean>((was) => {

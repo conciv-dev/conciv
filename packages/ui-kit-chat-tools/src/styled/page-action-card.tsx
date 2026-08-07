@@ -2,11 +2,11 @@ import {Show, Switch, Match, For, type JSX} from 'solid-js'
 import {Target, MoveUpRight} from 'lucide-solid'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import {z} from 'zod'
-import {pageToolMetaOf, pageVerbMirrors, pageVerbMutates} from '@conciv/extension-page/defs'
 import {ToolCard, parseInput, resultText, parseResultPayload} from '@conciv/ui-kit-chat'
 import type {ToolCallPart} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {formatHtml} from '../page-format.js'
+import {pageToolTitle, pageToolView, type PageToolView} from '../primitives/tools/now-title.js'
 import {toolIconRender} from './tool-icon.js'
 
 const CODE_OPTIONS: FileOptions<undefined> = {theme: {light: 'github-light', dark: 'github-dark'}, themeType: 'system'}
@@ -37,16 +37,18 @@ function target(input: ReturnType<typeof readInput>): string | undefined {
   return input?.selector || input?.name || input?.ref || undefined
 }
 
-function isRead(verb: string | undefined): boolean {
-  return verb !== undefined && !pageVerbMutates(verb)
+function listedMeta(view: PageToolView): ToolViewMeta | undefined {
+  return view.state === 'listed' ? view.meta : undefined
 }
 
-function VerbIcon(verb: string | undefined): JSX.Element {
-  const Icon = toolIconRender(verb === undefined ? undefined : pageToolMetaOf(verb)?.icon)
-  return <Icon size={14} />
+function VerbIcon(iconKey: string | undefined, pending: boolean): JSX.Element {
+  const Icon = toolIconRender(iconKey)
+  return (
+    <Show when={!pending}>
+      <Icon size={14} />
+    </Show>
+  )
 }
-
-const GENERIC_PAGE_TITLE = 'Page action'
 
 function titleDetail(input: ReturnType<typeof readInput>): string {
   if (input?.value) return ` "${input.value}"`
@@ -54,13 +56,8 @@ function titleDetail(input: ReturnType<typeof readInput>): string {
   return ''
 }
 
-function pageTitle(part: ToolCallPart): string {
-  const input = readInput(part)
-  const verb = input?.verb
-  if (verb === undefined) return GENERIC_PAGE_TITLE
-  const label = pageToolMetaOf(verb)?.label?.done
-  if (label === undefined) return GENERIC_PAGE_TITLE
-  return `${label}${titleDetail(input)}`
+function cardTitle(view: PageToolView, input: ReturnType<typeof readInput>): string {
+  return `${pageToolTitle(view, 'done')}${titleDetail(input)}`
 }
 
 type SnapNode = {ref?: string; role?: string; name?: string; value?: string; state?: string[]}
@@ -153,6 +150,7 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
 export function PageActionCard(props: ToolCardProps): JSX.Element {
   const input = () => readInput(props.part)
   const verb = () => input()?.verb
+  const view = () => pageToolView(props.ctx.catalog, verb())
   const targetEl = () => target(input())
   const payload = () => parseResultPayload(props.result)
 
@@ -163,13 +161,16 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
   const errorMessage = (): string | undefined =>
     props.result?.state === 'error' ? failureText() : asString(asRecord(payload())?.error)
   const evalCode = () => (verb() === 'eval' ? input()?.code : undefined)
-  const showResult = () => (isRead(verb()) || verb() === 'eval') && resultText(props.result).length > 0
-  const showMirror = () => {
-    const value = verb()
-    return value !== undefined && pageVerbMirrors(value)
-  }
+  const isRead = () => verb() !== undefined && listedMeta(view())?.mutating !== true
+  const showResult = () => (isRead() || verb() === 'eval') && resultText(props.result).length > 0
+  const showMirror = () => listedMeta(view())?.mirrors === true
   return (
-    <ToolCard Icon={() => VerbIcon(verb())} title={pageTitle(props.part)} part={props.part} result={props.result}>
+    <ToolCard
+      Icon={() => VerbIcon(listedMeta(view())?.icon, view().state === 'pending')}
+      title={cardTitle(view(), input())}
+      part={props.part}
+      result={props.result}
+    >
       <Show
         when={errorMessage()}
         fallback={

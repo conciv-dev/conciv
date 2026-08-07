@@ -1,12 +1,29 @@
 import type {Component} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolIconKey, ToolLabel} from './tool-icon-types.js'
 
 export type ToolAccent = 'page' | 'code' | 'test' | 'read' | 'neutral'
+
+export type ToolViewMeta = {
+  summary: string
+  icon?: ToolIconKey
+  label?: ToolLabel
+  mutating: boolean
+  mirrors: boolean
+}
+
+export type ToolCatalogView = {
+  loaded: () => boolean
+  meta: (name: string) => ToolViewMeta | undefined
+}
+
+export const INERT_TOOL_CATALOG: ToolCatalogView = {loaded: () => true, meta: () => undefined}
 
 export type ToolViewCtx = {
   apiBase: string
   harnessId: string
   sendMessage: (text: string) => void
+  catalog: ToolCatalogView
 
   respondApproval?: (approvalId: string, approved: boolean) => void
   durationFor?: (toolCallId: string) => number | undefined

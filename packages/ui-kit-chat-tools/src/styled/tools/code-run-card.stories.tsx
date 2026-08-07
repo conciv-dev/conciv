@@ -2,14 +2,14 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {CodeRunCard} from './code-run-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/CodeRunCard'}
 export default meta
 type Story = StoryObj
 
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}}
+const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
 
 const CODE = `const drawn = await external_canvas_draw({elements})\nconsole.log('committed', drawn.ids)\nreturn drawn.ids`
 

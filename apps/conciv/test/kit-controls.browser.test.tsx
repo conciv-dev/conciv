@@ -6,6 +6,7 @@ import {render} from 'solid-js/web'
 import type {JSX} from 'solid-js'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
+import {INERT_TOOL_CATALOG} from '@conciv/protocol/tool-view-types'
 import {NoticeToaster, notify, toaster} from '../src/shell/notices.js'
 import {QuickTerminalHeader} from '../src/routes/quick.js'
 import {makeConcivUiCard} from '../src/pane/conciv-ui-card.js'
@@ -59,7 +60,7 @@ test('a form question answers with the option the reader picks out of the listbo
         fields: [{name: 'env', label: 'Environment', type: 'select', options: ['staging', 'production']}],
       })}
       result={undefined}
-      ctx={{apiBase: '', harnessId: 'fake', sendMessage: () => {}}}
+      ctx={{apiBase: '', harnessId: 'fake', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}}
     />
   ))
 

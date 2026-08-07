@@ -5,12 +5,18 @@ import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {PageActionCard} from '../src/styled/page-action-card.js'
 import {cleanupViews, mountView} from './mount-view.js'
+import {builtinPageRegistry, registryCatalogView} from './registry-catalog-view.js'
 
 afterEach(() => {
   cleanupViews()
 })
 
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'test', sendMessage: () => {}}
+const ctx: ToolViewCtx = {
+  apiBase: '',
+  harnessId: 'test',
+  sendMessage: () => {},
+  catalog: registryCatalogView(builtinPageRegistry()),
+}
 
 function part(args: Record<string, unknown>): ToolCallPart {
   return {type: 'tool-call', id: 'p1', name: 'conciv_page', arguments: JSON.stringify(args), state: 'complete'}

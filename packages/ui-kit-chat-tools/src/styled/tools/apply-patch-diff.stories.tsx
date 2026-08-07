@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ApplyPatchDiff} from './apply-patch-diff.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/ApplyPatchDiff'}
@@ -20,7 +20,7 @@ const PATCH = `*** Begin Patch
 +export const ZERO = 0
 *** End Patch`
 
-const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}}
+const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
 
 function part(state: ToolCallPart['state']): ToolCallPart {
   return {type: 'tool-call', id: 't1', name: 'apply_patch', arguments: JSON.stringify({patchText: PATCH}), state}

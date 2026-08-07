@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import type {PageErrorCode} from '@conciv/protocol/page-types'
+import {TOOL_ICON_KEYS, type ToolIconKey, type ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ExtensionRegistry} from '@conciv/protocol/config-types'
 import {
   createRouterClient,
@@ -13,12 +14,9 @@ import type {AnyToolBuilder} from './define-extension.js'
 import {
   FORBIDDEN_TOOL_SEGMENTS,
   isToolError,
-  TOOL_ICON_KEYS,
   type ProjectedToolBinding,
   type ToolBinding,
   type ToolErrors,
-  type ToolIconKey,
-  type ToolLabel,
   type ToolMeta,
   type ToolNamePathProblem,
   type ToolNameProblem,
