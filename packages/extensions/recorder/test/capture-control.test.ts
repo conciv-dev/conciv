@@ -145,7 +145,7 @@ describe('createCaptureControl', () => {
     control.dispose()
   })
 
-  it('stop coverage counts a flush answered before the wait registers', async () => {
+  it('stop flush answered before the wait registers still counts', async () => {
     const ring = createEventRing({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 1000)
     const {captureId} = control.startCapture()
