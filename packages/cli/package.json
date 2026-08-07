@@ -1,6 +1,6 @@
 {
   "name": "@conciv/cli",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "The conciv front door: `npx @conciv/cli@latest init` sets your project up end to end, and `conciv tools` gives your coding agent the live page, React tree, and dev server.",
   "keywords": [
     "ai-agent",

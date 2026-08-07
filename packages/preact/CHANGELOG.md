@@ -1,5 +1,12 @@
 # @conciv/preact
 
+## 0.0.18
+
+### Patch Changes
+
+- Updated dependencies [[`47c5423`](https://github.com/conciv-dev/conciv/commit/47c5423107f588c9bf5cc94faa5348fc769ef89e)]:
+  - @conciv/embed@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes

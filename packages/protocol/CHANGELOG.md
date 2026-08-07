@@ -1,5 +1,11 @@
 # @conciv/protocol
 
+## 0.0.18
+
+### Patch Changes
+
+- [#212](https://github.com/conciv-dev/conciv/pull/212) [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd) Thanks [@omridevk](https://github.com/omridevk)! - Sessions store a per-session transcript cwd plus attached process id/time, and harness session ids are now unique.
+
 ## 0.0.17
 
 ## 0.0.16

@@ -1,5 +1,14 @@
 # @conciv/db
 
+## 0.0.18
+
+### Patch Changes
+
+- [#277](https://github.com/conciv-dev/conciv/pull/277) [`90ed432`](https://github.com/conciv-dev/conciv/commit/90ed432ccf967c05f1858c8c13d15ee57c33fb6c) Thanks [@omridevk](https://github.com/omridevk)! - Ship sqlite migrations as a build-time generated module instead of a runtime-resolved `drizzle/` directory, so the engine graph survives being bundled into the Next.js instrumentation compile in pnpm workspace dev (fixes the clean-`.next` 500 in workspace Next apps). Drizzle's own `readMigrationFiles` parses the `drizzle/` folder during the package build and its `MigrationMeta` output is emitted as a gitignored generated module that `migrateSync` executes at runtime — no SQL duplicated in the repo and no hand-rolled migration parser.
+
+- Updated dependencies [[`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd)]:
+  - @conciv/protocol@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes

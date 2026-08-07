@@ -1,5 +1,15 @@
 # @conciv/extension-ios
 
+## 0.0.18
+
+### Patch Changes
+
+- [#169](https://github.com/conciv-dev/conciv/pull/169) [`830fc5d`](https://github.com/conciv-dev/conciv/commit/830fc5d17b3bf6ce146b413bb7ddb372ad2c821a) Thanks [@omridevk](https://github.com/omridevk)! - Ground the agent in the iOS session it is serving. `defineExtension` now accepts a `systemPrompt` factory `(config, {cwd}) => string`, and the iOS extension uses it to state the resolved project directory, bundle id, scheme, build mode, simulator, and working directory, and to rule out filesystem-wide scans such as `find /`.
+
+- Updated dependencies [[`1e1b01b`](https://github.com/conciv-dev/conciv/commit/1e1b01b36c3b5c282d51a6689b8a18810a330fc2)]:
+  - @conciv/extension@0.0.18
+  - @conciv/grab@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes

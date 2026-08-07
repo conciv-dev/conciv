@@ -1,5 +1,19 @@
 # @conciv/it
 
+## 0.0.18
+
+### Patch Changes
+
+- Updated dependencies [[`830fc5d`](https://github.com/conciv-dev/conciv/commit/830fc5d17b3bf6ce146b413bb7ddb372ad2c821a), [`47c5423`](https://github.com/conciv-dev/conciv/commit/47c5423107f588c9bf5cc94faa5348fc769ef89e), [`05142ed`](https://github.com/conciv-dev/conciv/commit/05142ed5d738309686e35d9231139229b07bd408)]:
+  - @conciv/extension-ios@0.0.18
+  - @conciv/embed@0.0.18
+  - @conciv/extension-compiler@0.0.18
+  - @conciv/extension-recorder@0.0.18
+  - @conciv/extension-terminal@0.0.18
+  - @conciv/extension-test-runner@0.0.18
+  - @conciv/plugin@0.0.18
+  - @conciv/extension-whiteboard@0.0.18
+
 ## 0.0.17
 
 ### Patch Changes
