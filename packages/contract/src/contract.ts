@@ -56,8 +56,11 @@ export const ToolCommandSignatureSchema = z.object({
   category: z.string().optional(),
   hint: z.string().optional(),
   positional: z.string().optional(),
-  icon: z.enum(TOOL_ICON_KEYS).optional(),
-  label: z.object({running: z.string().min(1), done: z.string().min(1)}).optional(),
+  icon: z.enum(TOOL_ICON_KEYS).optional().catch(undefined),
+  label: z
+    .object({running: z.string().min(1), done: z.string().min(1)})
+    .optional()
+    .catch(undefined),
   mutating: z.boolean(),
   mirrors: z.boolean(),
   reachable: z.boolean(),

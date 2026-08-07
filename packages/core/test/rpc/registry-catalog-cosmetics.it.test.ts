@@ -53,4 +53,25 @@ describe('the rpc catalog carries the card cosmetics a widget needs', () => {
       await kit.cleanup()
     }
   }, 30_000)
+
+  it('keeps the whole catalog usable when a newer server sends cosmetics this build cannot read', async () => {
+    const kit = await bootKit({extensions: [acme]})
+    try {
+      const live = await kit.rpc.registry.catalog(undefined)
+      const fromNewerServer = live.map((signature) => ({...signature, icon: 'hologram', label: 'Clicked it'}))
+
+      const parsed = CatalogSchema.parse(fromNewerServer)
+
+      expect(parsed).toHaveLength(live.length)
+      const declared = parsed.find((signature) => signature.name === 'page.click')
+      expect(declared?.icon).toBeUndefined()
+      expect(declared?.label).toBeUndefined()
+      expect(declared?.summary).toBe('click an element')
+      expect(declared?.mutating).toBe(true)
+      expect(declared?.mirrors).toBe(true)
+      expect(parsed.find((signature) => signature.name === 'acme_beacon')?.summary).toBe('raise the acme beacon')
+    } finally {
+      await kit.cleanup()
+    }
+  }, 30_000)
 })
