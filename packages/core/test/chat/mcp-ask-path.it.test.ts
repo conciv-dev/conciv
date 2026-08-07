@@ -8,7 +8,9 @@ const shredder = defineTool({
   name: 'vault.shred',
   description: 'Shred a document in the vault.',
   inputSchema: z.object({documentId: z.string()}),
+  outputSchema: z.object({shredded: z.string()}),
   approval: 'ask',
+  meta: {summary: 'shred a document in the vault', category: 'vault', mutating: true},
 }).server((input) => ({shredded: input.documentId}))
 
 const stall = {controller: new AbortController()}
@@ -17,6 +19,8 @@ const forever = defineTool({
   name: 'vault.stall',
   description: 'A handler that settles only when the test releases it.',
   inputSchema: z.object({}),
+  outputSchema: z.object({released: z.literal(true)}),
+  meta: {summary: 'settle only when the test releases it', category: 'vault', mutating: false},
 }).server(
   () =>
     new Promise<{released: true}>((resolve) => {
