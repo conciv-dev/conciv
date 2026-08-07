@@ -1,4 +1,4 @@
-import {createEffect, createMemo, createResource, For, onMount, Show, untrack, type JSX} from 'solid-js'
+import {createEffect, createMemo, createResource, For, onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import {useChatSession} from '@conciv/client'
 import {
@@ -24,6 +24,7 @@ import type {Grab} from '@conciv/grab'
 import {paneAttachments} from './pane-attachments.js'
 import {resolveGrabSource} from './grab-source-resolve.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
+import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane, type StagedGrab} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
 import {foldToolDurations} from './tool-durations.js'
@@ -128,7 +129,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const working = () => isThinking() || isStreaming()
   const disconnected = () => chat.connectionStatus() !== 'connected'
 
+  const panelFocus = usePanelComposerFocus()
   let inputHandle: ComposerInputHandle | undefined
+  onCleanup(() => {
+    if (inputHandle) panelFocus?.release(inputHandle)
+  })
   const composerApi = {current: null as ComposerApi | null}
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
@@ -355,6 +360,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                           AttachmentComponent={PaneAttachment}
                           onInputReady={(handle) => {
                             inputHandle = handle
+                            panelFocus?.register(handle)
                           }}
                           onSelectionChange={storage().noteSelection}
                           busy={compacting() ? <CompactSpinner /> : undefined}

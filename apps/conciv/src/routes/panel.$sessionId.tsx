@@ -129,7 +129,7 @@ function PanelSession(): JSX.Element {
         <TooltipIconButton
           tooltip="Close chat"
           class={`${CLOSE}${connectMode && disconnect ? '' : ' ml-auto'}`}
-          onClick={() => setShutter(router, false)}
+          onClick={() => void setShutter(router, false)}
         >
           <ChevronDown class="size-[1em] block" aria-hidden="true" />
         </TooltipIconButton>

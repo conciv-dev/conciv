@@ -1,4 +1,4 @@
-import {splitProps, type JSX} from 'solid-js'
+import {onMount, splitProps, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {ComposerPrimitive} from '@conciv/ui-kit-chat'
 
@@ -31,10 +31,12 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
     makeEventListener(element, 'keyup', report)
     makeEventListener(element, 'click', report)
     makeEventListener(element, 'focus', report)
-    local.onReady?.({
-      focus: () => element.focus(),
-      selection: () => elementSelection(element),
-    })
+    onMount(() =>
+      local.onReady?.({
+        focus: () => element.focus(),
+        selection: () => elementSelection(element),
+      }),
+    )
   }
   return <ComposerPrimitive.Input unstyled ref={bind} aria-label={local.inputLabel} {...rest} />
 }
