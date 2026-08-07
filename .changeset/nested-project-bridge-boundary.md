@@ -1,5 +1,5 @@
 ---
-'@conciv/claude-connect': patch
+'@conciv/harness-init': patch
 ---
 
 Fix the claude connect bridge walking past a nested project's `.conciv` directory when it has no

@@ -21,6 +21,7 @@ export const pi = defineHarness({
     mcp: 'none',
     slashCommands: 'none',
     imageInput: false,
+    init: 'none',
   },
   chatConfig: unsupportedChatConfig('pi', 'pi'),
   history: piHistory,

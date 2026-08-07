@@ -55,6 +55,18 @@ describe('detectHarnesses', () => {
       {id: 'opencode', via: 'path'},
     ])
   })
+  it('finds gemini-cli by its gemini binary on PATH', () => {
+    const binDir = dir('bin')
+    const home = dir('home')
+    shim(binDir, 'gemini')
+    expect(detectHarnesses({PATH: binDir, HOME: home})).toEqual([{id: 'gemini-cli', via: 'path'}])
+  })
+  it('finds gemini-cli by its config marker under HOME', () => {
+    const binDir = dir('bin')
+    const home = dir('home')
+    mkdirSync(join(home, '.gemini'))
+    expect(detectHarnesses({PATH: binDir, HOME: home})).toEqual([{id: 'gemini-cli', via: 'config'}])
+  })
   it('returns an empty list when nothing is installed', () => {
     expect(detectHarnesses({PATH: dir('bin'), HOME: dir('home')})).toEqual([])
   })

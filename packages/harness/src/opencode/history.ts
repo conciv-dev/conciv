@@ -13,7 +13,7 @@ import type {
   TranscriptRevision,
 } from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
-import {parseJsonOrNull} from '../_shared/json.js'
+import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50

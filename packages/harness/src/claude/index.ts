@@ -1,3 +1,4 @@
+import {claudeInit} from '@conciv/harness-init/claude'
 import {defineHarness, type HarnessConnectContext, type HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 import {claudeConnectArgs} from './args.js'
@@ -46,7 +47,9 @@ export const claude = defineHarness({
     mcp: 'http',
     slashCommands: 'live',
     imageInput: 'fileRef',
+    init: 'files',
   },
+  init: claudeInit,
   chatConfig: claudeChatConfig,
   commands: claudeSdkCommands,
   history: claudeHistory,

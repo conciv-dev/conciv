@@ -17,6 +17,7 @@ const liveHarness = defineHarness({
     mcp: 'http',
     slashCommands: 'live',
     imageInput: false,
+    init: 'none',
   },
   commands: async (ctx) => [
     {name: 'compact', description: 'Compact the context', argumentHint: '[instructions]'},
@@ -39,6 +40,7 @@ const noneHarness = defineHarness({
     mcp: 'none',
     slashCommands: 'none',
     imageInput: false,
+    init: 'none',
   },
 })
 

@@ -23,7 +23,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/core',
   '@conciv/serve',
   '@conciv/harness',
-  '@conciv/claude-connect',
+  '@conciv/harness-init',
   '@conciv/protocol',
   '@conciv/contract',
   '@conciv/db',

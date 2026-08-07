@@ -20,7 +20,7 @@ export function unsupportedChatConfig(id: string, binName: string): (deps: Harne
 export function defineStubHarness(o: {
   id: string
   binName: string
-  capabilities: HarnessCapabilities & {transcriptHistory: false; compaction: false; slashCommands: 'none'}
+  capabilities: HarnessCapabilities & {transcriptHistory: false; compaction: false; slashCommands: 'none'; init: 'none'}
 }): HarnessAdapter {
   return defineHarness({...o, chatConfig: unsupportedChatConfig(o.id, o.binName)})
 }

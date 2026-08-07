@@ -82,7 +82,7 @@
   ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
-    "@conciv/claude-connect",
+    "@conciv/harness-init",
     "@conciv/core",
     "@conciv/embed",
     "@conciv/extension",

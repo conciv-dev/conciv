@@ -4,8 +4,8 @@ import {dirname, join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import {claudeConnectServesProject, claudePluginCacheDir} from '../src/install-state.js'
-import {CLAUDE_CONNECT_INSTALL_TARGET, claudeConnectDir, claudeConnectPluginFiles} from '../src/plugin-files.js'
+import {claudeConnectServesProject, claudePluginCacheDir} from '../src/claude/install-state.js'
+import {CLAUDE_CONNECT_INSTALL_TARGET, claudeConnectDir, claudeConnectPluginFiles} from '../src/claude/plugin-files.js'
 
 type Project = {root: string; stateDir: string}
 

@@ -38,6 +38,7 @@ export function createFakeHarness(
         mcp: 'none',
         slashCommands: 'none',
         imageInput: false,
+        init: 'none',
       },
       models: opts.models,
       tty: opts.tty,

@@ -3,11 +3,12 @@ import {tmpdir} from 'node:os'
 import {delimiter, dirname, join, relative} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
-import {claudeConnectDir, claudeConnectPluginFiles} from '@conciv/claude-connect/files'
+import {claudeConnectDir, claudeConnectPluginFiles} from '@conciv/harness-init/claude/files'
 import {execFileOutcome} from '../../../src/init/exec.js'
 import type {HarnessId} from '../../../src/init/harness-detect.js'
 import {runSteps} from '../../../src/init/pipeline.js'
-import {claudeStep, type ClaudeIo} from '../../../src/init/steps/harness/claude.js'
+import {claudeInit} from '@conciv/harness-init/claude'
+import {harnessInitStep, type HarnessInitIo} from '../../../src/init/steps/harness/install-harness.js'
 import {stepContext} from '../framework/step-context.js'
 
 const INSTALL_COMMAND = 'claude plugin install conciv-connect@conciv --scope local'
@@ -17,7 +18,7 @@ type Fixture = {
   home: string
   recordFile: string
   harness: ReturnType<typeof stepContext>
-  io: ClaudeIo
+  io: HarnessInitIo
 }
 
 function shimScript(): string {
@@ -43,7 +44,7 @@ function shimScript(): string {
   ].join('\n')
 }
 
-function claudeIo(opts: {home: string; binDir: string; recordFile: string; exitCode: number}): ClaudeIo {
+function claudeIo(opts: {home: string; binDir: string; recordFile: string; exitCode: number}): HarnessInitIo {
   return {
     home: opts.home,
     run: (bin, args, cwd) =>
@@ -126,10 +127,10 @@ function recordedArgv(recordFile: string): string[] {
 
 const claudeConsent: HarnessId[] = ['claude']
 
-describe('claudeStep', () => {
+describe('harnessInitStep(claudeInit)', () => {
   it('installs the connect plugin through the claude plugin manager with the exact argv sequence', async () => {
     const {cwd, recordFile, harness, io} = fixture({exitCode: 0})
-    const step = claudeStep(() => claudeConsent, io)
+    const step = harnessInitStep(claudeInit, () => claudeConsent, io)
     expect(step.id).toBe('claude')
     const ledger = await runSteps([step], harness.settings, harness.output)
     expect(ledger.map((entry) => entry.status)).toEqual(['done'])
@@ -145,7 +146,11 @@ describe('claudeStep', () => {
 
   it('writes an mcp manifest that names no dev server', async () => {
     const {cwd, harness, io} = fixture({exitCode: 0})
-    const ledger = await runSteps([claudeStep(() => claudeConsent, io)], harness.settings, harness.output)
+    const ledger = await runSteps(
+      [harnessInitStep(claudeInit, () => claudeConsent, io)],
+      harness.settings,
+      harness.output,
+    )
     expect(ledger.map((entry) => entry.status)).toEqual(['done'])
     const manifest = join(claudeConnectDir(join(cwd, '.conciv')), 'conciv-connect', '.mcp.json')
     expect(readFileSync(manifest, 'utf8')).not.toContain('http')
@@ -153,7 +158,11 @@ describe('claudeStep', () => {
 
   it('cards out with the install commands when the claude cli exits non-zero', async () => {
     const {harness, io} = fixture({exitCode: 1})
-    const ledger = await runSteps([claudeStep(() => claudeConsent, io)], harness.settings, harness.output)
+    const ledger = await runSteps(
+      [harnessInitStep(claudeInit, () => claudeConsent, io)],
+      harness.settings,
+      harness.output,
+    )
     expect(ledger.map((entry) => entry.status)).toEqual(['manual'])
     const cards = ledger[0]?.cards ?? []
     expect(cards).toHaveLength(1)
@@ -163,7 +172,11 @@ describe('claudeStep', () => {
 
   it('quotes the marketplace path in the manual card so a directory with spaces pastes cleanly', async () => {
     const {cwd, harness, io} = fixture({exitCode: 1, cwdPrefix: 'conciv claude spaced '})
-    const ledger = await runSteps([claudeStep(() => claudeConsent, io)], harness.settings, harness.output)
+    const ledger = await runSteps(
+      [harnessInitStep(claudeInit, () => claudeConsent, io)],
+      harness.settings,
+      harness.output,
+    )
     const snippet = ledger[0]?.cards[0]?.snippet ?? ''
     expect(cwd).toContain(' ')
     expect(snippet).toContain(`claude plugin marketplace add '${claudeConnectDir(join(cwd, '.conciv'))}'`)
@@ -174,7 +187,7 @@ describe('claudeStep', () => {
     const project = fixture({exitCode: 0})
     seedInstalled({home: project.home, cwd: project.cwd})
     const ledger = await runSteps(
-      [claudeStep(() => claudeConsent, project.io)],
+      [harnessInitStep(claudeInit, () => claudeConsent, project.io)],
       project.harness.settings,
       project.harness.output,
     )
@@ -192,7 +205,7 @@ describe('claudeStep', () => {
       marketplaceRoot: claudeConnectDir(join(other.cwd, '.conciv')),
     })
     const ledger = await runSteps(
-      [claudeStep(() => claudeConsent, project.io)],
+      [harnessInitStep(claudeInit, () => claudeConsent, project.io)],
       project.harness.settings,
       project.harness.output,
     )
@@ -203,14 +216,14 @@ describe('claudeStep', () => {
   it('installs for a second project even though the first project already installed the plugin', async () => {
     const first = fixture({exitCode: 0})
     const firstLedger = await runSteps(
-      [claudeStep(() => claudeConsent, first.io)],
+      [harnessInitStep(claudeInit, () => claudeConsent, first.io)],
       first.harness.settings,
       first.harness.output,
     )
     expect(firstLedger.map((entry) => entry.status)).toEqual(['done'])
     const second = siblingProject(first)
     const ledger = await runSteps(
-      [claudeStep(() => claudeConsent, second.io)],
+      [harnessInitStep(claudeInit, () => claudeConsent, second.io)],
       second.harness.settings,
       second.harness.output,
     )
@@ -228,7 +241,7 @@ describe('claudeStep', () => {
 
   it('skips without spawning when claude is not in the consent record', async () => {
     const {recordFile, harness, io} = fixture({exitCode: 0})
-    const ledger = await runSteps([claudeStep(() => [], io)], harness.settings, harness.output)
+    const ledger = await runSteps([harnessInitStep(claudeInit, () => [], io)], harness.settings, harness.output)
     expect(ledger.map((entry) => entry.status)).toEqual(['skipped'])
     expect(ledger[0]?.detail).toBe('not selected')
     expect(existsSync(recordFile)).toBe(false)
@@ -237,7 +250,11 @@ describe('claudeStep', () => {
   it('skips a deselected claude even when the plugin is already installed for this project', async () => {
     const project = fixture({exitCode: 0})
     seedInstalled({home: project.home, cwd: project.cwd})
-    const ledger = await runSteps([claudeStep(() => [], project.io)], project.harness.settings, project.harness.output)
+    const ledger = await runSteps(
+      [harnessInitStep(claudeInit, () => [], project.io)],
+      project.harness.settings,
+      project.harness.output,
+    )
     expect(ledger.map((entry) => entry.status)).toEqual(['skipped'])
     expect(ledger[0]?.detail).toBe('not selected')
     expect(existsSync(project.recordFile)).toBe(false)

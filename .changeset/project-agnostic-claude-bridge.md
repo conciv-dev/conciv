@@ -1,5 +1,5 @@
 ---
-'@conciv/claude-connect': patch
+'@conciv/harness-init': patch
 ---
 
 Resolve the conciv dev server inside the claude connect bridge at request time instead of baking its

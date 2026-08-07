@@ -50,10 +50,11 @@ describe('turn session helpers', () => {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-resume-'))
     writeFileSync(join(dir, 'tok-live.jsonl'), '')
     const claude = requireClaude()
-    if (!claude.history || !claude.commands) throw new Error('claude harness lacks history or commands')
+    if (!claude.history || !claude.commands || !claude.init) throw new Error('claude harness lacks a sidecar')
     const harness: HarnessAdapter = {
       ...claude,
-      capabilities: {...claude.capabilities, transcriptHistory: true, slashCommands: 'live'},
+      capabilities: {...claude.capabilities, transcriptHistory: true, slashCommands: 'live', init: 'files'},
+      init: claude.init,
       commands: claude.commands,
       history: {
         ...claude.history,

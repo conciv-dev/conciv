@@ -16,6 +16,7 @@ function stub(id: string): HarnessAdapter {
       mcp: 'none',
       slashCommands: 'none',
       imageInput: false,
+      init: 'none',
     },
     chatConfig: () => ({adapter: makeTextAdapter(id, async function* () {})}),
   })

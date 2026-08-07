@@ -1,25 +1,28 @@
 import {existsSync, statSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
+import {INIT_HARNESS_IDS, initContributions, type InitHarnessId} from '@conciv/harness-init/registry'
+import type {HarnessInit} from '@conciv/protocol/harness-types'
 
-export type HarnessId = 'claude' | 'codex' | 'opencode' | 'pi'
+export type HarnessId = InitHarnessId
 export type FoundHarness = {id: HarnessId; via: 'path' | 'config'}
 
-type HarnessMarker = {id: HarnessId; bin: string; configDir: string[]}
+export const harnessIds: HarnessId[] = [...INIT_HARNESS_IDS]
 
-const harnessMarkers: HarnessMarker[] = [
-  {id: 'claude', bin: 'claude', configDir: ['.claude']},
-  {id: 'codex', bin: 'codex', configDir: ['.codex']},
-  {id: 'opencode', bin: 'opencode', configDir: ['.config', 'opencode']},
-  {id: 'pi', bin: 'pi', configDir: ['.pi']},
-]
+export const harnessFileInits: HarnessInit<HarnessId>[] = harnessIds.flatMap((id) => {
+  const contribution = initContributions[id]
+  return contribution.init === 'files' ? [contribution] : []
+})
 
-export const harnessIds: HarnessId[] = harnessMarkers.map((marker) => marker.id)
+export function harnessAgentsMdNote(id: HarnessId): string | undefined {
+  return initContributions[id].agentsMdNote
+}
 
 export function detectHarnesses(env: {PATH: string; HOME: string}): FoundHarness[] {
   const pathDirs = env.PATH.split(delimiter).filter((entry) => entry.length > 0)
-  return harnessMarkers.flatMap((marker): FoundHarness[] => {
-    if (pathDirs.some((pathDir) => isExecutable(join(pathDir, marker.bin)))) return [{id: marker.id, via: 'path'}]
-    if (existsSync(join(env.HOME, ...marker.configDir))) return [{id: marker.id, via: 'config'}]
+  return harnessIds.flatMap((id): FoundHarness[] => {
+    const {bin, configDir} = initContributions[id].detection
+    if (pathDirs.some((pathDir) => isExecutable(join(pathDir, bin)))) return [{id, via: 'path'}]
+    if (existsSync(join(env.HOME, ...configDir))) return [{id, via: 'config'}]
     return []
   })
 }

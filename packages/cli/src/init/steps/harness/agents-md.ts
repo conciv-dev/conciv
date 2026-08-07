@@ -1,6 +1,6 @@
 import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import type {HarnessId} from '../../harness-detect.js'
+import {harnessAgentsMdNote, type HarnessId} from '../../harness-detect.js'
 import {captureFile} from '../../interrupt.js'
 import type {ManualCard} from '../../ledger.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
@@ -10,6 +10,10 @@ const endMarker = '<!-- conciv:end -->'
 
 export function agentsSection(consented: HarnessId[]): string {
   const setUpFor = consented.length > 0 ? ['', `Set up for: ${consented.join(', ')}.`] : []
+  const notes = consented.flatMap((id) => {
+    const note = harnessAgentsMdNote(id)
+    return note === undefined ? [] : ['', note]
+  })
   return [
     startMarker,
     '',
@@ -25,6 +29,7 @@ export function agentsSection(consented: HarnessId[]): string {
     '',
     'These commands need the dev server running.',
     ...setUpFor,
+    ...notes,
     '',
     endMarker,
   ].join('\n')

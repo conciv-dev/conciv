@@ -1,0 +1,99 @@
+{
+  "name": "@conciv/harness-init",
+  "version": "0.0.17",
+  "description": "Internal to conciv (installed automatically, do not install directly). Per-harness init contributions: detection markers, generated plugin files, and install state.",
+  "keywords": [
+    "conciv",
+    "harness",
+    "init"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/harness-init"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    "./registry": {
+      "types": "./dist/registry.d.ts",
+      "import": "./dist/registry.js"
+    },
+    "./claude": {
+      "types": "./dist/claude/init.d.ts",
+      "import": "./dist/claude/init.js"
+    },
+    "./claude/bridge": {
+      "types": "./dist/claude/bridge.d.ts",
+      "import": "./dist/claude/bridge.js"
+    },
+    "./claude/endpoint": {
+      "types": "./dist/claude/endpoint.d.ts",
+      "import": "./dist/claude/endpoint.js"
+    },
+    "./claude/files": {
+      "types": "./dist/claude/plugin-files.d.ts",
+      "import": "./dist/claude/plugin-files.js"
+    },
+    "./claude/names": {
+      "types": "./dist/claude/names.d.ts",
+      "import": "./dist/claude/names.js"
+    },
+    "./claude/state": {
+      "types": "./dist/claude/install-state.d.ts",
+      "import": "./dist/claude/install-state.js"
+    },
+    "./codex": {
+      "types": "./dist/codex.d.ts",
+      "import": "./dist/codex.js"
+    },
+    "./gemini-cli": {
+      "types": "./dist/gemini-cli.d.ts",
+      "import": "./dist/gemini-cli.js"
+    },
+    "./opencode": {
+      "types": "./dist/opencode.d.ts",
+      "import": "./dist/opencode.js"
+    },
+    "./pi": {
+      "types": "./dist/pi.d.ts",
+      "import": "./dist/pi.js"
+    },
+    "./json": {
+      "types": "./dist/json.d.ts",
+      "import": "./dist/json.js"
+    },
+    "./paths": {
+      "types": "./dist/paths.d.ts",
+      "import": "./dist/paths.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/protocol": "workspace:^",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
+    "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
+    "tsdown": "^0.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

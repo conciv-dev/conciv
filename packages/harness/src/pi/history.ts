@@ -5,7 +5,7 @@ import {join, resolve} from 'node:path'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
-import {parseJsonOrNull} from '../_shared/json.js'
+import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 
 const MAX_SESSIONS = 50

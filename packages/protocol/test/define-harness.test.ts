@@ -49,6 +49,7 @@ describe('defineHarness (generic typed factory; history↔transcriptHistory enfo
         mcp: 'none',
         slashCommands: 'none',
         imageInput: false,
+        init: 'none',
       },
     })
     expect(adapter.id).toBe('x')
@@ -68,6 +69,7 @@ describe('defineHarness (generic typed factory; history↔transcriptHistory enfo
         mcp: 'none',
         slashCommands: 'none',
         imageInput: false,
+        init: 'none',
       },
       history: {
         messages: () => Promise.resolve([]),
