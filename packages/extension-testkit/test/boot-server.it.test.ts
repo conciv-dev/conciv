@@ -1,6 +1,6 @@
 import {expect, test} from 'vitest'
 import {createFakeHarness, makeRpcClient} from '@conciv/harness-testkit'
-import ping from './fixtures/ping/server.js'
+import ping from '../fixtures/ping/server.js'
 import {bootExtensionServer} from '../src/boot-server.js'
 
 test('boots a real extension server reachable over HTTP', async () => {

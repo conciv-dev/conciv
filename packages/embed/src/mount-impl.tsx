@@ -81,13 +81,20 @@ function mountedClientEffects(router: MountedRouter): ClientEffect[] {
   )
 }
 
-async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
-  const {rpc, rebind: rebindClient} = makeRebindableRpcClient(config.apiBase)
+function bootNormal(config: BootNormalConfig): BootResult {
+  const {
+    rpc,
+    rebind: rebindClient,
+    close: closeConnection,
+  } = makeRebindableRpcClient(config.apiBase, {
+    transport: config.settings.transport,
+  })
 
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
   const [apiBase, setApiBase] = createSignal(config.apiBase)
 
-  const storage = await makeNavigationStorage(rpc)
+  const restore: {apply: (href: string) => void} = {apply: () => {}}
+  const storage = makeNavigationStorage(rpc, (href) => restore.apply(href))
   const hostRouter = window.__TSR_ROUTER__
   const router = createConcivRouter({
     rpc,
@@ -112,20 +119,25 @@ async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
   let plane = startPagePlane({rpc, document, driver})
 
   const rebind = (nextApiBase: string): void => {
-    plane.dispose()
     rebindClient(nextApiBase)
+    storage.dispose()
+    plane.dispose()
     setApiBase(nextApiBase)
     plane = startPagePlane({rpc, document, driver})
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)
   }
 
+  restore.apply = (href) => void router.navigate({href, replace: true})
+
   const disposers = [
+    storage.dispose,
     () => plane.dispose(),
     disposeApp,
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
+    closeConnection,
   ]
   return {dispose: () => runDisposers(disposers), rebind}
 }
@@ -138,7 +150,7 @@ type BootConnectConfig = {
 }
 
 function bootConnect(config: BootConnectConfig): BootResult {
-  const deferred = makeDeferredRpcClient()
+  const deferred = makeDeferredRpcClient({transport: config.settings.transport})
 
   let boundApiBase: string | undefined
   let planeDispose: (() => void) | undefined
@@ -176,6 +188,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
+    deferred.close,
   ]
   return {dispose: () => runDisposers(disposers)}
 }

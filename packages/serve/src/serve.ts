@@ -4,7 +4,7 @@ import {WebSocketServer} from 'ws'
 
 export {upgradeWebSocket}
 
-const DEFAULT_MAX_PAYLOAD_BYTES = 16 * 1024 * 1024
+export const DEFAULT_MAX_PAYLOAD_BYTES = 16 * 1024 * 1024
 const GRACEFUL_SOCKET_CLOSE_MS = 2_000
 const SHUTTING_DOWN_CLOSE_CODE = 1001
 

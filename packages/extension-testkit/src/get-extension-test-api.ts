@@ -10,7 +10,7 @@ import {
   type CallTool,
   type RunTypescript,
 } from '@conciv/harness-testkit'
-import {launch} from './launch.js'
+import {launch, openObservedPage} from './launch.js'
 
 export type HostEngine = {apiBase: string; session: string}
 export type HostHandle = {origin: string; close: () => Promise<void>}
@@ -56,8 +56,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
     apiBase,
     serverContext: extensionContexts[extension.server.name],
     secondClient: async () => {
-      const second = await context.newPage()
-      await second.goto(origin, {waitUntil: 'domcontentloaded'})
+      const second = await openObservedPage(context, origin)
       return {page: second, close: () => second.close()}
     },
     dispose: async () => {

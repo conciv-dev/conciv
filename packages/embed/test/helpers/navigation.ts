@@ -1,6 +1,6 @@
 import type {Page, Route, WebSocketRoute} from 'playwright'
 import type {NavigationEntry} from '@conciv/protocol/chat-types'
-import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
+import {rpcObserverFor, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
 import {decodeRpcFrame} from '@conciv/extension-testkit/rpc-frames'
 import type {EmbedKit} from './boot.js'
 
@@ -126,7 +126,7 @@ function holdFetchNavigation(hold: Hold, route: Route, observer: RpcObserver): P
 
 export async function holdFirstNavigationWrite(page: Page): Promise<HeldNavigationWrite> {
   const hold = makeHold()
-  const observer = observeRpc(page)
+  const observer = rpcObserverFor(page)
   const fetchHandler = (route: Route): Promise<void> => holdFetchNavigation(hold, route, observer)
   await page.route(isNavigationWriteUrl, fetchHandler)
   await page.routeWebSocket(
@@ -141,23 +141,18 @@ export async function holdFirstNavigationWrite(page: Page): Promise<HeldNavigati
       for (const send of pending) await send()
       await hold.landed
       await page.unroute(isNavigationWriteUrl, fetchHandler)
-      observer.dispose()
     },
   }
 }
 
 export function waitForNavigationWrite(page: Page, observer?: RpcObserver): Promise<unknown> {
-  const tap = observer ?? observeRpc(page)
-  return tap.completed({path: NAVIGATION_SET, since: tap.mark(), timeout: 30_000}).finally(() => {
-    if (!observer) tap.dispose()
-  })
+  const tap = observer ?? rpcObserverFor(page)
+  return tap.completed({path: NAVIGATION_SET, since: tap.mark(), timeout: 30_000})
 }
 
 export function waitForNavigationWriteCarrying(page: Page, hrefFragment: string): Promise<unknown> {
-  const tap = observeRpc(page)
-  return tap
-    .completed({path: NAVIGATION_SET, input: new RegExp(hrefFragment), timeout: 30_000})
-    .finally(() => tap.dispose())
+  const tap = rpcObserverFor(page)
+  return tap.completed({path: NAVIGATION_SET, input: new RegExp(hrefFragment), since: tap.mark(), timeout: 30_000})
 }
 
 export async function freezeClock(page: Page, now: number): Promise<void> {

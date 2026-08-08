@@ -1,6 +1,6 @@
 import {expect, test} from 'vitest'
 import {z} from 'zod'
-import ping from './fixtures/ping/server.js'
+import ping from '../fixtures/ping/server.js'
 import {bootExtensionServer} from '../src/boot-server.js'
 import {makeCallTool, makeRunTypescript, resolveSession} from '@conciv/harness-testkit'
 

@@ -4,10 +4,6 @@ import type {RecorderRouter} from '../server.js'
 import {createCaptureSession, type CaptureSession} from './capture-session.js'
 import type {RecorderStore} from './recorder-store.js'
 
-const RECONNECT_MS = 1000
-
-const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
-
 export function bootRecorder(apiBase: string, store: RecorderStore): () => void {
   const rpc = makeExtRpcClient<RecorderRouter>(apiBase, RECORDER_NAME)
   const clientId = crypto.randomUUID()
@@ -64,15 +60,13 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
   }
 
   const controlLoop = async (): Promise<void> => {
-    while (!abort.signal.aborted) {
-      try {
-        const control = await rpc.control(undefined, {signal: abort.signal})
-        for await (const message of control) await handleControl(message)
-      } catch {
-        if (abort.signal.aborted) return
-        await wait(RECONNECT_MS)
-      }
-    }
+    try {
+      const control = await rpc.control(undefined, {
+        signal: abort.signal,
+        context: {retry: Number.POSITIVE_INFINITY},
+      })
+      for await (const message of control) await handleControl(message)
+    } catch {}
   }
 
   void controlLoop()

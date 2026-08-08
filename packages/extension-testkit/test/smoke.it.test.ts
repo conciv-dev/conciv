@@ -1,7 +1,7 @@
 import {fileURLToPath} from 'node:url'
 import {test} from 'vitest'
 import {expect} from '@playwright/test'
-import pingServer from './fixtures/ping/server.js'
+import pingServer from '../fixtures/ping/server.js'
 import {fixtureHost, getExtensionTestApi} from '../src/get-extension-test-api.js'
 
 const hostDist = fileURLToPath(new URL('../dist/test-host', import.meta.url))

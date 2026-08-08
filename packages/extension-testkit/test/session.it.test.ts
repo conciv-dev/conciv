@@ -1,5 +1,5 @@
 import {expect, test} from 'vitest'
-import ping from './fixtures/ping/server.js'
+import ping from '../fixtures/ping/server.js'
 import {bootExtensionServer} from '../src/boot-server.js'
 import {resolveSession} from '@conciv/harness-testkit'
 

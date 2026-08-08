@@ -1,11 +1,18 @@
 import {chromium, type BrowserContext, type Page} from 'playwright'
+import {rpcObserverFor} from './rpc-observer.js'
 
 export type LaunchedPage = {page: Page; context: BrowserContext; close: () => Promise<void>}
+
+export async function openObservedPage(context: BrowserContext, url: string): Promise<Page> {
+  const page = await context.newPage()
+  rpcObserverFor(page)
+  await page.goto(url, {waitUntil: 'domcontentloaded'})
+  return page
+}
 
 export async function launch(url: string): Promise<LaunchedPage> {
   const browser = await chromium.launch()
   const context = await browser.newContext()
-  const page = await context.newPage()
-  await page.goto(url, {waitUntil: 'domcontentloaded'})
+  const page = await openObservedPage(context, url)
   return {page, context, close: () => browser.close()}
 }
