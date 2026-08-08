@@ -31,7 +31,12 @@ conciv({
     systemPrompt: {type: 'string', default: 'built-in', description: 'Appended to each agent turn.'},
     previewId: {type: 'string', default: '"local"', description: 'Correlates a resumable session.'},
     sessionId: {type: 'string', default: 'none', description: 'Resume an existing thread.'},
-    port: {type: 'number', default: 'auto', description: 'Fixed engine port. Used by the Next.js integration.'},
+    port: {
+      type: 'number',
+      default: 'auto',
+      description:
+        'Engine port. The Vite dev server treats it as a preference and falls back to a free port when it is taken, so a second dev server still boots; the Next.js integration and the generic webpack/rspack plugin need it exactly, because both hand the client a port that is fixed before the engine boots, and fail when it is taken.',
+    },
     stateRoot: {type: 'string', default: 'process.cwd()', description: 'Root holding the .conciv state directory.'},
     devEndpointDir: {
       type: 'string',

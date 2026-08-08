@@ -1,55 +1,31 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {existsSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {existsSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {createServer, type ViteDevServer} from 'vite'
-import {makeViteHook} from '../src/core/vite.js'
+import {devServers, pageApiBase} from './helpers/dev-servers.js'
 
 const NATIVE_BUNDLE = 'conciv-widget-native.global.js'
 
-async function enginePort(server: ViteDevServer): Promise<number> {
-  const html = await server.transformIndexHtml('/native', '<!doctype html><html><head></head><body></body></html>')
-  const apiBase = html.match(/name="pw-api-base"[^>]*content="([^"]+)"/)?.[1]
-  const port = apiBase ? Number(new URL(apiBase).port) : NaN
-  if (!Number.isInteger(port)) throw new Error(`no engine port injected, got ${apiBase ?? html}`)
-  return port
-}
-
 describe('dev core booted through the vite plugin', () => {
-  const state: {server: ViteDevServer | undefined; dirs: string[]} = {server: undefined, dirs: []}
+  const servers = devServers()
 
-  afterEach(async () => {
-    await state.server?.close()
-    state.server = undefined
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    for (const dir of state.dirs) rmSync(dir, {recursive: true, force: true})
-    state.dirs = []
-  })
+  afterEach(() => servers.stopAll())
 
   it('serves /native because configureServer threads the native page dir into the engine', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-vite-root-'))
-    const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-vite-native-'))
-    const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-vite-endpoint-'))
-    state.dirs = [root, nativeDir, endpointDir]
+    const nativeDir = servers.tempDir('conciv-vite-native-')
+    const endpointDir = servers.tempDir('conciv-vite-endpoint-')
     writeFileSync(join(nativeDir, NATIVE_BUNDLE), 'globalThis.__conciv_native_loaded = true')
 
-    const server = await createServer({
-      root,
-      configFile: false,
-      logLevel: 'silent',
-      server: {host: '127.0.0.1', port: 0},
-      plugins: [
-        makeViteHook(
-          {enabled: true, stateRoot: root, widget: false, devEndpointDir: endpointDir},
-          {serverExtensions: [], clientEntries: [], nativePageDir: nativeDir},
-        ),
-      ],
-    })
-    state.server = server
-    await server.listen()
+    const {server} = await servers.start(
+      {widget: false, devEndpointDir: endpointDir},
+      {
+        serverExtensions: [],
+        clientEntries: [],
+        nativePageDir: nativeDir,
+      },
+    )
 
-    const port = await enginePort(server)
-    const page = await fetch(`http://127.0.0.1:${port}/native`)
+    const apiBase = await pageApiBase(server, '/native')
+    const page = await fetch(`${apiBase}/native`)
     expect(page.status).toBe(200)
     const html = await page.text()
     expect(html).toContain('data-conciv-native-root')

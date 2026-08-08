@@ -82,7 +82,7 @@ export async function registerWith(loadBuiltins: () => Promise<Builtins>): Promi
   }
   const {makeEngineBooter} = await import('./boot.js')
   const builtins = await loadBuiltins()
-  await makeEngineBooter(options, root, builtins)()
+  await makeEngineBooter(options, root, builtins, 'exact')()
 }
 
 export async function register(): Promise<void> {
