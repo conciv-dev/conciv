@@ -1,3 +1,6 @@
+import {Fragment, Node as ProseMirrorNode, type Schema} from '@tiptap/pm/model'
+import {fieldSchema} from './field-schema.js'
+
 export type LoweringNode = {
   type?: string
   text?: string
@@ -5,92 +8,79 @@ export type LoweringNode = {
   content?: LoweringNode[]
 }
 
-export function chipText(node: LoweringNode): string {
-  return `${String(node.attrs?.mentionSuggestionChar ?? '@')}${String(node.attrs?.id ?? '')}`
+function resolveDocument(document: LoweringNode | ProseMirrorNode): ProseMirrorNode {
+  if (document instanceof ProseMirrorNode) return document
+  return fieldSchema.nodeFromJSON(document)
 }
 
-function inlineText(node: LoweringNode): string {
-  if (node.type === 'text') return node.text ?? ''
-  if (node.type === 'mention') return chipText(node)
-  return ''
+export function paragraphFragment(schema: Schema, text: string): Fragment {
+  return Fragment.fromArray(
+    text.split('\n').map((line) => schema.node('paragraph', null, line ? schema.text(line) : undefined)),
+  )
 }
 
 export function buildDocument(text: string): LoweringNode {
-  const blocks = text
-    .split('\n')
-    .map(
-      (line): LoweringNode => (line ? {type: 'paragraph', content: [{type: 'text', text: line}]} : {type: 'paragraph'}),
-    )
-  return {type: 'doc', content: blocks}
+  return fieldSchema.node('doc', null, paragraphFragment(fieldSchema, text)).toJSON()
 }
 
-export function projectDocument(doc: LoweringNode): string {
-  return (doc.content ?? []).map((block) => (block.content ?? []).map(inlineText).join('')).join('\n')
+export function projectDocument(document: LoweringNode | ProseMirrorNode): string {
+  const node = resolveDocument(document)
+  return node.textBetween(0, node.content.size, '\n')
 }
 
-type MappingScan = {stringIndex: number; position: number}
+type LoweredRun = {offset: number; length: number; position: number; end: number; isText: boolean}
 
-function nodeSize(node: LoweringNode, lowered: number): number {
-  return node.type === 'text' ? lowered : 1
+function loweredLength(node: ProseMirrorNode): number {
+  if (node.isText) return node.nodeSize
+  return (node.type.spec.leafText?.(node) ?? '').length
 }
 
-function offsetWithinNode(node: LoweringNode, clamped: number, scan: MappingScan): number {
-  if (node.type === 'text') return scan.position + (clamped - scan.stringIndex)
-  return clamped === scan.stringIndex ? scan.position : scan.position + 1
+function paragraphBreak(offset: number, paragraphPosition: number): LoweredRun {
+  return {offset, length: 1, position: paragraphPosition - 1, end: paragraphPosition + 1, isText: false}
 }
 
-function offsetWithinBlock(block: LoweringNode, clamped: number, scan: MappingScan): number | undefined {
-  for (const node of block.content ?? []) {
-    const lowered = inlineText(node).length
-    if (clamped <= scan.stringIndex + lowered) return offsetWithinNode(node, clamped, scan)
-    scan.stringIndex += lowered
-    scan.position += nodeSize(node, lowered)
-  }
-  return undefined
+function inlineRun(offset: number, position: number, child: ProseMirrorNode): LoweredRun {
+  return {offset, length: loweredLength(child), position, end: position + child.nodeSize, isText: child.isText}
 }
 
-export function offsetToPosition(doc: LoweringNode, offset: number): number {
-  const clamped = Math.max(0, Math.min(offset, projectDocument(doc).length))
-  const scan: MappingScan = {stringIndex: 0, position: 0}
-  for (const block of doc.content ?? []) {
-    scan.position += 1
-    const within = offsetWithinBlock(block, clamped, scan)
-    if (within !== undefined) return within
-    if (clamped === scan.stringIndex) return scan.position
-    scan.stringIndex += 1
-    scan.position += 1
-  }
-  return scan.position
+function lower(document: ProseMirrorNode): LoweredRun[] {
+  const runs: LoweredRun[] = []
+  let offset = 0
+  document.forEach((paragraph, paragraphPosition, index) => {
+    if (index > 0) {
+      runs.push(paragraphBreak(offset, paragraphPosition))
+      offset += 1
+    }
+    paragraph.forEach((child, childOffset) => {
+      const run = inlineRun(offset, paragraphPosition + 1 + childOffset, child)
+      runs.push(run)
+      offset += run.length
+    })
+  })
+  return runs
 }
 
-function positionWithinNode(node: LoweringNode, position: number, lowered: number, scan: MappingScan): number {
-  if (node.type === 'text') return scan.stringIndex + Math.max(0, position - scan.position)
-  return position <= scan.position ? scan.stringIndex : scan.stringIndex + lowered
+function positionAt(run: LoweredRun, offset: number): number {
+  if (run.isText) return run.position + (offset - run.offset)
+  return offset === run.offset ? run.position : run.end
 }
 
-function positionWithinBlock(block: LoweringNode, position: number, scan: MappingScan): number | undefined {
-  for (const node of block.content ?? []) {
-    const lowered = inlineText(node).length
-    const size = nodeSize(node, lowered)
-    const insideTextEnd = node.type === 'text' && position === scan.position + size
-    if (position < scan.position + size || insideTextEnd) return positionWithinNode(node, position, lowered, scan)
-    scan.position += size
-    scan.stringIndex += lowered
-  }
-  return undefined
+function offsetAt(run: LoweredRun, position: number): number {
+  if (run.isText) return run.offset + Math.max(0, position - run.position)
+  return position < run.end ? run.offset : run.offset + run.length
 }
 
-export function positionToOffset(doc: LoweringNode, position: number): number {
-  const blocks = doc.content ?? []
-  const scan: MappingScan = {stringIndex: 0, position: 0}
-  for (const [blockIndex, block] of blocks.entries()) {
-    if (position <= scan.position) return scan.stringIndex
-    scan.position += 1
-    const within = positionWithinBlock(block, position, scan)
-    if (within !== undefined) return within
-    if (position <= scan.position + 1 || blockIndex === blocks.length - 1) return scan.stringIndex
-    scan.position += 1
-    scan.stringIndex += 1
-  }
-  return scan.stringIndex
+export function offsetToPosition(document: LoweringNode | ProseMirrorNode, offset: number): number {
+  const node = resolveDocument(document)
+  const clamped = Math.max(0, Math.min(offset, projectDocument(node).length))
+  const run = lower(node).find((candidate) => clamped <= candidate.offset + candidate.length)
+  if (!run) return node.content.size - 1
+  return positionAt(run, clamped)
+}
+
+export function positionToOffset(document: LoweringNode | ProseMirrorNode, position: number): number {
+  const node = resolveDocument(document)
+  const run = lower(node).find((candidate) => position <= candidate.end)
+  if (!run) return projectDocument(node).length
+  return offsetAt(run, position)
 }

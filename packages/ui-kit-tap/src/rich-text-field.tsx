@@ -1,16 +1,13 @@
 import {Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup, onMount, type JSX} from 'solid-js'
 import {Editor, type CommandProps} from '@tiptap/core'
 import type {EditorView} from '@tiptap/pm/view'
-import {Document} from '@tiptap/extension-document'
-import {Paragraph} from '@tiptap/extension-paragraph'
-import {Text} from '@tiptap/extension-text'
-import {Mention} from '@tiptap/extension-mention'
 import {exitSuggestion} from '@tiptap/suggestion'
 import {UndoRedo} from '@tiptap/extensions'
 import {EditorState, Selection, TextSelection} from '@tiptap/pm/state'
-import {Fragment, Slice, type Schema} from '@tiptap/pm/model'
+import {Slice, type Schema} from '@tiptap/pm/model'
 import {ScrollArea} from '@conciv/ui-kit-system'
-import {buildDocument, offsetToPosition, positionToOffset, projectDocument} from './lowering.js'
+import {chipExtension, documentExtensions} from './field-schema.js'
+import {buildDocument, offsetToPosition, paragraphFragment, positionToOffset, projectDocument} from './lowering.js'
 import {SuggestionListbox, type SuggestionAnchor} from './suggestion-listbox.js'
 import {
   ChipForwardDelete,
@@ -37,11 +34,8 @@ const EDITABLE =
   'px-2 py-1.5 leading-5 whitespace-pre-wrap break-words [outline:none] [&_[data-chip]]:text-pw-accent-hi [&_[data-chip]]:bg-pw-accent-08 [&_[data-chip]]:rounded-pw-sm [&_[data-chip]]:px-0.5'
 const PLACEHOLDER = 'pointer-events-none absolute left-2 top-1.5 leading-5 text-[0.8125rem] text-pw-text-3 select-none'
 
-function plainTextSlice(schema: Schema, text: string): Slice | null {
-  const paragraphType = schema.nodes.paragraph
-  if (!paragraphType) return null
-  const paragraphs = text.split('\n').map((line) => paragraphType.create(null, line ? schema.text(line) : undefined))
-  return new Slice(Fragment.fromArray(paragraphs), 1, 1)
+function plainTextSlice(schema: Schema, text: string): Slice {
+  return new Slice(paragraphFragment(schema, text), 1, 1)
 }
 
 const rowHeight = (rows: number): string => `calc(${rows} * 1.25rem + 0.75rem)`
@@ -77,19 +71,15 @@ function clipboardText(clipboard: DataTransfer | null): string {
 
 function replaceSelectionCommand(text: string) {
   return ({tr, state}: CommandProps) => {
-    const slice = plainTextSlice(state.schema, text)
-    if (!slice) return false
-    tr.replaceSelection(slice).scrollIntoView()
+    tr.replaceSelection(plainTextSlice(state.schema, text)).scrollIntoView()
     return true
   }
 }
 
 function appendCommand(text: string) {
   return ({tr, state}: CommandProps) => {
-    const slice = plainTextSlice(state.schema, text)
-    if (!slice) return false
     const end = Selection.atEnd(state.doc).from
-    tr.replace(end, end, slice)
+    tr.replace(end, end, plainTextSlice(state.schema, text))
     return true
   }
 }
@@ -100,9 +90,8 @@ function openingSelectionCommand(selection: RichTextFieldSelection | undefined) 
       tr.setSelection(Selection.atEnd(tr.doc))
       return true
     }
-    const json = state.doc.toJSON()
-    const from = offsetToPosition(json, selection.start)
-    const to = offsetToPosition(json, selection.end)
+    const from = offsetToPosition(state.doc, selection.start)
+    const to = offsetToPosition(state.doc, selection.end)
     tr.setSelection(TextSelection.create(tr.doc, from, to))
     return true
   }
@@ -213,6 +202,14 @@ export function RichTextField(props: {
     const item = view().options[view().activeIndex]
     return item ? optionId(item) : undefined
   }
+  const editableAttributeSet = () =>
+    editableAttributes({
+      label: props.label,
+      disabled: props.disabled,
+      editableClass: props.editableClass,
+      minRows: props.minRows,
+      popup: {expanded: popover() !== null, controls: listboxId, activeOption: activeOptionId()},
+    })
   const suggestions = [
     triggerSuggestion({char: '/', source: () => props.slashTrigger, access: popoverAccess}),
     triggerSuggestion({char: '@', source: () => props.mentionTrigger, access: popoverAccess}),
@@ -244,25 +241,21 @@ export function RichTextField(props: {
         },
       },
       onUpdate: ({editor: instance}) => {
-        props.onValueChange(projectDocument(instance.state.doc.toJSON()))
+        props.onValueChange(projectDocument(instance.state.doc))
       },
       onSelectionUpdate: ({editor: instance}) => {
         const handler = props.onSelectionChange
         if (!handler) return
-        const json = instance.state.doc.toJSON()
-        const {from, to} = instance.state.selection
-        handler({start: positionToOffset(json, from), end: positionToOffset(json, to)})
+        const {doc, selection} = instance.state
+        handler({start: positionToOffset(doc, selection.from), end: positionToOffset(doc, selection.to)})
       },
       extensions: [
-        Document,
-        Paragraph,
-        Text,
+        ...documentExtensions,
         UndoRedo,
         ChipForwardDelete,
-        Mention.configure({
+        chipExtension.configure({
           HTMLAttributes: {'data-chip': ''},
           deleteTriggerWithBackspace: true,
-          renderText: ({node}) => `${String(node.attrs.mentionSuggestionChar)}${String(node.attrs.id)}`,
           renderHTML: ({options, node}) => ['span', options.HTMLAttributes, String(node.attrs.label ?? node.attrs.id)],
           suggestions,
         }),
@@ -274,22 +267,14 @@ export function RichTextField(props: {
 
     createEffect(() => {
       const value = props.value
-      if (value === projectDocument(editor.state.doc.toJSON())) return
+      if (value === projectDocument(editor.state.doc)) return
       const doc = editor.schema.nodeFromJSON(buildDocument(value))
       editor.view.updateState(EditorState.create({doc, selection: Selection.atEnd(doc), plugins: editor.state.plugins}))
     })
 
     createEffect(() => {
       editor.setEditable(!props.disabled, false)
-      editor.view.setProps({
-        attributes: editableAttributes({
-          label: props.label,
-          disabled: props.disabled,
-          editableClass: props.editableClass,
-          minRows: props.minRows,
-          popup: {expanded: popover() !== null, controls: listboxId, activeOption: activeOptionId()},
-        }),
-      })
+      editor.view.setProps({attributes: editableAttributeSet()})
     })
 
     props.onReady?.({
