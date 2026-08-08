@@ -41,7 +41,7 @@ import {createSessionStreams} from './chat/subscribe.js'
 import {recoverInterruptedRuns} from './chat/transcript.js'
 import {createLiveRuns} from './chat/live-runs.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
-import {modelOf, openDb} from '@conciv/db'
+import {modelOf, openDb, writeToolCapture} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {askPage, makePageBus, type PageEnv} from './page-bus.js'
@@ -281,7 +281,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const pageBus = makePageBus()
 
-  const pageEnv: PageEnv = {journal: makeJournal(), root: opts.cwd, bus: pageBus}
+  const pageEnv: PageEnv = {
+    journal: makeJournal(),
+    root: opts.cwd,
+    bus: pageBus,
+    storeCapture: (params) => writeToolCapture(db, params),
+  }
 
   const registry = makeBuiltinRegistry({
     page: pageEnv,

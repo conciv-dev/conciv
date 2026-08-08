@@ -31,7 +31,9 @@ export function makeDomPageDriver(
 
   async function execute(query: PageQuery): Promise<PageOutcome> {
     try {
-      return {ok: true, result: await dispatch(query)}
+      const answer = await dispatch(query)
+      if (answer.capture === undefined) return {ok: true, result: answer.result}
+      return {ok: true, result: answer.result, capture: answer.capture}
     } catch (error) {
       return {ok: false, error: pageErrorOf(error)}
     }

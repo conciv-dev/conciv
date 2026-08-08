@@ -110,7 +110,7 @@ describe('the page-tool dispatcher', () => {
     const marked = await driver.execute({name: 'probe.mark', input: {selector: '#btn'}})
     if (!marked.ok) throw new Error('mark failed')
     const ref = String(marked.result.ref)
-    expect(await driver.execute({name: 'probe.click', input: {selector: '#btn'}})).toEqual({
+    expect(await driver.execute({name: 'probe.click', input: {selector: '#btn'}})).toMatchObject({
       ok: true,
       result: {ok: true},
     })

@@ -21,7 +21,7 @@ export type ExtensionView = {
   actions?: Component
 }
 
-export type ToolRequest = {sessionId: string; model: string | null}
+export type ToolRequest = {sessionId: string; model: string | null; toolCallId?: string}
 
 export type ExtensionServerTool = {
   name: string

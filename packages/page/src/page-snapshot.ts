@@ -43,7 +43,7 @@ const ROLE_BY_TAG: Record<string, string> = {
 
 const INPUT_ROLES: Record<string, string> = {checkbox: 'checkbox', radio: 'radio', button: 'button', submit: 'button'}
 
-function roleOf(el: Element): string {
+export function roleOf(el: Element): string {
   const explicit = el.getAttribute('role')
   if (explicit) return explicit
   if (el instanceof HTMLInputElement) return INPUT_ROLES[el.type] ?? 'textbox'
@@ -56,7 +56,7 @@ function labelName(el: Element): string | undefined {
   return label === undefined ? undefined : (label.textContent ?? '').trim()
 }
 
-function accessibleName(el: Element): string {
+export function accessibleNameOf(el: Element): string {
   const aria = el.getAttribute('aria-label')
   if (aria) return aria.trim()
   const fromLabel = labelName(el)
@@ -67,6 +67,9 @@ function accessibleName(el: Element): string {
 
 const isCheckedInput = (el: Element): boolean =>
   el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio') && el.checked
+
+export const checkedStateOf = (el: Element): boolean | undefined =>
+  el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio') ? el.checked : undefined
 
 const isDisabled = (el: Element): boolean => 'disabled' in el && Boolean(el.disabled)
 
@@ -88,15 +91,15 @@ function isInteresting(el: Element): boolean {
   return tag in ROLE_BY_TAG
 }
 
-const elementValue = (el: Element): string | undefined =>
+export const valueOf = (el: Element): string | undefined =>
   el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
     ? el.value
     : undefined
 
 function snapNode(el: Element, addRef: RefAdder): SnapNode {
   const state = nodeState(el)
-  const name = accessibleName(el)
-  const value = elementValue(el)
+  const name = accessibleNameOf(el)
+  const value = valueOf(el)
   return {
     ref: addRef(el),
     role: roleOf(el),

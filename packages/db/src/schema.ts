@@ -1,6 +1,7 @@
-import {integer, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
+import {integer, primaryKey, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
 import type {NavigationEntry} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
+import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 
 export const sessions = sqliteTable(
   'sessions',
@@ -37,6 +38,26 @@ export const navigation = sqliteTable('navigation', {
   entries: text('entries', {mode: 'json'}).$type<NavigationEntry[]>().notNull(),
   index: integer('index').notNull(),
   updatedAt: integer('updated_at').notNull(),
+})
+
+export const toolCaptures = sqliteTable(
+  'tool_captures',
+  {
+    toolCallId: text('tool_call_id').notNull(),
+    kind: text('kind').$type<ElementCaptureKind>().notNull(),
+    sessionId: text('session_id').notNull(),
+    cssBundleId: text('css_bundle_id'),
+    payload: text('payload', {mode: 'json'}).$type<ElementCapture>().notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [primaryKey({name: 'tool_captures_pk', columns: [table.toolCallId, table.kind]})],
+)
+
+export const cssBundles = sqliteTable('css_bundles', {
+  hash: text('hash').primaryKey(),
+  sessionId: text('session_id').notNull(),
+  css: text('css').notNull(),
+  createdAt: integer('created_at').notNull(),
 })
 
 export const markers = sqliteTable('markers', {

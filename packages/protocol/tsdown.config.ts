@@ -13,6 +13,7 @@ export default defineConfig({
     'src/bundler-types.ts',
     'src/config-types.ts',
     'src/page-types.ts',
+    'src/element-capture-types.ts',
     'src/page-introspect-types.ts',
     'src/usage-types.ts',
     'src/tool-icon-types.ts',

@@ -65,6 +65,10 @@
       "types": "./dist/page-types.d.ts",
       "import": "./dist/page-types.js"
     },
+    "./element-capture-types": {
+      "types": "./dist/element-capture-types.d.ts",
+      "import": "./dist/element-capture-types.js"
+    },
     "./page-introspect-types": {
       "types": "./dist/page-introspect-types.d.ts",
       "import": "./dist/page-introspect-types.js"

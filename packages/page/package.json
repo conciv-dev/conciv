@@ -23,6 +23,7 @@
     "@conciv/protocol": "workspace:^",
     "bippy": "0.5.41",
     "react-grab": "^0.1.44",
+    "rrweb-snapshot": "2.1.0",
     "solid-js": "^1.9.13"
   },
   "devDependencies": {

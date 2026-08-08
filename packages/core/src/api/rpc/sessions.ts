@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {eq} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
 import {resolveHarnessModels} from '@conciv/harness'
-import {clearRunState, drafts, markers, modelOf, sessions} from '@conciv/db'
+import {clearRunState, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import type {ChatDeps} from '../../chat/runtime.js'
 import {
   createRow,
@@ -85,6 +85,7 @@ export function sessionsRouter(deps: RpcDeps) {
       await tombstoneRow(db, input.sessionId)
       await db.delete(drafts).where(eq(drafts.sessionId, input.sessionId))
       clearRunState(db, input.sessionId)
+      await deleteSessionCaptures(db, input.sessionId)
       return {ok: true as const}
     }),
     model: os.sessions.model.handler(async ({input, errors}) => {

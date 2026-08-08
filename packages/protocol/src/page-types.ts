@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import {PageCaptureBundleSchema} from './element-capture-types.js'
 
 export const PageQuerySchema = z.object({
   requestId: z.string().optional(),
@@ -28,7 +29,11 @@ export const PageErrorSchema = z.object({
 export type PageError = z.infer<typeof PageErrorSchema>
 
 const PageOutcomeSchema = z.discriminatedUnion('ok', [
-  z.object({ok: z.literal(true), result: z.record(z.string(), z.unknown()).default({})}),
+  z.object({
+    ok: z.literal(true),
+    result: z.record(z.string(), z.unknown()).default({}),
+    capture: PageCaptureBundleSchema.optional(),
+  }),
   z.object({ok: z.literal(false), error: PageErrorSchema}),
 ])
 export type PageOutcome = z.infer<typeof PageOutcomeSchema>

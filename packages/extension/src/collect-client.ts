@@ -1,11 +1,18 @@
+import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import type {AnyExtension} from './define-extension.js'
-import type {ClientToolCtx} from './define-tool.js'
+import type {ClientToolCtx, ToolMeta} from './define-tool.js'
 import type {AttachmentCardEntry, ClientEffect, ToolRenderer} from './types.js'
 
 export type ClientToolEntry = {
   name: string
   mirrors: boolean
+  capture: ToolCaptureMode
   execute: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
+}
+
+export function captureModeOf(meta: ToolMeta | undefined): ToolCaptureMode {
+  if (meta?.capture !== undefined) return meta.capture
+  return meta?.mutating === true ? 'after' : 'none'
 }
 
 export function collectClientTools(builders: AnyExtension[]): ClientToolEntry[] {
@@ -16,7 +23,12 @@ export function collectClientTools(builders: AnyExtension[]): ClientToolEntry[] 
       const execute = tool.__clientExecute
       if (!execute || seen.has(tool.name)) continue
       seen.add(tool.name)
-      entries.push({name: tool.name, mirrors: tool.meta?.mirrors ?? false, execute})
+      entries.push({
+        name: tool.name,
+        mirrors: tool.meta?.mirrors ?? false,
+        capture: captureModeOf(tool.meta),
+        execute,
+      })
     }
   return entries
 }

@@ -31,6 +31,7 @@ export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
         result={props.result}
         ctx={props.ctx}
         durationMs={props.durationMs}
+        capture={props.ctx.captureFor?.(props.part.id)}
       />
       <Show when={ownsApproval()}>
         <PermissionCard part={props.part} result={props.result} ctx={props.ctx} />
