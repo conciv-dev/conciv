@@ -6,14 +6,21 @@ import {
   RichTextField,
   type RichTextFieldHandle,
   type RichTextFieldSelection,
+  type RichTextFieldTriggerCategory,
   type RichTextFieldTriggerItem,
   type RichTextFieldTriggerSource,
 } from './rich-text-field.js'
 
 const COMMANDS: RichTextFieldTriggerItem[] = [
-  {id: 'clear', label: '/clear'},
-  {id: 'compact', label: '/compact'},
-  {id: 'help', label: '/help'},
+  {id: 'clear', label: '/clear', group: 'Commands', description: 'Clear the transcript'},
+  {id: 'compact', label: '/compact', group: 'Commands', description: 'Compact the conversation'},
+  {
+    id: 'help',
+    label: '/help',
+    group: 'MCP',
+    description:
+      'List every command, tool and extension the agent can reach right now, including the ones contributed by connected MCP servers',
+  },
 ]
 const PEOPLE: RichTextFieldTriggerItem[] = [
   {id: 'ai:opus', label: '@Opus'},
@@ -21,12 +28,23 @@ const PEOPLE: RichTextFieldTriggerItem[] = [
   {id: 'ai:haiku', label: '@Haiku'},
 ]
 
+const CATEGORIES: RichTextFieldTriggerCategory[] = [
+  {id: 'session', label: 'Session', description: 'Commands that reshape this session'},
+  {id: 'context', label: 'Context', description: 'Commands about the context window'},
+]
+const CATEGORY_COMMANDS: RichTextFieldTriggerItem[] = [
+  {id: 'clear', label: '/clear', categoryId: 'session', description: 'Clear the transcript'},
+  {id: 'compact', label: '/compact', categoryId: 'session', description: 'Compact the conversation'},
+  {id: 'usage', label: '/usage', categoryId: 'context', description: 'Show token usage'},
+  {id: 'help', label: '/help', categoryId: 'context', description: 'List the available commands'},
+]
+
 const LONG_COMMANDS: RichTextFieldTriggerItem[] = Array.from({length: 40}, (_unused, position) => {
   const name = `command-${String(position).padStart(2, '0')}`
   return {id: name, label: `/${name}`}
 })
 
-type Mode = 'sync' | 'delayed' | 'empty' | 'error' | 'manual' | 'long'
+type Mode = 'sync' | 'delayed' | 'empty' | 'error' | 'manual' | 'long' | 'categories'
 type PendingFetch = {query: string; resolve: (items: RichTextFieldTriggerItem[]) => void}
 type ModeItems = (
   pool: RichTextFieldTriggerItem[],
@@ -47,6 +65,7 @@ const sourceModes: Record<Mode, ModeItems> = {
   error: () => Promise.reject(new Error('source failed')),
   manual: (pool, query, enqueue) => new Promise((resolve) => enqueue({query, resolve})),
   long: (_pool, query) => filterItems(LONG_COMMANDS, query),
+  categories: (_pool, query) => filterItems(CATEGORY_COMMANDS, query),
 }
 
 function triggerSource(
@@ -55,7 +74,13 @@ function triggerSource(
   pool: RichTextFieldTriggerItem[],
   enqueue: (entry: PendingFetch) => void,
 ): RichTextFieldTriggerSource {
-  return {label, items: (query) => sourceModes[mode()](pool, query, enqueue)}
+  return {
+    label,
+    get categories() {
+      return mode() === 'categories' ? CATEGORIES : undefined
+    },
+    items: (query) => sourceModes[mode()](pool, query, enqueue),
+  }
 }
 
 function TriggerHarness(props: {mode?: Mode}) {
@@ -126,6 +151,10 @@ const expectSubmitted = (canvas: Canvas, expected: string) =>
   waitFor(() => expect(canvas.getByRole('status', {name: 'Submitted'}).textContent).toBe(expected))
 const expectSelection = (canvas: Canvas, expected: string) =>
   waitFor(() => expect(canvas.getByRole('status', {name: 'Selection'}).textContent).toBe(expected))
+const expectActiveOption = (canvas: Canvas, name: string) =>
+  waitFor(() =>
+    expect(textbox(canvas).getAttribute('aria-activedescendant')).toBe(canvas.getByRole('option', {name}).id),
+  )
 
 async function openEditor(canvasElement: HTMLElement) {
   const canvas = within(canvasElement)
@@ -169,6 +198,20 @@ export const SlashSelectInsertsChipAndSpace: Story = {
   },
 }
 
+export const GroupHeadersAndDescriptions: Story = {
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('listbox', {name: 'Slash commands'})).toBeVisible())
+    const groups = canvas.getAllByRole('group')
+    await expect(groups[0]).toHaveAccessibleName('Commands')
+    await expect(groups[1]).toHaveAccessibleName('MCP')
+    await expect(canvas.getByRole('option', {name: '/clear'})).toHaveAccessibleDescription('Clear the transcript')
+    await expect(canvas.getByRole('option', {name: '/help'})).toHaveAccessibleDescription(/connected MCP servers/)
+    await expect(canvas.getByText('Compact the conversation')).toBeVisible()
+  },
+}
+
 export const MentionArrowSelect: Story = {
   play: async ({canvasElement}) => {
     const {canvas, editor} = await openEditor(canvasElement)
@@ -185,11 +228,91 @@ export const ArrowNavigationWraps: Story = {
   play: async ({canvasElement}) => {
     const {canvas} = await openEditor(canvasElement)
     await userEvent.keyboard('/')
-    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toHaveAttribute('aria-selected', 'true'))
+    await expectActiveOption(canvas, '/clear')
     await userEvent.keyboard('{ArrowUp}')
-    await waitFor(() => expect(canvas.getByRole('option', {name: '/help'})).toHaveAttribute('aria-selected', 'true'))
+    await expectActiveOption(canvas, '/help')
     await userEvent.keyboard('{ArrowDown}')
-    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toHaveAttribute('aria-selected', 'true'))
+    await expectActiveOption(canvas, '/clear')
+  },
+}
+
+export const PointerSelectionInsertsChip: Story = {
+  play: async ({canvasElement}) => {
+    const {canvas, editor} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('option', {name: '/compact'}))
+    await expectValue(canvas, '"/compact "')
+    await expect(within(editor).getByText('/compact')).toBeVisible()
+    await waitFor(() => expect(textbox(canvas)).toHaveFocus())
+    await userEvent.keyboard('ok')
+    await expectValue(canvas, '"/compact ok"')
+  },
+}
+
+export const CategoriesDrillAndBack: Story = {
+  args: {mode: 'categories'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Session'})).toBeVisible())
+    await expect(canvas.getByRole('option', {name: 'Context'})).toBeVisible()
+    await expect(canvas.queryByRole('option', {name: '/clear'})).not.toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('option', {name: 'Session'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
+    await expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible()
+    await expect(canvas.queryByRole('option', {name: '/usage'})).not.toBeInTheDocument()
+    await expect(canvas.getByRole('button', {name: 'Session'})).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', {name: 'Session'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Context'})).toBeVisible())
+    await expect(canvas.queryByRole('button', {name: 'Session'})).not.toBeInTheDocument()
+  },
+}
+
+export const CategoryKeyboardDrillAndBackspaceReturns: Story = {
+  args: {mode: 'categories'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await expectActiveOption(canvas, 'Session')
+    await userEvent.keyboard('{ArrowDown}')
+    await expectActiveOption(canvas, 'Context')
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/usage'})).toBeVisible())
+    await expect(canvas.getByRole('button', {name: 'Context'})).toBeVisible()
+    await expectValue(canvas, '"/"')
+    await userEvent.keyboard('{Backspace}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Session'})).toBeVisible())
+    await expectValue(canvas, '"/"')
+  },
+}
+
+export const BackAffordanceSurvivesAQueryInsideACategory: Story = {
+  args: {mode: 'categories'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Session'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('option', {name: 'Session'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
+    await waitFor(() => expect(textbox(canvas)).toHaveFocus())
+    await userEvent.keyboard('cle')
+    await waitFor(() => expect(canvas.queryByRole('option', {name: '/compact'})).not.toBeInTheDocument())
+    await expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible()
+    await expect(canvas.getByRole('button', {name: 'Session'})).toBeVisible()
+    await userEvent.keyboard('{Enter}')
+    await expectValue(canvas, '"/clear "')
+  },
+}
+
+export const TypedQueryAtRootSearchesFlat: Story = {
+  args: {mode: 'categories'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/usa')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/usage'})).toBeVisible())
+    await expect(canvas.queryByRole('option', {name: 'Session'})).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', {name: 'Session'})).not.toBeInTheDocument()
   },
 }
 
@@ -312,12 +435,28 @@ export const EscapeDismissKeepsTypedText: Story = {
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(canvas.queryByRole('listbox')).not.toBeInTheDocument())
     await expect(textbox(canvas)).toHaveAttribute('aria-expanded', 'false')
+    await expect(textbox(canvas)).not.toHaveAttribute('aria-activedescendant')
     await expectValue(canvas, '"/cl"')
     await userEvent.keyboard('x')
     await expectValue(canvas, '"/clx"')
     await expect(canvas.queryByRole('listbox')).not.toBeInTheDocument()
     await userEvent.keyboard('{Enter}')
     await expectSubmitted(canvas, '"/clx"')
+  },
+}
+
+export const DismissedMenuReleasesTheKeyboard: Story = {
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('hi /cl')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(canvas.queryByRole('listbox')).not.toBeInTheDocument())
+    await expect(textbox(canvas)).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.keyboard('{ArrowUp}{ArrowDown}')
+    await expect(canvas.queryByRole('listbox')).not.toBeInTheDocument()
+    await userEvent.keyboard('{Enter}')
+    await expectSubmitted(canvas, '"hi /cl"')
   },
 }
 
@@ -341,6 +480,25 @@ export const AsyncEmpty: Story = {
     await expect(canvas.queryByRole('option')).not.toBeInTheDocument()
     await userEvent.keyboard('{Enter}')
     await expectSubmitted(canvas, '"/"')
+  },
+}
+
+export const EmptyListSwallowsNothingButStaysOpen: Story = {
+  args: {mode: 'empty'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/xy')
+    await waitFor(() => expect(canvas.getByText('No matches')).toBeVisible())
+    await expect(textbox(canvas)).not.toHaveAttribute('aria-activedescendant')
+    await userEvent.keyboard('{ArrowDown}{ArrowUp}')
+    await expect(canvas.getByText('No matches')).toBeVisible()
+    await expectValue(canvas, '"/xy"')
+    await userEvent.keyboard('{Backspace}')
+    await expectValue(canvas, '"/x"')
+    await expect(canvas.getByText('No matches')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(canvas.queryByRole('listbox')).not.toBeInTheDocument())
+    await expectValue(canvas, '"/x"')
   },
 }
 
@@ -394,7 +552,7 @@ export const LoadingKeepsCarriedItemsInert: Story = {
     await userEvent.keyboard('/')
     await waitFor(() => expect(canvas.getByRole('button', {name: 'Resolve root'})).toBeVisible())
     await userEvent.click(canvas.getByRole('button', {name: 'Resolve root'}))
-    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toHaveAttribute('aria-selected', 'true'))
+    await expectActiveOption(canvas, '/clear')
     await userEvent.click(canvas.getByRole('button', {name: 'Focus end'}))
     await waitFor(() => expect(textbox(canvas)).toHaveFocus())
     await userEvent.keyboard('c')
@@ -405,7 +563,6 @@ export const LoadingKeepsCarriedItemsInert: Story = {
     await expectValue(canvas, '"/c"')
     await expectSubmitted(canvas, '""')
     await userEvent.keyboard('{ArrowDown}')
-    await expect(canvas.getByRole('option', {name: '/clear'})).toHaveAttribute('aria-selected', 'true')
     await expect(canvas.getByText('Loading suggestions…')).toBeVisible()
     await userEvent.click(canvas.getByRole('option', {name: '/clear'}))
     await expectValue(canvas, '"/c"')
@@ -454,9 +611,8 @@ export const ActiveOptionScrollsIntoView: Story = {
     await userEvent.keyboard('/')
     await waitFor(() => expect(canvas.getByRole('option', {name: '/command-00'})).toBeVisible())
     for (let step = 0; step < 20; step += 1) await userEvent.keyboard('{ArrowDown}')
-    const active = canvas.getByRole('option', {name: '/command-20'})
-    await waitFor(() => expect(active).toHaveAttribute('aria-selected', 'true'))
-    await expect(canvas.getByRole('listbox', {name: 'Slash commands'})).toContainElement(active)
+    await expectActiveOption(canvas, '/command-20')
+    await expect(canvas.getByRole('option', {name: '/command-20'})).toBeVisible()
     await userEvent.keyboard('{Enter}')
     await expectValue(canvas, '"/command-20 "')
   },
@@ -471,11 +627,10 @@ export const ScreenReaderSurface: Story = {
     await expect(editor).toHaveAttribute('aria-expanded', 'true')
     await expect(editor).toHaveAttribute('aria-haspopup', 'listbox')
     await expect(editor.getAttribute('aria-controls')).toBe(listbox.id)
-    const options = canvas.getAllByRole('option')
-    await waitFor(() => expect(editor.getAttribute('aria-activedescendant')).toBe(options[0]?.id))
+    await expectActiveOption(canvas, '/clear')
     await userEvent.keyboard('{ArrowDown}')
-    await waitFor(() => expect(editor.getAttribute('aria-activedescendant')).toBe(options[1]?.id))
-    await expect(options[1]).toHaveAccessibleName('/compact')
+    await expectActiveOption(canvas, '/compact')
+    await expect(canvas.getByRole('option', {name: '/compact'})).toHaveAccessibleName('/compact')
   },
 }
 

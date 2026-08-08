@@ -1,48 +1,64 @@
 import {Extension} from '@tiptap/core'
 import {PluginKey} from '@tiptap/pm/state'
+import type {EditorView} from '@tiptap/pm/view'
+import {exitSuggestion} from '@tiptap/suggestion'
 import type {MentionNodeAttrs, MentionOptions} from '@tiptap/extension-mention'
-import type {SuggestionAnchor} from './suggestion-listbox.js'
+import type {AnchoredListboxHandle, AnchoredListboxRect} from '@conciv/ui-kit-system'
 
-export type RichTextFieldTriggerItem = {id: string; label: string}
+export type RichTextFieldTriggerItem = {
+  id: string
+  label: string
+  description?: string
+  group?: string
+  categoryId?: string
+}
+
+export type RichTextFieldTriggerCategory = {id: string; label: string; description?: string}
 
 export type RichTextFieldTriggerSource = {
   label: string
+  categories?: readonly RichTextFieldTriggerCategory[]
   items: (query: string) => RichTextFieldTriggerItem[] | Promise<RichTextFieldTriggerItem[]>
 }
 
 type SuggestionConfig = MentionOptions<RichTextFieldTriggerItem, MentionNodeAttrs>['suggestions'][number]
 type SuggestionRenderer = ReturnType<NonNullable<SuggestionConfig['render']>>
 type SuggestionDispatch = Parameters<NonNullable<SuggestionRenderer['onStart']>>[0]
-type SuggestionKeyDown = Parameters<NonNullable<SuggestionRenderer['onKeyDown']>>[0]
 type SuggestionCommand = Parameters<NonNullable<SuggestionConfig['command']>>[0]
 type SuggestionFetch = Parameters<NonNullable<SuggestionConfig['items']>>[0]
 
-export type TriggerPopoverStatus = 'loading' | 'ready' | 'error'
+export type TriggerMenuStatus = 'loading' | 'ready' | 'error'
 
-const STATUS_MESSAGES: Record<TriggerPopoverStatus, string> = {
+const STATUS_MESSAGES: Record<TriggerMenuStatus, string> = {
   loading: 'Loading suggestions…',
   error: 'Suggestions failed to load',
   ready: 'No matches',
 }
 
-export function triggerStatusMessage(status: TriggerPopoverStatus): string {
+export function triggerStatusMessage(status: TriggerMenuStatus): string {
   return STATUS_MESSAGES[status]
 }
 
-export type TriggerPopoverState = {
+export type TriggerDispatchState = {
   char: string
   sourceLabel: string
+  categories: readonly RichTextFieldTriggerCategory[]
   query: string
-  status: TriggerPopoverStatus
-  items: RichTextFieldTriggerItem[]
-  activeIndex: number
-  rect: SuggestionAnchor | null
+  status: TriggerMenuStatus
+  items: readonly RichTextFieldTriggerItem[]
+  rect: AnchoredListboxRect
   command: (item: RichTextFieldTriggerItem) => void
 }
 
-export type TriggerPopoverAccess = {
-  state: () => TriggerPopoverState | null
-  update: (state: TriggerPopoverState | null) => void
+export type TriggerMenuState = {dispatch: TriggerDispatchState; categoryId: string | null}
+
+export type TriggerMenuAccess = {
+  state: () => TriggerMenuState | null
+  open: (dispatch: TriggerDispatchState) => void
+  close: (char: string) => void
+  enterCategory: (categoryId: string) => void
+  leaveCategory: () => void
+  listbox: () => AnchoredListboxHandle | null
 }
 
 export const ChipForwardDelete = Extension.create({
@@ -77,29 +93,35 @@ function insertChip(char: string) {
   }
 }
 
-function popoverRect(dispatch: SuggestionDispatch): SuggestionAnchor | null {
+function anchorRect(dispatch: SuggestionDispatch): AnchoredListboxRect | null {
   const rect = dispatch.clientRect?.() ?? null
   return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
 }
 
-function arrowDelta(event: KeyboardEvent): number {
-  if (event.key === 'ArrowDown') return 1
-  if (event.key === 'ArrowUp') return -1
-  return 0
-}
-
-function plainEnter(event: KeyboardEvent): boolean {
-  return event.key === 'Enter' && !event.shiftKey
-}
-
-function claimsKey(event: KeyboardEvent): boolean {
-  return arrowDelta(event) !== 0 || plainEnter(event)
+function dispatchState(input: {
+  char: string
+  dispatch: SuggestionDispatch
+  source: RichTextFieldTriggerSource
+  rect: AnchoredListboxRect
+  carry: TriggerMenuState | null
+  status: TriggerMenuStatus
+}): TriggerDispatchState {
+  return {
+    char: input.char,
+    sourceLabel: input.source.label,
+    categories: input.source.categories ?? [],
+    query: input.dispatch.query,
+    status: input.status,
+    items: input.carry?.dispatch.items ?? input.dispatch.items,
+    rect: input.rect,
+    command: input.dispatch.command,
+  }
 }
 
 export function triggerSuggestion(options: {
   char: string
   source: () => RichTextFieldTriggerSource | undefined
-  access: TriggerPopoverAccess
+  access: TriggerMenuAccess
 }): SuggestionConfig {
   let errorQuery: string | null = null
 
@@ -116,66 +138,27 @@ export function triggerSuggestion(options: {
     }
   }
 
-  const carried = (dispatch: SuggestionDispatch): TriggerPopoverState | null => {
+  const carried = (dispatch: SuggestionDispatch): TriggerMenuState | null => {
     if (!dispatch.loading) return null
     const current = options.access.state()
-    return current?.char === options.char ? current : null
+    return current?.dispatch.char === options.char ? current : null
   }
 
-  const popoverStatus = (dispatch: SuggestionDispatch): TriggerPopoverStatus => {
+  const status = (dispatch: SuggestionDispatch): TriggerMenuStatus => {
     if (dispatch.loading) return 'loading'
     return errorQuery === dispatch.query ? 'error' : 'ready'
   }
 
-  const popoverState = (dispatch: SuggestionDispatch, sourceLabel: string): TriggerPopoverState => {
-    const carry = carried(dispatch)
-    return {
-      char: options.char,
-      sourceLabel,
-      query: dispatch.query,
-      status: popoverStatus(dispatch),
-      items: carry ? carry.items : dispatch.items,
-      activeIndex: carry ? carry.activeIndex : 0,
-      rect: popoverRect(dispatch),
-      command: dispatch.command,
-    }
-  }
-
-  const openPopover = (dispatch: SuggestionDispatch): void => {
+  const openMenu = (dispatch: SuggestionDispatch): void => {
     const source = options.source()
-    if (!source) return
-    options.access.update(popoverState(dispatch, source.label))
-  }
-
-  const openState = (): TriggerPopoverState | null => {
-    const state = options.access.state()
-    return state?.char === options.char ? state : null
-  }
-
-  const navigate = (state: TriggerPopoverState, delta: number): true => {
-    const activeIndex = (state.activeIndex + delta + state.items.length) % state.items.length
-    options.access.update({...state, activeIndex})
-    return true
-  }
-
-  const select = (state: TriggerPopoverState): boolean => {
-    const item = state.items[state.activeIndex]
-    if (!item) return false
-    state.command(item)
-    return true
-  }
-
-  const settledAction = (state: TriggerPopoverState, event: KeyboardEvent): boolean => {
-    if (state.items.length === 0) return false
-    const delta = arrowDelta(event)
-    return delta === 0 ? select(state) : navigate(state, delta)
-  }
-
-  const keydown = ({event}: SuggestionKeyDown): boolean => {
-    const state = openState()
-    if (!state || !claimsKey(event)) return false
-    if (state.status === 'loading') return true
-    return settledAction(state, event)
+    const rect = anchorRect(dispatch)
+    if (!source || !rect) {
+      options.access.close(options.char)
+      return
+    }
+    options.access.open(
+      dispatchState({char: options.char, dispatch, source, rect, carry: carried(dispatch), status: status(dispatch)}),
+    )
   }
 
   return {
@@ -184,12 +167,53 @@ export function triggerSuggestion(options: {
     command: insertChip(options.char),
     items: fetchItems,
     render: () => ({
-      onStart: openPopover,
-      onUpdate: openPopover,
-      onExit: () => {
-        if (options.access.state()?.char === options.char) options.access.update(null)
-      },
-      onKeyDown: keydown,
+      onStart: openMenu,
+      onUpdate: openMenu,
+      onExit: () => options.access.close(options.char),
     }),
   }
+}
+
+type MenuKeyAction = 'ignore' | 'inert' | 'back' | 'forward'
+
+function consumeKey(event: KeyboardEvent): true {
+  event.preventDefault()
+  return true
+}
+
+function enterKeyAction(state: TriggerMenuState, event: KeyboardEvent): MenuKeyAction | null {
+  if (event.key !== 'Enter') return null
+  if (event.shiftKey) return 'ignore'
+  if (state.dispatch.status === 'loading') return 'inert'
+  return null
+}
+
+function backKeyAction(state: TriggerMenuState, event: KeyboardEvent): MenuKeyAction | null {
+  if (event.key !== 'Backspace') return null
+  if (state.categoryId === null) return null
+  if (state.dispatch.query !== '') return null
+  return 'back'
+}
+
+const MENU_KEY_ACTIONS: Record<MenuKeyAction, (access: TriggerMenuAccess, event: KeyboardEvent) => boolean> = {
+  ignore: () => false,
+  inert: (_access, event) => consumeKey(event),
+  back: (access, event) => {
+    access.leaveCategory()
+    return consumeKey(event)
+  },
+  forward: (access, event) => access.listbox()?.handleKeyDown(event) === true,
+}
+
+export function triggerMenuKeyDown(access: TriggerMenuAccess, event: KeyboardEvent): boolean {
+  const state = access.state()
+  if (!state) return false
+  const action = enterKeyAction(state, event) ?? backKeyAction(state, event) ?? 'forward'
+  return MENU_KEY_ACTIONS[action](access, event)
+}
+
+export function dismissTrigger(view: EditorView, suggestions: readonly SuggestionConfig[], char: string): void {
+  const active = suggestions.find((suggestion) => suggestion.char === char)
+  if (!active?.pluginKey) return
+  exitSuggestion(view, active.pluginKey)
 }
