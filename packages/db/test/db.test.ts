@@ -7,7 +7,7 @@ import {eq} from 'drizzle-orm'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb} from '../src/db.js'
-import {imageHistoryFor, runMessagesFor, replyFor, setRunMessages, writeReply} from '../src/run-queries.js'
+import {runMessagesFor, replyFor, sessionHistoryFor, setRunMessages, writeReply} from '../src/run-queries.js'
 import {sessions} from '../src/schema.js'
 import {runs} from '../src/run-schema.js'
 
@@ -138,7 +138,7 @@ describe('openDb', () => {
     expect(db.select().from(sessions).all()[0]?.title).toBe('named')
   })
 
-  it('boot sweep resets stuck runs, truncates run rows, and clears replies', () => {
+  it('boot sweep resets stuck runs and clears replies, leaving run rows for capability-aware recovery', () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-sweep-'))
     const first = openDb(stateRoot)
     first
@@ -151,23 +151,24 @@ describe('openDb', () => {
     const second = openDb(stateRoot)
     expect(second.select().from(sessions).all()[0]?.title).toBe('keep')
     expect(second.select().from(runs).where(eq(runs.sessionId, 'conciv_z')).all()[0]?.status).toBe('idle')
-    expect(runMessagesFor(second, 'conciv_z')).toBeNull()
+    expect(runMessagesFor(second, 'conciv_z')?.messages).toEqual([{id: 'm1'}])
     expect(replyFor(second, 'conciv_z', 'k')).toBeNull()
   })
 
-  it('boot sweep folds image-bearing run rows into image history before truncating', () => {
+  it('boot sweep neither folds nor wipes run rows: openDb has no harness and cannot decide', () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-fold-'))
     const first = openDb(stateRoot)
     const imageTurn = [
       {id: 'u1', role: 'user', parts: [{type: 'image', source: {type: 'data', value: 'aGk=', mimeType: 'image/png'}}]},
     ]
+    const textTurn = [{id: 't1', role: 'user', parts: [{type: 'text', content: 'hi'}]}]
     setRunMessages(first, 'conciv_img', imageTurn)
-    setRunMessages(first, 'conciv_txt', [{id: 't1', role: 'user', parts: [{type: 'text', content: 'hi'}]}])
+    setRunMessages(first, 'conciv_txt', textTurn)
     const second = openDb(stateRoot)
-    expect(runMessagesFor(second, 'conciv_img')).toBeNull()
-    expect(runMessagesFor(second, 'conciv_txt')).toBeNull()
-    expect(imageHistoryFor(second, 'conciv_img')?.messages).toEqual(imageTurn)
-    expect(imageHistoryFor(second, 'conciv_txt')).toBeNull()
+    expect(runMessagesFor(second, 'conciv_img')?.messages).toEqual(imageTurn)
+    expect(runMessagesFor(second, 'conciv_txt')?.messages).toEqual(textTurn)
+    expect(sessionHistoryFor(second, 'conciv_img')).toBeNull()
+    expect(sessionHistoryFor(second, 'conciv_txt')).toBeNull()
   })
 
   it('two connections on one stateRoot interleave writes (WAL + busy timeout)', () => {

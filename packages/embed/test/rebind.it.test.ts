@@ -8,6 +8,7 @@ import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 
 const ASSISTANT_TEXT = 'Rebound reply'
 const USER_TEXT = 'first message before the drift'
+const SECOND_USER_TEXT = 'second message after the drift'
 
 let browser: Browser
 let kit: EmbedKit
@@ -71,7 +72,7 @@ describe('handle.rebind survives same-core port drift', () => {
     await proxyB.close()
   })
 
-  it('re-points rpc and SSE to the new port, keeps the panel open and the session', async () => {
+  it('re-points rpc and SSE to the new port, keeps the panel open, the session, and delivers the next turn', async () => {
     const page = await browser.newPage()
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
@@ -103,7 +104,10 @@ describe('handle.rebind survives same-core port drift', () => {
     await expectLocator(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
     await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
 
-    await sendTurn(page, 'second message after the drift')
+    await sendTurn(page, SECOND_USER_TEXT)
+    await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(2, {timeout: 30_000})
+    await expectLocator(page.getByText(SECOND_USER_TEXT)).toHaveCount(1, {timeout: 30_000})
+    await expectLocator(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
 
     expect(proxyB.requestCount()).toBeGreaterThan(beforeB)
     expect(await panelSession()).toBe(sessionBefore)

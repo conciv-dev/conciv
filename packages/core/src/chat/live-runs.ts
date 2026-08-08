@@ -6,11 +6,13 @@ export type LiveRuns = {
   of: (sessionId: string) => LiveRun[]
   running: (sessionId: string) => boolean
   onStart: (sessionId: string, listener: (runId: string) => void) => () => void
+  serialize: <T>(sessionId: string, section: () => Promise<T>) => Promise<T>
 }
 
 export function createLiveRuns(): LiveRuns {
   const bySession = new Map<string, Set<LiveRun>>()
   const listeners = new Map<string, Set<(runId: string) => void>>()
+  const tails = new Map<string, Promise<void>>()
   const remove = (sessionId: string, run: LiveRun): void => {
     const runs = bySession.get(sessionId)
     if (!runs) return
@@ -32,6 +34,18 @@ export function createLiveRuns(): LiveRuns {
     },
     of: (sessionId) => [...(bySession.get(sessionId) ?? [])],
     running: (sessionId) => (bySession.get(sessionId)?.size ?? 0) > 0,
+    serialize: (sessionId, section) => {
+      const entered = (tails.get(sessionId) ?? Promise.resolve()).then(section)
+      const released = entered.then(
+        () => undefined,
+        () => undefined,
+      )
+      tails.set(sessionId, released)
+      void released.then(() => {
+        if (tails.get(sessionId) === released) tails.delete(sessionId)
+      })
+      return entered
+    },
     onStart: (sessionId, listener) => {
       const registered = listeners.get(sessionId) ?? new Set()
       listeners.set(sessionId, registered)

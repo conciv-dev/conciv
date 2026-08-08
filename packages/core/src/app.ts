@@ -36,7 +36,7 @@ import {makeAskGate, requiresApproval} from './chat/gate.js'
 import {makeConcivSandbox} from './chat/sandbox.js'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
 import {createSessionStreams} from './chat/subscribe.js'
-import {createSnapshotCache} from './chat/transcript.js'
+import {recoverInterruptedRuns} from './chat/transcript.js'
 import {createLiveRuns} from './chat/live-runs.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
 import {modelOf, openDb} from '@conciv/db'
@@ -242,11 +242,11 @@ async function drainWithDeadline(drain: Promise<void>, timeoutMs: number): Promi
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const db = openDb(opts.cfg.stateRoot)
+  await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
   const asks = createAskRegistry()
   const {claimStartedAt, durability, runControl, runs} = makeRunControl(opts.firstChunkTimeoutMs)
   const liveRuns = createLiveRuns()
   const stream = createSessionStreams()
-  const snapshots = createSnapshotCache()
 
   const runStartListeners: ((sessionId: string) => void)[] = []
 
@@ -422,7 +422,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     claimStartedAt,
     liveRuns,
     stream,
-    snapshots,
     risky,
     commandAllows: askFreeCommandAllows,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),

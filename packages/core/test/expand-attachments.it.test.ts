@@ -4,7 +4,7 @@ import {join} from 'node:path'
 import {afterAll, describe, expect, it, vi} from 'vitest'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import {defineAttachment, defineExtension} from '@conciv/extension'
-import {imageHistoryFor, openDb} from '@conciv/db'
+import {sessionHistoryFor, openDb} from '@conciv/db'
 import {makeApp, type MadeApp} from '../src/app.js'
 
 const FIXTURE_MIME = 'application/x-conciv-fixture'
@@ -88,7 +88,7 @@ describe('attachment expand end-to-end (real send path, scripted harness)', () =
     )
 
     const db = openDb(stateRoot)
-    const stored = imageHistoryFor(db, sessionId)
+    const stored = sessionHistoryFor(db, sessionId)
     if (!stored) throw new Error('expected durable rich history')
     const messages: StoredMessage[] = stored.messages.filter(
       (message): message is StoredMessage => typeof message === 'object' && message !== null,

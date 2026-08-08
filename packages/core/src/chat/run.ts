@@ -19,9 +19,10 @@ import type {ChatContentPart} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {
-  clearImageHistory,
+  clearSessionHistory,
   drafts,
-  foldRunMessagesIntoImageHistory,
+  foldRichRunMessagesIntoHistory,
+  foldRunMessagesIntoHistory,
   markers,
   sessions,
   setRunMessages,
@@ -32,6 +33,7 @@ import type {ChatDeps} from './runtime.js'
 import type {LiveRun} from './live-runs.js'
 import {ensureRow, nativeIdFor, recordNativeId, rowById} from './session-rows.js'
 import {sessionSnapshot} from './transcript.js'
+import {stopSession} from './stop.js'
 import {makeAskGate, makeRunGate, withConcivGate, type PermissionGate} from './gate.js'
 import {withConcivSandbox} from './sandbox.js'
 import {makeCodeMode} from './code-mode.js'
@@ -289,11 +291,15 @@ async function recordRunEnd(deps: ChatDeps, sessionId: string, usage: UsageSnaps
 }
 
 function persistRunOutcome(deps: ChatDeps, sessionId: string, kind: TurnKind): void {
-  if (kind === 'chat') {
-    foldRunMessagesIntoImageHistory(deps.db, sessionId)
+  if (kind !== 'chat') {
+    clearSessionHistory(deps.db, sessionId)
     return
   }
-  clearImageHistory(deps.db, sessionId)
+  if (deps.harness.capabilities.transcriptHistory) {
+    foldRichRunMessagesIntoHistory(deps.db, sessionId)
+    return
+  }
+  foldRunMessagesIntoHistory(deps.db, sessionId)
 }
 
 function runEndChunkFor(sessionId: string, req: RunRequest, outcome: RunOutcome): StreamChunk {
@@ -306,7 +312,6 @@ function runEndChunkFor(sessionId: string, req: RunRequest, outcome: RunOutcome)
 
 async function finishRun(deps: ChatDeps, sessionId: string, req: RunRequest, outcome: RunOutcome): Promise<void> {
   persistRunOutcome(deps, sessionId, req.kind)
-  deps.snapshots.clear(sessionId)
   if (outcome.usage) outcome.usage.contextTokens = await contextOccupancyFor(deps, sessionId).catch(() => undefined)
   await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
   deps.liveRuns.settle(sessionId, req.runId)
@@ -476,6 +481,12 @@ async function prepareLaunchContent(deps: ChatDeps, sessionId: string, content: 
   return expandUserParts(userContent, deps.attachmentExpanders)
 }
 
+async function settleLiveRuns(deps: ChatDeps, sessionId: string): Promise<void> {
+  if (!deps.liveRuns.running(sessionId)) return
+  await stopSession(deps, sessionId)
+  await Promise.all(deps.liveRuns.of(sessionId).map((run) => run.done))
+}
+
 async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Promise<never> {
   const message = error instanceof Error ? error.message : String(error)
   await deps.runs.update(runId, {status: 'failed', finishedAt: Date.now(), error: {message}})
@@ -483,17 +494,19 @@ async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Pr
 }
 
 export function makeSend(deps: ChatDeps): Send {
-  return async (sessionId, runId, content) => {
-    const startedAt = deps.claimStartedAt()
-    const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
-    if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
-    const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
-      failClaimedRun(deps, runId, error),
-    )
-    launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
-    await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
-    return runId
-  }
+  return (sessionId, runId, content) =>
+    deps.liveRuns.serialize(sessionId, async () => {
+      const startedAt = deps.claimStartedAt()
+      const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
+      if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
+      const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
+        failClaimedRun(deps, runId, error),
+      )
+      await settleLiveRuns(deps, sessionId)
+      launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
+      await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+      return runId
+    })
 }
 
 export type Compactor = {run: (sessionId: string) => Promise<void>}
@@ -503,12 +516,15 @@ async function addCompactMarker(db: ConcivDb, sessionId: string, afterTurn: numb
 }
 
 export function makeCompactor(deps: ChatDeps): Compactor {
-  async function run(sessionId: string): Promise<void> {
-    deps.onRunStart?.(sessionId)
-    const history = await sessionSnapshot(deps, sessionId)
-    await addCompactMarker(deps.db, sessionId, history.length)
-    const live = launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
-    await live.done
+  function run(sessionId: string): Promise<void> {
+    return deps.liveRuns.serialize(sessionId, async () => {
+      deps.onRunStart?.(sessionId)
+      await settleLiveRuns(deps, sessionId)
+      const history = await sessionSnapshot(deps, sessionId)
+      await addCompactMarker(deps.db, sessionId, history.length)
+      const live = launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
+      await live.done
+    })
   }
 
   return {run}

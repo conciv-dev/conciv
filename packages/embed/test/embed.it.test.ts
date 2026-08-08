@@ -290,11 +290,30 @@ describe('embed boots the conciv app against a real core', () => {
 })
 
 describe('embed at a phone viewport', () => {
+  let phoneKit: EmbedKit
+  let phoneHost: {base: string; close: () => Promise<void>}
+
+  beforeAll(async () => {
+    phoneKit = await bootEmbedKit({text: ASSISTANT_TEXT, models: HARNESS_MODELS})
+    phoneHost = await serveHost((url) =>
+      hostPage({
+        apiBase: phoneKit.base,
+        widget: '{"quickTerminal":false}',
+        backdrop: url.searchParams.get('backdrop'),
+      }),
+    )
+  }, 60_000)
+
+  afterAll(async () => {
+    await phoneHost.close()
+    await phoneKit.cleanup()
+  })
+
   it('paints an opaque sheet so the host page never shows through', async () => {
     const page = await browser.newPage({viewport: PHONE_VIEWPORT})
     const shootOver = async (backdrop: string): Promise<Buffer> => {
-      expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
-      await page.goto(`${host.base}/?backdrop=${backdrop}`, {waitUntil: 'domcontentloaded'})
+      expect(await setNavigation(phoneKit, [{href: '/'}])).toBe(true)
+      await page.goto(`${phoneHost.base}/?backdrop=${backdrop}`, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
       return page.screenshot({animations: 'disabled', clip: SHEET_INTERIOR_CLIP})
     }
