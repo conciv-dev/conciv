@@ -8,7 +8,7 @@ import {isSessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useDisconnect, useGrabProvider, useInstances, useRpc} from '../app/context.js'
 import {PaneContext, makeGrabStore, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
-import {setShutter} from '../lib/shutter.js'
+import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextTracker} from '../pane/context-tracker.js'
 import {collectViews} from '../extension/extension-views.js'
 
@@ -34,6 +34,7 @@ function PanelSession(): JSX.Element {
   const {connectMode, disconnect} = useDisconnect()
   const grabProvider = useGrabProvider()
   const router = useRouter()
+  const panelChrome = usePanelChrome()
   const matchRoute = useMatchRoute()
   const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
 
@@ -129,7 +130,7 @@ function PanelSession(): JSX.Element {
         <TooltipIconButton
           tooltip="Close chat"
           class={`${CLOSE}${connectMode && disconnect ? '' : ' ml-auto'}`}
-          onClick={() => void setShutter(router, false)}
+          onClick={() => panelChrome.close()}
         >
           <ChevronDown class="size-[1em] block" aria-hidden="true" />
         </TooltipIconButton>

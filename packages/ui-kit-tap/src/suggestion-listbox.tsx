@@ -70,7 +70,10 @@ export function SuggestionListbox<Option extends SuggestionOption>(props: {
       portalled={false}
       closeOnEscape={false}
       closeOnInteractOutside={false}
-      onEscapeKeyDown={() => props.onDismiss?.()}
+      onEscapeKeyDown={(event) => {
+        event.stopPropagation()
+        props.onDismiss?.()
+      }}
       positioning={{placement: 'bottom-start', getAnchorRect: () => props.anchor}}
     >
       <Popover.Context>

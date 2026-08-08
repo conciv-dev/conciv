@@ -56,6 +56,58 @@ describe('panel close restores focus: host element captured at open wins, FAB is
     await host.close()
   })
 
+  it('closing via the panel header restores the host element that was focused before the open', async () => {
+    const host = await serveHost(() =>
+      hostPage({
+        apiBase: suite.kit().base,
+        widget: '{"quickTerminal":false}',
+        body: '<button id="host-action">Host action</button>',
+      }),
+    )
+    const page = await suite.browser().newPage()
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await ensurePanelClosed(page)
+    const hostButton = page.getByRole('button', {name: 'Host action'})
+    await hostButton.click()
+    await expectLocator(hostButton).toBeFocused()
+    await page.evaluate(() => window.dispatchEvent(new Event('conciv:open-panel')))
+    await expectLocator(composer(page)).toBeVisible({timeout: 30_000})
+    await page.getByRole('button', {name: 'Close chat'}).click()
+    await expectLocator(hostButton).toBeFocused({timeout: 10_000})
+    await page.close()
+    await host.close()
+  })
+
+  it('collapsing the panel by dragging its resize handle shut restores the host element', async () => {
+    const host = await serveHost(() =>
+      hostPage({
+        apiBase: suite.kit().base,
+        widget: '{"quickTerminal":false}',
+        body: '<button id="host-action">Host action</button>',
+      }),
+    )
+    const page = await suite.browser().newPage()
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await ensurePanelClosed(page)
+    const hostButton = page.getByRole('button', {name: 'Host action'})
+    await hostButton.click()
+    await expectLocator(hostButton).toBeFocused()
+    await page.evaluate(() => window.dispatchEvent(new Event('conciv:open-panel')))
+    await expectLocator(composer(page)).toBeVisible({timeout: 30_000})
+
+    const handle = page.getByRole('separator', {name: 'Resize chat height'})
+    const grip = await handle.boundingBox()
+    if (!grip) throw new Error('the resize handle is not laid out')
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 + 600, {steps: 12})
+    await page.mouse.up()
+    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
+    await expectLocator(hostButton).toBeFocused({timeout: 10_000})
+    await page.close()
+    await host.close()
+  })
+
   it('closing via the FAB falls back to FAB focus when no host element was captured at open time', async () => {
     const page = await suite.browser().newPage()
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})

@@ -357,6 +357,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                             panelFocus?.register(handle)
                           }}
                           onSelectionChange={storage().noteSelection}
+                          initialSelection={storage().restoredSelection}
                           busy={compacting() ? <CompactSpinner /> : undefined}
                           triggers={triggerSources}
                         >

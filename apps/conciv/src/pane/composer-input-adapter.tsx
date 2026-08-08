@@ -23,6 +23,7 @@ export type ComposerInputAdapterProps = {
   triggers?: ComposerTriggerSources
   onReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
+  initialSelection?: SelectionOffsets
 }
 
 export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Element {
@@ -32,8 +33,9 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
   let wrapper: HTMLDivElement | undefined
   const submit = () => wrapper?.closest('form')?.requestSubmit()
   const cancelOnEscape = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || event.defaultPrevented || !composer.canCancel()) return
+    if (event.key !== 'Escape' || !composer.canCancel()) return
     event.preventDefault()
+    event.stopPropagation()
     if (handlers.onCancel) {
       handlers.onCancel()
       return
@@ -58,6 +60,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         onValueChange={composer.setText}
         onSubmit={submit}
         onSelectionChange={props.onSelectionChange}
+        initialSelection={props.initialSelection}
         placeholder={props.placeholder}
         label={props.inputLabel}
         editableClass={props.editableClass}

@@ -1,10 +1,10 @@
-import {Outlet, createFileRoute, useRouter} from '@tanstack/solid-router'
+import {Outlet, createFileRoute} from '@tanstack/solid-router'
 import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
 import {Show, createEffect, createSignal, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {useFabPosition, useLayers, useSuppressed} from '../app/context.js'
 import {makePanelComposerFocus, PanelComposerFocusContext} from '../app/panel-focus.js'
-import {setShutter} from '../lib/shutter.js'
+import {usePanelChrome} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 
 const PANEL_POS: Record<TriggerPosition, string> = {
@@ -33,13 +33,13 @@ function PanelLayout(): JSX.Element {
   const fabPosition = useFabPosition()
   const layers = useLayers()
   const suppressed = useSuppressed()
-  const router = useRouter()
+  const panelChrome = usePanelChrome()
   const search = Route.useSearch()
   const position = fabPosition
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const anchoredBottom = () => position().startsWith('bottom')
   const anchoredRight = () => position().endsWith('right')
-  const close = () => void setShutter(router, false)
+  const close = () => panelChrome.close()
   const open = () => search().open ?? false
 
   const [mounted, setMounted] = createSignal(false)

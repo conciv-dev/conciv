@@ -16,6 +16,7 @@ type PersistedDraft = z.infer<typeof PersistedDraftSchema>
 export type PaneDraftStorage = {
   storage: WebStorage
   noteSelection: (offsets: SelectionOffsets) => void
+  restoredSelection: SelectionOffsets | undefined
 }
 
 function parseDraft(raw: string): PersistedDraft | null {
@@ -75,5 +76,6 @@ export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promi
     noteSelection: (offsets) => {
       selection = offsets
     },
+    restoredSelection: row ? clampSelection({start: row.selectionStart, end: row.selectionEnd}, row.text) : undefined,
   }
 }

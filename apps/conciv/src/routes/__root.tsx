@@ -36,6 +36,7 @@ import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
 import {setShutter} from '../lib/shutter.js'
+import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import '../styles.css'
 
@@ -308,7 +309,9 @@ function RootChrome(props: {
       }}
       onKeyDown={onKeyDown}
     >
-      <Outlet />
+      <PanelChromeContext.Provider value={{close: closePanel}}>
+        <Outlet />
+      </PanelChromeContext.Provider>
       <Show when={launcherVisible()}>
         <ShellFab
           ref={(el) => {

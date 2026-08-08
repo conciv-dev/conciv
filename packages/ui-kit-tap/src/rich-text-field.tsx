@@ -30,7 +30,6 @@ export type RichTextFieldHandle = {
   clear: () => void
   insertText: (text: string) => void
   appendText: (text: string) => void
-  setSelection: (selection: RichTextFieldSelection) => void
 }
 
 const VIEWPORT = 'w-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
@@ -95,12 +94,16 @@ function appendCommand(text: string) {
   }
 }
 
-function selectRangeCommand(selection: RichTextFieldSelection) {
+function openingSelectionCommand(selection: RichTextFieldSelection | undefined) {
   return ({tr, state}: CommandProps) => {
+    if (!selection) {
+      tr.setSelection(Selection.atEnd(tr.doc))
+      return true
+    }
     const json = state.doc.toJSON()
     const from = offsetToPosition(json, selection.start)
     const to = offsetToPosition(json, selection.end)
-    tr.setSelection(TextSelection.create(tr.doc, from, to)).scrollIntoView()
+    tr.setSelection(TextSelection.create(tr.doc, from, to))
     return true
   }
 }
@@ -182,6 +185,7 @@ export function RichTextField(props: {
   onValueChange: (value: string) => void
   onSubmit?: () => void
   onSelectionChange?: (selection: RichTextFieldSelection) => void
+  initialSelection?: RichTextFieldSelection
   placeholder?: string
   label: string
   disabled?: boolean
@@ -265,6 +269,7 @@ export function RichTextField(props: {
       ],
     })
     editorView = editor.view
+    editor.chain().command(openingSelectionCommand(props.initialSelection)).run()
     onCleanup(() => editor.destroy())
 
     createEffect(() => {
@@ -289,7 +294,7 @@ export function RichTextField(props: {
 
     props.onReady?.({
       focus: (focusOptions) => {
-        editor.commands.focus(focusOptions?.end ? 'end' : undefined)
+        editor.commands.focus(focusOptions?.end ? 'end' : editor.state.selection.from)
       },
       clear: () => {
         editor.commands.clearContent(true)
@@ -299,9 +304,6 @@ export function RichTextField(props: {
       },
       appendText: (text) => {
         editor.chain().command(appendCommand(text)).run()
-      },
-      setSelection: (selection) => {
-        editor.chain().command(selectRangeCommand(selection)).run()
       },
     })
   })

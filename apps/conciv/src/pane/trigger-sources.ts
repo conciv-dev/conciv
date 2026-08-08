@@ -1,7 +1,6 @@
-import {useQuery} from '@tanstack/solid-query'
 import type {ChatCommand, ChatTool} from '@conciv/protocol/chat-types'
 import type {RichTextFieldTriggerItem} from '@conciv/ui-kit-tap'
-import {useAppData} from '../app/context.js'
+import {useAppData, useAppQueryClient} from '../app/context.js'
 import type {ComposerTriggerSources} from './composer-input-adapter.js'
 
 const SOURCE_LABEL: Record<ChatCommand['source'], string> = {harness: 'Commands', mcp: 'MCP', plugin: 'Plugins'}
@@ -36,16 +35,23 @@ function matchingItems(entries: TriggerEntry[], query: string): RichTextFieldTri
 
 export function useComposerTriggerSources(sessionId: string): ComposerTriggerSources {
   const appData = useAppData()
-  const commands = useQuery(() => appData.utils.meta.commands.queryOptions({input: {sessionId}}))
-  const tools = useQuery(() => appData.utils.meta.tools.queryOptions())
+  const queryClient = useAppQueryClient()
   return {
     slash: {
       label: 'Commands',
-      items: (query) => matchingItems((commands.data?.commands ?? []).map(commandEntry), query),
+      items: async (query) => {
+        const data = await queryClient.ensureQueryData(
+          appData.utils.meta.commands.queryOptions({input: {sessionId}}),
+        )
+        return matchingItems(data.commands.map(commandEntry), query)
+      },
     },
     mention: {
       label: 'Tools',
-      items: (query) => matchingItems((tools.data?.tools ?? []).map(toolEntry), query),
+      items: async (query) => {
+        const data = await queryClient.ensureQueryData(appData.utils.meta.tools.queryOptions())
+        return matchingItems(data.tools.map(toolEntry), query)
+      },
     },
   }
 }
