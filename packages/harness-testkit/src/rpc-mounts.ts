@@ -8,7 +8,7 @@ import {
   rpcFetchMiddleware,
   rpcWebsocketRoute,
 } from '@conciv/extension/rpc-mount'
-import {serveHono} from '@conciv/serve'
+import {serveHono, upgradeWebSocket} from '@conciv/serve'
 
 export type ServedRpcRouter = {
   base: string
@@ -20,10 +20,10 @@ export type ServedRpcRouter = {
   close: () => Promise<void>
 }
 
-export async function serveRpcRouter(opts: {router: AnyRouter; app?: Hono}): Promise<ServedRpcRouter> {
-  const app = opts.app ?? new Hono().use(cors())
-  app.get(RPC_WS_PATH, rpcWebsocketRoute(opts.router))
-  app.use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(opts.router))
+export async function serveRpcRouter(options: {router: AnyRouter; app?: Hono}): Promise<ServedRpcRouter> {
+  const app = options.app ?? new Hono().use(cors())
+  app.get(RPC_WS_PATH, rpcWebsocketRoute(options.router, {upgrade: upgradeWebSocket}))
+  app.use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(options.router))
   const served = await serveHono({fetch: app.fetch})
   const base = `http://127.0.0.1:${served.port}`
   const wsBase = base.replace('http:', 'ws:')
@@ -40,8 +40,14 @@ export async function serveRpcRouter(opts: {router: AnyRouter; app?: Hono}): Pro
   }
 }
 
-export async function serveExtensionRpc(opts: {slug: string; router: AnyRouter; app?: Hono}): Promise<ServedRpcRouter> {
-  const composite = makeCompositeRpcRouter({}, [{slug: opts.slug, extensionName: opts.slug, router: opts.router}])
-  const served = await serveRpcRouter({router: composite, app: opts.app})
-  return {...served, rpcUrl: `${served.base}${RPC_PREFIX}/ext/${opts.slug}`}
+export async function serveExtensionRpc(options: {
+  slug: string
+  router: AnyRouter
+  app?: Hono
+}): Promise<ServedRpcRouter> {
+  const composite = makeCompositeRpcRouter({}, [
+    {slug: options.slug, extensionName: options.slug, router: options.router},
+  ])
+  const served = await serveRpcRouter({router: composite, app: options.app})
+  return {...served, rpcUrl: `${served.base}${RPC_PREFIX}/ext/${options.slug}`}
 }

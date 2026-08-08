@@ -72,6 +72,8 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@orpc/client": "^1.14.7",
+    "@orpc/server": "^1.14.7",
+    "@orpc/standard-server-peer": "^1.14.7",
     "@solid-primitives/event-listener": "^2.4.6",
     "@types/node": "^26.1.0",
     "@unocss/postcss": "^66.7.2",

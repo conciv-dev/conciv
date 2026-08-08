@@ -1,15 +1,15 @@
 import type {Page, Request as PageRequest, Response as PageResponse, WebSocket as PageWebSocket} from 'playwright'
-import {toHttpPath} from '@orpc/client/standard'
-import {decodeRpcFrame, rpcPayload} from './rpc-frames.js'
+import {decodeRpcFrame, procedurePathOf, rpcPayload} from './rpc-frames.js'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const RPC_SOCKET_MARKER = '/rpc-ws'
+const RPC_HTTP_MARKER = '/rpc/'
 
 export type RpcTransport = 'fetch' | 'websocket'
 
 export type RpcCallRecord = {
   transport: RpcTransport
-  path: string
+  procedurePath: readonly string[]
   requestId: string
   input: unknown
   status: number | null
@@ -38,6 +38,7 @@ export type RpcObserver = {
 
 type CallState = {
   record: RpcCallRecord
+  startedAt: number
   completedAt: number | null
   completed: boolean
   events: unknown[]
@@ -65,9 +66,20 @@ function matchesPattern(actual: unknown, expected: unknown): boolean {
   return Object.is(actual, expected)
 }
 
-function matches(state: CallState, filter: Omit<RpcCallFilter, 'timeout'>): boolean {
-  if (filter.since !== undefined && (state.completedAt === null || state.completedAt <= filter.since)) return false
-  if (!state.record.path.endsWith(toHttpPath(filter.path))) return false
+function samePath(actual: readonly string[], expected: readonly string[]): boolean {
+  return actual.length === expected.length && actual.every((segment, index) => segment === expected[index])
+}
+
+type Stamp = 'start' | 'completion'
+
+function newerThan(state: CallState, since: number, stamp: Stamp): boolean {
+  if (stamp === 'start') return state.startedAt > since
+  return state.completedAt !== null && state.completedAt > since
+}
+
+function matches(state: CallState, filter: Omit<RpcCallFilter, 'timeout'>, stamp: Stamp): boolean {
+  if (filter.since !== undefined && !newerThan(state, filter.since, stamp)) return false
+  if (!samePath(state.record.procedurePath, filter.path)) return false
   if (filter.input !== undefined && !matchesPattern(state.record.input, filter.input)) return false
   return filter.status === undefined || state.record.status === filter.status
 }
@@ -104,12 +116,16 @@ export function observeRpc(page: Page): RpcObserver {
 
   const notify = (state: CallState): void => {
     for (const waiter of waiters) {
-      if (waiter.needs === 'first-event' && state.record.transport === 'fetch' && matches(state, waiter.filter)) {
+      if (
+        waiter.needs === 'first-event' &&
+        state.record.transport === 'fetch' &&
+        matches(state, waiter.filter, 'completion')
+      ) {
         waiters.delete(waiter)
         waiter.fail(fetchIteratorError(waiter.filter))
         continue
       }
-      if (!matches(state, waiter.filter) || !satisfied(state, waiter.needs)) continue
+      if (!matches(state, waiter.filter, 'completion') || !satisfied(state, waiter.needs)) continue
       waiters.delete(waiter)
       waiter.deliver(state)
     }
@@ -123,21 +139,29 @@ export function observeRpc(page: Page): RpcObserver {
     }
   }
 
+  const httpProcedurePath = (url: string): readonly string[] | null => {
+    const pathname = new URL(url).pathname
+    const marker = pathname.indexOf(RPC_HTTP_MARKER)
+    if (marker === -1) return null
+    return procedurePathOf(pathname.slice(marker + RPC_HTTP_MARKER.length))
+  }
+
   const httpState = (request: PageRequest): CallState | null => {
     const known = httpCalls.get(request)
     if (known) return known
-    const path = new URL(request.url()).pathname
-    if (!path.includes('/rpc/')) return null
+    const procedurePath = httpProcedurePath(request.url())
+    if (procedurePath === null) return null
     httpIds.next += 1
     const state: CallState = {
       record: {
         transport: 'fetch',
-        path,
+        procedurePath,
         requestId: `http-${httpIds.next}`,
         input: requestInput(request),
         status: null,
         streaming: false,
       },
+      startedAt: (sequence.next += 1),
       completedAt: null,
       completed: false,
       events: [],
@@ -180,12 +204,13 @@ export function observeRpc(page: Page): RpcObserver {
         const state: CallState = {
           record: {
             transport: 'websocket',
-            path: decoded.path,
+            procedurePath: decoded.procedurePath,
             requestId: key,
             input: decoded.input,
             status: null,
             streaming: false,
           },
+          startedAt: (sequence.next += 1),
           completedAt: null,
           completed: false,
           events: [],
@@ -224,7 +249,7 @@ export function observeRpc(page: Page): RpcObserver {
     return new Promise<CallState>((resolve, reject) => {
       const timer = setTimeout(() => {
         waiters.delete(waiter)
-        const observed = states.map((state) => state.record.path).join(', ')
+        const observed = states.map((state) => state.record.procedurePath.join('.')).join(', ')
         reject(
           new Error(
             `no rpc call to ${filter.path.join('.')} reached "${needs}" within ${timeoutMs}ms (observed calls: ${observed})`,
@@ -249,14 +274,18 @@ export function observeRpc(page: Page): RpcObserver {
 
   const settle = (filter: RpcCallFilter, needs: Need): Promise<CallState> => {
     if (drift.error) return Promise.reject(drift.error)
-    const seen = states.find((state) => matches(state, filter) && satisfied(state, needs))
+    const seen = states.find((state) => matches(state, filter, 'completion') && satisfied(state, needs))
     if (seen) return Promise.resolve(seen)
+    const answeredOverFetch = states.find(
+      (state) => matches(state, filter, 'completion') && state.record.transport === 'fetch',
+    )
+    if (needs === 'first-event' && answeredOverFetch) return Promise.reject(fetchIteratorError(filter))
     return buffered(filter, needs)
   }
 
-  const counted = (filter: Omit<RpcCallFilter, 'timeout'>, needsCompletion: boolean): number => {
+  const counted = (filter: Omit<RpcCallFilter, 'timeout'>, stamp: Stamp): number => {
     if (drift.error) throw drift.error
-    return states.filter((state) => matches(state, filter) && (!needsCompletion || state.completed)).length
+    return states.filter((state) => matches(state, filter, stamp) && (stamp === 'start' || state.completed)).length
   }
 
   return {
@@ -266,8 +295,8 @@ export function observeRpc(page: Page): RpcObserver {
       const state = await settle(filter, 'first-event')
       return {call: state.record, data: state.events[0]}
     },
-    startedCount: (filter) => counted(filter, false),
-    completedCount: (filter) => counted(filter, true),
+    startedCount: (filter) => counted(filter, 'start'),
+    completedCount: (filter) => counted(filter, 'completion'),
     socketCount: () => sockets.count,
     dispose: () => {
       page.off('request', onRequest)

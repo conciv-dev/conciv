@@ -1,4 +1,4 @@
-import type {Page, WebSocketRoute} from 'playwright'
+import type {Page, Route, WebSocketRoute} from 'playwright'
 import type {NavigationEntry} from '@conciv/protocol/chat-types'
 import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
 import {decodeRpcFrame} from '@conciv/extension-testkit/rpc-frames'
@@ -36,7 +36,8 @@ type Hold = {
   markArrived: () => void
   landed: Promise<void>
   markLanded: () => void
-  seen: number
+  retained: boolean
+  queue: (() => Promise<void>)[]
 }
 
 function makeHold(): Hold {
@@ -45,7 +46,8 @@ function makeHold(): Hold {
     markArrived: () => {},
     landed: Promise.resolve(),
     markLanded: () => {},
-    seen: 0,
+    retained: false,
+    queue: [],
   }
   hold.arrived = new Promise<void>((resolve) => {
     hold.markArrived = resolve
@@ -56,7 +58,7 @@ function makeHold(): Hold {
   return hold
 }
 
-function holdSocketNavigation(socket: WebSocketRoute, hold: Hold, gate: Promise<void>): void {
+function holdSocketNavigation(socket: WebSocketRoute, hold: Hold): void {
   const server = socket.connectToServer()
   const retained: {requestId: string | null} = {requestId: null}
   const outbound = {tail: Promise.resolve()}
@@ -64,15 +66,21 @@ function holdSocketNavigation(socket: WebSocketRoute, hold: Hold, gate: Promise<
   socket.onMessage((message) => {
     outbound.tail = outbound.tail.then(async () => {
       const frame = await decodeRpcFrame(message, 'outbound')
-      if (frame.phase !== 'request' || !frame.path.endsWith('/navigation/set')) {
+      if (frame.phase !== 'request' || frame.procedurePath.join('/') !== NAVIGATION_SET.join('/')) {
         server.send(message)
         return
       }
-      hold.seen += 1
-      if (hold.seen > 1) return
+      const send = async (): Promise<void> => {
+        server.send(message)
+      }
+      if (hold.retained) {
+        hold.queue.push(send)
+        return
+      }
+      hold.retained = true
       retained.requestId = frame.requestId
       hold.markArrived()
-      void gate.then(() => server.send(message))
+      hold.queue.unshift(send)
     })
   })
   server.onMessage((message) => {
@@ -85,33 +93,42 @@ function holdSocketNavigation(socket: WebSocketRoute, hold: Hold, gate: Promise<
   })
 }
 
+function holdFetchNavigation(hold: Hold, route: Route, observer: RpcObserver): Promise<void> {
+  const mark = observer.mark()
+  return new Promise<void>((resolve) => {
+    const forward = async (): Promise<void> => {
+      await route.continue()
+      resolve()
+    }
+    if (hold.retained) {
+      hold.queue.push(forward)
+      return
+    }
+    hold.retained = true
+    hold.markArrived()
+    hold.queue.unshift(async () => {
+      await forward()
+      const landed = observer.completed({path: NAVIGATION_SET, since: mark, timeout: 30_000})
+      void landed.then(() => hold.markLanded())
+    })
+  })
+}
+
 export async function holdFirstNavigationWrite(page: Page): Promise<HeldNavigationWrite> {
   const hold = makeHold()
-  let open = (): void => {}
-  const gate = new Promise<void>((resolve) => {
-    open = resolve
-  })
   const observer = observeRpc(page)
   await page.route(
     (url) => isNavigationWriteUrl(url),
-    async (route) => {
-      hold.seen += 1
-      if (hold.seen > 1) return route.abort()
-      hold.markArrived()
-      await gate
-      await route.continue()
-      await observer.completed({path: NAVIGATION_SET, timeout: 30_000})
-      hold.markLanded()
-    },
+    (route) => holdFetchNavigation(hold, route, observer),
   )
   await page.routeWebSocket(
     (url) => url.pathname.endsWith('/rpc-ws'),
-    (socket) => holdSocketNavigation(socket, hold, gate),
+    (socket) => holdSocketNavigation(socket, hold),
   )
   return {
     arrived: hold.arrived,
     release: async () => {
-      open()
+      for (const send of hold.queue.splice(0)) await send()
       await hold.landed
       observer.dispose()
     },

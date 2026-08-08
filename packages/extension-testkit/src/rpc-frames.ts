@@ -9,10 +9,17 @@ export type RpcFrameDirection = 'outbound' | 'inbound'
 export type RpcIteratorEvent = 'message' | 'error' | 'done'
 
 export type DecodedRpcFrame =
-  | {phase: 'request'; requestId: string; path: string; input: unknown}
+  | {phase: 'request'; requestId: string; procedurePath: readonly string[]; input: unknown}
   | {phase: 'response'; requestId: string; status: number; streaming: boolean; output: unknown}
   | {phase: 'iterator-event'; requestId: string; event: RpcIteratorEvent; data: unknown}
   | {phase: 'abort'; requestId: string}
+
+export function procedurePathOf(pathname: string): readonly string[] {
+  return pathname
+    .split('/')
+    .filter((segment) => segment !== '')
+    .map(decodeURIComponent)
+}
 
 export function rpcPayload(body: unknown): unknown {
   return serializer.deserialize(body)
@@ -34,7 +41,12 @@ export async function decodeRpcFrame(raw: EncodedMessage, direction: RpcFrameDir
     const [requestId, type, payload] = await decodeRequestMessage(raw)
     if (type === MessageType.ABORT_SIGNAL) return {phase: 'abort', requestId}
     if (type === MessageType.EVENT_ITERATOR) return iteratorFrame(requestId, payload)
-    return {phase: 'request', requestId, path: payload.url.pathname, input: rpcPayload(payload.body)}
+    return {
+      phase: 'request',
+      requestId,
+      procedurePath: procedurePathOf(payload.url.pathname),
+      input: rpcPayload(payload.body),
+    }
   }
   const [requestId, type, payload] = await decodeResponseMessage(raw)
   if (type === MessageType.ABORT_SIGNAL) return {phase: 'abort', requestId}

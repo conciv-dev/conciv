@@ -28,7 +28,7 @@ describe('the ws rpc frame observer decodes real oRPC peer frames', () => {
     )
     if (frame.phase !== 'request') throw new Error(`expected a request frame, got ${frame.phase}`)
     expect(frame.requestId).toBe('7')
-    expect(frame.path).toBe('/ext/recorder/flush')
+    expect(frame.procedurePath).toEqual(['ext', 'recorder', 'flush'])
     expect(frame.input).toEqual({events: 2})
   })
 
@@ -82,7 +82,7 @@ describe('the ws rpc frame observer decodes real oRPC peer frames', () => {
     if (typeof encoded === 'string') throw new Error('a blob body encoded to a plain string')
     const frame = await decodeRpcFrame(encoded, 'outbound')
     if (frame.phase !== 'request') throw new Error(`expected a request frame, got ${frame.phase}`)
-    expect(frame.path).toBe('/ext/recorder/flush')
+    expect(frame.procedurePath).toEqual(['ext', 'recorder', 'flush'])
   })
 
   it('restores the rich types the rpc serializer encodes, not the raw json envelope', async () => {

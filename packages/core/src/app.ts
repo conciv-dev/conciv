@@ -1,5 +1,6 @@
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
+import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -209,7 +210,7 @@ function composeRoutes(vars: CoreVars, rpc: CompositeRpcRouter, onShutdown?: () 
     })
     .get(
       RPC_WS_PATH,
-      rpcWebsocketRoute(rpc, (message) => logError(`[core] ${message}`)),
+      rpcWebsocketRoute(rpc, {upgrade: upgradeWebSocket, onError: (message) => logError(`[core] ${message}`)}),
     )
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)

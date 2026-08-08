@@ -64,11 +64,11 @@ function buildRouter(subscribe: (signal: AbortSignal) => AsyncGenerator<StreamCh
     sessions: {
       list: os.sessions.list.handler(() => [sessionRow({id: 'conciv_1'})]),
       create: os.sessions.create.handler(() => ({sessionId: 'conciv_2'})),
-      compact: os.sessions.compact.handler(() => ({ok: true as const})),
+      compact: os.sessions.compact.handler((): {ok: true} => ({ok: true})),
     },
     drafts: {
       get: os.drafts.get.handler(() => null),
-      set: os.drafts.set.handler(() => ({ok: true as const})),
+      set: os.drafts.set.handler((): {ok: true} => ({ok: true})),
     },
     markers: {
       list: os.markers.list.handler(() => []),
@@ -84,13 +84,13 @@ function buildRouter(subscribe: (signal: AbortSignal) => AsyncGenerator<StreamCh
     },
     chat: {
       subscribe: os.chat.subscribe.handler(({signal}) => subscribe(signal ?? new AbortController().signal)),
-      stop: os.chat.stop.handler(() => ({ok: true as const})),
-      send: os.chat.send.handler(() => {
+      stop: os.chat.stop.handler((): {ok: true} => ({ok: true})),
+      send: os.chat.send.handler((): {ok: true; runId: string} => {
         queueMicrotask(() => {
           stream.push({type: EventType.RUN_STARTED, threadId: 'conciv_1', runId: RUN_ID})
           stream.push({type: EventType.RUN_FINISHED, threadId: 'conciv_1', runId: RUN_ID})
         })
-        return {ok: true as const, runId: RUN_ID}
+        return {ok: true, runId: RUN_ID}
       }),
     },
   }

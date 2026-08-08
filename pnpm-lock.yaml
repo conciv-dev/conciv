@@ -1671,6 +1671,12 @@ importers:
       '@orpc/client':
         specifier: ^1.14.7
         version: 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/server':
+        specifier: ^1.14.7
+        version: 1.14.7(@opentelemetry/api@1.9.1)(crossws@0.4.10(srvx@0.11.22))(ws@8.21.0)
+      '@orpc/standard-server-peer':
+        specifier: ^1.14.7
+        version: 1.14.7(@opentelemetry/api@1.9.1)
       '@solid-primitives/event-listener':
         specifier: ^2.4.6
         version: 2.4.6(solid-js@1.9.14)
@@ -1728,9 +1734,6 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
-      '@hono/node-server':
-        specifier: 2.0.8
-        version: 2.0.8(hono@4.12.27)
       '@orpc/client':
         specifier: ^1.14.7
         version: 1.14.7(@opentelemetry/api@1.9.1)

@@ -130,10 +130,10 @@ describe('whiteboard router', () => {
       x: 3,
       y: 4,
       elementId: null,
-      pinState: 'locked' as const,
+      pinState: 'locked',
       anchorX: null,
       anchorY: null,
-    }
+    } satisfies Parameters<typeof client.pins.insert>[0]
     expect(await wsClient.pins.insert(pin)).toEqual(pin)
     expect(await client.pins.list({room: 'ws-room'})).toEqual([pin])
     socket.close()

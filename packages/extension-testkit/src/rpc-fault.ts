@@ -9,10 +9,10 @@ export type RpcFaultInjector = {repair: () => void}
 
 export async function failRpcCalls(
   page: Page,
-  opts: {path: readonly string[]; status?: number},
+  options: {path: readonly string[]; status?: number},
 ): Promise<RpcFaultInjector> {
-  const status = opts.status ?? 500
-  const httpPath = toHttpPath(opts.path)
+  const status = options.status ?? 500
+  const httpPath = toHttpPath(options.path)
   const broken = {value: true}
 
   await page.route(
@@ -29,7 +29,7 @@ export async function failRpcCalls(
     socket.onMessage((message) => {
       outbound.tail = outbound.tail.then(async () => {
         const frame = await decodeRpcFrame(message, 'outbound')
-        if (!broken.value || frame.phase !== 'request' || !frame.path.endsWith(httpPath)) {
+        if (!broken.value || frame.phase !== 'request' || frame.procedurePath.join('/') !== options.path.join('/')) {
           server.send(message)
           return
         }
