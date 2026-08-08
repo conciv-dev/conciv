@@ -14,6 +14,7 @@ import {makeAskGate, requiresApproval} from '../../chat/gate.js'
 import {rowById} from '../../chat/session-rows.js'
 import {pageQueryStream} from '../../page-bus.js'
 import {symbolicateFrames} from '../../editor/symbolicate.js'
+import {engineStaleness} from '../../lib/engine-stamp.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
 import {os, type RpcDeps} from './mount.js'
@@ -233,6 +234,7 @@ export function makeRpcRouter(deps: RpcDeps) {
         listCommands(chat, {sessionId: input.sessionId, origin: context.origin}),
       ),
       tools: os.meta.tools.handler(() => ({tools: deps.tools})),
+      engine: os.meta.engine.handler(() => engineStaleness()),
     },
   })
 }

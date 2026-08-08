@@ -71,6 +71,16 @@ export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
 
 export const EditorOpenInputSchema = z.object({file: z.string(), line: z.number().int().min(1).optional()})
 
+export const EngineStalenessSchema = z.object({
+  stale: z.boolean(),
+  changed: z.array(z.string()),
+  tracked: z.array(z.string()),
+  bootedAt: z.number(),
+  fingerprint: z.string(),
+})
+
+export type EngineStaleness = z.infer<typeof EngineStalenessSchema>
+
 export const contract = {
   sessions: {
     list: oc.input(z.object({includeHidden: z.boolean().optional()}).nullish()).output(z.array(SessionMetaSchema)),
@@ -168,5 +178,6 @@ export const contract = {
     models: oc.output(ChatModelsSchema),
     commands: oc.input(z.object({sessionId: z.string().optional()})).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
+    engine: oc.output(EngineStalenessSchema),
   },
 }

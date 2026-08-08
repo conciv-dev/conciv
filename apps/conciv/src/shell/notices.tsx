@@ -6,7 +6,7 @@ export type NoticeTone = 'info' | 'success' | 'warn' | 'danger'
 
 export type NoticeAction = {label: string; run: () => void}
 
-export type NoticeOptions = {key?: string; tone?: NoticeTone; action?: NoticeAction}
+export type NoticeOptions = {key?: string; tone?: NoticeTone; action?: NoticeAction; persist?: boolean}
 
 export type Notify = (message: string, options?: NoticeOptions) => void
 
@@ -36,12 +36,13 @@ export const toaster = createToaster({placement: 'bottom', gap: 8, max: STANDING
 
 export const notify: Notify = (message, options = {}) => {
   const action = options.action
+  const standing = options.persist === true || action !== undefined
   toaster.create({
     ...(options.key ? {id: options.key} : {}),
     ...(action ? {action: {label: action.label, onClick: action.run}} : {}),
     title: message,
     type: TOAST_TYPE[options.tone ?? 'info'],
-    duration: action ? Number.POSITIVE_INFINITY : FUSE_MS,
+    duration: standing ? Number.POSITIVE_INFINITY : FUSE_MS,
   })
 }
 
