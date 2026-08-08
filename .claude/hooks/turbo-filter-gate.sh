@@ -13,8 +13,13 @@ set -euo pipefail
 # `dependsOn: ["^build"]`, so dependencies are still BUILT, just not re-tested.
 #
 # The LEADING form `--filter=...pkg` is the dependents selector and is allowed.
+# `--filter=...pkg...` combines both forms and still expands dependencies, so
+# it is rejected too: only a filter with no trailing `...` is allowed.
 # `build` with a trailing `...` is allowed (30 vs 28 tasks, not worth blocking).
 # Unfiltered runs (the root `pnpm test` scripts) and `--dry` runs are allowed.
+# A compound command (`&&`, `;`, `||`, `|`) is split and each `turbo run`
+# invocation in it is checked independently, with its own task list and its
+# own filters.
 # Anything unparseable fails OPEN: a gate that blocks on ambiguity is worse than
 # no gate.
 
@@ -24,42 +29,46 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 INPUT="$(cat)"
-CMD="$(jq -r '.tool_input.command // empty' <<<"$INPUT")"
+CMD="$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || true)"
 
 [ -n "$CMD" ] || exit 0
 
 printf '%s\n' "$CMD" | grep -Eq '(^|[[:space:];|&()])turbo[[:space:]]+run([[:space:]]|$)' || exit 0
 
-if printf '%s\n' "$CMD" | grep -Eq '(^|[[:space:]])--dry(-run)?([=[:space:]]|$)'; then
-  exit 0
-fi
-
-TASKS="$(printf '%s\n' "$CMD" | sed -E 's/.*turbo[[:space:]]+run[[:space:]]+//; s/[[:space:]]+-.*//')"
-printf '%s\n' "$TASKS" | grep -Eqw 'test|typecheck' || exit 0
-
-SELECTORS="$(printf '%s\n' "$CMD" | grep -oE -- '--filter[=[:space:]]+[^[:space:]]+' | sed -E "s/--filter[=[:space:]]+//; s/^['\"]//; s/['\"]$//" || true)"
-[ -n "$SELECTORS" ] || exit 0
-
 OFFENDERS=""
-while IFS= read -r sel; do
-  [ -n "$sel" ] || continue
-  case "$sel" in
-    ...*) continue ;;
-  esac
-  case "$sel" in
-    *...) OFFENDERS="${OFFENDERS}${sel}"$'\n' ;;
-  esac
-done <<<"$SELECTORS"
+
+INVOCATIONS="$(printf '%s\n' "$CMD" | sed -E 's/&&|\|\||[;|]/\n/g')"
+
+while IFS= read -r INVOCATION; do
+  printf '%s\n' "$INVOCATION" | grep -Eq '(^|[[:space:];|&()])turbo[[:space:]]+run([[:space:]]|$)' || continue
+
+  if printf '%s\n' "$INVOCATION" | grep -Eq '(^|[[:space:]])--dry(-run)?([=[:space:]]|$)'; then
+    continue
+  fi
+
+  TASKS="$(printf '%s\n' "$INVOCATION" | sed -E 's/.*turbo[[:space:]]+run[[:space:]]+//; s/[[:space:]]+-.*//')"
+  printf '%s\n' "$TASKS" | grep -Eqw 'test|typecheck' || continue
+
+  SELECTORS="$(printf '%s\n' "$INVOCATION" | grep -oE -- '--filter[=[:space:]]+[^[:space:]]+' | sed -E "s/--filter[=[:space:]]+//; s/^['\"]//; s/['\"]\$//" || true)"
+  [ -n "$SELECTORS" ] || continue
+
+  while IFS= read -r selector; do
+    [ -n "$selector" ] || continue
+    case "$selector" in
+      *...) OFFENDERS="${OFFENDERS}${selector}"$'\n' ;;
+    esac
+  done <<<"$SELECTORS"
+done <<<"$INVOCATIONS"
 
 [ -n "$OFFENDERS" ] || exit 0
 
 FIXED="$(printf '%s\n' "$CMD" | sed -E 's/(--filter[=[:space:]]+["'"'"']?[^[:space:]"'"'"']+)\.\.\.(["'"'"']?)/\1\2/g')"
 
 {
-  echo "turbo-filter-gate: BLOCKED — trailing '...' on a test/typecheck filter."
+  echo "turbo-filter-gate: BLOCKED: trailing '...' on a test/typecheck filter."
   echo
   printf 'Rejected selector(s): %s' "$OFFENDERS"
-  echo "In turbo, 'pkg...' means the package AND ITS DEPENDENCIES (upstream) — NOT its"
+  echo "In turbo, 'pkg...' means the package AND ITS DEPENDENCIES (upstream), NOT its"
   echo "dependents. On this repo that is 28 real test suites instead of 1."
   echo
   echo "Dependencies are still built without it: build/test/typecheck all declare"
@@ -69,7 +78,7 @@ FIXED="$(printf '%s\n' "$CMD" | sed -E 's/(--filter[=[:space:]]+["'"'"']?[^[:spa
   echo "  $FIXED"
   echo
   echo "If you truly want DEPENDENTS (did I break my consumers?), that is the leading"
-  echo "form --filter=...<pkg> — and it belongs to the landing gate, not a package gate."
+  echo "form --filter=...<pkg>, and it belongs to the landing gate, not a package gate."
 } >&2
 
 exit 2
