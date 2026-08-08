@@ -70,7 +70,7 @@ export {MountedExtension, MountedSurface, MountedView} from './mount-extension.j
 export type {MountedExtensionProps, MountedSurfaceProps, MountedViewProps} from './mount-extension.js'
 export {ensureEffectsSurface, openSource, EFFECTS_SURFACE_ATTR} from './client-host.js'
 export {makeExtRpcClient} from './ext-rpc.js'
-export type {ExtRpcClientOpts, ExtRpcContext} from './ext-rpc.js'
+export type {ExtRpcContext} from './ext-rpc.js'
 export {subscriptionIterator} from './server-stream.js'
 export {pageVerbError, isPageVerbError} from './page-errors.js'
 export type {PageVerbError} from './page-errors.js'

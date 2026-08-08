@@ -7,6 +7,8 @@ export type ProxyCore = {
   port: number
   requestCount: () => number
   wsConnectionCount: () => number
+  trafficCount: () => number
+  dropConnections: () => void
   close: () => Promise<void>
 }
 
@@ -19,7 +21,7 @@ function handshakeResponse(upstream: IncomingMessage): string {
   return [statusLine, ...headers, '', ''].join('\r\n')
 }
 
-export async function proxyTo(targetBase: string): Promise<ProxyCore> {
+export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean} = {}): Promise<ProxyCore> {
   const target = new URL(targetBase)
   let count = 0
   let upgrades = 0
@@ -47,6 +49,10 @@ export async function proxyTo(targetBase: string): Promise<ProxyCore> {
   })
   server.on('upgrade', (req, clientSocket: Duplex, head: Buffer) => {
     upgrades += 1
+    if (opts.blockUpgrades) {
+      clientSocket.destroy()
+      return
+    }
     piped.add(clientSocket)
     clientSocket.on('close', () => piped.delete(clientSocket))
     const proxyReq = httpRequest({
@@ -76,6 +82,11 @@ export async function proxyTo(targetBase: string): Promise<ProxyCore> {
     port,
     requestCount: () => count,
     wsConnectionCount: () => upgrades,
+    trafficCount: () => count + upgrades,
+    dropConnections: () => {
+      for (const socket of piped) socket.destroy()
+      piped.clear()
+    },
     close: async () => {
       for (const socket of piped) socket.destroy()
       piped.clear()

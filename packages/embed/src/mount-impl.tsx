@@ -81,13 +81,14 @@ function mountedClientEffects(router: MountedRouter): ClientEffect[] {
   )
 }
 
-async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
-  const {rpc, rebind: rebindClient} = makeRebindableRpcClient(config.apiBase)
+function bootNormal(config: BootNormalConfig): BootResult {
+  const {rpc, rebind: rebindClient} = makeRebindableRpcClient(config.apiBase, {transport: config.settings.transport})
 
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
   const [apiBase, setApiBase] = createSignal(config.apiBase)
 
-  const storage = await makeNavigationStorage(rpc)
+  const restore: {apply: (href: string) => void} = {apply: () => {}}
+  const storage = makeNavigationStorage(rpc, (href) => restore.apply(href))
   const hostRouter = window.__TSR_ROUTER__
   const router = createConcivRouter({
     rpc,
@@ -112,6 +113,7 @@ async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
   let plane = startPagePlane({rpc, document, driver})
 
   const rebind = (nextApiBase: string): void => {
+    storage.dispose()
     plane.dispose()
     rebindClient(nextApiBase)
     setApiBase(nextApiBase)
@@ -120,7 +122,10 @@ async function bootNormal(config: BootNormalConfig): Promise<BootResult> {
     setConnectionGeneration((generation) => generation + 1)
   }
 
+  restore.apply = (href) => void router.navigate({href, replace: true})
+
   const disposers = [
+    storage.dispose,
     () => plane.dispose(),
     disposeApp,
     () => disposeConcivRouter(router),
@@ -138,7 +143,7 @@ type BootConnectConfig = {
 }
 
 function bootConnect(config: BootConnectConfig): BootResult {
-  const deferred = makeDeferredRpcClient()
+  const deferred = makeDeferredRpcClient({transport: config.settings.transport})
 
   let boundApiBase: string | undefined
   let planeDispose: (() => void) | undefined

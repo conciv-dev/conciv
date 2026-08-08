@@ -2,28 +2,25 @@ import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
 import {ClientRetryPlugin, type ClientRetryPluginContext} from '@orpc/client/plugins'
 import type {AnyRouter, RouterClient} from '@orpc/server'
+import {browserRpcConnection} from '@conciv/contract'
 
 export type ExtRpcContext = ClientRetryPluginContext
 
-export type ExtRpcClientOpts = {
-  onRetry?: (attempt: number) => void | ((success: boolean) => void)
+function nodeFetchClient<TRouter extends AnyRouter>(
+  apiBase: string,
+  extensionSlug: string,
+): RouterClient<TRouter, ExtRpcContext> {
+  const link = new RPCLink<ExtRpcContext>({
+    url: `${apiBase}/rpc/ext/${extensionSlug}`,
+    plugins: [new ClientRetryPlugin<ExtRpcContext>()],
+  })
+  return createORPCClient(link)
 }
 
 export function makeExtRpcClient<TRouter extends AnyRouter>(
   apiBase: string,
   extensionSlug: string,
-  opts: ExtRpcClientOpts = {},
 ): RouterClient<TRouter, ExtRpcContext> {
-  const path = `${apiBase}/rpc/ext/${extensionSlug}`
-  const link = new RPCLink<ExtRpcContext>({
-    url: typeof location === 'undefined' ? path : new URL(path, location.href).toString(),
-    plugins: [
-      new ClientRetryPlugin({
-        default: {
-          onRetry: (options) => opts.onRetry?.(options.attemptIndex),
-        },
-      }),
-    ],
-  })
-  return createORPCClient(link)
+  if (typeof location === 'undefined') return nodeFetchClient<TRouter>(apiBase, extensionSlug)
+  return createORPCClient(browserRpcConnection(apiBase).link, {path: ['ext', extensionSlug]})
 }

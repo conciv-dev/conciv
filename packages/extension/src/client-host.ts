@@ -1,4 +1,4 @@
-import {makeRpcClient} from '@conciv/contract'
+import {makeBrowserRpcClient} from '@conciv/contract'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 
@@ -38,7 +38,7 @@ export function ensureEffectsSurface(options?: {styles?: string}): HTMLElement {
 }
 
 export async function openSource(apiBase: string, locateResult: LocateResult): Promise<OpenSourceResult> {
-  const rpc = makeRpcClient(apiBase)
+  const rpc = makeBrowserRpcClient(apiBase)
   try {
     if (locateResult.source) {
       await rpc.editor.open({file: locateResult.source.file, line: locateResult.source.line})

@@ -1,4 +1,4 @@
-import type {DraftRow, SessionMeta} from '@conciv/contract'
+import {browserRpcConnection, closeBrowserRpcConnection, type DraftRow, type SessionMeta} from '@conciv/contract'
 import '../../src/lib/api-base.js'
 
 export const CORE_BASE = 'http://conciv.test'
@@ -102,6 +102,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
       }),
     restore: () => {
       globalThis.fetch = realFetch
+      closeBrowserRpcConnection(CORE_BASE)
       if (typeof window !== 'undefined') delete window.__CONCIV_API_BASE__
     },
   }
@@ -176,5 +177,6 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     scheduleIdle()
     return response
   }
+  browserRpcConnection(CORE_BASE, 'fetch')
   return core
 }

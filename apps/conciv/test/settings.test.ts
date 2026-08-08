@@ -8,6 +8,7 @@ describe('parseConcivSettings', () => {
       quickTerminal: {enabled: true, hotkeys: ['Mod+`']},
       defaultOpen: false,
       launcher: 'mascot',
+      transport: 'auto',
     }
     expect(parseConcivSettings('')).toEqual(expected)
     expect(parseConcivSettings('{nope')).toEqual(expected)

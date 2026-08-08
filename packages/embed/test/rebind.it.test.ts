@@ -3,7 +3,7 @@ import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
-import {setNavigation, waitForNavigationWrite} from './helpers/navigation.js'
+import {rpcObserverFor, setNavigation, waitForNavigationWrite} from './helpers/navigation.js'
 import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 
 const ASSISTANT_TEXT = 'Rebound reply'
@@ -28,6 +28,11 @@ afterAll(async () => {
 beforeEach(async () => {
   expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
 })
+
+function observedPage(page: Page): Page {
+  rpcObserverFor(page)
+  return page
+}
 
 async function mountHandle(page: Page, apiBase: string): Promise<void> {
   await page.evaluate((base) => {
@@ -72,7 +77,7 @@ describe('handle.rebind survives same-core port drift', () => {
   })
 
   it('re-points rpc and SSE to the new port, keeps the panel open and the session', async () => {
-    const page = await browser.newPage()
+    const page = observedPage(await browser.newPage())
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
@@ -91,7 +96,7 @@ describe('handle.rebind survives same-core port drift', () => {
     const sessionBefore = await panelSession()
     expect(sessionBefore).not.toBeNull()
 
-    const beforeB = proxyB.requestCount()
+    const beforeB = proxyB.trafficCount()
     await page.evaluate((base) => window.concivTestHandle.rebind(base), proxyB.base)
     await proxyA.close()
 
@@ -105,7 +110,7 @@ describe('handle.rebind survives same-core port drift', () => {
 
     await sendTurn(page, 'second message after the drift')
 
-    expect(proxyB.requestCount()).toBeGreaterThan(beforeB)
+    expect(proxyB.trafficCount()).toBeGreaterThan(beforeB)
     expect(await panelSession()).toBe(sessionBefore)
     expect(sessionBefore).not.toBeNull()
     expect(pageErrors).toEqual([])
@@ -127,7 +132,7 @@ describe('handle.rebind remounts extension surfaces on the new core', () => {
   })
 
   it('rebuilds the global surface and the open extension view against the new base', async () => {
-    const page = await browser.newPage()
+    const page = observedPage(await browser.newPage())
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
@@ -143,14 +148,14 @@ describe('handle.rebind remounts extension surfaces on the new core', () => {
     await probeTab.click()
     await expectLocator(viewProbe).toHaveText(proxyC.base, {timeout: 30_000})
 
-    const beforeD = proxyD.requestCount()
+    const beforeD = proxyD.trafficCount()
     await page.evaluate((base) => window.concivTestHandle.rebind(base), proxyD.base)
     await proxyC.close()
 
     await expectLocator(surfaceProbe).toHaveText(proxyD.base, {timeout: 15_000})
     await expectLocator(viewProbe).toHaveText(proxyD.base, {timeout: 15_000})
     await expectLocator(probeTab).toHaveAttribute('aria-selected', 'true', {timeout: 15_000})
-    expect(proxyD.requestCount()).toBeGreaterThan(beforeD)
+    expect(proxyD.trafficCount()).toBeGreaterThan(beforeD)
     expect(pageErrors).toEqual([])
     await page.close()
   })

@@ -8,6 +8,7 @@ import {
   freezeClock,
   holdFirstNavigationWrite,
   setNavigation,
+  rpcObserverFor,
   waitForNavigationWrite,
   waitForNavigationWriteCarrying,
 } from './helpers/navigation.js'
@@ -56,8 +57,13 @@ beforeEach(async () => {
   expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
 })
 
+function observedPage(page: Page): Page {
+  rpcObserverFor(page)
+  return page
+}
+
 async function openPage(): Promise<Page> {
-  const page = await browser.newPage()
+  const page = observedPage(await browser.newPage())
   await page.goto(host.base, {waitUntil: 'domcontentloaded'})
   return page
 }
@@ -73,7 +79,7 @@ describe('embed boots the conciv app against a real core', () => {
   it('canonicalizes a restored panel route that carries a raw harness session id', async () => {
     const rawHarnessId = '43548fd1-0000-4220-acf0-014b10b5815f'
     expect(await setNavigation(kit, [{href: `/panel/${rawHarnessId}`}])).toBe(true)
-    const page = await browser.newPage()
+    const page = observedPage(await browser.newPage())
     const canonicalized = waitForNavigationWrite(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await canonicalized
@@ -85,7 +91,7 @@ describe('embed boots the conciv app against a real core', () => {
   })
 
   it('a widget navigation write that lands after a newer one loses, even in flight', async () => {
-    const page = await browser.newPage()
+    const page = observedPage(await browser.newPage())
     const held = await holdFirstNavigationWrite(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
@@ -102,7 +108,7 @@ describe('embed boots the conciv app against a real core', () => {
 
   it('a reloaded page outranks the previous page in-flight write when both clocks read the same', async () => {
     const frozen = Date.now()
-    const before = await browser.newPage()
+    const before = observedPage(await browser.newPage())
     await freezeClock(before, frozen)
     const held = await holdFirstNavigationWrite(before)
     expect((await kit.rpc.navigation.set({entries: [{href: '/'}], index: 0, updatedAt: frozen + 5_000})).applied).toBe(
@@ -112,7 +118,7 @@ describe('embed boots the conciv app against a real core', () => {
     await openPanel(before)
     await held.arrived
 
-    const after = await browser.newPage()
+    const after = observedPage(await browser.newPage())
     await freezeClock(after, frozen)
     await after.goto(host.base, {waitUntil: 'domcontentloaded'})
     await openPanel(after)
@@ -167,7 +173,7 @@ describe('embed boots the conciv app against a real core', () => {
   })
 
   it('a reload after closing the panel boots shut', async () => {
-    const first = await browser.newPage()
+    const first = observedPage(await browser.newPage())
     const opened = waitForNavigationWrite(first)
     await first.goto(host.base, {waitUntil: 'domcontentloaded'})
     await openPanel(first)
@@ -193,7 +199,7 @@ describe('embed boots the conciv app against a real core', () => {
   })
 
   it('opening and closing the panel keeps the host page where the reader scrolled it', async () => {
-    const page = await browser.newPage()
+    const page = observedPage(await browser.newPage())
     await page.goto(longHost.base, {waitUntil: 'domcontentloaded'})
     const heading = page.getByRole('heading', {name: HOST_HEADING})
     const headingTop = async () => (await heading.boundingBox())?.y ?? Number.NaN
@@ -340,7 +346,7 @@ describe('embed at a phone viewport', () => {
 describe('embed settings', () => {
   it('modal disabled renders no fab', async () => {
     const disabledHost = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"modal": false}'}))
-    const page = await browser.newPage()
+    const page = observedPage(await browser.newPage())
     await page.goto(disabledHost.base, {waitUntil: 'domcontentloaded'})
     await page.getByRole('status').waitFor({state: 'attached', timeout: 15_000})
     expect(await page.getByRole('button', {name: 'Open conciv chat'}).count()).toBe(0)
