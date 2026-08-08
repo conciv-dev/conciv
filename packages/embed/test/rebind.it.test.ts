@@ -160,3 +160,46 @@ describe('handle.rebind remounts extension surfaces on the new core', () => {
     await page.close()
   })
 })
+
+describe('handle.rebind quiesces the old connection before tearing consumers down', () => {
+  let proxyE: ProxyCore
+  let proxyF: ProxyCore
+
+  beforeAll(async () => {
+    proxyE = await proxyTo(kit.base)
+    proxyF = await proxyTo(kit.base)
+  })
+
+  afterAll(async () => {
+    await proxyE.close()
+    await proxyF.close()
+  })
+
+  it('writes nothing more to the old core once rebind is called', async () => {
+    const page = observedPage(await browser.newPage())
+    const framesSentPerSocket: number[] = []
+    page.on('websocket', (socket) => {
+      if (!socket.url().includes('/rpc-ws')) return
+      const index = framesSentPerSocket.length
+      framesSentPerSocket.push(0)
+      socket.on('framesent', () => {
+        framesSentPerSocket[index] = (framesSentPerSocket[index] ?? 0) + 1
+      })
+    })
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+
+    await mountHandle(page, proxyE.base)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+
+    const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
+    await expectLocator(apiBaseProbe).toHaveText(proxyE.base, {timeout: 30_000})
+
+    const sentBeforeRebind = framesSentPerSocket[0] ?? 0
+    await page.evaluate((base) => window.concivTestHandle.rebind(base), proxyF.base)
+    await expectLocator(apiBaseProbe).toHaveText(proxyF.base, {timeout: 30_000})
+
+    expect(framesSentPerSocket[0]).toBe(sentBeforeRebind)
+    await page.close()
+  })
+})

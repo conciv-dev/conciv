@@ -113,9 +113,9 @@ function bootNormal(config: BootNormalConfig): BootResult {
   let plane = startPagePlane({rpc, document, driver})
 
   const rebind = (nextApiBase: string): void => {
+    rebindClient(nextApiBase)
     storage.dispose()
     plane.dispose()
-    rebindClient(nextApiBase)
     setApiBase(nextApiBase)
     plane = startPagePlane({rpc, document, driver})
     router.options.context.queryClient.clear()

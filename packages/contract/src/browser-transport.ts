@@ -22,7 +22,6 @@ const CONNECTION_LOSS_RETRY_DELAY_MS = 250
 
 const SOCKET_OPEN = 1
 const SOCKET_CONNECTING = 0
-const SOCKET_DISPOSED = 3
 
 export type BrowserRpcConnection = {
   link: ClientLink<RpcClientContext>
@@ -70,6 +69,20 @@ function fetchLink(apiBase: string, alive: () => boolean): ClientLink<RpcClientC
 
 type SocketDelegate = LinkWebsocketClientOptions['websocket']
 
+const CLOSED_CONNECTION_MESSAGE = 'conciv rpc connection is closed'
+
+function isPeerRequestFrame(data: string | ArrayBufferLike | Blob | ArrayBufferView): boolean {
+  if (typeof data !== 'string') return true
+  const frame: unknown = JSON.parse(data)
+  if (typeof frame !== 'object' || frame === null) return true
+  return !('t' in frame)
+}
+
+function disposeSocket(socket: ReconnectingWebSocket): void {
+  socket.dispatchEvent(new Event('close'))
+  socket.close()
+}
+
 function socketDelegate(socket: ReconnectingWebSocket, alive: () => boolean): SocketDelegate {
   return {
     addEventListener(
@@ -87,7 +100,10 @@ function socketDelegate(socket: ReconnectingWebSocket, alive: () => boolean): So
       socket.removeEventListener(type, listener, options)
     },
     send(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
-      if (!alive()) return
+      if (!alive()) {
+        if (isPeerRequestFrame(data)) throw new Error(CLOSED_CONNECTION_MESSAGE)
+        return
+      }
       if (typeof data === 'string' || data instanceof Blob || data instanceof ArrayBuffer) {
         socket.send(data)
         return
@@ -98,7 +114,7 @@ function socketDelegate(socket: ReconnectingWebSocket, alive: () => boolean): So
       socket.send(copy)
     },
     get readyState() {
-      if (!alive()) return SOCKET_DISPOSED
+      if (!alive()) return SOCKET_OPEN
       return socket.readyState === SOCKET_OPEN ? SOCKET_OPEN : SOCKET_CONNECTING
     },
   }
@@ -148,8 +164,8 @@ function probedConnection(apiBase: string): BrowserRpcConnection {
     link: new DynamicLink<RpcClientContext>(() => settled),
     transport: () => state.transport,
     close: () => {
+      disposeSocket(socket)
       state.open = false
-      socket.close()
     },
   }
 }
@@ -174,8 +190,8 @@ function pinnedConnection(apiBase: string, transport: RpcTransport): BrowserRpcC
     }),
     transport: () => 'websocket',
     close: () => {
+      disposeSocket(socket)
       state.open = false
-      socket.close()
     },
   }
 }

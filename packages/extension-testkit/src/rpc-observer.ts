@@ -306,3 +306,13 @@ export function observeRpc(page: Page): RpcObserver {
     },
   }
 }
+
+export function httpRpcRequestUrls(page: Page): {urls: string[]; dispose: () => void} {
+  const urls: string[] = []
+  const onRequest = (request: PageRequest): void => {
+    const pathname = new URL(request.url()).pathname
+    if (pathname.startsWith(RPC_HTTP_MARKER) || pathname === '/rpc') urls.push(request.url())
+  }
+  page.on('request', onRequest)
+  return {urls, dispose: () => page.off('request', onRequest)}
+}

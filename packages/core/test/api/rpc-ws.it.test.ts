@@ -35,6 +35,8 @@ function makeProbeRouter() {
 
 type ProbeRouter = ReturnType<typeof makeProbeRouter>
 
+type SessionContext = {session: string}
+
 const probeExtension = defineExtension({name: 'Router Probe'}).server(() => ({
   context: {},
   router: makeProbeRouter(),
@@ -276,4 +278,26 @@ test('two extension names that normalize to the same rpc slug are rejected at mo
   const first = defineExtension({name: 'Slug Probe'}).server(() => ({context: {}, router: makeProbeRouter()}))
   const second = defineExtension({name: 'slug-probe'}).server(() => ({context: {}, router: makeProbeRouter()}))
   await expect(boot({extensions: [first, second]})).rejects.toThrow(/slug-probe/)
+}, 30_000)
+
+test('two callers sharing one rpc socket each get their own per-call session header', async () => {
+  const served = await boot()
+  const socket = new WebSocket(`${served.wsBase}/rpc-ws`)
+  const closed = new Promise<void>((resolve) => socket.on('close', () => resolve()))
+  cleanups.push(async () => {
+    socket.close()
+    await closed
+  })
+  const link = new RPCLink<SessionContext>({
+    websocket: socket,
+    headers: ({context}) => ({[CONCIV_SESSION_HEADER]: context.session}),
+  })
+  const client = createORPCClient<RouterClient<ProbeRouter, SessionContext>>(link, {path: ['ext', 'router-probe']})
+  await whenOpen(socket)
+  const [first, second] = await Promise.all([
+    client.ping({value: 'first'}, {context: {session: 'conciv_ws_caller_one'}}),
+    client.ping({value: 'second'}, {context: {session: 'conciv_ws_caller_two'}}),
+  ])
+  expect(first).toEqual({pong: 'first', origin: served.base, session: 'conciv_ws_caller_one'})
+  expect(second).toEqual({pong: 'second', origin: served.base, session: 'conciv_ws_caller_two'})
 }, 30_000)
