@@ -22,31 +22,42 @@ set -euo pipefail
 # own filters.
 # Anything unparseable fails OPEN: a gate that blocks on ambiguity is worse than
 # no gate.
+#
+# Quoted text (a string literal, a heredoc line, a logged message) is never a
+# real invocation; the turbo-run detection and the task-list extraction run
+# against the command with quoted spans stripped out, so a command that only
+# CONTAINS the words "turbo run ..." inside quotes does not trip the gate.
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "turbo-filter-gate: jq not on PATH, skipping check." >&2
   exit 0
 fi
 
+strip_quoted() {
+  sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g"
+}
+
 INPUT="$(cat)"
 CMD="$(jq -r '.tool_input.command // empty' <<<"$INPUT" 2>/dev/null || true)"
 
 [ -n "$CMD" ] || exit 0
 
-printf '%s\n' "$CMD" | grep -Eq '(^|[[:space:];|&()])turbo[[:space:]]+run([[:space:]]|$)' || exit 0
+STRIPPED_CMD="$(printf '%s\n' "$CMD" | strip_quoted)"
+printf '%s\n' "$STRIPPED_CMD" | grep -Eq '(^|[[:space:];|&()])turbo[[:space:]]+run([[:space:]]|$)' || exit 0
 
 OFFENDERS=""
 
 INVOCATIONS="$(printf '%s\n' "$CMD" | sed -E 's/&&|\|\||[;|]/\n/g')"
 
 while IFS= read -r INVOCATION; do
-  printf '%s\n' "$INVOCATION" | grep -Eq '(^|[[:space:];|&()])turbo[[:space:]]+run([[:space:]]|$)' || continue
+  STRIPPED_INVOCATION="$(printf '%s\n' "$INVOCATION" | strip_quoted)"
+  printf '%s\n' "$STRIPPED_INVOCATION" | grep -Eq '(^|[[:space:];|&()])turbo[[:space:]]+run([[:space:]]|$)' || continue
 
   if printf '%s\n' "$INVOCATION" | grep -Eq '(^|[[:space:]])--dry(-run)?([=[:space:]]|$)'; then
     continue
   fi
 
-  TASKS="$(printf '%s\n' "$INVOCATION" | sed -E 's/.*turbo[[:space:]]+run[[:space:]]+//; s/[[:space:]]+-.*//')"
+  TASKS="$(printf '%s\n' "$STRIPPED_INVOCATION" | sed -E 's/.*turbo[[:space:]]+run[[:space:]]+//; s/[[:space:]]+-.*//')"
   printf '%s\n' "$TASKS" | grep -Eqw 'test|typecheck' || continue
 
   SELECTORS="$(printf '%s\n' "$INVOCATION" | grep -oE -- '--filter[=[:space:]]+[^[:space:]]+' | sed -E "s/--filter[=[:space:]]+//; s/^['\"]//; s/['\"]\$//" || true)"
