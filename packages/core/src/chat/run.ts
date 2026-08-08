@@ -494,20 +494,19 @@ async function failClaimedRun(deps: ChatDeps, runId: string, error: unknown): Pr
 }
 
 export function makeSend(deps: ChatDeps): Send {
-  return async (sessionId, runId, content) => {
-    const startedAt = deps.claimStartedAt()
-    const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
-    if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
-    const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
-      failClaimedRun(deps, runId, error),
-    )
-    await deps.liveRuns.serialize(sessionId, async () => {
+  return (sessionId, runId, content) =>
+    deps.liveRuns.serialize(sessionId, async () => {
+      const startedAt = deps.claimStartedAt()
+      const record = await deps.runs.createOrResume({runId, threadId: sessionId, startedAt})
+      if (record.threadId !== sessionId || record.startedAt !== startedAt) throw runIdTakenError(runId)
+      const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
+        failClaimedRun(deps, runId, error),
+      )
       await settleLiveRuns(deps, sessionId)
       launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+      return runId
     })
-    return runId
-  }
 }
 
 export type Compactor = {run: (sessionId: string) => Promise<void>}

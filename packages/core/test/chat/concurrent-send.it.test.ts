@@ -6,32 +6,25 @@ import {bootKit} from '../helpers/boot.js'
 import {userTexts} from '../helpers/snapshots.js'
 import {freshSubscriberSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 
-const GATE_MIME = 'application/x-conciv-send-race'
+const SLOW_MIME = 'application/x-conciv-send-slow-expand'
+const FAST_MIME = 'application/x-conciv-send-fast-expand'
+const SLOW_EXPANSION_MS = 250
 
-type Gate = {reached: number; open: Promise<void>; release: () => void}
-
-function makeGate(): Gate {
-  const gate: Gate = {reached: 0, open: Promise.resolve(), release: () => {}}
-  gate.open = new Promise<void>((resolve) => {
-    gate.release = resolve
-  })
-  return gate
-}
-
-function gateExtension(gate: Gate) {
-  const attachment = defineAttachment({mime: GATE_MIME})
-  attachment.server(async () => {
-    gate.reached += 1
-    await gate.open
+function pacedExtension() {
+  const slow = defineAttachment({mime: SLOW_MIME})
+  slow.server(async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, SLOW_EXPANSION_MS))
     return []
   })
-  return defineExtension({name: 'send-race', attachments: [attachment]}).server(() => ({context: {}}))
+  const fast = defineAttachment({mime: FAST_MIME})
+  fast.server(async () => [])
+  return defineExtension({name: 'send-pace', attachments: [slow, fast]}).server(() => ({context: {}}))
 }
 
-function gatedTurn(text: string) {
+function pacedTurn(text: string, mimeType: string) {
   return [
     {type: 'text' as const, content: text},
-    {type: 'document' as const, source: {type: 'data' as const, mimeType: GATE_MIME, value: 'e30='}},
+    {type: 'document' as const, source: {type: 'data' as const, mimeType, value: 'e30='}},
   ]
 }
 
@@ -41,12 +34,25 @@ async function collectChunks(source: AsyncIterable<StreamChunk>, into: StreamChu
   } catch {}
 }
 
-function runsStarted(chunks: StreamChunk[]): number {
-  return chunks.filter((chunk) => chunk.type === EventType.RUN_STARTED).length
+type RunEndChunk = Extract<StreamChunk, {type: EventType.RUN_FINISHED}>
+
+function isRunEnd(chunk: StreamChunk): chunk is RunEndChunk {
+  return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }
 
 function runsFinished(chunks: StreamChunk[]): number {
-  return chunks.filter((chunk) => chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls').length
+  return chunks.filter(isRunEnd).length
+}
+
+function peakLiveRuns(chunks: StreamChunk[]): number {
+  const open = new Set<string>()
+  const tally = {peak: 0}
+  for (const chunk of chunks) {
+    if (chunk.type === EventType.RUN_STARTED) open.add(chunk.runId)
+    if (isRunEnd(chunk)) open.delete(chunk.runId)
+    tally.peak = Math.max(tally.peak, open.size)
+  }
+  return tally.peak
 }
 
 describe('one live run per session (IT)', () => {
@@ -71,9 +77,8 @@ describe('one live run per session (IT)', () => {
   })
 
   it('T9: two sends released into the same tick never overlap as two live runs', {timeout: 60_000}, async () => {
-    const gate = makeGate()
     const harness = createFakeHarness({text: SCRIPTED_REPLY})
-    const kit = await bootKit({extensions: [gateExtension(gate)], firstChunkTimeoutMs: 500}, harness)
+    const kit = await bootKit({extensions: [pacedExtension()], firstChunkTimeoutMs: 500}, harness)
     sessions.adopt(kit)
     const sessionId = await kit.session()
     const seen: StreamChunk[] = []
@@ -81,19 +86,17 @@ describe('one live run per session (IT)', () => {
     const stream = await kit.rpc.chat.subscribe({sessionId}, {signal: watching.signal})
     void collectChunks(stream, seen)
 
-    harness.script.hold()
-    const first = kit.rpc.chat.send({runId: 'sametick-1', sessionId, content: gatedTurn('same tick first')})
-    const second = kit.rpc.chat.send({runId: 'sametick-2', sessionId, content: gatedTurn('same tick second')})
-    await until(() => gate.reached === 2, {hangGuardMs: 10_000})
-    gate.release()
-
-    await until(() => runsStarted(seen) >= 1, {hangGuardMs: 15_000, settleFor: 300})
-    expect(runsStarted(seen)).toBe(1)
-
-    harness.script.release()
+    const first = kit.rpc.chat.send({runId: 'sametick-1', sessionId, content: pacedTurn('same tick first', SLOW_MIME)})
+    const second = kit.rpc.chat.send({
+      runId: 'sametick-2',
+      sessionId,
+      content: pacedTurn('same tick second', FAST_MIME),
+    })
     await Promise.all([first, second])
     await until(() => runsFinished(seen) === 2, {hangGuardMs: 15_000})
     watching.abort()
+
+    expect(peakLiveRuns(seen)).toBe(1)
 
     const snapshot = await freshSubscriberSnapshot(kit, sessionId)
     expect(userTexts(snapshot)).toEqual(['same tick first', 'same tick second'])
