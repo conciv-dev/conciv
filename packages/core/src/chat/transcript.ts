@@ -12,13 +12,18 @@ import {
   type ConcivDb,
 } from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
-import {rowById} from './session-rows.js'
+import {nativeIdFor, rowById} from './session-rows.js'
 import {normalizeHistoryToolNames} from './tool-names.js'
 import {logError} from '../lib/debug.js'
 
-export function recoverInterruptedRuns(db: ConcivDb, harness: HarnessAdapter): void {
+export async function recoverInterruptedRuns(db: ConcivDb, harness: HarnessAdapter): Promise<void> {
   for (const sessionId of runSessions(db)) {
     if (!harness.capabilities.transcriptHistory) {
+      foldRunMessagesIntoHistory(db, sessionId)
+      continue
+    }
+    const nativeId = await nativeIdFor(db, sessionId)
+    if (nativeId === null) {
       foldRunMessagesIntoHistory(db, sessionId)
       continue
     }

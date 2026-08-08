@@ -4,9 +4,13 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {EventType} from '@tanstack/ai'
 import {createFakeHarness, createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
+import {openDb, runMessagesFor, sessionHistoryFor, setRunMessages} from '@conciv/db'
 import {bootCoreApp} from '../helpers/boot.js'
+import {requireClaude} from '../helpers/adapters.js'
 import {partTypes, userTexts} from '../helpers/snapshots.js'
 import {freshSubscriberSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
+import {recoverInterruptedRuns} from '../../src/chat/transcript.js'
+import {createRow} from '../../src/chat/session-rows.js'
 
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
@@ -70,5 +74,34 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
     const snapshot = await freshSubscriberSnapshot(kit, sessionId)
     expect(userTexts(snapshot)).toEqual(['look at this', 'then one', 'then two'])
     expect(partTypes(snapshot).filter((type) => type === 'image')).toHaveLength(1)
+  })
+
+  it('T7: an interrupted turn that never reached the CLI survives recovery on a transcriptHistory harness', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-durable-no-native-'))
+    roots.push(root)
+    const db = openDb(root)
+    const sessionId = 'conciv_no_native'
+    await createRow(db, {
+      id: sessionId,
+      harnessSessionId: null,
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: null,
+      model: null,
+      usage: null,
+      cwd: root,
+      deletedAt: null,
+    })
+    setRunMessages(db, sessionId, [
+      {id: 'u1', role: 'user', parts: [{type: 'text', content: 'turn interrupted before a native id landed'}]},
+    ])
+
+    await recoverInterruptedRuns(db, requireClaude())
+
+    expect(runMessagesFor(db, sessionId)).toBeNull()
+    const history = sessionHistoryFor(db, sessionId)
+    expect(history?.messages).toEqual([
+      {id: 'u1', role: 'user', parts: [{type: 'text', content: 'turn interrupted before a native id landed'}]},
+    ])
   })
 })
