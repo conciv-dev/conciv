@@ -12,6 +12,7 @@ import type {Compactor, Send} from '../../chat/run.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import {rpcConnectionContext, rpcHandlerOptions} from '@conciv/extension/rpc-mount'
+import {logError} from '../../lib/debug.js'
 import type {PageEnv} from '../../page-bus.js'
 import type {makeRpcRouter} from './router.js'
 
@@ -31,7 +32,7 @@ export type RpcDeps = {
 
 export const os = implement(contract).$context<RpcContext>()
 
-export type MountedExtensionRouter = {slug: string; router: AnyRouter}
+export type MountedExtensionRouter = {slug: string; extensionName: string; router: AnyRouter}
 
 export type CompositeRpcRouter = ReturnType<typeof makeRpcRouter> & {ext: Record<string, AnyRouter>}
 
@@ -39,6 +40,16 @@ export function makeCompositeRpcRouter(
   core: ReturnType<typeof makeRpcRouter>,
   extensions: readonly MountedExtensionRouter[],
 ): CompositeRpcRouter {
+  const owners = new Map<string, string>()
+  for (const entry of extensions) {
+    const existing = owners.get(entry.slug)
+    if (existing !== undefined) {
+      throw new Error(
+        `extension rpc slug collision: "${entry.slug}" is claimed by both "${existing}" and "${entry.extensionName}"`,
+      )
+    }
+    owners.set(entry.slug, entry.extensionName)
+  }
   return {...core, ext: Object.fromEntries(extensions.map((entry) => [entry.slug, entry.router]))}
 }
 
@@ -78,7 +89,11 @@ export function rpcWebsocketRoute(router: CompositeRpcRouter): MiddlewareHandler
         held.socket = ws
         const frame = peerFrame(event.data)
         if (frame === null) return
-        void handler.message(peer, frame, {context})
+        handler.message(peer, frame, {context}).catch((error: unknown) => {
+          logError(`[core] rpc ws frame rejected: ${String(error)}`)
+          handler.close(peer)
+          ws.close(1011, 'rpc frame rejected')
+        })
       },
       onClose: () => handler.close(peer),
     }

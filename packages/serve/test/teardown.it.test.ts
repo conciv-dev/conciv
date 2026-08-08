@@ -113,3 +113,22 @@ test('rejected upgrades leave no waiter behind for later clients', async () => {
   expect(await roundTrip(socket, 'still-here')).toBe('echo:still-here')
   await served.close()
 }, 20_000)
+
+test('a socket admitted while teardown is draining never blocks the close', async () => {
+  const served = await serveEcho({gracefulCloseMs: 500})
+  const early = connect(served.port)
+  await whenOpen(early)
+  const earlyClosed = whenClosed(early)
+  early.pause()
+  const closing = served.close()
+  const late = connect(served.port)
+  const lateSettled = new Promise<void>((resolve) => {
+    late.once('close', () => resolve())
+    late.once('error', () => resolve())
+  })
+  await closing
+  early.resume()
+  await earlyClosed
+  await lateSettled
+  expect(late.readyState).not.toBe(WebSocket.OPEN)
+}, 20_000)

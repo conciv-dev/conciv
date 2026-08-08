@@ -29,19 +29,22 @@ function boundPort(server: ServerType, fallback: number): number {
 }
 
 async function closeLiveSockets(wss: WebSocketServer, timeoutMs: number): Promise<void> {
-  const sockets = [...wss.clients]
-  if (sockets.length === 0) return
-  sockets.forEach((socket) => socket.close(SHUTTING_DOWN_CLOSE_CODE, 'server shutting down'))
   const deadline = AbortSignal.timeout(timeoutMs)
-  const settled = await Promise.allSettled(sockets.map((socket) => once(socket, 'close', {signal: deadline})))
-  if (settled.some((outcome) => outcome.status === 'rejected')) sockets.forEach((socket) => socket.terminate())
+  while (wss.clients.size > 0 && !deadline.aborted) {
+    const sockets = [...wss.clients]
+    sockets.forEach((socket) => socket.close(SHUTTING_DOWN_CLOSE_CODE, 'server shutting down'))
+    const settled = await Promise.allSettled(sockets.map((socket) => once(socket, 'close', {signal: deadline})))
+    if (settled.some((outcome) => outcome.status === 'rejected')) sockets.forEach((socket) => socket.terminate())
+  }
+  wss.clients.forEach((socket) => socket.terminate())
 }
 
 function closeServer(server: ServerType, wss: WebSocketServer, gracefulCloseMs: number): () => Promise<void> {
   return async () => {
+    const stopped = new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
     await closeLiveSockets(wss, gracefulCloseMs)
     if ('closeAllConnections' in server) server.closeAllConnections()
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    await stopped
   }
 }
 

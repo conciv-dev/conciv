@@ -452,7 +452,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const compositeRpc = makeCompositeRpcRouter(
     rpc,
-    mounted.flatMap((entry) => (entry.router ? [{slug: slug(entry.extensionName), router: entry.router}] : [])),
+    mounted.flatMap((entry) =>
+      entry.router ? [{slug: slug(entry.extensionName), extensionName: entry.extensionName, router: entry.router}] : [],
+    ),
   )
 
   const app = composeRoutes(

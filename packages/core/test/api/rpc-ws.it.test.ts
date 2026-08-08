@@ -10,7 +10,7 @@ import {createORPCClient, type NestedClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/websocket'
 import {os, type RouterClient} from '@orpc/server'
 import {serveHono} from '@conciv/serve'
-import {defineExtension, defineTool, makeExtRpcClient} from '@conciv/extension'
+import {defineExtension, defineTool, makeExtRpcClient, type AnyExtension} from '@conciv/extension'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
@@ -63,7 +63,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).toReversed()) await cleanup()
 })
 
-async function boot(opts: {token?: string} = {}): Promise<Booted> {
+async function boot(opts: {token?: string; extensions?: AnyExtension[]} = {}): Promise<Booted> {
   const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-ws-'))
   const cfg: ResolvedConcivConfig = {
     enabled: true,
@@ -82,7 +82,7 @@ async function boot(opts: {token?: string} = {}): Promise<Booted> {
     basePath: prefix,
     openInEditor: () => {},
     harness: requireClaude(),
-    extensions: [probeExtension, gatedExtension],
+    extensions: opts.extensions ?? [probeExtension, gatedExtension],
   })
   const served = opts.token ? new Hono().mount(prefix, app.fetch) : app
   const {port, close} = await serveHono({fetch: served.fetch})
@@ -249,4 +249,31 @@ test('rejected upgrades never poison the upgrade path for a later good client', 
   await whenOpen(socket)
   const payload = await client.meta.tools(undefined)
   expect(payload.tools.some((tool) => tool.name === 'ws_probe_gated')).toBe(true)
+}, 30_000)
+
+test('a malformed rpc frame closes that socket without crashing the server', async () => {
+  const served = await boot()
+  const rejections: unknown[] = []
+  const onRejection = (reason: unknown) => rejections.push(reason)
+  process.on('unhandledRejection', onRejection)
+  try {
+    const bad = new WebSocket(`${served.wsBase}/rpc-ws`)
+    await whenOpen(bad)
+    const badClosed = new Promise<void>((resolve) => bad.once('close', () => resolve()))
+    bad.send('this is not an orpc frame')
+    await badClosed
+    const {client, socket} = openWsRpc<RpcClient>(served.wsBase)
+    await whenOpen(socket)
+    const payload = await client.meta.tools(undefined)
+    expect(payload.tools.some((tool) => tool.name === 'ws_probe_gated')).toBe(true)
+    expect(rejections).toEqual([])
+  } finally {
+    process.off('unhandledRejection', onRejection)
+  }
+}, 30_000)
+
+test('two extension names that normalize to the same rpc slug are rejected at mount', async () => {
+  const first = defineExtension({name: 'Slug Probe'}).server(() => ({context: {}, router: makeProbeRouter()}))
+  const second = defineExtension({name: 'slug-probe'}).server(() => ({context: {}, router: makeProbeRouter()}))
+  await expect(boot({extensions: [first, second]})).rejects.toThrow(/slug-probe/)
 }, 30_000)
