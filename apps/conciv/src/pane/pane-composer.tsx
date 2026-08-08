@@ -4,6 +4,12 @@ import {ArrowUp, Clock, Paperclip, RefreshCw, Square} from 'lucide-solid'
 import {ComposerPrimitive, QueueItem, AttachmentUI, type AttachmentAdapter} from '@conciv/ui-kit-chat'
 import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
+import {
+  ComposerInputAdapter,
+  type ComposerInputHandle,
+  type ComposerTriggerSources,
+  type SelectionOffsets,
+} from './composer-input-adapter.js'
 
 export type PaneComposerProps = {
   draftStorage: WebStorage
@@ -12,8 +18,10 @@ export type PaneComposerProps = {
   inputLabel: string
   children?: JSX.Element
   busy?: JSX.Element
-  popover?: JSX.Element
-  inputRef?: (element: HTMLTextAreaElement) => void
+  triggers?: ComposerTriggerSources
+  onInputReady?: (handle: ComposerInputHandle) => void
+  onSelectionChange?: (offsets: SelectionOffsets) => void
+  initialSelection?: SelectionOffsets
   attachmentAdapter?: AttachmentAdapter
   AttachmentComponent?: Component<{removable?: boolean}>
 }
@@ -23,8 +31,7 @@ const BTN =
 const SEND = `${BTN} [background:var(--chat-accent)] text-[color:var(--chat-on-accent)] [&:hover:not(:disabled)]:[background:var(--chat-accent-hi)] disabled:opacity-40 disabled:cursor-default`
 const CANCEL = `${BTN} [background:var(--chat-text-3)] [color:var(--chat-on-accent)]`
 const GHOST = `${BTN} text-[color:var(--chat-text-2)] bg-transparent [&:hover:not(:disabled)]:bg-[var(--chat-fill-strong)] disabled:opacity-40 disabled:cursor-default`
-const INPUT =
-  'block max-h-30 px-2 pb-1 pt-2 [color:var(--chat-text)] text-[length:var(--chat-text-md)] leading-[1.45] placeholder:[color:var(--chat-text-3)]'
+const INPUT = '[color:var(--chat-text)] text-[length:var(--chat-text-md)]'
 const QUEUE_ROW =
   'text-[length:var(--chat-text-md)] py-1.5 pl-3 pr-1.5 flex gap-2 [color:var(--chat-text-2)] items-center [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)]'
 const QUEUE_ACTION =
@@ -58,7 +65,6 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
       draftKey={props.draftKey}
       class="flex flex-col gap-1.5 relative"
     >
-      {props.popover}
       <div class="rounded-[var(--chat-radius-md)] flex flex-col [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] empty:hidden">
         <ComposerPrimitive.Queue>
           {() => (
@@ -83,13 +89,15 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
         />
       </div>
       <div class="px-1.5 pb-1.5 pt-1 rounded-[var(--chat-radius-md)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:border-color_120ms_var(--chat-ease)] focus-within:[border-color:var(--chat-accent)]">
-        <ComposerPrimitive.Input
-          unstyled
-          ref={props.inputRef}
+        <ComposerInputAdapter
           placeholder={props.placeholder}
-          class={INPUT}
-          aria-label={props.inputLabel}
+          editableClass={INPUT}
+          inputLabel={props.inputLabel}
           addAttachmentOnPaste={props.attachmentAdapter !== undefined}
+          triggers={props.triggers}
+          onReady={props.onInputReady}
+          onSelectionChange={props.onSelectionChange}
+          initialSelection={props.initialSelection}
         />
         <div class="pt-0.5 flex gap-1 items-center">
           <Show when={props.attachmentAdapter}>

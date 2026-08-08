@@ -1,11 +1,12 @@
 import {createFileRoute, useBlocker, useRouter} from '@tanstack/solid-router'
-import {For, Show, createMemo, type JSX} from 'solid-js'
+import {For, Show, Suspense, createMemo, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension'
 import {MountedView} from '@conciv/extension/client'
 import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
+import {appendDraft} from '../pane/draft-storage.js'
 import {GrabReference} from '../pane/grab-reference.js'
 
 const GRAB_PREVIEW_MAX_W = 280
@@ -33,18 +34,6 @@ function PanelView(): JSX.Element {
       pane.viewLocked() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
   })
 
-  const appendDraft = async (text: string) => {
-    const row = await rpc.drafts.get({sessionId: params().sessionId})
-    const nextText = row?.text ? `${row.text}\n${text}` : text
-    await rpc.drafts.set({
-      sessionId: params().sessionId,
-      text: nextText,
-      selectionStart: nextText.length,
-      selectionEnd: nextText.length,
-      grabs: row?.grabs ?? [],
-    })
-  }
-
   const newSession = () => {
     void rpc.sessions.create(undefined).then(({sessionId}) => {
       appData.invalidateSessions()
@@ -58,7 +47,7 @@ function PanelView(): JSX.Element {
         <HostApiProvider
           sessionId={() => params().sessionId}
           grab={makePaneGrabApi(pane.grabStore, pane.grabProvider)}
-          insert={(text) => void appendDraft(text).catch(() => {})}
+          insert={(text) => void appendDraft(rpc, params().sessionId, text).catch(() => {})}
           attach={(file) => pane.attachments.enqueue(file)}
           newSession={newSession}
           viewLock={pane.setLockedFor(params().view)}
@@ -85,7 +74,9 @@ function PanelView(): JSX.Element {
                 </For>
               </div>
             </Show>
-            <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
+            <Suspense>
+              <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
+            </Suspense>
           </div>
         </HostApiProvider>
       )}

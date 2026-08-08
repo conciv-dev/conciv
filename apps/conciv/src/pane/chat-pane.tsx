@@ -1,16 +1,25 @@
-import {createEffect, createMemo, createResource, For, onMount, Show, untrack, type JSX} from 'solid-js'
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  Suspense,
+  untrack,
+  type JSX,
+} from 'solid-js'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import {useChatSession} from '@conciv/client'
 import {
   AttachmentByMime,
   ChatProvider,
   ComposerHandlersProvider,
-  ComposerPrimitive,
   NowLine,
   Thread,
   ToolProvider,
   pairResults,
-  useComposer,
   useComposerContext,
   type Turn,
 } from '@conciv/ui-kit-chat'
@@ -24,11 +33,12 @@ import type {Grab} from '@conciv/grab'
 import {paneAttachments} from './pane-attachments.js'
 import {resolveGrabSource} from './grab-source-resolve.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
+import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane, type StagedGrab} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
 import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
-import {TriggerMenus} from './trigger-menus.js'
+import {useComposerTriggerSources} from './trigger-sources.js'
 import {GrabReference} from './grab-reference.js'
 import {CompactSpinner, ConversationSkeleton, Divider, ThinkingBubble} from './indicators.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
@@ -38,6 +48,7 @@ import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {NoticeToaster, notify} from '../shell/notices.js'
 import {makeDraftStorage} from './draft-storage.js'
+import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {checkSend, type SendVerdict} from './send-checks.js'
 
@@ -91,21 +102,16 @@ function grabTexts(grabs: ReadonlyArray<StagedGrab>): string[] {
 }
 
 type ComposerApi = {
-  append: (text: string) => void
   addAttachment: (file: File) => Promise<void>
 }
 
 function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Element {
   const pane = usePane()
-  const composer = useComposer()
   const context = useComposerContext()
   onMount(() => {
     const restored = context.grabs()
     if (restored.length > 0) pane.grabStore.stageTexts(restored)
-    props.onReady({
-      append: (text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text),
-      addAttachment: context.addAttachment,
-    })
+    props.onReady({addAttachment: context.addAttachment})
     for (const file of pane.attachments.drain()) void context.addAttachment(file)
   })
   createEffect(() => context.setGrabs(grabTexts(pane.grabStore.grabs())))
@@ -127,7 +133,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const working = () => isThinking() || isStreaming()
   const disconnected = () => chat.connectionStatus() !== 'connected'
 
-  let inputEl: HTMLTextAreaElement | undefined
+  const panelFocus = usePanelComposerFocus()
+  let inputHandle: ComposerInputHandle | undefined
+  onCleanup(() => {
+    if (inputHandle) panelFocus?.release(inputHandle)
+  })
   const composerApi = {current: null as ComposerApi | null}
 
   const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId}}))
@@ -210,9 +220,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   }))
   const compacting = () => compact.isPending
 
-  const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
+  const triggerSources = useComposerTriggerSources(sessionId)
+  const focusInput = () => requestAnimationFrame(() => inputHandle?.focus())
   const insert = (text: string) => {
-    composerApi.current?.append(text)
+    inputHandle?.append(text)
     focusInput()
   }
   const attach = (file: File) => {
@@ -224,10 +235,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     void api.addAttachment(file)
     focusInput()
   }
+  const imageInput = () => (meta.isPending ? undefined : meta.data?.harness.imageInput)
   const attachments = createMemo(() =>
     paneAttachments(
       instances.map((instance) => instance.extension),
-      meta.data?.harness.imageInput,
+      imageInput(),
     ),
   )
   const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
@@ -289,7 +301,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
               onCancel: () => chat.stop(),
             }}
           >
-            <ComposerPrimitive.TriggerPopoverRoot>
+            <div class="contents">
               <ExtensionSurface name="header" instances={instances} />
               <ExtensionSurface name="widget" instances={instances} />
               <div
@@ -298,37 +310,42 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
               >
                 <Thread>
                   <Thread.Viewport>
-                    <Thread.Welcome>
-                      <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
-                        <EmptyStateSlot onStarter={(starter) => void chat.sendMessage(starter)} instances={instances} />
+                    <Suspense>
+                      <Thread.Welcome>
+                        <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
+                          <EmptyStateSlot
+                            onStarter={(starter) => void chat.sendMessage(starter)}
+                            instances={instances}
+                          />
+                        </Show>
+                      </Thread.Welcome>
+                      <Thread.Messages
+                        tools={tools()}
+                        attachmentCards={attachments().cards}
+                        components={{ToolFallback: ToolFallbackCard}}
+                        turnPrefix={renderTurnPrefix}
+                      />
+                      <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                      <Show when={compacting()}>
+                        <Divider kind="compact" pending />
                       </Show>
-                    </Thread.Welcome>
-                    <Thread.Messages
-                      tools={tools()}
-                      attachmentCards={attachments().cards}
-                      components={{ToolFallback: ToolFallbackCard}}
-                      turnPrefix={renderTurnPrefix}
-                    />
-                    <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
-                    <Show when={compacting()}>
-                      <Divider kind="compact" pending />
-                    </Show>
-                    <Show when={isThinking()}>
-                      <ThinkingBubble />
-                    </Show>
-                    <Show when={nowTitleText()}>
-                      {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
-                    </Show>
-                    <Show when={visibleError()}>
-                      {(error) => (
-                        <div class={ERROR} role="alert">
-                          <span class="flex-1">{error().message}</span>
-                          <button type="button" class={RETRY} onClick={() => void chat.reload()}>
-                            Retry
-                          </button>
-                        </div>
-                      )}
-                    </Show>
+                      <Show when={isThinking()}>
+                        <ThinkingBubble />
+                      </Show>
+                      <Show when={nowTitleText()}>
+                        {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
+                      </Show>
+                      <Show when={visibleError()}>
+                        {(error) => (
+                          <div class={ERROR} role="alert">
+                            <span class="flex-1">{error().message}</span>
+                            <button type="button" class={RETRY} onClick={() => void chat.reload()}>
+                              Retry
+                            </button>
+                          </div>
+                        )}
+                      </Show>
+                    </Suspense>
                   </Thread.Viewport>
                   <Thread.Composer>
                     <ExtensionSurface name="status" instances={instances} />
@@ -343,42 +360,49 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                         />
                       )}
                     </For>
-                    <Show when={draftStorage()}>
-                      {(storage) => (
-                        <PaneComposer
-                          draftStorage={storage()}
-                          draftKey={sessionId}
-                          placeholder="Ask a question…"
-                          inputLabel="Message the conciv agent"
-                          attachmentAdapter={attachments().adapter}
-                          AttachmentComponent={PaneAttachment}
-                          inputRef={(element) => {
-                            inputEl = element
-                          }}
-                          busy={compacting() ? <CompactSpinner /> : undefined}
-                          popover={<TriggerMenus sessionId={sessionId} />}
-                        >
-                          <ComposerActions
-                            sessionId={sessionId}
-                            compacting={compacting()}
-                            onCompact={() => compact.mutate()}
-                            onNewSession={() => pane.newSession()}
-                            onStageGrab={stageGrab}
-                          />
-                          <ExtensionSurface name="composer" instances={instances} />
-                          <SessionModelSelector sessionId={sessionId} />
-                          <ComposerWiring
-                            onReady={(api) => {
-                              composerApi.current = api
+                    <Suspense>
+                      <Show when={draftStorage()}>
+                        {(storage) => (
+                          <PaneComposer
+                            draftStorage={storage().storage}
+                            draftKey={sessionId}
+                            placeholder="Ask a question…"
+                            inputLabel="Message the conciv agent"
+                            attachmentAdapter={attachments().adapter}
+                            AttachmentComponent={PaneAttachment}
+                            onInputReady={(handle) => {
+                              inputHandle = handle
+                              panelFocus?.register(handle)
                             }}
-                          />
-                        </PaneComposer>
-                      )}
-                    </Show>
+                            onSelectionChange={storage().noteSelection}
+                            initialSelection={storage().restoredSelection}
+                            busy={compacting() ? <CompactSpinner /> : undefined}
+                            triggers={triggerSources}
+                          >
+                            <Suspense>
+                              <ComposerActions
+                                sessionId={sessionId}
+                                compacting={compacting()}
+                                onCompact={() => compact.mutate()}
+                                onNewSession={() => pane.newSession()}
+                                onStageGrab={stageGrab}
+                              />
+                              <ExtensionSurface name="composer" instances={instances} />
+                              <SessionModelSelector sessionId={sessionId} />
+                              <ComposerWiring
+                                onReady={(api) => {
+                                  composerApi.current = api
+                                }}
+                              />
+                            </Suspense>
+                          </PaneComposer>
+                        )}
+                      </Show>
+                    </Suspense>
                   </Thread.Composer>
                 </Thread>
               </div>
-            </ComposerPrimitive.TriggerPopoverRoot>
+            </div>
           </ComposerHandlersProvider>
         </ToolProvider>
       </ChatProvider>

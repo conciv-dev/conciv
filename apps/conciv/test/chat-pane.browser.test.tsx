@@ -34,7 +34,7 @@ test('restores the server-side draft text and staged grabs when the pane mounts'
     },
   })
 
-  await expect.element(input()).toHaveValue('kept across the reload')
+  await expect.element(input()).toHaveTextContent('kept across the reload')
   await expect.element(page.getByText('a grabbed heading')).toBeVisible()
 })
 
@@ -48,7 +48,7 @@ test('a rejected send keeps the draft in the composer and tells the user why', a
   await expect
     .element(page.getByRole('region', {name: /Notifications/}))
     .toHaveTextContent(/Internal Server Error|could not be sent/)
-  await expect.element(input()).toHaveValue('a message the server refuses')
+  await expect.element(input()).toHaveTextContent('a message the server refuses')
 })
 
 test('sending announces thinking and then the reply through the live region', async () => {

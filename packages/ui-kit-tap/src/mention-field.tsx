@@ -1,4 +1,4 @@
-import {For, Show, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
+import {Show, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
 import {Editor} from '@tiptap/core'
 import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
@@ -6,6 +6,7 @@ import {Text} from '@tiptap/extension-text'
 import {HardBreak} from '@tiptap/extension-hard-break'
 import {Mention} from '@tiptap/extension-mention'
 import {Avatar} from '@conciv/ui-kit-system'
+import {SuggestionListbox, type SuggestionAnchor} from './suggestion-listbox.js'
 
 export type MentionItem = {id: string; label: string}
 export type MentionSegment = {type: 'text'; text: string} | {type: 'mention'; id: string; label: string}
@@ -17,10 +18,14 @@ type JsonNode = {type?: string; text?: string; attrs?: Record<string, unknown>; 
 const EDITOR =
   'min-h-7 max-h-32 overflow-auto bg-pw-sunken text-[0.8125rem] text-pw-text rounded-pw-md [border:1px_solid_var(--pw-line)] px-2 py-1.5 [outline:none] focus-within:[border-color:var(--pw-accent-line)] [&_.tiptap]:[outline:none] [&_[data-mention]]:text-pw-accent-hi [&_[data-mention]]:bg-pw-accent-08 [&_[data-mention]]:rounded-pw-sm [&_[data-mention]]:px-0.5'
 const PLACEHOLDER = 'pointer-events-none absolute left-2 top-1.5 text-[0.8125rem] text-pw-text-3 select-none'
-const LISTBOX =
-  'fixed z-[2147483647] min-w-44 max-h-56 overflow-auto rounded-pw-md bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg p-1'
-const OPTION =
-  'flex items-center gap-2 px-2 py-1.5 rounded-pw-sm text-[0.8125rem] cursor-pointer aria-selected:bg-pw-fill'
+
+const avatarInitial = (label: string): string => label.trim().charAt(0).toUpperCase() || '?'
+
+function anchorOf(state: SuggestionState | null): SuggestionAnchor | null {
+  if (!state || state.items.length === 0 || !state.rect) return null
+  const {x, y, width, height} = state.rect
+  return {x, y, width, height}
+}
 
 const serialize = (doc: JsonNode): MentionSegment[] => {
   const out: MentionSegment[] = []
@@ -63,6 +68,11 @@ export function MentionField(props: {
   const [empty, setEmpty] = createSignal(true)
   const [suggestion, setSuggestion] = createSignal<SuggestionState | null>(null)
   const [index, setIndex] = createSignal(0)
+
+  const anchor = () => anchorOf(suggestion())
+  const options = () => suggestion()?.items ?? []
+  const placeholderText = () => empty() && props.placeholder
+  const rootClass = () => `w-full relative ${props.class ?? ''}`
 
   const submit = (): void => {
     if (!editor || editor.isEmpty) return
@@ -146,42 +156,24 @@ export function MentionField(props: {
   onCleanup(() => editor?.destroy())
 
   return (
-    <div class={`w-full relative ${props.class ?? ''}`}>
+    <div class={rootClass()}>
       <div ref={(element) => (host = element)} class={EDITOR} />
-      <Show when={empty() && props.placeholder}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
-      <Show when={suggestion()}>
-        {(state) => (
-          <Show when={state().items.length > 0 && state().rect}>
-            {(rect) => (
-              <ul
-                role="listbox"
-                aria-label="Mention a participant"
-                class={LISTBOX}
-                style={{left: `${rect().left}px`, top: `${rect().bottom + 4}px`}}
-              >
-                <For each={state().items}>
-                  {(item, position) => (
-                    <li
-                      role="option"
-                      aria-selected={position() === index()}
-                      class={OPTION}
-                      onPointerDown={(event) => {
-                        event.preventDefault()
-                        state().command(item)
-                      }}
-                    >
-                      <Avatar.Root class="size-5">
-                        <Avatar.Fallback>{item.label.trim().charAt(0).toUpperCase() || '?'}</Avatar.Fallback>
-                      </Avatar.Root>
-                      {item.label}
-                    </li>
-                  )}
-                </For>
-              </ul>
-            )}
-          </Show>
+      <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
+      <SuggestionListbox
+        anchor={anchor()}
+        label="Mention a participant"
+        options={options()}
+        activeIndex={index()}
+        onSelect={(item) => suggestion()?.command(item)}
+        renderOption={(item) => (
+          <>
+            <Avatar.Root class="size-5">
+              <Avatar.Fallback>{avatarInitial(item.label)}</Avatar.Fallback>
+            </Avatar.Root>
+            {item.label}
+          </>
         )}
-      </Show>
+      />
     </div>
   )
 }

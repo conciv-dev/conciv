@@ -46,7 +46,7 @@ export const MentionFlow: Story = {
     await userEvent.type(editor, 'hi @Op')
 
     const option = await waitFor(() => canvas.getByRole('option', {name: /Opus/}))
-    await expect(option).toBeVisible()
+    await waitFor(() => expect(option).toBeVisible())
     await userEvent.click(option)
 
     await waitFor(() => expect(canvas.getByText('@Opus')).toBeVisible())

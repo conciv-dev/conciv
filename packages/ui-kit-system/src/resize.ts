@@ -51,7 +51,11 @@ export function createResizable(opts: {
       const cur = horizontal ? ev.clientX : ev.clientY
       const delta = positive ? cur - start : start - cur
       const next = startSize + delta
-      if (opts.collapseAt !== undefined && next < opts.collapseAt) opts.onCollapse?.()
+      if (opts.collapseAt !== undefined && next < opts.collapseAt) {
+        up()
+        opts.onCollapse?.()
+        return
+      }
       setSize(Math.max(opts.min, next))
     }
     const up = () => {

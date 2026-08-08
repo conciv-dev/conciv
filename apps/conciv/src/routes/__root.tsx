@@ -33,8 +33,10 @@ import {createDraggablePosition} from '../lib/draggable-position.js'
 import {makeThemeApplier} from '../lib/theme.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
+import {hostFocusTarget} from '../lib/host-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
 import {setShutter} from '../lib/shutter.js'
+import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import '../styles.css'
 
@@ -170,8 +172,10 @@ function RootChrome(props: {
 
   const [openIntent, setOpenIntent] = createSignal(false)
 
+  let rootEl: HTMLDivElement | undefined
   let fabEl: HTMLButtonElement | undefined
   let pendingFabFocus = false
+  let hostRestoreTarget: HTMLElement | null = null
 
   const latestSessionId = async (): Promise<string | null> => {
     try {
@@ -196,9 +200,10 @@ function RootChrome(props: {
     )
   }
   const openPanel = async () => {
+    if (!panelOpen()) hostRestoreTarget = rootEl ? hostFocusTarget(rootEl) : null
     if (panelMatch() || connectMatch()) {
       setOpenIntent(true)
-      setShutter(router, true)
+      void setShutter(router, true)
       return
     }
     setOpenIntent(true)
@@ -214,12 +219,19 @@ function RootChrome(props: {
   }
   const closePanel = () => {
     setOpenIntent(false)
-    setShutter(router, false)
-    if (fabEl?.isConnected) {
-      fabEl.focus()
-      return
-    }
-    pendingFabFocus = true
+    const captured = hostRestoreTarget
+    hostRestoreTarget = null
+    void setShutter(router, false).then(() => {
+      if (captured?.isConnected) {
+        captured.focus()
+        return
+      }
+      if (fabEl?.isConnected) {
+        fabEl.focus()
+        return
+      }
+      pendingFabFocus = true
+    })
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
 
@@ -265,7 +277,6 @@ function RootChrome(props: {
     makeEventListener(window, 'conciv:toggle-panel', toggleFromHost)
   })
 
-  let rootEl: HTMLDivElement | undefined
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
     if (layers.anyOpen()) return
@@ -298,7 +309,9 @@ function RootChrome(props: {
       }}
       onKeyDown={onKeyDown}
     >
-      <Outlet />
+      <PanelChromeContext.Provider value={{close: closePanel}}>
+        <Outlet />
+      </PanelChromeContext.Provider>
       <Show when={launcherVisible()}>
         <ShellFab
           ref={(el) => {

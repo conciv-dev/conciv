@@ -1,32 +1,16 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {chromium, type Browser} from 'playwright'
-import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
-import {hostPage, serveHost} from './helpers/host.js'
+import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Continuity reply'
 
-let browser: Browser
-let kit: EmbedKit
-let host: {base: string; close: () => Promise<void>}
-
-beforeAll(async () => {
-  browser = await chromium.launch()
-  kit = await bootEmbedKit({text: ASSISTANT_TEXT})
-  host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
-}, 60_000)
-
-afterAll(async () => {
-  await browser.close()
-  await host.close()
-  await kit.cleanup()
-})
+const suite = setupWidgetSuite({text: ASSISTANT_TEXT})
 
 describe('reload continuity through the db-backed navigation row', () => {
   it('restores the open panel route, the transcript, and the draft after a reload', async () => {
-    const page = await browser.newPage()
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    const page = await suite.browser().newPage()
+    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
 
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -42,16 +26,16 @@ describe('reload continuity through the db-backed navigation row', () => {
         (response.request().postData() ?? '').includes('an unsent draft survives'),
       {timeout: 30_000},
     )
-    const state = await kit.rpc.navigation.get(undefined)
+    const state = await suite.kit().rpc.navigation.get(undefined)
     const panelEntry = state?.entries.find((entry) => entry.href.startsWith('/panel/'))
     const sessionId = (panelEntry?.href.split('/')[2] ?? '').split('?')[0] ?? ''
-    expect(await kit.rpc.drafts.get({sessionId})).toMatchObject({text: 'an unsent draft survives'})
+    expect(await suite.kit().rpc.drafts.get({sessionId})).toMatchObject({text: 'an unsent draft survives'})
 
     await page.reload({waitUntil: 'domcontentloaded'})
 
     await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
     await expectLocator(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
-    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveValue(
+    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveText(
       'an unsent draft survives',
       {timeout: 30_000},
     )
