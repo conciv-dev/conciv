@@ -1,4 +1,4 @@
-import {describe, it} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import type {Locator, Page} from 'playwright'
 import {setupWidgetSuite} from './helpers/suite.js'
@@ -19,6 +19,10 @@ async function ensurePanelClosed(page: Page): Promise<void> {
   await expectLocator(minimize.or(opener)).toBeVisible({timeout: 30_000})
   if (await minimize.isVisible()) await minimize.click()
   await expectLocator(opener).toBeVisible({timeout: 30_000})
+}
+
+function selectedText(page: Page): Promise<string> {
+  return page.evaluate(() => document.getSelection()?.toString() ?? '')
 }
 
 type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hostButton: Locator}
@@ -51,6 +55,76 @@ describe('panel open focuses the composer', () => {
     await page.keyboard.type('typed without clicking')
     await expectLocator(composer(page)).toHaveText('typed without clicking')
     await page.close()
+  })
+})
+
+describe('an open panel leaves the rest of the page alone', () => {
+  it('leaves focus on the host page field the user moved to while a reply streams', async () => {
+    const host = await serveHost(() =>
+      hostPage({
+        apiBase: suite.kit().base,
+        widget: '{"quickTerminal":false}',
+        body: '<input id="host-field" aria-label="Host field">',
+      }),
+    )
+    const page = await suite.browser().newPage()
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await openPanel(page)
+    const stop = page.getByRole('button', {name: 'Stop generating'})
+    const hostField = page.getByRole('textbox', {name: 'Host field'})
+
+    suite.kit().harness.script.hold()
+    try {
+      await composer(page).fill('a question the user stops waiting for')
+      await page.getByRole('button', {name: 'Send message'}).click()
+      await expectLocator(stop).toBeVisible({timeout: 30_000})
+      await hostField.click()
+      await expectLocator(hostField).toBeFocused({timeout: 10_000})
+    } finally {
+      suite.kit().harness.script.release()
+    }
+
+    await expectLocator(stop).toBeHidden({timeout: 30_000})
+    await expectLocator(hostField).toBeFocused({timeout: 10_000})
+    await page.keyboard.type('typed on the host page')
+    await expectLocator(hostField).toHaveValue('typed on the host page')
+    await page.close()
+    await host.close()
+  })
+
+  it('keeps a transcript selection alive while a reply streams', async () => {
+    const page = await suite.browser().newPage()
+    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+    await openPanel(page)
+    const stop = page.getByRole('button', {name: 'Stop generating'})
+
+    suite.kit().harness.script.hold()
+    try {
+      await composer(page).fill('a question whose answer the user selects')
+      await page.getByRole('button', {name: 'Send message'}).click()
+      await expectLocator(stop).toBeVisible({timeout: 30_000})
+      const reply = page.getByText('Hello from conciv').first()
+      await expectLocator(reply).toBeVisible({timeout: 30_000})
+      await reply.click({clickCount: 3})
+      await expectLocator(composer(page)).not.toBeFocused({timeout: 10_000})
+      expect(await selectedText(page)).toContain('Hello from conciv')
+    } finally {
+      suite.kit().harness.script.release()
+    }
+
+    await expectLocator(stop).toBeHidden({timeout: 30_000})
+    await expectLocator(composer(page)).not.toBeFocused({timeout: 10_000})
+    expect(await selectedText(page)).toContain('Hello from conciv')
+    await page.close()
+  })
+})
+
+describe('a programmatic open still hands the composer the focus', () => {
+  it('focuses the composer when the host page opens the panel from its own focused button', async () => {
+    const {host, page} = await openPanelOverFocusedHostButton()
+    await expectLocator(composer(page)).toBeFocused({timeout: 10_000})
+    await page.close()
+    await host.close()
   })
 })
 

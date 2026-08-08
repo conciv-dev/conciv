@@ -2,6 +2,7 @@ import {createContext, useContext} from 'solid-js'
 
 export type PanelChrome = {
   close: () => void
+  openedFrom: () => HTMLElement | null
 }
 
 export const PanelChromeContext = createContext<PanelChrome>()

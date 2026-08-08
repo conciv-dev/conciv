@@ -309,7 +309,7 @@ function RootChrome(props: {
       }}
       onKeyDown={onKeyDown}
     >
-      <PanelChromeContext.Provider value={{close: closePanel}}>
+      <PanelChromeContext.Provider value={{close: closePanel, openedFrom: () => hostRestoreTarget}}>
         <Outlet />
       </PanelChromeContext.Provider>
       <Show when={launcherVisible()}>

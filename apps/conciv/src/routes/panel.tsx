@@ -55,6 +55,7 @@ function PanelLayout(): JSX.Element {
     scope: panelSection,
     anchor: () => composerFocus.handle()?.element,
     active: open,
+    openedFrom: panelChrome.openedFrom,
     focus: () => composerFocus.handle()?.focus(),
   })
 
@@ -77,7 +78,7 @@ function PanelLayout(): JSX.Element {
     <Show when={mounted()}>
       <PanelComposerFocusContext.Provider value={composerFocus}>
         <FocusTrap
-          disabled={!open() || layers.anyOpen()}
+          disabled={!open() || layers.anyOpen() || !phone()}
           initialFocus={keepTrapFromFocusing}
           returnFocusOnDeactivate={false}
         >

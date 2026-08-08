@@ -20,8 +20,7 @@ const VARIANT: Record<ButtonVariant, string> = {
   outline: 'border-pw-line bg-pw-fill text-pw-text hover:bg-pw-fill-strong',
   danger: 'border-transparent bg-pw-danger text-pw-on-accent hover:opacity-90',
   'accent-soft': 'border-pw-accent-line bg-pw-accent-08 text-pw-text hover:bg-pw-accent-20',
-  'outline-danger':
-    'border-pw-line-2 bg-transparent text-pw-text hover:border-pw-danger hover:text-pw-danger hover:bg-transparent',
+  'outline-danger': 'border-pw-danger-line bg-transparent text-pw-danger hover:border-pw-danger hover:bg-pw-danger-14',
   panel: 'border-pw-line bg-pw-panel text-pw-text hover:bg-pw-fill-strong',
   link: 'border-transparent bg-transparent text-pw-accent-link underline underline-offset-2 hover:text-pw-accent-hi',
 }
