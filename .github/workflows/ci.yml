@@ -286,14 +286,19 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          test "${{ needs.plan.result }}" = "success"
-          if [ "${{ needs.plan.outputs.has-work }}" = "false" ]; then
-            test "${{ needs.build.result }}" = "success" -o "${{ needs.build.result }}" = "skipped"
+      - env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          PLAN_HAS_WORK: ${{ needs.plan.outputs.has-work }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          REPO_CHECKS_RESULT: ${{ needs.repo-checks.result }}
+        run: |
+          test "$PLAN_RESULT" = "success"
+          if [ "$PLAN_HAS_WORK" = "false" ]; then
+            test "$BUILD_RESULT" = "success" -o "$BUILD_RESULT" = "skipped"
           else
-            test "${{ needs.build.result }}" = "success"
+            test "$BUILD_RESULT" = "success"
           fi
-          test "${{ needs.repo-checks.result }}" = "success"
+          test "$REPO_CHECKS_RESULT" = "success"
 
   storybook:
     name: Storybook browser tests
@@ -532,12 +537,16 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          test "${{ needs.plan-e2e.result }}" = "success"
-          if [ "${{ needs.plan-e2e.outputs.has-work }}" = "false" ]; then
-            test "${{ needs.e2e.result }}" = "success" -o "${{ needs.e2e.result }}" = "skipped"
+      - env:
+          PLAN_RESULT: ${{ needs.plan-e2e.result }}
+          PLAN_HAS_WORK: ${{ needs.plan-e2e.outputs.has-work }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          test "$PLAN_RESULT" = "success"
+          if [ "$PLAN_HAS_WORK" = "false" ]; then
+            test "$E2E_RESULT" = "success" -o "$E2E_RESULT" = "skipped"
           else
-            test "${{ needs.e2e.result }}" = "success"
+            test "$E2E_RESULT" = "success"
           fi
 
   zizmor:
