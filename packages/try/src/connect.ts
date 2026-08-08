@@ -59,7 +59,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
       const engine = await start({
         options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT},
         root,
-        port,
+        port: {exact: port},
         launchEditor: () => {},
         harness: adapter,
         extensions: [terminal],
