@@ -44,7 +44,66 @@ const LONG_COMMANDS: RichTextFieldTriggerItem[] = Array.from({length: 40}, (_unu
   return {id: name, label: `/${name}`}
 })
 
-type Mode = 'sync' | 'delayed' | 'empty' | 'error' | 'manual' | 'long' | 'categories'
+const SCROLL_TOPICS: readonly string[] = [
+  'triage',
+  'deploy-staging',
+  'deploy-production',
+  'rollback-release',
+  'snapshot-workspace',
+  'restore-workspace',
+  'sync-branches',
+  'rebase-branch',
+  'archive-thread',
+  'export-transcript',
+  'audit-log',
+  'notify-oncall',
+  'schedule-standup',
+  'rotate-secrets',
+  'backfill-metrics',
+  'reindex-search',
+  'validate-schema',
+  'publish-release',
+  'retry-queue',
+  'purge-cache',
+  'import-fixtures',
+  'seed-database',
+  'lint-changed',
+  'format-diff',
+  'summarize-thread',
+  'tag-release',
+  'draft-changelog',
+  'close-stale',
+  'assign-reviewer',
+  'merge-queue',
+]
+
+const SCROLL_LONG_DESCRIPTIONS: readonly string[] = [
+  'Walks through every open item assigned to you, flags anything blocked for more than two days, and drafts a short status update you can paste straight into standup notes.',
+  'Captures the current state of the workspace — branches, running processes, and pending migrations — so you can restore exactly this moment later if something goes wrong.',
+  'Cross-references the audit log against the active roster to highlight actions taken by accounts that no longer hold a seat, then queues a summary for the security channel.',
+  'Replays the last failed queue run against a scratch environment first, compares the output against the previous successful run, and only promotes it once the diff is clean.',
+  'Collects every commit merged since the last tagged release, groups them by the conventional-commit type, and drafts a changelog entry ready for a maintainer to review.',
+]
+
+function scrollItemDescription(position: number, topic: string): string {
+  if (position % 4 === 0) {
+    const longIndex = (position / 4) % SCROLL_LONG_DESCRIPTIONS.length
+    return SCROLL_LONG_DESCRIPTIONS[longIndex] ?? topic
+  }
+  return `Run the ${topic.replace(/-/g, ' ')} routine for the active session`
+}
+
+const SCROLL_COMMANDS: RichTextFieldTriggerItem[] = Array.from({length: 60}, (_unused, position) => {
+  const topic = SCROLL_TOPICS[position % SCROLL_TOPICS.length] ?? 'task'
+  return {
+    id: `scroll-${position}`,
+    label: `/${topic}-${position}`,
+    group: position < 30 ? 'Workspace' : 'Automation',
+    description: scrollItemDescription(position, topic),
+  }
+})
+
+type Mode = 'sync' | 'delayed' | 'empty' | 'error' | 'manual' | 'long' | 'categories' | 'scroll'
 type PendingFetch = {query: string; resolve: (items: RichTextFieldTriggerItem[]) => void}
 type ModeItems = (
   pool: RichTextFieldTriggerItem[],
@@ -66,6 +125,7 @@ const sourceModes: Record<Mode, ModeItems> = {
   manual: (pool, query, enqueue) => new Promise((resolve) => enqueue({query, resolve})),
   long: (_pool, query) => filterItems(LONG_COMMANDS, query),
   categories: (_pool, query) => filterItems(CATEGORY_COMMANDS, query),
+  scroll: (_pool, query) => filterItems(SCROLL_COMMANDS, query),
 }
 
 function triggerSource(
@@ -83,10 +143,23 @@ function triggerSource(
   }
 }
 
+const PENDING_DIRECT_LIMIT = 2
+const pendingCountFormatter = new Intl.PluralRules('en-US')
+
+function resolveLabel(entry: PendingFetch): string {
+  return `Resolve ${entry.query === '' ? 'root' : entry.query}`
+}
+
+function collapsedPendingLabel(count: number): string {
+  const noun = pendingCountFormatter.select(count) === 'one' ? 'request' : 'requests'
+  return `${count} earlier pending ${noun}`
+}
+
 function TriggerHarness(props: {mode?: Mode}) {
   const [value, setValue] = createSignal('')
   const [submitted, setSubmitted] = createSignal('')
   const [pending, setPending] = createSignal<PendingFetch[]>([])
+  const [pendingExpanded, setPendingExpanded] = createSignal(false)
   const [handle, setHandle] = createSignal<RichTextFieldHandle | null>(null)
   const [selection, setSelection] = createSignal<RichTextFieldSelection>({start: 0, end: 0})
   const mode = () => props.mode ?? 'sync'
@@ -95,6 +168,8 @@ function TriggerHarness(props: {mode?: Mode}) {
     entry.resolve(filterItems(COMMANDS, entry.query))
     setPending((list) => list.filter((candidate) => candidate !== entry))
   }
+  const collapsedPending = () => pending().slice(0, Math.max(pending().length - PENDING_DIRECT_LIMIT, 0))
+  const directPending = () => pending().slice(-PENDING_DIRECT_LIMIT)
   return (
     <div class="p-4 flex flex-col gap-3 max-w-100">
       <RichTextField
@@ -123,11 +198,19 @@ function TriggerHarness(props: {mode?: Mode}) {
           </div>
         )}
       </Show>
-      <div class="flex flex-wrap gap-2">
-        <For each={pending()}>
-          {(entry) => (
-            <Button onClick={() => settle(entry)}>{`Resolve ${entry.query === '' ? 'root' : entry.query}`}</Button>
-          )}
+      <div class="flex flex-wrap gap-2 items-center">
+        <Show when={collapsedPending().length > 0}>
+          <Button aria-expanded={pendingExpanded()} onClick={() => setPendingExpanded((expanded) => !expanded)}>
+            {collapsedPendingLabel(collapsedPending().length)}
+          </Button>
+        </Show>
+        <Show when={pendingExpanded() && collapsedPending().length > 0}>
+          <For each={collapsedPending()}>
+            {(entry) => <Button onClick={() => settle(entry)}>{resolveLabel(entry)}</Button>}
+          </For>
+        </Show>
+        <For each={directPending()}>
+          {(entry) => <Button onClick={() => settle(entry)}>{resolveLabel(entry)}</Button>}
         </For>
       </div>
     </div>
@@ -615,6 +698,64 @@ export const ActiveOptionScrollsIntoView: Story = {
     await expect(canvas.getByRole('option', {name: '/command-20'})).toBeVisible()
     await userEvent.keyboard('{Enter}')
     await expectValue(canvas, '"/command-20 "')
+  },
+}
+
+const scrollFirstLabel = SCROLL_COMMANDS[0]?.label ?? ''
+const scrollLastLabel = SCROLL_COMMANDS.at(-1)?.label ?? ''
+const scrollMidItem = SCROLL_COMMANDS[36]
+const scrollMidLabel = scrollMidItem?.label ?? ''
+const scrollMidDescription = scrollMidItem?.description ?? ''
+
+export const LongSuggestionListKeepsHighlightVisibleWhileScrolling: Story = {
+  args: {mode: 'scroll'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: scrollFirstLabel})).toBeVisible())
+    for (let step = 0; step < 36; step += 1) await userEvent.keyboard('{ArrowDown}')
+    await expectActiveOption(canvas, scrollMidLabel)
+    await expect(canvas.getByRole('option', {name: scrollMidLabel})).toBeVisible()
+    await expect(canvas.getByRole('option', {name: scrollMidLabel})).toHaveAccessibleDescription(scrollMidDescription)
+    const groups = canvas.getAllByRole('group')
+    await expect(groups[0]).toHaveAccessibleName('Workspace')
+    await expect(groups[1]).toHaveAccessibleName('Automation')
+    await expect(canvas.getByRole('group', {name: 'Automation'})).toBeVisible()
+  },
+}
+
+export const LongSuggestionListWrapsFromLastToFirst: Story = {
+  args: {mode: 'scroll'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await expectActiveOption(canvas, scrollFirstLabel)
+    await userEvent.keyboard('{ArrowUp}')
+    await expectActiveOption(canvas, scrollLastLabel)
+    await expect(canvas.getByRole('option', {name: scrollLastLabel})).toBeVisible()
+    await userEvent.keyboard('{ArrowDown}')
+    await expectActiveOption(canvas, scrollFirstLabel)
+    await expect(canvas.getByRole('option', {name: scrollFirstLabel})).toBeVisible()
+  },
+}
+
+export const ManualModeCollapsesStalePendingBehindASummary: Story = {
+  args: {mode: 'manual'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/test')
+    await waitFor(() => expect(canvas.getByRole('button', {name: 'Resolve test'})).toBeVisible())
+    await expect(canvas.getByRole('button', {name: 'Resolve tes'})).toBeVisible()
+    await expect(canvas.queryByRole('button', {name: 'Resolve root'})).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', {name: 'Resolve t'})).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', {name: 'Resolve te'})).not.toBeInTheDocument()
+    const summary = canvas.getByRole('button', {name: '3 earlier pending requests'})
+    await expect(summary).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(summary)
+    await waitFor(() => expect(canvas.getByRole('button', {name: 'Resolve root'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('button', {name: 'Resolve root'}))
+    await waitFor(() => expect(canvas.queryByRole('button', {name: 'Resolve root'})).not.toBeInTheDocument())
+    await expect(canvas.getByRole('button', {name: 'Resolve test'})).toBeVisible()
   },
 }
 
