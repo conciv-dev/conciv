@@ -21,10 +21,16 @@ describe('compactor', () => {
     expect(kinds).toContain('compact')
   })
 
-  it('a concurrent compact is accepted and both runs settle', async () => {
+  it('concurrent compacts serialize: both settle, never two live runs at once', async () => {
     const {chat, db, sessionId} = await makeChatFixture()
     const compactor = makeCompactor(chat)
+    const tally = {peak: 0}
+    const unwatch = chat.liveRuns.onStart(sessionId, () => {
+      tally.peak = Math.max(tally.peak, chat.liveRuns.of(sessionId).length)
+    })
     await Promise.all([compactor.run(sessionId), compactor.run(sessionId)])
+    unwatch()
+    expect(tally.peak).toBe(1)
     const kinds = (await db.select().from(markers).where(eq(markers.sessionId, sessionId))).map((marker) => marker.kind)
     expect(kinds.filter((kind) => kind === 'compact')).toHaveLength(2)
   })

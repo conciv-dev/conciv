@@ -1,5 +1,7 @@
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
+import {z} from 'zod'
+import {EngineStalenessSchema} from '@conciv/contract'
 import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -36,7 +38,7 @@ import {makeAskGate, requiresApproval} from './chat/gate.js'
 import {makeConcivSandbox} from './chat/sandbox.js'
 import {assistCapabilities, registryCapabilities, type CodeCapability} from './chat/capabilities.js'
 import {createSessionStreams} from './chat/subscribe.js'
-import {createSnapshotCache} from './chat/transcript.js'
+import {recoverInterruptedRuns} from './chat/transcript.js'
 import {createLiveRuns} from './chat/live-runs.js'
 import {makeCompactor, makeSend, resolveSystemText, type AttachmentExpanders} from './chat/run.js'
 import {modelOf, openDb} from '@conciv/db'
@@ -59,6 +61,7 @@ import {makeBuiltinRegistry} from './tool-registry.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {logError} from './lib/debug.js'
+import {engineStaleness} from './lib/engine-stamp.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
@@ -186,6 +189,12 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   }
 }
 
+export const HealthSchema = z.object({
+  ok: z.literal(true),
+  harness: z.string(),
+  engine: EngineStalenessSchema,
+})
+
 export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 
 function composeRoutes(vars: CoreVars, rpc: CompositeRpcRouter, onShutdown?: () => void) {
@@ -202,7 +211,9 @@ function composeRoutes(vars: CoreVars, rpc: CompositeRpcRouter, onShutdown?: () 
       await next()
     })
     .use(corsMiddleware())
-    .get('/health', (c) => c.json({ok: true, harness: vars.chat.harness.id}))
+    .get('/health', (c) =>
+      c.json(HealthSchema.parse({ok: true, harness: vars.chat.harness.id, engine: engineStaleness()})),
+    )
     .post('/api/shutdown', (c) => {
       if (!onShutdown) return c.json({message: 'shutdown not supported'}, 404)
       setTimeout(onShutdown, 50)
@@ -242,11 +253,11 @@ async function drainWithDeadline(drain: Promise<void>, timeoutMs: number): Promi
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const db = openDb(opts.cfg.stateRoot)
+  await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
   const asks = createAskRegistry()
   const {claimStartedAt, durability, runControl, runs} = makeRunControl(opts.firstChunkTimeoutMs)
   const liveRuns = createLiveRuns()
   const stream = createSessionStreams()
-  const snapshots = createSnapshotCache()
 
   const runStartListeners: ((sessionId: string) => void)[] = []
 
@@ -422,7 +433,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     claimStartedAt,
     liveRuns,
     stream,
-    snapshots,
     risky,
     commandAllows: askFreeCommandAllows,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
@@ -478,6 +488,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
         sessionModel,
         sessionForNativeId: async (nativeId) => (await rowByNativeId(db, nativeId))?.id ?? null,
+        staleness: engineStaleness,
       },
     },
     compositeRpc,

@@ -85,7 +85,6 @@ export function sessionsRouter(deps: RpcDeps) {
       await tombstoneRow(db, input.sessionId)
       await db.delete(drafts).where(eq(drafts.sessionId, input.sessionId))
       clearRunState(db, input.sessionId)
-      chat.snapshots.clear(input.sessionId)
       return {ok: true as const}
     }),
     model: os.sessions.model.handler(async ({input, errors}) => {

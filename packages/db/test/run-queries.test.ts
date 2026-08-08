@@ -4,14 +4,16 @@ import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {openDb} from '../src/db.js'
 import {
-  clearImageHistory,
   clearRunState,
-  foldRunMessagesIntoImageHistory,
+  clearSessionHistory,
+  deleteRunMessages,
+  foldRichRunMessagesIntoHistory,
+  foldRunMessagesIntoHistory,
   hasRichPart,
-  imageHistoryFor,
   modelOf,
   replyFor,
   runMessagesFor,
+  sessionHistoryFor,
   setRunMessages,
   writeReply,
 } from '../src/run-queries.js'
@@ -20,47 +22,87 @@ import {sessions} from '../src/schema.js'
 const fresh = () => openDb(mkdtempSync(join(tmpdir(), 'conciv-run-')))
 
 describe('run lifecycle queries', () => {
-  it('fold moves image-bearing run messages into image history and clears the run row', () => {
+  it('the rich fold moves image-bearing run messages into session history and clears the run row', () => {
     const db = fresh()
     const imageTurn = [
       {id: 'u1', role: 'user', parts: [{type: 'image', source: {type: 'data', value: 'aGk=', mimeType: 'image/png'}}]},
       {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'red'}]},
     ]
     setRunMessages(db, 's6', imageTurn)
-    foldRunMessagesIntoImageHistory(db, 's6')
+    foldRichRunMessagesIntoHistory(db, 's6')
     expect(runMessagesFor(db, 's6')).toBeNull()
-    expect(imageHistoryFor(db, 's6')?.messages).toEqual(imageTurn)
+    expect(sessionHistoryFor(db, 's6')?.messages).toEqual(imageTurn)
   })
 
-  it('fold keeps appending once image history exists, even for text-only runs', () => {
+  it('the rich fold keeps appending once session history exists, even for text-only runs', () => {
     const db = fresh()
     const imageTurn = [{id: 'u1', role: 'user', parts: [{type: 'image', source: {type: 'data'}}]}]
     const textTurn = [{id: 'u2', role: 'user', parts: [{type: 'text', content: 'follow up'}]}]
     setRunMessages(db, 's7', imageTurn)
-    foldRunMessagesIntoImageHistory(db, 's7')
+    foldRichRunMessagesIntoHistory(db, 's7')
     setRunMessages(db, 's7', textTurn)
-    foldRunMessagesIntoImageHistory(db, 's7')
+    foldRichRunMessagesIntoHistory(db, 's7')
     expect(runMessagesFor(db, 's7')).toBeNull()
-    expect(imageHistoryFor(db, 's7')?.messages).toEqual([...imageTurn, ...textTurn])
+    expect(sessionHistoryFor(db, 's7')?.messages).toEqual([...imageTurn, ...textTurn])
   })
 
-  it('fold leaves text-only runs alone when no image history exists', () => {
+  it('the rich fold leaves text-only runs alone when no session history exists', () => {
     const db = fresh()
     setRunMessages(db, 's8', [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'plain'}]}])
-    foldRunMessagesIntoImageHistory(db, 's8')
+    foldRichRunMessagesIntoHistory(db, 's8')
     expect(runMessagesFor(db, 's8')?.messages).toEqual([
       {id: 'u1', role: 'user', parts: [{type: 'text', content: 'plain'}]},
     ])
-    expect(imageHistoryFor(db, 's8')).toBeNull()
+    expect(sessionHistoryFor(db, 's8')).toBeNull()
   })
 
-  it('clearImageHistory drops only the image history row', () => {
+  it('the plain fold accumulates text-only turns into session history', () => {
+    const db = fresh()
+    const firstTurn = [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'one'}]}]
+    const secondTurn = [{id: 'u2', role: 'user', parts: [{type: 'text', content: 'two'}]}]
+    setRunMessages(db, 's10', firstTurn)
+    foldRunMessagesIntoHistory(db, 's10')
+    setRunMessages(db, 's10', secondTurn)
+    foldRunMessagesIntoHistory(db, 's10')
+    expect(runMessagesFor(db, 's10')).toBeNull()
+    expect(sessionHistoryFor(db, 's10')?.messages).toEqual([...firstTurn, ...secondTurn])
+  })
+
+  it('the plain fold moves a turn into history exactly once, leaving no run row behind for recovery to refold', () => {
+    const db = fresh()
+    const turn = [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'atomic'}]}]
+    setRunMessages(db, 's13', turn)
+    foldRunMessagesIntoHistory(db, 's13')
+    expect(runMessagesFor(db, 's13')).toBeNull()
+    expect(sessionHistoryFor(db, 's13')?.messages).toEqual(turn)
+    foldRunMessagesIntoHistory(db, 's13')
+    expect(sessionHistoryFor(db, 's13')?.messages).toEqual(turn)
+  })
+
+  it('the plain fold consumes an empty run row so startup recovery cannot rediscover it forever', () => {
+    const db = fresh()
+    setRunMessages(db, 's12', [])
+    foldRunMessagesIntoHistory(db, 's12')
+    expect(runMessagesFor(db, 's12')).toBeNull()
+    expect(sessionHistoryFor(db, 's12')).toBeNull()
+  })
+
+  it('deleteRunMessages drops only the run row for that session', () => {
+    const db = fresh()
+    setRunMessages(db, 's11', [{id: 'live'}])
+    setRunMessages(db, 'other', [{id: 'kept'}])
+    deleteRunMessages(db, 's11')
+    expect(runMessagesFor(db, 's11')).toBeNull()
+    expect(runMessagesFor(db, 'other')?.messages).toEqual([{id: 'kept'}])
+  })
+
+  it('clearSessionHistory drops only the session history row', () => {
     const db = fresh()
     setRunMessages(db, 's9', [{id: 'u1', role: 'user', parts: [{type: 'image', source: {}}]}])
-    foldRunMessagesIntoImageHistory(db, 's9')
+    foldRichRunMessagesIntoHistory(db, 's9')
     setRunMessages(db, 's9', [{id: 'live'}])
-    clearImageHistory(db, 's9')
-    expect(imageHistoryFor(db, 's9')).toBeNull()
+    clearSessionHistory(db, 's9')
+    expect(sessionHistoryFor(db, 's9')).toBeNull()
     expect(runMessagesFor(db, 's9')?.messages).toEqual([{id: 'live'}])
   })
 
@@ -105,13 +147,13 @@ describe('run lifecycle queries', () => {
   it('clearRunState removes everything for the session only', () => {
     const db = fresh()
     setRunMessages(db, 's5', [{id: 'm', parts: [{type: 'image'}]}])
-    foldRunMessagesIntoImageHistory(db, 's5')
+    foldRichRunMessagesIntoHistory(db, 's5')
     setRunMessages(db, 's5', [{id: 'm'}])
     writeReply(db, 's5', 'k', 1)
     setRunMessages(db, 'other', [{id: 'o'}])
     clearRunState(db, 's5')
     expect(runMessagesFor(db, 's5')).toBeNull()
-    expect(imageHistoryFor(db, 's5')).toBeNull()
+    expect(sessionHistoryFor(db, 's5')).toBeNull()
     expect(replyFor(db, 's5', 'k')).toBeNull()
     expect(runMessagesFor(db, 'other')?.messages).toEqual([{id: 'o'}])
   })
@@ -129,13 +171,13 @@ describe('hasRichPart', () => {
     expect(hasRichPart({parts: [{type: 'text', content: 'hi'}]})).toBe(false)
   })
 
-  it('folds a document-part turn into durable image history', () => {
+  it('folds a document-part turn into durable session history', () => {
     const db = fresh()
     const messages = [
       {id: 'm', parts: [{type: 'document', source: {type: 'data', mimeType: 'application/x-test', value: 'x'}}]},
     ]
     setRunMessages(db, 's6', messages)
-    foldRunMessagesIntoImageHistory(db, 's6')
-    expect(imageHistoryFor(db, 's6')?.messages).toEqual(messages)
+    foldRichRunMessagesIntoHistory(db, 's6')
+    expect(sessionHistoryFor(db, 's6')?.messages).toEqual(messages)
   })
 })
