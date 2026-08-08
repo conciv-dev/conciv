@@ -3,6 +3,7 @@ import {z} from 'zod'
 import {asc, eq, lt} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
+import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
@@ -42,8 +43,8 @@ function hasErrorCode(error: unknown, code: string): boolean {
 
 type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
 
-function callerSessionId(name: string, request: Request, errors: ApprovalErrors): string {
-  const raw = request.headers.get(CONCIV_SESSION_HEADER)?.trim() ?? ''
+function callerSessionId(name: string, context: RpcContext, errors: ApprovalErrors): string {
+  const raw = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim() ?? ''
   if (raw === '') {
     throw errors.APPROVAL_DENIED({
       message: `"${name}" requires approval and no session is attached to ask through; run from a conciv-launched terminal or send ${CONCIV_SESSION_HEADER} (CONCIV_SESSION_ID for the CLI)`,
@@ -61,11 +62,11 @@ async function approveAskGatedCall(
   deps: RpcDeps,
   name: string,
   input: unknown,
-  request: Request,
+  context: RpcContext,
   errors: ApprovalErrors,
 ): Promise<void> {
   if (!requiresApproval(deps.registry.catalog.get(name))) return
-  const sessionId = callerSessionId(name, request, errors)
+  const sessionId = callerSessionId(name, context, errors)
   if ((await rowById(deps.chat.db, sessionId)) === null) {
     throw errors.APPROVAL_DENIED({
       message: `"${name}" requires approval but session "${sessionId}" does not exist`,
@@ -171,7 +172,7 @@ export function makeRpcRouter(deps: RpcDeps) {
       ),
       call: os.registry.call.handler(async ({input, context, errors}) => {
         if (!deps.registry.has(input.name)) throw errors.UNKNOWN_TOOL()
-        await approveAskGatedCall(deps, input.name, input.input, context.request, errors)
+        await approveAskGatedCall(deps, input.name, input.input, context, errors)
         try {
           return await deps.registry.call(input.name, input.input)
         } catch (error) {
@@ -207,11 +208,11 @@ export function makeRpcRouter(deps: RpcDeps) {
       ),
       urls: os.server.urls.handler(({errors}) => callTool(deps, BUILTIN_SERVER_TOOL['server.urls'], {}, errors)),
       reload: os.server.reload.handler(async ({input, context, errors}) => {
-        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.reload'].name, input, context.request, errors)
+        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.reload'].name, input, context, errors)
         return callTool(deps, BUILTIN_SERVER_TOOL['server.reload'], input, errors)
       }),
       restart: os.server.restart.handler(async ({input, context, errors}) => {
-        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.restart'].name, input, context.request, errors)
+        await approveAskGatedCall(deps, BUILTIN_SERVER_TOOL['server.restart'].name, input, context, errors)
         return callTool(deps, BUILTIN_SERVER_TOOL['server.restart'], input, errors)
       }),
     },
@@ -229,7 +230,7 @@ export function makeRpcRouter(deps: RpcDeps) {
         }
       }),
       commands: os.meta.commands.handler(({input, context}) =>
-        listCommands(chat, {sessionId: input.sessionId, requestUrl: context.request.url}),
+        listCommands(chat, {sessionId: input.sessionId, origin: context.origin}),
       ),
       tools: os.meta.tools.handler(() => ({tools: deps.tools})),
     },

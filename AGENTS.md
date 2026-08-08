@@ -19,7 +19,8 @@ README.md; this file is the non-obvious operational rules.
 
 - pnpm (exact version pinned in root `package.json` `packageManager`), Node >= 22. Monorepo orchestrated by turbo.
 - Local turbo runs default to 50% concurrency (`turbo.json`) so builds don't saturate the workstation;
-  CI re-uncaps with `TURBO_CONCURRENCY=100%` per workflow. Heavy background/agent runs should also `nice -n 19`.
+  CI re-uncaps with `TURBO_CONCURRENCY=100%` per workflow. Agent/background gate runs use
+  `TURBO_CONCURRENCY=70%` and are not niced; test gates stay serial (`TURBO_CONCURRENCY=1 VITEST_MAX_FORKS=1`).
 - Build: `pnpm build`. Typecheck: `pnpm typecheck`. Test: `pnpm test`. Lint: `pnpm lint`
   (oxlint). Format: `pnpm format:check` / `pnpm format` (oxfmt).
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.

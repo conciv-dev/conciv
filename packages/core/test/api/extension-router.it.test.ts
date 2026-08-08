@@ -2,17 +2,18 @@ import {afterEach, expect, test} from 'vitest'
 import {os} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, makeExtRpcClient} from '@conciv/extension'
+import type {RpcContext} from '@conciv/protocol/rpc-types'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../helpers/boot.js'
 
-const probeOs = os.$context<{request: Request}>()
+const probeOs = os.$context<RpcContext>()
 
 function makeProbeRouter() {
   return probeOs.router({
     ping: probeOs
       .input(z.object({value: z.string()}))
       .output(z.object({pong: z.string(), origin: z.string()}))
-      .handler(({input, context}) => ({pong: input.value, origin: new URL(context.request.url).origin})),
+      .handler(({input, context}) => ({pong: input.value, origin: context.origin})),
   })
 }
 

@@ -5,6 +5,7 @@ import type {AnyRouter} from '@orpc/server'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveApp} from '@conciv/harness-testkit'
 import {makeExtRpcClient, type ServerApi, type ServerHarness, type ServerSessions} from '@conciv/extension'
+import {rpcConnectionContext, rpcHandlerOptions} from '@conciv/extension/rpc-mount'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
 
@@ -122,11 +123,11 @@ export async function startTerminalServer(
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')
   if (!isRouter(result.router)) throw new Error('terminal extension returned no router')
   app.route('/api/ext/terminal', result.app)
-  const handler = new RPCHandler(result.router)
+  const handler = new RPCHandler(result.router, rpcHandlerOptions())
   app.use('/rpc/ext/terminal/*', async (c, next) => {
     const {matched, response} = await handler.handle(c.req.raw, {
       prefix: '/rpc/ext/terminal',
-      context: {request: c.req.raw},
+      context: rpcConnectionContext(c.req.url),
     })
     if (matched && response) return c.newResponse(response.body, response)
     await next()

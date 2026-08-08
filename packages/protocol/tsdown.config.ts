@@ -8,6 +8,7 @@ export default defineConfig({
     'src/editor-types.ts',
     'src/harness-types.ts',
     'src/framework-types.ts',
+    'src/rpc-types.ts',
     'src/terminal-types.ts',
     'src/bundler-types.ts',
     'src/config-types.ts',
