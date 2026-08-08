@@ -1,5 +1,6 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {Tooltip} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {toolStatus, type ToolStatus} from '../primitives/tools/tool-status.js'
 import {formatDuration} from '../primitives/tools/tool-util.js'
@@ -13,9 +14,47 @@ const DOT: Record<ToolStatus, string> = {
   approval: '[background:var(--chat-accent)]',
 }
 
+const TITLE = 'text-[color:var(--chat-text)] flex-1 truncate [overflow-wrap:anywhere]'
+const METRIC =
+  'text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] shrink-0 [font-family:var(--chat-mono)] tabular-nums'
+
+function HeaderContent(props: {
+  Icon: Component
+  title: string
+  hasTooltip: boolean
+  meta: string | undefined
+  duration: string | undefined
+  status: ToolStatus
+}): JSX.Element {
+  return (
+    <>
+      <span class="text-[color:var(--chat-text-3)] inline-flex shrink-0 items-center" aria-hidden="true">
+        <Dynamic component={props.Icon} />
+      </span>
+      <Show when={props.hasTooltip} fallback={<span class={TITLE}>{props.title}</span>}>
+        <Tooltip.Trigger
+          asChild={(triggerProps) => (
+            <span {...triggerProps()} class={TITLE}>
+              {props.title}
+            </span>
+          )}
+        />
+      </Show>
+      <Show when={props.meta}>{(meta) => <span class={METRIC}>{meta()}</span>}</Show>
+      <Show when={props.duration}>{(value) => <span class={METRIC}>{value()}</span>}</Show>
+      <span
+        class={`rounded-[var(--chat-radius-pill)] shrink-0 size-2 ${DOT[props.status]}`}
+        role="img"
+        aria-label={props.status}
+      />
+    </>
+  )
+}
+
 export function ToolCard(props: {
   Icon: Component
   title: string
+  titleTooltip?: string
   part: ToolCallPart
   result: ToolResultPart | undefined
   meta?: string
@@ -28,35 +67,29 @@ export function ToolCard(props: {
   const ambientDuration = useToolCallDuration()
   const duration = () => formatDuration(props.durationMs ?? ambientDuration())
   return (
-    <CollapsibleCard
-      defaultOpen={props.defaultOpen ?? status() === 'approval'}
-      header={
-        <>
-          <span class="text-[color:var(--chat-text-3)] inline-flex shrink-0 items-center" aria-hidden="true">
-            <Dynamic component={props.Icon} />
-          </span>
-          <span class="text-[color:var(--chat-text)] flex-1 truncate [overflow-wrap:anywhere]">{props.title}</span>
-          <Show when={props.meta}>
-            <span class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] shrink-0 [font-family:var(--chat-mono)] tabular-nums">
-              {props.meta}
-            </span>
-          </Show>
-          <Show when={duration()}>
-            {(value) => (
-              <span class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] shrink-0 [font-family:var(--chat-mono)] tabular-nums">
-                {value()}
-              </span>
-            )}
-          </Show>
-          <span
-            class={`rounded-[var(--chat-radius-pill)] shrink-0 size-2 ${DOT[status()]}`}
-            role="img"
-            aria-label={status()}
+    <Tooltip.Root openDelay={400} unmountOnExit lazyMount>
+      <CollapsibleCard
+        defaultOpen={props.defaultOpen ?? status() === 'approval'}
+        header={
+          <HeaderContent
+            Icon={props.Icon}
+            title={props.title}
+            hasTooltip={props.titleTooltip !== undefined}
+            meta={props.meta}
+            duration={duration()}
+            status={status()}
           />
-        </>
-      }
-    >
-      {props.children}
-    </CollapsibleCard>
+        }
+      >
+        {props.children}
+      </CollapsibleCard>
+      <Show when={props.titleTooltip}>
+        {(tooltip) => (
+          <Tooltip.Positioner>
+            <Tooltip.Content>{tooltip()}</Tooltip.Content>
+          </Tooltip.Positioner>
+        )}
+      </Show>
+    </Tooltip.Root>
   )
 }

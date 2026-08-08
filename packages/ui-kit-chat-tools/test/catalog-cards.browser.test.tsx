@@ -119,7 +119,7 @@ it('a tool declaring an error renders the declared message instead of the raw fa
   mountView(() => (
     <MetaToolCard
       part={part('page.banner', {value: 'Sale'})}
-      result={result('NO_CANVAS: page.banner failed', 'error')}
+      result={result('{"error":{"message":"page.banner failed","code":"NO_CANVAS"}}', 'error')}
       ctx={ctxWith(catalog)}
     />
   ))

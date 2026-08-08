@@ -56,6 +56,18 @@ const highlightMeta: ToolViewMeta = {
   outputSchema: {type: 'object', properties: {ok: {type: 'boolean'}}},
 }
 
+const diagnosticsMeta: ToolViewMeta = {
+  summary: 'run environment diagnostics and report the results',
+  category: 'read',
+  icon: 'read',
+  label: {running: 'Running diagnostics', done: 'Ran diagnostics'},
+  positional: 'target',
+  mutating: false,
+  mirrors: false,
+  inputSchema: {type: 'object', properties: {target: {type: 'string'}}, required: ['target']},
+  outputSchema: {type: 'array', items: {type: 'object'}},
+}
+
 const catalog = (entries: Record<string, ToolViewMeta>): ToolCatalogView => ({
   loaded: () => true,
   meta: (name) => entries[name],
@@ -136,7 +148,7 @@ export const DeclaredError: Story = {
     frame(
       <MetaToolCard
         part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
-        result={result('NO_MATCH: page.fill failed', 'error')}
+        result={result('{"error":{"message":"page.fill failed","code":"NO_MATCH"}}', 'error')}
         ctx={ctxFor({'page.fill': fillMeta})}
       />,
     ),
@@ -144,7 +156,48 @@ export const DeclaredError: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button'))
     await waitFor(() => expect(canvas.getByText('nothing on the page matches that selector')).toBeVisible())
-    await expect(canvas.queryByText('NO_MATCH: page.fill failed')).toBeNull()
+    await expect(canvas.queryByText('page.fill failed')).toBeNull()
+  },
+}
+
+export const NestedListResult: Story = {
+  render: () =>
+    frame(
+      <MetaToolCard
+        part={part('system.diagnostics', {target: 'staging'})}
+        result={result(
+          JSON.stringify([
+            {check: 'disk', status: 'ok', metrics: {freeGb: 42, totalGb: 512}},
+            {check: 'network', status: 'degraded', metrics: {latencyMs: 340, packetLoss: 0.12}, tags: ['flaky']},
+          ]),
+        )}
+        ctx={ctxFor({'system.diagnostics': diagnosticsMeta})}
+      />,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', {name: /Ran diagnostics/}))
+    await waitFor(() => expect(canvas.getByRole('tree')).toBeVisible())
+    await waitFor(() => expect(canvas.getAllByText(/network/, {exact: false}).length).toBeGreaterThan(0))
+    await waitFor(() => expect(canvas.getAllByText(/metrics/, {exact: false}).length).toBeGreaterThan(0))
+  },
+}
+
+export const TitleTooltip: Story = {
+  render: () =>
+    frame(
+      <MetaToolCard
+        part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
+        result={result('{"ok":true}')}
+        ctx={ctxFor({'page.fill': fillMeta})}
+      />,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.hover(canvas.getByText('Filled the field #email'))
+    await waitFor(() => expect(canvas.getByRole('tooltip')).toHaveTextContent('type a value into a form field'), {
+      timeout: 2000,
+    })
   },
 }
 

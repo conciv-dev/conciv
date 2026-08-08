@@ -2,8 +2,6 @@ import type {Component} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolIconKey, ToolLabel} from './tool-icon-types.js'
 
-export type ToolAccent = 'page' | 'code' | 'test' | 'read' | 'neutral'
-
 export type ToolViewError = {code: string; message: string}
 
 export type ToolViewMeta = {
