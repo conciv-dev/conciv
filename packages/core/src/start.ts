@@ -14,13 +14,15 @@ import {writeText} from './lib/fs.js'
 import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint} from './lib/dev-endpoint.js'
 
+export type PortRequest = {exact: number} | {preferred: number}
+
 export type StartOpts = {
   options: ConcivConfig
   root: string
   bridge?: BundlerBridge
   launchEditor: (file: string, line: number) => void
   childEnv?: (corePort: number) => NodeJS.ProcessEnv
-  port?: number
+  port?: PortRequest
 
   allowedOrigins?: string[]
   accessToken?: string
@@ -76,6 +78,22 @@ async function servePersistedPort(fetchHandler: FetchHandler, stateFile: string)
   const serving = await serveHono({fetch: fetchHandler, port: 0})
   writePersistedPort(stateFile, serving.port)
   return serving
+}
+
+async function servePreferredPort(fetchHandler: FetchHandler, preferred: number): Promise<Served> {
+  const reserved = await reservePort(fetchHandler, preferred)
+  if (reserved) return reserved
+  const serving = await serveHono({fetch: fetchHandler, port: 0})
+  console.warn(
+    `conciv: port ${preferred} is already in use, the engine is listening on http://127.0.0.1:${serving.port} instead`,
+  )
+  return serving
+}
+
+function servePort(fetchHandler: FetchHandler, request: PortRequest | undefined, stateFile: string): Promise<Served> {
+  if (request === undefined) return servePersistedPort(fetchHandler, stateFile)
+  if ('exact' in request) return serveHono({fetch: fetchHandler, port: request.exact})
+  return servePreferredPort(fetchHandler, request.preferred)
 }
 
 function onceNotifier(callback?: () => void): () => void {
@@ -161,10 +179,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const fetchHandler: FetchHandler = served.fetch.bind(served)
   let serving: Served
   try {
-    serving =
-      opts.port === undefined
-        ? await servePersistedPort(fetchHandler, paths.server)
-        : await serveHono({fetch: fetchHandler, port: opts.port})
+    serving = await servePort(fetchHandler, opts.port, paths.server)
   } catch (error) {
     await dispose()
     throw error

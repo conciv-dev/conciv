@@ -16,7 +16,7 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
       start({
         options,
         root,
-        port: options.port,
+        port: options.port === undefined ? undefined : {exact: options.port},
         launchEditor: makeOpenInEditor(root),
         extensions,
         nativePageDir: builtins.nativePageDir,

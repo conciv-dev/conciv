@@ -131,7 +131,7 @@ async function bootEngine(
   return start({
     options,
     root: server.config.root,
-    port: options.port,
+    port: options.port === undefined ? undefined : {preferred: options.port},
     bridge: makeViteBridge(server),
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),

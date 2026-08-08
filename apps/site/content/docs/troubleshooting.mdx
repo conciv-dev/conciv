@@ -40,6 +40,12 @@ Pin the engine port so server boot and the client widget agree:
 conciv({port: 7378})
 ```
 
+The pinned port is a preference. When a second project already holds it, the engine logs
+`port 7378 is already in use, the engine is listening on http://127.0.0.1:<other> instead` and the
+page is stamped with the port it actually bound, so two dev servers can run side by side. The
+Next.js integration is the exception: its client learns the port at build time, so a taken port
+fails the boot instead of silently pointing the widget at another project's engine.
+
 </Accordion>
 
 </Accordions>
