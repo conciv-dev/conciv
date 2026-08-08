@@ -5,7 +5,8 @@ import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
 import {mountHandle, remountHandle, unmountHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
-import {rpcObserverFor, setNavigation} from './helpers/navigation.js'
+import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
+import {setNavigation} from './helpers/navigation.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
 

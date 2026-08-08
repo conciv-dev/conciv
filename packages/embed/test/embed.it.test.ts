@@ -3,12 +3,12 @@ import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
+import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
 import {
   currentHref,
   freezeClock,
   holdFirstNavigationWrite,
   setNavigation,
-  rpcObserverFor,
   waitForNavigationWrite,
   waitForNavigationWriteCarrying,
 } from './helpers/navigation.js'

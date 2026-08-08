@@ -307,6 +307,16 @@ export function observeRpc(page: Page): RpcObserver {
   }
 }
 
+const observers = new WeakMap<Page, RpcObserver>()
+
+export function rpcObserverFor(page: Page): RpcObserver {
+  const existing = observers.get(page)
+  if (existing) return existing
+  const created = observeRpc(page)
+  observers.set(page, created)
+  return created
+}
+
 export function httpRpcRequestUrls(page: Page): {urls: string[]; dispose: () => void} {
   const urls: string[] = []
   const onRequest = (request: PageRequest): void => {

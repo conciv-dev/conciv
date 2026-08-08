@@ -42,6 +42,7 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:^",
     "@orpc/client": "^1.14.7",
+    "@orpc/server": "^1.14.7",
     "@orpc/standard-server": "^1.14.7",
     "@orpc/standard-server-peer": "^1.14.7",
     "@playwright/test": "^1.61.1",

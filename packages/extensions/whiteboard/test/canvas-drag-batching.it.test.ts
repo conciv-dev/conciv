@@ -2,7 +2,7 @@ import {expect, test} from 'vitest'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
 import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
-import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
+import {rpcObserverFor, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
 import {ELEMENT_WRITE_THROTTLE_MS} from '../src/client/whiteboard-collection.js'
 import {until} from '@conciv/harness-testkit'
 import {openCanvas, testHost} from './canvas-it-helpers.js'
@@ -47,7 +47,7 @@ test('a single-element drag coalesces per-frame writes into few throttled PUTs',
     await until(async () => ((await readElements(api))[0]?.width ?? 0) > 100, {hangGuardMs: 30_000, intervalMs: 250})
     const startX = (await readElements(api))[0]?.x ?? 0
     await api.page.getByRole('radio', {name: 'Selection'}).click({force: true})
-    const observer = observeRpc(api.page)
+    const observer = rpcObserverFor(api.page)
     const mark = observer.mark()
     const dragStartedAt = Date.now()
     await dragBursts(api.page, cx, cy, 40)
@@ -56,7 +56,6 @@ test('a single-element drag coalesces per-frame writes into few throttled PUTs',
       intervalMs: 250,
     })
     const counts = putCounts(observer, mark)
-    observer.dispose()
     expect(counts.single).toBeGreaterThan(1)
     expect(counts.single).toBeLessThanOrEqual(flushBudget(Date.now() - dragStartedAt))
     expect(counts.bulk).toBe(0)
@@ -78,7 +77,7 @@ test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async
     await api.page.mouse.down()
     await api.page.mouse.move(cx + 300, cy + 140, {steps: 10})
     await api.page.mouse.up()
-    const observer = observeRpc(api.page)
+    const observer = rpcObserverFor(api.page)
     const mark = observer.mark()
     const dragStartedAt = Date.now()
     await dragBursts(api.page, cx - 170, cy, 26)
@@ -92,7 +91,6 @@ test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async
       {hangGuardMs: 30_000, intervalMs: 250},
     )
     const counts = putCounts(observer, mark)
-    observer.dispose()
     expect(counts.bulk).toBeGreaterThan(0)
     expect(counts.single + counts.bulk).toBeLessThanOrEqual(flushBudget(Date.now() - dragStartedAt))
   } finally {

@@ -1,20 +1,10 @@
 import type {Page, Route, WebSocketRoute} from 'playwright'
 import type {NavigationEntry} from '@conciv/protocol/chat-types'
-import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
+import {rpcObserverFor, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
 import {decodeRpcFrame} from '@conciv/extension-testkit/rpc-frames'
 import type {EmbedKit} from './boot.js'
 
 const NAVIGATION_SET = ['navigation', 'set']
-
-const observers = new WeakMap<Page, RpcObserver>()
-
-export function rpcObserverFor(page: Page): RpcObserver {
-  const existing = observers.get(page)
-  if (existing) return existing
-  const created = observeRpc(page)
-  observers.set(page, created)
-  return created
-}
 
 let lastStamp = 0
 
