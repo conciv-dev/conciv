@@ -41,10 +41,12 @@ async function readTranscript(
 ): Promise<UIMessage[]> {
   const history = harness.history
   if (!history) return []
-  return history.messages(cwd, nativeId, claudeHome).catch((error: unknown) => {
+  try {
+    return await history.messages(cwd, nativeId, claudeHome)
+  } catch (error) {
     logError(`[core] reading the transcript for ${nativeId} failed: ${String(error)}`)
     return []
-  })
+  }
 }
 
 export type RecoveryScope = {db: ConcivDb; harness: HarnessAdapter; claudeHome?: string}

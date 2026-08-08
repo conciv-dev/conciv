@@ -25,7 +25,7 @@ export function peakLiveRuns(chunks: StreamChunk[]): number {
   const tally = {peak: 0}
   for (const chunk of chunks) {
     if (chunk.type === EventType.RUN_STARTED) open.add(chunk.runId)
-    if (isRunEnd(chunk)) open.delete(chunk.runId)
+    if (chunk.type === EventType.RUN_FINISHED) open.delete(chunk.runId)
     tally.peak = Math.max(tally.peak, open.size)
   }
   return tally.peak
