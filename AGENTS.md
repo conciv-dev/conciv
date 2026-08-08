@@ -23,6 +23,13 @@ README.md; this file is the non-obvious operational rules.
 - Build: `pnpm build`. Typecheck: `pnpm typecheck`. Test: `pnpm test`. Lint: `pnpm lint`
   (oxlint). Format: `pnpm format:check` / `pnpm format` (oxfmt).
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/`; use turbo.
+  So a green `test` already proves the build: don't run a separate `build` gate unless the package has
+  no `test` script (`@conciv/serve`, `@conciv/solid-diffs`, `@conciv/ui-kit-tap`, the `conciv-e2e-*` apps).
+- Package gates filter bare: `turbo run test --filter=<pkg>`. A TRAILING `<pkg>...` means "and all its
+  DEPENDENCIES" (28 real suites here instead of 1), not "and its dependents"; `.claude/hooks/turbo-filter-gate.sh`
+  blocks it for test/typecheck. The dependents selector is the LEADING form `--filter=...<pkg>`.
+- Affected-only shortcuts for a branch: `pnpm test:affected` / `typecheck:affected` / `build:affected`
+  (`--filter=...[origin/main]`).
 - Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs oxfmt + oxlint on
   staged files. `pnpm install` auto-activates the hook via the `prepare` script; no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks; run them manually.
