@@ -1,5 +1,15 @@
 # @conciv/cli
 
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.19
+  - @conciv/harness-init@0.0.19
+  - @conciv/protocol@0.0.19
+  - @conciv/tools@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

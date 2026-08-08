@@ -1,5 +1,21 @@
 # @conciv/core
 
+## 0.0.19
+
+### Patch Changes
+
+- [#319](https://github.com/conciv-dev/conciv/pull/319) [`af72648`](https://github.com/conciv-dev/conciv/commit/af72648838bd828477102f87f78d457d17ebec41) Thanks [@omridevk](https://github.com/omridevk)! - Serve one composite oRPC router (core procedures plus `ext.<slug>` extension routers) over both a fetch mount at `/rpc` and a new additive WebSocket mount at `/rpc-ws`. Per-call request headers are now derived from the oRPC standard request by a single shared root interceptor, so session-scoped calls behave identically on both transports. `@conciv/serve` gains an explicit `maxPayload`, a graceful socket close that only terminates after a deadline, and a `fetch` type that accepts the server env argument. Existing `/rpc` and `/rpc/ext/<slug>` URLs are unchanged.
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.19
+  - @conciv/db@0.0.19
+  - @conciv/extension@0.0.19
+  - @conciv/extension-page@0.0.19
+  - @conciv/harness@0.0.19
+  - @conciv/protocol@0.0.19
+  - @conciv/serve@0.0.19
+  - @conciv/tools@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

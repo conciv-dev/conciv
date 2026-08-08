@@ -1,5 +1,18 @@
 # @conciv/ui-kit-chat
 
+## 0.0.19
+
+### Patch Changes
+
+- [#313](https://github.com/conciv-dev/conciv/pull/313) [`39c6072`](https://github.com/conciv-dev/conciv/commit/39c6072687cdedeabc42dabe798d88fa10dc716b) Thanks [@omridevk](https://github.com/omridevk)! - The widget composer now runs on the TipTap rich text field from @conciv/ui-kit-tap: slash commands and mentions are atomic chips with typeahead popovers, lowering to the same directive strings the server always received. The string-splice trigger layer is removed from @conciv/ui-kit-chat (trigger popover primitives, slash/mention adapters, directive formatter, the styled composer popover slot); ComposerPrimitive.Input remains the plain textarea primitive.
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.19
+  - @conciv/solid-diffs@0.0.19
+  - @conciv/solid-streamdown@0.0.19
+  - @conciv/storage-history@0.0.19
+  - @conciv/ui-kit-system@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

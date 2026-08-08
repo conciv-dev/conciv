@@ -1,6 +1,6 @@
 {
   "name": "@conciv/app",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "private": true,
   "description": "The conciv app: a TanStack Solid Router UI over the @conciv/contract rpc surface. Inlined by @conciv/embed; runs standalone against a core dev server.",
   "type": "module",

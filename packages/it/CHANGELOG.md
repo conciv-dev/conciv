@@ -1,5 +1,19 @@
 # @conciv/it
 
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/embed@0.0.19
+  - @conciv/extension-recorder@0.0.19
+  - @conciv/extension-terminal@0.0.19
+  - @conciv/extension-test-runner@0.0.19
+  - @conciv/extension-whiteboard@0.0.19
+  - @conciv/extension-ios@0.0.19
+  - @conciv/plugin@0.0.19
+  - @conciv/extension-compiler@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

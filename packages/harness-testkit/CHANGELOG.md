@@ -1,5 +1,14 @@
 # @conciv/harness-testkit
 
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.19
+  - @conciv/protocol@0.0.19
+  - @conciv/serve@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes
