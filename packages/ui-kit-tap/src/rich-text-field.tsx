@@ -8,7 +8,16 @@ import {Slice, type Schema} from '@tiptap/pm/model'
 import {ScrollArea} from '@conciv/ui-kit-system'
 import {chipExtension, documentExtensions} from './field-schema.js'
 import {buildDocument, offsetToPosition, paragraphFragment, positionToOffset, projectDocument} from './lowering.js'
-import {SuggestionListbox, type SuggestionAnchor} from './suggestion-listbox.js'
+import {TriggerMenu} from './trigger/menu.js'
+import {createTriggerNavigation} from './trigger/navigation.js'
+import {createTriggerKeyboard} from './trigger/keyboard.js'
+import {
+  commitEntry,
+  type TriggerAdapter,
+  type TriggerCategory,
+  type TriggerEntry,
+  type TriggerItem,
+} from './trigger/types.js'
 import {
   ChipForwardDelete,
   triggerStatusMessage,
@@ -105,40 +114,70 @@ function restoreCommand(text: string, selection: RichTextFieldSelection) {
   }
 }
 
-type PopoverView = {
-  anchor: SuggestionAnchor | null
-  label: string
-  options: RichTextFieldTriggerItem[]
-  activeIndex: number
-  inert: boolean
-  message: string | undefined
+function triggerItem(item: RichTextFieldTriggerItem, char: string): TriggerItem {
+  return {...item, type: char}
 }
 
-const CLOSED_POPOVER: PopoverView = {
-  anchor: null,
-  label: '',
-  options: [],
-  activeIndex: 0,
-  inert: false,
-  message: undefined,
+function resolveAdapter(
+  state: TriggerPopoverState | null,
+  source: RichTextFieldTriggerSource | undefined,
+): TriggerAdapter | undefined {
+  if (!state || !source) return undefined
+  return triggerAdapter(state, source)
 }
 
-function popoverMessage(state: TriggerPopoverState): string | undefined {
+function triggerAdapter(state: TriggerPopoverState, source: RichTextFieldTriggerSource): TriggerAdapter {
+  return {
+    categories: () => source.categories?.() ?? [],
+    categoryItems: (categoryId) =>
+      (source.categoryItems?.(categoryId) ?? []).map((item) => triggerItem(item, state.char)),
+    search: () => state.items.map((item) => triggerItem(item, state.char)),
+  }
+}
+
+function menuMessage(state: TriggerPopoverState | null, entryCount: number): string | undefined {
+  if (!state) return undefined
   if (state.status === 'loading') return triggerStatusMessage('loading')
-  if (state.items.length > 0) return undefined
+  if (entryCount > 0) return undefined
   return triggerStatusMessage(state.status)
 }
 
-function popoverView(state: TriggerPopoverState | null): PopoverView {
-  if (!state) return CLOSED_POPOVER
+type TriggerMenuView = {
+  anchor: TriggerPopoverState['rect']
+  label: string
+  query: string
+  char: string | undefined
+  loading: boolean
+  command: (item: TriggerItem) => void
+}
+
+const CLOSED_MENU: TriggerMenuView = {
+  anchor: null,
+  label: '',
+  query: '',
+  char: undefined,
+  loading: false,
+  command: () => {},
+}
+
+function menuView(state: TriggerPopoverState | null): TriggerMenuView {
+  if (!state) return CLOSED_MENU
   return {
     anchor: state.rect,
     label: state.sourceLabel,
-    options: state.items,
-    activeIndex: state.activeIndex,
-    inert: state.status === 'loading',
-    message: popoverMessage(state),
+    query: state.query,
+    char: state.char,
+    loading: state.status === 'loading',
+    command: state.command,
   }
+}
+
+function consumesEnter(loading: boolean, entryCount: number): boolean {
+  return loading || entryCount > 0
+}
+
+function categoryLabel(categories: readonly TriggerCategory[], categoryId: string | null): string | undefined {
+  return categories.find((category) => category.id === categoryId)?.label
 }
 
 function enterAction(editor: Editor, event: KeyboardEvent, claimed: boolean, submit: () => void): boolean {
@@ -202,30 +241,55 @@ export function RichTextField(props: {
   const listboxId = `rich-text-field-${fieldId}-listbox`
   const optionId = (id: string) => `rich-text-field-${fieldId}-option-${id}`
   const popoverAccess = {state: popover, update: (state: TriggerPopoverState | null) => setPopover(state)}
-  const view = createMemo(() => popoverView(popover()))
-  const popoverConsumesEnter = () => view().inert || view().options.length > 0
   const submitDraft = () => props.onSubmit?.()
-  const activeOptionId = () => {
-    const item = view().options[view().activeIndex]
-    return item ? optionId(item.id) : undefined
-  }
+  const view = createMemo(() => menuView(popover()))
+  const sourceFor = (char: string | undefined) => (char === '/' ? props.slashTrigger : props.mentionTrigger)
+  const adapter = createMemo<TriggerAdapter | undefined>(() => resolveAdapter(popover(), sourceFor(view().char)))
+  const open = () => popover() !== null
+  const query = () => view().query
+  const navigation = createTriggerNavigation({adapter, query, open})
+  const selectItem = (item: TriggerItem) => view().command(item)
+  const selectEntry = (entry: TriggerEntry) => commitEntry(entry, selectItem, navigation.selectCategory)
+  const keyboard = createTriggerKeyboard({
+    navigableList: navigation.navigableList,
+    isSearchMode: navigation.isSearchMode,
+    activeCategoryId: navigation.activeCategoryId,
+    query,
+    popoverId: `rich-text-field-${fieldId}`,
+    open,
+    selectItem,
+    selectCategory: navigation.selectCategory,
+    goBack: navigation.goBack,
+  })
+  const popoverConsumesEnter = () => consumesEnter(view().loading, navigation.navigableList().length)
+  const activeCategoryLabel = () => categoryLabel(navigation.categories(), navigation.activeCategoryId())
   const editableAttributeSet = () =>
     editableAttributes({
       label: props.label,
       disabled: props.disabled,
       editableClass: props.editableClass,
       minRows: props.minRows,
-      popup: {expanded: popover() !== null, controls: listboxId, activeOption: activeOptionId()},
+      popup: {expanded: open(), controls: listboxId, activeOption: keyboard.highlightedItemId()},
     })
   const suggestions = [
-    triggerSuggestion({char: '/', source: () => props.slashTrigger, access: popoverAccess}),
-    triggerSuggestion({char: '@', source: () => props.mentionTrigger, access: popoverAccess}),
+    triggerSuggestion({
+      char: '/',
+      source: () => props.slashTrigger,
+      access: popoverAccess,
+      onKeyDown: keyboard.handleKeyDown,
+    }),
+    triggerSuggestion({
+      char: '@',
+      source: () => props.mentionTrigger,
+      access: popoverAccess,
+      onKeyDown: keyboard.handleKeyDown,
+    }),
   ]
   const dismissPopover = () => {
     const state = popover()
-    const open = suggestions.find((suggestion) => suggestion.char === state?.char)
-    if (!open || !editorView) return
-    exitSuggestion(editorView, open.pluginKey)
+    const openSuggestion = suggestions.find((suggestion) => suggestion.char === state?.char)
+    if (!openSuggestion || !editorView) return
+    exitSuggestion(editorView, openSuggestion.pluginKey)
   }
 
   onMount(() => {
@@ -323,16 +387,19 @@ export function RichTextField(props: {
         </ScrollArea.Scrollbar>
       </ScrollArea.Root>
       <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
-      <SuggestionListbox
+      <TriggerMenu
         anchor={view().anchor}
         label={view().label}
-        options={view().options}
-        activeIndex={view().activeIndex}
-        inert={view().inert}
-        message={view().message}
+        entries={navigation.navigableList()}
+        highlightedId={keyboard.highlightedEntryId()}
+        inert={view().loading}
+        message={menuMessage(popover(), navigation.navigableList().length)}
         listboxId={listboxId}
         optionId={optionId}
-        onSelect={(item) => popover()?.command(item)}
+        backLabel={activeCategoryLabel()}
+        onBack={navigation.goBack}
+        onSelect={selectEntry}
+        onHighlight={keyboard.highlightIndex}
         onDismiss={dismissPopover}
       />
     </div>

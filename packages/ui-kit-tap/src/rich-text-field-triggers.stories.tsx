@@ -29,6 +29,14 @@ const LONG_COMMANDS: RichTextFieldTriggerItem[] = Array.from({length: 40}, (_unu
   return {id: name, label: `/${name}`}
 })
 
+const CATEGORIES = [
+  {id: 'commands', label: 'Commands'},
+  {id: 'mcp', label: 'MCP'},
+]
+
+const categoryItems = (categoryId: string): RichTextFieldTriggerItem[] =>
+  COMMANDS.filter((item) => (categoryId === 'commands' ? item.group === 'Commands' : item.group === 'MCP'))
+
 type Mode = 'sync' | 'delayed' | 'empty' | 'error' | 'manual' | 'long'
 type PendingFetch = {query: string; resolve: (items: RichTextFieldTriggerItem[]) => void}
 type ModeItems = (
@@ -61,7 +69,11 @@ function triggerSource(
   return {label, items: (query) => sourceModes[mode()](pool, query, enqueue)}
 }
 
-function TriggerHarness(props: {mode?: Mode}) {
+function categorySource(source: RichTextFieldTriggerSource): RichTextFieldTriggerSource {
+  return {...source, categories: () => CATEGORIES, categoryItems}
+}
+
+function TriggerHarness(props: {mode?: Mode; withCategories?: boolean}) {
   const [value, setValue] = createSignal('')
   const [submitted, setSubmitted] = createSignal('')
   const [pending, setPending] = createSignal<PendingFetch[]>([])
@@ -85,7 +97,11 @@ function TriggerHarness(props: {mode?: Mode}) {
         }}
         label="Message"
         onSelectionChange={setSelection}
-        slashTrigger={triggerSource(mode, 'Slash commands', COMMANDS, enqueue)}
+        slashTrigger={
+          props.withCategories
+            ? categorySource(triggerSource(mode, 'Slash commands', COMMANDS, enqueue))
+            : triggerSource(mode, 'Slash commands', COMMANDS, enqueue)
+        }
         mentionTrigger={triggerSource(mode, 'Mention a participant', PEOPLE, enqueue)}
         onReady={setHandle}
       />
@@ -538,5 +554,74 @@ export const TrailingSpaceNotDuplicated: Story = {
     await waitFor(() => expect(canvas.getByRole('option', {name: '@Opus'})).toBeVisible())
     await userEvent.keyboard('{Enter}')
     await expectValue(canvas, '"@ai:opus b"')
+  },
+}
+
+export const CategoryRootListsCategories: Story = {
+  args: {withCategories: true},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Commands'})).toBeVisible())
+    await expect(canvas.getAllByRole('option')).toHaveLength(2)
+    await expect(canvas.getByRole('option', {name: 'Commands'})).toHaveAttribute('aria-selected', 'true')
+    await expect(canvas.queryByRole('button', {name: 'Commands'})).not.toBeInTheDocument()
+  },
+}
+
+export const CategoryDrillDownAndBack: Story = {
+  args: {withCategories: true},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Commands'})).toBeVisible())
+    await expect(canvas.getByRole('option', {name: 'MCP'})).toBeVisible()
+    await expect(canvas.queryByRole('option', {name: '/clear'})).not.toBeInTheDocument()
+    await userEvent.keyboard('{ArrowDown}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'MCP'})).toHaveAttribute('aria-selected', 'true'))
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/help'})).toBeVisible())
+    await expect(canvas.queryByRole('option', {name: 'Commands'})).not.toBeInTheDocument()
+    await expect(canvas.getByRole('button', {name: 'MCP'})).toBeVisible()
+    await userEvent.keyboard('{Backspace}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Commands'})).toBeVisible())
+    await expect(canvas.queryByRole('button', {name: 'MCP'})).not.toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('option', {name: 'Commands'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('button', {name: 'Commands'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'MCP'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('option', {name: 'MCP'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/help'})).toBeVisible())
+    await expect(canvas.getByRole('button', {name: 'MCP'})).toBeVisible()
+  },
+}
+
+export const CategoryItemSelectionInsertsChip: Story = {
+  args: {withCategories: true},
+  play: async ({canvasElement}) => {
+    const {canvas, editor} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Commands'})).toBeVisible())
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
+    await userEvent.keyboard('{ArrowDown}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/compact'})).toHaveAttribute('aria-selected', 'true'))
+    await userEvent.keyboard('{Enter}')
+    await expectValue(canvas, '"/compact "')
+    await expect(within(editor).getByText('/compact')).toBeVisible()
+  },
+}
+
+export const TypingInsideCategoriesSearchesFlat: Story = {
+  args: {withCategories: true},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Commands'})).toBeVisible())
+    await userEvent.keyboard('help')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/help'})).toBeVisible())
+    await expect(canvas.queryByRole('option', {name: 'Commands'})).not.toBeInTheDocument()
+    await expect(canvas.queryByRole('button', {name: 'MCP'})).not.toBeInTheDocument()
+    await expect(canvas.getByRole('group', {name: 'MCP'})).toBeVisible()
   },
 }

@@ -5,7 +5,7 @@ import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {useFabPosition, useLayers, useSuppressed} from '../app/context.js'
 import {makePanelComposerFocus, PanelComposerFocusContext} from '../app/panel-focus.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
-import {createAttachedWithin} from '../lib/attached.js'
+import {anchorFocusWithin} from '../lib/focus-anchor.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 
 const PANEL_POS: Record<TriggerPosition, string> = {
@@ -50,11 +50,12 @@ function PanelLayout(): JSX.Element {
 
   const [panelSection, setPanelSection] = createSignal<HTMLElement>()
   const composerFocus = makePanelComposerFocus()
-  const composerAttached = createAttachedWithin(panelSection, () => composerFocus.handle()?.element)
   const keepTrapFromFocusing = (): false => false
-  createEffect(() => {
-    if (!open() || !composerAttached()) return
-    composerFocus.handle()?.focus()
+  anchorFocusWithin({
+    scope: panelSection,
+    anchor: () => composerFocus.handle()?.element,
+    active: open,
+    focus: () => composerFocus.handle()?.focus(),
   })
 
   const resizeY = createResizable({

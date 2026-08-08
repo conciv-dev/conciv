@@ -1,4 +1,4 @@
-import {Show, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
+import {Show, createMemo, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
 import {Editor} from '@tiptap/core'
 import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
@@ -6,13 +6,21 @@ import {Text} from '@tiptap/extension-text'
 import {HardBreak} from '@tiptap/extension-hard-break'
 import {Mention} from '@tiptap/extension-mention'
 import {Avatar} from '@conciv/ui-kit-system'
-import {SuggestionListbox, type SuggestionAnchor} from './suggestion-listbox.js'
+import {TriggerMenu, type TriggerMenuAnchor} from './trigger/menu.js'
+import {createTriggerKeyboard} from './trigger/keyboard.js'
+import {createTriggerNavigation} from './trigger/navigation.js'
+import {isTriggerItem, type TriggerAdapter, type TriggerEntry, type TriggerItem} from './trigger/types.js'
 
 export type MentionItem = {id: string; label: string}
 export type MentionSegment = {type: 'text'; text: string} | {type: 'mention'; id: string; label: string}
 export type MentionFieldApi = {focus: () => void; clear: () => void; submit: () => void; element: HTMLElement}
 
-type SuggestionState = {items: MentionItem[]; command: (item: MentionItem) => void; rect: DOMRect | null}
+type SuggestionState = {
+  items: MentionItem[]
+  command: (item: MentionItem) => void
+  rect: DOMRect | null
+  query: string
+}
 type JsonNode = {type?: string; text?: string; attrs?: Record<string, unknown>; content?: JsonNode[]}
 
 const EDITOR =
@@ -21,10 +29,18 @@ const PLACEHOLDER = 'pointer-events-none absolute left-2 top-1.5 text-[0.8125rem
 
 const avatarInitial = (label: string): string => label.trim().charAt(0).toUpperCase() || '?'
 
-function anchorOf(state: SuggestionState | null): SuggestionAnchor | null {
+function anchorOf(state: SuggestionState | null): TriggerMenuAnchor | null {
   if (!state || state.items.length === 0 || !state.rect) return null
   const {x, y, width, height} = state.rect
   return {x, y, width, height}
+}
+
+function mentionAdapter(state: SuggestionState): TriggerAdapter {
+  return {
+    categories: () => [],
+    categoryItems: () => [],
+    search: () => state.items.map((item): TriggerItem => ({...item, type: '@'})),
+  }
 }
 
 const serialize = (doc: JsonNode): MentionSegment[] => {
@@ -67,10 +83,26 @@ export function MentionField(props: {
   let editor: Editor | undefined
   const [empty, setEmpty] = createSignal(true)
   const [suggestion, setSuggestion] = createSignal<SuggestionState | null>(null)
-  const [index, setIndex] = createSignal(0)
+  const open = () => suggestion() !== null
+  const adapter = createMemo<TriggerAdapter | undefined>(() => {
+    const state = suggestion()
+    return state ? mentionAdapter(state) : undefined
+  })
+  const navigation = createTriggerNavigation({adapter, query: () => suggestion()?.query ?? '', open})
+  const selectMention = (item: TriggerItem) => suggestion()?.command(item)
+  const keyboard = createTriggerKeyboard({
+    navigableList: navigation.navigableList,
+    isSearchMode: navigation.isSearchMode,
+    activeCategoryId: navigation.activeCategoryId,
+    query: () => suggestion()?.query ?? '',
+    popoverId: 'mention-field',
+    open,
+    selectItem: selectMention,
+    selectCategory: navigation.selectCategory,
+    goBack: navigation.goBack,
+  })
 
   const anchor = () => anchorOf(suggestion())
-  const options = () => suggestion()?.items ?? []
   const placeholderText = () => empty() && props.placeholder
   const rootClass = () => `w-full relative ${props.class ?? ''}`
 
@@ -112,35 +144,22 @@ export function MentionField(props: {
             char: '@',
             items: ({query}) => props.items(query),
             render: () => ({
-              onStart: (start) => {
-                setSuggestion({items: start.items, command: start.command, rect: start.clientRect?.() ?? null})
-                setIndex(0)
-              },
+              onStart: (start) =>
+                setSuggestion({
+                  items: start.items,
+                  command: start.command,
+                  rect: start.clientRect?.() ?? null,
+                  query: start.query,
+                }),
               onUpdate: (update) =>
-                setSuggestion({items: update.items, command: update.command, rect: update.clientRect?.() ?? null}),
+                setSuggestion({
+                  items: update.items,
+                  command: update.command,
+                  rect: update.clientRect?.() ?? null,
+                  query: update.query,
+                }),
               onExit: () => setSuggestion(null),
-              onKeyDown: ({event}) => {
-                const state = suggestion()
-                if (!state || state.items.length === 0) return false
-                if (event.key === 'ArrowDown') {
-                  setIndex((index() + 1) % state.items.length)
-                  return true
-                }
-                if (event.key === 'ArrowUp') {
-                  setIndex((index() - 1 + state.items.length) % state.items.length)
-                  return true
-                }
-                if (event.key === 'Enter' || event.key === 'Tab') {
-                  const item = state.items[index()]
-                  if (item) state.command(item)
-                  return true
-                }
-                if (event.key === 'Escape') {
-                  setSuggestion(null)
-                  return true
-                }
-                return false
-              },
+              onKeyDown: ({event}) => keyboard.handleKeyDown(event),
             }),
           },
         }),
@@ -159,18 +178,22 @@ export function MentionField(props: {
     <div class={rootClass()}>
       <div ref={(element) => (host = element)} class={EDITOR} />
       <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
-      <SuggestionListbox
+      <TriggerMenu
         anchor={anchor()}
         label="Mention a participant"
-        options={options()}
-        activeIndex={index()}
-        onSelect={(item) => suggestion()?.command(item)}
-        renderOption={(item) => (
+        entries={navigation.navigableList()}
+        highlightedId={keyboard.highlightedEntryId()}
+        onSelect={(entry) => {
+          if (isTriggerItem(entry)) selectMention(entry)
+        }}
+        onHighlight={keyboard.highlightIndex}
+        onDismiss={() => setSuggestion(null)}
+        renderOption={(entry: TriggerEntry) => (
           <>
             <Avatar.Root class="size-5">
-              <Avatar.Fallback>{avatarInitial(item.label)}</Avatar.Fallback>
+              <Avatar.Fallback>{avatarInitial(entry.label)}</Avatar.Fallback>
             </Avatar.Root>
-            {item.label}
+            {entry.label}
           </>
         )}
       />

@@ -1,13 +1,16 @@
 import {Extension} from '@tiptap/core'
 import {PluginKey} from '@tiptap/pm/state'
 import type {MentionNodeAttrs, MentionOptions} from '@tiptap/extension-mention'
-import type {SuggestionAnchor} from './suggestion-listbox.js'
+import type {TriggerMenuAnchor} from './trigger/menu.js'
+import type {TriggerCategory} from './trigger/types.js'
 
 export type RichTextFieldTriggerItem = {id: string; label: string; group?: string; description?: string}
 
 export type RichTextFieldTriggerSource = {
   label: string
   items: (query: string) => RichTextFieldTriggerItem[] | Promise<RichTextFieldTriggerItem[]>
+  categories?: () => readonly TriggerCategory[]
+  categoryItems?: (categoryId: string) => readonly RichTextFieldTriggerItem[]
 }
 
 type SuggestionConfig = MentionOptions<RichTextFieldTriggerItem, MentionNodeAttrs>['suggestions'][number]
@@ -35,8 +38,7 @@ export type TriggerPopoverState = {
   query: string
   status: TriggerPopoverStatus
   items: RichTextFieldTriggerItem[]
-  activeIndex: number
-  rect: SuggestionAnchor | null
+  rect: TriggerMenuAnchor | null
   command: (item: RichTextFieldTriggerItem) => void
 }
 
@@ -77,7 +79,7 @@ function insertChip(char: string) {
   }
 }
 
-function popoverRect(dispatch: SuggestionDispatch): SuggestionAnchor | null {
+function popoverRect(dispatch: SuggestionDispatch): TriggerMenuAnchor | null {
   const rect = dispatch.clientRect?.() ?? null
   return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
 }
@@ -100,6 +102,7 @@ export function triggerSuggestion(options: {
   char: string
   source: () => RichTextFieldTriggerSource | undefined
   access: TriggerPopoverAccess
+  onKeyDown: (event: KeyboardEvent) => boolean
 }): SuggestionConfig {
   let errorQuery: string | null = null
 
@@ -135,7 +138,6 @@ export function triggerSuggestion(options: {
       query: dispatch.query,
       status: popoverStatus(dispatch),
       items: carry ? carry.items : dispatch.items,
-      activeIndex: carry ? carry.activeIndex : 0,
       rect: popoverRect(dispatch),
       command: dispatch.command,
     }
@@ -152,30 +154,11 @@ export function triggerSuggestion(options: {
     return state?.char === options.char ? state : null
   }
 
-  const navigate = (state: TriggerPopoverState, delta: number): true => {
-    const activeIndex = (state.activeIndex + delta + state.items.length) % state.items.length
-    options.access.update({...state, activeIndex})
-    return true
-  }
-
-  const select = (state: TriggerPopoverState): boolean => {
-    const item = state.items[state.activeIndex]
-    if (!item) return false
-    state.command(item)
-    return true
-  }
-
-  const settledAction = (state: TriggerPopoverState, event: KeyboardEvent): boolean => {
-    if (state.items.length === 0) return false
-    const delta = arrowDelta(event)
-    return delta === 0 ? select(state) : navigate(state, delta)
-  }
-
   const keydown = ({event}: SuggestionKeyDown): boolean => {
     const state = openState()
-    if (!state || !claimsKey(event)) return false
-    if (state.status === 'loading') return true
-    return settledAction(state, event)
+    if (!state) return false
+    if (state.status === 'loading') return claimsKey(event)
+    return options.onKeyDown(event)
   }
 
   return {
