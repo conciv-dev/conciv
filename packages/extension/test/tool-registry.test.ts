@@ -263,12 +263,12 @@ test('the catalog returns one tool full signature: fields, requiredness, enums, 
   expect(signature.mutating).toBe(true)
   expect(signature.mirrors).toBe(true)
   expect(signature.keywords).toEqual(['type'])
-  expect(signature.input).toMatchObject({
+  expect(signature.inputSchema).toMatchObject({
     type: 'object',
     required: ['target'],
     properties: {mode: {enum: ['exact', 'fuzzy']}},
   })
-  expect(signature.output).toMatchObject({type: 'object', properties: {filled: {type: 'boolean'}}})
+  expect(signature.outputSchema).toMatchObject({type: 'object', properties: {filled: {type: 'boolean'}}})
   expect(signature.errors).toContainEqual({
     code: 'ELEMENT_NOT_FOUND',
     message: 'no element matched the target',
@@ -492,7 +492,7 @@ test('the catalog reports input requiredness in input mode so defaulted fields s
     meta: {summary: 'greet someone by name'},
   }).server((input) => ({message: `${input.greeting} ${input.name}`}))
   registry.register(greet, {owner: 'a test registrant'})
-  expect(registry.catalog.get('server.greet').input).toMatchObject({required: ['name']})
+  expect(registry.catalog.get('server.greet').inputSchema).toMatchObject({required: ['name']})
 })
 
 test('a schema that cannot be represented in JSON Schema is rejected at registration, naming the tool', () => {

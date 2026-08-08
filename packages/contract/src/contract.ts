@@ -64,7 +64,10 @@ export const ToolCommandSignatureSchema = z.object({
   mutating: z.boolean(),
   mirrors: z.boolean(),
   reachable: z.boolean(),
-  input: z.unknown(),
+  approval: z.literal('ask').optional(),
+  inputSchema: z.unknown(),
+  outputSchema: z.unknown(),
+  errors: z.array(z.object({code: z.string(), message: z.string(), transport: z.boolean()})).default([]),
 })
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>

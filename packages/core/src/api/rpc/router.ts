@@ -167,7 +167,10 @@ export function makeRpcRouter(deps: RpcDeps) {
             mutating: signature.mutating,
             mirrors: signature.mirrors,
             reachable: entry.reachable,
-            input: signature.input,
+            approval: signature.approval,
+            inputSchema: signature.inputSchema,
+            outputSchema: signature.outputSchema,
+            errors: signature.errors,
           }
         }),
       ),

@@ -139,8 +139,8 @@ export type ToolSignature = ToolCatalogEntry & {
   mutating: boolean
   mirrors: boolean
   keywords: readonly string[]
-  input: unknown
-  output: unknown
+  inputSchema: unknown
+  outputSchema: unknown
   errors: ToolSignatureError[]
 }
 
@@ -467,8 +467,8 @@ function signatureOf(entry: RegistryWalkEntry, listed: ToolCatalogEntry): ToolSi
     mutating: meta.mutating ?? false,
     mirrors: meta.mirrors ?? false,
     keywords: meta.keywords ?? [],
-    input: toJsonSchema(entry.inputSchema, `tool "${listed.name}" input`, 'input'),
-    output: toJsonSchema(entry.outputSchema, `tool "${listed.name}" output`, 'output'),
+    inputSchema: toJsonSchema(entry.inputSchema, `tool "${listed.name}" input`, 'input'),
+    outputSchema: toJsonSchema(entry.outputSchema, `tool "${listed.name}" output`, 'output'),
     errors: declaredErrorList(entry),
   }
 }

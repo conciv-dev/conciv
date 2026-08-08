@@ -4,12 +4,21 @@ import type {ToolIconKey, ToolLabel} from './tool-icon-types.js'
 
 export type ToolAccent = 'page' | 'code' | 'test' | 'read' | 'neutral'
 
+export type ToolViewError = {code: string; message: string}
+
 export type ToolViewMeta = {
   summary: string
+  category?: string
+  hint?: string
+  positional?: string
   icon?: ToolIconKey
   label?: ToolLabel
   mutating: boolean
   mirrors: boolean
+  approval?: 'ask'
+  inputSchema?: unknown
+  outputSchema?: unknown
+  errors?: readonly ToolViewError[]
 }
 
 export type ToolCatalogView = {

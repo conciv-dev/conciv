@@ -166,6 +166,9 @@ export {
   formatDuration,
 } from './primitives/tools/tool-util.js'
 export {ToolCard} from './styled/tool-card.js'
+export {GENERIC_TOOL_ICON, toolIconRender} from './styled/tool-icon.js'
+export {schemaFields, schemaParams, type SchemaField} from './primitives/tools/schema-params.js'
+export {MetaToolCard} from './styled/tools/meta-tool-card.js'
 export {ToolCallCard, type ToolCallCardProps} from './styled/tools/tool-call-card.js'
 export {NowLine} from './styled/now-line.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'

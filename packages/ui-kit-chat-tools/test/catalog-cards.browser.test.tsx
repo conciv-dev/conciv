@@ -1,14 +1,13 @@
 import 'virtual:uno.css'
 import {z} from 'zod'
-import {createSignal} from 'solid-js'
 import {page} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {afterEach, expect, it, vi} from 'vitest'
 import {defineTool} from '@conciv/extension/tool'
 import {createToolRegistry} from '@conciv/extension/registry'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
-import {PageActionCard} from '../src/styled/page-action-card.js'
+import {MetaToolCard} from '@conciv/ui-kit-chat'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
 import {cleanupViews, mountView} from './mount-view.js'
 import {registryCatalogView} from './registry-catalog-view.js'
@@ -20,13 +19,14 @@ afterEach(() => {
 const shipTool = defineTool({
   name: 'page.ship',
   description: 'ship the page the user is looking at',
-  inputSchema: z.object({note: z.string().optional()}),
-  outputSchema: z.object({ok: z.literal(true)}),
+  inputSchema: z.object({selector: z.string(), note: z.string().optional()}),
+  outputSchema: z.string(),
   meta: {
     summary: 'ship the page the user is looking at',
     category: 'act',
     icon: 'pointer',
     label: {running: 'Shipping the page', done: 'Shipped the page'},
+    positional: 'selector',
   },
 }).client()
 
@@ -35,6 +35,7 @@ const bannerTool = defineTool({
   description: 'paint a banner over the page',
   inputSchema: z.object({value: z.string().optional()}),
   outputSchema: z.object({ok: z.literal(true)}),
+  errors: {NO_CANVAS: {message: 'this page has nowhere to paint a banner'}},
   meta: {
     summary: 'paint a banner over the page',
     category: 'act',
@@ -42,6 +43,7 @@ const bannerTool = defineTool({
     label: {running: 'Painting the banner', done: 'Painted the banner'},
     mutating: true,
     mirrors: true,
+    hint: 'the banner disappears on the next navigation',
   },
 }).client()
 
@@ -53,10 +55,24 @@ const plainTool = defineTool({
   meta: {summary: 'do something the widget has no cosmetics for', category: 'act'},
 }).client()
 
+const countTool = defineTool({
+  name: 'page.count',
+  description: 'count the elements the page shows',
+  inputSchema: z.object({}),
+  outputSchema: z.number(),
+  meta: {summary: 'count the elements the page shows', category: 'read', icon: 'read'},
+}).client()
+
+function codeBlockText(): string {
+  return Array.from(document.querySelectorAll('diffs-container'))
+    .map((host) => host.shadowRoot?.textContent ?? '')
+    .join('\n')
+}
+
 function declaredRegistry() {
   const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
   for (const def of PAGE_TOOL_DEFS) registry.register(def.client(), {owner: 'a built-in page tool'})
-  for (const tool of [shipTool, bannerTool, plainTool]) registry.register(tool, {owner: 'a test registrant'})
+  for (const tool of [shipTool, bannerTool, plainTool, countTool]) registry.register(tool, {owner: 'a test registrant'})
   return registry
 }
 
@@ -64,78 +80,79 @@ function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
   return {apiBase: '', harnessId: 'test', sendMessage: () => {}, catalog}
 }
 
-function part(args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
-  return {type: 'tool-call', id: 'p1', name: 'conciv_page', arguments: JSON.stringify(args), input: args, state}
+function part(name: string, input: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
+  return {type: 'tool-call', id: 'p1', name, arguments: JSON.stringify(input), input, state}
 }
 
-function result(payload: unknown): ToolResultPart {
-  return {type: 'tool-result', toolCallId: 'p1', content: JSON.stringify(payload), state: 'complete'}
+function result(content: string, state: ToolResultPart['state'] = 'complete'): ToolResultPart {
+  return {type: 'tool-result', toolCallId: 'p1', content, state}
 }
 
-const GENERIC_PAGE_TITLE = 'Page action'
-
-it('a non-builtin registry page tool renders its declared labels instead of the generic card', async () => {
-  const catalog = registryCatalogView(declaredRegistry())
-
-  mountView(() => <PageActionCard part={part({verb: 'ship'})} result={undefined} ctx={ctxWith(catalog)} />)
-
-  await expect.element(page.getByText('Shipped the page')).toBeVisible()
-  expect(document.body.textContent).not.toContain(GENERIC_PAGE_TITLE)
-  expect(nowTitle(part({verb: 'ship'}, 'input-streaming'), catalog)).toBe('Shipping the page')
-  await page.screenshot({path: '__screenshots__/catalog-cards/declared-non-builtin.png'})
-})
-
-it('a mutating mirroring registry tool hides its result and shows the mirror row', async () => {
-  const catalog = registryCatalogView(declaredRegistry())
-
-  mountView(() => <PageActionCard part={part({verb: 'banner'})} result={result({ok: true})} ctx={ctxWith(catalog)} />)
-
-  await page.getByRole('button').click()
-  await expect.element(page.getByText('shown on your page')).toBeVisible()
-  expect(document.body.textContent).not.toContain('"ok"')
-})
-
-it('a non-mutating registry tool still shows its result', async () => {
+it('a non-builtin registry tool renders its declared labels and its positional argument', async () => {
   const catalog = registryCatalogView(declaredRegistry())
 
   mountView(() => (
-    <PageActionCard part={part({verb: 'ship'})} result={result({value: 'shipped-42'})} ctx={ctxWith(catalog)} />
+    <MetaToolCard part={part('page.ship', {selector: '#hero'})} result={undefined} ctx={ctxWith(catalog)} />
+  ))
+
+  await expect.element(page.getByText('Shipped the page #hero')).toBeVisible()
+  expect(nowTitle(part('page.ship', {selector: '#hero'}, 'input-streaming'), catalog)).toBe('Shipping the page')
+  await page.screenshot({path: '__screenshots__/catalog-cards/declared-non-builtin.png'})
+})
+
+it('a mutating mirroring registry tool shows its write badge, its hint and the mirror row', async () => {
+  const catalog = registryCatalogView(declaredRegistry())
+
+  mountView(() => (
+    <MetaToolCard part={part('page.banner', {value: 'Sale'})} result={result('{"ok":true}')} ctx={ctxWith(catalog)} />
+  ))
+
+  await expect.element(page.getByText('writes')).toBeVisible()
+  await page.getByRole('button').click()
+  await expect.element(page.getByText('shown on your page')).toBeVisible()
+  await expect.element(page.getByText('the banner disappears on the next navigation')).toBeVisible()
+})
+
+it('a tool declaring an error renders the declared message instead of the raw failure string', async () => {
+  const catalog = registryCatalogView(declaredRegistry())
+
+  mountView(() => (
+    <MetaToolCard
+      part={part('page.banner', {value: 'Sale'})}
+      result={result('NO_CANVAS: page.banner failed', 'error')}
+      ctx={ctxWith(catalog)}
+    />
   ))
 
   await page.getByRole('button').click()
-  await expect.element(page.getByText('shipped-42')).toBeVisible()
+  await expect.element(page.getByText('this page has nowhere to paint a banner')).toBeVisible()
+  expect(document.body.textContent).not.toContain('page.banner failed')
 })
 
-it('a declared tool with no cosmetics renders a derived title, never the generic card', async () => {
+it('a string output schema renders the result as a code block', async () => {
   const catalog = registryCatalogView(declaredRegistry())
 
-  mountView(() => <PageActionCard part={part({verb: 'plain'})} result={undefined} ctx={ctxWith(catalog)} />)
+  mountView(() => (
+    <MetaToolCard part={part('page.ship', {selector: '#hero'})} result={result('shipped-42')} ctx={ctxWith(catalog)} />
+  ))
 
-  await expect.element(page.getByText('do something the widget has no cosmetics for')).toBeVisible()
-  expect(document.body.textContent).not.toContain(GENERIC_PAGE_TITLE)
+  await page.getByRole('button').click()
+  await vi.waitFor(() => expect(codeBlockText()).toContain('shipped-42'))
 })
 
-it('the generic page card renders only for a tool the loaded catalog lacks', async () => {
+it('a scalar output schema renders the result as a chip', async () => {
   const catalog = registryCatalogView(declaredRegistry())
 
-  mountView(() => <PageActionCard part={part({verb: 'teleport'})} result={undefined} ctx={ctxWith(catalog)} />)
+  mountView(() => <MetaToolCard part={part('page.count', {})} result={result('7')} ctx={ctxWith(catalog)} />)
 
-  await expect.element(page.getByText(GENERIC_PAGE_TITLE)).toBeVisible()
+  await page.getByRole('button').click()
+  await expect.element(page.getByText('7')).toBeVisible()
 })
 
-it('a declared tool never passes through the generic card while the catalog is still loading', async () => {
-  const [loaded, setLoaded] = createSignal(false)
-  const listed = registryCatalogView(declaredRegistry())
-  const catalog: ToolCatalogView = {loaded: () => loaded(), meta: (name) => listed.meta(name)}
+it('a declared tool with no cosmetics still renders its summary as the title', async () => {
+  const catalog = registryCatalogView(declaredRegistry())
 
-  mountView(() => <PageActionCard part={part({verb: 'ship'})} result={undefined} ctx={ctxWith(catalog)} />)
+  mountView(() => <MetaToolCard part={part('page.plain', {})} result={undefined} ctx={ctxWith(catalog)} />)
 
-  await expect.element(page.getByText('ship')).toBeVisible()
-  expect(document.body.textContent).not.toContain(GENERIC_PAGE_TITLE)
-  await page.screenshot({path: '__screenshots__/catalog-cards/pending-catalog.png'})
-
-  setLoaded(true)
-
-  await expect.element(page.getByText('Shipped the page')).toBeVisible()
-  expect(document.body.textContent).not.toContain(GENERIC_PAGE_TITLE)
+  await expect.element(page.getByText('do something the widget has no cosmetics for').first()).toBeVisible()
 })

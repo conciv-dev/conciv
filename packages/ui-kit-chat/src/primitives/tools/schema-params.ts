@@ -5,14 +5,20 @@ const JsonSchemaShape = z.object({
   required: z.array(z.string()).optional(),
 })
 
-export function schemaParams(schema: unknown): string {
+export type SchemaField = {name: string; type: string; required: boolean}
+
+export function schemaFields(schema: unknown): SchemaField[] {
   const parsed = JsonSchemaShape.safeParse(schema)
-  if (!parsed.success) return ''
+  if (!parsed.success) return []
   const properties = parsed.data.properties ?? {}
   const required = new Set(parsed.data.required ?? [])
   const names = Object.keys(properties)
   const ordered = [...names.filter((name) => required.has(name)), ...names.filter((name) => !required.has(name))]
-  return ordered
-    .map((name) => `${name}${required.has(name) ? '' : '?'}: ${properties[name]?.type ?? 'unknown'}`)
+  return ordered.map((name) => ({name, type: properties[name]?.type ?? 'unknown', required: required.has(name)}))
+}
+
+export function schemaParams(schema: unknown): string {
+  return schemaFields(schema)
+    .map((field) => `${field.name}${field.required ? '' : '?'}: ${field.type}`)
     .join(' · ')
 }
