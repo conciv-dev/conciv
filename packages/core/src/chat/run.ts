@@ -501,9 +501,11 @@ export function makeSend(deps: ChatDeps): Send {
     const expanded = await prepareLaunchContent(deps, sessionId, content).catch((error: unknown) =>
       failClaimedRun(deps, runId, error),
     )
-    await settleLiveRuns(deps, sessionId)
-    launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
-    await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+    await deps.liveRuns.serialize(sessionId, async () => {
+      await settleLiveRuns(deps, sessionId)
+      launchRun(deps, sessionId, {runId, kind: 'chat', content: expanded})
+      await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+    })
     return runId
   }
 }

@@ -51,7 +51,11 @@ export function hasRichPart(message: unknown): boolean {
 
 function appendRunIntoHistory(db: ConcivDb, id: string): void {
   const row = runMessagesFor(db, id)
-  if (!row || row.messages.length === 0) return
+  if (!row) return
+  if (row.messages.length === 0) {
+    deleteRunMessages(db, id)
+    return
+  }
   const existing = sessionHistoryFor(db, id)?.messages ?? []
   const folded = {sessionId: id, messages: [...existing, ...row.messages], updatedAt: Date.now()}
   db.insert(sessionHistory)

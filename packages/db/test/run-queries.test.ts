@@ -68,6 +68,14 @@ describe('run lifecycle queries', () => {
     expect(sessionHistoryFor(db, 's10')?.messages).toEqual([...firstTurn, ...secondTurn])
   })
 
+  it('the plain fold consumes an empty run row so startup recovery cannot rediscover it forever', () => {
+    const db = fresh()
+    setRunMessages(db, 's12', [])
+    foldRunMessagesIntoHistory(db, 's12')
+    expect(runMessagesFor(db, 's12')).toBeNull()
+    expect(sessionHistoryFor(db, 's12')).toBeNull()
+  })
+
   it('deleteRunMessages drops only the run row for that session', () => {
     const db = fresh()
     setRunMessages(db, 's11', [{id: 'live'}])
