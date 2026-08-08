@@ -39,6 +39,10 @@
     "./registry": {
       "types": "./dist/tool-registry.d.ts",
       "import": "./dist/tool-registry.js"
+    },
+    "./rpc-mount": {
+      "types": "./dist/rpc-mount.d.ts",
+      "import": "./dist/rpc-mount.js"
     }
   },
   "publishConfig": {

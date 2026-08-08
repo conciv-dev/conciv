@@ -45,7 +45,14 @@ import {askPage, makePageBus, type PageEnv} from './page-bus.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
-import {extensionRpcMiddleware, rpcMiddleware} from './api/rpc/mount.js'
+import {
+  makeCompositeRpcRouter,
+  RPC_PREFIX,
+  RPC_WS_PATH,
+  rpcFetchMiddleware,
+  rpcWebsocketRoute,
+  type CompositeRpcRouter,
+} from './api/rpc/mount.js'
 import {makeJournal} from './page-bus.js'
 import {makeBuiltinRegistry} from './tool-registry.js'
 import pageServerExtension from '@conciv/extension-page/server'
@@ -180,7 +187,7 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
 
 export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 
-function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>, onShutdown?: () => void) {
+function composeRoutes(vars: CoreVars, rpc: CompositeRpcRouter, onShutdown?: () => void) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
@@ -200,7 +207,8 @@ function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>, on
       setTimeout(onShutdown, 50)
       return c.json({ok: true})
     })
-    .use('/rpc/*', rpcMiddleware(rpc))
+    .get(RPC_WS_PATH, rpcWebsocketRoute(rpc))
+    .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
 }
 
@@ -442,6 +450,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ...(opts.askTimeoutMs === undefined ? {} : {askTimeoutMs: opts.askTimeoutMs}),
   })
 
+  const compositeRpc = makeCompositeRpcRouter(
+    rpc,
+    mounted.flatMap((entry) =>
+      entry.router ? [{slug: slug(entry.extensionName), extensionName: entry.extensionName, router: entry.router}] : [],
+    ),
+  )
+
   const app = composeRoutes(
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
@@ -461,7 +476,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         sessionForNativeId: async (nativeId) => (await rowByNativeId(db, nativeId))?.id ?? null,
       },
     },
-    rpc,
+    compositeRpc,
     opts.onShutdown,
   )
 
@@ -469,11 +484,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   mounted.forEach((entry) => {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)
-    if (entry.router)
-      app.use(
-        `/rpc/ext/${slug(entry.extensionName)}/*`,
-        extensionRpcMiddleware(entry.router, slug(entry.extensionName)),
-      )
   })
 
   const dispose = async (): Promise<void> => {

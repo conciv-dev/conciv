@@ -1,4 +1,4 @@
-import {serveHono} from '@conciv/serve'
+import {serveHono, type ServeFetch} from '@conciv/serve'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -41,7 +41,7 @@ export type Engine = {
 }
 
 type Served = Awaited<ReturnType<typeof serveHono>>
-type FetchHandler = (request: Request) => Response | Promise<Response>
+type FetchHandler = ServeFetch
 
 const PERSISTED_PORT_ATTEMPTS = 4
 const PERSISTED_PORT_RETRY_MS = 300

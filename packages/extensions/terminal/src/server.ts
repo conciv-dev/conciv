@@ -7,6 +7,7 @@ import {defineExtension, type ServerApi} from '@conciv/extension'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext, HarnessConnectPlan} from '@conciv/protocol/harness-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
+import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
 import {launchConnectPlan, renderConnectCommand} from './server/launch.js'
 import {
@@ -53,8 +54,8 @@ function resumable({server}: TerminalRuntime, harnessSessionId: string | null): 
   return server.harness.transcriptExists?.(harnessSessionId) ?? true
 }
 
-function apiBase(runtime: TerminalRuntime, request: Request): string {
-  return `${new URL(request.url).origin}${runtime.server.basePath}`
+function apiBase(runtime: TerminalRuntime, context: RpcContext): string {
+  return `${context.origin}${runtime.server.basePath}`
 }
 
 async function connectContext(
@@ -115,7 +116,7 @@ async function openTtySession(
   if (ctx.resume) session.inject('\u001b[2m\u2500 conciv: resumed session \u2500\u001b[0m')
 }
 
-const terminalOs = os.$context<{request: Request}>()
+const terminalOs = os.$context<RpcContext>()
 
 const SessionInputSchema = z.object({sessionId: SessionId})
 
@@ -136,7 +137,7 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
         const {sessionId, ...size} = input
         if (!server.harness.ttyCommand) throw errors.NO_TTY()
         if (reuseAlive(tty.get(sessionId), size)) return {alive: true}
-        await openTtySession(runtime, sessionId, size, apiBase(runtime, context.request))
+        await openTtySession(runtime, sessionId, size, apiBase(runtime, context))
         return {alive: true}
       }),
     close: terminalOs
@@ -162,12 +163,7 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .input(LaunchInputSchema)
       .output(z.object({ok: z.boolean()}))
       .handler(async ({input, context, errors}) => {
-        const plan = await connectPlanFor(
-          runtime,
-          input.sessionId,
-          input.model ?? null,
-          apiBase(runtime, context.request),
-        )
+        const plan = await connectPlanFor(runtime, input.sessionId, input.model ?? null, apiBase(runtime, context))
         if (!plan) throw errors.NO_CONNECT()
         const {server} = runtime
         return {ok: await launchConnectPlan(plan, {cwd: server.cwd, stateDir: server.stateDir})}
@@ -177,7 +173,7 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .input(SessionInputSchema)
       .output(z.object({command: z.string()}))
       .handler(async ({input, context, errors}) => {
-        const plan = await connectPlanFor(runtime, input.sessionId, null, apiBase(runtime, context.request))
+        const plan = await connectPlanFor(runtime, input.sessionId, null, apiBase(runtime, context))
         if (!plan) throw errors.NO_CONNECT()
         return {command: renderConnectCommand(plan, runtime.server.cwd)}
       }),

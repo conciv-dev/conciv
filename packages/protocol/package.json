@@ -45,6 +45,10 @@
       "types": "./dist/framework-types.d.ts",
       "import": "./dist/framework-types.js"
     },
+    "./rpc-types": {
+      "types": "./dist/rpc-types.d.ts",
+      "import": "./dist/rpc-types.js"
+    },
     "./terminal-types": {
       "types": "./dist/terminal-types.d.ts",
       "import": "./dist/terminal-types.js"
