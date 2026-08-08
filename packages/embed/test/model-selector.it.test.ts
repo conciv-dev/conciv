@@ -1,5 +1,6 @@
 import {describe, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
+import {failRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 
@@ -13,11 +14,7 @@ const suite = setupWidgetSuite({text: 'Hello from conciv', models: HARNESS_MODEL
 describe('model selector error path', () => {
   it('offers a retry when meta.models fails and recovers on retry', async () => {
     const page = await suite.browser().newPage({viewport: {width: 900, height: 760}})
-    const broken = {value: true}
-    await page.route('**/rpc/meta/models*', async (route) => {
-      if (!broken.value) return route.continue()
-      await route.fulfill({status: 500, contentType: 'application/json', body: JSON.stringify({json: {}, meta: []})})
-    })
+    const models = await failRpcCalls(page, {path: ['meta', 'models']})
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
 
@@ -25,7 +22,7 @@ describe('model selector error path', () => {
     await expectLocator(retry).toBeVisible({timeout: 30_000})
     await expectLocator(page.getByText('Couldn’t load models').first()).toBeVisible({timeout: 30_000})
 
-    broken.value = false
+    models.repair()
     await retry.click()
     await expectLocator(page.getByRole('button', {name: 'Select model'})).toBeVisible({timeout: 30_000})
     await page.close()

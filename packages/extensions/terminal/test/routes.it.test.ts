@@ -1,6 +1,9 @@
 import {randomUUID} from 'node:crypto'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import WebSocket from 'ws'
+import type {RouterClient} from '@orpc/server'
+import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
+import type {TerminalRouter} from '../src/server.js'
 import {recordingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
 
 type Client = {ws: WebSocket; received: string[]; controls: string[]}
@@ -63,6 +66,14 @@ describe('terminal extension routes', () => {
     client.ws.send('stty size\r')
     expect(await resized.promise).toContain('27 91')
     client.ws.close()
+  })
+
+  it('serves the same rpc procedures over the composite websocket mount', async () => {
+    const socket = new globalThis.WebSocket(ctx.server?.rpcWsUrl ?? '')
+    const wsClient = rpcOverWebsocket<RouterClient<TerminalRouter>>(socket, {path: ['ext', 'terminal']})
+    expect(await wsClient.state({sessionId})).toEqual(await rpc().state({sessionId}))
+    expect((await wsClient.state({sessionId})).alive).toBe(true)
+    socket.close()
   })
 
   it('replays buffered bytes on reconnect', async () => {

@@ -1,6 +1,8 @@
 import {once} from 'node:events'
-import {serve, type Http2Bindings, type HttpBindings, type ServerType} from '@hono/node-server'
+import {serve, upgradeWebSocket, type Http2Bindings, type HttpBindings, type ServerType} from '@hono/node-server'
 import {WebSocketServer} from 'ws'
+
+export {upgradeWebSocket}
 
 const DEFAULT_MAX_PAYLOAD_BYTES = 16 * 1024 * 1024
 const GRACEFUL_SOCKET_CLOSE_MS = 2_000

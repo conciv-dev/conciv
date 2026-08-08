@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest'
+import {observeRpc} from '@conciv/extension-testkit/rpc-observer'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 
@@ -7,6 +8,7 @@ const suite = setupWidgetSuite()
 describe('draft persistence carries the caret offsets', () => {
   it('persists the draft text with the caret position after the debounce', async () => {
     const page = await suite.browser().newPage()
+    const observer = observeRpc(page)
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
 
@@ -14,11 +16,7 @@ describe('draft persistence carries the caret offsets', () => {
     await input.click()
     await input.pressSequentially('hello!')
     for (let step = 0; step < 6; step += 1) await input.press('ArrowLeft')
-    const persisted = page.waitForResponse(
-      (response) =>
-        response.url().includes('/rpc/drafts/set') && (response.request().postData() ?? '').includes('say hello!'),
-      {timeout: 30_000},
-    )
+    const persisted = observer.completed({path: ['drafts', 'set'], input: {text: 'say hello!'}, timeout: 30_000})
     await input.pressSequentially('say ')
     await persisted
 
@@ -30,6 +28,7 @@ describe('draft persistence carries the caret offsets', () => {
       selectionStart: 4,
       selectionEnd: 4,
     })
+    observer.dispose()
     await page.close()
   })
 })

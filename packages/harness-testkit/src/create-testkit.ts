@@ -29,6 +29,7 @@ export type ChatMessage = Record<string, unknown>
 
 export type Kit = {
   base: string
+  wsBase: string
   stateRoot: string
   rpc: RpcClient
   session: (id?: string) => Promise<string>
@@ -71,6 +72,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
       const app = await boot({stateRoot, cwd: stateRoot, harness})
       let served = await serveApp(app.fetch)
       const base = served.base
+      const wsBase = served.wsBase
       const aborts: AbortController[] = []
       const rpc = makeRpcClient(base)
 
@@ -103,6 +105,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
 
       return {
         base,
+        wsBase,
         stateRoot,
         rpc,
         session: (id) => resolve(id),

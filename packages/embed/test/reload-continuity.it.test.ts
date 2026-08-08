@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
+import {observeRpc} from '@conciv/extension-testkit/rpc-observer'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 
@@ -10,6 +11,7 @@ const suite = setupWidgetSuite({text: ASSISTANT_TEXT})
 describe('reload continuity through the db-backed navigation row', () => {
   it('restores the open panel route, the transcript, and the draft after a reload', async () => {
     const page = await suite.browser().newPage()
+    const observer = observeRpc(page)
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
 
@@ -20,12 +22,11 @@ describe('reload continuity through the db-backed navigation row', () => {
 
     await input.fill('an unsent draft survives')
     await input.press('End')
-    await page.waitForResponse(
-      (response) =>
-        response.url().includes('/rpc/drafts/set') &&
-        (response.request().postData() ?? '').includes('an unsent draft survives'),
-      {timeout: 30_000},
-    )
+    await observer.completed({
+      path: ['drafts', 'set'],
+      input: {text: 'an unsent draft survives'},
+      timeout: 30_000,
+    })
     const state = await suite.kit().rpc.navigation.get(undefined)
     const panelEntry = state?.entries.find((entry) => entry.href.startsWith('/panel/'))
     const sessionId = (panelEntry?.href.split('/')[2] ?? '').split('?')[0] ?? ''
@@ -39,6 +40,7 @@ describe('reload continuity through the db-backed navigation row', () => {
       'an unsent draft survives',
       {timeout: 30_000},
     )
+    observer.dispose()
     await page.close()
   })
 })

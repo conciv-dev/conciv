@@ -3,6 +3,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
+import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {captureNativePosts, installNativeStub, type NativeBridge} from './helpers/native-bridge.js'
 
@@ -48,12 +49,19 @@ afterAll(async () => {
   await kit.cleanup()
 })
 
-type Native = {page: Page; bridge: NativeBridge; rebinds: {apiBase?: string}[]; onRebind: () => void}
+type Native = {
+  page: Page
+  bridge: NativeBridge
+  observer: RpcObserver
+  rebinds: {apiBase?: string}[]
+  onRebind: () => void
+}
 
 async function openNative(): Promise<Native> {
   const page = await browser.newPage()
+  const observer = observeRpc(page)
   const bridge = await captureNativePosts(page)
-  const native: Native = {page, bridge, rebinds: [], onRebind: () => {}}
+  const native: Native = {page, bridge, observer, rebinds: [], onRebind: () => {}}
   await page.exposeFunction('concivNativeRebind', (detail: {apiBase?: string}) => {
     native.rebinds.push(detail)
     native.onRebind()
@@ -120,12 +128,11 @@ describe('native widget bridge', () => {
   })
 
   it('drives the native grab provider: pick posts a requestId and a matching image grabResult stages the preview', async () => {
-    const {page, bridge} = await openNative()
-    const sentToModel = Promise.withResolvers<string>()
-    page.on('request', (request) => {
-      if (!request.url().includes('/rpc/')) return
-      const body = request.postData() ?? ''
-      if (body.includes('[view]') && body.includes('PaymentCardCell')) sentToModel.resolve(body)
+    const {page, bridge, observer} = await openNative()
+    const stagedForModel = observer.completed({
+      path: ['drafts', 'set'],
+      input: /\[view\][\s\S]*PaymentCardCell/,
+      timeout: 30_000,
     })
     const picked = Promise.withResolvers<PageToNativeMessage>()
     bridge.notify = (message) => {
@@ -144,7 +151,7 @@ describe('native widget bridge', () => {
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
     await expectLocator(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
     await expectLocator(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
-    expect(await sentToModel.promise).toContain('PaymentCardCell')
+    expect(JSON.stringify((await stagedForModel).input)).toContain('PaymentCardCell')
     await page.close()
   })
 

@@ -122,6 +122,7 @@
     "packages/extensions/tanstack/test/host/main.tsx",
     "packages/extensions/tanstack/test/host/conciv/extensions/connect-probe.tsx",
     "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
-    "e2e/harnesses/vite.*.config.ts"
+    "e2e/harnesses/vite.*.config.ts",
+    "apps/conciv/test/helpers/fake-core-router.ts"
   ]
 }

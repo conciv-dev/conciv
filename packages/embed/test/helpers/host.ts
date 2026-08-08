@@ -29,6 +29,14 @@ export function hostPage(opts: {apiBase: string; widget?: string; body?: string;
   </body></html>`
 }
 
+export function wsProbeHostPage(body?: string): string {
+  const probeBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-ws-probe.global.js'), 'utf8')
+  return `<!doctype html><html><head></head><body>
+    ${body ?? '<div id="probe">page-bus-ok</div>'}
+    <script>${probeBundle}</script>
+  </body></html>`
+}
+
 export function handleHostPage(body?: string): string {
   const handleBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-handle.global.js'), 'utf8')
   return `<!doctype html><html><head></head><body>

@@ -3,6 +3,7 @@ import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
+import {observeRpc} from '@conciv/extension-testkit/rpc-observer'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, hostPage, serveHost} from './helpers/host.js'
 
@@ -97,12 +98,12 @@ describe('bootNormal: the widget embed serves every verb group through the dispa
     kit = await bootEmbedKit()
     host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}))
     page = await browser.newPage()
-    const subscribed = page.waitForResponse((response) => response.url().endsWith('/rpc/page/queries'), {
-      timeout: 30_000,
-    })
+    const observer = observeRpc(page)
+    const subscribed = observer.completed({path: ['page', 'queries'], timeout: 30_000})
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 30_000})
     await subscribed
+    observer.dispose()
   }, 60_000)
 
   afterAll(async () => {

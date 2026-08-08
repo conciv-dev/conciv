@@ -1,9 +1,19 @@
 import type {Page} from 'playwright'
 import {expect} from 'playwright/test'
+import {makeRpcClient} from '@conciv/contract'
+import {observeRpc} from './rpc-observer.js'
+
+const HANDSHAKE_TIMEOUT_MS = 30_000
 
 export async function completeConnectHandshake(page: Page, apiBase: string): Promise<void> {
-  await expect(page.getByRole('status', {name: 'connect pane ready'})).toBeVisible({timeout: 30_000})
-  const subscribed = page.waitForResponse((response) => response.url().endsWith('/rpc/page/queries'), {timeout: 30_000})
+  await expect(page.getByRole('status', {name: 'connect pane ready'})).toBeVisible({timeout: HANDSHAKE_TIMEOUT_MS})
+  const observer = observeRpc(page)
+  const subscribed = observer.completed({path: ['page', 'queries'], timeout: HANDSHAKE_TIMEOUT_MS})
   await page.evaluate((base) => window.dispatchEvent(new CustomEvent('embedtest:connect', {detail: {base}})), apiBase)
-  await subscribed
+  try {
+    await subscribed
+    await makeRpcClient(apiBase).registry.call({name: 'page.text', input: {selector: 'html'}})
+  } finally {
+    observer.dispose()
+  }
 }

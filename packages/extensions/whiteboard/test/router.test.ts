@@ -1,25 +1,22 @@
 import {mkdtempSync, realpathSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {RPCHandler} from '@orpc/server/fetch'
 import {safe} from '@orpc/client'
+import type {RouterClient} from '@orpc/server'
 import {makeExtRpcClient} from '@conciv/extension'
-import {serveApp, type ServedApp} from '@conciv/harness-testkit'
+import {serveExtensionRpc, type ServedRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
+import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {createStore, type Store} from '../src/server/db/store.js'
 import {makeWhiteboardRouter, type WhiteboardRouter} from '../src/server/router.js'
 
 let store: Store
-let served: ServedApp
+let served: ServedRpcRouter
 let client: ReturnType<typeof makeExtRpcClient<WhiteboardRouter>>
 
 beforeAll(async () => {
   store = await createStore(realpathSync(mkdtempSync(join(tmpdir(), 'wb-router-'))))
-  const handler = new RPCHandler(makeWhiteboardRouter(store))
-  served = await serveApp(async (request: Request) => {
-    const {response} = await handler.handle(request, {prefix: '/rpc/ext/whiteboard', context: {request}})
-    return response ?? new Response('not found', {status: 404})
-  })
+  served = await serveExtensionRpc({slug: 'whiteboard', router: makeWhiteboardRouter(store)})
   client = makeExtRpcClient<WhiteboardRouter>(served.base, 'whiteboard')
 })
 afterAll(async () => {
@@ -121,6 +118,41 @@ describe('whiteboard router', () => {
     expect(first.value.table).toBe('pins')
     expect(JSON.stringify(first.value)).toContain('"cid":"c2"')
     await changes.return(undefined).catch(() => {})
+  })
+
+  it('answers the same procedures over the websocket mount under ext.whiteboard', async () => {
+    const socket = new WebSocket(served.wsUrl)
+    const wsClient = rpcOverWebsocket<RouterClient<WhiteboardRouter>>(socket, {path: ['ext', 'whiteboard']})
+    const pin = {
+      id: crypto.randomUUID(),
+      room: 'ws-room',
+      cid: 'cws',
+      x: 3,
+      y: 4,
+      elementId: null,
+      pinState: 'locked',
+      anchorX: null,
+      anchorY: null,
+    } satisfies Parameters<typeof client.pins.insert>[0]
+    expect(await wsClient.pins.insert(pin)).toEqual(pin)
+    expect(await client.pins.list({room: 'ws-room'})).toEqual([pin])
+    socket.close()
+  })
+
+  it('streams typed change events over the websocket mount', async () => {
+    const socket = new WebSocket(served.wsUrl)
+    const wsClient = rpcOverWebsocket<RouterClient<WhiteboardRouter>>(socket, {path: ['ext', 'whiteboard']})
+    const abort = new AbortController()
+    const changes = await wsClient.changes({room: 'ws-stream'}, {signal: abort.signal})
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await store.insertPin({id: crypto.randomUUID(), room: 'ws-stream', cid: 'cws2', x: 1, y: 1})
+    const first = await changes.next()
+    abort.abort()
+    if (first.done) throw new Error('changes ended before an event arrived')
+    expect(first.value.table).toBe('pins')
+    expect(JSON.stringify(first.value)).toContain('"cid":"cws2"')
+    await changes.return(undefined).catch(() => {})
+    socket.close()
   })
 
   it('streams cursor events', async () => {

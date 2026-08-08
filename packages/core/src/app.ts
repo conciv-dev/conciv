@@ -1,5 +1,6 @@
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
+import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -51,8 +52,8 @@ import {
   RPC_WS_PATH,
   rpcFetchMiddleware,
   rpcWebsocketRoute,
-  type CompositeRpcRouter,
-} from './api/rpc/mount.js'
+} from '@conciv/extension/rpc-mount'
+import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import {makeJournal} from './page-bus.js'
 import {makeBuiltinRegistry} from './tool-registry.js'
 import pageServerExtension from '@conciv/extension-page/server'
@@ -207,7 +208,10 @@ function composeRoutes(vars: CoreVars, rpc: CompositeRpcRouter, onShutdown?: () 
       setTimeout(onShutdown, 50)
       return c.json({ok: true})
     })
-    .get(RPC_WS_PATH, rpcWebsocketRoute(rpc))
+    .get(
+      RPC_WS_PATH,
+      rpcWebsocketRoute(rpc, {upgrade: upgradeWebSocket, onError: (message) => logError(`[core] ${message}`)}),
+    )
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
 }
