@@ -40,9 +40,7 @@ export function useComposerTriggerSources(sessionId: string): ComposerTriggerSou
     slash: {
       label: 'Commands',
       items: async (query) => {
-        const data = await queryClient.ensureQueryData(
-          appData.utils.meta.commands.queryOptions({input: {sessionId}}),
-        )
+        const data = await queryClient.ensureQueryData(appData.utils.meta.commands.queryOptions({input: {sessionId}}))
         return matchingItems(data.commands.map(commandEntry), query)
       },
     },

@@ -69,7 +69,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         mentionTrigger={props.triggers?.mention}
         onReady={(handle) => {
           props.onReady?.({
-            focus: () => handle.focus({end: true}),
+            focus: () => handle.focus(),
             append: (text) => handle.appendText(composer.text() === '' ? text : `\n${text}`),
           })
         }}

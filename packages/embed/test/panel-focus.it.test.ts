@@ -1,6 +1,6 @@
 import {describe, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import type {Page} from 'playwright'
+import type {Locator, Page} from 'playwright'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 import {hostPage, serveHost} from './helpers/host.js'
@@ -21,6 +21,27 @@ async function ensurePanelClosed(page: Page): Promise<void> {
   await expectLocator(opener).toBeVisible({timeout: 30_000})
 }
 
+type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hostButton: Locator}
+
+async function openPanelOverFocusedHostButton(): Promise<HostedPanel> {
+  const host = await serveHost(() =>
+    hostPage({
+      apiBase: suite.kit().base,
+      widget: '{"quickTerminal":false}',
+      body: '<button id="host-action">Host action</button>',
+    }),
+  )
+  const page = await suite.browser().newPage()
+  await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+  await ensurePanelClosed(page)
+  const hostButton = page.getByRole('button', {name: 'Host action'})
+  await hostButton.click()
+  await expectLocator(hostButton).toBeFocused()
+  await page.evaluate(() => window.dispatchEvent(new Event('conciv:open-panel')))
+  await expectLocator(composer(page)).toBeVisible({timeout: 30_000})
+  return {host, page, hostButton}
+}
+
 describe('panel open focuses the composer', () => {
   it('focuses the composer input when the panel opens', async () => {
     const page = await suite.browser().newPage()
@@ -35,21 +56,7 @@ describe('panel open focuses the composer', () => {
 
 describe('panel close restores focus: host element captured at open wins, FAB is the fallback', () => {
   it('closing via the FAB restores the host element that was focused before a programmatic open', async () => {
-    const host = await serveHost(() =>
-      hostPage({
-        apiBase: suite.kit().base,
-        widget: '{"quickTerminal":false}',
-        body: '<button id="host-action">Host action</button>',
-      }),
-    )
-    const page = await suite.browser().newPage()
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await ensurePanelClosed(page)
-    const hostButton = page.getByRole('button', {name: 'Host action'})
-    await hostButton.click()
-    await expectLocator(hostButton).toBeFocused()
-    await page.evaluate(() => window.dispatchEvent(new Event('conciv:open-panel')))
-    await expectLocator(composer(page)).toBeVisible({timeout: 30_000})
+    const {host, page, hostButton} = await openPanelOverFocusedHostButton()
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
     await expectLocator(hostButton).toBeFocused({timeout: 10_000})
     await page.close()
@@ -57,21 +64,7 @@ describe('panel close restores focus: host element captured at open wins, FAB is
   })
 
   it('closing via the panel header restores the host element that was focused before the open', async () => {
-    const host = await serveHost(() =>
-      hostPage({
-        apiBase: suite.kit().base,
-        widget: '{"quickTerminal":false}',
-        body: '<button id="host-action">Host action</button>',
-      }),
-    )
-    const page = await suite.browser().newPage()
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await ensurePanelClosed(page)
-    const hostButton = page.getByRole('button', {name: 'Host action'})
-    await hostButton.click()
-    await expectLocator(hostButton).toBeFocused()
-    await page.evaluate(() => window.dispatchEvent(new Event('conciv:open-panel')))
-    await expectLocator(composer(page)).toBeVisible({timeout: 30_000})
+    const {host, page, hostButton} = await openPanelOverFocusedHostButton()
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expectLocator(hostButton).toBeFocused({timeout: 10_000})
     await page.close()
@@ -79,21 +72,7 @@ describe('panel close restores focus: host element captured at open wins, FAB is
   })
 
   it('collapsing the panel by dragging its resize handle shut restores the host element', async () => {
-    const host = await serveHost(() =>
-      hostPage({
-        apiBase: suite.kit().base,
-        widget: '{"quickTerminal":false}',
-        body: '<button id="host-action">Host action</button>',
-      }),
-    )
-    const page = await suite.browser().newPage()
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await ensurePanelClosed(page)
-    const hostButton = page.getByRole('button', {name: 'Host action'})
-    await hostButton.click()
-    await expectLocator(hostButton).toBeFocused()
-    await page.evaluate(() => window.dispatchEvent(new Event('conciv:open-panel')))
-    await expectLocator(composer(page)).toBeVisible({timeout: 30_000})
+    const {host, page, hostButton} = await openPanelOverFocusedHostButton()
 
     const handle = page.getByRole('separator', {name: 'Resize chat height'})
     const grip = await handle.boundingBox()
