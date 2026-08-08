@@ -20,7 +20,6 @@ import type {AskRegistry} from './ask.js'
 import type {AttachmentExpanders} from './run.js'
 import type {LiveRuns} from './live-runs.js'
 import type {SessionStreams} from './subscribe.js'
-import type {SnapshotCache} from './transcript.js'
 
 export type ChatDeps = {
   cwd: string
@@ -39,7 +38,6 @@ export type ChatDeps = {
   claimStartedAt: () => number
   liveRuns: LiveRuns
   stream: SessionStreams
-  snapshots: SnapshotCache
   risky: ReadonlySet<string>
   commandAllows: () => readonly string[]
   tools: (sessionId: string) => AnyTool[]

@@ -7,7 +7,6 @@ import {openDb, type ConcivDb} from '@conciv/db'
 import {makeConcivSandbox} from '../../src/chat/sandbox.js'
 import {createAskRegistry} from '../../src/chat/ask.js'
 import {createSessionStreams} from '../../src/chat/subscribe.js'
-import {createSnapshotCache} from '../../src/chat/transcript.js'
 import {createLiveRuns} from '../../src/chat/live-runs.js'
 import {ensureRow} from '../../src/chat/session-rows.js'
 import {makeRunControl, type ChatDeps} from '../../src/chat/runtime.js'
@@ -42,7 +41,6 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     claimStartedAt,
     liveRuns: createLiveRuns(),
     stream: createSessionStreams(),
-    snapshots: createSnapshotCache(),
     commandAllows: () => [],
     risky: new Set<string>(),
     tools: () => [],

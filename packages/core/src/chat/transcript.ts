@@ -1,35 +1,35 @@
 import type {UIMessage} from '@tanstack/ai'
 import {ChatHistorySchema} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
-import {imageHistoryFor, runMessagesFor} from '@conciv/db'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import {
+  deleteRunMessages,
+  foldRichRunMessagesIntoHistory,
+  foldRunMessagesIntoHistory,
+  runMessagesFor,
+  runSessions,
+  sessionHistoryFor,
+  type ConcivDb,
+} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 import {rowById} from './session-rows.js'
 import {normalizeHistoryToolNames} from './tool-names.js'
 import {logError} from '../lib/debug.js'
 
-export type SnapshotCache = {
-  keep: (rowId: string, messages: UIMessage[]) => UIMessage[]
-  clear: (rowId: string) => void
-}
-
-export function createSnapshotCache(): SnapshotCache {
-  const served = new Map<string, UIMessage[]>()
-  return {
-    keep: (rowId, messages) => {
-      const previous = served.get(rowId)
-      if (previous && messages.length < previous.length) return previous
-      served.set(rowId, messages)
-      return messages
-    },
-    clear: (rowId) => {
-      served.delete(rowId)
-    },
+export function recoverInterruptedRuns(db: ConcivDb, harness: HarnessAdapter): void {
+  for (const sessionId of runSessions(db)) {
+    if (!harness.capabilities.transcriptHistory) {
+      foldRunMessagesIntoHistory(db, sessionId)
+      continue
+    }
+    foldRichRunMessagesIntoHistory(db, sessionId)
+    deleteRunMessages(db, sessionId)
   }
 }
 
 function storedMessages(deps: ChatDeps, sessionId: string): UIMessage[] {
   const stored = [
-    ...(imageHistoryFor(deps.db, sessionId)?.messages ?? []),
+    ...(sessionHistoryFor(deps.db, sessionId)?.messages ?? []),
     ...(runMessagesFor(deps.db, sessionId)?.messages ?? []),
   ]
   return ChatHistorySchema.parse(stored)
@@ -81,5 +81,5 @@ export async function sessionSnapshot(deps: ChatDeps, sessionId: string): Promis
   const transcript =
     nativeId && deps.harness.capabilities.transcriptHistory ? await transcriptMessages(deps, nativeId) : []
   const messages = mergedMessages(transcript, storedMessages(deps, sessionId))
-  return deps.snapshots.keep(sessionId, normalizeHistoryToolNames(messages, deps.toolNames))
+  return normalizeHistoryToolNames(messages, deps.toolNames)
 }
