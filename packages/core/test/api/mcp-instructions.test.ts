@@ -1,8 +1,14 @@
 import {describe, expect, it} from 'vitest'
 import {serverInstructions} from '../../src/api/mcp.js'
 
-const FRESH = {stale: false, changed: [], tracked: ['@conciv/core'], bootedAt: 0}
-const STALE = {stale: true, changed: ['@conciv/tools'], tracked: ['@conciv/core', '@conciv/tools'], bootedAt: 0}
+const FRESH = {stale: false, changed: [], tracked: ['@conciv/core'], bootedAt: 0, fingerprint: 'aaaa1111'}
+const STALE = {
+  stale: true,
+  changed: ['@conciv/tools'],
+  tracked: ['@conciv/core', '@conciv/tools'],
+  bootedAt: 0,
+  fingerprint: 'bbbb2222',
+}
 
 describe('mcp server instructions', () => {
   it('says nothing about staleness while the engine matches the code on disk', () => {

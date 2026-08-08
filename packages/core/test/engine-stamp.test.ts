@@ -1,4 +1,4 @@
-import {mkdtempSync, rmSync, utimesSync, writeFileSync} from 'node:fs'
+import {mkdtempSync, rmSync, statSync, utimesSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
@@ -63,11 +63,46 @@ describe('engine staleness probe', () => {
     const path = tmpFile('core.js', 'export const a = 1')
     const probe = makeStalenessProbe([{label: '@conciv/core', path}])
 
-    ageForward(path, 5)
+    writeFileSync(path, 'export const a = 2')
 
     expect(probe().stale).toBe(true)
     expect(probe().stale).toBe(true)
     expect(probe().changed).toEqual(['@conciv/core'])
+  })
+
+  it('stays fresh when a rebuild rewrites identical bytes and only moves the mtime forward', () => {
+    const path = tmpFile('core.js', 'export const a = 1')
+    const probe = makeStalenessProbe([{label: '@conciv/core', path}])
+
+    writeFileSync(path, 'export const a = 1')
+    ageForward(path, 5)
+
+    expect(probe().stale).toBe(false)
+    expect(probe().changed).toEqual([])
+  })
+
+  it('turns stale when the bytes changed even though the mtime was put back', () => {
+    const path = tmpFile('core.js', 'export const a = 1')
+    const before = statSync(path)
+    const probe = makeStalenessProbe([{label: '@conciv/core', path}])
+
+    writeFileSync(path, 'export const a = 2')
+    utimesSync(path, before.atime, before.mtime)
+
+    expect(probe().stale).toBe(true)
+    expect(probe().changed).toEqual(['@conciv/core'])
+  })
+
+  it('holds one fingerprint while nothing moves and mints a new one after a rebuild', () => {
+    const path = tmpFile('core.js', 'export const a = 1')
+    const probe = makeStalenessProbe([{label: '@conciv/core', path}])
+    const first = probe().fingerprint
+
+    expect(probe().fingerprint).toBe(first)
+
+    writeFileSync(path, 'export const a = 2')
+
+    expect(probe().fingerprint).not.toBe(first)
   })
 })
 

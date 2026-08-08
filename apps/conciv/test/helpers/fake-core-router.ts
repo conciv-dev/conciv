@@ -86,6 +86,7 @@ function buildRouter(subscribe: (signal: AbortSignal) => AsyncGenerator<StreamCh
         changed: [],
         tracked: ['@conciv/core'],
         bootedAt: 0,
+        fingerprint: 'stamp-boot',
       })),
     },
     chat: {

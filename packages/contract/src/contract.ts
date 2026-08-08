@@ -76,6 +76,7 @@ export const EngineStalenessSchema = z.object({
   changed: z.array(z.string()),
   tracked: z.array(z.string()),
   bootedAt: z.number(),
+  fingerprint: z.string(),
 })
 
 export type EngineStaleness = z.infer<typeof EngineStalenessSchema>

@@ -17,7 +17,7 @@ afterEach(() => {
   core = null
 })
 
-function mountNotice(config: Parameters<typeof installFakeCore>[0] = {}): void {
+function mountNotice(config: Parameters<typeof installFakeCore>[0] = {}): {refetch: () => Promise<void>} {
   core = installFakeCore({sessions: [sessionRow({id: PANE_SESSION})], ...config})
   const mounted = mountPane(() => (
     <>
@@ -26,6 +26,7 @@ function mountNotice(config: Parameters<typeof installFakeCore>[0] = {}): void {
     </>
   ))
   disposers.push(mounted.dispose)
+  return {refetch: mounted.refetch}
 }
 
 test('an engine running outdated code says so, and says it is the server code that moved', async () => {
@@ -52,4 +53,36 @@ test('the outdated-engine notice stands until it is dismissed by hand', async ()
   await page.getByRole('button', {name: 'Dismiss'}).click()
 
   await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+})
+
+test('restarting the engine takes the notice down without anyone dismissing it', async () => {
+  const mounted = mountNotice({engineStale: true})
+  await expect.element(page.getByRole('alert')).toBeVisible()
+
+  core?.setEngine({stale: false, fingerprint: 'stamp-restarted'})
+  await mounted.refetch()
+
+  await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+})
+
+test('a dismissed notice stays down while the engine is stale in the very same way', async () => {
+  const mounted = mountNotice({engineStale: true})
+  await page.getByRole('button', {name: 'Dismiss'}).click()
+  await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+
+  await mounted.refetch()
+  await core?.idle()
+
+  await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+})
+
+test('a further rebuild speaks up again even after the earlier notice was dismissed', async () => {
+  const mounted = mountNotice({engineStale: true})
+  await page.getByRole('button', {name: 'Dismiss'}).click()
+  await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+
+  core?.setEngine({stale: true, fingerprint: 'stamp-rebuilt-again'})
+  await mounted.refetch()
+
+  await expect.element(page.getByRole('alert')).toBeVisible()
 })
