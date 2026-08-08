@@ -72,6 +72,13 @@ export function Island(props: {
   const guard = {applyingRemote: false}
   const versions = new Map<string, number>()
   let bufferedScene: readonly ElementRow[] | undefined
+  let resolveApiReady: (() => void) | undefined
+  let rejectApiReady: ((error: unknown) => void) | undefined
+  const apiReady = new Promise<void>((resolve, reject) => {
+    resolveApiReady = resolve
+    rejectApiReady = reject
+  })
+  apiReady.catch(() => {})
 
   const applyRemote = (rows: readonly ElementRow[]): void => {
     if (!api) {
@@ -114,9 +121,18 @@ export function Island(props: {
 
   const draining = new Set<string>()
   const drainPending = async (row: PendingRow): Promise<void> => {
+    let excalidraw: Awaited<ReturnType<typeof loadExcalidraw>>
     try {
-      const {convertToExcalidrawElements} = await loadExcalidraw()
-      const drawn = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
+      excalidraw = await loadExcalidraw()
+    } catch (error) {
+      console.error(
+        `[whiteboard] loading excalidraw for pending ${row.kind} ${row.id} failed, row stays queued for retry: ${String(error)}`,
+      )
+      draining.delete(row.id)
+      return
+    }
+    try {
+      const drawn = excalidraw.convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
       const rows = drawn.map((element: ExcalidrawElement) => ({
         room: props.room,
         elementId: element.id,
@@ -197,6 +213,7 @@ export function Island(props: {
   ]
 
   const exportReply = async (scope: 'live' | 'draft' | 'both'): Promise<JsonValue> => {
+    if (scope !== 'draft') await apiReady
     const elements = await gatherExportElements(scope)
     const {exportToBlob} = await loadExcalidraw()
     const blob = await exportToBlob({
@@ -266,9 +283,9 @@ export function Island(props: {
     pendingSubscription.unsubscribe()
   })
 
-  onMount(async () => {
-    const {Excalidraw, THEME} = await loadExcalidraw()
+  const renderExcalidraw = (excalidraw: Awaited<ReturnType<typeof loadExcalidraw>>): void => {
     if (!container || !container.isConnected) return
+    const {Excalidraw, THEME} = excalidraw
     root = createRoot(container)
     root.render(
       createElement(
@@ -282,6 +299,7 @@ export function Island(props: {
           isCollaborating: true,
           excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
             api = instance
+            resolveApiReady?.()
             const pushViewport = (): void => {
               const state = instance.getAppState()
               props.onViewport?.({
@@ -314,8 +332,17 @@ export function Island(props: {
         }),
       ),
     )
+  }
+
+  onMount(async () => {
+    try {
+      renderExcalidraw(await loadExcalidraw())
+    } catch (error) {
+      rejectApiReady?.(error)
+    }
   })
   onCleanup(() => {
+    rejectApiReady?.(new Error('[whiteboard] island unmounted before excalidraw attached'))
     unsubscribeScroll?.()
     root?.unmount()
   })
