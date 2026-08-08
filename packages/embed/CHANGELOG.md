@@ -1,5 +1,26 @@
 # @conciv/embed
 
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies [[`39c6072`](https://github.com/conciv-dev/conciv/commit/39c6072687cdedeabc42dabe798d88fa10dc716b)]:
+  - @conciv/ui-kit-chat@0.0.19
+  - @conciv/ui-kit-chat-tools@0.0.19
+  - @conciv/client@0.0.19
+  - @conciv/extension-ios@0.0.19
+  - @conciv/contract@0.0.19
+  - @conciv/extension@0.0.19
+  - @conciv/extension-page@0.0.19
+  - @conciv/grab@0.0.19
+  - @conciv/mascot@0.0.19
+  - @conciv/protocol@0.0.19
+  - @conciv/solid-diffs@0.0.19
+  - @conciv/solid-streamdown@0.0.19
+  - @conciv/storage-history@0.0.19
+  - @conciv/ui-kit-system@0.0.19
+  - @conciv/ui-kit-tap@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes
