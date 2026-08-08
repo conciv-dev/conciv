@@ -1,5 +1,14 @@
+import type {AnyRouter} from '@orpc/server'
+import {RPCHandler} from '@orpc/server/fetch'
+import {RPCHandler as WebsocketRPCHandler, type MinimalWebsocket} from '@orpc/server/websocket'
+import {upgradeWebSocket, type WebSocketLike} from '@hono/node-server'
+import type {MiddlewareHandler} from 'hono'
+import type {WSContext, WSMessageReceive} from 'hono/ws'
 import type {StandardRPCHandlerOptions} from '@orpc/server/standard'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
+
+export const RPC_PREFIX = '/rpc'
+export const RPC_WS_PATH = '/rpc-ws'
 
 export function rpcConnectionContext(requestUrl: string): RpcContext {
   return {origin: new URL(requestUrl).origin, headers: {}}
@@ -11,4 +20,72 @@ export function rpcHandlerOptions(): StandardRPCHandlerOptions<RpcContext> {
       (options) => options.next({...options, context: {...options.context, headers: options.request.headers}}),
     ],
   }
+}
+
+export type MountedExtensionRouter = {slug: string; extensionName: string; router: AnyRouter}
+
+export type CompositeRpcRouter<TCore = AnyRouter> = TCore & {ext: Record<string, AnyRouter>}
+
+export function makeCompositeRpcRouter<TCore>(
+  core: TCore,
+  extensions: readonly MountedExtensionRouter[],
+): CompositeRpcRouter<TCore> {
+  const owners = new Map<string, string>()
+  for (const entry of extensions) {
+    const existing = owners.get(entry.slug)
+    if (existing !== undefined) {
+      throw new Error(
+        `extension rpc slug collision: "${entry.slug}" is claimed by both "${existing}" and "${entry.extensionName}"`,
+      )
+    }
+    owners.set(entry.slug, entry.extensionName)
+  }
+  return {...core, ext: Object.fromEntries(extensions.map((entry) => [entry.slug, entry.router]))}
+}
+
+export function rpcFetchMiddleware(router: AnyRouter): MiddlewareHandler {
+  const handler = new RPCHandler<RpcContext>(router, rpcHandlerOptions())
+  return async (c, next) => {
+    const {matched, response} = await handler.handle(c.req.raw, {
+      prefix: RPC_PREFIX,
+      context: rpcConnectionContext(c.req.url),
+    })
+    if (matched && response) return c.newResponse(response.body, response)
+    await next()
+  }
+}
+
+function peerFrame(data: WSMessageReceive): string | ArrayBuffer | null {
+  if (typeof data === 'string') return data
+  if (data instanceof ArrayBuffer) return data
+  return null
+}
+
+function peerSocket(held: {socket: WSContext<WebSocketLike> | null}): MinimalWebsocket {
+  return {
+    addEventListener: () => {},
+    send: (data: string | ArrayBuffer) => held.socket?.send(data),
+  }
+}
+
+export function rpcWebsocketRoute(router: AnyRouter, onError?: (message: string) => void): MiddlewareHandler {
+  const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions())
+  return upgradeWebSocket((c) => {
+    const context = rpcConnectionContext(c.req.url)
+    const held: {socket: WSContext<WebSocketLike> | null} = {socket: null}
+    const peer = peerSocket(held)
+    return {
+      onMessage: (event, ws) => {
+        held.socket = ws
+        const frame = peerFrame(event.data)
+        if (frame === null) return
+        handler.message(peer, frame, {context}).catch((error: unknown) => {
+          onError?.(`rpc ws frame rejected: ${String(error)}`)
+          handler.close(peer)
+          ws.close(1011, 'rpc frame rejected')
+        })
+      },
+      onClose: () => handler.close(peer),
+    }
+  })
 }

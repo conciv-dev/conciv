@@ -19,7 +19,10 @@
     "./framework-fake": "./src/framework-fake.ts",
     "./host/grab": "./src/host/grab.ts",
     "./widget-suite": "./src/widget-suite.ts",
-    "./test-host": "./src/test-host-config.ts"
+    "./test-host": "./src/test-host-config.ts",
+    "./rpc-frames": "./src/rpc-frames.ts",
+    "./rpc-observer": "./src/rpc-observer.ts",
+    "./rpc-fault": "./src/rpc-fault.ts"
   },
   "scripts": {
     "build": "vite build -c vite.test-host.config.ts",
@@ -38,6 +41,9 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:^",
+    "@orpc/client": "^1.14.7",
+    "@orpc/standard-server": "^1.14.7",
+    "@orpc/standard-server-peer": "^1.14.7",
     "@playwright/test": "^1.61.1",
     "@vitest/coverage-v8": "^4.1.8",
     "playwright": "^1.61.1",
