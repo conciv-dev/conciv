@@ -46,3 +46,19 @@ test('a composer that mounts after a slow draft load keeps the focus the panel g
   await core?.idle()
   await expect.element(editor(), SETTLED).toHaveFocus()
 })
+
+test('a composer that mounts while the harness metadata is still loading takes the focus the panel gave it', async () => {
+  openPanel({delays: {'/rpc/meta/models': 400}})
+
+  await expect.element(editor(), SETTLED).toBeVisible()
+  await core?.idle()
+  await expect.element(editor(), SETTLED).toHaveFocus()
+})
+
+test('a composer that mounts while the transcript is still loading takes the focus the panel gave it', async () => {
+  openPanel({delays: {'/rpc/markers/list': 400}})
+
+  await expect.element(editor(), SETTLED).toBeVisible()
+  await core?.idle()
+  await expect.element(editor(), SETTLED).toHaveFocus()
+})

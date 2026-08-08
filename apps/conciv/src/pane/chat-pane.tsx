@@ -235,10 +235,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     void api.addAttachment(file)
     focusInput()
   }
+  const imageInput = () => (meta.isPending ? undefined : meta.data?.harness.imageInput)
   const attachments = createMemo(() =>
     paneAttachments(
       instances.map((instance) => instance.extension),
-      meta.data?.harness.imageInput,
+      imageInput(),
     ),
   )
   const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
@@ -307,9 +308,9 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                 onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
                 class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
               >
-                <Suspense>
-                  <Thread>
-                    <Thread.Viewport>
+                <Thread>
+                  <Thread.Viewport>
+                    <Suspense>
                       <Thread.Welcome>
                         <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
                           <EmptyStateSlot
@@ -344,62 +345,62 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                           </div>
                         )}
                       </Show>
-                    </Thread.Viewport>
-                    <Thread.Composer>
-                      <ExtensionSurface name="status" instances={instances} />
-                      <ExtensionSurface name="footer" instances={instances} />
-                      <NoticeToaster />
-                      <For each={pane.grabStore.grabs()}>
-                        {(grab) => (
-                          <GrabReference
-                            grab={grab}
-                            maxWidth={GRAB_PREVIEW_MAX_W}
-                            onRemove={() => pane.grabStore.remove(grab)}
-                          />
+                    </Suspense>
+                  </Thread.Viewport>
+                  <Thread.Composer>
+                    <ExtensionSurface name="status" instances={instances} />
+                    <ExtensionSurface name="footer" instances={instances} />
+                    <NoticeToaster />
+                    <For each={pane.grabStore.grabs()}>
+                      {(grab) => (
+                        <GrabReference
+                          grab={grab}
+                          maxWidth={GRAB_PREVIEW_MAX_W}
+                          onRemove={() => pane.grabStore.remove(grab)}
+                        />
+                      )}
+                    </For>
+                    <Suspense>
+                      <Show when={draftStorage()}>
+                        {(storage) => (
+                          <PaneComposer
+                            draftStorage={storage().storage}
+                            draftKey={sessionId}
+                            placeholder="Ask a question…"
+                            inputLabel="Message the conciv agent"
+                            attachmentAdapter={attachments().adapter}
+                            AttachmentComponent={PaneAttachment}
+                            onInputReady={(handle) => {
+                              inputHandle = handle
+                              panelFocus?.register(handle)
+                            }}
+                            onSelectionChange={storage().noteSelection}
+                            initialSelection={storage().restoredSelection}
+                            busy={compacting() ? <CompactSpinner /> : undefined}
+                            triggers={triggerSources}
+                          >
+                            <Suspense>
+                              <ComposerActions
+                                sessionId={sessionId}
+                                compacting={compacting()}
+                                onCompact={() => compact.mutate()}
+                                onNewSession={() => pane.newSession()}
+                                onStageGrab={stageGrab}
+                              />
+                              <ExtensionSurface name="composer" instances={instances} />
+                              <SessionModelSelector sessionId={sessionId} />
+                              <ComposerWiring
+                                onReady={(api) => {
+                                  composerApi.current = api
+                                }}
+                              />
+                            </Suspense>
+                          </PaneComposer>
                         )}
-                      </For>
-                      <Suspense>
-                        <Show when={draftStorage()}>
-                          {(storage) => (
-                            <PaneComposer
-                              draftStorage={storage().storage}
-                              draftKey={sessionId}
-                              placeholder="Ask a question…"
-                              inputLabel="Message the conciv agent"
-                              attachmentAdapter={attachments().adapter}
-                              AttachmentComponent={PaneAttachment}
-                              onInputReady={(handle) => {
-                                inputHandle = handle
-                                panelFocus?.register(handle)
-                              }}
-                              onSelectionChange={storage().noteSelection}
-                              initialSelection={storage().restoredSelection}
-                              busy={compacting() ? <CompactSpinner /> : undefined}
-                              triggers={triggerSources}
-                            >
-                              <Suspense>
-                                <ComposerActions
-                                  sessionId={sessionId}
-                                  compacting={compacting()}
-                                  onCompact={() => compact.mutate()}
-                                  onNewSession={() => pane.newSession()}
-                                  onStageGrab={stageGrab}
-                                />
-                                <ExtensionSurface name="composer" instances={instances} />
-                                <SessionModelSelector sessionId={sessionId} />
-                                <ComposerWiring
-                                  onReady={(api) => {
-                                    composerApi.current = api
-                                  }}
-                                />
-                              </Suspense>
-                            </PaneComposer>
-                          )}
-                        </Show>
-                      </Suspense>
-                    </Thread.Composer>
-                  </Thread>
-                </Suspense>
+                      </Show>
+                    </Suspense>
+                  </Thread.Composer>
+                </Thread>
               </div>
             </div>
           </ComposerHandlersProvider>
