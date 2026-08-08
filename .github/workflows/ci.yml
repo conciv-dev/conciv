@@ -30,9 +30,16 @@ jobs:
   # packages get a small default), and LPT-bin-packs into as many shards as the
   # total time warrants. New packages are picked up automatically; the split
   # re-balances itself as timings drift. Node 22 strips types natively, so the
-  # planner runs from source with no install. First run ever (no timings
-  # artifact yet) packs everything into two default-weight shards — one slow
-  # bootstrap run on main, then it self-heals.
+  # planner runs from source with no install (pnpm dlx resolves turbo from the
+  # lockfile alone). First run ever (no timings artifact yet) packs everything
+  # into two default-weight shards — one slow bootstrap run on main, then it
+  # self-heals. On pull_request the planner additionally narrows the candidate
+  # set to packages affected since the merge-base with main (turbo's own
+  # dependency graph via --filter=...[base], so dependents are always
+  # included); on push to main it always plans the full set, so main stays
+  # fully green and the timings baseline stays complete. Every failure mode
+  # (git error, turbo error, unparseable output, a changed file that could
+  # affect every package) falls back to the full set — see ci-shards.ts.
   plan:
     runs-on: ubuntu-latest
     permissions:
@@ -40,10 +47,20 @@ jobs:
       actions: read # download the ci-test-timings artifact from the latest main run
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      has-work: ${{ steps.plan.outputs.has-work }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # Full history (not just the default shallow depth-1 clone) so `git
+          # merge-base origin/main HEAD` can resolve on pull_request; the affected-set
+          # computation fails open to the full package set without it.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0 # keep in sync with packageManager in package.json
+        # No `pnpm i` here: only the pnpm binary itself is needed, to `pnpm dlx` the
+        # pinned turbo version for the affected-set dry run without a workspace install.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -71,6 +88,7 @@ jobs:
   build:
     name: build + test (${{ matrix.shard }})
     needs: plan
+    if: needs.plan.outputs.has-work == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -160,7 +178,7 @@ jobs:
   # with no install, like the plan job.
   test-summary:
     name: test summary
-    needs: build
+    needs: [plan, build]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -172,17 +190,21 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+      # A docs-only PR skips build entirely (has-work=='false'): there is nothing to
+      # download or summarize, so every step below is a no-op instead of erroring on
+      # a missing artifact.
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: needs.plan.outputs.has-work == 'true'
         with:
           pattern: test-results-*
           merge-multiple: true
           path: shard-reports
       - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports
-        if: github.event_name == 'pull_request'
+        if: needs.plan.outputs.has-work == 'true' && github.event_name == 'pull_request'
       - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports --timings ci-test-timings.json
-        if: github.event_name == 'push'
+        if: needs.plan.outputs.has-work == 'true' && github.event_name == 'push'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: github.event_name == 'push'
+        if: needs.plan.outputs.has-work == 'true' && github.event_name == 'push'
         with:
           name: ci-test-timings
           path: ci-test-timings.json
@@ -254,7 +276,10 @@ jobs:
 
   # The branch ruleset requires the exact context "build + test"; this gate keeps
   # that context alive over the planner + shard matrix + repo checks. always() so
-  # a failed or cancelled dependency fails the gate instead of skipping it.
+  # a failed or cancelled dependency fails the gate instead of skipping it. build
+  # reports "skipped" (not "success") when the planner found nothing affected
+  # (has-work=='false'): accept that ONLY in that case, so a genuinely cancelled
+  # shard still fails the gate.
   build-gate:
     name: build + test
     needs: [plan, build, repo-checks]
@@ -263,7 +288,11 @@ jobs:
     steps:
       - run: |
           test "${{ needs.plan.result }}" = "success"
-          test "${{ needs.build.result }}" = "success"
+          if [ "${{ needs.plan.outputs.has-work }}" = "false" ]; then
+            test "${{ needs.build.result }}" = "success" -o "${{ needs.build.result }}" = "skipped"
+          else
+            test "${{ needs.build.result }}" = "success"
+          fi
           test "${{ needs.repo-checks.result }}" = "success"
 
   storybook:
@@ -327,10 +356,19 @@ jobs:
       actions: read # download the e2e-test-timings artifact from the latest main run
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      has-work: ${{ steps.plan.outputs.has-work }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # Full history so `git merge-base origin/main HEAD` resolves on pull_request;
+          # see the package planner above for the same reasoning.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0 # keep in sync with packageManager in package.json
+        # No `pnpm i` here: only the pnpm binary itself is needed, to `pnpm dlx` the
+        # pinned turbo version for the affected-set dry run without a workspace install.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -357,6 +395,7 @@ jobs:
   e2e:
     name: e2e consumer apps (${{ matrix.shard }})
     needs: plan-e2e
+    if: needs.plan-e2e.outputs.has-work == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -450,7 +489,7 @@ jobs:
   # can never become the baseline). Runs from source with no install.
   e2e-summary:
     name: e2e summary
-    needs: e2e
+    needs: [plan-e2e, e2e]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -462,17 +501,21 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+      # A docs-only PR skips e2e entirely (has-work=='false'): there is nothing to
+      # download or summarize, so every step below is a no-op instead of erroring on
+      # a missing artifact.
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: needs.plan-e2e.outputs.has-work == 'true'
         with:
           pattern: e2e-results-*
           merge-multiple: true
           path: e2e-reports
       - run: node packages/vitest-config/src/ci-shards.ts summarize --task e2e e2e-reports
-        if: github.event_name == 'pull_request'
+        if: needs.plan-e2e.outputs.has-work == 'true' && github.event_name == 'pull_request'
       - run: node packages/vitest-config/src/ci-shards.ts summarize --task e2e e2e-reports --timings e2e-test-timings.json
-        if: github.event_name == 'push'
+        if: needs.plan-e2e.outputs.has-work == 'true' && github.event_name == 'push'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: github.event_name == 'push'
+        if: needs.plan-e2e.outputs.has-work == 'true' && github.event_name == 'push'
         with:
           name: e2e-test-timings
           path: e2e-test-timings.json
@@ -480,7 +523,9 @@ jobs:
   # The branch ruleset requires the exact context "e2e consumer apps"; this gate
   # keeps that context alive over the planner + shard matrix, like build-gate does
   # for "build + test". always() so a failed or cancelled dependency fails the gate
-  # instead of skipping it.
+  # instead of skipping it. e2e reports "skipped" (not "success") when the planner
+  # found nothing affected (has-work=='false'): accept that ONLY in that case, so a
+  # genuinely cancelled shard still fails the gate.
   e2e-gate:
     name: e2e consumer apps
     needs: [plan-e2e, e2e]
@@ -489,7 +534,11 @@ jobs:
     steps:
       - run: |
           test "${{ needs.plan-e2e.result }}" = "success"
-          test "${{ needs.e2e.result }}" = "success"
+          if [ "${{ needs.plan-e2e.outputs.has-work }}" = "false" ]; then
+            test "${{ needs.e2e.result }}" = "success" -o "${{ needs.e2e.result }}" = "skipped"
+          else
+            test "${{ needs.e2e.result }}" = "success"
+          fi
 
   zizmor:
     runs-on: ubuntu-latest

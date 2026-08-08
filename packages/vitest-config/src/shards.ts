@@ -46,7 +46,7 @@ const BROWSER_DEPENDENCY_PREFIXES = ['playwright', '@playwright/', '@vitest/brow
 
 const VALID_PACKAGE_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
@@ -147,4 +147,42 @@ export function parseTimings(raw: string): Record<string, number> {
       (entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] >= 0,
     ),
   )
+}
+
+export function affectedPackages(candidates: WorkspacePackage[], affectedNames: string[] | null): WorkspacePackage[] {
+  if (affectedNames === null) return candidates
+  const affectedSet = new Set(affectedNames)
+  return candidates.filter((candidate) => affectedSet.has(candidate.name))
+}
+
+const HARDCODED_GLOBAL_PATTERNS = [
+  'pnpm-lock.yaml',
+  'turbo.json',
+  'package.json',
+  'tsconfig*.json',
+  '.github/workflows/**',
+  'packages/vitest-config/**',
+]
+
+export function globalDependencyPatterns(rootDir: string): string[] {
+  const manifestPath = join(rootDir, 'turbo.json')
+  const manifest: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  const declared = isRecord(manifest) && Array.isArray(manifest.globalDependencies) ? manifest.globalDependencies : []
+  const declaredPatterns = declared.filter((entry): entry is string => typeof entry === 'string')
+  return [...new Set([...declaredPatterns, ...HARDCODED_GLOBAL_PATTERNS])]
+}
+
+function escapeRegExpLiteral(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export function matchesGlobalPattern(file: string, pattern: string): boolean {
+  if (pattern.endsWith('/**')) return file.startsWith(pattern.slice(0, -2))
+  if (!pattern.includes('*')) return file === pattern
+  const regex = new RegExp(`^${pattern.split('*').map(escapeRegExpLiteral).join('[^/]*')}$`)
+  return regex.test(file)
+}
+
+export function matchedGlobalFile(changedFiles: string[], patterns: string[]): string | null {
+  return changedFiles.find((file) => patterns.some((pattern) => matchesGlobalPattern(file, pattern))) ?? null
 }

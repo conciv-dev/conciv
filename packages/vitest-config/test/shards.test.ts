@@ -3,11 +3,15 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {expect, test} from 'vitest'
 import {
+  affectedPackages,
   DEFAULT_PACKAGE_MS,
   discoverPackages,
   E2E_HARNESS_PACKAGE,
   E2E_SHARD_SIZING,
   e2ePackages,
+  globalDependencyPatterns,
+  matchedGlobalFile,
+  matchesGlobalPattern,
   PACKAGE_GROUPS,
   PACKAGES_WITH_DEDICATED_JOBS,
   parseTimings,
@@ -181,4 +185,66 @@ test('a package.json without a usable name fails the plan instead of vanishing f
   const root = mkdtempSync(join(tmpdir(), 'shards-'))
   writeManifest(root, 'packages/nameless', {version: '1.0.0'})
   expect(() => discoverPackages(root, ['packages'])).toThrow(/nameless/)
+})
+
+test('affectedPackages keeps only the named candidates, unchanged order and weighting', () => {
+  const candidates = [pkg('a'), pkg('b', true), pkg('c')]
+  expect(affectedPackages(candidates, ['a', 'c'])).toEqual([pkg('a'), pkg('c')])
+})
+
+test('affectedPackages with a null affected list returns every candidate unfiltered', () => {
+  const candidates = [pkg('a'), pkg('b'), pkg('c')]
+  expect(affectedPackages(candidates, null)).toBe(candidates)
+})
+
+test('affectedPackages ignores affected names with no matching candidate instead of crashing', () => {
+  const candidates = [pkg('a'), pkg('b')]
+  expect(affectedPackages(candidates, ['a', 'no-such-package'])).toEqual([pkg('a')])
+})
+
+test('affectedPackages with an empty affected list returns an empty result', () => {
+  const candidates = [pkg('a'), pkg('b')]
+  expect(affectedPackages(candidates, [])).toEqual([])
+})
+
+test('affectedPackages feeding planShards balances identically to planning the filtered set standalone', () => {
+  const candidates = [pkg('a'), pkg('b', true), pkg('c'), pkg('d'), pkg('e')]
+  const timings = {a: 100_000, b: 90_000, c: 80_000, d: 20_000, e: 10_000}
+  const filtered = affectedPackages(candidates, ['a', 'c', 'e'])
+  const standalone = candidates.filter((entry) => ['a', 'c', 'e'].includes(entry.name))
+  expect(planShards(filtered, timings)).toEqual(planShards(standalone, timings))
+})
+
+test('matchesGlobalPattern matches an exact root file but not a same-named nested one', () => {
+  expect(matchesGlobalPattern('package.json', 'package.json')).toBe(true)
+  expect(matchesGlobalPattern('packages/core/package.json', 'package.json')).toBe(false)
+})
+
+test('matchesGlobalPattern matches a directory glob by prefix', () => {
+  expect(matchesGlobalPattern('.github/workflows/ci.yml', '.github/workflows/**')).toBe(true)
+  expect(matchesGlobalPattern('.github/dependabot.yml', '.github/workflows/**')).toBe(false)
+})
+
+test('matchesGlobalPattern matches a root-level wildcard but not a nested tsconfig', () => {
+  expect(matchesGlobalPattern('tsconfig.base.json', 'tsconfig*.json')).toBe(true)
+  expect(matchesGlobalPattern('packages/core/tsconfig.json', 'tsconfig*.json')).toBe(false)
+})
+
+test('matchedGlobalFile returns the first changed file that hits any global pattern', () => {
+  const changed = ['packages/core/src/index.ts', 'pnpm-lock.yaml', 'README.md']
+  expect(matchedGlobalFile(changed, ['pnpm-lock.yaml', 'turbo.json'])).toBe('pnpm-lock.yaml')
+  expect(matchedGlobalFile(['packages/core/src/index.ts'], ['pnpm-lock.yaml'])).toBeNull()
+})
+
+test('globalDependencyPatterns folds turbo.json globalDependencies into the hardcoded escape hatch', () => {
+  const root = mkdtempSync(join(tmpdir(), 'shards-'))
+  writeFileSync(
+    join(root, 'turbo.json'),
+    JSON.stringify({globalDependencies: ['pnpm-workspace.yaml', '.oxlintrc.json']}),
+  )
+  const patterns = globalDependencyPatterns(root)
+  expect(patterns).toContain('pnpm-workspace.yaml')
+  expect(patterns).toContain('.oxlintrc.json')
+  expect(patterns).toContain('packages/vitest-config/**')
+  expect(patterns).toContain('pnpm-lock.yaml')
 })
