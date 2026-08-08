@@ -1,9 +1,11 @@
-import {debounce} from '@tanstack/pacer'
+import {Debouncer} from '@tanstack/pacer'
 import type {RpcClient} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
 import {NavigationStateSchema, type NavigationState} from '@conciv/protocol/chat-types'
 
 const WRITE_DELAY_MS = 300
+
+type NavigationRpc = Pick<RpcClient, 'navigation'>
 
 function parseNavigation(raw: string): NavigationState | null {
   try {
@@ -18,13 +20,13 @@ export type NavigationStorage = WebStorage & {restored: Promise<void>; dispose: 
 
 type NavigationStorageState = {cache: string | null; lastStamp: number; wroteLocally: boolean; cancelled: boolean}
 
-export function makeNavigationStorage(rpc: RpcClient, onRestore: (href: string) => void): NavigationStorage {
+export function makeNavigationStorage(rpc: NavigationRpc, onRestore: (href: string) => void): NavigationStorage {
   const state: NavigationStorageState = {cache: null, lastStamp: 0, wroteLocally: false, cancelled: false}
   const stamp = (): number => {
     state.lastStamp = Math.max(Date.now(), state.lastStamp + 1)
     return state.lastStamp
   }
-  const write = debounce(
+  const write = new Debouncer(
     (navigation: NavigationState, updatedAt: number) => {
       void rpc.navigation.set({...navigation, updatedAt}).catch(() => {})
     },
@@ -46,11 +48,12 @@ export function makeNavigationStorage(rpc: RpcClient, onRestore: (href: string) 
       state.wroteLocally = true
       state.cache = value
       const parsed = parseNavigation(value)
-      if (parsed) write(parsed, stamp())
+      if (parsed) write.maybeExecute(parsed, stamp())
     },
     restored,
     dispose: () => {
       state.cancelled = true
+      write.cancel()
     },
   }
 }

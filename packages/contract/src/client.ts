@@ -43,7 +43,8 @@ export function makeDeferredRpcClient(options: BrowserRpcClientOptions = {}): De
   return {
     rpc: createORPCClient(link),
     bind: (apiBase) => {
-      if (state.base) throw new Error('deferred rpc already bound')
+      if (state.base !== null) throw new Error('deferred rpc already bound')
+      if (apiBase === '') throw new Error('deferred rpc cannot bind an empty api base')
       state.base = apiBase
       state.ready = Promise.resolve(browserRpcConnection(apiBase, options.transport).link)
     },

@@ -14,9 +14,9 @@ factory in `@conciv/contract` is the only place that picks the transport:
    reconnecting wrapper re-dials the websocket and `ClientRetryPlugin` re-issues the calls.
 3. If the socket does not open, the tab sticks to fetch/SSE and logs a warning naming the base, so an
    active fallback is never silent.
-4. If fetch/SSE also fails, the widget shows its connection-error state. Retrying from there re-runs
-   the full probe, websocket first, so a tab that booted before the engine was up is never stranded
-   on SSE.
+
+There is no connection-error state today: if fetch/SSE also fails, the tab has no dedicated recovery UI
+(tracked in #350).
 
 No user-agent sniffing is involved anywhere.
 

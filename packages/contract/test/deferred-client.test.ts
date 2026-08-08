@@ -19,4 +19,11 @@ describe('makeDeferredRpcClient', () => {
     deferred.bind('http://127.0.0.1:1')
     expect(() => deferred.bind('http://127.0.0.1:2')).toThrow()
   })
+  it('rejects an empty api base and keeps bound() false so a later bind is not silently swallowed', () => {
+    const deferred = makeDeferredRpcClient()
+    expect(() => deferred.bind('')).toThrow()
+    expect(deferred.bound()).toBe(false)
+    deferred.bind('http://127.0.0.1:1')
+    expect(deferred.bound()).toBe(true)
+  })
 })

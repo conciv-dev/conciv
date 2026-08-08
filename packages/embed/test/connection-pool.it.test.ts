@@ -62,7 +62,7 @@ async function sendTurn(page: Page, text: string, expectedReplies: number): Prom
   await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(expectedReplies, {timeout: MOUNT_TIMEOUT_MS})
 }
 
-describe('six widget tabs sharing one browser connection pool', () => {
+describe('six widget tabs sharing one browserContext connection pool (newContext, not newPage, because the shared-context http connection limit is exactly what this gate measures)', () => {
   it('gives every tab one rpc websocket, no rpc over http, and a working chat round trip in the last tab', async () => {
     const context = await browser.newContext()
     const tabs: Tab[] = []

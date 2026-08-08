@@ -22,6 +22,7 @@ const CONNECTION_LOSS_RETRY_DELAY_MS = 250
 
 const SOCKET_OPEN = 1
 const SOCKET_CONNECTING = 0
+const SOCKET_CLOSING = 2
 const SOCKET_CLOSED = 3
 
 export type BrowserRpcConnection = {
@@ -79,7 +80,8 @@ function isPeerRequestFrame(data: string | ArrayBufferLike | Blob | ArrayBufferV
   return !('t' in frame)
 }
 
-function disposeSocket(socket: ReconnectingWebSocket): void {
+export function disposeSocket(socket: ReconnectingWebSocket): void {
+  const realCloseStillPending = socket.readyState === SOCKET_CLOSING
   let dispatched = false
   const observeClose = (): void => {
     dispatched = true
@@ -87,7 +89,7 @@ function disposeSocket(socket: ReconnectingWebSocket): void {
   socket.addEventListener('close', observeClose)
   socket.close()
   socket.removeEventListener('close', observeClose)
-  if (!dispatched) socket.dispatchEvent(new Event('close'))
+  if (!dispatched && !realCloseStillPending) socket.dispatchEvent(new Event('close'))
 }
 
 function socketDelegate(socket: ReconnectingWebSocket, alive: () => boolean): SocketDelegate {
