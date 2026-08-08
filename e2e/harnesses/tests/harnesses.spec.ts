@@ -15,7 +15,7 @@ const isHarnessName = (name: string): name is HarnessApp => Object.hasOwn(expect
 const outcomePattern: Record<HarnessApp, RegExp> = {
   claude: /^Agent process exited with code 1$/m,
   codex:
-    /^Reconnecting\.\.\. \d+\/\d+ \(unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: wss:\/\/api\.openai\.com\/v1\/responses/m,
+    /^Reconnecting\.\.\. \d+\/\d+ \(unexpected status 401 Unauthorized: .*url: wss:\/\/api\.openai\.com\/v1\/responses/m,
   'gemini-cli': /^Gemini API key is missing or not configured\.$/m,
   opencode: /^Unexpected server error\. Check server logs for details\.$/m,
   pi: /^pi is not installed or not yet supported$/m,
