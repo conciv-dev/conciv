@@ -1,6 +1,6 @@
-import {createEffect, onCleanup, onMount, type JSX} from 'solid-js'
+import {createEffect, createMemo, createResource, createSignal, onCleanup, untrack, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
-import {Component, createElement, type ReactNode} from 'react'
+import {Component, createElement, type PropsWithChildren, type ReactNode} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import type {Collaborator, ExcalidrawImperativeAPI, SocketId} from '@excalidraw/excalidraw/types'
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
@@ -10,11 +10,12 @@ import {useWhiteboardDb} from '../client/db.js'
 import type {CursorEvent, ElementRow, JsonValue, PendingRow} from '../shared/rows.js'
 import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
 import type {Viewport} from './coords.js'
-import {loadExcalidraw} from './excalidraw-lazy.js'
+import {loadExcalidraw, type ExcalidrawModule} from './excalidraw-lazy.js'
 
 export type Self = {peerId: string; name: string; color: string}
 
 type SceneElement = OrderedExcalidrawElement
+type ExportGateState = {kind: 'pending'} | {kind: 'ready'} | {kind: 'error'; error: unknown}
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const CURSOR_STALE_MS = 15_000
@@ -44,10 +45,13 @@ async function skeletonsOf(row: PendingRow): Promise<ExcalidrawElementSkeleton[]
   return withStableIds((row.payload as unknown as {elements: ExcalidrawElementSkeleton[]}).elements, row.id)
 }
 
-class IslandBoundary extends Component<{children: ReactNode}, {failed: boolean}> {
+class IslandBoundary extends Component<PropsWithChildren<{onError: (error: unknown) => void}>, {failed: boolean}> {
   override state = {failed: false}
   static getDerivedStateFromError(): {failed: boolean} {
     return {failed: true}
+  }
+  override componentDidCatch(error: unknown): void {
+    this.props.onError(error)
   }
   override render(): ReactNode {
     if (this.state.failed) return createElement('div', {'data-whiteboard-error': ''}, 'canvas failed')
@@ -67,21 +71,34 @@ export function Island(props: {
   const db = useWhiteboardDb()
   let container: HTMLDivElement | undefined
   let root: Root | undefined
-  let api: ExcalidrawImperativeAPI | undefined
   let unsubscribeScroll: (() => void) | undefined
   const guard = {applyingRemote: false}
   const versions = new Map<string, number>()
   let bufferedScene: readonly ElementRow[] | undefined
-  let resolveApiReady: (() => void) | undefined
-  let rejectApiReady: ((error: unknown) => void) | undefined
-  const apiReady = new Promise<void>((resolve, reject) => {
-    resolveApiReady = resolve
-    rejectApiReady = reject
+
+  const [excalidraw] = createResource(loadExcalidraw)
+  const [api, setApi] = createSignal<ExcalidrawImperativeAPI | undefined>(undefined)
+  const [mountError, setMountError] = createSignal<unknown>(undefined)
+
+  const exportGateState = createMemo((): ExportGateState => {
+    if (mountError() !== undefined) return {kind: 'error', error: mountError()}
+    if (excalidraw.error) return {kind: 'error', error: excalidraw.error}
+    if (api()) return {kind: 'ready'}
+    return {kind: 'pending'}
   })
-  apiReady.catch(() => {})
+
+  const {promise: exportGateReady, resolve: resolveExportGate, reject: rejectExportGate} = Promise.withResolvers<void>()
+  exportGateReady.catch(() => {})
+
+  createEffect(() => {
+    const state = exportGateState()
+    if (state.kind === 'ready') resolveExportGate()
+    if (state.kind === 'error') rejectExportGate(state.error)
+  })
 
   const applyRemote = (rows: readonly ElementRow[]): void => {
-    if (!api) {
+    const instance = untrack(api)
+    if (!instance) {
       bufferedScene = rows
       return
     }
@@ -98,7 +115,7 @@ export function Island(props: {
     if (!remoteChanged) return
     guard.applyingRemote = true
     try {
-      api.updateScene({elements: rows.map((row) => asScene(row.data)), captureUpdate: CAPTURE_NEVER})
+      instance.updateScene({elements: rows.map((row) => asScene(row.data)), captureUpdate: CAPTURE_NEVER})
     } finally {
       guard.applyingRemote = false
     }
@@ -121,9 +138,9 @@ export function Island(props: {
 
   const draining = new Set<string>()
   const drainPending = async (row: PendingRow): Promise<void> => {
-    let excalidraw: Awaited<ReturnType<typeof loadExcalidraw>>
+    let loaded: ExcalidrawModule
     try {
-      excalidraw = await loadExcalidraw()
+      loaded = await loadExcalidraw()
     } catch (error) {
       console.error(
         `[whiteboard] loading excalidraw for pending ${row.kind} ${row.id} failed, row stays queued for retry: ${String(error)}`,
@@ -132,7 +149,7 @@ export function Island(props: {
       return
     }
     try {
-      const drawn = excalidraw.convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
+      const drawn = loaded.convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
       const rows = drawn.map((element: ExcalidrawElement) => ({
         room: props.room,
         elementId: element.id,
@@ -199,7 +216,7 @@ export function Island(props: {
   }
 
   const liveExportElements = (scope: 'live' | 'draft' | 'both'): readonly SceneElement[] =>
-    scope === 'draft' ? [] : (api?.getSceneElements() ?? [])
+    scope === 'draft' ? [] : (untrack(api)?.getSceneElements() ?? [])
 
   const draftExportElements = async (scope: 'live' | 'draft' | 'both'): Promise<SceneElement[]> => {
     if (scope === 'live') return []
@@ -213,12 +230,12 @@ export function Island(props: {
   ]
 
   const exportReply = async (scope: 'live' | 'draft' | 'both'): Promise<JsonValue> => {
-    if (scope !== 'draft') await apiReady
+    if (scope !== 'draft') await exportGateReady
     const elements = await gatherExportElements(scope)
     const {exportToBlob} = await loadExcalidraw()
     const blob = await exportToBlob({
       elements,
-      files: api?.getFiles() ?? {},
+      files: untrack(api)?.getFiles() ?? {},
       appState: {exportBackground: true, viewBackgroundColor: '#ffffff'},
     })
     return {dataBase64: toBase64(new Uint8Array(await blob.arrayBuffer()))}
@@ -276,21 +293,21 @@ export function Island(props: {
     {includeInitialState: true},
   )
 
-  createEffect(() => api?.updateScene({collaborators: collaboratorsFrom([...db.cursors().values()])}))
+  createEffect(() => api()?.updateScene({collaborators: collaboratorsFrom([...db.cursors().values()])}))
 
   onCleanup(() => {
     sceneSubscription.unsubscribe()
     pendingSubscription.unsubscribe()
   })
 
-  const renderExcalidraw = (excalidraw: Awaited<ReturnType<typeof loadExcalidraw>>): void => {
+  const renderExcalidraw = (loaded: ExcalidrawModule): void => {
     if (!container || !container.isConnected) return
-    const {Excalidraw, THEME} = excalidraw
+    const {Excalidraw, THEME} = loaded
     root = createRoot(container)
     root.render(
       createElement(
         IslandBoundary,
-        null,
+        {onError: setMountError},
         createElement(Excalidraw, {
           initialData: {elements: [], appState: {viewBackgroundColor: 'transparent'}},
           zenModeEnabled: true,
@@ -298,8 +315,7 @@ export function Island(props: {
           theme: props.theme === 'dark' ? THEME.DARK : THEME.LIGHT,
           isCollaborating: true,
           excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
-            api = instance
-            resolveApiReady?.()
+            setApi(instance)
             const pushViewport = (): void => {
               const state = instance.getAppState()
               props.onViewport?.({
@@ -334,21 +350,21 @@ export function Island(props: {
     )
   }
 
-  onMount(async () => {
-    try {
-      renderExcalidraw(await loadExcalidraw())
-    } catch (error) {
-      rejectApiReady?.(error)
-    }
+  createEffect(() => {
+    const loaded = excalidraw()
+    if (!loaded) return
+    renderExcalidraw(loaded)
   })
+
   onCleanup(() => {
-    rejectApiReady?.(new Error('[whiteboard] island unmounted before excalidraw attached'))
+    rejectExportGate(new Error('[whiteboard] island unmounted before excalidraw attached'))
     unsubscribeScroll?.()
     root?.unmount()
   })
 
   return (
     <Portal mount={props.doc.body}>
+      {excalidraw() && null}
       <div
         ref={(element) => (container = element)}
         style={{
