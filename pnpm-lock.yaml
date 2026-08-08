@@ -3572,6 +3572,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:*
         version: link:../ui-kit-system
+      '@floating-ui/dom':
+        specifier: ^1.7.6
+        version: 1.7.6
       '@tiptap/core':
         specifier: ^3.27.1
         version: 3.27.1(@tiptap/pm@3.27.1)
@@ -3596,6 +3599,9 @@ importers:
       '@tiptap/pm':
         specifier: ^3.27.1
         version: 3.27.1
+      '@tiptap/suggestion':
+        specifier: ^3.27.1
+        version: 3.27.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)
     devDependencies:
       '@conciv/uno-preset':
         specifier: workspace:*

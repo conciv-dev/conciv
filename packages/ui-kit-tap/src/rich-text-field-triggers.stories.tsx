@@ -21,7 +21,12 @@ const PEOPLE: RichTextFieldTriggerItem[] = [
   {id: 'ai:haiku', label: '@Haiku'},
 ]
 
-type Mode = 'sync' | 'delayed' | 'empty' | 'error' | 'manual'
+const LONG_COMMANDS: RichTextFieldTriggerItem[] = Array.from({length: 40}, (_unused, position) => {
+  const name = `command-${String(position).padStart(2, '0')}`
+  return {id: name, label: `/${name}`}
+})
+
+type Mode = 'sync' | 'delayed' | 'empty' | 'error' | 'manual' | 'long'
 type PendingFetch = {query: string; resolve: (items: RichTextFieldTriggerItem[]) => void}
 type ModeItems = (
   pool: RichTextFieldTriggerItem[],
@@ -41,6 +46,7 @@ const sourceModes: Record<Mode, ModeItems> = {
   empty: () => [],
   error: () => Promise.reject(new Error('source failed')),
   manual: (pool, query, enqueue) => new Promise((resolve) => enqueue({query, resolve})),
+  long: (_pool, query) => filterItems(LONG_COMMANDS, query),
 }
 
 function triggerSource(
@@ -303,6 +309,7 @@ export const EscapeDismissKeepsTypedText: Story = {
     await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(canvas.queryByRole('listbox')).not.toBeInTheDocument())
+    await expect(textbox(canvas)).toHaveAttribute('aria-expanded', 'false')
     await expectValue(canvas, '"/cl"')
     await userEvent.keyboard('x')
     await expectValue(canvas, '"/clx"')
@@ -375,6 +382,80 @@ export const StaleResultAfterQueryMovesDiscarded: Story = {
     await userEvent.click(canvas.getByRole('button', {name: 'Resolve c'}))
     await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
     await expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible()
+  },
+}
+
+export const LoadingKeepsCarriedItemsInert: Story = {
+  args: {mode: 'manual'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('button', {name: 'Resolve root'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('button', {name: 'Resolve root'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toHaveAttribute('aria-selected', 'true'))
+    await userEvent.click(canvas.getByRole('button', {name: 'Focus end'}))
+    await userEvent.keyboard('c')
+    await expectValue(canvas, '"/c"')
+    await waitFor(() => expect(canvas.getByRole('button', {name: 'Resolve c'})).toBeVisible())
+    await expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible()
+    await userEvent.keyboard('{Enter}')
+    await expectValue(canvas, '"/c"')
+    await expectSubmitted(canvas, '""')
+    await userEvent.keyboard('{ArrowDown}')
+    await expect(canvas.getByRole('option', {name: '/clear'})).toHaveAttribute('aria-selected', 'true')
+    await expect(canvas.getByText('Loading suggestions…')).toBeVisible()
+    await userEvent.click(canvas.getByRole('option', {name: '/clear'}))
+    await expectValue(canvas, '"/c"')
+    await userEvent.click(canvas.getByRole('button', {name: 'Resolve c'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible())
+    await expect(canvas.queryByText('Loading suggestions…')).not.toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('option', {name: '/clear'}))
+    await expectValue(canvas, '"/clear "')
+  },
+}
+
+export const EnterDuringInitialLoadingDoesNotSubmit: Story = {
+  args: {mode: 'manual'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByText('Loading suggestions…')).toBeVisible())
+    await expect(canvas.queryByRole('option')).not.toBeInTheDocument()
+    await userEvent.keyboard('{Enter}')
+    await expectValue(canvas, '"/"')
+    await expectSubmitted(canvas, '""')
+    await userEvent.click(canvas.getByRole('button', {name: 'Resolve root'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('option', {name: '/clear'}))
+    await expectValue(canvas, '"/clear "')
+  },
+}
+
+export const ShiftEnterBreaksLineWhileTypeaheadIsOpen: Story = {
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('hi /cl')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
+    await userEvent.keyboard('{Shift>}{Enter}{/Shift}')
+    await expectValue(canvas, '"hi /cl\\n"')
+    await expectSubmitted(canvas, '""')
+    await userEvent.keyboard('more')
+    await expectValue(canvas, '"hi /cl\\nmore"')
+  },
+}
+
+export const ActiveOptionScrollsIntoView: Story = {
+  args: {mode: 'long'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/command-00'})).toBeVisible())
+    for (let step = 0; step < 20; step += 1) await userEvent.keyboard('{ArrowDown}')
+    const active = canvas.getByRole('option', {name: '/command-20'})
+    await waitFor(() => expect(active).toHaveAttribute('aria-selected', 'true'))
+    await expect(canvas.getByRole('listbox', {name: 'Slash commands'})).toContainElement(active)
+    await userEvent.keyboard('{Enter}')
+    await expectValue(canvas, '"/command-20 "')
   },
 }
 

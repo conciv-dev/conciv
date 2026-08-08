@@ -1,8 +1,10 @@
 import {splitProps, type ComponentProps} from 'solid-js'
 import {Popover as Ark} from '@ark-ui/solid/popover'
+import {LIST_PANEL} from './list-panel.js'
 
 const CONTENT =
   'hidden data-[state=open]:block data-[state=open]:anim-pop z-[2147483647] rounded-pw-lg bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg focus-visible:outline-none'
+const LIST_CONTENT = `hidden data-[state=open]:block data-[state=open]:anim-combo ${LIST_PANEL}`
 
 function Root(props: ComponentProps<typeof Ark.Root>) {
   const [local, rest] = splitProps(props, ['positioning'])
@@ -14,5 +16,10 @@ function Content(props: ComponentProps<typeof Ark.Content>) {
   return <Ark.Content {...rest} class={`${CONTENT}  ${local.class ?? ''}`} />
 }
 
-export const Popover = Object.assign({}, Ark, {Root, Content})
+function ListContent(props: ComponentProps<typeof Ark.Content>) {
+  const [local, rest] = splitProps(props, ['class'])
+  return <Ark.Content {...rest} class={`${LIST_CONTENT}  ${local.class ?? ''}`} />
+}
+
+export const Popover = Object.assign({}, Ark, {Root, Content, ListContent})
 export type PopoverApi = typeof Popover
