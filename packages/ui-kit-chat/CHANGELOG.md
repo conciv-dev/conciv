@@ -5,7 +5,6 @@
 ### Patch Changes
 
 - [#212](https://github.com/conciv-dev/conciv/pull/212) [`cf49d70`](https://github.com/conciv-dev/conciv/commit/cf49d70082aae2cad1a885d499afa4f735b6bddd) Thanks [@omridevk](https://github.com/omridevk)! - Fix double-constructed JSX props and tighten composer state handling.
-
   - `ToolChip`'s `tip` and `Terminal`'s `rail` resolve their JSX prop through a `children()` memo, so a
     component passed as that prop is built once instead of two or three times.
   - The model selector no longer disappears when the model list fails to load: it renders a retry
