@@ -7,6 +7,7 @@ import {setNavigation, waitForNavigationWrite} from './helpers/navigation.js'
 import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 
 const ASSISTANT_TEXT = 'Rebound reply'
+const USER_TEXT = 'first message before the drift'
 
 let browser: Browser
 let kit: EmbedKit
@@ -84,7 +85,7 @@ describe('handle.rebind survives same-core port drift', () => {
     await expectLocator(apiBaseProbe).toHaveText(proxyA.base, {timeout: 30_000})
 
     const routed = waitForNavigationWrite(page)
-    await sendTurn(page, 'first message before the drift')
+    await sendTurn(page, USER_TEXT)
     await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
     await routed
     const sessionBefore = await panelSession()
@@ -95,13 +96,14 @@ describe('handle.rebind survives same-core port drift', () => {
     await proxyA.close()
 
     await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
-    await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(0, {timeout: 30_000})
     await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
 
     await expectLocator(apiBaseProbe).toHaveText(proxyB.base, {timeout: 30_000})
 
-    await sendTurn(page, 'second message after the drift')
+    await expectLocator(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
     await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
+
+    await sendTurn(page, 'second message after the drift')
 
     expect(proxyB.requestCount()).toBeGreaterThan(beforeB)
     expect(await panelSession()).toBe(sessionBefore)
