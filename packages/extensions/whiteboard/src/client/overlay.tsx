@@ -1,21 +1,9 @@
-import {ErrorBoundary, Show, Suspense, createEffect, onMount, type Accessor, type JSX} from 'solid-js'
-import {makeEventListener} from '@solid-primitives/event-listener'
+import {ErrorBoundary, Show, Suspense, lazy, type JSX} from 'solid-js'
 import {getHostApi} from '@conciv/extension'
-import type {ElementRect, ElementSource} from '@conciv/grab'
-import {Island, type Self} from '../canvas/island.js'
 import {WhiteboardDbProvider} from './db.js'
-import {CommentsProvider, useComments, type ComposeTarget} from './model/comments.js'
-import {Inbox, InboxToggle} from './inbox.js'
-import {PinsLayer} from './pins/pins.js'
-import {ThreadPopover} from './pins/thread.js'
-import {Compose} from './pins/compose.js'
+import type {Self, SurfaceState} from './surface-types.js'
 
-export type CommentPick = {source: ElementSource | null; rect: ElementRect | null}
-
-const toComposeTarget = (pick: CommentPick): ComposeTarget => ({
-  source: pick.source ? {file: pick.source.filePath, line: pick.source.lineNumber ?? null} : null,
-  screen: pick.rect ? {x: pick.rect.x + pick.rect.width / 2, y: pick.rect.y + pick.rect.height / 2} : {x: 80, y: 80},
-})
+const CanvasSurface = lazy(() => import('./canvas-surface.js'))
 
 const PALETTE = ['#e03131', '#2f9e44', '#1971c2', '#f08c00', '#9c36b5'] as const
 
@@ -39,93 +27,6 @@ function selfIdentity(win: Window): Self {
   return {peerId, name: `Guest ${peerId.slice(0, 4)}`, color: PALETTE[index] ?? PALETTE[0]}
 }
 
-function CanvasView(props: {
-  doc: Document
-  visible: Accessor<boolean>
-  room: Accessor<string>
-  self: Self
-  close: () => void
-}): JSX.Element {
-  const model = useComments()
-
-  const overlayBusy = (): boolean => model.openCid() !== null || model.composeTarget() !== null || model.inboxOpen()
-  const insideExcalidraw = (event: KeyboardEvent): boolean =>
-    Boolean((event.target as Element | null)?.closest?.('.excalidraw'))
-  const escapeClosesCanvas = (event: KeyboardEvent): boolean =>
-    event.key === 'Escape' && props.visible() && !overlayBusy() && !insideExcalidraw(event)
-
-  onMount(() => {
-    const win = props.doc.defaultView
-    if (!win) return
-    const onKey = (event: KeyboardEvent): void => {
-      if (escapeClosesCanvas(event)) props.close()
-    }
-    makeEventListener(win, 'keydown', onKey, true)
-  })
-  return (
-    <>
-      <Island
-        doc={props.doc}
-        room={props.room()}
-        theme="dark"
-        self={props.self}
-        visible={props.visible()}
-        onViewport={model.setViewport}
-        registerPan={model.registerPan}
-      />
-      <Show when={props.visible()}>
-        <PinsLayer />
-        <ThreadPopover />
-        <InboxToggle />
-        <Inbox />
-      </Show>
-      <Show when={model.composeTarget()}>{(target) => <Compose target={target()} />}</Show>
-    </>
-  )
-}
-
-export type SurfaceState = {
-  engaged: Accessor<boolean>
-  open: Accessor<boolean>
-  visible: Accessor<boolean>
-  close: () => void
-  settleCompose: () => void
-  registerComment: (write: (pick: CommentPick) => void) => void
-}
-
-function Canvas(props: {state: SurfaceState; room: Accessor<string>; self: Self}): JSX.Element {
-  const host = getHostApi()
-  const apiBase = host.useApiBase()
-  const toast = host.useToast()
-  const onComposeSettled = (outcome: 'added' | 'cancelled'): void => {
-    props.state.settleCompose()
-    if (outcome === 'added' && !props.state.open()) toast('Comment added to the whiteboard', 'success')
-  }
-  return (
-    <CommentsProvider
-      room={props.room}
-      apiBase={apiBase()}
-      canvasOpen={props.state.open}
-      onComposeSettled={onComposeSettled}
-    >
-      <ComposeBridge registerComment={props.state.registerComment} />
-      <CanvasView
-        doc={document}
-        visible={props.state.visible}
-        room={props.room}
-        self={props.self}
-        close={props.state.close}
-      />
-    </CommentsProvider>
-  )
-}
-
-function ComposeBridge(props: {registerComment: (write: (pick: CommentPick) => void) => void}): JSX.Element {
-  const model = useComments()
-  onMount(() => props.registerComment((pick) => model.startCompose(toComposeTarget(pick))))
-  return <></>
-}
-
 function Board(props: {state: SurfaceState}): JSX.Element {
   const host = getHostApi()
   const sessionId = host.useSessionId()
@@ -134,29 +35,15 @@ function Board(props: {state: SurfaceState}): JSX.Element {
     <Show when={sessionId()} keyed fallback={<SessionPending />}>
       {(session) => (
         <WhiteboardDbProvider apiBase={apiBase()} room={session}>
-          <Canvas state={props.state} room={() => session} self={selfIdentity(window)} />
+          <CanvasSurface state={props.state} room={() => session} self={selfIdentity(window)} />
         </WhiteboardDbProvider>
       )}
     </Show>
   )
 }
 
-async function injectExcalidrawCss(doc: Document): Promise<void> {
-  if (doc.head.querySelector('[data-whiteboard-style]')) return
-  const sheet = await import('@excalidraw/excalidraw/index.css?inline')
-  const style = doc.createElement('style')
-  style.setAttribute('data-whiteboard-style', '')
-  style.textContent = sheet.default
-  doc.head.appendChild(style)
-}
-
 export function WhiteboardSurface(props: {state: SurfaceState}): JSX.Element {
-  const {YieldFocus, useToast} = getHostApi()
-  const toast = useToast()
-  createEffect(() => {
-    if (!props.state.engaged()) return
-    injectExcalidrawCss(document).catch(() => toast('Could not load the whiteboard styles', 'error'))
-  })
+  const {YieldFocus} = getHostApi()
   return (
     <Show when={props.state.engaged()}>
       <div class="text-pw-text font-pw pointer-events-none inset-0 fixed">
