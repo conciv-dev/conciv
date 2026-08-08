@@ -1,11 +1,28 @@
 {
   "$schema": "https://v2-10-3.turborepo.dev/schema.json",
-  "globalDependencies": [".github/workflows/ci.yml", "pnpm-workspace.yaml", ".oxlintrc.json"],
+  "globalDependencies": ["pnpm-workspace.yaml", ".oxlintrc.json"],
   "concurrency": "50%",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!tests/**",
+        "!e2e/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx",
+        "!**/*.stories.ts",
+        "!**/*.stories.tsx",
+        "!vitest.config.ts",
+        "!playwright.config.ts",
+        "!README.md",
+        "!CHANGELOG.md",
+        "!LICENSE"
+      ]
     },
     "dev": {
       "dependsOn": ["^build"],
