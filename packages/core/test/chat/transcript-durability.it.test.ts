@@ -1,7 +1,7 @@
 import {describe, it, expect, afterEach} from 'vitest'
-import {mkdtempSync, rmSync} from 'node:fs'
+import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {EventType} from '@tanstack/ai'
 import {createFakeHarness, createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
 import {openDb, runMessagesFor, sessionHistoryFor, setRunMessages} from '@conciv/db'
@@ -76,6 +76,77 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
     expect(partTypes(snapshot).filter((type) => type === 'image')).toHaveLength(1)
   })
 
+  async function seedInterrupted(root: string, seed: {harnessKind: string; nativeId: string | null; text: string}) {
+    const db = openDb(root)
+    const sessionId = 'conciv_seeded'
+    await createRow(db, {
+      id: sessionId,
+      harnessSessionId: seed.nativeId,
+      harnessKind: seed.harnessKind,
+      origin: 'chat',
+      title: null,
+      model: null,
+      usage: null,
+      cwd: root,
+      deletedAt: null,
+    })
+    setRunMessages(db, sessionId, [{id: 'u1', role: 'user', parts: [{type: 'text', content: seed.text}]}])
+    return {db, sessionId}
+  }
+
+  function writeClaudeTranscript(root: string, nativeId: string, text: string): void {
+    const history = requireClaude().history
+    if (!history?.transcriptPath) throw new Error('the claude harness lost its transcript path')
+    const path = history.transcriptPath(root, nativeId, root)
+    mkdirSync(dirname(path), {recursive: true})
+    writeFileSync(path, `${JSON.stringify({type: 'user', message: {role: 'user', content: [{type: 'text', text}]}})}\n`)
+  }
+
+  function freshRoot(name: string): string {
+    const root = mkdtempSync(join(tmpdir(), name))
+    roots.push(root)
+    return root
+  }
+
+  it('T12: an interrupted turn the CLI never ingested survives recovery on an established session', async () => {
+    const root = freshRoot('conciv-durable-established-')
+    const text = 'turn written to the database before the cli was invoked'
+    const {db, sessionId} = await seedInterrupted(root, {harnessKind: 'claude', nativeId: 'native-earlier', text})
+
+    await recoverInterruptedRuns({db, harness: requireClaude(), claudeHome: root})
+
+    expect(runMessagesFor(db, sessionId)).toBeNull()
+    expect(sessionHistoryFor(db, sessionId)?.messages).toEqual([
+      {id: 'u1', role: 'user', parts: [{type: 'text', content: text}]},
+    ])
+  })
+
+  it('T12b: a turn the CLI already recorded is dropped from the database instead of duplicated', async () => {
+    const root = freshRoot('conciv-durable-ingested-')
+    const text = 'turn the cli already wrote to its transcript'
+    const {db, sessionId} = await seedInterrupted(root, {harnessKind: 'claude', nativeId: 'native-ingested', text})
+    writeClaudeTranscript(root, 'native-ingested', text)
+
+    await recoverInterruptedRuns({db, harness: requireClaude(), claudeHome: root})
+
+    expect(runMessagesFor(db, sessionId)).toBeNull()
+    expect(sessionHistoryFor(db, sessionId)).toBeNull()
+  })
+
+  it('T13: recovery judges each session by its own recorded harness, not the booted one', async () => {
+    const root = freshRoot('conciv-durable-switched-')
+    const text = 'gemini turn interrupted before the app restarted on claude'
+    const {db, sessionId} = await seedInterrupted(root, {harnessKind: 'gemini-cli', nativeId: 'native-gemini', text})
+    writeClaudeTranscript(root, 'native-gemini', text)
+
+    await recoverInterruptedRuns({db, harness: requireClaude(), claudeHome: root})
+
+    expect(runMessagesFor(db, sessionId)).toBeNull()
+    expect(sessionHistoryFor(db, sessionId)?.messages).toEqual([
+      {id: 'u1', role: 'user', parts: [{type: 'text', content: text}]},
+    ])
+  })
+
   it('T7: an interrupted turn that never reached the CLI survives recovery on a transcriptHistory harness', async () => {
     const root = mkdtempSync(join(tmpdir(), 'conciv-durable-no-native-'))
     roots.push(root)
@@ -96,7 +167,7 @@ describe('the database owns the transcript for transcript-less harnesses (IT)', 
       {id: 'u1', role: 'user', parts: [{type: 'text', content: 'turn interrupted before a native id landed'}]},
     ])
 
-    await recoverInterruptedRuns(db, requireClaude())
+    await recoverInterruptedRuns({db, harness: requireClaude(), claudeHome: root})
 
     expect(runMessagesFor(db, sessionId)).toBeNull()
     const history = sessionHistoryFor(db, sessionId)

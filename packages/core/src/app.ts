@@ -238,7 +238,7 @@ async function drainWithDeadline(drain: Promise<void>, timeoutMs: number): Promi
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const db = openDb(opts.cfg.stateRoot)
-  await recoverInterruptedRuns(db, harness)
+  await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
   const asks = createAskRegistry()
   const {claimStartedAt, durability, runControl, runs} = makeRunControl(opts.firstChunkTimeoutMs)
   const liveRuns = createLiveRuns()
