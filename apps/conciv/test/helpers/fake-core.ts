@@ -12,6 +12,7 @@ export type FakeCore = {
   releaseSnapshot: () => void
   idle: () => Promise<void>
   restore: () => void
+  setEngine: (next: {stale: boolean; fingerprint?: string}) => void
 }
 
 const QUIET_MS = 60
@@ -26,6 +27,7 @@ export type FakeCoreConfig = {
   holdRun?: boolean
   launchOk?: boolean
   launchRejects?: boolean
+  engineStale?: boolean
 }
 
 export function sessionRow(overrides: Partial<SessionMeta> & {id: string}): SessionMeta {
@@ -74,6 +76,7 @@ function delayFor(schedule: number | number[] | undefined, callIndex: number): n
 
 export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
   const realFetch = globalThis.fetch
+  const engine = {stale: config.engineStale ?? false, fingerprint: 'stamp-boot'}
   const calls: CoreCall[] = []
   let subscribes = 0
   let snapshotReleased = false
@@ -103,6 +106,10 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     restore: () => {
       globalThis.fetch = realFetch
       if (typeof window !== 'undefined') delete window.__CONCIV_API_BASE__
+    },
+    setEngine: (next) => {
+      engine.stale = next.stale
+      if (next.fingerprint !== undefined) engine.fingerprint = next.fingerprint
     },
   }
 
@@ -139,6 +146,14 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
         harness: {id: 'claude', name: 'Claude', canLaunch: true, imageInput: false},
       }),
     '/rpc/meta/commands': () => reply({commands: []}),
+    '/rpc/meta/engine': () =>
+      reply({
+        stale: engine.stale,
+        changed: engine.stale ? ['@conciv/tools'] : [],
+        tracked: ['@conciv/core', '@conciv/tools'],
+        bootedAt: 0,
+        fingerprint: engine.fingerprint,
+      }),
     '/rpc/meta/tools': () => reply({tools: []}),
     '/rpc/chat/subscribe': (_body, signal) => liveStream(signal),
     '/rpc/chat/stop': () => reply({ok: true}),

@@ -21,6 +21,7 @@ export type PaneMount = {
   dispose: () => void
   announced: () => string[]
   pane: PaneContextValue
+  refetch: () => Promise<void>
 }
 
 function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
@@ -36,12 +37,13 @@ export function mountPane(view: (pane: PaneContextValue) => JSX.Element): PaneMo
   document.body.appendChild(host)
   const rpc = makeRpcClient(CORE_BASE)
   const queryClient = new QueryClient()
+  const data = makeAppData(rpc, queryClient)
   const [announced, setAnnounced] = createSignal<string[]>([])
   const app: AppContextValue = {
     rpc,
     settings: parseConcivSettings(''),
     environment: {rootNode: document, document},
-    data: makeAppData(rpc, queryClient),
+    data,
     queryClient,
     announce: (message) => setAnnounced((entries) => [...entries, message]),
     layers: makeLayerStack(),
@@ -88,5 +90,6 @@ export function mountPane(view: (pane: PaneContextValue) => JSX.Element): PaneMo
     },
     announced,
     pane,
+    refetch: () => queryClient.invalidateQueries({queryKey: data.utils.meta.engine.key()}),
   }
 }
