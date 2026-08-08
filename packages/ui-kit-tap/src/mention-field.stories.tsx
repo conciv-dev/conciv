@@ -50,6 +50,31 @@ export const MentionOptionsCarryAvatars: Story = {
   },
 }
 
+export const MentionScreenReaderSurface: Story = {
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const editor = await waitFor(() => canvas.getByRole('textbox', {name: 'Comment'}))
+    await userEvent.click(editor)
+    await expect(editor).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.type(editor, '@')
+    const listbox = await waitFor(() => canvas.getByRole('listbox', {name: 'Mention a participant'}))
+    await expect(editor).toHaveAttribute('aria-haspopup', 'listbox')
+    await waitFor(() => expect(editor).toHaveAttribute('aria-expanded', 'true'))
+    await expect(editor.getAttribute('aria-controls')).toBe(listbox.id)
+    await waitFor(() =>
+      expect(editor.getAttribute('aria-activedescendant')).toBe(canvas.getByRole('option', {name: 'You'}).id),
+    )
+    await userEvent.keyboard('{ArrowDown}')
+    await waitFor(() =>
+      expect(editor.getAttribute('aria-activedescendant')).toBe(canvas.getByRole('option', {name: 'Opus'}).id),
+    )
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(canvas.queryByRole('listbox')).not.toBeInTheDocument())
+    await expect(editor).toHaveAttribute('aria-expanded', 'false')
+    await expect(editor).not.toHaveAttribute('aria-activedescendant')
+  },
+}
+
 export const MentionFlow: Story = {
   args: {placeholder: 'Reply, @mention someone…'},
   play: async ({canvasElement}) => {

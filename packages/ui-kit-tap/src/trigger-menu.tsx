@@ -46,6 +46,17 @@ export function createTriggerMenu(): TriggerMenuController {
   return {state, access, setListbox}
 }
 
+export function triggerPopupAttributes(menu: TriggerMenuController): Record<string, string> {
+  const listbox = menu.access.listbox()
+  const activeOption = listbox?.activeOptionId()
+  return {
+    'aria-haspopup': 'listbox',
+    'aria-expanded': menu.state() !== null ? 'true' : 'false',
+    ...(listbox ? {'aria-controls': listbox.listboxId} : {}),
+    ...(activeOption ? {'aria-activedescendant': activeOption} : {}),
+  }
+}
+
 function itemRow(item: RichTextFieldTriggerItem): MenuRow {
   return {value: `item:${item.id}`, label: item.label, description: item.description, action: {kind: 'item', item}}
 }

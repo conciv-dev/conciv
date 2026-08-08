@@ -657,6 +657,26 @@ export const LoadingKeepsCarriedItemsInert: Story = {
   },
 }
 
+export const LoadingKeepsTheHighlightOnCarriedItems: Story = {
+  args: {mode: 'manual'},
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/c')
+    await waitFor(() => expect(canvas.getByRole('button', {name: 'Resolve c'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('button', {name: 'Resolve c'}))
+    await expectActiveOption(canvas, '/clear')
+    await userEvent.click(canvas.getByRole('button', {name: 'Focus end'}))
+    await waitFor(() => expect(textbox(canvas)).toHaveFocus())
+    await userEvent.keyboard('{ArrowDown}')
+    await expectActiveOption(canvas, '/compact')
+    await userEvent.keyboard('o')
+    await expectValue(canvas, '"/co"')
+    await waitFor(() => expect(canvas.getByText('Loading suggestions…')).toBeVisible())
+    await expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible()
+    await expectActiveOption(canvas, '/compact')
+  },
+}
+
 export const EnterDuringInitialLoadingDoesNotSubmit: Story = {
   args: {mode: 'manual'},
   play: async ({canvasElement}) => {

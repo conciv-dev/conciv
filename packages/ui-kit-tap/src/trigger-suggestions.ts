@@ -174,7 +174,14 @@ export function triggerSuggestion(options: {
   }
 }
 
-type MenuKeyAction = 'ignore' | 'inert' | 'back' | 'forward'
+type MenuKeyAction = 'ignore' | 'inert' | 'back' | 'dismiss' | 'forward'
+
+type MenuKeyContext = {
+  access: TriggerMenuAccess
+  state: TriggerMenuState
+  event: KeyboardEvent
+  dismiss: (char: string) => void
+}
 
 function consumeKey(event: KeyboardEvent): true {
   event.preventDefault()
@@ -195,21 +202,42 @@ function backKeyAction(state: TriggerMenuState, event: KeyboardEvent): MenuKeyAc
   return 'back'
 }
 
-const MENU_KEY_ACTIONS: Record<MenuKeyAction, (access: TriggerMenuAccess, event: KeyboardEvent) => boolean> = {
+function tabKeyAction(_state: TriggerMenuState, event: KeyboardEvent): MenuKeyAction | null {
+  return event.key === 'Tab' ? 'dismiss' : null
+}
+
+const KEY_ACTION_RESOLVERS = [enterKeyAction, backKeyAction, tabKeyAction]
+
+function menuKeyAction(state: TriggerMenuState, event: KeyboardEvent): MenuKeyAction {
+  for (const resolve of KEY_ACTION_RESOLVERS) {
+    const action = resolve(state, event)
+    if (action) return action
+  }
+  return 'forward'
+}
+
+const MENU_KEY_ACTIONS: Record<MenuKeyAction, (context: MenuKeyContext) => boolean> = {
   ignore: () => false,
-  inert: (_access, event) => consumeKey(event),
-  back: (access, event) => {
+  inert: ({event}) => consumeKey(event),
+  back: ({access, event}) => {
     access.leaveCategory()
     return consumeKey(event)
   },
-  forward: (access, event) => access.listbox()?.handleKeyDown(event) === true,
+  dismiss: ({state, event, dismiss}) => {
+    dismiss(state.dispatch.char)
+    return consumeKey(event)
+  },
+  forward: ({access, event}) => access.listbox()?.handleKeyDown(event) === true,
 }
 
-export function triggerMenuKeyDown(access: TriggerMenuAccess, event: KeyboardEvent): boolean {
+export function triggerMenuKeyDown(
+  access: TriggerMenuAccess,
+  event: KeyboardEvent,
+  dismiss: (char: string) => void,
+): boolean {
   const state = access.state()
   if (!state) return false
-  const action = enterKeyAction(state, event) ?? backKeyAction(state, event) ?? 'forward'
-  return MENU_KEY_ACTIONS[action](access, event)
+  return MENU_KEY_ACTIONS[menuKeyAction(state, event)]({access, state, event, dismiss})
 }
 
 export function dismissTrigger(view: EditorView, suggestions: readonly SuggestionConfig[], char: string): void {

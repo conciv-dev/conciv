@@ -7,7 +7,7 @@ import {Slice, type Schema} from '@tiptap/pm/model'
 import {ScrollArea} from '@conciv/ui-kit-system'
 import {chipExtension, documentExtensions} from './field-schema.js'
 import {buildDocument, offsetToPosition, paragraphFragment, positionToOffset, projectDocument} from './lowering.js'
-import {TriggerMenu, createTriggerMenu} from './trigger-menu.js'
+import {TriggerMenu, createTriggerMenu, triggerPopupAttributes} from './trigger-menu.js'
 import {
   ChipForwardDelete,
   dismissTrigger,
@@ -104,30 +104,19 @@ function enterAction(editor: Editor, event: KeyboardEvent, submit: () => void): 
   return true
 }
 
-type EditablePopup = {expanded: boolean; controls: string | undefined; activeOption: string | undefined}
-
-function popupAttributes(popup: EditablePopup): Record<string, string> {
-  return {
-    'aria-haspopup': 'listbox',
-    'aria-expanded': popup.expanded ? 'true' : 'false',
-    ...(popup.controls ? {'aria-controls': popup.controls} : {}),
-    ...(popup.activeOption ? {'aria-activedescendant': popup.activeOption} : {}),
-  }
-}
-
 function editableAttributes(options: {
   label: string
   disabled: boolean | undefined
   editableClass: string | undefined
   minRows: number | undefined
-  popup: EditablePopup
+  popup: Record<string, string>
 }): Record<string, string> {
   return {
     role: 'textbox',
     'aria-multiline': 'true',
     'aria-label': options.label,
     ...(options.disabled ? {'aria-disabled': 'true'} : {}),
-    ...popupAttributes(options.popup),
+    ...options.popup,
     class: `${EDITABLE} ${options.editableClass ?? ''}`,
     style: `min-height: ${rowHeight(options.minRows ?? 1)}`,
   }
@@ -163,16 +152,15 @@ export function RichTextField(props: {
       disabled: props.disabled,
       editableClass: props.editableClass,
       minRows: props.minRows,
-      popup: {
-        expanded: menu.state() !== null,
-        controls: menu.access.listbox()?.listboxId,
-        activeOption: menu.access.listbox()?.activeOptionId(),
-      },
+      popup: triggerPopupAttributes(menu),
     })
   const suggestions = [
     triggerSuggestion({char: '/', source: () => props.slashTrigger, access: menu.access}),
     triggerSuggestion({char: '@', source: () => props.mentionTrigger, access: menu.access}),
   ]
+  const dismissMenu = (char: string): void => {
+    if (editorView) dismissTrigger(editorView, suggestions, char)
+  }
 
   onMount(() => {
     if (!host) return
@@ -184,7 +172,7 @@ export function RichTextField(props: {
           const history = chordHistoryCommand(event)
           if (history) return applyHistory(editor, history)
           if (insideComposition(editorState, event)) return false
-          if (triggerMenuKeyDown(menu.access, event)) return true
+          if (triggerMenuKeyDown(menu.access, event, dismissMenu)) return true
           return enterAction(editor, event, submitDraft)
         },
         handlePaste: (_view, event) => {
@@ -265,11 +253,7 @@ export function RichTextField(props: {
         </ScrollArea.Scrollbar>
       </ScrollArea.Root>
       <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
-      <TriggerMenu
-        menu={menu}
-        onDismiss={(char) => editorView && dismissTrigger(editorView, suggestions, char)}
-        onRefocus={() => editorInstance?.commands.focus()}
-      />
+      <TriggerMenu menu={menu} onDismiss={dismissMenu} onRefocus={() => editorInstance?.commands.focus()} />
     </div>
   )
 }

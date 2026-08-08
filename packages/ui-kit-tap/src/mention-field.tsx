@@ -1,4 +1,4 @@
-import {Show, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
+import {Show, createEffect, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
 import {Editor} from '@tiptap/core'
 import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
@@ -6,7 +6,7 @@ import {Text} from '@tiptap/extension-text'
 import {HardBreak} from '@tiptap/extension-hard-break'
 import {Mention} from '@tiptap/extension-mention'
 import {AnchoredListbox, Avatar} from '@conciv/ui-kit-system'
-import {TriggerMenu, createTriggerMenu} from './trigger-menu.js'
+import {TriggerMenu, createTriggerMenu, triggerPopupAttributes} from './trigger-menu.js'
 import {
   dismissTrigger,
   triggerMenuKeyDown,
@@ -93,6 +93,15 @@ export function MentionField(props: {
     items: (query) => props.items(query),
   })
   const suggestions = [triggerSuggestion({char: '@', source, access: menu.access})]
+  const dismissMenu = (char: string): void => {
+    if (editor) dismissTrigger(editor.view, suggestions, char)
+  }
+  const editableAttributes = (): Record<string, string> => ({
+    role: 'textbox',
+    'aria-label': props.ariaLabel ?? 'Message',
+    'aria-multiline': 'true',
+    ...triggerPopupAttributes(menu),
+  })
 
   const submit = (): void => {
     if (!editor || editor.isEmpty) return
@@ -104,12 +113,12 @@ export function MentionField(props: {
 
   onMount(() => {
     if (!host) return
-    editor = new Editor({
+    const instance = new Editor({
       element: host,
       editorProps: {
-        attributes: {role: 'textbox', 'aria-label': props.ariaLabel ?? 'Message', 'aria-multiline': 'true'},
+        attributes: editableAttributes(),
         handleKeyDown: (_view, event) => {
-          if (triggerMenuKeyDown(menu.access, event)) return true
+          if (triggerMenuKeyDown(menu.access, event, dismissMenu)) return true
           if (!submitsOnEnter(event, menu.state() !== null)) return false
           event.preventDefault()
           submit()
@@ -131,11 +140,13 @@ export function MentionField(props: {
         }),
       ],
     })
+    editor = instance
+    createEffect(() => instance.view.setProps({attributes: editableAttributes()}))
     props.onReady?.({
-      focus: () => editor?.commands.focus(),
-      clear: () => editor?.commands.clearContent(),
+      focus: () => instance.commands.focus(),
+      clear: () => instance.commands.clearContent(),
       submit,
-      element: editor.view.dom,
+      element: instance.view.dom,
     })
   })
   onCleanup(() => editor?.destroy())
@@ -144,11 +155,7 @@ export function MentionField(props: {
     <div class={rootClass()}>
       <div ref={(element) => (host = element)} class={EDITOR} />
       <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
-      <TriggerMenu
-        menu={menu}
-        onDismiss={(char) => editor && dismissTrigger(editor.view, suggestions, char)}
-        onRefocus={() => editor?.commands.focus()}
-      >
+      <TriggerMenu menu={menu} onDismiss={dismissMenu} onRefocus={() => editor?.commands.focus()}>
         {(item) => <MentionOption label={item.label} />}
       </TriggerMenu>
     </div>

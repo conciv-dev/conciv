@@ -57,7 +57,11 @@ function Root(props: {
   createEffect(
     on(
       () => props.collection,
-      () => listbox().highlightFirst(),
+      (collection) => {
+        const highlighted = listbox().highlightedValue
+        if (highlighted !== null && collection.has(highlighted)) return
+        listbox().highlightFirst()
+      },
     ),
   )
 
@@ -113,7 +117,7 @@ function Label(props: {children: JSX.Element}): JSX.Element {
 
 function Content(props: {busy?: boolean; children: JSX.Element}): JSX.Element {
   return (
-    <Listbox.Content class={CONTENT} aria-busy={props.busy ? 'true' : undefined}>
+    <Listbox.Content class={CONTENT} tabIndex={-1} aria-busy={props.busy ? 'true' : undefined}>
       {props.children}
     </Listbox.Content>
   )
