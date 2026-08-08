@@ -2,7 +2,6 @@ import {createEffect, onCleanup, onMount, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {Component, createElement, type ReactNode} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
-import {Excalidraw, THEME, convertToExcalidrawElements} from '@excalidraw/excalidraw'
 import type {Collaborator, ExcalidrawImperativeAPI, SocketId} from '@excalidraw/excalidraw/types'
 import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
@@ -11,6 +10,7 @@ import {useWhiteboardDb} from '../client/db.js'
 import type {CursorEvent, ElementRow, JsonValue, PendingRow} from '../shared/rows.js'
 import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
 import type {Viewport} from './coords.js'
+import {loadExcalidraw} from './excalidraw-lazy.js'
 
 export type Self = {peerId: string; name: string; color: string}
 
@@ -115,6 +115,7 @@ export function Island(props: {
   const draining = new Set<string>()
   const drainPending = async (row: PendingRow): Promise<void> => {
     try {
+      const {convertToExcalidrawElements} = await loadExcalidraw()
       const drawn = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
       const rows = drawn.map((element: ExcalidrawElement) => ({
         room: props.room,
@@ -197,7 +198,7 @@ export function Island(props: {
 
   const exportReply = async (scope: 'live' | 'draft' | 'both'): Promise<JsonValue> => {
     const elements = await gatherExportElements(scope)
-    const {exportToBlob} = await import('@excalidraw/excalidraw')
+    const {exportToBlob} = await loadExcalidraw()
     const blob = await exportToBlob({
       elements,
       files: api?.getFiles() ?? {},
@@ -265,8 +266,9 @@ export function Island(props: {
     pendingSubscription.unsubscribe()
   })
 
-  onMount(() => {
-    if (!container) return
+  onMount(async () => {
+    const {Excalidraw, THEME} = await loadExcalidraw()
+    if (!container || !container.isConnected) return
     root = createRoot(container)
     root.render(
       createElement(
