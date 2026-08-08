@@ -10,7 +10,7 @@ export {NO_BUILTINS} from '@conciv/extension-compiler/extensions'
 export function createConcivUnplugin(builtins: Builtins = NO_BUILTINS): UnpluginInstance<ConcivConfig | undefined> {
   return createUnplugin<ConcivConfig | undefined>((options = {}) => {
     const state: {booter: ReturnType<typeof makeEngineBooter> | null} = {booter: null}
-    const boot = () => (state.booter ??= makeEngineBooter(options, process.cwd(), builtins))()
+    const boot = () => (state.booter ??= makeEngineBooter(options, process.cwd(), builtins, 'exact'))()
 
     return {
       name: 'conciv',

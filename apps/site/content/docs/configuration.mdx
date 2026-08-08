@@ -35,7 +35,7 @@ conciv({
       type: 'number',
       default: 'auto',
       description:
-        'Preferred engine port. Bundler plugins fall back to a free port when it is taken, so a second dev server still boots; the Next.js integration needs it exactly and fails when it is taken.',
+        'Engine port. The Vite dev server treats it as a preference and falls back to a free port when it is taken, so a second dev server still boots; the Next.js integration and the generic webpack/rspack plugin need it exactly, because both hand the client a port that is fixed before the engine boots, and fail when it is taken.',
     },
     stateRoot: {type: 'string', default: 'process.cwd()', description: 'Root holding the .conciv state directory.'},
     devEndpointDir: {

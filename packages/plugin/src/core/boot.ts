@@ -1,11 +1,22 @@
-import {start, type Engine} from '@conciv/core/start'
+import {start, type Engine, type PortRequest} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {makeOpenInEditor} from './open-editor.js'
 import {type Builtins, loadServerExtensions} from '@conciv/extension-compiler/extensions'
 
-export function makeEngineBooter(options: ConcivConfig, root: string, builtins: Builtins): () => Promise<Engine> {
+export type PortPolicy = 'exact' | 'preferred'
+
+function toPortRequest(policy: PortPolicy, port: number): PortRequest {
+  return policy === 'exact' ? {exact: port} : {preferred: port}
+}
+
+export function makeEngineBooter(
+  options: ConcivConfig,
+  root: string,
+  builtins: Builtins,
+  portPolicy: PortPolicy,
+): () => Promise<Engine> {
   let booting: Promise<Engine> | null = null
   return () => {
     if (booting) return booting
@@ -16,7 +27,7 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
       start({
         options,
         root,
-        port: options.port === undefined ? undefined : {exact: options.port},
+        port: options.port === undefined ? undefined : toPortRequest(portPolicy, options.port),
         launchEditor: makeOpenInEditor(root),
         extensions,
         nativePageDir: builtins.nativePageDir,
