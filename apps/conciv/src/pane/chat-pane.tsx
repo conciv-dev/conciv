@@ -47,6 +47,7 @@ import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {NoticeToaster, notify} from '../shell/notices.js'
+import {EngineStaleNotice} from '../shell/engine-notice.js'
 import {makeDraftStorage} from './draft-storage.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
@@ -351,6 +352,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                     <ExtensionSurface name="status" instances={instances} />
                     <ExtensionSurface name="footer" instances={instances} />
                     <NoticeToaster />
+                    <EngineStaleNotice />
                     <For each={pane.grabStore.grabs()}>
                       {(grab) => (
                         <GrabReference

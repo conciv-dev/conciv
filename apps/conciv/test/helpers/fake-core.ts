@@ -26,6 +26,7 @@ export type FakeCoreConfig = {
   holdRun?: boolean
   launchOk?: boolean
   launchRejects?: boolean
+  engineStale?: boolean
 }
 
 export function sessionRow(overrides: Partial<SessionMeta> & {id: string}): SessionMeta {
@@ -139,6 +140,13 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
         harness: {id: 'claude', name: 'Claude', canLaunch: true, imageInput: false},
       }),
     '/rpc/meta/commands': () => reply({commands: []}),
+    '/rpc/meta/engine': () =>
+      reply({
+        stale: config.engineStale ?? false,
+        changed: config.engineStale === true ? ['@conciv/tools'] : [],
+        tracked: ['@conciv/core', '@conciv/tools'],
+        bootedAt: 0,
+      }),
     '/rpc/meta/tools': () => reply({tools: []}),
     '/rpc/chat/subscribe': (_body, signal) => liveStream(signal),
     '/rpc/chat/stop': () => reply({ok: true}),

@@ -25,7 +25,7 @@ describe('token-gated core', () => {
   it('serves health under the token prefix', async () => {
     const res = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ok: true, harness: 'fake-gate'})
+    expect(await res.json()).toMatchObject({ok: true, harness: 'fake-gate'})
   })
 
   it('404s the wrong token and the bare path', async () => {

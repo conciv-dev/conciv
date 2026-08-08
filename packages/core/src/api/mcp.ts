@@ -5,6 +5,7 @@ import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import {EventType, isContentPartArray, type ContentPart, type StreamChunk} from '@tanstack/ai'
 import type {ToolRequest} from '@conciv/extension'
+import type {EngineStaleness} from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
 import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {logError} from '../lib/debug.js'
@@ -79,9 +80,16 @@ function executeDescription(categories: string[]): string {
   )
 }
 
-function serverInstructions(categories: string[]): string {
+function stalenessNotice(staleness: EngineStaleness): string {
+  if (!staleness.stale) return ''
+  return `WARNING: this engine is running outdated code. The server code on disk is newer than the running engine (rebuilt since it booted: ${staleness.changed.join(', ')}). Restart the dev server; until then the capabilities listed here can differ from the project's current code.
+
+`
+}
+
+export function serverInstructions(categories: string[], staleness: EngineStaleness): string {
   const sample = categories.length > 0 ? `Capability categories include ${categories.join(', ')}.\n` : ''
-  return `This server exposes one tool: ${EXECUTE_TOOL_NAME}. It runs TypeScript in a sandbox where every project capability is an async external_* function.
+  return `${stalenessNotice(staleness)}This server exposes one tool: ${EXECUTE_TOOL_NAME}. It runs TypeScript in a sandbox where every project capability is an async external_* function.
 ${sample}
 Workflow: call \`await external_catalog({})\` (or \`external_catalog({search})\`) inside the sandbox to list capabilities with the exact function name each one answers to, \`await external_catalog({name})\` for a full typed signature, then call the function and return a value.
 
@@ -258,6 +266,7 @@ type McpDeps = {
   publish: (sessionId: string, chunk: StreamChunk) => void
   sessionModel: (sessionId: string) => string | null
   sessionForNativeId: (nativeId: string) => Promise<string | null>
+  staleness: () => EngineStaleness
 }
 
 export type McpVars = {mcp: McpDeps}
@@ -269,7 +278,7 @@ async function buildServer(deps: McpDeps, request: ToolRequest): Promise<McpServ
   })
   const server = new McpServer(
     {name: 'conciv', version: '0.0.0'},
-    {instructions: serverInstructions(codeMode?.categories ?? [])},
+    {instructions: serverInstructions(codeMode?.categories ?? [], deps.staleness())},
   )
   if (codeMode === null) {
     logError('[mcp] code mode is unavailable (isolated-vm incompatible or an empty registry); no tools registered')

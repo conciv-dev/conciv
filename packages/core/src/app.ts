@@ -1,5 +1,7 @@
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
+import {z} from 'zod'
+import {EngineStalenessSchema} from '@conciv/contract'
 import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -59,6 +61,7 @@ import {makeBuiltinRegistry} from './tool-registry.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {logError} from './lib/debug.js'
+import {engineStaleness} from './lib/engine-stamp.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
@@ -186,6 +189,12 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   }
 }
 
+export const HealthSchema = z.object({
+  ok: z.literal(true),
+  harness: z.string(),
+  engine: EngineStalenessSchema,
+})
+
 export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 
 function composeRoutes(vars: CoreVars, rpc: CompositeRpcRouter, onShutdown?: () => void) {
@@ -202,7 +211,9 @@ function composeRoutes(vars: CoreVars, rpc: CompositeRpcRouter, onShutdown?: () 
       await next()
     })
     .use(corsMiddleware())
-    .get('/health', (c) => c.json({ok: true, harness: vars.chat.harness.id}))
+    .get('/health', (c) =>
+      c.json(HealthSchema.parse({ok: true, harness: vars.chat.harness.id, engine: engineStaleness()})),
+    )
     .post('/api/shutdown', (c) => {
       if (!onShutdown) return c.json({message: 'shutdown not supported'}, 404)
       setTimeout(onShutdown, 50)
@@ -477,6 +488,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
         sessionModel,
         sessionForNativeId: async (nativeId) => (await rowByNativeId(db, nativeId))?.id ?? null,
+        staleness: engineStaleness,
       },
     },
     compositeRpc,

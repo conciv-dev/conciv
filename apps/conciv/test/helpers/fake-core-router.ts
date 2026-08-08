@@ -81,6 +81,12 @@ function buildRouter(subscribe: (signal: AbortSignal) => AsyncGenerator<StreamCh
       })),
       commands: os.meta.commands.handler(() => ({commands: []})),
       tools: os.meta.tools.handler(() => ({tools: []})),
+      engine: os.meta.engine.handler(() => ({
+        stale: false,
+        changed: [],
+        tracked: ['@conciv/core'],
+        bootedAt: 0,
+      })),
     },
     chat: {
       subscribe: os.chat.subscribe.handler(({signal}) => subscribe(signal ?? new AbortController().signal)),
