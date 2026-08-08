@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
+import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
 
 export const CODE_MODE_TOOL_CALL_EVENT = 'conciv:tool_call'
 export const CODE_MODE_TOOL_RESULT_EVENT = 'conciv:tool_result'
@@ -26,7 +27,10 @@ function callChunks(value: unknown): StreamChunk[] | null {
       toolCallId: callId,
       toolCallName: name,
       toolName: name,
-      ...(toolCallId !== undefined ? {metadata: {parentToolCallId: toolCallId}} : {}),
+      metadata: {
+        [CODE_MODE_SYNTHETIC_PART_MARKER]: true,
+        ...(toolCallId !== undefined ? {parentToolCallId: toolCallId} : {}),
+      },
     },
     {type: EventType.TOOL_CALL_ARGS, toolCallId: callId, delta: JSON.stringify(input ?? {})},
     {type: EventType.TOOL_CALL_END, toolCallId: callId},
