@@ -1,8 +1,8 @@
 import {mkdtempSync, rmSync, statSync, utimesSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {basename, join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
-import {engineStaleness, makeStalenessProbe} from '../src/lib/engine-stamp.js'
+import {engineStaleness, loadedModules, makeStalenessProbe} from '../src/lib/engine-stamp.js'
 
 const dirs: string[] = []
 
@@ -106,7 +106,47 @@ describe('engine staleness probe', () => {
   })
 })
 
+describe('a package that ships more than one entry', () => {
+  it('turns stale when an entry other than the one holding this module changes', () => {
+    const chunk = tmpFile('app-hash.js', 'the chunk engine-stamp landed in')
+    const config = tmpFile('config.js', 'a separate self-contained entry')
+    const probe = makeStalenessProbe([
+      {label: '@conciv/core', path: chunk},
+      {label: '@conciv/core', path: config},
+    ])
+    expect(probe().stale).toBe(false)
+
+    writeFileSync(config, 'a separate self-contained entry, rebuilt')
+
+    expect(probe().stale).toBe(true)
+    expect(probe().changed).toEqual(['@conciv/core'])
+  })
+
+  it('names a package once however many of its entries moved', () => {
+    const chunk = tmpFile('app-hash.js', 'chunk')
+    const config = tmpFile('config.js', 'config')
+    const probe = makeStalenessProbe([
+      {label: '@conciv/core', path: chunk},
+      {label: '@conciv/core', path: config},
+    ])
+
+    writeFileSync(chunk, 'chunk rebuilt')
+    writeFileSync(config, 'config rebuilt')
+
+    expect(probe().changed).toEqual(['@conciv/core'])
+  })
+})
+
 describe('the running engine stamp', () => {
+  it('watches every published core entry, not just the chunk this module landed in', () => {
+    const coreFiles = loadedModules()
+      .filter((entry) => entry.label === '@conciv/core')
+      .map((entry) => basename(entry.path))
+
+    expect(coreFiles).toContain('config.js')
+    expect(coreFiles.length).toBeGreaterThan(1)
+  })
+
   it('watches the server packages this process actually loaded and finds them fresh at boot', () => {
     const now = engineStaleness()
 
