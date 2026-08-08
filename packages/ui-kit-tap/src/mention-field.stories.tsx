@@ -17,9 +17,9 @@ function Harness(props: {placeholder?: string}) {
   return (
     <div class="flex flex-col gap-3">
       <MentionField items={filter} onSubmit={setSent} placeholder={props.placeholder} ariaLabel="Comment" />
-      <pre data-testid="sent" class="text-[0.6875rem] text-pw-text-3">
+      <output aria-label="Sent" class="text-[0.6875rem] text-pw-text-3">
         {JSON.stringify(sent())}
-      </pre>
+      </output>
     </div>
   )
 }
@@ -66,7 +66,7 @@ export const MentionFlow: Story = {
     await userEvent.keyboard('{Enter}')
 
     await waitFor(() => {
-      const sent = JSON.parse(canvas.getByTestId('sent').textContent ?? 'null')
+      const sent = JSON.parse(canvas.getByRole('status', {name: 'Sent'}).textContent ?? 'null')
       expect(sent).toEqual([
         {type: 'text', text: 'hi '},
         {type: 'mention', id: 'ai:Opus', label: 'Opus'},
