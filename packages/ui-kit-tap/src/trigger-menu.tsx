@@ -1,12 +1,5 @@
-import {Show, createMemo, type JSX} from 'solid-js'
-import {createStore} from 'solid-js/store'
-import {
-  AnchoredListbox,
-  Button,
-  type AnchoredListboxGroup,
-  type AnchoredListboxHandle,
-  type AnchoredListboxOption,
-} from '@conciv/ui-kit-system'
+import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
+import {AnchoredListbox, Button, createListCollection, type AnchoredListboxHandle} from '@conciv/ui-kit-system'
 import {
   triggerStatusMessage,
   type RichTextFieldTriggerItem,
@@ -16,6 +9,12 @@ import {
 } from './trigger-suggestions.js'
 
 type MenuAction = {kind: 'item'; item: RichTextFieldTriggerItem} | {kind: 'category'; categoryId: string}
+
+type MenuRow = {value: string; label: string; description?: string; action: MenuAction}
+
+type MenuGroup = {id: string; label?: string; rows: MenuRow[]}
+
+type TriggerMenuItemContent = (item: RichTextFieldTriggerItem) => JSX.Element
 
 const BACK = 'w-full gap-1.5 min-h-11 px-2.5 text-[0.8125rem] text-pw-text-2'
 const BACK_LABEL = 'flex-1 text-start truncate'
@@ -27,31 +26,37 @@ export type TriggerMenuController = {
 }
 
 export function createTriggerMenu(): TriggerMenuController {
-  const [store, setStore] = createStore<{active: TriggerMenuState | null; listbox: AnchoredListboxHandle | null}>({
-    active: null,
-    listbox: null,
-  })
-  const state = () => store.active
+  const [state, setState] = createSignal<TriggerMenuState | null>(null)
+  const [listbox, setListbox] = createSignal<AnchoredListboxHandle | null>(null)
   const access: TriggerMenuAccess = {
     state,
     open: (dispatch: TriggerDispatchState) => {
-      const current = store.active
-      const categoryId = current?.dispatch.char === dispatch.char ? current.categoryId : null
-      setStore('active', {dispatch, categoryId})
+      setState((current) => ({
+        dispatch,
+        categoryId: current?.dispatch.char === dispatch.char ? current.categoryId : null,
+      }))
     },
     close: (char: string) => {
-      if (store.active?.dispatch.char !== char) return
-      setStore('active', null)
+      setState((current) => (current?.dispatch.char === char ? null : current))
     },
-    enterCategory: (categoryId: string) => setStore('active', 'categoryId', categoryId),
-    leaveCategory: () => setStore('active', 'categoryId', null),
-    listbox: () => store.listbox,
+    enterCategory: (categoryId: string) => setState((current) => current && {...current, categoryId}),
+    leaveCategory: () => setState((current) => current && {...current, categoryId: null}),
+    listbox,
   }
-  return {state, access, setListbox: (handle) => setStore('listbox', handle)}
+  return {state, access, setListbox}
 }
 
-function itemOption(item: RichTextFieldTriggerItem): AnchoredListboxOption {
-  return {value: `item:${item.id}`, label: item.label, description: item.description}
+function itemRow(item: RichTextFieldTriggerItem): MenuRow {
+  return {value: `item:${item.id}`, label: item.label, description: item.description, action: {kind: 'item', item}}
+}
+
+function categoryRow(category: {id: string; label: string; description?: string}): MenuRow {
+  return {
+    value: `category:${category.id}`,
+    label: category.label,
+    description: category.description,
+    action: {kind: 'category', categoryId: category.id},
+  }
 }
 
 const groupKey = (item: RichTextFieldTriggerItem): string => item.group ?? ''
@@ -61,31 +66,31 @@ function groupLabel(key: string): string | undefined {
   return key
 }
 
-function bucketItems(items: readonly RichTextFieldTriggerItem[]): Map<string, AnchoredListboxOption[]> {
-  const buckets = new Map<string, AnchoredListboxOption[]>()
+function bucketItems(items: readonly RichTextFieldTriggerItem[]): Map<string, MenuRow[]> {
+  const buckets = new Map<string, MenuRow[]>()
   for (const item of items) {
     const bucket = buckets.get(groupKey(item)) ?? []
-    bucket.push(itemOption(item))
+    bucket.push(itemRow(item))
     buckets.set(groupKey(item), bucket)
   }
   return buckets
 }
 
-function itemGroups(items: readonly RichTextFieldTriggerItem[]): AnchoredListboxGroup[] {
-  return Array.from(bucketItems(items), ([key, options], position) => ({
+function itemGroups(items: readonly RichTextFieldTriggerItem[]): MenuGroup[] {
+  return Array.from(bucketItems(items), ([key, rows], position) => ({
     id: `group-${position}`,
     label: groupLabel(key),
-    options,
+    rows,
   }))
 }
 
-export function TriggerMenu(props: {
+function MenuPanel(props: {
   state: TriggerMenuState
-  onEnterCategory: (categoryId: string) => void
-  onLeaveCategory: () => void
-  onDismiss: () => void
+  access: TriggerMenuAccess
+  setListbox: (handle: AnchoredListboxHandle | null) => void
+  onDismiss: (char: string) => void
   onRefocus: () => void
-  onListbox: (handle: AnchoredListboxHandle | null) => void
+  itemContent: TriggerMenuItemContent | undefined
 }): JSX.Element {
   const dispatch = () => props.state.dispatch
   const activeCategory = () =>
@@ -97,75 +102,107 @@ export function TriggerMenu(props: {
     if (categoryId === null) return dispatch().items
     return dispatch().items.filter((item) => item.categoryId === categoryId)
   }
-  const groups = createMemo<AnchoredListboxGroup[]>(() => {
-    if (showsCategories()) {
-      return [
-        {
-          id: 'categories',
-          options: dispatch().categories.map((category) => ({
-            value: `category:${category.id}`,
-            label: category.label,
-            description: category.description,
-          })),
-        },
-      ]
-    }
+  const groups = createMemo<MenuGroup[]>(() => {
+    if (showsCategories()) return [{id: 'categories', rows: dispatch().categories.map(categoryRow)}]
     return itemGroups(visibleItems())
   })
-  const actions = createMemo(() => {
-    const table = new Map<string, MenuAction>()
-    for (const category of dispatch().categories) {
-      table.set(`category:${category.id}`, {kind: 'category', categoryId: category.id})
-    }
-    for (const item of dispatch().items) table.set(`item:${item.id}`, {kind: 'item', item})
-    return table
-  })
-  const optionCount = () => groups().reduce((total, group) => total + group.options.length, 0)
+  const rows = createMemo(() => groups().flatMap((group) => group.rows))
+  const collection = createMemo(() =>
+    createListCollection({
+      items: rows(),
+      itemToValue: (row: MenuRow) => row.value,
+      itemToString: (row: MenuRow) => row.label,
+    }),
+  )
+  const loading = () => dispatch().status === 'loading'
   const message = () => {
-    if (dispatch().status === 'loading') return triggerStatusMessage('loading')
-    if (optionCount() > 0) return undefined
+    if (loading()) return triggerStatusMessage('loading')
+    if (rows().length > 0) return undefined
     return triggerStatusMessage(dispatch().status)
+  }
+  const rowContent = (row: MenuRow): JSX.Element => {
+    const content = props.itemContent
+    if (row.action.kind === 'item' && content) return content(row.action.item)
+    return <AnchoredListbox.ItemText>{row.label}</AnchoredListbox.ItemText>
   }
   const select = (value: string) => {
     props.onRefocus()
-    if (dispatch().status === 'loading') return
-    const action = actions().get(value)
-    if (!action) return
-    if (action.kind === 'category') {
-      props.onEnterCategory(action.categoryId)
+    if (loading()) return
+    const row = rows().find((candidate) => candidate.value === value)
+    if (!row) return
+    if (row.action.kind === 'category') {
+      props.access.enterCategory(row.action.categoryId)
       return
     }
-    dispatch().command(action.item)
+    dispatch().command(row.action.item)
   }
   return (
-    <AnchoredListbox
+    <AnchoredListbox.Root
       anchor={dispatch().rect}
-      label={dispatch().sourceLabel}
-      groups={groups()}
-      message={message()}
-      busy={dispatch().status === 'loading'}
+      collection={collection()}
       onSelect={select}
-      onDismiss={props.onDismiss}
-      onReady={props.onListbox}
-      leading={
-        <Show when={activeCategory()}>
-          {(category) => (
-            <Button
-              variant="ghost"
-              size="bare"
-              class={BACK}
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={() => {
-                props.onRefocus()
-                props.onLeaveCategory()
-              }}
-            >
-              <span aria-hidden="true">←</span>
-              <span class={BACK_LABEL}>{category().label}</span>
-            </Button>
+      onDismiss={() => props.onDismiss(dispatch().char)}
+      onReady={props.setListbox}
+    >
+      <AnchoredListbox.Label>{dispatch().sourceLabel}</AnchoredListbox.Label>
+      <Show when={activeCategory()}>
+        {(category) => (
+          <Button
+            variant="ghost"
+            size="bare"
+            class={BACK}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() => {
+              props.onRefocus()
+              props.access.leaveCategory()
+            }}
+          >
+            <span aria-hidden="true">←</span>
+            <span class={BACK_LABEL}>{category().label}</span>
+          </Button>
+        )}
+      </Show>
+      <AnchoredListbox.Content busy={loading()}>
+        <For each={groups()}>
+          {(group) => (
+            <AnchoredListbox.ItemGroup id={group.id}>
+              <Show when={group.label}>
+                {(label) => <AnchoredListbox.ItemGroupLabel>{label()}</AnchoredListbox.ItemGroupLabel>}
+              </Show>
+              <For each={group.rows}>
+                {(row) => (
+                  <AnchoredListbox.Item item={row} name={row.label} description={row.description}>
+                    {rowContent(row)}
+                  </AnchoredListbox.Item>
+                )}
+              </For>
+            </AnchoredListbox.ItemGroup>
           )}
-        </Show>
-      }
-    />
+        </For>
+      </AnchoredListbox.Content>
+      <Show when={message()}>{(text) => <AnchoredListbox.Message>{text()}</AnchoredListbox.Message>}</Show>
+    </AnchoredListbox.Root>
+  )
+}
+
+export function TriggerMenu(props: {
+  menu: TriggerMenuController
+  onDismiss: (char: string) => void
+  onRefocus: () => void
+  children?: TriggerMenuItemContent
+}): JSX.Element {
+  return (
+    <Show when={props.menu.state()}>
+      {(state) => (
+        <MenuPanel
+          state={state()}
+          access={props.menu.access}
+          setListbox={props.menu.setListbox}
+          onDismiss={props.onDismiss}
+          onRefocus={props.onRefocus}
+          itemContent={props.children}
+        />
+      )}
+    </Show>
   )
 }

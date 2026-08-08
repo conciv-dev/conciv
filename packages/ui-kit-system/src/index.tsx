@@ -23,13 +23,7 @@ export {
   LIST_PANEL_ITEM_LABEL,
   LIST_PANEL_MESSAGE,
 } from './list-panel.js'
-export {
-  AnchoredListbox,
-  type AnchoredListboxGroup,
-  type AnchoredListboxHandle,
-  type AnchoredListboxOption,
-  type AnchoredListboxRect,
-} from './anchored-listbox.js'
+export {AnchoredListbox, type AnchoredListboxHandle, type AnchoredListboxRect} from './anchored-listbox.js'
 export {Popover, type PopoverApi} from './popover.js'
 export {Toast, ToastGroup, createToaster, type ToasterInstance} from './toast.js'
 export {Avatar} from './avatar.js'

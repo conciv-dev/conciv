@@ -5,6 +5,7 @@ import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
 import {HardBreak} from '@tiptap/extension-hard-break'
 import {Mention} from '@tiptap/extension-mention'
+import {AnchoredListbox, Avatar} from '@conciv/ui-kit-system'
 import {TriggerMenu, createTriggerMenu} from './trigger-menu.js'
 import {
   dismissTrigger,
@@ -22,6 +23,21 @@ type JsonNode = {type?: string; text?: string; attrs?: Record<string, unknown>; 
 const EDITOR =
   'min-h-7 max-h-32 overflow-auto bg-pw-sunken text-[0.8125rem] text-pw-text rounded-pw-md [border:1px_solid_var(--pw-line)] px-2 py-1.5 [outline:none] focus-within:[border-color:var(--pw-accent-line)] [&_.tiptap]:[outline:none] [&_[data-mention]]:text-pw-accent-hi [&_[data-mention]]:bg-pw-accent-08 [&_[data-mention]]:rounded-pw-sm [&_[data-mention]]:px-0.5'
 const PLACEHOLDER = 'pointer-events-none absolute left-2 top-1.5 text-[0.8125rem] text-pw-text-3 select-none'
+const OPTION_ROW = 'flex items-center gap-2 min-w-0'
+const OPTION_AVATAR = 'size-5'
+
+const avatarInitial = (label: string): string => label.trim().charAt(0).toUpperCase() || '?'
+
+function MentionOption(props: {label: string}): JSX.Element {
+  return (
+    <span class={OPTION_ROW}>
+      <Avatar.Root class={OPTION_AVATAR}>
+        <Avatar.Fallback>{avatarInitial(props.label)}</Avatar.Fallback>
+      </Avatar.Root>
+      <AnchoredListbox.ItemText>{props.label}</AnchoredListbox.ItemText>
+    </span>
+  )
+}
 
 const serialize = (doc: JsonNode): MentionSegment[] => {
   const out: MentionSegment[] = []
@@ -128,18 +144,13 @@ export function MentionField(props: {
     <div class={rootClass()}>
       <div ref={(element) => (host = element)} class={EDITOR} />
       <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
-      <Show when={menu.state()}>
-        {(state) => (
-          <TriggerMenu
-            state={state()}
-            onEnterCategory={menu.access.enterCategory}
-            onLeaveCategory={menu.access.leaveCategory}
-            onDismiss={() => editor && dismissTrigger(editor.view, suggestions, state().dispatch.char)}
-            onRefocus={() => editor?.commands.focus()}
-            onListbox={menu.setListbox}
-          />
-        )}
-      </Show>
+      <TriggerMenu
+        menu={menu}
+        onDismiss={(char) => editor && dismissTrigger(editor.view, suggestions, char)}
+        onRefocus={() => editor?.commands.focus()}
+      >
+        {(item) => <MentionOption label={item.label} />}
+      </TriggerMenu>
     </div>
   )
 }

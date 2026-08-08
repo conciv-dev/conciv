@@ -37,6 +37,19 @@ export const Empty: Story = {
   },
 }
 
+export const MentionOptionsCarryAvatars: Story = {
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const editor = await waitFor(() => canvas.getByRole('textbox', {name: 'Comment'}))
+    await userEvent.click(editor)
+    await userEvent.type(editor, '@')
+    const opus = await waitFor(() => canvas.getByRole('option', {name: 'Opus'}))
+    await expect(within(opus).getByText('O')).toBeVisible()
+    const you = canvas.getByRole('option', {name: 'You'})
+    await expect(within(you).getByText('Y')).toBeVisible()
+  },
+}
+
 export const MentionFlow: Story = {
   args: {placeholder: 'Reply, @mention someone…'},
   play: async ({canvasElement}) => {

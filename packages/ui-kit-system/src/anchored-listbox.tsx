@@ -1,5 +1,5 @@
-import {For, Show, createEffect, createMemo, createUniqueId, on, onCleanup, onMount, type JSX} from 'solid-js'
-import {Listbox, createListCollection, useListbox} from '@ark-ui/solid/listbox'
+import {Show, createEffect, createUniqueId, on, onCleanup, onMount, type JSX} from 'solid-js'
+import {Listbox, useListbox, useListboxContext, type CollectionItem, type ListCollection} from '@ark-ui/solid/listbox'
 import {
   LIST_PANEL_GROUP_LABEL,
   LIST_PANEL_ITEM,
@@ -11,10 +11,6 @@ import {Popover} from './popover.js'
 
 export type AnchoredListboxRect = {x: number; y: number; width: number; height: number}
 
-export type AnchoredListboxOption = {value: string; label: string; description?: string}
-
-export type AnchoredListboxGroup = {id: string; label?: string; options: readonly AnchoredListboxOption[]}
-
 export type AnchoredListboxHandle = {
   listboxId: string
   activeOptionId: () => string | undefined
@@ -22,36 +18,21 @@ export type AnchoredListboxHandle = {
 }
 
 const CONTENT = 'flex flex-col max-h-64 max-w-80 overflow-y-auto overscroll-contain outline-none'
-const OPTION = `${LIST_PANEL_ITEM} flex-col items-start gap-0.5 min-h-11 data-[active]:bg-pw-fill-strong data-[active]:text-pw-text`
+const ITEM = `${LIST_PANEL_ITEM} flex-col items-stretch gap-0.5 min-h-11 data-[active]:bg-pw-fill-strong data-[active]:text-pw-text`
 const HIDDEN_INPUT = 'sr-only'
 
-function optionAccessibleDescriptionId(listboxId: string, value: string): string {
-  return `${listboxId}-description-${value}`
-}
-
-export function AnchoredListbox(props: {
+function Root(props: {
   anchor: AnchoredListboxRect
-  label: string
-  groups: readonly AnchoredListboxGroup[]
-  message?: string
-  busy?: boolean
-  leading?: JSX.Element
+  collection: ListCollection<CollectionItem>
+  children: JSX.Element
   onSelect: (value: string) => void
   onDismiss: () => void
   onReady?: (handle: AnchoredListboxHandle | null) => void
 }): JSX.Element {
   let inputElement: HTMLInputElement | undefined
   const listboxId = createUniqueId()
-  const options = createMemo(() => props.groups.flatMap((group) => group.options))
-  const collection = createMemo(() =>
-    createListCollection({
-      items: options(),
-      itemToValue: (option) => option.value,
-      itemToString: (option) => option.label,
-    }),
-  )
   const listbox = useListbox(() => ({
-    collection: collection(),
+    collection: props.collection,
     value: [],
     loopFocus: true,
     ids: {content: listboxId, item: (value: string | number) => `${listboxId}-option-${value}`},
@@ -73,7 +54,12 @@ export function AnchoredListbox(props: {
     return true
   }
 
-  createEffect(on(collection, () => listbox().highlightFirst()))
+  createEffect(
+    on(
+      () => props.collection,
+      () => listbox().highlightFirst(),
+    ),
+  )
 
   onMount(() => props.onReady?.({listboxId, activeOptionId, handleKeyDown}))
   onCleanup(() => props.onReady?.(null))
@@ -104,62 +90,13 @@ export function AnchoredListbox(props: {
             <Popover.Positioner>
               <Popover.ListContent>
                 <Listbox.RootProvider value={listbox}>
-                  <Listbox.Label class="sr-only">{props.label}</Listbox.Label>
                   <Listbox.Input
                     ref={(element) => (inputElement = element)}
                     readOnly
                     class={HIDDEN_INPUT}
                     tabIndex={-1}
                   />
-                  {props.leading}
-                  <Listbox.Content class={CONTENT} aria-busy={props.busy ? 'true' : undefined}>
-                    <For each={props.groups}>
-                      {(group) => (
-                        <Listbox.ItemGroup id={group.id}>
-                          <Show when={group.label}>
-                            {(label) => (
-                              <Listbox.ItemGroupLabel class={LIST_PANEL_GROUP_LABEL}>{label()}</Listbox.ItemGroupLabel>
-                            )}
-                          </Show>
-                          <For each={group.options}>
-                            {(option) => (
-                              <Listbox.Item
-                                item={option}
-                                highlightOnHover
-                                class={OPTION}
-                                data-active={listbox().highlightedValue === option.value ? '' : undefined}
-                                aria-label={option.label}
-                                aria-describedby={
-                                  option.description
-                                    ? optionAccessibleDescriptionId(listboxId, option.value)
-                                    : undefined
-                                }
-                              >
-                                <Listbox.ItemText class={LIST_PANEL_ITEM_LABEL}>{option.label}</Listbox.ItemText>
-                                <Show when={option.description}>
-                                  {(description) => (
-                                    <span
-                                      id={optionAccessibleDescriptionId(listboxId, option.value)}
-                                      class={LIST_PANEL_ITEM_DESCRIPTION}
-                                    >
-                                      {description()}
-                                    </span>
-                                  )}
-                                </Show>
-                              </Listbox.Item>
-                            )}
-                          </For>
-                        </Listbox.ItemGroup>
-                      )}
-                    </For>
-                  </Listbox.Content>
-                  <Show when={props.message}>
-                    {(text) => (
-                      <div role="status" class={LIST_PANEL_MESSAGE}>
-                        {text()}
-                      </div>
-                    )}
-                  </Show>
+                  {props.children}
                 </Listbox.RootProvider>
               </Popover.ListContent>
             </Popover.Positioner>
@@ -169,3 +106,62 @@ export function AnchoredListbox(props: {
     </Popover.Root>
   )
 }
+
+function Label(props: {children: JSX.Element}): JSX.Element {
+  return <Listbox.Label class="sr-only">{props.children}</Listbox.Label>
+}
+
+function Content(props: {busy?: boolean; children: JSX.Element}): JSX.Element {
+  return (
+    <Listbox.Content class={CONTENT} aria-busy={props.busy ? 'true' : undefined}>
+      {props.children}
+    </Listbox.Content>
+  )
+}
+
+function ItemGroup(props: {id: string; children: JSX.Element}): JSX.Element {
+  return <Listbox.ItemGroup id={props.id}>{props.children}</Listbox.ItemGroup>
+}
+
+function ItemGroupLabel(props: {children: JSX.Element}): JSX.Element {
+  return <Listbox.ItemGroupLabel class={LIST_PANEL_GROUP_LABEL}>{props.children}</Listbox.ItemGroupLabel>
+}
+
+function Item(props: {item: CollectionItem; name: string; description?: string; children: JSX.Element}): JSX.Element {
+  const listbox = useListboxContext()
+  const descriptionId = createUniqueId()
+  const active = () => listbox().highlightedValue === listbox().getItemState({item: props.item}).value
+  return (
+    <Listbox.Item
+      item={props.item}
+      highlightOnHover
+      class={ITEM}
+      data-active={active() ? '' : undefined}
+      aria-label={props.name}
+      aria-describedby={props.description ? descriptionId : undefined}
+    >
+      {props.children}
+      <Show when={props.description}>
+        {(text) => (
+          <span id={descriptionId} class={LIST_PANEL_ITEM_DESCRIPTION}>
+            {text()}
+          </span>
+        )}
+      </Show>
+    </Listbox.Item>
+  )
+}
+
+function ItemText(props: {children: JSX.Element}): JSX.Element {
+  return <Listbox.ItemText class={LIST_PANEL_ITEM_LABEL}>{props.children}</Listbox.ItemText>
+}
+
+function Message(props: {children: JSX.Element}): JSX.Element {
+  return (
+    <div role="status" class={LIST_PANEL_MESSAGE}>
+      {props.children}
+    </div>
+  )
+}
+
+export const AnchoredListbox = {Root, Label, Content, ItemGroup, ItemGroupLabel, Item, ItemText, Message}

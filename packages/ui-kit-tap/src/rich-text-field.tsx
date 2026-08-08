@@ -265,18 +265,11 @@ export function RichTextField(props: {
         </ScrollArea.Scrollbar>
       </ScrollArea.Root>
       <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
-      <Show when={menu.state()}>
-        {(state) => (
-          <TriggerMenu
-            state={state()}
-            onEnterCategory={menu.access.enterCategory}
-            onLeaveCategory={menu.access.leaveCategory}
-            onDismiss={() => editorView && dismissTrigger(editorView, suggestions, state().dispatch.char)}
-            onRefocus={() => editorInstance?.commands.focus()}
-            onListbox={menu.setListbox}
-          />
-        )}
-      </Show>
+      <TriggerMenu
+        menu={menu}
+        onDismiss={(char) => editorView && dismissTrigger(editorView, suggestions, char)}
+        onRefocus={() => editorInstance?.commands.focus()}
+      />
     </div>
   )
 }
