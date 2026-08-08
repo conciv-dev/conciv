@@ -297,6 +297,7 @@ export const InsertTextPreservesChips: Story = {
     await userEvent.click(canvas.getByRole('button', {name: 'Insert text'}))
     await expectValue(canvas, '"/clear  inserted"')
     await expect(within(editor).getByText('/clear')).toBeVisible()
+    await waitFor(() => expect(textbox(canvas)).toHaveFocus())
     await userEvent.keyboard(`{${modifier}>}z{/${modifier}}`)
     await expectValue(canvas, '"/clear "')
     await expect(within(editor).getByText('/clear')).toBeVisible()
