@@ -68,6 +68,17 @@ describe('run lifecycle queries', () => {
     expect(sessionHistoryFor(db, 's10')?.messages).toEqual([...firstTurn, ...secondTurn])
   })
 
+  it('the plain fold moves a turn into history exactly once, leaving no run row behind for recovery to refold', () => {
+    const db = fresh()
+    const turn = [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'atomic'}]}]
+    setRunMessages(db, 's13', turn)
+    foldRunMessagesIntoHistory(db, 's13')
+    expect(runMessagesFor(db, 's13')).toBeNull()
+    expect(sessionHistoryFor(db, 's13')?.messages).toEqual(turn)
+    foldRunMessagesIntoHistory(db, 's13')
+    expect(sessionHistoryFor(db, 's13')?.messages).toEqual(turn)
+  })
+
   it('the plain fold consumes an empty run row so startup recovery cannot rediscover it forever', () => {
     const db = fresh()
     setRunMessages(db, 's12', [])

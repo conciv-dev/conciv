@@ -2,6 +2,7 @@ import {describe, it, expect} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {createFakeHarness, until} from '@conciv/harness-testkit'
 import {defineAttachment, defineExtension} from '@conciv/extension'
+import type {ChatContentPart} from '@conciv/protocol/chat-types'
 import {bootKit} from '../helpers/boot.js'
 import {userTexts} from '../helpers/snapshots.js'
 import {freshSubscriberSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
@@ -21,10 +22,10 @@ function pacedExtension() {
   return defineExtension({name: 'send-pace', attachments: [slow, fast]}).server(() => ({context: {}}))
 }
 
-function pacedTurn(text: string, mimeType: string) {
+function pacedTurn(text: string, mimeType: string): ChatContentPart[] {
   return [
-    {type: 'text' as const, content: text},
-    {type: 'document' as const, source: {type: 'data' as const, mimeType, value: 'e30='}},
+    {type: 'text', content: text},
+    {type: 'document', source: {type: 'data', mimeType, value: 'e30='}},
   ]
 }
 

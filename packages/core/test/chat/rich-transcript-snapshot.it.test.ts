@@ -15,7 +15,7 @@ function transcriptLine(role: 'user' | 'assistant', text: string, id?: string): 
 }
 
 describe('rich-transcript snapshots (IT, claude capabilities over a flushed CLI transcript)', () => {
-  const state = {kit: undefined as Kit | undefined}
+  const state: {kit: Kit | undefined} = {kit: undefined}
   const dirs: string[] = []
 
   function tmp(): string {
