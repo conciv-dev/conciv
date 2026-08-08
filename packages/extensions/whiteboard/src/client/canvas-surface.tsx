@@ -39,8 +39,10 @@ function CanvasView(props: {
   const model = useComments()
 
   const overlayBusy = (): boolean => model.openCid() !== null || model.composeTarget() !== null || model.inboxOpen()
-  const insideExcalidraw = (event: KeyboardEvent): boolean =>
-    Boolean((event.target as Element | null)?.closest?.('.excalidraw'))
+  const insideExcalidraw = (event: KeyboardEvent): boolean => {
+    const target = event.target
+    return target instanceof Element && target.closest('.excalidraw') !== null
+  }
   const escapeClosesCanvas = (event: KeyboardEvent): boolean =>
     event.key === 'Escape' && props.visible() && !overlayBusy() && !insideExcalidraw(event)
 

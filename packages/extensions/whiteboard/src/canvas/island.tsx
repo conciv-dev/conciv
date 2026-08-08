@@ -44,7 +44,7 @@ async function skeletonsOf(row: PendingRow): Promise<ExcalidrawElementSkeleton[]
 }
 
 const reportMountError = (error: unknown): void =>
-  console.error(`[whiteboard] the excalidraw canvas crashed while mounting: ${String(error)}`)
+  console.error(`[whiteboard] the excalidraw canvas failed to mount: ${String(error)}`)
 
 class IslandBoundary extends Component<PropsWithChildren<{onError: (error: unknown) => void}>, {failed: boolean}> {
   override state = {failed: false}
@@ -275,7 +275,9 @@ export function Island(props: {
   })
 
   const renderExcalidraw = (): void => {
-    if (!container || !container.isConnected) return
+    if (!container || !container.isConnected) {
+      return reportMountError(new Error('the canvas container never attached to the document'))
+    }
     root = createRoot(container)
     root.render(
       createElement(
