@@ -82,7 +82,13 @@ function mountedClientEffects(router: MountedRouter): ClientEffect[] {
 }
 
 function bootNormal(config: BootNormalConfig): BootResult {
-  const {rpc, rebind: rebindClient} = makeRebindableRpcClient(config.apiBase, {transport: config.settings.transport})
+  const {
+    rpc,
+    rebind: rebindClient,
+    close: closeConnection,
+  } = makeRebindableRpcClient(config.apiBase, {
+    transport: config.settings.transport,
+  })
 
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
   const [apiBase, setApiBase] = createSignal(config.apiBase)
@@ -131,6 +137,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
+    closeConnection,
   ]
   return {dispose: () => runDisposers(disposers), rebind}
 }
@@ -181,6 +188,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
+    deferred.close,
   ]
   return {dispose: () => runDisposers(disposers)}
 }

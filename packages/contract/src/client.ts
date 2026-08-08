@@ -27,7 +27,12 @@ export function makeBrowserRpcClient(apiBase: string, options: BrowserRpcClientO
   return createORPCClient(browserRpcConnection(apiBase, options.transport).link)
 }
 
-export type DeferredRpcClient = {rpc: RpcClient; bind: (apiBase: string) => void; bound: () => boolean}
+export type DeferredRpcClient = {
+  rpc: RpcClient
+  bind: (apiBase: string) => void
+  bound: () => boolean
+  close: () => void
+}
 
 export function makeDeferredRpcClient(options: BrowserRpcClientOptions = {}): DeferredRpcClient {
   const state: {base: string | null; ready: Promise<ClientLink<RpcClientContext>> | null} = {base: null, ready: null}
@@ -43,10 +48,14 @@ export function makeDeferredRpcClient(options: BrowserRpcClientOptions = {}): De
       state.ready = Promise.resolve(browserRpcConnection(apiBase, options.transport).link)
     },
     bound: () => state.base !== null,
+    close: () => {
+      if (state.base === null) return
+      closeBrowserRpcConnection(state.base)
+    },
   }
 }
 
-export type RebindableRpcClient = {rpc: RpcClient; rebind: (apiBase: string) => void}
+export type RebindableRpcClient = {rpc: RpcClient; rebind: (apiBase: string) => void; close: () => void}
 
 export function makeRebindableRpcClient(apiBase: string, options: BrowserRpcClientOptions = {}): RebindableRpcClient {
   const state = {base: apiBase}
@@ -54,9 +63,9 @@ export function makeRebindableRpcClient(apiBase: string, options: BrowserRpcClie
   return {
     rpc: createORPCClient(link),
     rebind: (nextApiBase) => {
-      if (nextApiBase === state.base) return
       closeBrowserRpcConnection(state.base)
       state.base = nextApiBase
     },
+    close: () => closeBrowserRpcConnection(state.base),
   }
 }

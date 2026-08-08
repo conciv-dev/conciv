@@ -5,6 +5,8 @@ import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
 import {rpcObserverFor, setNavigation, waitForNavigationWrite} from './helpers/navigation.js'
 import {proxyTo, type ProxyCore} from './helpers/proxy.js'
+import {mountHandle, rebindHandle} from './helpers/handle.js'
+import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
 
 const ASSISTANT_TEXT = 'Rebound reply'
 const USER_TEXT = 'first message before the drift'
@@ -32,21 +34,6 @@ beforeEach(async () => {
 function observedPage(page: Page): Page {
   rpcObserverFor(page)
   return page
-}
-
-async function mountHandle(page: Page, apiBase: string): Promise<void> {
-  await page.evaluate((base) => {
-    const el = document.createElement('div')
-    document.body.appendChild(el)
-    window.concivTestHandle = window.ConcivHandle.makeHandle(base)
-    void window.concivTestHandle.mount(el)
-  }, apiBase)
-}
-
-async function sendTurn(page: Page, text: string): Promise<void> {
-  const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
-  await input.fill(text)
-  await page.getByRole('button', {name: 'Send message'}).click()
 }
 
 async function openPanelTabs(page: Page): Promise<void> {
@@ -83,32 +70,31 @@ describe('handle.rebind survives same-core port drift', () => {
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
 
     await mountHandle(page, proxyA.base)
-    await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+    await openChatPanel(page)
 
     const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
     await expectLocator(apiBaseProbe).toHaveText(proxyA.base, {timeout: 30_000})
 
     const routed = waitForNavigationWrite(page)
-    await sendTurn(page, USER_TEXT)
+    await sendChatMessage(page, USER_TEXT)
     await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
     await routed
     const sessionBefore = await panelSession()
     expect(sessionBefore).not.toBeNull()
 
     const beforeB = proxyB.trafficCount()
-    await page.evaluate((base) => window.concivTestHandle.rebind(base), proxyB.base)
+    await rebindHandle(page, proxyB.base)
     await proxyA.close()
 
     await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
-    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+    await expectLocator(chatBox(page)).toBeVisible({timeout: 30_000})
 
     await expectLocator(apiBaseProbe).toHaveText(proxyB.base, {timeout: 30_000})
 
     await expectLocator(page.getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
     await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
 
-    await sendTurn(page, 'second message after the drift')
+    await sendChatMessage(page, 'second message after the drift')
 
     expect(proxyB.trafficCount()).toBeGreaterThan(beforeB)
     expect(await panelSession()).toBe(sessionBefore)
@@ -149,7 +135,7 @@ describe('handle.rebind remounts extension surfaces on the new core', () => {
     await expectLocator(viewProbe).toHaveText(proxyC.base, {timeout: 30_000})
 
     const beforeD = proxyD.trafficCount()
-    await page.evaluate((base) => window.concivTestHandle.rebind(base), proxyD.base)
+    await rebindHandle(page, proxyD.base)
     await proxyC.close()
 
     await expectLocator(surfaceProbe).toHaveText(proxyD.base, {timeout: 15_000})
@@ -189,17 +175,50 @@ describe('handle.rebind quiesces the old connection before tearing consumers dow
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
 
     await mountHandle(page, proxyE.base)
-    await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
+    await openChatPanel(page)
 
     const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
     await expectLocator(apiBaseProbe).toHaveText(proxyE.base, {timeout: 30_000})
 
     const sentBeforeRebind = framesSentPerSocket[0] ?? 0
-    await page.evaluate((base) => window.concivTestHandle.rebind(base), proxyF.base)
+    await rebindHandle(page, proxyF.base)
     await expectLocator(apiBaseProbe).toHaveText(proxyF.base, {timeout: 30_000})
 
     expect(framesSentPerSocket[0]).toBe(sentBeforeRebind)
+    await page.close()
+  })
+})
+
+describe('handle.rebind to the base the widget is already on re-runs the transport probe', () => {
+  let blockedCore: ProxyCore
+
+  beforeAll(async () => {
+    blockedCore = await proxyTo(kit.base, {blockUpgrades: true})
+  })
+
+  afterAll(async () => {
+    await blockedCore.close()
+  })
+
+  it('rides the websocket after the blocked upgrade path opens up again', async () => {
+    const page = await browser.newPage()
+    const observer = rpcObserverFor(page)
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+
+    await mountHandle(page, blockedCore.base)
+    await openChatPanel(page)
+    await sendChatMessage(page, 'while upgrades are blocked')
+    const blocked = await observer.completed({path: ['chat', 'send'], timeout: 30_000})
+    expect(blocked.transport).toBe('fetch')
+
+    blockedCore.setUpgradesBlocked(false)
+    const mark = observer.mark()
+    await rebindHandle(page, blockedCore.base)
+    await expectLocator(chatBox(page)).toBeVisible({timeout: 30_000})
+    await sendChatMessage(page, 'after the upgrade path opens')
+
+    const reprobed = await observer.completed({path: ['chat', 'send'], since: mark, timeout: 30_000})
+    expect(reprobed.transport).toBe('websocket')
     await page.close()
   })
 })

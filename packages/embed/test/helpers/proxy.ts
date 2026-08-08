@@ -9,6 +9,7 @@ export type ProxyCore = {
   wsConnectionCount: () => number
   trafficCount: () => number
   dropConnections: () => void
+  setUpgradesBlocked: (blocked: boolean) => void
   close: () => Promise<void>
 }
 
@@ -25,6 +26,7 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
   const target = new URL(targetBase)
   let count = 0
   let upgrades = 0
+  let upgradesBlocked = opts.blockUpgrades === true
   const piped = new Set<Duplex>()
   const server: Server = createServer((req, res) => {
     count += 1
@@ -49,7 +51,7 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
   })
   server.on('upgrade', (req, clientSocket: Duplex, head: Buffer) => {
     upgrades += 1
-    if (opts.blockUpgrades) {
+    if (upgradesBlocked) {
       clientSocket.destroy()
       return
     }
@@ -86,6 +88,9 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
     dropConnections: () => {
       for (const socket of piped) socket.destroy()
       piped.clear()
+    },
+    setUpgradesBlocked: (blocked) => {
+      upgradesBlocked = blocked
     },
     close: async () => {
       for (const socket of piped) socket.destroy()

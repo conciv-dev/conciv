@@ -16,8 +16,10 @@ function parseNavigation(raw: string): NavigationState | null {
 
 export type NavigationStorage = WebStorage & {restored: Promise<void>; dispose: () => void}
 
+type NavigationStorageState = {cache: string | null; lastStamp: number; wroteLocally: boolean; cancelled: boolean}
+
 export function makeNavigationStorage(rpc: RpcClient, onRestore: (href: string) => void): NavigationStorage {
-  const state = {cache: null as string | null, lastStamp: 0, wroteLocally: false, cancelled: false}
+  const state: NavigationStorageState = {cache: null, lastStamp: 0, wroteLocally: false, cancelled: false}
   const stamp = (): number => {
     state.lastStamp = Math.max(Date.now(), state.lastStamp + 1)
     return state.lastStamp
