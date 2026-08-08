@@ -10,11 +10,15 @@ export type FakeCore = {
   push: (chunk: unknown) => void
   subscribeCount: () => number
   releaseSnapshot: () => void
+  idle: () => Promise<void>
   restore: () => void
 }
 
+const QUIET_MS = 60
+
 export type FakeCoreConfig = {
   draft?: DraftRow | null
+  delays?: Record<string, number | number[]>
   sessions?: SessionMeta[]
   rejectSend?: boolean
   snapshotFor?: (subscribeIndex: number) => unknown[]
@@ -62,12 +66,28 @@ async function bodyOf(request: Request): Promise<unknown> {
 
 const RUN_ID = 'conciv_run_1'
 
+function delayFor(schedule: number | number[] | undefined, callIndex: number): number {
+  if (schedule === undefined) return 0
+  if (typeof schedule === 'number') return schedule
+  return schedule[Math.min(callIndex, schedule.length - 1)] ?? 0
+}
+
 export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
   const realFetch = globalThis.fetch
   const calls: CoreCall[] = []
   let subscribes = 0
   let snapshotReleased = false
   if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = CORE_BASE
+  let inFlight = 0
+  let quietTimer: ReturnType<typeof setTimeout> | undefined
+  const waitingForIdle: (() => void)[] = []
+  const scheduleIdle = () => {
+    if (quietTimer !== undefined) clearTimeout(quietTimer)
+    if (inFlight > 0) return
+    quietTimer = setTimeout(() => {
+      for (const resolve of waitingForIdle.splice(0)) resolve()
+    }, QUIET_MS)
+  }
   const core: FakeCore = {
     calls,
     push: () => {},
@@ -75,6 +95,11 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     releaseSnapshot: () => {
       snapshotReleased = true
     },
+    idle: () =>
+      new Promise((resolve) => {
+        waitingForIdle.push(resolve)
+        scheduleIdle()
+      }),
     restore: () => {
       globalThis.fetch = realFetch
       if (typeof window !== 'undefined') delete window.__CONCIV_API_BASE__
@@ -139,9 +164,17 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     if (url.origin !== CORE_BASE) return realFetch(input, init)
     const route = routes[url.pathname]
     if (!route) throw new Error(`the fake core has no route for ${url.pathname}`)
+    inFlight += 1
+    scheduleIdle()
     const body = await bodyOf(request)
+    const priorCalls = calls.filter((call) => call.path === url.pathname).length
     calls.push({path: url.pathname, body})
-    return route(body, request.signal)
+    const delay = delayFor(config.delays?.[url.pathname], priorCalls)
+    if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
+    const response = route(body, request.signal)
+    inFlight -= 1
+    scheduleIdle()
+    return response
   }
   return core
 }

@@ -1,5 +1,5 @@
 import {createFileRoute, useBlocker, useRouter} from '@tanstack/solid-router'
-import {For, Show, createMemo, type JSX} from 'solid-js'
+import {For, Show, Suspense, createMemo, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension'
 import {MountedView} from '@conciv/extension/client'
 import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/context.js'
@@ -74,7 +74,9 @@ function PanelView(): JSX.Element {
                 </For>
               </div>
             </Show>
-            <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
+            <Suspense>
+              <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
+            </Suspense>
           </div>
         </HostApiProvider>
       )}

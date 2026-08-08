@@ -1,4 +1,15 @@
-import {createEffect, createMemo, createResource, For, onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  Suspense,
+  untrack,
+  type JSX,
+} from 'solid-js'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import {useChatSession} from '@conciv/client'
 import {
@@ -296,90 +307,99 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                 onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
                 class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
               >
-                <Thread>
-                  <Thread.Viewport>
-                    <Thread.Welcome>
-                      <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
-                        <EmptyStateSlot onStarter={(starter) => void chat.sendMessage(starter)} instances={instances} />
+                <Suspense>
+                  <Thread>
+                    <Thread.Viewport>
+                      <Thread.Welcome>
+                        <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
+                          <EmptyStateSlot
+                            onStarter={(starter) => void chat.sendMessage(starter)}
+                            instances={instances}
+                          />
+                        </Show>
+                      </Thread.Welcome>
+                      <Thread.Messages
+                        tools={tools()}
+                        attachmentCards={attachments().cards}
+                        components={{ToolFallback: ToolFallbackCard}}
+                        turnPrefix={renderTurnPrefix}
+                      />
+                      <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                      <Show when={compacting()}>
+                        <Divider kind="compact" pending />
                       </Show>
-                    </Thread.Welcome>
-                    <Thread.Messages
-                      tools={tools()}
-                      attachmentCards={attachments().cards}
-                      components={{ToolFallback: ToolFallbackCard}}
-                      turnPrefix={renderTurnPrefix}
-                    />
-                    <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
-                    <Show when={compacting()}>
-                      <Divider kind="compact" pending />
-                    </Show>
-                    <Show when={isThinking()}>
-                      <ThinkingBubble />
-                    </Show>
-                    <Show when={nowTitleText()}>
-                      {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
-                    </Show>
-                    <Show when={visibleError()}>
-                      {(error) => (
-                        <div class={ERROR} role="alert">
-                          <span class="flex-1">{error().message}</span>
-                          <button type="button" class={RETRY} onClick={() => void chat.reload()}>
-                            Retry
-                          </button>
-                        </div>
-                      )}
-                    </Show>
-                  </Thread.Viewport>
-                  <Thread.Composer>
-                    <ExtensionSurface name="status" instances={instances} />
-                    <ExtensionSurface name="footer" instances={instances} />
-                    <NoticeToaster />
-                    <For each={pane.grabStore.grabs()}>
-                      {(grab) => (
-                        <GrabReference
-                          grab={grab}
-                          maxWidth={GRAB_PREVIEW_MAX_W}
-                          onRemove={() => pane.grabStore.remove(grab)}
-                        />
-                      )}
-                    </For>
-                    <Show when={draftStorage()}>
-                      {(storage) => (
-                        <PaneComposer
-                          draftStorage={storage().storage}
-                          draftKey={sessionId}
-                          placeholder="Ask a question…"
-                          inputLabel="Message the conciv agent"
-                          attachmentAdapter={attachments().adapter}
-                          AttachmentComponent={PaneAttachment}
-                          onInputReady={(handle) => {
-                            inputHandle = handle
-                            panelFocus?.register(handle)
-                          }}
-                          onSelectionChange={storage().noteSelection}
-                          initialSelection={storage().restoredSelection}
-                          busy={compacting() ? <CompactSpinner /> : undefined}
-                          triggers={triggerSources}
-                        >
-                          <ComposerActions
-                            sessionId={sessionId}
-                            compacting={compacting()}
-                            onCompact={() => compact.mutate()}
-                            onNewSession={() => pane.newSession()}
-                            onStageGrab={stageGrab}
+                      <Show when={isThinking()}>
+                        <ThinkingBubble />
+                      </Show>
+                      <Show when={nowTitleText()}>
+                        {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
+                      </Show>
+                      <Show when={visibleError()}>
+                        {(error) => (
+                          <div class={ERROR} role="alert">
+                            <span class="flex-1">{error().message}</span>
+                            <button type="button" class={RETRY} onClick={() => void chat.reload()}>
+                              Retry
+                            </button>
+                          </div>
+                        )}
+                      </Show>
+                    </Thread.Viewport>
+                    <Thread.Composer>
+                      <ExtensionSurface name="status" instances={instances} />
+                      <ExtensionSurface name="footer" instances={instances} />
+                      <NoticeToaster />
+                      <For each={pane.grabStore.grabs()}>
+                        {(grab) => (
+                          <GrabReference
+                            grab={grab}
+                            maxWidth={GRAB_PREVIEW_MAX_W}
+                            onRemove={() => pane.grabStore.remove(grab)}
                           />
-                          <ExtensionSurface name="composer" instances={instances} />
-                          <SessionModelSelector sessionId={sessionId} />
-                          <ComposerWiring
-                            onReady={(api) => {
-                              composerApi.current = api
-                            }}
-                          />
-                        </PaneComposer>
-                      )}
-                    </Show>
-                  </Thread.Composer>
-                </Thread>
+                        )}
+                      </For>
+                      <Suspense>
+                        <Show when={draftStorage()}>
+                          {(storage) => (
+                            <PaneComposer
+                              draftStorage={storage().storage}
+                              draftKey={sessionId}
+                              placeholder="Ask a question…"
+                              inputLabel="Message the conciv agent"
+                              attachmentAdapter={attachments().adapter}
+                              AttachmentComponent={PaneAttachment}
+                              onInputReady={(handle) => {
+                                inputHandle = handle
+                                panelFocus?.register(handle)
+                              }}
+                              onSelectionChange={storage().noteSelection}
+                              initialSelection={storage().restoredSelection}
+                              busy={compacting() ? <CompactSpinner /> : undefined}
+                              triggers={triggerSources}
+                            >
+                              <Suspense>
+                                <ComposerActions
+                                  sessionId={sessionId}
+                                  compacting={compacting()}
+                                  onCompact={() => compact.mutate()}
+                                  onNewSession={() => pane.newSession()}
+                                  onStageGrab={stageGrab}
+                                />
+                                <ExtensionSurface name="composer" instances={instances} />
+                                <SessionModelSelector sessionId={sessionId} />
+                                <ComposerWiring
+                                  onReady={(api) => {
+                                    composerApi.current = api
+                                  }}
+                                />
+                              </Suspense>
+                            </PaneComposer>
+                          )}
+                        </Show>
+                      </Suspense>
+                    </Thread.Composer>
+                  </Thread>
+                </Suspense>
               </div>
             </div>
           </ComposerHandlersProvider>
