@@ -31,12 +31,14 @@ function isNavigationWriteUrl(url: URL): boolean {
 
 export type HeldNavigationWrite = {arrived: Promise<void>; release: () => Promise<void>}
 
+type HoldPhase = 'idle' | 'collecting' | 'released'
+
 type Hold = {
   arrived: Promise<void>
   markArrived: () => void
   landed: Promise<void>
   markLanded: () => void
-  retained: boolean
+  phase: HoldPhase
   queue: (() => Promise<void>)[]
 }
 
@@ -46,7 +48,7 @@ function makeHold(): Hold {
     markArrived: () => {},
     landed: Promise.resolve(),
     markLanded: () => {},
-    retained: false,
+    phase: 'idle',
     queue: [],
   }
   hold.arrived = new Promise<void>((resolve) => {
@@ -70,14 +72,18 @@ function holdSocketNavigation(socket: WebSocketRoute, hold: Hold): void {
         server.send(message)
         return
       }
+      if (hold.phase === 'released') {
+        server.send(message)
+        return
+      }
       const send = async (): Promise<void> => {
         server.send(message)
       }
-      if (hold.retained) {
+      if (hold.phase === 'collecting') {
         hold.queue.push(send)
         return
       }
-      hold.retained = true
+      hold.phase = 'collecting'
       retained.requestId = frame.requestId
       hold.markArrived()
       hold.queue.unshift(send)
@@ -100,11 +106,15 @@ function holdFetchNavigation(hold: Hold, route: Route, observer: RpcObserver): P
       await route.continue()
       resolve()
     }
-    if (hold.retained) {
+    if (hold.phase === 'released') {
+      void forward()
+      return
+    }
+    if (hold.phase === 'collecting') {
       hold.queue.push(forward)
       return
     }
-    hold.retained = true
+    hold.phase = 'collecting'
     hold.markArrived()
     hold.queue.unshift(async () => {
       await forward()
@@ -117,10 +127,8 @@ function holdFetchNavigation(hold: Hold, route: Route, observer: RpcObserver): P
 export async function holdFirstNavigationWrite(page: Page): Promise<HeldNavigationWrite> {
   const hold = makeHold()
   const observer = observeRpc(page)
-  await page.route(
-    (url) => isNavigationWriteUrl(url),
-    (route) => holdFetchNavigation(hold, route, observer),
-  )
+  const fetchHandler = (route: Route): Promise<void> => holdFetchNavigation(hold, route, observer)
+  await page.route(isNavigationWriteUrl, fetchHandler)
   await page.routeWebSocket(
     (url) => url.pathname.endsWith('/rpc-ws'),
     (socket) => holdSocketNavigation(socket, hold),
@@ -128,8 +136,11 @@ export async function holdFirstNavigationWrite(page: Page): Promise<HeldNavigati
   return {
     arrived: hold.arrived,
     release: async () => {
-      for (const send of hold.queue.splice(0)) await send()
+      const pending = hold.queue.splice(0)
+      hold.phase = 'released'
+      for (const send of pending) await send()
       await hold.landed
+      await page.unroute(isNavigationWriteUrl, fetchHandler)
       observer.dispose()
     },
   }

@@ -1,7 +1,8 @@
 import {afterAll, describe, expect, it} from 'vitest'
+import type {Page} from 'playwright'
 import {setupWsProbeSuite} from './helpers/probe-suite.js'
 import {startProbeServer, type ProbeServer} from './helpers/probe-server.js'
-import {currentHref, holdFirstNavigationWrite, navigationStamp} from './helpers/navigation.js'
+import {currentHref, holdFirstNavigationWrite, navigationStamp, type HeldNavigationWrite} from './helpers/navigation.js'
 
 const suite = setupWsProbeSuite()
 
@@ -13,6 +14,14 @@ afterAll(async () => {
 
 function navigationInput(href: string): Record<string, unknown> {
   return {entries: [{href}], index: 0, updatedAt: navigationStamp()}
+}
+
+async function bootHeldNavigationPage(server: ProbeServer): Promise<{page: Page; held: HeldNavigationWrite}> {
+  const page = await suite.browser().newPage()
+  const held = await holdFirstNavigationWrite(page)
+  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+  await page.evaluate((wsUrl) => window.__CONCIV_WS_PROBE__.connect(wsUrl), server.wsUrl)
+  return {page, held}
 }
 
 describe('holdFirstNavigationWrite holds one websocket frame without stalling the socket', () => {
@@ -49,10 +58,7 @@ describe('holdFirstNavigationWrite holds one websocket frame without stalling th
   it('queues a second navigation write behind the retained one and flushes both in order', async () => {
     const server = await startProbeServer()
     servers.push(server)
-    const page = await suite.browser().newPage()
-    const held = await holdFirstNavigationWrite(page)
-    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-    await page.evaluate((wsUrl) => window.__CONCIV_WS_PROBE__.connect(wsUrl), server.wsUrl)
+    const {page, held} = await bootHeldNavigationPage(server)
 
     const first = page.evaluate(
       (payload) => window.__CONCIV_WS_PROBE__.call(['navigation', 'set'], payload),
@@ -77,10 +83,7 @@ describe('holdFirstNavigationWrite holds one websocket frame without stalling th
   it('releases only after the retained write is answered, not when the gate opens', async () => {
     const server = await startProbeServer()
     servers.push(server)
-    const page = await suite.browser().newPage()
-    const held = await holdFirstNavigationWrite(page)
-    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-    await page.evaluate((wsUrl) => window.__CONCIV_WS_PROBE__.connect(wsUrl), server.wsUrl)
+    const {page, held} = await bootHeldNavigationPage(server)
 
     const write = page.evaluate(
       (payload) => window.__CONCIV_WS_PROBE__.call(['navigation', 'set'], payload),
@@ -102,4 +105,27 @@ describe('holdFirstNavigationWrite holds one websocket frame without stalling th
     expect(await write).toEqual({ok: true, applied: true})
     await page.close()
   })
+
+  it('forwards a navigation write that arrives after release instead of stranding it', async () => {
+    const server = await startProbeServer()
+    servers.push(server)
+    const {page, held} = await bootHeldNavigationPage(server)
+
+    const first = page.evaluate(
+      (payload) => window.__CONCIV_WS_PROBE__.call(['navigation', 'set'], payload),
+      navigationInput('/first-write'),
+    )
+    await held.arrived
+    server.releaseNavigation()
+    await held.release()
+    expect(await first).toEqual({ok: true, applied: true})
+
+    const late = page.evaluate(
+      (payload) => window.__CONCIV_WS_PROBE__.call(['navigation', 'set'], payload),
+      navigationInput('/after-release'),
+    )
+    await expect(late).resolves.toEqual({ok: true, applied: true})
+    expect(server.navigationWrites()).toEqual(['/first-write', '/after-release'])
+    await page.close()
+  }, 8_000)
 })
