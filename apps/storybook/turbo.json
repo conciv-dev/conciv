@@ -1,0 +1,12 @@
+{
+  "$schema": "https://v2-10-3.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/*/src/**/*.stories.{js,jsx,mjs,ts,tsx}"]
+    },
+    "build-storybook": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/*/src/**/*.stories.{js,jsx,mjs,ts,tsx}"]
+    }
+  }
+}
