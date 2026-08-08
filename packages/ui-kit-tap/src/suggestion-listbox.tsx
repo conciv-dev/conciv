@@ -1,40 +1,21 @@
-import {For, Show, createEffect, type JSX} from 'solid-js'
-import {LIST_PANEL_ITEM, LIST_PANEL_MESSAGE, Popover} from '@conciv/ui-kit-system'
+import {For, Show, createEffect, createMemo, type JSX} from 'solid-js'
+import {
+  LISTBOX_ITEM_DESCRIPTION,
+  LIST_PANEL_MESSAGE,
+  Listbox,
+  Popover,
+  createListCollection,
+} from '@conciv/ui-kit-system'
 
-export type SuggestionOption = {id: string; label: string}
+export type SuggestionOption = {id: string; label: string; group?: string; description?: string}
 
 export type SuggestionAnchor = {x: number; y: number; width: number; height: number}
 
-const LIST = 'max-h-56 max-w-72 overflow-y-auto'
-const OPTION = `${LIST_PANEL_ITEM} overflow-hidden text-ellipsis whitespace-nowrap aria-selected:bg-pw-fill-strong aria-selected:text-pw-text aria-disabled:opacity-50 aria-disabled:cursor-default`
+const PANEL = 'w-72 max-h-64 overflow-y-auto overscroll-contain'
 
-const ariaSelected = (selected: boolean): 'true' | 'false' => (selected ? 'true' : 'false')
+const UNGROUPED = ''
 
-const ariaDisabled = (inert: boolean): 'true' | undefined => (inert ? 'true' : undefined)
-
-function OptionRow(props: {
-  id: string | undefined
-  selected: boolean
-  inert: boolean
-  onSelect: () => void
-  content: JSX.Element
-}): JSX.Element {
-  return (
-    <li
-      role="option"
-      id={props.id}
-      aria-selected={ariaSelected(props.selected)}
-      aria-disabled={ariaDisabled(props.inert)}
-      class={OPTION}
-      onPointerDown={(event) => {
-        event.preventDefault()
-        props.onSelect()
-      }}
-    >
-      {props.content}
-    </li>
-  )
-}
+const describedById = (optionElementId: string): string => `${optionElementId}-description`
 
 export function SuggestionListbox<Option extends SuggestionOption>(props: {
   anchor: SuggestionAnchor | null
@@ -44,22 +25,28 @@ export function SuggestionListbox<Option extends SuggestionOption>(props: {
   inert?: boolean
   message?: string
   listboxId?: string
-  optionId?: (option: Option) => string
+  optionId?: (id: string) => string
   onSelect: (option: Option) => void
   onDismiss?: () => void
   renderOption?: (option: Option) => JSX.Element
 }): JSX.Element {
-  let list: HTMLUListElement | undefined
   const inert = () => props.inert === true
-  const selectOption = (option: Option) => {
-    if (inert()) return
+  const collection = createMemo(() =>
+    createListCollection({
+      items: props.options,
+      itemToValue: (option: Option) => option.id,
+      itemToString: (option: Option) => option.label,
+      groupBy: (option: Option) => option.group ?? UNGROUPED,
+    }),
+  )
+  const highlighted = () => props.options[props.activeIndex]?.id ?? null
+  const elementId = (id: string | number) => props.optionId?.(String(id)) ?? String(id)
+  const selectById = (id: string) => {
+    const option = props.options.find((candidate) => candidate.id === id)
+    if (!option || inert()) return
     props.onSelect(option)
   }
   const optionContent = (option: Option) => (props.renderOption ? props.renderOption(option) : option.label)
-  createEffect(() => {
-    const element = list?.children.item(props.activeIndex)
-    if (element instanceof HTMLElement) element.scrollIntoView({block: 'nearest'})
-  })
   return (
     <Popover.Root
       open={props.anchor !== null}
@@ -74,7 +61,7 @@ export function SuggestionListbox<Option extends SuggestionOption>(props: {
         event.stopPropagation()
         props.onDismiss?.()
       }}
-      positioning={{placement: 'bottom-start', getAnchorRect: () => props.anchor}}
+      positioning={{placement: 'top-start', flip: true, getAnchorRect: () => props.anchor}}
     >
       <Popover.Context>
         {(api) => {
@@ -85,25 +72,48 @@ export function SuggestionListbox<Option extends SuggestionOption>(props: {
           return (
             <Popover.Positioner>
               <Popover.ListContent>
-                <ul
-                  ref={(element) => (list = element)}
-                  class={LIST}
-                  role="listbox"
-                  id={props.listboxId}
-                  aria-label={props.label}
+                <Listbox.Root
+                  collection={collection()}
+                  ids={{content: props.listboxId, item: elementId}}
+                  highlightedValue={highlighted()}
+                  selectionMode="none"
+                  typeahead={false}
+                  disabled={inert()}
                 >
-                  <For each={props.options}>
-                    {(option, position) => (
-                      <OptionRow
-                        id={props.optionId?.(option)}
-                        selected={position() === props.activeIndex}
-                        inert={inert()}
-                        onSelect={() => selectOption(option)}
-                        content={optionContent(option)}
-                      />
-                    )}
-                  </For>
-                </ul>
+                  <Listbox.Label class="sr-only">{props.label}</Listbox.Label>
+                  <Listbox.Content class={PANEL} tabIndex={-1}>
+                    <For each={collection().group()}>
+                      {([group, items], position) => (
+                        <Listbox.ItemGroup id={`suggestion-group-${position()}`}>
+                          <Show when={group !== UNGROUPED}>
+                            <Listbox.ItemGroupLabel>{group}</Listbox.ItemGroupLabel>
+                          </Show>
+                          <For each={items}>
+                            {(option: Option) => (
+                              <Listbox.Item
+                                item={option}
+                                aria-label={option.label}
+                                aria-selected={option.id === highlighted()}
+                                aria-describedby={option.description ? describedById(elementId(option.id)) : undefined}
+                                onPointerDown={(event) => event.preventDefault()}
+                                onClick={() => selectById(option.id)}
+                              >
+                                <Listbox.ItemText>{optionContent(option)}</Listbox.ItemText>
+                                <Show when={option.description}>
+                                  {(description) => (
+                                    <span id={describedById(elementId(option.id))} class={LISTBOX_ITEM_DESCRIPTION}>
+                                      {description()}
+                                    </span>
+                                  )}
+                                </Show>
+                              </Listbox.Item>
+                            )}
+                          </For>
+                        </Listbox.ItemGroup>
+                      )}
+                    </For>
+                  </Listbox.Content>
+                </Listbox.Root>
                 <Show when={props.message}>
                   {(text) => (
                     <div role="status" class={LIST_PANEL_MESSAGE}>

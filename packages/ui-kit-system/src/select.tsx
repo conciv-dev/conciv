@@ -1,5 +1,6 @@
 import {splitProps, type ComponentProps} from 'solid-js'
 import {Select as Ark} from '@ark-ui/solid/select'
+import {styledPart} from './styled-part.js'
 
 const TRIGGER =
   'flex items-center justify-between gap-2 w-full min-h-9 py-2 px-2.5 rounded-pw-sm bg-pw-fill text-pw-text text-[0.8125rem] font-pw [border-width:1px] [border-style:solid] border-pw-line cursor-pointer trans-border focus-ring data-[state=open]:border-pw-accent data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed'
@@ -16,25 +17,10 @@ function Root(props: ComponentProps<typeof Ark.Root>) {
   )
 }
 
-function Trigger(props: ComponentProps<typeof Ark.Trigger>) {
-  const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Trigger {...rest} class={`${TRIGGER}  ${local.class ?? ''}`} />
-}
-
-function Content(props: ComponentProps<typeof Ark.Content>) {
-  const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Content {...rest} class={`${CONTENT}  ${local.class ?? ''}`} />
-}
-
-function Item(props: ComponentProps<typeof Ark.Item>) {
-  const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Item {...rest} class={`${ITEM}  ${local.class ?? ''}`} />
-}
-
-function ItemGroupLabel(props: ComponentProps<typeof Ark.ItemGroupLabel>) {
-  const [local, rest] = splitProps(props, ['class'])
-  return <Ark.ItemGroupLabel {...rest} class={`${ITEM_GROUP_LABEL}  ${local.class ?? ''}`} />
-}
+const Trigger = styledPart(Ark.Trigger, TRIGGER)
+const Content = styledPart(Ark.Content, CONTENT)
+const Item = styledPart(Ark.Item, ITEM)
+const ItemGroupLabel = styledPart(Ark.ItemGroupLabel, ITEM_GROUP_LABEL)
 
 export const Select = Object.assign({}, Ark, {Root, Trigger, Content, Item, ItemGroupLabel})
 export {createListCollection} from '@ark-ui/solid/select'

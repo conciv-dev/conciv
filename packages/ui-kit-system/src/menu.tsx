@@ -1,6 +1,7 @@
 import {splitProps, type ComponentProps} from 'solid-js'
 import {Menu as Ark} from '@ark-ui/solid/menu'
 import {LIST_PANEL, LIST_PANEL_GROUP_LABEL, LIST_PANEL_ITEM} from './list-panel.js'
+import {styledPart} from './styled-part.js'
 
 const CONTENT = `hidden data-[state=open]:block data-[state=open]:anim-combo ${LIST_PANEL}`
 const ITEM = `${LIST_PANEL_ITEM} data-[highlighted]:bg-pw-fill-strong data-[highlighted]:text-pw-text data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed`
@@ -14,24 +15,9 @@ function Root(props: ComponentProps<typeof Ark.Root>) {
   )
 }
 
-function Content(props: ComponentProps<typeof Ark.Content>) {
-  const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Content {...rest} class={`${CONTENT}  ${local.class ?? ''}`} />
-}
-
-function Item(props: ComponentProps<typeof Ark.Item>) {
-  const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Item {...rest} class={`${ITEM}  ${local.class ?? ''}`} />
-}
-
-function ItemGroupLabel(props: ComponentProps<typeof Ark.ItemGroupLabel>) {
-  const [local, rest] = splitProps(props, ['class'])
-  return <Ark.ItemGroupLabel {...rest} class={`${ITEM_GROUP_LABEL}  ${local.class ?? ''}`} />
-}
-
-function Separator(props: ComponentProps<typeof Ark.Separator>) {
-  const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Separator {...rest} class={`${SEPARATOR}  ${local.class ?? ''}`} />
-}
+const Content = styledPart(Ark.Content, CONTENT)
+const Item = styledPart(Ark.Item, ITEM)
+const ItemGroupLabel = styledPart(Ark.ItemGroupLabel, ITEM_GROUP_LABEL)
+const Separator = styledPart(Ark.Separator, SEPARATOR)
 
 export const Menu = Object.assign({}, Ark, {Root, Content, Item, ItemGroupLabel, Separator})

@@ -38,6 +38,98 @@ test('restores the server-side draft text and staged grabs when the pane mounts'
   await expect.element(page.getByText('a grabbed heading')).toBeVisible()
 })
 
+test('the composer is present and typeable before the persisted draft resolves', async () => {
+  mountChatPane({
+    holdDraft: true,
+    draft: {
+      sessionId: PANE_SESSION,
+      text: 'the draft still in flight',
+      selectionStart: 24,
+      selectionEnd: 24,
+      grabs: [],
+      updatedAt: 1,
+    },
+  })
+
+  await expect.element(input()).toBeVisible()
+  await input().click()
+  await userEvent.keyboard('typed before the draft landed')
+
+  await expect.element(input()).toHaveTextContent('typed before the draft landed')
+})
+
+test('a draft that resolves late never clobbers what the user already typed', async () => {
+  mountChatPane({
+    holdDraft: true,
+    draft: {
+      sessionId: PANE_SESSION,
+      text: 'the stale server draft',
+      selectionStart: 22,
+      selectionEnd: 22,
+      grabs: ['a grabbed heading'],
+      updatedAt: 1,
+    },
+  })
+
+  await expect.element(input()).toBeVisible()
+  await input().click()
+  await userEvent.keyboard('what the user actually wants')
+  core?.releaseDraft()
+  await core?.idle()
+
+  await expect.element(page.getByText('the stale server draft')).not.toBeInTheDocument()
+  await expect.element(page.getByText('a grabbed heading')).not.toBeInTheDocument()
+  await expect.element(input()).toHaveTextContent('what the user actually wants')
+})
+
+test('a draft that resolves late hydrates the composer the user has not touched', async () => {
+  mountChatPane({
+    holdDraft: true,
+    draft: {
+      sessionId: PANE_SESSION,
+      text: 'kept across the reload',
+      selectionStart: 22,
+      selectionEnd: 22,
+      grabs: ['a grabbed heading'],
+      updatedAt: 1,
+    },
+  })
+
+  await expect.element(input()).toBeVisible()
+  await input().click()
+  core?.releaseDraft()
+
+  await expect.element(input()).toHaveTextContent('kept across the reload')
+  await expect.element(page.getByText('a grabbed heading')).toBeVisible()
+
+  await userEvent.keyboard('!')
+  await expect.element(input()).toHaveTextContent('kept across the reload!')
+})
+
+test('tells the user when the saved draft could not be loaded and restores it on retry', async () => {
+  mountChatPane({
+    failDraft: 2,
+    draft: {
+      sessionId: PANE_SESSION,
+      text: 'kept across the reload',
+      selectionStart: 22,
+      selectionEnd: 22,
+      grabs: [],
+      updatedAt: 1,
+    },
+  })
+
+  await expect
+    .element(page.getByRole('alert'), {timeout: 4000})
+    .toHaveTextContent('Your saved draft could not be loaded.')
+  await expect.element(input()).toBeVisible()
+
+  await page.getByRole('button', {name: 'Retry'}).click()
+
+  await expect.element(input()).toHaveTextContent('kept across the reload')
+  await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
+})
+
 test('a rejected send keeps the draft in the composer and tells the user why', async () => {
   mountChatPane({rejectSend: true})
 

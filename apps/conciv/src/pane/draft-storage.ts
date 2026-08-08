@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {debounce} from '@tanstack/pacer'
-import type {RpcClient} from '@conciv/contract'
+import type {DraftRow, RpcClient} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
 import type {SelectionOffsets} from './composer-input-adapter.js'
 
@@ -13,10 +13,11 @@ const PersistedDraftSchema = z.object({
 
 type PersistedDraft = z.infer<typeof PersistedDraftSchema>
 
+export type RestoredDraft = {text: string; grabs: string[]; selection: SelectionOffsets}
+
 export type PaneDraftStorage = {
   storage: WebStorage
   noteSelection: (offsets: SelectionOffsets) => void
-  restoredSelection: SelectionOffsets | undefined
 }
 
 function parseDraft(raw: string): PersistedDraft | null {
@@ -33,6 +34,16 @@ function clampSelection(offsets: SelectionOffsets | null, text: string): Selecti
   return {start: Math.min(offsets.start, text.length), end: Math.min(offsets.end, text.length)}
 }
 
+export function restoredDraft(row: DraftRow | null | undefined): RestoredDraft | null {
+  if (!row) return null
+  if (row.text === '' && row.grabs.length === 0) return null
+  return {
+    text: row.text,
+    grabs: [...row.grabs],
+    selection: clampSelection({start: row.selectionStart, end: row.selectionEnd}, row.text),
+  }
+}
+
 export async function appendDraft(rpc: RpcClient, sessionId: string, text: string): Promise<void> {
   const row = await rpc.drafts.get({sessionId})
   const nextText = row?.text ? `${row.text}\n${text}` : text
@@ -45,9 +56,7 @@ export async function appendDraft(rpc: RpcClient, sessionId: string, text: strin
   })
 }
 
-export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promise<PaneDraftStorage> {
-  const row = await rpc.drafts.get({sessionId}).catch(() => null)
-  let cache = row ? JSON.stringify({text: row.text, quote: null, grabs: row.grabs, attachments: []}) : null
+export function makeDraftStorage(rpc: RpcClient, sessionId: string): PaneDraftStorage {
   let selection: SelectionOffsets | null = null
   const write = debounce(
     (draft: PersistedDraft) => {
@@ -66,9 +75,8 @@ export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promi
   )
   return {
     storage: {
-      getItem: () => cache,
+      getItem: () => null,
       setItem: (_key, value) => {
-        cache = value
         const parsed = parseDraft(value)
         if (parsed) write(parsed)
       },
@@ -76,6 +84,5 @@ export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promi
     noteSelection: (offsets) => {
       selection = offsets
     },
-    restoredSelection: row ? clampSelection({start: row.selectionStart, end: row.selectionEnd}, row.text) : undefined,
   }
 }

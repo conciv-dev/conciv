@@ -3,7 +3,7 @@ import {PluginKey} from '@tiptap/pm/state'
 import type {MentionNodeAttrs, MentionOptions} from '@tiptap/extension-mention'
 import type {SuggestionAnchor} from './suggestion-listbox.js'
 
-export type RichTextFieldTriggerItem = {id: string; label: string}
+export type RichTextFieldTriggerItem = {id: string; label: string; group?: string; description?: string}
 
 export type RichTextFieldTriggerSource = {
   label: string

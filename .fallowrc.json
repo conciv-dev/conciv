@@ -54,6 +54,7 @@
     "@tiptap/extension-mention",
     "@tiptap/extension-paragraph",
     "@tiptap/extension-text",
+    "@tiptap/extensions",
     "@tiptap/pm",
     "lucide-solid",
     "marked",

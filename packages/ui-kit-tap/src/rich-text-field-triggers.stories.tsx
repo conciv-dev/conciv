@@ -10,15 +10,18 @@ import {
   type RichTextFieldTriggerSource,
 } from './rich-text-field.js'
 
+const LONG_DESCRIPTION =
+  'Compacts the running conversation into a shorter summary so the agent keeps room for the rest of the task, then reports how much context it reclaimed.'
+
 const COMMANDS: RichTextFieldTriggerItem[] = [
-  {id: 'clear', label: '/clear'},
-  {id: 'compact', label: '/compact'},
-  {id: 'help', label: '/help'},
+  {id: 'clear', label: '/clear', group: 'Commands', description: 'Start the conversation over'},
+  {id: 'compact', label: '/compact', group: 'Commands', description: LONG_DESCRIPTION},
+  {id: 'help', label: '/help', group: 'MCP', description: 'List everything this session can do'},
 ]
 const PEOPLE: RichTextFieldTriggerItem[] = [
-  {id: 'ai:opus', label: '@Opus'},
-  {id: 'ai:sonnet', label: '@Sonnet'},
-  {id: 'ai:haiku', label: '@Haiku'},
+  {id: 'ai:opus', label: '@Opus', group: 'Models', description: 'The deliberate one'},
+  {id: 'ai:sonnet', label: '@Sonnet', group: 'Models', description: 'The balanced one'},
+  {id: 'ai:haiku', label: '@Haiku', group: 'Tools', description: 'The quick one'},
 ]
 
 const LONG_COMMANDS: RichTextFieldTriggerItem[] = Array.from({length: 40}, (_unused, position) => {
@@ -476,6 +479,50 @@ export const ScreenReaderSurface: Story = {
     await userEvent.keyboard('{ArrowDown}')
     await waitFor(() => expect(editor.getAttribute('aria-activedescendant')).toBe(options[1]?.id))
     await expect(options[1]).toHaveAccessibleName('/compact')
+  },
+}
+
+export const GroupedRowsCarryHeadersAndDescriptions: Story = {
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toBeVisible())
+    await expect(canvas.getByRole('group', {name: 'Commands'})).toBeVisible()
+    await expect(canvas.getByRole('group', {name: 'MCP'})).toBeVisible()
+    await expect(canvas.getByText('Start the conversation over')).toBeVisible()
+    await expect(canvas.getByText(LONG_DESCRIPTION)).toBeVisible()
+    await expect(canvas.getByRole('option', {name: '/clear'})).toHaveAccessibleName('/clear')
+    await expect(canvas.getByRole('option', {name: '/clear'})).toHaveAccessibleDescription(
+      'Start the conversation over',
+    )
+  },
+}
+
+export const KeyboardNavigationCrossesGroupBoundaries: Story = {
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/clear'})).toHaveAttribute('aria-selected', 'true'))
+    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{ArrowDown}')
+    const crossed = canvas.getByRole('option', {name: '/help'})
+    await waitFor(() => expect(crossed).toHaveAttribute('aria-selected', 'true'))
+    await expect(canvas.getByRole('group', {name: 'MCP'})).toContainElement(crossed)
+    await userEvent.keyboard('{Enter}')
+    await expectValue(canvas, '"/help "')
+  },
+}
+
+export const GroupHeadersAreNotSelectable: Story = {
+  play: async ({canvasElement}) => {
+    const {canvas} = await openEditor(canvasElement)
+    await userEvent.keyboard('@')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '@Opus'})).toBeVisible())
+    await expect(canvas.getByRole('group', {name: 'Models'})).toBeVisible()
+    await expect(canvas.getByRole('group', {name: 'Tools'})).toBeVisible()
+    await expect(canvas.getAllByRole('option')).toHaveLength(3)
+    await userEvent.keyboard('{ArrowUp}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '@Haiku'})).toHaveAttribute('aria-selected', 'true'))
   },
 }
 

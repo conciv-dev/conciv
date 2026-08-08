@@ -1,13 +1,13 @@
 import {
   createEffect,
   createMemo,
-  createResource,
   For,
   onCleanup,
   onMount,
   Show,
   Suspense,
   untrack,
+  type Component,
   type JSX,
 } from 'solid-js'
 import {useMutation, useQuery} from '@tanstack/solid-query'
@@ -21,6 +21,7 @@ import {
   ToolProvider,
   pairResults,
   useComposerContext,
+  type AttachmentAdapter,
   type Turn,
 } from '@conciv/ui-kit-chat'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
@@ -29,8 +30,10 @@ import type {ToolCardEntry, ToolCatalogView, ToolViewCtx} from '@conciv/protocol
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
 import {collectToolRenderers, HostApiProvider} from '@conciv/extension'
+import {Button} from '@conciv/ui-kit-system'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments} from './pane-attachments.js'
+import type {AttachmentCardSlot} from '@conciv/ui-kit-chat'
 import {resolveGrabSource} from './grab-source-resolve.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -48,16 +51,25 @@ import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {NoticeToaster, notify} from '../shell/notices.js'
 import {EngineStaleNotice} from '../shell/engine-notice.js'
-import {makeDraftStorage} from './draft-storage.js'
-import type {ComposerInputHandle} from './composer-input-adapter.js'
+import {makeDraftStorage, restoredDraft, type RestoredDraft} from './draft-storage.js'
+import type {ComposerInputHandle, ComposerTriggerSources, SelectionOffsets} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {checkSend, type SendVerdict} from './send-checks.js'
 
 const GRAB_PREVIEW_MAX_W = 280
 
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
-const RETRY =
-  'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
+
+function ErrorNotice(props: {message: string; retryLabel: string; onRetry: () => void}): JSX.Element {
+  return (
+    <div class={ERROR} role="alert">
+      <span class="flex-1">{props.message}</span>
+      <Button variant="outline-danger" size="md" class="shrink-0" onClick={props.onRetry}>
+        {props.retryLabel}
+      </Button>
+    </div>
+  )
+}
 
 type SendRejection = {rejected: true; message: string | null; tone: 'info' | 'warn'}
 
@@ -98,6 +110,44 @@ function activeCallTitle(
   return title
 }
 
+function streamingTitle(
+  messages: ReadonlyArray<{role: string; parts: ReadonlyArray<MessagePart>}>,
+  catalog: ToolCatalogView,
+  titleByName: Record<string, string>,
+): string | null {
+  const last = messages[messages.length - 1]
+  if (!last || last.role !== 'assistant') return null
+  return activeCallTitle(last.parts, catalog, titleByName)
+}
+
+function reportSendFailure(failure: unknown): void {
+  if (isSendRejection(failure)) {
+    if (failure.message) notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
+    return
+  }
+  notify(failureMessage(failure), {tone: 'danger'})
+}
+
+function harnessIdOf(models: {harness: {id: string}} | undefined): string {
+  return models?.harness.id ?? ''
+}
+
+function announceTurn(working: boolean, failure: Error | undefined, announce: (message: string) => void): void {
+  if (working) {
+    announce('conciv is thinking…')
+    return
+  }
+  if (!failure) announce('conciv replied.')
+}
+
+function reportableError(failure: Error | undefined): Error | undefined {
+  return failure && failure.message !== 'stopped' ? failure : undefined
+}
+
+function renderDivider(row: MarkerRow): JSX.Element {
+  return <Divider kind={row.kind} />
+}
+
 function grabTexts(grabs: ReadonlyArray<StagedGrab>): string[] {
   return grabs.map((grab) => grab.text)
 }
@@ -110,13 +160,145 @@ function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Eleme
   const pane = usePane()
   const context = useComposerContext()
   onMount(() => {
-    const restored = context.grabs()
-    if (restored.length > 0) pane.grabStore.stageTexts(restored)
     props.onReady({addAttachment: context.addAttachment})
     for (const file of pane.attachments.drain()) void context.addAttachment(file)
   })
   createEffect(() => context.setGrabs(grabTexts(pane.grabStore.grabs())))
   return <></>
+}
+
+function DraftHydration(props: {
+  draft: RestoredDraft
+  restore: (text: string, selection: SelectionOffsets) => void
+}): JSX.Element {
+  const pane = usePane()
+  const context = useComposerContext()
+  onMount(() => {
+    if (context.snapshotDraft().draft !== '' || pane.grabStore.grabs().length > 0) return
+    props.restore(props.draft.text, props.draft.selection)
+    if (props.draft.grabs.length > 0) pane.grabStore.stageTexts(props.draft.grabs)
+  })
+  return <></>
+}
+
+type TranscriptSectionProps = {
+  connected: boolean
+  tools: ToolCardEntry[]
+  attachmentCards: AttachmentCardSlot[]
+  turnPrefix: (turn: Turn) => JSX.Element
+  trailingDividers: MarkerRow[]
+  compacting: boolean
+  thinking: boolean
+  nowTitle: string | null
+  error: Error | undefined
+  onStarter: (starter: string) => void
+  onStop: () => void
+  onReload: () => void
+}
+
+function TranscriptSection(props: TranscriptSectionProps): JSX.Element {
+  const instances = useInstances()
+  return (
+    <Suspense>
+      <Thread.Welcome>
+        <Show when={props.connected} fallback={<ConversationSkeleton />}>
+          <EmptyStateSlot onStarter={props.onStarter} instances={instances} />
+        </Show>
+      </Thread.Welcome>
+      <Thread.Messages
+        tools={props.tools}
+        attachmentCards={props.attachmentCards}
+        components={{ToolFallback: ToolFallbackCard}}
+        turnPrefix={props.turnPrefix}
+      />
+      <For each={props.trailingDividers}>{renderDivider}</For>
+      <Show when={props.compacting}>
+        <Divider kind="compact" pending />
+      </Show>
+      <Show when={props.thinking}>
+        <ThinkingBubble />
+      </Show>
+      <Show when={props.nowTitle}>{(title) => <NowLine title={title()} onStop={props.onStop} />}</Show>
+      <Show when={props.error}>
+        {(failure) => <ErrorNotice message={failure().message} retryLabel="Retry" onRetry={props.onReload} />}
+      </Show>
+    </Suspense>
+  )
+}
+
+type ComposerSectionProps = {
+  sessionId: string
+  attachmentAdapter: AttachmentAdapter | undefined
+  AttachmentComponent: Component<{removable?: boolean}>
+  triggers: ComposerTriggerSources
+  compacting: boolean
+  onCompact: () => void
+  onStageGrab: (grab: Grab) => void
+  onInputReady: (handle: ComposerInputHandle) => void
+  onComposerApi: (api: ComposerApi) => void
+  onRestoreDraft: (text: string, selection: SelectionOffsets) => void
+}
+
+function ComposerSection(props: ComposerSectionProps): JSX.Element {
+  const rpc = useRpc()
+  const appData = useAppData()
+  const pane = usePane()
+  const instances = useInstances()
+  const sessionId = untrack(() => props.sessionId)
+  const persistedDraft = useQuery(() => ({
+    ...appData.utils.drafts.get.queryOptions({input: {sessionId}}),
+    retry: 1,
+  }))
+  const draftStorage = makeDraftStorage(rpc, sessionId)
+  const restorable = () => restoredDraft(persistedDraft.data)
+  return (
+    <>
+      <ExtensionSurface name="status" instances={instances} />
+      <ExtensionSurface name="footer" instances={instances} />
+      <NoticeToaster />
+      <EngineStaleNotice />
+      <For each={pane.grabStore.grabs()}>
+        {(grab) => (
+          <GrabReference grab={grab} maxWidth={GRAB_PREVIEW_MAX_W} onRemove={() => pane.grabStore.remove(grab)} />
+        )}
+      </For>
+      <Show when={persistedDraft.isError}>
+        <ErrorNotice
+          message="Your saved draft could not be loaded."
+          retryLabel="Retry"
+          onRetry={() => void persistedDraft.refetch()}
+        />
+      </Show>
+      <PaneComposer
+        draftStorage={draftStorage.storage}
+        draftKey={sessionId}
+        placeholder="Ask a question…"
+        inputLabel="Message the conciv agent"
+        attachmentAdapter={props.attachmentAdapter}
+        AttachmentComponent={props.AttachmentComponent}
+        onInputReady={props.onInputReady}
+        onSelectionChange={draftStorage.noteSelection}
+        busy={props.compacting ? <CompactSpinner /> : undefined}
+        triggers={props.triggers}
+      >
+        <Suspense>
+          <ComposerActions
+            sessionId={sessionId}
+            compacting={props.compacting}
+            onCompact={props.onCompact}
+            onNewSession={() => pane.newSession()}
+            onStageGrab={props.onStageGrab}
+          />
+          <ExtensionSurface name="composer" instances={instances} />
+          <SessionModelSelector sessionId={sessionId} />
+          <ComposerWiring onReady={props.onComposerApi} />
+          <Show when={restorable()}>
+            {(payload) => <DraftHydration draft={payload()} restore={props.onRestoreDraft} />}
+          </Show>
+        </Suspense>
+      </PaneComposer>
+    </>
+  )
 }
 
 export function ChatPane(props: {sessionId: string}): JSX.Element {
@@ -148,7 +330,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     loaded: () => registryCatalog.data !== undefined,
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
-  const [draftStorage] = createResource(() => makeDraftStorage(rpc, sessionId))
 
   const startedAt = new Map<string, number>()
   const durations = createMemo<Record<string, number>>(
@@ -158,7 +339,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
 
   const toolCtx: ToolViewCtx = {
     apiBase: '',
-    harnessId: meta.data?.harness.id ?? '',
+    harnessId: harnessIdOf(meta.data),
     sendMessage: (text) => void chat.sendMessage(text),
     catalog,
     respondApproval: (approvalId, approved) => {
@@ -186,30 +367,19 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     Object.fromEntries(
       tools().flatMap((entry) => (entry.streamTitle ? entry.names.map((name) => [name, entry.streamTitle ?? '']) : [])),
     )
-  const nowTitleText = (): string | null => {
-    if (!isStreaming()) return null
-    const messages = chat.messages()
-    const last = messages[messages.length - 1]
-    if (!last || last.role !== 'assistant') return null
-    return activeCallTitle(last.parts, catalog, streamTitles())
-  }
+  const nowTitleText = (): string | null =>
+    isStreaming() ? streamingTitle(chat.messages(), catalog, streamTitles()) : null
 
   createEffect<boolean>((was) => {
     const now = working()
     if (now === was) return was
     appData.invalidateSessions()
-    if (now) announce('conciv is thinking…')
-    if (!now) {
-      void markers.refetch()
-      if (!chat.error()) announce('conciv replied.')
-    }
+    if (!now) void markers.refetch()
+    announceTurn(now, chat.error(), announce)
     return now
   }, false)
 
-  const visibleError = () => {
-    const error = chat.error()
-    return error && error.message !== 'stopped' ? error : undefined
-  }
+  const visibleError = () => reportableError(chat.error())
 
   const compact = useMutation(() => ({
     mutationFn: () => rpc.sessions.compact({sessionId}),
@@ -271,15 +441,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     await chat.sendMessage(content)
     pane.grabStore.clear()
   }
-  const onSendError = (failure: unknown) => {
-    if (isSendRejection(failure)) {
-      if (failure.message) notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
-      return
-    }
-    notify(failureMessage(failure), {tone: 'danger'})
-  }
 
-  const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
   const renderTurnPrefix = (turn: Turn): JSX.Element => (
     <For each={dividersInRange(turn.start, turn.end)}>{renderDivider}</For>
   )
@@ -297,7 +459,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
           <ComposerHandlersProvider
             value={{
               onSend,
-              onSendError,
+              onSendError: reportSendFailure,
               onRefresh: () => chat.refresh(),
               onCancel: () => chat.stop(),
             }}
@@ -311,96 +473,39 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
               >
                 <Thread>
                   <Thread.Viewport>
-                    <Suspense>
-                      <Thread.Welcome>
-                        <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
-                          <EmptyStateSlot
-                            onStarter={(starter) => void chat.sendMessage(starter)}
-                            instances={instances}
-                          />
-                        </Show>
-                      </Thread.Welcome>
-                      <Thread.Messages
-                        tools={tools()}
-                        attachmentCards={attachments().cards}
-                        components={{ToolFallback: ToolFallbackCard}}
-                        turnPrefix={renderTurnPrefix}
-                      />
-                      <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
-                      <Show when={compacting()}>
-                        <Divider kind="compact" pending />
-                      </Show>
-                      <Show when={isThinking()}>
-                        <ThinkingBubble />
-                      </Show>
-                      <Show when={nowTitleText()}>
-                        {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
-                      </Show>
-                      <Show when={visibleError()}>
-                        {(error) => (
-                          <div class={ERROR} role="alert">
-                            <span class="flex-1">{error().message}</span>
-                            <button type="button" class={RETRY} onClick={() => void chat.reload()}>
-                              Retry
-                            </button>
-                          </div>
-                        )}
-                      </Show>
-                    </Suspense>
+                    <TranscriptSection
+                      connected={!disconnected()}
+                      tools={tools()}
+                      attachmentCards={attachments().cards}
+                      turnPrefix={renderTurnPrefix}
+                      trailingDividers={dividersAt(chat.messages().length)}
+                      compacting={compacting()}
+                      thinking={isThinking()}
+                      nowTitle={nowTitleText()}
+                      error={visibleError()}
+                      onStarter={(starter) => void chat.sendMessage(starter)}
+                      onStop={() => chat.stop()}
+                      onReload={() => void chat.reload()}
+                    />
                   </Thread.Viewport>
                   <Thread.Composer>
-                    <ExtensionSurface name="status" instances={instances} />
-                    <ExtensionSurface name="footer" instances={instances} />
-                    <NoticeToaster />
-                    <EngineStaleNotice />
-                    <For each={pane.grabStore.grabs()}>
-                      {(grab) => (
-                        <GrabReference
-                          grab={grab}
-                          maxWidth={GRAB_PREVIEW_MAX_W}
-                          onRemove={() => pane.grabStore.remove(grab)}
-                        />
-                      )}
-                    </For>
-                    <Suspense>
-                      <Show when={draftStorage()}>
-                        {(storage) => (
-                          <PaneComposer
-                            draftStorage={storage().storage}
-                            draftKey={sessionId}
-                            placeholder="Ask a question…"
-                            inputLabel="Message the conciv agent"
-                            attachmentAdapter={attachments().adapter}
-                            AttachmentComponent={PaneAttachment}
-                            onInputReady={(handle) => {
-                              inputHandle = handle
-                              panelFocus?.register(handle)
-                            }}
-                            onSelectionChange={storage().noteSelection}
-                            initialSelection={storage().restoredSelection}
-                            busy={compacting() ? <CompactSpinner /> : undefined}
-                            triggers={triggerSources}
-                          >
-                            <Suspense>
-                              <ComposerActions
-                                sessionId={sessionId}
-                                compacting={compacting()}
-                                onCompact={() => compact.mutate()}
-                                onNewSession={() => pane.newSession()}
-                                onStageGrab={stageGrab}
-                              />
-                              <ExtensionSurface name="composer" instances={instances} />
-                              <SessionModelSelector sessionId={sessionId} />
-                              <ComposerWiring
-                                onReady={(api) => {
-                                  composerApi.current = api
-                                }}
-                              />
-                            </Suspense>
-                          </PaneComposer>
-                        )}
-                      </Show>
-                    </Suspense>
+                    <ComposerSection
+                      sessionId={sessionId}
+                      attachmentAdapter={attachments().adapter}
+                      AttachmentComponent={PaneAttachment}
+                      triggers={triggerSources}
+                      compacting={compacting()}
+                      onCompact={() => compact.mutate()}
+                      onStageGrab={stageGrab}
+                      onInputReady={(handle) => {
+                        inputHandle = handle
+                        panelFocus?.register(handle)
+                      }}
+                      onComposerApi={(api) => {
+                        composerApi.current = api
+                      }}
+                      onRestoreDraft={(text, selection) => inputHandle?.restore(text, selection)}
+                    />
                   </Thread.Composer>
                 </Thread>
               </div>

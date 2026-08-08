@@ -23,10 +23,12 @@ export type {RichTextFieldTriggerItem, RichTextFieldTriggerSource}
 export type RichTextFieldSelection = {start: number; end: number}
 
 export type RichTextFieldHandle = {
+  element: HTMLElement
   focus: (options?: {end?: boolean}) => void
   clear: () => void
   insertText: (text: string) => void
   appendText: (text: string) => void
+  restoreContent: (text: string, selection: RichTextFieldSelection) => void
 }
 
 const VIEWPORT = 'w-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
@@ -84,15 +86,21 @@ function appendCommand(text: string) {
   }
 }
 
-function openingSelectionCommand(selection: RichTextFieldSelection | undefined) {
+function openingSelectionCommand() {
+  return ({tr}: CommandProps) => {
+    tr.setSelection(Selection.atEnd(tr.doc))
+    return true
+  }
+}
+
+function restoreCommand(text: string, selection: RichTextFieldSelection) {
   return ({tr, state}: CommandProps) => {
-    if (!selection) {
-      tr.setSelection(Selection.atEnd(tr.doc))
-      return true
-    }
-    const from = offsetToPosition(state.doc, selection.start)
-    const to = offsetToPosition(state.doc, selection.end)
-    tr.setSelection(TextSelection.create(tr.doc, from, to))
+    if (projectDocument(state.doc) !== '') return false
+    tr.setMeta('addToHistory', false)
+    tr.replaceWith(0, state.doc.content.size, state.schema.nodeFromJSON(buildDocument(text)).content)
+    tr.setSelection(
+      TextSelection.create(tr.doc, offsetToPosition(tr.doc, selection.start), offsetToPosition(tr.doc, selection.end)),
+    )
     return true
   }
 }
@@ -174,7 +182,6 @@ export function RichTextField(props: {
   onValueChange: (value: string) => void
   onSubmit?: () => void
   onSelectionChange?: (selection: RichTextFieldSelection) => void
-  initialSelection?: RichTextFieldSelection
   placeholder?: string
   label: string
   disabled?: boolean
@@ -193,14 +200,14 @@ export function RichTextField(props: {
   const [popover, setPopover] = createSignal<TriggerPopoverState | null>(null)
   const fieldId = createUniqueId()
   const listboxId = `rich-text-field-${fieldId}-listbox`
-  const optionId = (item: RichTextFieldTriggerItem) => `rich-text-field-${fieldId}-option-${item.id}`
+  const optionId = (id: string) => `rich-text-field-${fieldId}-option-${id}`
   const popoverAccess = {state: popover, update: (state: TriggerPopoverState | null) => setPopover(state)}
   const view = createMemo(() => popoverView(popover()))
   const popoverConsumesEnter = () => view().inert || view().options.length > 0
   const submitDraft = () => props.onSubmit?.()
   const activeOptionId = () => {
     const item = view().options[view().activeIndex]
-    return item ? optionId(item) : undefined
+    return item ? optionId(item.id) : undefined
   }
   const editableAttributeSet = () =>
     editableAttributes({
@@ -262,7 +269,7 @@ export function RichTextField(props: {
       ],
     })
     editorView = editor.view
-    editor.chain().command(openingSelectionCommand(props.initialSelection)).run()
+    editor.chain().command(openingSelectionCommand()).run()
     onCleanup(() => editor.destroy())
 
     createEffect(() => {
@@ -278,6 +285,7 @@ export function RichTextField(props: {
     })
 
     props.onReady?.({
+      element: editor.view.dom,
       focus: (focusOptions) => {
         editor.commands.focus(focusOptions?.end ? 'end' : editor.state.selection.from)
       },
@@ -289,6 +297,11 @@ export function RichTextField(props: {
       },
       appendText: (text) => {
         editor.chain().command(appendCommand(text)).run()
+      },
+      restoreContent: (text, selection) => {
+        const wasFocused = editor.view.hasFocus()
+        editor.chain().command(restoreCommand(text, selection)).run()
+        if (wasFocused) editor.commands.focus(editor.state.selection.from)
       },
     })
   })

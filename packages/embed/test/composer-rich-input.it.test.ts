@@ -86,6 +86,21 @@ describe('the rich composer input in the live widget shadow DOM', () => {
     await page.close()
   })
 
+  it('groups the command menu under a source header and shows each command description', async () => {
+    const page = await suite.browser().newPage()
+    await openComposer(page)
+
+    await composer(page).pressSequentially('/')
+
+    const listbox = page.getByRole('listbox', {name: 'Commands'})
+    await expectLocator(listbox.getByRole('group', {name: 'Commands'})).toBeVisible({timeout: 10_000})
+    await expectLocator(listbox.getByRole('option', {name: '/compact'})).toHaveAccessibleDescription(
+      'Compact the conversation',
+    )
+    await expectLocator(listbox.getByText('Open configuration')).toBeVisible()
+    await page.close()
+  })
+
   it('backspace removes a selected command chip in two steps, never a partial directive', async () => {
     const {page, observer} = await observedPage()
     await openComposer(page)

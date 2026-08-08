@@ -30,7 +30,6 @@ function matchingItems(entries: TriggerEntry[], query: string): RichTextFieldTri
         entry.description.toLowerCase().includes(lower),
     )
     .toSorted((first, second) => first.group.localeCompare(second.group))
-    .map((entry) => ({id: entry.id, label: entry.label}))
 }
 
 export function useComposerTriggerSources(sessionId: string): ComposerTriggerSources {

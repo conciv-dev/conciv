@@ -10,6 +10,7 @@ export type FakeCore = {
   push: (chunk: unknown) => void
   subscribeCount: () => number
   releaseSnapshot: () => void
+  releaseDraft: () => void
   idle: () => Promise<void>
   restore: () => void
   setEngine: (next: {stale: boolean; fingerprint?: string}) => void
@@ -24,6 +25,8 @@ export type FakeCoreConfig = {
   rejectSend?: boolean
   snapshotFor?: (subscribeIndex: number) => unknown[]
   holdSnapshot?: boolean
+  holdDraft?: boolean
+  failDraft?: number
   holdRun?: boolean
   launchOk?: boolean
   launchRejects?: boolean
@@ -82,6 +85,14 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
   let snapshotReleased = false
   if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = CORE_BASE
   let inFlight = 0
+  let draftReads = 0
+  let openDraftGate: (() => void) | undefined
+  const draftGate =
+    config.holdDraft === true
+      ? new Promise<void>((resolve) => {
+          openDraftGate = resolve
+        })
+      : null
   let quietTimer: ReturnType<typeof setTimeout> | undefined
   const waitingForIdle: (() => void)[] = []
   const scheduleIdle = () => {
@@ -98,6 +109,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     releaseSnapshot: () => {
       snapshotReleased = true
     },
+    releaseDraft: () => openDraftGate?.(),
     idle: () =>
       new Promise((resolve) => {
         waitingForIdle.push(resolve)
@@ -136,7 +148,11 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     '/rpc/sessions/list': () => reply(config.sessions ?? [sessionRow({id: 'conciv_1'})]),
     '/rpc/sessions/create': () => reply({sessionId: 'conciv_2'}),
     '/rpc/sessions/compact': () => reply({ok: true}),
-    '/rpc/drafts/get': () => reply(config.draft ?? null),
+    '/rpc/drafts/get': () => {
+      draftReads += 1
+      if (draftReads <= (config.failDraft ?? 0)) return new Response('draft unavailable', {status: 503})
+      return reply(config.draft ?? null)
+    },
     '/rpc/drafts/set': () => reply({ok: true}),
     '/rpc/markers/list': () => reply([]),
     '/rpc/meta/models': () =>
@@ -186,6 +202,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     calls.push({path: url.pathname, body})
     const delay = delayFor(config.delays?.[url.pathname], priorCalls)
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
+    if (draftGate && url.pathname === '/rpc/drafts/get') await draftGate
     const response = route(body, request.signal)
     inFlight -= 1
     scheduleIdle()

@@ -21,7 +21,6 @@ export type PaneComposerProps = {
   triggers?: ComposerTriggerSources
   onInputReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
-  initialSelection?: SelectionOffsets
   attachmentAdapter?: AttachmentAdapter
   AttachmentComponent?: Component<{removable?: boolean}>
 }
@@ -97,7 +96,6 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           triggers={props.triggers}
           onReady={props.onInputReady}
           onSelectionChange={props.onSelectionChange}
-          initialSelection={props.initialSelection}
         />
         <div class="pt-0.5 flex gap-1 items-center">
           <Show when={props.attachmentAdapter}>

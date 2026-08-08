@@ -1,6 +1,6 @@
 import {afterEach, expect, test, vi} from 'vitest'
 import {makeRpcClient, type DraftRow} from '@conciv/contract'
-import {appendDraft, makeDraftStorage, type PaneDraftStorage} from '../src/pane/draft-storage.js'
+import {appendDraft, makeDraftStorage, restoredDraft, type PaneDraftStorage} from '../src/pane/draft-storage.js'
 
 const BASE = 'http://conciv.test'
 const SESSION = 'conciv_1'
@@ -47,39 +47,51 @@ async function settleWrites(): Promise<void> {
   await Promise.resolve()
 }
 
-async function bootWritableStorage(): Promise<{server: Server; draftStorage: PaneDraftStorage}> {
+function bootWritableStorage(): {server: Server; draftStorage: PaneDraftStorage} {
   const server: Server = {row: null, writes: [], failReads: false}
   installServer(server)
-  const draftStorage = await makeDraftStorage(makeRpcClient(BASE), SESSION)
+  const draftStorage = makeDraftStorage(makeRpcClient(BASE), SESSION)
   vi.useFakeTimers()
   return {server, draftStorage}
 }
 
-test('seeds the cache from the server draft row in the composer draft shape', async () => {
+test('the storage handle never gates the composer behind a restore payload', () => {
   const server: Server = {row: draftRow('kept across the reload', ['a grabbed heading']), writes: [], failReads: false}
   installServer(server)
 
-  const draftStorage = await makeDraftStorage(makeRpcClient(BASE), SESSION)
-
-  expect(JSON.parse(draftStorage.storage.getItem('any') ?? '')).toEqual({
-    text: 'kept across the reload',
-    quote: null,
-    grabs: ['a grabbed heading'],
-    attachments: [],
-  })
-})
-
-test('starts empty when the server has no draft', async () => {
-  const server: Server = {row: null, writes: [], failReads: false}
-  installServer(server)
-
-  const draftStorage = await makeDraftStorage(makeRpcClient(BASE), SESSION)
+  const draftStorage = makeDraftStorage(makeRpcClient(BASE), SESSION)
 
   expect(draftStorage.storage.getItem('any')).toBeNull()
 })
 
+test('reads the persisted row into the restore payload the composer hydrates from', () => {
+  expect(restoredDraft(draftRow('kept across the reload', ['a grabbed heading']))).toEqual({
+    text: 'kept across the reload',
+    grabs: ['a grabbed heading'],
+    selection: {start: 22, end: 22},
+  })
+})
+
+test('clamps a persisted caret that falls beyond the persisted text', () => {
+  const row: DraftRow = {
+    sessionId: SESSION,
+    text: 'short',
+    selectionStart: 40,
+    selectionEnd: 44,
+    grabs: [],
+    updatedAt: 1,
+  }
+
+  expect(restoredDraft(row)?.selection).toEqual({start: 5, end: 5})
+})
+
+test('has nothing to restore when the server has no draft', () => {
+  expect(restoredDraft(null)).toBeNull()
+  expect(restoredDraft(draftRow('', []))).toBeNull()
+})
+
 test('writes the composer draft back to the server with the caret at the end', async () => {
-  const {server, draftStorage} = await bootWritableStorage()
+  const {server, draftStorage} = bootWritableStorage()
 
   draftStorage.storage.setItem(
     'any',
@@ -93,7 +105,7 @@ test('writes the composer draft back to the server with the caret at the end', a
 })
 
 test('collapses a burst of writes into the last draft', async () => {
-  const {server, draftStorage} = await bootWritableStorage()
+  const {server, draftStorage} = bootWritableStorage()
 
   draftStorage.storage.setItem('any', JSON.stringify({text: 'a', quote: null, grabs: [], attachments: []}))
   draftStorage.storage.setItem('any', JSON.stringify({text: 'ab', quote: null, grabs: [], attachments: []}))
@@ -103,18 +115,17 @@ test('collapses a burst of writes into the last draft', async () => {
   expect(server.writes).toEqual([{sessionId: SESSION, text: 'abc', selectionStart: 3, selectionEnd: 3, grabs: []}])
 })
 
-test('keeps the latest value readable even when the payload cannot be persisted', async () => {
-  const {server, draftStorage} = await bootWritableStorage()
+test('ignores a payload that cannot be parsed instead of persisting it', async () => {
+  const {server, draftStorage} = bootWritableStorage()
 
   draftStorage.storage.setItem('any', 'not json at all')
   await settleWrites()
 
-  expect(draftStorage.storage.getItem('any')).toBe('not json at all')
   expect(server.writes).toEqual([])
 })
 
 test('persists the noted caret offsets with the draft text', async () => {
-  const {server, draftStorage} = await bootWritableStorage()
+  const {server, draftStorage} = bootWritableStorage()
 
   draftStorage.storage.setItem('any', JSON.stringify({text: 'say hello!', quote: null, grabs: [], attachments: []}))
   draftStorage.noteSelection({start: 4, end: 4})
@@ -126,7 +137,7 @@ test('persists the noted caret offsets with the draft text', async () => {
 })
 
 test('clamps noted offsets that fall beyond the persisted text', async () => {
-  const {server, draftStorage} = await bootWritableStorage()
+  const {server, draftStorage} = bootWritableStorage()
 
   draftStorage.noteSelection({start: 40, end: 44})
   draftStorage.storage.setItem('any', JSON.stringify({text: 'short', quote: null, grabs: [], attachments: []}))
@@ -152,11 +163,11 @@ test('appends to the stored draft on a new line with the caret at the end', asyn
   ])
 })
 
-test('survives a failed initial read and still accepts writes', async () => {
+test('accepts writes even when the initial read is down', async () => {
   const server: Server = {row: null, writes: [], failReads: true}
   installServer(server)
 
-  const draftStorage = await makeDraftStorage(makeRpcClient(BASE), SESSION)
+  const draftStorage = makeDraftStorage(makeRpcClient(BASE), SESSION)
   server.failReads = false
   vi.useFakeTimers()
   draftStorage.storage.setItem(
@@ -165,7 +176,6 @@ test('survives a failed initial read and still accepts writes', async () => {
   )
   await settleWrites()
 
-  expect(draftStorage.storage.getItem('any')).toContain('after the outage')
   expect(server.writes).toEqual([
     {sessionId: SESSION, text: 'after the outage', selectionStart: 16, selectionEnd: 16, grabs: []},
   ])

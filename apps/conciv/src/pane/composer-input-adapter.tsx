@@ -6,8 +6,10 @@ import {RichTextField, type RichTextFieldTriggerSource} from '@conciv/ui-kit-tap
 export type SelectionOffsets = {start: number; end: number}
 
 export type ComposerInputHandle = {
+  element: HTMLElement
   focus: () => void
   append: (text: string) => void
+  restore: (text: string, selection: SelectionOffsets) => void
 }
 
 export type ComposerTriggerSources = {
@@ -23,7 +25,6 @@ export type ComposerInputAdapterProps = {
   triggers?: ComposerTriggerSources
   onReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
-  initialSelection?: SelectionOffsets
 }
 
 export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Element {
@@ -60,7 +61,6 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         onValueChange={composer.setText}
         onSubmit={submit}
         onSelectionChange={props.onSelectionChange}
-        initialSelection={props.initialSelection}
         placeholder={props.placeholder}
         label={props.inputLabel}
         editableClass={props.editableClass}
@@ -69,8 +69,10 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         mentionTrigger={props.triggers?.mention}
         onReady={(handle) => {
           props.onReady?.({
+            element: handle.element,
             focus: () => handle.focus(),
             append: (text) => handle.appendText(composer.text() === '' ? text : `\n${text}`),
+            restore: (text, selection) => handle.restoreContent(text, selection),
           })
         }}
       />
