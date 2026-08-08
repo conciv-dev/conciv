@@ -516,12 +516,15 @@ async function addCompactMarker(db: ConcivDb, sessionId: string, afterTurn: numb
 }
 
 export function makeCompactor(deps: ChatDeps): Compactor {
-  async function run(sessionId: string): Promise<void> {
-    deps.onRunStart?.(sessionId)
-    const history = await sessionSnapshot(deps, sessionId)
-    await addCompactMarker(deps.db, sessionId, history.length)
-    const live = launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
-    await live.done
+  function run(sessionId: string): Promise<void> {
+    return deps.liveRuns.serialize(sessionId, async () => {
+      deps.onRunStart?.(sessionId)
+      await settleLiveRuns(deps, sessionId)
+      const history = await sessionSnapshot(deps, sessionId)
+      await addCompactMarker(deps.db, sessionId, history.length)
+      const live = launchRun(deps, sessionId, {runId: randomUUID(), kind: 'compact', content: compactContent(deps)})
+      await live.done
+    })
   }
 
   return {run}

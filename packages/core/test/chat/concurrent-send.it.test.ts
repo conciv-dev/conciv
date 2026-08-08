@@ -5,6 +5,7 @@ import {defineAttachment, defineExtension} from '@conciv/extension'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
 import {bootKit} from '../helpers/boot.js'
 import {userTexts} from '../helpers/snapshots.js'
+import {collectChunks, peakLiveRuns, runsFinished} from '../helpers/run-tally.js'
 import {freshSubscriberSnapshot, SCRIPTED_REPLY, useFakeSessions} from '../helpers/fake-session.js'
 
 const SLOW_MIME = 'application/x-conciv-send-slow-expand'
@@ -27,33 +28,6 @@ function pacedTurn(text: string, mimeType: string): ChatContentPart[] {
     {type: 'text', content: text},
     {type: 'document', source: {type: 'data', mimeType, value: 'e30='}},
   ]
-}
-
-async function collectChunks(source: AsyncIterable<StreamChunk>, into: StreamChunk[]): Promise<void> {
-  try {
-    for await (const chunk of source) into.push(chunk)
-  } catch {}
-}
-
-type RunEndChunk = Extract<StreamChunk, {type: EventType.RUN_FINISHED}>
-
-function isRunEnd(chunk: StreamChunk): chunk is RunEndChunk {
-  return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
-}
-
-function runsFinished(chunks: StreamChunk[]): number {
-  return chunks.filter(isRunEnd).length
-}
-
-function peakLiveRuns(chunks: StreamChunk[]): number {
-  const open = new Set<string>()
-  const tally = {peak: 0}
-  for (const chunk of chunks) {
-    if (chunk.type === EventType.RUN_STARTED) open.add(chunk.runId)
-    if (isRunEnd(chunk)) open.delete(chunk.runId)
-    tally.peak = Math.max(tally.peak, open.size)
-  }
-  return tally.peak
 }
 
 describe('one live run per session (IT)', () => {
