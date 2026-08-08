@@ -27,6 +27,10 @@ set -euo pipefail
 # real invocation; the turbo-run detection and the task-list extraction run
 # against the command with quoted spans stripped out, so a command that only
 # CONTAINS the words "turbo run ..." inside quotes does not trip the gate.
+# A quoted COMMAND SUBSTITUTION still executes, though, so before the quote
+# strip the boundary pair `"$(` / `)"` is unwrapped: the quote characters that
+# sit directly against a substitution are dropped so the substitution body
+# survives as plain text and is still detected.
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "turbo-filter-gate: jq not on PATH, skipping check." >&2
@@ -34,7 +38,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 strip_quoted() {
-  sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g"
+  sed -E 's/"\$\(/ \$\(/g; s/\)"/\) /g' | sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g"
 }
 
 INPUT="$(cat)"
@@ -47,7 +51,7 @@ printf '%s\n' "$STRIPPED_CMD" | grep -Eq '(^|[[:space:];|&()])turbo[[:space:]]+r
 
 OFFENDERS=""
 
-INVOCATIONS="$(printf '%s\n' "$CMD" | sed -E 's/&&|\|\||[;|]/\n/g')"
+INVOCATIONS="$(printf '%s\n' "$CMD" | sed -E 's/&&|\|\||[;|&]/\n/g')"
 
 while IFS= read -r INVOCATION; do
   STRIPPED_INVOCATION="$(printf '%s\n' "$INVOCATION" | strip_quoted)"
@@ -60,7 +64,7 @@ while IFS= read -r INVOCATION; do
   TASKS="$(printf '%s\n' "$STRIPPED_INVOCATION" | sed -E 's/.*turbo[[:space:]]+run[[:space:]]+//; s/[[:space:]]+-.*//')"
   printf '%s\n' "$TASKS" | grep -Eqw 'test|typecheck' || continue
 
-  SELECTORS="$(printf '%s\n' "$INVOCATION" | grep -oE -- '--filter[=[:space:]]+[^[:space:]]+' | sed -E "s/--filter[=[:space:]]+//; s/^['\"]//; s/['\"]\$//" || true)"
+  SELECTORS="$(printf '%s\n' "$INVOCATION" | grep -oE -- '--filter[=[:space:]]+[^[:space:]]+' | sed -E "s/--filter[=[:space:]]+//; s/^['\"]//; s/[)'\"]+\$//" || true)"
   [ -n "$SELECTORS" ] || continue
 
   while IFS= read -r selector; do
@@ -73,7 +77,11 @@ done <<<"$INVOCATIONS"
 
 [ -n "$OFFENDERS" ] || exit 0
 
-FIXED="$(printf '%s\n' "$CMD" | sed -E 's/(--filter[=[:space:]]+["'"'"']?[^[:space:]"'"'"']+)\.\.\.(["'"'"']?)/\1\2/g')"
+FIXED="$CMD"
+while IFS= read -r selector; do
+  [ -n "$selector" ] || continue
+  FIXED="${FIXED/$selector/${selector%...}}"
+done <<<"$OFFENDERS"
 
 {
   echo "turbo-filter-gate: BLOCKED: trailing '...' on a test/typecheck filter."
