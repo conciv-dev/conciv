@@ -1,6 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
-import {formatHtml} from '../../page-format.js'
+import {formatHtml} from './page-format.js'
 
 const CODE_OPTIONS: FileOptions<undefined> = {theme: {light: 'github-light', dark: 'github-dark'}, themeType: 'system'}
 
@@ -14,7 +14,7 @@ const ROLE =
   'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-accent-link)] [font-family:var(--chat-mono)]'
 const NAME = 'flex-1 min-w-0 whitespace-nowrap text-ellipsis [color:var(--chat-text)] overflow-hidden'
 const REF = 'text-[length:var(--chat-text-xs)] flex-none [color:var(--chat-text-3)] [font-family:var(--chat-mono)]'
-export const PAGE_VALUE_CHIP =
+const PAGE_VALUE_CHIP =
   'inline-flex items-center gap-1.25 max-w-full min-w-0 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-accent-link)] [background:color-mix(in_oklch,var(--chat-accent)_10%,transparent)] [border:1px_solid_color-mix(in_oklch,var(--chat-accent)_42%,transparent)] rounded-[var(--chat-radius-pill)] py-0.5 px-2.25'
 
 export type A11yNode = {ref?: string; role?: string; name?: string; value?: string; state?: string[]}

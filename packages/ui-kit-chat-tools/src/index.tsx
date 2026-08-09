@@ -27,10 +27,8 @@ export {LoadedToolsCard, loadedToolsTool} from './styled/tools/loaded-tools-card
 export {SearchCard, searchTool} from './styled/tools/search-card.js'
 export {TodoCard, todoTool} from './styled/tools/todo-card.js'
 export {ToolChip} from './styled/tools/tool-chip.js'
-export {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from './styled/tools/page-result-views.js'
 export {DoneCard} from './styled/done-card.js'
 export {UiCard, uiTool} from './styled/ui-chip-card.js'
-export {formatHtml} from './page-format.js'
 export {
   inlineTool,
   ReadInline,
