@@ -29,10 +29,6 @@
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"
     },
-    "./done-types": {
-      "types": "./dist/done-types.d.ts",
-      "import": "./dist/done-types.js"
-    },
     "./editor-types": {
       "types": "./dist/editor-types.d.ts",
       "import": "./dist/editor-types.js"

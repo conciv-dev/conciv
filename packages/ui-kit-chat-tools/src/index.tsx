@@ -26,7 +26,6 @@ export {LoadedToolsCard, loadedToolsTool} from './styled/tools/loaded-tools-card
 export {SearchCard, searchTool} from './styled/tools/search-card.js'
 export {TodoCard, todoTool} from './styled/tools/todo-card.js'
 export {ToolChip} from './styled/tools/tool-chip.js'
-export {DoneCard} from './styled/done-card.js'
 export {
   inlineTool,
   ReadInline,
