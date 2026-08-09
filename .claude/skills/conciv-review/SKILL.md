@@ -7,7 +7,7 @@ description: Use when reviewing code in the conciv monorepo, before merging a PR
 
 ## Overview
 
-A conciv review is a multi-agent process, not a single read-through. Independent expert reviewers fan out in parallel, each wearing exactly one hat; skeptic agents then try to REFUTE every finding; only confirmed findings are reported. Generic review instincts (add comments, add back-compat shims, mock heavy deps) are mostly WRONG here; the expert checklists below are the law.
+A conciv review is a multi-agent process, not a single read-through. Independent expert reviewers fan out in parallel, each wearing exactly one hat; skeptic agents then try to REFUTE every finding; only confirmed findings are reported. Generic review instincts (add comments, add back-compat shims, mock heavy deps) are mostly WRONG here; the review laws in `.github/skills/code-review/SKILL.md` are what govern.
 
 Solo single-pass review is acceptable only for a trivial mechanical diff (a rename, a version bump, under ~20 lines with no logic). Everything else runs the orchestration.
 
@@ -38,16 +38,16 @@ Turbo caches test results; a cached green is a claim about old inputs, not curre
 
 ## Step 1: mixture of experts (parallel fan-out)
 
-Launch ALL applicable experts concurrently (one message, multiple Agent calls). Models are tiered per hat: the architect (whole-system reasoning across package boundaries) runs `fable`, other deep-reasoning hats run `opus`, mechanical checklist hats run `sonnet`; never let a subagent silently inherit the session model. Every expert is read-only: it reads the full changed files (not just hunks) plus whatever context it needs, and returns structured findings only; it fixes nothing. Each expert prompt contains: the changed-file list, its single hat description and checklist from this skill, and the required output shape: `{file, line, severity, claim, evidence, failure_scenario}` per finding, where `severity` is `'blocking' | 'minor'`.
+Launch ALL applicable experts concurrently (one message, multiple Agent calls). Models are tiered per hat: the architect (whole-system reasoning across package boundaries) runs `fable`, other deep-reasoning hats run `opus`, mechanical checklist hats run `sonnet`; never let a subagent silently inherit the session model. Every expert is read-only: it reads the full changed files (not just hunks) plus whatever context it needs, and returns structured findings only; it fixes nothing. Each expert prompt contains: the changed-file list, its single hat description plus the sections it owns from `.github/skills/code-review/SKILL.md`, and the required output shape: `{file, line, severity, claim, evidence, failure_scenario}` per finding, where `severity` is `'blocking' | 'minor'`.
 
-| Hat              | Model  | Mission                                                                                                                                                       |
-| ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| bug-hunter       | opus   | Correctness only: logic errors, edge cases, races, broken invariants. Every finding needs a concrete failure scenario (inputs/state leading to wrong output). |
-| style-enforcer   | sonnet | The "Hard style rules" checklist, nothing else. Every violation is blocking.                                                                                  |
-| test-engineer    | sonnet | The "Test review" checklist plus coverage: does the diff change behavior that no test exercises?                                                              |
-| architect        | fable  | The "Architecture landmines" checklist plus package-boundary and dependency-direction violations.                                                             |
-| security-auditor | opus   | The "Security" checklist: permission-gate conservatism, localhost binding, secrets, zod at HTTP boundaries, injection surfaces.                               |
-| simplifier       | sonnet | Fallow findings (INTRODUCED dead code, unused exports/deps, duplication, complexity, circular deps) plus needless abstraction the diff adds.                  |
+| Hat              | Model  | Mission                                                                                                                                                             |
+| ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| bug-hunter       | opus   | Correctness only: logic errors, edge cases, races, broken invariants. Every finding needs a concrete failure scenario (inputs/state leading to wrong output).       |
+| style-enforcer   | sonnet | The "Code laws" and "SolidJS" sections of the shared skill, nothing else. Every violation is blocking.                                                              |
+| test-engineer    | sonnet | The shared skill's "Testing" section plus coverage: does the diff change behavior that no test exercises?                                                           |
+| architect        | fable  | The shared skill's "Architecture", "Whiteboard landmine", "Widget bundle" and "TanStack Router" sections plus package-boundary and dependency-direction violations. |
+| security-auditor | opus   | The shared skill's "Boundaries and security" section: gate conservatism, localhost binding, secrets, zod on untrusted input, injection surfaces.                    |
+| simplifier       | sonnet | Fallow findings (INTRODUCED dead code, unused exports/deps, duplication, complexity, circular deps) plus needless abstraction the diff adds.                        |
 
 Skip a hat only when it plainly cannot apply (e.g. no security surface touched). When the harness exposes specialized agent types (`code-reviewer`, `security-auditor`, `test-engineer`), map hats onto them; otherwise use general-purpose agents with the hat prompt.
 
@@ -95,48 +95,16 @@ Dedupe confirmed findings by file+line, rank blocking first, and report each wit
 
 ---
 
-## Expert checklists (the law)
+## Expert checklists
 
-### Hard style rules (each violation blocks)
-
-- Zero comments in TS/JS. Only tool directives (`@ts-`, `eslint-`) survive; the `conciv/no-comments` lint rule autofix-deletes everything else. Flag any comment, including "helpful" ones.
-- Functions, not classes. Sole exception: `BaseTextAdapter` in `packages/harness/src/_shared/text-adapter.ts`.
-- No IIFEs.
-- No `any`, no `as` casts, no `@ts-ignore`, no non-null assertions (`!`). Prefer generics; a type-only dependency import should become a generic parameter instead.
-- No `else`. Early-return, guards, ternary, map/reduce.
-- Functional style: `map`/`reduce`/`flatMap` over `forEach` + mutation or push ladders.
-- Descriptive names, no abbreviations, no barrel files, no "hub"/"manager"/"util" grab-bag naming.
-- No em dashes anywhere, including strings and test names.
-- zod validation (`readValidatedBody`) on every new HTTP route.
-- v0, no external users: reject back-compat shims and deprecation layers; APIs are reshaped in place with all call sites updated.
-
-### Test review
-
-- Widget UI tests run in a REAL browser (Playwright/Chromium). jsdom or happy-dom in a widget test is blocking.
-- Widget integration tests load the prebuilt bundle; `pnpm turbo run build --filter=@conciv/embed` must run first or they exercise stale code.
-- Widget ITs use `browser.newPage()`, never `newContext()` (contexts leak, spike CPU/memory).
-- No tests under `apps/examples/*`. Behavior is verified in the owning package, `@conciv/extension-testkit`, or an `e2e/` consumer app.
-- Every Solid package `vitest.config.ts` pins `test: {environment: 'node'}`, otherwise `vite-plugin-solid` injects jsdom and the run exits 1 even with all tests passing.
-- Never wait for Playwright `networkidle` with the live widget mounted; its SSE stream keeps the network busy forever. Wait for `domcontentloaded` or a UI signal.
-- Assertions use native locators (`getByRole`, `getByText`). No test-ids in product code, no CSS implementation details in assertions, tight timeouts.
-- No stubs/mocks of internal plumbing; testkits share the real plumbing. No test-only code or debug flags in product source.
-
-### Architecture landmines
-
-- Whiteboard (TanStack DB over libSQL): any db write inside a collection subscription, effect, or render body is a re-render storm. Writes belong in event handlers only.
-- The widget bundle must externalize every `@conciv/extension/*` subpath and shared Ark/Solid deps; a second bundled copy splits context and extension popovers render at 0,0. The mount-externals build test guards this; reject anything that weakens it.
-- Harnesses: adapters are capability-typed (`packages/protocol/src/harness-types.ts`). No spawning or decoding a CLI directly, no per-CLI special cases in core/widget. Harness workdirs are sandbox-virtual; a host-absolute cwd in an adapter config is a bug.
-- Solid: props access via `splitProps` only (destructuring kills reactivity), no sends during render, no `useContext()` inline as a prop value.
-
-### Security
-
-- The core dev server binds `127.0.0.1` only; no credentials/tokens in code or logs.
-- Changes to `packages/core/src/api/chat/permission.ts` or `packages/core/src/policy/command-policy.ts` must stay conservative (read-only auto-allow, everything else asks).
-
-### Fallow
-
-- INTRODUCED findings block merge; CI runs the same audit.
-- Before flagging an export as dead, verify with `pnpm exec fallow dead-code --trace 'file.ts:Symbol'`. Packages in `.fallowrc.json` `publicPackages` are public API and never "unused". "USED but file unreachable" means a missing entry point, not dead code.
+The review laws are NOT restated here. They live in one shared source:
+`.github/skills/code-review/SKILL.md`, which the GitHub Copilot reviewer reads too. Read that file
+before Step 1 and paste the sections a hat owns straight into that hat's prompt: "Code laws" and
+"SolidJS" for the style-enforcer, "Testing" for the test-engineer, "Architecture", "Whiteboard
+landmine", "Widget bundle" and "TanStack Router" for the architect, "Boundaries and security" for
+the security-auditor, "Fallow" for the simplifier, "Tone" and "Process" for every hat. A second copy
+of a rule drifts from the first, so a reviewer law that is missing gets ADDED to the shared file,
+never added here.
 
 ## Common reviewer mistakes
 

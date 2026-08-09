@@ -11,15 +11,19 @@ rules below — they are the ones humans keep having to re-flag. Everything alre
 
 ## Code laws
 
-- Functions, not classes. Sole exception: `BaseTextAdapter` in
-  `packages/harness/src/_shared/text-adapter.ts`, which the library's typing forces.
-- No IIFEs.
+- Functions, not classes. Sole exception: the local `DelegatingTextAdapter` subclass behind
+  `makeTextAdapter` in `packages/harness/src/_shared/text-adapter.ts`, which the library's typing
+  forces (`BaseTextAdapter` is the imported base class it extends).
+- No IIFEs unless explicitly required.
 - ZERO code comments in TS/JS. The `conciv/no-comments` lint rule autofix-deletes them, so code must
   be self-explanatory; only tool directives (`@ts-`, `eslint-`) survive. Never ask for a comment,
   docstring, or JSDoc, and never flag a change for lacking one.
-- TypeScript is strict. Flag `any`, `as` casts, `@ts-ignore`, and non-null assertions (`!`).
-- Barrel files (an `index.ts` that only re-exports), abbreviated identifier names, and `else`
-  branches where an early return works.
+- TypeScript is strict. Flag `any`, `as` casts, `@ts-ignore`, and non-null assertions (`!`). Prefer
+  generics; a type-only dependency import should become a generic parameter instead.
+- Barrel files (an `index.ts` that only re-exports), abbreviated identifier names, `hub`/`manager`/
+  `util` grab-bag naming, and `else` branches where an early return works.
+- Functional style: `map`/`reduce`/`flatMap` over `forEach` plus mutation or push ladders.
+- No em dashes anywhere in code, string literals and test names included.
 - Hand-rolled runtime state (a new `Map`/`Set` cache) that shadows state a library already tracks —
   ask whether the library API covers it instead.
 - Hand-rolled primitives (retry loops, debounce, event listeners) where a utility already exists
@@ -33,6 +37,7 @@ rules below — they are the ones humans keep having to re-flag. Everything alre
 - Writes to stores or collections inside a subscription, effect, or render body cause re-render
   storms; writes belong in event handlers.
 - `useContext()` called inline as a JSX prop value.
+- Sends or other side effects fired during render rather than from an event handler or an effect.
 
 ## Testing
 
@@ -41,20 +46,30 @@ rules below — they are the ones humans keep having to re-flag. Everything alre
 - Web-first assertions only (`await expect(locator)...`). Flag `expect.poll` and hand-written
   polling loops.
 - Widget integration tests use `browser.newPage()`, never `browser.newContext()` — contexts leak and
-  spike CPU/memory.
+  spike CPU/memory. Elsewhere, whatever a test creates it must close in teardown: every `newPage()`
+  gets a `page.close()`, and any `BrowserContext` a non-widget suite legitimately opens gets a
+  `context.close()`.
+- Widget integration tests exercise the PREBUILT bundle
+  (`packages/embed/dist/conciv-widget.global.js`); `pnpm turbo run build --filter=@conciv/embed` has
+  to run first or the suite tests stale code.
 - Never wait for Playwright `networkidle` on a page with the live widget: its SSE stream keeps the
   network busy forever. `domcontentloaded` or a UI signal instead.
 - No tests under `apps/examples/*` — example apps are demos. Behavior is verified by the owning
   package's tests, `@conciv/extension-testkit`, or an `e2e/` consumer app.
 - Every Solid package's `vitest.config.ts` must pin `test: {environment: 'node'}`, or
   `vite-plugin-solid` injects jsdom and the run exits 1 with all tests passing.
-- Assertions use native locators (`getByRole`, `getByText`). Flag test-ids and CSS
-  implementation-detail selectors.
+- Assertions use native locators (`getByRole`, `getByText`). Flag test-ids, CSS
+  implementation-detail selectors, and slack timeouts; waits stay tight.
 - Stubs or mocks of internal modules, and test code or debug flags left in product source.
 
 ## Boundaries and security
 
-- zod validates every HTTP boundary (`readValidatedBody`). Flag a new route without it.
+- Every untrusted input is zod-validated where it enters, not just request bodies. RPC procedures
+  declare their input schema with `oc.input(...)` in `packages/contract/src/contract.ts`; a plain
+  Hono route parses each untrusted piece it reads — body, route params, query, headers — through a
+  zod schema (e.g. `NativeFileSchema.safeParse(c.req.param('file'))` in
+  `packages/core/src/api/native-page.ts`). Flag a new route or procedure that consumes any of them
+  unvalidated.
 - The core dev server binds `127.0.0.1` only.
 - Never log or commit credentials/tokens.
 - Loosening the command gate policy in `packages/core/src/chat/gate.ts` — keep it conservative.
@@ -89,6 +104,14 @@ rules below — they are the ones humans keep having to re-flag. Everything alre
 - Host-absolute paths passed as a harness cwd; workdirs are sandbox-virtual and default to
   `/workspace`.
 - Capability flags that add a second half-way code path where one correct path should exist.
+
+## Fallow
+
+- `pnpm exec fallow audit --changed-since main --format json` findings marked INTRODUCED block the
+  merge; CI runs the same audit.
+- Before calling an export dead, trace it: `pnpm exec fallow dead-code --trace 'file.ts:Symbol'`.
+  Packages listed under `publicPackages` in `.fallowrc.json` are public API and never "unused", and
+  "USED but file unreachable" means a missing entry point, not dead code.
 
 ## Process
 
