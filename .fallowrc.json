@@ -20,6 +20,7 @@
     "e2e/vite-solid/**",
     "e2e/vite-vanilla/**",
     "**/vitest.config.ts",
+    "**/vite.config.ts",
     "**/*.stories.tsx",
     "**/*.test-d.ts",
     "**/*.fixtures.ts",
