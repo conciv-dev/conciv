@@ -144,6 +144,16 @@ true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` requir
   `Users/...` tree inside the workspace and runs the CLI there.
 - Test runners follow the same registry/stub pattern.
 
+## Solid & Ark landmines
+
+- zag gates a listbox item's `data-highlighted`/`focused`/`focusVisible` on the listbox itself
+  holding DOM focus (`@zag-js/listbox` `listbox.connect.mjs:47`), and marks `highlighted` deprecated
+  in its own source. Under virtual focus (the editor keeps focus, listbox content is not a tab stop)
+  they never fire, so highlight styling keys off `highlightedValue` through our own `data-active`
+  (`ui-kit-system/src/anchored-listbox.tsx`). That is compensation, not duplicated state: don't
+  "consolidate" it onto `data-highlighted`. `highlightedValue` is _not_ focus-gated, which is exactly
+  why `aria-activedescendant` works.
+
 ## Extension landmines
 
 - Whiteboard (TanStack DB over libSQL): never write to the db inside a collection subscription,
