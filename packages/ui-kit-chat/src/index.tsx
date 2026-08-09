@@ -19,7 +19,7 @@ export {
   type ReplySegment,
   type ResultPairing,
 } from './store/grouping.js'
-export {INERT_ADD_RESULT, INERT_TOOL_CTX, ToolProvider, useToolCtx} from './store/tool-context.js'
+export {ToolProvider, useToolCtx} from './store/tool-context.js'
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
 export {Activity, type ActivityProps} from './styled/activity.js'
 export {chatBusy} from './store/chat-busy.js'
@@ -141,58 +141,12 @@ export {Composer, type ComposerProps} from './styled/composer.js'
 export {Markdown, type MarkdownProps} from './styled/markdown.js'
 export {Reasoning, type ReasoningProps} from './styled/reasoning.js'
 export {ChainOfThought, type ChainOfThoughtProps} from './styled/chain-of-thought.js'
-export {ToolFallback} from './styled/tool-fallback.js'
-export {CollapsibleCard, type CollapsibleCardProps} from './styled/collapsible-card.js'
 export {AssistantActionBar, UserActionBar} from './styled/action-bar.js'
 export {BranchPicker} from './styled/branch-picker.js'
 export {FollowUpSuggestions} from './styled/follow-up-suggestions.js'
-export {ToolGroup, type ToolGroupProps} from './styled/tool-group.js'
 export {AttachmentUI} from './styled/attachment-ui.js'
 export {AttachmentByMime, createDocumentAttachmentAdapter} from './styled/attachment-dispatch.js'
 export type {AttachmentCardSlot} from './styled/attachment-dispatch.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
-
-export {toolStatus, type ToolStatus} from './primitives/tools/tool-status.js'
-export {ToolDurationProvider, useToolCallDuration} from './primitives/tools/tool-duration.js'
-export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './primitives/tools/tool-fallback.js'
-export {Permission, usePermission} from './primitives/tools/permission.js'
-export {PermissionCard} from './styled/tools/permission-card.js'
-export {defineToolkit} from './primitives/tools/define-toolkit.js'
-export {
-  parseInput,
-  resultText,
-  parseResultPayload,
-  stripReadLineNumbers,
-  formatDuration,
-} from './primitives/tools/tool-util.js'
-export {ToolCard} from './styled/tool-card.js'
-export {InlineRow, InlineShell} from './styled/tools/inline-row.js'
-export {GENERIC_TOOL_ICON, toolIconRender} from './styled/tool-icon.js'
-export {schemaFields, schemaParams, type SchemaField} from './primitives/tools/schema-params.js'
-export {
-  DANGER_TEXT_CLASS,
-  CODE_BLOCK_CLASS,
-  CODE_BLOCK_OPTIONS,
-  MUTATING_BADGE,
-  displayValue,
-  clip,
-  cardPhase,
-  cardTitle,
-  type CardPhase,
-} from './primitives/tools/tool-presentation.js'
-export {MetaToolCard} from './styled/tools/meta-tool-card.js'
-export {ToolCallCard, type ToolCallCardProps} from './styled/tools/tool-call-card.js'
 export {NowLine} from './styled/now-line.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'
-export {ElementPreview} from './styled/element-preview.js'
-export {Chip, ChipRow, CHIP, CHIP_KEY, CHIP_VALUE, CHIP_ROW} from './styled/chip.js'
-export {JsonTree} from './styled/json-tree.js'
-export {MirrorRow, NoteRow, type NoteRowTone} from './styled/tools/note-row.js'
-export {
-  ELEMENT_CAPTURE_FIXTURE_CSS,
-  ELEMENT_CAPTURE_FIXTURE_FULL,
-  ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
-  ELEMENT_CAPTURE_FIXTURE_EDIT_AFTER,
-  ELEMENT_CAPTURE_FIXTURE_MASKED,
-  ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY,
-} from './store/element-capture.fixtures.js'

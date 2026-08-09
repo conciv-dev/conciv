@@ -1,6 +1,6 @@
 import {Match, Switch, type JSX} from 'solid-js'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {DANGER_TEXT_CLASS} from '@conciv/ui-kit-chat'
+import {DANGER_TEXT_CLASS} from '@conciv/ui-kit-chat/tools'
 import {
   CardShell,
   ChipRow,

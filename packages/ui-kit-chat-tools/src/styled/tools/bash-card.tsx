@@ -3,8 +3,7 @@ import {Terminal} from 'lucide-solid'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Bash, useBash} from '../../primitives/tools/bash.js'
-import {CollapsibleCard} from '@conciv/ui-kit-chat'
-
+import {CollapsibleCard} from '@conciv/ui-kit-chat/tools'
 const OUT_OPTIONS: FileOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},
   themeType: 'system',

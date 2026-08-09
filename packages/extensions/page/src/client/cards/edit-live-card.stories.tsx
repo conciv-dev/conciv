@@ -5,7 +5,7 @@ import {
   ELEMENT_CAPTURE_FIXTURE_CSS,
   ELEMENT_CAPTURE_FIXTURE_EDIT_AFTER,
   ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
-} from '@conciv/ui-kit-chat'
+} from '@conciv/ui-kit-chat/tools'
 import {EditLiveCard} from './edit-live-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 

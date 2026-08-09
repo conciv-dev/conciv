@@ -1,5 +1,5 @@
 import {createSignal, type JSX} from 'solid-js'
-import {CollapsibleCard} from './collapsible-card.js'
+import {CollapsibleCard} from '../tools/styled/collapsible-card.js'
 import {SHIMMER} from './shimmer.js'
 
 export type ReasoningProps = {text: string; streaming?: boolean; defaultOpen?: boolean}

@@ -22,8 +22,7 @@ import {
   parseInput,
   parseResultPayload,
   ToolCard,
-} from '@conciv/ui-kit-chat'
-
+} from '@conciv/ui-kit-chat/tools'
 const LABEL: Record<UiInput['kind'], string> = {
   choices: 'choices',
   confirm: 'a confirmation',

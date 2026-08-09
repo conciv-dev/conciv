@@ -7,7 +7,7 @@ import {
   ELEMENT_CAPTURE_FIXTURE_CSS,
   ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY,
   ELEMENT_CAPTURE_FIXTURE_FULL,
-} from '../../store/element-capture.fixtures.js'
+} from '../element-capture.fixtures.js'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../../store/tool-context.js'
 import {MetaToolCard} from './meta-tool-card.js'
 

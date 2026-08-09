@@ -9,7 +9,7 @@ import {useThreadViewport, ViewportProvider} from '../primitives/thread/viewport
 import {Message} from '../primitives/message/message.js'
 import {useThreadAutoScroll} from './use-thread-auto-scroll.js'
 import {ChainOfThought} from '../styled/chain-of-thought.js'
-import {CollapsibleCard} from '../styled/collapsible-card.js'
+import {CollapsibleCard} from '../tools/styled/collapsible-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat/behaviors/Scroll'}
 export default meta

@@ -1,8 +1,7 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload, resultText, ToolCard, toolStatus} from '@conciv/ui-kit-chat'
-
+import {parseResultPayload, resultText, ToolCard, toolStatus} from '@conciv/ui-kit-chat/tools'
 const PageVerbErrorSchema = z.object({message: z.string()}).loose()
 
 function readError(part: ToolCardProps['part'], result: ToolCardProps['result']): string | null {

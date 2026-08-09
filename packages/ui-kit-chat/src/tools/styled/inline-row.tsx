@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {Check, CircleAlert, CircleX, LoaderCircle} from 'lucide-solid'
-import type {ToolStatus} from '../../primitives/tools/tool-status.js'
+import type {ToolStatus} from '../primitives/tool-status.js'
 
 function StatusIcon(props: {status: ToolStatus}): JSX.Element {
   return (

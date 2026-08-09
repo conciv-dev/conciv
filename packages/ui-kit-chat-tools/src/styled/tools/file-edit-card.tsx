@@ -3,8 +3,7 @@ import {FilePen} from 'lucide-solid'
 import {SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {FileEdit, useFileEdit} from '../../primitives/tools/file-edit.js'
-import {ToolCard} from '@conciv/ui-kit-chat'
-
+import {ToolCard} from '@conciv/ui-kit-chat/tools'
 const DIFF_OPTIONS: FileDiffOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},
   themeType: 'system',

@@ -2,8 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Clapperboard} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseInput, resultText, ToolCard} from '@conciv/ui-kit-chat'
-
+import {parseInput, resultText, ToolCard} from '@conciv/ui-kit-chat/tools'
 const ImagePartSchema = z.object({type: z.literal('image')}).loose()
 const TextPartSchema = z.object({type: z.literal('text'), content: z.string()}).loose()
 const StartDetailSchema = z.object({captureId: z.string()}).loose()
@@ -78,7 +77,7 @@ export function RecordingToolCard(props: ToolCardProps): JSX.Element {
     >
       <Show when={recording().error}>
         {(error) => (
-          <div class="rounded-[var(--chat-radius-sm)] p-2 text-[length:var(--chat-text-xs)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
+          <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
             {error()}
           </div>
         )}
@@ -87,9 +86,9 @@ export function RecordingToolCard(props: ToolCardProps): JSX.Element {
         <div class="flex flex-col gap-0.5">
           <For each={recording().actions}>
             {(action) => (
-              <div class="flex items-baseline gap-2 text-[length:var(--chat-text-xs)] [font-family:var(--chat-mono)]">
-                <span class="shrink-0 tabular-nums [color:var(--chat-text-3)]">{action.at}</span>
-                <span class="shrink-0 rounded-[var(--chat-radius-pill)] px-1.5 [background:var(--chat-sunken)] [color:var(--chat-text-2)]">
+              <div class="text-[length:var(--chat-text-xs)] flex gap-2 [font-family:var(--chat-mono)] items-baseline">
+                <span class="shrink-0 [color:var(--chat-text-3)] tabular-nums">{action.at}</span>
+                <span class="px-1.5 rounded-[var(--chat-radius-pill)] shrink-0 [background:var(--chat-sunken)] [color:var(--chat-text-2)]">
                   {action.kind}
                 </span>
                 <span class="min-w-0 truncate [color:var(--chat-text-2)]">{action.detail}</span>

@@ -17,7 +17,7 @@ import {
   toolStatus,
   ToolCard,
   type CardPhase,
-} from '@conciv/ui-kit-chat'
+} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
 

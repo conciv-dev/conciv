@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import {Wrench} from 'lucide-solid'
-import {ToolCard, ToolFallback, ToolFallbackPrimitive} from '@conciv/ui-kit-chat'
+import {ToolCard, ToolFallback, ToolFallbackPrimitive} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 
 function ToolIcon(): JSX.Element {

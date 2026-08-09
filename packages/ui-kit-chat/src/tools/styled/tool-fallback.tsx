@@ -4,11 +4,11 @@ import {Check, ChevronDown, CircleAlert, CircleX, LoaderCircle, type LucideIcon}
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import {Collapsible} from '@conciv/ui-kit-system'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primitives/tools/tool-fallback.js'
-import {Permission, usePermission} from '../primitives/tools/permission.js'
-import type {ToolStatus} from '../primitives/tools/tool-status.js'
-import {SHIMMER} from './shimmer.js'
-import {FOCUS} from './classes.js'
+import {ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primitives/tool-fallback.js'
+import {Permission, usePermission} from '../primitives/permission.js'
+import type {ToolStatus} from '../primitives/tool-status.js'
+import {SHIMMER} from '../../styled/shimmer.js'
+import {FOCUS} from '../../styled/classes.js'
 
 const STATUS_ICON: Record<ToolStatus, LucideIcon> = {
   running: LoaderCircle,

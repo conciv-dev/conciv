@@ -3,8 +3,7 @@ import {Dynamic} from 'solid-js/web'
 import {Circle, CircleCheckBig, CircleDashed, ListTodo, type LucideIcon} from 'lucide-solid'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Todo, useTodo, type TodoItemStatus} from '../../primitives/tools/todo.js'
-import {CollapsibleCard} from '@conciv/ui-kit-chat'
-
+import {CollapsibleCard} from '@conciv/ui-kit-chat/tools'
 const STATUS_ICON: Record<TodoItemStatus, LucideIcon> = {
   pending: CircleDashed,
   in_progress: Circle,

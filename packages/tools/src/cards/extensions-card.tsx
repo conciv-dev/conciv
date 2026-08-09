@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {clip, InlineRow, parseInput, toolStatus} from '@conciv/ui-kit-chat'
+import {clip, InlineRow, parseInput, toolStatus} from '@conciv/ui-kit-chat/tools'
 import {ExtensionsInput} from '../extensions-tool.js'
 
 const TITLE_BY_VERB: Record<'catalog' | 'scaffold' | 'validate', string> = {

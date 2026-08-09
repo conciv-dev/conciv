@@ -9,7 +9,7 @@ import type {
   ToolViewCtx,
   ToolViewMeta,
 } from '@conciv/protocol/tool-view-types'
-import {ToolCallCard} from '../src/styled/tools/tool-call-card.js'
+import {ToolCallCard} from '../src/tools/styled/tool-call-card.js'
 import {cleanupViews, mountView} from './mount-view.js'
 
 afterEach(() => {

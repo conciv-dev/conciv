@@ -9,7 +9,7 @@ import {
   ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
   ELEMENT_CAPTURE_FIXTURE_FULL,
   ELEMENT_CAPTURE_FIXTURE_MASKED,
-} from '../store/element-capture.fixtures.js'
+} from '../element-capture.fixtures.js'
 import {ElementPreview} from './element-preview.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/ElementPreview'}

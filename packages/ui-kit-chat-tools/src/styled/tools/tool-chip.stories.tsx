@@ -2,8 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {ToolChip} from './tool-chip.js'
-import {schemaParams} from '@conciv/ui-kit-chat'
-
+import {schemaParams} from '@conciv/ui-kit-chat/tools'
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/ToolChip'}
 export default meta
 type Story = StoryObj

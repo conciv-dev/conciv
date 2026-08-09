@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import {z} from 'zod'
 import {ArrowLeft} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat'
+import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {ActionCard} from './card-shared.js'
 
 const OkResultSchema = z.object({ok: z.literal(true)}).loose()

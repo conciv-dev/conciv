@@ -2,7 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {TriangleAlert} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat'
+import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardErrorBlock, CardNote, InspectionCard} from './card-shared.js'
 
 type BuildError = {message: string; where: string | null}

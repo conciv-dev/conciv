@@ -1,8 +1,8 @@
 import {Show, splitProps, type JSX} from 'solid-js'
 import {ChevronDown, Loader} from 'lucide-solid'
 import {Collapsible} from '@conciv/ui-kit-system'
-import {SPIN, FOCUS_INSET} from './classes.js'
-import {SHIMMER} from './shimmer.js'
+import {SPIN, FOCUS_INSET} from '../../styled/classes.js'
+import {SHIMMER} from '../../styled/shimmer.js'
 
 export type ToolGroupProps = {
   count: number

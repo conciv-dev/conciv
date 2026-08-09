@@ -2,8 +2,7 @@ import {Show, type JSX} from 'solid-js'
 import {Wrench} from 'lucide-solid'
 import {z} from 'zod'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {ToolCard, parseInput} from '@conciv/ui-kit-chat'
-
+import {ToolCard, parseInput} from '@conciv/ui-kit-chat/tools'
 const LookupInput = z.object({query: z.string().optional()})
 
 function Icon(): JSX.Element {

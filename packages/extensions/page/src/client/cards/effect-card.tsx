@@ -2,7 +2,7 @@ import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {DANGER_TEXT_CLASS, JsonTree, MirrorRow} from '@conciv/ui-kit-chat'
+import {DANGER_TEXT_CLASS, JsonTree, MirrorRow} from '@conciv/ui-kit-chat/tools'
 import {CardShell, QUIET_TEXT_CLASS, cardErrorMessage, cardHeader, cardPayload, mutatingBadge} from './shared.js'
 
 const SingleEffect = z.looseObject({effect: z.string(), enabled: z.boolean()})

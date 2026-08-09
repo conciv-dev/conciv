@@ -3,8 +3,7 @@ import {FileText} from 'lucide-solid'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {FileRead, useFileRead} from '../../primitives/tools/file-read.js'
-import {CollapsibleCard} from '@conciv/ui-kit-chat'
-
+import {CollapsibleCard} from '@conciv/ui-kit-chat/tools'
 const CODE_OPTIONS: FileOptions<undefined> = {theme: {light: 'github-light', dark: 'github-dark'}, themeType: 'system'}
 const CODE_CLASS =
   'text-[length:var(--chat-text-sm)] rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] max-h-80 max-w-full block overflow-auto'

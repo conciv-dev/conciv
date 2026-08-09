@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {resultText} from '@conciv/ui-kit-chat'
+import {resultText} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 
 const ImagePartSchema = z

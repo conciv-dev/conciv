@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import {LoadedToolsCard} from './loaded-tools-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/LoadedToolsCard'}

@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
-import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import {UiCard} from './ui-card.js'
 
 const meta: Meta = {title: 'tools/cards/UiCard'}

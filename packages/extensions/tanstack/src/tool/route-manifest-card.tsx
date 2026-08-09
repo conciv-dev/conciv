@@ -2,7 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Waypoints} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat'
+import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {ToolChip} from '@conciv/ui-kit-chat-tools'
 import {CardRow, CardRows, InspectionCard} from './card-shared.js'
 

@@ -2,17 +2,17 @@ import {Show, type JSX} from 'solid-js'
 import {Code} from 'lucide-solid'
 import {SolidCodeBlock} from '@conciv/solid-diffs'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {Markdown} from '@conciv/ui-kit-chat'
 import {
   clip,
   CODE_BLOCK_CLASS,
   CODE_BLOCK_OPTIONS,
-  Markdown,
   parseInput,
   parseResultPayload,
   ToolCard,
   toolStatus,
   type ToolStatus,
-} from '@conciv/ui-kit-chat'
+} from '@conciv/ui-kit-chat/tools'
 import {ExecuteInputSchema, ExecuteResultSchema, type ExecuteError, type ExecuteResult} from '../api/execute-schemas.js'
 
 function parseOutput(result: ToolCardProps['result']): ExecuteResult | null {

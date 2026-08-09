@@ -1,7 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {Database} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat'
+import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 type Entry = {key: string; preview: string}

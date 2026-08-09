@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../store/tool-context.js'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../../store/tool-context.js'
 import {ToolFallback} from './tool-fallback.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/ToolFallback'}

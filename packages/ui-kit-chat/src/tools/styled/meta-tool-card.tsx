@@ -6,9 +6,9 @@ import {SolidCodeBlock} from '@conciv/solid-diffs'
 import type {ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardProps, ToolViewError, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
-import {parseInput, parseResultPayload, resultText} from '../../primitives/tools/tool-util.js'
-import {schemaFields} from '../../primitives/tools/schema-params.js'
-import {toolStatus} from '../../primitives/tools/tool-status.js'
+import {parseInput, parseResultPayload, resultText} from '../primitives/tool-util.js'
+import {schemaFields} from '../primitives/schema-params.js'
+import {toolStatus} from '../primitives/tool-status.js'
 import {
   CODE_BLOCK_CLASS,
   CODE_BLOCK_OPTIONS,
@@ -19,12 +19,12 @@ import {
   clip,
   displayValue,
   type CardPhase,
-} from '../../primitives/tools/tool-presentation.js'
-import {toolIconRender} from '../tool-icon.js'
-import {ToolCard} from '../tool-card.js'
-import {Chip, CHIP, ChipRow} from '../chip.js'
-import {JsonTree} from '../json-tree.js'
-import {ElementPreview} from '../element-preview.js'
+} from '../primitives/tool-presentation.js'
+import {toolIconRender} from './tool-icon.js'
+import {ToolCard} from './tool-card.js'
+import {Chip, CHIP, ChipRow} from './chip.js'
+import {JsonTree} from './json-tree.js'
+import {ElementPreview} from './element-preview.js'
 import {MirrorRow, NoteRow} from './note-row.js'
 
 const SUMMARY = 'text-[color:var(--chat-text-2)] text-[length:var(--chat-text-sm)] m-0'

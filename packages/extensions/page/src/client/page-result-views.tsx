@@ -1,6 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
-import {CHIP} from '@conciv/ui-kit-chat'
+import {CHIP} from '@conciv/ui-kit-chat/tools'
 import {LIST_ROW_CLASS} from './cards/shared.js'
 import {formatHtml} from './page-format.js'
 

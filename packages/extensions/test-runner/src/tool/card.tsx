@@ -1,7 +1,7 @@
 import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
 import {Button, Collapsible} from '@conciv/ui-kit-system'
 import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
-import {ToolCard, resultText} from '@conciv/ui-kit-chat'
+import {ToolCard, resultText} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {getHostApi, makeExtRpcClient} from '@conciv/extension'
 import type {TestRunnerRouter} from '../server.js'

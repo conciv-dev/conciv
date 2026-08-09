@@ -1,7 +1,7 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CODE_BLOCK_CLASS, DANGER_TEXT_CLASS, JsonTree} from '@conciv/ui-kit-chat'
+import {CODE_BLOCK_CLASS, DANGER_TEXT_CLASS, JsonTree} from '@conciv/ui-kit-chat/tools'
 import {PageValueChip} from '../page-result-views.js'
 import {CardShell, LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardHeader, cardPayload} from './shared.js'
 

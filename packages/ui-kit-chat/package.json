@@ -29,6 +29,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools.js"
+    },
     "./theme/tokens.css": "./src/theme/tokens.css",
     "./theme/conciv.css": "./src/theme/conciv.css"
   },

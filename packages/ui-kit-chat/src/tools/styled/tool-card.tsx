@@ -1,9 +1,9 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {toolStatus, type ToolStatus} from '../primitives/tools/tool-status.js'
-import {formatDuration} from '../primitives/tools/tool-util.js'
-import {useToolCallDuration} from '../primitives/tools/tool-duration.js'
+import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
+import {formatDuration} from '../primitives/tool-util.js'
+import {useToolCallDuration} from '../primitives/tool-duration.js'
 import {CollapsibleCard} from './collapsible-card.js'
 
 const DOT: Record<ToolStatus, string> = {

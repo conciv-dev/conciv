@@ -1,7 +1,7 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {DANGER_TEXT_CLASS, JsonTree} from '@conciv/ui-kit-chat'
+import {DANGER_TEXT_CLASS, JsonTree} from '@conciv/ui-kit-chat/tools'
 import {
   CardShell,
   ChipRow,

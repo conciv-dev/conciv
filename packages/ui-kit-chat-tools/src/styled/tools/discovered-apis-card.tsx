@@ -2,7 +2,8 @@ import {For, Show, type JSX} from 'solid-js'
 import {Search} from 'lucide-solid'
 import {z} from 'zod'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {Markdown, parseResultPayload, ToolCard} from '@conciv/ui-kit-chat'
+import {Markdown} from '@conciv/ui-kit-chat'
+import {parseResultPayload, ToolCard} from '@conciv/ui-kit-chat/tools'
 import {ToolChip} from './tool-chip.js'
 
 const DiscoveredTool = z.object({name: z.string(), description: z.string(), typeStub: z.string()})

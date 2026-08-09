@@ -1,9 +1,8 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {parseInput} from '@conciv/ui-kit-chat'
-import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
-
+import {parseInput} from '@conciv/ui-kit-chat/tools'
+import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
 export type TodoItemStatus = 'pending' | 'in_progress' | 'completed'
 export type TodoItem = {content: string; status: TodoItemStatus; activeForm?: string}
 

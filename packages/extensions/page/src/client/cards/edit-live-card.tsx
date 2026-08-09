@@ -9,7 +9,7 @@ import {
   DANGER_TEXT_CLASS,
   ElementPreview,
   MUTATING_BADGE,
-} from '@conciv/ui-kit-chat'
+} from '@conciv/ui-kit-chat/tools'
 import {pageVerbOfTool} from '../../shared/defs.js'
 import {CardShell, cardErrorMessage, cardHeader, toolInput} from './shared.js'
 

@@ -1,7 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import {Check, ShieldAlert, X} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {Permission, usePermission} from '../../primitives/tools/permission.js'
+import {Permission, usePermission} from '../primitives/permission.js'
 
 const BTN =
   'flex-none inline-flex items-center gap-1 py-1 px-2.5 rounded-[var(--chat-radius-sm)] [border:1px_solid] font-semibold text-[length:var(--chat-text-sm)] leading-none cursor-pointer'

@@ -3,8 +3,7 @@ import {Search as SearchIcon} from 'lucide-solid'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Search, useSearch} from '../../primitives/tools/search.js'
-import {ToolCard} from '@conciv/ui-kit-chat'
-
+import {ToolCard} from '@conciv/ui-kit-chat/tools'
 const OUT_OPTIONS: FileOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},
   themeType: 'system',

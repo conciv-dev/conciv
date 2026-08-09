@@ -3,7 +3,7 @@ import {afterEach, expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {MetaToolCard} from '../src/styled/tools/meta-tool-card.js'
+import {MetaToolCard} from '../src/tools/styled/meta-tool-card.js'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../src/store/tool-context.js'
 import {cleanupViews, mountView} from './mount-view.js'
 
