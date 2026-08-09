@@ -3,7 +3,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ELEMENT_CAPTURE_FIXTURE_CSS, ELEMENT_CAPTURE_FIXTURE_FULL} from '@conciv/ui-kit-chat'
 import {ActCard} from './act-card.js'
-import {STORY_FRAME_CLASS, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'extension-page/client/cards/ActCard'}
 export default meta
@@ -31,6 +31,7 @@ export const FilledField: Story = {
         part={storyPart('page.fill', {selector: '#email', value: 'ada@example.com'})}
         result={storyResult({ok: true, value: 'ada@example.com'})}
         ctx={storyCtx({'page.fill': fillMeta})}
+        addResult={storyAddResult}
         capture={{after: ELEMENT_CAPTURE_FIXTURE_FULL, css: ELEMENT_CAPTURE_FIXTURE_CSS}}
       />
     </div>

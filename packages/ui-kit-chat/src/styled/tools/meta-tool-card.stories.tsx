@@ -8,7 +8,7 @@ import {
   ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY,
   ELEMENT_CAPTURE_FIXTURE_FULL,
 } from '../../store/element-capture.fixtures.js'
-import {INERT_TOOL_CTX} from '../../store/tool-context.js'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../../store/tool-context.js'
 import {MetaToolCard} from './meta-tool-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/MetaToolCard'}
@@ -103,6 +103,7 @@ export const ReadTool: Story = {
         part={part('page.text', {selector: '#headline', trim: true})}
         result={result('Ship it on Friday')}
         ctx={ctxFor({'page.text': textMeta})}
+        addResult={INERT_ADD_RESULT}
         durationMs={120}
       />,
     ),
@@ -123,6 +124,7 @@ export const MutatingTool: Story = {
         part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
         result={result('{"ok":true}')}
         ctx={ctxFor({'page.fill': fillMeta})}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -139,6 +141,7 @@ export const MirroringTool: Story = {
         part={part('page.highlight', {selector: '.cta'})}
         result={result('{"ok":true}')}
         ctx={ctxFor({'page.highlight': highlightMeta})}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -155,6 +158,7 @@ export const DeclaredError: Story = {
         part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
         result={result('{"error":{"message":"page.fill failed","code":"NO_MATCH"}}', 'error')}
         ctx={ctxFor({'page.fill': fillMeta})}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -177,6 +181,7 @@ export const NestedListResult: Story = {
           ]),
         )}
         ctx={ctxFor({'system.diagnostics': diagnosticsMeta})}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -195,6 +200,7 @@ export const TitleTooltip: Story = {
         part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
         result={result('{"ok":true}')}
         ctx={ctxFor({'page.fill': fillMeta})}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -213,6 +219,7 @@ export const PositionalHeadline: Story = {
         part={part('page.text', {selector: 'main > h1', trim: false}, 'input-complete')}
         result={undefined}
         ctx={ctxFor({'page.text': textMeta})}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -228,6 +235,7 @@ export const CapturedElement: Story = {
         part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
         result={result('{"ok":true}')}
         ctx={ctxFor({'page.fill': fillMeta})}
+        addResult={INERT_ADD_RESULT}
         capture={{after: ELEMENT_CAPTURE_FIXTURE_FULL, css: ELEMENT_CAPTURE_FIXTURE_CSS}}
       />,
     ),
@@ -245,6 +253,7 @@ export const DegradedCapture: Story = {
         part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
         result={result('{"ok":true}')}
         ctx={ctxFor({'page.fill': fillMeta})}
+        addResult={INERT_ADD_RESULT}
         capture={{after: ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY}}
       />,
     ),

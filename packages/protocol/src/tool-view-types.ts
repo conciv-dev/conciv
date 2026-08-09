@@ -2,6 +2,7 @@ import type {Component} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolIconKey, ToolLabel} from './tool-icon-types.js'
 import type {ToolCaptureView} from './element-capture-types.js'
+import type {UiAnswerValue} from './ui-types.js'
 
 export type ToolViewError = {code: string; message: string}
 
@@ -32,6 +33,7 @@ export type ToolViewCtx = {
   harnessId: string
   sendMessage: (text: string) => void
   catalog: ToolCatalogView
+  addResult: (toolCallId: string, value: UiAnswerValue) => void
 
   respondApproval?: (approvalId: string, approved: boolean) => void
   durationFor?: (toolCallId: string) => number | undefined
@@ -42,6 +44,7 @@ export type ToolCardProps = {
   part: ToolCallPart
   result: ToolResultPart | undefined
   ctx: ToolViewCtx
+  addResult: (value: UiAnswerValue) => void
   durationMs?: number
   capture?: ToolCaptureView
 }

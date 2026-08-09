@@ -34,7 +34,7 @@ function Prompt(props: {label?: string}): JSX.Element {
   )
 }
 
-export function PermissionCard(props: ToolCardProps & {label?: string}): JSX.Element {
+export function PermissionCard(props: Pick<ToolCardProps, 'part' | 'ctx'> & {label?: string}): JSX.Element {
   return (
     <Permission.Root part={props.part} ctx={props.ctx}>
       <Prompt label={props.label} />

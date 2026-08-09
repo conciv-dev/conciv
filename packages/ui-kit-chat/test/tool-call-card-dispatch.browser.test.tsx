@@ -31,7 +31,14 @@ function catalogOf(entries: Record<string, ToolViewMeta>): ToolCatalogView {
 }
 
 function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
-  return {apiBase: '', harnessId: 'test', sendMessage: () => {}, catalog, respondApproval: () => {}}
+  return {
+    apiBase: '',
+    harnessId: 'test',
+    sendMessage: () => {},
+    catalog,
+    addResult: () => {},
+    respondApproval: () => {},
+  }
 }
 
 function part(name: string, state: ToolCallPart['state'] = 'complete'): ToolCallPart {

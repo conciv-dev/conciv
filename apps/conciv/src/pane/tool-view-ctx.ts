@@ -7,6 +7,7 @@ export type ToolViewCtxDeps = {
   harnessId: () => string
   catalog: ToolCatalogView
   sendMessage: (text: string) => void
+  addResult: ToolViewCtx['addResult']
   durationFor: (toolCallId: string) => number | undefined
   captureFor: (toolCallId: string) => ToolCaptureView | undefined
 }
@@ -17,6 +18,7 @@ export function makeToolViewCtx(deps: ToolViewCtxDeps): ToolViewCtx {
     harnessId: deps.harnessId(),
     sendMessage: deps.sendMessage,
     catalog: deps.catalog,
+    addResult: deps.addResult,
     respondApproval: (approvalId, approved) => {
       void deps.rpc.chat.permissionDecision({approvalId, approved}).catch(() => {})
     },

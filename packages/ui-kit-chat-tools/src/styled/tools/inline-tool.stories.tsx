@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {EditInline, GrepInline, ReadInline, ToolCallInline} from './inline-tool.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/InlineTool'}
@@ -33,21 +33,25 @@ export const Rows: Story = {
           part={part('read', {file_path: 'packages/ui-kit-chat/src/styled/thread.tsx'})}
           result={done}
           ctx={INERT_TOOL_CTX}
+          addResult={INERT_ADD_RESULT}
         />
         <EditInline
           part={part('edit', {file_path: 'src/composer/model-selector.tsx'})}
           result={done}
           ctx={INERT_TOOL_CTX}
+          addResult={INERT_ADD_RESULT}
         />
         <GrepInline
           part={part('grep', {pattern: 'useChat'}, 'input-complete')}
           result={undefined}
           ctx={INERT_TOOL_CTX}
+          addResult={INERT_ADD_RESULT}
         />
         <ToolCallInline
           part={part('mcp_lookup', {query: 'tanstack ai client'})}
           result={{type: 'tool-result', toolCallId: 'q', content: 'err', state: 'error'}}
           ctx={INERT_TOOL_CTX}
+          addResult={INERT_ADD_RESULT}
         />
       </>,
     ),
@@ -62,5 +66,13 @@ export const Rows: Story = {
 
 export const Neutral: Story = {
   render: () =>
-    frame('', <ReadInline part={part('read', {file_path: 'a/b/c/deep/file.ts'})} result={done} ctx={INERT_TOOL_CTX} />),
+    frame(
+      '',
+      <ReadInline
+        part={part('read', {file_path: 'a/b/c/deep/file.ts'})}
+        result={done}
+        ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
+      />,
+    ),
 }

@@ -7,7 +7,7 @@ import {createToolRegistry} from '@conciv/extension/registry'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
-import {MetaToolCard} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, MetaToolCard} from '@conciv/ui-kit-chat'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
 import {cleanupViews, mountView} from './mount-view.js'
 import {registryCatalogView} from './registry-catalog-view.js'
@@ -77,7 +77,7 @@ function declaredRegistry() {
 }
 
 function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
-  return {apiBase: '', harnessId: 'test', sendMessage: () => {}, catalog}
+  return {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => {}, catalog}
 }
 
 function part(name: string, input: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
@@ -92,7 +92,12 @@ it('a non-builtin registry tool renders its declared labels and its positional a
   const catalog = registryCatalogView(declaredRegistry())
 
   mountView(() => (
-    <MetaToolCard part={part('page.ship', {selector: '#hero'})} result={undefined} ctx={ctxWith(catalog)} />
+    <MetaToolCard
+      part={part('page.ship', {selector: '#hero'})}
+      result={undefined}
+      ctx={ctxWith(catalog)}
+      addResult={INERT_ADD_RESULT}
+    />
   ))
 
   await expect.element(page.getByText('Shipped the page #hero')).toBeVisible()
@@ -104,7 +109,12 @@ it('a mutating mirroring registry tool shows its write badge, its hint and the m
   const catalog = registryCatalogView(declaredRegistry())
 
   mountView(() => (
-    <MetaToolCard part={part('page.banner', {value: 'Sale'})} result={result('{"ok":true}')} ctx={ctxWith(catalog)} />
+    <MetaToolCard
+      part={part('page.banner', {value: 'Sale'})}
+      result={result('{"ok":true}')}
+      ctx={ctxWith(catalog)}
+      addResult={INERT_ADD_RESULT}
+    />
   ))
 
   await expect.element(page.getByText('edits page')).toBeVisible()
@@ -121,6 +131,7 @@ it('a tool declaring an error renders the declared message instead of the raw fa
       part={part('page.banner', {value: 'Sale'})}
       result={result('{"error":{"message":"page.banner failed","code":"NO_CANVAS"}}', 'error')}
       ctx={ctxWith(catalog)}
+      addResult={INERT_ADD_RESULT}
     />
   ))
 
@@ -133,7 +144,12 @@ it('a string output schema renders the result as a code block', async () => {
   const catalog = registryCatalogView(declaredRegistry())
 
   mountView(() => (
-    <MetaToolCard part={part('page.ship', {selector: '#hero'})} result={result('shipped-42')} ctx={ctxWith(catalog)} />
+    <MetaToolCard
+      part={part('page.ship', {selector: '#hero'})}
+      result={result('shipped-42')}
+      ctx={ctxWith(catalog)}
+      addResult={INERT_ADD_RESULT}
+    />
   ))
 
   await page.getByRole('button').click()
@@ -143,7 +159,14 @@ it('a string output schema renders the result as a code block', async () => {
 it('a scalar output schema renders the result as a chip', async () => {
   const catalog = registryCatalogView(declaredRegistry())
 
-  mountView(() => <MetaToolCard part={part('page.count', {})} result={result('7')} ctx={ctxWith(catalog)} />)
+  mountView(() => (
+    <MetaToolCard
+      part={part('page.count', {})}
+      result={result('7')}
+      ctx={ctxWith(catalog)}
+      addResult={INERT_ADD_RESULT}
+    />
+  ))
 
   await page.getByRole('button').click()
   await expect.element(page.getByText('7')).toBeVisible()
@@ -152,7 +175,14 @@ it('a scalar output schema renders the result as a chip', async () => {
 it('a declared tool with no cosmetics still renders its summary as the title', async () => {
   const catalog = registryCatalogView(declaredRegistry())
 
-  mountView(() => <MetaToolCard part={part('page.plain', {})} result={undefined} ctx={ctxWith(catalog)} />)
+  mountView(() => (
+    <MetaToolCard
+      part={part('page.plain', {})}
+      result={undefined}
+      ctx={ctxWith(catalog)}
+      addResult={INERT_ADD_RESULT}
+    />
+  ))
 
   await expect.element(page.getByText('do something the widget has no cosmetics for').first()).toBeVisible()
 })

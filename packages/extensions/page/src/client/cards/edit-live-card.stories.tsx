@@ -7,7 +7,7 @@ import {
   ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
 } from '@conciv/ui-kit-chat'
 import {EditLiveCard} from './edit-live-card.js'
-import {STORY_FRAME_CLASS, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'extension-page/client/cards/EditLiveCard'}
 export default meta
@@ -46,6 +46,7 @@ export const TextChangeWithDiff: Story = {
         part={storyPart('page.settext', {selector: '#cta', text: 'Order placed'})}
         result={storyResult({ok: true})}
         ctx={storyCtx({'page.settext': settextMeta})}
+        addResult={storyAddResult}
         capture={{
           before: ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
           after: ELEMENT_CAPTURE_FIXTURE_EDIT_AFTER,
@@ -83,6 +84,7 @@ export const EvalCodeBlock: Story = {
         part={storyPart('page.eval', {code: 'return document.title'})}
         result={storyResult({result: 'Storefront'})}
         ctx={storyCtx({'page.eval': evalMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),

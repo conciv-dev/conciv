@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {CodeRunCard} from './code-run-card.js'
 
 const meta: Meta = {title: 'core/cards/CodeRunCard'}
@@ -43,7 +43,15 @@ async function codeText(root: HTMLElement): Promise<string> {
 
 export const Running: Story = {
   render: () =>
-    frame('chat-theme-dark', <CodeRunCard part={part('input-complete')} result={undefined} ctx={INERT_TOOL_CTX} />),
+    frame(
+      'chat-theme-dark',
+      <CodeRunCard
+        part={part('input-complete')}
+        result={undefined}
+        ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
+      />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('run code')).toBeVisible()
@@ -56,7 +64,11 @@ export const Running: Story = {
 }
 
 export const Success: Story = {
-  render: () => frame('chat-theme-dark', <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} />),
+  render: () =>
+    frame(
+      'chat-theme-dark',
+      <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
@@ -69,7 +81,11 @@ export const Success: Story = {
 }
 
 export const Failure: Story = {
-  render: () => frame('chat-theme-dark', <CodeRunCard part={part()} result={failResult} ctx={INERT_TOOL_CTX} />),
+  render: () =>
+    frame(
+      'chat-theme-dark',
+      <CodeRunCard part={part()} result={failResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
@@ -82,5 +98,9 @@ export const Failure: Story = {
 }
 
 export const Conciv: Story = {
-  render: () => frame('chat-theme-conciv', <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} />),
+  render: () =>
+    frame(
+      'chat-theme-conciv',
+      <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
 }

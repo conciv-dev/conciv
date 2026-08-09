@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ReadValueCard} from './read-value-card.js'
-import {STORY_FRAME_CLASS, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'extension-page/client/cards/ReadValueCard'}
 export default meta
@@ -30,6 +30,7 @@ export const ElementAndValue: Story = {
         part={storyPart('page.text', {selector: '#headline'})}
         result={storyResult({text: 'Ship it on Friday'})}
         ctx={storyCtx({'page.text': textMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),

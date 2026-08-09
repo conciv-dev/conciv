@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {LoadedToolsCard} from './loaded-tools-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/LoadedToolsCard'}
@@ -53,7 +53,11 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 }
 
 export const Loaded: Story = {
-  render: () => frame('chat-theme-dark', <LoadedToolsCard part={part()} result={twoResult} ctx={INERT_TOOL_CTX} />),
+  render: () =>
+    frame(
+      'chat-theme-dark',
+      <LoadedToolsCard part={part()} result={twoResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(await c.findByText('Loaded 2 tools')).toBeVisible()
@@ -69,7 +73,11 @@ export const Loaded: Story = {
 }
 
 export const LoadedOne: Story = {
-  render: () => frame('chat-theme-dark', <LoadedToolsCard part={part()} result={oneResult} ctx={INERT_TOOL_CTX} />),
+  render: () =>
+    frame(
+      'chat-theme-dark',
+      <LoadedToolsCard part={part()} result={oneResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(await c.findByText('Loaded 1 tool')).toBeVisible()
@@ -79,7 +87,10 @@ export const LoadedOne: Story = {
 
 export const Empty: Story = {
   render: () =>
-    frame('chat-theme-dark', <LoadedToolsCard part={part()} result={result({tools: []})} ctx={INERT_TOOL_CTX} />),
+    frame(
+      'chat-theme-dark',
+      <LoadedToolsCard part={part()} result={result({tools: []})} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(await c.findByText('Loaded 0 tools')).toBeVisible()
@@ -89,5 +100,9 @@ export const Empty: Story = {
 }
 
 export const Conciv: Story = {
-  render: () => frame('chat-theme-conciv', <LoadedToolsCard part={part()} result={twoResult} ctx={INERT_TOOL_CTX} />),
+  render: () =>
+    frame(
+      'chat-theme-conciv',
+      <LoadedToolsCard part={part()} result={twoResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
 }

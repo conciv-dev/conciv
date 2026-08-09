@@ -10,7 +10,7 @@ import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {pageCapabilities, pageInputFor, pageToolDescription} from '@conciv/tools/defs'
 import {PAGE_TOOL_DEFS, pageToolMetaOf} from '@conciv/extension-page/defs'
-import {GENERIC_TOOL_ICON, MetaToolCard, toolIconRender} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, GENERIC_TOOL_ICON, MetaToolCard, toolIconRender} from '@conciv/ui-kit-chat'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
 import {cleanupViews, mountView} from './mount-view.js'
 import {registryCatalogView} from './registry-catalog-view.js'
@@ -55,6 +55,7 @@ const ctx: ToolViewCtx = {
   apiBase: '',
   harnessId: 'test',
   sendMessage: () => {},
+  addResult: () => {},
   catalog: registryCatalogView(registryWith(shipTool)),
 }
 
@@ -85,7 +86,12 @@ it('the card and the running title read a built-in declaration through the defau
   if (!declared?.label) throw new Error('page.setattr declares no label')
 
   mountView(() => (
-    <MetaToolCard part={part('setattr', {selector: '#hero', attribute: 'hidden'})} result={undefined} ctx={ctx} />
+    <MetaToolCard
+      part={part('setattr', {selector: '#hero', attribute: 'hidden'})}
+      result={undefined}
+      ctx={ctx}
+      addResult={INERT_ADD_RESULT}
+    />
   ))
 
   await expect.element(page.getByText(`${declared.label.done} #hero`, {exact: true})).toBeVisible()

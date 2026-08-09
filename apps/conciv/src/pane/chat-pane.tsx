@@ -37,7 +37,6 @@ import {resolveGrabSource} from './grab-source-resolve.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane, type StagedGrab} from '../app/pane-context.js'
-import {makeConcivUiCard} from './conciv-ui-card.js'
 import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
@@ -161,26 +160,23 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     {},
   )
 
-  const toolCtx = makeToolViewCtx({
-    rpc,
-    harnessId: () => meta.data?.harness.id ?? '',
-    catalog,
-    sendMessage: (text) => void chat.sendMessage(text),
-    durationFor: (toolCallId) => durations()[toolCallId],
-    captureFor: captures.lookup,
-  })
-
   const uiReply = useMutation(() => ({
     mutationFn: (input: {toolCallId: string; value: UiAnswerValue}) =>
       rpc.chat.uiReply({sessionId, toolCallId: input.toolCallId, value: input.value}),
     onError: () => notify('That question is no longer waiting for an answer.'),
   }))
-  const concivUiEntry: ToolCardEntry = {
-    names: ['conciv_ui'],
-    render: makeConcivUiCard({reply: (toolCallId, value) => uiReply.mutate({toolCallId, value})}),
-  }
+
+  const toolCtx = makeToolViewCtx({
+    rpc,
+    harnessId: () => meta.data?.harness.id ?? '',
+    catalog,
+    sendMessage: (text) => void chat.sendMessage(text),
+    addResult: (toolCallId, value) => uiReply.mutate({toolCallId, value}),
+    durationFor: (toolCallId) => durations()[toolCallId],
+    captureFor: captures.lookup,
+  })
+
   const tools = (): ToolCardEntry[] => [
-    concivUiEntry,
     ...collectToolRenderers(instances.map((instance) => instance.extension)),
     ...concivToolCards,
     ...coreToolCards,

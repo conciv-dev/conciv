@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {EffectCard} from './effect-card.js'
-import {STORY_FRAME_CLASS, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'extension-page/client/cards/EffectCard'}
 export default meta
@@ -30,6 +30,7 @@ export const EffectTurnedOn: Story = {
         part={storyPart('page.effect', {action: 'enable', effect: 'grid-overlay'})}
         result={storyResult({effect: 'grid-overlay', enabled: true})}
         ctx={storyCtx({'page.effect': effectMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),
@@ -55,6 +56,7 @@ export const RegisteredEffects: Story = {
           ],
         })}
         ctx={storyCtx({'page.effect': effectMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),
@@ -73,6 +75,7 @@ export const NoEffects: Story = {
         part={storyPart('page.effect', {action: 'list'})}
         result={storyResult({effects: []})}
         ctx={storyCtx({'page.effect': effectMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),

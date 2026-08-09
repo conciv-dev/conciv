@@ -4,7 +4,7 @@ import {page, userEvent} from 'vitest/browser'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {MetaToolCard} from '../src/styled/tools/meta-tool-card.js'
-import {INERT_TOOL_CTX} from '../src/store/tool-context.js'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../src/store/tool-context.js'
 import {cleanupViews, mountView} from './mount-view.js'
 
 afterEach(() => {
@@ -50,6 +50,7 @@ it('a structured payload whose code matches a declared error renders the declare
       part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
       result={errorResult('{"error":{"message":"page.fill failed","code":"NO_MATCH"}}')}
       ctx={ctxWith(catalogOf({'page.fill': fillMeta}))}
+      addResult={INERT_ADD_RESULT}
     />
   ))
 
@@ -64,6 +65,7 @@ it('a structured payload with an unknown code falls through to the payload messa
       part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
       result={errorResult('{"error":{"message":"the sandbox blew up","code":"SOMETHING_ELSE"}}')}
       ctx={ctxWith(catalogOf({'page.fill': fillMeta}))}
+      addResult={INERT_ADD_RESULT}
     />
   ))
 
@@ -78,6 +80,7 @@ it('a non-JSON result body that merely looks like a declared-error prefix falls 
       part={part('page.fill', {selector: '#ghost', value: 'nobody'})}
       result={errorResult('NO_MATCH: the field vanished')}
       ctx={ctxWith(catalogOf({'page.fill': fillMeta}))}
+      addResult={INERT_ADD_RESULT}
     />
   ))
 

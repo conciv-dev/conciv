@@ -19,7 +19,7 @@ export {
   type ReplySegment,
   type ResultPairing,
 } from './store/grouping.js'
-export {INERT_TOOL_CTX, ToolProvider, useToolCtx} from './store/tool-context.js'
+export {INERT_ADD_RESULT, INERT_TOOL_CTX, ToolProvider, useToolCtx} from './store/tool-context.js'
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
 export {Activity, type ActivityProps} from './styled/activity.js'
 export {chatBusy} from './store/chat-busy.js'

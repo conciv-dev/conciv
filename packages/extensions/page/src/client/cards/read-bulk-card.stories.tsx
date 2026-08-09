@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ReadBulkCard} from './read-bulk-card.js'
-import {STORY_FRAME_CLASS, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'extension-page/client/cards/ReadBulkCard'}
 export default meta
@@ -54,6 +54,7 @@ export const DomMarkup: Story = {
         part={storyPart('page.dom', {selector: '#hero'})}
         result={storyResult({html: '<section id="hero"><h1>Ship it on Friday</h1></section>'})}
         ctx={storyCtx({'page.dom': domMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),
@@ -78,6 +79,7 @@ export const SnapshotNodes: Story = {
           ],
         })}
         ctx={storyCtx({'page.snapshot': snapshotMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),
@@ -99,6 +101,7 @@ export const QueryMatches: Story = {
           elements: [{tagName: 'button', className: 'primary'}, {tagName: 'button'}, {tagName: 'button'}],
         })}
         ctx={storyCtx({'page.query': queryMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),
@@ -116,6 +119,7 @@ export const EmptySnapshot: Story = {
         part={storyPart('page.snapshot', {selector: '#empty'})}
         result={storyResult({nodes: []})}
         ctx={storyCtx({'page.snapshot': snapshotMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),

@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ReactCard} from './react-card.js'
-import {STORY_FRAME_CLASS, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'extension-page/client/cards/ReactCard'}
 export default meta
@@ -53,6 +53,7 @@ export const LocatedSource: Story = {
           source: {file: 'src/checkout/button.tsx', line: 42, column: 3},
         })}
         ctx={storyCtx({'page.locate': locateMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),
@@ -77,6 +78,7 @@ export const InspectedProps: Story = {
           hooks: [{id: 0, value: 'idle'}],
         })}
         ctx={storyCtx({'page.inspect': inspectMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),
@@ -104,6 +106,7 @@ export const RenderCounts: Story = {
           note: 'render durations need a profiling build (react-dom/profiling or <Profiler>)',
         })}
         ctx={storyCtx({'page.track': trackMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),
@@ -122,6 +125,7 @@ export const NoRenders: Story = {
         part={storyPart('page.track', {action: 'report'})}
         result={storyResult({tracking: true, tracked: 0, timingsAvailable: true, components: []})}
         ctx={storyCtx({'page.track': trackMeta})}
+        addResult={storyAddResult}
       />
     </div>
   ),

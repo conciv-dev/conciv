@@ -34,6 +34,7 @@ function mountCard(over: Partial<ToolCardProps>, ctx: ToolViewCtx, onOpenEditor?
             part={{type: 'tool-call', id: 't1', name: 'test_runner', arguments: '{}', state: 'input-complete'}}
             result={undefined}
             ctx={ctx}
+            addResult={() => {}}
             {...over}
           />
         </HostApiProvider>
@@ -55,6 +56,7 @@ describe('TestCard (real browser)', () => {
       apiBase: '',
       harnessId: 'claude',
       sendMessage: (text) => sent.push(text),
+      addResult: () => {},
       catalog: INERT_TOOL_CATALOG,
     }
     mountCard(
@@ -75,7 +77,13 @@ describe('TestCard (real browser)', () => {
   })
 
   it('opens a real EventSource and builds the tree live when result is null', async () => {
-    const ctx: ToolViewCtx = {apiBase: '', harnessId: 'claude', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
+    const ctx: ToolViewCtx = {
+      apiBase: '',
+      harnessId: 'claude',
+      sendMessage: () => {},
+      addResult: () => {},
+      catalog: INERT_TOOL_CATALOG,
+    }
     mountCard({result: undefined}, ctx)
 
     await expect.element(page.getByText('works')).toBeVisible()

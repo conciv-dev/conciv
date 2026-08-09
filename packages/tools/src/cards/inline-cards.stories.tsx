@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {ExtensionsCard} from './extensions-card.js'
 import {OpenCard} from './open-card.js'
 
@@ -30,16 +30,23 @@ export const Extensions: Story = {
     frame(
       'chat-theme-dark',
       <>
-        <ExtensionsCard part={part('conciv_extensions', {verb: 'catalog'})} result={done} ctx={INERT_TOOL_CTX} />
+        <ExtensionsCard
+          part={part('conciv_extensions', {verb: 'catalog'})}
+          result={done}
+          ctx={INERT_TOOL_CTX}
+          addResult={INERT_ADD_RESULT}
+        />
         <ExtensionsCard
           part={part('conciv_extensions', {verb: 'scaffold', kind: 'tool-renderer', name: 'weather'})}
           result={done}
           ctx={INERT_TOOL_CTX}
+          addResult={INERT_ADD_RESULT}
         />
         <ExtensionsCard
           part={part('conciv_extensions', {verb: 'validate', source: 'export default defineExtension({})'})}
           result={done}
           ctx={INERT_TOOL_CTX}
+          addResult={INERT_ADD_RESULT}
         />
       </>,
     ),
@@ -61,11 +68,13 @@ export const Open: Story = {
           part={part('conciv_open', {file: 'packages/ui-kit-chat/src/styled/thread.tsx', line: 42})}
           result={done}
           ctx={INERT_TOOL_CTX}
+          addResult={INERT_ADD_RESULT}
         />
         <OpenCard
           part={part('conciv_open', {file: 'src/composer/model-selector.tsx'}, 'input-complete')}
           result={undefined}
           ctx={INERT_TOOL_CTX}
+          addResult={INERT_ADD_RESULT}
         />
       </>,
     ),

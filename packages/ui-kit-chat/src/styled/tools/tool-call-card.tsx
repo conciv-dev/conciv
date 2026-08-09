@@ -6,7 +6,7 @@ import {ToolDurationProvider} from '../../primitives/tools/tool-duration.js'
 import {MetaToolCard} from './meta-tool-card.js'
 import {PermissionCard} from './permission-card.js'
 
-export type ToolCallCardProps = ToolCardProps & {
+export type ToolCallCardProps = Omit<ToolCardProps, 'addResult'> & {
   tools?: () => ToolCardEntry[]
 
   fallback?: ToolUIComponent
@@ -30,11 +30,12 @@ export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
         part={props.part}
         result={props.result}
         ctx={props.ctx}
+        addResult={(value) => props.ctx.addResult(props.part.id, value)}
         durationMs={props.durationMs}
         capture={props.ctx.captureFor?.(props.part.id)}
       />
       <Show when={ownsApproval()}>
-        <PermissionCard part={props.part} result={props.result} ctx={props.ctx} />
+        <PermissionCard part={props.part} ctx={props.ctx} />
       </Show>
     </ToolDurationProvider>
   )
