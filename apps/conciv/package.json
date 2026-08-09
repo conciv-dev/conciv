@@ -54,7 +54,7 @@
     "@conciv/storage-history": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@orpc/server": "^1.14.7",
+    "@orpc/server": "catalog:",
     "@tanstack/ai": "^0.43.0",
     "@tanstack/router-cli": "^1.167.18",
     "@tanstack/router-plugin": "^1.168.19",

@@ -43,7 +43,7 @@
     "@conciv/harness-init": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/tools": "workspace:^",
-    "@orpc/client": "^1.14.7",
+    "@orpc/client": "catalog:",
     "citty": "^0.2.2",
     "diff": "^9.0.0",
     "nypm": "^0.6.9",

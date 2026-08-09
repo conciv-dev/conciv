@@ -38,8 +38,8 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
-    "@orpc/client": "^1.14.7",
-    "@orpc/contract": "^1.14.7",
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
     "@tanstack/ai": "^0.43.0",
     "partysocket": "^1.3.0",
     "zod": "^4.4.3"
