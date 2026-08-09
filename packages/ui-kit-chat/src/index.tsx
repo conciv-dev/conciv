@@ -173,6 +173,7 @@ export {
   DANGER_TEXT_CLASS,
   CODE_BLOCK_CLASS,
   CODE_BLOCK_OPTIONS,
+  MUTATING_BADGE,
   displayValue,
   clip,
   cardPhase,

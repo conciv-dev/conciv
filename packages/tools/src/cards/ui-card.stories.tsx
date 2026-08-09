@@ -33,4 +33,23 @@ export const Form: Story = {
 export const Choices: Story = {
   render: () =>
     frame('chat-theme-conciv', <UiCard part={part({kind: 'choices'})} result={undefined} ctx={INERT_TOOL_CTX} />),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('Rendered choices')).toBeVisible()
+    await expect(c.queryByRole('button')).toBeNull()
+  },
+}
+
+export const ChoicesWithQuestion: Story = {
+  render: () =>
+    frame(
+      'chat-theme-conciv',
+      <UiCard part={part({kind: 'choices', question: 'Ship it or hold?'})} result={undefined} ctx={INERT_TOOL_CTX} />,
+    ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('Rendered choices')).toBeVisible()
+    await userEvent.click(c.getByRole('button'))
+    await waitFor(() => expect(c.getByText('Ship it or hold?')).toBeVisible())
+  },
 }

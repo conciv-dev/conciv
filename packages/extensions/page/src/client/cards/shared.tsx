@@ -8,6 +8,7 @@ import {
   cardTitle,
   clip,
   displayValue,
+  MUTATING_BADGE,
   parseInput,
   parseResultPayload,
   resultText,
@@ -83,7 +84,7 @@ export function cardPayload(result: ToolCardProps['result']): unknown {
 }
 
 export function mutatingBadge(meta: ToolViewMeta | undefined): string | undefined {
-  return meta?.mutating === true ? 'writes' : undefined
+  return meta?.mutating === true ? MUTATING_BADGE : undefined
 }
 
 export function elementTargetValue(input: Record<string, unknown>): string | undefined {

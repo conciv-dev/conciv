@@ -3,6 +3,8 @@ import type {ToolStatus} from './tool-status.js'
 
 export type CardPhase = 'running' | 'done'
 
+export const MUTATING_BADGE = 'edits page'
+
 export const DANGER_TEXT_CLASS =
   'text-[length:var(--chat-text-sm)] whitespace-pre-wrap [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'
 

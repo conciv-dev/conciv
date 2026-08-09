@@ -69,6 +69,10 @@ export const TextChangeWithDiff: Story = {
     )
     await userEvent.click(canvas.getByRole('tab', {name: 'Before'}))
     await waitFor(() => expect(canvas.getByRole('img', {name: 'Submit order'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('tab', {name: 'After'}))
+    await waitFor(() => expect(canvas.getByRole('img', {name: 'Order placed'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('tab', {name: 'Before'}))
+    await waitFor(() => expect(canvas.getByRole('img', {name: 'Submit order'})).toBeVisible())
   },
 }
 

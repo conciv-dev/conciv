@@ -22,6 +22,9 @@ const TARGET_MARKER = 'data-rr-target'
 const FRAME_PADDING = 12
 const MAX_CROP_SCALE = 2
 const NODE_TYPE_ELEMENT = 2
+const ENTRANCE_MS = 200
+const ENTRANCE_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
+const ENTRANCE_OFFSET = '0.25rem'
 
 const DANGEROUS_TAGS = new Set(['iframe', 'object', 'embed'])
 
@@ -35,7 +38,7 @@ const NAMED_ENTITIES: Record<string, string> = {amp: '&', colon: ':', tab: '\t',
 
 const FRAME_BASE =
   'relative w-full h-36 overflow-hidden contain-strict rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
-const FRAME_READY = `${FRAME_BASE} opacity-100 anim-pop`
+const FRAME_READY = `${FRAME_BASE} opacity-100`
 const FRAME_LOADING = `${FRAME_BASE} anim-skel`
 const FRAME_FAILED = `${FRAME_BASE} hidden`
 const REPLICA_HOST = 'block w-full h-full'
@@ -117,11 +120,12 @@ function Root(props: {capture?: ElementCapture; css?: string; children: JSX.Elem
 }
 
 function cropToTarget(frame: Element, replicaRoot: HTMLElement, target: Element): boolean {
+  const frameRect = frame.getBoundingClientRect()
+  if (frameRect.width === 0 || frameRect.height === 0) return false
+  replicaRoot.style.transform = 'none'
   const targetRect = target.getBoundingClientRect()
   const replicaRect = replicaRoot.getBoundingClientRect()
-  const frameRect = frame.getBoundingClientRect()
   if (targetRect.width === 0 || targetRect.height === 0) return false
-  if (frameRect.width === 0 || frameRect.height === 0) return false
   const dx = targetRect.left - replicaRect.left
   const dy = targetRect.top - replicaRect.top
   const availableWidth = Math.max(frameRect.width - FRAME_PADDING * 2, 1)
@@ -132,6 +136,21 @@ function cropToTarget(frame: Element, replicaRoot: HTMLElement, target: Element)
   replicaRoot.style.transformOrigin = '0 0'
   replicaRoot.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`
   return true
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function playEntrance(frame: Element): void {
+  if (prefersReducedMotion()) return
+  frame.animate(
+    [
+      {opacity: 0, transform: `translateY(${ENTRANCE_OFFSET})`},
+      {opacity: 1, transform: 'translateY(0)'},
+    ],
+    {duration: ENTRANCE_MS, easing: ENTRANCE_EASE, fill: 'none'},
+  )
 }
 
 type Replica = {built: HTMLElement; target: Element}
@@ -195,6 +214,12 @@ function Frame(props: {class?: string}): JSX.Element {
     })
   })
   createResizeObserver(frameElement, (_rect, frame) => applyCrop(frame))
+  createEffect(() => {
+    if (ctx.status() !== 'ready') return
+    const frame = frameElement()
+    if (frame === undefined) return
+    playEntrance(frame)
+  })
   onCleanup(() => {
     replica = undefined
     replicaHost?.shadowRoot?.replaceChildren()

@@ -13,6 +13,7 @@ import {
   CODE_BLOCK_CLASS,
   CODE_BLOCK_OPTIONS,
   DANGER_TEXT_CLASS,
+  MUTATING_BADGE,
   cardPhase,
   cardTitle,
   clip,
@@ -155,7 +156,7 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
       Icon={Icon}
       title={headline()}
       titleTooltip={meta()?.summary}
-      meta={meta()?.mutating === true ? 'writes' : undefined}
+      meta={meta()?.mutating === true ? MUTATING_BADGE : undefined}
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}

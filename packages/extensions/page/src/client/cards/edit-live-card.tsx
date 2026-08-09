@@ -3,7 +3,13 @@ import {Tabs} from '@conciv/ui-kit-system'
 import {SolidCodeBlock, SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CODE_BLOCK_CLASS, CODE_BLOCK_OPTIONS, DANGER_TEXT_CLASS, ElementPreview} from '@conciv/ui-kit-chat'
+import {
+  CODE_BLOCK_CLASS,
+  CODE_BLOCK_OPTIONS,
+  DANGER_TEXT_CLASS,
+  ElementPreview,
+  MUTATING_BADGE,
+} from '@conciv/ui-kit-chat'
 import {pageVerbOfTool} from '../../shared/defs.js'
 import {CardShell, cardErrorMessage, cardHeader, toolInput} from './shared.js'
 
@@ -50,7 +56,7 @@ export function EditLiveCard(props: ToolCardProps): JSX.Element {
     <CardShell
       meta={meta()}
       title={title()}
-      metaBadge="writes"
+      metaBadge={MUTATING_BADGE}
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}
