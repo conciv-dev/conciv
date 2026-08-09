@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {tmpdir} from 'node:os'
-import {makeApprovingCallTool, type Kit} from '@conciv/harness-testkit'
+import {makeApprovingCallTool, withDeadline, type Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 import {connectWidget} from '../../helpers/fake-widget.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../editor/fixtures.js'
@@ -15,6 +15,12 @@ const SourceSchema = z.object({source: z.object({file: z.string(), line: z.numbe
 function agentPageResult(result: unknown): unknown {
   if (typeof result === 'string') return JSON.parse(result)
   return result
+}
+
+const RPC_DEADLINE_MS = 10_000
+
+function rpcStage<Result>(stage: string, run: () => Promise<Result>): Promise<Result> {
+  return withDeadline(RPC_DEADLINE_MS, `the ${stage} rpc call exceeded ${RPC_DEADLINE_MS}ms`, run)
 }
 
 describe('the agent reaches the page through the same implementation the CLI uses', () => {
@@ -50,12 +56,14 @@ describe('the agent reaches the page through the same implementation the CLI use
     const execute = await agentPageTool(kit)
 
     await execute({verb: 'fill', selector: '#email', value: 'a@b.c'})
-    const afterAgent = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
+    const afterAgent = ChangesSchema.parse(await rpcStage('page.changes', () => kit.rpc.page.changes(undefined)))
     expect(afterAgent).toMatchObject([{verb: 'page.fill', selector: '#email', args: {value: 'a@b.c'}}])
 
-    await kit.rpc.page.clearChanges(undefined)
-    await kit.rpc.registry.call({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}})
-    const afterCli = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
+    await rpcStage('page.clearChanges', () => kit.rpc.page.clearChanges(undefined))
+    await rpcStage('cli page.fill', () =>
+      kit.rpc.registry.call({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}}),
+    )
+    const afterCli = ChangesSchema.parse(await rpcStage('page.changes', () => kit.rpc.page.changes(undefined)))
     expect(afterAgent).toEqual(afterCli)
   }, 30_000)
 
@@ -66,9 +74,11 @@ describe('the agent reaches the page through the same implementation the CLI use
     const execute = await agentPageTool(kit)
 
     await execute({verb: 'fill', selector: '#email', value: 'a@b.c'})
-    await kit.rpc.registry.call({name: 'page.setattr', input: {selector: '#a', attribute: 'data-state', value: 'open'}})
+    await rpcStage('cli page.setattr', () =>
+      kit.rpc.registry.call({name: 'page.setattr', input: {selector: '#a', attribute: 'data-state', value: 'open'}}),
+    )
 
-    const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
+    const changes = ChangesSchema.parse(await rpcStage('page.changes', () => kit.rpc.page.changes(undefined)))
     expect(changes.map((entry) => entry.verb)).toEqual(['page.fill', 'page.setattr'])
   }, 30_000)
 
@@ -78,7 +88,7 @@ describe('the agent reaches the page through the same implementation the CLI use
     state.widget = await connectWidget(kit, () => ({ok: true, result: {text: 'Checkout'}}))
     const execute = await agentPageTool(kit)
     await execute({verb: 'text', selector: 'h1'})
-    expect(await kit.rpc.page.changes(undefined)).toEqual([])
+    expect(await rpcStage('page.changes', () => kit.rpc.page.changes(undefined))).toEqual([])
   }, 30_000)
 
   it('symbolicates an agent-driven locate the way the CLI path does', async () => {
@@ -92,7 +102,9 @@ describe('the agent reaches the page through the same implementation the CLI use
     const execute = await agentPageTool(kit)
     const agentResult = SourceSchema.parse(agentPageResult(await execute({verb: 'locate', selector: 'h1'})))
     const cliResult = SourceSchema.parse(
-      agentPageResult(await kit.rpc.registry.call({name: 'page.locate', input: {selector: 'h1'}})),
+      agentPageResult(
+        await rpcStage('cli page.locate', () => kit.rpc.registry.call({name: 'page.locate', input: {selector: 'h1'}})),
+      ),
     )
     expect(agentResult.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
     expect(agentResult.source).toEqual(cliResult.source)
