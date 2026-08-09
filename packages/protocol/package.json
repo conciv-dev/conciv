@@ -61,6 +61,10 @@
       "types": "./dist/page-types.d.ts",
       "import": "./dist/page-types.js"
     },
+    "./element-capture-sanitize": {
+      "types": "./dist/element-capture-sanitize.d.ts",
+      "import": "./dist/element-capture-sanitize.js"
+    },
     "./element-capture-types": {
       "types": "./dist/element-capture-types.d.ts",
       "import": "./dist/element-capture-types.js"

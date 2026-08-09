@@ -10,11 +10,12 @@ import {
   type JSX,
 } from 'solid-js'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
-import {createCache, createMirror, rebuild} from 'rrweb-snapshot'
+import {createCache, createMirror, rebuildIntoSandboxedIframe} from 'rrweb-snapshot'
+import {isDangerousTag, neutralizeSubtree} from '@conciv/protocol/element-capture-sanitize'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {Chip, ChipRow} from './chip.js'
 
-type SerializedNode = Parameters<typeof rebuild>[0]
+type SerializedNode = Parameters<typeof rebuildIntoSandboxedIframe>[0]
 
 type PreviewStatus = 'loading' | 'ready' | 'failed'
 
@@ -26,15 +27,13 @@ const ENTRANCE_MS = 200
 const ENTRANCE_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
 const ENTRANCE_OFFSET = '0.25rem'
 
-const DANGEROUS_TAGS = new Set(['iframe', 'object', 'embed'])
+const REMOTE_CSS_URL_PATTERN = /url\(\s*["']?(?!data:)/i
 
-const URL_ATTRIBUTES = new Set(['href', 'src', 'xlink:href', 'srcdoc', 'formaction'])
-
-const JAVASCRIPT_SCHEME_PATTERN = /^javascript:/i
-
-const CONTROL_AND_SPACE_PATTERN = new RegExp(`[${String.fromCharCode(0)}-${String.fromCharCode(0x20)}]`, 'g')
-
-const NAMED_ENTITIES: Record<string, string> = {amp: '&', colon: ':', tab: '\t', newline: '\n'}
+const REPLICA_FRAME_ATTRIBUTES: Record<string, string> = {
+  style: 'width:100%;height:100%;border:0;background:transparent',
+  tabindex: '-1',
+  'aria-hidden': 'true',
+}
 
 const FRAME_BASE =
   'relative w-full h-36 overflow-hidden contain-strict rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
@@ -68,42 +67,6 @@ function isElementNode(node: SerializedNode): boolean {
   if (!('tagName' in node)) return false
   const nodeType: number = node.type
   return nodeType === NODE_TYPE_ELEMENT
-}
-
-function decodeEntities(value: string): string {
-  return value
-    .replace(/&#x([0-9a-f]+);?/gi, (_match, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);?/g, (_match, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
-    .replace(/&([a-z]+);?/gi, (match, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? match)
-}
-
-function isJavascriptUrl(value: string): boolean {
-  const stripped = decodeEntities(value).replace(CONTROL_AND_SPACE_PATTERN, '')
-  return JAVASCRIPT_SCHEME_PATTERN.test(stripped)
-}
-
-function isDangerousTag(node: SerializedNode): boolean {
-  return 'tagName' in node && DANGEROUS_TAGS.has(node.tagName.toLowerCase())
-}
-
-function neutralizeAttributes(attributes: Record<string, unknown>): void {
-  for (const name of Object.keys(attributes)) {
-    const lowered = name.toLowerCase()
-    const value = attributes[name]
-    if (lowered.startsWith('on')) {
-      delete attributes[name]
-      continue
-    }
-    if (URL_ATTRIBUTES.has(lowered) && typeof value === 'string' && isJavascriptUrl(value)) delete attributes[name]
-  }
-}
-
-function neutralizeSubtree(node: SerializedNode): void {
-  if ('isCustom' in node) delete node.isCustom
-  if ('attributes' in node) neutralizeAttributes(node.attributes)
-  if (!('childNodes' in node)) return
-  node.childNodes = node.childNodes.filter((child) => !isDangerousTag(child))
-  for (const child of node.childNodes) neutralizeSubtree(child)
 }
 
 function Root(props: {capture?: ElementCapture; css?: string; children: JSX.Element}): JSX.Element {
@@ -153,28 +116,53 @@ function playEntrance(frame: Element): void {
   )
 }
 
-type Replica = {built: HTMLElement; target: Element}
+type Replica = {built: HTMLElement; target: Element; replicaDocument: Document}
 
-function rebuildIntoShadow(host: HTMLDivElement, node: SerializedNode, cssText: string | undefined): Replica | null {
-  if (!isElementNode(node) || isDangerousTag(node)) return null
-  neutralizeSubtree(node)
-  const shadow = host.shadowRoot ?? host.attachShadow({mode: 'open'})
-  shadow.replaceChildren()
-  const style = document.createElement('style')
-  style.textContent = cssText ?? ''
-  shadow.appendChild(style)
-  const built = rebuild(node, {
-    doc: document,
-    mirror: createMirror(),
-    cache: createCache(),
-    UNSAFE_allowUnprotectedRebuild: true,
-  })
-  if (!(built instanceof HTMLElement)) return null
+function applySanitizedCss(replicaDocument: Document, cssText: string | undefined): void {
+  const view = replicaDocument.defaultView
+  if (view === null || cssText === undefined || cssText === '') return
+  const sheet = new view.CSSStyleSheet()
+  sheet.replaceSync(cssText)
+  for (let index = sheet.cssRules.length - 1; index >= 0; index -= 1) {
+    const rule = sheet.cssRules.item(index)
+    if (rule !== null && REMOTE_CSS_URL_PATTERN.test(rule.cssText)) sheet.deleteRule(index)
+  }
+  replicaDocument.adoptedStyleSheets = [sheet]
+}
+
+function prepareReplicaDocument(iframe: HTMLIFrameElement, cssText: string | undefined): Document | null {
+  const replicaDocument = iframe.contentDocument
+  if (replicaDocument === null) return null
+  replicaDocument.documentElement.style.background = 'transparent'
+  replicaDocument.body.style.margin = '0'
+  applySanitizedCss(replicaDocument, cssText)
+  return replicaDocument
+}
+
+function mountReplica(replicaDocument: Document, built: Node | null): Replica | null {
+  const view = replicaDocument.defaultView
+  if (view === null || !(built instanceof view.HTMLElement)) return null
   built.inert = true
   built.style.pointerEvents = 'none'
-  shadow.appendChild(built)
+  replicaDocument.body.appendChild(built)
   const target = built.matches(`[${TARGET_MARKER}]`) ? built : built.querySelector(`[${TARGET_MARKER}]`)
-  return target === null ? null : {built, target}
+  return target === null ? null : {built, target, replicaDocument}
+}
+
+function rebuildIntoSandbox(host: HTMLDivElement, node: SerializedNode, cssText: string | undefined): Replica | null {
+  if (!isElementNode(node) || isDangerousTag(node)) return null
+  neutralizeSubtree(node)
+  host.replaceChildren()
+  const {iframe, node: built} = rebuildIntoSandboxedIframe(node, {
+    root: host,
+    mirror: createMirror(),
+    cache: createCache(),
+    iframeAttributes: REPLICA_FRAME_ATTRIBUTES,
+  })
+  const replicaDocument = prepareReplicaDocument(iframe, cssText)
+  const replica = replicaDocument === null ? null : mountReplica(replicaDocument, built)
+  if (replica === null) host.replaceChildren()
+  return replica
 }
 
 function Frame(props: {class?: string}): JSX.Element {
@@ -198,17 +186,17 @@ function Frame(props: {class?: string}): JSX.Element {
     const frame = frameElement()
     ctx.setStatus('loading')
     replica = undefined
-    if (replicaHost === undefined || !isSerializedNode(node)) {
+    if (replicaHost === undefined || !replicaHost.isConnected || !isSerializedNode(node)) {
       ctx.setStatus('failed')
       return
     }
-    const built = rebuildIntoShadow(replicaHost, structuredClone(node), cssText)
+    const built = rebuildIntoSandbox(replicaHost, structuredClone(node), cssText)
     if (built === null) {
       ctx.setStatus('failed')
       return
     }
     replica = built
-    document.fonts.ready.then(() => {
+    built.replicaDocument.fonts.ready.then(() => {
       if (replica !== built || frame === undefined) return
       applyCrop(frame)
     })
@@ -222,7 +210,7 @@ function Frame(props: {class?: string}): JSX.Element {
   })
   onCleanup(() => {
     replica = undefined
-    replicaHost?.shadowRoot?.replaceChildren()
+    replicaHost?.replaceChildren()
   })
   const frameClass = (): string => {
     const status = ctx.status()

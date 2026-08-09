@@ -1,4 +1,5 @@
 import {createMirror, serializeNodeWithId} from 'rrweb-snapshot'
+import {isDangerousTag, neutralizeSubtree} from '@conciv/protocol/element-capture-sanitize'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {collectPendingCss, type PendingCssText} from './css-bundle.js'
 import {elementDescriptor} from './element-descriptor.js'
@@ -10,16 +11,6 @@ const TARGET_MARKER = 'data-rr-target'
 const MASKED_VALUE = '***'
 
 const ANCESTOR_CAP = 24
-
-const DANGEROUS_TAGS = new Set(['iframe', 'object', 'embed'])
-
-const URL_ATTRIBUTES = new Set(['href', 'src', 'xlink:href', 'srcdoc', 'formaction'])
-
-const JAVASCRIPT_SCHEME_PATTERN = /^javascript:/i
-
-const CONTROL_AND_SPACE_PATTERN = new RegExp(`[${String.fromCharCode(0)}-${String.fromCharCode(0x20)}]`, 'g')
-
-const NAMED_ENTITIES: Record<string, string> = {amp: '&', colon: ':', tab: '\t', newline: '\n'}
 
 type SerializedNode = NonNullable<ReturnType<typeof serializeNodeWithId>>
 
@@ -54,41 +45,6 @@ function scrubSensitiveValues(node: SerializedNode): void {
   if ('attributes' in node && isSensitiveAttributes(node.attributes)) node.attributes['value'] = MASKED_VALUE
   if (!('childNodes' in node)) return
   for (const child of node.childNodes) scrubSensitiveValues(child)
-}
-
-function decodeEntities(value: string): string {
-  return value
-    .replace(/&#x([0-9a-f]+);?/gi, (_match, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);?/g, (_match, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
-    .replace(/&([a-z]+);?/gi, (match, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? match)
-}
-
-function isJavascriptUrl(value: string): boolean {
-  const stripped = decodeEntities(value).replace(CONTROL_AND_SPACE_PATTERN, '')
-  return JAVASCRIPT_SCHEME_PATTERN.test(stripped)
-}
-
-function isDangerousTag(node: SerializedNode): boolean {
-  return 'tagName' in node && DANGEROUS_TAGS.has(node.tagName.toLowerCase())
-}
-
-function neutralizeAttributes(attributes: Record<string, unknown>): void {
-  for (const name of Object.keys(attributes)) {
-    const lowered = name.toLowerCase()
-    const value = attributes[name]
-    if (lowered.startsWith('on')) {
-      delete attributes[name]
-      continue
-    }
-    if (URL_ATTRIBUTES.has(lowered) && typeof value === 'string' && isJavascriptUrl(value)) delete attributes[name]
-  }
-}
-
-function neutralizeSubtree(node: SerializedNode): void {
-  if ('attributes' in node) neutralizeAttributes(node.attributes)
-  if (!('childNodes' in node)) return
-  node.childNodes = node.childNodes.filter((child) => !isDangerousTag(child))
-  for (const child of node.childNodes) neutralizeSubtree(child)
 }
 
 function markTarget(node: SerializedNode): void {

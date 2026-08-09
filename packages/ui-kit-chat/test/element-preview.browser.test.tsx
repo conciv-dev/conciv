@@ -13,6 +13,49 @@ import {cleanupViews, mountView} from './mount-view.js'
 
 const XSS_FLAG = '__elementPreviewXssProbe'
 
+const PROBE_PREFIX = '/conciv-preview-network-probe'
+
+const HOSTILE_CSS =
+  `@import url(${PROBE_PREFIX}/imported.css);` +
+  `.capture-form {background-image: url(${PROBE_PREFIX}/sheet-background.png);}` +
+  `@font-face {font-family: probe; src: url(${PROBE_PREFIX}/probe.woff2);}`
+
+const ENTITY_OVERFLOW_CAPTURE: ElementCapture = {
+  kind: 'after',
+  ts: Date.now(),
+  descriptor: {tagName: 'input', accessibleName: 'overflow target', selectorPath: 'input#overflow-target'},
+  node: {
+    type: 2,
+    tagName: 'html',
+    attributes: {},
+    childNodes: [
+      {
+        type: 2,
+        tagName: 'body',
+        attributes: {},
+        childNodes: [
+          {
+            type: 2,
+            tagName: 'a',
+            attributes: {id: 'overflow-link', href: `&#x110000;javascript:window.${XSS_FLAG} = true`},
+            childNodes: [{type: 3, textContent: 'overflowing', id: 1}],
+            id: 2,
+          },
+          {
+            type: 2,
+            tagName: 'input',
+            attributes: {id: 'overflow-target', value: 'overflow-target', 'data-rr-target': 'true'},
+            childNodes: [],
+            id: 3,
+          },
+        ],
+        id: 4,
+      },
+    ],
+    id: 5,
+  },
+}
+
 const HOSTILE_CAPTURE: ElementCapture = {
   kind: 'after',
   ts: Date.now(),
@@ -59,6 +102,34 @@ const HOSTILE_CAPTURE: ElementCapture = {
                 attributes: {srcdoc: `<script>window.${XSS_FLAG} = true</script>`},
                 childNodes: [],
                 id: 4,
+              },
+              {
+                type: 2,
+                tagName: 'script',
+                attributes: {},
+                childNodes: [{type: 3, textContent: `window.${XSS_FLAG} = true`, id: 11}],
+                id: 12,
+              },
+              {
+                type: 2,
+                tagName: 'link',
+                attributes: {rel: 'stylesheet', href: `${PROBE_PREFIX}/linked.css`},
+                childNodes: [],
+                id: 13,
+              },
+              {
+                type: 2,
+                tagName: 'img',
+                attributes: {id: 'hostile-srcset', srcset: `${PROBE_PREFIX}/srcset.png 1x`},
+                childNodes: [],
+                id: 14,
+              },
+              {
+                type: 2,
+                tagName: 'div',
+                attributes: {id: 'hostile-inline-style', style: `background-image:url(${PROBE_PREFIX}/inline.png)`},
+                childNodes: [{type: 3, textContent: 'styled', id: 15}],
+                id: 16,
               },
               {
                 type: 2,
@@ -124,22 +195,31 @@ function findById(node: unknown, id: string): PreviewNode | undefined {
   return undefined
 }
 
-function replicaShadowRoot(): ShadowRoot {
+function replicaFrame(): HTMLIFrameElement {
   const frame = document.querySelector('[role="img"]')
   if (frame === null) throw new Error('the replay frame was never mounted')
-  for (const child of frame.querySelectorAll('*')) {
-    if (child.shadowRoot !== null) return child.shadowRoot
-  }
-  throw new Error('the replica host inside the frame carries no shadow root')
+  const replicaFrameElement = frame.querySelector('iframe')
+  if (replicaFrameElement === null) throw new Error('the replica host inside the frame carries no sandboxed iframe')
+  return replicaFrameElement
 }
 
-function shadowTarget(): HTMLInputElement {
-  const target = replicaShadowRoot().querySelector('[data-rr-target]')
-  if (!(target instanceof HTMLInputElement)) throw new Error('the target was not rebuilt into the shadow root')
+function replicaRoot(): Document {
+  const replicaDocument = replicaFrame().contentDocument
+  if (replicaDocument === null) throw new Error('the sandboxed replica iframe exposes no document')
+  return replicaDocument
+}
+
+function replicaTarget(): HTMLInputElement {
+  const view = replicaRoot().defaultView
+  if (view === null) throw new Error('the sandboxed replica iframe exposes no window')
+  const target = replicaRoot().querySelector('[data-rr-target]')
+  if (!(target instanceof view.HTMLInputElement)) {
+    throw new Error('the target was not rebuilt into the replica document')
+  }
   return target
 }
 
-it('replays a frozen capture into a shadow root that still shows the original content and target marker', async () => {
+it('replays a frozen capture into a sandboxed replica document that still shows the original content and target marker', async () => {
   mountView(() => (
     <ElementPreview.Root capture={ELEMENT_CAPTURE_FIXTURE_FULL} css={ELEMENT_CAPTURE_FIXTURE_CSS}>
       <ElementPreview.Frame />
@@ -147,7 +227,7 @@ it('replays a frozen capture into a shadow root that still shows the original co
   ))
 
   await expect.element(page.getByRole('img', {name: 'Email'})).not.toHaveAttribute('aria-busy')
-  const target = shadowTarget()
+  const target = replicaTarget()
   expect(target.getAttribute('data-rr-target')).toBe('true')
   expect(target.value).toBe('ada@example.com')
   expect(target.closest('[inert]')).not.toBeNull()
@@ -173,7 +253,7 @@ it('shows the already-masked value for a captured password field, never the real
   ))
 
   await expect.element(page.getByRole('img')).not.toHaveAttribute('aria-busy')
-  const target = shadowTarget()
+  const target = replicaTarget()
   expect(target.value).toBe('***')
 })
 
@@ -189,17 +269,64 @@ it('neutralizes a hostile payload before rebuild: no onerror/onclick/javascript:
   await expect.element(page.getByRole('img', {name: 'safe target'})).not.toHaveAttribute('aria-busy')
 
   expect(Reflect.get(window, XSS_FLAG)).toBeUndefined()
-  const target = shadowTarget()
+  const target = replicaTarget()
   expect(target.value).toBe('safe-target')
-  const shadow = replicaShadowRoot()
-  expect(shadow.querySelector('iframe')).toBeNull()
+  const replica = replicaRoot()
+  expect(replica.querySelector('iframe')).toBeNull()
 
-  const tabLink = shadow.getElementById('hostile-tab-link')
+  const tabLink = replica.querySelector('#hostile-tab-link')
   expect(tabLink?.getAttribute('href')).toBeNull()
 
   expect(findById(HOSTILE_CAPTURE.node, 'hostile-tab-link')?.attributes?.['href']).toBe(
     `java\tscript:window.${XSS_FLAG} = true`,
   )
+})
+
+function probeResourceNames(): string[] {
+  const names: string[] = []
+  const windows: Window[] = [window]
+  for (const frame of document.querySelectorAll('iframe')) {
+    const view = frame.contentWindow
+    if (view !== null) windows.push(view)
+  }
+  for (const view of windows) {
+    for (const entry of view.performance.getEntriesByType('resource')) {
+      if (entry.name.includes(PROBE_PREFIX) && !entry.name.includes('sentinel')) names.push(entry.name)
+    }
+  }
+  return names
+}
+
+it('replays a hostile capture without running its script or fetching a single remote resource', async () => {
+  Reflect.deleteProperty(window, XSS_FLAG)
+
+  mountView(() => (
+    <ElementPreview.Root capture={HOSTILE_CAPTURE} css={HOSTILE_CSS}>
+      <ElementPreview.Frame />
+    </ElementPreview.Root>
+  ))
+
+  await expect.element(page.getByRole('img', {name: 'safe target'})).not.toHaveAttribute('aria-busy')
+  await fetch(`${PROBE_PREFIX}/sentinel`).catch(() => undefined)
+
+  expect(Reflect.get(window, XSS_FLAG)).toBeUndefined()
+  expect(probeResourceNames()).toEqual([])
+  expect(replicaTarget().value).toBe('safe-target')
+})
+
+it('keeps rendering when an attribute carries an out-of-range numeric character reference', async () => {
+  Reflect.deleteProperty(window, XSS_FLAG)
+
+  mountView(() => (
+    <ElementPreview.Root capture={ENTITY_OVERFLOW_CAPTURE}>
+      <ElementPreview.Frame />
+    </ElementPreview.Root>
+  ))
+
+  await expect.element(page.getByRole('img', {name: 'overflow target'})).not.toHaveAttribute('aria-busy')
+
+  expect(Reflect.get(window, XSS_FLAG)).toBeUndefined()
+  expect(replicaTarget().value).toBe('overflow-target')
 })
 
 it('degrades to the descriptor when the rebuilt node has no data-rr-target marker, leaving no invisible frame or busy indicator', async () => {

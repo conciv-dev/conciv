@@ -88,9 +88,19 @@ beforeEach(() => {
         <a id="hostile-link" href="javascript:window.__xssCapture = true" onmouseover="window.__xssCapture = true">click</a>
         <img id="hostile-img" src="x" onerror="window.__xssCapture = true">
         <iframe id="hostile-frame" srcdoc="&lt;script&gt;window.__xssCapture = true&lt;/script&gt;"></iframe>
+        <link id="hostile-sheet" rel="stylesheet" href="/conciv-capture-probe/linked.css">
       </div>
     </section>
   `
+  const hostileScript = document.createElement('script')
+  hostileScript.id = 'hostile-script'
+  hostileScript.textContent = 'window.__xssCapture = true'
+  host.querySelector('#hostile')?.appendChild(hostileScript)
+  const hostileOverflowLink = document.createElement('a')
+  hostileOverflowLink.id = 'hostile-overflow-link'
+  hostileOverflowLink.setAttribute('href', '&#x110000;javascript:window.__xssCapture = true')
+  hostileOverflowLink.textContent = 'overflowing'
+  host.querySelector('#hostile')?.appendChild(hostileOverflowLink)
   const hostileTabLink = document.createElement('a')
   hostileTabLink.id = 'hostile-tab-link'
   hostileTabLink.setAttribute('href', 'java\tscript:window.__xssCapture = true')
@@ -224,5 +234,29 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     expect(serialized).not.toContain('onmouseover')
     expect(serialized).not.toContain('javascript:')
     expect(serialized.toLowerCase()).not.toContain('iframe')
+  })
+
+  it('keeps script and stylesheet-link nodes out of the serialized payload', async () => {
+    const bundle = await captureOf('probe.mark', {selector: '#hostile'})
+    const node = bundle.after?.node
+    expect(node).toBeDefined()
+
+    expect(findById(node, 'hostile-script')).toBeUndefined()
+    expect(findById(node, 'hostile-sheet')).toBeUndefined()
+
+    const serialized = JSON.stringify(node).toLowerCase()
+    expect(serialized).not.toContain('"script"')
+    expect(serialized).not.toContain('"link"')
+    expect(serialized).not.toContain('conciv-capture-probe')
+  })
+
+  it('still produces a capture when an attribute carries an out-of-range numeric character reference', async () => {
+    const bundle = await captureOf('probe.mark', {selector: '#hostile'})
+    const node = bundle.after?.node
+    expect(node).toBeDefined()
+
+    const overflowLink = findById(node, 'hostile-overflow-link')
+    expect(overflowLink).toBeDefined()
+    expect(overflowLink?.attributes?.['href']).toBeUndefined()
   })
 })
