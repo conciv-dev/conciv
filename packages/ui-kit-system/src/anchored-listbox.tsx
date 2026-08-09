@@ -9,6 +9,14 @@ import {
 } from './list-panel.js'
 import {Popover} from './popover.js'
 
+declare module 'solid-js' {
+  namespace JSX {
+    interface ExplicitAttributes {
+      tabindex: null
+    }
+  }
+}
+
 export type AnchoredListboxRect = {x: number; y: number; width: number; height: number}
 
 export type AnchoredListboxHandle = {
@@ -125,7 +133,7 @@ function Label(props: {children: JSX.Element}): JSX.Element {
 
 function Content(props: {busy?: boolean; children: JSX.Element}): JSX.Element {
   return (
-    <Listbox.Content class={CONTENT} tabIndex={-1} aria-busy={props.busy ? 'true' : undefined}>
+    <Listbox.Content class={CONTENT} attr:tabindex={null} aria-busy={props.busy ? 'true' : undefined}>
       {props.children}
     </Listbox.Content>
   )

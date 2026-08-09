@@ -97,6 +97,20 @@ export const MentionTabCommitsTheHighlightedOption: Story = {
   },
 }
 
+export const MentionCancelledClickKeepsEditorFocused: Story = {
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const editor = await waitFor(() => canvas.getByRole('textbox', {name: 'Comment'}))
+    await userEvent.click(editor)
+    await userEvent.type(editor, '@')
+    const option = await waitFor(() => canvas.getByRole('option', {name: 'You'}))
+    await userEvent.pointer([{keys: '[MouseLeft>]', target: option}, {target: editor}, {keys: '[/MouseLeft]'}])
+    await waitFor(() => expect(editor).toHaveFocus())
+    await userEvent.type(editor, 'hello')
+    await waitFor(() => expect(within(editor).getByText('@hello')).toBeVisible())
+  },
+}
+
 export const MentionEnterSubmitsWhenNothingMatches: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
