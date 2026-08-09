@@ -16,6 +16,7 @@
     "dev:site": "turbo run dev --filter=site",
     "storybook": "turbo run storybook --filter=conciv-storybook",
     "build": "turbo run build",
+    "clean": "find packages apps e2e -name node_modules -prune -o \\( -name dist -type d -o -name '*.tsbuildinfo' \\) -print | git check-ignore --stdin | tr '\\n' '\\0' | xargs -0 rm -rf; rm -rf .turbo",
     "build:affected": "turbo run build --filter=...[origin/main]",
     "test": "turbo run test",
     "test:affected": "turbo run test --filter=...[origin/main]",
