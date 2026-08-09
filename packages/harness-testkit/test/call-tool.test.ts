@@ -57,11 +57,14 @@ function resultFor(method: string, protocolVersion: string): unknown {
   return {}
 }
 
+type StalledOutcome = 'error' | 'success'
+
 async function answer(
   request: IncomingMessage,
   response: ServerResponse,
   hung: string,
   stallMs: number,
+  outcome: StalledOutcome,
 ): Promise<void> {
   if (request.method !== 'POST') {
     response.writeHead(405)
@@ -77,15 +80,21 @@ async function answer(
   const {id, method, params} = call.data
   if (method === hung) {
     await new Promise((resolve) => setTimeout(resolve, stallMs))
-    sendJson(response, {jsonrpc: '2.0', id, error: {code: -32000, message: hangMessage(method)}})
-    return
+    if (outcome === 'error') {
+      sendJson(response, {jsonrpc: '2.0', id, error: {code: -32000, message: hangMessage(method)}})
+      return
+    }
   }
   sendJson(response, {jsonrpc: '2.0', id, result: resultFor(method, params?.protocolVersion ?? '2025-06-18')})
 }
 
-function startMcpServerHanging(hung: string, stallMs: number): Promise<{apiBase: string; stop: () => Promise<void>}> {
+function startMcpServerHanging(
+  hung: string,
+  stallMs: number,
+  outcome: StalledOutcome = 'error',
+): Promise<{apiBase: string; stop: () => Promise<void>}> {
   const server = createServer((request, response) => {
-    answer(request, response, hung, stallMs).catch(() => {
+    answer(request, response, hung, stallMs, outcome).catch(() => {
       response.writeHead(500)
       response.end()
     })
@@ -121,6 +130,18 @@ it('a tools/list failure past the deadline is not reported as the execute stage'
     expect(failure).toBeInstanceOf(Error)
     expect(String(failure)).not.toContain('waiting on the MCP execute')
     expect(String(failure)).toContain(hangMessage('tools/list'))
+  } finally {
+    await server.stop()
+  }
+}, 10_000)
+
+it('a tools/list that succeeds past the deadline is not reported as the execute stage', async () => {
+  const server = await startMcpServerHanging('tools/list', 400, 'success')
+  try {
+    const failure = await failureOf(server.apiBase)
+    expect(failure).toBeInstanceOf(Error)
+    expect(String(failure)).not.toContain('waiting on the MCP execute')
+    expect(String(failure)).toContain('tools/list')
   } finally {
     await server.stop()
   }

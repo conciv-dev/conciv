@@ -44,6 +44,10 @@ function deadlineMessage(label: string, deadlineMs: number): string {
   return `runTypescript(${label}) exceeded ${deadlineMs}ms waiting on the MCP execute; the server-side run continues until its own timeout`
 }
 
+function toolsDeadlineMessage(label: string, deadlineMs: number): string {
+  return `runTypescript(${label}) exceeded ${deadlineMs}ms waiting on the MCP tools/list; the execute never started`
+}
+
 export function makeRunTypescript(apiBase: string, session: string, options: McpCallOptions = {}): RunTypescript {
   const deadlineMs = options.deadlineMs ?? DEFAULT_DEADLINE_MS
   const label = options.label ?? DEFAULT_LABEL
@@ -55,6 +59,7 @@ export function makeRunTypescript(apiBase: string, session: string, options: Mcp
     try {
       const execute = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
       if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
+      if (deadline.aborted) throw new Error(toolsDeadlineMessage(label, deadlineMs))
       const raw = await Promise.resolve(
         execute.execute({typescriptCode}, {abortSignal: deadline, emitCustomEvent: () => {}}),
       ).catch((error: unknown) => {
