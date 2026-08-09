@@ -41,8 +41,8 @@
   "dependencies": {
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@orpc/client": "1.14.7",
-    "@orpc/tanstack-query": "^1.14.7",
+    "@orpc/client": "catalog:",
+    "@orpc/tanstack-query": "catalog:",
     "@tanstack/ai": "^0.43.0",
     "@tanstack/ai-solid": "0.16.0",
     "@tanstack/pacer": "^0.21.1",

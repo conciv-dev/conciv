@@ -5,6 +5,18 @@ packages:
   - apps/examples/*
   - e2e/*
 
+# @orpc peer-pins every sibling package to the identical version (tanstack-query@1.15.0
+# peer-requires client@1.15.0 exactly), so a caret range is unsafe on any fresh install:
+# it can resolve two different @orpc releases and split the pair. Single-sourcing the
+# version here means every manifest's "catalog:" resolves to the same exact release.
+catalog:
+  '@orpc/client': 1.14.7
+  '@orpc/contract': 1.14.7
+  '@orpc/server': 1.14.7
+  '@orpc/standard-server': 1.14.7
+  '@orpc/standard-server-peer': 1.14.7
+  '@orpc/tanstack-query': 1.14.7
+
 # Force patched protobufjs (GHSA-wcpc-wj8m-hjx6 prototype pollution); pulled in transitively
 # via jazz-tools OpenTelemetry in the whiteboard extension.
 overrides:
