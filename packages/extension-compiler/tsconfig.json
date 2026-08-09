@@ -1,5 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": {"rootDir": ".", "noEmit": true, "lib": ["ES2023"], "types": ["node"]},
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo"
+  },
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }
