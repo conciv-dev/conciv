@@ -1,13 +1,16 @@
 import {z} from 'zod'
 import type {UIMessage} from '@tanstack/ai'
 import {UsageSnapshotSchema} from './usage-types.js'
+import {WS_RPC_PAYLOAD_BUDGET_BYTES} from './rpc-types.js'
 export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
 export const CONCIV_CLAUDE_SESSION_HEADER = 'conciv-claude-session-id'
 
-const MAX_ATTACHMENT_BASE64_LENGTH = 27_962_028
+const MEBIBYTE = 1024 * 1024
+export const MAX_ATTACHMENT_RAW_BYTES = Math.floor((WS_RPC_PAYLOAD_BUDGET_BYTES * 3) / 4 / MEBIBYTE) * MEBIBYTE
+const MAX_ATTACHMENT_BASE64_LENGTH = Math.ceil(MAX_ATTACHMENT_RAW_BYTES / 3) * 4
 const BASE64_ALPHABET = /^[A-Za-z0-9+/]*={0,2}$/
 
 function isBase64(value: string): boolean {

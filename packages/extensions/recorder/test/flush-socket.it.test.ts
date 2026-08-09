@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import type {RouterClient} from '@orpc/server'
 import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
-import {DEFAULT_MAX_PAYLOAD_BYTES} from '@conciv/serve'
+import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {createFlusher} from '../src/client/flusher.js'
 import {MAX_FLUSH_BYTES, type RrwebEvent} from '../src/shared/protocol.js'
 import type {RecorderRouter} from '../src/server.js'
@@ -11,7 +11,6 @@ const api = useRecorderTestApi()
 
 const BURST_EVENT_BYTES = 900 * 1024
 const BURST_EVENT_COUNT = 6
-const SERVER_LIMIT_MARGIN_BYTES = 512 * 1024
 
 function paddedEvent(timestamp: number, bytes: number): RrwebEvent {
   return {type: 3, data: {padding: 'x'.repeat(bytes)}, timestamp}
@@ -72,7 +71,7 @@ describe('recorder flush over the shared rpc socket', () => {
 
       expect(flushCount).toBeGreaterThan(1)
       expect(outboundFrameBytes.length).toBeGreaterThan(0)
-      expect(Math.max(...outboundFrameBytes)).toBeLessThan(DEFAULT_MAX_PAYLOAD_BYTES - SERVER_LIMIT_MARGIN_BYTES)
+      expect(Math.max(...outboundFrameBytes)).toBeLessThan(WS_RPC_PAYLOAD_BUDGET_BYTES)
       expect(closeCodes).toEqual([])
       expect(await rpc.config({})).toBeTruthy()
     } finally {
@@ -100,7 +99,7 @@ describe('recorder flush over the shared rpc socket', () => {
       await flusher.flushNow()
       expect(flushCount).toBe(1)
       expect(outboundFrameBytes.length).toBe(1)
-      expect(outboundFrameBytes[0]).toBeLessThan(DEFAULT_MAX_PAYLOAD_BYTES - SERVER_LIMIT_MARGIN_BYTES)
+      expect(outboundFrameBytes[0]).toBeLessThan(WS_RPC_PAYLOAD_BUDGET_BYTES)
       expect(closeCodes).toEqual([])
       expect(await rpc.config({})).toBeTruthy()
     } finally {

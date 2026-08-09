@@ -1,3 +1,5 @@
+import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
+
 export const MAX_CONTENT_PARTS = 16
 
 export type SendContent = string | {content: string | ReadonlyArray<unknown>}
@@ -17,6 +19,12 @@ export function checkSend(content: SendContent, state: SendState): SendVerdict {
   if (state.busy) return {ok: false, message: null, tone: 'info'}
   if (typeof content !== 'string' && partCount(content) > MAX_CONTENT_PARTS)
     return {ok: false, message: 'Too many attachments. Remove some and send again.', tone: 'warn'}
+  if (new TextEncoder().encode(JSON.stringify(content)).length > WS_RPC_PAYLOAD_BUDGET_BYTES)
+    return {
+      ok: false,
+      message: 'Message too large to send. Remove an attachment or shorten it.',
+      tone: 'warn',
+    }
   if (!state.connected)
     return {ok: false, message: 'Not connected yet. Your message is still in the composer.', tone: 'warn'}
   return {ok: true}

@@ -1,10 +1,9 @@
 import {once} from 'node:events'
 import {serve, upgradeWebSocket, type Http2Bindings, type HttpBindings, type ServerType} from '@hono/node-server'
 import {WebSocketServer} from 'ws'
+import {WS_MAX_PAYLOAD_BYTES} from '@conciv/protocol/rpc-types'
 
 export {upgradeWebSocket}
-
-export const DEFAULT_MAX_PAYLOAD_BYTES = 16 * 1024 * 1024
 const GRACEFUL_SOCKET_CLOSE_MS = 2_000
 const SHUTTING_DOWN_CLOSE_CODE = 1001
 
@@ -54,7 +53,7 @@ export async function serveHono(options: ServeHonoOptions): Promise<ServedHono> 
   const requestedPort = options.port ?? 0
   const wss = new WebSocketServer({
     noServer: true,
-    maxPayload: options.maxPayload ?? DEFAULT_MAX_PAYLOAD_BYTES,
+    maxPayload: options.maxPayload ?? WS_MAX_PAYLOAD_BYTES,
   })
   const server = serve({
     fetch: options.fetch,

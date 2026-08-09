@@ -1,4 +1,6 @@
 import {describe, expect, it} from 'vitest'
+import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
+import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {
   composeAttachmentAdapters,
   createSimpleImageAttachmentAdapter,
@@ -47,11 +49,27 @@ describe('attachment adapters', () => {
 
   it('marks oversized images incomplete on add and refuses to send them', async () => {
     const adapter = createSimpleImageAttachmentAdapter()
-    const big = new File([new Uint8Array(21 * 1024 * 1024)], 'huge.png', {type: 'image/png'})
+    const big = new File([new Uint8Array(12 * 1024 * 1024)], 'huge.png', {type: 'image/png'})
     const pending = await adapter.add({file: big})
     if (Symbol.asyncIterator in pending) throw new Error('Expected a promise attachment')
     expect(pending.status).toMatchObject({type: 'incomplete', reason: 'error'})
-    await expect(adapter.send(pending)).rejects.toThrow('20MB')
+    await expect(adapter.send(pending)).rejects.toThrow('MB image limit')
+  })
+
+  it('accepts an image at the cap and keeps its base64 payload under the ws rpc budget', async () => {
+    const adapter = createSimpleImageAttachmentAdapter()
+    const largest = new File([new Uint8Array(MAX_ATTACHMENT_RAW_BYTES)], 'largest.png', {type: 'image/png'})
+    const pending = await adapter.add({file: largest})
+    if (Symbol.asyncIterator in pending) throw new Error('Expected a promise attachment')
+    expect(pending.status).toMatchObject({type: 'requires-action', reason: 'composer-send'})
+
+    const oneOver = new File([new Uint8Array(MAX_ATTACHMENT_RAW_BYTES + 1)], 'over.png', {type: 'image/png'})
+    const overPending = await adapter.add({file: oneOver})
+    if (Symbol.asyncIterator in overPending) throw new Error('Expected a promise attachment')
+    expect(overPending.status).toMatchObject({type: 'incomplete', reason: 'error'})
+
+    const largestBase64Length = Math.ceil(MAX_ATTACHMENT_RAW_BYTES / 3) * 4
+    expect(largestBase64Length).toBeLessThan(WS_RPC_PAYLOAD_BUDGET_BYTES)
   })
 
   it('marks svg images incomplete on add and refuses to send them', async () => {
