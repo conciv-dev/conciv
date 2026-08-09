@@ -49,6 +49,22 @@ const editRemove = defineTool({
   return {ok: true as const}
 })
 
+const editStyled = defineTool({
+  name: 'probe.settextstyled',
+  description: 'replaces the text of an element while the page injects a rule',
+  inputSchema: z.object({selector: z.string(), text: z.string()}),
+  outputSchema: z.object({ok: z.literal(true)}),
+  meta: {summary: 'set element text under a new rule', category: 'edit-live', mutating: true, capture: 'before-after'},
+}).client((input, ctx) => {
+  const el = ctx.target(input)
+  const injected = document.createElement('style')
+  injected.id = 'injected-sheet'
+  injected.textContent = '.capture-form .injected {color: rgb(9, 9, 9);}'
+  document.head.appendChild(injected)
+  el.textContent = input.text
+  return {ok: true as const}
+})
+
 const actMark = defineTool({
   name: 'probe.mark',
   description: 'marks an element without touching its children',
@@ -62,7 +78,7 @@ const actMark = defineTool({
 
 const probes = defineExtension({
   name: 'capture-probes',
-  tools: [readValue, actFill, editText, editRemove, actMark],
+  tools: [readValue, actFill, editText, editRemove, editStyled, actMark],
 }).client(() => ({value: {}}))
 
 const PASSWORD = 'hunter2-not-in-any-payload'
@@ -114,6 +130,7 @@ afterEach(() => {
   driver.dispose()
   host.remove()
   style.remove()
+  document.getElementById('injected-sheet')?.remove()
 })
 
 async function captureOf(name: string, input: Record<string, unknown>): Promise<PageCaptureBundle> {
@@ -169,15 +186,29 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     expect(node).toContain('data-rr-target')
     expect(node).toContain('capture-form')
     expect(bundle.after?.cssBundleId).toMatch(/^css/)
-    expect(bundle.cssBundle?.css).toContain('.capture-form .cta')
+    expect(bundle.cssBundles?.at(0)?.css).toContain('.capture-form .cta')
   })
 
   it('carries the css bundle on every capture so a dropped one never leaves a dangling reference', async () => {
     const first = await captureOf('probe.fill', {selector: '#card', value: '1'})
     const second = await captureOf('probe.fill', {selector: '#card', value: '2'})
     expect(second.after?.cssBundleId).toBe(first.after?.cssBundleId)
-    expect(second.cssBundle?.hash).toBe(second.after?.cssBundleId)
-    expect(second.cssBundle?.css).toBe(first.cssBundle?.css)
+    expect(second.cssBundles?.at(0)?.hash).toBe(second.after?.cssBundleId)
+    expect(second.cssBundles?.at(0)?.css).toBe(first.cssBundles?.at(0)?.css)
+  })
+
+  it('keeps a css bundle for each side when the page injects a rule while the tool runs', async () => {
+    const bundle = await captureOf('probe.settextstyled', {selector: '#prose', text: 'restyled'})
+    const beforeId = bundle.before?.cssBundleId
+    const afterId = bundle.after?.cssBundleId
+    expect(beforeId).toBeDefined()
+    expect(afterId).toBeDefined()
+    expect(beforeId).not.toBe(afterId)
+
+    const byHash = new Map((bundle.cssBundles ?? []).map((entry) => [entry.hash, entry.css]))
+    expect(byHash.size).toBe(2)
+    expect(byHash.get(beforeId ?? '')).not.toContain('.injected')
+    expect(byHash.get(afterId ?? '')).toContain('.injected')
   })
 
   it('keeps a password and a payment field out of the capture payload and out of the result', async () => {

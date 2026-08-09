@@ -1,6 +1,11 @@
 import type {ClientEffect, ClientToolCtx, ClientToolEntry, ClientToolLocator} from '@conciv/extension'
 import type {PageQuery, PageResult} from '@conciv/protocol/page-types'
-import type {ElementCapture, ElementCaptureKind, PageCaptureBundle} from '@conciv/protocol/element-capture-types'
+import type {
+  CssBundle,
+  ElementCapture,
+  ElementCaptureKind,
+  PageCaptureBundle,
+} from '@conciv/protocol/element-capture-types'
 import {addRef, type Refs} from './page-snapshot.js'
 import type {ConsoleEntry} from './console-buffer.js'
 import {elementByName} from './react-bridge.js'
@@ -100,6 +105,7 @@ function makeCaptureCollector(): CaptureCollector {
 async function buildCaptureBundle(entries: readonly PendingBundleEntry[]): Promise<PageCaptureBundle | undefined> {
   if (entries.length === 0) return undefined
   const bundle: PageCaptureBundle = {}
+  const cssBundles: CssBundle[] = []
   for (const entry of entries) {
     if (entry.pendingCss === null) {
       bundle[entry.kind] = entry.capture
@@ -107,8 +113,9 @@ async function buildCaptureBundle(entries: readonly PendingBundleEntry[]): Promi
     }
     const css = await toCssBundle(entry.pendingCss)
     bundle[entry.kind] = {...entry.capture, cssBundleId: css.hash}
-    bundle.cssBundle = css
+    if (!cssBundles.some((known) => known.hash === css.hash)) cssBundles.push(css)
   }
+  if (cssBundles.length > 0) bundle.cssBundles = cssBundles
   return bundle
 }
 

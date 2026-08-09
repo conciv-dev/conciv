@@ -37,7 +37,7 @@ describe('an element capture is stored beside the transcript and never reaches t
       capture: {
         before: side('before'),
         after: side('after'),
-        cssBundle: {hash: 'csstest1', css: '.form input {color: red}'},
+        cssBundles: [{hash: 'csstest1', css: '.form input {color: red}'}],
       },
     }
   }

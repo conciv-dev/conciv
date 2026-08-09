@@ -8,11 +8,11 @@ export async function writeToolCapture(
   params: {sessionId: string; toolCallId: string; bundle: PageCaptureBundle},
 ): Promise<void> {
   const createdAt = Date.now()
-  const {before, after, cssBundle} = params.bundle
-  if (cssBundle !== undefined) {
+  const {before, after} = params.bundle
+  for (const bundle of params.bundle.cssBundles ?? []) {
     await db
       .insert(cssBundles)
-      .values({hash: cssBundle.hash, sessionId: params.sessionId, css: cssBundle.css, createdAt})
+      .values({hash: bundle.hash, sessionId: params.sessionId, css: bundle.css, createdAt})
       .onConflictDoNothing()
   }
   for (const capture of [before, after]) {

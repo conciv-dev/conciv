@@ -43,7 +43,7 @@ export type CssBundle = z.infer<typeof CssBundleSchema>
 export const PageCaptureBundleSchema = z.object({
   before: ElementCaptureSchema.optional(),
   after: ElementCaptureSchema.optional(),
-  cssBundle: CssBundleSchema.optional(),
+  cssBundles: z.array(CssBundleSchema).optional(),
 })
 export type PageCaptureBundle = z.infer<typeof PageCaptureBundleSchema>
 
