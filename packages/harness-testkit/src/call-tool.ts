@@ -55,12 +55,14 @@ export function makeRunTypescript(apiBase: string, session: string, options: Mcp
     try {
       const execute = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
       if (!execute?.execute) throw new Error('execute_typescript not on /api/mcp')
-      const raw = await execute.execute({typescriptCode}, {abortSignal: deadline, emitCustomEvent: () => {}})
+      const raw = await Promise.resolve(
+        execute.execute({typescriptCode}, {abortSignal: deadline, emitCustomEvent: () => {}}),
+      ).catch((error: unknown) => {
+        if (!deadline.aborted) throw error
+        throw new Error(deadlineMessage(label, deadlineMs), {cause: error})
+      })
       if (typeof raw !== 'string') return raw
       return decodeReply(raw)
-    } catch (error) {
-      if (!deadline.aborted) throw error
-      throw new Error(deadlineMessage(label, deadlineMs), {cause: error})
     } finally {
       await mcp.close().catch(() => {})
     }
