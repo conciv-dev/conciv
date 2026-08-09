@@ -3,6 +3,7 @@ import {createMCPClient} from '@tanstack/ai-mcp'
 import type {StreamChunk} from '@tanstack/ai'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {approvalIds} from './run-events.js'
+import {deadline, TESTKIT_DEADLINE_MS} from './deadline.js'
 import {makeRpcClient} from './session.js'
 
 export type CallTool = (name: string, input: unknown) => Promise<unknown>
@@ -117,12 +118,20 @@ export async function withAutoApproval<Result>(
   onApproved?: (approvalId: string) => void,
 ): Promise<Result> {
   const abort = new AbortController()
-  const stream = await rpc.chat.subscribe({sessionId: session}, {signal: abort.signal})
+  const stream = await deadline(
+    'testkit chat.subscribe',
+    TESTKIT_DEADLINE_MS,
+    rpc.chat.subscribe({sessionId: session}, {signal: abort.signal}),
+  )
   const decided = new Set<string>()
   const decide = async (approvalId: string): Promise<void> => {
     if (decided.has(approvalId)) return
     decided.add(approvalId)
-    await rpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal})
+    await deadline(
+      `testkit chat.permissionDecision(${approvalId})`,
+      TESTKIT_DEADLINE_MS,
+      rpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal}),
+    )
     onApproved?.(approvalId)
   }
   const pump = pumpApprovals(stream, abort.signal, decide)
@@ -131,7 +140,7 @@ export async function withAutoApproval<Result>(
     return await run()
   } finally {
     abort.abort()
-    await pump
+    await deadline('testkit approval pump drain', TESTKIT_DEADLINE_MS, pump)
   }
 }
 

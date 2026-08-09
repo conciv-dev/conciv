@@ -10,6 +10,7 @@ import {
   type CallTool,
   type RunTypescript,
 } from '@conciv/harness-testkit'
+import {deadline, TESTKIT_DEADLINE_MS} from '@conciv/harness-testkit/deadline'
 import {launch, openObservedPage} from './launch.js'
 
 export type HostEngine = {apiBase: string; session: string}
@@ -60,7 +61,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
       return {page: second, close: () => second.close()}
     },
     dispose: async () => {
-      await closeBrowser()
+      await deadline('testkit browser close', TESTKIT_DEADLINE_MS, closeBrowser())
       await close()
       await stop()
     },

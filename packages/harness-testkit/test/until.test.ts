@@ -20,6 +20,21 @@ describe('until', () => {
     await expect(until(() => false, {hangGuardMs: 60})).rejects.toThrow(/stall|guard|timed out/i)
   })
 
+  it('rejects with the stall error at the hang guard even when the predicate never settles', async () => {
+    const started = performance.now()
+    await expect(until(() => new Promise<boolean>(() => {}), {hangGuardMs: 80})).rejects.toThrow(
+      /until: stall - condition not met/,
+    )
+    expect(performance.now() - started).toBeLessThan(2000)
+  }, 5000)
+
+  it('still resolves for a predicate that answers asynchronously', async () => {
+    const state = {ready: false}
+    setTimeout(() => (state.ready = true), 20)
+    await until(() => Promise.resolve(state.ready), {hangGuardMs: 2000})
+    expect(state.ready).toBe(true)
+  })
+
   it('waits for the predicate to hold continuously when settleFor is set', async () => {
     const state = {open: true}
     setTimeout(() => (state.open = false), 20)

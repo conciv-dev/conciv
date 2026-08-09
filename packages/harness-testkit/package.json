@@ -11,6 +11,7 @@
   "type": "module",
   "exports": {
     ".": "./src/testkit.ts",
+    "./deadline": "./src/deadline.ts",
     "./until": "./src/until.ts",
     "./rpc-mounts": "./src/rpc-mounts.ts",
     "./rpc-websocket-client": "./src/rpc-websocket-client.ts"

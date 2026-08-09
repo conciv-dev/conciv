@@ -1,4 +1,8 @@
+import {deadline} from './deadline.js'
+
 export type UntilOpts = {hangGuardMs?: number; settleFor?: number; failWhen?: () => boolean; intervalMs?: number}
+
+const STALL_LABEL = 'until: stall - condition not met'
 
 function makeSettleGate(settleFor: number): (ok: boolean) => boolean {
   const state = {since: null as number | null}
@@ -13,15 +17,23 @@ function makeSettleGate(settleFor: number): (ok: boolean) => boolean {
   }
 }
 
-export async function until(predicate: () => boolean | Promise<boolean>, opts: UntilOpts = {}): Promise<void> {
-  const hangGuardMs = opts.hangGuardMs ?? 5000
+async function poll(
+  predicate: () => boolean | Promise<boolean>,
+  opts: UntilOpts,
+  hangGuardMs: number,
+  deadlineAt: number,
+): Promise<void> {
   const intervalMs = opts.intervalMs ?? 10
   const settled = makeSettleGate(opts.settleFor ?? 0)
-  const deadline = performance.now() + hangGuardMs
   while (true) {
     if (opts.failWhen?.()) throw new Error('until: failWhen tripped before the condition held')
     if (settled(await predicate())) return
-    if (performance.now() > deadline) throw new Error(`until: stall - condition not met within ${hangGuardMs}ms`)
+    if (performance.now() > deadlineAt) throw new Error(`${STALL_LABEL} exceeded ${hangGuardMs}ms`)
     await new Promise((resolve) => setTimeout(resolve, intervalMs))
   }
+}
+
+export function until(predicate: () => boolean | Promise<boolean>, opts: UntilOpts = {}): Promise<void> {
+  const hangGuardMs = opts.hangGuardMs ?? 5000
+  return deadline(STALL_LABEL, hangGuardMs, poll(predicate, opts, hangGuardMs, performance.now() + hangGuardMs))
 }
