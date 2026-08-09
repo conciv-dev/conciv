@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "update-packed-lockfile": "tsx packed/update-lockfile.ts"
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
@@ -23,6 +24,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

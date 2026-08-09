@@ -33,6 +33,7 @@ export const ENGINE_PORT = 41750
 const CONCIV_FALLBACK_PORT = 41700
 export const DEV_PORT = 41751
 export const CLOSURE_ROOTS = ['@conciv/it', '@conciv/extension-tanstack', '@conciv/extension-compiler']
+export const FIXTURE_LOCK_PATH = join(WORKSPACE_ROOT, 'e2e/nextjs/packed/fixture-lock.yaml')
 
 export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
@@ -136,11 +137,10 @@ async function run(command: string, args: string[], cwd: string): Promise<void> 
   }
 }
 
-export async function buildAndPack(): Promise<{tgzDir: string; overrides: Record<string, string>; closure: string[]}> {
+export async function buildAndPack(tgzDir: string): Promise<{overrides: Record<string, string>; closure: string[]}> {
   const byName = workspacePackages()
   const closure = closureOf(byName, CLOSURE_ROOTS)
   await run('pnpm', ['turbo', 'run', 'build', ...closure.flatMap((name) => ['--filter', name])], WORKSPACE_ROOT)
-  const tgzDir = mkdtempSync(join(tmpdir(), 'conciv-packed-tgz-'))
   await Promise.all(
     closure.map((name) => {
       const info = byName.get(name)
@@ -157,7 +157,15 @@ export async function buildAndPack(): Promise<{tgzDir: string; overrides: Record
     if (!existsSync(file)) throw new Error(`no tarball packed for ${name} at ${file}`)
     overrides[name] = `file:${file}`
   }
-  return {tgzDir, overrides, closure}
+  return {overrides, closure}
+}
+
+function readMinimumReleaseAge(): number {
+  const text = readFileSync(join(WORKSPACE_ROOT, 'pnpm-workspace.yaml'), 'utf8')
+  const match = /^minimumReleaseAge:\s*(\d+)/m.exec(text)
+  const value = match?.[1]
+  if (value === undefined) throw new Error('minimumReleaseAge not found in root pnpm-workspace.yaml')
+  return Number(value)
 }
 
 function writeFixtureFiles(appDir: string, overrides: Record<string, string>): void {
@@ -272,13 +280,23 @@ export function secondExtensionSource(): string {
 
 export type Fixture = {root: string; appDir: string; tgzDir: string; closure: string[]}
 
-export async function setupFixture(): Promise<Fixture> {
-  const {tgzDir, overrides, closure} = await buildAndPack()
+export type SetupFixtureOptions = {fresh?: boolean}
+
+function resolveFresh(options: SetupFixtureOptions): boolean {
+  return options.fresh ?? process.env.CONCIV_PACKED_FRESH === '1'
+}
+
+export async function setupFixture(options: SetupFixtureOptions = {}): Promise<Fixture> {
+  const fresh = resolveFresh(options)
   const root = mkdtempSync(join(tmpdir(), 'conciv-packed-fixture-'))
+  const tgzDir = join(root, 'tgz')
+  mkdirSync(tgzDir, {recursive: true})
+  const {overrides, closure} = await buildAndPack(tgzDir)
   const appDir = join(root, 'packages/app')
   const workspaceYaml = [
     'packages:',
     "  - 'packages/*'",
+    `minimumReleaseAge: ${readMinimumReleaseAge()}`,
     'allowBuilds:',
     '  isolated-vm: false',
     '  sharp: false',
@@ -292,8 +310,12 @@ export async function setupFixture(): Promise<Fixture> {
     JSON.stringify({name: 'fixture-root', version: '0.0.0', private: true}, null, 2),
   )
   writeFixtureFiles(appDir, overrides)
-  await run('pnpm', ['install', '--config.confirmModulesPurge=false'], root)
+  if (!fresh && existsSync(FIXTURE_LOCK_PATH)) {
+    writeFileSync(join(root, 'pnpm-lock.yaml'), readFileSync(FIXTURE_LOCK_PATH, 'utf8'))
+  }
+  await run('pnpm', ['install', '--no-frozen-lockfile', '--config.confirmModulesPurge=false'], root)
   assertClosed(root)
+  if (!fresh) assertLockNotDrifted(root)
   return {root, appDir, tgzDir, closure}
 }
 
@@ -311,9 +333,44 @@ export function assertClosed(root: string): void {
   }
 }
 
+const PACKAGE_CATALOG_ENTRY = /^ {2}'?(.+?)'?:$/
+
+export function packageCatalogKeys(lockText: string): Set<string> {
+  const lines = lockText.split('\n')
+  const start = lines.indexOf('packages:')
+  if (start === -1) return new Set()
+  const end = lines.indexOf('snapshots:', start + 1)
+  const slice = lines.slice(start + 1, end === -1 ? undefined : end)
+  const keys = new Set<string>()
+  for (const line of slice) {
+    const match = PACKAGE_CATALOG_ENTRY.exec(line)
+    const key = match?.[1]
+    if (key === undefined || key.includes('conciv')) continue
+    keys.add(key)
+  }
+  return keys
+}
+
+export function assertLockNotDrifted(root: string, committedPath: string = FIXTURE_LOCK_PATH): void {
+  if (!existsSync(committedPath)) return
+  const committed = packageCatalogKeys(readFileSync(committedPath, 'utf8'))
+  const produced = packageCatalogKeys(readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8'))
+  const added = [...produced].filter((key) => !committed.has(key)).toSorted()
+  const removed = [...committed].filter((key) => !produced.has(key)).toSorted()
+  if (added.length === 0 && removed.length === 0) return
+  const diff = [...added.map((key) => `+ ${key}`), ...removed.map((key) => `- ${key}`)]
+  throw new Error(
+    [
+      'packed fixture install resolved different registry packages than the committed lockfile',
+      'e2e/nextjs/packed/fixture-lock.yaml:',
+      ...diff,
+      'run `pnpm --filter conciv-e2e-nextjs run update-packed-lockfile` to refresh it.',
+    ].join('\n'),
+  )
+}
+
 export function teardownFixture(fixture: Fixture): void {
   rmSync(fixture.root, {recursive: true, force: true})
-  rmSync(fixture.tgzDir, {recursive: true, force: true})
 }
 
 export type NextHandle = {child: ChildProcess; devPort: number; logPath: string}

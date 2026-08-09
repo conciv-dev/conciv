@@ -14,6 +14,7 @@
     "packages/ui-kit-system/src/tokens.css",
     "packages/plugin/test/fixtures/diagnostics-app/**",
     "packages/extensions/tanstack/test/fixtures/build-errors-app/**",
-    "packages/cli/test/fixtures/**"
+    "packages/cli/test/fixtures/**",
+    "e2e/nextjs/packed/fixture-lock.yaml"
   ]
 }
