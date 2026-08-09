@@ -115,6 +115,17 @@ async function buildCaptureBundle(
   return bundle
 }
 
+async function tryBuildCaptureBundle(
+  entries: readonly PendingBundleEntry[],
+  shipCss: CssBundleDeduper,
+): Promise<PageCaptureBundle | undefined> {
+  try {
+    return await buildCaptureBundle(entries, shipCss)
+  } catch {
+    return undefined
+  }
+}
+
 export function makePageToolDispatcher(
   tools: readonly ClientToolEntry[],
   refs: Refs,
@@ -134,7 +145,7 @@ export function makePageToolDispatcher(
       const record = plainRecordOf(result)
       if (!record || !isJsonSerializable(record)) fail(`${query.name} returned a non-serializable result`)
       if (tool.capture !== 'none') captures.take('after', slot.el)
-      const bundle = await buildCaptureBundle(captures.entries(), shipCss)
+      const bundle = await tryBuildCaptureBundle(captures.entries(), shipCss)
       return bundle === undefined ? {result: record} : {result: record, capture: bundle}
     } catch (error) {
       rethrow(error)

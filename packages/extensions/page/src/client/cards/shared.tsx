@@ -1,10 +1,9 @@
 import {z} from 'zod'
 import {For, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import {ChevronRight} from 'lucide-solid'
-import {JsonTreeView} from '@conciv/ui-kit-system'
 import {
   Chip,
+  ChipRow as ChipRowShell,
   cardPhase,
   cardTitle,
   clip,
@@ -23,12 +22,10 @@ import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
 
 const ELEMENT_TARGET_KEYS = new Set(['selector', 'ref', 'name'])
 
-const JSON_TREE_ROOT =
-  '[font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] max-h-[13.75rem] w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-auto p-1.5'
-
-const CHIP_ROW = 'm-0 p-0 flex flex-wrap gap-1.5'
-
 export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 [color:var(--chat-text-3)]'
+
+export const LIST_ROW_CLASS =
+  'px-2.5 py-1 flex gap-2 items-baseline [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)]'
 
 const InputRecord = z.record(z.string(), z.unknown())
 
@@ -58,10 +55,14 @@ export function detailChips(
     .map((field) => ({name: field.name, value: clip(displayValue(input[field.name]))}))
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 export function resultChips(result: ToolCardProps['result']): Array<{name: string; value: string}> {
   const payload = parseResultPayload(result)
-  if (payload === undefined || typeof payload !== 'object' || payload === null || Array.isArray(payload)) return []
-  return Object.entries(payload as Record<string, unknown>)
+  if (!isPlainRecord(payload)) return []
+  return Object.entries(payload)
     .filter(([, value]) => value !== undefined)
     .map(([name, value]) => ({name, value: clip(displayValue(value))}))
 }
@@ -69,10 +70,10 @@ export function resultChips(result: ToolCardProps['result']): Array<{name: strin
 export function ChipRow(props: {element?: string; chips: ReadonlyArray<{name: string; value: string}>}): JSX.Element {
   return (
     <Show when={props.element !== undefined || props.chips.length > 0}>
-      <dl class={CHIP_ROW}>
+      <ChipRowShell>
         <Show when={props.element}>{(value) => <Chip name="element" value={value()} />}</Show>
         <For each={props.chips}>{(chip) => <Chip name={chip.name} value={chip.value} />}</For>
-      </dl>
+      </ChipRowShell>
     </Show>
   )
 }
@@ -81,19 +82,8 @@ export function cardPayload(result: ToolCardProps['result']): unknown {
   return parseResultPayload(result)
 }
 
-export function JsonTree(props: {data: unknown}): JSX.Element {
-  return (
-    <JsonTreeView.Root
-      data={props.data}
-      defaultExpandedDepth={1}
-      collapseStringsAfterLength={60}
-      maxPreviewItems={5}
-      groupArraysAfterLength={20}
-      class={JSON_TREE_ROOT}
-    >
-      <JsonTreeView.Tree class="json-tree" arrow={<ChevronRight size={12} aria-hidden="true" />} />
-    </JsonTreeView.Root>
-  )
+export function mutatingBadge(meta: ToolViewMeta | undefined): string | undefined {
+  return meta?.mutating === true ? 'writes' : undefined
 }
 
 export function elementTargetValue(input: Record<string, unknown>): string | undefined {

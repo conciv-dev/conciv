@@ -9,9 +9,10 @@ import {
   type Accessor,
   type JSX,
 } from 'solid-js'
+import {createResizeObserver} from '@solid-primitives/resize-observer'
 import {createCache, createMirror, rebuild} from 'rrweb-snapshot'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
-import {Chip} from './chip.js'
+import {Chip, ChipRow} from './chip.js'
 
 type SerializedNode = Parameters<typeof rebuild>[0]
 
@@ -20,6 +21,7 @@ type PreviewStatus = 'loading' | 'ready' | 'failed'
 const TARGET_MARKER = 'data-rr-target'
 const FRAME_PADDING = 12
 const MAX_CROP_SCALE = 2
+const NODE_TYPE_ELEMENT = 2
 
 const DANGEROUS_TAGS = new Set(['iframe', 'object', 'embed'])
 
@@ -32,11 +34,13 @@ const CONTROL_AND_SPACE_PATTERN = new RegExp(`[${String.fromCharCode(0)}-${Strin
 const NAMED_ENTITIES: Record<string, string> = {amp: '&', colon: ':', tab: '\t', newline: '\n'}
 
 const FRAME_BASE =
-  'relative w-full h-36 overflow-hidden rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
+  'relative w-full h-36 overflow-hidden contain-strict rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
 const FRAME_READY = `${FRAME_BASE} opacity-100 anim-pop`
 const FRAME_LOADING = `${FRAME_BASE} anim-skel`
 const FRAME_FAILED = `${FRAME_BASE} hidden`
-const DESCRIPTOR_ROOT = 'flex flex-wrap gap-1.5 m-0 p-0'
+const REPLICA_HOST = 'block w-full h-full'
+const REPLICA_HOST_READY = `${REPLICA_HOST} visible`
+const REPLICA_HOST_PENDING = `${REPLICA_HOST} invisible`
 
 type ElementPreviewContextValue = {
   capture: Accessor<ElementCapture | undefined>
@@ -55,6 +59,12 @@ function useElementPreviewContext(component: string): ElementPreviewContextValue
 
 function isSerializedNode(value: unknown): value is SerializedNode {
   return typeof value === 'object' && value !== null && 'type' in value
+}
+
+function isElementNode(node: SerializedNode): boolean {
+  if (!('tagName' in node)) return false
+  const nodeType: number = node.type
+  return nodeType === NODE_TYPE_ELEMENT
 }
 
 function decodeEntities(value: string): string {
@@ -86,6 +96,7 @@ function neutralizeAttributes(attributes: Record<string, unknown>): void {
 }
 
 function neutralizeSubtree(node: SerializedNode): void {
+  if ('isCustom' in node) delete node.isCustom
   if ('attributes' in node) neutralizeAttributes(node.attributes)
   if (!('childNodes' in node)) return
   node.childNodes = node.childNodes.filter((child) => !isDangerousTag(child))
@@ -105,26 +116,28 @@ function Root(props: {capture?: ElementCapture; css?: string; children: JSX.Elem
   return <ElementPreviewContext.Provider value={value}>{props.children}</ElementPreviewContext.Provider>
 }
 
-function cropToTarget(host: HTMLElement, wrapper: HTMLElement, target: Element): void {
+function cropToTarget(frame: Element, replicaRoot: HTMLElement, target: Element): boolean {
   const targetRect = target.getBoundingClientRect()
-  const wrapperRect = wrapper.getBoundingClientRect()
-  const hostRect = host.getBoundingClientRect()
-  if (targetRect.width === 0 || targetRect.height === 0 || hostRect.width === 0 || hostRect.height === 0) return
-  const dx = targetRect.left - wrapperRect.left
-  const dy = targetRect.top - wrapperRect.top
-  const availableWidth = Math.max(hostRect.width - FRAME_PADDING * 2, 1)
-  const availableHeight = Math.max(hostRect.height - FRAME_PADDING * 2, 1)
+  const replicaRect = replicaRoot.getBoundingClientRect()
+  const frameRect = frame.getBoundingClientRect()
+  if (targetRect.width === 0 || targetRect.height === 0) return false
+  if (frameRect.width === 0 || frameRect.height === 0) return false
+  const dx = targetRect.left - replicaRect.left
+  const dy = targetRect.top - replicaRect.top
+  const availableWidth = Math.max(frameRect.width - FRAME_PADDING * 2, 1)
+  const availableHeight = Math.max(frameRect.height - FRAME_PADDING * 2, 1)
   const scale = Math.min(availableWidth / targetRect.width, availableHeight / targetRect.height, MAX_CROP_SCALE)
   const translateX = -(dx - FRAME_PADDING / scale)
   const translateY = -(dy - FRAME_PADDING / scale)
-  wrapper.style.transformOrigin = '0 0'
-  wrapper.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`
+  replicaRoot.style.transformOrigin = '0 0'
+  replicaRoot.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`
+  return true
 }
 
 type Replica = {built: HTMLElement; target: Element}
 
 function rebuildIntoShadow(host: HTMLDivElement, node: SerializedNode, cssText: string | undefined): Replica | null {
-  if (isDangerousTag(node)) return null
+  if (!isElementNode(node) || isDangerousTag(node)) return null
   neutralizeSubtree(node)
   const shadow = host.shadowRoot ?? host.attachShadow({mode: 'open'})
   shadow.replaceChildren()
@@ -147,36 +160,44 @@ function rebuildIntoShadow(host: HTMLDivElement, node: SerializedNode, cssText: 
 
 function Frame(props: {class?: string}): JSX.Element {
   const ctx = useElementPreviewContext('ElementPreview.Frame')
-  let host: HTMLDivElement | undefined
+  const [frameElement, setFrameElement] = createSignal<HTMLDivElement>()
+  let replicaHost: HTMLDivElement | undefined
+  let replica: Replica | undefined
   const label = (): string => {
     const descriptor = ctx.capture()?.descriptor
     return descriptor?.accessibleName ?? descriptor?.tagName ?? 'captured element'
   }
+  const applyCrop = (frame: Element): void => {
+    const current = replica
+    if (current === undefined) return
+    if (!cropToTarget(frame, current.built, current.target)) return
+    ctx.setStatus('ready')
+  }
   createEffect(() => {
     const node = ctx.capture()?.node
     const cssText = ctx.css()
+    const frame = frameElement()
     ctx.setStatus('loading')
-    if (host === undefined || !isSerializedNode(node)) {
+    replica = undefined
+    if (replicaHost === undefined || !isSerializedNode(node)) {
       ctx.setStatus('failed')
       return
     }
-    const replica = rebuildIntoShadow(host, structuredClone(node), cssText)
-    if (replica === null) {
+    const built = rebuildIntoShadow(replicaHost, structuredClone(node), cssText)
+    if (built === null) {
       ctx.setStatus('failed')
       return
     }
-    let cancelled = false
-    onCleanup(() => {
-      cancelled = true
-    })
+    replica = built
     document.fonts.ready.then(() => {
-      if (cancelled || host === undefined) return
-      cropToTarget(host, replica.built, replica.target)
-      ctx.setStatus('ready')
+      if (replica !== built || frame === undefined) return
+      applyCrop(frame)
     })
   })
+  createResizeObserver(frameElement, (_rect, frame) => applyCrop(frame))
   onCleanup(() => {
-    host?.shadowRoot?.replaceChildren()
+    replica = undefined
+    replicaHost?.shadowRoot?.replaceChildren()
   })
   const frameClass = (): string => {
     const status = ctx.status()
@@ -185,29 +206,33 @@ function Frame(props: {class?: string}): JSX.Element {
   }
   return (
     <div
-      ref={(node) => {
-        host = node
-      }}
+      ref={setFrameElement}
       role={ctx.status() === 'failed' ? undefined : 'img'}
       aria-label={ctx.status() === 'failed' ? undefined : label()}
       aria-busy={ctx.status() === 'loading' ? 'true' : undefined}
       class={frameClass()}
-    />
+    >
+      <div
+        ref={(node) => {
+          replicaHost = node
+        }}
+        class={ctx.status() === 'ready' ? REPLICA_HOST_READY : REPLICA_HOST_PENDING}
+      />
+    </div>
   )
 }
 
 function Descriptor(props: {class?: string}): JSX.Element {
   const ctx = useElementPreviewContext('ElementPreview.Descriptor')
   const descriptor = () => (ctx.status() === 'failed' ? ctx.capture()?.descriptor : undefined)
-  const rootClass = () => `${DESCRIPTOR_ROOT} ${props.class ?? ''}`
   return (
     <Show when={descriptor()}>
       {(value) => (
-        <dl class={rootClass()}>
+        <ChipRow class={props.class}>
           <Show when={value().role}>{(role) => <Chip name="role" value={role()} />}</Show>
           <Show when={value().accessibleName}>{(name) => <Chip name="name" value={name()} />}</Show>
           <Show when={value().value}>{(fieldValue) => <Chip name="value" value={fieldValue()} />}</Show>
-        </dl>
+        </ChipRow>
       )}
     </Show>
   )

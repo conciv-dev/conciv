@@ -1,12 +1,13 @@
-import {splitProps, type JSX} from 'solid-js'
+import {Show, splitProps, type JSX} from 'solid-js'
 import {ChevronDown} from 'lucide-solid'
-import {Collapsible} from '@conciv/ui-kit-system'
+import {Collapsible, Tooltip} from '@conciv/ui-kit-system'
 import {useOptionalThreadViewport} from '../primitives/thread/viewport-context.js'
 
 export type CollapsibleCardProps = {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   defaultOpen?: boolean
+  tooltip?: string
   class?: string
 }
 
@@ -18,10 +19,47 @@ const CHEVRON =
   'shrink-0 text-[color:var(--chat-text-3)] [transition:rotate_150ms_var(--chat-ease)] group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0'
 const BODY = 'px-3 pt-0.5 pb-2.5 text-[length:var(--chat-text-md)] text-[color:var(--chat-text-2)]'
 
+function TriggerBody(props: {header: JSX.Element}): JSX.Element {
+  return (
+    <>
+      <span class="flex flex-1 gap-2 min-w-0 items-center">{props.header}</span>
+      <ChevronDown size={14} class={CHEVRON} aria-hidden="true" />
+    </>
+  )
+}
+
+function CardTrigger(props: {tooltip: string | undefined; header: JSX.Element}): JSX.Element {
+  return (
+    <Show
+      when={props.tooltip}
+      fallback={
+        <Collapsible.Trigger class={TRIGGER}>
+          <TriggerBody header={props.header} />
+        </Collapsible.Trigger>
+      }
+    >
+      {(tooltip) => (
+        <Tooltip.Root openDelay={400} unmountOnExit lazyMount>
+          <Tooltip.Trigger
+            asChild={(triggerProps) => (
+              <Collapsible.Trigger {...triggerProps()} class={TRIGGER}>
+                <TriggerBody header={props.header} />
+              </Collapsible.Trigger>
+            )}
+          />
+          <Tooltip.Positioner>
+            <Tooltip.Content>{tooltip()}</Tooltip.Content>
+          </Tooltip.Positioner>
+        </Tooltip.Root>
+      )}
+    </Show>
+  )
+}
+
 export function CollapsibleCard(
   props: CollapsibleCardProps & {header: JSX.Element; children: JSX.Element},
 ): JSX.Element {
-  const [local] = splitProps(props, ['open', 'onOpenChange', 'defaultOpen', 'class', 'header', 'children'])
+  const [local] = splitProps(props, ['open', 'onOpenChange', 'defaultOpen', 'tooltip', 'class', 'header', 'children'])
   const viewport = useOptionalThreadViewport()
   return (
     <Collapsible.Root
@@ -33,10 +71,7 @@ export function CollapsibleCard(
       }}
     >
       <div class={`${CARD}  ${local.class ?? ''}`}>
-        <Collapsible.Trigger class={TRIGGER}>
-          <span class="flex flex-1 gap-2 min-w-0 items-center">{local.header}</span>
-          <ChevronDown size={14} class={CHEVRON} aria-hidden="true" />
-        </Collapsible.Trigger>
+        <CardTrigger tooltip={local.tooltip} header={local.header} />
         <Collapsible.Content>
           <div class={BODY}>{local.children}</div>
         </Collapsible.Content>

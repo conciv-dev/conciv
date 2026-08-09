@@ -1,17 +1,17 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {DANGER_TEXT_CLASS} from '@conciv/ui-kit-chat'
+import {DANGER_TEXT_CLASS, JsonTree} from '@conciv/ui-kit-chat'
 import {
   CardShell,
   ChipRow,
-  JsonTree,
   QUIET_TEXT_CLASS,
   cardErrorMessage,
   cardHeader,
   cardPayload,
   detailChips,
   elementTargetValue,
+  mutatingBadge,
   toolInput,
 } from './shared.js'
 
@@ -88,7 +88,7 @@ export function ReactCard(props: ToolCardProps): JSX.Element {
     <CardShell
       meta={meta()}
       title={title()}
-      metaBadge={meta()?.mutating === true ? 'writes' : undefined}
+      metaBadge={mutatingBadge(meta())}
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}

@@ -184,7 +184,9 @@ export {ToolCallCard, type ToolCallCardProps} from './styled/tools/tool-call-car
 export {NowLine} from './styled/now-line.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'
 export {ElementPreview} from './styled/element-preview.js'
-export {Chip, CHIP, CHIP_KEY, CHIP_VALUE} from './styled/chip.js'
+export {Chip, ChipRow, CHIP, CHIP_KEY, CHIP_VALUE, CHIP_ROW} from './styled/chip.js'
+export {JsonTree} from './styled/json-tree.js'
+export {MirrorRow, NoteRow, type NoteRowTone} from './styled/tools/note-row.js'
 export {
   ELEMENT_CAPTURE_FIXTURE_CSS,
   ELEMENT_CAPTURE_FIXTURE_FULL,

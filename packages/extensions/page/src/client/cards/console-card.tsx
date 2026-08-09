@@ -1,9 +1,9 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CODE_BLOCK_CLASS, DANGER_TEXT_CLASS} from '@conciv/ui-kit-chat'
+import {CODE_BLOCK_CLASS, DANGER_TEXT_CLASS, JsonTree} from '@conciv/ui-kit-chat'
 import {PageValueChip} from '../page-result-views.js'
-import {CardShell, JsonTree, QUIET_TEXT_CLASS, cardErrorMessage, cardHeader, cardPayload} from './shared.js'
+import {CardShell, LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardHeader, cardPayload} from './shared.js'
 
 const ConsolePayload = z.looseObject({
   entries: z.array(z.looseObject({level: z.string(), ts: z.number(), text: z.string()})),
@@ -14,7 +14,6 @@ const LINE_PLURAL = new Intl.PluralRules('en')
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', second: '2-digit'})
 
 const LIST = `${CODE_BLOCK_CLASS} m-0 p-0 list-none`
-const LINE = 'px-2.5 py-1 flex gap-2 items-baseline [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)]'
 const LEVEL =
   'text-[length:var(--chat-text-xs)] flex-none w-10 uppercase [color:var(--chat-text-3)] [font-family:var(--chat-mono)]'
 const TIME =
@@ -60,7 +59,7 @@ export function ConsoleCard(props: ToolCardProps): JSX.Element {
                 <ul class={LIST}>
                   <For each={entries()}>
                     {(entry) => (
-                      <li class={LINE}>
+                      <li class={LIST_ROW_CLASS}>
                         <span class={TIME}>{TIME_FORMAT.format(entry.ts)}</span>
                         <span class={LEVEL}>{entry.level}</span>
                         <span class={textClassOf(entry.level)}>{entry.text}</span>

@@ -1,10 +1,16 @@
 import {Show, type JSX} from 'solid-js'
-import {MoveUpRight} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {DANGER_TEXT_CLASS, ElementPreview} from '@conciv/ui-kit-chat'
-import {CardShell, ChipRow, cardErrorMessage, cardHeader, detailChips, elementTargetValue, toolInput} from './shared.js'
-
-const MIRROR_ROW = 'text-[length:var(--chat-text-xs)] flex gap-1.5 items-center m-0 [color:var(--chat-accent-link)]'
+import {DANGER_TEXT_CLASS, ElementPreview, MirrorRow} from '@conciv/ui-kit-chat'
+import {
+  CardShell,
+  ChipRow,
+  cardErrorMessage,
+  cardHeader,
+  detailChips,
+  elementTargetValue,
+  mutatingBadge,
+  toolInput,
+} from './shared.js'
 
 export function ActCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
@@ -17,7 +23,7 @@ export function ActCard(props: ToolCardProps): JSX.Element {
     <CardShell
       meta={meta()}
       title={title()}
-      metaBadge={meta()?.mutating === true ? 'writes' : undefined}
+      metaBadge={mutatingBadge(meta())}
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}
@@ -33,10 +39,7 @@ export function ActCard(props: ToolCardProps): JSX.Element {
         </Show>
         <ChipRow element={element()} chips={chips()} />
         <Show when={meta()?.mirrors === true}>
-          <p class={MIRROR_ROW}>
-            <MoveUpRight size={12} aria-hidden="true" />
-            <span>shown on your page</span>
-          </p>
+          <MirrorRow />
         </Show>
         <Show when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Show>
       </div>

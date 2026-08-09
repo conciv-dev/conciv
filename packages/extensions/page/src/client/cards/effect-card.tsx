@@ -1,10 +1,9 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {MoveUpRight} from 'lucide-solid'
 import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {DANGER_TEXT_CLASS} from '@conciv/ui-kit-chat'
-import {CardShell, JsonTree, QUIET_TEXT_CLASS, cardErrorMessage, cardHeader, cardPayload} from './shared.js'
+import {DANGER_TEXT_CLASS, JsonTree, MirrorRow} from '@conciv/ui-kit-chat'
+import {CardShell, QUIET_TEXT_CLASS, cardErrorMessage, cardHeader, cardPayload, mutatingBadge} from './shared.js'
 
 const SingleEffect = z.looseObject({effect: z.string(), enabled: z.boolean()})
 
@@ -12,7 +11,6 @@ const EffectList = z.looseObject({
   effects: z.array(z.looseObject({name: z.string(), description: z.string().optional(), enabled: z.boolean()})),
 })
 
-const MIRROR_ROW = 'text-[length:var(--chat-text-xs)] flex gap-1.5 items-center m-0 [color:var(--chat-accent-link)]'
 const LIST = 'm-0 p-0 list-none flex flex-col gap-1.5'
 const ROW = 'text-[length:var(--chat-text-sm)] m-0 flex gap-2 items-center'
 const NAME = '[color:var(--chat-text)] [font-family:var(--chat-mono)] min-w-0 [overflow-wrap:anywhere]'
@@ -61,7 +59,7 @@ export function EffectCard(props: ToolCardProps): JSX.Element {
     <CardShell
       meta={meta()}
       title={title()}
-      metaBadge={meta()?.mutating === true ? 'writes' : undefined}
+      metaBadge={mutatingBadge(meta())}
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}
@@ -89,10 +87,7 @@ export function EffectCard(props: ToolCardProps): JSX.Element {
           </Match>
         </Switch>
         <Show when={meta()?.mirrors === true}>
-          <p class={MIRROR_ROW}>
-            <MoveUpRight size={12} aria-hidden="true" />
-            <span>shown on your page</span>
-          </p>
+          <MirrorRow />
         </Show>
       </div>
     </CardShell>

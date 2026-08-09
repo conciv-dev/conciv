@@ -124,10 +124,17 @@ function findById(node: unknown, id: string): PreviewNode | undefined {
   return undefined
 }
 
+function replicaShadowRoot(): ShadowRoot {
+  const frame = document.querySelector('[role="img"]')
+  if (frame === null) throw new Error('the replay frame was never mounted')
+  for (const child of frame.querySelectorAll('*')) {
+    if (child.shadowRoot !== null) return child.shadowRoot
+  }
+  throw new Error('the replica host inside the frame carries no shadow root')
+}
+
 function shadowTarget(): HTMLInputElement {
-  const host = document.querySelector('[role="img"]')
-  if (host === null) throw new Error('the replay host was never mounted')
-  const target = host.shadowRoot?.querySelector('[data-rr-target]')
+  const target = replicaShadowRoot().querySelector('[data-rr-target]')
   if (!(target instanceof HTMLInputElement)) throw new Error('the target was not rebuilt into the shadow root')
   return target
 }
@@ -184,10 +191,10 @@ it('neutralizes a hostile payload before rebuild: no onerror/onclick/javascript:
   expect(Reflect.get(window, XSS_FLAG)).toBeUndefined()
   const target = shadowTarget()
   expect(target.value).toBe('safe-target')
-  const host = document.querySelector('[role="img"]')
-  expect(host?.shadowRoot?.querySelector('iframe')).toBeNull()
+  const shadow = replicaShadowRoot()
+  expect(shadow.querySelector('iframe')).toBeNull()
 
-  const tabLink = host?.shadowRoot?.getElementById('hostile-tab-link')
+  const tabLink = shadow.getElementById('hostile-tab-link')
   expect(tabLink?.getAttribute('href')).toBeNull()
 
   expect(findById(HOSTILE_CAPTURE.node, 'hostile-tab-link')?.attributes?.['href']).toBe(

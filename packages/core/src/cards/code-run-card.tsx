@@ -1,9 +1,11 @@
 import {Show, type JSX} from 'solid-js'
 import {Code} from 'lucide-solid'
-import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
+import {SolidCodeBlock} from '@conciv/solid-diffs'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
   clip,
+  CODE_BLOCK_CLASS,
+  CODE_BLOCK_OPTIONS,
   Markdown,
   parseInput,
   parseResultPayload,
@@ -12,15 +14,6 @@ import {
   type ToolStatus,
 } from '@conciv/ui-kit-chat'
 import {ExecuteInputSchema, ExecuteResultSchema, type ExecuteError, type ExecuteResult} from '../api/execute-schemas.js'
-
-const CONSOLE_OPTIONS: FileOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-  disableFileHeader: true,
-  disableLineNumbers: true,
-}
-const CONSOLE_CLASS =
-  'block overflow-x-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border-left:2px_solid_var(--chat-line)]'
 
 function parseOutput(result: ToolCardProps['result']): ExecuteResult | null {
   const parsed = ExecuteResultSchema.safeParse(parseResultPayload(result))
@@ -61,8 +54,8 @@ function ConsoleLogs(props: {logs: string[]}): JSX.Element {
     <>
       <span class="text-[color:var(--chat-text-3)] text-[length:0.625rem] tracking-[0.08em] uppercase">console</span>
       <SolidCodeBlock
-        class={CONSOLE_CLASS}
-        options={CONSOLE_OPTIONS}
+        class={CODE_BLOCK_CLASS}
+        options={CODE_BLOCK_OPTIONS}
         file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}}
       />
     </>

@@ -1,12 +1,11 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {DANGER_TEXT_CLASS} from '@conciv/ui-kit-chat'
+import {DANGER_TEXT_CLASS, JsonTree} from '@conciv/ui-kit-chat'
 import {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from '../page-result-views.js'
 import {
   CardShell,
   ChipRow,
-  JsonTree,
   QUIET_TEXT_CLASS,
   cardErrorMessage,
   cardHeader,
