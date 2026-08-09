@@ -41,8 +41,10 @@ async function openComposer(page: Page): Promise<void> {
 
 async function expectActiveOption(page: Page, option: Locator): Promise<void> {
   await expectLocator(option).toBeVisible({timeout: 10_000})
+  await expectLocator(option).toHaveAttribute('id', /.+/, {timeout: 10_000})
   const optionId = await option.getAttribute('id')
-  await expectLocator(composer(page)).toHaveAttribute('aria-activedescendant', String(optionId), {timeout: 10_000})
+  if (!optionId) throw new Error('the highlighted option rendered without an id')
+  await expectLocator(composer(page)).toHaveAttribute('aria-activedescendant', optionId, {timeout: 10_000})
 }
 
 describe('the composer trigger menu inside the live widget panel', () => {
