@@ -1,5 +1,4 @@
 import {createContext, createSignal, splitProps, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
-import {createSettled, SETTLE_DELAY_MS} from '../../behaviors/create-settled.js'
 
 type ChainState = {
   open: Accessor<boolean>
@@ -21,23 +20,17 @@ type RootProps = ParentProps<{
   defaultOpen?: boolean
   streaming?: boolean
   pinnedOpen?: boolean
-  settleDelayMs?: number
 }>
 
 function Root(props: RootProps): JSX.Element {
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
-  const settled = createSettled(
-    () => props.streaming ?? false,
-    () => props.settleDelayMs ?? SETTLE_DELAY_MS,
-  )
-  const active = () => Boolean(props.streaming) || !settled()
-  const open = () => userOpen() ?? (active() || Boolean(props.pinnedOpen))
+  const open = () => userOpen() ?? (Boolean(props.streaming) || Boolean(props.pinnedOpen))
   const state: ChainState = {
     open,
     setOpen: (next) => setUserOpen(next),
     toggle: () => setUserOpen(!open()),
     streaming: () => props.streaming ?? false,
-    preview: () => userOpen() === undefined && !props.pinnedOpen && active(),
+    preview: () => userOpen() === undefined && !props.pinnedOpen && Boolean(props.streaming),
   }
   return <ChainContext.Provider value={state}>{props.children}</ChainContext.Provider>
 }

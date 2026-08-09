@@ -1,17 +1,12 @@
 import {createSignal, type JSX} from 'solid-js'
-import {createSettled} from '../behaviors/create-settled.js'
 import {CollapsibleCard} from './collapsible-card.js'
 import {SHIMMER} from './shimmer.js'
 
-export type ReasoningProps = {text: string; streaming?: boolean; defaultOpen?: boolean; settleDelayMs?: number}
+export type ReasoningProps = {text: string; streaming?: boolean; defaultOpen?: boolean}
 
 export function Reasoning(props: ReasoningProps): JSX.Element {
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
-  const settled = createSettled(
-    () => props.streaming ?? false,
-    () => props.settleDelayMs,
-  )
-  const open = () => userOpen() ?? (Boolean(props.streaming) || !settled())
+  const open = () => userOpen() ?? Boolean(props.streaming)
   return (
     <CollapsibleCard
       open={open()}

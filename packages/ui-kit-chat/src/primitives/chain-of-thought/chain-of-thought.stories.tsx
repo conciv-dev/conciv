@@ -52,14 +52,14 @@ export const OpenWhileStreaming: Story = {
   },
 }
 
-function SettleHarness(props: {settleDelayMs: number}): JSX.Element {
+function ToggleHarness(): JSX.Element {
   const [streaming, setStreaming] = createSignal(true)
   return (
     <div>
-      <button type="button" onClick={() => setStreaming(false)}>
-        settle
+      <button type="button" onClick={() => setStreaming((value) => !value)}>
+        toggle streaming
       </button>
-      <ChainOfThought.Root streaming={streaming()} settleDelayMs={props.settleDelayMs}>
+      <ChainOfThought.Root streaming={streaming()}>
         <ChainOfThought.AccordionTrigger class="text-[0.75rem]">Thinking…</ChainOfThought.AccordionTrigger>
         <Body>
           <div>still working</div>
@@ -69,29 +69,16 @@ function SettleHarness(props: {settleDelayMs: number}): JSX.Element {
   )
 }
 
-export const CollapsesAfterSettleDelay: Story = {
-  render: () => <SettleHarness settleDelayMs={400} />,
-  play: async ({canvasElement}) => {
-    const c = within(canvasElement)
-    await expect(c.getByText('still working')).toBeVisible()
-    await userEvent.click(c.getByRole('button', {name: 'settle'}))
-    await expect(c.getByText('still working')).toBeVisible()
-    await waitFor(() => expect(c.queryByText('still working')).toBeNull(), {timeout: 1500})
-  },
-}
-
 export const UserToggleOverridesAutoCollapse: Story = {
-  render: () => <SettleHarness settleDelayMs={200} />,
+  render: () => <ToggleHarness />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     const trigger = c.getByRole('button', {name: 'Thinking…'})
     await expect(c.getByText('still working')).toBeVisible()
     await userEvent.click(trigger)
     await waitFor(() => expect(c.queryByText('still working')).toBeNull())
-    await userEvent.click(trigger)
-    await waitFor(() => expect(c.getByText('still working')).toBeVisible())
-    await userEvent.click(c.getByRole('button', {name: 'settle'}))
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    await expect(c.getByText('still working')).toBeVisible()
+    await userEvent.click(c.getByRole('button', {name: 'toggle streaming'}))
+    await userEvent.click(c.getByRole('button', {name: 'toggle streaming'}))
+    await expect(c.queryByText('still working')).toBeNull()
   },
 }

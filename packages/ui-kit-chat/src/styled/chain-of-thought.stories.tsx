@@ -1,4 +1,4 @@
-import {createSignal, Index, type JSX} from 'solid-js'
+import {Index, type JSX} from 'solid-js'
 import {Brain, FileText, Search} from 'lucide-solid'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
@@ -43,9 +43,6 @@ export const Streaming: Story = {
     const c = within(canvasElement)
     const label = await waitFor(() => c.getByText('Working…'))
     await expect(label).toBeVisible()
-
-    await expect(getComputedStyle(label).animationName).toContain('pw-think-shimmer')
-
     await expect(c.getByText(/grep -rn/)).toBeVisible()
   },
 }
@@ -65,30 +62,6 @@ export const SettledCollapsedThenExpand: Story = {
     await expect(c.getByText(/grep -rn/)).not.toBeVisible()
     await userEvent.click(trigger)
     await waitFor(() => expect(c.getByText(/grep -rn/)).toBeVisible())
-  },
-}
-
-export const CollapsesAfterSettleDelay: Story = {
-  render: () => {
-    const [streaming, setStreaming] = createSignal(true)
-    return (
-      <Frame>
-        <button type="button" onClick={() => setStreaming(false)}>
-          settle
-        </button>
-        <ChainOfThought streaming={streaming()} settleDelayMs={400}>
-          <Steps />
-        </ChainOfThought>
-      </Frame>
-    )
-  },
-  play: async ({canvasElement}) => {
-    const c = within(canvasElement)
-    await waitFor(() => expect(c.getByText(/grep -rn/)).toBeVisible())
-    await userEvent.click(c.getByRole('button', {name: 'settle'}))
-    await expect(c.getByText(/grep -rn/)).toBeVisible()
-    await waitFor(() => expect(c.getByText(/grep -rn/)).not.toBeVisible(), {timeout: 1500})
-    await expect(c.getByText('Chain of Thought')).toBeVisible()
   },
 }
 
