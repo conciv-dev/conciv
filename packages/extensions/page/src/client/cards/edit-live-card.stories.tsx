@@ -58,8 +58,8 @@ export const TextChangeWithDiff: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Set the text')).toBeVisible()
     await userEvent.click(canvas.getByRole('button'))
-    await expect(canvas.getByRole('tab', {name: 'Before'})).toBeVisible()
-    await expect(canvas.getByRole('tab', {name: 'After'})).toBeVisible()
+    await waitFor(() => expect(canvas.getByRole('tab', {name: 'Before'})).toBeVisible())
+    await waitFor(() => expect(canvas.getByRole('tab', {name: 'After'})).toBeVisible())
     await waitFor(() =>
       expect(
         Array.from(canvasElement.querySelectorAll('diffs-container'))
