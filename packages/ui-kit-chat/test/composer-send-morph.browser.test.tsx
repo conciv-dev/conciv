@@ -25,6 +25,7 @@ function StyledHost(props: ParentProps<{connection?: StoryConnectionOptions}>): 
 const SLOW_STREAM: StoryConnectionOptions = {
   chunks: createTextChunks('a long streamed answer that keeps the run busy'),
   chunkDelay: 200,
+  runsUntilStopped: true,
 }
 
 it('shows send when idle and stop only while running with an empty input', async () => {

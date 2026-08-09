@@ -159,7 +159,10 @@ it('runs the refresh handler when the refresh button is pressed', async () => {
 it('disables the refresh button while the session run streams', async () => {
   const handlers: ComposerHandlers = {onRefresh: () => {}}
   mountView(() => (
-    <ChatHost connection={{chunks: createTextChunks('a slow reply'), chunkDelay: 400}} handlers={handlers}>
+    <ChatHost
+      connection={{chunks: createTextChunks('a slow reply'), chunkDelay: 400, runsUntilStopped: true}}
+      handlers={handlers}
+    >
       <ComposerHarness showRefresh />
     </ChatHost>
   ))
