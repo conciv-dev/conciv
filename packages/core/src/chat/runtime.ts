@@ -74,7 +74,10 @@ export function makeRunControl(firstChunkTimeoutMs?: number): {
 
 type Registrable = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
 
-export type ToolRunContext = {emitCustomEvent?: (eventName: string, value: Record<string, unknown>) => void}
+export type ToolRunContext = {
+  toolCallId?: string
+  emitCustomEvent?: (eventName: string, value: Record<string, unknown>) => void
+}
 
 type ToolRun = (args: unknown, context?: ToolRunContext) => Promise<unknown>
 
@@ -99,10 +102,16 @@ export function buildChatTools(
 ): (sessionId: string) => AnyTool[] {
   return (sessionId) => {
     const ctx = makeCtx(sessionId)
-    const request: ToolRequest = {sessionId, model: sessionModel(sessionId)}
+    const requestFor = (context?: ToolRunContext): ToolRequest => ({
+      sessionId,
+      model: sessionModel(sessionId),
+      toolCallId: context?.toolCallId,
+    })
     return [
       ...concivTools(ctx).map((tool) => toChatTool(tool, (args) => tool.execute(args))),
-      ...extensionTools.map((tool) => toChatTool(tool, (args) => tool.execute(args, request), {lazy: true})),
+      ...extensionTools.map((tool) =>
+        toChatTool(tool, (args, context) => tool.execute(args, requestFor(context)), {lazy: true}),
+      ),
     ]
   }
 }
