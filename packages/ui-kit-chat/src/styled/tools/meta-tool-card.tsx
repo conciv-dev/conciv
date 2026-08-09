@@ -6,11 +6,14 @@ import {JsonTreeView} from '@conciv/ui-kit-system'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardProps, ToolViewError, ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {parseInput, parseResultPayload, resultText} from '../../primitives/tools/tool-util.js'
 import {schemaFields} from '../../primitives/tools/schema-params.js'
 import {toolStatus} from '../../primitives/tools/tool-status.js'
 import {toolIconRender} from '../tool-icon.js'
 import {ToolCard} from '../tool-card.js'
+import {Chip, CHIP} from '../chip.js'
+import {ElementPreview} from '../element-preview.js'
 
 const CODE_OPTIONS: FileOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},
@@ -21,10 +24,6 @@ const CODE_OPTIONS: FileOptions<undefined> = {
 }
 const CODE_CLASS =
   'block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
-const CHIP =
-  'inline-flex items-center gap-1.25 max-w-full min-w-0 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-accent-link)] [background:color-mix(in_oklch,var(--chat-accent)_10%,transparent)] [border:1px_solid_color-mix(in_oklch,var(--chat-accent)_42%,transparent)] rounded-[var(--chat-radius-pill)] py-0.5 px-2.25'
-const CHIP_KEY = 'text-[color:var(--chat-text-3)] m-0'
-const CHIP_VALUE = 'whitespace-nowrap text-ellipsis overflow-hidden [color:var(--chat-text)] m-0'
 const SUMMARY = 'text-[color:var(--chat-text-2)] text-[length:var(--chat-text-sm)] m-0'
 const HINT = 'text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] m-0'
 const ROW = 'text-[length:var(--chat-text-xs)] flex gap-1.5 items-center m-0'
@@ -167,6 +166,7 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
       .filter((name) => name !== skip && values[name] !== undefined)
       .map((name) => ({name, value: clip(displayValue(values[name]))}))
   }
+  const capture = (): ElementCapture | undefined => props.capture?.after ?? props.capture?.before
   const errorMessage = (): string | undefined => failureText(props.result, meta()?.errors)
   const raw = () => resultText(props.result)
   const payload = (): unknown => {
@@ -195,18 +195,20 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
       durationMs={props.durationMs}
     >
       <div class="flex flex-col gap-1.5">
+        <Show when={capture()}>
+          {(value) => (
+            <ElementPreview.Root capture={value()} css={props.capture?.css}>
+              <Show when={value().node !== undefined} fallback={<ElementPreview.Descriptor />}>
+                <ElementPreview.Frame />
+              </Show>
+            </ElementPreview.Root>
+          )}
+        </Show>
         <Show when={meta()?.summary}>{(summary) => <p class={SUMMARY}>{summary()}</p>}</Show>
         <Show when={meta()?.hint}>{(hint) => <p class={HINT}>{hint()}</p>}</Show>
         <Show when={chips().length > 0}>
           <dl class="m-0 p-0 flex flex-wrap gap-1.5">
-            <For each={chips()}>
-              {(chip) => (
-                <div class={CHIP}>
-                  <dt class={CHIP_KEY}>{chip.name}</dt>
-                  <dd class={CHIP_VALUE}>{chip.value}</dd>
-                </div>
-              )}
-            </For>
+            <For each={chips()}>{(chip) => <Chip name={chip.name} value={chip.value} />}</For>
           </dl>
         </Show>
         <Show when={meta()?.approval === 'ask'}>

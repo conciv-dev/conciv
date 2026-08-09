@@ -3,6 +3,11 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import {
+  ELEMENT_CAPTURE_FIXTURE_CSS,
+  ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY,
+  ELEMENT_CAPTURE_FIXTURE_FULL,
+} from '../../store/element-capture.fixtures.js'
 import {INERT_TOOL_CTX} from '../../store/tool-context.js'
 import {MetaToolCard} from './meta-tool-card.js'
 
@@ -213,5 +218,39 @@ export const PositionalHeadline: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Reading the text main > h1')).toBeVisible()
+  },
+}
+
+export const CapturedElement: Story = {
+  render: () =>
+    frame(
+      <MetaToolCard
+        part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
+        result={result('{"ok":true}')}
+        ctx={ctxFor({'page.fill': fillMeta})}
+        capture={{after: ELEMENT_CAPTURE_FIXTURE_FULL, css: ELEMENT_CAPTURE_FIXTURE_CSS}}
+      />,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button'))
+    await waitFor(() => expect(canvas.getByRole('img', {name: 'Email'})).toBeVisible())
+  },
+}
+
+export const DegradedCapture: Story = {
+  render: () =>
+    frame(
+      <MetaToolCard
+        part={part('page.fill', {selector: '#email', value: 'ada@example.com'})}
+        result={result('{"ok":true}')}
+        ctx={ctxFor({'page.fill': fillMeta})}
+        capture={{after: ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY}}
+      />,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button'))
+    await waitFor(() => expect(canvas.getByText('textbox')).toBeVisible())
   },
 }
