@@ -79,12 +79,27 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
   return {
     setup: async () => {
       const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
-      const app = await withDeadline(bootTimeoutMs, bootTimeoutMessage('boot', bootTimeoutMs), () =>
-        boot({stateRoot, cwd: stateRoot, harness}),
-      )
-      let served = await withDeadline(bootTimeoutMs, bootTimeoutMessage('serve', bootTimeoutMs), () =>
-        serveApp(app.fetch),
-      )
+      const removeStateRoot = (): void =>
+        rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
+      const app = await withDeadline(
+        bootTimeoutMs,
+        bootTimeoutMessage('boot', bootTimeoutMs),
+        () => boot({stateRoot, cwd: stateRoot, harness}),
+        (late) => late.dispose().finally(removeStateRoot),
+      ).catch((error: unknown) => {
+        removeStateRoot()
+        throw error
+      })
+      let served = await withDeadline(
+        bootTimeoutMs,
+        bootTimeoutMessage('serve', bootTimeoutMs),
+        () => serveApp(app.fetch),
+        (late) => late.close(),
+      ).catch((error: unknown) => {
+        void app.dispose().catch(() => {})
+        removeStateRoot()
+        throw error
+      })
       const base = served.base
       const wsBase = served.wsBase
       const aborts: AbortController[] = []
@@ -164,7 +179,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
           for (const abort of aborts) abort.abort()
           await app.dispose()
           await served.close()
-          rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
+          removeStateRoot()
         },
       }
     },

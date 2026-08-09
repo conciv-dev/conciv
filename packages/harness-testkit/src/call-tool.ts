@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {withDeadline} from './deadline.js'
+import {abortOnDeadline, withDeadline} from './deadline.js'
 import {approvalIds} from './run-events.js'
 import {makeRpcClient} from './session.js'
 
@@ -56,28 +56,36 @@ function stageMessage(label: string, stage: string, deadlineMs: number): string 
 export function makeRunTypescript(apiBase: string, session: string, options: McpCallOptions = {}): RunTypescript {
   const deadlineMs = options.deadlineMs ?? DEFAULT_DEADLINE_MS
   const label = options.label ?? DEFAULT_LABEL
-  const bounded = <Result>(stage: string, run: () => Promise<Result>): Promise<Result> =>
-    withDeadline(deadlineMs, stageMessage(label, stage, deadlineMs), run)
   return async (typescriptCode) => {
-    const mcp = await bounded(CONNECT_STAGE, () =>
-      createMCPClient({
-        transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
-      }),
+    const deadlineAt = Date.now() + deadlineMs
+    const remainingMs = (): number => Math.max(0, deadlineAt - Date.now())
+    const bounded = <Result>(
+      stage: string,
+      run: () => Promise<Result>,
+      disposeLate?: (result: Result) => unknown,
+    ): Promise<Result> => withDeadline(remainingMs(), stageMessage(label, stage, deadlineMs), run, disposeLate)
+    const mcp = await bounded(
+      CONNECT_STAGE,
+      () =>
+        createMCPClient({
+          transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
+        }),
+      (late) => late.close(),
     )
-    const deadline = AbortSignal.timeout(deadlineMs)
     try {
       const listed = await bounded(LIST_STAGE, () => mcp.tools())
       const tool = listed.find((entry) => entry.name === 'execute_typescript')
       if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')
       const invoke = tool.execute.bind(tool)
+      const execution = AbortSignal.timeout(remainingMs())
       const raw = await bounded(EXECUTE_STAGE, () =>
-        Promise.resolve(invoke({typescriptCode}, {abortSignal: deadline, emitCustomEvent: () => {}})),
-      )
+        Promise.resolve(invoke({typescriptCode}, {abortSignal: execution, emitCustomEvent: () => {}})),
+      ).catch((error: unknown) => {
+        if (!execution.aborted) throw error
+        throw new Error(stageMessage(label, EXECUTE_STAGE, deadlineMs), {cause: error})
+      })
       if (typeof raw !== 'string') return raw
       return decodeReply(raw)
-    } catch (error) {
-      if (!deadline.aborted) throw error
-      throw new Error(stageMessage(label, EXECUTE_STAGE, deadlineMs), {cause: error})
     } finally {
       await mcp.close().catch(() => {})
     }
@@ -103,7 +111,8 @@ export async function withAutoApproval<Result>(
   onApproved?: (approvalId: string) => void,
 ): Promise<Result> {
   const abort = new AbortController()
-  const stream = await withDeadline(
+  const stream = await abortOnDeadline(
+    abort,
     SUBSCRIBE_DEADLINE_MS,
     `opening the chat stream for session ${session} exceeded ${SUBSCRIBE_DEADLINE_MS}ms`,
     () => rpc.chat.subscribe({sessionId: session}, {signal: abort.signal}),
