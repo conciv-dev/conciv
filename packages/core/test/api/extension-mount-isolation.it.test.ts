@@ -84,6 +84,6 @@ describe('extension mount isolation (real makeApp)', () => {
         harness: requireClaude(),
         extensions: [first, second],
       }),
-    ).rejects.toThrow(/name collision/)
+    ).rejects.toThrow(/slug collision: "dup" is claimed by both "dup" and "dup"/)
   }, 30_000)
 })
