@@ -39,7 +39,8 @@
       "outputs": ["storybook-static/**"]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "outputs": [".tsbuildinfo", "**/.tsbuildinfo"]
     },
     "test": {
       "dependsOn": ["^build", "build"],

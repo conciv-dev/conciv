@@ -2,6 +2,8 @@
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["conciv/extensions"],
   "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
     "target": "ES2022",
     "jsx": "react-jsx",
     "module": "ESNext",

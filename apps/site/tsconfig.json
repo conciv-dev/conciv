@@ -1,6 +1,8 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
   "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
