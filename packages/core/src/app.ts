@@ -103,6 +103,20 @@ export function slug(name: string): string {
     .replace(/^-|-$/g, '')
 }
 
+function assertUniqueExtensionSlugs(extensions: readonly AnyExtension[]): void {
+  const owners = new Map<string, string>()
+  for (const extension of extensions) {
+    const extensionSlug = slug(extension.name)
+    const existing = owners.get(extensionSlug)
+    if (existing !== undefined) {
+      throw new Error(
+        `extension slug collision: "${extensionSlug}" is claimed by both "${existing}" and "${extension.name}"`,
+      )
+    }
+    owners.set(extensionSlug, extension.name)
+  }
+}
+
 function requireHarness(id: string): HarnessAdapter {
   const found = getHarness(id) ?? getHarness('claude')
   if (!found) throw new Error('no harness registered (built-in claude missing)')
@@ -295,7 +309,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     transcriptMessages: history ? (token) => history.messages(opts.cwd, token, opts.claudeHome) : undefined,
     connectPlan: harness.connect?.plan,
   }
-  const seenNames = new Set<string>()
   const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
 
   function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
@@ -340,13 +353,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const extensions = [pageServerExtension, ...(opts.extensions ?? [])]
 
-  const mountResults = await Promise.all(
-    extensions.map((extension) => {
-      if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
-      seenNames.add(extension.name)
-      return mountExtension(extension)
-    }),
-  )
+  assertUniqueExtensionSlugs(extensions)
+
+  const mountResults = await Promise.all(extensions.map((extension) => mountExtension(extension)))
   const mounted = mountResults.flatMap((entry) => (entry ? [entry] : []))
   const attachmentExpanders: AttachmentExpanders = {}
   for (const entry of mounted)

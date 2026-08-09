@@ -280,6 +280,20 @@ test('two extension names that normalize to the same rpc slug are rejected at mo
   await expect(boot({extensions: [first, second]})).rejects.toThrow(/slug-probe/)
 }, 30_000)
 
+test('two router-less extension names that normalize to the same /api/ext slug are rejected at mount', async () => {
+  const first = defineExtension({name: 'Http Probe'}).server(() => ({
+    context: {},
+    app: new Hono().get('/who', (c) => c.json({who: 'first'})),
+  }))
+  const second = defineExtension({name: 'http-probe'}).server(() => ({
+    context: {},
+    app: new Hono().get('/who', (c) => c.json({who: 'second'})),
+  }))
+  await expect(boot({extensions: [first, second]})).rejects.toThrow(
+    /slug collision: "http-probe" is claimed by both "Http Probe" and "http-probe"/,
+  )
+}, 30_000)
+
 test('two callers sharing one rpc socket each get their own per-call session header', async () => {
   const served = await boot()
   const socket = new WebSocket(`${served.wsBase}/rpc-ws`)
