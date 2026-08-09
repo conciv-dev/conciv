@@ -66,10 +66,9 @@ const serialize = (doc: JsonNode): MentionSegment[] => {
   return out
 }
 
-function submitsOnEnter(event: KeyboardEvent, menuOpen: boolean): boolean {
+function submitsOnEnter(event: KeyboardEvent): boolean {
   if (event.key !== 'Enter') return false
-  if (event.shiftKey) return false
-  return !menuOpen
+  return !event.shiftKey
 }
 
 export function MentionField(props: {
@@ -118,8 +117,8 @@ export function MentionField(props: {
       editorProps: {
         attributes: editableAttributes(),
         handleKeyDown: (_view, event) => {
-          if (triggerMenuKeyDown(menu.access, event, dismissMenu)) return true
-          if (!submitsOnEnter(event, menu.state() !== null)) return false
+          if (triggerMenuKeyDown(menu.access, event, {dismiss: dismissMenu, tabCommits: true})) return true
+          if (!submitsOnEnter(event)) return false
           event.preventDefault()
           submit()
           return true

@@ -172,7 +172,7 @@ export function RichTextField(props: {
           const history = chordHistoryCommand(event)
           if (history) return applyHistory(editor, history)
           if (insideComposition(editorState, event)) return false
-          if (triggerMenuKeyDown(menu.access, event, dismissMenu)) return true
+          if (triggerMenuKeyDown(menu.access, event, {dismiss: dismissMenu, tabCommits: false})) return true
           return enterAction(editor, event, submitDraft)
         },
         handlePaste: (_view, event) => {

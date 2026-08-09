@@ -174,13 +174,18 @@ export function triggerSuggestion(options: {
   }
 }
 
-type MenuKeyAction = 'ignore' | 'inert' | 'back' | 'dismiss' | 'forward'
+type MenuKeyAction = 'ignore' | 'inert' | 'back' | 'dismiss' | 'commit' | 'commitOrDismiss' | 'forward'
+
+export type TriggerMenuKeyboard = {
+  dismiss: (char: string) => void
+  tabCommits: boolean
+}
 
 type MenuKeyContext = {
   access: TriggerMenuAccess
   state: TriggerMenuState
   event: KeyboardEvent
-  dismiss: (char: string) => void
+  keyboard: TriggerMenuKeyboard
 }
 
 function consumeKey(event: KeyboardEvent): true {
@@ -188,32 +193,45 @@ function consumeKey(event: KeyboardEvent): true {
   return true
 }
 
-function enterKeyAction(state: TriggerMenuState, event: KeyboardEvent): MenuKeyAction | null {
+type MenuKeyResolver = (state: TriggerMenuState, event: KeyboardEvent, tabCommits: boolean) => MenuKeyAction | null
+
+const enterKeyAction: MenuKeyResolver = (state, event) => {
   if (event.key !== 'Enter') return null
   if (event.shiftKey) return 'ignore'
   if (state.dispatch.status === 'loading') return 'inert'
-  return null
+  return 'commit'
 }
 
-function backKeyAction(state: TriggerMenuState, event: KeyboardEvent): MenuKeyAction | null {
+const backKeyAction: MenuKeyResolver = (state, event) => {
   if (event.key !== 'Backspace') return null
   if (state.categoryId === null) return null
   if (state.dispatch.query !== '') return null
   return 'back'
 }
 
-function tabKeyAction(_state: TriggerMenuState, event: KeyboardEvent): MenuKeyAction | null {
-  return event.key === 'Tab' ? 'dismiss' : null
+const tabKeyAction: MenuKeyResolver = (_state, event, tabCommits) => {
+  if (event.key !== 'Tab') return null
+  return tabCommits ? 'commitOrDismiss' : 'dismiss'
 }
 
 const KEY_ACTION_RESOLVERS = [enterKeyAction, backKeyAction, tabKeyAction]
 
-function menuKeyAction(state: TriggerMenuState, event: KeyboardEvent): MenuKeyAction {
+function menuKeyAction(state: TriggerMenuState, event: KeyboardEvent, tabCommits: boolean): MenuKeyAction {
   for (const resolve of KEY_ACTION_RESOLVERS) {
-    const action = resolve(state, event)
+    const action = resolve(state, event, tabCommits)
     if (action) return action
   }
   return 'forward'
+}
+
+function dismissMenu({state, event, keyboard}: MenuKeyContext): boolean {
+  keyboard.dismiss(state.dispatch.char)
+  return consumeKey(event)
+}
+
+function commitHighlighted({access, event}: MenuKeyContext): boolean {
+  if (access.listbox()?.commitHighlighted() !== true) return false
+  return consumeKey(event)
 }
 
 const MENU_KEY_ACTIONS: Record<MenuKeyAction, (context: MenuKeyContext) => boolean> = {
@@ -223,21 +241,20 @@ const MENU_KEY_ACTIONS: Record<MenuKeyAction, (context: MenuKeyContext) => boole
     access.leaveCategory()
     return consumeKey(event)
   },
-  dismiss: ({state, event, dismiss}) => {
-    dismiss(state.dispatch.char)
-    return consumeKey(event)
-  },
+  dismiss: dismissMenu,
+  commit: commitHighlighted,
+  commitOrDismiss: (context) => commitHighlighted(context) || dismissMenu(context),
   forward: ({access, event}) => access.listbox()?.handleKeyDown(event) === true,
 }
 
 export function triggerMenuKeyDown(
   access: TriggerMenuAccess,
   event: KeyboardEvent,
-  dismiss: (char: string) => void,
+  keyboard: TriggerMenuKeyboard,
 ): boolean {
   const state = access.state()
   if (!state) return false
-  return MENU_KEY_ACTIONS[menuKeyAction(state, event)]({access, state, event, dismiss})
+  return MENU_KEY_ACTIONS[menuKeyAction(state, event, keyboard.tabCommits)]({access, state, event, keyboard})
 }
 
 export function dismissTrigger(view: EditorView, suggestions: readonly SuggestionConfig[], char: string): void {

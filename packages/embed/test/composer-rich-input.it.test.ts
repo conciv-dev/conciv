@@ -55,8 +55,10 @@ async function pickSuggestion(page: Page, listName: string, optionName: string):
   const listbox = page.getByRole('listbox', {name: listName})
   const option = listbox.getByRole('option', {name: optionName})
   await expectLocator(option).toBeVisible({timeout: 10_000})
+  await expectLocator(option).toHaveAttribute('id', /.+/, {timeout: 10_000})
   const optionId = await option.getAttribute('id')
-  await expectLocator(composer(page)).toHaveAttribute('aria-activedescendant', String(optionId))
+  if (!optionId) throw new Error(`option "${optionName}" in "${listName}" rendered without an id`)
+  await expectLocator(composer(page)).toHaveAttribute('aria-activedescendant', optionId, {timeout: 10_000})
   await page.keyboard.press('Enter')
   await expectLocator(listbox).toBeHidden({timeout: 10_000})
 }

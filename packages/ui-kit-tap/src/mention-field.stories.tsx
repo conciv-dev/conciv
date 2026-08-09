@@ -43,10 +43,10 @@ export const MentionOptionsCarryAvatars: Story = {
     const editor = await waitFor(() => canvas.getByRole('textbox', {name: 'Comment'}))
     await userEvent.click(editor)
     await userEvent.type(editor, '@')
-    const opus = await waitFor(() => canvas.getByRole('option', {name: 'Opus'}))
-    await expect(within(opus).getByText('O')).toBeVisible()
-    const you = canvas.getByRole('option', {name: 'You'})
-    await expect(within(you).getByText('Y')).toBeVisible()
+    await waitFor(() => {
+      expect(within(canvas.getByRole('option', {name: 'Opus'})).getByText('O')).toBeVisible()
+      expect(within(canvas.getByRole('option', {name: 'You'})).getByText('Y')).toBeVisible()
+    })
   },
 }
 
@@ -72,6 +72,43 @@ export const MentionScreenReaderSurface: Story = {
     await waitFor(() => expect(canvas.queryByRole('listbox')).not.toBeInTheDocument())
     await expect(editor).toHaveAttribute('aria-expanded', 'false')
     await expect(editor).not.toHaveAttribute('aria-activedescendant')
+  },
+}
+
+export const MentionTabCommitsTheHighlightedOption: Story = {
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const editor = await waitFor(() => canvas.getByRole('textbox', {name: 'Comment'}))
+    await userEvent.click(editor)
+    await userEvent.type(editor, 'hi @Op')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Opus'})).toBeVisible())
+    await userEvent.keyboard('{Tab}')
+    await waitFor(() => expect(canvas.queryByRole('listbox')).not.toBeInTheDocument())
+    await waitFor(() => expect(within(editor).getByText('@Opus')).toBeVisible())
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => {
+      const sent = JSON.parse(canvas.getByRole('status', {name: 'Sent'}).textContent ?? 'null')
+      expect(sent).toEqual([
+        {type: 'text', text: 'hi '},
+        {type: 'mention', id: 'ai:Opus', label: 'Opus'},
+        {type: 'text', text: ' '},
+      ])
+    })
+  },
+}
+
+export const MentionEnterSubmitsWhenNothingMatches: Story = {
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const editor = await waitFor(() => canvas.getByRole('textbox', {name: 'Comment'}))
+    await userEvent.click(editor)
+    await userEvent.type(editor, 'hey @zzz')
+    await waitFor(() => expect(canvas.getByText('No matches')).toBeVisible())
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => {
+      const sent = JSON.parse(canvas.getByRole('status', {name: 'Sent'}).textContent ?? 'null')
+      expect(sent).toEqual([{type: 'text', text: 'hey @zzz'}])
+    })
   },
 }
 

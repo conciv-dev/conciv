@@ -14,6 +14,7 @@ export type AnchoredListboxRect = {x: number; y: number; width: number; height: 
 export type AnchoredListboxHandle = {
   listboxId: string
   activeOptionId: () => string | undefined
+  commitHighlighted: () => boolean
   handleKeyDown: (event: KeyboardEvent) => boolean
 }
 
@@ -45,6 +46,13 @@ function Root(props: {
     return `${listboxId}-option-${value}`
   }
 
+  const commitHighlighted = (): boolean => {
+    const value = listbox().highlightedValue
+    if (value === null) return false
+    listbox().selectValue(value)
+    return true
+  }
+
   const handleKeyDown = (event: KeyboardEvent): boolean => {
     if (!inputElement) return false
     const forwarded = new KeyboardEvent(event.type, event)
@@ -65,7 +73,7 @@ function Root(props: {
     ),
   )
 
-  onMount(() => props.onReady?.({listboxId, activeOptionId, handleKeyDown}))
+  onMount(() => props.onReady?.({listboxId, activeOptionId, commitHighlighted, handleKeyDown}))
   onCleanup(() => props.onReady?.(null))
 
   return (
