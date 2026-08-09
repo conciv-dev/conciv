@@ -265,6 +265,10 @@ async function drainWithDeadline(drain: Promise<void>, timeoutMs: number): Promi
 }
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
+  const extensions = [pageServerExtension, ...(opts.extensions ?? [])]
+
+  assertUniqueExtensionSlugs(extensions)
+
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const db = openDb(opts.cfg.stateRoot)
   await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
@@ -350,10 +354,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       return null
     }
   }
-
-  const extensions = [pageServerExtension, ...(opts.extensions ?? [])]
-
-  assertUniqueExtensionSlugs(extensions)
 
   const mountResults = await Promise.all(extensions.map((extension) => mountExtension(extension)))
   const mounted = mountResults.flatMap((entry) => (entry ? [entry] : []))
