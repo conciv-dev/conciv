@@ -12,6 +12,7 @@ export default defineConfig({
         plugins: [solid()],
         resolve: {conditions: ['browser', 'development']},
         test: {
+          ...ciTest(),
           name: 'ui-kit-terminal',
           environment: 'node',
           maxWorkers: Number(process.env.VITEST_MAX_WORKERS ?? 3),

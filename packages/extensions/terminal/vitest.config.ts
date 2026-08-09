@@ -20,6 +20,7 @@ export default defineConfig({
       {
         plugins: [solid()],
         test: {
+          ...ciTest(),
           name: 'terminal-browser',
           include: ['test/**/*.browser.test.tsx'],
           testTimeout: 60_000,

@@ -11,8 +11,10 @@ export default defineConfig({
       {
         plugins: [solidPlugin(), UnoCSS({content: {filesystem: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}']}})],
         test: {
+          ...ciTest(),
           name: 'browser',
           include: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
+          fileParallelism: false,
           browser: {
             enabled: true,
             headless: true,

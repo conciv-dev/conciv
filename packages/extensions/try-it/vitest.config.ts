@@ -21,6 +21,7 @@ export default defineConfig({
         plugins: [solid()],
         resolve: {conditions: ['browser', 'development']},
         test: {
+          ...ciTest(),
           name: 'try-it-browser',
           environment: 'node',
           include: ['test/**/*.browser.test.tsx'],

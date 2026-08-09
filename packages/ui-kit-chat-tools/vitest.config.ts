@@ -29,6 +29,7 @@ export default defineConfig({
           include: ['test/**/*.browser.test.tsx'],
           testTimeout: ciTest().testTimeout,
           hookTimeout: ciTest().hookTimeout,
+          fileParallelism: false,
           browser: {
             enabled: true,
             headless: true,

@@ -19,6 +19,7 @@ export default defineConfig({
       {
         plugins: [solid()],
         test: {
+          ...ciTest(),
           name: 'whiteboard-browser',
           include: ['test/**/*.browser.test.tsx'],
           testTimeout: 200_000,

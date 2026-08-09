@@ -20,9 +20,11 @@ export default defineConfig({
       {
         plugins: [solid()],
         test: {
+          ...ciTest(),
           name: 'recorder-browser',
           include: ['test/**/*.browser.test.tsx'],
           testTimeout: 60_000,
+          fileParallelism: false,
           browser: {enabled: true, headless: true, provider: playwright({}), instances: [{browser: 'chromium'}]},
         },
       },
