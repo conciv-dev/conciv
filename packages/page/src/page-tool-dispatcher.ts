@@ -1,13 +1,13 @@
 import type {ClientEffect, ClientToolCtx, ClientToolEntry, ClientToolLocator} from '@conciv/extension'
 import type {PageQuery, PageResult} from '@conciv/protocol/page-types'
-import type {ElementCaptureKind, PageCaptureBundle} from '@conciv/protocol/element-capture-types'
+import type {ElementCapture, ElementCaptureKind, PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 import {addRef, type Refs} from './page-snapshot.js'
 import type {ConsoleEntry} from './console-buffer.js'
 import {elementByName} from './react-bridge.js'
 import {mirrorPageAction} from './page-mirror.js'
 import {badArgs, fail, unknownVerb} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
-import {makeCssBundleShipper, type CssBundleShipper} from './css-bundle.js'
+import {makeCssBundleDeduper, type CssBundleDeduper, type PendingCssText} from './css-bundle.js'
 import {takeElementCapture} from './element-capture.js'
 
 export type PageToolAnswer = {result: PageResult; capture?: PageCaptureBundle}
@@ -71,27 +71,48 @@ function plainRecordOf(value: unknown): Record<string, unknown> | null {
   return Object.fromEntries(Object.entries(value))
 }
 
+type PendingBundleEntry = {kind: ElementCaptureKind; capture: ElementCapture; pendingCss: PendingCssText | null}
+
 type CaptureCollector = {
   take: (kind: ElementCaptureKind, el: Element | null) => void
-  bundle: () => PageCaptureBundle | undefined
+  entries: () => readonly PendingBundleEntry[]
 }
 
-function makeCaptureCollector(shipCss: CssBundleShipper): CaptureCollector {
-  const bundle: PageCaptureBundle = {}
+function makeCaptureCollector(): CaptureCollector {
+  const entries: PendingBundleEntry[] = []
+  const seen = new Set<ElementCaptureKind>()
   return {
     take: (kind, el) => {
-      if (el === null || bundle[kind] !== undefined) return
+      if (el === null || seen.has(kind)) return
       try {
-        const taken = takeElementCapture(el, kind, {document, shipCss})
+        const taken = takeElementCapture(el, kind, {document})
         if (taken === null) return
-        bundle[kind] = taken.capture
-        if (taken.css?.bundle !== undefined) bundle.cssBundle = taken.css.bundle
+        seen.add(kind)
+        entries.push({kind, capture: taken.capture, pendingCss: taken.pendingCss})
       } catch {
         return
       }
     },
-    bundle: () => (bundle.before === undefined && bundle.after === undefined ? undefined : bundle),
+    entries: () => entries,
   }
+}
+
+async function buildCaptureBundle(
+  entries: readonly PendingBundleEntry[],
+  shipCss: CssBundleDeduper,
+): Promise<PageCaptureBundle | undefined> {
+  if (entries.length === 0) return undefined
+  const bundle: PageCaptureBundle = {}
+  for (const entry of entries) {
+    if (entry.pendingCss === null) {
+      bundle[entry.kind] = entry.capture
+      continue
+    }
+    const shipped = await shipCss(entry.pendingCss)
+    bundle[entry.kind] = {...entry.capture, cssBundleId: shipped.hash}
+    if (shipped.bundle !== undefined) bundle.cssBundle = shipped.bundle
+  }
+  return bundle
 }
 
 export function makePageToolDispatcher(
@@ -101,19 +122,19 @@ export function makePageToolDispatcher(
   effects: readonly ClientEffect[],
 ): PageToolDispatch {
   const byName = new Map(tools.map((tool) => [tool.name, tool] as const))
-  const shipCss = makeCssBundleShipper()
+  const shipCss = makeCssBundleDeduper()
   return async (query) => {
     const tool = byName.get(query.name)
     if (!tool) unknownVerb(`no mounted extension declares a client tool named "${query.name}"`)
     const slot: TargetSlot = {el: null}
-    const captures = makeCaptureCollector(shipCss)
+    const captures = makeCaptureCollector()
     const ctx = callCtx(tool, refs, consoleBuf, effects, slot)
     try {
       const result = await tool.execute(query.input, capturingCtx(ctx, tool.capture, captures))
       const record = plainRecordOf(result)
       if (!record || !isJsonSerializable(record)) fail(`${query.name} returned a non-serializable result`)
       if (tool.capture !== 'none') captures.take('after', slot.el)
-      const bundle = captures.bundle()
+      const bundle = await buildCaptureBundle(captures.entries(), shipCss)
       return bundle === undefined ? {result: record} : {result: record, capture: bundle}
     } catch (error) {
       rethrow(error)

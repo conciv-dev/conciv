@@ -1,6 +1,6 @@
 import {createMirror, serializeNodeWithId} from 'rrweb-snapshot'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import type {CssBundleShipper, ShippedCssBundle} from './css-bundle.js'
+import {collectPendingCss, type PendingCssText} from './css-bundle.js'
 import {elementDescriptor} from './element-descriptor.js'
 
 const WIDGET_SELECTOR = '[data-conciv-root]'
@@ -129,25 +129,19 @@ function containsWidget(el: Element): boolean {
   return el.querySelector(WIDGET_SELECTOR) !== null
 }
 
-export type CaptureDeps = {document: Document; shipCss: CssBundleShipper}
+export type CaptureDeps = {document: Document}
 
-export type TakenCapture = {capture: ElementCapture; css: ShippedCssBundle | null}
+export type TakenCapture = {capture: ElementCapture; pendingCss: PendingCssText | null}
 
 export function takeElementCapture(el: Element, kind: ElementCaptureKind, deps: CaptureDeps): TakenCapture | null {
   if (!el.isConnected) return null
   const descriptor = elementDescriptor(el)
   const ts = Date.now()
-  if (containsWidget(el)) return {capture: {kind, ts, descriptor}, css: null}
+  if (containsWidget(el)) return {capture: {kind, ts, descriptor}, pendingCss: null}
   const node = serializeWithAncestors(el, deps.document)
-  const css = deps.shipCss(deps.document)
+  const pendingCss = collectPendingCss(deps.document)
   return {
-    capture: {
-      kind,
-      ts,
-      descriptor,
-      ...(node === null ? {} : {node}),
-      ...(css === null ? {} : {cssBundleId: css.hash}),
-    },
-    css,
+    capture: {kind, ts, descriptor, ...(node === null ? {} : {node})},
+    pendingCss,
   }
 }
