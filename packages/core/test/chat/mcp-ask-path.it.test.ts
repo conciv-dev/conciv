@@ -95,7 +95,7 @@ describe('the MCP ask path is bounded', () => {
       const elapsed = performance.now() - started
       if (!(failure instanceof Error)) throw new Error(`expected a deadline Error, got ${String(failure)}`)
       expect(failure.message).toBe(
-        'runTypescript(vault.stall) exceeded 3000ms at the sandbox execute; the server-side run continues until its own timeout',
+        'runTypescript(vault.stall) exceeded 3000ms waiting on the MCP execute; the server-side run continues until its own timeout',
       )
       expect(failure.cause).toBeInstanceOf(Error)
       expect(String(failure.cause)).toMatch(/abort/i)

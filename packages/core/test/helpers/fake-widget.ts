@@ -1,19 +1,12 @@
 import type {PageOutcome} from '@conciv/protocol/page-types'
-import {abortOnDeadline, type Kit} from '@conciv/harness-testkit'
+import type {Kit} from '@conciv/harness-testkit'
 
 export type FakeWidget = {end: () => void; seen: () => string[]}
-
-const CONNECT_DEADLINE_MS = 10_000
 
 export async function connectWidget(kit: Kit, answerFor: (name: string) => PageOutcome): Promise<FakeWidget> {
   const ctrl = new AbortController()
   const seen: string[] = []
-  const iterator = await abortOnDeadline(
-    ctrl,
-    CONNECT_DEADLINE_MS,
-    `opening the page query stream exceeded ${CONNECT_DEADLINE_MS}ms; the widget never attached`,
-    () => kit.rpc.page.queries(undefined, {signal: ctrl.signal}),
-  )
+  const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
   void (async () => {
     try {
       for await (const {requestId, query} of iterator) {

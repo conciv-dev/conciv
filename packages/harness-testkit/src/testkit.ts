@@ -1,5 +1,4 @@
 export {until, type UntilOpts} from './until.js'
-export {abortOnDeadline, withDeadline} from './deadline.js'
 export {serveApp, type ServedApp} from './serve-app.js'
 export {
   createTestkit,
@@ -9,7 +8,6 @@ export {
   type ChatMessage,
   type Kit,
   type Testkit,
-  type TestkitOptions,
 } from './create-testkit.js'
 export {createTestHarness, type TestHarness} from './create-test-harness.js'
 export {createFakeHarness, type FakeHarness} from './create-fake-harness.js'
