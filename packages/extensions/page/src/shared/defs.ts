@@ -315,6 +315,7 @@ export const effectDef = pageTool({
   label: {running: 'Driving an effect', done: 'Drove an effect'},
   hint: 'action list reports every registered effect and whether it is enabled',
   mutating: true,
+  mirrors: true,
   capture: 'none',
   keywords: ['effects', 'overlay', 'highlight'],
   input: z.object({

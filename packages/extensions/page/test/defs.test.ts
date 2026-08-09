@@ -27,7 +27,18 @@ const MUTATING_VERBS = [
   'uncheck',
 ] as const
 
-const MIRROR_VERBS = ['check', 'click', 'fill', 'hover', 'press', 'scroll', 'select', 'submit', 'uncheck'] as const
+const MIRROR_VERBS = [
+  'check',
+  'click',
+  'effect',
+  'fill',
+  'hover',
+  'press',
+  'scroll',
+  'select',
+  'submit',
+  'uncheck',
+] as const
 
 describe('page tool declarations', () => {
   it('declares 37 verbs, every one registry-grade with meta, output, icon and label', () => {
