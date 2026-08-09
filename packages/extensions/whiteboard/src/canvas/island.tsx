@@ -1,5 +1,6 @@
 import {createEffect, createSignal, onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
+import {Batcher} from '@tanstack/pacer'
 import {Component, createElement, type PropsWithChildren, type ReactNode} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {Excalidraw, THEME, convertToExcalidrawElements, exportToBlob} from '@excalidraw/excalidraw'
@@ -17,6 +18,7 @@ type SceneElement = OrderedExcalidrawElement
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const CURSOR_STALE_MS = 15_000
+const PENDING_DRAIN_TASK_MS = 0
 const asScene = (data: JsonValue): SceneElement => data as unknown as SceneElement
 const asJson = (element: ExcalidrawElement): JsonValue => element as unknown as JsonValue
 
@@ -255,15 +257,15 @@ export function Island(props: {
     commit: performCommit,
     export: performExport,
   }
-  const drainRow = (row: PendingRow): void => {
-    if (draining.has(row.id)) return
-    const handler = pendingHandlers[row.kind]
-    if (!handler) return
+  const runPending = (row: PendingRow): void => void pendingHandlers[row.kind]?.(row)
+  const drainTask = new Batcher<PendingRow>((rows) => rows.forEach(runPending), {wait: PENDING_DRAIN_TASK_MS})
+  const queueDrain = (row: PendingRow): void => {
+    if (draining.has(row.id) || !pendingHandlers[row.kind]) return
     draining.add(row.id)
-    void handler(row)
+    drainTask.addItem(row)
   }
   const pendingSubscription = db.canvasPending.subscribeChanges(
-    () => [...db.canvasPending.state.values()].forEach(drainRow),
+    () => [...db.canvasPending.state.values()].forEach(queueDrain),
     {includeInitialState: true},
   )
 
@@ -272,6 +274,7 @@ export function Island(props: {
   onCleanup(() => {
     sceneSubscription.unsubscribe()
     pendingSubscription.unsubscribe()
+    drainTask.clear()
   })
 
   const renderExcalidraw = (): void => {
