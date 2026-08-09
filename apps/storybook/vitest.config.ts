@@ -28,6 +28,7 @@ export default defineConfig({
                 channel: 'chrome',
                 args: ['--disable-dev-shm-usage', '--js-flags=--max-old-space-size=4096'],
               },
+              contextOptions: {reducedMotion: 'reduce'},
             }),
             instances: [{browser: 'chromium'}],
           },

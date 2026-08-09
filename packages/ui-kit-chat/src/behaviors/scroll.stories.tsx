@@ -81,7 +81,7 @@ function CollapsePinHarness(): JSX.Element {
       </button>
       <div>atBottom: {String(isAtBottom())}</div>
       <div ref={setViewport} data-thread-viewport class="p-2 border border-pw-line h-32 overflow-y-auto">
-        <ChainOfThought streaming={streaming()} settleDelayMs={300}>
+        <ChainOfThought streaming={streaming()}>
           <Index each={Array.from({length: 6}, (_, index) => index)}>
             {(step) => (
               <ChainOfThought.Step icon={<span>*</span>} last={step() === 5}>
@@ -181,7 +181,7 @@ export const StaysPinnedThroughAutoCollapse: Story = {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByText('atBottom: true')).toBeVisible())
     await userEvent.click(c.getByRole('button', {name: 'settle'}))
-    await waitFor(() => expect(c.getByText('tool step 0')).not.toBeVisible(), {timeout: 2000})
+    await waitFor(() => expect(c.getByText('tool step 0')).not.toBeVisible())
     await waitFor(() => expect(c.getByText(`reply line ${GROWTH_LINES - 1}`)).toBeVisible(), {timeout: 4000})
     await expect(c.getByText('atBottom: true')).toBeVisible()
   },

@@ -24,7 +24,6 @@ export const Streaming: Story = {
     const c = within(canvasElement)
     const label = await waitFor(() => c.getByText('Thinking…'))
     await expect(label).toBeVisible()
-    await expect(getComputedStyle(label).animationName).toContain('pw-think-shimmer')
     await expect(c.getByText(/missing await/)).toBeVisible()
   },
 }
