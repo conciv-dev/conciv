@@ -49,7 +49,7 @@ describe('attachment adapters', () => {
 
   it('marks oversized images incomplete on add and refuses to send them', async () => {
     const adapter = createSimpleImageAttachmentAdapter()
-    const big = new File([new Uint8Array(12 * 1024 * 1024)], 'huge.png', {type: 'image/png'})
+    const big = new File([new Uint8Array(MAX_ATTACHMENT_RAW_BYTES + 1)], 'huge.png', {type: 'image/png'})
     const pending = await adapter.add({file: big})
     if (Symbol.asyncIterator in pending) throw new Error('Expected a promise attachment')
     expect(pending.status).toMatchObject({type: 'incomplete', reason: 'error'})
