@@ -17,8 +17,10 @@ export default defineConfig({
       {
         esbuild: {jsx: 'automatic', jsxImportSource: 'react'},
         test: {
+          ...ciTest(),
           name: 'browser',
           include: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
+          fileParallelism: false,
           browser: {
             enabled: true,
             headless: true,

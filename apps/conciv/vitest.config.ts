@@ -38,8 +38,10 @@ export default defineConfig({
       {
         plugins: [solidPlugin(), fakeCoreSocket],
         test: {
+          ...ciTest(),
           name: 'browser',
           include: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
+          fileParallelism: false,
           browser: {
             enabled: true,
             headless: true,
