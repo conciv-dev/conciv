@@ -6,6 +6,7 @@ export type StoryConnectionOptions = {
   chunkDelay?: number
   shouldError?: boolean
   error?: Error
+  runsUntilStopped?: boolean
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -19,6 +20,16 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       },
       {once: true},
     )
+  })
+}
+
+function untilStopped(signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (!signal || signal.aborted) {
+      resolve()
+      return
+    }
+    signal.addEventListener('abort', () => resolve(), {once: true})
   })
 }
 
@@ -39,6 +50,10 @@ export function storyConnection(options?: StoryConnectionOptions): ConnectConnec
       if (abortSignal?.aborted) return
       if (options?.shouldError) {
         yield {type: EventType.RUN_ERROR, message: (options.error ?? new Error('Story stream error')).message}
+        return
+      }
+      if (options?.runsUntilStopped) {
+        await untilStopped(abortSignal)
         return
       }
       yield {type: EventType.RUN_FINISHED, threadId, runId, finishReason: 'stop'}
