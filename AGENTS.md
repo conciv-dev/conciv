@@ -50,7 +50,7 @@ README.md; this file is the non-obvious operational rules.
 
 ## Code style
 
-- Functions, not classes. (Sole exception: the `BaseTextAdapter` subclass behind `makeTextAdapter`
+- Functions, not classes. (Sole exception: `DelegatingTextAdapter` behind `makeTextAdapter`
   in `packages/harness/src/_shared/text-adapter.ts`, which the library's typing forces.)
 - No IIFEs unless explicitly required.
 - Zero code comments in TS/JS (only tool directives like `@ts-`/`eslint-` survive). The
@@ -92,7 +92,10 @@ README.md; this file is the non-obvious operational rules.
   passing.
 - Never wait for Playwright `networkidle` on a page with the live widget: its SSE stream keeps the
   network busy forever; wait for `domcontentloaded` (or a UI signal) instead.
-- zod validates every HTTP boundary (`readValidatedBody`); add validation for new routes.
+- zod validates every untrusted input where it enters: RPC procedures declare `oc.input(...)` in
+  `packages/contract/src/contract.ts`; plain Hono routes zod-parse each piece they read (body,
+  params, query, headers), e.g. `NativeFileSchema.safeParse(c.req.param('file'))` in
+  `packages/core/src/api/native-page.ts`.
 
 ## Codebase analysis (fallow)
 
