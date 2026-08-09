@@ -1,7 +1,10 @@
 import {z} from 'zod'
-import type {JSX} from 'solid-js'
+import {For, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {ChevronRight} from 'lucide-solid'
+import {JsonTreeView} from '@conciv/ui-kit-system'
 import {
+  Chip,
   cardPhase,
   cardTitle,
   clip,
@@ -19,6 +22,13 @@ import type {ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
 
 const ELEMENT_TARGET_KEYS = new Set(['selector', 'ref', 'name'])
+
+const JSON_TREE_ROOT =
+  '[font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] max-h-[13.75rem] w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-auto p-1.5'
+
+const CHIP_ROW = 'm-0 p-0 flex flex-wrap gap-1.5'
+
+export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 [color:var(--chat-text-3)]'
 
 const InputRecord = z.record(z.string(), z.unknown())
 
@@ -54,6 +64,36 @@ export function resultChips(result: ToolCardProps['result']): Array<{name: strin
   return Object.entries(payload as Record<string, unknown>)
     .filter(([, value]) => value !== undefined)
     .map(([name, value]) => ({name, value: clip(displayValue(value))}))
+}
+
+export function ChipRow(props: {element?: string; chips: ReadonlyArray<{name: string; value: string}>}): JSX.Element {
+  return (
+    <Show when={props.element !== undefined || props.chips.length > 0}>
+      <dl class={CHIP_ROW}>
+        <Show when={props.element}>{(value) => <Chip name="element" value={value()} />}</Show>
+        <For each={props.chips}>{(chip) => <Chip name={chip.name} value={chip.value} />}</For>
+      </dl>
+    </Show>
+  )
+}
+
+export function cardPayload(result: ToolCardProps['result']): unknown {
+  return parseResultPayload(result)
+}
+
+export function JsonTree(props: {data: unknown}): JSX.Element {
+  return (
+    <JsonTreeView.Root
+      data={props.data}
+      defaultExpandedDepth={1}
+      collapseStringsAfterLength={60}
+      maxPreviewItems={5}
+      groupArraysAfterLength={20}
+      class={JSON_TREE_ROOT}
+    >
+      <JsonTreeView.Tree class="json-tree" arrow={<ChevronRight size={12} aria-hidden="true" />} />
+    </JsonTreeView.Root>
+  )
 }
 
 export function elementTargetValue(input: Record<string, unknown>): string | undefined {

@@ -52,7 +52,11 @@ import {
   waitDef,
 } from '../shared/defs.js'
 import {ActCard} from './cards/act-card.js'
+import {ConsoleCard} from './cards/console-card.js'
 import {EditLiveCard} from './cards/edit-live-card.js'
+import {EffectCard} from './cards/effect-card.js'
+import {ReactCard} from './cards/react-card.js'
+import {ReadBulkCard} from './cards/read-bulk-card.js'
 import {ReadValueCard} from './cards/read-value-card.js'
 
 function fail(message: string): never {
@@ -132,17 +136,21 @@ const routeTool = routeDef
   }))
   .render(ReadValueCard)
 
-const consoleTool = consoleDef.client((input, ctx) => ({entries: ctx.consoleEntries(input.since)}))
+const consoleTool = consoleDef.client((input, ctx) => ({entries: ctx.consoleEntries(input.since)})).render(ConsoleCard)
 
-const domTool = domDef.client((input, ctx) => {
-  const root = hasLocator(input) ? ctx.target(input) : ctx.document.body
-  return {html: root.outerHTML.slice(0, DOM_CAP)}
-})
+const domTool = domDef
+  .client((input, ctx) => {
+    const root = hasLocator(input) ? ctx.target(input) : ctx.document.body
+    return {html: root.outerHTML.slice(0, DOM_CAP)}
+  })
+  .render(ReadBulkCard)
 
-const queryTool = queryDef.client((input, ctx) => {
-  const matches = input.selector ? Array.from(ctx.document.querySelectorAll(input.selector)) : []
-  return {count: matches.length, elements: matches.slice(0, 20).map(describeElement)}
-})
+const queryTool = queryDef
+  .client((input, ctx) => {
+    const matches = input.selector ? Array.from(ctx.document.querySelectorAll(input.selector)) : []
+    return {count: matches.length, elements: matches.slice(0, 20).map(describeElement)}
+  })
+  .render(ReadBulkCard)
 
 const existsTool = existsDef
   .client((input, ctx) => {
@@ -151,66 +159,78 @@ const existsTool = existsDef
   })
   .render(ReadValueCard)
 
-const snapshotTool = snapshotDef.client((input, ctx) => {
-  const root = rootOf(ctx, input.selector)
-  if (!root) return {nodes: []}
-  ctx.resetRefs()
-  return {nodes: buildSnapshot(root, ctx.addRef)}
-})
+const snapshotTool = snapshotDef
+  .client((input, ctx) => {
+    const root = rootOf(ctx, input.selector)
+    if (!root) return {nodes: []}
+    ctx.resetRefs()
+    return {nodes: buildSnapshot(root, ctx.addRef)}
+  })
+  .render(ReadBulkCard)
 
-const locateTool = locateDef.client(async (input, ctx) => {
-  const result = await reactBridge.locate(ctx.target(input), ctx.addRef)
-  return result ?? fail('no React fiber: element may be outside a React tree or not hydrated yet')
-})
+const locateTool = locateDef
+  .client(async (input, ctx) => {
+    const result = await reactBridge.locate(ctx.target(input), ctx.addRef)
+    return result ?? fail('no React fiber: element may be outside a React tree or not hydrated yet')
+  })
+  .render(ReactCard)
 
-const inspectTool = inspectDef.client(async (input, ctx) => {
-  const result = await reactBridge.inspect(ctx.target(input))
-  if (!result) fail('no React fiber for element')
-  const root = {props: result.props, state: result.state, hooks: result.hooks}
-  if (input.path) {
-    const hit = navigatePath(root, input.path)
-    if (!hit.found) badArgs(`path not found: ${input.path}`)
-    return {component: result.component, path: input.path, value: dehydrate(hit.value)}
-  }
-  return {
-    component: result.component,
-    props: dehydrate(result.props),
-    state: dehydrate(result.state),
-    hooks: dehydrate(result.hooks),
-    rect: result.rect,
-  }
-})
+const inspectTool = inspectDef
+  .client(async (input, ctx) => {
+    const result = await reactBridge.inspect(ctx.target(input))
+    if (!result) fail('no React fiber for element')
+    const root = {props: result.props, state: result.state, hooks: result.hooks}
+    if (input.path) {
+      const hit = navigatePath(root, input.path)
+      if (!hit.found) badArgs(`path not found: ${input.path}`)
+      return {component: result.component, path: input.path, value: dehydrate(hit.value)}
+    }
+    return {
+      component: result.component,
+      props: dehydrate(result.props),
+      state: dehydrate(result.state),
+      hooks: dehydrate(result.hooks),
+      rect: result.rect,
+    }
+  })
+  .render(ReactCard)
 
-const overrideTool = overrideDef.client(async (input, ctx) => {
-  const el = ctx.target(input)
-  let value: unknown
-  try {
-    value = input.json === undefined ? undefined : JSON.parse(input.json)
-  } catch {
-    badArgs(`--json is not valid JSON: ${input.json}`)
-  }
-  const path = input.path ? input.path.split('.') : []
-  const result = await reactBridge.override(el, input.target, path, value, input.hookId)
-  if ('error' in result) fail(result.error)
-  return ok({target: input.target, path: input.path ?? '', ...(value === undefined ? {} : {value})})
-})
+const overrideTool = overrideDef
+  .client(async (input, ctx) => {
+    const el = ctx.target(input)
+    let value: unknown
+    try {
+      value = input.json === undefined ? undefined : JSON.parse(input.json)
+    } catch {
+      badArgs(`--json is not valid JSON: ${input.json}`)
+    }
+    const path = input.path ? input.path.split('.') : []
+    const result = await reactBridge.override(el, input.target, path, value, input.hookId)
+    if ('error' in result) fail(result.error)
+    return ok({target: input.target, path: input.path ?? '', ...(value === undefined ? {} : {value})})
+  })
+  .render(ReactCard)
 
-const treeTool = treeDef.client(async (input, ctx) => {
-  const root = rootOf(ctx, input.selector)
-  return root ? await reactBridge.tree(root, ctx.addRef) : badArgs('no root element')
-})
+const treeTool = treeDef
+  .client(async (input, ctx) => {
+    const root = rootOf(ctx, input.selector)
+    return root ? await reactBridge.tree(root, ctx.addRef) : badArgs('no root element')
+  })
+  .render(ReactCard)
 
-const findTool = findDef.client((input, ctx) => reactBridge.find(input.name, ctx.addRef))
+const findTool = findDef.client((input, ctx) => reactBridge.find(input.name, ctx.addRef)).render(ReactCard)
 
-const trackTool = trackDef.client((input) => {
-  const action = input.action ?? 'report'
-  if (action === 'start') {
-    startTracking()
-    return ok({tracking: true})
-  }
-  if (action === 'stop') return stopTracking()
-  return trackReport({name: input.name})
-})
+const trackTool = trackDef
+  .client((input) => {
+    const action = input.action ?? 'report'
+    if (action === 'start') {
+      startTracking()
+      return ok({tracking: true})
+    }
+    if (action === 'stop') return stopTracking()
+    return trackReport({name: input.name})
+  })
+  .render(ReactCard)
 
 function listEffects(effects: readonly ClientEffect[], requestedEffect: string | undefined) {
   if (requestedEffect !== undefined) badArgs('action list does not take an effect name; it reports every effect')
@@ -234,13 +254,15 @@ function driveEffect(effect: ClientEffect, action: string): void {
   effect.set(action === 'toggle' ? !effect.enabled() : action === 'enable' || action === 'start')
 }
 
-const effectTool = effectDef.client((input, ctx) => {
-  const action = input.action ?? 'list'
-  if (action === 'list') return listEffects(ctx.effects, input.effect)
-  const effect = requireEffect(ctx.effects, input.effect, action)
-  driveEffect(effect, action)
-  return {effect: effect.name, enabled: effect.enabled()}
-})
+const effectTool = effectDef
+  .client((input, ctx) => {
+    const action = input.action ?? 'list'
+    if (action === 'list') return listEffects(ctx.effects, input.effect)
+    const effect = requireEffect(ctx.effects, input.effect, action)
+    driveEffect(effect, action)
+    return {effect: effect.name, enabled: effect.enabled()}
+  })
+  .render(EffectCard)
 
 const waitTool = waitDef
   .client((input) =>

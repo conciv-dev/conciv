@@ -1,10 +1,8 @@
-import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ReadValueCard} from './read-value-card.js'
+import {STORY_FRAME_CLASS, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
 const meta: Meta = {title: 'extension-page/client/cards/ReadValueCard'}
 export default meta
@@ -25,37 +23,16 @@ const textMeta: ToolViewMeta = {
   outputSchema: {type: 'object', properties: {text: {type: 'string'}}},
 }
 
-function catalogOf(entries: Record<string, ToolViewMeta>): ToolCatalogView {
-  return {loaded: () => true, meta: (name) => entries[name]}
-}
-
-function ctxFor(entries: Record<string, ToolViewMeta>): ToolViewCtx {
-  return {...INERT_TOOL_CTX, catalog: catalogOf(entries)}
-}
-
-function part(name: string, input: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
-  return {type: 'tool-call', id: 'r1', name, arguments: JSON.stringify(input), input, state}
-}
-
-function result(content: string, state: ToolResultPart['state'] = 'complete'): ToolResultPart {
-  return {type: 'tool-result', toolCallId: 'r1', content, state}
-}
-
-function frame(child: JSX.Element): JSX.Element {
-  return (
-    <div class="chat-theme-dark p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
-  )
-}
-
 export const ElementAndValue: Story = {
-  render: () =>
-    frame(
+  render: () => (
+    <div class={STORY_FRAME_CLASS}>
       <ReadValueCard
-        part={part('page.text', {selector: '#headline'})}
-        result={result('{"text":"Ship it on Friday"}')}
-        ctx={ctxFor({'page.text': textMeta})}
-      />,
-    ),
+        part={storyPart('page.text', {selector: '#headline'})}
+        result={storyResult({text: 'Ship it on Friday'})}
+        ctx={storyCtx({'page.text': textMeta})}
+      />
+    </div>
+  ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Read the text')).toBeVisible()

@@ -1,8 +1,9 @@
-import {For, Match, Show, Switch, type JSX} from 'solid-js'
+import {Match, Switch, type JSX} from 'solid-js'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {Chip, DANGER_TEXT_CLASS} from '@conciv/ui-kit-chat'
+import {DANGER_TEXT_CLASS} from '@conciv/ui-kit-chat'
 import {
   CardShell,
+  ChipRow,
   cardErrorMessage,
   cardHeader,
   detailChips,
@@ -10,8 +11,6 @@ import {
   resultChips,
   toolInput,
 } from './shared.js'
-
-const CHIP_ROW = 'm-0 p-0 flex flex-wrap gap-1.5'
 
 export function ReadValueCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
@@ -23,18 +22,11 @@ export function ReadValueCard(props: ToolCardProps): JSX.Element {
   return (
     <CardShell meta={meta()} title={title()} part={props.part} result={props.result} durationMs={props.durationMs}>
       <div class="flex flex-col gap-1.5">
-        <Show when={element() !== undefined || extraChips().length > 0}>
-          <dl class={CHIP_ROW}>
-            <Show when={element()}>{(value) => <Chip name="element" value={value()} />}</Show>
-            <For each={extraChips()}>{(chip) => <Chip name={chip.name} value={chip.value} />}</For>
-          </dl>
-        </Show>
+        <ChipRow element={element()} chips={extraChips()} />
         <Switch>
           <Match when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Match>
           <Match when={values().length > 0}>
-            <dl class={CHIP_ROW}>
-              <For each={values()}>{(chip) => <Chip name={chip.name} value={chip.value} />}</For>
-            </dl>
+            <ChipRow chips={values()} />
           </Match>
         </Switch>
       </div>
