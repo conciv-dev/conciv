@@ -1,30 +1,41 @@
-import {Show, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
+import {Show, createEffect, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
 import {Editor} from '@tiptap/core'
 import {Document} from '@tiptap/extension-document'
 import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
 import {HardBreak} from '@tiptap/extension-hard-break'
 import {Mention} from '@tiptap/extension-mention'
-import {Avatar} from '@conciv/ui-kit-system'
-import {SuggestionListbox, type SuggestionAnchor} from './suggestion-listbox.js'
+import {AnchoredListbox, Avatar} from '@conciv/ui-kit-system'
+import {TriggerMenu, createTriggerMenu, triggerPopupAttributes} from './trigger-menu.js'
+import {
+  dismissTrigger,
+  triggerMenuKeyDown,
+  triggerSuggestion,
+  type RichTextFieldTriggerSource,
+} from './trigger-suggestions.js'
 
 export type MentionItem = {id: string; label: string}
 export type MentionSegment = {type: 'text'; text: string} | {type: 'mention'; id: string; label: string}
 export type MentionFieldApi = {focus: () => void; clear: () => void; submit: () => void; element: HTMLElement}
 
-type SuggestionState = {items: MentionItem[]; command: (item: MentionItem) => void; rect: DOMRect | null}
 type JsonNode = {type?: string; text?: string; attrs?: Record<string, unknown>; content?: JsonNode[]}
 
 const EDITOR =
   'min-h-7 max-h-32 overflow-auto bg-pw-sunken text-[0.8125rem] text-pw-text rounded-pw-md [border:1px_solid_var(--pw-line)] px-2 py-1.5 [outline:none] focus-within:[border-color:var(--pw-accent-line)] [&_.tiptap]:[outline:none] [&_[data-mention]]:text-pw-accent-hi [&_[data-mention]]:bg-pw-accent-08 [&_[data-mention]]:rounded-pw-sm [&_[data-mention]]:px-0.5'
 const PLACEHOLDER = 'pointer-events-none absolute left-2 top-1.5 text-[0.8125rem] text-pw-text-3 select-none'
+const OPTION_ROW = 'flex items-center gap-2 min-w-0'
 
 const avatarInitial = (label: string): string => label.trim().charAt(0).toUpperCase() || '?'
 
-function anchorOf(state: SuggestionState | null): SuggestionAnchor | null {
-  if (!state || state.items.length === 0 || !state.rect) return null
-  const {x, y, width, height} = state.rect
-  return {x, y, width, height}
+function MentionOption(props: {label: string}): JSX.Element {
+  return (
+    <span class={OPTION_ROW}>
+      <Avatar.Root>
+        <Avatar.Fallback>{avatarInitial(props.label)}</Avatar.Fallback>
+      </Avatar.Root>
+      <AnchoredListbox.ItemText>{props.label}</AnchoredListbox.ItemText>
+    </span>
+  )
 }
 
 const serialize = (doc: JsonNode): MentionSegment[] => {
@@ -54,6 +65,11 @@ const serialize = (doc: JsonNode): MentionSegment[] => {
   return out
 }
 
+function submitsOnEnter(event: KeyboardEvent): boolean {
+  if (event.key !== 'Enter') return false
+  return !event.shiftKey
+}
+
 export function MentionField(props: {
   items: (query: string) => MentionItem[]
   onSubmit: (segments: MentionSegment[]) => void
@@ -66,17 +82,28 @@ export function MentionField(props: {
   let host: HTMLDivElement | undefined
   let editor: Editor | undefined
   const [empty, setEmpty] = createSignal(true)
-  const [suggestion, setSuggestion] = createSignal<SuggestionState | null>(null)
-  const [index, setIndex] = createSignal(0)
+  const menu = createTriggerMenu()
 
-  const anchor = () => anchorOf(suggestion())
-  const options = () => suggestion()?.items ?? []
   const placeholderText = () => empty() && props.placeholder
   const rootClass = () => `w-full relative ${props.class ?? ''}`
+  const source = (): RichTextFieldTriggerSource => ({
+    label: 'Mention a participant',
+    items: (query) => props.items(query),
+  })
+  const suggestions = [triggerSuggestion({char: '@', source, access: menu.access})]
+  const dismissMenu = (char: string): void => {
+    if (editor) dismissTrigger(editor.view, suggestions, char)
+  }
+  const editableAttributes = (): Record<string, string> => ({
+    role: 'textbox',
+    'aria-label': props.ariaLabel ?? 'Message',
+    'aria-multiline': 'true',
+    ...triggerPopupAttributes(menu),
+  })
 
   const submit = (): void => {
     if (!editor || editor.isEmpty) return
-    props.onSubmit(serialize(editor.getJSON() as JsonNode))
+    props.onSubmit(serialize(editor.getJSON()))
     editor.commands.clearContent()
     setEmpty(true)
     props.onEmptyChange?.(true)
@@ -84,17 +111,16 @@ export function MentionField(props: {
 
   onMount(() => {
     if (!host) return
-    editor = new Editor({
+    const instance = new Editor({
       element: host,
       editorProps: {
-        attributes: {role: 'textbox', 'aria-label': props.ariaLabel ?? 'Message', 'aria-multiline': 'true'},
+        attributes: editableAttributes(),
         handleKeyDown: (_view, event) => {
-          if (event.key === 'Enter' && !event.shiftKey && !suggestion()) {
-            event.preventDefault()
-            submit()
-            return true
-          }
-          return false
+          if (triggerMenuKeyDown(menu.access, event, {dismiss: dismissMenu, tabCommits: true})) return true
+          if (!submitsOnEnter(event)) return false
+          event.preventDefault()
+          submit()
+          return true
         },
       },
       onUpdate: ({editor: instance}) => {
@@ -108,49 +134,17 @@ export function MentionField(props: {
         HardBreak,
         Mention.configure({
           HTMLAttributes: {'data-mention': ''},
-          suggestion: {
-            char: '@',
-            items: ({query}) => props.items(query),
-            render: () => ({
-              onStart: (start) => {
-                setSuggestion({items: start.items, command: start.command, rect: start.clientRect?.() ?? null})
-                setIndex(0)
-              },
-              onUpdate: (update) =>
-                setSuggestion({items: update.items, command: update.command, rect: update.clientRect?.() ?? null}),
-              onExit: () => setSuggestion(null),
-              onKeyDown: ({event}) => {
-                const state = suggestion()
-                if (!state || state.items.length === 0) return false
-                if (event.key === 'ArrowDown') {
-                  setIndex((index() + 1) % state.items.length)
-                  return true
-                }
-                if (event.key === 'ArrowUp') {
-                  setIndex((index() - 1 + state.items.length) % state.items.length)
-                  return true
-                }
-                if (event.key === 'Enter' || event.key === 'Tab') {
-                  const item = state.items[index()]
-                  if (item) state.command(item)
-                  return true
-                }
-                if (event.key === 'Escape') {
-                  setSuggestion(null)
-                  return true
-                }
-                return false
-              },
-            }),
-          },
+          suggestions,
         }),
       ],
     })
+    editor = instance
+    createEffect(() => instance.view.setProps({attributes: editableAttributes()}))
     props.onReady?.({
-      focus: () => editor?.commands.focus(),
-      clear: () => editor?.commands.clearContent(),
+      focus: () => instance.commands.focus(),
+      clear: () => instance.commands.clearContent(),
       submit,
-      element: editor.view.dom,
+      element: instance.view.dom,
     })
   })
   onCleanup(() => editor?.destroy())
@@ -159,21 +153,9 @@ export function MentionField(props: {
     <div class={rootClass()}>
       <div ref={(element) => (host = element)} class={EDITOR} />
       <Show when={placeholderText()}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
-      <SuggestionListbox
-        anchor={anchor()}
-        label="Mention a participant"
-        options={options()}
-        activeIndex={index()}
-        onSelect={(item) => suggestion()?.command(item)}
-        renderOption={(item) => (
-          <>
-            <Avatar.Root class="size-5">
-              <Avatar.Fallback>{avatarInitial(item.label)}</Avatar.Fallback>
-            </Avatar.Root>
-            {item.label}
-          </>
-        )}
-      />
+      <TriggerMenu menu={menu} onDismiss={dismissMenu} onRefocus={() => editor?.commands.focus()}>
+        {(item) => <MentionOption label={item.label} />}
+      </TriggerMenu>
     </div>
   )
 }

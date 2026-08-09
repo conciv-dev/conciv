@@ -1,3 +1,4 @@
+import {useFilter} from '@ark-ui/solid/locale'
 import type {ChatCommand, ChatTool} from '@conciv/protocol/chat-types'
 import type {RichTextFieldTriggerItem} from '@conciv/ui-kit-tap'
 import {useAppData, useAppQueryClient} from '../app/context.js'
@@ -5,9 +6,7 @@ import type {ComposerTriggerSources} from './composer-input-adapter.js'
 
 const SOURCE_LABEL: Record<ChatCommand['source'], string> = {harness: 'Commands', mcp: 'MCP', plugin: 'Plugins'}
 
-type TriggerEntry = RichTextFieldTriggerItem & {group: string; description: string}
-
-function commandEntry(command: ChatCommand): TriggerEntry {
+function commandEntry(command: ChatCommand): RichTextFieldTriggerItem {
   return {
     id: command.name,
     label: `/${command.name}`,
@@ -16,39 +15,41 @@ function commandEntry(command: ChatCommand): TriggerEntry {
   }
 }
 
-function toolEntry(tool: ChatTool): TriggerEntry {
+function toolEntry(tool: ChatTool): RichTextFieldTriggerItem {
   return {id: tool.name, label: `@${tool.name}`, group: tool.extension ?? 'Tools', description: tool.description}
 }
 
-function matchingItems(entries: TriggerEntry[], query: string): RichTextFieldTriggerItem[] {
-  const lower = query.toLowerCase()
+const groupOf = (entry: RichTextFieldTriggerItem): string => entry.group ?? ''
+
+function matchingItems(
+  entries: RichTextFieldTriggerItem[],
+  query: string,
+  contains: (text: string, query: string) => boolean,
+): RichTextFieldTriggerItem[] {
   return entries
     .filter(
-      (entry) =>
-        entry.id.toLowerCase().includes(lower) ||
-        entry.label.toLowerCase().includes(lower) ||
-        entry.description.toLowerCase().includes(lower),
+      (entry) => contains(entry.id, query) || contains(entry.label, query) || contains(entry.description ?? '', query),
     )
-    .toSorted((first, second) => first.group.localeCompare(second.group))
-    .map((entry) => ({id: entry.id, label: entry.label}))
+    .toSorted((first, second) => groupOf(first).localeCompare(groupOf(second)))
 }
 
 export function useComposerTriggerSources(sessionId: string): ComposerTriggerSources {
   const appData = useAppData()
   const queryClient = useAppQueryClient()
+  const filter = useFilter({sensitivity: 'base'})
   return {
     slash: {
       label: 'Commands',
       items: async (query) => {
         const data = await queryClient.ensureQueryData(appData.utils.meta.commands.queryOptions({input: {sessionId}}))
-        return matchingItems(data.commands.map(commandEntry), query)
+        return matchingItems(data.commands.map(commandEntry), query, filter().contains)
       },
     },
     mention: {
       label: 'Tools',
       items: async (query) => {
         const data = await queryClient.ensureQueryData(appData.utils.meta.tools.queryOptions())
-        return matchingItems(data.tools.map(toolEntry), query)
+        return matchingItems(data.tools.map(toolEntry), query, filter().contains)
       },
     },
   }

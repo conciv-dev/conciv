@@ -7,3 +7,8 @@ export const LIST_PANEL_ITEM =
 export const LIST_PANEL_GROUP_LABEL = 'py-1.5 px-2.5 text-[0.6875rem] font-pw text-pw-text-3 uppercase tracking-wide'
 
 export const LIST_PANEL_MESSAGE = 'py-1.5 px-2.5 text-[0.8125rem] text-pw-text-3'
+
+export const LIST_PANEL_ITEM_LABEL = 'w-full truncate text-[0.8125rem] text-pw-text font-medium'
+
+export const LIST_PANEL_ITEM_DESCRIPTION =
+  'w-full text-[0.75rem] leading-tight text-pw-text-3 line-clamp-2 [overflow-wrap:anywhere]'
