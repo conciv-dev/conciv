@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {observeRpc} from '@conciv/extension-testkit/rpc-observer'
+import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
 import {useRecorderTestApi} from './helpers/test-api.js'
 import {addMarker} from './helpers/fixtures.js'
 
@@ -11,7 +11,7 @@ const FLUSH_PATH = ['ext', 'recorder', 'flush']
 describe('lazy capture lifecycle (real browser)', () => {
   it('flushes nothing while idle, captures while a recording is live, and goes quiet after stop', async () => {
     const page = api().page
-    const observer = observeRpc(page)
+    const observer = rpcObserverFor(page)
     const flushCount = (): number => observer.startedCount({path: FLUSH_PATH})
 
     await addMarker(page)
@@ -35,7 +35,6 @@ describe('lazy capture lifecycle (real browser)', () => {
     await addMarker(page)
     await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})
     expect(flushCount()).toBe(settledCount)
-    observer.dispose()
   }, 120_000)
 
   it('a click issued immediately after recording_start lands in the capture', async () => {
