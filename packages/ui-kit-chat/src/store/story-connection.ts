@@ -25,8 +25,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 function untilStopped(signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    if (!signal) return
-    if (signal.aborted) {
+    if (!signal || signal.aborted) {
       resolve()
       return
     }
