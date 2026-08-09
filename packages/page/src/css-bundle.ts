@@ -29,16 +29,6 @@ export async function hashCssText(css: string): Promise<string> {
   return `css${hex.slice(0, HASH_HEX_LENGTH)}`
 }
 
-export type ShippedCssBundle = {hash: string; bundle?: CssBundle}
-
-export type CssBundleDeduper = (pending: PendingCssText) => Promise<ShippedCssBundle>
-
-export function makeCssBundleDeduper(): CssBundleDeduper {
-  const shipped = new Set<string>()
-  return async (pending) => {
-    const hash = await hashCssText(pending.css)
-    if (shipped.has(hash)) return {hash}
-    shipped.add(hash)
-    return {hash, bundle: {hash, css: pending.css}}
-  }
+export async function toCssBundle(pending: PendingCssText): Promise<CssBundle> {
+  return {hash: await hashCssText(pending.css), css: pending.css}
 }

@@ -7,7 +7,7 @@ import {elementByName} from './react-bridge.js'
 import {mirrorPageAction} from './page-mirror.js'
 import {badArgs, fail, unknownVerb} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
-import {makeCssBundleDeduper, type CssBundleDeduper, type PendingCssText} from './css-bundle.js'
+import {toCssBundle, type PendingCssText} from './css-bundle.js'
 import {takeElementCapture} from './element-capture.js'
 
 export type PageToolAnswer = {result: PageResult; capture?: PageCaptureBundle}
@@ -97,10 +97,7 @@ function makeCaptureCollector(): CaptureCollector {
   }
 }
 
-async function buildCaptureBundle(
-  entries: readonly PendingBundleEntry[],
-  shipCss: CssBundleDeduper,
-): Promise<PageCaptureBundle | undefined> {
+async function buildCaptureBundle(entries: readonly PendingBundleEntry[]): Promise<PageCaptureBundle | undefined> {
   if (entries.length === 0) return undefined
   const bundle: PageCaptureBundle = {}
   for (const entry of entries) {
@@ -108,19 +105,16 @@ async function buildCaptureBundle(
       bundle[entry.kind] = entry.capture
       continue
     }
-    const shipped = await shipCss(entry.pendingCss)
-    bundle[entry.kind] = {...entry.capture, cssBundleId: shipped.hash}
-    if (shipped.bundle !== undefined) bundle.cssBundle = shipped.bundle
+    const css = await toCssBundle(entry.pendingCss)
+    bundle[entry.kind] = {...entry.capture, cssBundleId: css.hash}
+    bundle.cssBundle = css
   }
   return bundle
 }
 
-async function tryBuildCaptureBundle(
-  entries: readonly PendingBundleEntry[],
-  shipCss: CssBundleDeduper,
-): Promise<PageCaptureBundle | undefined> {
+async function tryBuildCaptureBundle(entries: readonly PendingBundleEntry[]): Promise<PageCaptureBundle | undefined> {
   try {
-    return await buildCaptureBundle(entries, shipCss)
+    return await buildCaptureBundle(entries)
   } catch {
     return undefined
   }
@@ -133,7 +127,6 @@ export function makePageToolDispatcher(
   effects: readonly ClientEffect[],
 ): PageToolDispatch {
   const byName = new Map(tools.map((tool) => [tool.name, tool] as const))
-  const shipCss = makeCssBundleDeduper()
   return async (query) => {
     const tool = byName.get(query.name)
     if (!tool) unknownVerb(`no mounted extension declares a client tool named "${query.name}"`)
@@ -145,7 +138,7 @@ export function makePageToolDispatcher(
       const record = plainRecordOf(result)
       if (!record || !isJsonSerializable(record)) fail(`${query.name} returned a non-serializable result`)
       if (tool.capture !== 'none') captures.take('after', slot.el)
-      const bundle = await tryBuildCaptureBundle(captures.entries(), shipCss)
+      const bundle = await tryBuildCaptureBundle(captures.entries())
       return bundle === undefined ? {result: record} : {result: record, capture: bundle}
     } catch (error) {
       rethrow(error)

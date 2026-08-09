@@ -172,12 +172,12 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     expect(bundle.cssBundle?.css).toContain('.capture-form .cta')
   })
 
-  it('ships the css bundle once per page and reuses its hash afterwards', async () => {
+  it('carries the css bundle on every capture so a dropped one never leaves a dangling reference', async () => {
     const first = await captureOf('probe.fill', {selector: '#card', value: '1'})
     const second = await captureOf('probe.fill', {selector: '#card', value: '2'})
-    expect(first.cssBundle?.css).toBeTruthy()
-    expect(second.cssBundle).toBeUndefined()
     expect(second.after?.cssBundleId).toBe(first.after?.cssBundleId)
+    expect(second.cssBundle?.hash).toBe(second.after?.cssBundleId)
+    expect(second.cssBundle?.css).toBe(first.cssBundle?.css)
   })
 
   it('keeps a password and a payment field out of the capture payload and out of the result', async () => {
