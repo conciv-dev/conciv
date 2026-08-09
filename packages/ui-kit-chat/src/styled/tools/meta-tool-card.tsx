@@ -198,9 +198,8 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
         <Show when={capture()}>
           {(value) => (
             <ElementPreview.Root capture={value()} css={props.capture?.css}>
-              <Show when={value().node !== undefined} fallback={<ElementPreview.Descriptor />}>
-                <ElementPreview.Frame />
-              </Show>
+              <ElementPreview.Frame />
+              <ElementPreview.Descriptor />
             </ElementPreview.Root>
           )}
         </Show>

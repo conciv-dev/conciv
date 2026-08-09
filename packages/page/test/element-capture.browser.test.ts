@@ -49,9 +49,20 @@ const editRemove = defineTool({
   return {ok: true as const}
 })
 
+const actMark = defineTool({
+  name: 'probe.mark',
+  description: 'marks an element without touching its children',
+  inputSchema: z.object({selector: z.string()}),
+  outputSchema: z.object({ok: z.literal(true)}),
+  meta: {summary: 'mark an element', category: 'act', mutating: true, capture: 'after'},
+}).client((input, ctx) => {
+  ctx.target(input).setAttribute('data-marked', 'true')
+  return {ok: true as const}
+})
+
 const probes = defineExtension({
   name: 'capture-probes',
-  tools: [readValue, actFill, editText, editRemove],
+  tools: [readValue, actFill, editText, editRemove, actMark],
 }).client(() => ({value: {}}))
 
 const PASSWORD = 'hunter2-not-in-any-payload'
@@ -73,8 +84,18 @@ beforeEach(() => {
       <input id="secret" type="password" autocomplete="current-password" value="${PASSWORD}">
       <input id="card" autocomplete="cc-number" value="4111111111111111">
       <span id="doomed">temporary</span>
+      <div id="hostile">
+        <a id="hostile-link" href="javascript:window.__xssCapture = true" onmouseover="window.__xssCapture = true">click</a>
+        <img id="hostile-img" src="x" onerror="window.__xssCapture = true">
+        <iframe id="hostile-frame" srcdoc="&lt;script&gt;window.__xssCapture = true&lt;/script&gt;"></iframe>
+      </div>
     </section>
   `
+  const hostileTabLink = document.createElement('a')
+  hostileTabLink.id = 'hostile-tab-link'
+  hostileTabLink.setAttribute('href', 'java\tscript:window.__xssCapture = true')
+  hostileTabLink.textContent = 'click too'
+  host.querySelector('#hostile')?.appendChild(hostileTabLink)
   document.body.appendChild(host)
   driver = makeDomPageDriver({tools: collectClientTools([probes])})
 })
@@ -94,6 +115,26 @@ async function captureOf(name: string, input: Record<string, unknown>): Promise<
 
 function serializedText(capture: ElementCapture): string {
   return JSON.stringify(capture.node ?? null)
+}
+
+type ProbeNode = {
+  tagName?: string
+  attributes?: Record<string, unknown>
+  childNodes?: ProbeNode[]
+}
+
+function isProbeNode(value: unknown): value is ProbeNode {
+  return typeof value === 'object' && value !== null
+}
+
+function findById(node: unknown, id: string): ProbeNode | undefined {
+  if (!isProbeNode(node)) return undefined
+  if (node.attributes?.['id'] === id) return node
+  for (const child of node.childNodes ?? []) {
+    const found = findById(child, id)
+    if (found !== undefined) return found
+  }
+  return undefined
 }
 
 describe('a page tool capture freezes the element as it was when the tool ran', () => {
@@ -156,5 +197,32 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     const bundle = await captureOf('probe.settext', {selector: '#panel', text: 'wiped'})
     expect(bundle.before?.node).toBeUndefined()
     expect(bundle.before?.descriptor.selectorPath).toContain('#panel')
+  })
+
+  it('strips event-handler attributes, javascript: URLs, and iframe/object/embed nodes from the captured subtree', async () => {
+    const bundle = await captureOf('probe.mark', {selector: '#hostile'})
+    const node = bundle.after?.node
+    expect(node).toBeDefined()
+
+    const link = findById(node, 'hostile-link')
+    expect(link).toBeDefined()
+    expect(link?.attributes?.['onmouseover']).toBeUndefined()
+    expect(link?.attributes?.['href']).toBeUndefined()
+
+    const img = findById(node, 'hostile-img')
+    expect(img).toBeDefined()
+    expect(img?.attributes?.['onerror']).toBeUndefined()
+
+    expect(findById(node, 'hostile-frame')).toBeUndefined()
+
+    const tabLink = findById(node, 'hostile-tab-link')
+    expect(tabLink).toBeDefined()
+    expect(tabLink?.attributes?.['href']).toBeUndefined()
+
+    const serialized = JSON.stringify(node)
+    expect(serialized).not.toContain('onerror')
+    expect(serialized).not.toContain('onmouseover')
+    expect(serialized).not.toContain('javascript:')
+    expect(serialized.toLowerCase()).not.toContain('iframe')
   })
 })
