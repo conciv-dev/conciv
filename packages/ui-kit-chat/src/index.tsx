@@ -168,7 +168,27 @@ export {
 export {ToolCard} from './styled/tool-card.js'
 export {GENERIC_TOOL_ICON, toolIconRender} from './styled/tool-icon.js'
 export {schemaFields, schemaParams, type SchemaField} from './primitives/tools/schema-params.js'
+export {
+  DANGER_TEXT_CLASS,
+  CODE_BLOCK_CLASS,
+  CODE_BLOCK_OPTIONS,
+  displayValue,
+  clip,
+  cardPhase,
+  cardTitle,
+  type CardPhase,
+} from './primitives/tools/tool-presentation.js'
 export {MetaToolCard} from './styled/tools/meta-tool-card.js'
 export {ToolCallCard, type ToolCallCardProps} from './styled/tools/tool-call-card.js'
 export {NowLine} from './styled/now-line.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'
+export {ElementPreview} from './styled/element-preview.js'
+export {Chip, CHIP, CHIP_KEY, CHIP_VALUE} from './styled/chip.js'
+export {
+  ELEMENT_CAPTURE_FIXTURE_CSS,
+  ELEMENT_CAPTURE_FIXTURE_FULL,
+  ELEMENT_CAPTURE_FIXTURE_EDIT_BEFORE,
+  ELEMENT_CAPTURE_FIXTURE_EDIT_AFTER,
+  ELEMENT_CAPTURE_FIXTURE_MASKED,
+  ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY,
+} from './store/element-capture.fixtures.js'

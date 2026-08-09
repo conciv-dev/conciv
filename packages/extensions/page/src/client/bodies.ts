@@ -51,6 +51,9 @@ import {
   valueDef,
   waitDef,
 } from '../shared/defs.js'
+import {ActCard} from './cards/act-card.js'
+import {EditLiveCard} from './cards/edit-live-card.js'
+import {ReadValueCard} from './cards/read-value-card.js'
 
 function fail(message: string): never {
   throw pageFailure('handler-error', message)
@@ -121,11 +124,13 @@ function hasLocator(input: ClientToolLocator): boolean {
   return input.ref !== undefined || input.selector !== undefined || input.name !== undefined
 }
 
-const routeTool = routeDef.client(() => ({
-  pathname: location.pathname,
-  search: location.search,
-  href: location.href,
-}))
+const routeTool = routeDef
+  .client(() => ({
+    pathname: location.pathname,
+    search: location.search,
+    href: location.href,
+  }))
+  .render(ReadValueCard)
 
 const consoleTool = consoleDef.client((input, ctx) => ({entries: ctx.consoleEntries(input.since)}))
 
@@ -139,10 +144,12 @@ const queryTool = queryDef.client((input, ctx) => {
   return {count: matches.length, elements: matches.slice(0, 20).map(describeElement)}
 })
 
-const existsTool = existsDef.client((input, ctx) => {
-  const matches = input.selector ? ctx.document.querySelectorAll(input.selector) : []
-  return {exists: matches.length > 0, count: matches.length}
-})
+const existsTool = existsDef
+  .client((input, ctx) => {
+    const matches = input.selector ? ctx.document.querySelectorAll(input.selector) : []
+    return {exists: matches.length > 0, count: matches.length}
+  })
+  .render(ReadValueCard)
 
 const snapshotTool = snapshotDef.client((input, ctx) => {
   const root = rootOf(ctx, input.selector)
@@ -235,135 +242,181 @@ const effectTool = effectDef.client((input, ctx) => {
   return {effect: effect.name, enabled: effect.enabled()}
 })
 
-const waitTool = waitDef.client((input) =>
-  input.selector
-    ? waitFor(input.selector, input.state ?? 'visible', input.timeout ?? 5000)
-    : badArgs('wait requires a selector'),
-)
+const waitTool = waitDef
+  .client((input) =>
+    input.selector
+      ? waitFor(input.selector, input.state ?? 'visible', input.timeout ?? 5000)
+      : badArgs('wait requires a selector'),
+  )
+  .render(ActCard)
 
-const textTool = textDef.client((input, ctx) => ({text: (ctx.target(input).textContent ?? '').slice(0, DOM_CAP)}))
+const textTool = textDef
+  .client((input, ctx) => ({text: (ctx.target(input).textContent ?? '').slice(0, DOM_CAP)}))
+  .render(ReadValueCard)
 
-const valueTool = valueDef.client((input, ctx) => {
-  const el = ctx.target(input)
-  return {value: isField(el) ? el.value : null}
-})
+const valueTool = valueDef
+  .client((input, ctx) => {
+    const el = ctx.target(input)
+    return {value: isField(el) ? el.value : null}
+  })
+  .render(ReadValueCard)
 
-const attrTool = attrDef.client((input, ctx) => ({value: ctx.target(input).getAttribute(input.attribute)}))
+const attrTool = attrDef
+  .client((input, ctx) => ({value: ctx.target(input).getAttribute(input.attribute)}))
+  .render(ReadValueCard)
 
-const clickTool = clickDef.client((input, ctx) => {
-  const el = ctx.target(input)
-  if (!(el instanceof HTMLElement)) badArgs('click target is not an HTMLElement')
-  el.click()
-  return ok()
-})
+const clickTool = clickDef
+  .client((input, ctx) => {
+    const el = ctx.target(input)
+    if (!(el instanceof HTMLElement)) badArgs('click target is not an HTMLElement')
+    el.click()
+    return ok()
+  })
+  .render(ActCard)
 
-const hoverTool = hoverDef.client((input, ctx) => {
-  const el = ctx.target(input)
-  el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}))
-  el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}))
-  return ok()
-})
+const hoverTool = hoverDef
+  .client((input, ctx) => {
+    const el = ctx.target(input)
+    el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}))
+    el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}))
+    return ok()
+  })
+  .render(ActCard)
 
-const scrollTool = scrollDef.client((input, ctx) => {
-  ctx.target(input).scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'})
-  return ok()
-})
+const scrollTool = scrollDef
+  .client((input, ctx) => {
+    ctx.target(input).scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'})
+    return ok()
+  })
+  .render(ActCard)
 
-const submitTool = submitDef.client((input, ctx) => {
-  const el = ctx.target(input)
-  const form = el instanceof HTMLFormElement ? el : el.closest('form')
-  if (!form) badArgs('no form to submit')
-  form.requestSubmit()
-  return ok()
-})
+const submitTool = submitDef
+  .client((input, ctx) => {
+    const el = ctx.target(input)
+    const form = el instanceof HTMLFormElement ? el : el.closest('form')
+    if (!form) badArgs('no form to submit')
+    form.requestSubmit()
+    return ok()
+  })
+  .render(ActCard)
 
-const fillTool = fillDef.client((input, ctx) => {
-  const el = ctx.target(input)
-  if (!isField(el)) badArgs('fill target is not an input/textarea/select')
-  setNative(el, 'value', input.value)
-  fireInput(el)
-  return ok({value: el.value})
-})
+const fillTool = fillDef
+  .client((input, ctx) => {
+    const el = ctx.target(input)
+    if (!isField(el)) badArgs('fill target is not an input/textarea/select')
+    setNative(el, 'value', input.value)
+    fireInput(el)
+    return ok({value: el.value})
+  })
+  .render(ActCard)
 
-const selectTool = selectDef.client((input, ctx) => {
-  const el = ctx.target(input)
-  if (!(el instanceof HTMLSelectElement)) badArgs('select target is not a <select>')
-  setNative(el, 'value', input.value)
-  fireInput(el)
-  return ok({value: el.value})
-})
+const selectTool = selectDef
+  .client((input, ctx) => {
+    const el = ctx.target(input)
+    if (!(el instanceof HTMLSelectElement)) badArgs('select target is not a <select>')
+    setNative(el, 'value', input.value)
+    fireInput(el)
+    return ok({value: el.value})
+  })
+  .render(ActCard)
 
-const checkTool = checkDef.client((input, ctx) => toggleChecked(ctx.target(input), true, 'check'))
+const checkTool = checkDef.client((input, ctx) => toggleChecked(ctx.target(input), true, 'check')).render(ActCard)
 
-const uncheckTool = uncheckDef.client((input, ctx) => toggleChecked(ctx.target(input), false, 'uncheck'))
+const uncheckTool = uncheckDef
+  .client((input, ctx) => toggleChecked(ctx.target(input), false, 'uncheck'))
+  .render(ActCard)
 
-const pressTool = pressDef.client((input, ctx) => {
-  const el = ctx.target(input)
-  el.dispatchEvent(new KeyboardEvent('keydown', {key: input.key, bubbles: true}))
-  el.dispatchEvent(new KeyboardEvent('keyup', {key: input.key, bubbles: true}))
-  return ok()
-})
+const pressTool = pressDef
+  .client((input, ctx) => {
+    const el = ctx.target(input)
+    el.dispatchEvent(new KeyboardEvent('keydown', {key: input.key, bubbles: true}))
+    el.dispatchEvent(new KeyboardEvent('keyup', {key: input.key, bubbles: true}))
+    return ok()
+  })
+  .render(ActCard)
 
-const setattrTool = setattrDef.client((input, ctx) => {
-  ctx.target(input).setAttribute(input.attribute, input.value)
-  return ok()
-})
+const setattrTool = setattrDef
+  .client((input, ctx) => {
+    ctx.target(input).setAttribute(input.attribute, input.value)
+    return ok()
+  })
+  .render(EditLiveCard)
 
-const removeattrTool = removeattrDef.client((input, ctx) => {
-  ctx.target(input).removeAttribute(input.attribute)
-  return ok()
-})
+const removeattrTool = removeattrDef
+  .client((input, ctx) => {
+    ctx.target(input).removeAttribute(input.attribute)
+    return ok()
+  })
+  .render(EditLiveCard)
 
-const addclassTool = addclassDef.client((input, ctx) => {
-  ctx.target(input).classList.add(input.class)
-  return ok()
-})
+const addclassTool = addclassDef
+  .client((input, ctx) => {
+    ctx.target(input).classList.add(input.class)
+    return ok()
+  })
+  .render(EditLiveCard)
 
-const removeclassTool = removeclassDef.client((input, ctx) => {
-  ctx.target(input).classList.remove(input.class)
-  return ok()
-})
+const removeclassTool = removeclassDef
+  .client((input, ctx) => {
+    ctx.target(input).classList.remove(input.class)
+    return ok()
+  })
+  .render(EditLiveCard)
 
-const setstyleTool = setstyleDef.client((input, ctx) => {
-  const el = ctx.target(input)
-  if (!(el instanceof HTMLElement)) badArgs('setstyle target is not an HTMLElement')
-  el.style.setProperty(input.prop, input.value)
-  return ok()
-})
+const setstyleTool = setstyleDef
+  .client((input, ctx) => {
+    const el = ctx.target(input)
+    if (!(el instanceof HTMLElement)) badArgs('setstyle target is not an HTMLElement')
+    el.style.setProperty(input.prop, input.value)
+    return ok()
+  })
+  .render(EditLiveCard)
 
-const settextTool = settextDef.client((input, ctx) => {
-  ctx.target(input).textContent = input.text
-  return ok()
-})
+const settextTool = settextDef
+  .client((input, ctx) => {
+    ctx.target(input).textContent = input.text
+    return ok()
+  })
+  .render(EditLiveCard)
 
-const sethtmlTool = sethtmlDef.client((input, ctx) => {
-  ctx.target(input).innerHTML = input.html
-  return ok()
-})
+const sethtmlTool = sethtmlDef
+  .client((input, ctx) => {
+    ctx.target(input).innerHTML = input.html
+    return ok()
+  })
+  .render(EditLiveCard)
 
-const removeTool = removeDef.client((input, ctx) => {
-  ctx.target(input).remove()
-  return ok()
-})
+const removeTool = removeDef
+  .client((input, ctx) => {
+    ctx.target(input).remove()
+    return ok()
+  })
+  .render(EditLiveCard)
 
-const insertTool = insertDef.client((input, ctx) => {
-  ctx.target(input).insertAdjacentHTML(INSERT_POS[input.position ?? 'append'] ?? 'beforeend', input.html)
-  return ok()
-})
+const insertTool = insertDef
+  .client((input, ctx) => {
+    ctx.target(input).insertAdjacentHTML(INSERT_POS[input.position ?? 'append'] ?? 'beforeend', input.html)
+    return ok()
+  })
+  .render(EditLiveCard)
 
-const cssTool = cssDef.client((input, ctx) => {
-  const style = ctx.document.createElement('style')
-  style.setAttribute('data-vibe-css', '')
-  style.textContent = input.text
-  ctx.document.head.appendChild(style)
-  return ok()
-})
+const cssTool = cssDef
+  .client((input, ctx) => {
+    const style = ctx.document.createElement('style')
+    style.setAttribute('data-vibe-css', '')
+    style.textContent = input.text
+    ctx.document.head.appendChild(style)
+    return ok()
+  })
+  .render(EditLiveCard)
 
-const evalTool = evalDef.client(async (input) => {
-  const fn = new Function(`return (async () => { ${input.code} })()`)
-  const result: unknown = await fn()
-  return {result: serialize(result)}
-})
+const evalTool = evalDef
+  .client(async (input) => {
+    const fn = new Function(`return (async () => { ${input.code} })()`)
+    const result: unknown = await fn()
+    return {result: serialize(result)}
+  })
+  .render(EditLiveCard)
 
 export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
   routeTool,

@@ -5,6 +5,7 @@ const config: StorybookConfig = {
     '../../../packages/ui-kit-system/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/ui-kit-chat/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/ui-kit-chat-tools/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../packages/extensions/page/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/ui-kit-tap/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/solid-diffs/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/solid-streamdown/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',

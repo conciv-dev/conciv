@@ -11,7 +11,9 @@ export default defineConfig({
       fileName: () => 'client.js',
     },
     rollupOptions: {
-      external: (source) => [/^solid-js/, /^zod/, /^@conciv\//].some((pattern) => pattern.test(source)),
+      external: (source) =>
+        !source.includes('.css') &&
+        [/^solid-js/, /^zod/, /^@conciv\//, /^lucide-solid/].some((pattern) => pattern.test(source)),
     },
     emptyOutDir: false,
     sourcemap: true,

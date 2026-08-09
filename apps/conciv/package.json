@@ -48,6 +48,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/extension-page": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",

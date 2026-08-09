@@ -3,34 +3,33 @@ import {Dynamic} from 'solid-js/web'
 import {ChevronRight, MoveUpRight, ShieldAlert} from 'lucide-solid'
 import {z} from 'zod'
 import {JsonTreeView} from '@conciv/ui-kit-system'
-import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
+import {SolidCodeBlock} from '@conciv/solid-diffs'
 import type {ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardProps, ToolViewError, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {parseInput, parseResultPayload, resultText} from '../../primitives/tools/tool-util.js'
 import {schemaFields} from '../../primitives/tools/schema-params.js'
 import {toolStatus} from '../../primitives/tools/tool-status.js'
+import {
+  CODE_BLOCK_CLASS,
+  CODE_BLOCK_OPTIONS,
+  DANGER_TEXT_CLASS,
+  cardPhase,
+  cardTitle,
+  clip,
+  displayValue,
+  type CardPhase,
+} from '../../primitives/tools/tool-presentation.js'
 import {toolIconRender} from '../tool-icon.js'
 import {ToolCard} from '../tool-card.js'
 import {Chip, CHIP} from '../chip.js'
 import {ElementPreview} from '../element-preview.js'
 
-const CODE_OPTIONS: FileOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-  disableFileHeader: true,
-  disableLineNumbers: true,
-  overflow: 'wrap',
-}
-const CODE_CLASS =
-  'block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
 const SUMMARY = 'text-[color:var(--chat-text-2)] text-[length:var(--chat-text-sm)] m-0'
 const HINT = 'text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] m-0'
 const ROW = 'text-[length:var(--chat-text-xs)] flex gap-1.5 items-center m-0'
 const MIRROR_ROW = `${ROW} [color:var(--chat-accent-link)]`
 const APPROVAL_ROW = `${ROW} [color:var(--chat-accent)]`
-const DANGER =
-  'text-[length:var(--chat-text-sm)] whitespace-pre-wrap [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'
 const JSON_TREE_ROOT =
   '[font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] max-h-[13.75rem] w-full rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-auto p-1.5'
 const JSON_TREE_TREE = 'json-tree'
@@ -59,15 +58,6 @@ function resultViewOf(outputSchema: unknown): ResultView {
   if (root === 'string') return 'code'
   if (root === 'number' || root === 'integer' || root === 'boolean') return 'chip'
   return 'json'
-}
-
-function displayValue(value: unknown): string {
-  if (typeof value === 'string') return value
-  return JSON.stringify(value) ?? String(value)
-}
-
-function clip(value: string, max = 64): string {
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value
 }
 
 const ErrorPayload = z.looseObject({
@@ -113,8 +103,8 @@ function ResultList(props: {items: readonly unknown[]}): JSX.Element {
 function ResultBlock(props: {contents: string; name: string}): JSX.Element {
   return (
     <SolidCodeBlock
-      class={CODE_CLASS}
-      options={CODE_OPTIONS}
+      class={CODE_BLOCK_CLASS}
+      options={CODE_BLOCK_OPTIONS}
       file={{name: props.name, lang: 'text', contents: props.contents}}
     />
   )
@@ -146,12 +136,8 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
     const value = input()[key]
     return value === undefined ? undefined : clip(displayValue(value), 48)
   }
-  const phase = (): 'running' | 'done' => (status() === 'complete' || status() === 'error' ? 'done' : 'running')
-  const title = (): string => {
-    const declared = meta()
-    const label = declared?.label?.[phase()]
-    return label || declared?.summary || props.part.name
-  }
+  const phase = (): CardPhase => cardPhase(status())
+  const title = (): string => cardTitle(meta(), phase(), props.part.name)
   const headline = (): string => {
     const value = positionalValue()
     return value === undefined ? title() : `${title()} ${value}`
@@ -222,7 +208,7 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
             <span>shown on your page</span>
           </p>
         </Show>
-        <Show when={errorMessage()}>{(message) => <p class={DANGER}>{message()}</p>}</Show>
+        <Show when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Show>
         <Show when={errorMessage() === undefined && raw().length > 0}>
           <ResultView outputSchema={meta()?.outputSchema} payload={payload()} raw={raw()} />
         </Show>

@@ -11,6 +11,7 @@
     "lint": "oxlint"
   },
   "dependencies": {
+    "@conciv/extension-page": "workspace:*",
     "@conciv/solid-diffs": "workspace:*",
     "@conciv/solid-streamdown": "workspace:*",
     "@conciv/ui-kit-chat": "workspace:*",
