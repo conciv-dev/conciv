@@ -35,6 +35,7 @@ export {MetaToolCard} from './styled/meta-tool-card.js'
 export {ToolCallCard, type ToolCallCardProps} from './styled/tool-call-card.js'
 export {ElementPreview} from './styled/element-preview.js'
 export {Chip, ChipRow, CHIP} from './styled/chip.js'
+export {CodeBlock, DiffBlock} from './styled/code-block.js'
 export {JsonTree} from './styled/json-tree.js'
 export {MirrorRow, NoteRow, type NoteRowTone} from './styled/note-row.js'
 export {
