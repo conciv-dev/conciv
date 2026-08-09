@@ -1,13 +1,13 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "tsBuildInfoFile": ".build.tsbuildinfo",
     "rootDir": "src",
     "noEmit": false,
     "emitDeclarationOnly": true,
     "declaration": true,
     "declarationMap": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "incremental": false
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }
