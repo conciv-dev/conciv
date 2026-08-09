@@ -166,6 +166,7 @@ export {
   formatDuration,
 } from './primitives/tools/tool-util.js'
 export {ToolCard} from './styled/tool-card.js'
+export {InlineRow, InlineShell} from './styled/tools/inline-row.js'
 export {GENERIC_TOOL_ICON, toolIconRender} from './styled/tool-icon.js'
 export {schemaFields, schemaParams, type SchemaField} from './primitives/tools/schema-params.js'
 export {
