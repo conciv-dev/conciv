@@ -5,7 +5,7 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {CodeRunCard} from './code-run-card.js'
 
-const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/CodeRunCard'}
+const meta: Meta = {title: 'core/cards/CodeRunCard'}
 export default meta
 type Story = StoryObj
 

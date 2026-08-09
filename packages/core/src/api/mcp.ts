@@ -14,6 +14,7 @@ import type {CodeCapability} from '../chat/capabilities.js'
 import type {PermissionGate} from '../chat/gate.js'
 import {makeCodeMode, type CodeMode} from '../chat/code-mode.js'
 import {CODE_MODE_TOOL_CALL_EVENT, codeModeToolChunks} from '../chat/code-mode-parts.js'
+import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
 
 export function sessionIdFromHeaders(headers: Headers): string | null {
   const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
@@ -48,26 +49,9 @@ function partToContent(part: ContentPart): TextContent | ImageContent {
   return {type: 'text', text: safeStringify(part, `content part of type "${part.type}"`)}
 }
 
-const EXECUTE_TOOL_NAME = 'execute_typescript'
-
 const RESULT_CAP_CHARS = 50_000
 
 const TRUNCATION_HEAD_CHARS = 4_000
-
-const ExecuteInputSchema = z.object({
-  typescriptCode: z
-    .string()
-    .describe(
-      'TypeScript to run in the sandbox. Call capabilities as async sandbox functions, discover them with `await external_catalog({})`, and return a value to pass results back.',
-    ),
-})
-
-const ExecuteResultSchema = z.object({
-  success: z.boolean(),
-  result: z.unknown().optional(),
-  logs: z.array(z.string()).optional(),
-  error: z.object({message: z.string(), name: z.string().optional(), line: z.number().optional()}).optional(),
-})
 
 const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): /
 

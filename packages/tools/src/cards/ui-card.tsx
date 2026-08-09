@@ -2,7 +2,7 @@ import {Show, type JSX} from 'solid-js'
 import {LayoutTemplate} from 'lucide-solid'
 import {UiInputSchema} from '@conciv/protocol/ui-types'
 import {ToolCard, parseInput} from '@conciv/ui-kit-chat'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 
 const LABEL: Record<'choices' | 'confirm' | 'diff' | 'form', string> = {
   choices: 'choices',
@@ -30,5 +30,3 @@ export function UiCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
-
-export const uiTool: ToolCardEntry = {names: ['conciv_ui'], render: UiCard}

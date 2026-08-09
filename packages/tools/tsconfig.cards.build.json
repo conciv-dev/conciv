@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.cards.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist"
+  },
+  "include": ["src/cards.tsx", "src/cards/**/*.ts", "src/cards/**/*.tsx"],
+  "exclude": ["src/cards/**/*.stories.tsx"]
+}

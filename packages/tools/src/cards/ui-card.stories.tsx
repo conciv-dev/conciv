@@ -3,9 +3,9 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
-import {UiCard} from './ui-chip-card.js'
+import {UiCard} from './ui-card.js'
 
-const meta: Meta = {title: 'ui-kit-chat-tools/tools/UiCard'}
+const meta: Meta = {title: 'tools/cards/UiCard'}
 export default meta
 type Story = StoryObj
 

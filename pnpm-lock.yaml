@@ -118,6 +118,9 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../../packages/contract
+      '@conciv/core':
+        specifier: workspace:^
+        version: link:../../packages/core
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../packages/extension
@@ -139,6 +142,9 @@ importers:
       '@conciv/solid-streamdown':
         specifier: workspace:^
         version: link:../../packages/solid-streamdown
+      '@conciv/tools':
+        specifier: workspace:^
+        version: link:../../packages/tools
       '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../../packages/ui-kit-chat
@@ -1494,9 +1500,15 @@ importers:
       '@conciv/serve':
         specifier: workspace:^
         version: link:../serve
+      '@conciv/solid-diffs':
+        specifier: workspace:^
+        version: link:../solid-diffs
       '@conciv/tools':
         specifier: workspace:^
         version: link:../tools
+      '@conciv/ui-kit-chat':
+        specifier: workspace:^
+        version: link:../ui-kit-chat
       '@hono/node-server':
         specifier: ^2.0.8
         version: 2.0.8(hono@4.12.27)
@@ -1533,6 +1545,9 @@ importers:
       hono:
         specifier: ^4.12.0
         version: 4.12.27
+      lucide-solid:
+        specifier: ^1.18.0
+        version: 1.18.0(solid-js@1.9.14)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -1540,6 +1555,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../uno-preset
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -1549,6 +1567,9 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.14.7(@opentelemetry/api@1.9.1)
+      '@tanstack/ai-client':
+        specifier: 0.23.0
+        version: 0.23.0(@opentelemetry/api@1.9.1)(zod@4.4.3)
       '@tanstack/ai-mcp':
         specifier: 0.2.6
         version: 0.2.6(@opentelemetry/api@1.9.1)(zod@4.4.3)
@@ -1564,6 +1585,15 @@ importers:
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.14
+      storybook:
+        specifier: ^10.5.0
+        version: 10.5.0(@types/react@19.2.17)(prettier@3.9.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      storybook-solidjs-vite:
+        specifier: ^10.6.0
+        version: 10.6.0(esbuild@0.28.1)(rollup@4.62.2)(solid-js@1.9.14)(storybook@10.5.0(@types/react@19.2.17)(prettier@3.9.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@6.0.3)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       tsdown:
         specifier: ^0.22.4
         version: 0.22.4(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
@@ -1573,6 +1603,15 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+      unocss:
+        specifier: ^66.7.2
+        version: 66.7.2(@unocss/postcss@66.7.2(postcss@8.5.25))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      vite:
+        specifier: ^8.0.16
+        version: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite-plugin-solid:
+        specifier: ^2.11.12
+        version: 2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       vitest:
         specifier: ^4.1.8
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -3390,28 +3429,58 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/ui-kit-chat':
+        specifier: workspace:^
+        version: link:../ui-kit-chat
       '@tanstack/ai':
         specifier: ^0.43.0
         version: 0.43.0(@opentelemetry/api@1.9.1)(zod@4.4.3)
+      lucide-solid:
+        specifier: ^1.18.0
+        version: 1.18.0(solid-js@1.9.14)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../uno-preset
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@tanstack/ai-client':
+        specifier: 0.23.0
+        version: 0.23.0(@opentelemetry/api@1.9.1)(zod@4.4.3)
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
       '@vitest/coverage-v8':
         specifier: ^4.1.8
         version: 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.14
+      storybook:
+        specifier: ^10.5.0
+        version: 10.5.0(@types/react@19.2.17)(prettier@3.9.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      storybook-solidjs-vite:
+        specifier: ^10.6.0
+        version: 10.6.0(esbuild@0.28.1)(rollup@4.62.2)(solid-js@1.9.14)(storybook@10.5.0(@types/react@19.2.17)(prettier@3.9.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(typescript@6.0.3)(vite-plugin-solid@2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       tsdown:
         specifier: ^0.22.4
         version: 0.22.4(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+      unocss:
+        specifier: ^66.7.2
+        version: 66.7.2(@unocss/postcss@66.7.2(postcss@8.5.25))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      vite:
+        specifier: ^8.0.16
+        version: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite-plugin-solid:
+        specifier: ^2.11.12
+        version: 2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       vitest:
         specifier: ^4.1.8
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))

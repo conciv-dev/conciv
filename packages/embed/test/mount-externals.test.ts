@@ -31,10 +31,11 @@ describe('embed mount build shares one Ark environment instance with extensions'
     expect(externalized('solid-js')).toBe(true)
   })
 
-  it('inlines the private conciv app, @conciv/page, and the built-in tool declarations it reads', () => {
+  it('inlines the private conciv app, @conciv/page, and the packages whose cards it renders', () => {
     expect(externalized('@conciv/app/router')).toBe(false)
     expect(externalized('@conciv/page')).toBe(false)
     expect(externalized('@conciv/tools')).toBe(false)
+    expect(externalized('@conciv/core')).toBe(false)
   })
 
   it('ships only the page declarations, never the dev-server ones the widget cannot call', () => {

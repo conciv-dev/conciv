@@ -19,7 +19,6 @@ export {inlineValue, shortenPath, basename, truncate, SUMMARY_KEYS} from './prim
 
 export {BashCard} from './styled/tools/bash-card.js'
 export {ApplyPatchDiff} from './styled/tools/apply-patch-diff.js'
-export {CodeRunCard, codeRunTool} from './styled/tools/code-run-card.js'
 export {DiscoveredApisCard, discoveredApisTool} from './styled/tools/discovered-apis-card.js'
 export {FileReadCard, fileReadTool} from './styled/tools/file-read-card.js'
 export {FileEditCard, fileEditTool} from './styled/tools/file-edit-card.js'
@@ -28,7 +27,6 @@ export {SearchCard, searchTool} from './styled/tools/search-card.js'
 export {TodoCard, todoTool} from './styled/tools/todo-card.js'
 export {ToolChip} from './styled/tools/tool-chip.js'
 export {DoneCard} from './styled/done-card.js'
-export {UiCard, uiTool} from './styled/ui-chip-card.js'
 export {
   inlineTool,
   ReadInline,
@@ -39,8 +37,6 @@ export {
   WebSearchInline,
   WebFetchInline,
   ToolCallInline,
-  ExtensionsInline,
-  extensionsTool,
 } from './styled/tools/inline-tool.js'
 
 export {builtinToolCards} from './styled/tools/builtin-tool-cards.js'

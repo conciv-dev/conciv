@@ -44,11 +44,9 @@ const TITLE_BY_TOOL: Record<string, (h: HintData) => string> = {
   MultiEdit: editingTitle,
   Write: editingTitle,
   Read: readingTitle,
-  conciv_open: readingTitle,
   Grep: searchingTitle,
   Glob: searchingTitle,
   TodoWrite: () => 'Updating tasks',
-  conciv_ui: () => 'Rendering UI',
 }
 
 export function nowTitle(

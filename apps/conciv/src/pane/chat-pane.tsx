@@ -24,6 +24,8 @@ import {
   type Turn,
 } from '@conciv/ui-kit-chat'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
+import {concivToolCards} from '@conciv/tools/cards'
+import {coreToolCards} from '@conciv/core/cards'
 import type {MessagePart, MultimodalContent, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
@@ -180,6 +182,8 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const tools = (): ToolCardEntry[] => [
     concivUiEntry,
     ...collectToolRenderers(instances.map((instance) => instance.extension)),
+    ...concivToolCards,
+    ...coreToolCards,
     ...builtinToolCards,
   ]
 

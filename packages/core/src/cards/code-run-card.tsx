@@ -1,10 +1,17 @@
 import {Show, type JSX} from 'solid-js'
 import {Code} from 'lucide-solid'
-import {z} from 'zod'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {Markdown, parseInput, parseResultPayload, ToolCard, toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
-import {truncate} from '../../primitives/tools/inline-tool.js'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {
+  clip,
+  Markdown,
+  parseInput,
+  parseResultPayload,
+  ToolCard,
+  toolStatus,
+  type ToolStatus,
+} from '@conciv/ui-kit-chat'
+import {ExecuteInputSchema, ExecuteResultSchema, type ExecuteError, type ExecuteResult} from '../api/execute-schemas.js'
 
 const CONSOLE_OPTIONS: FileOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},
@@ -15,20 +22,8 @@ const CONSOLE_OPTIONS: FileOptions<undefined> = {
 const CONSOLE_CLASS =
   'block overflow-x-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border-left:2px_solid_var(--chat-line)]'
 
-const Input = z.object({typescriptCode: z.string()})
-const CodeError = z.object({message: z.string(), name: z.string().optional(), line: z.number().optional()})
-const Output = z.object({
-  success: z.boolean(),
-  result: z.unknown().optional(),
-  logs: z.array(z.string()).optional(),
-  error: CodeError.optional(),
-})
-
-type CodeOutput = z.infer<typeof Output>
-type CodeErrorValue = z.infer<typeof CodeError>
-
-function parseOutput(result: ToolCardProps['result']): CodeOutput | null {
-  const parsed = Output.safeParse(parseResultPayload(result))
+function parseOutput(result: ToolCardProps['result']): ExecuteResult | null {
+  const parsed = ExecuteResultSchema.safeParse(parseResultPayload(result))
   return parsed.success ? parsed.data : null
 }
 
@@ -41,19 +36,19 @@ function firstLine(code: string): string {
   )
 }
 
-function logsOf(output: CodeOutput | null): string[] {
+function logsOf(output: ExecuteResult | null): string[] {
   return output?.logs ?? []
 }
 
-function errorOf(output: CodeOutput | null): CodeErrorValue | undefined {
+function errorOf(output: ExecuteResult | null): ExecuteError | undefined {
   return output?.error
 }
 
-function isFailed(output: CodeOutput | null): boolean {
+function isFailed(output: ExecuteResult | null): boolean {
   return output?.success === false
 }
 
-function hasResult(output: CodeOutput | null): boolean {
+function hasResult(output: ExecuteResult | null): boolean {
   return output?.success === true && output.result !== undefined
 }
 
@@ -82,7 +77,7 @@ function ResultChip(props: {value: unknown}): JSX.Element {
   )
 }
 
-function ErrorBox(props: {error: CodeErrorValue}): JSX.Element {
+function ErrorBox(props: {error: ExecuteError}): JSX.Element {
   return (
     <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)] overflow-x-auto">
       {props.error.name ?? 'Error'}: {props.error.message}
@@ -94,14 +89,14 @@ function ErrorBox(props: {error: CodeErrorValue}): JSX.Element {
 }
 
 export function CodeRunCard(props: ToolCardProps): JSX.Element {
-  const code = (): string => parseInput(Input, props.part)?.typescriptCode ?? ''
-  const output = (): CodeOutput | null => parseOutput(props.result)
+  const code = (): string => parseInput(ExecuteInputSchema, props.part)?.typescriptCode ?? ''
+  const output = (): ExecuteResult | null => parseOutput(props.result)
   const statusOverride = (): ToolStatus | undefined => (isFailed(output()) ? 'error' : undefined)
   return (
     <ToolCard
       Icon={() => CodeIcon(isFailed(output()))}
       title="run code"
-      meta={truncate(firstLine(code()), 48)}
+      meta={clip(firstLine(code()), 48)}
       part={props.part}
       result={props.result}
       status={statusOverride()}
@@ -120,5 +115,3 @@ export function CodeRunCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
-
-export const codeRunTool: ToolCardEntry = {names: ['execute_typescript'], render: CodeRunCard}
