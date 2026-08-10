@@ -57,6 +57,8 @@ skills:
       - 'conciv-dev/conciv:apps/site/content/docs/extending/your-first-extension.mdx'
       - 'conciv-dev/conciv:apps/site/content/docs/extending/install-first-party.mdx'
       - 'conciv-dev/conciv:packages/harness/plugins/claude/skills/conciv-extensions/SKILL.md'
+      - 'conciv-dev/conciv:packages/extension/src/define-extension.ts'
+      - 'conciv-dev/conciv:packages/extension/src/define-tool.ts'
 
   - name: 'Building a conciv harness adapter'
     slug: 'conciv-harness'

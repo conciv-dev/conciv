@@ -82,16 +82,24 @@ import '@conciv/it/plugin/nextjs/widget'
 
 ```js title="webpack.config.js"
 const conciv = require('@conciv/it/plugin/webpack')
-module.exports = {plugins: [conciv.default()]}
+module.exports = {plugins: [conciv.default({enabled: process.env.NODE_ENV !== 'production'})]}
 ```
 
-The plugin does not add a `<script>` tag. Serve the prebuilt global bundle (published as
-`@conciv/widget/global` per the init tool's own manual card) and point `widgetUrl` at it so the
-script lands on the page (`apps/site/content/docs/quick-start/webpack.mdx:53-57`,
+Gate it like every other integration: the webpack/Rspack `unplugin` hooks boot the engine whenever
+`options.enabled !== false`, with no build-mode check of their own (`packages/plugin/src/index.ts:19-24`)
+— unlike Vite, where the plugin only runs in `serve` mode, a webpack/Rspack production build DOES
+run this hook, so an unguarded `enabled` really does boot the engine in prod.
+
+The plugin does not add a `<script>` tag either way. There is no published `@conciv/widget/global`
+package — the CLI's own webpack/Rspack init card names one, but that's a known upstream docs bug; the
+widget bundle you need to serve is `conciv-widget.global.js`, built as part of `@conciv/embed`'s
+`dist/` (published in its npm tarball, `packages/embed/package.json`'s `files` field is `["dist"]`).
+Copy or proxy `node_modules/@conciv/embed/dist/conciv-widget.global.js` to a static path and point
+`widgetUrl` at it (`apps/site/content/docs/quick-start/webpack.mdx:53-57`,
 `packages/cli/src/init/steps/framework/webpack-family.ts:35`):
 
 ```ts
-conciv({widgetUrl: '/conciv-widget.js'})
+conciv({enabled: process.env.NODE_ENV !== 'production', widgetUrl: '/conciv-widget.js'})
 ```
 
 Rspack is the same shape, swap `@conciv/it/plugin/rspack`
@@ -105,29 +113,32 @@ integration instead (`apps/site/content/docs/quick-start/rollup.mdx:21-23`,
 Use this when no `@conciv/it` plugin boots the widget for you, or when you are wiring a
 framework-specific wrapper. `createConciv` returns a handle you mount into an element and tear down
 yourself; `mountConciv` is the one-shot, fire-and-forget version that appends its own root div to
-`document.body` (`packages/embed/src/mount.ts:31-98,100-108`):
+`document.body` (`packages/embed/src/mount.ts:32-90`, `packages/embed/src/mount.ts:92-101`). Gate the
+mount call yourself the same way a plugin's `enabled` option would:
 
 ```ts
 import {createConciv, type ConcivInit} from '@conciv/embed'
 
-const handle = createConciv({
-  extensions: [],
-  apiBase: 'http://localhost:5178',
-})
-await handle.mount(document.getElementById('conciv-root')!)
-// later: handle.unmount()
+if (process.env.NODE_ENV !== 'production') {
+  const handle = createConciv({
+    extensions: [],
+    apiBase: 'http://localhost:5178',
+  })
+  await handle.mount(document.getElementById('conciv-root')!)
+  // later: handle.unmount()
+}
 ```
 
 `ConcivInit` fields: `extensions` (array or async loader), `settings` (`ConcivSettingsInit`),
 `apiBase` (engine origin — required whenever the engine isn't served from the same origin/port the
-page loads from), `grabProvider` (`packages/embed/src/mount.ts:9-15`). The handle also exposes
+page loads from), `grabProvider` (`packages/embed/src/mount.ts:9-14`). The handle also exposes
 `open()`/`close()`/`toggle()` (dispatch DOM `CustomEvent`s the widget listens for) and
 `rebind(apiBase)` to repoint an already-mounted widget at a different engine
-(`packages/embed/src/mount.ts:17-25,75-96`).
+(`packages/embed/src/mount.ts:16-23`, `packages/embed/src/mount.ts:72-89`).
 
 For a single always-on instance with no manual lifecycle, `mountConciv(extensions)` is a bare
 fire-and-forget call — it no-ops if a `[data-conciv-script-root]` element already exists, so it is
-safe to call more than once (`packages/embed/src/mount.ts:100-108`):
+safe to call more than once (`packages/embed/src/mount.ts:92-101`):
 
 ```ts
 import {mountConciv} from '@conciv/embed'
@@ -135,7 +146,8 @@ import {mountConciv} from '@conciv/embed'
 mountConciv([myExtension])
 ```
 
-(Real call site: `packages/extensions/tanstack/test/host/main.tsx:5,155`.)
+(Real `mountConciv` call site: `packages/extensions/tanstack/test/host/main.tsx:5` (import) and
+`packages/extensions/tanstack/test/host/main.tsx:155` (call).)
 
 For a framework component that owns mount/unmount through its own lifecycle, wrap `createConciv` —
 `@conciv/react`'s `ConcivWidget` is the reference shape: it mounts on a ref'd div in an effect, tears
@@ -145,10 +157,13 @@ down on unmount, and remounts only when `apiBase`/`settings`/`extensions` actual
 ## Connecting a harness
 
 `harness` on the plugin config (or `ConcivConfig` passed to `createConciv`'s engine side) picks the
-agent CLI behind the chat. `claude` is the default and needs the `claude` CLI on `PATH`; `codex` is
-also fully supported. `gemini-cli`, `opencode`, and `pi` exist as ids but are stubs, not implemented
-adapters (`apps/site/content/docs/harnesses.mdx:21-43`, `packages/protocol/src/config-types.ts:35-36`
-for the `harness`/`harnessBin` fields):
+agent CLI behind the chat. `claude` and `codex` are fully supported (`claude` is the default and needs
+the `claude` CLI on `PATH`). `gemini-cli` and `opencode` are also real, implemented adapters — ACP and
+opencode's own text adapter respectively (`packages/harness/src/gemini-cli/index.ts`,
+`packages/harness/src/opencode/index.ts`). Only `pi` is a stub: its `chatConfig` always returns a
+"not yet supported" error (`unsupportedChatConfig`, `packages/harness/src/_shared/stub.ts:10-17`,
+wired at `packages/harness/src/pi/index.ts:26`) even though its `history`/`connect` sidecars are real
+(`packages/protocol/src/config-types.ts:35-36` for the `harness`/`harnessBin` fields):
 
 ```ts
 conciv({harness: 'codex', harnessBin: '/usr/local/bin/codex'})
@@ -162,7 +177,7 @@ deprecated aliases for `harnessBin`/`sessionId`
 ## Minimal config surface
 
 `ConcivConfig` (the object passed to `conciv({...})`) — every field optional, all default to sane
-values (`packages/protocol/src/config-types.ts:27-45`, `apps/site/content/docs/configuration.mdx:18-52`):
+values (`packages/protocol/src/config-types.ts:27-46`, `apps/site/content/docs/configuration.mdx:18-52`):
 
 | Field          | Default         | Use for                                                                       |
 | -------------- | --------------- | ----------------------------------------------------------------------------- |
@@ -171,13 +186,22 @@ values (`packages/protocol/src/config-types.ts:27-45`, `apps/site/content/docs/c
 | `harnessBin`   | adapter default | non-`PATH` binary location                                                    |
 | `widgetUrl`    | unset           | webpack/Rspack manual injection target                                        |
 | `port`         | auto            | fix the engine port (required, not just preferred, on Next.js/webpack/Rspack) |
-| `systemPrompt` | built-in        | append project-specific instructions                                          |
+| `systemPrompt` | built-in        | a string here REPLACES the built-in prompt, it does not append to it          |
 | `widget`       | both layouts on | `{modal, quickTerminal}` — position/hotkey or disable a layout                |
 
-`ConcivSettingsInit` (the `settings` field passed to `createConciv`/embedded in `ConcivConfig` via
-`widget`) additionally carries `defaultOpen` and `launcher: 'native' | 'mascot' | false`
-(`packages/protocol/src/config-types.ts:17-21`). It extends `WidgetConfig`, so `modal`/`quickTerminal`
-apply there too:
+A string `systemPrompt` swaps out `CHAT_SYSTEM_PROMPT` entirely (`resolveSystemPrompt`,
+`packages/core/src/config.ts:18-22`); every installed extension's own `systemPrompt` is still appended
+after it, string or not (`composeSystemPrompt`, `packages/core/src/start.ts:110-117`).
+
+`ConcivSettingsInit` is a **different, wider** type than `ConcivConfig.widget`: it's the `settings`
+field you pass directly to `createConciv`/`@conciv/react`'s `ConcivWidget`
+(`packages/embed/src/mount.ts:11`), and it additionally carries `defaultOpen` and
+`launcher: 'native' | 'mascot' | false` (`packages/protocol/src/config-types.ts:17-21`).
+`ConcivConfig.widget` is typed `WidgetConfig | false` (`packages/protocol/src/config-types.ts:33`) —
+just `{modal, quickTerminal}`, no `defaultOpen`/`launcher` — so a bundler-plugin `conciv({widget: ...})`
+call cannot set those two; they only apply through a direct `createConciv({settings: ...})` call
+(manual mount, or a framework wrapper like `@conciv/react`). `ConcivSettingsInit` does extend
+`WidgetConfig`, so `modal`/`quickTerminal` are valid on `settings` too:
 
 ```ts
 conciv({widget: {modal: {position: 'top-left'}}})
@@ -199,18 +223,21 @@ conciv({widget: {quickTerminal: false}}) // corner modal only
   unmount, page navigation) — leaks the mounted app and its subscriptions.
 - `mountConciv` called expecting a return value/handle to unmount later — it is fire-and-forget by
   design; use `createConciv` if you need lifecycle control.
-- A harness id other than `claude`/`codex` picked for real use — `gemini-cli`/`opencode`/`pi` are
-  unimplemented stubs.
+- `harness: 'pi'` picked for real use — its `chatConfig` is a stub that always errors
+  (`packages/harness/src/pi/index.ts:26`); `claude`, `codex`, `gemini-cli`, and `opencode` all have a
+  real `chatConfig`.
 - Hand-rolling a `<script src=...>` injection for Vite/Next.js — both already inject the widget
   through the plugin; a second manual mount double-mounts.
 
 ## Sources
 
 - `packages/embed/src/mount.ts`
+- `packages/embed/package.json`
 - `packages/core/src/config.ts`
+- `packages/core/src/start.ts`
+- `packages/plugin/src/index.ts`
 - `packages/it/README.md`
 - `packages/it/package.json`
-- `packages/it/src/plugin/vite.ts`
 - `packages/protocol/src/config-types.ts`
 - `packages/react/src/index.ts`
 - `packages/extensions/tanstack/test/host/main.tsx`
@@ -223,4 +250,7 @@ conciv({widget: {quickTerminal: false}}) // corner modal only
 - `apps/site/content/docs/quick-start/rollup.mdx`
 - `apps/site/content/docs/quick-start/esbuild.mdx`
 - `apps/site/content/docs/configuration.mdx`
-- `apps/site/content/docs/harnesses.mdx`
+- `packages/harness/src/gemini-cli/index.ts`
+- `packages/harness/src/opencode/index.ts`
+- `packages/harness/src/pi/index.ts`
+- `packages/harness/src/_shared/stub.ts`

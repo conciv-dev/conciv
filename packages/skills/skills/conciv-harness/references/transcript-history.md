@@ -22,7 +22,10 @@ export type HarnessHistory = {
 
 `home` defaults to `homedir()` in every implementation — it's only overridden in tests, so accept it
 as an optional parameter with that default rather than requiring callers to pass it
-(`packages/harness/src/codex/history.ts:16,20,293,316,320,325,344`).
+(`packages/harness/src/codex/history.ts:16`, `packages/harness/src/codex/history.ts:20`,
+`packages/harness/src/codex/history.ts:293`, `packages/harness/src/codex/history.ts:316`,
+`packages/harness/src/codex/history.ts:320`, `packages/harness/src/codex/history.ts:325`,
+`packages/harness/src/codex/history.ts:344`).
 
 ## `messages()`: parse the whole transcript once
 
@@ -91,10 +94,12 @@ export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
 export type TranscriptFailure = {ok: false; reason: TranscriptFailureReason; detail: string}
 ```
 
-(`packages/protocol/src/harness-types.ts:155-161`.) Every `TranscriptHandle` method and `HarnessHistory`'s
-optional refinements that can fail return this discriminated union instead of throwing — build one
-with `transcriptFailure(reason, detail)` (`packages/harness/src/_shared/jsonl-handle.ts:27-29`). Use
-`'missing'` when the file/session doesn't exist yet or belongs to a different project, `'unreadable'`
+(`packages/protocol/src/harness-types.ts:155-161`.) Only `TranscriptHandle`'s own methods
+(`revision()`/`read()`) return this discriminated union by signature — `HarnessHistory`'s methods
+(`messages()`, `list()`, and the optional refinements) don't. The `resolvePath()`/`verifyHead()` hooks
+you hand to `makeJsonlHandle` also return it (`JsonlSource`, `packages/harness/src/_shared/jsonl-handle.ts:21-25`)
+— build one with `transcriptFailure(reason, detail)` (`packages/harness/src/_shared/jsonl-handle.ts:27-29`).
+Use `'missing'` when the file/session doesn't exist yet or belongs to a different project, `'unreadable'`
 for I/O errors, `'corrupt'` when the file exists but its content fails a structural check (e.g. no
 `session_meta` envelope in the head).
 
@@ -103,7 +108,7 @@ for I/O errors, `'corrupt'` when the file exists but its content fails a structu
 `listSessions` (`packages/harness/src/codex/history.ts:325-342`) queries a SQLite `threads` table
 scoped by `cwd`, then re-reads each row's own rollout file to compute a fresh `messageCount` via the
 same `parseHistory`. If your CLI has no session-index database, an alternative is scanning its
-transcript directory (`packages/harness/src/codex/history.ts:279-296`,
+transcript directory (`packages/harness/src/codex/history.ts:279-297`,
 `rolloutEntries`/`scanForRollout` — used as the `list()`-independent fallback path when a specific
 session isn't in the db). Every `HarnessSessionMeta` needs at least `{id, derivedTitle, updatedAt,
 messageCount}` (`packages/protocol/src/harness-types.ts:142-151`); the rest (`model`, `totalTokens`,

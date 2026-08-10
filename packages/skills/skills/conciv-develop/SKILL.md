@@ -13,9 +13,10 @@ You are a developer (or an agent working in a developer's app) adding a `conciv/
 file to teach the conciv agent widget a new capability, or publishing a package that does the same
 for other people's apps. Everything here is the public contract of `@conciv/extension`, installed
 as a normal dependency. If you are instead working **inside the conciv monorepo itself** — editing
-the built-in whiteboard/terminal/recorder extensions, or the extension package's own source — read
-`packages/harness/plugins/claude/skills/conciv-extensions/SKILL.md` instead; it targets repo
-contributors and may describe internal scaffolding tools this skill does not cover.
+the built-in whiteboard/terminal/recorder extensions, or the extension package's own source — the
+conciv repo has its own internal equivalent of this skill for contributors
+(https://github.com/conciv-dev/conciv, `packages/harness/plugins/claude/skills/conciv-extensions/`),
+which may describe internal scaffolding tools this skill does not cover.
 
 ## The shape: one file, two runtimes
 
@@ -39,12 +40,12 @@ export {makeExtRpcClient, subscriptionIterator} from '@conciv/extension'
 publishes. `./client` re-exports the identical module, so `@conciv/extension` and
 `@conciv/extension/client` are interchangeable import specifiers.)
 
-## Your first extension, verbatim
+## Your first extension, trimmed for brevity
 
 Two real, current example extensions ship in this repo's Vite example app. Read both before writing
-your own — they are the actual pattern, not a simplified rewrite of it:
+your own — the real file additionally draws an inline SVG icon on the button, trimmed below:
 
-```tsx title="apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx:1-32"
+```tsx title="apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx:1-46 (trimmed)"
 import {z} from 'zod'
 import {defineExtension, defineTool, getHostApi} from '@conciv/extension'
 
@@ -55,6 +56,7 @@ const deployRun = defineTool({
   outputSchema: z.object({url: z.string()}),
   promptSnippet: 'You can deploy with the deploy_run tool.',
   meta: {summary: 'deploy the current branch', category: 'deploy', mutating: true},
+  approval: 'ask',
 })
   .server(({env}) => ({url: `https://${env}.example.com`}))
   .render((props) => <div data-pw-deploy-card>Deploying… ({props.part.name})</div>)
@@ -77,7 +79,10 @@ function DeploySurface() {
 }
 ```
 
-Drop that file (or your own version of it) into `conciv/extensions/` at your project root — create
+The real file's `deployRun` has no `approval: 'ask'` — it's added above because `mutating: true` tools
+should ask by default (see the red flags below); the real button also draws an SVG rocket icon instead
+of the text "Deploy". Drop the file (or your own version of it) into `conciv/extensions/` at your
+project root — create
 the directory if it does not exist. No registration, no config: conciv discovers every file there.
 Restart your dev server (`.server(...)` code and top-level `systemPrompt` load at boot; `Component`
 and `.render(...)` hot-reload). Ask the widget to "deploy this to staging" and the agent calls
@@ -105,11 +110,11 @@ defineExtension({
 })
 ```
 
-(`packages/extension/src/define-extension.ts:29-42` for the exact `ExtensionMeta` type.) Chain
+(`packages/extension/src/define-extension.ts:29-46` for the exact `ExtensionMeta` type.) Chain
 `.client(factory)` and `.server(factory)` on the returned builder for the two runtime halves — both
 optional, chain only what you need:
 
-```tsx title="packages/extensions/whiteboard/src/client.tsx:41-52,85"
+```tsx title="packages/extensions/whiteboard/src/client.tsx:43-84 (trimmed)"
 const whiteboard = defineExtension({
   name: WHITEBOARD_NAME,
   tools: whiteboardToolClients,
@@ -161,13 +166,16 @@ const tool = defineTool({
 
 (`packages/extension/src/define-tool.ts:46-96` for the exact `ToolDefinition`/`ToolBuilder` types.)
 `meta.summary` is required whenever you pass `meta` at all, and must not just repeat the tool name —
-`defineTool` throws at module-load time otherwise (`define-tool.ts:205-213`).
+`defineTool` throws at module-load time otherwise
+(`packages/extension/src/define-tool.ts:205-213`).
 
 - `.server(execute)` runs in node. `execute(input, ctx, request)`: `input` is fully typed and
   already `inputSchema.parse`d; `ctx` is whatever your extension's `.server(...)` factory returned
-  as `context` (unknown unless you annotate the handler's `ctx` parameter, as `def-button.tsx`
-  above does with `ctx: {factor: number}`-style annotations); `request` is
-  `{sessionId: string; model: string | null}` for the calling chat turn.
+  as `context` (unknown unless you annotate the handler's `ctx` parameter — the generic
+  `server<HandlerCtx>` signature lets you write `ctx: YourCtxType`, as
+  `packages/extensions/tanstack/src/tool/server.ts:18-20` does with a `type ToolCtx =
+{adapter: FrameworkAdapter}` annotation); `request` is `{sessionId: string; model: string | null}`
+  for the calling chat turn.
 - `.client(execute?)` binds the tool to run in the browser instead (a DOM inspection tool, for
   example) — its handler receives `ClientToolCtx` (`document`, `target`, `resolve`, `addRef`,
   `resetRefs`, `consoleEntries`, `effects`). Calling `.client()` with no argument still claims the
@@ -184,16 +192,18 @@ const tool = defineTool({
 Throw a `toolError(code, {message?, data?})` from inside `.server`/`.client` for a structured
 failure the card can branch on; `isToolError(value)` narrows it back on the render side.
 
-```ts title="packages/extensions/tanstack/src/tool/server.ts:1,76"
+```ts title="packages/extensions/tanstack/src/tool/server.ts (excerpted)"
 import {defineTool, toolError} from '@conciv/extension'
 // …
 throw toolError('MANIFEST_UNREADABLE', {message: error instanceof Error ? error.message : String(error)})
 ```
 
-Declare the codes you can throw in the definition's `errors` field so the contract is visible from
-the type alone — `packages/extensions/whiteboard/src/tool/comment/def.ts:18,59` declares
+(`packages/extensions/tanstack/src/tool/server.ts:1` for the import, `:76` for the throw.) Declare
+the codes you can throw in the definition's `errors` field so the contract is visible from the type
+alone — `packages/extensions/whiteboard/src/tool/comment/def.ts:18` declares
 `const COMMENT_NOT_FOUND = {COMMENT_NOT_FOUND: {message: 'no comment with that cid in this session'}}`
-and attaches it via `errors: COMMENT_NOT_FOUND` on every tool that can throw it.
+and `packages/extensions/whiteboard/src/tool/comment/def.ts:59` attaches it via
+`errors: COMMENT_NOT_FOUND` on a tool that can throw it.
 
 Full field-by-field reference and the split `def.ts`/`server.ts`/`client.ts` pattern for
 installable packages: `references/tool-contract.md`.
@@ -225,7 +235,7 @@ tool `.server` handlers get typed context.
 - **`views`** is an array of full panels the host can route to (`ExtensionView = {id, label, icon?,
 Component, actions?}`), mounted via `MountedView` when the user navigates to that view's route:
 
-```tsx title="packages/extensions/terminal/src/client.tsx:8-18"
+```tsx title="packages/extensions/terminal/src/client.tsx:8-19"
 export const terminal = defineExtension({
   name: TERMINAL_NAME,
   views: [
@@ -255,7 +265,7 @@ export const useTerminalContext = getExtensionApi(TERMINAL_NAME).useContext
 Declare `RegisterExtension<typeof yourExtension>` against `@conciv/protocol/config-types`'s
 `ExtensionRegistry` interface to get `getExtensionApi('your-name')` fully typed instead of `object`:
 
-```ts title="packages/extensions/terminal/src/client.tsx:20-22"
+```ts title="packages/extensions/terminal/src/client.tsx:21-23"
 declare module '@conciv/protocol/config-types' {
   interface ExtensionRegistry extends RegisterExtension<typeof terminal> {}
 }

@@ -173,22 +173,32 @@ into `deps.decide('allow' | 'deny')` callbacks. Neither of these exists per-harn
 "is this command risky" check, that's a sign the check belongs in `deps.decide` (via `permissionGate:
 'callback'`), not a special case bolted onto core or the widget.
 
-## Sandbox-virtual workdir: never pass a host-absolute `cwd`
+## Sandbox-virtual workdir: `chatConfig` never passes a host `cwd`; `connect.plan()` legitimately does
 
-`localProcessSandbox({dir: cwd})` makes the sandbox's process root **be** `deps.cwd` — the sandbox
-root IS the project cwd, not a subdirectory of it. `HarnessConnectContext.cwd`
-(`packages/protocol/src/harness-types.ts:43`) and `HarnessChatDeps.cwd`
-(`packages/protocol/src/harness-types.ts:126`) are therefore already the right value to hand your CLI
-verbatim as its working directory or `--cwd`/`-C` flag.
+`localProcessSandbox({dir: cwd})` roots every process spawned **through the sandbox** at `deps.cwd`
+already — the sandbox root IS `deps.cwd`, not a subdirectory of it (AGENTS.md, "Harness & runner
+adapters": "the local-process sandbox root IS the cwd... adapters default to `/workspace`"). Because of
+that, `chatConfig(deps)`'s adapter must **not** thread `deps.cwd` back in as an explicit `cwd`/`--cwd`
+value for the process it spawns through the sandbox: a CLI that defaults its own working directory to
+a fixed sandbox-relative path like `/workspace` is already handled correctly by the sandbox once it's
+rooted there — passing `deps.cwd` (a host-absolute path) as an extra `cwd` argument on top of that gets
+resolved _again_, relative to the sandbox root, and that's what nests a junk
+`/workspace/Users/you/project/...` tree. Codex's `chatConfig` passes **no** `cwd` at all
+(`packages/harness/src/codex/index.ts:11-19`) — that omission is correct, not a bug to fix.
 
-The landmine: some CLIs default their own working directory to a fixed sandbox-relative path like
-`/workspace` when no explicit cwd is given. If your adapter's `connect.plan()` or `chatConfig()`
-forgets to pass `ctx.cwd`/`deps.cwd` through and the CLI falls back to that default while conciv's
-`localProcessSandbox` is rooted at the _host_ absolute path, you get a phantom nested tree
-(`/workspace/Users/you/project/...`) instead of the sandbox running at the project root. Always thread
-`ctx.cwd` (connect) or `deps.cwd` (chatConfig) into the launch args/adapter config explicitly — never
-assume the CLI's built-in default matches conciv's sandbox root, and never construct or pass a
-different host-absolute path of your own.
+`deps.cwd` is still a legitimate value inside `chatConfig` for anything that isn't the process's
+working directory: claude's chat config threads it through as `addDirs: [deps.cwd]`
+(`packages/harness/src/claude/chat.ts:68`), an additional-directory permission grant for MCP/tool file
+access, not a `cwd` override.
+
+`connect.plan(ctx)` is a different seam — it builds the argv for the connected **host terminal**
+(attach flow), which runs the raw CLI directly, outside `chat()`'s sandbox middleware entirely. There,
+`ctx.cwd` is the ordinary, correct thing to pass straight through: pi's connect plan builds a
+session-file path from it (`packages/harness/src/pi/index.ts:6-9`, used at
+`packages/harness/src/pi/index.ts:30`), and claude's slash-command probe passes `cwd: ctx.cwd` straight
+into `@anthropic-ai/claude-agent-sdk`'s `query()` (`packages/harness/src/claude/sdk.ts:42`), which also
+runs outside the sandbox. Don't copy `connect.plan()`'s `ctx.cwd` habit into `chatConfig` — they're
+different processes with different rooting rules.
 
 ## connect.plan(): the argv/env/files launch plan
 
@@ -271,10 +281,11 @@ export type HarnessHistory = {
 }
 ```
 
-`messages()` and `list()` are the required minimum: parse the CLI's own on-disk transcript into
-`UIMessage[]` and enumerate past sessions for a cwd. `observe()` returns a live-tailing
-`TranscriptHandle` (`revision()/read()/close()`) for streaming updates into an open chat pane — build
-it with the shared `makeJsonlHandle()` helper if your CLI's transcript is JSONL-per-line (both `claude`
+`messages()`, `observe()`, and `list()` are the required minimum (the only three fields without a `?`
+on the type above): parse the CLI's own on-disk transcript into `UIMessage[]`, return a live-tailing
+`TranscriptHandle` (`revision()/read()/close()`) for streaming updates into an open chat pane, and
+enumerate past sessions for a cwd. Build `observe()` with the shared `makeJsonlHandle()` helper if your
+CLI's transcript is JSONL-per-line (both `claude`
 and `codex` do this: `packages/harness/src/codex/history.ts:344-358`). See
 `references/transcript-history.md` for the full worked walkthrough (event folding, `verifyHead`
 project-scoping, incremental byte-offset reads) — it's the densest part of a real adapter and doesn't
@@ -287,8 +298,10 @@ fit in this file's budget.
   the sandbox's filesystem scoping.
 - Any `if (harnessId === 'your-cli')` branch inside `packages/core` or the widget — the whole point of
   the capability contract is that core never special-cases a harness by name.
-- Passing a host-absolute path as `cwd` to the CLI, or omitting `ctx.cwd`/`deps.cwd` and letting the
-  CLI fall back to its own default working directory.
+- Threading `deps.cwd` into `chatConfig`'s adapter as an explicit `cwd`/`--cwd` value — the sandbox
+  already roots the spawned process there; an explicit host-absolute value on top of that is what
+  nests the phantom `/workspace/Users/...` tree, not omitting it. (`connect.plan()`'s `ctx.cwd` is a
+  different, unsandboxed seam where passing it through is correct — see above.)
 - Declaring `transcriptHistory: true`, `slashCommands: 'live' | 'files'`, or `init: 'files'` without
   the matching `history`/`commands`/`init` field — this is a type error, not a runtime bug, but if you
   see yourself reaching for `as HarnessAdapter` to silence it, the capability declaration is wrong,
@@ -308,6 +321,8 @@ fit in this file's budget.
 - `packages/harness/src/codex/history.ts`
 - `packages/harness/src/claude/index.ts`
 - `packages/harness/src/claude/chat.ts`
+- `packages/harness/src/claude/sdk.ts`
+- `packages/harness/src/pi/index.ts`
 - `packages/harness/src/_shared/text-adapter.ts`
 - `packages/harness/src/_shared/env.ts`
 - `packages/harness/src/_shared/jsonl-handle.ts`
@@ -315,3 +330,4 @@ fit in this file's budget.
 - `packages/core/src/chat/sandbox.ts`
 - `packages/core/src/chat/gate.ts`
 - `apps/site/content/docs/harnesses.mdx`
+- `AGENTS.md`

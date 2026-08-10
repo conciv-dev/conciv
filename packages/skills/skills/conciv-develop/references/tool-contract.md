@@ -134,8 +134,9 @@ type ClientToolCtx = {
 ```
 
 `ClientToolLocator` is `{ref?, selector?, name?}` — how the built-in page-inspection tools address
-DOM elements the agent has referenced (`packages/extensions/page/src/client/bodies.ts:2,220` throws
-`toolError('UNKNOWN_EFFECT', ...)` from inside a client handler using exactly this pattern).
+DOM elements the agent has referenced (`packages/extensions/page/src/client/bodies.ts:220` throws
+`toolError('UNKNOWN_EFFECT', ...)`, imported at `packages/extensions/page/src/client/bodies.ts:2`,
+from inside a client handler using exactly this pattern).
 
 ## Card renderer signature
 

@@ -102,7 +102,8 @@ function getExtensionTestApi(extension: {
 }>
 ```
 
-(`packages/extension-testkit/src/get-extension-test-api.ts:16-38,44-71`.) `server` is your
+(`packages/extension-testkit/src/get-extension-test-api.ts:18-22` for the input shape,
+`packages/extension-testkit/src/get-extension-test-api.ts:26-38` for the returned shape.) `server` is your
 extension's default export (the one with `.server(...)` already chained on it — import from your
 `server.ts` entry, not `client.tsx`, if you split files). `host` produces the page the Playwright
 `page` navigates to; it needs a **built** client bundle, not source:

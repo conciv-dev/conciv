@@ -15,21 +15,21 @@ never finishes, or an approval prompt never resolves. This skill is about the sa
 runtime underneath the widget, not the install step or extension authoring — see conciv-setup and
 conciv-develop for those.
 
-The site docs under `apps/site/content/docs/extending/*.mdx` describe an older extension API; this
-skill was written straight from the current runtime source, and every claim below cites the file it
-came from. Prefer the source citations over site prose if the two ever disagree.
+This skill was written straight from the current runtime source, and every claim below cites the file
+it came from.
 
 ## Failure scenario 1: the conciv button never appears
 
 The widget script probes the engine on load and only renders once that probe succeeds. Symptom →
 cause → fix:
 
-| Symptom                                    | Cause                                                                                                                                                                                                                                         | Fix                                                                                                                                                                                                                          |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No button at all, any framework            | Running a production build                                                                                                                                                                                                                    | conciv mounts by convention only in dev; check the `enabled` gate at the call site (`resolveConfig` defaults `enabled` to `true`, `packages/core/src/config.ts:27`, so a missing gate ships to prod, it does not hide there) |
-| No button, webpack/Rspack                  | Plugin boots the engine but never injects a `<script>` tag                                                                                                                                                                                    | set `widgetUrl` and serve the bundle yourself — see conciv-setup's webpack/Rspack section                                                                                                                                    |
-| No button, custom host (no bundler plugin) | `createConciv(...).mount(el)` never called, or called on an element removed before `impl.ready` resolves                                                                                                                                      | call `mount` on an element that stays in the DOM; `mount()` is a no-op if `state !== 'unmounted'` so a second call while `'mounting'` is silently dropped (`packages/embed/src/mount.ts:38-40`)                              |
-| Button appears, panel never opens          | Nothing wired to `open()`/`toggle()`; these just `dispatchEvent` a `CustomEvent` (`packages/embed/src/mount.ts:27-30, 72-82`) — if the mounted widget's own listener never attached (mount still `'mounting'`), the event is lost, not queued |
+| Symptom                                                              | Cause                                                                                                                                                                                               | Fix                                                                                                                                                                                                                    |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No button in a Vite production build                                 | The Vite plugin only runs during `vite dev` — `apply: 'serve'` (`packages/plugin/src/core/vite.ts:165`) — so neither the engine boot nor the `<script>` injection ever happens at `vite build` time | expected, not a bug: conciv is dev-only for Vite by construction and never ships to a Vite production build, `enabled` or not                                                                                          |
+| Widget silently present in a webpack/Rspack/Next.js production build | Those plugins boot the engine whenever `enabled !== false`, with no build-mode check of their own (`packages/plugin/src/index.ts:19-24`)                                                            | gate it explicitly: `conciv({enabled: process.env.NODE_ENV !== 'production'})` — `resolveConfig` defaults `enabled` to `true` (`packages/core/src/config.ts:27`), so an unguarded call really does ship                |
+| No button, webpack/Rspack                                            | Plugin boots the engine but never injects a `<script>` tag                                                                                                                                          | set `widgetUrl` and serve the bundle yourself — see conciv-setup's webpack/Rspack section                                                                                                                              |
+| No button, custom host (no bundler plugin)                           | `createConciv(...).mount(el)` never called, or called on an element removed before `impl.ready` resolves                                                                                            | call `mount` on an element that stays in the DOM; `mount()` is a no-op if `state !== 'unmounted'` so a second call while `'mounting'` is silently dropped (`packages/embed/src/mount.ts:38-40`)                        |
+| Button appears, panel never opens                                    | Nothing wired to `open()`/`toggle()`; these just `dispatchEvent` a `CustomEvent` (`packages/embed/src/mount.ts:27-30`, `packages/embed/src/mount.ts:72-82`)                                         | wire something to call `open()`/`toggle()`, and confirm the mounted widget reached `state === 'mounted'` before dispatching — if the listener never attached (mount still `'mounting'`), the event is lost, not queued |
 
 ## Failure scenario 2: widget renders but never connects to the engine
 
@@ -76,7 +76,7 @@ session "<id>" to answer; open the widget on that session and retry`
   (`noListenerRefusal`, `packages/core/src/chat/gate.ts:81-83`, wired in
   `packages/core/src/chat/code-mode.ts:76`). If a code-mode tool call fails instantly with that exact
   message, the fix is "open the widget on that session," not a timeout or retry.
-- **A read-only tool that never needed approval is stuck instead.** Approval is decided by
+- **A command that should auto-allow is stuck on an approval card instead.** Approval is decided by
   `requiresApproval`/`needsApproval` (`packages/core/src/chat/gate.ts:56-71`): a tool is risky if its
   name is in the `risky` set, or (for `Bash`) if `classifyCommand` doesn't classify it as `'allow'`.
   The allowlist is intentionally narrow — plain read-only commands (`ls`, `cat`, `grep`, `git status`,
@@ -148,9 +148,9 @@ consequences:
 - Debugging a stuck code-mode tool call as if it were the 120s ask-timeout path — it fails in
   milliseconds via `noListenerRefusal`, so a multi-second hang there points elsewhere (the harness
   CLI, not the gate).
-- Citing `apps/site/content/docs/extending/*.mdx` for extension-authoring behavior while debugging —
-  those pages describe an older API; verify against `packages/core/src/chat/*.ts` and
-  `packages/extension/src` instead, or defer to the conciv-develop skill.
+- Debugging extension-authoring behavior (tool contracts, `Component`/`Surface` wiring) instead of
+  runtime plumbing — that's the conciv-develop skill's territory; this skill covers the
+  sandbox/gate/SSE runtime underneath, not how an extension is built.
 
 ## Sources
 
@@ -165,6 +165,8 @@ consequences:
 - `packages/core/src/app.ts`
 - `packages/embed/src/mount.ts`
 - `packages/core/src/config.ts`
+- `packages/plugin/src/core/vite.ts`
+- `packages/plugin/src/index.ts`
 - `apps/site/content/docs/troubleshooting.mdx`
 - `apps/site/content/docs/usage/approvals.mdx`
 - `AGENTS.md`
