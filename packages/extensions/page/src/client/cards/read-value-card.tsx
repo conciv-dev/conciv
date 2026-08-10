@@ -1,6 +1,6 @@
 import {Match, Switch, type JSX} from 'solid-js'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CardShell, DANGER_TEXT_CLASS, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
+import {CardShell, ErrorBlock, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
 import {ChipRow, ELEMENT_TARGET_KEYS, cardErrorMessage, elementTargetValue, resultChips, toolInput} from './shared.js'
 
 export function ReadValueCard(props: ToolCardProps): JSX.Element {
@@ -15,7 +15,7 @@ export function ReadValueCard(props: ToolCardProps): JSX.Element {
       <div class="flex flex-col gap-1.5">
         <ChipRow element={element()} chips={extraChips()} />
         <Switch>
-          <Match when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Match>
+          <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
           <Match when={values().length > 0}>
             <ChipRow chips={values()} />
           </Match>

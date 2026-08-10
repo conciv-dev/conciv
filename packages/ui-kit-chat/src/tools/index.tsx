@@ -23,8 +23,6 @@ export {GENERIC_TOOL_ICON, toolIconRender} from './styled/tool-icon.js'
 export {schemaFields, schemaParams, type SchemaField} from './primitives/schema-params.js'
 export {
   DANGER_TEXT_CLASS,
-  CODE_BLOCK_CLASS,
-  CODE_BLOCK_OPTIONS,
   MUTATING_BADGE,
   displayValue,
   clip,

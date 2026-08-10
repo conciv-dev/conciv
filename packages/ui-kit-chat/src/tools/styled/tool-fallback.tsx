@@ -1,6 +1,5 @@
 import {createSignal, Show, type JSX} from 'solid-js'
 import {ChevronDown} from 'lucide-solid'
-import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import {Collapsible} from '@conciv/ui-kit-system'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primitives/tool-fallback.js'
@@ -10,16 +9,7 @@ import {formatDuration} from '../primitives/tool-util.js'
 import {SHIMMER} from '../../styled/shimmer.js'
 import {FOCUS} from '../../styled/classes.js'
 import {ActionRow, ActionButton} from './action-row.js'
-
-const CODE_OPTIONS: FileOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-  disableFileHeader: true,
-  disableLineNumbers: true,
-  overflow: 'wrap',
-}
-const CODE_CLASS =
-  'block max-h-80 overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)]'
+import {CodeBlock} from './code-block.js'
 
 function FallbackRoot(props: {children: JSX.Element}): JSX.Element {
   const tool = useToolFallback()
@@ -78,13 +68,7 @@ function Args(): JSX.Element {
   const tool = useToolFallback()
   return (
     <Show when={tool.argsText()}>
-      {(text) => (
-        <SolidCodeBlock
-          class={CODE_CLASS}
-          options={CODE_OPTIONS}
-          file={{name: 'args.txt', lang: 'text', contents: text()}}
-        />
-      )}
+      {(text) => <CodeBlock maxHeight="log" file={{name: 'args.txt', lang: 'text', contents: text()}} />}
     </Show>
   )
 }
@@ -95,9 +79,9 @@ function Result(): JSX.Element {
     <Show when={tool.resultText()}>
       <div>
         <p class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] font-medium m-0">Result:</p>
-        <SolidCodeBlock
-          class={`mt-1 ${CODE_CLASS}`}
-          options={CODE_OPTIONS}
+        <CodeBlock
+          class="mt-1"
+          maxHeight="log"
           file={{name: 'result.txt', lang: 'text', contents: tool.resultText()}}
         />
       </div>

@@ -2,7 +2,7 @@ import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CardShell, DANGER_TEXT_CLASS, JsonTree, MirrorRow, cardHeader} from '@conciv/ui-kit-chat/tools'
+import {CardShell, ErrorBlock, JsonTree, MirrorRow, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, mutatingBadge} from './shared.js'
 
 const SingleEffect = z.looseObject({effect: z.string(), enabled: z.boolean()})
@@ -66,7 +66,7 @@ export function EffectCard(props: ToolCardProps): JSX.Element {
     >
       <div class="flex flex-col gap-1.5">
         <Switch>
-          <Match when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Match>
+          <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
           <Match when={rows()}>
             {(list) => (
               <Show when={list().length > 0} fallback={<p class={QUIET_TEXT_CLASS}>the page registered no effects</p>}>

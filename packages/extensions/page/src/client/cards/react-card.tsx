@@ -1,7 +1,7 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CardShell, DANGER_TEXT_CLASS, JsonTree, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
+import {CardShell, ErrorBlock, JsonTree, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
 import {
   ChipRow,
   ELEMENT_TARGET_KEYS,
@@ -100,7 +100,7 @@ export function ReactCard(props: ToolCardProps): JSX.Element {
         </Show>
         <ChipRow element={element()} chips={chips()} />
         <Switch>
-          <Match when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Match>
+          <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
           <Match when={track()}>
             {(report) => (
               <>

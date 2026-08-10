@@ -1,7 +1,7 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CODE_BLOCK_CLASS, CardShell, DANGER_TEXT_CLASS, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
+import {CardShell, DANGER_TEXT_CLASS, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {PageValueChip} from '../page-result-views.js'
 import {LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardPayload} from './shared.js'
 
@@ -13,7 +13,8 @@ const LINE_FORMAT = new Intl.NumberFormat()
 const LINE_PLURAL = new Intl.PluralRules('en')
 const TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', second: '2-digit'})
 
-const LIST = `${CODE_BLOCK_CLASS} m-0 p-0 list-none`
+const LIST =
+  'm-0 p-0 list-none block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
 const LEVEL =
   'text-[length:var(--chat-text-xs)] flex-none w-10 uppercase [color:var(--chat-text-3)] [font-family:var(--chat-mono)]'
 const TIME =
@@ -46,7 +47,7 @@ export function ConsoleCard(props: ToolCardProps): JSX.Element {
     <CardShell meta={meta()} title={title()} part={props.part} result={props.result} durationMs={props.durationMs}>
       <div class="flex flex-col gap-1.5">
         <Switch>
-          <Match when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Match>
+          <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
           <Match when={lines()}>
             {(entries) => (
               <Show

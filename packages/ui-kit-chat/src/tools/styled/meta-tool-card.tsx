@@ -1,25 +1,19 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {ShieldAlert} from 'lucide-solid'
 import {z} from 'zod'
-import {SolidCodeBlock} from '@conciv/solid-diffs'
 import type {ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardProps, ToolViewError} from '@conciv/protocol/tool-view-types'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {parseInput, parseResultPayload, resultText} from '../primitives/tool-util.js'
 import {schemaFields} from '../primitives/schema-params.js'
-import {
-  CODE_BLOCK_CLASS,
-  CODE_BLOCK_OPTIONS,
-  DANGER_TEXT_CLASS,
-  MUTATING_BADGE,
-  clip,
-  displayValue,
-} from '../primitives/tool-presentation.js'
+import {MUTATING_BADGE, clip, displayValue} from '../primitives/tool-presentation.js'
 import {CardShell, cardHeader} from './card-shell.js'
 import {Chip, CHIP, ChipRow} from './chip.js'
 import {JsonTree} from './json-tree.js'
 import {ElementPreview} from './element-preview.js'
 import {MirrorRow, NoteRow} from './note-row.js'
+import {CodeBlock} from './code-block.js'
+import {ErrorBlock} from './error-block.js'
 
 const SUMMARY = 'text-[color:var(--chat-text-2)] text-[length:var(--chat-text-sm)] m-0'
 const HINT = 'text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] m-0'
@@ -89,13 +83,7 @@ function failureText(
 }
 
 function ResultBlock(props: {contents: string; name: string}): JSX.Element {
-  return (
-    <SolidCodeBlock
-      class={CODE_BLOCK_CLASS}
-      options={CODE_BLOCK_OPTIONS}
-      file={{name: props.name, lang: 'text', contents: props.contents}}
-    />
-  )
+  return <CodeBlock file={{name: props.name, lang: 'text', contents: props.contents}} />
 }
 
 function ResultView(props: {outputSchema: unknown; payload: unknown; raw: string}): JSX.Element {
@@ -185,7 +173,7 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
         <Show when={meta()?.mirrors === true}>
           <MirrorRow />
         </Show>
-        <Show when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Show>
+        <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
         <Show when={errorMessage() === undefined && raw().length > 0}>
           <ResultView outputSchema={meta()?.outputSchema} payload={payload()} raw={raw()} />
         </Show>

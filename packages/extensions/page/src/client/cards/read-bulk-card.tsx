@@ -1,7 +1,7 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CardShell, DANGER_TEXT_CLASS, JsonTree, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
+import {CardShell, ErrorBlock, JsonTree, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
 import {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from '../page-result-views.js'
 import {
   ChipRow,
@@ -66,7 +66,7 @@ export function ReadBulkCard(props: ToolCardProps): JSX.Element {
       <div class="flex flex-col gap-1.5">
         <ChipRow element={element()} chips={chips()} />
         <Switch>
-          <Match when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Match>
+          <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
           <Match when={markup() !== undefined}>
             <Show when={markup()} fallback={<p class={QUIET_TEXT_CLASS}>the element has no markup</p>}>
               {(value) => <PageHtmlBlock markup={value()} />}

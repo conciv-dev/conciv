@@ -8,9 +8,6 @@ export const MUTATING_BADGE = 'edits page'
 export const DANGER_TEXT_CLASS =
   'text-[length:var(--chat-text-sm)] whitespace-pre-wrap [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'
 
-export const CODE_BLOCK_CLASS =
-  'block w-full max-h-[13.75rem] overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]'
-
 export const CODE_BLOCK_OPTIONS: FileOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},
   themeType: 'system',
