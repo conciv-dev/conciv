@@ -54,10 +54,8 @@ describe('one live run per session (IT)', () => {
 
   it('T9: a send landing mid-expansion never overlaps as two live runs', {timeout: 60_000}, async () => {
     const harness = createFakeHarness({text: SCRIPTED_REPLY})
-    const expansion = {entered: false}
-    const paced = pacedExtension(() => {
-      expansion.entered = true
-    })
+    const expansion = Promise.withResolvers<void>()
+    const paced = pacedExtension(() => expansion.resolve())
     const kit = await bootKit({extensions: [paced], firstChunkTimeoutMs: 500}, harness)
     sessions.adopt(kit)
     const sessionId = await kit.session()
@@ -71,7 +69,7 @@ describe('one live run per session (IT)', () => {
       sessionId,
       content: pacedTurn('same tick first', SLOW_MIME),
     })
-    await until(() => expansion.entered, {hangGuardMs: 15_000})
+    await expansion.promise
     const second = kit.rpc.chat.send({
       runId: 'sametick-2',
       sessionId,
