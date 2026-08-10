@@ -2,9 +2,8 @@ import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Palette, Trash2} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseInput, ToolCard} from '@conciv/ui-kit-chat/tools'
-import {ToolChip} from '@conciv/ui-kit-chat-tools'
-import {failureOf, toolPayload} from '../card-util.js'
+import {Chip, ErrorBlock, parseInput, parseResultMedia, ResultImage, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {failureOf} from '../card-util.js'
 
 const DetailSchema = z
   .object({
@@ -99,12 +98,12 @@ function DangerIcon(): JSX.Element {
 
 export function CanvasOpCard(props: ToolCardProps): JSX.Element {
   const op = () => opOf(props.part.name)
-  const payload = () => toolPayload(props.result)
+  const media = () => parseResultMedia(props.result)
   const detail = () => {
-    const parsed = DetailSchema.safeParse(payload().detail)
+    const parsed = DetailSchema.safeParse(media().json)
     return parsed.success ? parsed.data : {}
   }
-  const failure = () => failureOf(payload().detail)
+  const failure = () => failureOf(media().json)
   const destructive = () => DESTRUCTIVE.has(op())
   return (
     <ToolCard
@@ -118,34 +117,19 @@ export function CanvasOpCard(props: ToolCardProps): JSX.Element {
       <div class="flex flex-col gap-2">
         <Show when={destructive()}>
           <div class="flex">
-            <ToolChip name={`${op()} ${summarize(op(), props.part, detail())}`.trim()} tone="bad" />
+            <Chip kind="pill" tone="danger" value={`${op()} ${summarize(op(), props.part, detail())}`.trim()} />
           </div>
         </Show>
-        <Show when={payload().image}>
-          {(image) => (
-            <img
-              src={`data:${image().mimeType};base64,${image().value}`}
-              alt={`canvas ${op()}`}
-              class="rounded-[var(--chat-radius-sm)] max-h-60 max-w-full [border:1px_solid_var(--chat-line)] self-start"
-            />
-          )}
-        </Show>
-        <Show when={!payload().image && !destructive() && summarize(op(), props.part, detail())}>
+        <Show when={media().imageUrl}>{(imageUrl) => <ResultImage src={imageUrl()} alt={`canvas ${op()}`} />}</Show>
+        <Show when={!media().imageUrl && !destructive() && summarize(op(), props.part, detail())}>
           {(text) => (
             <div class="flex">
-              <ToolChip name={text()} />
+              <Chip kind="pill" value={text()} />
             </div>
           )}
         </Show>
         <Show when={failure()}>
-          {(error) => (
-            <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
-              {error().error}
-              <Show when={error().reason}>
-                <span class="[color:var(--chat-text-3)]"> · {error().reason}</span>
-              </Show>
-            </div>
-          )}
+          {(error) => <ErrorBlock message={error().reason ? `${error().error} · ${error().reason}` : error().error} />}
         </Show>
       </div>
     </ToolCard>

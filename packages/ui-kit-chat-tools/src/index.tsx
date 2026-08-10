@@ -25,7 +25,6 @@ export {FileEditCard, fileEditTool} from './styled/tools/file-edit-card.js'
 export {LoadedToolsCard, loadedToolsTool} from './styled/tools/loaded-tools-card.js'
 export {SearchCard, searchTool} from './styled/tools/search-card.js'
 export {TodoCard, todoTool} from './styled/tools/todo-card.js'
-export {ToolChip} from './styled/tools/tool-chip.js'
 export {
   inlineTool,
   ReadInline,
