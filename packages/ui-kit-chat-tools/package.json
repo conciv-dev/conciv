@@ -41,7 +41,6 @@
     "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
-    "@conciv/tools": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "lucide-solid": "^1.18.0",
@@ -49,6 +48,7 @@
   },
   "devDependencies": {
     "@conciv/extension": "workspace:^",
+    "@conciv/tools": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@tanstack/ai-client": "0.23.0",

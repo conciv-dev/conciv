@@ -3684,9 +3684,6 @@ importers:
       '@conciv/solid-diffs':
         specifier: workspace:^
         version: link:../solid-diffs
-      '@conciv/tools':
-        specifier: workspace:^
-        version: link:../tools
       '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../ui-kit-chat
@@ -3703,6 +3700,9 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
+      '@conciv/tools':
+        specifier: workspace:^
+        version: link:../tools
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
