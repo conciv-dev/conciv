@@ -1,16 +1,14 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {DANGER_TEXT_CLASS, JsonTree} from '@conciv/ui-kit-chat/tools'
+import {CardShell, DANGER_TEXT_CLASS, JsonTree, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
 import {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from '../page-result-views.js'
 import {
-  CardShell,
   ChipRow,
+  ELEMENT_TARGET_KEYS,
   QUIET_TEXT_CLASS,
   cardErrorMessage,
-  cardHeader,
   cardPayload,
-  detailChips,
   elementTargetValue,
   toolInput,
 } from './shared.js'
@@ -57,7 +55,7 @@ export function ReadBulkCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
   const input = () => toolInput(props.part)
   const element = () => elementTargetValue(input())
-  const chips = () => detailChips(meta(), input())
+  const chips = () => detailChips(meta(), input(), ELEMENT_TARGET_KEYS)
   const payload = () => cardPayload(props.result)
   const markup = () => htmlOf(payload())
   const nodes = () => nodesOf(payload())

@@ -1,27 +1,21 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
 import {ShieldAlert} from 'lucide-solid'
 import {z} from 'zod'
 import {SolidCodeBlock} from '@conciv/solid-diffs'
 import type {ToolResultPart} from '@tanstack/ai-client'
-import type {ToolCardProps, ToolViewError, ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps, ToolViewError} from '@conciv/protocol/tool-view-types'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {parseInput, parseResultPayload, resultText} from '../primitives/tool-util.js'
 import {schemaFields} from '../primitives/schema-params.js'
-import {toolStatus} from '../primitives/tool-status.js'
 import {
   CODE_BLOCK_CLASS,
   CODE_BLOCK_OPTIONS,
   DANGER_TEXT_CLASS,
   MUTATING_BADGE,
-  cardPhase,
-  cardTitle,
   clip,
   displayValue,
-  type CardPhase,
 } from '../primitives/tool-presentation.js'
-import {toolIconRender} from './tool-icon.js'
-import {ToolCard} from './tool-card.js'
+import {CardShell, cardHeader} from './card-shell.js'
 import {Chip, CHIP, ChipRow} from './chip.js'
 import {JsonTree} from './json-tree.js'
 import {ElementPreview} from './element-preview.js'
@@ -122,8 +116,7 @@ function ResultView(props: {outputSchema: unknown; payload: unknown; raw: string
 }
 
 export function MetaToolCard(props: ToolCardProps): JSX.Element {
-  const meta = (): ToolViewMeta | undefined => props.ctx.catalog.meta(props.part.name)
-  const status = () => toolStatus(props.part, props.result)
+  const {meta, title} = cardHeader(props)
   const input = (): Record<string, unknown> => parseInput(InputRecord, props.part) ?? {}
   const positionalValue = (): string | undefined => {
     const key = meta()?.positional
@@ -131,8 +124,6 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
     const value = input()[key]
     return value === undefined ? undefined : clip(displayValue(value), 48)
   }
-  const phase = (): CardPhase => cardPhase(status())
-  const title = (): string => cardTitle(meta(), phase(), props.part.name)
   const headline = (): string => {
     const value = positionalValue()
     return value === undefined ? title() : `${title()} ${value}`
@@ -160,20 +151,15 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
     }
   }
   const accent = () => CATEGORY_ACCENT[meta()?.category ?? ''] ?? NEUTRAL_ACCENT
-  const Icon = (): JSX.Element => (
-    <span class={accent()}>
-      <Dynamic component={toolIconRender(meta()?.icon)} size={14} />
-    </span>
-  )
   return (
-    <ToolCard
-      Icon={Icon}
+    <CardShell
+      meta={meta()}
       title={headline()}
-      titleTooltip={meta()?.summary}
-      meta={meta()?.mutating === true ? MUTATING_BADGE : undefined}
+      metaBadge={meta()?.mutating === true ? MUTATING_BADGE : undefined}
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}
+      iconClass={accent()}
     >
       <div class="flex flex-col gap-1.5">
         <Show when={capture()}>
@@ -204,6 +190,6 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
           <ResultView outputSchema={meta()?.outputSchema} payload={payload()} raw={raw()} />
         </Show>
       </div>
-    </ToolCard>
+    </CardShell>
   )
 }

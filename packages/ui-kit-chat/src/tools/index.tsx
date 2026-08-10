@@ -18,6 +18,7 @@ export {
   formatDuration,
 } from './primitives/tool-util.js'
 export {ToolCard} from './styled/tool-card.js'
+export {CardShell, cardHeader, detailChips} from './styled/card-shell.js'
 export {InlineRow, InlineShell} from './styled/inline-row.js'
 export {GENERIC_TOOL_ICON, toolIconRender} from './styled/tool-icon.js'
 export {schemaFields, schemaParams, type SchemaField} from './primitives/schema-params.js'

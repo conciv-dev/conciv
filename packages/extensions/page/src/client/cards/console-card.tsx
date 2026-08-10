@@ -1,9 +1,9 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CODE_BLOCK_CLASS, DANGER_TEXT_CLASS, JsonTree} from '@conciv/ui-kit-chat/tools'
+import {CODE_BLOCK_CLASS, CardShell, DANGER_TEXT_CLASS, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {PageValueChip} from '../page-result-views.js'
-import {CardShell, LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardHeader, cardPayload} from './shared.js'
+import {LIST_ROW_CLASS, QUIET_TEXT_CLASS, cardErrorMessage, cardPayload} from './shared.js'
 
 const ConsolePayload = z.looseObject({
   entries: z.array(z.looseObject({level: z.string(), ts: z.number(), text: z.string()})),

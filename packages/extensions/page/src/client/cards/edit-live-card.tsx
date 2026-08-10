@@ -6,12 +6,14 @@ import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
   CODE_BLOCK_CLASS,
   CODE_BLOCK_OPTIONS,
+  CardShell,
   DANGER_TEXT_CLASS,
   ElementPreview,
   MUTATING_BADGE,
+  cardHeader,
 } from '@conciv/ui-kit-chat/tools'
 import {pageVerbOfTool} from '../../shared/defs.js'
-import {CardShell, cardErrorMessage, cardHeader, toolInput} from './shared.js'
+import {cardErrorMessage, toolInput} from './shared.js'
 
 const CODE_VERBS = new Set(['eval', 'css'])
 
