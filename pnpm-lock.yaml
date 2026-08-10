@@ -2007,6 +2007,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.8
         version: 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
+      p-timeout:
+        specifier: ^7.0.1
+        version: 7.0.1
       playwright:
         specifier: ^1.61.1
         version: 1.61.1

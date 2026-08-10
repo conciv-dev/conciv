@@ -302,6 +302,9 @@ export function observeRpc(page: Page): RpcObserver {
       page.off('request', onRequest)
       page.off('response', onResponse)
       page.off('websocket', onSocket)
+      for (const waiter of waiters) {
+        waiter.fail(new Error(`rpc observer disposed while awaiting ${waiter.filter.path.join('.')}`))
+      }
       waiters.clear()
     },
   }

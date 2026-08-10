@@ -5,7 +5,8 @@ export type LaunchedPage = {page: Page; context: BrowserContext; close: () => Pr
 
 export async function openObservedPage(context: BrowserContext, url: string): Promise<Page> {
   const page = await context.newPage()
-  rpcObserverFor(page)
+  const observer = rpcObserverFor(page)
+  page.once('close', () => observer.dispose())
   await page.goto(url, {waitUntil: 'domcontentloaded'})
   return page
 }
