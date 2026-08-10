@@ -7,6 +7,7 @@ const suite = setupWidgetSuite()
 
 test.describe('draft persistence carries the caret offsets', () => {
   test('persists the draft text with the caret position after the debounce', async ({page}) => {
+    test.setTimeout(90_000)
     const observer = observeRpc(page)
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)

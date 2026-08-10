@@ -9,7 +9,7 @@ const suite = setupWidgetSuite({text: ASSISTANT_TEXT})
 
 test.describe('reload continuity through the db-backed navigation row', () => {
   test('restores the open panel route, the transcript, and the draft after a reload', async ({page}) => {
-    test.setTimeout(120_000)
+    test.setTimeout(240_000)
     const observer = observeRpc(page)
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)

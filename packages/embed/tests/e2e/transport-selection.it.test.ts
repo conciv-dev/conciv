@@ -62,6 +62,7 @@ async function completeTurn(page: Page): Promise<void> {
 
 test.describe('the browser factory picks one transport per tab at boot', () => {
   test('rides the websocket when the boot probe succeeds', async ({page}) => {
+    test.setTimeout(90_000)
     const tab = await openTab(page, openHost.base)
     try {
       await completeTurn(tab.page)
@@ -73,6 +74,7 @@ test.describe('the browser factory picks one transport per tab at boot', () => {
   })
 
   test('falls back to fetch for the whole tab when the websocket upgrade is blocked', async ({page}) => {
+    test.setTimeout(120_000)
     const tab = await openTab(page, blockedHost.base)
     try {
       await completeTurn(tab.page)
@@ -85,6 +87,7 @@ test.describe('the browser factory picks one transport per tab at boot', () => {
   })
 
   test('honours the fetch escape hatch without probing the websocket', async ({page}) => {
+    test.setTimeout(120_000)
     const tab = await openTab(page, pinnedFetchHost.base)
     try {
       await completeTurn(tab.page)

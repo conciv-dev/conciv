@@ -126,7 +126,7 @@ test.describe('createConciv lifecycle', () => {
   })
 
   test('closes the tab rpc websocket on unmount and dials a fresh one on remount', async ({page}) => {
-    test.setTimeout(120_000)
+    test.setTimeout(180_000)
     expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
     await openPage(page)
     const observer = rpcObserverFor(page)

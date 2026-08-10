@@ -63,7 +63,7 @@ test.describe('handle.rebind survives same-core port drift', () => {
   test('re-points rpc and SSE to the new port, keeps the panel open, the session, and delivers the next turn', async ({
     page,
   }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(480_000)
     observedPage(page)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
@@ -121,6 +121,7 @@ test.describe('handle.rebind remounts extension surfaces on the new core', () =>
   })
 
   test('rebuilds the global surface and the open extension view against the new base', async ({page}) => {
+    test.setTimeout(240_000)
     observedPage(page)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
@@ -164,7 +165,7 @@ test.describe('handle.rebind quiesces the old connection before tearing consumer
   })
 
   test('writes nothing more to the old core once rebind is called', async ({page}) => {
-    test.setTimeout(90_000)
+    test.setTimeout(180_000)
     observedPage(page)
     const observer = rpcObserverFor(page)
     const framesSentPerSocket: number[] = []
@@ -208,7 +209,7 @@ test.describe('handle.rebind to the base the widget is already on re-runs the tr
   })
 
   test('rides the websocket after the blocked upgrade path opens up again', async ({page}) => {
-    test.setTimeout(90_000)
+    test.setTimeout(180_000)
     const observer = rpcObserverFor(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
 

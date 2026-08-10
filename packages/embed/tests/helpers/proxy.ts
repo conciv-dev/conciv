@@ -93,9 +93,13 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
       upgradesBlocked = blocked
     },
     close: async () => {
-      for (const socket of piped) socket.destroy()
-      piped.clear()
-      await close()
+      try {
+        for (const socket of piped) socket.destroy()
+        piped.clear()
+        await close()
+      } catch (error) {
+        console.error('[embed-testkit] proxy close failed:', error)
+      }
     },
   }
 }

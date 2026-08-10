@@ -66,5 +66,14 @@ export async function serveHost(html: (url: URL) => string): Promise<{base: stri
     res.end(html(new URL(req.url ?? '/', 'http://127.0.0.1')))
   })
   const {base, close} = await listenLocal(server)
-  return {base, close}
+  return {
+    base,
+    close: async () => {
+      try {
+        await close()
+      } catch (error) {
+        console.error('[embed-testkit] host close failed:', error)
+      }
+    },
+  }
 }

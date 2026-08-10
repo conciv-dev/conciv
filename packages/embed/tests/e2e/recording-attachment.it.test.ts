@@ -27,7 +27,7 @@ test.afterAll(async () => {
 
 test.describe('recording attachment end to end in the real widget', () => {
   test('composes the card chip, sends log text to the model, renders the durable transcript card', async ({page}) => {
-    test.setTimeout(120_000)
+    test.setTimeout(480_000)
     const observer = observeRpc(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
 

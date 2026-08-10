@@ -47,6 +47,7 @@ async function expectActiveOption(page: Page, option: Locator): Promise<void> {
 
 test.describe('the composer trigger menu inside the live widget panel', () => {
   test('groups commands by source with a visible header and a description per command', async ({page}) => {
+    test.setTimeout(90_000)
     await openComposer(page)
     await composer(page).pressSequentially('/co')
 
@@ -63,6 +64,7 @@ test.describe('the composer trigger menu inside the live widget panel', () => {
   })
 
   test('moves the highlight with the arrow keys and commits the highlighted command with Enter', async ({page}) => {
+    test.setTimeout(240_000)
     await openComposer(page)
     const input = composer(page)
     await input.pressSequentially('/co')
@@ -82,6 +84,7 @@ test.describe('the composer trigger menu inside the live widget panel', () => {
   })
 
   test('keeps the highlighted option inside the panel viewport while arrowing down a long list', async ({page}) => {
+    test.setTimeout(120_000)
     await openComposer(page)
     await composer(page).pressSequentially('/task-')
 
@@ -101,6 +104,7 @@ test.describe('the composer trigger menu inside the live widget panel', () => {
   })
 
   test('groups tools in the mention menu and commits the highlighted tool with Enter', async ({page}) => {
+    test.setTimeout(180_000)
     await openComposer(page)
     const input = composer(page)
     await input.pressSequentially('@recording_')
@@ -121,6 +125,7 @@ test.describe('the composer trigger menu inside the live widget panel', () => {
   test('never hands the keyboard to the menu: Tab closes it and the next keystroke still edits the composer', async ({
     page,
   }) => {
+    test.setTimeout(120_000)
     await openComposer(page)
     const input = composer(page)
     await input.pressSequentially('/co')

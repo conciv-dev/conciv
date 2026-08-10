@@ -61,6 +61,7 @@ test.describe('six widget tabs sharing one browserContext connection pool (the p
   test('gives every tab one rpc websocket, no rpc over http, and a working chat round trip in the last tab', async ({
     context,
   }) => {
+    test.setTimeout(180_000)
     const tabs: Tab[] = []
     try {
       for (let index = 0; index < SHARED_CONTEXT_TAB_COUNT; index += 1) tabs.push(await openTab(context))

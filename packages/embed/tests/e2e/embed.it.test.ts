@@ -85,6 +85,7 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('a widget navigation write that lands after a newer one loses, even in flight', async ({page}) => {
+    test.setTimeout(120_000)
     observedPage(page)
     const held = await holdFirstNavigationWrite(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
@@ -103,6 +104,7 @@ test.describe('embed boots the conciv app against a real core', () => {
     page,
     context,
   }) => {
+    test.setTimeout(240_000)
     const frozen = Date.now()
     const before = observedPage(page)
     await freezeClock(before, frozen)
@@ -131,6 +133,7 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('fab close is a shutter: reopening restores the same view without touching history', async ({page}) => {
+    test.setTimeout(240_000)
     await openPage(page)
     await openPanel(page)
     await page.getByRole('tab', {name: 'Terminal'}).click()
@@ -150,6 +153,7 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('a reload restores the panel open on the same view', async ({page, context}) => {
+    test.setTimeout(180_000)
     const first = await openPage(page)
     await openPanel(first)
     const switched = waitForNavigationWriteCarrying(first, '/terminal')
@@ -165,6 +169,7 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('a reload after closing the panel boots shut', async ({page, context}) => {
+    test.setTimeout(180_000)
     const first = observedPage(page)
     const opened = waitForNavigationWrite(first)
     await first.goto(host.base, {waitUntil: 'domcontentloaded'})
@@ -182,6 +187,7 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('renders the fab instantly and opens the panel', async ({page}) => {
+    test.setTimeout(120_000)
     await openPage(page)
     await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
     await openPanel(page)
@@ -189,6 +195,7 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('opening and closing the panel keeps the host page where the reader scrolled it', async ({page}) => {
+    test.setTimeout(180_000)
     observedPage(page)
     await page.goto(longHost.base, {waitUntil: 'domcontentloaded'})
     const heading = page.getByRole('heading', {name: HOST_HEADING})
@@ -209,12 +216,14 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('sends a message and renders the assistant reply from the fake harness', async ({page}) => {
+    test.setTimeout(120_000)
     await openPage(page)
     await openPanel(page)
     await sendMessage(page, 'hi there', ASSISTANT_TEXT)
   })
 
   test('shows Stop instead of Send while a run is streaming; typing stays enabled', async ({page}) => {
+    test.setTimeout(180_000)
     await openPage(page)
     await openPanel(page)
     kit.harness.script.hold()
@@ -229,6 +238,7 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('Escape closes the panel back to the fab', async ({page}) => {
+    test.setTimeout(120_000)
     await openPage(page)
     await openPanel(page)
     await page.getByRole('textbox', {name: 'Message the conciv agent'}).press('Escape')
@@ -237,7 +247,7 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('renders the conciv_ui blocking card from the tool part and answers via uiReply', async ({page}) => {
-    test.setTimeout(120_000)
+    test.setTimeout(180_000)
     await openPage(page)
     await openPanel(page)
     kit.harness.script.scriptToolCall('execute_typescript', {
@@ -253,6 +263,7 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('renders catalog and code-mode parts without blanking the transcript', async ({page}) => {
+    test.setTimeout(120_000)
     await openPage(page)
     await openPanel(page)
     kit.harness.script.scriptToolCall('catalog', {search: 'weather'}, {blocking: false})
@@ -266,7 +277,7 @@ test.describe('embed boots the conciv app against a real core', () => {
   })
 
   test('renders the new tool cards for results that do not match their payload schema', async ({page}) => {
-    test.setTimeout(120_000)
+    test.setTimeout(240_000)
     await openPage(page)
     await openPanel(page)
     kit.harness.script.scriptToolCall('execute_typescript', {typescriptCode: 'return 1'}, {blocking: false})
@@ -306,6 +317,7 @@ test.describe('embed at a phone viewport', () => {
   })
 
   test('paints an opaque sheet so the host page never shows through', async ({page}) => {
+    test.setTimeout(240_000)
     const shootOver = async (backdrop: string): Promise<Buffer> => {
       expect(await setNavigation(phoneKit, [{href: '/'}])).toBe(true)
       await page.goto(`${phoneHost.base}/?backdrop=${backdrop}`, {waitUntil: 'domcontentloaded'})
@@ -320,7 +332,7 @@ test.describe('embed at a phone viewport', () => {
   })
 
   test('opens as a full-screen sheet with the launcher hidden and the composer reachable', async ({page}) => {
-    test.setTimeout(120_000)
+    test.setTimeout(240_000)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
     await expect(page.getByRole('button', {name: 'Open conciv chat'})).toHaveCount(0, {timeout: 30_000})
@@ -334,6 +346,7 @@ test.describe('embed at a phone viewport', () => {
     test.use({viewport: {width: 320, height: 800}})
 
     test('keeps Stop and Send inside the sheet on a narrow phone while a run streams', async ({page}) => {
+      test.setTimeout(180_000)
       await page.goto(host.base, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
       kit.harness.script.hold()

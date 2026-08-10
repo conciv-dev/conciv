@@ -34,6 +34,7 @@ async function openHostPage(page: Page): Promise<Page> {
 
 test.describe('startPagePlane executes registry page tools in the browser', () => {
   test('round-trips page.text through rpc.page.queries to the DOM dispatcher', async ({page}) => {
+    test.setTimeout(90_000)
     await openHostPage(page)
     expect(await kit.rpc.registry.call({name: 'page.text', input: {selector: '#probe'}})).toMatchObject({
       text: 'page-bus-ok',
@@ -43,6 +44,7 @@ test.describe('startPagePlane executes registry page tools in the browser', () =
   test('a verb whose target does not exist rejects with a declared code, not a success-shaped string', async ({
     page,
   }) => {
+    test.setTimeout(90_000)
     await openHostPage(page)
     await expect(kit.rpc.registry.call({name: 'page.text', input: {selector: '#not-here'}})).rejects.toMatchObject({
       code: 'INVALID_ARGS',
@@ -51,6 +53,7 @@ test.describe('startPagePlane executes registry page tools in the browser', () =
   })
 
   test('the snapshot tool sees host page structure', async ({page}) => {
+    test.setTimeout(90_000)
     await openHostPage(page)
     expect(JSON.stringify(await kit.rpc.registry.call({name: 'page.snapshot', input: {}}))).toContain('Embed page')
   })

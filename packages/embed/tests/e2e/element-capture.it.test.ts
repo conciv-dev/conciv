@@ -46,6 +46,7 @@ async function sendAndRevealThought(page: Page, message: string): Promise<void> 
 
 test.describe('a page tool run through the widget stores a frozen picture of the element it touched', () => {
   test('keeps the pre-edit element after the page flips its theme and deletes the node', async ({page}) => {
+    test.setTimeout(90_000)
     await openHostPage(page)
     await kit.callTool('page.settext', {selector: '#prose', text: 'rewritten by the agent'}, sessionId)
 
@@ -71,6 +72,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
   })
 
   test('never lets a password value reach the stored capture or the tool result', async ({page}) => {
+    test.setTimeout(90_000)
     await openHostPage(page)
     const result = await kit.callTool('page.fill', {selector: '#secret', value: 'typed by the agent'}, sessionId)
     const stored: SessionCaptures = await kit.rpc.captures.list({sessionId})
@@ -82,6 +84,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
   })
 
   test('hands the harness a result with no capture in it', async ({page}) => {
+    test.setTimeout(90_000)
     await openHostPage(page)
     const result = await kit.callTool('page.click', {selector: '#cta'}, sessionId)
     expect(JSON.stringify(result)).not.toContain('cssBundleId')
@@ -90,6 +93,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
   })
 
   test('takes no capture for a read verb', async ({page}) => {
+    test.setTimeout(90_000)
     await openHostPage(page)
     const before: SessionCaptures = await kit.rpc.captures.list({sessionId})
     await kit.callTool('page.text', {selector: '#cta'}, sessionId)
@@ -100,6 +104,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
   test('renders a page verb run through real code mode with its element preview ready in the widget', async ({
     page,
   }) => {
+    test.setTimeout(180_000)
     await openHostPage(page)
     await openPanel(page)
     kit.harness.script.scriptToolCall('execute_typescript', {

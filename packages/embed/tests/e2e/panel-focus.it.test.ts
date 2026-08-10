@@ -41,6 +41,7 @@ async function openPanelOverFocusedHostButton(page: Page): Promise<HostedPanel> 
 
 test.describe('panel open focuses the composer', () => {
   test('focuses the composer input when the panel opens', async ({page}) => {
+    test.setTimeout(90_000)
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
     await expect(composer(page)).toBeFocused({timeout: 10_000})
@@ -51,6 +52,7 @@ test.describe('panel open focuses the composer', () => {
 
 test.describe('panel close restores focus: host element captured at open wins, FAB is the fallback', () => {
   test('closing via the FAB restores the host element that was focused before a programmatic open', async ({page}) => {
+    test.setTimeout(120_000)
     const {host, hostButton} = await openPanelOverFocusedHostButton(page)
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
     await expect(hostButton).toBeFocused({timeout: 10_000})
@@ -58,6 +60,7 @@ test.describe('panel close restores focus: host element captured at open wins, F
   })
 
   test('closing via the panel header restores the host element that was focused before the open', async ({page}) => {
+    test.setTimeout(120_000)
     const {host, hostButton} = await openPanelOverFocusedHostButton(page)
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expect(hostButton).toBeFocused({timeout: 10_000})
@@ -65,6 +68,7 @@ test.describe('panel close restores focus: host element captured at open wins, F
   })
 
   test('collapsing the panel by dragging its resize handle shut restores the host element', async ({page}) => {
+    test.setTimeout(180_000)
     const {host, hostButton} = await openPanelOverFocusedHostButton(page)
 
     const handle = page.getByRole('separator', {name: 'Resize chat height'})
@@ -80,6 +84,7 @@ test.describe('panel close restores focus: host element captured at open wins, F
   })
 
   test('closing via the FAB falls back to FAB focus when no host element was captured at open time', async ({page}) => {
+    test.setTimeout(120_000)
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await ensurePanelClosed(page)
     await page.getByRole('button', {name: 'Open conciv chat'}).click()

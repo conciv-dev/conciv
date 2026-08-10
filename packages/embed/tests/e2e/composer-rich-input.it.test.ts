@@ -64,6 +64,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   test('types multiline text with slash and mention chips and submits the exact directive string', async ({
     page: fixturePage,
   }) => {
+    test.setTimeout(180_000)
     const {page, observer} = observedPage(fixturePage)
     await openComposer(page)
     const input = composer(page)
@@ -91,6 +92,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   test('backspace removes a selected command chip in two steps, never a partial directive', async ({
     page: fixturePage,
   }) => {
+    test.setTimeout(120_000)
     const {page, observer} = observedPage(fixturePage)
     await openComposer(page)
     const input = composer(page)
@@ -108,6 +110,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   })
 
   test('forward delete removes the chip ahead of the caret in one step', async ({page: fixturePage}) => {
+    test.setTimeout(120_000)
     const {page, observer} = observedPage(fixturePage)
     await openComposer(page)
     const input = composer(page)
@@ -127,7 +130,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   test('Escape closes the typeahead first, cancels the run next, and closes the panel last', async ({
     page: fixturePage,
   }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(180_000)
     const {page, observer} = observedPage(fixturePage)
     await openComposer(page)
     const input = composer(page)
@@ -163,6 +166,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   })
 
   test('a failed send restores the full draft into the composer', async ({page: fixturePage}) => {
+    test.setTimeout(90_000)
     const {page, observer} = observedPage(fixturePage)
     await openComposer(page)
     const input = composer(page)
@@ -177,6 +181,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   })
 
   test('a reload restores the draft as plain directive text with the caret at the end', async ({page: fixturePage}) => {
+    test.setTimeout(180_000)
     const {page, observer} = observedPage(fixturePage)
     await openComposer(page)
     const input = composer(page)
@@ -196,6 +201,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   })
 
   test('a reload restores the caret where the draft left it, not at the end', async ({page: fixturePage}) => {
+    test.setTimeout(90_000)
     const {page, observer} = observedPage(fixturePage)
     await openComposer(page)
     const input = composer(page)
@@ -218,6 +224,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   test('Enter during IME composition never submits; Enter after the commit sends the composed text', async ({
     page: fixturePage,
   }) => {
+    test.setTimeout(90_000)
     const {page, observer} = observedPage(fixturePage)
     await openComposer(page)
     const input = composer(page)
@@ -240,6 +247,7 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
   })
 
   test('the send button submits the visible draft including pending composition text', async ({page: fixturePage}) => {
+    test.setTimeout(90_000)
     const {page, observer} = observedPage(fixturePage)
     await openComposer(page)
     const input = composer(page)

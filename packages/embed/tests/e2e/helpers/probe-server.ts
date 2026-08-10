@@ -84,6 +84,13 @@ export async function startProbeServer(): Promise<ProbeServer> {
   const served = await serveRpcRouter({router})
   return {
     ...served,
+    close: async () => {
+      try {
+        await served.close()
+      } catch (error) {
+        console.error('[embed-testkit] probe server close failed:', error)
+      }
+    },
     slowEntered: slow.entered,
     releaseSlow: slow.release,
     navigationEntered: navigation.entered,

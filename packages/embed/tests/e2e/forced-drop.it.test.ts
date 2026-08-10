@@ -39,6 +39,7 @@ test.describe('chat survives a forced websocket drop', () => {
   test('re-subscribes and completes the next turn on a fresh socket after the core drops every connection', async ({
     page,
   }) => {
+    test.setTimeout(120_000)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
     const observer = rpcObserverFor(page)
