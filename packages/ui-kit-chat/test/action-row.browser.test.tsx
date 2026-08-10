@@ -40,4 +40,9 @@ it('respects disabled and does not fire onClick when clicked', async () => {
 
   const button = page.getByRole('button', {name: 'Allow'})
   await expect.element(button).toBeDisabled()
+
+  await expect(userEvent.click(button, {timeout: 500})).rejects.toThrow()
+
+  await expect.element(button).toBeDisabled()
+  expect(onClick).not.toHaveBeenCalled()
 })
