@@ -2004,6 +2004,9 @@ importers:
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
+      p-timeout:
+        specifier: 7.0.1
+        version: 7.0.1
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import {createServer, type Server} from 'node:http'
-import {describe, expect, it} from 'vitest'
+import {test as base, expect} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import type {Page} from 'playwright'
+import {chromium, type Browser, type Page} from 'playwright'
+import pTimeout from 'p-timeout'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
 import {listenLocal} from './listen-local.js'
-import {manageBrowserSuite} from './bounded-close.js'
 
 export type ServedDir = {base: string; close: () => Promise<void>}
 
@@ -19,6 +19,7 @@ const MIME: Record<string, string> = {
 }
 
 const GRACEFUL_STATIC_CLOSE_MS = 2_000
+const BROWSER_CLOSE_TIMEOUT_MS = 30_000
 
 function closeStaticServer(server: Server, gracefulCloseMs: number): () => Promise<void> {
   return async () => {
@@ -53,31 +54,57 @@ export async function serveStaticDir(dir: string): Promise<ServedDir> {
 }
 
 export function widgetComponentSuite(opts: {id: string; distDir: string}): void {
-  const suite = manageBrowserSuite<CoreKit, ServedDir>(async () => ({
-    kit: await bootCoreKit({id: opts.id}),
-    host: await serveStaticDir(opts.distDir),
-  }))
+  const test = base.extend<{$file: {browser: Browser; kit: CoreKit; host: ServedDir}}>({
+    browser: [
+      // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+      async ({}, use) => {
+        const browser = await chromium.launch()
+        await use(browser)
+        await pTimeout(browser.close(), {
+          milliseconds: BROWSER_CLOSE_TIMEOUT_MS,
+          message: `browser.close did not settle within ${BROWSER_CLOSE_TIMEOUT_MS}ms; a wedged CDP connection would otherwise hang fixture cleanup forever (vitest test.extend cleanup is unbounded)`,
+        })
+      },
+      {scope: 'file'},
+    ],
+    kit: [
+      // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+      async ({}, use) => {
+        const kit = await bootCoreKit({id: opts.id})
+        await use(kit)
+        await kit.cleanup()
+      },
+      {scope: 'file'},
+    ],
+    host: [
+      // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+      async ({}, use) => {
+        const host = await serveStaticDir(opts.distDir)
+        await use(host)
+        await host.close()
+      },
+      {scope: 'file'},
+    ],
+  })
 
   const fab = (page: Page) => page.getByRole('button', {name: 'Open conciv chat'})
 
-  async function openPage(): Promise<Page> {
-    const page = await suite.browser().newPage()
-    await page.goto(`${suite.host().base}/?core=${encodeURIComponent(suite.kit().base)}`, {
-      waitUntil: 'domcontentloaded',
-    })
+  async function openPage(browser: Browser, host: ServedDir, kit: CoreKit): Promise<Page> {
+    const page = await browser.newPage()
+    await page.goto(`${host.base}/?core=${encodeURIComponent(kit.base)}`, {waitUntil: 'domcontentloaded'})
     return page
   }
 
-  describe('ConcivWidget component', () => {
-    it('mounts exactly one widget', async () => {
-      const page = await openPage()
+  test.describe('ConcivWidget component', () => {
+    test('mounts exactly one widget', async ({browser, host, kit}) => {
+      const page = await openPage(browser, host, kit)
       await expectLocator(fab(page)).toHaveCount(1, {timeout: 30_000})
       expect(await fab(page).count()).toBe(1)
       await page.close()
     })
 
-    it('removing the component removes the widget, re-adding restores it', async () => {
-      const page = await openPage()
+    test('removing the component removes the widget, re-adding restores it', async ({browser, host, kit}) => {
+      const page = await openPage(browser, host, kit)
       await expectLocator(fab(page)).toBeVisible({timeout: 30_000})
       await page.getByRole('button', {name: 'toggle widget'}).click()
       await expectLocator(fab(page)).toHaveCount(0, {timeout: 30_000})
@@ -86,8 +113,8 @@ export function widgetComponentSuite(opts: {id: string; distDir: string}): void 
       await page.close()
     })
 
-    it('a settings prop change remounts the widget with the new configuration', async () => {
-      const page = await openPage()
+    test('a settings prop change remounts the widget with the new configuration', async ({browser, host, kit}) => {
+      const page = await openPage(browser, host, kit)
       await expectLocator(fab(page)).toBeVisible({timeout: 30_000})
       await page.getByRole('button', {name: 'open by default'}).click()
       await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})

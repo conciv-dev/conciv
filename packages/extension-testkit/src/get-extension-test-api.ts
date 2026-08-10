@@ -11,7 +11,7 @@ import {
   type RunTypescript,
 } from '@conciv/harness-testkit'
 import {launch, openObservedPage} from './launch.js'
-import {settleTeardown} from './bounded-close.js'
+import {settleTeardown} from './settle-teardown.js'
 
 export type HostEngine = {apiBase: string; session: string}
 export type HostHandle = {origin: string; close: () => Promise<void>}
