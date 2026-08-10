@@ -43,7 +43,7 @@ export const Complete: Story = {
     await expect(c.getByText('Run the unit tests')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
     await waitFor(async () => expect(await codeText(canvasElement)).toContain('42 passed'), {timeout: 5000})
-    await waitFor(async () => expect(await codeText(canvasElement)).toContain('$ pnpm test'))
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('pnpm test'))
   },
 }
 

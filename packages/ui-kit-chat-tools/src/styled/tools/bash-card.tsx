@@ -24,9 +24,7 @@ function Body(): JSX.Element {
     >
       <div class="flex flex-col gap-2">
         <Show when={bash.command()}>
-          {(command) => (
-            <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellsession', contents: `$ ${command()}`}} />
-          )}
+          {(command) => <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />}
         </Show>
         <Show when={bash.output().stdout}>
           {(stdout) => (
