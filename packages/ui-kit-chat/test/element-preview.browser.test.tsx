@@ -1,6 +1,7 @@
 import 'virtual:uno.css'
 import {afterEach, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
+import {createStore} from 'solid-js/store'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {
   ELEMENT_CAPTURE_FIXTURE_CSS,
@@ -235,6 +236,21 @@ it('replays a frozen capture into a sandboxed replica document that still shows 
   expect(target.getAttribute('data-rr-target')).toBe('true')
   expect(target.value).toBe('ada@example.com')
   expect(target.closest('[inert]')).not.toBeNull()
+})
+
+it('replays a capture whose node arrived wrapped in a Solid store proxy, same as query-cache data', async () => {
+  const [storedCapture] = createStore(ELEMENT_CAPTURE_FIXTURE_FULL)
+
+  mountView(() => (
+    <ElementPreview.Root capture={storedCapture} css={ELEMENT_CAPTURE_FIXTURE_CSS}>
+      <ElementPreview.Frame />
+    </ElementPreview.Root>
+  ))
+
+  await expect.element(page.getByRole('img', {name: 'Email'})).not.toHaveAttribute('aria-busy')
+  const target = replicaTarget()
+  expect(target.getAttribute('data-rr-target')).toBe('true')
+  expect(target.value).toBe('ada@example.com')
 })
 
 it('degrades to the descriptor chips when the capture carries no serialized node', async () => {

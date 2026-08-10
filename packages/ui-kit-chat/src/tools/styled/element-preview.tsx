@@ -63,6 +63,10 @@ function isSerializedNode(value: unknown): value is SerializedNode {
   return typeof value === 'object' && value !== null && 'type' in value
 }
 
+function plainCopy(node: SerializedNode): unknown {
+  return JSON.parse(JSON.stringify(node))
+}
+
 function isElementNode(node: SerializedNode): boolean {
   if (!('tagName' in node)) return false
   const nodeType: number = node.type
@@ -190,7 +194,12 @@ function Frame(props: {class?: string}): JSX.Element {
       ctx.setStatus('failed')
       return
     }
-    const built = rebuildIntoSandbox(replicaHost, structuredClone(node), cssText)
+    const clonedNode = plainCopy(node)
+    if (!isSerializedNode(clonedNode)) {
+      ctx.setStatus('failed')
+      return
+    }
+    const built = rebuildIntoSandbox(replicaHost, clonedNode, cssText)
     if (built === null) {
       ctx.setStatus('failed')
       return
