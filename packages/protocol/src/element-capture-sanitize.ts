@@ -23,7 +23,7 @@ const URL_ATTRIBUTES = new Set([
 
 const LOCAL_REFERENCE_PATTERN = /^(?:#|data:)/i
 
-const CSS_URL_PATTERN = /url\(|image-set\(/i
+const CSS_URL_PATTERN = /url\(|image-set\(|\\/i
 
 const CONTROL_AND_SPACE_PATTERN = new RegExp(`[${String.fromCharCode(0)}-${String.fromCharCode(0x20)}]`, 'g')
 

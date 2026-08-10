@@ -67,9 +67,10 @@ describe('isDroppableAttribute', () => {
     expect(isDroppableAttribute('src', 'data:image/png;base64,AAAA')).toBe(false)
   })
 
-  it('drops an inline style only when it references a url', () => {
+  it('drops an inline style that references a url, directly or through a CSS escape', () => {
     expect(isDroppableAttribute('style', 'background-image:url(/a.png)')).toBe(true)
     expect(isDroppableAttribute('style', 'background:image-set("/a.png" 1x)')).toBe(true)
+    expect(isDroppableAttribute('style', 'background:u\\72l(/a.png)')).toBe(true)
     expect(isDroppableAttribute('style', 'color:red')).toBe(false)
   })
 
