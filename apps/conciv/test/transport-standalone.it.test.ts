@@ -1,7 +1,7 @@
 import {expect} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import type {Browser, Page} from 'playwright'
-import {test as browserTest} from '@conciv/extension-testkit/browser-fixture'
+import {test as browserTest} from '@conciv/browser-fixture'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {httpRpcRequestUrls, observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
 import {serveStandaloneApp} from './helpers/static-app.js'

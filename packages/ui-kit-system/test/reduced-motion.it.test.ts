@@ -1,8 +1,7 @@
-import {chromium, type Browser} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
-import {afterAll, beforeAll, it} from 'vitest'
 import {createGenerator} from 'unocss'
 import {presetConciv} from '@conciv/uno-preset'
+import {test} from '@conciv/browser-fixture'
 
 const LOOPING: [string, string][] = [
   ['Waiting', 'anim-dot1'],
@@ -21,17 +20,7 @@ const uno = await createGenerator({presets: [presetConciv()]})
 const {css} = await uno.generate(MARKUP)
 const PAGE = `<!doctype html><meta charset="utf-8"><style>${css}</style>${MARKUP}`
 
-let browser: Browser
-
-beforeAll(async () => {
-  browser = await chromium.launch()
-})
-
-afterAll(async () => {
-  await browser.close()
-})
-
-it('keeps every looping shortcut animating when motion is welcome', async () => {
+test('keeps every looping shortcut animating when motion is welcome', async ({browser}) => {
   const page = await browser.newPage({reducedMotion: 'no-preference'})
   await page.setContent(PAGE)
 
@@ -40,7 +29,7 @@ it('keeps every looping shortcut animating when motion is welcome', async () => 
   await page.close()
 })
 
-it('stops every looping shortcut when the reader asks for reduced motion', async () => {
+test('stops every looping shortcut when the reader asks for reduced motion', async ({browser}) => {
   const page = await browser.newPage({reducedMotion: 'reduce'})
   await page.setContent(PAGE)
 

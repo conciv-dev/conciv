@@ -4,7 +4,7 @@ import {createServer, type Server} from 'node:http'
 import {expect} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import type {Browser, Page} from 'playwright'
-import {test as browserTest} from './browser-fixture.js'
+import {test as browserTest} from '@conciv/browser-fixture'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
 import {listenLocal} from './listen-local.js'
 

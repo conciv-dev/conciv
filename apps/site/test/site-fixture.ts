@@ -1,4 +1,4 @@
-import {test as browserTest} from '@conciv/extension-testkit/browser-fixture'
+import {test as browserTest} from '@conciv/browser-fixture'
 import {startWranglerDev, type WranglerDev} from './wrangler-dev.js'
 
 export function createSiteTest(options: {port: number; inspectorPort: number}) {

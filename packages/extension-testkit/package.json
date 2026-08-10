@@ -13,7 +13,6 @@
   "type": "module",
   "exports": {
     ".": "./src/get-extension-test-api.ts",
-    "./browser-fixture": "./src/browser-fixture.ts",
     "./card-harness": "./src/card-harness.tsx",
     "./connect-handshake": "./src/connect-handshake.ts",
     "./core-kit": "./src/core-kit.ts",
@@ -32,6 +31,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/browser-fixture": "workspace:*",
     "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
@@ -59,7 +59,6 @@
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
-    "p-timeout": "7.0.1",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
