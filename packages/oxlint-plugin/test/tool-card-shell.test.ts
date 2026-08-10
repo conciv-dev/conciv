@@ -20,6 +20,10 @@ describe('tool-card-shell', () => {
     expect(await lintFixture('packages/ui-kit-chat-tools/src/styled/tools/other-import.tsx')).toEqual([])
   })
 
+  test('leaves a CollapsibleCard import from an unrelated package alone', async () => {
+    expect(await lintFixture('packages/ui-kit-chat-tools/src/styled/tools/unrelated-collapsible.tsx')).toEqual([])
+  })
+
   test('accepts CollapsibleCard imports inside the kit itself', async () => {
     expect(await lintFixture('packages/ui-kit-chat/src/tools/styled/consumer.tsx')).toEqual([])
   })

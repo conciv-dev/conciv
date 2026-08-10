@@ -2,6 +2,7 @@ import {isIdentifier} from './ast-walk.js'
 
 const ALLOWED_FILE = /(^|[\\/])packages[\\/]ui-kit-chat[\\/]/
 const FORBIDDEN_NAME = 'CollapsibleCard'
+const FORBIDDEN_SOURCE = /^@conciv\/ui-kit-chat(\/|$)/
 
 function importedName(specifier) {
   if (specifier.type !== 'ImportSpecifier') return undefined
@@ -16,6 +17,7 @@ function reportSpecifier(specifier, context) {
 
 function checkImportDeclaration(node, context) {
   if (ALLOWED_FILE.test(context.filename)) return
+  if (!FORBIDDEN_SOURCE.test(node.source.value)) return
   for (const specifier of node.specifiers) reportSpecifier(specifier, context)
 }
 
