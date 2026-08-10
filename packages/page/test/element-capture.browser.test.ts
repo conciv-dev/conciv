@@ -82,6 +82,7 @@ const probes = defineExtension({
 }).client(() => ({value: {}}))
 
 const PASSWORD = 'hunter2-not-in-any-payload'
+const CARD_SENTINEL = 'card-sentinel-0000'
 
 let host: HTMLElement
 let style: HTMLStyleElement
@@ -220,10 +221,10 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
   })
 
   it('keeps a payment field out of the capture payload and out of the result', async () => {
-    const outcome = await driver.execute({name: 'probe.fill', input: {selector: '#card', value: '4111111111111111'}})
+    const outcome = await driver.execute({name: 'probe.fill', input: {selector: '#card', value: CARD_SENTINEL}})
     if (!outcome.ok) throw new Error('the fill failed')
-    expect(JSON.stringify(outcome.result)).not.toContain('4111111111111111')
-    expect(JSON.stringify(outcome.capture)).not.toContain('4111111111111111')
+    expect(JSON.stringify(outcome.result)).not.toContain(CARD_SENTINEL)
+    expect(JSON.stringify(outcome.capture)).not.toContain(CARD_SENTINEL)
     expect(outcome.capture?.after?.descriptor.value).toBe('***')
   })
 
