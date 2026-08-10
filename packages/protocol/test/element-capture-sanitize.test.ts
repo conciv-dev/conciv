@@ -124,4 +124,17 @@ describe('neutralizeSubtree', () => {
 
     expect(tree.attributes).toEqual({})
   })
+
+  it('strips a meta refresh that could navigate the replica frame', () => {
+    const tree: SanitizableNode = {
+      type: 2,
+      tagName: 'div',
+      attributes: {},
+      childNodes: [elementNode('meta', {'http-equiv': 'refresh', content: '0;url=https://evil.example/'})],
+    }
+
+    neutralizeSubtree(tree)
+
+    expect(tree.childNodes?.map((child) => child.tagName)).toEqual([])
+  })
 })

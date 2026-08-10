@@ -6,7 +6,7 @@ export type SanitizableNode = {
   childNodes?: SanitizableNode[]
 }
 
-const DANGEROUS_TAGS = new Set(['iframe', 'object', 'embed', 'script', 'link', 'style'])
+const DANGEROUS_TAGS = new Set(['iframe', 'object', 'embed', 'script', 'link', 'style', 'meta'])
 
 const URL_ATTRIBUTES = new Set([
   'action',
