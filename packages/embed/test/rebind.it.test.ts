@@ -168,6 +168,7 @@ describe('handle.rebind quiesces the old connection before tearing consumers dow
 
   it('writes nothing more to the old core once rebind is called', async () => {
     const page = observedPage(await browser.newPage())
+    const observer = rpcObserverFor(page)
     const framesSentPerSocket: number[] = []
     page.on('websocket', (socket) => {
       if (!socket.url().includes('/rpc-ws')) return
@@ -185,11 +186,15 @@ describe('handle.rebind quiesces the old connection before tearing consumers dow
     const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
     await expectLocator(apiBaseProbe).toHaveText(proxyE.base, {timeout: 30_000})
 
-    const sentBeforeRebind = framesSentPerSocket[0] ?? 0
     await rebindHandle(page, proxyF.base)
     await expectLocator(apiBaseProbe).toHaveText(proxyF.base, {timeout: 30_000})
 
-    expect(framesSentPerSocket[0]).toBe(sentBeforeRebind)
+    const settledOnOldSocket = framesSentPerSocket[0] ?? 0
+    const mark = observer.mark()
+    await sendChatMessage(page, SECOND_USER_TEXT)
+    await observer.completed({path: ['chat', 'send'], since: mark, timeout: 30_000})
+
+    expect(framesSentPerSocket[0]).toBe(settledOnOldSocket)
     await page.close()
   })
 })
