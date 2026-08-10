@@ -1,12 +1,8 @@
 import 'virtual:uno.css'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {Chip, ChipGroup, ChipRow} from '../src/tools/styled/chip.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 it('renders a field chip showing its name and value', async () => {
   const host = mountView(() => (

@@ -1,15 +1,11 @@
 import 'virtual:uno.css'
 import {page} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {INERT_ADD_RESULT, MetaToolCard} from '@conciv/ui-kit-chat/tools'
-import {cleanupViews, mountView} from './mount-view.js'
+import {mountView} from './mount-view.js'
 import {builtinPageRegistry, registryCatalogView} from './registry-catalog-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
 
 const ctx: ToolViewCtx = {
   apiBase: '',

@@ -1,22 +1,10 @@
-import {render} from 'solid-js/web'
-import {afterEach, describe, expect, it} from 'vitest'
+import {render} from '@solidjs/testing-library'
+import {describe, expect, it} from 'vitest'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import {ContextTracker} from '../src/pane/context-tracker.jsx'
 
-const disposers: (() => void)[] = []
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-})
-
 function mount(usage: UsageSnapshot | null): HTMLElement {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  const dispose = render(() => <ContextTracker usage={usage} />, host)
-  disposers.push(() => {
-    dispose()
-    host.remove()
-  })
-  return host
+  return render(() => <ContextTracker usage={usage} />).container
 }
 
 describe('ContextTracker trigger badge', () => {

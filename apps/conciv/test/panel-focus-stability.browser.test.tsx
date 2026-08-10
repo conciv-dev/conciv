@@ -1,7 +1,7 @@
 import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeRpcClient} from '@conciv/contract'
 import {parseConcivSettings} from '../src/data/settings.js'
@@ -10,31 +10,25 @@ import {CORE_BASE, installFakeCore, sessionRow, type FakeCore} from './helpers/f
 
 const PANEL_SESSION = 'conciv_1'
 const SETTLED = {timeout: 1500}
-const disposers: (() => void)[] = []
+const routerDisposers: (() => void)[] = []
 let core: FakeCore | null = null
 
 afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
+  for (const dispose of routerDisposers.splice(0)) dispose()
   core?.restore()
   core = null
 })
 
 function openPanel(config: Parameters<typeof installFakeCore>[0] = {}): void {
   core = installFakeCore({sessions: [sessionRow({id: PANEL_SESSION})], ...config})
-  const host = document.createElement('div')
-  document.body.appendChild(host)
   const router = createConcivRouter({
     rpc: makeRpcClient(CORE_BASE),
     history: createMemoryHistory({initialEntries: [`/panel/${PANEL_SESSION}?open=true`]}),
     environment: {rootNode: document, document},
     settings: parseConcivSettings(''),
   })
-  const dispose = render(() => <RouterProvider router={router} />, host)
-  disposers.push(() => {
-    dispose()
-    disposeConcivRouter(router)
-    host.remove()
-  })
+  render(() => <RouterProvider router={router} />)
+  routerDisposers.push(() => disposeConcivRouter(router))
 }
 
 const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})

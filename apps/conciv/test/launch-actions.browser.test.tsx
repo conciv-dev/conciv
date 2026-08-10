@@ -7,12 +7,10 @@ import {NoticeToaster, toaster} from '../src/shell/notices.js'
 import {installFakeCore, type FakeCore} from './helpers/fake-core.js'
 import {mountPane, PANE_SESSION} from './helpers/pane-harness.js'
 
-const disposers: (() => void)[] = []
 let core: FakeCore | null = null
 
 afterEach(() => {
   toaster.remove()
-  for (const dispose of disposers.splice(0)) dispose()
   core?.restore()
   core = null
 })
@@ -30,7 +28,7 @@ const grabApi: GrabApi = {
 function mountActions(config: Parameters<typeof installFakeCore>[0] = {}): FakeCore {
   const fake = installFakeCore(config)
   core = fake
-  const mounted = mountPane(() => (
+  mountPane(() => (
     <HostApiProvider grab={grabApi} toast={() => {}}>
       <ComposerActions
         sessionId={PANE_SESSION}
@@ -42,7 +40,6 @@ function mountActions(config: Parameters<typeof installFakeCore>[0] = {}): FakeC
       <NoticeToaster />
     </HostApiProvider>
   ))
-  disposers.push(mounted.dispose)
   return fake
 }
 

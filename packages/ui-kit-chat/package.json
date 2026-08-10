@@ -69,6 +69,7 @@
   "devDependencies": {
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "^0.8.10",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-solid": "catalog:",
     "@types/node": "^22.19.21",

@@ -1,15 +1,11 @@
 import 'virtual:uno.css'
 import {createSignal, type JSX} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {ModelSelector, type ModelOption} from '../src/primitives/model-selector/model-selector.js'
 import {ModelSelector as StyledModelSelector} from '../src/styled/model-selector.js'
 import {HARNESS_MODELS} from './model-selector-harness.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 function Selector(): JSX.Element {
   const [value, setValue] = createSignal('claude-opus-4-8')

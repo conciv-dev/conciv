@@ -1,15 +1,11 @@
 import 'virtual:uno.css'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {For} from 'solid-js'
 import {StatusVisual} from '../src/tools/primitives/status-visual.js'
 import {ErrorBlock} from '../src/tools/styled/error-block.js'
 import type {ToolStatus} from '../src/tools/primitives/tool-status.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 const STATUSES: Array<ToolStatus> = ['running', 'complete', 'error', 'approval']
 

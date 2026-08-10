@@ -1,7 +1,7 @@
 import solid from 'vite-plugin-solid'
 import {playwright} from '@vitest/browser-playwright'
 import {defineConfig} from 'vitest/config'
-import {ciTest} from '@conciv/vitest-config'
+import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 export default defineConfig({
   test: {
@@ -20,7 +20,7 @@ export default defineConfig({
       {
         plugins: [solid()],
         test: {
-          ...ciTest(),
+          ...ciTestSolidBrowser(),
           name: 'tanstack-browser',
           include: ['test/**/*.browser.test.tsx'],
           testTimeout: 60_000,

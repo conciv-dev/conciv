@@ -1,6 +1,6 @@
 import 'virtual:uno.css'
 import {createSignal, For} from 'solid-js'
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {afterEach, expect, it} from 'vitest'
 import {Dialog} from '../src/dialog.js'
@@ -9,36 +9,28 @@ import {cleanupMounts, mountInShadow, mountStyled} from './dialog-harness.js'
 
 const LAYERING = '.fixed{position:fixed}.inset-0{inset:0}'
 
-const disposers: (() => void)[] = []
+const styleDisposers: (() => void)[] = []
 const hosts: HTMLElement[] = []
 
 function mount(dismissable: boolean): void {
   const style = document.createElement('style')
   style.textContent = LAYERING
   document.head.appendChild(style)
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  hosts.push(host)
-  disposers.push(() => style.remove())
+  styleDisposers.push(() => style.remove())
   const [closes, setCloses] = createSignal<boolean[]>([])
-  disposers.push(
-    render(
-      () => (
-        <Dialog
-          open
-          onOpenChange={(open) => setCloses((asked) => [...asked, open])}
-          dismissable={dismissable}
-          label="Sample dialog"
-        >
-          <p>a body of text</p>
-          <ul>
-            <For each={closes()}>{(open) => <li>asked to close, open {String(open)}</li>}</For>
-          </ul>
-        </Dialog>
-      ),
-      host,
-    ),
-  )
+  render(() => (
+    <Dialog
+      open
+      onOpenChange={(open) => setCloses((asked) => [...asked, open])}
+      dismissable={dismissable}
+      label="Sample dialog"
+    >
+      <p>a body of text</p>
+      <ul>
+        <For each={closes()}>{(open) => <li>asked to close, open {String(open)}</li>}</For>
+      </ul>
+    </Dialog>
+  ))
 }
 
 const closeRequests = (): string[] =>
@@ -60,7 +52,7 @@ async function clickBehindTheDialog(): Promise<void> {
 }
 
 afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
+  for (const dispose of styleDisposers.splice(0)) dispose()
   for (const host of hosts.splice(0)) host.remove()
   cleanupMounts()
 })

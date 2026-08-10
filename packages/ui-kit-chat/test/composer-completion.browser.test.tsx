@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {createSignal, For, Show, untrack, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import {page} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import type {WebStorage} from '@conciv/storage-history'
 import {ChatProvider} from '../src/store/chat-context.js'
@@ -10,11 +10,7 @@ import {Composer as ComposerPrimitive} from '../src/primitives/composer/composer
 import {ComposerHandlersProvider, type ComposerHandlers} from '../src/primitives/composer/composer-handlers.js'
 import {useComposerContext} from '../src/primitives/composer/composer-context.js'
 import {Error as ErrorPrimitive} from '../src/primitives/error/error.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 const DRAFT_KEY = 'composer-draft-test'
 

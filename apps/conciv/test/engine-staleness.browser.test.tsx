@@ -7,12 +7,10 @@ import {NoticeToaster, toaster} from '../src/shell/notices.js'
 import {installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
 import {mountPane, PANE_SESSION} from './helpers/pane-harness.js'
 
-const disposers: (() => void)[] = []
 let core: FakeCore | null = null
 
 afterEach(() => {
   toaster.remove()
-  for (const dispose of disposers.splice(0)) dispose()
   core?.restore()
   core = null
 })
@@ -25,7 +23,6 @@ function mountNotice(config: Parameters<typeof installFakeCore>[0] = {}): {refet
       <EngineStaleNotice />
     </>
   ))
-  disposers.push(mounted.dispose)
   return {refetch: mounted.refetch}
 }
 

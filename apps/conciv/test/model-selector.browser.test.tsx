@@ -1,23 +1,15 @@
-import {afterEach, expect, test} from 'vitest'
+import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
 import {createSignal} from 'solid-js'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {ModelSelectorView} from '../src/composer/model-selector.js'
-
-const disposers: (() => void)[] = []
-
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-})
 
 const SONNET: HarnessModelInfo = {id: 'sonnet', name: 'Sonnet', group: 'Anthropic'}
 
 type Mounted = {retries: () => number; recover: () => void}
 
 function mountSelector(): Mounted {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
   const [models, setModels] = createSignal<HarnessModelInfo[]>([])
   const [failed, setFailed] = createSignal(true)
   const [retries, setRetries] = createSignal(0)
@@ -25,23 +17,16 @@ function mountSelector(): Mounted {
     setModels([SONNET])
     setFailed(false)
   }
-  const dispose = render(
-    () => (
-      <ModelSelectorView
-        models={models()}
-        value={null}
-        failed={failed()}
-        retrying={false}
-        onRetry={() => setRetries(retries() + 1)}
-        onSelect={() => {}}
-      />
-    ),
-    host,
-  )
-  disposers.push(() => {
-    dispose()
-    host.remove()
-  })
+  render(() => (
+    <ModelSelectorView
+      models={models()}
+      value={null}
+      failed={failed()}
+      retrying={false}
+      onRetry={() => setRetries(retries() + 1)}
+      onSelect={() => {}}
+    />
+  ))
   return {retries, recover}
 }
 

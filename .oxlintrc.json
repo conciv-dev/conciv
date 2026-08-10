@@ -27,6 +27,7 @@
     "conciv/banned-vocabulary": "error",
     "conciv/no-comments": "error",
     "conciv/no-locator-poll": "error",
+    "conciv/solid-test-render": "error",
     "conciv/tool-card-shell": "error",
     "unicorn/consistent-function-scoping": "off",
     "unicorn/require-module-specifiers": "off",
@@ -226,6 +227,18 @@
       "files": ["packages/cli/test/support/cli-app.ts"],
       "rules": {
         "conciv/no-timers-in-tests": "off"
+      }
+    },
+    {
+      "files": ["packages/ui-kit-system/test/dialog-harness.tsx"],
+      "rules": {
+        "conciv/solid-test-render": "off"
+      }
+    },
+    {
+      "files": ["packages/extensions/terminal/test/reload-replay.browser.test.tsx"],
+      "rules": {
+        "conciv/solid-test-render": "off"
       }
     }
   ],

@@ -1,15 +1,10 @@
-import {render} from 'solid-js/web'
-import {afterEach, expect, test} from 'vitest'
+import {render} from '@solidjs/testing-library'
+import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {onMount, type JSX} from 'solid-js'
 import {makeRpcClient} from '@conciv/contract'
 import {useChatSession} from '@conciv/client'
 import {ChatProvider, Thread, type AttachmentCardSlot} from '@conciv/ui-kit-chat'
-
-const disposers: (() => void)[] = []
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-})
 
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
@@ -25,14 +20,7 @@ const userParts = [
 ]
 
 function mountThread(cards: readonly AttachmentCardSlot[]): HTMLElement {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  const dispose = render(() => <ThreadApp cards={cards} />, host)
-  disposers.push(() => {
-    dispose()
-    host.remove()
-  })
-  return host
+  return render(() => <ThreadApp cards={cards} />).container
 }
 
 function ThreadApp(props: {cards: readonly AttachmentCardSlot[]}): JSX.Element {

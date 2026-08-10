@@ -1,5 +1,5 @@
-import {render} from 'solid-js/web'
-import {afterEach, expect, test} from 'vitest'
+import {render} from '@solidjs/testing-library'
+import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import type {Grab} from '@conciv/grab'
 import {makeImageHostGrab} from '@conciv/extension-testkit/host/grab'
@@ -8,17 +8,8 @@ import {GrabReference} from '../src/pane/grab-reference.js'
 const IMAGE_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
 
-const disposers: (() => void)[] = []
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-  document.body.replaceChildren()
-})
-
 function mount(grab: Grab): HTMLElement {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  disposers.push(render(() => <GrabReference grab={grab} maxWidth={300} onRemove={() => {}} />, host))
-  return host
+  return render(() => <GrabReference grab={grab} maxWidth={300} onRemove={() => {}} />).container
 }
 
 function domGrab(): Grab {

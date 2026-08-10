@@ -1,7 +1,7 @@
 import solid from 'vite-plugin-solid'
 import {playwright} from '@vitest/browser-playwright'
 import {defineConfig} from 'vitest/config'
-import {ciTest} from '@conciv/vitest-config'
+import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 import type {Plugin} from 'vite'
 import {RPCHandler} from '@orpc/server/node'
 import {rpcConnectionContext, rpcHandlerOptions} from '@conciv/extension/rpc-mount'
@@ -114,7 +114,7 @@ export default defineConfig({
       {
         plugins: [solid(), testRunnerStream],
         test: {
-          ...ciTest(),
+          ...ciTestSolidBrowser(),
           name: 'test-runner-browser',
           include: ['test/**/*.browser.test.tsx'],
           testTimeout: 60_000,

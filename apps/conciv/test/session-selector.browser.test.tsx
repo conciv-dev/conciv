@@ -4,11 +4,9 @@ import {SessionSelector} from '../src/composer/session-selector.js'
 import {installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
 import {mountPane} from './helpers/pane-harness.js'
 
-const disposers: (() => void)[] = []
 let core: FakeCore | null = null
 
 afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
   core?.restore()
   core = null
 })
@@ -20,10 +18,9 @@ function mountSelector(): void {
       sessionRow({id: 'conciv_2', title: 'a session mid-run', running: true, origin: 'external'}),
     ],
   })
-  const mounted = mountPane(() => (
+  mountPane(() => (
     <SessionSelector variant="pill" activeId={() => 'conciv_1'} onActivate={() => {}} onNewSession={() => {}} />
   ))
-  disposers.push(mounted.dispose)
 }
 
 test('a session with a live core run carries the running dot, an idle one does not', async () => {

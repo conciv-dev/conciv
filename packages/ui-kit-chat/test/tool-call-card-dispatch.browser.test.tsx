@@ -1,5 +1,5 @@
 import 'virtual:uno.css'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {
@@ -10,11 +10,7 @@ import type {
   ToolViewMeta,
 } from '@conciv/protocol/tool-view-types'
 import {ToolCallCard} from '../src/tools/styled/tool-call-card.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 const shipMeta: ToolViewMeta = {
   summary: 'ship the page the user is looking at',

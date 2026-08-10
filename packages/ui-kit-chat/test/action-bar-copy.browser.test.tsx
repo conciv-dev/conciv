@@ -1,10 +1,10 @@
 import {page} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import type {JSX} from 'solid-js'
 import {ActionBar} from '../src/primitives/action-bar/action-bar.js'
 import {MessageProvider} from '../src/primitives/message/message-context.js'
 import type {Turn} from '../src/store/grouping.js'
-import {cleanupViews, mountView} from './mount-view.js'
+import {mountView} from './mount-view.js'
 
 const COPIED_MS = 2_000
 const RE_ARM_AFTER_MS = 1_200
@@ -38,10 +38,6 @@ function mountCopyAction(): void {
     ),
   )
 }
-
-afterEach(() => {
-  cleanupViews()
-})
 
 it('keeps the copied state when a second copy re-arms the window', async () => {
   mountCopyAction()

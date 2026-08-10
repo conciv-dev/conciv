@@ -2,7 +2,7 @@ import '@conciv/ui-kit-system/tokens.css'
 import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
 import type {JSX} from 'solid-js'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
@@ -11,21 +11,12 @@ import {UiCard} from '@conciv/tools/cards'
 import {NoticeToaster, notify, toaster} from '../src/shell/notices.js'
 import {QuickTerminalHeader} from '../src/routes/quick.js'
 
-const disposers: (() => void)[] = []
-
 afterEach(() => {
   toaster.remove()
-  for (const dispose of disposers.splice(0)) dispose()
 })
 
 function mount(view: () => JSX.Element): void {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  const dispose = render(view, host)
-  disposers.push(() => {
-    dispose()
-    host.remove()
-  })
+  render(view)
 }
 
 function uiPart(spec: unknown): ToolCallPart {

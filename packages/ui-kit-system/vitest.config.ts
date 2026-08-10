@@ -2,7 +2,7 @@ import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
-import {ciTest} from '@conciv/vitest-config'
+import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 export default defineConfig({
   test: {
@@ -11,7 +11,7 @@ export default defineConfig({
       {
         plugins: [solidPlugin(), UnoCSS({content: {filesystem: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}']}})],
         test: {
-          ...ciTest(),
+          ...ciTestSolidBrowser(),
           name: 'browser',
           include: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
           fileParallelism: false,

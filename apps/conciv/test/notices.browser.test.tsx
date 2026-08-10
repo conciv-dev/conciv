@@ -2,34 +2,22 @@ import '@conciv/ui-kit-system/tokens.css'
 import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
 import {createSignal, Show} from 'solid-js'
 import {NoticeToaster, notify, toaster} from '../src/shell/notices.js'
 
-const disposers: (() => void)[] = []
-
 afterEach(() => {
   toaster.remove()
-  for (const dispose of disposers.splice(0)) dispose()
 })
 
 function mountToaster(): {showToaster: (visible: boolean) => void} {
-  const host = document.createElement('div')
-  host.className = 'chat-theme-conciv'
-  document.body.appendChild(host)
   const [standing, setStanding] = createSignal(true)
-  const dispose = render(
-    () => (
-      <Show when={standing()} fallback={<p>another session</p>}>
-        <NoticeToaster />
-      </Show>
-    ),
-    host,
-  )
-  disposers.push(() => {
-    dispose()
-    host.remove()
-  })
+  const mounted = render(() => (
+    <Show when={standing()} fallback={<p>another session</p>}>
+      <NoticeToaster />
+    </Show>
+  ))
+  mounted.container.className = 'chat-theme-conciv'
   return {showToaster: (visible) => setStanding(visible)}
 }
 

@@ -41,3 +41,20 @@ export function ciTest(): {
     ...(maxWorkers === undefined ? {} : {maxWorkers}),
   }
 }
+
+const SOLID_CLEANUP_SETUP_ENTRY = '@conciv/vitest-config/solid-cleanup'
+
+export function ciTestSolidBrowser(): {
+  reporters: CiReporterEntry[]
+  coverage: CiCoverage
+  testTimeout: number
+  hookTimeout: number
+  teardownTimeout: number
+  maxWorkers?: number
+  setupFiles: string[]
+} {
+  return {
+    ...ciTest(),
+    setupFiles: [SOLID_CLEANUP_SETUP_ENTRY],
+  }
+}

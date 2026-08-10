@@ -1,42 +1,28 @@
-import {afterEach, expect, test} from 'vitest'
+import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
 import {createSignal, For} from 'solid-js'
 import {LaunchMenu} from '../src/composer/launch-menu.js'
 
-const disposers: (() => void)[] = []
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-})
-
 function mountMenu(state: {pending?: boolean; failed?: boolean} = {}): void {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
   const [made, setMade] = createSignal<string[]>([])
   const choose = (choice: string) => setMade((choices) => [...choices, choice])
-  const dispose = render(
-    () => (
-      <>
-        <ul>
-          <For each={made()}>{(choice) => <li>chose {choice}</li>}</For>
-        </ul>
-        <LaunchMenu
-          harnessName="Claude"
-          class="size-8"
-          pending={state.pending}
-          failed={state.failed}
-          onOpen={() => choose('open')}
-          onCopy={() => choose('copy')}
-          onRetry={() => choose('retry')}
-        />
-      </>
-    ),
-    host,
-  )
-  disposers.push(() => {
-    dispose()
-    host.remove()
-  })
+  render(() => (
+    <>
+      <ul>
+        <For each={made()}>{(choice) => <li>chose {choice}</li>}</For>
+      </ul>
+      <LaunchMenu
+        harnessName="Claude"
+        class="size-8"
+        pending={state.pending}
+        failed={state.failed}
+        onOpen={() => choose('open')}
+        onCopy={() => choose('copy')}
+        onRetry={() => choose('retry')}
+      />
+    </>
+  ))
 }
 
 const chosen = (): string[] =>

@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {createSignal, onMount, type Component, type JSX, type ParentProps} from 'solid-js'
 import {page} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {storyConnection} from '../src/store/story-connection.js'
@@ -9,11 +9,7 @@ import {Composer} from '../src/styled/composer.js'
 import {Thread} from '../src/styled/thread.js'
 import {ModelSelector} from '../src/styled/model-selector.js'
 import {HARNESS_MODELS} from './model-selector-harness.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 function createSlotProbe(label: string): Component {
   const [instances, setInstances] = createSignal(0)

@@ -1,15 +1,11 @@
 import 'virtual:uno.css'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {MetaToolCard} from '../src/tools/styled/meta-tool-card.js'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../src/store/tool-context.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 const fillMeta: ToolViewMeta = {
   summary: 'type a value into a form field',
