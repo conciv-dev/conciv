@@ -5,7 +5,7 @@
     "tsBuildInfoFile": ".tsbuildinfo",
     "rootDir": ".",
     "noEmit": true,
-    "lib": ["ES2023", "DOM"],
+    "lib": ["ES2024", "DOM"],
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]
