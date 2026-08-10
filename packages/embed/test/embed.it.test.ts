@@ -173,36 +173,50 @@ describe('embed boots the conciv app against a real core', () => {
 
   it('a reload restores the panel open on the same view', async () => {
     const first = await openPage()
-    await openPanel(first)
-    const switched = waitForNavigationWriteCarrying(first, '/terminal')
-    await first.getByRole('tab', {name: 'Terminal'}).click()
-    await switched
-    expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
-    await first.close()
+    try {
+      await openPanel(first)
+      const switched = waitForNavigationWriteCarrying(first, '/terminal')
+      await first.getByRole('tab', {name: 'Terminal'}).click()
+      await switched
+      expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
+      await first.close()
+    } finally {
+      await first.close()
+    }
     const second = await openPage()
-    await expectLocator(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
-    await expectLocator(second.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
-      timeout: 30_000,
-    })
-    await second.close()
+    try {
+      await expectLocator(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
+      await expectLocator(second.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
+        timeout: 30_000,
+      })
+    } finally {
+      await second.close()
+    }
   })
 
   it('a reload after closing the panel boots shut', async () => {
     const first = observedPage(await browser.newPage())
-    const opened = waitForNavigationWrite(first)
-    await first.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await openPanel(first)
-    await opened
-    expect(await currentHref(kit)).toContain('open=true')
-    const shut = waitForNavigationWrite(first)
-    await first.getByRole('button', {name: 'Minimize conciv chat'}).click()
-    await shut
-    expect(await currentHref(kit)).not.toContain('open=true')
-    await first.close()
+    try {
+      const opened = waitForNavigationWrite(first)
+      await first.goto(host.base, {waitUntil: 'domcontentloaded'})
+      await openPanel(first)
+      await opened
+      expect(await currentHref(kit)).toContain('open=true')
+      const shut = waitForNavigationWrite(first)
+      await first.getByRole('button', {name: 'Minimize conciv chat'}).click()
+      await shut
+      expect(await currentHref(kit)).not.toContain('open=true')
+      await first.close()
+    } finally {
+      await first.close()
+    }
     const second = await openPage()
-    await expectLocator(second.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
-    expect(await second.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
-    await second.close()
+    try {
+      await expectLocator(second.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
+      expect(await second.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
+    } finally {
+      await second.close()
+    }
   })
 
   it('renders the fab instantly and opens the panel', async () => {
