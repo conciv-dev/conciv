@@ -97,7 +97,7 @@ describe('BuildErrorsCard (real browser)', () => {
       ctx: catalogCtx,
     })
     await page.getByRole('button', {name: doneTitleOf('tanstack_build_errors')}).click()
-    await expect.element(page.getByText('bundler bridge unavailable')).toBeVisible()
+    await expect.element(page.getByText('bundler bridge unavailable', {exact: true})).toBeVisible()
   })
 })
 
@@ -124,7 +124,7 @@ describe('RouteManifestCard (real browser)', () => {
       ctx: catalogCtx,
     })
     await page.getByRole('button', {name: doneTitleOf('tanstack_route_manifest')}).click()
-    await expect.element(page.getByText('routeTree.gen not found')).toBeVisible()
+    await expect.element(page.getByText('routeTree.gen not found', {exact: true})).toBeVisible()
   })
 })
 
@@ -163,6 +163,6 @@ describe('ServerFnTraceCard (real browser)', () => {
       ctx: catalogCtx,
     })
     await page.getByRole('button', {name: doneTitleOf('tanstack_server_fn_trace')}).click()
-    await expect.element(page.getByText('bundler bridge unavailable')).toBeVisible()
+    await expect.element(page.getByText('bundler bridge unavailable', {exact: true})).toBeVisible()
   })
 })

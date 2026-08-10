@@ -1,10 +1,15 @@
 import {Show, splitProps, type JSX} from 'solid-js'
+import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CardShell, ErrorBlock, cardHeader, resultText, toolStatus} from '@conciv/ui-kit-chat/tools'
+import {CardShell, ErrorBlock, cardHeader, parseResultPayload, resultText, toolStatus} from '@conciv/ui-kit-chat/tools'
+
+const ErrorPayloadSchema = z.object({message: z.string()}).loose()
 
 function readError(part: ToolCardProps['part'], result: ToolCardProps['result']): string | null {
   if (toolStatus(part, result) !== 'error') return null
   if (result?.error && result.error.length > 0) return result.error
+  const shaped = ErrorPayloadSchema.safeParse(parseResultPayload(result))
+  if (shaped.success && shaped.data.message.length > 0) return shaped.data.message
   const text = resultText(result)
   return text.length > 0 ? text : 'tool failed'
 }
