@@ -1,4 +1,4 @@
-import type {JSX} from 'solid-js'
+import {Show, Suspense, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import type {DraggablePosition} from '../lib/draggable-position.js'
 import {FabRobot} from './fab-robot.js'
@@ -14,12 +14,12 @@ const FAB_POS: Record<TriggerPosition, string> = {
 
 const FAB_BASE =
   'fixed size-13 rounded-pw-pill border border-pw-line bg-pw-panel text-pw-accent text-[1.375rem] cursor-pointer pointer-events-auto shadow-pw-lg inline-flex items-center justify-center trans-lift anim-fab focus-ring [@media(hover:hover)_and_(pointer:fine)]:hover:[transform:translateY(-0.125rem)] [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-pw-hover active:[transform:translateY(0)_scale(0.94)]'
-const FAB_ATTN =
-  "after:content-[''] after:absolute after:-inset-[0.1875rem] after:rounded-pw-pill after:border-2 after:border-pw-accent after:anim-fab-ring"
+const FAB_BUSY = 'pw-fab-busy absolute -inset-[0.1875rem] rounded-pw-pill pointer-events-none'
+const FAB_ATTN = 'border-2 border-pw-accent anim-fab-ring'
 const FAB_DRAGGING = 'transition-none z-[2147483647] cursor-grabbing'
 
-function fabClass(pulsing: boolean, position: TriggerPosition, dragging: boolean): string {
-  return `${FAB_BASE} ${FAB_POS[position]}${pulsing ? ` ${FAB_ATTN}` : ''}${dragging ? ` ${FAB_DRAGGING}` : ''}`
+function fabClass(position: TriggerPosition, dragging: boolean): string {
+  return `${FAB_BASE} ${FAB_POS[position]}${dragging ? ` ${FAB_DRAGGING}` : ''}`
 }
 
 function fabLabel(open: boolean): string {
@@ -38,7 +38,7 @@ export function ShellFab(props: {
     <button
       type="button"
       ref={props.ref}
-      class={fabClass(!props.open() && props.working(), props.fab.position(), props.fab.dragging())}
+      class={fabClass(props.fab.position(), props.fab.dragging())}
       data-pw-fab
       data-pw-suppressed={props.suppressed()}
       style={props.fab.dragStyle()}
@@ -50,6 +50,11 @@ export function ShellFab(props: {
         if (!props.fab.consumeClick()) props.onToggle()
       }}
     >
+      <Suspense>
+        <Show when={props.working()}>
+          <span class={props.open() ? FAB_BUSY : `${FAB_BUSY} ${FAB_ATTN}`} aria-hidden="true" />
+        </Show>
+      </Suspense>
       <FabRobot open={props.open} working={props.working} />
     </button>
   )

@@ -88,7 +88,7 @@
   transform-origin: 50% 32.8%; /* antenna base -> sway rotates about where it meets the head */
 }
 /* Working: a magenta glow pulse on the eyes. filter only; GSAP owns the transforms, so no clash. */
-.pw-fab-rig[data-working='true'] .pw-rig-eyes {
+.pw-fab-busy ~ .pw-fab-rig .pw-rig-eyes {
   animation: pw-rig-glow 1.3s ease-in-out infinite;
 }
 @keyframes pw-rig-glow {

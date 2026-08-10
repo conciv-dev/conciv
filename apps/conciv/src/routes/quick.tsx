@@ -1,7 +1,7 @@
 import {createFileRoute, redirect, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import {For, Show, onCleanup, onMount, type JSX} from 'solid-js'
+import {For, Show, Suspense, onCleanup, onMount, type JSX} from 'solid-js'
 import {TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
 import {useAppData, useRpc, useSuppressed} from '../app/context.js'
@@ -9,6 +9,7 @@ import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
 import {ContextTracker} from '../pane/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
+import {SessionPillPending, UsagePending} from '../shell/pending.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-search.js'
 
 const CLOSE =
@@ -191,13 +192,17 @@ function QuickLayer(): JSX.Element {
                 }}
               >
                 <div class="text-xs text-pw-text-3 leading-none font-pw-mono px-3 py-2 border-b border-b-pw-line-soft flex shrink-0 gap-2 items-center">
-                  <SessionSelector
-                    variant="bar"
-                    activeId={() => id}
-                    onActivate={(next) => activatePane(index(), next)}
-                    onNewSession={() => void addPane()}
-                  />
-                  <ContextTracker usage={usageOf(id)} />
+                  <Suspense fallback={<SessionPillPending variant="bar" />}>
+                    <SessionSelector
+                      variant="bar"
+                      activeId={() => id}
+                      onActivate={(next) => activatePane(index(), next)}
+                      onNewSession={() => void addPane()}
+                    />
+                  </Suspense>
+                  <Suspense fallback={<UsagePending />}>
+                    <ContextTracker usage={usageOf(id)} />
+                  </Suspense>
                   <TooltipIconButton
                     tooltip="Close pane"
                     class={CLOSE_PANE}

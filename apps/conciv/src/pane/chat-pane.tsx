@@ -42,6 +42,7 @@ import {ToolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {GrabReference} from './grab-reference.js'
 import {CompactSpinner, ConversationSkeleton, Divider, ThinkingBubble} from './indicators.js'
+import {ComposerActionsPending} from '../shell/pending.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
@@ -313,7 +314,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
               >
                 <Thread>
                   <Thread.Viewport>
-                    <Suspense>
+                    <Suspense fallback={<ConversationSkeleton />}>
                       <Thread.Welcome>
                         <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
                           <EmptyStateSlot
@@ -383,7 +384,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                             busy={compacting() ? <CompactSpinner /> : undefined}
                             triggers={triggerSources}
                           >
-                            <Suspense>
+                            <Suspense fallback={<ComposerActionsPending />}>
                               <ComposerActions
                                 sessionId={sessionId}
                                 compacting={compacting()}
