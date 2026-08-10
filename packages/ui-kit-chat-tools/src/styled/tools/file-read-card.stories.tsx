@@ -66,7 +66,7 @@ export const Opened: Story = {
     frame(
       'chat-theme-conciv',
       <FileReadCard
-        part={part('conciv_open', {file: 'src/app.tsx', line: 12})}
+        part={part('open', {file: 'src/app.tsx', line: 12})}
         result={undefined}
         ctx={INERT_TOOL_CTX}
         addResult={INERT_ADD_RESULT}

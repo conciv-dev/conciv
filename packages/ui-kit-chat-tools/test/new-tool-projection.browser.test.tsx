@@ -5,10 +5,8 @@ import {afterEach, expect, it} from 'vitest'
 import {defineTool} from '@conciv/extension/tool'
 import type {AnyToolBuilder} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
-import {concivTools} from '@conciv/tools'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {pageCapabilities, pageInputFor, pageToolDescription} from '@conciv/tools/defs'
 import {PAGE_TOOL_DEFS, pageToolMetaOf} from '@conciv/extension-page/defs'
 import {INERT_ADD_RESULT, GENERIC_TOOL_ICON, MetaToolCard, toolIconRender} from '@conciv/ui-kit-chat/tools'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
@@ -59,26 +57,22 @@ const ctx: ToolViewCtx = {
   catalog: registryCatalogView(registryWith(shipTool)),
 }
 
-it('a newly declared capability reaches the model and survives its own advertised schema', async () => {
-  const calls: unknown[] = []
-  const capabilities = pageCapabilities(registryWith(shipTool).catalog.list())
+it('a newly declared capability reaches the widget through its own declaration', async () => {
+  const declared = registryWith(shipTool).catalog.get('page.ship')
+  expect(declared.summary).toBe('ship the page the user is looking at')
+  expect(declared.hint).toBe('only once the user has approved the diff')
 
-  const description = pageToolDescription(capabilities)
-  expect(description).toContain('- ship: ship the page the user is looking at')
-  expect(description).toContain('only once the user has approved the diff')
-  expect(pageInputFor(capabilities).parse({verb: 'ship'})).toMatchObject({verb: 'ship'})
+  mountView(() => (
+    <MetaToolCard
+      part={part('ship', {note: 'after review'})}
+      result={undefined}
+      ctx={ctx}
+      addResult={INERT_ADD_RESULT}
+    />
+  ))
 
-  const tools = concivTools({
-    capabilities: () => capabilities,
-    askUi: async () => ({answered: false, note: ''}),
-    page: async (name, input) => (calls.push([name, input]), {ok: true}),
-    open: async () => ({ok: true}),
-  })
-  const pageTool = tools.find((tool) => tool.name === 'conciv_page')
-  if (!pageTool) throw new Error('conciv_page tool missing')
-
-  await expect(pageTool.execute({verb: 'ship', note: 'after review'})).resolves.toMatchObject({ok: true})
-  expect(calls[0]).toEqual(['page.ship', {note: 'after review'}])
+  await expect.element(page.getByText('Shipped the page', {exact: false})).toBeVisible()
+  expect(nowTitle(part('ship'), ctx.catalog)).toBe('Shipping the page')
 })
 
 it('the card and the running title read a built-in declaration through the default source', async () => {
@@ -109,7 +103,6 @@ it('a declaration with no icon key falls back to the generic icon', () => {
     meta: {summary: 'do something the widget has no icon for', category: 'act'},
   }).client()
 
-  const capabilities = pageCapabilities(registryWith(plainTool).catalog.list())
-  expect(pageToolDescription(capabilities)).toContain('- plain: do something the widget has no icon for')
+  expect(registryWith(plainTool).catalog.get('page.plain').summary).toBe('do something the widget has no icon for')
   expect(toolIconRender(plainTool.meta?.icon)).toBe(GENERIC_TOOL_ICON)
 })

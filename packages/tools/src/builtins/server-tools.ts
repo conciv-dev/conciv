@@ -139,7 +139,7 @@ export const BUILTIN_SERVER_TOOL = {
 
 export const BUILTIN_SERVER_TOOLS = Object.values(BUILTIN_SERVER_TOOL)
 
-const OpenInput = z.object({
+export const OpenInput = z.object({
   file: z.string().min(1).describe('the file to open'),
   line: z.coerce.number().int().min(1).optional().describe('line number to jump to'),
 })

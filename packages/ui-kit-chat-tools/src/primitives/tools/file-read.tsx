@@ -47,12 +47,12 @@ export function useFileRead(): FileReadContextValue {
 function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; children: JSX.Element}): JSX.Element {
   const input = createMemo(() => parseInput(ReadInput, props.part))
   const path = () => input()?.file_path ?? input()?.file ?? ''
-  const verb = () => (props.part.name === 'conciv_open' ? 'Opened' : 'Read')
+  const verb = () => (props.part.name === 'open' ? 'Opened' : 'Read')
   const range = () => {
     const value = input()
     return value ? lineRange(value) : undefined
   }
-  const contents = () => (props.part.name === 'conciv_open' ? '' : fileContents(resultText(props.result)))
+  const contents = () => (props.part.name === 'open' ? '' : fileContents(resultText(props.result)))
   const status = createMemo(() => toolStatus(props.part, props.result))
   return (
     <FileReadContext.Provider value={{path, verb, range, contents, status}}>{props.children}</FileReadContext.Provider>
