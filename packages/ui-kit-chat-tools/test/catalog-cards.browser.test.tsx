@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {z} from 'zod'
 import {page} from 'vitest/browser'
-import {afterEach, expect, it, vi} from 'vitest'
+import {afterEach, expect, it} from 'vitest'
 import {defineTool} from '@conciv/extension/tool'
 import {createToolRegistry} from '@conciv/extension/registry'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
@@ -62,12 +62,6 @@ const countTool = defineTool({
   outputSchema: z.number(),
   meta: {summary: 'count the elements the page shows', category: 'read', icon: 'read'},
 }).client()
-
-function codeBlockText(): string {
-  return Array.from(document.querySelectorAll('diffs-container'))
-    .map((host) => host.shadowRoot?.textContent ?? '')
-    .join('\n')
-}
 
 function declaredRegistry() {
   const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
@@ -146,14 +140,14 @@ it('a string output schema renders the result as a code block', async () => {
   mountView(() => (
     <MetaToolCard
       part={part('page.ship', {selector: '#hero'})}
-      result={result('shipped-42')}
+      result={result(JSON.stringify('shipped-42'))}
       ctx={ctxWith(catalog)}
       addResult={INERT_ADD_RESULT}
     />
   ))
 
   await page.getByRole('button').click()
-  await vi.waitFor(() => expect(codeBlockText()).toContain('shipped-42'))
+  await expect.element(page.getByText('shipped-42', {exact: true})).toBeVisible()
 })
 
 it('a scalar output schema renders the result as a chip', async () => {

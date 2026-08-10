@@ -57,13 +57,26 @@ function resultViewOf(outputSchema: unknown): ResultView {
 }
 
 const ErrorPayload = z.looseObject({
-  error: z.looseObject({message: z.string(), code: z.string().optional()}),
+  error: z.union([z.string(), z.looseObject({message: z.string(), code: z.string().optional()})]),
 })
+
+const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): ([\s\S]*)$/
+
+function declaredErrorParts(error: string | {message: string; code?: string}): {
+  message: string
+  code: string | undefined
+} {
+  if (typeof error !== 'string') return {message: error.message, code: error.code}
+  const match = DECLARED_ERROR_PREFIX.exec(error)
+  if (match === null) return {message: error, code: undefined}
+  const [, code, message] = match
+  return {message: message ?? error, code}
+}
 
 function payloadErrorMessage(payload: unknown, errors: readonly ToolViewError[] | undefined): string | undefined {
   const parsed = ErrorPayload.safeParse(payload)
   if (!parsed.success) return undefined
-  const {message, code} = parsed.data.error
+  const {message, code} = declaredErrorParts(parsed.data.error)
   const declared = code === undefined ? undefined : errors?.find((candidate) => candidate.code === code)
   return declared?.message ?? message
 }
@@ -94,14 +107,15 @@ function ResultBlock(props: {contents: string; name: string}): JSX.Element {
 function ResultView(props: {outputSchema: unknown; payload: unknown; raw: string}): JSX.Element {
   const view = () => resultViewOf(props.outputSchema)
   const list = () => (Array.isArray(props.payload) ? props.payload : undefined)
+  const decoded = () => (typeof props.payload === 'string' ? props.payload : props.raw)
   return (
     <Switch fallback={<ResultBlock name="result.json" contents={props.raw} />}>
       <Match when={view() === 'list' && list()}>{(items) => <JsonTree data={items()} />}</Match>
       <Match when={view() === 'code'}>
-        <ResultBlock name="result.txt" contents={props.raw} />
+        <ResultBlock name="result.txt" contents={decoded()} />
       </Match>
       <Match when={view() === 'chip'}>
-        <code class={CHIP}>{props.raw}</code>
+        <code class={CHIP}>{decoded()}</code>
       </Match>
     </Switch>
   )
