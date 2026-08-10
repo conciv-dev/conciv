@@ -102,7 +102,7 @@ async function pumpApprovals(
   for (;;) {
     const next = await Promise.race([iterator.next(), aborted])
     if (next === 'aborted') {
-      void iterator.return?.(undefined)?.catch?.(() => {})
+      await iterator.return?.(undefined)?.catch(() => undefined)
       return
     }
     if (next.done) return
@@ -122,15 +122,16 @@ export async function withAutoApproval<Result>(
   const decide = async (approvalId: string): Promise<void> => {
     if (decided.has(approvalId)) return
     decided.add(approvalId)
-    await rpc.chat.permissionDecision({approvalId, approved: true})
+    await rpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal})
     onApproved?.(approvalId)
   }
   const pump = pumpApprovals(stream, abort.signal, decide)
+  pump.catch(() => {})
   try {
     return await run()
   } finally {
     abort.abort()
-    await pump.catch(() => {})
+    await pump
   }
 }
 
