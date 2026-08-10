@@ -52,6 +52,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/react',
   '@conciv/preact',
   '@conciv/solid',
+  '@conciv/skills',
 ]
 
 type Manifest = {name?: string; version?: string; private?: boolean}

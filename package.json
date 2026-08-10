@@ -38,6 +38,7 @@
     "@changesets/cli": "^2.31.0",
     "@conciv/bundle-size": "workspace:*",
     "@conciv/publish": "workspace:*",
+    "@conciv/skills": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@j178/prek": "^0.4.5",
     "@oxlint/plugins": "^1.69.0",
@@ -62,6 +63,7 @@
   "intent": {
     "skills": [
       "workspace:@conciv/client",
+      "workspace:@conciv/skills",
       "@tanstack/ai",
       "@tanstack/ai-sandbox",
       "@tanstack/db",

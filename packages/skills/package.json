@@ -1,0 +1,34 @@
+{
+  "name": "@conciv/skills",
+  "version": "0.0.18",
+  "description": "Agent skills for building with conciv: widget setup, extension authoring, harness adapters, and debugging. Install as a devDependency so coding agents discover first-party guidance via @tanstack/intent.",
+  "keywords": [
+    "conciv",
+    "tanstack-intent"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/skills"
+  },
+  "files": [
+    "skills",
+    "!skills/_artifacts"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "lint": "oxlint",
+    "intent:validate": "intent validate skills --check",
+    "intent:stale": "intent stale --json",
+    "check:refs": "node --experimental-strip-types src/check-references.ts"
+  },
+  "devDependencies": {
+    "@tanstack/intent": "0.3.6"
+  }
+}

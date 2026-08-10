@@ -246,6 +246,17 @@ jobs:
           path: bundle-size.json
       # Enforce the no-comments rule everywhere (incl. apps/), without pulling the private apps into the build/test gate.
       - run: pnpm exec oxlint -A all -D conciv/no-comments
+      - name: Skill format
+        run: pnpm --filter @conciv/skills exec intent validate skills --check --github-summary
+      - name: Skill references
+        run: pnpm --filter @conciv/skills run check:refs
+      - name: Skill staleness (non-blocking)
+        continue-on-error: true
+        run: |
+          echo '### Skill staleness' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          pnpm --filter @conciv/skills exec intent stale --json >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:
