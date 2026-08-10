@@ -3,8 +3,7 @@ import {Search} from 'lucide-solid'
 import {z} from 'zod'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Markdown} from '@conciv/ui-kit-chat'
-import {parseResultPayload, ToolCard} from '@conciv/ui-kit-chat/tools'
-import {ToolChip} from './tool-chip.js'
+import {Chip, parseResultPayload, ToolCard} from '@conciv/ui-kit-chat/tools'
 
 const DiscoveredTool = z.object({name: z.string(), description: z.string(), typeStub: z.string()})
 const Output = z.object({tools: z.array(DiscoveredTool), errors: z.array(z.string()).optional()})
@@ -23,8 +22,10 @@ function Icon(): JSX.Element {
 function ChipCloud(props: {tools: DiscoveredToolValue[]; errors: string[]}): JSX.Element {
   return (
     <div class="flex flex-wrap gap-1.5">
-      <For each={props.tools}>{(tool) => <ToolChip name={tool.name} tone="new" tip={tool.description} />}</For>
-      <For each={props.errors}>{(error) => <ToolChip name={error} tone="bad" tip={error} />}</For>
+      <For each={props.tools}>
+        {(tool) => <Chip kind="pill" tone="accent" value={tool.name} tooltip={tool.description} />}
+      </For>
+      <For each={props.errors}>{(error) => <Chip kind="pill" tone="danger" value={error} tooltip={error} />}</For>
     </div>
   )
 }

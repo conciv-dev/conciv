@@ -2,10 +2,9 @@ import {For, Show, type JSX} from 'solid-js'
 import {Wrench} from 'lucide-solid'
 import {z} from 'zod'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {Chip, parseResultPayload, ToolCard} from '@conciv/ui-kit-chat/tools'
 import {schemaParams} from '@conciv/ui-kit-chat/tools'
 import {truncate} from '../../primitives/tools/inline-tool.js'
-import {ToolChip} from './tool-chip.js'
 
 const LoadedTool = z.object({
   name: z.string(),
@@ -25,19 +24,10 @@ function Icon(): JSX.Element {
   return <Wrench size={14} />
 }
 
-function Tip(props: {description?: string; params: string}): JSX.Element {
-  return (
-    <div class="flex flex-col gap-1">
-      <Show when={props.description}>
-        <span>{props.description}</span>
-      </Show>
-      <Show when={props.params}>
-        <span class="text-[length:0.625rem] [color:var(--chat-text-3)] [font-family:var(--chat-mono)]">
-          {props.params}
-        </span>
-      </Show>
-    </div>
-  )
+function tip(description: string | undefined, params: string): string | undefined {
+  if (!description) return params || undefined
+  if (!params) return description
+  return `${description} · ${params}`
 }
 
 function ChipCloud(props: {tools: LoadedToolValue[]}): JSX.Element {
@@ -45,10 +35,11 @@ function ChipCloud(props: {tools: LoadedToolValue[]}): JSX.Element {
     <div class="flex flex-wrap gap-1.5">
       <For each={props.tools}>
         {(tool) => (
-          <ToolChip
-            name={tool.name}
-            tone="new"
-            tip={<Tip description={tool.description} params={schemaParams(tool.inputSchema)} />}
+          <Chip
+            kind="pill"
+            tone="accent"
+            value={tool.name}
+            tooltip={tip(tool.description, schemaParams(tool.inputSchema))}
           />
         )}
       </For>

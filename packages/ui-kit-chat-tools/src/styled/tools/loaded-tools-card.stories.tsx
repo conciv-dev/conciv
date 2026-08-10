@@ -66,8 +66,7 @@ export const Loaded: Story = {
     await waitFor(() => expect(c.getByRole('button', {name: 'sleep'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'ping_host'})).toBeVisible()
     await userEvent.hover(c.getByRole('button', {name: 'sleep'}))
-    await waitFor(() => expect(c.getByText('Pause the run for a while.')).toBeVisible())
-    await expect(c.getByText('seconds: number')).toBeVisible()
+    await waitFor(() => expect(c.getByText('Pause the run for a while. · seconds: number')).toBeVisible())
     await expect(c.getByLabelText('complete')).toBeInTheDocument()
   },
 }

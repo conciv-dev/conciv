@@ -37,10 +37,8 @@ export const Complete: Story = {
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('apply_patch')).toBeVisible()
-    await expect(c.getByText('sum.ts')).toBeVisible()
-    await expect(c.getByText('+3')).toBeVisible()
-    await expect(c.getByText('−1')).toBeVisible()
+    await expect(c.getByText('apply_patch sum.ts')).toBeVisible()
+    await expect(c.getByText('+3 −1')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
     await waitFor(() => expect(c.getByRole('button')).toHaveAttribute('data-state', 'open'))
   },

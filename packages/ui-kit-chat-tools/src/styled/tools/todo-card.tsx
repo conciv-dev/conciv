@@ -3,7 +3,7 @@ import {Dynamic} from 'solid-js/web'
 import {Circle, CircleCheckBig, CircleDashed, ListTodo, type LucideIcon} from 'lucide-solid'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Todo, useTodo, type TodoItemStatus} from '../../primitives/tools/todo.js'
-import {CollapsibleCard} from '@conciv/ui-kit-chat/tools'
+import {ToolCard} from '@conciv/ui-kit-chat/tools'
 const STATUS_ICON: Record<TodoItemStatus, LucideIcon> = {
   pending: CircleDashed,
   in_progress: Circle,
@@ -23,47 +23,49 @@ const DOT_STATUS: Record<TodoItemStatus, string> = {
   completed: 'text-[color:var(--chat-success)]',
 }
 
-function Header(): JSX.Element {
-  const view = useTodo()
-  return (
-    <>
-      <ListTodo size={14} class="text-[color:var(--chat-text-3)] shrink-0" aria-hidden="true" />
-      <span class="text-[color:var(--chat-text)]">Updated the to-do list</span>
-      <Show when={view.total()}>
-        <span class="text-[color:var(--chat-text-3)] ml-auto [font-family:var(--chat-mono)]">
-          {view.done()}/{view.total()}
-        </span>
-      </Show>
-    </>
-  )
+function Icon(): JSX.Element {
+  return <ListTodo size={14} aria-hidden="true" />
 }
 
 function Body(): JSX.Element {
   const view = useTodo()
   return (
-    <CollapsibleCard header={<Header />}>
-      <Show when={view.total()}>
-        <ul class="text-[length:var(--chat-text-md)] m-0 p-0 list-none">
-          <For each={view.todos()}>
-            {(todo) => (
-              <li class={`${ROW}  ${ROW_STATUS[todo.status]}`}>
-                <span class={`${DOT}  ${DOT_STATUS[todo.status]}`} aria-hidden="true">
-                  <Dynamic component={STATUS_ICON[todo.status]} size={13} />
-                </span>
-                {todo.status === 'in_progress' ? (todo.activeForm ?? todo.content) : todo.content}
-              </li>
-            )}
-          </For>
-        </ul>
-      </Show>
-    </CollapsibleCard>
+    <Show when={view.total()}>
+      <ul class="text-[length:var(--chat-text-md)] m-0 p-0 list-none">
+        <For each={view.todos()}>
+          {(todo) => (
+            <li class={`${ROW}  ${ROW_STATUS[todo.status]}`}>
+              <span class={`${DOT}  ${DOT_STATUS[todo.status]}`} aria-hidden="true">
+                <Dynamic component={STATUS_ICON[todo.status]} size={13} />
+              </span>
+              {todo.status === 'in_progress' ? (todo.activeForm ?? todo.content) : todo.content}
+            </li>
+          )}
+        </For>
+      </ul>
+    </Show>
+  )
+}
+
+function CardBody(props: ToolCardProps): JSX.Element {
+  const view = useTodo()
+  return (
+    <ToolCard
+      Icon={Icon}
+      title="Updated the to-do list"
+      meta={view.total() ? `${view.done()}/${view.total()}` : undefined}
+      part={props.part}
+      result={props.result}
+    >
+      <Body />
+    </ToolCard>
   )
 }
 
 export function TodoCard(props: ToolCardProps): JSX.Element {
   return (
     <Todo.Root part={props.part} result={props.result}>
-      <Body />
+      <CardBody {...props} />
     </Todo.Root>
   )
 }

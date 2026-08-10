@@ -53,6 +53,10 @@ export function CodeBlock(props: {
   return <SolidCodeBlock class={blockClass()} options={CODE_BLOCK_OPTIONS} file={local.file} />
 }
 
+export function diffBlockClass(size: 'xs' | 'sm' = 'xs', class_?: string): string {
+  return `${diffBlock({size})} ${class_ ?? ''}`
+}
+
 export function DiffBlock(props: {
   file: {name: string; before: string; after: string; lang?: string}
   size?: 'xs' | 'sm'

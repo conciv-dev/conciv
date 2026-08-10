@@ -8,12 +8,15 @@ import {StatusVisual} from '../primitives/status-visual.js'
 import {CollapsibleCard} from './collapsible-card.js'
 
 const TITLE = 'text-[color:var(--chat-text)] flex-1 truncate [overflow-wrap:anywhere]'
+const TITLE_FIXED = 'text-[color:var(--chat-text)] shrink-0 [overflow-wrap:anywhere]'
+const SUBTITLE = 'text-[color:var(--chat-text-3)] flex-1 min-w-0 truncate'
 const METRIC =
   'text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] shrink-0 [font-family:var(--chat-mono)] tabular-nums'
 
 function HeaderContent(props: {
   Icon: Component
   title: string
+  subtitle: string | undefined
   meta: string | undefined
   duration: string | undefined
   status: ToolStatus
@@ -23,7 +26,14 @@ function HeaderContent(props: {
       <span class="text-[color:var(--chat-text-3)] inline-flex shrink-0 items-center" aria-hidden="true">
         <Dynamic component={props.Icon} />
       </span>
-      <span class={TITLE}>{props.title}</span>
+      <Show when={props.subtitle} fallback={<span class={TITLE}>{props.title}</span>}>
+        {(subtitle) => (
+          <>
+            <span class={TITLE_FIXED}>{props.title}</span>
+            <span class={SUBTITLE}>{subtitle()}</span>
+          </>
+        )}
+      </Show>
       <Show when={props.meta}>{(meta) => <span class={METRIC}>{meta()}</span>}</Show>
       <Show when={props.duration}>{(value) => <span class={METRIC}>{value()}</span>}</Show>
       <StatusVisual status={props.status} form="dot" />
@@ -34,6 +44,7 @@ function HeaderContent(props: {
 export function ToolCard(props: {
   Icon: Component
   title: string
+  subtitle?: string
   titleTooltip?: string
   part: ToolCallPart
   result: ToolResultPart | undefined
@@ -54,6 +65,7 @@ export function ToolCard(props: {
         <HeaderContent
           Icon={props.Icon}
           title={props.title}
+          subtitle={props.subtitle}
           meta={props.meta}
           duration={duration()}
           status={status()}

@@ -1,6 +1,6 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect} from 'storybook/test'
+import {expect, waitFor} from 'storybook/test'
 import {CodeBlock, DiffBlock} from './code-block.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/CodeBlock'}
@@ -25,7 +25,7 @@ export const CodeBlockXs: Story = {
   render: () =>
     frame(<CodeBlock size="xs" file={{name: 'script.js', lang: 'javascript', contents: 'const answer = 42'}} />),
   play: async ({canvasElement}) => {
-    await expect(await diffsText(canvasElement)).toContain('const answer = 42')
+    await waitFor(async () => expect(await diffsText(canvasElement)).toContain('const answer = 42'))
   },
 }
 
@@ -33,7 +33,7 @@ export const CodeBlockSm: Story = {
   render: () =>
     frame(<CodeBlock size="sm" file={{name: 'notes.txt', lang: 'text', contents: 'a larger result payload'}} />),
   play: async ({canvasElement}) => {
-    await expect(await diffsText(canvasElement)).toContain('a larger result payload')
+    await waitFor(async () => expect(await diffsText(canvasElement)).toContain('a larger result payload'))
   },
 }
 
@@ -41,9 +41,8 @@ export const CodeBlockLongContentScrolls: Story = {
   render: () =>
     frame(<CodeBlock size="xs" maxHeight="log" file={{name: 'output.log', lang: 'text', contents: LONG_CONTENTS}} />),
   play: async ({canvasElement}) => {
-    const text = await diffsText(canvasElement)
-    await expect(text).toContain('line 1: const value = 0')
-    await expect(text).toContain('line 80: const value = 79')
+    await waitFor(async () => expect(await diffsText(canvasElement)).toContain('line 1: const value = 0'))
+    await waitFor(async () => expect(await diffsText(canvasElement)).toContain('line 80: const value = 79'))
   },
 }
 
@@ -61,8 +60,7 @@ export const DiffBlockXs: Story = {
       />,
     ),
   play: async ({canvasElement}) => {
-    const text = await diffsText(canvasElement)
-    await expect(text).toContain('a: number')
+    await waitFor(async () => expect(await diffsText(canvasElement)).toContain('a: number'))
   },
 }
 
@@ -70,7 +68,6 @@ export const DiffBlockSm: Story = {
   render: () =>
     frame(<DiffBlock size="sm" file={{name: 'README.md', before: '# Title\nOld line', after: '# Title\nNew line'}} />),
   play: async ({canvasElement}) => {
-    const text = await diffsText(canvasElement)
-    await expect(text).toContain('New line')
+    await waitFor(async () => expect(await diffsText(canvasElement)).toContain('New line'))
   },
 }
