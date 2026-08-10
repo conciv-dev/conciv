@@ -9,6 +9,7 @@
     "packages/aidx/**",
     "packages/extensions/tanstack/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
+    "packages/oxlint-plugin/fixtures/**",
     "packages/cli/test/fixtures/**",
     "apps/examples/**",
     "docs/assets/page-session-card-spike/**",
@@ -83,7 +84,8 @@
     "@conciv/ui-kit-system",
     "@conciv/ui-kit-tap",
     "bippy",
-    "react-grab"
+    "react-grab",
+    "@solidjs/testing-library"
   ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [

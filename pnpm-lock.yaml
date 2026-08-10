@@ -2445,6 +2445,9 @@ importers:
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
+      '@solidjs/testing-library':
+        specifier: ^0.8.10
+        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
       '@tanstack/ai':
         specifier: 'catalog:'
         version: 0.43.1(@opentelemetry/api@1.9.1)(zod@4.4.3)
