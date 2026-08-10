@@ -24,9 +24,9 @@ function Body(): JSX.Element {
     >
       <div class="flex flex-col gap-2">
         <Show when={bash.command()}>
-          <div class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] [font-family:var(--chat-mono)] [overflow-wrap:anywhere]">
-            $ {bash.command()}
-          </div>
+          {(command) => (
+            <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellsession', contents: `$ ${command()}`}} />
+          )}
         </Show>
         <Show when={bash.output().stdout}>
           {(stdout) => (
