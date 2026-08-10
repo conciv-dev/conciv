@@ -99,7 +99,7 @@ beforeEach(() => {
       <button id="cta" class="cta">Send it</button>
       <p id="prose">original prose</p>
       <input id="secret" type="password" autocomplete="current-password" value="${PASSWORD}">
-      <input id="card" autocomplete="cc-number" value="4111111111111111">
+      <input id="card" autocomplete="cc-number" value="${CARD_SENTINEL}">
       <span id="doomed">temporary</span>
       <div id="hostile">
         <a id="hostile-link" href="javascript:window.__xssCapture = true" onmouseover="window.__xssCapture = true">click</a>
@@ -182,7 +182,7 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
   })
 
   it('carries the ancestor skeleton down to a marked target so page css still matches', async () => {
-    const bundle = await captureOf('probe.fill', {selector: '#card', value: '4111111111111111'})
+    const bundle = await captureOf('probe.fill', {selector: '#card', value: CARD_SENTINEL})
     const node = JSON.stringify(bundle.after?.node ?? null)
     expect(node).toContain('data-rr-target')
     expect(node).toContain('capture-form')
