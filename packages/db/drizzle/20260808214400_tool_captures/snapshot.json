@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "4222247e-e4c0-480a-aa66-1ce7ebbd42ed",
+  "id": "5250e755-c403-442d-adbb-eabdd6688bcf",
   "prevIds": ["38fc1626-4017-435a-a879-8d6638b7f9e7"],
   "ddl": [
     {
@@ -51,16 +51,6 @@
       "default": null,
       "generated": null,
       "name": "hash",
-      "entityType": "columns",
-      "table": "css_bundles"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "session_id",
       "entityType": "columns",
       "table": "css_bundles"
     },
@@ -585,7 +575,7 @@
       "table": "image_history"
     },
     {
-      "columns": ["tool_call_id", "kind"],
+      "columns": ["tool_call_id", "kind", "session_id"],
       "nameExplicit": true,
       "name": "tool_captures_pk",
       "entityType": "pks",
@@ -675,6 +665,20 @@
       "name": "sessions_native_key_unique",
       "entityType": "indexes",
       "table": "sessions"
+    },
+    {
+      "columns": [
+        {
+          "value": "session_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "tool_captures_session_id_idx",
+      "entityType": "indexes",
+      "table": "tool_captures"
     }
   ],
   "renames": []

@@ -9,38 +9,42 @@ export async function writeToolCapture(
 ): Promise<void> {
   const createdAt = Date.now()
   const {before, after} = params.bundle
-  for (const bundle of params.bundle.cssBundles ?? []) {
-    await db
-      .insert(cssBundles)
-      .values({hash: bundle.hash, sessionId: params.sessionId, css: bundle.css, createdAt})
-      .onConflictDoNothing()
-  }
-  for (const capture of [before, after]) {
-    if (capture === undefined) continue
-    const row = {
-      toolCallId: params.toolCallId,
-      kind: capture.kind,
-      sessionId: params.sessionId,
-      cssBundleId: capture.cssBundleId ?? null,
-      payload: capture,
-      createdAt,
+  db.transaction((tx) => {
+    for (const bundle of params.bundle.cssBundles ?? []) {
+      tx.insert(cssBundles).values({hash: bundle.hash, css: bundle.css, createdAt}).onConflictDoNothing().run()
     }
-    await db
-      .insert(toolCaptures)
-      .values(row)
-      .onConflictDoUpdate({
-        target: [toolCaptures.toolCallId, toolCaptures.kind],
-        set: {sessionId: row.sessionId, cssBundleId: row.cssBundleId, payload: row.payload, createdAt: row.createdAt},
-      })
-  }
+    for (const capture of [before, after]) {
+      if (capture === undefined) continue
+      const row = {
+        toolCallId: params.toolCallId,
+        kind: capture.kind,
+        sessionId: params.sessionId,
+        cssBundleId: capture.cssBundleId ?? null,
+        payload: capture,
+        createdAt,
+      }
+      tx.insert(toolCaptures)
+        .values(row)
+        .onConflictDoUpdate({
+          target: [toolCaptures.toolCallId, toolCaptures.kind, toolCaptures.sessionId],
+          set: {cssBundleId: row.cssBundleId, payload: row.payload, createdAt: row.createdAt},
+        })
+        .run()
+    }
+  })
 }
 
 export async function sessionCaptures(db: ConcivDb, sessionId: string): Promise<SessionCaptures> {
   const rows = await db
-    .select({toolCallId: toolCaptures.toolCallId, kind: toolCaptures.kind, payload: toolCaptures.payload})
+    .select({
+      toolCallId: toolCaptures.toolCallId,
+      kind: toolCaptures.kind,
+      payload: toolCaptures.payload,
+      cssBundleId: toolCaptures.cssBundleId,
+    })
     .from(toolCaptures)
     .where(eq(toolCaptures.sessionId, sessionId))
-  const hashes = [...new Set(rows.flatMap((row) => (row.payload.cssBundleId ? [row.payload.cssBundleId] : [])))]
+  const hashes = [...new Set(rows.flatMap((row) => (row.cssBundleId ? [row.cssBundleId] : [])))]
   const bundles =
     hashes.length === 0
       ? []
@@ -55,13 +59,17 @@ export async function sessionCaptures(db: ConcivDb, sessionId: string): Promise<
 }
 
 export async function deleteSessionCaptures(db: ConcivDb, sessionId: string): Promise<void> {
-  await db.delete(toolCaptures).where(eq(toolCaptures.sessionId, sessionId))
-  const referenced = (await db.selectDistinct({hash: toolCaptures.cssBundleId}).from(toolCaptures)).flatMap((row) =>
-    row.hash === null ? [] : [row.hash],
-  )
-  if (referenced.length === 0) {
-    await db.delete(cssBundles)
-    return
-  }
-  await db.delete(cssBundles).where(notInArray(cssBundles.hash, referenced))
+  db.transaction((tx) => {
+    tx.delete(toolCaptures).where(eq(toolCaptures.sessionId, sessionId)).run()
+    const referenced = tx
+      .selectDistinct({hash: toolCaptures.cssBundleId})
+      .from(toolCaptures)
+      .all()
+      .flatMap((row) => (row.hash === null ? [] : [row.hash]))
+    if (referenced.length === 0) {
+      tx.delete(cssBundles).run()
+      return
+    }
+    tx.delete(cssBundles).where(notInArray(cssBundles.hash, referenced)).run()
+  })
 }

@@ -16,6 +16,15 @@ function side(kind: ElementCaptureKind, name: string, cssBundleId = 'cssabc'): E
   }
 }
 
+function unserializableSide(kind: ElementCaptureKind, name: string): ElementCapture {
+  return {
+    kind,
+    ts: 7,
+    descriptor: {tagName: 'input', selectorPath: `#${name}`, role: 'textbox', value: '***'},
+    node: 10n,
+  }
+}
+
 function freshRoot(): string {
   return mkdtempSync(join(tmpdir(), 'conciv-captures-'))
 }
@@ -84,5 +93,25 @@ describe('tool captures outlive the run that produced them', () => {
     const survivor = await sessionCaptures(db, 's2')
     expect(survivor.captures).toHaveLength(1)
     expect(survivor.cssBundles['cssabc']).toBe('i{}')
+  })
+
+  it('leaves no orphan css bundle behind when a capture in the same call fails to write', async () => {
+    const root = freshRoot()
+    const db = openDb(root)
+    await expect(
+      writeToolCapture(db, {
+        sessionId: 's1',
+        toolCallId: 'call-1',
+        bundle: {
+          before: side('before', 'email'),
+          after: unserializableSide('after', 'email'),
+          cssBundles: [{hash: 'cssabc', css: 'i{}'}],
+        },
+      }),
+    ).rejects.toThrow()
+
+    const stored = await sessionCaptures(db, 's1')
+    expect(stored.captures).toEqual([])
+    expect(stored.cssBundles).toEqual({})
   })
 })
