@@ -24,7 +24,7 @@ const actFill = defineTool({
 }).client((input, ctx) => {
   const el = ctx.target(input)
   if (el instanceof HTMLInputElement) el.value = input.value
-  return {ok: true as const}
+  return {ok: true}
 })
 
 const editText = defineTool({
@@ -35,7 +35,7 @@ const editText = defineTool({
   meta: {summary: 'set element text', category: 'edit-live', mutating: true, capture: 'before-after'},
 }).client((input, ctx) => {
   ctx.target(input).textContent = input.text
-  return {ok: true as const}
+  return {ok: true}
 })
 
 const editRemove = defineTool({
@@ -46,7 +46,7 @@ const editRemove = defineTool({
   meta: {summary: 'remove an element', category: 'edit-live', mutating: true, capture: 'before-after'},
 }).client((input, ctx) => {
   ctx.target(input).remove()
-  return {ok: true as const}
+  return {ok: true}
 })
 
 const editStyled = defineTool({
@@ -62,7 +62,7 @@ const editStyled = defineTool({
   injected.textContent = '.capture-form .injected {color: rgb(9, 9, 9);}'
   document.head.appendChild(injected)
   el.textContent = input.text
-  return {ok: true as const}
+  return {ok: true}
 })
 
 const actMark = defineTool({
@@ -73,7 +73,7 @@ const actMark = defineTool({
   meta: {summary: 'mark an element', category: 'act', mutating: true, capture: 'after'},
 }).client((input, ctx) => {
   ctx.target(input).setAttribute('data-marked', 'true')
-  return {ok: true as const}
+  return {ok: true}
 })
 
 const probes = defineExtension({
@@ -105,6 +105,8 @@ beforeEach(() => {
         <a id="hostile-link" href="javascript:window.__xssCapture = true" onmouseover="window.__xssCapture = true">click</a>
         <img id="hostile-img" src="x" onerror="window.__xssCapture = true">
         <iframe id="hostile-frame" srcdoc="&lt;script&gt;window.__xssCapture = true&lt;/script&gt;"></iframe>
+        <object id="hostile-object" data="javascript:window.__xssCapture = true"></object>
+        <embed id="hostile-embed" src="javascript:window.__xssCapture = true">
         <link id="hostile-sheet" rel="stylesheet" href="/conciv-capture-probe/linked.css">
       </div>
     </section>
@@ -263,6 +265,8 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     expect(img?.attributes?.['onerror']).toBeUndefined()
 
     expect(findById(node, 'hostile-frame')).toBeUndefined()
+    expect(findById(node, 'hostile-object')).toBeUndefined()
+    expect(findById(node, 'hostile-embed')).toBeUndefined()
 
     const tabLink = findById(node, 'hostile-tab-link')
     expect(tabLink).toBeDefined()
