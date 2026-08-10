@@ -9,6 +9,7 @@ import type {EngineStaleness} from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
 import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {logError} from '../lib/debug.js'
+import {cappedText, RESULT_CAP_CHARS, safeStringify, truncationEnvelope} from '../lib/result-cap.js'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import type {CodeCapability} from '../chat/capabilities.js'
 import type {PermissionGate} from '../chat/gate.js'
@@ -32,15 +33,6 @@ type ImageContent = {type: 'image'; data: string; mimeType: string}
 
 type ExecuteReply = {content: (TextContent | ImageContent)[]; isError?: boolean}
 
-function safeStringify(value: unknown, context: string): string {
-  try {
-    return JSON.stringify(value) ?? 'null'
-  } catch (error) {
-    logError(`[mcp] ${context} was not JSON-serializable: ${String(error)}`)
-    return JSON.stringify({error: 'value could not be serialized', reason: String(error)})
-  }
-}
-
 function partToContent(part: ContentPart): TextContent | ImageContent {
   if (part.type === 'text') return {type: 'text', text: part.content}
   if (part.type === 'image') {
@@ -48,10 +40,6 @@ function partToContent(part: ContentPart): TextContent | ImageContent {
   }
   return {type: 'text', text: safeStringify(part, `content part of type "${part.type}"`)}
 }
-
-const RESULT_CAP_CHARS = 50_000
-
-const TRUNCATION_HEAD_CHARS = 4_000
 
 const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): /
 
@@ -82,33 +70,6 @@ Rules of the sandbox:
 - A capability's declared error code arrives as a "CODE: message" prefix on the thrown error's message (typed error objects do not survive the isolate boundary).
 - Each execution is isolated: no state, imports, network, or file system carry over between calls.
 - Oversized results are truncated to an envelope carrying the reason and a head sample; return less data instead of retrying.`
-}
-
-function wellFormedSlice(text: string, length: number): string {
-  const sliced = text.slice(0, length)
-  const last = sliced.charCodeAt(sliced.length - 1)
-  if (last >= 0xd800 && last <= 0xdbff) return sliced.slice(0, -1)
-  return sliced
-}
-
-const TRUNCATION_MARKER = 'conciv:truncated'
-
-function truncationEnvelope(reason: string, headSource: string): string {
-  return JSON.stringify({
-    [TRUNCATION_MARKER]: true,
-    truncated: true,
-    reason,
-    advice: 'narrow the request or aggregate inside the sandbox and return less data',
-    head: wellFormedSlice(headSource, TRUNCATION_HEAD_CHARS),
-  })
-}
-
-function cappedText(body: string): string {
-  if (body.length <= RESULT_CAP_CHARS) return body
-  return truncationEnvelope(
-    `the serialized result is ${body.length} characters and the cap is ${RESULT_CAP_CHARS}`,
-    body,
-  )
 }
 
 function declaredCodesOf(capabilities: CodeCapability[]): Set<string> {

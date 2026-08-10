@@ -14,6 +14,7 @@ import {toChatTool, type ToolRunContext} from './runtime.js'
 import {approvalRefusal, noListenerRefusal, requiresApproval, type PermissionGate} from './gate.js'
 import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
 import {logError} from '../lib/debug.js'
+import {cappedValue} from '../lib/result-cap.js'
 
 const CODE_MODE_TIMEOUT_MS = 150_000
 
@@ -269,6 +270,16 @@ const CATALOG_PROMPT = `### Capability catalog
 
 Inside execute_typescript, \`${CATALOG_CALL_HINT}\` lists every available capability with the exact function name to call, \`await external_catalog({search})\` filters that list, and \`await external_catalog({name})\` returns one full typed signature. Discover through the catalog instead of guessing a signature.`
 
+function cappedTool(tool: AnyTool): AnyTool {
+  const execute = tool.execute
+  if (!execute) return tool
+  return {
+    ...tool,
+    execute: async (args: unknown, context?: ToolRunContext) =>
+      cappedValue(await execute(args, context), `the ${tool.name} result`),
+  }
+}
+
 export type CodeMode = {
   tool: AnyTool
   tools: AnyTool[]
@@ -301,7 +312,7 @@ export async function makeCodeMode(
   const tool: AnyTool = codeMode.tool
   return {
     tool,
-    tools: [...codeMode.tools],
+    tools: codeMode.tools.map(cappedTool),
     systemPrompt: [codeMode.systemPrompt, CATALOG_PROMPT].join('\n\n'),
     categories: rankedCategories(snapshot),
     run: (typescriptCode, context) => {

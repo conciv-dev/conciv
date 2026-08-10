@@ -115,6 +115,16 @@ describe('makeCodeMode', () => {
     expect(result.error?.message).toMatch(/secret/i)
   })
 
+  test('caps an oversized capability result before the chat surface returns it', async () => {
+    const flood = capability('flood', {execute: async () => 'x'.repeat(200_000)})
+    const codeMode = await codeModeOf([flood], allowGate)
+    const entry = codeMode.tools.find((candidate) => candidate.name === 'execute_typescript')
+    if (!entry?.execute) throw new Error('no execute_typescript tool')
+    const serialized = JSON.stringify(await entry.execute({typescriptCode: 'return await external_flood({})'}, {}))
+    expect(serialized).toContain('conciv:truncated')
+    expect(serialized.length).toBeLessThan(60_000)
+  })
+
   test('ranks a bounded category sample', async () => {
     const capabilities = [
       capability('a.one', {category: 'read'}),
