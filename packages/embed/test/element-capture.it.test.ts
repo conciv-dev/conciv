@@ -36,8 +36,8 @@ afterAll(async () => {
 
 const openHostPage = (): Promise<Page> => openPagePlaneHost(browser, host.base)
 
-function capturesFor(stored: SessionCaptures, toolCallId: string): SessionCaptures['captures'] {
-  return stored.captures.filter((row) => row.toolCallId === toolCallId)
+function rowIdentities(stored: SessionCaptures): string[] {
+  return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
 }
 
 describe('a page tool run through the widget stores a frozen picture of the element it touched', () => {
@@ -54,10 +54,14 @@ describe('a page tool run through the widget stores a frozen picture of the elem
     const edit = stored.captures.filter((row) => row.capture.descriptor.selectorPath.includes('prose'))
     expect(edit.map((row) => row.kind).toSorted()).toEqual(['after', 'before'])
     const before = edit.find((row) => row.kind === 'before')
+    const after = edit.find((row) => row.kind === 'after')
     expect(before?.capture.descriptor.accessibleName).toBe('original prose')
+    expect(after?.capture.descriptor.accessibleName).toBe('rewritten by the agent')
     expect(JSON.stringify(before?.capture.node)).toContain('theme-light')
     expect(JSON.stringify(before?.capture.node)).not.toContain('theme-dark')
     expect(JSON.stringify(before?.capture.node)).toContain('data-rr-target')
+    expect(JSON.stringify(after?.capture.node)).toContain('theme-light')
+    expect(JSON.stringify(after?.capture.node)).not.toContain('theme-dark')
     const cssBundleId = before?.capture.cssBundleId
     expect(cssBundleId === undefined ? '' : stored.cssBundles[cssBundleId]).toContain('.panel .cta')
     await page.close()
@@ -67,6 +71,9 @@ describe('a page tool run through the widget stores a frozen picture of the elem
     const page = await openHostPage()
     const result = await kit.callTool('page.fill', {selector: '#secret', value: 'typed by the agent'}, sessionId)
     const stored: SessionCaptures = await kit.rpc.captures.list({sessionId})
+    const secretCaptures = stored.captures.filter((row) => row.capture.descriptor.selectorPath.includes('secret'))
+    expect(secretCaptures.map((row) => row.kind).toSorted()).toEqual(['after'])
+    for (const row of secretCaptures) expect(JSON.stringify(row.capture)).not.toContain(PASSWORD)
     expect(JSON.stringify(result)).not.toContain(PASSWORD)
     expect(JSON.stringify(stored)).not.toContain(PASSWORD)
     await page.close()
@@ -86,8 +93,7 @@ describe('a page tool run through the widget stores a frozen picture of the elem
     const before: SessionCaptures = await kit.rpc.captures.list({sessionId})
     await kit.callTool('page.text', {selector: '#cta'}, sessionId)
     const after: SessionCaptures = await kit.rpc.captures.list({sessionId})
-    expect(after.captures.length).toBe(before.captures.length)
-    expect(capturesFor(after, 'never-minted')).toEqual([])
+    expect(rowIdentities(after)).toEqual(rowIdentities(before))
     await page.close()
   }, 60_000)
 })

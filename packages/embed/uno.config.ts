@@ -12,6 +12,7 @@ export default defineConfig({
       '../ui-kit-terminal/src/**/*.{ts,tsx}',
       '../ui-kit-tap/src/**/*.{ts,tsx}',
       '../tools/src/**/*.{ts,tsx}',
+      '../core/src/cards.tsx',
       '../core/src/cards/**/*.{ts,tsx}',
       '../extensions/page/src/**/*.{ts,tsx}',
       '../extensions/terminal/src/**/*.{ts,tsx}',
