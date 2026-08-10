@@ -10,8 +10,7 @@ import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {pageCapabilities, pageInputFor, pageToolDescription} from '@conciv/tools/defs'
 import {PAGE_TOOL_DEFS, pageToolMetaOf} from '@conciv/extension-page/defs'
-import {PageActionCard} from '../src/styled/page-action-card.js'
-import {GENERIC_TOOL_ICON, toolIconRender} from '../src/styled/tool-icon.js'
+import {INERT_ADD_RESULT, GENERIC_TOOL_ICON, MetaToolCard, toolIconRender} from '@conciv/ui-kit-chat'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
 import {cleanupViews, mountView} from './mount-view.js'
 import {registryCatalogView} from './registry-catalog-view.js'
@@ -20,11 +19,11 @@ afterEach(() => {
   cleanupViews()
 })
 
-function part(args: Record<string, unknown>): ToolCallPart {
+function part(verb: string, args: Record<string, unknown> = {}): ToolCallPart {
   return {
     type: 'tool-call',
     id: 'p1',
-    name: 'conciv_page',
+    name: `page.${verb}`,
     arguments: JSON.stringify(args),
     input: args,
     state: 'complete',
@@ -56,6 +55,7 @@ const ctx: ToolViewCtx = {
   apiBase: '',
   harnessId: 'test',
   sendMessage: () => {},
+  addResult: () => {},
   catalog: registryCatalogView(registryWith(shipTool)),
 }
 
@@ -86,15 +86,16 @@ it('the card and the running title read a built-in declaration through the defau
   if (!declared?.label) throw new Error('page.setattr declares no label')
 
   mountView(() => (
-    <PageActionCard
-      part={part({verb: 'setattr', selector: '#hero', attribute: 'hidden'})}
+    <MetaToolCard
+      part={part('setattr', {selector: '#hero', attribute: 'hidden'})}
       result={undefined}
       ctx={ctx}
+      addResult={INERT_ADD_RESULT}
     />
   ))
 
-  await expect.element(page.getByText(declared.label.done)).toBeVisible()
-  expect(nowTitle(part({verb: 'setattr'}), ctx.catalog)).toBe(declared.label.running)
+  await expect.element(page.getByText(`${declared.label.done} #hero`, {exact: true})).toBeVisible()
+  expect(nowTitle(part('setattr'), ctx.catalog)).toBe(declared.label.running)
   expect(toolIconRender(declared.icon)).toBe(toolIconRender('edit'))
   expect(toolIconRender(declared.icon)).not.toBe(GENERIC_TOOL_ICON)
 })

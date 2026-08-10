@@ -7,7 +7,7 @@ import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
-import {drafts, markers, navigation} from '@conciv/db'
+import {drafts, markers, navigation, sessionCaptures} from '@conciv/db'
 import type {RegistryCallErrorName, ToolCommandSignature} from '@conciv/contract'
 import {listCommands} from '../../chat/commands.js'
 import {makeAskGate, requiresApproval} from '../../chat/gate.js'
@@ -167,7 +167,10 @@ export function makeRpcRouter(deps: RpcDeps) {
             mutating: signature.mutating,
             mirrors: signature.mirrors,
             reachable: entry.reachable,
-            input: signature.input,
+            approval: signature.approval,
+            inputSchema: signature.inputSchema,
+            outputSchema: signature.outputSchema,
+            errors: signature.errors,
           }
         }),
       ),
@@ -180,6 +183,9 @@ export function makeRpcRouter(deps: RpcDeps) {
           throw registryCallError(error, errors)
         }
       }),
+    },
+    captures: {
+      list: os.captures.list.handler(({input}) => sessionCaptures(deps.chat.db, input.sessionId)),
     },
     page: {
       symbolicate: os.page.symbolicate.handler(({input}) => symbolicateFrames(input.frames, deps.page.root)),

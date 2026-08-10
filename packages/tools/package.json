@@ -31,14 +31,25 @@
     "./builtins": {
       "types": "./dist/builtins.d.ts",
       "import": "./dist/builtins.js"
-    }
+    },
+    "./cards": {
+      "browser": {
+        "types": "./dist/cards.d.ts",
+        "default": "./dist/cards.js"
+      },
+      "import": {
+        "types": "./dist/cards.d.ts",
+        "default": "./dist/cards.js"
+      }
+    },
+    "./package.json": "./package.json"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsdown && vite build && tsc -p tsconfig.cards.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.cards.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
@@ -48,15 +59,30 @@
     "@conciv/extension": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/solid-diffs": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
     "@tanstack/ai": "^0.43.0",
+    "lucide-solid": "^1.18.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@tanstack/ai-client": "0.23.0",
     "@types/node": "^22.19.21",
     "@vitest/coverage-v8": "^4.1.8",
+    "solid-js": "^1.9.13",
+    "storybook": "^10.5.0",
+    "storybook-solidjs-vite": "^10.6.0",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
+    "unocss": "^66.7.2",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
   }
 }

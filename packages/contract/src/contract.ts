@@ -20,6 +20,7 @@ import {
   SymbolicateSchema,
 } from '@conciv/protocol/page-types'
 import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
+import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
@@ -64,7 +65,10 @@ export const ToolCommandSignatureSchema = z.object({
   mutating: z.boolean(),
   mirrors: z.boolean(),
   reachable: z.boolean(),
-  input: z.unknown(),
+  approval: z.literal('ask').optional(),
+  inputSchema: z.unknown(),
+  outputSchema: z.unknown(),
+  errors: z.array(z.object({code: z.string(), message: z.string(), transport: z.boolean()})).default([]),
 })
 
 export type ToolCommandSignature = z.infer<typeof ToolCommandSignatureSchema>
@@ -135,6 +139,9 @@ export const contract = {
       .errors(registryCallErrors)
       .input(z.object({name: z.string().min(1), input: z.record(z.string(), z.unknown())}))
       .output(z.unknown()),
+  },
+  captures: {
+    list: oc.input(SessionIdInput).output(SessionCapturesSchema),
   },
   page: {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),

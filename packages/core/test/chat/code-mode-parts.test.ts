@@ -15,20 +15,21 @@ describe('codeModeToolChunks', () => {
         toolCallId: 'c1',
         toolCallName: 'canvas.svg',
         toolName: 'canvas.svg',
-        metadata: {parentToolCallId: 'parent-1'},
+        metadata: {codeModeSynthetic: true, parentToolCallId: 'parent-1'},
       },
       {type: EventType.TOOL_CALL_ARGS, toolCallId: 'c1', delta: '{"x":1}'},
       {type: EventType.TOOL_CALL_END, toolCallId: 'c1'},
     ])
   })
 
-  test('a call without a parent id carries no metadata', () => {
+  test('a call without a parent id still carries the synthetic marker', () => {
     const chunks = codeModeToolChunks(custom('conciv:tool_call', {callId: 'c1', name: 'canvas.svg', input: {}}))
     expect(chunks?.[0]).toEqual({
       type: EventType.TOOL_CALL_START,
       toolCallId: 'c1',
       toolCallName: 'canvas.svg',
       toolName: 'canvas.svg',
+      metadata: {codeModeSynthetic: true},
     })
   })
 

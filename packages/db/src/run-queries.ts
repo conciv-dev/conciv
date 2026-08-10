@@ -1,4 +1,5 @@
 import {and, eq} from 'drizzle-orm'
+import {CODE_MODE_SYNTHETIC_PART_MARKER} from '@conciv/protocol/chat-types'
 import type {ConcivDb} from './db.js'
 import {sessions} from './schema.js'
 import {replies, runMessages, runs, sessionHistory} from './run-schema.js'
@@ -46,9 +47,16 @@ export function deleteRunMessages(db: QueryHandle, id: string): void {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
+function isCliUnreproduciblePart(part: unknown): boolean {
+  if (!isRecord(part)) return false
+  if (part.type === 'image' || part.type === 'document') return true
+  if (part.type !== 'tool-call') return false
+  return isRecord(part.metadata) && part.metadata[CODE_MODE_SYNTHETIC_PART_MARKER] === true
+}
+
 export function hasRichPart(message: unknown): boolean {
   if (!isRecord(message) || !Array.isArray(message.parts)) return false
-  return message.parts.some((part) => isRecord(part) && (part.type === 'image' || part.type === 'document'))
+  return message.parts.some(isCliUnreproduciblePart)
 }
 
 function appendRunIntoHistory(db: ConcivDb, id: string): void {

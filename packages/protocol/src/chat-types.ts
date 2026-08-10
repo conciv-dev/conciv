@@ -8,6 +8,8 @@ export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
 export const CONCIV_CLAUDE_SESSION_HEADER = 'conciv-claude-session-id'
 
+export const CODE_MODE_SYNTHETIC_PART_MARKER = 'codeModeSynthetic'
+
 const MEBIBYTE = 1024 * 1024
 export const MAX_ATTACHMENT_RAW_BYTES = Math.floor((WS_RPC_PAYLOAD_BUDGET_BYTES * 3) / 4 / MEBIBYTE) * MEBIBYTE
 const MAX_ATTACHMENT_BASE64_LENGTH = Math.ceil(MAX_ATTACHMENT_RAW_BYTES / 3) * 4

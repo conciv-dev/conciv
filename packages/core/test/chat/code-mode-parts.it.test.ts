@@ -38,8 +38,7 @@ describe('code-mode per-tool parts on the wire (IT)', () => {
     const kit: Kit = await bootKit({}, harness)
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
-    const parentId = `tc-${sessionId}`
-    harness.script.scriptToolCall(
+    const parentId = harness.script.scriptToolCall(
       'execute_typescript',
       {typescriptCode: 'return await external_canvas_svg({})'},
       {

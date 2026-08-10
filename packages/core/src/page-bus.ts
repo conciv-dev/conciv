@@ -1,4 +1,5 @@
 import {pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
+import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 
 export type ChangeEntry = {
   seq: number
@@ -66,14 +67,18 @@ function makePending<T>(): Pending<T> {
   return {await: awaitReply, resolve}
 }
 
+export type PageAnswer = {result: Record<string, unknown>; capture?: PageCaptureBundle}
+
 export type PageBus = {
-  ask: (query: Omit<PageQuery, 'requestId'>) => Promise<Record<string, unknown>>
+  ask: (query: Omit<PageQuery, 'requestId'>) => Promise<PageAnswer>
   connected: () => boolean
   resolve: (requestId: string, outcome: PageOutcome) => boolean
   subscribe: (emit: (frame: unknown) => void) => () => void
 }
 
-export type PageEnv = {journal: Journal; root: string; bus: PageBus}
+export type CaptureSink = (params: {sessionId: string; toolCallId: string; bundle: PageCaptureBundle}) => Promise<void>
+
+export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCapture: CaptureSink}
 
 export function makePageBus(timeoutMs = 5000): PageBus {
   const pending = makePending<PageOutcome>()
@@ -85,7 +90,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     return () => subscribers.delete(emit)
   }
 
-  async function ask(query: Omit<PageQuery, 'requestId'>): Promise<Record<string, unknown>> {
+  async function ask(query: Omit<PageQuery, 'requestId'>): Promise<PageAnswer> {
     if (subscribers.size === 0) throw pageFailure('no-widget', 'no widget connected')
     idState.n += 1
     const requestId = `pq${idState.n}`
@@ -96,7 +101,8 @@ export function makePageBus(timeoutMs = 5000): PageBus {
       throw pageFailure('timeout', 'page did not reply (no widget connected?)')
     })
     if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
-    return outcome.result
+    if (outcome.capture === undefined) return {result: outcome.result}
+    return {result: outcome.result, capture: outcome.capture}
   }
 
   return {ask, connected: () => subscribers.size > 0, resolve: pending.resolve, subscribe}
@@ -140,6 +146,11 @@ export async function* pageQueryStream(
   }
 }
 
-export function askPage(bus: PageBus, name: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
-  return bus.ask({name, input})
+export async function askPage(
+  bus: PageBus,
+  name: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const answer = await bus.ask({name, input})
+  return answer.result
 }

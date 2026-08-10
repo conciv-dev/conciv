@@ -4,7 +4,6 @@ export default defineConfig({
   entry: [
     'src/chat-types.ts',
     'src/ui-types.ts',
-    'src/done-types.ts',
     'src/editor-types.ts',
     'src/harness-types.ts',
     'src/framework-types.ts',
@@ -13,6 +12,8 @@ export default defineConfig({
     'src/bundler-types.ts',
     'src/config-types.ts',
     'src/page-types.ts',
+    'src/element-capture-types.ts',
+    'src/element-capture-sanitize.ts',
     'src/page-introspect-types.ts',
     'src/usage-types.ts',
     'src/tool-icon-types.ts',

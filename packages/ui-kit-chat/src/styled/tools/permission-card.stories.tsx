@@ -30,7 +30,7 @@ export const Pending: Story = {
     return frame(
       'chat-theme-dark',
       <>
-        <PermissionCard part={pendingPart} result={undefined} ctx={ctx} label="Run this command?" />
+        <PermissionCard part={pendingPart} ctx={ctx} label="Run this command?" />
         <div data-decided>{decided() === null ? 'undecided' : decided() ? 'approved' : 'rejected'}</div>
       </>,
     )
@@ -52,7 +52,6 @@ export const Settled: Story = {
       'chat-theme-dark',
       <PermissionCard
         part={{...pendingPart, state: 'complete'}}
-        result={undefined}
         ctx={{...INERT_TOOL_CTX, respondApproval: () => {}}}
       />,
     ),

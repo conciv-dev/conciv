@@ -1,5 +1,6 @@
 import type {z} from 'zod'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
+import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import type {ClientEffect, ExtensionTool, ToolRenderer, ToolRequest} from './types.js'
 
 export type ToolMeta = {
@@ -7,6 +8,7 @@ export type ToolMeta = {
   category?: string
   mutating?: boolean
   mirrors?: boolean
+  capture?: ToolCaptureMode
   keywords?: readonly string[]
   positional?: string
   hint?: string

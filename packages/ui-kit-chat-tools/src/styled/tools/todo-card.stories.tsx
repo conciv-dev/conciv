@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {TodoCard} from './todo-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/TodoCard'}
@@ -24,7 +24,11 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 }
 
 export const Complete: Story = {
-  render: () => frame('chat-theme-dark', <TodoCard part={part()} result={undefined} ctx={INERT_TOOL_CTX} />),
+  render: () =>
+    frame(
+      'chat-theme-dark',
+      <TodoCard part={part()} result={undefined} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('Updated the to-do list')).toBeVisible()
@@ -36,5 +40,9 @@ export const Complete: Story = {
 }
 
 export const Conciv: Story = {
-  render: () => frame('chat-theme-conciv', <TodoCard part={part()} result={undefined} ctx={INERT_TOOL_CTX} />),
+  render: () =>
+    frame(
+      'chat-theme-conciv',
+      <TodoCard part={part()} result={undefined} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
 }

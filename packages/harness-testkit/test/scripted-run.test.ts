@@ -23,6 +23,23 @@ describe('makeScriptedRun', () => {
     expect(out.some((c) => c.type === EventType.CUSTOM && c.name === 'fake.session-id')).toBe(true)
   })
 
+  it('gives each tool call in a session its own toolCallId, matching what scriptToolCall returned', async () => {
+    const scripted = makeScriptedRun()
+    const firstScriptedId = scripted.scriptToolCall('first_tool', {a: 1}, {blocking: false})
+    const secondScriptedId = scripted.scriptToolCall('second_tool', {b: 2}, {blocking: false})
+    const collectToolCallId = async (): Promise<string> => {
+      for await (const chunk of scripted.chatStream(deps())) {
+        if (chunk.type === EventType.TOOL_CALL_START) return chunk.toolCallId
+      }
+      throw new Error('no tool call start emitted')
+    }
+    const firstEmittedId = await collectToolCallId()
+    const secondEmittedId = await collectToolCallId()
+    expect(firstEmittedId).not.toBe(secondEmittedId)
+    expect(firstEmittedId).toBe(firstScriptedId)
+    expect(secondEmittedId).toBe(secondScriptedId)
+  })
+
   it('holds the turn open until release()', async () => {
     const scripted = makeScriptedRun()
     scripted.hold()

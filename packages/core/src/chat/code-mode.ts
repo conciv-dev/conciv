@@ -79,7 +79,7 @@ export function gatedToolRun(
       if (refusal !== null) refuse(refusal)
     }
     try {
-      const result = await capability.execute(args, request)
+      const result = await capability.execute(args, {...request, toolCallId: callId})
       emit(CODE_MODE_TOOL_RESULT_EVENT, {callId, result})
       return result
     } catch (error) {

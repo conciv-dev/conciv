@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {INERT_TOOL_CTX} from '../store/tool-context.js'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../store/tool-context.js'
 import {ToolFallback} from './tool-fallback.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/ToolFallback'}
@@ -32,7 +32,13 @@ export const Complete: Story = {
   render: () =>
     frame(
       'chat-theme-dark',
-      <ToolFallback part={part({city: 'Berlin'})} result={result('{"tempC": 18}')} ctx={ctx} durationMs={4200} />,
+      <ToolFallback
+        part={part({city: 'Berlin'})}
+        result={result('{"tempC": 18}')}
+        ctx={ctx}
+        addResult={INERT_ADD_RESULT}
+        durationMs={4200}
+      />,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
@@ -48,7 +54,12 @@ export const Running: Story = {
   render: () =>
     frame(
       'chat-theme-conciv',
-      <ToolFallback part={part({city: 'Berlin'}, 'input-complete')} result={undefined} ctx={ctx} />,
+      <ToolFallback
+        part={part({city: 'Berlin'}, 'input-complete')}
+        result={undefined}
+        ctx={ctx}
+        addResult={INERT_ADD_RESULT}
+      />,
     ),
 }
 
@@ -56,7 +67,12 @@ export const Errored: Story = {
   render: () =>
     frame(
       'chat-theme-dark',
-      <ToolFallback part={part({city: 'Atlantis'})} result={result('no such city', 'error')} ctx={ctx} />,
+      <ToolFallback
+        part={part({city: 'Atlantis'})}
+        result={result('no such city', 'error')}
+        ctx={ctx}
+        addResult={INERT_ADD_RESULT}
+      />,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
@@ -72,7 +88,10 @@ export const Approval: Story = {
       ...part({city: 'Berlin'}, 'approval-requested'),
       approval: {id: 'ap1', needsApproval: true},
     }
-    return frame('chat-theme-dark', <ToolFallback part={approvalPart} result={undefined} ctx={ctx} />)
+    return frame(
+      'chat-theme-dark',
+      <ToolFallback part={approvalPart} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />,
+    )
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)

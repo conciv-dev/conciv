@@ -47,7 +47,7 @@ type BrowserPeer = (query: z.infer<typeof PageQuerySchema>) =>
     }
 
 function bootRegistry(peer: BrowserPeer) {
-  const env: PageEnv = {journal: makeJournal(), root: '/repo', bus: makePageBus(1_000)}
+  const env: PageEnv = {journal: makeJournal(), root: '/repo', bus: makePageBus(1_000), storeCapture: async () => {}}
   const frames: z.infer<typeof PageQuerySchema>[] = []
   env.bus.subscribe((frame) => {
     const query = PageQuerySchema.parse(frame)

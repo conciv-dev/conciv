@@ -15,7 +15,7 @@ function envAsking(ask: PageBus['ask']): PageEnv {
     resolve: (_requestId: string, _outcome: PageOutcome) => false,
     subscribe: () => () => {},
   }
-  return {journal: makeJournal(), root: '/repo', bus}
+  return {journal: makeJournal(), root: '/repo', bus, storeCapture: async () => {}}
 }
 
 async function failureOf(call: Promise<unknown>): Promise<unknown> {
@@ -62,7 +62,7 @@ describe('a built-in tool call carries who asked and how it failed', () => {
 
   it('journals mutating calls from declaration meta and leaves reads out', async () => {
     const answers: Record<string, unknown>[] = [{text: 'hi'}, {ok: true}]
-    const env = envAsking(async () => answers.shift() ?? {})
+    const env = envAsking(async () => ({result: answers.shift() ?? {}}))
     const registry = makeBuiltinRegistry({page: env, bundler: () => undefined, openInEditor: () => {}})
     for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a test registrant'})
     await registry.call('page.text', {selector: '#h'})

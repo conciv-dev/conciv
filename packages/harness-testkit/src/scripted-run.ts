@@ -5,7 +5,7 @@ export type ScriptedRun = {
   chatStream: (deps: HarnessChatDeps) => AsyncGenerator<StreamChunk>
   hold: () => void
   release: () => void
-  scriptToolCall: (name: string, input: unknown, opts?: {blocking?: boolean}) => void
+  scriptToolCall: (name: string, input: unknown, opts?: {blocking?: boolean}) => string
   scriptCustomEvent: (name: string, value: unknown) => void
   scriptError: (message: string) => void
 }
@@ -13,7 +13,8 @@ export type ScriptedRun = {
 export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const gate = {held: false, waiting: new Set<() => void>()}
   const turns = {count: 0}
-  const queuedToolCalls: Array<{name: string; input: unknown; blocking: boolean}> = []
+  const toolCalls = {count: 0}
+  const queuedToolCalls: Array<{id: string; name: string; input: unknown; blocking: boolean}> = []
   const queuedCustomEvents: Array<{name: string; value: unknown}> = []
   const queuedErrors: string[] = []
   const hold = () => {
@@ -26,7 +27,10 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     for (const resume of resuming) resume()
   }
   const scriptToolCall = (name: string, input: unknown, toolOpts: {blocking?: boolean} = {}) => {
-    queuedToolCalls.push({name, input, blocking: toolOpts.blocking ?? true})
+    toolCalls.count += 1
+    const toolCallId = `tc-${toolCalls.count}`
+    queuedToolCalls.push({id: toolCallId, name, input, blocking: toolOpts.blocking ?? true})
+    return toolCallId
   }
   const scriptCustomEvent = (name: string, value: unknown) => {
     queuedCustomEvents.push({name, value})
@@ -47,7 +51,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     }
     const toolCall = queuedToolCalls.shift()
     if (toolCall) {
-      const toolCallId = `tc-${deps.sessionId}`
+      const toolCallId = toolCall.id
       yield {type: EventType.TOOL_CALL_START, toolCallId, toolCallName: toolCall.name, toolName: toolCall.name}
       yield {type: EventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify(toolCall.input)}
       yield {type: EventType.TOOL_CALL_END, toolCallId}

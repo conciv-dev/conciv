@@ -44,7 +44,6 @@
     "@conciv/tools": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
-    "js-beautify": "^1.15.4",
     "lucide-solid": "^1.18.0",
     "zod": "^4.4.3"
   },
@@ -53,7 +52,6 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@tanstack/ai-client": "0.23.0",
-    "@types/js-beautify": "^1.14.3",
     "@types/node": "^22.19.21",
     "@unocss/postcss": "^66.7.2",
     "@vitest/browser-playwright": "4.1.10",

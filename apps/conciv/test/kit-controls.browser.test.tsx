@@ -1,15 +1,15 @@
 import '@conciv/ui-kit-system/tokens.css'
 import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
-import {page, userEvent} from 'vitest/browser'
+import {page} from 'vitest/browser'
 import {render} from 'solid-js/web'
 import type {JSX} from 'solid-js'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import {INERT_TOOL_CATALOG} from '@conciv/protocol/tool-view-types'
+import {UiCard} from '@conciv/tools/cards'
 import {NoticeToaster, notify, toaster} from '../src/shell/notices.js'
 import {QuickTerminalHeader} from '../src/routes/quick.js'
-import {makeConcivUiCard} from '../src/pane/conciv-ui-card.js'
 
 const disposers: (() => void)[] = []
 
@@ -51,22 +51,23 @@ test('the quick terminal pop-out control explains itself with a tooltip, not a n
 
 test('a form question answers with the option the reader picks out of the listbox', async () => {
   const answers: UiAnswerValue[] = []
-  const Card = makeConcivUiCard({reply: (_toolCallId, value) => answers.push(value)})
   mount(() => (
-    <Card
+    <UiCard
       part={uiPart({
         kind: 'form',
         title: 'Deploy settings',
         fields: [{name: 'env', label: 'Environment', type: 'select', options: ['staging', 'production']}],
       })}
       result={undefined}
-      ctx={{apiBase: '', harnessId: 'fake', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}}
+      ctx={{apiBase: '', harnessId: 'fake', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG, addResult: () => {}}}
+      addResult={(value) => answers.push(value)}
     />
   ))
 
-  await userEvent.selectOptions(page.getByRole('combobox', {name: 'Environment'}), 'production')
+  await page.getByRole('combobox', {name: 'Environment'}).click()
+  await page.getByRole('option', {name: 'production'}).click()
 
-  await expect.element(page.getByRole('combobox', {name: 'Environment'})).toHaveValue('production')
+  await expect.element(page.getByRole('combobox', {name: 'Environment'})).toHaveTextContent('production')
 
   await page.getByRole('button', {name: 'Submit'}).click()
 

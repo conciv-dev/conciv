@@ -140,6 +140,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     '/rpc/drafts/get': () => reply(config.draft ?? null),
     '/rpc/drafts/set': () => reply({ok: true}),
     '/rpc/markers/list': () => reply([]),
+    '/rpc/captures/list': () => reply({captures: [], cssBundles: {}}),
     '/rpc/meta/models': () =>
       reply({
         models: [{id: 'model-1', name: 'Fable'}],

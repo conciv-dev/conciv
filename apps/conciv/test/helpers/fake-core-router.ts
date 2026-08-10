@@ -73,6 +73,9 @@ function buildRouter(subscribe: (signal: AbortSignal) => AsyncGenerator<StreamCh
     markers: {
       list: os.markers.list.handler(() => []),
     },
+    captures: {
+      list: os.captures.list.handler(() => ({captures: [], cssBundles: {}})),
+    },
     meta: {
       models: os.meta.models.handler(() => ({
         models: [{id: 'model-1', name: 'Fable'}],

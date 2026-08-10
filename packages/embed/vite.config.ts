@@ -4,7 +4,7 @@ import solid from 'vite-plugin-solid'
 
 const EXTERNAL_PREFIXES = ['solid-js/', '@ark-ui/', '@conciv/']
 
-const INLINED_PREFIXES = ['@conciv/page', '@conciv/app', '@conciv/tools']
+const INLINED_PREFIXES = ['@conciv/page', '@conciv/app', '@conciv/tools', '@conciv/core']
 
 const isExternal = (id: string): boolean => {
   if (INLINED_PREFIXES.some((prefix) => id.startsWith(prefix))) return false

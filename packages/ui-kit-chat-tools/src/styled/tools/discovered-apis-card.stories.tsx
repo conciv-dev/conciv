@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {DiscoveredApisCard} from './discovered-apis-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/DiscoveredApisCard'}
@@ -64,7 +64,11 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 }
 
 export const Discovered: Story = {
-  render: () => frame('chat-theme-dark', <DiscoveredApisCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} />),
+  render: () =>
+    frame(
+      'chat-theme-dark',
+      <DiscoveredApisCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('Discovered 1 API')).toBeVisible()
@@ -77,7 +81,11 @@ export const Discovered: Story = {
 }
 
 export const DiscoveredMany: Story = {
-  render: () => frame('chat-theme-dark', <DiscoveredApisCard part={part()} result={manyResult} ctx={INERT_TOOL_CTX} />),
+  render: () =>
+    frame(
+      'chat-theme-dark',
+      <DiscoveredApisCard part={part()} result={manyResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('Discovered 2 APIs')).toBeVisible()
@@ -86,7 +94,10 @@ export const DiscoveredMany: Story = {
 
 export const WithErrors: Story = {
   render: () =>
-    frame('chat-theme-dark', <DiscoveredApisCard part={part()} result={errorsResult} ctx={INERT_TOOL_CTX} />),
+    frame(
+      'chat-theme-dark',
+      <DiscoveredApisCard part={part()} result={errorsResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button', {name: /Discovered/}))
@@ -99,7 +110,15 @@ export const WithErrors: Story = {
 
 export const Empty: Story = {
   render: () =>
-    frame('chat-theme-dark', <DiscoveredApisCard part={part()} result={result({tools: []})} ctx={INERT_TOOL_CTX} />),
+    frame(
+      'chat-theme-dark',
+      <DiscoveredApisCard
+        part={part()}
+        result={result({tools: []})}
+        ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
+      />,
+    ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('Discovered 0 APIs')).toBeVisible()
@@ -110,5 +129,8 @@ export const Empty: Story = {
 
 export const Conciv: Story = {
   render: () =>
-    frame('chat-theme-conciv', <DiscoveredApisCard part={part()} result={errorsResult} ctx={INERT_TOOL_CTX} />),
+    frame(
+      'chat-theme-conciv',
+      <DiscoveredApisCard part={part()} result={errorsResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
 }

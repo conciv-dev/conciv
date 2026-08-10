@@ -23,6 +23,7 @@
     "@ark-ui/solid": "^5.37.1",
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
+    "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/mascot": "workspace:^",
@@ -30,6 +31,7 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
+    "@conciv/tools": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
@@ -48,6 +50,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/extension-page": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",

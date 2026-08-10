@@ -2,6 +2,7 @@ import {createMemo, Index, Show, splitProps, type Component, type JSX, type Pare
 import {Dynamic} from 'solid-js/web'
 import type {MessagePart as Part, ThinkingPart, ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolUIComponent} from '@conciv/protocol/tool-view-types'
+import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {MessagePart} from '../message-part/message-part.js'
 import {useChatContext} from '../../store/chat-context.js'
@@ -138,6 +139,7 @@ function DispatchPart(props: {
                 part={toolCall}
                 result={message.pairing().byCallId.get(toolCall.id)}
                 ctx={props.ctx}
+                addResult={(value: UiAnswerValue) => props.ctx.addResult(toolCall.id, value)}
               />
             )}
           </Show>

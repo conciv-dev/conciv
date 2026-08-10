@@ -29,10 +29,6 @@
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"
     },
-    "./done-types": {
-      "types": "./dist/done-types.d.ts",
-      "import": "./dist/done-types.js"
-    },
     "./editor-types": {
       "types": "./dist/editor-types.d.ts",
       "import": "./dist/editor-types.js"
@@ -64,6 +60,14 @@
     "./page-types": {
       "types": "./dist/page-types.d.ts",
       "import": "./dist/page-types.js"
+    },
+    "./element-capture-sanitize": {
+      "types": "./dist/element-capture-sanitize.d.ts",
+      "import": "./dist/element-capture-sanitize.js"
+    },
+    "./element-capture-types": {
+      "types": "./dist/element-capture-types.d.ts",
+      "import": "./dist/element-capture-types.js"
     },
     "./page-introspect-types": {
       "types": "./dist/page-introspect-types.d.ts",

@@ -10,12 +10,14 @@ import {motion} from './motion.js'
 import {effects} from './effects.js'
 import {typography} from './typography.js'
 import {shortcuts} from './shortcuts.js'
+import {jsonTree} from './json-tree.js'
 
 export function presetConciv(): Preset {
   return {
     name: '@conciv/uno-preset',
 
     presets: [presetWind4({preflights: {reset: false}, variablePrefix: 'unx-'}), typography],
+    rules: [jsonTree],
     separators: [':'],
     theme: {colors, radius, font, ease, animation},
     shortcuts: {...shortcuts, ...motion, ...effects, ...shadows},

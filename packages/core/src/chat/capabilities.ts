@@ -46,8 +46,8 @@ export function registryCapabilities(registry: ToolRegistry): CodeCapability[] {
       inputSchema: tool.schema,
       execute: tool.run,
       signature: () => ({
-        input: resolveSchemaRefs(tool.input),
-        output: resolveSchemaRefs(tool.output),
+        input: resolveSchemaRefs(tool.inputSchema),
+        output: resolveSchemaRefs(tool.outputSchema),
         errors,
       }),
     }

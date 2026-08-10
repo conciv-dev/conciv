@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {BashCard} from './bash-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/BashCard'}
@@ -34,6 +34,7 @@ export const Complete: Story = {
         part={part({command: 'pnpm test', description: 'Run the unit tests'})}
         result={result({stdout: '✓ 42 passed\n✓ all green', exitCode: 0})}
         ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -54,6 +55,7 @@ export const Error: Story = {
         part={part({command: 'pnpm build'})}
         result={result({stdout: '', stderr: 'error TS2345: type mismatch', exitCode: 1})}
         ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
 }
@@ -62,7 +64,12 @@ export const Running: Story = {
   render: () =>
     frame(
       'chat-theme-conciv',
-      <BashCard part={part({command: 'sleep 5'}, 'input-complete')} result={undefined} ctx={INERT_TOOL_CTX} />,
+      <BashCard
+        part={part({command: 'sleep 5'}, 'input-complete')}
+        result={undefined}
+        ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
+      />,
     ),
 }
 
@@ -76,6 +83,7 @@ export const AnsiOutput: Story = {
         part={part({command: 'pnpm test'})}
         result={result({stdout: ANSI_STDOUT, exitCode: 0})}
         ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {

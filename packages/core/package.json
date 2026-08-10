@@ -37,14 +37,25 @@
     "./config": {
       "types": "./dist/config.d.ts",
       "import": "./dist/config.js"
-    }
+    },
+    "./cards": {
+      "browser": {
+        "types": "./dist/cards.d.ts",
+        "default": "./dist/cards.js"
+      },
+      "import": {
+        "types": "./dist/cards.d.ts",
+        "default": "./dist/cards.js"
+      }
+    },
+    "./package.json": "./package.json"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsdown && vite build && tsc -p tsconfig.cards.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.cards.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
@@ -58,7 +69,9 @@
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
+    "@conciv/solid-diffs": "workspace:^",
     "@conciv/tools": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
     "@hono/node-server": "^2.0.8",
     "@jridgewell/trace-mapping": "0.3.31",
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -71,23 +84,35 @@
     "@tanstack/ai-sandbox-local-process": "^0.2.1",
     "drizzle-orm": "1.0.0-rc.4",
     "hono": "^4.12.0",
+    "lucide-solid": "^1.18.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@jridgewell/gen-mapping": "^0.3.13",
     "@orpc/client": "catalog:",
+    "@tanstack/ai-client": "0.23.0",
     "@tanstack/ai-mcp": "0.2.6",
     "@tanstack/ai-sandbox-local-process": "^0.2.1",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.8",
     "get-port": "^7.1.0",
+    "solid-js": "^1.9.13",
+    "storybook": "^10.5.0",
+    "storybook-solidjs-vite": "^10.6.0",
     "tsdown": "^0.22.4",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
+    "unocss": "^66.7.2",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.8",
     "ws": "^8.21.0"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
   }
 }

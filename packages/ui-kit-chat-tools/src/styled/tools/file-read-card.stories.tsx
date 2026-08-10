@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
 import {FileReadCard} from './file-read-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/FileReadCard'}
@@ -26,7 +26,12 @@ export const Read: Story = {
   render: () =>
     frame(
       'chat-theme-dark',
-      <FileReadCard part={part('Read', {file_path: 'src/math.ts'})} result={result(SOURCE)} ctx={INERT_TOOL_CTX} />,
+      <FileReadCard
+        part={part('Read', {file_path: 'src/math.ts'})}
+        result={result(SOURCE)}
+        ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
+      />,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
@@ -47,6 +52,7 @@ export const WithRange: Story = {
         part={part('Read', {file_path: 'src/big.ts', offset: 40, limit: 20})}
         result={result(SOURCE)}
         ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -63,6 +69,7 @@ export const Opened: Story = {
         part={part('conciv_open', {file: 'src/app.tsx', line: 12})}
         result={undefined}
         ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
@@ -79,6 +86,7 @@ export const Running: Story = {
         part={part('Read', {file_path: 'src/slow.ts'}, 'input-complete')}
         result={undefined}
         ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
       />,
     ),
 }

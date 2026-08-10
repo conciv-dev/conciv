@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
+import type {StreamChunk} from '@tanstack/ai'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {approvalIds} from './run-events.js'
 import {makeRpcClient} from './session.js'
@@ -86,6 +87,29 @@ export function makeCallTool(apiBase: string, session: string, options: McpCallO
   }
 }
 
+function abortSignalPromise(signal: AbortSignal): Promise<'aborted'> {
+  if (signal.aborted) return Promise.resolve('aborted')
+  return new Promise((resolve) => signal.addEventListener('abort', () => resolve('aborted'), {once: true}))
+}
+
+async function pumpApprovals(
+  stream: AsyncIterable<StreamChunk>,
+  signal: AbortSignal,
+  decide: (approvalId: string) => Promise<void>,
+): Promise<void> {
+  const iterator = stream[Symbol.asyncIterator]()
+  const aborted = abortSignalPromise(signal)
+  for (;;) {
+    const next = await Promise.race([iterator.next(), aborted])
+    if (next === 'aborted') {
+      await iterator.return?.(undefined)?.catch(() => undefined)
+      return
+    }
+    if (next.done) return
+    for (const approvalId of approvalIds(next.value)) await decide(approvalId)
+  }
+}
+
 export async function withAutoApproval<Result>(
   rpc: ReturnType<typeof makeRpcClient>,
   session: string,
@@ -95,21 +119,19 @@ export async function withAutoApproval<Result>(
   const abort = new AbortController()
   const stream = await rpc.chat.subscribe({sessionId: session}, {signal: abort.signal})
   const decided = new Set<string>()
-  const pump = (async () => {
-    for await (const chunk of stream) {
-      for (const approvalId of approvalIds(chunk)) {
-        if (decided.has(approvalId)) continue
-        decided.add(approvalId)
-        await rpc.chat.permissionDecision({approvalId, approved: true})
-        onApproved?.(approvalId)
-      }
-    }
-  })()
+  const decide = async (approvalId: string): Promise<void> => {
+    if (decided.has(approvalId)) return
+    decided.add(approvalId)
+    await rpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal})
+    onApproved?.(approvalId)
+  }
+  const pump = pumpApprovals(stream, abort.signal, decide)
+  pump.catch(() => {})
   try {
     return await run()
   } finally {
     abort.abort()
-    await pump.catch(() => {})
+    await pump
   }
 }
 

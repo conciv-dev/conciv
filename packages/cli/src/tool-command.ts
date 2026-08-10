@@ -77,10 +77,10 @@ export function toolCommand(
   })
 }
 
-export type WireToolSignature = {name: string; summary: string; positional?: string; input: unknown}
+export type WireToolSignature = {name: string; summary: string; positional?: string; inputSchema: unknown}
 
 function wireFields(signature: WireToolSignature): ToolField[] {
-  const declared = DeclaredInput.parse(signature.input ?? {})
+  const declared = DeclaredInput.parse(signature.inputSchema ?? {})
   const required = new Set(declared.required)
   return Object.entries(declared.properties).map(([name, field]) => ({name, required: required.has(name), field}))
 }

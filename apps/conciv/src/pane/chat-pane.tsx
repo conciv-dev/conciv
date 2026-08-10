@@ -24,8 +24,10 @@ import {
   type Turn,
 } from '@conciv/ui-kit-chat'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
+import {concivToolCards} from '@conciv/tools/cards'
+import {coreToolCards} from '@conciv/core/cards'
 import type {MessagePart, MultimodalContent, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
 import {collectToolRenderers, HostApiProvider} from '@conciv/extension'
@@ -35,7 +37,6 @@ import {resolveGrabSource} from './grab-source-resolve.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane, type StagedGrab} from '../app/pane-context.js'
-import {makeConcivUiCard} from './conciv-ui-card.js'
 import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
@@ -49,6 +50,8 @@ import {SessionModelSelector} from '../composer/model-selector.js'
 import {NoticeToaster, notify} from '../shell/notices.js'
 import {EngineStaleNotice} from '../shell/engine-notice.js'
 import {makeDraftStorage} from './draft-storage.js'
+import {useSessionCaptures} from './session-captures.js'
+import {makeToolViewCtx} from './tool-view-ctx.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {checkSend, type SendVerdict} from './send-checks.js'
@@ -148,6 +151,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     loaded: () => registryCatalog.data !== undefined,
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
+  const captures = useSessionCaptures(sessionId)
   const [draftStorage] = createResource(() => makeDraftStorage(rpc, sessionId))
 
   const startedAt = new Map<string, number>()
@@ -156,29 +160,26 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     {},
   )
 
-  const toolCtx: ToolViewCtx = {
-    apiBase: '',
-    harnessId: meta.data?.harness.id ?? '',
-    sendMessage: (text) => void chat.sendMessage(text),
-    catalog,
-    respondApproval: (approvalId, approved) => {
-      void rpc.chat.permissionDecision({approvalId, approved}).catch(() => {})
-    },
-    durationFor: (toolCallId) => durations()[toolCallId],
-  }
-
   const uiReply = useMutation(() => ({
     mutationFn: (input: {toolCallId: string; value: UiAnswerValue}) =>
       rpc.chat.uiReply({sessionId, toolCallId: input.toolCallId, value: input.value}),
     onError: () => notify('That question is no longer waiting for an answer.'),
   }))
-  const concivUiEntry: ToolCardEntry = {
-    names: ['conciv_ui'],
-    render: makeConcivUiCard({reply: (toolCallId, value) => uiReply.mutate({toolCallId, value})}),
-  }
+
+  const toolCtx = makeToolViewCtx({
+    rpc,
+    harnessId: () => meta.data?.harness.id ?? '',
+    catalog,
+    sendMessage: (text) => void chat.sendMessage(text),
+    addResult: (toolCallId, value) => uiReply.mutate({toolCallId, value}),
+    durationFor: (toolCallId) => durations()[toolCallId],
+    captureFor: captures.lookup,
+  })
+
   const tools = (): ToolCardEntry[] => [
-    concivUiEntry,
     ...collectToolRenderers(instances.map((instance) => instance.extension)),
+    ...concivToolCards,
+    ...coreToolCards,
     ...builtinToolCards,
   ]
 
@@ -201,6 +202,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     if (now) announce('conciv is thinking…')
     if (!now) {
       void markers.refetch()
+      captures.refresh()
       if (!chat.error()) announce('conciv replied.')
     }
     return now

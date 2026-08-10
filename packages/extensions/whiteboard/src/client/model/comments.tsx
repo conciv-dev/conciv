@@ -34,7 +34,13 @@ export function createCommentsModel(
 ) {
   const db = useWhiteboardDb()
   const accountId = (): string => db.accountId()
-  const ctx: ToolViewCtx = {apiBase, harnessId: '', sendMessage: () => {}, catalog: INERT_TOOL_CATALOG}
+  const ctx: ToolViewCtx = {
+    apiBase,
+    harnessId: '',
+    sendMessage: () => {},
+    addResult: () => {},
+    catalog: INERT_TOOL_CATALOG,
+  }
 
   const commentRows = useLiveQuery((q) => q.from({row: db.comments}))
   const pinRows = useLiveQuery((q) => q.from({row: db.pins}))

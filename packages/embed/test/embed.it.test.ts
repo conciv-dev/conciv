@@ -259,7 +259,8 @@ describe('embed boots the conciv app against a real core', () => {
     await page.getByRole('button', {name: 'Send message'}).click()
     await expectLocator(page.getByText('Proceed with the change?')).toBeVisible({timeout: 30_000})
     await page.getByRole('button', {name: 'Approve'}).click()
-    await expectLocator(page.getByText('Answered.')).toBeVisible({timeout: 30_000})
+    await expectLocator(page.getByRole('status').getByText('yes')).toBeVisible({timeout: 30_000})
+    await expectLocator(page.getByRole('button', {name: 'Approve'})).toBeHidden({timeout: 30_000})
     await page.close()
   })
 

@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import type {ToolIconKey, ToolLabel} from '@conciv/protocol/tool-icon-types'
+import type {ToolCaptureMode} from '@conciv/protocol/element-capture-types'
 import {defineTool, type ToolBuilder, type ToolErrors, type ToolMeta} from '@conciv/extension/tool'
 
 export const PAGE_EXTENSION_NAME = 'page'
@@ -29,6 +30,13 @@ export const ElementTarget = {
 
 export type PageToolCategory = 'read' | 'act' | 'edit-live' | 'react'
 
+const CAPTURE_BY_CATEGORY: Record<PageToolCategory, ToolCaptureMode> = {
+  read: 'none',
+  react: 'none',
+  act: 'after',
+  'edit-live': 'before-after',
+}
+
 type PageToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBuilder<
   string,
   z.ZodObject<Shape>,
@@ -49,6 +57,7 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   hint?: string
   mutating?: boolean
   mirrors?: boolean
+  capture?: ToolCaptureMode
   keywords?: readonly string[]
   errors?: ToolErrors
 }): PageToolDef<Shape, Out> {
@@ -66,6 +75,7 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       hint: spec.hint,
       mutating: spec.mutating ?? false,
       mirrors: spec.mirrors ?? false,
+      capture: spec.capture ?? CAPTURE_BY_CATEGORY[spec.category],
       keywords: spec.keywords ?? [],
       ...('selector' in spec.input.shape ? {positional: 'selector'} : {}),
     },
@@ -305,6 +315,8 @@ export const effectDef = pageTool({
   label: {running: 'Driving an effect', done: 'Drove an effect'},
   hint: 'action list reports every registered effect and whether it is enabled',
   mutating: true,
+  mirrors: true,
+  capture: 'none',
   keywords: ['effects', 'overlay', 'highlight'],
   input: z.object({
     action: ActionEnum.optional(),

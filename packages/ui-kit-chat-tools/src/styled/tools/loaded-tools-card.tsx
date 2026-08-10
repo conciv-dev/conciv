@@ -3,7 +3,7 @@ import {Wrench} from 'lucide-solid'
 import {z} from 'zod'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {parseResultPayload, ToolCard} from '@conciv/ui-kit-chat'
-import {schemaParams} from '../../primitives/tools/schema-params.js'
+import {schemaParams} from '@conciv/ui-kit-chat'
 import {truncate} from '../../primitives/tools/inline-tool.js'
 import {ToolChip} from './tool-chip.js'
 
