@@ -26,7 +26,7 @@ function descriptorSummary(capture: ElementCapture | undefined): string {
     descriptor.value === undefined ? undefined : `value: ${descriptor.value}`,
     descriptor.checked === undefined ? undefined : `checked: ${descriptor.checked}`,
   ]
-  return lines.filter((line): line is string => line !== undefined).join('\n')
+  return `${lines.filter((line): line is string => line !== undefined).join('\n')}\n`
 }
 
 function codeLanguage(verb: string): string {

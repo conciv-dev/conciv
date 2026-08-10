@@ -16,6 +16,12 @@ export const CODE_BLOCK_OPTIONS: FileOptions<undefined> = {
   overflow: 'wrap',
 }
 
+export const CODE_BLOCK_FILE_CHROME_OPTIONS: FileOptions<undefined> = {
+  ...CODE_BLOCK_OPTIONS,
+  disableFileHeader: false,
+  disableLineNumbers: false,
+}
+
 export function displayValue(value: unknown): string {
   if (typeof value === 'string') return value
   return JSON.stringify(value) ?? String(value)

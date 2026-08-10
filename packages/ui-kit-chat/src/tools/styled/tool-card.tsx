@@ -8,7 +8,7 @@ import {StatusVisual} from '../primitives/status-visual.js'
 import {CollapsibleCard} from './collapsible-card.js'
 
 const TITLE = 'text-[color:var(--chat-text)] flex-1 truncate [overflow-wrap:anywhere]'
-const TITLE_FIXED = 'text-[color:var(--chat-text)] shrink-0 [overflow-wrap:anywhere]'
+const TITLE_FIXED = 'text-[color:var(--chat-text)] shrink truncate min-w-0 max-w-[60%]'
 const SUBTITLE = 'text-[color:var(--chat-text-3)] flex-1 min-w-0 truncate'
 const METRIC =
   'text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] shrink-0 [font-family:var(--chat-mono)] tabular-nums'

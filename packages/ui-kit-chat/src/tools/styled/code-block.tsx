@@ -1,7 +1,7 @@
 import {splitProps, type JSX} from 'solid-js'
 import {cva} from 'class-variance-authority'
 import {SolidCodeBlock, SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
-import {CODE_BLOCK_OPTIONS} from '../primitives/tool-presentation.js'
+import {CODE_BLOCK_OPTIONS, CODE_BLOCK_FILE_CHROME_OPTIONS} from '../primitives/tool-presentation.js'
 
 const BLESSED_DIFF_OPTIONS: FileDiffOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},
@@ -23,8 +23,12 @@ const codeBlock = cva(
         result: 'max-h-[13.75rem]',
         log: 'max-h-80',
       },
+      chrome: {
+        plain: '',
+        file: '',
+      },
     },
-    defaultVariants: {size: 'xs', maxHeight: 'result'},
+    defaultVariants: {size: 'xs', maxHeight: 'result', chrome: 'plain'},
   },
 )
 
@@ -45,12 +49,15 @@ export function CodeBlock(props: {
   file: {name: string; lang: string; contents: string}
   size?: 'xs' | 'sm'
   maxHeight?: 'result' | 'log'
+  chrome?: 'plain' | 'file'
   class?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['file', 'size', 'maxHeight', 'class'])
+  const [local] = splitProps(props, ['file', 'size', 'maxHeight', 'chrome', 'class'])
+  const chrome = (): 'plain' | 'file' => local.chrome ?? 'plain'
   const blockClass = (): string =>
-    `${codeBlock({size: local.size ?? 'xs', maxHeight: local.maxHeight ?? 'result'})} ${local.class ?? ''}`
-  return <SolidCodeBlock class={blockClass()} options={CODE_BLOCK_OPTIONS} file={local.file} />
+    `${codeBlock({size: local.size ?? 'xs', maxHeight: local.maxHeight ?? 'result', chrome: chrome()})} ${local.class ?? ''}`
+  const options = () => (chrome() === 'file' ? CODE_BLOCK_FILE_CHROME_OPTIONS : CODE_BLOCK_OPTIONS)
+  return <SolidCodeBlock class={blockClass()} options={options()} file={local.file} />
 }
 
 export function diffBlockClass(size: 'xs' | 'sm' = 'xs', class_?: string): string {

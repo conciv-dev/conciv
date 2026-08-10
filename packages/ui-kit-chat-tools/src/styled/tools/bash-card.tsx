@@ -45,8 +45,16 @@ function Body(): JSX.Element {
 
 function CardBody(props: ToolCardProps): JSX.Element {
   const bash = useBash()
+  const status = () => (bash.isError() ? 'error' : bash.status())
   return (
-    <ToolCard Icon={Icon} title="bash" subtitle={bash.summary() || undefined} part={props.part} result={props.result}>
+    <ToolCard
+      Icon={Icon}
+      title="bash"
+      subtitle={bash.summary() || undefined}
+      part={props.part}
+      result={props.result}
+      status={status()}
+    >
       <Body />
     </ToolCard>
   )

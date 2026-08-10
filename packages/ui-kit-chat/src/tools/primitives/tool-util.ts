@@ -44,5 +44,8 @@ export function stripReadLineNumbers(raw: string): string {
 export function formatDuration(ms: number | undefined): string | undefined {
   if (ms === undefined || !Number.isFinite(ms) || ms < 0) return undefined
   const s = ms / 1000
-  return `${s.toFixed(s < 10 ? 1 : 0)}s`
+  if (s < 60) return `${s.toFixed(s < 10 ? 1 : 0)}s`
+  const minutes = Math.floor(s / 60)
+  const seconds = Math.round(s - minutes * 60)
+  return `${minutes}m ${seconds}s`
 }

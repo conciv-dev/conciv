@@ -2038,9 +2038,6 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
-      '@conciv/solid-diffs':
-        specifier: workspace:*
-        version: link:../../solid-diffs
       '@conciv/ui-kit-chat':
         specifier: workspace:*
         version: link:../../ui-kit-chat
