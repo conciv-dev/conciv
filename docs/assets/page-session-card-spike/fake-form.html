@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Acme Console</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #f5f6f8; color: #23262b;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+  }
+  .nav {
+    display: flex; align-items: center; gap: 18px;
+    padding: 14px 28px; background: #fff; border-bottom: 1px solid #e6e8ec;
+  }
+  .logo { width: 20px; height: 20px; border-radius: 6px; background: linear-gradient(135deg, #5b9dff, #7c5bff); }
+  .nav b { font-size: 13.5px; }
+  .nav span { font-size: 12.5px; color: #7a8290; }
+  .nav span.here { color: #23262b; }
+  .wrap { display: flex; gap: 28px; padding: 24px 28px; }
+  .form { flex: 1.4; background: #fff; border: 1px solid #e6e8ec; border-radius: 10px; padding: 18px 20px; }
+  .form h3 { font-size: 14px; margin-bottom: 14px; }
+  .row { margin-bottom: 12px; }
+  label { display: block; font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+  input[type="text"], select, textarea {
+    width: 100%; border: 1px solid #d9dde3; border-radius: 6px;
+    padding: 7px 9px; font-size: 12.5px; background: #fff; color: #23262b;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #b9d1ff; border-color: #4f7df9; }
+  textarea { resize: none; height: 46px; }
+  .cols { display: flex; gap: 12px; }
+  .cols .row { flex: 1; }
+  .check { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #444a54; margin-bottom: 8px; }
+  .check input { width: 14px; height: 14px; accent-color: #4f7df9; }
+  .submit {
+    background: #23262b; color: #fff; border: none; border-radius: 6px;
+    padding: 8px 16px; font-size: 12.5px; margin-top: 4px;
+  }
+  .aside { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  .tile { background: #fff; border: 1px solid #e6e8ec; border-radius: 10px; padding: 14px 16px; }
+  .tile b { font-size: 12.5px; display: block; margin-bottom: 6px; }
+  .tile p { font-size: 11.5px; color: #7a8290; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="nav">
+    <span class="logo"></span><b>Acme Console</b>
+    <span>Dashboard</span><span>Team</span><span class="here">Profile</span>
+  </div>
+  <div class="wrap">
+    <div class="form">
+      <h3>Developer profile</h3>
+      <div class="cols">
+        <div class="row"><label for="name">Full name</label><input type="text" id="name"></div>
+        <div class="row"><label for="email">Email</label><input type="text" id="email"></div>
+      </div>
+      <div class="cols">
+        <div class="row"><label for="age">Age</label><input type="text" id="age"></div>
+        <div class="row"><label for="role">Role</label>
+          <select id="role">
+            <option value=""></option>
+            <option>Frontend</option>
+            <option>Backend</option>
+            <option>Full Stack</option>
+          </select>
+        </div>
+      </div>
+      <div class="row"><label for="bio">Bio</label><textarea id="bio"></textarea></div>
+      <div class="check"><input type="checkbox" id="terms"><label for="terms" style="margin:0;font-size:12px;color:#444a54">Accept the terms of service</label></div>
+      <div class="check"><input type="checkbox" id="news"><label for="news" style="margin:0;font-size:12px;color:#444a54">Subscribe to the newsletter</label></div>
+      <button class="submit">Submit</button>
+    </div>
+    <div class="aside">
+      <div class="tile"><b>Type-safe routing</b><p>Routes and links stay in sync across every page of your app.</p></div>
+      <div class="tile"><b>Server functions</b><p>Call server code straight from the client without boilerplate.</p></div>
+      <div class="tile"><b>Streaming</b><p>Progressively render responses as data becomes available.</p></div>
+    </div>
+  </div>
+</body>
+</html>
