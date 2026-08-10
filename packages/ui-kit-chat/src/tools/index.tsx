@@ -38,6 +38,8 @@ export {ElementPreview} from './styled/element-preview.js'
 export {Chip, ChipRow, CHIP} from './styled/chip.js'
 export {CodeBlock, DiffBlock} from './styled/code-block.js'
 export {ErrorBlock} from './styled/error-block.js'
+export {ActionRow, ActionButton} from './styled/action-row.js'
+export {CollapsibleSection} from './styled/collapsible-section.js'
 export {JsonTree} from './styled/json-tree.js'
 export {MirrorRow, NoteRow, type NoteRowTone} from './styled/note-row.js'
 export {

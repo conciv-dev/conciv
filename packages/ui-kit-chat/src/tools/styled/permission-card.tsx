@@ -2,11 +2,7 @@ import {Show, type JSX} from 'solid-js'
 import {Check, ShieldAlert, X} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Permission, usePermission} from '../primitives/permission.js'
-
-const BTN =
-  'flex-none inline-flex items-center gap-1 py-1 px-2.5 rounded-[var(--chat-radius-sm)] [border:1px_solid] font-semibold text-[length:var(--chat-text-sm)] leading-none cursor-pointer'
-const DENY = `${BTN} text-[color:var(--chat-text-2)] [border-color:var(--chat-line)] [background:var(--chat-fill)] hover:[color:var(--chat-danger)] hover:[background:var(--chat-fill-strong)]`
-const ALLOW = `${BTN} text-[color:var(--chat-on-accent)] [border-color:var(--chat-accent)] [background:var(--chat-accent)] hover:[background:var(--chat-accent-hi)]`
+import {ActionRow, ActionButton} from './action-row.js'
 
 function Prompt(props: {label?: string}): JSX.Element {
   const permission = usePermission()
@@ -21,14 +17,16 @@ function Prompt(props: {label?: string}): JSX.Element {
           <ShieldAlert size={14} />
         </span>
         <span class="flex-auto min-w-0">{props.label ?? 'Run this action?'}</span>
-        <button type="button" class={DENY} onClick={() => permission.reject()}>
-          <X size={13} aria-hidden="true" />
-          Deny
-        </button>
-        <button type="button" class={ALLOW} onClick={() => permission.approve()}>
-          <Check size={13} aria-hidden="true" />
-          Allow
-        </button>
+        <ActionRow>
+          <ActionButton intent="deny" onClick={() => permission.reject()}>
+            <X size={13} aria-hidden="true" />
+            Deny
+          </ActionButton>
+          <ActionButton intent="allow" onClick={() => permission.approve()}>
+            <Check size={13} aria-hidden="true" />
+            Allow
+          </ActionButton>
+        </ActionRow>
       </div>
     </Show>
   )

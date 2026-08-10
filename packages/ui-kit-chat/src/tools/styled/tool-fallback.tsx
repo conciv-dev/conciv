@@ -9,6 +9,7 @@ import {StatusVisual} from '../primitives/status-visual.js'
 import {formatDuration} from '../primitives/tool-util.js'
 import {SHIMMER} from '../../styled/shimmer.js'
 import {FOCUS} from '../../styled/classes.js'
+import {ActionRow, ActionButton} from './action-row.js'
 
 const CODE_OPTIONS: FileOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},
@@ -19,10 +20,6 @@ const CODE_OPTIONS: FileOptions<undefined> = {
 }
 const CODE_CLASS =
   'block max-h-80 overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)]'
-const BTN =
-  'inline-flex items-center gap-1 py-1 px-2.5 rounded-[var(--chat-radius-sm)] [border:1px_solid] font-semibold text-[length:var(--chat-text-sm)] leading-none cursor-pointer'
-const ALLOW = `${BTN} text-[color:var(--chat-on-accent)] [border-color:var(--chat-accent)] [background:var(--chat-accent)] hover:[background:var(--chat-accent-hi)]`
-const DENY = `${BTN} text-[color:var(--chat-text-2)] [border-color:var(--chat-line)] [background:var(--chat-fill)] hover:[color:var(--chat-danger)] hover:[background:var(--chat-fill-strong)]`
 
 function FallbackRoot(props: {children: JSX.Element}): JSX.Element {
   const tool = useToolFallback()
@@ -126,13 +123,15 @@ function ApprovalButtons(): JSX.Element {
   const permission = usePermission()
   return (
     <Show when={permission.pending()}>
-      <div class="pt-1 flex flex-wrap gap-2 items-center" role="group" aria-label="Approve this action?">
-        <button type="button" class={ALLOW} onClick={() => permission.approve()}>
-          Allow
-        </button>
-        <button type="button" class={DENY} onClick={() => permission.reject()}>
-          Deny
-        </button>
+      <div class="pt-1" role="group" aria-label="Approve this action?">
+        <ActionRow>
+          <ActionButton intent="allow" onClick={() => permission.approve()}>
+            Allow
+          </ActionButton>
+          <ActionButton intent="deny" onClick={() => permission.reject()}>
+            Deny
+          </ActionButton>
+        </ActionRow>
       </div>
     </Show>
   )
