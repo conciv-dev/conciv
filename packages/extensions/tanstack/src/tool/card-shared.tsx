@@ -41,12 +41,12 @@ export function InspectionCard(props: ToolCardProps & {summary: string; children
   const {meta, title} = cardHeader(card)
   const error = () => readError(card.part, card.result)
   const running = () => isRunning(card.part, card.result)
-  const badge = () => (error() || running() ? undefined : local.summary)
+  const subtitle = () => (error() || running() ? undefined : local.summary)
   return (
     <CardShell
       meta={meta()}
       title={title()}
-      metaBadge={badge()}
+      subtitle={subtitle()}
       part={card.part}
       result={card.result}
       durationMs={card.durationMs}
@@ -62,12 +62,12 @@ export function ActionCard(props: ToolCardProps & {summary: string}): JSX.Elemen
   const {meta, title} = cardHeader(card)
   const error = () => readError(card.part, card.result)
   const running = () => isRunning(card.part, card.result)
-  const badge = () => (error() || running() ? undefined : local.summary)
+  const subtitle = () => (error() || running() ? undefined : local.summary)
   return (
     <CardShell
       meta={meta()}
       title={title()}
-      metaBadge={badge()}
+      subtitle={subtitle()}
       part={card.part}
       result={card.result}
       durationMs={card.durationMs}

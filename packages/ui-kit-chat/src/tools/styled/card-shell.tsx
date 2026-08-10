@@ -38,6 +38,7 @@ function cardIcon(icon: ToolIconKey | undefined, iconClass: string | undefined):
 export function CardShell(props: {
   meta: ToolViewMeta | undefined
   title: string
+  subtitle?: string
   metaBadge?: string
   part: ToolCardProps['part']
   result: ToolCardProps['result']
@@ -49,6 +50,7 @@ export function CardShell(props: {
     <ToolCard
       Icon={() => cardIcon(props.meta?.icon, props.iconClass)}
       title={props.title}
+      subtitle={props.subtitle}
       titleTooltip={props.meta?.summary}
       meta={props.metaBadge}
       part={props.part}

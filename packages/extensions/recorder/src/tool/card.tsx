@@ -70,7 +70,7 @@ export function RecordingToolCard(props: ToolCardProps): JSX.Element {
     <ToolCard
       Icon={RecorderIcon}
       title={props.part.name}
-      meta={settled() ? summarize(props, recording()) : ''}
+      subtitle={settled() ? summarize(props, recording()) : undefined}
       part={props.part}
       result={props.result}
       status={recording().error ? 'error' : undefined}
