@@ -1,5 +1,6 @@
 import type {Plugin} from 'vite'
 import {defineConfig} from 'vitest/config'
+import {BaseSequencer, type TestSpecification} from 'vitest/node'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {makeFakeCoreRouter} from './test/helpers/fake-core-router.js'
 import {playwright} from '@vitest/browser-playwright'
@@ -7,6 +8,16 @@ import solidPlugin from 'vite-plugin-solid'
 import {ciTest} from '@conciv/vitest-config'
 
 const FAKE_CORE_ADDRESS_PATH = '/__fake-core'
+
+const SESSION_KILLER_SUITE = 'router-restore.browser.test.ts'
+
+class RunSessionKillerLastSequencer extends BaseSequencer {
+  override async sort(files: Array<TestSpecification>): Promise<Array<TestSpecification>> {
+    const sorted = await super.toSorted(files)
+    const isSessionKiller = (spec: TestSpecification): boolean => spec.moduleId.endsWith(SESSION_KILLER_SUITE)
+    return [...sorted.filter((spec) => !isSessionKiller(spec)), ...sorted.filter(isSessionKiller)]
+  }
+}
 
 const fakeCoreSocket: Plugin = {
   name: 'fake-core-socket',
@@ -26,6 +37,7 @@ const fakeCoreSocket: Plugin = {
 export default defineConfig({
   test: {
     ...ciTest(),
+    sequence: {sequencer: RunSessionKillerLastSequencer},
     projects: [
       {
         test: {
