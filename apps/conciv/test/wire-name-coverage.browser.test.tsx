@@ -22,20 +22,37 @@ function realRegistry(): ReturnType<typeof createToolRegistry> {
 
 const registry = realRegistry()
 
+const CATALOG_TOOL_NAME = 'catalog'
+
 const modelReachableNames = [
   EXECUTE_TOOL_NAME,
+  CATALOG_TOOL_NAME,
   concivUiToolDef.name,
   concivExtensionsToolDef.name,
   ...registry.catalog.list().map((entry) => entry.name),
+]
+
+const HARNESS_NATIVE_CARD_NAMES = [
+  'Bash',
+  'apply_patch',
+  'Read',
+  'Edit',
+  'MultiEdit',
+  'Write',
+  'Grep',
+  'Glob',
+  'TodoWrite',
+  'ToolSearch',
 ]
 
 const concivOwnedCards: ToolCardEntry[] = [
   ...collectToolRenderers([pageExtension]),
   ...concivToolCards,
   ...coreToolCards,
+  ...builtinToolCards,
 ]
 
-const cardNames = new Set([...concivOwnedCards, ...builtinToolCards].flatMap((entry) => entry.names))
+const cardNames = new Set(concivOwnedCards.flatMap((entry) => entry.names))
 
 it('every model-reachable tool name resolves to a card entry or catalog meta', () => {
   expect(modelReachableNames.length).toBeGreaterThan(10)
@@ -47,6 +64,8 @@ it('every model-reachable tool name resolves to a card entry or catalog meta', (
 
 it('no conciv-owned card is registered for a name the model can never put on the wire', () => {
   const reachable = new Set(modelReachableNames)
-  const dead = concivOwnedCards.flatMap((entry) => entry.names).filter((name) => !reachable.has(name))
+  const dead = concivOwnedCards
+    .flatMap((entry) => entry.names)
+    .filter((name) => !reachable.has(name) && !HARNESS_NATIVE_CARD_NAMES.includes(name))
   expect(dead).toEqual([])
 })
