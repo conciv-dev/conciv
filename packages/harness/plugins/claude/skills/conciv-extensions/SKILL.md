@@ -9,10 +9,10 @@ Extensions are TypeScript files in `conciv/extensions/*.{ts,tsx}`, committed to 
 
 ## The loop
 
-1. `conciv_extensions` with `verb: "catalog"` shows the surface (theme tokens, the six slots, client/server surfaces). Read it before writing.
-2. `conciv_extensions` with `verb: "scaffold", kind, name` returns a typed skeleton.
+1. `await external_conciv_extensions({verb: 'catalog'})` inside `execute_typescript` shows the surface (theme tokens, the six slots, client/server surfaces). Read it before writing.
+2. `await external_conciv_extensions({verb: 'scaffold', kind, name})` returns a typed skeleton.
 3. Write it to `conciv/extensions/<name>.tsx` (or `.ts` for the no-JSX kinds: `theme`, `tool`). `.client()` and `Component` changes hot-reload into the live widget (screenshot to confirm); new or changed `.server()` tools and prompt text need a dev-server restart.
-4. `conciv_extensions` with `verb: "validate", source` lints draft source against the catalog before you rely on it.
+4. `await external_conciv_extensions({verb: 'validate', source})` lints draft source against the catalog before you rely on it.
 
 ## Shape
 

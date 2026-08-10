@@ -213,7 +213,7 @@ export function validateSource(source: string): {ok: boolean; issues: Issue[]} {
     if (!TOKEN_NAMES.has(name))
       issues.push({
         level: 'error',
-        message: `Unknown theme token '${name}'. Run conciv_extensions catalog for the token list.`,
+        message: `Unknown theme token '${name}'. Call external_conciv_extensions({verb: 'catalog'}) for the token list.`,
       })
     if (TOKEN_NAMES.has(name) && !OVERRIDABLE_TOKEN_NAMES.has(name))
       issues.push({

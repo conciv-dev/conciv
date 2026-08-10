@@ -3,7 +3,7 @@
 {"type":"user","isMeta":true,"message":{"role":"user","content":"Caveat: local commands."}}
 {"type":"user","origin":{"kind":"human"},"message":{"role":"user","content":"  rename   the settings panel  "}}
 {"type":"assistant","message":{"id":"msg_A","role":"assistant","content":[{"type":"thinking","thinking":"Let me look."}]}}
-{"type":"assistant","message":{"id":"msg_A","role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"mcp__conciv__conciv_page","input":{"verb":"snapshot"}}],"usage":{"input_tokens":4,"cache_creation_input_tokens":900,"cache_read_input_tokens":89000}}}
+{"type":"assistant","message":{"id":"msg_A","role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"mcp__conciv__page.snapshot","input":{"verb":"snapshot"}}],"usage":{"input_tokens":4,"cache_creation_input_tokens":900,"cache_read_input_tokens":89000}}}
 {"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}}
 {"type":"user","message":{"role":"user","content":"[Request interrupted by user]"}}
 {"type":"assistant","message":{"id":"msg_B","role":"assistant","content":[{"type":"text","text":"Renamed it."}],"usage":{"input_tokens":2,"cache_creation_input_tokens":750,"cache_read_input_tokens":92000}}}
