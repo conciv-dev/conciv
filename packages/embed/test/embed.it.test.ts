@@ -253,7 +253,9 @@ describe('embed boots the conciv app against a real core', () => {
   it('renders the conciv_ui blocking card from the tool part and answers via uiReply', async () => {
     const page = await openPage()
     await openPanel(page)
-    kit.harness.script.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed with the change?'})
+    kit.harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "return await external_conciv_ui({kind: 'confirm', question: 'Proceed with the change?'})",
+    })
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('ask me something')
     await page.getByRole('button', {name: 'Send message'}).click()
@@ -285,7 +287,7 @@ describe('embed boots the conciv app against a real core', () => {
     kit.harness.script.scriptToolCall('__lazy__tool__discovery__', {query: 'weather'}, {blocking: false})
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await sendAndRevealThought(page, 'run some code')
-    await expectLocator(page.getByText('run code')).toBeVisible({timeout: 30_000})
+    await expectLocator(page.getByRole('button', {name: /run code return 1/})).toBeVisible({timeout: 30_000})
     await expectLocator(page.getByText('return 1').first()).toBeVisible({timeout: 30_000})
     await sendAndRevealThought(page, 'now load some tools')
     await expectLocator(page.getByText(/Loaded \d+ tools?/).last()).toBeVisible({timeout: 30_000})

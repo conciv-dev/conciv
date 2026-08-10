@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {defineTool, toolError} from '@conciv/extension/tool'
 import {BundlerConfigSchema, ModuleNodeSchema, type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {OkResult, type BuiltinCategory} from './shared.js'
+import {OpenInput} from './open-input.js'
 
 export type ServerToolContext = {bundler: () => BundlerBridge | undefined}
 
@@ -138,11 +139,6 @@ export const BUILTIN_SERVER_TOOL = {
 } as const
 
 export const BUILTIN_SERVER_TOOLS = Object.values(BUILTIN_SERVER_TOOL)
-
-export const OpenInput = z.object({
-  file: z.string().min(1).describe('the file to open'),
-  line: z.coerce.number().int().min(1).optional().describe('line number to jump to'),
-})
 
 export const BUILTIN_OPEN_TOOL = defineTool({
   name: 'open',
