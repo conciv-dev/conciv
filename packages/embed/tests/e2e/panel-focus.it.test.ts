@@ -21,6 +21,12 @@ async function ensurePanelClosed(page: Page): Promise<void> {
 
 type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hostButton: Locator}
 
+const dedicatedHosts: Array<{close: () => Promise<void>}> = []
+
+test.afterEach(async () => {
+  for (const dedicatedHost of dedicatedHosts.splice(0)) await dedicatedHost.close()
+})
+
 async function openPanelOverFocusedHostButton(page: Page): Promise<HostedPanel> {
   const host = await serveHost(() =>
     hostPage({
@@ -29,6 +35,7 @@ async function openPanelOverFocusedHostButton(page: Page): Promise<HostedPanel> 
       body: '<button id="host-action">Host action</button>',
     }),
   )
+  dedicatedHosts.push(host)
   await page.goto(host.base, {waitUntil: 'domcontentloaded'})
   await ensurePanelClosed(page)
   const hostButton = page.getByRole('button', {name: 'Host action'})
@@ -53,23 +60,21 @@ test.describe('panel open focuses the composer', () => {
 test.describe('panel close restores focus: host element captured at open wins, FAB is the fallback', () => {
   test('closing via the FAB restores the host element that was focused before a programmatic open', async ({page}) => {
     test.setTimeout(120_000)
-    const {host, hostButton} = await openPanelOverFocusedHostButton(page)
+    const {hostButton} = await openPanelOverFocusedHostButton(page)
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
     await expect(hostButton).toBeFocused({timeout: 10_000})
-    await host.close()
   })
 
   test('closing via the panel header restores the host element that was focused before the open', async ({page}) => {
     test.setTimeout(120_000)
-    const {host, hostButton} = await openPanelOverFocusedHostButton(page)
+    const {hostButton} = await openPanelOverFocusedHostButton(page)
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expect(hostButton).toBeFocused({timeout: 10_000})
-    await host.close()
   })
 
   test('collapsing the panel by dragging its resize handle shut restores the host element', async ({page}) => {
     test.setTimeout(180_000)
-    const {host, hostButton} = await openPanelOverFocusedHostButton(page)
+    const {hostButton} = await openPanelOverFocusedHostButton(page)
 
     const handle = page.getByRole('separator', {name: 'Resize chat height'})
     const grip = await handle.boundingBox()
@@ -80,7 +85,6 @@ test.describe('panel close restores focus: host element captured at open wins, F
     await page.mouse.up()
     await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
     await expect(hostButton).toBeFocused({timeout: 10_000})
-    await host.close()
   })
 
   test('closing via the FAB falls back to FAB focus when no host element was captured at open time', async ({page}) => {

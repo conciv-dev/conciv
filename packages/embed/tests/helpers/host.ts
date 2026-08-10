@@ -53,9 +53,9 @@ export async function listenLocal(server: Server): Promise<{base: string; port: 
     base: `http://127.0.0.1:${port}`,
     port,
     close: () =>
-      new Promise((resolve) => {
+      new Promise<void>((resolve, reject) => {
         server.closeAllConnections?.()
-        server.close(() => resolve())
+        server.close((error) => (error ? reject(error) : resolve()))
       }),
   }
 }
