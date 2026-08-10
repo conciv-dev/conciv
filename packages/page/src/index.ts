@@ -11,6 +11,7 @@ export {describe, locate, installReactBridge, rootFibers} from './react-bridge.j
 export {dehydrate, navigatePath, type DehydrateOptions} from './dehydrate.js'
 export {showToast} from './effect-toast.js'
 export {addRef, buildSnapshot, describeElement, DOM_CAP, type RefAdder, type Refs} from './page-snapshot.js'
+export {isSensitiveField, MASKED_VALUE} from './element-descriptor.js'
 export {startTracking, stopTracking, report as trackReport} from './render-tracker.js'
 export * as reactBridge from './react-bridge.js'
 

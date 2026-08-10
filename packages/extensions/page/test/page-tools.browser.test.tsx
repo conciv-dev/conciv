@@ -42,6 +42,7 @@ beforeAll(async () => {
   container = document.createElement('div')
   container.innerHTML = `
     <input id="field" type="text" />
+    <input id="secret" type="password" />
     <form id="frm"><button id="inner" type="button">inner</button></form>
     <p id="prose">hello page</p>
     <span id="failprobe">probe</span>
@@ -120,6 +121,11 @@ describe('dom verbs', () => {
     })
   })
 
+  it('masks a password value in the fill and value tool results', async () => {
+    expect(await resultOf('fill', {selector: '#secret', value: 'hunter2'})).toEqual({ok: true, value: '***'})
+    expect(await resultOf('value', {selector: '#secret'})).toEqual({value: '***'})
+  })
+
   it('drives React-controlled checkboxes and radios so component state follows', async () => {
     expect(await resultOf('check', {selector: '#subscribe'})).toEqual({ok: true, checked: true})
     await expect.element(formState()).toHaveTextContent('subscribed: true')
@@ -164,7 +170,7 @@ describe('dom verbs', () => {
     expect(route.pathname).toBe(location.pathname)
     expect(await resultOf('exists', {selector: '#frm'})).toEqual({exists: true, count: 1})
     const query = await resultOf('query', {selector: 'input'})
-    expect(query.count).toBe(4)
+    expect(query.count).toBe(5)
   })
 
   it('waits for visibility and times out with an explanation', async () => {

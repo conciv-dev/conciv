@@ -3,11 +3,11 @@ import {accessibleNameOf, checkedStateOf, roleOf, valueOf} from './page-snapshot
 import {componentHostAt, describe} from './react-bridge.js'
 import {sourceFromAttr} from './source-attr.js'
 
-const MASKED_VALUE = '***'
+export const MASKED_VALUE = '***'
 
 const SENSITIVE_AUTOCOMPLETE = ['cc-', 'one-time-code', 'current-password', 'new-password']
 
-function isSensitiveField(el: Element): boolean {
+export function isSensitiveField(el: Element): boolean {
   const type = el.getAttribute('type')?.toLowerCase() ?? ''
   if (type === 'password') return true
   const autocomplete = el.getAttribute('autocomplete')?.toLowerCase() ?? ''

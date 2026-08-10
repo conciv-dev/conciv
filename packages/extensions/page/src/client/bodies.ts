@@ -5,6 +5,8 @@ import {
   dehydrate,
   describeElement,
   DOM_CAP,
+  isSensitiveField,
+  MASKED_VALUE,
   navigatePath,
   reactBridge,
   startTracking,
@@ -279,7 +281,8 @@ const textTool = textDef
 const valueTool = valueDef
   .client((input, ctx) => {
     const el = ctx.target(input)
-    return {value: isField(el) ? el.value : null}
+    if (!isField(el)) return {value: null}
+    return {value: isSensitiveField(el) ? MASKED_VALUE : el.value}
   })
   .render(ReadValueCard)
 
@@ -328,7 +331,7 @@ const fillTool = fillDef
     if (!isField(el)) badArgs('fill target is not an input/textarea/select')
     setNative(el, 'value', input.value)
     fireInput(el)
-    return ok({value: el.value})
+    return ok({value: isSensitiveField(el) ? MASKED_VALUE : el.value})
   })
   .render(ActCard)
 
