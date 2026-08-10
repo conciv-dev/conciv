@@ -7,20 +7,39 @@ import {fileURLToPath} from 'node:url'
 import {afterAll, beforeAll, describe, expect, test} from 'vitest'
 import {z} from 'zod'
 
-const OutcomeSchema = z.object({firstUnavailable: z.boolean(), secondUnavailable: z.boolean()})
+const OutcomeSchema = z.object({
+  firstAvailable: z.boolean(),
+  secondAvailable: z.boolean(),
+  executed: z.unknown(),
+})
 
 const corePackageDir = fileURLToPath(new URL('../..', import.meta.url))
 const coreRequire = createRequire(join(corePackageDir, 'entry.js'))
 
 const probeScript = `
 import {pathToFileURL} from 'node:url'
+import {z} from 'zod'
 const {makeCodeMode} = await import(pathToFileURL(process.argv[2]).href)
-const capabilities = () => [{name: 'noop'}]
+const capabilities = () => [
+  {
+    name: 'noop',
+    description: 'a capability that does nothing at all',
+    summary: 'does nothing',
+    category: 'test',
+    mutating: false,
+    reachable: true,
+    inputSchema: z.object({}),
+    errors: [],
+    signature: () => ({input: {type: 'object', properties: {}}}),
+    execute: async () => ({ok: true}),
+  },
+]
 const request = {sessionId: 'conciv_probe', model: null}
 const gate = {decide: async () => 'allow'}
 const first = await makeCodeMode(capabilities, request, gate, {listening: () => true})
 const second = await makeCodeMode(capabilities, request, gate, {listening: () => true})
-console.log(JSON.stringify({firstUnavailable: first === null, secondUnavailable: second === null}))
+const executed = first === null ? null : await first.run('return 6 * 7')
+console.log(JSON.stringify({firstAvailable: first !== null, secondAvailable: second !== null, executed}))
 `
 
 function corruptNativeAddons(prebuildsDir: string): void {
@@ -85,18 +104,22 @@ describe('driver load failure', () => {
     rmSync(rootDir, {recursive: true, force: true})
   })
 
-  test('a genuinely broken native addon degrades code mode to unavailable and logs once', () => {
+  test('a genuinely broken native addon falls back to the wasm driver, which runs code', () => {
     const result = spawnSync(
       process.execPath,
       [coreRequire.resolve('tsx/cli'), join(rootDir, 'probe.mjs'), codeModePath],
       {encoding: 'utf8', timeout: 45_000, cwd: rootDir},
     )
     expect(result.error).toBeUndefined()
-    expect(result.status).toBe(0)
+    expect(result.status, result.stderr).toBe(0)
     const lastLine = result.stdout.trim().split('\n').at(-1) ?? ''
     const outcome = OutcomeSchema.parse(JSON.parse(lastLine))
-    expect(outcome).toEqual({firstUnavailable: true, secondUnavailable: true})
-    const marker = '[core] @tanstack/ai-isolate-node failed to load'
-    expect(result.stderr.split(marker).length - 1).toBe(1)
+    expect(outcome.firstAvailable).toBe(true)
+    expect(outcome.secondAvailable).toBe(true)
+    expect(JSON.stringify(outcome.executed)).toContain('42')
+    const failedMarker = '[core] the code mode driver @tanstack/ai-isolate-node is unusable'
+    expect(result.stderr.split(failedMarker).length - 1).toBe(1)
+    const chosenMarker = '[core] code mode is running on @tanstack/ai-isolate-quickjs'
+    expect(result.stderr.split(chosenMarker).length - 1).toBe(1)
   }, 60_000)
 })

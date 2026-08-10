@@ -25,19 +25,61 @@ export const CATALOG_CALL_HINT = 'await external_catalog({})'
 
 const CATEGORY_SAMPLE_LIMIT = 6
 
+const QUICKJS_MEMORY_LIMIT_MB = 256
+
+const QUICKJS_MAX_STACK_BYTES = 2 * 1024 * 1024
+
+export type DriverCandidate = {name: string; create: () => Promise<IsolateDriver | null>}
+
+export const driverCandidates: readonly DriverCandidate[] = [
+  {
+    name: '@tanstack/ai-isolate-node',
+    create: async () => {
+      const loaded = await import('@tanstack/ai-isolate-node')
+      if (!loaded.probeIsolatedVm().compatible) return null
+      return loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
+    },
+  },
+  {
+    name: '@tanstack/ai-isolate-quickjs',
+    create: async () => {
+      const loaded = await import('@tanstack/ai-isolate-quickjs')
+      return loaded.createQuickJSIsolateDriver({
+        timeout: CODE_MODE_TIMEOUT_MS,
+        memoryLimit: QUICKJS_MEMORY_LIMIT_MB,
+        maxStackSize: QUICKJS_MAX_STACK_BYTES,
+      })
+    },
+  },
+]
+
 let driverLoad: Promise<IsolateDriver | null> | null = null
 
-async function importDriver(): Promise<IsolateDriver | null> {
-  const loaded = await import('@tanstack/ai-isolate-node')
-  if (!loaded.probeIsolatedVm().compatible) return null
-  return loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
+type DriverAttempt = {driver: IsolateDriver} | {reason: string}
+
+async function attemptDriver(candidate: DriverCandidate): Promise<DriverAttempt> {
+  const created = await candidate.create().catch((error: unknown) => ({reason: String(error)}))
+  if (created === null) return {reason: 'the platform probe reported it incompatible'}
+  if ('reason' in created) return created
+  return {driver: created}
+}
+
+export async function firstUsableDriver(candidates: readonly DriverCandidate[]): Promise<IsolateDriver | null> {
+  for (const candidate of candidates) {
+    const attempt = await attemptDriver(candidate)
+    if ('reason' in attempt) {
+      logError(`[core] the code mode driver ${candidate.name} is unusable: ${attempt.reason}`)
+      continue
+    }
+    logError(`[core] code mode is running on ${candidate.name}`)
+    return attempt.driver
+  }
+  logError('[core] code mode found no usable isolate driver')
+  return null
 }
 
 function loadDriver(): Promise<IsolateDriver | null> {
-  driverLoad ??= importDriver().catch((error: unknown) => {
-    logError(`[core] @tanstack/ai-isolate-node failed to load: ${String(error)}`)
-    return null
-  })
+  driverLoad ??= firstUsableDriver(driverCandidates)
   return driverLoad
 }
 
