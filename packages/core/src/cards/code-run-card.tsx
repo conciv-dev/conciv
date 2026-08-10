@@ -1,12 +1,12 @@
 import {Show, type JSX} from 'solid-js'
 import {Code} from 'lucide-solid'
-import {SolidCodeBlock} from '@conciv/solid-diffs'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Markdown} from '@conciv/ui-kit-chat'
 import {
+  Chip,
   clip,
-  CODE_BLOCK_CLASS,
-  CODE_BLOCK_OPTIONS,
+  CodeBlock,
+  ErrorBlock,
   parseInput,
   parseResultPayload,
   ToolCard,
@@ -53,32 +53,17 @@ function ConsoleLogs(props: {logs: string[]}): JSX.Element {
   return (
     <>
       <span class="text-[color:var(--chat-text-3)] text-[length:0.625rem] tracking-[0.08em] uppercase">console</span>
-      <SolidCodeBlock
-        class={CODE_BLOCK_CLASS}
-        options={CODE_BLOCK_OPTIONS}
-        file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}}
-      />
+      <CodeBlock file={{name: 'console.txt', lang: 'ansi', contents: props.logs.join('\n')}} />
     </>
   )
 }
 
-function ResultChip(props: {value: unknown}): JSX.Element {
-  return (
-    <span class="text-[length:var(--chat-text-xs)] px-2 py-0.5 rounded-[var(--chat-radius-sm)] inline-flex max-w-full whitespace-nowrap text-ellipsis [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-2)] [font-family:var(--chat-mono)] overflow-hidden">
-      {JSON.stringify(props.value)}
-    </span>
-  )
+function errorMessage(error: ExecuteError): string {
+  return error.line === undefined ? error.message : `${error.message} · line ${error.line}`
 }
 
 function ErrorBox(props: {error: ExecuteError}): JSX.Element {
-  return (
-    <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)] overflow-x-auto">
-      {props.error.name ?? 'Error'}: {props.error.message}
-      <Show when={props.error.line !== undefined}>
-        <span class="text-[color:var(--chat-text-3)]"> · line {props.error.line}</span>
-      </Show>
-    </div>
-  )
+  return <ErrorBlock label={props.error.name ?? 'Error'} message={errorMessage(props.error)} />
 }
 
 export function CodeRunCard(props: ToolCardProps): JSX.Element {
@@ -101,7 +86,7 @@ export function CodeRunCard(props: ToolCardProps): JSX.Element {
           <ConsoleLogs logs={logsOf(output())} />
         </Show>
         <Show when={hasResult(output())}>
-          <ResultChip value={output()?.result} />
+          <Chip kind="pill" value={JSON.stringify(output()?.result)} />
         </Show>
         <Show when={errorOf(output())}>{(error) => <ErrorBox error={error()} />}</Show>
       </div>
