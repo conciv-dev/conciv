@@ -31,3 +31,29 @@ test('closing the launched page disposes its rpc observer and cancels pending wa
   await close()
   await expect(pending).rejects.toThrow(/disposed/)
 })
+
+test('dispose does not leak an unhandled rejection for a wait nobody awaited, and an awaited wait still rejects', async () => {
+  const browser = await chromium.launch()
+  const page = await browser.newPage()
+  await page.goto('about:blank')
+  try {
+    const observer = observeRpc(page)
+    observer.completed({path: ['abandoned', 'wait'], timeout: NATURAL_TIMEOUT_MS})
+    const awaited = observer.completed({path: ['awaited', 'wait'], timeout: NATURAL_TIMEOUT_MS})
+
+    const unhandled: unknown[] = []
+    const onUnhandledRejection = (reason: unknown): void => void unhandled.push(reason)
+    process.on('unhandledRejection', onUnhandledRejection)
+
+    try {
+      observer.dispose()
+      await expect(awaited).rejects.toThrow(/disposed/)
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection)
+    }
+  } finally {
+    await browser.close()
+  }
+})

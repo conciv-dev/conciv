@@ -49,8 +49,23 @@ type Need = 'completed' | 'first-event'
 type Waiter = {
   filter: RpcCallFilter
   needs: Need
+  promise: Promise<unknown>
   deliver: (state: CallState) => void
   fail: (error: Error) => void
+}
+
+function createDeferred<Value>(): {
+  promise: Promise<Value>
+  resolve: (value: Value) => void
+  reject: (error: Error) => void
+} {
+  let resolve: (value: Value) => void = () => {}
+  let reject: (error: Error) => void = () => {}
+  const promise = new Promise<Value>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return {promise, resolve, reject}
 }
 
 function matchesPattern(actual: unknown, expected: unknown): boolean {
@@ -244,43 +259,53 @@ export function observeRpc(page: Page): RpcObserver {
   page.on('response', onResponse)
   page.on('websocket', onSocket)
 
-  const buffered = (filter: RpcCallFilter, needs: Need): Promise<CallState> => {
+  const buffered = <Result>(
+    filter: RpcCallFilter,
+    needs: Need,
+    project: (state: CallState) => Result,
+  ): Promise<Result> => {
     const timeoutMs = filter.timeout ?? DEFAULT_TIMEOUT_MS
-    return new Promise<CallState>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        waiters.delete(waiter)
-        const observed = states.map((state) => state.record.procedurePath.join('.')).join(', ')
-        reject(
-          new Error(
-            `no rpc call to ${filter.path.join('.')} reached "${needs}" within ${timeoutMs}ms (observed calls: ${observed})`,
-          ),
-        )
-      }, timeoutMs)
-      const waiter: Waiter = {
-        filter,
-        needs,
-        deliver: (state) => {
-          clearTimeout(timer)
-          resolve(state)
-        },
-        fail: (error) => {
-          clearTimeout(timer)
-          reject(error)
-        },
-      }
-      waiters.add(waiter)
-    })
+    const deferred = createDeferred<CallState>()
+    const timer = setTimeout(() => {
+      waiters.delete(waiter)
+      const observed = states.map((state) => state.record.procedurePath.join('.')).join(', ')
+      deferred.reject(
+        new Error(
+          `no rpc call to ${filter.path.join('.')} reached "${needs}" within ${timeoutMs}ms (observed calls: ${observed})`,
+        ),
+      )
+    }, timeoutMs)
+    const projected = deferred.promise.then(project)
+    const waiter: Waiter = {
+      filter,
+      needs,
+      promise: projected,
+      deliver: (state) => {
+        clearTimeout(timer)
+        deferred.resolve(state)
+      },
+      fail: (error) => {
+        clearTimeout(timer)
+        deferred.reject(error)
+      },
+    }
+    waiters.add(waiter)
+    return projected
   }
 
-  const settle = (filter: RpcCallFilter, needs: Need): Promise<CallState> => {
+  const settle = <Result>(
+    filter: RpcCallFilter,
+    needs: Need,
+    project: (state: CallState) => Result,
+  ): Promise<Result> => {
     if (drift.error) return Promise.reject(drift.error)
     const seen = states.find((state) => matches(state, filter, 'completion') && satisfied(state, needs))
-    if (seen) return Promise.resolve(seen)
+    if (seen) return Promise.resolve(project(seen))
     const answeredOverFetch = states.find(
       (state) => matches(state, filter, 'completion') && state.record.transport === 'fetch',
     )
     if (needs === 'first-event' && answeredOverFetch) return Promise.reject(fetchIteratorError(filter))
-    return buffered(filter, needs)
+    return buffered(filter, needs, project)
   }
 
   const counted = (filter: Omit<RpcCallFilter, 'timeout'>, stamp: Stamp): number => {
@@ -290,11 +315,8 @@ export function observeRpc(page: Page): RpcObserver {
 
   return {
     mark: () => sequence.next,
-    completed: async (filter) => (await settle(filter, 'completed')).record,
-    firstEvent: async (filter) => {
-      const state = await settle(filter, 'first-event')
-      return {call: state.record, data: state.events[0]}
-    },
+    completed: (filter) => settle(filter, 'completed', (state) => state.record),
+    firstEvent: (filter) => settle(filter, 'first-event', (state) => ({call: state.record, data: state.events[0]})),
     startedCount: (filter) => counted(filter, 'start'),
     completedCount: (filter) => counted(filter, 'completion'),
     socketCount: () => sockets.count,
@@ -303,6 +325,7 @@ export function observeRpc(page: Page): RpcObserver {
       page.off('response', onResponse)
       page.off('websocket', onSocket)
       for (const waiter of waiters) {
+        waiter.promise.catch(() => {})
         waiter.fail(new Error(`rpc observer disposed while awaiting ${waiter.filter.path.join('.')}`))
       }
       waiters.clear()
