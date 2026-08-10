@@ -255,6 +255,7 @@
     "packages/extensions/tanstack/test/fixtures/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
+    "packages/oxlint-plugin/fixtures/**",
     "e2e/*/src",
     "e2e/*/app"
   ]

@@ -1,6 +1,6 @@
 import {isIdentifier} from './ast-walk.js'
 
-const TEST_FILE = /(^|[\\/])test[\\/].*\.tsx?$|\.test\.tsx?$/
+const TEST_FILE = /(^|[\\/])test[\\/].*\.[jt]sx?$|\.(?:test|spec)\.[jt]sx?$/
 const EXEMPT_FILE = /[\\/]test[\\/]fixtures[\\/]host[\\/]main\.tsx$/
 const FORBIDDEN_SOURCE = 'solid-js/web'
 const FORBIDDEN_NAMES = new Set(['render', 'hydrate'])
