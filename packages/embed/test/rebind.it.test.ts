@@ -4,7 +4,7 @@ import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
 import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
-import {setNavigation, waitForNavigationWrite} from './helpers/navigation.js'
+import {NAVIGATION_SET, setNavigation} from './helpers/navigation.js'
 import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 import {mountHandle, rebindHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
@@ -77,10 +77,11 @@ describe('handle.rebind survives same-core port drift', () => {
     const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
     await expectLocator(apiBaseProbe).toHaveText(proxyA.base, {timeout: 30_000})
 
-    const routed = waitForNavigationWrite(page)
+    const navigationObserver = rpcObserverFor(page)
+    const navigationMark = navigationObserver.mark()
     await sendChatMessage(page, USER_TEXT)
     await expectLocator(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
-    await routed
+    await navigationObserver.completed({path: NAVIGATION_SET, since: navigationMark, timeout: 30_000})
     const sessionBefore = await panelSession()
     expect(sessionBefore).not.toBeNull()
 
