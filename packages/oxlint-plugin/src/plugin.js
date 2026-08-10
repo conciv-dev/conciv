@@ -5,6 +5,7 @@ import noLocatorPoll from './no-locator-poll.js'
 import noPredicateWaits from './no-predicate-waits.js'
 import noTimersInTests from './no-timers-in-tests.js'
 import routerIdioms from './router-idioms.js'
+import toolCardShell from './tool-card-shell.js'
 
 export default {
   meta: {name: 'conciv'},
@@ -16,5 +17,6 @@ export default {
     'no-predicate-waits': noPredicateWaits,
     'no-timers-in-tests': noTimersInTests,
     'router-idioms': routerIdioms,
+    'tool-card-shell': toolCardShell,
   },
 }

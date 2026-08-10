@@ -1,6 +1,5 @@
 export {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../store/tool-context.js'
 export {ToolFallback} from './styled/tool-fallback.js'
-export {CollapsibleCard, type CollapsibleCardProps} from './styled/collapsible-card.js'
 export {ToolGroup, type ToolGroupProps} from './styled/tool-group.js'
 
 export {toolStatus, type ToolStatus} from './primitives/tool-status.js'
