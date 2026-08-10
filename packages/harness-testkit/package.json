@@ -27,8 +27,8 @@
     "@conciv/serve": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "@tanstack/ai": "^0.43.0",
-    "@tanstack/ai-mcp": "0.2.6",
+    "@tanstack/ai": "catalog:",
+    "@tanstack/ai-mcp": "catalog:",
     "hono": "4.12.27",
     "zod": "^4.4.3"
   },

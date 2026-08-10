@@ -70,7 +70,7 @@
     "@conciv/harness-init": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@opencode-ai/sdk": "^1.17.4",
-    "@tanstack/ai": "^0.43.0",
+    "@tanstack/ai": "catalog:",
     "@tanstack/ai-sandbox": "0.3.0",
     "zod": "^4.4.3"
   },

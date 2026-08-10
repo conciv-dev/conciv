@@ -63,7 +63,7 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
-    "@tanstack/ai": "^0.43.0",
+    "@tanstack/ai": "catalog:",
     "hono": "^4.12.0",
     "zod": "^4.4.3"
   },
