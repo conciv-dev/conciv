@@ -85,7 +85,11 @@ const HOSTILE_CAPTURE: ElementCapture = {
               {
                 type: 2,
                 tagName: 'a',
-                attributes: {href: `javascript:window.${XSS_FLAG} = true`, onclick: `window.${XSS_FLAG} = true`},
+                attributes: {
+                  id: 'hostile-click-link',
+                  href: `javascript:window.${XSS_FLAG} = true`,
+                  onclick: `window.${XSS_FLAG} = true`,
+                },
                 childNodes: [{type: 3, textContent: 'click me', id: 3}],
                 id: 2,
               },
@@ -273,6 +277,13 @@ it('neutralizes a hostile payload before rebuild: no onerror/onclick/javascript:
   expect(target.value).toBe('safe-target')
   const replica = replicaRoot()
   expect(replica.querySelector('iframe')).toBeNull()
+
+  const replicaView = replica.defaultView
+  if (replicaView === null) throw new Error('the sandboxed replica iframe exposes no window')
+  const clickLink = replica.querySelector('#hostile-click-link')
+  if (!(clickLink instanceof replicaView.HTMLElement)) throw new Error('the hostile click link was not rebuilt')
+  clickLink.click()
+  expect(Reflect.get(window, XSS_FLAG)).toBeUndefined()
 
   const tabLink = replica.querySelector('#hostile-tab-link')
   expect(tabLink?.getAttribute('href')).toBeNull()
