@@ -1,5 +1,4 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {tmpdir} from 'node:os'
 import {z} from 'zod'
 import {EventType} from '@tanstack/ai'
 import type {PageOutcome} from '@conciv/protocol/page-types'
@@ -55,7 +54,7 @@ function callThroughCatalog(name: string, input: unknown): string {
 
 async function bootScripted(): Promise<{kit: Kit; harness: TestHarness}> {
   const harness = createTestHarness(requireClaude())
-  const kit = await bootKit({cwd: tmpdir()}, harness)
+  const kit = await bootKit({}, harness)
   cleanups.push(() => kit.cleanup())
   return {kit, harness}
 }
