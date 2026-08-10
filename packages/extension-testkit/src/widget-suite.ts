@@ -1,11 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import {createServer, type Server} from 'node:http'
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {chromium, type Browser, type Page} from 'playwright'
+import type {Page} from 'playwright'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
 import {listenLocal} from './listen-local.js'
+import {manageBrowserSuite} from './bounded-close.js'
 
 export type ServedDir = {base: string; close: () => Promise<void>}
 
@@ -15,6 +16,20 @@ const MIME: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
   '.map': 'application/json; charset=utf-8',
   '.woff2': 'font/woff2',
+}
+
+const GRACEFUL_STATIC_CLOSE_MS = 2_000
+
+function closeStaticServer(server: Server, gracefulCloseMs: number): () => Promise<void> {
+  return async () => {
+    const stopped = new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    const forceClose = setTimeout(() => server.closeAllConnections(), gracefulCloseMs)
+    try {
+      await stopped
+    } finally {
+      clearTimeout(forceClose)
+    }
+  }
 }
 
 export async function serveStaticDir(dir: string): Promise<ServedDir> {
@@ -33,32 +48,23 @@ export async function serveStaticDir(dir: string): Promise<ServedDir> {
   const port = await listenLocal(server)
   return {
     base: `http://127.0.0.1:${port}`,
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    close: closeStaticServer(server, GRACEFUL_STATIC_CLOSE_MS),
   }
 }
 
 export function widgetComponentSuite(opts: {id: string; distDir: string}): void {
-  let browser: Browser
-  let kit: CoreKit
-  let host: ServedDir
-
-  beforeAll(async () => {
-    browser = await chromium.launch()
-    kit = await bootCoreKit({id: opts.id})
-    host = await serveStaticDir(opts.distDir)
-  }, 60_000)
-
-  afterAll(async () => {
-    await browser.close()
-    await host.close()
-    await kit.cleanup()
-  })
+  const suite = manageBrowserSuite<CoreKit, ServedDir>(async () => ({
+    kit: await bootCoreKit({id: opts.id}),
+    host: await serveStaticDir(opts.distDir),
+  }))
 
   const fab = (page: Page) => page.getByRole('button', {name: 'Open conciv chat'})
 
   async function openPage(): Promise<Page> {
-    const page = await browser.newPage()
-    await page.goto(`${host.base}/?core=${encodeURIComponent(kit.base)}`, {waitUntil: 'domcontentloaded'})
+    const page = await suite.browser().newPage()
+    await page.goto(`${suite.host().base}/?core=${encodeURIComponent(suite.kit().base)}`, {
+      waitUntil: 'domcontentloaded',
+    })
     return page
   }
 

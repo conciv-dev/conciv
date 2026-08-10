@@ -1,5 +1,5 @@
-import {afterAll, beforeAll} from 'vitest'
-import {chromium, type Browser} from 'playwright'
+import type {Browser} from 'playwright'
+import {manageBrowserSuite} from '@conciv/extension-testkit/bounded-close'
 import {bootEmbedKit, type EmbedKit} from './boot.js'
 import {serveHost, wsProbeHostPage} from './host.js'
 
@@ -11,26 +11,16 @@ export type ProbeSuite = {
 }
 
 export function setupWsProbeSuite(): ProbeSuite {
-  let browser: Browser
-  let kit: EmbedKit
-  let host: {base: string; close: () => Promise<void>}
-
-  beforeAll(async () => {
-    browser = await chromium.launch()
-    kit = await bootEmbedKit()
-    host = await serveHost(() => wsProbeHostPage())
-  }, 60_000)
-
-  afterAll(async () => {
-    await browser.close()
-    await host.close()
-    await kit.cleanup()
+  const suite = manageBrowserSuite<EmbedKit, {base: string; close: () => Promise<void>}>(async () => {
+    const kit = await bootEmbedKit()
+    const host = await serveHost(() => wsProbeHostPage())
+    return {kit, host}
   })
 
   return {
-    browser: () => browser,
-    kit: () => kit,
-    host: () => host,
-    socketUrl: () => `${kit.wsBase}/rpc-ws`,
+    browser: suite.browser,
+    kit: suite.kit,
+    host: suite.host,
+    socketUrl: () => `${suite.kit().wsBase}/rpc-ws`,
   }
 }

@@ -11,6 +11,7 @@ import {
   type RunTypescript,
 } from '@conciv/harness-testkit'
 import {launch, openObservedPage} from './launch.js'
+import {settleTeardown} from './bounded-close.js'
 
 export type HostEngine = {apiBase: string; session: string}
 export type HostHandle = {origin: string; close: () => Promise<void>}
@@ -60,9 +61,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
       return {page: second, close: () => second.close()}
     },
     dispose: async () => {
-      await closeBrowser()
-      await close()
-      await stop()
+      await settleTeardown([() => closeBrowser(), () => close(), () => stop()])
     },
   }
 }

@@ -19,6 +19,7 @@
     "./framework-fake": "./src/framework-fake.ts",
     "./host/grab": "./src/host/grab.ts",
     "./widget-suite": "./src/widget-suite.ts",
+    "./bounded-close": "./src/bounded-close.ts",
     "./test-host": "./src/test-host-config.ts",
     "./rpc-frames": "./src/rpc-frames.ts",
     "./rpc-observer": "./src/rpc-observer.ts",

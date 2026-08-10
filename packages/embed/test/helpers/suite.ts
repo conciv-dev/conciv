@@ -1,5 +1,5 @@
-import {afterAll, beforeAll} from 'vitest'
-import {chromium, type Browser} from 'playwright'
+import type {Browser} from 'playwright'
+import {manageBrowserSuite} from '@conciv/extension-testkit/bounded-close'
 import {bootEmbedKit, type EmbedKit} from './boot.js'
 import {hostPage, serveHost} from './host.js'
 
@@ -10,21 +10,9 @@ export type WidgetSuite = {
 }
 
 export function setupWidgetSuite(options: Parameters<typeof bootEmbedKit>[0] = {}): WidgetSuite {
-  let browser: Browser
-  let kit: EmbedKit
-  let host: {base: string; close: () => Promise<void>}
-
-  beforeAll(async () => {
-    browser = await chromium.launch()
-    kit = await bootEmbedKit(options)
-    host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
-  }, 60_000)
-
-  afterAll(async () => {
-    await browser.close()
-    await host.close()
-    await kit.cleanup()
+  return manageBrowserSuite<EmbedKit, {base: string; close: () => Promise<void>}>(async () => {
+    const kit = await bootEmbedKit(options)
+    const host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
+    return {kit, host}
   })
-
-  return {browser: () => browser, kit: () => kit, host: () => host}
 }
