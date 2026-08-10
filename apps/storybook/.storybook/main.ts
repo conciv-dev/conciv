@@ -8,6 +8,7 @@ const config: StorybookConfig = {
     '../../../packages/extensions/page/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/extensions/tanstack/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/extensions/recorder/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../packages/extensions/test-runner/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/extensions/whiteboard/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/tools/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/core/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',

@@ -1,7 +1,19 @@
-import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
-import {Button, Collapsible} from '@conciv/ui-kit-system'
-import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
-import {ToolCard, resultText} from '@conciv/ui-kit-chat/tools'
+import {createEffect, createMemo, For, onCleanup, Show, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
+import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
+import {ExternalLink, Sparkles} from 'lucide-solid'
+import {
+  ActionButton,
+  ActionRow,
+  CardShell,
+  Chip,
+  CodeBlock,
+  CollapsibleSection,
+  ErrorBlock,
+  StatusVisual,
+  cardHeader,
+  resultText,
+} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {getHostApi, makeExtRpcClient} from '@conciv/extension'
 import type {TestRunnerRouter} from '../server.js'
@@ -14,51 +26,38 @@ import {
   type TestEvent,
 } from '../shared/events.js'
 
-type Row = {name: string; state: TestState | 'running'; error?: TestError}
+type RowState = TestState | 'running'
+type Row = {name: string; state: RowState; error?: TestError}
 type FileGroup = {file: string; tests: Row[]}
+type RunView = {groups: FileGroup[]; summary: Summary; running: boolean}
 
 const EMPTY_SUMMARY: Summary = {passed: 0, failed: 0, skipped: 0, durationMs: 0}
+const COUNT_FORMAT = new Intl.NumberFormat()
+const TEST_PLURAL = new Intl.PluralRules('en')
+
+const SUMMARY_ROW = 'flex flex-wrap items-center gap-1.5'
+const RUN_LABEL =
+  'inline-flex items-center gap-1.25 text-[length:var(--chat-text-xs)] text-[color:var(--chat-text-3)] [font-family:var(--chat-mono)]'
+const FILE_NAME =
+  'min-w-0 truncate font-semibold [font-family:var(--chat-mono)] text-[length:var(--chat-text-sm)] text-[color:var(--chat-text)]'
+const ROW = 'flex min-w-0 items-center gap-2 py-1'
+const ROW_NAME =
+  'min-w-0 truncate text-[length:var(--chat-text-sm)] [font-family:var(--chat-mono)] text-[color:var(--chat-text-2)]'
+const FAILURE_BODY = 'flex flex-col gap-2 pt-1'
+const SECTIONS = 'flex flex-col gap-0.5'
+
+const ROW_TONE: Record<RowState, StatusDotTone> = {
+  pass: 'success',
+  fail: 'danger',
+  skip: 'idle',
+  running: 'accent',
+}
 
 function relName(file: string): string {
   return file.split('/').slice(-2).join('/')
 }
 
-const FOCUS = 'focus-ring'
-const CARD =
-  'border border-pw-line rounded-pw-md bg-pw-fill-soft overflow-hidden font-pw-mono text-[0.8125rem] leading-[1.45] text-pw-text'
-const BAR = 'flex items-center gap-2 py-2.25 px-3 bg-pw-fill border-b border-b-pw-line text-[0.75rem]'
-const RUN_LABEL = 'flex items-center gap-1.25 text-pw-text-3 text-[0.6875rem]'
-const PILL = 'py-px px-2 rounded-pw-pill font-semibold text-[0.6875rem]'
-const PILL_STATE: Record<'pass' | 'fail' | 'skip', string> = {
-  pass: 'bg-pw-success-18 text-pw-success',
-  fail: 'bg-pw-danger-18 text-pw-danger',
-  skip: 'bg-pw-warn-20 text-pw-warn',
-}
-const FILE_HEAD = `flex items-center gap-1.75 w-full py-1.25 px-3 font-semibold text-[0.8125rem] leading-[1.45] font-pw-mono text-pw-text [border:0] cursor-pointer text-left hover:bg-pw-fill ${FOCUS}`
-const CHEVRON = 'flex-none text-pw-text-3 trans-tf150 [[data-state=open]_&]:[transform:rotate(90deg)]'
-const FNAME = 'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-pw-text'
-const ROW = 'flex items-center gap-2.25 min-w-0 py-1.25 pr-3 pl-6 text-pw-text-2 cursor-pointer hover:bg-pw-fill'
-const ROW_FAIL = 'bg-pw-danger-10'
-const ROW_BTN = `w-full [border:0] text-left ${FOCUS}`
-const TNAME = 'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap'
-const DOT_BASE = 'rounded-full flex-none'
-const DOT_STATE: Record<TestState | 'running', string> = {
-  pass: 'size-2.25 bg-pw-success',
-  fail: 'size-2.25 bg-pw-danger',
-  skip: 'size-2.25 bg-pw-warn',
-  running: 'size-2.75 bg-transparent border-2 border-t-transparent border-x-pw-accent border-b-pw-accent anim-test-rot',
-}
-const ERR =
-  'mt-0 mr-3 mb-2 ml-9 py-2 px-2.5 bg-pw-sunken border-l-2 border-l-pw-danger rounded text-pw-danger text-[0.71875rem]'
-const ERR_PRE = 'm-0 whitespace-pre-wrap [word-break:break-word] [font:inherit]'
-const ACTIONS = 'flex gap-1.75 mt-2'
-const ACT = 'min-h-6 text-[0.6875rem] leading-none font-pw-mono py-1 px-2.25 rounded-[0.3125rem]'
-
-function dotClass(state: TestState | 'running'): string {
-  return `${DOT_BASE} ${DOT_STATE[state]}`
-}
-
-function stateLabel(state: TestState | 'running'): string {
+function stateLabel(state: RowState): string {
   if (state === 'pass') return 'passed'
   if (state === 'fail') return 'failed'
   if (state === 'skip') return 'skipped'
@@ -74,134 +73,183 @@ function fixMessage(error: TestError): string {
   return `The test "${error.name}" in ${relName(error.file)} is failing:\n${error.message}\nPlease look into it.`
 }
 
+function countLabel(count: number, verb: string): string {
+  return `${COUNT_FORMAT.format(count)} ${verb}`
+}
+
+function failureCountLabel(count: number): string {
+  return `${COUNT_FORMAT.format(count)} failing ${TEST_PLURAL.select(count) === 'one' ? 'test' : 'tests'}`
+}
+
+function summarySentence(summary: Summary, running: boolean): string {
+  const counts = [
+    countLabel(summary.passed, 'passed'),
+    countLabel(summary.failed, 'failed'),
+    countLabel(summary.skipped, 'skipped'),
+  ].join(', ')
+  return running ? `Test run in progress: ${counts}` : `Test run finished: ${counts}`
+}
+
 function groupByFile(tests: ReadonlyArray<Row & {file: string}>): FileGroup[] {
   const order: string[] = []
   const byFile = new Map<string, Row[]>()
-  for (const t of tests) {
-    const rows = byFile.get(t.file)
+  for (const test of tests) {
+    const rows = byFile.get(test.file)
     if (rows) {
-      rows.push({name: t.name, state: t.state, error: t.error})
+      rows.push({name: test.name, state: test.state, error: test.error})
       continue
     }
-    order.push(t.file)
-    byFile.set(t.file, [{name: t.name, state: t.state, error: t.error}])
+    order.push(test.file)
+    byFile.set(test.file, [{name: test.name, state: test.state, error: test.error}])
   }
   return order.map((file) => ({file, tests: byFile.get(file) ?? []}))
 }
 
-function testRowClass(state: Row['state']): string {
-  return state === 'fail' ? `${ROW} ${ROW_FAIL}` : ROW
+function failureCount(group: FileGroup): number {
+  return group.tests.filter((test) => test.state === 'fail').length
 }
 
-function TestErrorBlock(props: {error: TestError; ctx: ToolViewCtx}): JSX.Element {
-  const openEditor = getHostApi().useOpenEditor()
+function stackDetail(error: TestError): string | undefined {
+  const stack = error.stack.trim()
+  return stack && stack !== error.message.trim() ? stack : undefined
+}
+
+function TestRow(props: {state: RowState; name: string}): JSX.Element {
   return (
-    <div class={ERR}>
-      <pre class={ERR_PRE}>{props.error.message}</pre>
-      <div class={ACTIONS}>
-        <Button variant="outline" class={ACT} onClick={() => openEditor(props.error.file, props.error.line)}>
+    <>
+      <StatusDot tone={ROW_TONE[props.state]} pulse={props.state === 'running'} />
+      <span class="sr-only">{stateLabel(props.state)}: </span>
+      <span class={ROW_NAME}>{props.name}</span>
+    </>
+  )
+}
+
+function TestFailure(props: {error: TestError; ctx: ToolViewCtx}): JSX.Element {
+  const openEditor = getHostApi().useOpenEditor()
+  const stack = () => stackDetail(props.error)
+  return (
+    <div class={FAILURE_BODY}>
+      <ErrorBlock label={openLabel(props.error)} message={props.error.message} />
+      <Show when={stack()}>
+        {(detail) => (
+          <CodeBlock file={{name: relName(props.error.file), lang: 'text', contents: detail()}} maxHeight="log" />
+        )}
+      </Show>
+      <ActionRow>
+        <ActionButton onClick={() => openEditor(props.error.file, props.error.line)}>
           <ExternalLink size={12} aria-hidden="true" />
           Open {openLabel(props.error)}
-        </Button>
-        <Button variant="accent-soft" class={ACT} onClick={() => props.ctx.sendMessage(fixMessage(props.error))}>
+        </ActionButton>
+        <ActionButton intent="allow" onClick={() => props.ctx.sendMessage(fixMessage(props.error))}>
           <Sparkles size={12} aria-hidden="true" />
           Fix this
-        </Button>
+        </ActionButton>
+      </ActionRow>
+    </div>
+  )
+}
+
+function RunSummary(props: {summary: Summary; running: boolean}): JSX.Element {
+  return (
+    <div class={SUMMARY_ROW} role="status" aria-live="polite">
+      <span class="sr-only">{summarySentence(props.summary, props.running)}</span>
+      <div class={SUMMARY_ROW} aria-hidden="true">
+        <Show when={props.running}>
+          <span class={RUN_LABEL}>
+            <StatusVisual status="running" form="dot" />
+            running
+          </span>
+        </Show>
+        <Chip kind="pill" tone="success" value={countLabel(props.summary.passed, 'passed')} />
+        <Show when={props.summary.failed > 0}>
+          <Chip kind="pill" tone="danger" value={countLabel(props.summary.failed, 'failed')} />
+        </Show>
+        <Show when={props.summary.skipped > 0}>
+          <Chip kind="pill" value={countLabel(props.summary.skipped, 'skipped')} />
+        </Show>
       </div>
     </div>
   )
 }
 
+function FileHeader(props: {group: FileGroup}): JSX.Element {
+  const failures = () => failureCount(props.group)
+  return (
+    <>
+      <span class={FILE_NAME}>{relName(props.group.file)}</span>
+      <Show when={failures() > 0}>
+        <Chip kind="pill" tone="danger" value={failureCountLabel(failures())} />
+      </Show>
+    </>
+  )
+}
+
 export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewCtx}): JSX.Element {
-  const [groups, setGroups] = createSignal<FileGroup[]>([])
-  const [summary, setSummary] = createSignal<Summary>(EMPTY_SUMMARY)
-  const [running, setRunning] = createSignal(false)
-  const [openTest, setOpenTest] = createSignal<string | null>(null)
-  const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
-  const live = new Map<string, Row & {file: string}>()
+  const [live, setLive] = createStore<RunView>({groups: [], summary: EMPTY_SUMMARY, running: false})
+  const [disclosure, setDisclosure] = createStore<{closedFiles: string[]; openTest: string | null}>({
+    closedFiles: [],
+    openTest: null,
+  })
+
+  const completed = createMemo<RunView | null>(() => {
+    const result = props.result
+    if (!result) return null
+    return {groups: groupByFile(result.tests.map((test) => ({...test}))), summary: result.summary, running: false}
+  })
+  const view = (): RunView => completed() ?? live
 
   createEffect(() => {
-    const result = props.result
-    if (result) {
-      setRunning(false)
-      setSummary(result.summary)
-      setGroups(groupByFile(result.tests.map((t) => ({...t}))))
-      return
-    }
-    setRunning(true)
+    if (completed()) return
+    const rows = new Map<string, Row & {file: string}>()
     const abort = new AbortController()
-    const applyLive = (ev: TestEvent) => {
-      if (ev.type === 'snapshot') {
-        setSummary(ev.summary)
+    setLive({groups: [], summary: EMPTY_SUMMARY, running: true})
+    const applyLive = (event: TestEvent) => {
+      if (event.type === 'snapshot') {
+        setLive('summary', event.summary)
         return
       }
-      if (ev.type === 'run-start') {
-        live.clear()
-        setGroups([])
-        setSummary(EMPTY_SUMMARY)
+      if (event.type === 'run-start') {
+        rows.clear()
+        setLive({groups: [], summary: EMPTY_SUMMARY, running: true})
         return
       }
-      if (ev.type === 'test') {
-        live.set(`${ev.file}::${ev.name}`, {file: ev.file, name: ev.name, state: ev.state, error: ev.error})
-        setGroups(groupByFile([...live.values()]))
+      if (event.type === 'test') {
+        rows.set(`${event.file}::${event.name}`, {
+          file: event.file,
+          name: event.name,
+          state: event.state,
+          error: event.error,
+        })
+        setLive('groups', groupByFile([...rows.values()]))
         return
       }
-      if (ev.type === 'run-end') {
-        setSummary(ev.summary)
-        setGroups(groupByFile(ev.tests.map((t) => ({...t}))))
-        setRunning(false)
+      if (event.type === 'run-end') {
+        setLive({
+          groups: groupByFile(event.tests.map((test) => ({...test}))),
+          summary: event.summary,
+          running: false,
+        })
         abort.abort()
       }
     }
-    void (async () => {
-      try {
-        const client = makeExtRpcClient<TestRunnerRouter>(props.ctx.apiBase, 'test-runner')
-        const stream = await client.stream(undefined, {
-          signal: abort.signal,
-          context: {retry: Number.POSITIVE_INFINITY},
-        })
-        for await (const ev of stream) applyLive(ev)
-      } catch {}
-    })()
+    void streamInto(props.ctx.apiBase, abort.signal, applyLive)
     onCleanup(() => abort.abort())
   })
 
   const setFileOpen = (file: string, open: boolean) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev)
-      if (open) next.delete(file)
-      else next.add(file)
-      return next
-    })
+    setDisclosure('closedFiles', (files) => (open ? files.filter((name) => name !== file) : [...files, file]))
 
   return (
-    <div class={CARD}>
-      <div class={BAR}>
-        <Show when={running()}>
-          <span class={RUN_LABEL}>
-            <span class={`${DOT_BASE}  ${DOT_STATE.running}`} aria-hidden="true" />
-            running
-          </span>
-        </Show>
-        <span class={`${PILL}  ${PILL_STATE.pass}`}>{summary().passed} passed</span>
-        <Show when={summary().failed > 0}>
-          <span class={`${PILL}  ${PILL_STATE.fail}`}>{summary().failed} failed</span>
-        </Show>
-        <Show when={summary().skipped > 0}>
-          <span class={`${PILL}  ${PILL_STATE.skip}`}>{summary().skipped} skipped</span>
-        </Show>
-      </div>
-      <For each={groups()}>
-        {(group) => (
-          <Collapsible.Root
-            open={!collapsed().has(group.file)}
-            onOpenChange={(details) => setFileOpen(group.file, details.open)}
-          >
-            <Collapsible.Trigger class={FILE_HEAD}>
-              <ChevronRight class={CHEVRON} size={14} aria-hidden="true" />
-              <span class={FNAME}>{relName(group.file)}</span>
-            </Collapsible.Trigger>
-            <Collapsible.Content>
+    <div class="flex flex-col gap-2">
+      <RunSummary summary={view().summary} running={view().running} />
+      <div class={SECTIONS}>
+        <For each={view().groups}>
+          {(group) => (
+            <CollapsibleSection
+              header={<FileHeader group={group} />}
+              open={!disclosure.closedFiles.includes(group.file)}
+              onOpenChange={(open) => setFileOpen(group.file, open)}
+            >
               <For each={group.tests}>
                 {(test) => {
                   const key = `${group.file}::${test.name}`
@@ -209,38 +257,38 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
                     <Show
                       when={test.error}
                       fallback={
-                        <div class={testRowClass(test.state)}>
-                          <span class={dotClass(test.state)} aria-hidden="true" />
-                          <span class="sr-only">{stateLabel(test.state)}: </span>
-                          <span class={TNAME}>{test.name}</span>
+                        <div class={ROW}>
+                          <TestRow state={test.state} name={test.name} />
                         </div>
                       }
                     >
                       {(error) => (
-                        <Collapsible.Root
-                          open={openTest() === key}
-                          onOpenChange={(details) => setOpenTest(details.open ? key : null)}
+                        <CollapsibleSection
+                          header={<TestRow state={test.state} name={test.name} />}
+                          open={disclosure.openTest === key}
+                          onOpenChange={(open) => setDisclosure('openTest', open ? key : null)}
                         >
-                          <Collapsible.Trigger class={`${testRowClass(test.state)}  ${ROW_BTN}`}>
-                            <span class={dotClass(test.state)} aria-hidden="true" />
-                            <span class="sr-only">{stateLabel(test.state)}: </span>
-                            <span class={TNAME}>{test.name}</span>
-                          </Collapsible.Trigger>
-                          <Collapsible.Content>
-                            <TestErrorBlock error={error()} ctx={props.ctx} />
-                          </Collapsible.Content>
-                        </Collapsible.Root>
+                          <TestFailure error={error()} ctx={props.ctx} />
+                        </CollapsibleSection>
                       )}
                     </Show>
                   )
                 }}
               </For>
-            </Collapsible.Content>
-          </Collapsible.Root>
-        )}
-      </For>
+            </CollapsibleSection>
+          )}
+        </For>
+      </div>
     </div>
   )
+}
+
+async function streamInto(apiBase: string, signal: AbortSignal, apply: (event: TestEvent) => void): Promise<void> {
+  try {
+    const client = makeExtRpcClient<TestRunnerRouter>(apiBase, 'test-runner')
+    const stream = await client.stream(undefined, {signal, context: {retry: Number.POSITIVE_INFINITY}})
+    for await (const event of stream) apply(event)
+  } catch {}
 }
 
 function parseRunResult(result: ToolCardProps['result']): TestRunResult | null {
@@ -254,26 +302,24 @@ function parseRunResult(result: ToolCardProps['result']): TestRunResult | null {
   }
 }
 
-function TestIcon(): JSX.Element {
-  return <FlaskConical size={14} />
-}
-
 function runStatus(result: TestRunResult | null): 'error' | undefined {
   return result && result.summary.failed > 0 ? 'error' : undefined
 }
 
 export function TestCard(props: ToolCardProps): JSX.Element {
+  const {meta, title} = cardHeader(props)
   const runResult = () => parseRunResult(props.result)
   return (
-    <ToolCard
-      Icon={TestIcon}
-      title="Ran tests"
+    <CardShell
+      meta={meta()}
+      title={title()}
       part={props.part}
       result={props.result}
-      defaultOpen
+      durationMs={props.durationMs}
       status={runStatus(runResult())}
+      defaultOpen
     >
       <TestResults result={runResult()} ctx={props.ctx} />
-    </ToolCard>
+    </CardShell>
   )
 }

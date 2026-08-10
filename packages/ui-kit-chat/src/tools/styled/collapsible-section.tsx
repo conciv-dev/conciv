@@ -12,12 +12,19 @@ const BODY = 'pl-4 pt-1 pb-1.5 text-[length:var(--chat-text-sm)] text-[color:var
 export function CollapsibleSection(props: {
   header: JSX.Element
   defaultOpen?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   children: JSX.Element
   class?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['header', 'defaultOpen', 'children', 'class'])
+  const [local] = splitProps(props, ['header', 'defaultOpen', 'open', 'onOpenChange', 'children', 'class'])
   return (
-    <Collapsible.Root defaultOpen={local.defaultOpen} class={`min-w-0 w-full ${local.class ?? ''}`}>
+    <Collapsible.Root
+      defaultOpen={local.defaultOpen}
+      open={local.open}
+      onOpenChange={(details) => local.onOpenChange?.(details.open)}
+      class={`min-w-0 w-full ${local.class ?? ''}`}
+    >
       <Collapsible.Trigger class={TRIGGER}>
         <span class={HEADER_SLOT}>{local.header}</span>
         <ChevronDown size={14} class={CHEVRON} aria-hidden="true" />

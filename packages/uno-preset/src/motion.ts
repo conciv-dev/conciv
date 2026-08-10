@@ -33,7 +33,6 @@ export const motion = {
   'anim-tab-left': 'animate-pw-slide-in-left animate-duration-[200ms] animate-ease-pw-expo motion-reduce:animate-none',
   'anim-pulse': 'animate-pulse animate-duration-[1.4s] motion-reduce:animate-none',
   'anim-skel': 'animate-pulse animate-duration-[1.2s] motion-reduce:animate-none',
-  'anim-test-rot': 'animate-spin animate-duration-[0.7s] motion-reduce:animate-none',
   'anim-tool-spin': 'animate-spin animate-duration-[0.7s] motion-reduce:animate-none',
   'anim-think-shimmer':
     'animate-pw-think-shimmer animate-duration-[1.6s] animate-ease-linear animate-iteration-count-infinite motion-reduce:animate-none',
