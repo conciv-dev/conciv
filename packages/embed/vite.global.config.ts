@@ -7,7 +7,7 @@ export default defineConfig({
   define: {'define.amd': 'false', 'process.env.NODE_ENV': '"production"'},
   build: {
     lib: {
-      entry: fileURLToPath(new URL('test/fixtures/global-entry.ts', import.meta.url)),
+      entry: fileURLToPath(new URL('tests/fixtures/global-entry.ts', import.meta.url)),
       formats: ['iife'],
       name: 'ConcivWidget',
       fileName: () => 'conciv-widget.global.js',

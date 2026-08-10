@@ -1773,6 +1773,9 @@ importers:
       '@orpc/standard-server-peer':
         specifier: 'catalog:'
         version: 1.14.7(@opentelemetry/api@1.9.1)
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
       '@solid-primitives/event-listener':
         specifier: ^2.4.6
         version: 2.4.6(solid-js@1.9.14)
@@ -1788,9 +1791,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.8
         version: 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
-      playwright:
-        specifier: ^1.61.1
-        version: 1.61.1
       publint:
         specifier: ^0.3.14
         version: 0.3.21

@@ -5,12 +5,12 @@ export default defineConfig({
   define: {'process.env.NODE_ENV': '"production"'},
   build: {
     lib: {
-      entry: fileURLToPath(new URL('test/fixtures/ws-probe.ts', import.meta.url)),
+      entry: fileURLToPath(new URL('tests/fixtures/ws-probe.ts', import.meta.url)),
       formats: ['iife'],
       name: 'ConcivWsProbe',
       fileName: () => 'conciv-ws-probe.global.js',
     },
-    outDir: 'test/dist',
+    outDir: 'tests/dist',
     emptyOutDir: false,
     sourcemap: false,
   },
