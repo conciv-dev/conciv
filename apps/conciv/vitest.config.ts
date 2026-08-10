@@ -13,7 +13,8 @@ const SESSION_KILLER_SUITE = 'router-restore.browser.test.ts'
 
 class RunSessionKillerLastSequencer extends BaseSequencer {
   override async sort(files: Array<TestSpecification>): Promise<Array<TestSpecification>> {
-    const sorted = await super.toSorted(files)
+    // oxlint-disable-next-line unicorn/no-array-sort
+    const sorted = await super.sort(files)
     const isSessionKiller = (spec: TestSpecification): boolean => spec.moduleId.endsWith(SESSION_KILLER_SUITE)
     return [...sorted.filter((spec) => !isSessionKiller(spec)), ...sorted.filter(isSessionKiller)]
   }
