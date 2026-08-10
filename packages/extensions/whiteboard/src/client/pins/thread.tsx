@@ -2,7 +2,7 @@ import {For, Show, createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {ToolCallCard, type ToolCallCardProps} from '@conciv/ui-kit-chat'
+import {ToolCallCard, type ToolCallCardProps} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {
   Button,

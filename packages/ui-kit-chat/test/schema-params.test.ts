@@ -1,5 +1,5 @@
 import {expect, test} from 'vitest'
-import {schemaFields, schemaParams} from '../src/primitives/tools/schema-params.js'
+import {schemaFields, schemaParams} from '../src/tools/primitives/schema-params.js'
 
 const schema = {
   type: 'object',

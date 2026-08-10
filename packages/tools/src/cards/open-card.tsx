@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {clip, InlineRow, parseInput, toolStatus} from '@conciv/ui-kit-chat'
+import {clip, InlineRow, parseInput, toolStatus} from '@conciv/ui-kit-chat/tools'
 import {OpenInput} from '../open.js'
 
 export function OpenCard(props: ToolCardProps): JSX.Element {

@@ -1,15 +1,13 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {DANGER_TEXT_CLASS, JsonTree} from '@conciv/ui-kit-chat'
+import {CardShell, ErrorBlock, JsonTree, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
 import {
-  CardShell,
   ChipRow,
+  ELEMENT_TARGET_KEYS,
   QUIET_TEXT_CLASS,
   cardErrorMessage,
-  cardHeader,
   cardPayload,
-  detailChips,
   elementTargetValue,
   mutatingBadge,
   toolInput,
@@ -79,7 +77,7 @@ export function ReactCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
   const input = () => toolInput(props.part)
   const element = () => elementTargetValue(input())
-  const chips = () => detailChips(meta(), input())
+  const chips = () => detailChips(meta(), input(), ELEMENT_TARGET_KEYS)
   const payload = () => cardPayload(props.result)
   const descriptor = () => sourceOf(payload())
   const track = () => trackOf(payload())
@@ -102,7 +100,7 @@ export function ReactCard(props: ToolCardProps): JSX.Element {
         </Show>
         <ChipRow element={element()} chips={chips()} />
         <Switch>
-          <Match when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Match>
+          <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
           <Match when={track()}>
             {(report) => (
               <>

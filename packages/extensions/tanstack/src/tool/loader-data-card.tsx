@@ -1,7 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
-import {Database} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat'
+import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 type Entry = {key: string; preview: string}
@@ -33,10 +32,6 @@ function parseEntries(result: ToolCardProps['result']): Entry[] | null {
   return toEntries(payload)
 }
 
-function LoaderIcon(): JSX.Element {
-  return <Database size={14} />
-}
-
 export function LoaderDataCard(props: ToolCardProps): JSX.Element {
   const entries = () => parseEntries(props.result)
   const summary = () => {
@@ -45,7 +40,7 @@ export function LoaderDataCard(props: ToolCardProps): JSX.Element {
     return `${list.length} ${list.length === 1 ? 'key' : 'keys'}`
   }
   return (
-    <InspectionCard card={props} Icon={LoaderIcon} summary={summary()}>
+    <InspectionCard {...props} summary={summary()}>
       <Show when={entries()}>
         {(list) => (
           <CardRows>

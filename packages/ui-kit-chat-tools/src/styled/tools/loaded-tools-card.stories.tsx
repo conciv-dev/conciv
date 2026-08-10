@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import {LoadedToolsCard} from './loaded-tools-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/LoadedToolsCard'}
@@ -66,8 +66,7 @@ export const Loaded: Story = {
     await waitFor(() => expect(c.getByRole('button', {name: 'sleep'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'ping_host'})).toBeVisible()
     await userEvent.hover(c.getByRole('button', {name: 'sleep'}))
-    await waitFor(() => expect(c.getByText('Pause the run for a while.')).toBeVisible())
-    await expect(c.getByText('seconds: number')).toBeVisible()
+    await waitFor(() => expect(c.getByText('Pause the run for a while. · seconds: number')).toBeVisible())
     await expect(c.getByLabelText('complete')).toBeInTheDocument()
   },
 }

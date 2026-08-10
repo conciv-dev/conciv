@@ -1,13 +1,9 @@
 import {For, Show, type JSX} from 'solid-js'
-import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
-import {CHIP} from '@conciv/ui-kit-chat'
+import {CHIP, CodeBlock} from '@conciv/ui-kit-chat/tools'
 import {LIST_ROW_CLASS} from './cards/shared.js'
 import {formatHtml} from './page-format.js'
 
-const CODE_OPTIONS: FileOptions<undefined> = {theme: {light: 'github-light', dark: 'github-dark'}, themeType: 'system'}
-
-const HTML_CLASS =
-  'text-[length:var(--chat-text-sm)] rounded-[var(--chat-radius-sm)] max-h-80 max-w-full block [background:var(--chat-sunken)] overflow-auto'
+const HTML_CLASS = 'max-h-80 max-w-full block'
 const LIST =
   'm-0 p-0 list-none rounded-[var(--chat-radius-sm)] max-h-[13.75rem] w-full [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] overflow-auto'
 const LIST_ITEM = `text-[length:var(--chat-text-xs)] ${LIST_ROW_CLASS}`
@@ -42,10 +38,11 @@ export function A11yNodeList(props: {nodes: readonly A11yNode[]}): JSX.Element {
 
 export function PageHtmlBlock(props: {markup: string}): JSX.Element {
   return (
-    <SolidCodeBlock
+    <CodeBlock
       class={HTML_CLASS}
-      options={CODE_OPTIONS}
-      file={{name: 'page.html', contents: formatHtml(props.markup)}}
+      maxHeight="log"
+      chrome="file"
+      file={{name: 'page.html', lang: 'html', contents: formatHtml(props.markup)}}
     />
   )
 }

@@ -1,8 +1,7 @@
 import {createContext, createMemo, For, useContext, type Accessor, type JSX} from 'solid-js'
 import {SolidPatchDiff, type FileDiffOptions} from '@conciv/solid-diffs'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
-
+import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
 export type ApplyPatchBlock = {type: 'Update' | 'Add' | 'Delete'; path: string; body: string}
 export type ApplyPatchInfo = {files: string[]; added: number; removed: number}
 

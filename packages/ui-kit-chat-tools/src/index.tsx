@@ -14,7 +14,7 @@ export {FileEdit, useFileEdit, type FileEditDiff} from './primitives/tools/file-
 export {Search, useSearch} from './primitives/tools/search.js'
 export {Todo, useTodo, type TodoItem, type TodoItemStatus} from './primitives/tools/todo.js'
 export {nowTitle, humanToolName} from './primitives/tools/now-title.js'
-export {schemaParams} from '@conciv/ui-kit-chat'
+export {schemaParams} from '@conciv/ui-kit-chat/tools'
 export {inlineValue, shortenPath, basename, truncate, SUMMARY_KEYS} from './primitives/tools/inline-tool.js'
 
 export {BashCard} from './styled/tools/bash-card.js'
@@ -25,7 +25,6 @@ export {FileEditCard, fileEditTool} from './styled/tools/file-edit-card.js'
 export {LoadedToolsCard, loadedToolsTool} from './styled/tools/loaded-tools-card.js'
 export {SearchCard, searchTool} from './styled/tools/search-card.js'
 export {TodoCard, todoTool} from './styled/tools/todo-card.js'
-export {ToolChip} from './styled/tools/tool-chip.js'
 export {
   inlineTool,
   ReadInline,

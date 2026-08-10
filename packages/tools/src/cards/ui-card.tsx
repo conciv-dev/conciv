@@ -1,7 +1,6 @@
 import {createMemo, createSignal, For, Match, Show, Switch, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Check, ChevronDown, LayoutTemplate, MessageCircleOff} from 'lucide-solid'
-import {SolidCodeBlock, SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
 import {Button, createListCollection, Select, TextField} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {
@@ -14,16 +13,16 @@ import {
 } from '@conciv/protocol/ui-types'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
+  ActionRow,
   Chip,
   ChipRow,
-  CODE_BLOCK_CLASS,
-  CODE_BLOCK_OPTIONS,
+  CodeBlock,
+  DiffBlock,
   NoteRow,
   parseInput,
   parseResultPayload,
   ToolCard,
-} from '@conciv/ui-kit-chat'
-
+} from '@conciv/ui-kit-chat/tools'
 const LABEL: Record<UiInput['kind'], string> = {
   choices: 'choices',
   confirm: 'a confirmation',
@@ -34,17 +33,8 @@ const LABEL: Record<UiInput['kind'], string> = {
 const BODY = 'flex flex-col gap-2.5 py-1'
 const QUESTION = 'text-[length:var(--chat-text-md)] [color:var(--chat-text)] font-semibold m-0'
 const SENT = 'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] m-0'
-const ACTIONS = 'flex flex-wrap gap-2'
 const CHOICE = 'min-h-11 flex-auto'
 const ACTION = 'min-h-11 flex-1'
-const DIFF_CLASS =
-  'text-[length:var(--chat-text-xs)] rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] max-h-80 max-w-full block overflow-auto'
-const DIFF_OPTIONS: FileDiffOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-  diffStyle: 'unified',
-  overflow: 'wrap',
-}
 
 function Icon(): JSX.Element {
   return <LayoutTemplate size={14} />
@@ -117,7 +107,7 @@ function Answered(props: {answer: UiAnswer | null}): JSX.Element {
 
 function Choices(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnswerValue) => void}): JSX.Element {
   return (
-    <div class={ACTIONS}>
+    <ActionRow>
       <For each={props.spec.options ?? []}>
         {(option) => (
           <Button variant="accent-soft" class={CHOICE} disabled={props.disabled} onClick={() => props.onAnswer(option)}>
@@ -125,7 +115,7 @@ function Choices(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiA
           </Button>
         )}
       </For>
-    </div>
+    </ActionRow>
   )
 }
 
@@ -133,22 +123,16 @@ function Confirm(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiA
   return (
     <>
       <Show when={props.spec.detail}>
-        {(detail) => (
-          <SolidCodeBlock
-            class={CODE_BLOCK_CLASS}
-            options={CODE_BLOCK_OPTIONS}
-            file={{name: 'detail.txt', lang: 'text', contents: detail()}}
-          />
-        )}
+        {(detail) => <CodeBlock file={{name: 'detail.txt', lang: 'text', contents: detail()}} />}
       </Show>
-      <div class={ACTIONS}>
+      <ActionRow>
         <Button class={ACTION} disabled={props.disabled} onClick={() => props.onAnswer('yes')}>
           Approve
         </Button>
         <Button variant="outline-danger" class={ACTION} disabled={props.disabled} onClick={() => props.onAnswer('no')}>
           Deny
         </Button>
-      </div>
+      </ActionRow>
     </>
   )
 }
@@ -157,13 +141,8 @@ function Diff(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnsw
   const name = () => props.spec.file ?? 'change'
   return (
     <>
-      <SolidFileDiff
-        class={DIFF_CLASS}
-        options={DIFF_OPTIONS}
-        oldFile={{name: name(), contents: props.spec.before ?? ''}}
-        newFile={{name: name(), contents: props.spec.after ?? ''}}
-      />
-      <div class={ACTIONS}>
+      <DiffBlock file={{name: name(), before: props.spec.before ?? '', after: props.spec.after ?? ''}} />
+      <ActionRow>
         <Button class={ACTION} disabled={props.disabled} onClick={() => props.onAnswer('apply')}>
           Apply
         </Button>
@@ -175,7 +154,7 @@ function Diff(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnsw
         >
           Reject
         </Button>
-      </div>
+      </ActionRow>
     </>
   )
 }
@@ -254,11 +233,11 @@ function Form(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnsw
           </Show>
         )}
       </For>
-      <div class={ACTIONS}>
+      <ActionRow>
         <Button type="submit" class={ACTION} disabled={props.disabled}>
           Submit
         </Button>
-      </div>
+      </ActionRow>
     </form>
   )
 }

@@ -1,8 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {Route} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat'
+import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 const MatchSchema = z.object({routeId: z.string(), path: z.string().default('')}).loose()
@@ -23,10 +22,6 @@ function summarize(state: RouterState): string {
   return `${state.location.pathname} · ${count} ${count === 1 ? 'match' : 'matches'}`
 }
 
-function RouterIcon(): JSX.Element {
-  return <Route size={14} />
-}
-
 export function RouterStateCard(props: ToolCardProps): JSX.Element {
   const state = () => parseState(props.result)
   const summary = () => {
@@ -34,7 +29,7 @@ export function RouterStateCard(props: ToolCardProps): JSX.Element {
     return value ? summarize(value) : ''
   }
   return (
-    <InspectionCard card={props} Icon={RouterIcon} summary={summary()}>
+    <InspectionCard {...props} summary={summary()}>
       <Show when={state()}>
         {(value) => (
           <CardRows>

@@ -2,8 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Clapperboard} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseInput, resultText, ToolCard} from '@conciv/ui-kit-chat'
-
+import {Chip, ErrorBlock, parseInput, resultText, ToolCard} from '@conciv/ui-kit-chat/tools'
 const ImagePartSchema = z.object({type: z.literal('image')}).loose()
 const TextPartSchema = z.object({type: z.literal('text'), content: z.string()}).loose()
 const StartDetailSchema = z.object({captureId: z.string()}).loose()
@@ -71,27 +70,19 @@ export function RecordingToolCard(props: ToolCardProps): JSX.Element {
     <ToolCard
       Icon={RecorderIcon}
       title={props.part.name}
-      meta={settled() ? summarize(props, recording()) : ''}
+      subtitle={settled() ? summarize(props, recording()) : undefined}
       part={props.part}
       result={props.result}
       status={recording().error ? 'error' : undefined}
     >
-      <Show when={recording().error}>
-        {(error) => (
-          <div class="rounded-[var(--chat-radius-sm)] p-2 text-[length:var(--chat-text-xs)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
-            {error()}
-          </div>
-        )}
-      </Show>
+      <Show when={recording().error}>{(error) => <ErrorBlock message={error()} />}</Show>
       <Show when={!recording().error && recording().actions.length > 0}>
         <div class="flex flex-col gap-0.5">
           <For each={recording().actions}>
             {(action) => (
-              <div class="flex items-baseline gap-2 text-[length:var(--chat-text-xs)] [font-family:var(--chat-mono)]">
-                <span class="shrink-0 tabular-nums [color:var(--chat-text-3)]">{action.at}</span>
-                <span class="shrink-0 rounded-[var(--chat-radius-pill)] px-1.5 [background:var(--chat-sunken)] [color:var(--chat-text-2)]">
-                  {action.kind}
-                </span>
+              <div class="text-[length:var(--chat-text-xs)] flex gap-2 [font-family:var(--chat-mono)] items-baseline">
+                <span class="shrink-0 [color:var(--chat-text-3)] tabular-nums">{action.at}</span>
+                <Chip kind="pill" value={action.kind} />
                 <span class="min-w-0 truncate [color:var(--chat-text-2)]">{action.detail}</span>
               </div>
             )}

@@ -1,14 +1,15 @@
-import {Show, type Component, type JSX} from 'solid-js'
+import {Show, splitProps, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload, resultText, ToolCard, toolStatus} from '@conciv/ui-kit-chat'
+import {CardShell, ErrorBlock, cardHeader, parseResultPayload, resultText, toolStatus} from '@conciv/ui-kit-chat/tools'
 
-const PageVerbErrorSchema = z.object({message: z.string()}).loose()
+const ErrorPayloadSchema = z.object({message: z.string()}).loose()
 
 function readError(part: ToolCardProps['part'], result: ToolCardProps['result']): string | null {
   if (toolStatus(part, result) !== 'error') return null
-  const shaped = PageVerbErrorSchema.safeParse(parseResultPayload(result))
-  if (shaped.success) return shaped.data.message
+  if (result?.error && result.error.length > 0) return result.error
+  const shaped = ErrorPayloadSchema.safeParse(parseResultPayload(result))
+  if (shaped.success && shaped.data.message.length > 0) return shaped.data.message
   const text = resultText(result)
   return text.length > 0 ? text : 'tool failed'
 }
@@ -40,50 +41,43 @@ export function CardNote(props: {children: JSX.Element; class?: string}): JSX.El
   )
 }
 
-export function CardErrorBlock(props: {children: JSX.Element}): JSX.Element {
+export function InspectionCard(props: ToolCardProps & {summary: string; children: JSX.Element}): JSX.Element {
+  const [local, card] = splitProps(props, ['summary', 'children'])
+  const {meta, title} = cardHeader(card)
+  const error = () => readError(card.part, card.result)
+  const running = () => isRunning(card.part, card.result)
+  const subtitle = () => (error() || running() ? undefined : local.summary)
   return (
-    <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] flex flex-col gap-0.5 [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
-      {props.children}
-    </div>
+    <CardShell
+      meta={meta()}
+      title={title()}
+      subtitle={subtitle()}
+      part={card.part}
+      result={card.result}
+      durationMs={card.durationMs}
+    >
+      <Show when={error()}>{(message) => <ErrorBlock message={message()} />}</Show>
+      <Show when={!error() && !running()}>{local.children}</Show>
+    </CardShell>
   )
 }
 
-export function InspectionCard(props: {
-  card: ToolCardProps
-  Icon: Component
-  summary: string
-  children: JSX.Element
-}): JSX.Element {
-  const error = () => readError(props.card.part, props.card.result)
-  const meta = () => (error() ? '' : isRunning(props.card.part, props.card.result) ? 'reading…' : props.summary)
+export function ActionCard(props: ToolCardProps & {summary: string}): JSX.Element {
+  const [local, card] = splitProps(props, ['summary'])
+  const {meta, title} = cardHeader(card)
+  const error = () => readError(card.part, card.result)
+  const running = () => isRunning(card.part, card.result)
+  const subtitle = () => (error() || running() ? undefined : local.summary)
   return (
-    <ToolCard
-      Icon={props.Icon}
-      title={props.card.part.name}
+    <CardShell
       meta={meta()}
-      part={props.card.part}
-      result={props.card.result}
-      status={error() ? 'error' : undefined}
+      title={title()}
+      subtitle={subtitle()}
+      part={card.part}
+      result={card.result}
+      durationMs={card.durationMs}
     >
-      <Show when={error()}>{(message) => <CardErrorBlock>{message()}</CardErrorBlock>}</Show>
-      <Show when={!error() && !isRunning(props.card.part, props.card.result)}>{props.children}</Show>
-    </ToolCard>
-  )
-}
-
-export function ActionCard(props: {card: ToolCardProps; Icon: Component; summary: string}): JSX.Element {
-  const error = () => readError(props.card.part, props.card.result)
-  const meta = () => (error() ? '' : isRunning(props.card.part, props.card.result) ? 'running…' : props.summary)
-  return (
-    <ToolCard
-      Icon={props.Icon}
-      title={props.card.part.name}
-      meta={meta()}
-      part={props.card.part}
-      result={props.card.result}
-      status={error() ? 'error' : undefined}
-    >
-      <Show when={error()}>{(message) => <CardErrorBlock>{message()}</CardErrorBlock>}</Show>
-    </ToolCard>
+      <Show when={error()}>{(message) => <ErrorBlock message={message()} />}</Show>
+    </CardShell>
   )
 }

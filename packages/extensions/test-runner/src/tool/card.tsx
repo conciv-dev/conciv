@@ -1,7 +1,7 @@
 import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
 import {Button, Collapsible} from '@conciv/ui-kit-system'
 import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
-import {ToolCard, resultText} from '@conciv/ui-kit-chat'
+import {ToolCard, resultText} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {getHostApi, makeExtRpcClient} from '@conciv/extension'
 import type {TestRunnerRouter} from '../server.js'
@@ -258,10 +258,22 @@ function TestIcon(): JSX.Element {
   return <FlaskConical size={14} />
 }
 
+function runStatus(result: TestRunResult | null): 'error' | undefined {
+  return result && result.summary.failed > 0 ? 'error' : undefined
+}
+
 export function TestCard(props: ToolCardProps): JSX.Element {
+  const runResult = () => parseRunResult(props.result)
   return (
-    <ToolCard Icon={TestIcon} title="Ran tests" part={props.part} result={props.result} defaultOpen>
-      <TestResults result={parseRunResult(props.result)} ctx={props.ctx} />
+    <ToolCard
+      Icon={TestIcon}
+      title="Ran tests"
+      part={props.part}
+      result={props.result}
+      defaultOpen
+      status={runStatus(runResult())}
+    >
+      <TestResults result={runResult()} ctx={props.ctx} />
     </ToolCard>
   )
 }

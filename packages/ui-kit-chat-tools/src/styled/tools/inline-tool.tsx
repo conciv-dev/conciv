@@ -1,6 +1,6 @@
 import type {JSX} from 'solid-js'
 import type {ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
-import {InlineRow, toolStatus} from '@conciv/ui-kit-chat'
+import {InlineRow, toolStatus} from '@conciv/ui-kit-chat/tools'
 import {basename, inlineValue, shortenPath, SUMMARY_KEYS, truncate} from '../../primitives/tools/inline-tool.js'
 
 export function inlineTool(

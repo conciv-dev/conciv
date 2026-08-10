@@ -24,11 +24,11 @@ import {
   type Segment,
   type Turn,
 } from '../store/grouping.js'
-import {toolStatus, type ToolStatus} from '../primitives/tools/tool-status.js'
+import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
 import {useThreadAutoScroll} from '../behaviors/use-thread-auto-scroll.js'
-import {ToolCallCard} from './tools/tool-call-card.js'
-import {ToolGroup} from './tool-group.js'
-import {ToolFallback} from './tool-fallback.js'
+import {ToolCallCard} from '../tools/styled/tool-call-card.js'
+import {ToolGroup} from '../tools/styled/tool-group.js'
+import {ToolFallback} from '../tools/styled/tool-fallback.js'
 import {Markdown} from './markdown.js'
 import {NowLine} from './now-line.js'
 import {SHIMMER} from './shimmer.js'

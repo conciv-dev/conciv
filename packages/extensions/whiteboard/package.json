@@ -95,6 +95,8 @@
     "@vitest/coverage-v8": "^4.1.8",
     "drizzle-kit": "^0.31.10",
     "playwright": "^1.61.1",
+    "storybook": "^10.5.0",
+    "storybook-solidjs-vite": "^10.6.0",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
     "unocss": "^66.7.2",

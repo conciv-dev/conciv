@@ -1,9 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {DatabaseZap} from 'lucide-solid'
+import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat'
-import {ToolChip} from '@conciv/ui-kit-chat-tools'
 import {RelativeTime} from '@conciv/ui-kit-system'
 import {CardNote, CardRow, CardRows, InspectionCard} from './card-shared.js'
 
@@ -29,15 +27,11 @@ function parseCache(result: ToolCardProps['result']): {queries: Entry[]; mutatio
   return parsed.success ? parsed.data : null
 }
 
-function QueryIcon(): JSX.Element {
-  return <DatabaseZap size={14} />
-}
-
 function EntryRow(props: {entry: Entry}): JSX.Element {
   return (
     <CardRow>
       <span class="min-w-0 truncate [color:var(--chat-text-2)]">{props.entry.key}</span>
-      <ToolChip name={props.entry.state} />
+      <Chip kind="pill" value={props.entry.state} />
       <Show when={props.entry.observers !== null}>
         <span class="shrink-0 [color:var(--chat-text-3)]">{props.entry.observers} obs</span>
       </Show>
@@ -57,7 +51,7 @@ export function QueryCacheCard(props: ToolCardProps): JSX.Element {
     return `${count} ${count === 1 ? 'query' : 'queries'}`
   }
   return (
-    <InspectionCard card={props} Icon={QueryIcon} summary={summary()}>
+    <InspectionCard {...props} summary={summary()}>
       <Show when={cache()}>
         {(value) => (
           <CardRows>

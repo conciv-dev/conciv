@@ -7,8 +7,8 @@ import {
   ELEMENT_CAPTURE_FIXTURE_DESCRIPTOR_ONLY,
   ELEMENT_CAPTURE_FIXTURE_FULL,
   ELEMENT_CAPTURE_FIXTURE_MASKED,
-} from '../src/store/element-capture.fixtures.js'
-import {ElementPreview} from '../src/styled/element-preview.js'
+} from '../src/tools/element-capture.fixtures.js'
+import {ElementPreview} from '../src/tools/styled/element-preview.js'
 import {cleanupViews, mountView} from './mount-view.js'
 
 const XSS_FLAG = '__elementPreviewXssProbe'

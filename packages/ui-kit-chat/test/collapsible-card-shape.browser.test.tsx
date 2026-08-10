@@ -2,7 +2,7 @@ import 'virtual:uno.css'
 import {afterEach, expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {createSignal, Show} from 'solid-js'
-import {CollapsibleCard} from '../src/styled/collapsible-card.js'
+import {CollapsibleCard} from '../src/tools/styled/collapsible-card.js'
 import {cleanupViews, mountView} from './mount-view.js'
 
 afterEach(() => {

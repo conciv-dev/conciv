@@ -2,9 +2,8 @@ import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {MessageSquare} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseInput, ToolCard} from '@conciv/ui-kit-chat'
-import {ToolChip} from '@conciv/ui-kit-chat-tools'
-import {failureOf, toolPayload} from '../card-util.js'
+import {Chip, ErrorBlock, parseInput, parseResultMedia, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {failureOf} from '../card-util.js'
 
 const TextPartSchema = z.object({type: z.literal('text'), text: z.string()}).loose()
 
@@ -63,12 +62,12 @@ function CommentIcon(): JSX.Element {
 
 export function CommentOpCard(props: ToolCardProps): JSX.Element {
   const op = () => opOf(props.part.name)
-  const payload = () => toolPayload(props.result)
+  const media = () => parseResultMedia(props.result)
   const detail = () => {
-    const parsed = DetailSchema.safeParse(payload().detail)
+    const parsed = DetailSchema.safeParse(media().json)
     return parsed.success ? parsed.data : {}
   }
-  const failure = () => failureOf(payload().detail)
+  const failure = () => failureOf(media().json)
   const preview = () => textPreview(props.part)
   return (
     <ToolCard
@@ -81,8 +80,8 @@ export function CommentOpCard(props: ToolCardProps): JSX.Element {
     >
       <div class="flex flex-col gap-2">
         <div class="flex flex-wrap gap-1.5">
-          <ToolChip name={op()} tone={DESTRUCTIVE.has(op()) ? 'bad' : undefined} />
-          <Show when={summarize(op(), props, detail())}>{(text) => <ToolChip name={text()} />}</Show>
+          <Chip kind="pill" tone={DESTRUCTIVE.has(op()) ? 'danger' : undefined} value={op()} />
+          <Show when={summarize(op(), props, detail())}>{(text) => <Chip kind="pill" value={text()} />}</Show>
         </div>
         <Show when={preview()}>
           {(text) => (
@@ -92,14 +91,7 @@ export function CommentOpCard(props: ToolCardProps): JSX.Element {
           )}
         </Show>
         <Show when={failure()}>
-          {(error) => (
-            <div class="text-[length:var(--chat-text-xs)] p-2 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-danger-line)] [color:var(--chat-danger)] [font-family:var(--chat-mono)]">
-              {error().error}
-              <Show when={error().reason}>
-                <span class="[color:var(--chat-text-3)]"> · {error().reason}</span>
-              </Show>
-            </div>
-          )}
+          {(error) => <ErrorBlock message={error().reason ? `${error().error} · ${error().reason}` : error().error} />}
         </Show>
       </div>
     </ToolCard>

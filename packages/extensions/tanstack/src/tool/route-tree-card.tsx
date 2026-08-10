@@ -1,9 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {ListTree} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat'
-import {ToolChip} from '@conciv/ui-kit-chat-tools'
+import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 type RouteNodeShape = {id: string; depth: number; hasLoader: boolean}
@@ -28,10 +26,6 @@ function parseTree(result: ToolCardProps['result']): RouteNodeShape[] | null {
   return parsed.success ? flatten(parsed.data, 0) : null
 }
 
-function TreeIcon(): JSX.Element {
-  return <ListTree size={14} />
-}
-
 export function RouteTreeCard(props: ToolCardProps): JSX.Element {
   const nodes = () => parseTree(props.result)
   const summary = () => {
@@ -40,7 +34,7 @@ export function RouteTreeCard(props: ToolCardProps): JSX.Element {
     return `${list.length} ${list.length === 1 ? 'route' : 'routes'}`
   }
   return (
-    <InspectionCard card={props} Icon={TreeIcon} summary={summary()}>
+    <InspectionCard {...props} summary={summary()}>
       <Show when={nodes()}>
         {(list) => (
           <CardRows>
@@ -49,7 +43,7 @@ export function RouteTreeCard(props: ToolCardProps): JSX.Element {
                 <CardRow style={{'padding-left': `${node.depth * 12}px`}}>
                   <span class="min-w-0 truncate [color:var(--chat-text-2)]">{node.id}</span>
                   <Show when={node.hasLoader}>
-                    <ToolChip name="loader" />
+                    <Chip kind="pill" value="loader" />
                   </Show>
                 </CardRow>
               )}

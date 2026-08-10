@@ -29,6 +29,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    },
     "./theme/tokens.css": "./src/theme/tokens.css",
     "./theme/conciv.css": "./src/theme/conciv.css"
   },
@@ -56,6 +60,7 @@
     "@tanstack/ai-client": "0.23.0",
     "@tanstack/pacer": "^0.21.1",
     "@tanstack/solid-virtual": "^3.13.12",
+    "class-variance-authority": "^0.7.1",
     "lucide-solid": "^1.18.0",
     "rrweb-snapshot": "2.1.0",
     "shiki": "^4.2.0",

@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import {ApplyPatchDiff} from './apply-patch-diff.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/ApplyPatchDiff'}
@@ -37,10 +37,8 @@ export const Complete: Story = {
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('apply_patch')).toBeVisible()
-    await expect(c.getByText('sum.ts')).toBeVisible()
-    await expect(c.getByText('+3')).toBeVisible()
-    await expect(c.getByText('−1')).toBeVisible()
+    await expect(c.getByText('apply_patch sum.ts')).toBeVisible()
+    await expect(c.getByText('+3 −1')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
     await waitFor(() => expect(c.getByRole('button')).toHaveAttribute('data-state', 'open'))
   },

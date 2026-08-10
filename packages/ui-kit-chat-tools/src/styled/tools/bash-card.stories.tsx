@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 import {BashCard} from './bash-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/BashCard'}
@@ -43,7 +43,7 @@ export const Complete: Story = {
     await expect(c.getByText('Run the unit tests')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
     await waitFor(async () => expect(await codeText(canvasElement)).toContain('42 passed'), {timeout: 5000})
-    await waitFor(() => expect(c.getByText('$ pnpm test')).toBeVisible())
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('pnpm test'))
   },
 }
 

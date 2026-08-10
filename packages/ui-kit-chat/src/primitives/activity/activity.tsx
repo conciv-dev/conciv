@@ -1,7 +1,7 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import type {ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
 import {coalesceTurns, type Turn} from '../../store/grouping.js'
-import {toolStatus} from '../tools/tool-status.js'
+import {toolStatus} from '../../tools/primitives/tool-status.js'
 
 export type ActivityLabeler = (part: ToolCallPart) => string
 

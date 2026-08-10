@@ -1,18 +1,8 @@
 import {Show, type JSX} from 'solid-js'
 import {Search as SearchIcon} from 'lucide-solid'
-import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Search, useSearch} from '../../primitives/tools/search.js'
-import {ToolCard} from '@conciv/ui-kit-chat'
-
-const OUT_OPTIONS: FileOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-  disableFileHeader: true,
-  disableLineNumbers: true,
-}
-const OUT_CLASS =
-  'block max-w-full max-h-55 overflow-auto rounded-[var(--chat-radius-sm)] text-[length:var(--chat-text-xs)] [background:var(--chat-sunken)]'
+import {CodeBlock, ToolCard} from '@conciv/ui-kit-chat/tools'
 
 function Icon(): JSX.Element {
   return <SearchIcon size={14} />
@@ -29,11 +19,7 @@ function Body(): JSX.Element {
       meta={search.meta()}
     >
       <Show when={search.count() > 0}>
-        <SolidCodeBlock
-          class={OUT_CLASS}
-          options={OUT_OPTIONS}
-          file={{name: 'results.txt', lang: 'text', contents: search.text()}}
-        />
+        <CodeBlock size="xs" maxHeight="result" file={{name: 'results.txt', lang: 'text', contents: search.text()}} />
       </Show>
     </ToolCard>
   )

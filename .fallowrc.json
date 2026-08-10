@@ -118,9 +118,18 @@
     {
       "file": "packages/ui-kit-chat/src/styled/**",
       "exports": ["*"]
+    },
+    {
+      "file": "packages/ui-kit-chat/src/tools/primitives/tool-fallback.tsx",
+      "exports": ["*"]
+    },
+    {
+      "file": "packages/ui-kit-chat/src/tools/styled/tool-fallback.tsx",
+      "exports": ["*"]
     }
   ],
   "entry": [
+    "packages/ui-kit-chat/src/tools.tsx",
     "packages/extension-testkit/src/host/host-entry.tsx",
     "packages/embed/src/native-entry.ts",
     "packages/extensions/tanstack/test/host/main.tsx",

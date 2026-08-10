@@ -1,24 +1,20 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {Tabs} from '@conciv/ui-kit-system'
-import {SolidCodeBlock, SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
-  CODE_BLOCK_CLASS,
-  CODE_BLOCK_OPTIONS,
-  DANGER_TEXT_CLASS,
+  CardShell,
+  CodeBlock,
+  DiffBlock,
   ElementPreview,
+  ErrorBlock,
   MUTATING_BADGE,
-} from '@conciv/ui-kit-chat'
+  cardHeader,
+} from '@conciv/ui-kit-chat/tools'
 import {pageVerbOfTool} from '../../shared/defs.js'
-import {CardShell, cardErrorMessage, cardHeader, toolInput} from './shared.js'
+import {cardErrorMessage, toolInput} from './shared.js'
 
 const CODE_VERBS = new Set(['eval', 'css'])
-
-const DIFF_OPTIONS: FileDiffOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-}
 
 function descriptorSummary(capture: ElementCapture | undefined): string {
   if (capture === undefined) return ''
@@ -30,7 +26,7 @@ function descriptorSummary(capture: ElementCapture | undefined): string {
     descriptor.value === undefined ? undefined : `value: ${descriptor.value}`,
     descriptor.checked === undefined ? undefined : `checked: ${descriptor.checked}`,
   ]
-  return lines.filter((line): line is string => line !== undefined).join('\n')
+  return `${lines.filter((line): line is string => line !== undefined).join('\n')}\n`
 }
 
 function codeLanguage(verb: string): string {
@@ -64,9 +60,7 @@ export function EditLiveCard(props: ToolCardProps): JSX.Element {
       <div class="flex flex-col gap-1.5">
         <Switch>
           <Match when={CODE_VERBS.has(verb())}>
-            <SolidCodeBlock
-              class={CODE_BLOCK_CLASS}
-              options={CODE_BLOCK_OPTIONS}
+            <CodeBlock
               file={{
                 name: codeFileName(verb()),
                 lang: codeLanguage(verb()),
@@ -94,11 +88,12 @@ export function EditLiveCard(props: ToolCardProps): JSX.Element {
                 </ElementPreview.Root>
               </Tabs.Content>
             </Tabs.Root>
-            <SolidFileDiff
-              class={CODE_BLOCK_CLASS}
-              options={DIFF_OPTIONS}
-              oldFile={{name: 'element.txt', contents: descriptorSummary(before())}}
-              newFile={{name: 'element.txt', contents: descriptorSummary(after())}}
+            <DiffBlock
+              file={{
+                name: 'element.txt',
+                before: descriptorSummary(before()),
+                after: descriptorSummary(after()),
+              }}
             />
           </Match>
           <Match when={before() !== undefined}>
@@ -108,7 +103,7 @@ export function EditLiveCard(props: ToolCardProps): JSX.Element {
             </ElementPreview.Root>
           </Match>
         </Switch>
-        <Show when={errorMessage()}>{(message) => <p class={DANGER_TEXT_CLASS}>{message()}</p>}</Show>
+        <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
       </div>
     </CardShell>
   )
