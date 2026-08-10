@@ -1,26 +1,16 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {expect} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {chromium, devices, type Browser} from 'playwright'
-import {startWranglerDev, type WranglerDev} from './wrangler-dev'
+import {devices} from 'playwright'
+import {createSiteTest} from './site-fixture.js'
 
 const SITE_PORT = 8788
 const INSPECTOR_PORT = 9788
 const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
-let site: WranglerDev
-let browser: Browser
 
-beforeAll(async () => {
-  site = await startWranglerDev({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
-  browser = await chromium.launch()
-}, 120_000)
+const test = createSiteTest({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
 
-afterAll(async () => {
-  await browser?.close()
-  await site?.stop()
-})
-
-describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
-  it('mounts the live widget and shows the install + try-it CTAs on desktop', async () => {
+test.describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
+  test('mounts the live widget and shows the install + try-it CTAs on desktop', async ({browser}) => {
     const page = await browser.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
 
@@ -31,7 +21,7 @@ describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
     await page.close()
   }, 60_000)
 
-  it('does not mount the live widget or the CTAs on a mobile device', async () => {
+  test('does not mount the live widget or the CTAs on a mobile device', async ({browser}) => {
     const context = await browser.newContext(devices['iPhone 13'])
     const page = await context.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
@@ -44,8 +34,8 @@ describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
   }, 60_000)
 })
 
-describe('the live widget mounts site-wide and the root widget param decides the panel', () => {
-  it('shows the launcher with the panel closed on a docs page on desktop', async () => {
+test.describe('the live widget mounts site-wide and the root widget param decides the panel', () => {
+  test('shows the launcher with the panel closed on a docs page on desktop', async ({browser}) => {
     const page = await browser.newPage()
     await page.goto(`${ORIGIN}/docs/quick-start`, {waitUntil: 'domcontentloaded'})
 
@@ -55,7 +45,7 @@ describe('the live widget mounts site-wide and the root widget param decides the
     await page.close()
   }, 60_000)
 
-  it('auto-opens the panel on the home page without a widget param in the URL', async () => {
+  test('auto-opens the panel on the home page without a widget param in the URL', async ({browser}) => {
     const page = await browser.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
 
@@ -65,7 +55,7 @@ describe('the live widget mounts site-wide and the root widget param decides the
     await page.close()
   }, 60_000)
 
-  it('keeps the panel closed on the home page when ?widget=false is explicit', async () => {
+  test('keeps the panel closed on the home page when ?widget=false is explicit', async ({browser}) => {
     const page = await browser.newPage()
     await page.goto(`${ORIGIN}/?widget=false`, {waitUntil: 'domcontentloaded'})
 
@@ -75,7 +65,7 @@ describe('the live widget mounts site-wide and the root widget param decides the
     await page.close()
   }, 60_000)
 
-  it('keeps the open panel mounted while navigating from the landing page to the docs', async () => {
+  test('keeps the open panel mounted while navigating from the landing page to the docs', async ({browser}) => {
     const page = await browser.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
 
@@ -90,7 +80,7 @@ describe('the live widget mounts site-wide and the root widget param decides the
     await page.close()
   }, 60_000)
 
-  it('keeps a closed panel closed across navigation to the docs and back to the landing page', async () => {
+  test('keeps a closed panel closed across navigation to the docs and back to the landing page', async ({browser}) => {
     const page = await browser.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
 
@@ -111,7 +101,7 @@ describe('the live widget mounts site-wide and the root widget param decides the
     await page.close()
   }, 60_000)
 
-  it('opens the panel on a docs page when ?widget=true is explicit', async () => {
+  test('opens the panel on a docs page when ?widget=true is explicit', async ({browser}) => {
     const page = await browser.newPage()
     await page.goto(`${ORIGIN}/docs/quick-start?widget=true`, {waitUntil: 'domcontentloaded'})
 

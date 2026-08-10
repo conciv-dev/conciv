@@ -59,6 +59,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.42.4",
+    "@conciv/browser-fixture": "workspace:*",
     "@conciv/core": "workspace:*",
     "@conciv/extension-compiler": "workspace:*",
     "@conciv/harness-testkit": "workspace:*",

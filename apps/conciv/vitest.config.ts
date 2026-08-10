@@ -46,6 +46,8 @@ export default defineConfig({
           environment: 'node',
           include: ['test/**/*.test.ts'],
           exclude: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
+          testTimeout: ciTest().testTimeout,
+          hookTimeout: ciTest().hookTimeout,
         },
       },
       {

@@ -64,6 +64,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/browser-fixture": "workspace:*",
     "@conciv/core": "workspace:^",
     "@conciv/embed": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",

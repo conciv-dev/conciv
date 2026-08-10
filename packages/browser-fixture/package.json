@@ -1,0 +1,30 @@
+{
+  "name": "@conciv/browser-fixture",
+  "version": "0.0.18",
+  "private": true,
+  "description": "Internal test infra: a vitest test.extend() fixture that boots one playwright chromium instance per test file, with a p-timeout-bounded close. Zero @conciv/* dependencies by design, so any package can use it without risking a workspace dependency cycle.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/browser-fixture"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/browser-fixture.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "p-timeout": "^7.0.1",
+    "playwright": "^1.61.1",
+    "vitest": "^4.1.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "typescript": "^6.0.3"
+  }
+}

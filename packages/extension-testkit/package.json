@@ -31,6 +31,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/browser-fixture": "workspace:*",
     "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",

@@ -1,31 +1,24 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {afterAll, expect} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {chromium, type Browser} from 'playwright'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import {runConnect} from '@conciv/try'
 import type {Engine} from '@conciv/core/start'
-import {startWranglerDev, type WranglerDev} from './wrangler-dev'
+import {createSiteTest} from './site-fixture.js'
 
 const SITE_PORT = 8787
 const INSPECTOR_PORT = 9787
 const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
-let site: WranglerDev
-let browser: Browser
+
+const test = createSiteTest({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
+
 let engine: Engine | null = null
 
-beforeAll(async () => {
-  site = await startWranglerDev({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
-  browser = await chromium.launch()
-}, 120_000)
-
 afterAll(async () => {
-  await browser?.close()
   await engine?.stop()
-  await site?.stop()
 })
 
-describe('widget-native live connect on the built site', () => {
-  it('boots the widget into connect steps and hands off in place to live chat', async () => {
+test.describe('widget-native live connect on the built site', () => {
+  test('boots the widget into connect steps and hands off in place to live chat', async ({browser}) => {
     const page = await browser.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
     const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
@@ -70,7 +63,7 @@ describe('widget-native live connect on the built site', () => {
     engine = null
   }, 180_000)
 
-  it('remembers a pre-connect dismissal, and ?try=1 forces the panel open again', async () => {
+  test('remembers a pre-connect dismissal, and ?try=1 forces the panel open again', async ({browser}) => {
     const page = await browser.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
     const panel = page.getByRole('dialog', {name: 'conciv chat agent'})

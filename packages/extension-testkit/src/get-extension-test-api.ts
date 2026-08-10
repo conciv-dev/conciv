@@ -11,6 +11,7 @@ import {
   type RunTypescript,
 } from '@conciv/harness-testkit'
 import {launch, openObservedPage} from './launch.js'
+import {settleTeardown} from './settle-teardown.js'
 
 export type HostEngine = {apiBase: string; session: string}
 export type HostHandle = {origin: string; close: () => Promise<void>}
@@ -37,7 +38,7 @@ export type ExtensionTestApi = {
   dispose: () => Promise<void>
 }
 
-export {serveDir} from './serve.js'
+export {serveDir, type ServedHost} from './serve.js'
 export {fixtureHost} from './fixture-host.js'
 
 export async function getExtensionTestApi(extension: ExtensionUnderTest): Promise<ExtensionTestApi> {
@@ -60,9 +61,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
       return {page: second, close: () => second.close()}
     },
     dispose: async () => {
-      await closeBrowser()
-      await close()
-      await stop()
+      await settleTeardown([() => closeBrowser(), () => close(), () => stop()])
     },
   }
 }

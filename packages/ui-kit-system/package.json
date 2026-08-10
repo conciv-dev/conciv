@@ -52,6 +52,7 @@
     "lucide-solid": "^1.18.0"
   },
   "devDependencies": {
+    "@conciv/browser-fixture": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
