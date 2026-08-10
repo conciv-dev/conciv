@@ -17,7 +17,7 @@ const ROW =
   'w-full flex items-center gap-2 px-3 py-2 text-start text-[length:var(--chat-text-md)] text-[color:var(--chat-text-2)]'
 const TRIGGER = `group ${ROW} cursor-pointer select-none [background:transparent] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] focus-visible:[outline:0.125rem_solid_var(--chat-accent)] [outline-offset:-2px]`
 const CHEVRON =
-  'shrink-0 text-[color:var(--chat-text-3)] [transition:rotate_150ms_var(--chat-ease)] group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0'
+  'inline-flex shrink-0 text-[color:var(--chat-text-3)] [transition:rotate_150ms_var(--chat-ease)] data-[state=closed]:-rotate-90 data-[state=open]:rotate-0'
 const BODY = 'px-3 pt-0.5 pb-2.5 text-[length:var(--chat-text-md)] text-[color:var(--chat-text-2)]'
 const HEADER_SLOT = 'flex flex-1 gap-2 min-w-0 items-center'
 
@@ -30,7 +30,9 @@ function TriggerBody(props: {header: JSX.Element}): JSX.Element {
   return (
     <>
       <span class={HEADER_SLOT}>{props.header}</span>
-      <ChevronDown size={14} class={CHEVRON} aria-hidden="true" />
+      <Collapsible.Indicator class={CHEVRON}>
+        <ChevronDown size={14} aria-hidden="true" />
+      </Collapsible.Indicator>
     </>
   )
 }

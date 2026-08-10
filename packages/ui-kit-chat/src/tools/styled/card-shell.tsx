@@ -3,7 +3,7 @@ import {Dynamic} from 'solid-js/web'
 import type {ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
 import {cardPhase, cardTitle, clip, displayValue, type CardPhase} from '../primitives/tool-presentation.js'
-import {toolStatus} from '../primitives/tool-status.js'
+import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {schemaFields} from '../primitives/schema-params.js'
 import {toolIconRender} from './tool-icon.js'
 import {ToolCard} from './tool-card.js'
@@ -44,6 +44,8 @@ export function CardShell(props: {
   result: ToolCardProps['result']
   durationMs?: number
   iconClass?: string
+  status?: ToolStatus
+  defaultOpen?: boolean
   children?: JSX.Element
 }): JSX.Element {
   return (
@@ -56,6 +58,8 @@ export function CardShell(props: {
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}
+      status={props.status}
+      defaultOpen={props.defaultOpen}
     >
       {props.children}
     </ToolCard>
