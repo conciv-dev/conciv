@@ -178,7 +178,7 @@
       }
     },
     {
-      "files": ["packages/embed/test/**", "packages/extension-testkit/src/**"],
+      "files": ["packages/embed/tests/**", "packages/extension-testkit/src/**"],
       "rules": {
         "playwright/prefer-web-first-assertions": "error"
       }

@@ -36,6 +36,7 @@ const NATIVE_AND_REACT_BRIDGE_PATHS = [
   'packages/publish/src/swift-mirror.ts',
   'packages/page/src/',
   'packages/embed/src/mount-impl.tsx',
+  'packages/embed/tests/e2e/helpers/native-bridge.ts',
 ]
 
 const PRE_REWRITE_BRIDGE_PATHS = [
