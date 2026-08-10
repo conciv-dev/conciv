@@ -302,4 +302,22 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     expect(overflowLink).toBeDefined()
     expect(overflowLink?.attributes?.['href']).toBeUndefined()
   })
+
+  it('omits the serialized node and keeps the descriptor when the subtree blows past the payload budget', async () => {
+    const panel = host.querySelector('#panel')
+    if (panel === null) throw new Error('the fixture panel is missing')
+    const bloat = document.createElement('div')
+    bloat.id = 'bloated'
+    for (let index = 0; index < 20_000; index += 1) {
+      const span = document.createElement('span')
+      span.textContent = `padding-row-${index}`
+      bloat.appendChild(span)
+    }
+    panel.appendChild(bloat)
+
+    const bundle = await captureOf('probe.mark', {selector: '#bloated'})
+
+    expect(bundle.after?.descriptor.selectorPath).toContain('#bloated')
+    expect(bundle.after?.node).toBeUndefined()
+  })
 })

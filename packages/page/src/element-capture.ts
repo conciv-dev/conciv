@@ -12,6 +12,8 @@ const MASKED_VALUE = '***'
 
 const ANCESTOR_CAP = 24
 
+const NODE_PAYLOAD_CAP_BYTES = 200_000
+
 type SerializedNode = NonNullable<ReturnType<typeof serializeNodeWithId>>
 
 function serializeOptions(doc: Document, skipChild: boolean): Parameters<typeof serializeNodeWithId>[1] {
@@ -76,6 +78,7 @@ function serializeWithAncestors(el: Element, doc: Document): SerializedNode | nu
     depth += 1
   }
   neutralizeSubtree(chained)
+  if (JSON.stringify(chained).length > NODE_PAYLOAD_CAP_BYTES) return null
   return chained
 }
 
