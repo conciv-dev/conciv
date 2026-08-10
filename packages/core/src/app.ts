@@ -368,7 +368,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const extensionContexts: Record<string, unknown> = Object.fromEntries(
     mounted.map((entry) => [entry.extensionName, entry.context]),
   )
-  const extensionTools = mounted.flatMap((entry) => entry.tools)
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
   const onRunEnd = async (sessionId: string): Promise<void> => {
@@ -415,11 +414,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
   ]
 
-  const toolList: ChatTool[] = [
-    ...mounted.flatMap((entry) =>
-      entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
-    ),
-  ]
+  const toolList: ChatTool[] = mounted.flatMap((entry) =>
+    entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
+  )
 
   const chatDeps: ChatDeps = {
     cwd: opts.cwd,
