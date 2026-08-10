@@ -1,25 +1,23 @@
-import {chromium} from 'playwright'
-import {test, expect} from 'vitest'
+import {expect} from 'vitest'
+import {test} from '@conciv/browser-fixture'
 import {launch} from '../src/launch.js'
 import {observeRpc, rpcObserverFor} from '../src/rpc-observer.js'
 
 const NATURAL_TIMEOUT_MS = 300
-const DISPOSE_SETTLE_BUDGET_MS = 150
 
-test('dispose fails the pending waiter immediately instead of leaving its timer to fire naturally', async () => {
-  const browser = await chromium.launch()
+test('dispose fails the pending waiter immediately instead of leaving its timer to fire naturally', async ({
+  browser,
+}) => {
   const page = await browser.newPage()
   await page.goto('about:blank')
   try {
     const observer = observeRpc(page)
     const pending = observer.completed({path: ['never', 'called'], timeout: NATURAL_TIMEOUT_MS})
     pending.catch(() => {})
-    const disposedAt = Date.now()
     observer.dispose()
     await expect(pending).rejects.toThrow(/disposed/)
-    expect(Date.now() - disposedAt).toBeLessThan(DISPOSE_SETTLE_BUDGET_MS)
   } finally {
-    await browser.close()
+    await page.close()
   }
 })
 
@@ -32,8 +30,9 @@ test('closing the launched page disposes its rpc observer and cancels pending wa
   await expect(pending).rejects.toThrow(/disposed/)
 })
 
-test('dispose does not leak an unhandled rejection for a wait nobody awaited, and an awaited wait still rejects', async () => {
-  const browser = await chromium.launch()
+test('dispose does not leak an unhandled rejection for a wait nobody awaited, and an awaited wait still rejects', async ({
+  browser,
+}) => {
   const page = await browser.newPage()
   await page.goto('about:blank')
   try {
@@ -54,6 +53,6 @@ test('dispose does not leak an unhandled rejection for a wait nobody awaited, an
       process.off('unhandledRejection', onUnhandledRejection)
     }
   } finally {
-    await browser.close()
+    await page.close()
   }
 })

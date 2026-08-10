@@ -12,10 +12,13 @@ export async function settleTeardown(steps: readonly TeardownStep[]): Promise<vo
   const results = await Promise.allSettled(
     steps.map((step) => {
       const milliseconds = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS
-      return pTimeout(step.run(), {
-        milliseconds,
-        message: `testkit ${step.name} exceeded ${milliseconds}ms`,
-      })
+      return pTimeout(
+        Promise.resolve().then(() => step.run()),
+        {
+          milliseconds,
+          message: `testkit ${step.name} exceeded ${milliseconds}ms`,
+        },
+      )
     }),
   )
   const firstFailure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')

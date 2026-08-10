@@ -22,3 +22,19 @@ test('a wedged step rejects with its own name after its own timeout, and the oth
   ).rejects.toThrow('testkit closeBrowser exceeded 20ms')
   expect(completed.toSorted()).toEqual(['close', 'stop'])
 })
+
+test('a step whose run() throws synchronously still lets a later step complete', async () => {
+  const completed: string[] = []
+  await expect(
+    settleTeardown([
+      {
+        name: 'throwsSync',
+        run: () => {
+          throw new Error('boom')
+        },
+      },
+      {name: 'after', run: async () => void completed.push('after')},
+    ]),
+  ).rejects.toThrow('boom')
+  expect(completed).toEqual(['after'])
+})
