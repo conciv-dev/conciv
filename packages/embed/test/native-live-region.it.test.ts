@@ -63,89 +63,101 @@ async function openFromHost(page: Page): Promise<void> {
 describe('native live region reporting', () => {
   it('reports the mascot rect on a fresh closed mount so tap-to-open stays live', async () => {
     const mascot = await openMascotNative()
-    const measured = Promise.withResolvers<PanelToggled>()
-    mascot.notify = (toggle) => {
-      if (toggle.open === false && toggle.mascotRect) measured.resolve(toggle)
+    try {
+      const measured = Promise.withResolvers<PanelToggled>()
+      mascot.notify = (toggle) => {
+        if (toggle.open === false && toggle.mascotRect) measured.resolve(toggle)
+      }
+      await mascot.page.setViewportSize({width: 1200, height: 860})
+      const closed = await measured.promise
+      expect(closed.mascotRect?.width).toBeGreaterThan(0)
+      expect(closed.mascotRect?.height).toBeGreaterThan(0)
+    } finally {
+      await mascot.page.close()
     }
-    await mascot.page.setViewportSize({width: 1200, height: 860})
-    const closed = await measured.promise
-    expect(closed.mascotRect?.width).toBeGreaterThan(0)
-    expect(closed.mascotRect?.height).toBeGreaterThan(0)
-    await mascot.page.close()
   })
 
   it('re-reports the mascot rect when the launcher moves and settles on a stable value', async () => {
     const mascot = await openMascotNative()
-    const placed = Promise.withResolvers<PanelToggled>()
-    mascot.notify = (toggle) => {
-      if (toggle.open === false && toggle.mascotRect) placed.resolve(toggle)
+    try {
+      const placed = Promise.withResolvers<PanelToggled>()
+      mascot.notify = (toggle) => {
+        if (toggle.open === false && toggle.mascotRect) placed.resolve(toggle)
+      }
+      await mascot.page.setViewportSize({width: 1200, height: 860})
+      await placed.promise
+      const beforeMove = mascot.toggles.length
+
+      const moved = Promise.withResolvers<PanelToggled>()
+      mascot.notify = (toggle) => {
+        if (toggle.open === false && toggle.mascotRect) moved.resolve(toggle)
+      }
+      await mascot.page.setViewportSize({width: 760, height: 640})
+      await moved.promise
+      expect(closedRects(mascot.toggles.slice(beforeMove))).not.toHaveLength(0)
+
+      await mascot.page.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+      )
+      await new Promise((resolve) => setTimeout(resolve, 400))
+
+      const first = closedRects(mascot.toggles).at(-1)
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      const second = closedRects(mascot.toggles).at(-1)
+      expect(second).toEqual(first)
+      expect(second?.width).toBeGreaterThan(0)
+      expect(second?.height).toBeGreaterThan(0)
+    } finally {
+      await mascot.page.close()
     }
-    await mascot.page.setViewportSize({width: 1200, height: 860})
-    await placed.promise
-    const beforeMove = mascot.toggles.length
-
-    const moved = Promise.withResolvers<PanelToggled>()
-    mascot.notify = (toggle) => {
-      if (toggle.open === false && toggle.mascotRect) moved.resolve(toggle)
-    }
-    await mascot.page.setViewportSize({width: 760, height: 640})
-    await moved.promise
-    expect(closedRects(mascot.toggles.slice(beforeMove))).not.toHaveLength(0)
-
-    await mascot.page.evaluate(
-      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-    )
-    await new Promise((resolve) => setTimeout(resolve, 400))
-
-    const first = closedRects(mascot.toggles).at(-1)
-    await new Promise((resolve) => setTimeout(resolve, 200))
-    const second = closedRects(mascot.toggles).at(-1)
-    expect(second).toEqual(first)
-    expect(second?.width).toBeGreaterThan(0)
-    expect(second?.height).toBeGreaterThan(0)
-    await mascot.page.close()
   })
 
   it('never reports closed mascot-region state once the panel is open', async () => {
     const mascot = await openMascotNative()
-    const opened = Promise.withResolvers<PanelToggled>()
-    mascot.notify = (toggle) => {
-      if (toggle.open === true) opened.resolve(toggle)
-    }
-    await openFromHost(mascot.page)
-    const openEvent = await opened.promise
-    expect(openEvent.mascotRect ?? null).toBeNull()
+    try {
+      const opened = Promise.withResolvers<PanelToggled>()
+      mascot.notify = (toggle) => {
+        if (toggle.open === true) opened.resolve(toggle)
+      }
+      await openFromHost(mascot.page)
+      const openEvent = await opened.promise
+      expect(openEvent.mascotRect ?? null).toBeNull()
 
-    const settled = mascot.toggles.length
-    for (const size of [
-      {width: 900, height: 800},
-      {width: 1100, height: 700},
-      {width: 1280, height: 900},
-    ]) {
-      await mascot.page.setViewportSize(size)
-    }
-    await mascot.page.evaluate(
-      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-    )
-    await new Promise((resolve) => setTimeout(resolve, 400))
+      const settled = mascot.toggles.length
+      for (const size of [
+        {width: 900, height: 800},
+        {width: 1100, height: 700},
+        {width: 1280, height: 900},
+      ]) {
+        await mascot.page.setViewportSize(size)
+      }
+      await mascot.page.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+      )
+      await new Promise((resolve) => setTimeout(resolve, 400))
 
-    const fresh = mascot.toggles.slice(settled)
-    expect(fresh.some((toggle) => toggle.open === false)).toBe(false)
-    expect(fresh.some((toggle) => Boolean(toggle.mascotRect))).toBe(false)
-    await mascot.page.close()
+      const fresh = mascot.toggles.slice(settled)
+      expect(fresh.some((toggle) => toggle.open === false)).toBe(false)
+      expect(fresh.some((toggle) => Boolean(toggle.mascotRect))).toBe(false)
+    } finally {
+      await mascot.page.close()
+    }
   })
 
   it('reports open, not a closed mascot rect, once a session is opened from the host', async () => {
     const mascot = await openMascotNative()
-    const opened = Promise.withResolvers<PanelToggled>()
-    mascot.notify = (toggle) => {
-      if (toggle.open === true) opened.resolve(toggle)
+    try {
+      const opened = Promise.withResolvers<PanelToggled>()
+      mascot.notify = (toggle) => {
+        if (toggle.open === true) opened.resolve(toggle)
+      }
+      await openFromHost(mascot.page)
+      const latest = await opened.promise
+      expect(latest.open).toBe(true)
+      expect(latest.mascotRect ?? null).toBeNull()
+      expect(mascot.toggles.at(-1)).toEqual(latest)
+    } finally {
+      await mascot.page.close()
     }
-    await openFromHost(mascot.page)
-    const latest = await opened.promise
-    expect(latest.open).toBe(true)
-    expect(latest.mascotRect ?? null).toBeNull()
-    expect(mascot.toggles.at(-1)).toEqual(latest)
-    await mascot.page.close()
   })
 })

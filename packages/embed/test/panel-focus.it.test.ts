@@ -45,56 +45,70 @@ async function openPanelOverFocusedHostButton(): Promise<HostedPanel> {
 describe('panel open focuses the composer', () => {
   it('focuses the composer input when the panel opens', async () => {
     const page = await suite.browser().newPage()
-    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-    await openPanel(page)
-    await expectLocator(composer(page)).toBeFocused({timeout: 10_000})
-    await page.keyboard.type('typed without clicking')
-    await expectLocator(composer(page)).toHaveText('typed without clicking')
-    await page.close()
+    try {
+      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+      await openPanel(page)
+      await expectLocator(composer(page)).toBeFocused({timeout: 10_000})
+      await page.keyboard.type('typed without clicking')
+      await expectLocator(composer(page)).toHaveText('typed without clicking')
+    } finally {
+      await page.close()
+    }
   })
 })
 
 describe('panel close restores focus: host element captured at open wins, FAB is the fallback', () => {
   it('closing via the FAB restores the host element that was focused before a programmatic open', async () => {
     const {host, page, hostButton} = await openPanelOverFocusedHostButton()
-    await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
-    await expectLocator(hostButton).toBeFocused({timeout: 10_000})
-    await page.close()
-    await host.close()
+    try {
+      await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+      await expectLocator(hostButton).toBeFocused({timeout: 10_000})
+    } finally {
+      await page.close()
+      await host.close()
+    }
   })
 
   it('closing via the panel header restores the host element that was focused before the open', async () => {
     const {host, page, hostButton} = await openPanelOverFocusedHostButton()
-    await page.getByRole('button', {name: 'Close chat'}).click()
-    await expectLocator(hostButton).toBeFocused({timeout: 10_000})
-    await page.close()
-    await host.close()
+    try {
+      await page.getByRole('button', {name: 'Close chat'}).click()
+      await expectLocator(hostButton).toBeFocused({timeout: 10_000})
+    } finally {
+      await page.close()
+      await host.close()
+    }
   })
 
   it('collapsing the panel by dragging its resize handle shut restores the host element', async () => {
     const {host, page, hostButton} = await openPanelOverFocusedHostButton()
-
-    const handle = page.getByRole('separator', {name: 'Resize chat height'})
-    const grip = await handle.boundingBox()
-    if (!grip) throw new Error('the resize handle is not laid out')
-    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 + 600, {steps: 12})
-    await page.mouse.up()
-    await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
-    await expectLocator(hostButton).toBeFocused({timeout: 10_000})
-    await page.close()
-    await host.close()
+    try {
+      const handle = page.getByRole('separator', {name: 'Resize chat height'})
+      const grip = await handle.boundingBox()
+      if (!grip) throw new Error('the resize handle is not laid out')
+      await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 + 600, {steps: 12})
+      await page.mouse.up()
+      await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
+      await expectLocator(hostButton).toBeFocused({timeout: 10_000})
+    } finally {
+      await page.close()
+      await host.close()
+    }
   })
 
   it('closing via the FAB falls back to FAB focus when no host element was captured at open time', async () => {
     const page = await suite.browser().newPage()
-    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-    await ensurePanelClosed(page)
-    await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    await expectLocator(composer(page)).toBeVisible({timeout: 30_000})
-    await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
-    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeFocused({timeout: 10_000})
-    await page.close()
+    try {
+      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+      await ensurePanelClosed(page)
+      await page.getByRole('button', {name: 'Open conciv chat'}).click()
+      await expectLocator(composer(page)).toBeVisible({timeout: 30_000})
+      await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+      await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeFocused({timeout: 10_000})
+    } finally {
+      await page.close()
+    }
   })
 })

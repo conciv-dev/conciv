@@ -14,17 +14,20 @@ const suite = setupWidgetSuite({text: 'Hello from conciv', models: HARNESS_MODEL
 describe('model selector error path', () => {
   it('offers a retry when meta.models fails and recovers on retry', async () => {
     const page = await suite.browser().newPage({viewport: {width: 900, height: 760}})
-    const models = await failRpcCalls(page, {path: ['meta', 'models']})
-    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-    await openPanel(page)
+    try {
+      const models = await failRpcCalls(page, {path: ['meta', 'models']})
+      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+      await openPanel(page)
 
-    const retry = page.getByRole('button', {name: 'Retry loading models'})
-    await expectLocator(retry).toBeVisible({timeout: 30_000})
-    await expectLocator(page.getByText('Couldn’t load models').first()).toBeVisible({timeout: 30_000})
+      const retry = page.getByRole('button', {name: 'Retry loading models'})
+      await expectLocator(retry).toBeVisible({timeout: 30_000})
+      await expectLocator(page.getByText('Couldn’t load models').first()).toBeVisible({timeout: 30_000})
 
-    models.repair()
-    await retry.click()
-    await expectLocator(page.getByRole('button', {name: 'Select model'})).toBeVisible({timeout: 30_000})
-    await page.close()
+      models.repair()
+      await retry.click()
+      await expectLocator(page.getByRole('button', {name: 'Select model'})).toBeVisible({timeout: 30_000})
+    } finally {
+      await page.close()
+    }
   })
 })
