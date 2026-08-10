@@ -6,6 +6,7 @@ import {
   ResolveRequestSchema,
   ResolveResponseSchema,
   ChatContentPartSchema,
+  MAX_ATTACHMENT_RAW_BYTES,
 } from '../src/chat-types.js'
 
 describe('SessionId (branded, conciv_ prefix)', () => {
@@ -80,12 +81,18 @@ describe('ChatContentPartSchema document parts', () => {
     expect(parsed.success).toBe(true)
   })
 
-  it('rejects an oversized document value', () => {
-    const parsed = ChatContentPartSchema.safeParse({
+  it('accepts a document value at the derived base64 cap and rejects one quantum above', () => {
+    const capLength = Math.ceil(MAX_ATTACHMENT_RAW_BYTES / 3) * 4
+    const atCap = ChatContentPartSchema.safeParse({
       type: 'document',
-      source: {type: 'data', mimeType: 'application/x-test', value: 'a'.repeat(27_962_029)},
+      source: {type: 'data', mimeType: 'application/x-test', value: 'a'.repeat(capLength)},
     })
-    expect(parsed.success).toBe(false)
+    expect(atCap.success).toBe(true)
+    const overCap = ChatContentPartSchema.safeParse({
+      type: 'document',
+      source: {type: 'data', mimeType: 'application/x-test', value: 'a'.repeat(capLength + 4)},
+    })
+    expect(overCap.success).toBe(false)
   })
 
   it('rejects an empty document value and a malformed mime', () => {

@@ -1,4 +1,5 @@
 import type {MultimodalContent} from '@tanstack/ai-client'
+import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
 
 type ContentParts = Exclude<MultimodalContent['content'], string>
 
@@ -137,12 +138,13 @@ export function fileMatchesAccept(file: Pick<File, 'name' | 'type'>, accept: str
     })
 }
 
-const MAX_IMAGE_BYTES = 20_971_520
+const MAX_IMAGE_BYTES = MAX_ATTACHMENT_RAW_BYTES
+const MAX_IMAGE_MEGABYTES = MAX_IMAGE_BYTES / (1024 * 1024)
 const UNSUPPORTED_IMAGE_MIME = new Set(['image/svg+xml'])
 
 function imageFileError(file: Pick<File, 'name' | 'size'>, mimeType: string): string | undefined {
   if (UNSUPPORTED_IMAGE_MIME.has(mimeType)) return `${file.name}: SVG images are not supported`
-  if (file.size > MAX_IMAGE_BYTES) return `${file.name} exceeds the 20MB image limit`
+  if (file.size > MAX_IMAGE_BYTES) return `${file.name} exceeds the ${MAX_IMAGE_MEGABYTES}MB image limit`
   return undefined
 }
 
