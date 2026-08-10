@@ -48,9 +48,9 @@ describe('conciv connect', () => {
     expect(sharedEvents).toHaveLength(3)
   })
 
-  it('runs with a connect-scenario system prompt (static page, page tools are the live surface)', () => {
+  it('runs with a connect-scenario system prompt (static page, page capabilities are the live surface)', () => {
     expect(shared.cfg.systemPrompt).toContain('static')
-    expect(shared.cfg.systemPrompt).toContain('page tools')
+    expect(shared.cfg.systemPrompt).toContain('page capabilities')
     expect(shared.cfg.systemPrompt).not.toContain('picked up instantly by HMR')
   })
 

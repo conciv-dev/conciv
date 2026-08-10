@@ -43,7 +43,6 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     stream: createSessionStreams(),
     commandAllows: () => [],
     risky: new Set<string>(),
-    tools: () => [],
     toolNames: new Set<string>(),
     codeModeCapabilities: () => [],
     attachmentExpanders: {},
