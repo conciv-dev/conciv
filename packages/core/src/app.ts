@@ -22,7 +22,7 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
-import {concivSandboxTools, concivTools, type ConcivToolContext} from '@conciv/tools'
+import {concivSandboxTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import {
   ensureAgentRow,
@@ -32,7 +32,7 @@ import {
   rowByNativeId,
   sweepEmptyRows,
 } from './chat/session-rows.js'
-import {buildChatTools, makeRunControl, type ChatDeps} from './chat/runtime.js'
+import {makeRunControl, type ChatDeps} from './chat/runtime.js'
 import {askUi, createAskRegistry} from './chat/ask.js'
 import {makeAskGate, requiresApproval} from './chat/gate.js'
 import {makeConcivSandbox} from './chat/sandbox.js'
@@ -378,12 +378,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     })
   }
   const sessionModel = (sessionId: string): string | null => modelOf(db, sessionId)
-  const makeToolCtx = (sessionId: string): ConcivToolContext => ({
-    askUi: () => askUi(asks, sessionId),
-    page: (name, input) => registry.call(name, input, {request: {sessionId, model: sessionModel(sessionId)}}),
-    open: (file, line) => registry.call('open', {file, line}),
-    capabilities: () => registry.catalog.list(),
-  })
+  const makeToolCtx = (sessionId: string): ConcivToolContext => ({askUi: () => askUi(asks, sessionId)})
 
   const askFreeCommandAllows = (): string[] =>
     registry.catalog
@@ -421,7 +416,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   ]
 
   const toolList: ChatTool[] = [
-    ...concivTools(makeToolCtx('')).map((tool) => ({name: tool.name, description: tool.description})),
     ...mounted.flatMap((entry) =>
       entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
     ),
@@ -449,7 +443,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     stream,
     risky,
     commandAllows: askFreeCommandAllows,
-    tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     toolNames: new Set(toolList.map((tool) => tool.name)),
     codeModeCapabilities,
     attachmentExpanders,
@@ -502,6 +495,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         publish: (sessionId, chunk) => stream.publish(sessionId, chunk),
         sessionModel,
         sessionForNativeId: async (nativeId) => (await rowByNativeId(db, nativeId))?.id ?? null,
+        noteToolCall: (sessionId, toolCallId, toolName) => asks.noteToolCall(sessionId, toolCallId, toolName),
         staleness: engineStaleness,
       },
     },

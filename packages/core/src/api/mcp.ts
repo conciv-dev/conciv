@@ -164,15 +164,24 @@ function executeResultChunk(executionId: string, reply: ExecuteReply): StreamChu
   }
 }
 
+const SandboxToolCallSchema = z.object({callId: z.string(), name: z.string()})
+
+type NoteToolCall = (toolCallId: string, toolName: string) => void
+
 function sandboxEventContext(
   executionId: string,
   publish: PublishChunks,
+  note: NoteToolCall,
 ): {
   emitCustomEvent: (eventName: string, value: Record<string, unknown>) => void
 } {
   return {
     emitCustomEvent: (eventName, value) => {
       const stamped = eventName === CODE_MODE_TOOL_CALL_EVENT ? {...value, toolCallId: executionId} : value
+      if (eventName === CODE_MODE_TOOL_CALL_EVENT) {
+        const parsed = SandboxToolCallSchema.safeParse(value)
+        if (parsed.success) note(parsed.data.callId, parsed.data.name)
+      }
       const mapped = codeModeToolChunks({
         type: EventType.CUSTOM,
         name: eventName,
@@ -189,11 +198,12 @@ async function runExecute(
   typescriptCode: string,
   publish: PublishChunks,
   declaredCodes: () => Set<string>,
+  note: NoteToolCall,
 ): Promise<ExecuteReply> {
   const executionId = randomUUID()
   publish(executeStartChunks(executionId, typescriptCode))
   const raw = await codeMode
-    .run(typescriptCode, sandboxEventContext(executionId, publish))
+    .run(typescriptCode, sandboxEventContext(executionId, publish, note))
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
   const parsed = ExecuteResultSchema.safeParse(raw)
   const result = parsed.success
@@ -211,6 +221,7 @@ type McpDeps = {
   publish: (sessionId: string, chunk: StreamChunk) => void
   sessionModel: (sessionId: string) => string | null
   sessionForNativeId: (nativeId: string) => Promise<string | null>
+  noteToolCall: (sessionId: string, toolCallId: string, toolName: string) => void
   staleness: () => EngineStaleness
 }
 
@@ -233,12 +244,13 @@ async function buildServer(deps: McpDeps, request: ToolRequest): Promise<McpServ
     ? (chunks) => chunks.forEach((chunk) => deps.publish(request.sessionId, chunk))
     : () => {}
   const declaredCodes = () => declaredCodesOf(deps.capabilities(request.sessionId))
+  const note: NoteToolCall = (toolCallId, toolName) => deps.noteToolCall(request.sessionId, toolCallId, toolName)
   server.registerTool(
     EXECUTE_TOOL_NAME,
     {description: executeDescription(codeMode.categories), inputSchema: ExecuteInputSchema.shape},
     async (args) => {
       try {
-        return await runExecute(codeMode, args.typescriptCode, publish, declaredCodes)
+        return await runExecute(codeMode, args.typescriptCode, publish, declaredCodes, note)
       } catch (error) {
         logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
         throw error

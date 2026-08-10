@@ -1,6 +1,6 @@
 import {expect, test} from 'vitest'
 import {z} from 'zod'
-import {buildChatTools, toChatTool} from '../../src/chat/runtime.js'
+import {toChatTool} from '../../src/chat/runtime.js'
 
 test('converts a registrable tool and executes with parsed args', async () => {
   const tool = toChatTool(
@@ -10,57 +10,4 @@ test('converts a registrable tool and executes with parsed args', async () => {
   expect(tool.name).toBe('echo_tool')
   const result = await tool.execute?.({value: 'hi'})
   expect(result).toEqual({echoed: {value: 'hi'}})
-})
-
-test('buildChatTools yields conciv + extension tools bound to the session', async () => {
-  const tools = buildChatTools(
-    () => ({
-      capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
-      askUi: async () => ({answered: false, note: ''}),
-      page: async () => ({ok: false as const, error: 'none'}),
-      open: async () => ({ok: true}),
-    }),
-    [
-      {
-        name: 'ext_tool',
-        description: 'extension tool',
-        inputSchema: z.object({}),
-        mutating: false,
-        errors: [],
-        execute: async (_input, request) => request,
-      },
-    ],
-    () => 'opus',
-  )('session-9')
-  const names = tools.map((tool) => tool.name)
-  expect(names).toContain('ext_tool')
-  expect(names.length).toBeGreaterThan(1)
-  const extension = tools.find((tool) => tool.name === 'ext_tool')
-  await expect(extension?.execute?.({})).resolves.toEqual({sessionId: 'session-9', model: 'opus'})
-})
-
-test('extension tools are lazy, conciv tools are eager', () => {
-  const tools = buildChatTools(
-    () => ({
-      capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
-      askUi: async () => ({answered: false, note: ''}),
-      page: async () => ({ok: false as const, error: 'none'}),
-      open: async () => ({ok: true}),
-    }),
-    [
-      {
-        name: 'ext_tool',
-        description: 'extension tool',
-        inputSchema: z.object({}),
-        mutating: false,
-        errors: [],
-        execute: async () => 'ok',
-      },
-    ],
-    () => null,
-  )('session-1')
-  const extension = tools.find((tool) => tool.name === 'ext_tool')
-  const core = tools.find((tool) => tool.name !== 'ext_tool')
-  expect(extension?.lazy).toBe(true)
-  expect(core?.lazy).toBeFalsy()
 })

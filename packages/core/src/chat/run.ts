@@ -113,7 +113,7 @@ async function codeModeExtras(
     listening: (id) => deps.stream.listening(id),
   })
   const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
-  return {systemPrompts, tools: [...deps.tools(sessionId), ...(codeMode?.tools ?? [])]}
+  return {systemPrompts, tools: [...(codeMode?.tools ?? [])]}
 }
 
 async function turnMessages(

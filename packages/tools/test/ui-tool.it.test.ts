@@ -1,14 +1,9 @@
 import {describe, expect, it} from 'vitest'
-import {concivTools} from '../src/tools.js'
+import {concivSandboxTools} from '../src/tools.js'
 
 describe('conciv_ui tool', () => {
   it('pends on ctx.askUi and returns the answer as the tool result', async () => {
-    const tools = concivTools({
-      capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
-      askUi: async () => ({answered: true, value: 'dark'}),
-      page: async () => ({}),
-      open: async () => ({ok: true}),
-    })
+    const tools = concivSandboxTools({askUi: async () => ({answered: true, value: 'dark'})})
     const ui = tools.find((tool) => tool.name === 'conciv_ui')
     if (!ui) throw new Error('conciv_ui tool missing')
     const result = await ui.execute({kind: 'choices', question: 'theme?', options: ['light', 'dark']})
@@ -17,14 +12,11 @@ describe('conciv_ui tool', () => {
 
   it('rejects malformed input at the zod boundary before asking', async () => {
     const asked = {count: 0}
-    const tools = concivTools({
-      capabilities: () => [{name: 'page.tree', summary: 'walk the live React tree', category: 'react'}],
+    const tools = concivSandboxTools({
       askUi: async () => {
         asked.count += 1
         return {answered: false, note: ''}
       },
-      page: async () => ({}),
-      open: async () => ({ok: true}),
     })
     const ui = tools.find((tool) => tool.name === 'conciv_ui')
     if (!ui) throw new Error('conciv_ui tool missing')

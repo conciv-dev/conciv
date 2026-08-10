@@ -465,7 +465,9 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
-    harness.script.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
+    harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "return await external_conciv_ui({kind: 'confirm', question: 'Proceed?'})",
+    })
     await kit.rpc.chat.send({runId: 'wire-9', sessionId, text: 'ask me'})
     const call = await stream.waitForToolCall('conciv_ui', {hangGuardMs: 10_000})
     await kit.rpc.chat.uiReply({sessionId, toolCallId: call.toolCallId, value: 'yes'})
@@ -484,7 +486,9 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('a pending conciv_ui question shows its tool-call part to a late attach', async () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
-    harness.script.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
+    harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "return await external_conciv_ui({kind: 'confirm', question: 'Proceed?'})",
+    })
     await kit.rpc.chat.send({runId: 'wire-10', sessionId, text: 'ask me'})
     const late = await kit.attach(sessionId)
     const call = await late.waitForToolCall('conciv_ui', {hangGuardMs: 10_000})
@@ -492,14 +496,16 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     await late.done({hangGuardMs: 10_000})
   })
 
-  it('a scripted tool call executes the real conciv tool inside the turn', async () => {
+  it('a scripted code-mode call executes the real open capability inside the turn', async () => {
     const opened: string[] = []
     const harness = createTestHarness(requireClaude())
     const kit = await bootKit({openInEditor: (file) => opened.push(file)}, harness)
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
-    harness.script.scriptToolCall('conciv_open', {file: 'src/from-tool.ts'})
+    harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "return await external_open({file: 'src/from-tool.ts'})",
+    })
     await kit.rpc.chat.send({runId: 'wire-11', sessionId, text: 'open the file'})
     await stream.done({hangGuardMs: 10_000})
     expect(opened).toEqual(['src/from-tool.ts'])
