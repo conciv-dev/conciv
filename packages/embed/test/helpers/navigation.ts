@@ -4,7 +4,7 @@ import {rpcObserverFor, type RpcObserver} from '@conciv/extension-testkit/rpc-ob
 import {decodeRpcFrame} from '@conciv/extension-testkit/rpc-frames'
 import type {EmbedKit} from './boot.js'
 
-const NAVIGATION_SET = ['navigation', 'set']
+export const NAVIGATION_SET: readonly string[] = ['navigation', 'set']
 
 let lastStamp = 0
 
