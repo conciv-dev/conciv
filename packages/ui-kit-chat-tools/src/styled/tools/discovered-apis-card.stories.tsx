@@ -13,8 +13,8 @@ function part(state: ToolCallPart['state'] = 'complete'): ToolCallPart {
   return {
     type: 'tool-call',
     id: 'd1',
-    name: 'discover_tools',
-    arguments: JSON.stringify({names: ['external_canvas_draw']}),
+    name: 'catalog',
+    arguments: JSON.stringify({}),
     state,
   }
 }
@@ -23,88 +23,74 @@ function result(payload: object): ToolResultPart {
   return {type: 'tool-result', toolCallId: 'd1', content: JSON.stringify(payload), state: 'complete'}
 }
 
-const okResult = result({
+const listResult = result({
   tools: [
     {
-      name: 'external_canvas_draw',
-      description: 'Draw elements onto the agent draft.',
-      typeStub: 'declare function external_canvas_draw(input: {elements: Skeleton[]}): Promise<{ids: string[]}>',
+      call: 'external_canvas_draw',
+      name: 'canvas_draw',
+      summary: 'Draw elements onto the agent draft.',
+      category: 'canvas',
+      mutating: true,
+      reachable: true,
+    },
+    {
+      call: 'external_canvas_read',
+      name: 'canvas_read',
+      summary: 'Read the current canvas.',
+      category: 'canvas',
+      mutating: false,
+      reachable: true,
     },
   ],
 })
 
-const manyResult = result({
-  tools: [
-    {
-      name: 'external_canvas_draw',
-      description: 'Draw elements onto the agent draft.',
-      typeStub: 'declare function external_canvas_draw(): void',
-    },
-    {
-      name: 'external_canvas_read',
-      description: 'Read the current canvas.',
-      typeStub: 'declare function external_canvas_read(): void',
-    },
-  ],
-})
+const emptyListResult = result({tools: []})
 
-const errorsResult = result({
-  tools: [
-    {
-      name: 'external_canvas_draw',
-      description: 'Draw elements onto the agent draft.',
-      typeStub: 'declare function external_canvas_draw(input: {elements: Skeleton[]}): Promise<{ids: string[]}>',
-    },
-  ],
-  errors: ["Unknown tool: 'canvas_zap'"],
+const detailResult = result({
+  call: 'external_canvas_draw',
+  name: 'canvas_draw',
+  description: 'Draw elements onto the agent draft.',
+  category: 'canvas',
+  mutating: true,
+  reachable: true,
+  input: {elements: 'Skeleton[]'},
+  output: {ids: 'string[]'},
+  errors: [],
+  typeStub: 'declare function external_canvas_draw(input: {elements: Skeleton[]}): Promise<{ids: string[]}>',
 })
 
 function frame(theme: string, child: JSX.Element): JSX.Element {
   return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
 }
 
-export const Discovered: Story = {
+export const List: Story = {
   render: () =>
     frame(
       'chat-theme-dark',
-      <DiscoveredApisCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+      <DiscoveredApisCard part={part()} result={listResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('Discovered 1 API')).toBeVisible()
+    await expect(c.getByText('Discovered 2 capabilities')).toBeVisible()
     await userEvent.click(c.getByRole('button', {name: /Discovered/}))
-    await waitFor(() => expect(c.getAllByText('external_canvas_draw').length).toBeGreaterThan(0))
-    await expect(c.getAllByText('Draw elements onto the agent draft.').length).toBeGreaterThan(0)
-    await waitFor(() => expect(c.getAllByText('Promise').length).toBeGreaterThan(0))
+    await waitFor(() => expect(c.getAllByText('canvas_draw').length).toBeGreaterThan(0))
     await expect(c.getByLabelText('complete')).toBeInTheDocument()
   },
 }
 
-export const DiscoveredMany: Story = {
+export const Detail: Story = {
   render: () =>
     frame(
       'chat-theme-dark',
-      <DiscoveredApisCard part={part()} result={manyResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+      <DiscoveredApisCard part={part()} result={detailResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('Discovered 2 APIs')).toBeVisible()
-  },
-}
-
-export const WithErrors: Story = {
-  render: () =>
-    frame(
-      'chat-theme-dark',
-      <DiscoveredApisCard part={part()} result={errorsResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
-    ),
-  play: async ({canvasElement}) => {
-    const c = within(canvasElement)
-    await userEvent.click(c.getByRole('button', {name: /Discovered/}))
-    await waitFor(() => expect(c.getAllByText(/canvas_zap/).length).toBeGreaterThan(0))
-    await expect(c.getAllByText('external_canvas_draw').length).toBeGreaterThan(0)
+    await expect(c.getByText('Inspected canvas_draw')).toBeVisible()
+    await userEvent.click(c.getByRole('button', {name: /Inspected/}))
+    await waitFor(() => expect(c.getAllByText('Draw elements onto the agent draft.').length).toBeGreaterThan(0))
+    await expect(c.getAllByText(/Promise/).length).toBeGreaterThan(0)
     await expect(c.getByLabelText('complete')).toBeInTheDocument()
-    await expect(c.queryByLabelText('error')).toBeNull()
   },
 }
 
@@ -112,17 +98,31 @@ export const Empty: Story = {
   render: () =>
     frame(
       'chat-theme-dark',
+      <DiscoveredApisCard part={part()} result={emptyListResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('Discovered 0 capabilities')).toBeVisible()
+    await userEvent.click(c.getByRole('button', {name: /Discovered/}))
+    await waitFor(() => expect(c.getByText('no APIs returned')).toBeVisible())
+  },
+}
+
+export const Unrecognized: Story = {
+  render: () =>
+    frame(
+      'chat-theme-dark',
       <DiscoveredApisCard
         part={part()}
-        result={result({tools: []})}
+        result={result({unexpected: true})}
         ctx={INERT_TOOL_CTX}
         addResult={INERT_ADD_RESULT}
       />,
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('Discovered 0 APIs')).toBeVisible()
-    await userEvent.click(c.getByRole('button', {name: /Discovered/}))
+    await expect(c.getByText('Capability catalog')).toBeVisible()
+    await userEvent.click(c.getByRole('button', {name: /Capability catalog/}))
     await waitFor(() => expect(c.getByText('no APIs returned')).toBeVisible())
   },
 }
@@ -131,6 +131,6 @@ export const Conciv: Story = {
   render: () =>
     frame(
       'chat-theme-conciv',
-      <DiscoveredApisCard part={part()} result={errorsResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+      <DiscoveredApisCard part={part()} result={listResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
 }
