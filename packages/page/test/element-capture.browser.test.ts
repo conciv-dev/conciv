@@ -211,11 +211,18 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     expect(byHash.get(afterId ?? '')).toContain('.injected')
   })
 
-  it('keeps a password and a payment field out of the capture payload and out of the result', async () => {
+  it('keeps a password out of the capture payload and out of the result', async () => {
     const outcome = await driver.execute({name: 'probe.fill', input: {selector: '#secret', value: 'typed'}})
     if (!outcome.ok) throw new Error('the fill failed')
     expect(JSON.stringify(outcome.result)).not.toContain(PASSWORD)
     expect(JSON.stringify(outcome.capture)).not.toContain(PASSWORD)
+    expect(outcome.capture?.after?.descriptor.value).toBe('***')
+  })
+
+  it('keeps a payment field out of the capture payload and out of the result', async () => {
+    const outcome = await driver.execute({name: 'probe.fill', input: {selector: '#card', value: '4111111111111111'}})
+    if (!outcome.ok) throw new Error('the fill failed')
+    expect(JSON.stringify(outcome.result)).not.toContain('4111111111111111')
     expect(JSON.stringify(outcome.capture)).not.toContain('4111111111111111')
     expect(outcome.capture?.after?.descriptor.value).toBe('***')
   })
