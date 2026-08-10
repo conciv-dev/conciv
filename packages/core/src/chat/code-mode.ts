@@ -101,36 +101,42 @@ function encodeDeclaredError(error: unknown): Error {
 
 export type SessionListening = (sessionId: string) => boolean
 
+async function emittingToolCall(
+  name: string,
+  args: unknown,
+  context: ToolRunContext | undefined,
+  execute: (callId: string) => Promise<unknown>,
+): Promise<unknown> {
+  const callId = randomUUID()
+  const emit = context?.emitCustomEvent ?? (() => {})
+  emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name, input: args})
+  try {
+    const result = await execute(callId)
+    emit(CODE_MODE_TOOL_RESULT_EVENT, {callId, result})
+    return result
+  } catch (error) {
+    const encoded = encodeDeclaredError(error)
+    emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: encoded.message})
+    throw encoded
+  }
+}
+
 export function gatedToolRun(
   capability: CodeCapability,
   request: ToolRequest,
   gate: PermissionGate,
   listening: SessionListening,
 ): (args: unknown, context?: ToolRunContext) => Promise<unknown> {
-  return async (args, context) => {
-    const callId = randomUUID()
-    const emit = context?.emitCustomEvent ?? (() => {})
-    emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name: capability.name, input: args})
-    const refuse = (refusal: string): never => {
-      emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: refusal})
-      throw new Error(refusal)
-    }
-    if (requiresApproval(capability)) {
-      if (!listening(request.sessionId)) refuse(noListenerRefusal(capability.name, request.sessionId))
-      const decision = await gate.decide(capability.name, args, request.sessionId, callId)
-      const refusal = approvalRefusal(capability.name, decision)
-      if (refusal !== null) refuse(refusal)
-    }
-    try {
-      const result = await capability.execute(args, {...request, toolCallId: callId})
-      emit(CODE_MODE_TOOL_RESULT_EVENT, {callId, result})
-      return result
-    } catch (error) {
-      const encoded = encodeDeclaredError(error)
-      emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: encoded.message})
-      throw encoded
-    }
-  }
+  return (args, context) =>
+    emittingToolCall(capability.name, args, context, async (callId) => {
+      if (requiresApproval(capability)) {
+        if (!listening(request.sessionId)) throw new Error(noListenerRefusal(capability.name, request.sessionId))
+        const decision = await gate.decide(capability.name, args, request.sessionId, callId)
+        const refusal = approvalRefusal(capability.name, decision)
+        if (refusal !== null) throw new Error(refusal)
+      }
+      return capability.execute(args, {...request, toolCallId: callId})
+    })
 }
 
 export type NamedCapability = {capability: CodeCapability; bindingName: string}
@@ -246,12 +252,13 @@ function catalogTool(current: () => BoundCapability[]): ReturnType<typeof toChat
         'List and inspect every capability in this sandbox: catalog({}) or catalog({search}) lists entries with the exact function name to call, catalog({name}) returns one full typed signature.',
       inputSchema: CatalogQuerySchema,
     },
-    async (args) => {
-      const query = CatalogQuerySchema.parse(args ?? {})
-      const bound = current()
-      if (query.name !== undefined) return capabilityDetail(bound, query.name)
-      return catalogList(bound, query.search)
-    },
+    (args, context) =>
+      emittingToolCall(CATALOG_TOOL_NAME, args, context, async () => {
+        const query = CatalogQuerySchema.parse(args ?? {})
+        const bound = current()
+        if (query.name !== undefined) return capabilityDetail(bound, query.name)
+        return catalogList(bound, query.search)
+      }),
   )
 }
 
