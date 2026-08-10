@@ -12,9 +12,10 @@ const SLOW_MIME = 'application/x-conciv-send-slow-expand'
 const FAST_MIME = 'application/x-conciv-send-fast-expand'
 const SLOW_EXPANSION_MS = 250
 
-function pacedExtension() {
+function pacedExtension(onSlowExpansion: () => void) {
   const slow = defineAttachment({mime: SLOW_MIME})
   slow.server(async () => {
+    onSlowExpansion()
     await new Promise<void>((resolve) => setTimeout(resolve, SLOW_EXPANSION_MS))
     return []
   })
@@ -51,9 +52,11 @@ describe('one live run per session (IT)', () => {
     expect(userTexts(snapshot)).toEqual(['first concurrent send', 'second concurrent send'])
   })
 
-  it('T9: two sends released into the same tick never overlap as two live runs', {timeout: 60_000}, async () => {
+  it('T9: a send landing mid-expansion never overlaps as two live runs', {timeout: 60_000}, async () => {
     const harness = createFakeHarness({text: SCRIPTED_REPLY})
-    const kit = await bootKit({extensions: [pacedExtension()], firstChunkTimeoutMs: 500}, harness)
+    const expansion = Promise.withResolvers<void>()
+    const paced = pacedExtension(() => expansion.resolve())
+    const kit = await bootKit({extensions: [paced], firstChunkTimeoutMs: 500}, harness)
     sessions.adopt(kit)
     const sessionId = await kit.session()
     const seen: StreamChunk[] = []
@@ -61,7 +64,12 @@ describe('one live run per session (IT)', () => {
     const stream = await kit.rpc.chat.subscribe({sessionId}, {signal: watching.signal})
     void collectChunks(stream, seen)
 
-    const first = kit.rpc.chat.send({runId: 'sametick-1', sessionId, content: pacedTurn('same tick first', SLOW_MIME)})
+    const first = kit.rpc.chat.send({
+      runId: 'sametick-1',
+      sessionId,
+      content: pacedTurn('same tick first', SLOW_MIME),
+    })
+    await expansion.promise
     const second = kit.rpc.chat.send({
       runId: 'sametick-2',
       sessionId,

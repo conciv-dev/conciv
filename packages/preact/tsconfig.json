@@ -7,7 +7,7 @@
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2023", "DOM"],
+    "lib": ["ES2024", "DOM"],
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
     "types": ["vite/client", "node"],

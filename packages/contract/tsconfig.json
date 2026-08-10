@@ -4,7 +4,7 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
     "rootDir": ".",
-    "lib": ["ES2023", "DOM"],
+    "lib": ["ES2024", "DOM"],
     "noEmit": true,
     "types": ["node"]
   },
