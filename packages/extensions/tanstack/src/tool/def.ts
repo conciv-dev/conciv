@@ -27,6 +27,8 @@ export const routerStateDef = toolDefinition({
     mutating: false,
     keywords: ['router', 'matches', 'search'],
     hint: 'shows what the user is looking at right now',
+    icon: 'read',
+    label: {running: 'Reading the router state', done: 'Read the router state'},
   },
 })
 
@@ -49,6 +51,8 @@ export const routeTreeDef = toolDefinition({
     category: 'tanstack',
     mutating: false,
     keywords: ['router', 'routes', 'tree'],
+    icon: 'read',
+    label: {running: 'Reading the route tree', done: 'Read the route tree'},
   },
 })
 
@@ -64,6 +68,8 @@ export const loaderDataDef = toolDefinition({
     mutating: false,
     keywords: ['loader', 'data'],
     hint: 'defaults to the deepest matched route when routeId is omitted',
+    icon: 'read',
+    label: {running: 'Reading the loader data', done: 'Read the loader data'},
   },
 })
 
@@ -78,6 +84,8 @@ export const queryCacheDef = toolDefinition({
     category: 'tanstack',
     mutating: false,
     keywords: ['query', 'cache'],
+    icon: 'read',
+    label: {running: 'Reading the query cache', done: 'Read the query cache'},
   },
 })
 
@@ -93,6 +101,8 @@ export const navigateDef = toolDefinition({
     mutating: true,
     keywords: ['router', 'navigate'],
     hint: 'changes what the user sees; reversible with tanstack_back',
+    icon: 'pointer',
+    label: {running: 'Navigating', done: 'Navigated'},
   },
 })
 
@@ -106,6 +116,8 @@ export const routerInvalidateDef = toolDefinition({
     category: 'tanstack',
     mutating: true,
     keywords: ['router', 'invalidate', 'reload'],
+    icon: 'edit',
+    label: {running: 'Invalidating the router', done: 'Invalidated the router'},
   },
 })
 
@@ -119,6 +131,8 @@ export const backDef = toolDefinition({
     category: 'tanstack',
     mutating: true,
     keywords: ['router', 'back', 'history'],
+    icon: 'pointer',
+    label: {running: 'Going back', done: 'Went back'},
   },
 })
 
@@ -134,6 +148,8 @@ export const queryInvalidateDef = toolDefinition({
     mutating: true,
     keywords: ['query', 'invalidate'],
     hint: 'unknown keys are a no-op',
+    icon: 'edit',
+    label: {running: 'Invalidating a query', done: 'Invalidated a query'},
   },
 })
 
@@ -147,6 +163,8 @@ export const queryRefetchDef = toolDefinition({
     category: 'tanstack',
     mutating: true,
     keywords: ['query', 'refetch'],
+    icon: 'edit',
+    label: {running: 'Refetching a query', done: 'Refetched a query'},
   },
 })
 
@@ -163,6 +181,8 @@ export const buildErrorsDef = toolDefinition({
     mutating: false,
     keywords: ['build', 'errors', 'compile'],
     hint: 'use when the app is broken or a change did not take effect',
+    icon: 'read',
+    label: {running: 'Reading build errors', done: 'Read build errors'},
   },
 })
 
@@ -180,6 +200,8 @@ export const routeManifestDef = toolDefinition({
     category: 'tanstack',
     mutating: false,
     keywords: ['routes', 'manifest'],
+    icon: 'read',
+    label: {running: 'Reading the route manifest', done: 'Read the route manifest'},
   },
 })
 
@@ -197,5 +219,7 @@ export const serverFnTraceDef = toolDefinition({
     category: 'tanstack',
     mutating: false,
     keywords: ['server', 'functions', 'trace'],
+    icon: 'read',
+    label: {running: 'Reading server-fn traces', done: 'Read server-fn traces'},
   },
 })

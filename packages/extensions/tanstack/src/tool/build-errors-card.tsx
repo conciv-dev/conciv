@@ -1,9 +1,8 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {TriangleAlert} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardErrorBlock, CardNote, InspectionCard} from './card-shared.js'
+import {ErrorBlock, parseResultPayload} from '@conciv/ui-kit-chat/tools'
+import {CardNote, InspectionCard} from './card-shared.js'
 
 type BuildError = {message: string; where: string | null}
 
@@ -27,10 +26,6 @@ function parseErrors(result: ToolCardProps['result']): BuildError[] | null {
   return parsed.data.map((error) => ({message: error.message, where: locationOf(error.source)}))
 }
 
-function ErrorsIcon(): JSX.Element {
-  return <TriangleAlert size={14} />
-}
-
 export function BuildErrorsCard(props: ToolCardProps): JSX.Element {
   const errors = () => parseErrors(props.result)
   const summary = () => {
@@ -40,18 +35,11 @@ export function BuildErrorsCard(props: ToolCardProps): JSX.Element {
     return `${list.length} ${list.length === 1 ? 'error' : 'errors'}`
   }
   return (
-    <InspectionCard card={props} Icon={ErrorsIcon} summary={summary()}>
+    <InspectionCard {...props} summary={summary()}>
       <Show when={errors()?.length} fallback={<CardNote>No build errors</CardNote>}>
         <div class="flex flex-col gap-1.5">
           <For each={errors()}>
-            {(error) => (
-              <CardErrorBlock>
-                <span class="[color:var(--chat-danger)] [font-family:var(--chat-mono)]">{error.message}</span>
-                <Show when={error.where}>
-                  {(where) => <span class="[color:var(--chat-text-3)] [font-family:var(--chat-mono)]">{where()}</span>}
-                </Show>
-              </CardErrorBlock>
-            )}
+            {(error) => <ErrorBlock message={error.where ? `${error.message} · ${error.where}` : error.message} />}
           </For>
         </div>
       </Show>

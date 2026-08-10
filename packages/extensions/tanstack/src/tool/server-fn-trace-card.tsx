@@ -1,9 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {ServerCog} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {ToolChip} from '@conciv/ui-kit-chat-tools'
+import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardNote, CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 type TraceRow = {name: string; file: string | null; durationMs: number; status: string}
@@ -36,10 +34,6 @@ function parsePayload(result: ToolCardProps['result']): TraceRow[] | null {
   }))
 }
 
-function TraceIcon(): JSX.Element {
-  return <ServerCog size={14} />
-}
-
 export function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
   const traces = () => parsePayload(props.result)
   const summary = () => {
@@ -49,7 +43,7 @@ export function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
     return `${list.length} ${list.length === 1 ? 'call' : 'calls'}`
   }
   return (
-    <InspectionCard card={props} Icon={TraceIcon} summary={summary()}>
+    <InspectionCard {...props} summary={summary()}>
       <Show when={traces()?.length} fallback={<CardNote>No server-fn calls</CardNote>}>
         <CardRows>
           <For each={traces()}>
@@ -60,7 +54,7 @@ export function ServerFnTraceCard(props: ToolCardProps): JSX.Element {
                   {(file) => <span class="min-w-0 truncate [color:var(--chat-text-3)]">{file()}</span>}
                 </Show>
                 <span class="ml-auto shrink-0 [color:var(--chat-text-3)]">{trace.durationMs}ms</span>
-                <ToolChip name={trace.status} tone={trace.status === 'error' ? 'bad' : undefined} />
+                <Chip kind="pill" value={trace.status} tone={trace.status === 'error' ? 'danger' : undefined} />
               </CardRow>
             )}
           </For>

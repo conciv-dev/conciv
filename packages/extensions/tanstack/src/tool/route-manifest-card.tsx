@@ -1,9 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {Waypoints} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {ToolChip} from '@conciv/ui-kit-chat-tools'
+import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, InspectionCard} from './card-shared.js'
 
 type RouteRow = {path: string; kind: string; dynamic: boolean}
@@ -18,10 +16,6 @@ function parseRoutes(result: ToolCardProps['result']): RouteRow[] | null {
   return parsed.data.map((route) => ({path: route.path, kind: route.kind, dynamic: route.dynamic}))
 }
 
-function ManifestIcon(): JSX.Element {
-  return <Waypoints size={14} />
-}
-
 export function RouteManifestCard(props: ToolCardProps): JSX.Element {
   const routes = () => parseRoutes(props.result)
   const summary = () => {
@@ -30,7 +24,7 @@ export function RouteManifestCard(props: ToolCardProps): JSX.Element {
     return `${list.length} ${list.length === 1 ? 'route' : 'routes'}`
   }
   return (
-    <InspectionCard card={props} Icon={ManifestIcon} summary={summary()}>
+    <InspectionCard {...props} summary={summary()}>
       <Show when={routes()}>
         {(list) => (
           <CardRows>
@@ -38,9 +32,9 @@ export function RouteManifestCard(props: ToolCardProps): JSX.Element {
               {(route) => (
                 <CardRow>
                   <span class="min-w-0 truncate [color:var(--chat-text-2)]">{route.path}</span>
-                  <ToolChip name={route.kind} />
+                  <Chip kind="pill" value={route.kind} />
                   <Show when={route.dynamic}>
-                    <ToolChip name="dynamic" />
+                    <Chip kind="pill" value="dynamic" />
                   </Show>
                 </CardRow>
               )}
