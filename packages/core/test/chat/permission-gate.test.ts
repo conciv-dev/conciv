@@ -74,13 +74,11 @@ describe('run gate on awaitReply', () => {
   })
 })
 
-describe('run gate on page calls', () => {
-  it('conciv_page passes without approval for reads and mutations alike', async () => {
+describe('run gate on the code-mode surface', () => {
+  it('lets execute_typescript through: the sandbox gates each capability the code calls', async () => {
     const {gate, emitted} = fixture(5_000)
-    expect(await gate.decide('conciv_page', {verb: 'text', selector: '#h'}, 'conciv_x', 'tu-page-read')).toBe('allow')
-    expect(await gate.decide('conciv_page', {verb: 'click', selector: '.buy'}, 'conciv_x', 'tu-page-click')).toBe(
-      'allow',
-    )
+    const input = {typescriptCode: 'return await external_page_click({selector: ".buy"})'}
+    expect(await gate.decide('execute_typescript', input, 'conciv_x', 'tu-exec')).toBe('allow')
     expect(emitted).toEqual([])
   })
 })

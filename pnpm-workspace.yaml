@@ -17,6 +17,19 @@ catalog:
   '@orpc/standard-server-peer': 1.14.7
   '@orpc/tanstack-query': 1.14.7
 
+  # The @tanstack/ai family pins the same way: ai-isolate-node@0.1.49 and ai-isolate-quickjs@0.2.0
+  # each peer-require ai-code-mode@0.3.10 exactly, ai-code-mode depends on @tanstack/ai@0.43.1
+  # exactly, and ai-client/ai-mcp/ai-solid each pin their sibling exactly too. Mixing lines
+  # installs two copies of @tanstack/ai and splits its runtime and types, so the whole family is
+  # single-sourced here and every manifest resolves "catalog:" to the same release.
+  '@tanstack/ai': 0.43.1
+  '@tanstack/ai-client': 0.23.1
+  '@tanstack/ai-code-mode': 0.3.10
+  '@tanstack/ai-isolate-node': 0.1.49
+  '@tanstack/ai-isolate-quickjs': 0.2.0
+  '@tanstack/ai-mcp': 0.2.7
+  '@tanstack/ai-solid': 0.16.1
+
 # Force patched protobufjs (GHSA-wcpc-wj8m-hjx6 prototype pollution); pulled in transitively
 # via jazz-tools OpenTelemetry in the whiteboard extension.
 overrides:

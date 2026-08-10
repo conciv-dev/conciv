@@ -115,6 +115,16 @@ describe('makeCodeMode', () => {
     expect(result.error?.message).toMatch(/secret/i)
   })
 
+  test('caps an oversized capability result before the chat surface returns it', async () => {
+    const flood = capability('flood', {execute: async () => 'x'.repeat(200_000)})
+    const codeMode = await codeModeOf([flood], allowGate)
+    const entry = codeMode.tools.find((candidate) => candidate.name === 'execute_typescript')
+    if (!entry?.execute) throw new Error('no execute_typescript tool')
+    const serialized = JSON.stringify(await entry.execute({typescriptCode: 'return await external_flood({})'}, {}))
+    expect(serialized).toContain('conciv:truncated')
+    expect(serialized.length).toBeLessThan(60_000)
+  })
+
   test('ranks a bounded category sample', async () => {
     const capabilities = [
       capability('a.one', {category: 'read'}),
@@ -497,6 +507,28 @@ describe('code mode per-tool call events', () => {
     const run = gatedToolRun(broken, request, allowGate, attached)
     await expect(run({}, context)).rejects.toThrow('draw failed')
     expect(events.find((event) => event.name === 'conciv:tool_error')?.value).toMatchObject({error: 'draw failed'})
+  })
+
+  test('gatedToolRun caps an oversized result on the emitted event while the caller still gets the raw value', async () => {
+    const {events, context} = capturingContext()
+    const flood = capability('canvas.flood', {execute: async () => 'x'.repeat(200_000)})
+    const run = gatedToolRun(flood, request, allowGate, attached)
+    const raw = await run({}, context)
+    expect(raw).toBe('x'.repeat(200_000))
+    const result = events.find((event) => event.name === 'conciv:tool_result')
+    expect(result?.value.result).toMatchObject({'conciv:truncated': true, truncated: true})
+    expect(JSON.stringify(result?.value).length).toBeLessThan(60_000)
+  })
+
+  test('gatedToolRun carries the serialization-failure payload for a bigint result without throwing', async () => {
+    const {events, context} = capturingContext()
+    const untallied = capability('canvas.bigint', {execute: async () => ({amount: 10n})})
+    const run = gatedToolRun(untallied, request, allowGate, attached)
+    const raw = await run({}, context)
+    expect(raw).toEqual({amount: 10n})
+    const result = events.find((event) => event.name === 'conciv:tool_result')
+    expect(result?.value.result).toMatchObject({error: 'value could not be serialized'})
+    expect(() => JSON.stringify(result?.value)).not.toThrow()
   })
 
   test('the real sandbox threads the events through a binding call', async () => {

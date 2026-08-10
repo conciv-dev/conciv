@@ -46,9 +46,7 @@ describe('makeRunStream', () => {
   })
 
   it('waitForToolCall rejects fast when the run finishes without that tool', async () => {
-    const run = makeRunStream(
-      scripted([started, snapshot([toolCallPart('tc-1', 'conciv_open', {file: 'a.ts'})]), finished]),
-    )
+    const run = makeRunStream(scripted([started, snapshot([toolCallPart('tc-1', 'open', {file: 'a.ts'})]), finished]))
     await expect(run.waitForToolCall('conciv_ui')).rejects.toThrow(/finished|without/i)
   })
 
@@ -57,14 +55,14 @@ describe('makeRunStream', () => {
       scripted([
         started,
         snapshot([
-          toolCallPart('tc-1', 'conciv_open', {file: 'a.ts'}),
+          toolCallPart('tc-1', 'open', {file: 'a.ts'}),
           toolCallPart('tc-2', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'}),
         ]),
         finished,
       ]),
     )
     const events = await run.done()
-    expect(events.toolCalls().map((call) => call.name)).toEqual(['conciv_open', 'conciv_ui'])
+    expect(events.toolCalls().map((call) => call.name)).toEqual(['open', 'conciv_ui'])
     expect(events.toolCalls('conciv_ui')).toEqual([
       {toolCallId: 'tc-2', name: 'conciv_ui', input: {kind: 'confirm', question: 'Proceed?'}},
     ])

@@ -17,8 +17,6 @@ const echoCallId = defineTool({
 
 const acme = defineExtension({name: 'acme', tools: [echoCallId]})
 
-const LAZY_TOOL_DISCOVERY = '__lazy__tool__discovery__'
-
 const EchoResultSchema = z.object({toolCallId: z.string()})
 
 const cleanups: (() => Promise<void>)[] = []
@@ -32,8 +30,9 @@ describe('an extension tool run from a chat turn knows which tool call it is ans
     const kit = await bootKit({extensions: [acme]}, harness)
     cleanups.push(() => kit.cleanup())
     const sessionId = await kit.session()
-    harness.script.scriptToolCall(LAZY_TOOL_DISCOVERY, {toolNames: ['acme_echo_call_id']})
-    harness.script.scriptToolCall('acme_echo_call_id', {})
+    harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: 'return await external_acme_echo_call_id({})',
+    })
     const stream = await kit.attach(sessionId)
     await kit.rpc.chat.send({runId: randomUUID(), sessionId, text: 'echo the call id'})
     const events = await stream.done({hangGuardMs: 20_000})

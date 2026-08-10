@@ -35,7 +35,7 @@ function parentIdsOfToolCalls(chunks: StreamChunk[]): (string | undefined)[] {
   })
 }
 
-function scriptedAdapter(): ReturnType<typeof makeTextAdapter> {
+function scriptedAdapter(typescriptCode: string): ReturnType<typeof makeTextAdapter> {
   const rounds = {value: 0}
   async function* stream(options: TextOptions<Record<string, never>>): AsyncGenerator<StreamChunk> {
     void options
@@ -52,7 +52,7 @@ function scriptedAdapter(): ReturnType<typeof makeTextAdapter> {
       yield {
         type: EventType.TOOL_CALL_ARGS,
         toolCallId: PARENT_CALL_ID,
-        delta: JSON.stringify({typescriptCode: 'return await external_canvas_svg({})'}),
+        delta: JSON.stringify({typescriptCode}),
       }
       yield {type: EventType.TOOL_CALL_END, toolCallId: PARENT_CALL_ID}
       yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'tool_calls'}
@@ -84,7 +84,7 @@ describe('code-mode nested-call parent id from real execution (IT, real chat + r
 
     const chunks: StreamChunk[] = []
     for await (const chunk of chat({
-      adapter: scriptedAdapter(),
+      adapter: scriptedAdapter('return await external_canvas_svg({})'),
       messages: [{role: 'user', content: 'draw a circle'}],
       threadId: 't',
       tools: codeMode.tools,
@@ -102,5 +102,27 @@ describe('code-mode nested-call parent id from real execution (IT, real chat + r
     expect(child).toMatchObject({name: 'canvas.svg', metadata: {parentToolCallId: PARENT_CALL_ID}})
     const parent = parts.find((part) => part.type === 'tool-call' && part.name === 'execute_typescript')
     expect(parent).toBeDefined()
+  })
+
+  it('threads a catalog() call from inside the sandbox onto a synthetic tool part too', async () => {
+    const codeMode = await makeCodeMode(() => [canvas], request, allowGate, {listening: () => true})
+    if (!codeMode) throw new Error('code mode unavailable: isolated-vm probe reported incompatible')
+
+    const chunks: StreamChunk[] = []
+    for await (const chunk of chat({
+      adapter: scriptedAdapter("return await external_catalog({search: 'canvas'})"),
+      messages: [{role: 'user', content: 'what can you do'}],
+      threadId: 't',
+      tools: codeMode.tools,
+      lazyToolsConfig: {includeDescription: 'first-sentence'},
+    })) {
+      chunks.push(chunk)
+    }
+
+    const parts = foldedMessages(chunks).flatMap((message) => message.parts)
+    const child = parts.find((part) => part.type === 'tool-call' && part.name === 'catalog')
+    expect(child).toMatchObject({name: 'catalog', metadata: {parentToolCallId: PARENT_CALL_ID}})
+    const outputRaw = child && 'output' in child ? JSON.stringify(child.output) : ''
+    expect(outputRaw).toContain('canvas.svg')
   })
 })

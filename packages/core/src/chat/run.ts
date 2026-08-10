@@ -113,7 +113,7 @@ async function codeModeExtras(
     listening: (id) => deps.stream.listening(id),
   })
   const systemPrompts = [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text))
-  return {systemPrompts, tools: [...deps.tools(sessionId), ...(codeMode?.tools ?? [])]}
+  return {systemPrompts, tools: [...(codeMode?.tools ?? [])]}
 }
 
 async function turnMessages(
@@ -330,7 +330,6 @@ async function* runStream(
   const processor = new StreamProcessor({
     events: {onMessagesChange: (messages) => setRunMessages(deps.db, sessionId, messages)},
   })
-  processor.addUserMessage(userParts(req.content))
   const gateDeps = {
     sessionId,
     asks: deps.asks,
@@ -344,8 +343,9 @@ async function* runStream(
   const askGate = makeAskGate(gateDeps)
   const outcome: RunOutcome = {error: null, usage: null, runEnd: null}
   try {
-    deps.stream.publish(sessionId, aguiSnapshotFor(await sessionSnapshot(deps, sessionId)))
     const stream = await buildRunStream(deps, sessionId, req, {gate, askGate}, abort)
+    processor.addUserMessage(userParts(req.content))
+    deps.stream.publish(sessionId, aguiSnapshotFor(await sessionSnapshot(deps, sessionId)))
     const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
     const bounded = boundFirstChunk(stream, timeoutMs, () => {
       outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`

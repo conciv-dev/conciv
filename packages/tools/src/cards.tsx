@@ -9,6 +9,6 @@ export {UiCard} from './cards/ui-card.js'
 
 export const concivToolCards: ToolCardEntry[] = [
   {names: ['conciv_ui'], render: UiCard, streamTitle: 'Rendering UI'},
-  {names: ['conciv_open'], render: OpenCard, streamTitle: 'Opening a file'},
+  {names: ['open'], render: OpenCard, streamTitle: 'Opening a file'},
   {names: ['conciv_extensions'], render: ExtensionsCard},
 ]

@@ -255,7 +255,6 @@ const PROMPT_PROSE_FILES = new Set([
   'packages/extensions/whiteboard/src/shared/meta.ts',
   'packages/extensions/whiteboard/src/tool/canvas/server.ts',
   'packages/extensions/ios/src/server/tools.ts',
-  'packages/harness/src/claude/system-prompt.ts',
 ])
 
 const declarationsByFile = new Map(sources.map((source) => [source.path, declaredNamesIn(source.text)]))

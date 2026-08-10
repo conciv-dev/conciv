@@ -25,7 +25,7 @@ export const Complete: Story = {
     frame(
       'chat-theme-dark',
       <ToolLookupCard
-        part={part({query: 'select:mcp__tanstack__conciv_page', max_results: 5})}
+        part={part({query: 'select:mcp__tanstack__page_click', max_results: 5})}
         result={result({tools: 1})}
         ctx={INERT_TOOL_CTX}
         addResult={INERT_ADD_RESULT}
@@ -35,6 +35,6 @@ export const Complete: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('Loaded tools')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
-    await waitFor(() => expect(c.getByText('select:mcp__tanstack__conciv_page')).toBeVisible())
+    await waitFor(() => expect(c.getByText('select:mcp__tanstack__page_click')).toBeVisible())
   },
 }

@@ -14,6 +14,7 @@ import {toChatTool, type ToolRunContext} from './runtime.js'
 import {approvalRefusal, noListenerRefusal, requiresApproval, type PermissionGate} from './gate.js'
 import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
 import {logError} from '../lib/debug.js'
+import {cappedValue} from '../lib/result-cap.js'
 
 const CODE_MODE_TIMEOUT_MS = 150_000
 
@@ -25,19 +26,61 @@ export const CATALOG_CALL_HINT = 'await external_catalog({})'
 
 const CATEGORY_SAMPLE_LIMIT = 6
 
+const QUICKJS_MEMORY_LIMIT_MB = 256
+
+const QUICKJS_MAX_STACK_BYTES = 2 * 1024 * 1024
+
+export type DriverCandidate = {name: string; create: () => Promise<IsolateDriver | null>}
+
+export const driverCandidates: readonly DriverCandidate[] = [
+  {
+    name: '@tanstack/ai-isolate-node',
+    create: async () => {
+      const loaded = await import('@tanstack/ai-isolate-node')
+      if (!loaded.probeIsolatedVm().compatible) return null
+      return loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
+    },
+  },
+  {
+    name: '@tanstack/ai-isolate-quickjs',
+    create: async () => {
+      const loaded = await import('@tanstack/ai-isolate-quickjs')
+      return loaded.createQuickJSIsolateDriver({
+        timeout: CODE_MODE_TIMEOUT_MS,
+        memoryLimit: QUICKJS_MEMORY_LIMIT_MB,
+        maxStackSize: QUICKJS_MAX_STACK_BYTES,
+      })
+    },
+  },
+]
+
 let driverLoad: Promise<IsolateDriver | null> | null = null
 
-async function importDriver(): Promise<IsolateDriver | null> {
-  const loaded = await import('@tanstack/ai-isolate-node')
-  if (!loaded.probeIsolatedVm().compatible) return null
-  return loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
+type DriverAttempt = {driver: IsolateDriver} | {reason: string}
+
+async function attemptDriver(candidate: DriverCandidate): Promise<DriverAttempt> {
+  const created = await candidate.create().catch((error: unknown) => ({reason: String(error)}))
+  if (created === null) return {reason: 'the platform probe reported it incompatible'}
+  if ('reason' in created) return created
+  return {driver: created}
+}
+
+export async function firstUsableDriver(candidates: readonly DriverCandidate[]): Promise<IsolateDriver | null> {
+  for (const candidate of candidates) {
+    const attempt = await attemptDriver(candidate)
+    if ('reason' in attempt) {
+      logError(`[core] the code mode driver ${candidate.name} is unusable: ${attempt.reason}`)
+      continue
+    }
+    logError(`[core] code mode is running on ${candidate.name}`)
+    return attempt.driver
+  }
+  logError('[core] code mode found no usable isolate driver')
+  return null
 }
 
 function loadDriver(): Promise<IsolateDriver | null> {
-  driverLoad ??= importDriver().catch((error: unknown) => {
-    logError(`[core] @tanstack/ai-isolate-node failed to load: ${String(error)}`)
-    return null
-  })
+  driverLoad ??= firstUsableDriver(driverCandidates)
   return driverLoad
 }
 
@@ -58,36 +101,42 @@ function encodeDeclaredError(error: unknown): Error {
 
 export type SessionListening = (sessionId: string) => boolean
 
+async function emittingToolCall(
+  name: string,
+  args: unknown,
+  context: ToolRunContext | undefined,
+  execute: (callId: string) => Promise<unknown>,
+): Promise<unknown> {
+  const callId = randomUUID()
+  const emit = context?.emitCustomEvent ?? (() => {})
+  emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name, input: args})
+  try {
+    const result = await execute(callId)
+    emit(CODE_MODE_TOOL_RESULT_EVENT, {callId, result: cappedValue(result, `the ${name} result`)})
+    return result
+  } catch (error) {
+    const encoded = encodeDeclaredError(error)
+    emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: encoded.message})
+    throw encoded
+  }
+}
+
 export function gatedToolRun(
   capability: CodeCapability,
   request: ToolRequest,
   gate: PermissionGate,
   listening: SessionListening,
 ): (args: unknown, context?: ToolRunContext) => Promise<unknown> {
-  return async (args, context) => {
-    const callId = randomUUID()
-    const emit = context?.emitCustomEvent ?? (() => {})
-    emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name: capability.name, input: args})
-    const refuse = (refusal: string): never => {
-      emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: refusal})
-      throw new Error(refusal)
-    }
-    if (requiresApproval(capability)) {
-      if (!listening(request.sessionId)) refuse(noListenerRefusal(capability.name, request.sessionId))
-      const decision = await gate.decide(capability.name, args, request.sessionId, callId)
-      const refusal = approvalRefusal(capability.name, decision)
-      if (refusal !== null) refuse(refusal)
-    }
-    try {
-      const result = await capability.execute(args, {...request, toolCallId: callId})
-      emit(CODE_MODE_TOOL_RESULT_EVENT, {callId, result})
-      return result
-    } catch (error) {
-      const encoded = encodeDeclaredError(error)
-      emit(CODE_MODE_TOOL_ERROR_EVENT, {callId, error: encoded.message})
-      throw encoded
-    }
-  }
+  return (args, context) =>
+    emittingToolCall(capability.name, args, context, async (callId) => {
+      if (requiresApproval(capability)) {
+        if (!listening(request.sessionId)) throw new Error(noListenerRefusal(capability.name, request.sessionId))
+        const decision = await gate.decide(capability.name, args, request.sessionId, callId)
+        const refusal = approvalRefusal(capability.name, decision)
+        if (refusal !== null) throw new Error(refusal)
+      }
+      return capability.execute(args, {...request, toolCallId: callId})
+    })
 }
 
 export type NamedCapability = {capability: CodeCapability; bindingName: string}
@@ -203,12 +252,13 @@ function catalogTool(current: () => BoundCapability[]): ReturnType<typeof toChat
         'List and inspect every capability in this sandbox: catalog({}) or catalog({search}) lists entries with the exact function name to call, catalog({name}) returns one full typed signature.',
       inputSchema: CatalogQuerySchema,
     },
-    async (args) => {
-      const query = CatalogQuerySchema.parse(args ?? {})
-      const bound = current()
-      if (query.name !== undefined) return capabilityDetail(bound, query.name)
-      return catalogList(bound, query.search)
-    },
+    (args, context) =>
+      emittingToolCall(CATALOG_TOOL_NAME, args, context, async () => {
+        const query = CatalogQuerySchema.parse(args ?? {})
+        const bound = current()
+        if (query.name !== undefined) return capabilityDetail(bound, query.name)
+        return catalogList(bound, query.search)
+      }),
   )
 }
 
@@ -226,6 +276,16 @@ function rankedCategories(capabilities: CodeCapability[]): string[] {
 const CATALOG_PROMPT = `### Capability catalog
 
 Inside execute_typescript, \`${CATALOG_CALL_HINT}\` lists every available capability with the exact function name to call, \`await external_catalog({search})\` filters that list, and \`await external_catalog({name})\` returns one full typed signature. Discover through the catalog instead of guessing a signature.`
+
+function cappedTool(tool: AnyTool): AnyTool {
+  const execute = tool.execute
+  if (!execute) return tool
+  return {
+    ...tool,
+    execute: async (args: unknown, context?: ToolRunContext) =>
+      cappedValue(await execute(args, context), `the ${tool.name} result`),
+  }
+}
 
 export type CodeMode = {
   tool: AnyTool
@@ -259,7 +319,7 @@ export async function makeCodeMode(
   const tool: AnyTool = codeMode.tool
   return {
     tool,
-    tools: [...codeMode.tools],
+    tools: codeMode.tools.map(cappedTool),
     systemPrompt: [codeMode.systemPrompt, CATALOG_PROMPT].join('\n\n'),
     categories: rankedCategories(snapshot),
     run: (typescriptCode, context) => {

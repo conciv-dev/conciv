@@ -75,7 +75,7 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
-    "@tanstack/ai": "^0.43.0",
+    "@tanstack/ai": "catalog:",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
     "@vitest/browser-playwright": "4.1.10",

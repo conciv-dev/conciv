@@ -126,7 +126,12 @@ if (process.env.CONCIV_FAKE_HANG) {
         content: [
           {type: 'thinking', thinking: ''},
           {type: 'text', text: 'Proving it.'},
-          {type: 'tool_use', id: 'tc1', name: 'conciv_page', input: {verb: 'route'}},
+          {
+            type: 'tool_use',
+            id: 'tc1',
+            name: 'execute_typescript',
+            input: {typescriptCode: 'return await external_page_route({})'},
+          },
         ],
       },
     },

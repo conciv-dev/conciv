@@ -3,7 +3,6 @@ import {
   InMemoryRunStore,
   memoryStream,
   toolDefinition,
-  type AnyTool,
   type RunStore,
   type ServerTool,
   type StreamDurability,
@@ -11,8 +10,6 @@ import {
 import {RunController, type SandboxDefinition} from '@tanstack/ai-sandbox'
 import {z} from 'zod'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {concivTools, type ConcivToolContext} from '@conciv/tools'
-import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import type {ConcivDb} from '@conciv/db'
 import type {CodeCapability} from './capabilities.js'
 import {FIRST_CHUNK_TIMEOUT_MS, READER_FIRST_APPEND_GRACE_MS} from './run-timing.js'
@@ -40,7 +37,6 @@ export type ChatDeps = {
   stream: SessionStreams
   risky: ReadonlySet<string>
   commandAllows: () => readonly string[]
-  tools: (sessionId: string) => AnyTool[]
   toolNames: ReadonlySet<string>
   codeModeCapabilities: (sessionId: string) => CodeCapability[]
   attachmentExpanders: AttachmentExpanders
@@ -93,25 +89,4 @@ export function toChatTool(
     outputSchema: z.unknown(),
     lazy: opts?.lazy,
   }).server(run)
-}
-
-export function buildChatTools(
-  makeCtx: (sessionId: string) => ConcivToolContext,
-  extensionTools: ExtensionServerTool[],
-  sessionModel: (sessionId: string) => string | null,
-): (sessionId: string) => AnyTool[] {
-  return (sessionId) => {
-    const ctx = makeCtx(sessionId)
-    const requestFor = (context?: ToolRunContext): ToolRequest => ({
-      sessionId,
-      model: sessionModel(sessionId),
-      toolCallId: context?.toolCallId,
-    })
-    return [
-      ...concivTools(ctx).map((tool) => toChatTool(tool, (args) => tool.execute(args))),
-      ...extensionTools.map((tool) =>
-        toChatTool(tool, (args, context) => tool.execute(args, requestFor(context)), {lazy: true}),
-      ),
-    ]
-  }
 }

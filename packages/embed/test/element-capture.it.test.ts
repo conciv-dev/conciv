@@ -1,9 +1,11 @@
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {expect as expectLocator} from 'playwright/test'
 import {chromium, type Browser, type Page} from 'playwright'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
 import {openPagePlaneHost} from './helpers/page-plane-host.js'
+import {openPanel} from './helpers/panel.js'
 
 const PASSWORD = 'hunter2-must-never-leave-the-page'
 
@@ -38,6 +40,13 @@ const openHostPage = (): Promise<Page> => openPagePlaneHost(browser, host.base)
 
 function rowIdentities(stored: SessionCaptures): string[] {
   return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
+}
+
+async function sendAndRevealThought(page: Page, message: string): Promise<void> {
+  await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(message)
+  await page.getByRole('button', {name: 'Send message'}).click()
+  await expectLocator(page.getByRole('button', {name: 'Stop generating'})).toBeHidden({timeout: 30_000})
+  await page.getByText('Chain of Thought').last().click()
 }
 
 describe('a page tool run through the widget stores a frozen picture of the element it touched', () => {
@@ -94,6 +103,22 @@ describe('a page tool run through the widget stores a frozen picture of the elem
     await kit.callTool('page.text', {selector: '#cta'}, sessionId)
     const after: SessionCaptures = await kit.rpc.captures.list({sessionId})
     expect(rowIdentities(after)).toEqual(rowIdentities(before))
+    await page.close()
+  }, 60_000)
+
+  it('renders a page verb run through real code mode with its element preview ready in the widget', async () => {
+    const page = await openHostPage()
+    await openPanel(page)
+    kit.harness.script.scriptToolCall('execute_typescript', {
+      typescriptCode: "await external_page_settext({selector: '#prose', text: 'rendered through the pipeline'})",
+    })
+    await sendAndRevealThought(page, 'rewrite the prose through code mode')
+    const settextCard = page.getByRole('button', {name: /Set the text/})
+    await expectLocator(settextCard).toBeVisible({timeout: 30_000})
+    await settextCard.click()
+    const preview = page.getByRole('img', {name: 'rendered through the pipeline'})
+    await expectLocator(preview).toBeVisible({timeout: 30_000})
+    await expectLocator(preview).not.toHaveAttribute('aria-busy')
     await page.close()
   }, 60_000)
 })

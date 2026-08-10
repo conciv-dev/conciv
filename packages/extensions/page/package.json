@@ -70,7 +70,7 @@
   "devDependencies": {
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@tanstack/ai-client": "0.23.0",
+    "@tanstack/ai-client": "catalog:",
     "@types/js-beautify": "^1.14.3",
     "@types/node": "^26.1.0",
     "@types/react": "^19.2.17",

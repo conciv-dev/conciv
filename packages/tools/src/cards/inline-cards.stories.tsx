@@ -65,13 +65,13 @@ export const Open: Story = {
       'chat-theme-dark',
       <>
         <OpenCard
-          part={part('conciv_open', {file: 'packages/ui-kit-chat/src/styled/thread.tsx', line: 42})}
+          part={part('open', {file: 'packages/ui-kit-chat/src/styled/thread.tsx', line: 42})}
           result={done}
           ctx={INERT_TOOL_CTX}
           addResult={INERT_ADD_RESULT}
         />
         <OpenCard
-          part={part('conciv_open', {file: 'src/composer/model-selector.tsx'}, 'input-complete')}
+          part={part('open', {file: 'src/composer/model-selector.tsx'}, 'input-complete')}
           result={undefined}
           ctx={INERT_TOOL_CTX}
           addResult={INERT_ADD_RESULT}
