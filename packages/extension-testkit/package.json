@@ -13,6 +13,7 @@
   "type": "module",
   "exports": {
     ".": "./src/get-extension-test-api.ts",
+    "./browser-fixture": "./src/browser-fixture.ts",
     "./card-harness": "./src/card-harness.tsx",
     "./connect-handshake": "./src/connect-handshake.ts",
     "./core-kit": "./src/core-kit.ts",

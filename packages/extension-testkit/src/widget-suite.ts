@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import {createServer, type Server} from 'node:http'
-import {test as base, expect} from 'vitest'
+import {expect} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {chromium, type Browser, type Page} from 'playwright'
-import pTimeout from 'p-timeout'
+import type {Browser, Page} from 'playwright'
+import {test as browserTest} from './browser-fixture.js'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
 import {listenLocal} from './listen-local.js'
 
@@ -19,7 +19,6 @@ const MIME: Record<string, string> = {
 }
 
 const GRACEFUL_STATIC_CLOSE_MS = 2_000
-const BROWSER_CLOSE_TIMEOUT_MS = 30_000
 
 function closeStaticServer(server: Server, gracefulCloseMs: number): () => Promise<void> {
   return async () => {
@@ -54,19 +53,7 @@ export async function serveStaticDir(dir: string): Promise<ServedDir> {
 }
 
 export function widgetComponentSuite(opts: {id: string; distDir: string}): void {
-  const test = base.extend<{$file: {browser: Browser; kit: CoreKit; host: ServedDir}}>({
-    browser: [
-      // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
-      async ({}, use) => {
-        const browser = await chromium.launch()
-        await use(browser)
-        await pTimeout(browser.close(), {
-          milliseconds: BROWSER_CLOSE_TIMEOUT_MS,
-          message: `browser.close did not settle within ${BROWSER_CLOSE_TIMEOUT_MS}ms; a wedged CDP connection would otherwise hang fixture cleanup forever (vitest test.extend cleanup is unbounded)`,
-        })
-      },
-      {scope: 'file'},
-    ],
+  const test = browserTest.extend<{$file: {kit: CoreKit; host: ServedDir}}>({
     kit: [
       // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
       async ({}, use) => {

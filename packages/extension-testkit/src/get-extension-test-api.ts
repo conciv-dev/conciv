@@ -38,7 +38,7 @@ export type ExtensionTestApi = {
   dispose: () => Promise<void>
 }
 
-export {serveDir} from './serve.js'
+export {serveDir, type ServedHost} from './serve.js'
 export {fixtureHost} from './fixture-host.js'
 
 export async function getExtensionTestApi(extension: ExtensionUnderTest): Promise<ExtensionTestApi> {

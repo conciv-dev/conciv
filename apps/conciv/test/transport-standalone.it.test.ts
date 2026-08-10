@@ -1,6 +1,7 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {expect} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import {chromium, type Browser, type Page} from 'playwright'
+import type {Browser, Page} from 'playwright'
+import {test as browserTest} from '@conciv/extension-testkit/browser-fixture'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {httpRpcRequestUrls, observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
 import {serveStandaloneApp} from './helpers/static-app.js'
@@ -8,34 +9,47 @@ import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 
 const ASSISTANT_TEXT = 'Hello from standalone conciv'
 const MOUNT_TIMEOUT_MS = 30_000
+const SUITE_SETUP_TIMEOUT_MS = 90_000
 
-let browser: Browser
-let kit: CoreKit
-let openCore: ProxyCore
-let app: {base: string; close: () => Promise<void>}
-
-beforeAll(async () => {
-  browser = await chromium.launch()
-  kit = await bootCoreKit({id: 'standalone-transport', text: ASSISTANT_TEXT})
-  openCore = await proxyTo(kit.base)
-  app = await serveStandaloneApp()
-}, 90_000)
-
-afterAll(async () => {
-  await browser.close()
-  await app.close()
-  await openCore.close()
-  await kit.cleanup()
+const test = browserTest.extend<{
+  $file: {kit: CoreKit; openCore: ProxyCore; app: {base: string; close: () => Promise<void>}}
+}>({
+  kit: [
+    // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+    async ({}, use) => {
+      const kit = await bootCoreKit({id: 'standalone-transport', text: ASSISTANT_TEXT})
+      await use(kit)
+      await kit.cleanup()
+    },
+    {scope: 'file'},
+  ],
+  openCore: [
+    async ({kit}, use) => {
+      const openCore = await proxyTo(kit.base)
+      await use(openCore)
+      await openCore.close()
+    },
+    {scope: 'file'},
+  ],
+  app: [
+    // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
+    async ({}, use) => {
+      const app = await serveStandaloneApp()
+      await use(app)
+      await app.close()
+    },
+    {scope: 'file'},
+  ],
 })
 
-function pageUrl(coreBase: string, transport: 'websocket' | 'fetch'): string {
+function pageUrl(appBase: string, coreBase: string, transport: 'websocket' | 'fetch'): string {
   const settings = encodeURIComponent(JSON.stringify({transport}))
-  return `${app.base}/?core=${encodeURIComponent(coreBase)}&settings=${settings}`
+  return `${appBase}/?core=${encodeURIComponent(coreBase)}&settings=${settings}`
 }
 
 type Tab = {page: Page; observer: RpcObserver; httpRpcUrls: string[]; disposeHttpRpc: () => void}
 
-async function openTab(url: string): Promise<Tab> {
+async function openTab(browser: Browser, url: string): Promise<Tab> {
   const page = await browser.newPage()
   const http = httpRpcRequestUrls(page)
   const observer = observeRpc(page)
@@ -51,30 +65,38 @@ async function completeTurn(page: Page): Promise<void> {
   await expectLocator(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
 }
 
-describe('the standalone entry threads settings.transport into the browser rpc client', () => {
-  it('pins fetch and never opens a websocket when settings say transport: fetch', async () => {
-    const tab = await openTab(pageUrl(openCore.base, 'fetch'))
-    try {
-      await completeTurn(tab.page)
-      expect(tab.observer.socketCount()).toBe(0)
-      expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
-    } finally {
-      tab.observer.dispose()
-      tab.disposeHttpRpc()
-      await tab.page.close()
-    }
-  })
+test.describe('the standalone entry threads settings.transport into the browser rpc client', () => {
+  test(
+    'pins fetch and never opens a websocket when settings say transport: fetch',
+    async ({browser, app, openCore}) => {
+      const tab = await openTab(browser, pageUrl(app.base, openCore.base, 'fetch'))
+      try {
+        await completeTurn(tab.page)
+        expect(tab.observer.socketCount()).toBe(0)
+        expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
+      } finally {
+        tab.observer.dispose()
+        tab.disposeHttpRpc()
+        await tab.page.close()
+      }
+    },
+    SUITE_SETUP_TIMEOUT_MS,
+  )
 
-  it('pins the websocket and never falls back to fetch when settings say transport: websocket', async () => {
-    const tab = await openTab(pageUrl(openCore.base, 'websocket'))
-    try {
-      await completeTurn(tab.page)
-      expect(tab.observer.socketCount()).toBe(1)
-      expect(tab.httpRpcUrls).toEqual([])
-    } finally {
-      tab.observer.dispose()
-      tab.disposeHttpRpc()
-      await tab.page.close()
-    }
-  })
+  test(
+    'pins the websocket and never falls back to fetch when settings say transport: websocket',
+    async ({browser, app, openCore}) => {
+      const tab = await openTab(browser, pageUrl(app.base, openCore.base, 'websocket'))
+      try {
+        await completeTurn(tab.page)
+        expect(tab.observer.socketCount()).toBe(1)
+        expect(tab.httpRpcUrls).toEqual([])
+      } finally {
+        tab.observer.dispose()
+        tab.disposeHttpRpc()
+        await tab.page.close()
+      }
+    },
+    SUITE_SETUP_TIMEOUT_MS,
+  )
 })
