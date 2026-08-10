@@ -88,7 +88,6 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
-    "@tanstack/ai-client": "0.23.0",
     "@types/node": "^22.19.21",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

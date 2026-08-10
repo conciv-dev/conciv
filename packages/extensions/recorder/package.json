@@ -76,7 +76,6 @@
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
-    "@tanstack/ai-client": "0.23.0",
     "@tanstack/ai-mcp": "^0.2.6",
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.10",

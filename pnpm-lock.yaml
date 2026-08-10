@@ -2178,9 +2178,6 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
-      '@tanstack/ai-client':
-        specifier: 0.23.0
-        version: 0.23.0(@opentelemetry/api@1.9.1)(zod@4.4.3)
       '@tanstack/ai-mcp':
         specifier: ^0.2.6
         version: 0.2.6(@opentelemetry/api@1.9.1)(zod@4.4.3)
@@ -2272,9 +2269,6 @@ importers:
       '@solid-primitives/event-listener':
         specifier: ^2.4.6
         version: 2.4.6(solid-js@1.9.14)
-      '@tanstack/ai-client':
-        specifier: 0.23.0
-        version: 0.23.0(@opentelemetry/api@1.9.1)(zod@4.4.3)
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
@@ -2660,9 +2654,6 @@ importers:
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
-      '@tanstack/ai-client':
-        specifier: 0.23.0
-        version: 0.23.0(@opentelemetry/api@1.9.1)(zod@4.4.3)
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
