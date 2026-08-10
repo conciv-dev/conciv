@@ -110,7 +110,7 @@ possible: `ref` values reset on every snapshot, and the DOM has usually moved on
 
 Capture happens client-side, inside the page verb, at execute time:
 
-```
+```text
 node        serializeNodeWithId(el, {...}) from rrweb-snapshot
             + ancestor skeleton: each ancestor serialized with skipChild: true,
               chained as the single child path down to the target
@@ -151,7 +151,7 @@ model. Element captures must never enter the prompt.
 
 Add a table keyed by tool call:
 
-```
+```text
 toolArtifacts(toolCallId PK, sessionId, kind, payload JSON, createdAt)
 cssBundles(hash PK, sessionId, css TEXT, createdAt)
 ```
