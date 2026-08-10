@@ -4,14 +4,8 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {formatDuration} from '../primitives/tool-util.js'
 import {useToolCallDuration} from '../primitives/tool-duration.js'
+import {StatusVisual} from '../primitives/status-visual.js'
 import {CollapsibleCard} from './collapsible-card.js'
-
-const DOT: Record<ToolStatus, string> = {
-  running: '[background:var(--chat-accent)] anim-pulse',
-  complete: '[background:var(--chat-success)]',
-  error: '[background:var(--chat-danger)]',
-  approval: '[background:var(--chat-accent)]',
-}
 
 const TITLE = 'text-[color:var(--chat-text)] flex-1 truncate [overflow-wrap:anywhere]'
 const METRIC =
@@ -32,11 +26,7 @@ function HeaderContent(props: {
       <span class={TITLE}>{props.title}</span>
       <Show when={props.meta}>{(meta) => <span class={METRIC}>{meta()}</span>}</Show>
       <Show when={props.duration}>{(value) => <span class={METRIC}>{value()}</span>}</Show>
-      <span
-        class={`rounded-[var(--chat-radius-pill)] shrink-0 size-2 ${DOT[props.status]}`}
-        role="img"
-        aria-label={props.status}
-      />
+      <StatusVisual status={props.status} form="dot" />
     </>
   )
 }

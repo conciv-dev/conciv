@@ -4,6 +4,7 @@ export {CollapsibleCard, type CollapsibleCardProps} from './styled/collapsible-c
 export {ToolGroup, type ToolGroupProps} from './styled/tool-group.js'
 
 export {toolStatus, type ToolStatus} from './primitives/tool-status.js'
+export {StatusVisual} from './primitives/status-visual.js'
 export {ToolDurationProvider, useToolCallDuration} from './primitives/tool-duration.js'
 export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './primitives/tool-fallback.js'
 export {Permission, usePermission} from './primitives/permission.js'
@@ -36,6 +37,7 @@ export {ToolCallCard, type ToolCallCardProps} from './styled/tool-call-card.js'
 export {ElementPreview} from './styled/element-preview.js'
 export {Chip, ChipRow, CHIP} from './styled/chip.js'
 export {CodeBlock, DiffBlock} from './styled/code-block.js'
+export {ErrorBlock} from './styled/error-block.js'
 export {JsonTree} from './styled/json-tree.js'
 export {MirrorRow, NoteRow, type NoteRowTone} from './styled/note-row.js'
 export {

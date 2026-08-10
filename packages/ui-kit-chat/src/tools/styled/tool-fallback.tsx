@@ -1,29 +1,14 @@
 import {createSignal, Show, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
-import {Check, ChevronDown, CircleAlert, CircleX, LoaderCircle, type LucideIcon} from 'lucide-solid'
+import {ChevronDown} from 'lucide-solid'
 import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
 import {Collapsible} from '@conciv/ui-kit-system'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primitives/tool-fallback.js'
 import {Permission, usePermission} from '../primitives/permission.js'
-import type {ToolStatus} from '../primitives/tool-status.js'
+import {StatusVisual} from '../primitives/status-visual.js'
+import {formatDuration} from '../primitives/tool-util.js'
 import {SHIMMER} from '../../styled/shimmer.js'
 import {FOCUS} from '../../styled/classes.js'
-
-const STATUS_ICON: Record<ToolStatus, LucideIcon> = {
-  running: LoaderCircle,
-  complete: Check,
-  error: CircleX,
-  approval: CircleAlert,
-}
-
-function formatToolDuration(ms: number): string {
-  if (ms < 1000) return '<1s'
-  const seconds = ms / 1000
-  if (seconds < 10) return `${(Math.floor(seconds * 10) / 10).toFixed(1)}s`
-  if (seconds < 60) return `${Math.floor(seconds)}s`
-  return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`
-}
 
 const CODE_OPTIONS: FileOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},
@@ -57,12 +42,7 @@ function Trigger(): JSX.Element {
     <Collapsible.Trigger
       class={`group text-[color:var(--chat-text-2)] hover:text-[color:var(--chat-text)] text-[length:var(--chat-text-md)] py-1.5 flex gap-2 w-fit cursor-pointer [transition:color_120ms_var(--chat-ease)] items-center ${FOCUS}`}
     >
-      <Dynamic
-        component={STATUS_ICON[tool.status()]}
-        size={16}
-        class={`shrink-0 ${running() ? 'anim-tool-spin' : ''}`}
-        aria-hidden="true"
-      />
+      <StatusVisual status={tool.status()} form="icon" />
       <span class="leading-none text-start inline-block relative">
         <span>
           Used tool: <b class="[color:var(--chat-text)]">{tool.name()}</b>
@@ -76,7 +56,7 @@ function Trigger(): JSX.Element {
       <Show when={tool.durationMs()}>
         {(ms) => (
           <span class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] tabular-nums">
-            {formatToolDuration(ms())}
+            {formatDuration(ms())}
           </span>
         )}
       </Show>
