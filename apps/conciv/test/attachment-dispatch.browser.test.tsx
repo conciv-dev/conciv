@@ -1,22 +1,10 @@
-import {render} from 'solid-js/web'
-import {afterEach, expect, test} from 'vitest'
+import {render} from '@solidjs/testing-library'
+import {expect, test} from 'vitest'
 import type {JSX} from 'solid-js'
 import {AttachmentByMime, AttachmentProvider, type CompleteAttachment} from '@conciv/ui-kit-chat'
 
-const disposers: (() => void)[] = []
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-})
-
 function mount(element: () => JSX.Element): HTMLElement {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  const dispose = render(element, host)
-  disposers.push(() => {
-    dispose()
-    host.remove()
-  })
-  return host
+  return render(element).container
 }
 
 const complete: CompleteAttachment = {

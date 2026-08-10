@@ -1,5 +1,5 @@
-import {render} from 'solid-js/web'
-import {afterEach, expect, it} from 'vitest'
+import {render} from '@solidjs/testing-library'
+import {expect, it} from 'vitest'
 import {page as browserPage} from 'vitest/browser'
 import type {JSX} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
@@ -11,19 +11,8 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {collectToolRenderers} from '@conciv/extension'
 import pageExtension from '@conciv/extension-page'
 
-const disposers: (() => void)[] = []
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-})
-
 function mount(child: () => JSX.Element): void {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  const dispose = render(child, host)
-  disposers.push(() => {
-    dispose()
-    host.remove()
-  })
+  render(child)
 }
 
 function ctxWith(catalog: ToolCatalogView): ToolViewCtx {

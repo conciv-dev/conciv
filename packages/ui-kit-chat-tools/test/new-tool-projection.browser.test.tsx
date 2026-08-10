@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {z} from 'zod'
 import {page} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {defineTool} from '@conciv/extension/tool'
 import type {AnyToolBuilder} from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
@@ -10,12 +10,8 @@ import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {PAGE_TOOL_DEFS, pageToolMetaOf} from '@conciv/extension-page/defs'
 import {INERT_ADD_RESULT, GENERIC_TOOL_ICON, MetaToolCard, toolIconRender} from '@conciv/ui-kit-chat/tools'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
-import {cleanupViews, mountView} from './mount-view.js'
+import {mountView} from './mount-view.js'
 import {registryCatalogView} from './registry-catalog-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
 
 function part(verb: string, args: Record<string, unknown> = {}): ToolCallPart {
   return {

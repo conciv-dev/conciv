@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {z} from 'zod'
 import {page} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {defineTool} from '@conciv/extension/tool'
 import {createToolRegistry} from '@conciv/extension/registry'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
@@ -9,12 +9,8 @@ import type {ToolCatalogView, ToolViewCtx} from '@conciv/protocol/tool-view-type
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 import {INERT_ADD_RESULT, MetaToolCard} from '@conciv/ui-kit-chat/tools'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
-import {cleanupViews, mountView} from './mount-view.js'
+import {mountView} from './mount-view.js'
 import {registryCatalogView} from './registry-catalog-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
 
 const shipTool = defineTool({
   name: 'page.ship',

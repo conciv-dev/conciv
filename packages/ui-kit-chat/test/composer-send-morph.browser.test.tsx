@@ -1,17 +1,13 @@
 import 'virtual:uno.css'
 import {untrack, type JSX, type ParentProps} from 'solid-js'
 import {page, userEvent} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {createTextChunks, storyConnection, type StoryConnectionOptions} from '../src/store/story-connection.js'
 import {ComposerHandlersProvider} from '../src/primitives/composer/composer-handlers.js'
 import {Composer} from '../src/styled/composer.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 function StyledHost(props: ParentProps<{connection?: StoryConnectionOptions}>): JSX.Element {
   const chat = useChat({connection: storyConnection(untrack(() => props.connection))})

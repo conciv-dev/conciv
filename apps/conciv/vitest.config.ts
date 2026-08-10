@@ -5,7 +5,7 @@ import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {makeFakeCoreRouter} from './test/helpers/fake-core-router.js'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
-import {ciTest} from '@conciv/vitest-config'
+import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 const FAKE_CORE_ADDRESS_PATH = '/__fake-core'
 
@@ -53,7 +53,7 @@ export default defineConfig({
       {
         plugins: [solidPlugin(), fakeCoreSocket],
         test: {
-          ...ciTest(),
+          ...ciTestSolidBrowser(),
           name: 'browser',
           include: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
           fileParallelism: false,

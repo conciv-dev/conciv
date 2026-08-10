@@ -1,5 +1,5 @@
 import 'virtual:uno.css'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {createStore} from 'solid-js/store'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
@@ -10,7 +10,7 @@ import {
   ELEMENT_CAPTURE_FIXTURE_MASKED,
 } from '../src/tools/element-capture.fixtures.js'
 import {ElementPreview} from '../src/tools/styled/element-preview.js'
-import {cleanupViews, mountView} from './mount-view.js'
+import {mountView} from './mount-view.js'
 
 const XSS_FLAG = '__elementPreviewXssProbe'
 
@@ -176,10 +176,6 @@ const NO_TARGET_CAPTURE: ElementCapture = {
     id: 3,
   },
 }
-
-afterEach(() => {
-  cleanupViews()
-})
 
 type PreviewNode = {
   attributes?: Record<string, unknown>

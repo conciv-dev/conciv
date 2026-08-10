@@ -2,7 +2,7 @@ import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
-import {ciTest} from '@conciv/vitest-config'
+import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 export default defineConfig({
   resolve: {conditions: ['browser', 'development']},
@@ -29,6 +29,7 @@ export default defineConfig({
           include: ['test/**/*.browser.test.tsx'],
           testTimeout: ciTest().testTimeout,
           hookTimeout: ciTest().hookTimeout,
+          setupFiles: ciTestSolidBrowser().setupFiles,
           fileParallelism: false,
           browser: {
             enabled: true,

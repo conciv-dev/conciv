@@ -74,6 +74,7 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solid-primitives/event-listener": "^2.4.6",
+    "@solidjs/testing-library": "^0.8.10",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-router": "^1.170.17",
     "@types/node": "^22.19.21",

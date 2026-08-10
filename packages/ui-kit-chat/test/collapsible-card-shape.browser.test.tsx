@@ -1,13 +1,9 @@
 import 'virtual:uno.css'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {createSignal, Show} from 'solid-js'
 import {CollapsibleCard} from '../src/tools/styled/collapsible-card.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 it('renders a header-only row with no expand affordance when the card has no body content', async () => {
   mountView(() => (

@@ -1,5 +1,5 @@
 import {createSignal, type JSX} from 'solid-js'
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
 import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
 import {makeRpcClient} from '@conciv/contract'
 import {HostApiProvider} from '@conciv/extension'
@@ -33,8 +33,6 @@ function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
 }
 
 export function mountPane(view: (pane: PaneContextValue) => JSX.Element): PaneMount {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
   const rpc = makeRpcClient(CORE_BASE)
   const queryClient = new QueryClient()
   const data = makeAppData(rpc, queryClient)
@@ -68,26 +66,20 @@ export function mountPane(view: (pane: PaneContextValue) => JSX.Element): PaneMo
     attachments: makePendingAttachmentQueue(),
     newSession: () => {},
   }
-  const dispose = render(
-    () => (
-      <QueryClientProvider client={queryClient}>
-        <AppContext.Provider value={app}>
-          <PaneContext.Provider value={pane}>
-            <HostApiProvider rpc={rpc} apiBase={() => ''} toast={(message) => app.announce(message)}>
-              <div class="flex flex-col h-150 w-100">{view(pane)}</div>
-              <AnnounceLog entries={announced} />
-            </HostApiProvider>
-          </PaneContext.Provider>
-        </AppContext.Provider>
-      </QueryClientProvider>
-    ),
-    host,
-  )
+  const mounted = render(() => (
+    <QueryClientProvider client={queryClient}>
+      <AppContext.Provider value={app}>
+        <PaneContext.Provider value={pane}>
+          <HostApiProvider rpc={rpc} apiBase={() => ''} toast={(message) => app.announce(message)}>
+            <div class="flex flex-col h-150 w-100">{view(pane)}</div>
+            <AnnounceLog entries={announced} />
+          </HostApiProvider>
+        </PaneContext.Provider>
+      </AppContext.Provider>
+    </QueryClientProvider>
+  ))
   return {
-    dispose: () => {
-      dispose()
-      host.remove()
-    },
+    dispose: mounted.unmount,
     announced,
     pane,
     refetch: () => queryClient.invalidateQueries({queryKey: data.utils.meta.engine.key()}),

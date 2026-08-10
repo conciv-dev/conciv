@@ -86,6 +86,7 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
+    "@solidjs/testing-library": "^0.8.10",
     "@tanstack/ai-client": "catalog:",
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.10",

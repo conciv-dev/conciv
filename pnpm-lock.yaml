@@ -242,6 +242,9 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.14.7(@opentelemetry/api@1.9.1)(crossws@0.4.10(srvx@0.11.22))(ws@8.21.0)
+      '@solidjs/testing-library':
+        specifier: ^0.8.10
+        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
       '@tanstack/ai':
         specifier: 'catalog:'
         version: 0.43.1(@opentelemetry/api@1.9.1)(zod@4.4.3)
@@ -2324,6 +2327,9 @@ importers:
       '@solid-primitives/event-listener':
         specifier: ^2.4.6
         version: 2.4.6(solid-js@1.9.14)
+      '@solidjs/testing-library':
+        specifier: ^0.8.10
+        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
@@ -2518,6 +2524,9 @@ importers:
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
+      '@solidjs/testing-library':
+        specifier: ^0.8.10
+        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
       '@tanstack/ai-client':
         specifier: 'catalog:'
         version: 0.23.1(@opentelemetry/api@1.9.1)(zod@4.4.3)
@@ -2594,6 +2603,9 @@ importers:
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
+      '@solidjs/testing-library':
+        specifier: ^0.8.10
+        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
@@ -3679,6 +3691,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@solidjs/testing-library':
+        specifier: ^0.8.10
+        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
       '@tanstack/ai':
         specifier: 'catalog:'
         version: 0.43.1(@opentelemetry/api@1.9.1)(zod@4.4.3)
@@ -3764,6 +3779,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@solidjs/testing-library':
+        specifier: ^0.8.10
+        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
       '@tanstack/ai-client':
         specifier: 'catalog:'
         version: 0.23.1(@opentelemetry/api@1.9.1)(zod@4.4.3)
@@ -3834,6 +3852,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@solidjs/testing-library':
+        specifier: ^0.8.10
+        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
@@ -3977,6 +3998,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@solidjs/testing-library':
+        specifier: ^0.8.10
+        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
@@ -4044,12 +4068,18 @@ importers:
 
   packages/vitest-config:
     devDependencies:
+      '@solidjs/testing-library':
+        specifier: ^0.8.10
+        version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
       '@vitest/coverage-v8':
         specifier: ^4.1.8
         version: 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.14
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -8782,6 +8812,16 @@ packages:
     engines: {node: '>=22'}
     peerDependencies:
       vite: ^7
+
+  '@solidjs/testing-library@0.8.10':
+    resolution: {integrity: sha512-qdeuIerwyq7oQTIrrKvV0aL9aFeuwTd86VYD3afdq5HYEwoox1OBTJy4y8A3TFZr8oAR0nujYgCzY/8wgHGfeQ==}
+    engines: {node: '>= 14'}
+    peerDependencies:
+      '@solidjs/router': '>=0.9.0'
+      solid-js: '>=1.0.0'
+    peerDependenciesMeta:
+      '@solidjs/router':
+        optional: true
 
   '@solidjs/vite-plugin-nitro-2@0.1.0':
     resolution: {integrity: sha512-gtT9GYhAdbfY2v3ISKYFXclxH/kK+mDhp5ENjiA1zJAfQq6XPWwIfIYm9MB73vfOp+MzVXWDHxYyUv+5pTpGTw==}
@@ -21655,6 +21695,13 @@ snapshots:
       - '@testing-library/jest-dom'
       - crossws
       - supports-color
+
+  '@solidjs/testing-library@0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)':
+    dependencies:
+      '@testing-library/dom': 10.4.1
+      solid-js: 1.9.14
+    optionalDependencies:
+      '@solidjs/router': 0.15.4(solid-js@1.9.14)
 
   '@solidjs/vite-plugin-nitro-2@0.1.0(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(oxc-parser@0.131.0)(rolldown@1.1.5)(vite@7.3.6(@types/node@26.1.0)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))':
     dependencies:

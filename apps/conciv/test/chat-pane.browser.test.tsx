@@ -5,19 +5,16 @@ import {ChatPane} from '../src/pane/chat-pane.js'
 import {installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
 import {mountPane, PANE_SESSION} from './helpers/pane-harness.js'
 
-const disposers: (() => void)[] = []
 let core: FakeCore | null = null
 
 afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
   core?.restore()
   core = null
 })
 
 function mountChatPane(config: Parameters<typeof installFakeCore>[0] = {}): void {
   core = installFakeCore({sessions: [sessionRow({id: PANE_SESSION})], ...config})
-  const mounted = mountPane(() => <ChatPane sessionId={PANE_SESSION} />)
-  disposers.push(mounted.dispose)
+  mountPane(() => <ChatPane sessionId={PANE_SESSION} />)
 }
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})

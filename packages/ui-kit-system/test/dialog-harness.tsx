@@ -1,32 +1,29 @@
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
+import {render as renderInShadow} from 'solid-js/web'
 import type {JSX} from 'solid-js'
 
 const LAYERING = '.fixed{position:fixed}.inset-0{inset:0}'
 
-const disposers: (() => void)[] = []
-const nodes: HTMLElement[] = []
+const shadowDisposers: (() => void)[] = []
+const shadowHosts: HTMLElement[] = []
 
 export function mountStyled(view: () => JSX.Element): HTMLElement {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  nodes.push(host)
-  disposers.push(render(view, host))
-  return host
+  return render(view).container
 }
 
 export function mountInShadow(view: (root: ShadowRoot) => JSX.Element): ShadowRoot {
   const host = document.createElement('div')
   document.body.appendChild(host)
-  nodes.push(host)
+  shadowHosts.push(host)
   const root = host.attachShadow({mode: 'open'})
   const style = document.createElement('style')
   style.textContent = LAYERING
   root.appendChild(style)
-  disposers.push(render(() => view(root), root))
+  shadowDisposers.push(renderInShadow(() => view(root), root))
   return root
 }
 
 export function cleanupMounts(): void {
-  for (const dispose of disposers.splice(0)) dispose()
-  for (const node of nodes.splice(0)) node.remove()
+  for (const dispose of shadowDisposers.splice(0)) dispose()
+  for (const host of shadowHosts.splice(0)) host.remove()
 }

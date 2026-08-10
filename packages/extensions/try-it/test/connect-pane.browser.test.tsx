@@ -1,6 +1,6 @@
 import {describe, expect, inject, it} from 'vitest'
 import {page} from 'vitest/browser'
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
 import {createSignal, type Accessor, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension'
 import {ConnectPane} from '../src/client/connect-pane.js'
@@ -8,13 +8,7 @@ import {ConnectPane} from '../src/client/connect-pane.js'
 const ORIGIN = 'https://conciv.test'
 
 function mount(ui: () => JSX.Element): () => void {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  const disposeRoot = render(ui, host)
-  return () => {
-    disposeRoot()
-    host.remove()
-  }
+  return render(ui).unmount
 }
 
 function mountPane(token: string, label: string): {dispose: () => void; handOff: Accessor<string>} {

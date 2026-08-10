@@ -1,6 +1,6 @@
 import {describe, expect, inject, it} from 'vitest'
 import {page} from 'vitest/browser'
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
 import {createSignal, onMount, type JSX} from 'solid-js'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createTerminalModel, translateBuffer, type TerminalModel} from '../src/model.js'
@@ -12,12 +12,8 @@ function mount(ui: () => JSX.Element): {host: HTMLElement; dispose: () => void} 
   host.style.width = '640px'
   host.style.height = '320px'
   document.body.appendChild(host)
-  const disposeRoot = render(ui, host)
-  const dispose = (): void => {
-    disposeRoot()
-    host.remove()
-  }
-  return {host, dispose}
+  const mounted = render(ui, {container: host})
+  return {host, dispose: mounted.unmount}
 }
 
 function SessionLog(props: {model: TerminalModel; label: string}): JSX.Element {
@@ -162,8 +158,8 @@ describe('terminal primitives', () => {
           <TerminalPrimitive.Screen />
         </TerminalPrimitive.Root>
       ),
-      container,
-    )
+      {container},
+    ).unmount
     const state = mount(() => <ModelState model={model} label="detached state" />)
     expect(shadow.querySelector('style[data-conciv-xterm]')).toBeNull()
     document.body.appendChild(host)

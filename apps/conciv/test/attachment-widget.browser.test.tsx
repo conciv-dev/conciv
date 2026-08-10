@@ -1,5 +1,5 @@
-import {render} from 'solid-js/web'
-import {afterEach, expect, test} from 'vitest'
+import {render} from '@solidjs/testing-library'
+import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {onMount, type JSX} from 'solid-js'
 import {makeRpcClient} from '@conciv/contract'
@@ -13,11 +13,6 @@ import {
   useComposerContext,
 } from '@conciv/ui-kit-chat'
 import {paneAttachments} from '../src/pane/pane-attachments.js'
-
-const disposers: (() => void)[] = []
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-})
 
 function fixtureExtension() {
   const attachment = defineAttachment({mime: 'application/x-fixture'})
@@ -38,10 +33,8 @@ function AttachmentFeeder(props: {file: File}): JSX.Element {
 
 test('composer chip area renders the fixture card with a remove affordance', async () => {
   const {cards, adapter} = paneAttachments([fixtureExtension()], false)
-  const host = document.createElement('div')
-  document.body.appendChild(host)
   const file = new File(['{"x":1}'], 'fixture.bin', {type: 'application/x-fixture'})
-  const dispose = render(() => {
+  render(() => {
     const chat = useChatSession({rpc: makeRpcClient('http://127.0.0.1:9'), sessionId: 'conciv_widget'})
     return (
       <ChatProvider chat={chat}>
@@ -55,10 +48,6 @@ test('composer chip area renders the fixture card with a remove affordance', asy
         </ComposerHandlersProvider>
       </ChatProvider>
     )
-  }, host)
-  disposers.push(() => {
-    dispose()
-    host.remove()
   })
   await expect.element(page.getByText('fixture player'), {timeout: 2000}).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Remove fixture.bin'}), {timeout: 2000}).toBeVisible()

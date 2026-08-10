@@ -16,7 +16,8 @@
   },
   "type": "module",
   "exports": {
-    ".": "./src/reporters.ts"
+    ".": "./src/reporters.ts",
+    "./solid-cleanup": "./src/solid-cleanup-setup.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -24,9 +25,19 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^22.19.21",
     "@vitest/coverage-v8": "^4.1.8",
+    "solid-js": "^1.9.13",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "@solidjs/testing-library": "^0.8.10"
+  },
+  "peerDependenciesMeta": {
+    "@solidjs/testing-library": {
+      "optional": true
+    }
   }
 }

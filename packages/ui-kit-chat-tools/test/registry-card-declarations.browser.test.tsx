@@ -1,17 +1,14 @@
 import 'virtual:uno.css'
 import {page} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
+import {cleanup} from '@solidjs/testing-library'
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {PAGE_TOOL_DEFS, pageVerbOfTool} from '@conciv/extension-page/defs'
 import {INERT_ADD_RESULT, GENERIC_TOOL_ICON, MetaToolCard, toolIconRender} from '@conciv/ui-kit-chat/tools'
 import {nowTitle} from '../src/primitives/tools/now-title.js'
-import {cleanupViews, mountView} from './mount-view.js'
+import {mountView} from './mount-view.js'
 import {builtinPageRegistry, registryCatalogView} from './registry-catalog-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
 
 const catalog = registryCatalogView(builtinPageRegistry())
 const ctx: ToolViewCtx = {apiBase: '', harnessId: 'test', sendMessage: () => {}, addResult: () => {}, catalog}
@@ -42,7 +39,7 @@ it('the card titles every registry page tool from its declaration, never the gen
     mountView(() => <MetaToolCard part={part(verb)} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />)
     await expect.element(page.getByText(done, {exact: true}).first()).toBeVisible()
     expect(document.body.textContent).not.toContain(def.name)
-    cleanupViews()
+    cleanup()
   }
 })
 
@@ -62,6 +59,6 @@ it('representative cards render their declared titles and icons for the record',
     mountView(() => <MetaToolCard part={part(verb, args)} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />)
     await expect.element(page.getByText(headline, {exact: true}).first()).toBeVisible()
     await page.screenshot({path: `__screenshots__/registry-card-declarations/page-${verb}.png`})
-    cleanupViews()
+    cleanup()
   }
 })

@@ -1,6 +1,6 @@
 import {createSignal, Index, onMount} from 'solid-js'
-import {render} from 'solid-js/web'
-import {afterEach, describe, expect, it} from 'vitest'
+import {render} from '@solidjs/testing-library'
+import {describe, expect, it} from 'vitest'
 import {useThreadAutoScroll, type ThreadAutoScroll} from '../src/behaviors/use-thread-auto-scroll.js'
 
 const BASE_LINES = 20
@@ -8,35 +8,26 @@ const GROWTH_LINES = 6
 
 type Harness = {viewport: HTMLElement; scroll: ThreadAutoScroll; stream: () => void}
 
-const disposers: (() => void)[] = []
-const hosts: HTMLElement[] = []
-
 function mountThread(): Harness {
-  const host = document.createElement('div')
-  host.style.width = '320px'
-  document.body.appendChild(host)
-  hosts.push(host)
   let harness: Harness | undefined
-  disposers.push(
-    render(() => {
-      const [viewport, setViewport] = createSignal<HTMLDivElement>()
-      const [lines, setLines] = createSignal(BASE_LINES)
-      const scroll = useThreadAutoScroll(viewport, {autoScroll: () => true})
-      onMount(() => {
-        const div = viewport()
-        if (!div) throw new Error('viewport did not mount')
-        scroll.scrollToBottom('instant')
-        harness = {viewport: div, scroll, stream: () => setLines(lines() + GROWTH_LINES)}
-      })
-      return (
-        <div ref={setViewport} style={{height: '120px', overflow: 'auto'}}>
-          <Index each={Array.from({length: lines()}, (_, index) => index)}>
-            {(line) => <div style={{height: '20px'}}>line {line()}</div>}
-          </Index>
-        </div>
-      )
-    }, host),
-  )
+  render(() => {
+    const [viewport, setViewport] = createSignal<HTMLDivElement>()
+    const [lines, setLines] = createSignal(BASE_LINES)
+    const scroll = useThreadAutoScroll(viewport, {autoScroll: () => true})
+    onMount(() => {
+      const div = viewport()
+      if (!div) throw new Error('viewport did not mount')
+      scroll.scrollToBottom('instant')
+      harness = {viewport: div, scroll, stream: () => setLines(lines() + GROWTH_LINES)}
+    })
+    return (
+      <div ref={setViewport} style={{height: '120px', overflow: 'auto', width: '320px'}}>
+        <Index each={Array.from({length: lines()}, (_, index) => index)}>
+          {(line) => <div style={{height: '20px'}}>line {line()}</div>}
+        </Index>
+      </div>
+    )
+  })
   if (!harness) throw new Error('harness did not mount')
   return harness
 }
@@ -61,11 +52,6 @@ async function streamedWhilePinned(): Promise<Harness> {
   expect(distanceFromBottom(harness.viewport)).toBeLessThanOrEqual(1)
   return harness
 }
-
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-  for (const host of hosts.splice(0)) host.remove()
-})
 
 describe('thread auto-scroll user detach', () => {
   it('stops re-pinning to the bottom once a touch drag starts', async () => {

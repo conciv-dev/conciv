@@ -55,6 +55,7 @@
     "@conciv/browser-fixture": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^22.19.21",
     "@unocss/postcss": "^66.7.2",
     "@vitest/browser-playwright": "4.1.10",

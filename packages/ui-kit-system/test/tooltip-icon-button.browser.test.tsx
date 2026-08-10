@@ -1,64 +1,45 @@
 import 'virtual:uno.css'
-import {render} from 'solid-js/web'
+import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {Menu} from '../src/menu.js'
 import {TooltipIconButtonSlot} from '../src/tooltip-icon-button.js'
 
 const NAME = 'Terminal options for Claude Code'
 
-const disposers: (() => void)[] = []
-const hosts: HTMLElement[] = []
-
 function mount(): void {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  hosts.push(host)
-  disposers.push(
-    render(
-      () => (
-        <Menu.Root>
-          <TooltipIconButtonSlot tooltip={NAME}>
-            {(buttonProps) => (
-              <Menu.Trigger
-                asChild={(triggerProps) => (
-                  <button {...buttonProps()} {...triggerProps()}>
-                    <span aria-hidden="true">T</span>
-                  </button>
-                )}
-              />
+  render(() => (
+    <Menu.Root>
+      <TooltipIconButtonSlot tooltip={NAME}>
+        {(buttonProps) => (
+          <Menu.Trigger
+            asChild={(triggerProps) => (
+              <button {...buttonProps()} {...triggerProps()}>
+                <span aria-hidden="true">T</span>
+              </button>
             )}
-          </TooltipIconButtonSlot>
-          <Menu.Positioner>
-            <Menu.Content aria-label={NAME}>
-              <Menu.Item value="open">Open in Claude Code</Menu.Item>
-            </Menu.Content>
-          </Menu.Positioner>
-        </Menu.Root>
-      ),
-      host,
-    ),
-  )
+          />
+        )}
+      </TooltipIconButtonSlot>
+      <Menu.Positioner>
+        <Menu.Content aria-label={NAME}>
+          <Menu.Item value="open">Open in Claude Code</Menu.Item>
+        </Menu.Content>
+      </Menu.Positioner>
+    </Menu.Root>
+  ))
 }
 
 function mountPlain(): void {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  hosts.push(host)
-  disposers.push(
-    render(
-      () => (
-        <TooltipIconButtonSlot tooltip={NAME}>
-          {(buttonProps) => (
-            <button {...buttonProps()}>
-              <span aria-hidden="true">T</span>
-            </button>
-          )}
-        </TooltipIconButtonSlot>
-      ),
-      host,
-    ),
-  )
+  render(() => (
+    <TooltipIconButtonSlot tooltip={NAME}>
+      {(buttonProps) => (
+        <button {...buttonProps()}>
+          <span aria-hidden="true">T</span>
+        </button>
+      )}
+    </TooltipIconButtonSlot>
+  ))
 }
 
 function tooltipTriggerOf(button: Element): HTMLElement {
@@ -66,11 +47,6 @@ function tooltipTriggerOf(button: Element): HTMLElement {
   if (!(trigger instanceof HTMLElement)) throw new Error('the button is not wrapped by a tooltip trigger')
   return trigger
 }
-
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-  for (const host of hosts.splice(0)) host.remove()
-})
 
 it('positions the tooltip next to a trigger that also opens a menu', async () => {
   mount()

@@ -1,12 +1,8 @@
 import 'virtual:uno.css'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {CollapsibleSection} from '../src/tools/styled/collapsible-section.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 it('starts collapsed by default, hiding the body and reporting aria-expanded false', async () => {
   mountView(() => (

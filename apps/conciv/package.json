@@ -59,6 +59,7 @@
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@orpc/server": "catalog:",
+    "@solidjs/testing-library": "^0.8.10",
     "@tanstack/ai": "catalog:",
     "@tanstack/router-cli": "^1.167.18",
     "@tanstack/router-plugin": "^1.168.19",

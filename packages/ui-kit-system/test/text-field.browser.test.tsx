@@ -1,20 +1,16 @@
-import {render} from 'solid-js/web'
-import {afterEach, describe, expect, it} from 'vitest'
+import {render} from '@solidjs/testing-library'
+import {describe, expect, it} from 'vitest'
 import {TextArea} from '../src/text-field.js'
 
 const NEWLINES2 = 'one\ntwo'
 const NEWLINES3 = 'one\ntwo\nthree'
 const NEWLINES5 = 'one\ntwo\nthree\nfour\nfive'
 
-const disposers: (() => void)[] = []
-const hosts: HTMLElement[] = []
-
 function mount(width: string, ui: () => ReturnType<typeof TextArea>): {host: HTMLElement; area: HTMLTextAreaElement} {
   const host = document.createElement('div')
   host.style.width = width
   document.body.appendChild(host)
-  hosts.push(host)
-  disposers.push(render(ui, host))
+  render(ui, {container: host})
   const area = host.querySelector('textarea')
   if (!area) throw new Error('TextArea did not render a textarea')
   area.style.width = '100%'
@@ -23,11 +19,6 @@ function mount(width: string, ui: () => ReturnType<typeof TextArea>): {host: HTM
 
 const settle = (): Promise<void> =>
   new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
-
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-  for (const host of hosts.splice(0)) host.remove()
-})
 
 describe('TextArea autosize', () => {
   it('fits a single row on mount and reports the height it set', () => {

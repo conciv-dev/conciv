@@ -1,5 +1,5 @@
-import {describe, it, expect, afterEach} from 'vitest'
-import {render} from 'solid-js/web'
+import {describe, it, expect} from 'vitest'
+import {render} from '@solidjs/testing-library'
 import {page} from 'vitest/browser'
 import type {ToolCatalogView, ToolViewCtx, ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {HostApiProvider} from '@conciv/extension'
@@ -40,37 +40,23 @@ function makeCtx(sent: string[]): ToolViewCtx {
   }
 }
 
-const disposers: (() => void)[] = []
-
 function mountCard(over: Partial<ToolCardProps>, ctx: ToolViewCtx, onOpenEditor?: (file: string) => void): void {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
-  disposers.push(
-    render(
-      () => (
-        <HostApiProvider openEditor={(file) => onOpenEditor?.(file)}>
-          <TestCard
-            part={{type: 'tool-call', id: 't1', name: 'test_runner', arguments: '{}', state: 'input-complete'}}
-            result={undefined}
-            ctx={ctx}
-            addResult={() => {}}
-            {...over}
-          />
-        </HostApiProvider>
-      ),
-      host,
-    ),
-  )
+  render(() => (
+    <HostApiProvider openEditor={(file) => onOpenEditor?.(file)}>
+      <TestCard
+        part={{type: 'tool-call', id: 't1', name: 'test_runner', arguments: '{}', state: 'input-complete'}}
+        result={undefined}
+        ctx={ctx}
+        addResult={() => {}}
+        {...over}
+      />
+    </HostApiProvider>
+  ))
 }
 
 function completedRun(): Partial<ToolCardProps> {
   return {result: {type: 'tool-result', toolCallId: 't1', content: JSON.stringify(RESULT), state: 'complete'}}
 }
-
-afterEach(() => {
-  for (const dispose of disposers.splice(0)) dispose()
-  document.body.replaceChildren()
-})
 
 describe('TestCard (real browser)', () => {
   it('titles the card from the catalog label and lists every test row', async () => {

@@ -1,12 +1,8 @@
 import 'virtual:uno.css'
-import {afterEach, expect, it, vi} from 'vitest'
+import {expect, it, vi} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {ActionRow, ActionButton} from '../src/tools/styled/action-row.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 it('renders allow and deny buttons reachable by role and name', async () => {
   mountView(() => (

@@ -1,16 +1,12 @@
 import 'virtual:uno.css'
 import type {JSX} from 'solid-js'
 import {page} from 'vitest/browser'
-import {afterEach, expect, it} from 'vitest'
+import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {createTextChunks, storyConnection} from '../src/store/story-connection.js'
 import {Thread} from '../src/styled/thread.js'
-import {cleanupViews, mountView} from './mount-view.js'
-
-afterEach(() => {
-  cleanupViews()
-})
+import {mountView} from './mount-view.js'
 
 function ComposedThread(): JSX.Element {
   const chat = useChat({

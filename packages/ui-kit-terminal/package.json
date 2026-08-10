@@ -48,6 +48,7 @@
   "devDependencies": {
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
     "@vitest/browser-playwright": "4.1.10",
