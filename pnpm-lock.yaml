@@ -2869,6 +2869,9 @@ importers:
       hono:
         specifier: 4.12.27
         version: 4.12.27
+      p-timeout:
+        specifier: ^7.0.1
+        version: 7.0.1
       zod:
         specifier: ^4.4.3
         version: 4.4.3

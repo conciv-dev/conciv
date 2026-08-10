@@ -1,5 +1,5 @@
 export {until, type UntilOpts} from './until.js'
-export {deadline, TESTKIT_DEADLINE_MS} from './deadline.js'
+export {TESTKIT_DEADLINE_MS} from './deadline.js'
 export {serveApp, type ServedApp} from './serve-app.js'
 export {
   createTestkit,

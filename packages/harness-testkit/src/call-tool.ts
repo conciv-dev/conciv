@@ -1,9 +1,10 @@
 import {z} from 'zod'
+import pTimeout from 'p-timeout'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import type {StreamChunk} from '@tanstack/ai'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {approvalIds} from './run-events.js'
-import {deadline, TESTKIT_DEADLINE_MS} from './deadline.js'
+import {TESTKIT_DEADLINE_MS} from './deadline.js'
 import {makeRpcClient} from './session.js'
 
 export type CallTool = (name: string, input: unknown) => Promise<unknown>
@@ -118,20 +119,18 @@ export async function withAutoApproval<Result>(
   onApproved?: (approvalId: string) => void,
 ): Promise<Result> {
   const abort = new AbortController()
-  const stream = await deadline(
-    'testkit chat.subscribe',
-    TESTKIT_DEADLINE_MS,
-    rpc.chat.subscribe({sessionId: session}, {signal: abort.signal}),
-  )
+  const stream = await pTimeout(rpc.chat.subscribe({sessionId: session}, {signal: abort.signal}), {
+    milliseconds: TESTKIT_DEADLINE_MS,
+    message: `testkit chat.subscribe exceeded ${TESTKIT_DEADLINE_MS}ms`,
+  })
   const decided = new Set<string>()
   const decide = async (approvalId: string): Promise<void> => {
     if (decided.has(approvalId)) return
     decided.add(approvalId)
-    await deadline(
-      `testkit chat.permissionDecision(${approvalId})`,
-      TESTKIT_DEADLINE_MS,
-      rpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal}),
-    )
+    await pTimeout(rpc.chat.permissionDecision({approvalId, approved: true}, {signal: abort.signal}), {
+      milliseconds: TESTKIT_DEADLINE_MS,
+      message: `testkit chat.permissionDecision(${approvalId}) exceeded ${TESTKIT_DEADLINE_MS}ms`,
+    })
     onApproved?.(approvalId)
   }
   const pump = pumpApprovals(stream, abort.signal, decide)
@@ -140,7 +139,10 @@ export async function withAutoApproval<Result>(
     return await run()
   } finally {
     abort.abort()
-    await deadline('testkit approval pump drain', TESTKIT_DEADLINE_MS, pump)
+    await pTimeout(pump, {
+      milliseconds: TESTKIT_DEADLINE_MS,
+      message: `testkit approval pump drain exceeded ${TESTKIT_DEADLINE_MS}ms`,
+    })
   }
 }
 

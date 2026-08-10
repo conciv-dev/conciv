@@ -1,4 +1,4 @@
-import {deadline} from './deadline.js'
+import pTimeout from 'p-timeout'
 
 export type UntilOpts = {hangGuardMs?: number; settleFor?: number; failWhen?: () => boolean; intervalMs?: number}
 
@@ -35,5 +35,8 @@ async function poll(
 
 export function until(predicate: () => boolean | Promise<boolean>, opts: UntilOpts = {}): Promise<void> {
   const hangGuardMs = opts.hangGuardMs ?? 5000
-  return deadline(STALL_LABEL, hangGuardMs, poll(predicate, opts, hangGuardMs, performance.now() + hangGuardMs))
+  return pTimeout(poll(predicate, opts, hangGuardMs, performance.now() + hangGuardMs), {
+    milliseconds: hangGuardMs,
+    message: `${STALL_LABEL} exceeded ${hangGuardMs}ms`,
+  })
 }
