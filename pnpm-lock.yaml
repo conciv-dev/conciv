@@ -3357,9 +3357,21 @@ importers:
 
   packages/skills:
     devDependencies:
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
       '@tanstack/intent':
         specifier: 0.3.6
         version: 0.3.6
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.20.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/solid:
     dependencies:

@@ -26,9 +26,15 @@
     "lint": "oxlint",
     "intent:validate": "intent validate skills --check",
     "intent:stale": "intent stale --json",
-    "check:refs": "node --experimental-strip-types src/check-references.ts"
+    "check:refs": "node --experimental-strip-types src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
-    "@tanstack/intent": "0.3.6"
+    "@conciv/vitest-config": "workspace:*",
+    "@tanstack/intent": "0.3.6",
+    "@types/node": "^22.19.21",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   }
 }

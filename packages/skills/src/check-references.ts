@@ -1,16 +1,30 @@
 import {existsSync, globSync, readFileSync} from 'node:fs'
-import {basename, dirname, join} from 'node:path'
-import {fileURLToPath} from 'node:url'
+import {basename, dirname, join, resolve, sep} from 'node:path'
+
+type CitationRange = {
+  raw: string
+  start: number
+  end: number
+}
 
 type Citation = {
   raw: string
   path: string
-  line: string
+  ranges: Array<CitationRange>
 }
+
+type FindingKind =
+  | 'dead-source'
+  | 'dead-citation'
+  | 'unmatchable-citation'
+  | 'out-of-range-citation'
+  | 'empty-glob'
+  | 'missing-sources'
+  | 'escaping-citation'
 
 type SkillFinding = {
   file: string
-  kind: 'dead-source' | 'dead-citation' | 'unmatchable-citation'
+  kind: FindingKind
   detail: string
 }
 
@@ -20,14 +34,20 @@ type SkillCheckResult = {
   citationCount: number
 }
 
-const currentDir = dirname(fileURLToPath(import.meta.url))
-const repoRoot = join(currentDir, '..', '..', '..')
+export type CheckOutcome = {
+  findings: Array<SkillFinding>
+  skillCount: number
+  checkedFiles: number
+  checkedCitations: number
+}
 
 const skillGlobs = [
   'packages/skills/skills/*/SKILL.md',
   'packages/client/skills/*/*/SKILL.md',
   'packages/harness/plugins/claude/skills/*/SKILL.md',
 ]
+
+const identifierWindow = 30
 
 const stopwords = new Set([
   'this',
@@ -146,20 +166,34 @@ const stopwords = new Set([
   'conciv',
 ])
 
-const citationPattern = /`([A-Za-z0-9_./-]+\.(?:ts|tsx|md|mdx)):(\d+)(?:-(\d+))?`/g
+const citationPattern = /`([A-Za-z0-9_./-]+\.(?:ts|tsx|js|jsx|json|md|mdx|yaml|yml)):(\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)`/g
 
-function skillMdPaths() {
-  const paths = skillGlobs.flatMap((pattern) => globSync(pattern, {cwd: repoRoot}))
-  return [...new Set(paths)].toSorted()
+function skillMarkdownPaths(repoRoot: string): {paths: Array<string>; findings: Array<SkillFinding>} {
+  const matchesByGlob = skillGlobs.map((pattern) => ({pattern, matches: globSync(pattern, {cwd: repoRoot})}))
+  const findings = matchesByGlob.flatMap(({pattern, matches}) =>
+    matches.length === 0 ? [emptyGlobFinding(pattern)] : [],
+  )
+  const paths = [...new Set(matchesByGlob.flatMap(({matches}) => matches))].toSorted()
+  return {paths, findings}
 }
 
-function referenceMdPaths(skillMdRelative: string) {
-  const skillDir = dirname(skillMdRelative)
+function emptyGlobFinding(pattern: string): SkillFinding {
+  return {file: pattern, kind: 'empty-glob', detail: `glob matched zero files: ${pattern}`}
+}
+
+function referenceMarkdownPaths(repoRoot: string, skillMarkdownRelative: string) {
+  const skillDir = dirname(skillMarkdownRelative)
   return globSync(join(skillDir, 'references', '*.md').replaceAll('\\', '/'), {cwd: repoRoot}).toSorted()
 }
 
+const sourcesHeadingPattern = /^##\s+sources\b/i
+
+function sourcesHeadingIndex(lines: Array<string>) {
+  return lines.findIndex((line) => sourcesHeadingPattern.test(line.trim()))
+}
+
 function sourcesSectionLines(lines: Array<string>) {
-  const sourcesIndex = lines.findIndex((line) => line.trim() === '## Sources')
+  const sourcesIndex = sourcesHeadingIndex(lines)
   if (sourcesIndex === -1) return []
   const nextHeadingOffset = lines.slice(sourcesIndex + 1).findIndex((line) => line.startsWith('## '))
   const end = nextHeadingOffset === -1 ? lines.length : sourcesIndex + 1 + nextHeadingOffset
@@ -167,12 +201,11 @@ function sourcesSectionLines(lines: Array<string>) {
 }
 
 function extractSourcesPaths(text: string) {
-  const sourcePaths: Array<string> = []
-  for (const line of sourcesSectionLines(text.split('\n'))) {
-    const bulletMatch = line.match(/^- `([^`]+)`\s*$/)
-    if (bulletMatch?.[1]) sourcePaths.push(bulletMatch[1])
-  }
-  return sourcePaths
+  return sourcesSectionLines(text.split('\n')).flatMap((line) => {
+    const match = line.match(/^- `([^`]+)`\s*$/)
+    const sourcePath = match?.[1]
+    return sourcePath ? [sourcePath] : []
+  })
 }
 
 function buildBasenameMap(sourcesPaths: Array<string>) {
@@ -219,21 +252,30 @@ function splitParagraphs(text: string) {
   return paragraphs
 }
 
+function parseRange(segment: string): CitationRange | null {
+  const rangeMatch = segment.match(/^(\d+)(?:-(\d+))?$/)
+  const start = rangeMatch?.[1]
+  if (!rangeMatch || !start) return null
+  const end = rangeMatch[2] ?? start
+  return {raw: segment, start: Number(start), end: Number(end)}
+}
+
 function toCitation(match: RegExpMatchArray): Citation | null {
-  const [raw, path, start, end] = match
-  if (!path) return null
-  if (!start) return null
-  const line = end ? `${start}-${end}` : start
-  return {raw, path, line}
+  const [raw, path, rangesText] = match
+  if (!path || !rangesText) return null
+  const ranges = rangesText.split(',').flatMap((segment) => {
+    const range = parseRange(segment)
+    return range ? [range] : []
+  })
+  if (ranges.length === 0) return null
+  return {raw, path, ranges}
 }
 
 function extractCitations(paragraph: string) {
-  const citations: Array<Citation> = []
-  for (const match of paragraph.matchAll(citationPattern)) {
+  return [...paragraph.matchAll(citationPattern)].flatMap((match) => {
     const citation = toCitation(match)
-    if (citation) citations.push(citation)
-  }
-  return citations
+    return citation ? [citation] : []
+  })
 }
 
 function excludeTokensFor(citationPath: string) {
@@ -256,21 +298,59 @@ function extractIdentifiers(paragraph: string, excludeTokens: Array<string>) {
   return new Set(tokens.filter((token) => isIdentifierCandidate(token, excludeSet)))
 }
 
+function fileLines(content: string): Array<string> {
+  const trimmed = content.endsWith('\n') ? content.slice(0, -1) : content
+  return trimmed.split('\n')
+}
+
 function resolveCitationPath(citationPath: string, basenameMap: Map<string, string>) {
   if (citationPath.includes('/')) return citationPath
   return basenameMap.get(citationPath) ?? null
+}
+
+function withinRepoRoot(repoRoot: string, relativePath: string): string | null {
+  const resolvedRoot = resolve(repoRoot)
+  const absolute = resolve(repoRoot, relativePath)
+  if (absolute === resolvedRoot || absolute.startsWith(resolvedRoot + sep)) return absolute
+  return null
 }
 
 function unresolvedFinding(fileRelative: string, citation: Citation): SkillFinding {
   return {
     file: fileRelative,
     kind: 'unmatchable-citation',
-    detail: `${citation.raw} — cannot resolve bare filename "${citation.path}" against this skill's Sources`,
+    detail: `${citation.raw}: cannot resolve bare filename "${citation.path}" against this skill's Sources`,
+  }
+}
+
+function escapingFinding(fileRelative: string, citation: Citation, resolved: string): SkillFinding {
+  return {
+    file: fileRelative,
+    kind: 'escaping-citation',
+    detail: `${citation.raw}: resolved path "${resolved}" escapes the repository root`,
   }
 }
 
 function deadCitationFinding(fileRelative: string, citation: Citation, resolved: string): SkillFinding {
-  return {file: fileRelative, kind: 'dead-citation', detail: `${citation.raw} — ${resolved} does not exist`}
+  return {file: fileRelative, kind: 'dead-citation', detail: `${citation.raw}: ${resolved} does not exist`}
+}
+
+function outOfRangeFinding(
+  fileRelative: string,
+  citation: Citation,
+  range: CitationRange,
+  resolved: string,
+  lineCount: number,
+): Array<SkillFinding> {
+  const inBounds = range.start >= 1 && range.start <= range.end && range.end <= lineCount
+  if (inBounds) return []
+  return [
+    {
+      file: fileRelative,
+      kind: 'out-of-range-citation',
+      detail: `${citation.raw} segment ${range.raw}: ${resolved} has ${lineCount} line(s)`,
+    },
+  ]
 }
 
 function unmatchedIdentifiersFinding(
@@ -282,94 +362,118 @@ function unmatchedIdentifiersFinding(
   return {
     file: fileRelative,
     kind: 'unmatchable-citation',
-    detail: `${citation.raw} — none of [${[...identifiers].join(', ')}] found in ${resolved}`,
+    detail: `${citation.raw}: none of [${[...identifiers].join(', ')}] found within +/-${identifierWindow} lines of ${resolved}`,
   }
 }
 
-function identifiersMatch(paragraph: string, citationPath: string, resolved: string) {
+function windowContent(lines: Array<string>, range: CitationRange): string {
+  const from = Math.max(1, range.start - identifierWindow)
+  const to = Math.min(lines.length, range.end + identifierWindow)
+  return lines.slice(from - 1, to).join('\n')
+}
+
+function identifiersMatch(paragraph: string, citationPath: string, content: string, validRanges: Array<CitationRange>) {
   const excludeTokens = excludeTokensFor(citationPath)
   const identifiers = extractIdentifiers(paragraph, excludeTokens)
   if (identifiers.size === 0) return {ok: true, identifiers}
-  const citedContent = readFileSync(join(repoRoot, resolved), 'utf8')
-  const ok = [...identifiers].some((identifier) => citedContent.includes(identifier))
+  const lines = fileLines(content)
+  const windowText = validRanges.map((range) => windowContent(lines, range)).join('\n')
+  const ok = [...identifiers].some((identifier) => windowText.includes(identifier))
   return {ok, identifiers}
 }
 
 function checkCitation(
+  repoRoot: string,
   fileRelative: string,
   paragraph: string,
   citation: Citation,
   basenameMap: Map<string, string>,
-): SkillFinding | null {
+): Array<SkillFinding> {
   const resolved = resolveCitationPath(citation.path, basenameMap)
-  if (!resolved) return unresolvedFinding(fileRelative, citation)
-  if (!existsSync(join(repoRoot, resolved))) return deadCitationFinding(fileRelative, citation, resolved)
-  const match = identifiersMatch(paragraph, citation.path, resolved)
-  if (match.ok) return null
-  return unmatchedIdentifiersFinding(fileRelative, citation, match.identifiers, resolved)
+  if (!resolved) return [unresolvedFinding(fileRelative, citation)]
+  const absolute = withinRepoRoot(repoRoot, resolved)
+  if (!absolute) return [escapingFinding(fileRelative, citation, resolved)]
+  if (!existsSync(absolute)) return [deadCitationFinding(fileRelative, citation, resolved)]
+  const content = readFileSync(absolute, 'utf8')
+  const lineCount = fileLines(content).length
+  const rangeFindings = citation.ranges.flatMap((range) =>
+    outOfRangeFinding(fileRelative, citation, range, resolved, lineCount),
+  )
+  const validRanges = citation.ranges.filter(
+    (range) => range.start >= 1 && range.start <= range.end && range.end <= lineCount,
+  )
+  if (validRanges.length === 0) return rangeFindings
+  const match = identifiersMatch(paragraph, citation.path, content, validRanges)
+  if (match.ok) return rangeFindings
+  return [...rangeFindings, unmatchedIdentifiersFinding(fileRelative, citation, match.identifiers, resolved)]
 }
 
-function checkSourcesSection(fileRelative: string, text: string) {
+function checkCitationsSection(repoRoot: string, fileRelative: string, text: string, basenameMap: Map<string, string>) {
+  return splitParagraphs(text).flatMap((paragraph) =>
+    extractCitations(paragraph).flatMap((citation) =>
+      checkCitation(repoRoot, fileRelative, paragraph, citation, basenameMap),
+    ),
+  )
+}
+
+function missingSourcesFinding(fileRelative: string): Array<SkillFinding> {
+  if (!fileRelative.startsWith('packages/skills/skills/')) return []
+  return [{file: fileRelative, kind: 'missing-sources', detail: 'no "## Sources" section found'}]
+}
+
+function checkSourcesSection(repoRoot: string, fileRelative: string, text: string): Array<SkillFinding> {
   if (!fileRelative.endsWith('SKILL.md')) return []
+  if (sourcesHeadingIndex(text.split('\n')) === -1) return missingSourcesFinding(fileRelative)
   return extractSourcesPaths(text)
     .filter((sourcePath) => !existsSync(join(repoRoot, sourcePath)))
     .map((sourcePath): SkillFinding => ({file: fileRelative, kind: 'dead-source', detail: sourcePath}))
 }
 
-function checkCitationsSection(fileRelative: string, text: string, basenameMap: Map<string, string>) {
-  const findings: Array<SkillFinding> = []
-  for (const paragraph of splitParagraphs(text)) {
-    for (const citation of extractCitations(paragraph)) {
-      const finding = checkCitation(fileRelative, paragraph, citation, basenameMap)
-      if (finding) findings.push(finding)
-    }
-  }
-  return findings
+function checkFile(repoRoot: string, fileRelative: string, text: string, basenameMap: Map<string, string>) {
+  return [
+    ...checkSourcesSection(repoRoot, fileRelative, text),
+    ...checkCitationsSection(repoRoot, fileRelative, text, basenameMap),
+  ]
 }
 
-function checkFile(fileRelative: string, basenameMap: Map<string, string>) {
-  const text = readFileSync(join(repoRoot, fileRelative), 'utf8')
-  return [...checkSourcesSection(fileRelative, text), ...checkCitationsSection(fileRelative, text, basenameMap)]
+function readMarkdownFiles(repoRoot: string, files: Array<string>) {
+  return new Map(files.map((fileRelative) => [fileRelative, readFileSync(join(repoRoot, fileRelative), 'utf8')]))
 }
 
-function checkSkill(skillMdRelative: string): SkillCheckResult {
-  const skillText = readFileSync(join(repoRoot, skillMdRelative), 'utf8')
+function checkSkill(repoRoot: string, skillMarkdownRelative: string): SkillCheckResult {
+  const files = [skillMarkdownRelative, ...referenceMarkdownPaths(repoRoot, skillMarkdownRelative)]
+  const fileTexts = readMarkdownFiles(repoRoot, files)
+  const skillText = fileTexts.get(skillMarkdownRelative)
+  if (skillText === undefined) return {findings: [], fileCount: 0, citationCount: 0}
   const basenameMap = buildBasenameMap(extractSourcesPaths(skillText))
-  const files = [skillMdRelative, ...referenceMdPaths(skillMdRelative)]
-  const findings = files.flatMap((fileRelative) => checkFile(fileRelative, basenameMap))
+  const findings = files.flatMap((fileRelative) => {
+    const text = fileTexts.get(fileRelative)
+    return text === undefined ? [] : checkFile(repoRoot, fileRelative, text, basenameMap)
+  })
   const citationCount = files.reduce((sum, fileRelative) => {
-    const fileText = readFileSync(join(repoRoot, fileRelative), 'utf8')
-    return sum + extractCitations(fileText).length
+    const text = fileTexts.get(fileRelative)
+    return sum + (text === undefined ? 0 : extractCitations(text).length)
   }, 0)
   return {findings, fileCount: files.length, citationCount}
 }
 
-function reportResult(
-  skillCount: number,
-  checkedFiles: number,
-  checkedCitations: number,
-  allFindings: Array<SkillFinding>,
-) {
-  if (allFindings.length === 0) {
-    console.log(
-      `skills check:refs: ${skillCount} skill(s), ${checkedFiles} file(s), ${checkedCitations} citation(s) — all clean`,
-    )
-    return
-  }
-  console.error(`skills check:refs found ${allFindings.length} problem(s) across ${skillCount} skill(s):\n`)
-  for (const finding of allFindings) {
-    console.error(`  [${finding.kind}] ${finding.file}: ${finding.detail}`)
-  }
-  process.exit(1)
-}
-
-function main() {
-  const skillFiles = skillMdPaths()
-  const results = skillFiles.map(checkSkill)
-  const allFindings = results.flatMap((result) => result.findings)
+export function runCheck(repoRoot: string): CheckOutcome {
+  const {paths: skillFiles, findings: globFindings} = skillMarkdownPaths(repoRoot)
+  const results = skillFiles.map((skillMarkdownRelative) => checkSkill(repoRoot, skillMarkdownRelative))
+  const findings = [...globFindings, ...results.flatMap((result) => result.findings)]
   const checkedFiles = results.reduce((sum, result) => sum + result.fileCount, 0)
   const checkedCitations = results.reduce((sum, result) => sum + result.citationCount, 0)
-  reportResult(skillFiles.length, checkedFiles, checkedCitations, allFindings)
+  return {findings, skillCount: skillFiles.length, checkedFiles, checkedCitations}
 }
 
-main()
+export function formatReport(outcome: CheckOutcome): string {
+  if (outcome.findings.length === 0) {
+    return `skills check:refs: ${outcome.skillCount} skill(s), ${outcome.checkedFiles} file(s), ${outcome.checkedCitations} citation(s) - all clean`
+  }
+  const lines = outcome.findings.map((finding) => `  [${finding.kind}] ${finding.file}: ${finding.detail}`)
+  return [
+    `skills check:refs found ${outcome.findings.length} problem(s) across ${outcome.skillCount} skill(s):`,
+    '',
+    ...lines,
+  ].join('\n')
+}
