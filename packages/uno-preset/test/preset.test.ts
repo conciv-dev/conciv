@@ -43,7 +43,6 @@ const LOOPING = [
   'anim-fab-ring',
   'anim-pulse',
   'anim-skel',
-  'anim-test-rot',
   'anim-tool-spin',
   'anim-think-shimmer',
 ]

@@ -11,7 +11,6 @@ const LOOPING: [string, string][] = [
   ['Recording', 'anim-fab-ring'],
   ['Working', 'anim-pulse'],
   ['Loading', 'anim-skel'],
-  ['Running tests', 'anim-test-rot'],
   ['Running a tool', 'anim-tool-spin'],
   ['Thinking', 'anim-think-shimmer'],
 ]
