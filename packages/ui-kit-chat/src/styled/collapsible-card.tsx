@@ -39,11 +39,31 @@ function CardFrame(props: {class: string | undefined; children: JSX.Element}): J
   return <div class={`${CARD}  ${props.class ?? ''}`}>{props.children}</div>
 }
 
-function StaticRow(props: {header: JSX.Element}): JSX.Element {
+function StaticRow(props: {tooltip: string | undefined; header: JSX.Element}): JSX.Element {
   return (
-    <div class={ROW}>
-      <span class={HEADER_SLOT}>{props.header}</span>
-    </div>
+    <Show
+      when={props.tooltip}
+      fallback={
+        <div class={ROW}>
+          <span class={HEADER_SLOT}>{props.header}</span>
+        </div>
+      }
+    >
+      {(tooltip) => (
+        <Tooltip.Root openDelay={400} unmountOnExit lazyMount>
+          <Tooltip.Trigger
+            asChild={(triggerProps) => (
+              <div {...triggerProps()} class={ROW}>
+                <span class={HEADER_SLOT}>{props.header}</span>
+              </div>
+            )}
+          />
+          <Tooltip.Positioner>
+            <Tooltip.Content>{tooltip()}</Tooltip.Content>
+          </Tooltip.Positioner>
+        </Tooltip.Root>
+      )}
+    </Show>
   )
 }
 
@@ -86,7 +106,7 @@ export function CollapsibleCard(
       when={hasContent(body())}
       fallback={
         <CardFrame class={local.class}>
-          <StaticRow header={local.header} />
+          <StaticRow tooltip={local.tooltip} header={local.header} />
         </CardFrame>
       }
     >

@@ -1,6 +1,6 @@
 import 'virtual:uno.css'
 import {afterEach, expect, it} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import {createSignal, Show} from 'solid-js'
 import {CollapsibleCard} from '../src/styled/collapsible-card.js'
 import {cleanupViews, mountView} from './mount-view.js'
@@ -31,6 +31,20 @@ it('renders a collapsible with an expand button when the card has body content',
   ))
 
   await expect.element(page.getByRole('button')).toHaveAttribute('aria-expanded')
+})
+
+it('keeps the title tooltip on a static header-only row', async () => {
+  mountView(() => (
+    <CollapsibleCard header={<span>Rendered choices</span>} tooltip="lets the user pick a value">
+      <Show when={false}>
+        <span>never</span>
+      </Show>
+    </CollapsibleCard>
+  ))
+
+  await expect.element(page.getByText('Rendered choices')).toBeVisible()
+  await userEvent.hover(page.getByText('Rendered choices'))
+  await expect.element(page.getByRole('tooltip')).toHaveTextContent('lets the user pick a value')
 })
 
 it('upgrades from the static row to a collapsible when body content arrives later', async () => {
