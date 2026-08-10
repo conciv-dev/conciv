@@ -19,7 +19,7 @@ function collectCssText(doc: Document): string {
 
 export function collectPendingCss(doc: Document): PendingCssText | null {
   const css = collectCssText(doc)
-  if (css === '' || css.length > CSS_BUNDLE_CAP) return null
+  if (css === '' || new TextEncoder().encode(css).byteLength > CSS_BUNDLE_CAP) return null
   return {css}
 }
 
