@@ -509,6 +509,28 @@ describe('code mode per-tool call events', () => {
     expect(events.find((event) => event.name === 'conciv:tool_error')?.value).toMatchObject({error: 'draw failed'})
   })
 
+  test('gatedToolRun caps an oversized result on the emitted event while the caller still gets the raw value', async () => {
+    const {events, context} = capturingContext()
+    const flood = capability('canvas.flood', {execute: async () => 'x'.repeat(200_000)})
+    const run = gatedToolRun(flood, request, allowGate, attached)
+    const raw = await run({}, context)
+    expect(raw).toBe('x'.repeat(200_000))
+    const result = events.find((event) => event.name === 'conciv:tool_result')
+    expect(result?.value.result).toMatchObject({'conciv:truncated': true, truncated: true})
+    expect(JSON.stringify(result?.value).length).toBeLessThan(60_000)
+  })
+
+  test('gatedToolRun carries the serialization-failure payload for a bigint result without throwing', async () => {
+    const {events, context} = capturingContext()
+    const untallied = capability('canvas.bigint', {execute: async () => ({amount: 10n})})
+    const run = gatedToolRun(untallied, request, allowGate, attached)
+    const raw = await run({}, context)
+    expect(raw).toEqual({amount: 10n})
+    const result = events.find((event) => event.name === 'conciv:tool_result')
+    expect(result?.value.result).toMatchObject({error: 'value could not be serialized'})
+    expect(() => JSON.stringify(result?.value)).not.toThrow()
+  })
+
   test('the real sandbox threads the events through a binding call', async () => {
     const {events, context} = capturingContext()
     const dotted = capability('canvas.svg', {execute: async () => 'drew'})

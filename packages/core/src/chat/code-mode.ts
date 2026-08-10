@@ -112,7 +112,7 @@ async function emittingToolCall(
   emit(CODE_MODE_TOOL_CALL_EVENT, {callId, name, input: args})
   try {
     const result = await execute(callId)
-    emit(CODE_MODE_TOOL_RESULT_EVENT, {callId, result})
+    emit(CODE_MODE_TOOL_RESULT_EVENT, {callId, result: cappedValue(result, `the ${name} result`)})
     return result
   } catch (error) {
     const encoded = encodeDeclaredError(error)
