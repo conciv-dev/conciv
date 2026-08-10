@@ -129,7 +129,7 @@
     }
   ],
   "entry": [
-    "packages/ui-kit-chat/src/tools/index.tsx",
+    "packages/ui-kit-chat/src/tools.tsx",
     "packages/extension-testkit/src/host/host-entry.tsx",
     "packages/embed/src/native-entry.ts",
     "packages/extensions/tanstack/test/host/main.tsx",

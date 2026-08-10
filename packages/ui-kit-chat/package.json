@@ -30,7 +30,7 @@
       "import": "./dist/index.js"
     },
     "./tools": {
-      "types": "./dist/tools/index.d.ts",
+      "types": "./dist/tools.d.ts",
       "import": "./dist/tools.js"
     },
     "./theme/tokens.css": "./src/theme/tokens.css",
