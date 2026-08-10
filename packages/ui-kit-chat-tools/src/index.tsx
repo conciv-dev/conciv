@@ -22,7 +22,6 @@ export {ApplyPatchDiff} from './styled/tools/apply-patch-diff.js'
 export {DiscoveredApisCard, discoveredApisTool} from './styled/tools/discovered-apis-card.js'
 export {FileReadCard, fileReadTool} from './styled/tools/file-read-card.js'
 export {FileEditCard, fileEditTool} from './styled/tools/file-edit-card.js'
-export {LoadedToolsCard, loadedToolsTool} from './styled/tools/loaded-tools-card.js'
 export {SearchCard, searchTool} from './styled/tools/search-card.js'
 export {TodoCard, todoTool} from './styled/tools/todo-card.js'
 export {
