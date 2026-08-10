@@ -20,9 +20,12 @@ function title(name: string, fileLabel: string): string {
 }
 
 function counts(info: ApplyPatchInfo): string | undefined {
-  const parts: string[] = []
-  if (info.added > 0) parts.push(`+${info.added}`)
-  if (info.removed > 0) parts.push(`−${info.removed}`)
+  const parts = [
+    {count: info.added, label: `+${info.added}`},
+    {count: info.removed, label: `−${info.removed}`},
+  ]
+    .filter((entry) => entry.count > 0)
+    .map((entry) => entry.label)
   return parts.length > 0 ? parts.join(' ') : undefined
 }
 
