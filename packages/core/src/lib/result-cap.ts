@@ -8,13 +8,25 @@ const TRUNCATION_MARKER = 'conciv:truncated'
 
 const TRUNCATION_ADVICE = 'narrow the request or aggregate inside the sandbox and return less data'
 
-export function safeStringify(value: unknown, context: string): string {
+type StringifyAttempt = {body: string} | {failure: string}
+
+function attemptStringify(value: unknown): StringifyAttempt {
   try {
-    return JSON.stringify(value) ?? 'null'
+    return {body: JSON.stringify(value) ?? 'null'}
   } catch (error) {
-    logError(`[core] ${context} was not JSON-serializable: ${String(error)}`)
-    return JSON.stringify({error: 'value could not be serialized', reason: String(error)})
+    return {failure: String(error)}
   }
+}
+
+function serializationFailurePayload(reason: string): Record<string, unknown> {
+  return {error: 'value could not be serialized', reason}
+}
+
+export function safeStringify(value: unknown, context: string): string {
+  const attempt = attemptStringify(value)
+  if ('body' in attempt) return attempt.body
+  logError(`[core] ${context} was not JSON-serializable: ${attempt.failure}`)
+  return JSON.stringify(serializationFailurePayload(attempt.failure))
 }
 
 function wellFormedSlice(text: string, length: number): string {
@@ -48,7 +60,11 @@ export function cappedText(body: string): string {
 }
 
 export function cappedValue(value: unknown, context: string): unknown {
-  const body = safeStringify(value, context)
-  if (body.length <= RESULT_CAP_CHARS) return value
-  return truncationPayload(oversizeReason('serialized result', body.length), body)
+  const attempt = attemptStringify(value)
+  if ('failure' in attempt) {
+    logError(`[core] ${context} was not JSON-serializable: ${attempt.failure}`)
+    return serializationFailurePayload(attempt.failure)
+  }
+  if (attempt.body.length <= RESULT_CAP_CHARS) return value
+  return truncationPayload(oversizeReason('serialized result', attempt.body.length), attempt.body)
 }
