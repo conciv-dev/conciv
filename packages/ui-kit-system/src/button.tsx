@@ -48,7 +48,7 @@ export function Button(
   return (
     <button
       type={local.type ?? 'button'}
-      class={`${button({variant: local.variant ?? 'solid', size: local.size ?? 'md'})}  ${local.class ?? ''}`}
+      class={button({variant: local.variant, size: local.size, class: local.class})}
       {...rest}
     />
   )
