@@ -90,4 +90,3 @@ export function toChatTool(
     lazy: opts?.lazy,
   }).server(run)
 }
-

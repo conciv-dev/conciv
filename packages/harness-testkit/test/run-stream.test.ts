@@ -46,9 +46,7 @@ describe('makeRunStream', () => {
   })
 
   it('waitForToolCall rejects fast when the run finishes without that tool', async () => {
-    const run = makeRunStream(
-      scripted([started, snapshot([toolCallPart('tc-1', 'open', {file: 'a.ts'})]), finished]),
-    )
+    const run = makeRunStream(scripted([started, snapshot([toolCallPart('tc-1', 'open', {file: 'a.ts'})]), finished]))
     await expect(run.waitForToolCall('conciv_ui')).rejects.toThrow(/finished|without/i)
   })
 
