@@ -33,7 +33,7 @@ export {
 export {MetaToolCard} from './styled/meta-tool-card.js'
 export {ToolCallCard, type ToolCallCardProps} from './styled/tool-call-card.js'
 export {ElementPreview} from './styled/element-preview.js'
-export {Chip, ChipRow, CHIP} from './styled/chip.js'
+export {Chip, ChipRow, ChipGroup, CHIP} from './styled/chip.js'
 export {CodeBlock, DiffBlock, diffBlockClass} from './styled/code-block.js'
 export {ErrorBlock} from './styled/error-block.js'
 export {parseResultMedia} from './primitives/result-media.js'

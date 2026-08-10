@@ -1,7 +1,7 @@
 import {For, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {Chip, ChipRow} from './chip.js'
+import {Chip, ChipGroup, ChipRow} from './chip.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/Chip'}
 export default meta
@@ -34,9 +34,9 @@ export const FieldKind: Story = {
 export const PillKind: Story = {
   render: () =>
     frame(
-      <ChipRow>
+      <ChipGroup>
         <For each={TONES}>{(tone) => <Chip kind="pill" tone={tone} value={`pill-${tone}`} />}</For>
-      </ChipRow>,
+      </ChipGroup>,
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)

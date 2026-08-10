@@ -138,3 +138,9 @@ export function ChipRow(props: {class?: string; children: JSX.Element}): JSX.Ele
   const rowClass = (): string => `${ROW} ${local.class ?? ''}`
   return <dl class={rowClass()}>{local.children}</dl>
 }
+
+export function ChipGroup(props: {class?: string; children: JSX.Element}): JSX.Element {
+  const [local] = splitProps(props, ['class', 'children'])
+  const rowClass = (): string => `${ROW} ${local.class ?? ''}`
+  return <div class={rowClass()}>{local.children}</div>
+}
