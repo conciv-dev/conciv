@@ -100,9 +100,7 @@ export function useThreadAutoScroll(
       div,
       'wheel',
       (event) => {
-        if (event.deltaY >= 0) return
-        div.scrollTo({top: div.scrollTop, behavior: 'instant'})
-        send({type: 'wheelUp'})
+        if (event.deltaY < 0) send({type: 'wheelUp'})
       },
       passive,
     )
