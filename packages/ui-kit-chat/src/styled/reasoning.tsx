@@ -21,7 +21,7 @@ export function ReasoningText(props: {text: string}): JSX.Element {
 export function Reasoning(props: ReasoningProps): JSX.Element {
   const collapse = createAutoCollapse({streaming: () => Boolean(props.streaming), defaultOpen: props.defaultOpen})
   const [scroller, setScroller] = createSignal<HTMLDivElement>()
-  const capped = () => collapse.isAutoOpen() && !props.grow
+  const capped = () => !props.grow
   createStickToBottom(scroller, {
     initial: 'instant',
     follow: () => capped() && Boolean(props.streaming),

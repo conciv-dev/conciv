@@ -50,7 +50,7 @@ function Step(props: {icon: JSX.Element; last?: boolean; children: JSX.Element})
 function Shell(props: ParentProps<{grow: boolean}>): JSX.Element {
   const chain = useChainOfThought()
   const [scroller, setScroller] = createSignal<HTMLDivElement>()
-  const capped = () => chain.preview() && !props.grow
+  const capped = () => !props.grow
   createStickToBottom(scroller, {
     initial: 'instant',
     follow: () => capped() && chain.streaming(),
