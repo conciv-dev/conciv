@@ -2,7 +2,7 @@ import {Outlet, createFileRoute, redirect, useBlocker, useMatchRoute, useRouter}
 import {useQuery} from '@tanstack/solid-query'
 import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ChevronDown, PictureInPicture2, Unplug} from 'lucide-solid'
-import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
+import {For, Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useDisconnect, useGrabProvider, useInstances, useRpc} from '../app/context.js'
@@ -10,6 +10,7 @@ import {PaneContext, makeGrabStore, makePendingAttachmentQueue, type PaneContext
 import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextTracker} from '../pane/context-tracker.js'
+import {SessionPillPending, UsagePending, ViewTabsPending} from '../shell/pending.js'
 import {collectViews} from '../extension/extension-views.js'
 
 const HEAD = 'flex items-center gap-2.5 py-3 px-3.5 border-b border-b-pw-line-soft'
@@ -111,13 +112,17 @@ function PanelSession(): JSX.Element {
           <PictureInPicture2 class="size-5 block" aria-hidden="true" />
         </TooltipIconButton>
         <span class="tracking-[-0.01em] font-semibold">conciv</span>
-        <SessionSelector
-          variant="pill"
-          activeId={() => params().sessionId}
-          onActivate={activate}
-          onNewSession={() => void newSession()}
-        />
-        <ContextTracker usage={usage()} />
+        <Suspense fallback={<SessionPillPending variant="pill" />}>
+          <SessionSelector
+            variant="pill"
+            activeId={() => params().sessionId}
+            onActivate={activate}
+            onNewSession={() => void newSession()}
+          />
+        </Suspense>
+        <Suspense fallback={<UsagePending />}>
+          <ContextTracker usage={usage()} />
+        </Suspense>
         <Show when={connectMode && disconnect}>
           <TooltipIconButton
             tooltip="Disconnect this machine"
@@ -136,24 +141,30 @@ function PanelSession(): JSX.Element {
         </TooltipIconButton>
       </header>
       <Show when={views().length > 0}>
-        <div class="px-2.5 flex gap-2 items-center">
-          <Tabs.Root value={activeView()} onValueChange={(details) => switchView(details.value)} class="flex-1 min-w-0">
-            <Tabs.List>
-              <Tabs.Trigger value="chat" disabled={leaveGuard()}>
-                Chat
-              </Tabs.Trigger>
-              <For each={views()}>
-                {(view) => (
-                  <Tabs.Trigger value={view.id} disabled={leaveGuard()}>
-                    <Show when={view.icon}>{(icon) => <Dynamic component={icon()} class="size-3.5" />}</Show>
-                    {view.label}
-                  </Tabs.Trigger>
-                )}
-              </For>
-              <Tabs.Indicator />
-            </Tabs.List>
-          </Tabs.Root>
-        </div>
+        <Suspense fallback={<ViewTabsPending />}>
+          <div class="px-2.5 flex gap-2 items-center">
+            <Tabs.Root
+              value={activeView()}
+              onValueChange={(details) => switchView(details.value)}
+              class="flex-1 min-w-0"
+            >
+              <Tabs.List>
+                <Tabs.Trigger value="chat" disabled={leaveGuard()}>
+                  Chat
+                </Tabs.Trigger>
+                <For each={views()}>
+                  {(view) => (
+                    <Tabs.Trigger value={view.id} disabled={leaveGuard()}>
+                      <Show when={view.icon}>{(icon) => <Dynamic component={icon()} class="size-3.5" />}</Show>
+                      {view.label}
+                    </Tabs.Trigger>
+                  )}
+                </For>
+                <Tabs.Indicator />
+              </Tabs.List>
+            </Tabs.Root>
+          </div>
+        </Suspense>
       </Show>
       <Outlet />
     </PaneContext.Provider>

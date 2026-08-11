@@ -6,9 +6,14 @@ import {hostPage, serveHost} from '../helpers/host.js'
 const suite = setupWidgetSuite()
 
 const COMPOSER_NAME = 'Message the conciv agent'
+const SESSION_PILL_NAME = 'Session: New session'
 
 function composer(page: Page) {
   return page.getByRole('textbox', {name: COMPOSER_NAME})
+}
+
+function sessionPill(page: Page) {
+  return page.getByRole('button', {name: SESSION_PILL_NAME})
 }
 
 async function ensurePanelClosed(page: Page): Promise<void> {
@@ -17,6 +22,23 @@ async function ensurePanelClosed(page: Page): Promise<void> {
   await expect(minimize.or(opener)).toBeVisible({timeout: 30_000})
   if (await minimize.isVisible()) await minimize.click()
   await expect(opener).toBeVisible({timeout: 30_000})
+}
+
+async function holdFirstSessionList(page: Page): Promise<() => void> {
+  let release = (): void => {}
+  const held = new Promise<void>((resolve) => {
+    release = () => resolve()
+  })
+  let seen = 0
+  await page.route(
+    (url) => url.pathname.endsWith('/rpc/sessions/list'),
+    async (route) => {
+      seen += 1
+      if (seen === 1) await held
+      await route.continue()
+    },
+  )
+  return release
 }
 
 type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hostButton: Locator}
@@ -54,6 +76,26 @@ test.describe('panel open focuses the composer', () => {
     await expect(composer(page)).toBeFocused({timeout: 10_000})
     await page.keyboard.type('typed without clicking')
     await expect(composer(page)).toHaveText('typed without clicking')
+  })
+
+  test('paints the shell while the session list is still loading, then focuses the composer', async ({page}) => {
+    test.setTimeout(90_000)
+    const host = await serveHost(() =>
+      hostPage({apiBase: suite.kit().base, widget: '{"quickTerminal":false,"transport":"fetch"}'}),
+    )
+    dedicatedHosts.push(host)
+    const releaseSessionList = await holdFirstSessionList(page)
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    try {
+      await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 15_000})
+    } finally {
+      releaseSessionList()
+    }
+    await openPanel(page)
+    await expect(sessionPill(page)).toBeVisible({timeout: 30_000})
+    await expect(composer(page)).toBeFocused({timeout: 10_000})
+    await page.keyboard.type('typed after the session list resolved')
+    await expect(composer(page)).toHaveText('typed after the session list resolved')
   })
 })
 

@@ -17,7 +17,7 @@ export function FabRobot(props: {open: () => boolean; working: () => boolean}) {
   onCleanup(() => rig?.destroy())
 
   return (
-    <span class="pw-fab-rig" data-working={props.working()} aria-hidden="true">
+    <span class="pw-fab-rig" aria-hidden="true">
       <span class="pw-rig-layer pw-rig-head" ref={(el) => (headEl = el)} />
       <span class="pw-rig-layer pw-rig-antenna" ref={(el) => (antEl = el)} />
       <span class="pw-rig-layer pw-rig-eyes" ref={(el) => (eyesEl = el)} />

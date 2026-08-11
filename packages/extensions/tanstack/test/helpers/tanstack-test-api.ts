@@ -3,6 +3,7 @@ import type {Page} from 'playwright'
 import {afterAll, beforeAll} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
+import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
 import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
 import tanstackExtension from '../../src/server.js'
 
@@ -38,7 +39,9 @@ export function tanstackAdapter(api: ExtensionTestApi): FrameworkAdapter {
 }
 
 export async function waitForWidget(page: Page): Promise<void> {
+  const planeSubscribed = rpcObserverFor(page).completed({path: ['page', 'queries'], timeout: 30_000})
   await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
+  await planeSubscribed
 }
 
 export async function gotoAbout(page: Page): Promise<void> {
