@@ -1,4 +1,4 @@
-import {createEffect, createSignal, onCleanup, Show, type JSX, type ParentProps} from 'solid-js'
+import {createSignal, Show, type JSX, type ParentProps} from 'solid-js'
 import Brain from 'lucide-solid/icons/brain'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
@@ -6,7 +6,7 @@ import {
   ChainOfThought as ChainOfThoughtPrimitive,
   useChainOfThought,
 } from '../primitives/chain-of-thought/chain-of-thought.js'
-import {useOptionalThreadViewport} from '../primitives/thread/viewport-context.js'
+import {createStickToBottom} from '../behaviors/stick-to-bottom.js'
 import {SHIMMER} from './shimmer.js'
 import {FOCUS} from './classes.js'
 
@@ -14,6 +14,7 @@ export type ChainOfThoughtProps = ParentProps<{
   streaming?: boolean
   pinnedOpen?: boolean
   durationMs?: number
+  grow?: boolean
 }>
 
 const TRIGGER = `group flex items-center gap-2 w-full px-3 py-2 text-[length:var(--chat-text-md)] text-[color:var(--chat-text-2)] cursor-pointer select-none [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] rounded-[var(--chat-radius-md)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] ${FOCUS}`
@@ -46,24 +47,13 @@ function Step(props: {icon: JSX.Element; last?: boolean; children: JSX.Element})
   )
 }
 
-function Shell(props: ParentProps): JSX.Element {
+function Shell(props: ParentProps<{grow: boolean}>): JSX.Element {
   const chain = useChainOfThought()
-  const viewport = useOptionalThreadViewport()
   const [scroller, setScroller] = createSignal<HTMLDivElement>()
-  const [inner, setInner] = createSignal<HTMLDivElement>()
-  createEffect(() => {
-    if (!chain.preview()) return
-    const scrollElement = scroller()
-    const innerElement = inner()
-    if (!scrollElement || !innerElement) return
-    const pinToBottom = () => {
-      if (viewport && !viewport.isAtBottom()) return
-      scrollElement.scrollTop = scrollElement.scrollHeight
-    }
-    pinToBottom()
-    const observer = new ResizeObserver(pinToBottom)
-    observer.observe(innerElement)
-    onCleanup(() => observer.disconnect())
+  const capped = () => chain.preview() && !props.grow
+  createStickToBottom(scroller, {
+    initial: 'instant',
+    follow: () => capped() && chain.streaming(),
   })
   return (
     <Collapsible.Root open={chain.open()} onOpenChange={(details) => chain.setOpen(details.open)}>
@@ -74,10 +64,8 @@ function Shell(props: ParentProps): JSX.Element {
           <ChevronDown size={14} class={CHEVRON} aria-hidden="true" />
         </Collapsible.Trigger>
         <Collapsible.Content>
-          <div ref={setScroller} class={chain.preview() ? PREVIEW : ''}>
-            <div ref={setInner} class="flex flex-col">
-              {props.children}
-            </div>
+          <div ref={setScroller} class={capped() ? PREVIEW : ''}>
+            <div class="flex flex-col">{props.children}</div>
           </div>
         </Collapsible.Content>
       </div>
@@ -88,7 +76,7 @@ function Shell(props: ParentProps): JSX.Element {
 function Root(props: ChainOfThoughtProps): JSX.Element {
   return (
     <ChainOfThoughtPrimitive.Root streaming={props.streaming} pinnedOpen={props.pinnedOpen}>
-      <Shell>{props.children}</Shell>
+      <Shell grow={Boolean(props.grow)}>{props.children}</Shell>
     </ChainOfThoughtPrimitive.Root>
   )
 }
