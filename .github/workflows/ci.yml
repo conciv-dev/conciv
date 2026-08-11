@@ -134,9 +134,40 @@ jobs:
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit != 'true'
       - run: pnpm exec playwright install-deps chromium
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit == 'true'
+      # Direct evidence for the shard-4 browser-connection-closed failure (#389):
+      # samples memory/swap/load/chrome-process-count every 2s for the duration of
+      # the shard's run. nohup + disown detach the loop from this step's shell so
+      # it survives past this step and keeps running in the background for the
+      # rest of the job.
+      - name: Start runner resource sampler
+        run: |
+          nohup bash -c '
+            while true
+            do
+              echo "$(date +%s) mem=$(free -m | awk "/^Mem:/{print \$3\"/\"\$2}") swap=$(free -m | awk "/^Swap:/{print \$3}") load=$(cut -d" " -f1-3 /proc/loadavg) chrom=$(pgrep -c chrom 2>/dev/null || echo 0)"
+              sleep 2
+            done
+          ' > /tmp/runner-sampler.log 2>&1 &
+          disown
       - run: pnpm exec conciv-ci-shards run
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
+      # Diagnostic capture for #389: kernel log (OOM killer, cgroup throttling)
+      # plus the resource sampler's trailing window, regardless of whether the
+      # shard passed or failed.
+      - name: Capture runner diagnostics
+        if: always()
+        run: |
+          sudo dmesg 2>/dev/null | tail -200 > /tmp/runner-dmesg.log || true
+          tail -400 /tmp/runner-sampler.log > /tmp/runner-sampler-tail.log || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: runner-diag-${{ matrix.shard }}
+          path: |
+            /tmp/runner-dmesg.log
+            /tmp/runner-sampler-tail.log
+          if-no-files-found: ignore
       # Collapse this shard's per-package results (vitest emits test-results.json
       # only in CI; turbo caches them so cache-hit packages still report) into ONE
       # file, then upload it by literal name. Never glob packages/** here: the
