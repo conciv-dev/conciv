@@ -57,6 +57,7 @@ function StreamingThread(props: {expose: (chat: UseChatReturn) => void}): JSX.El
 }
 
 const GROWTH_LINES = 40
+const STICK_OFFSET_PX = 70
 
 function CollapsePinHarness(): JSX.Element {
   const [viewport, setViewport] = createSignal<HTMLDivElement>()
@@ -161,17 +162,16 @@ export const ScrollToEndNoLayoutShift: Story = {
   },
 }
 
-export const ExpandAtBottomKeepsPosition: Story = {
+export const ExpandAtBottomStaysPinned: Story = {
   render: () => <ExpandAtBottomHarness />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     const vp = canvasElement.querySelector('[data-thread-viewport]') as HTMLElement
     await waitFor(() => expect(distanceFromBottom(vp)).toBeLessThanOrEqual(1))
     await userEvent.click(c.getByText('expand me'))
-    await waitFor(() => expect(c.getByText('tool output 0')).toBeVisible())
-    await new Promise((resolve) => setTimeout(resolve, 700))
-    await expect(distanceFromBottom(vp)).toBeGreaterThan(100)
-    await expect(c.getByText('atBottom: false')).toBeVisible()
+    await waitFor(() => expect(c.getByText('tool output 29')).toBeVisible(), {timeout: 4000})
+    await waitFor(() => expect(distanceFromBottom(vp)).toBeLessThanOrEqual(STICK_OFFSET_PX), {timeout: 4000})
+    await expect(c.getByText('atBottom: true')).toBeVisible()
   },
 }
 

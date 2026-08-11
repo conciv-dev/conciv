@@ -66,13 +66,7 @@ function Shell(props: ParentProps): JSX.Element {
     onCleanup(() => observer.disconnect())
   })
   return (
-    <Collapsible.Root
-      open={chain.open()}
-      onOpenChange={(details) => {
-        viewport?.holdPosition()
-        chain.setOpen(details.open)
-      }}
-    >
+    <Collapsible.Root open={chain.open()} onOpenChange={(details) => chain.setOpen(details.open)}>
       <div class="flex flex-col gap-2 min-w-0 w-full">
         <Collapsible.Trigger class={TRIGGER}>
           <Brain size={14} class="text-[color:var(--chat-text-3)] shrink-0" />

@@ -3,7 +3,6 @@ import {createContext, useContext, type Accessor} from 'solid-js'
 export type ViewportContextValue = {
   isAtBottom: Accessor<boolean>
   scrollToBottom: (behavior?: ScrollBehavior) => void
-  holdPosition: (durationMs?: number) => void
 }
 
 const ViewportContext = createContext<ViewportContextValue>()
