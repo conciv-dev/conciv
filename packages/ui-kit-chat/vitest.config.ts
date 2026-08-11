@@ -2,7 +2,7 @@ import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import UnoCSS from 'unocss/vite'
-import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
+import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 export default defineConfig({
   resolve: {conditions: ['browser', 'development']},
@@ -24,6 +24,7 @@ export default defineConfig({
       {
         extends: true,
         plugins: [solidPlugin(), UnoCSS({content: {filesystem: ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx}']}})],
+        optimizeDeps: browserOptimizeDeps(),
         test: {
           ...ciTestSolidBrowser(),
           name: 'ui-kit-chat-browser',

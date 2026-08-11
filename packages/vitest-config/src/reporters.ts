@@ -58,3 +58,13 @@ export function ciTestSolidBrowser(): {
     setupFiles: [SOLID_CLEANUP_SETUP_ENTRY],
   }
 }
+
+const LATE_DISCOVERED_BROWSER_DEPS = ['lucide-solid']
+
+export function browserOptimizeDeps(): {
+  include: string[]
+} {
+  return {
+    include: LATE_DISCOVERED_BROWSER_DEPS,
+  }
+}

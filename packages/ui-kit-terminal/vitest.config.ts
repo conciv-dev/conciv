@@ -1,7 +1,7 @@
 import {defineConfig} from 'vitest/config'
 import solid from 'vite-plugin-solid'
 import {playwright} from '@vitest/browser-playwright'
-import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
+import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 export default defineConfig({
   test: {
@@ -11,6 +11,7 @@ export default defineConfig({
       {
         plugins: [solid()],
         resolve: {conditions: ['browser', 'development']},
+        optimizeDeps: browserOptimizeDeps(),
         test: {
           ...ciTestSolidBrowser(),
           name: 'ui-kit-terminal',
