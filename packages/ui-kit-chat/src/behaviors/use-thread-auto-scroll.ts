@@ -1,5 +1,5 @@
 import type {Accessor} from 'solid-js'
-import {createStickToBottom} from './stick-to-bottom.js'
+import {createStickToBottom} from '@conciv/solid-stick-to-bottom'
 
 export type ThreadAutoScroll = {
   isAtBottom: Accessor<boolean>

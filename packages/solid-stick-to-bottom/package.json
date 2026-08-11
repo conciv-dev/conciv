@@ -1,0 +1,60 @@
+{
+  "name": "@conciv/solid-stick-to-bottom",
+  "version": "0.0.18",
+  "description": "SolidJS port of use-stick-to-bottom: a stick-to-bottom scroll behavior for chat/log viewports (spring-follow scroll, escape on up-scroll, silent re-lock on shrink, selection guard).",
+  "keywords": [
+    "conciv",
+    "scroll",
+    "solid-js",
+    "stick-to-bottom"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/solid-stick-to-bottom"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@solid-primitives/event-listener": "^2.4.6",
+    "@solid-primitives/timer": "^1.4.4"
+  },
+  "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "^0.8.10",
+    "@types/node": "^22.19.21",
+    "@vitest/browser-playwright": "4.1.10",
+    "@vitest/coverage-v8": "4.1.10",
+    "playwright": "^1.61.1",
+    "solid-js": "^1.9.13",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}

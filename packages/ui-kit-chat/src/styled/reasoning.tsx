@@ -1,7 +1,7 @@
 import {createSignal, type JSX} from 'solid-js'
 import {CollapsibleCard} from '../tools/styled/collapsible-card.js'
 import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
-import {createStickToBottom} from '../behaviors/stick-to-bottom.js'
+import {createStickToBottom} from '@conciv/solid-stick-to-bottom'
 import {SHIMMER} from './shimmer.js'
 
 export type ReasoningProps = {

@@ -106,6 +106,7 @@
     "@conciv/react",
     "@conciv/solid",
     "@conciv/solid-diffs",
+    "@conciv/solid-stick-to-bottom",
     "@conciv/solid-streamdown",
     "@conciv/tools",
     "@conciv/ui-kit-chat",

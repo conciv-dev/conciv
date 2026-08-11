@@ -6,7 +6,7 @@ import {
   ChainOfThought as ChainOfThoughtPrimitive,
   useChainOfThought,
 } from '../primitives/chain-of-thought/chain-of-thought.js'
-import {createStickToBottom} from '../behaviors/stick-to-bottom.js'
+import {createStickToBottom} from '@conciv/solid-stick-to-bottom'
 import {SHIMMER} from './shimmer.js'
 import {FOCUS} from './classes.js'
 
