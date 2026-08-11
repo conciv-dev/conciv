@@ -1,5 +1,6 @@
-import {createSignal, type JSX} from 'solid-js'
+import {type JSX} from 'solid-js'
 import {CollapsibleCard} from '../tools/styled/collapsible-card.js'
+import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
 import {SHIMMER} from './shimmer.js'
 
 export type ReasoningProps = {text: string; streaming?: boolean; defaultOpen?: boolean}
@@ -9,12 +10,11 @@ export function ReasoningText(props: {text: string}): JSX.Element {
 }
 
 export function Reasoning(props: ReasoningProps): JSX.Element {
-  const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
-  const open = () => userOpen() ?? Boolean(props.streaming)
+  const collapse = createAutoCollapse({streaming: () => Boolean(props.streaming), defaultOpen: props.defaultOpen})
   return (
     <CollapsibleCard
-      open={open()}
-      onOpenChange={setUserOpen}
+      open={collapse.open()}
+      onOpenChange={collapse.setOpen}
       header={
         <span class={props.streaming ? SHIMMER : 'text-[color:var(--chat-text-2)]'}>
           {props.streaming ? 'Thinking…' : 'Reasoning'}

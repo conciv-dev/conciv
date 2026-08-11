@@ -57,6 +57,7 @@ function Shell(props: ParentProps): JSX.Element {
     const innerElement = inner()
     if (!scrollElement || !innerElement) return
     const pinToBottom = () => {
+      if (viewport && !viewport.isAtBottom()) return
       scrollElement.scrollTop = scrollElement.scrollHeight
     }
     pinToBottom()
