@@ -27,6 +27,13 @@ import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
 import {Message} from '../primitives/message/message.js'
 import {useMessage} from '../primitives/message/message-context.js'
 import {groupSegments, type Segment, type Turn} from '../store/grouping.js'
+import {
+  pageSessionCallParts,
+  pageSessionGroupingOptions,
+  pageSessionHasSteps,
+  pageSessionThinkingParts,
+  type PageSessionConfig,
+} from '../store/page-session.js'
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
 import {Markdown} from './markdown.js'
 import {Reasoning} from './reasoning.js'
@@ -48,6 +55,7 @@ export type ThreadMessagesProps = {
   tools?: ToolCardEntry[]
   turnPrefix?: (turn: Turn) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
+  pageSession?: PageSessionConfig
 }
 
 function asThinking(part: MessagePart | undefined): Extract<MessagePart, {type: 'thinking'}> | null {
@@ -107,25 +115,51 @@ function ChainPart(props: {
   )
 }
 
-function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUIComponent}): JSX.Element {
+function AssistantTurn(props: {
+  entries: ToolCardEntry[]
+  fallback: ToolUIComponent
+  pageSession?: PageSessionConfig
+}): JSX.Element {
   const message = useMessage()
   const thread = useThread()
   const parts = () => message.message().parts
-  const segments = createMemo(() => groupSegments(parts()))
+  const groupingOptions = createMemo(() => pageSessionGroupingOptions(props.pageSession))
+  const segments = createMemo(() => groupSegments(parts(), groupingOptions()))
   const lastTextIndex = createMemo(() =>
     parts()
       .map((part) => part.type)
       .lastIndexOf('text'),
   )
   const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
-  const isLastSegment = (index: number) => index === segments().length - 1
   const awaitsApproval = (indices: number[]) =>
     indices.some((index) => {
       const part = parts()[index]
       return part?.type === 'tool-call' && part.state === 'approval-requested'
     })
-  const asChain = (segment: Segment) => (segment.kind === 'chain' ? segment : null)
+  const hasChainStep = (indices: number[]) =>
+    indices.some((index) => {
+      const part = parts()[index]
+      return part?.type === 'thinking' || part?.type === 'tool-call'
+    })
+  const asChain = (segment: Segment) => {
+    if (segment.kind !== 'chain') return null
+    if (props.pageSession && !hasChainStep(segment.indices)) return null
+    return segment
+  }
+  const asPageSession = (segment: Segment) => {
+    const config = props.pageSession
+    if (!config || segment.kind !== 'page-session') return null
+    return pageSessionHasSteps(parts(), segment.indices, config.actNames) ? segment : null
+  }
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
+  const renderableSegment = (segment: Segment): boolean =>
+    asChain(segment) !== null || asReply(segment) !== null || asPageSession(segment) !== null
+  const lastRenderableIndex = createMemo(() => {
+    let last = -1
+    for (const [index, segment] of segments().entries()) if (renderableSegment(segment)) last = index
+    return last
+  })
+  const liveSegment = (index: number) => thread.isRunning && message.isLast() && index === lastRenderableIndex()
   return (
     <Message.Root
       data-pw-msg
@@ -136,10 +170,7 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
           <Switch>
             <Match when={asChain(segment())}>
               {(chain) => (
-                <ChainOfThought
-                  streaming={thread.isRunning && message.isLast() && isLastSegment(segmentIndex)}
-                  pinnedOpen={awaitsApproval(chain().indices)}
-                >
+                <ChainOfThought streaming={liveSegment(segmentIndex)} pinnedOpen={awaitsApproval(chain().indices)}>
                   <Index each={chain().indices}>
                     {(partIndex, partPosition) => (
                       <ChainPart
@@ -157,6 +188,21 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
               {(reply) => (
                 <Show when={asText(parts()[reply().index])}>
                   {(part) => <Markdown content={part().content} streaming={streamingAt(reply().index)} />}
+                </Show>
+              )}
+            </Match>
+            <Match when={asPageSession(segment())}>
+              {(session) => (
+                <Show when={props.pageSession}>
+                  {(config) => (
+                    <Dynamic
+                      component={config().render}
+                      parts={pageSessionCallParts(parts(), session().indices)}
+                      thinking={pageSessionThinkingParts(parts(), session().indices)}
+                      resultFor={(toolCallId: string) => message.pairing().byCallId.get(toolCallId)}
+                      streaming={liveSegment(segmentIndex)}
+                    />
+                  )}
                 </Show>
               )}
             </Match>
@@ -196,6 +242,7 @@ type ThreadConfig = {
   assistant: () => Component | undefined
   turnPrefix: () => ((turn: Turn) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
+  pageSession: () => PageSessionConfig | undefined
 }
 
 const ThreadConfigContext = createContext<ThreadConfig>({
@@ -204,6 +251,7 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   assistant: () => undefined,
   turnPrefix: () => undefined,
   attachmentCards: () => [],
+  pageSession: () => undefined,
 })
 
 function TurnPrefix(): JSX.Element {
@@ -219,7 +267,9 @@ function AssistantMessageView(): JSX.Element {
       <TurnPrefix />
       <Show
         when={config.assistant()}
-        fallback={<AssistantTurn entries={config.entries()} fallback={config.fallback()} />}
+        fallback={
+          <AssistantTurn entries={config.entries()} fallback={config.fallback()} pageSession={config.pageSession()} />
+        }
       >
         {(component) => <Dynamic component={component()} />}
       </Show>
@@ -273,6 +323,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         assistant: () => props.components?.AssistantMessage,
         turnPrefix: () => props.turnPrefix,
         attachmentCards: () => props.attachmentCards ?? [],
+        pageSession: () => props.pageSession,
       }}
     >
       <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />

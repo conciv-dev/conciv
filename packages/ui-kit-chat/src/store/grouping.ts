@@ -41,12 +41,41 @@ type PageSessionGrouping = {
   openCallIds: Set<string>
   pageActNames: ReadonlySet<string>
   pageToolPrefix: string | undefined
+  actParentIds: ReadonlySet<string>
+}
+
+function foldableParentIds(parts: ReadonlyArray<MessagePart>, pageActNames: ReadonlySet<string>): Set<string> {
+  const parentIndexById = new Map<string, number>()
+  const firstActChildIndex = new Map<string, number>()
+  const replyIndices: number[] = []
+  parts.forEach((part, index) => {
+    if (isReplyText(part)) replyIndices.push(index)
+    if (part.type !== 'tool-call') return
+    if (part.id && !parentIndexById.has(part.id)) parentIndexById.set(part.id, index)
+    if (!pageActNames.has(part.name)) return
+    const parent = parentToolCallIdOf(part)
+    if (parent !== null && !firstActChildIndex.has(parent)) firstActChildIndex.set(parent, index)
+  })
+  const ids = new Set<string>()
+  for (const [parent, childIndex] of firstActChildIndex) {
+    const parentIndex = parentIndexById.get(parent)
+    if (parentIndex === undefined) continue
+    const split = replyIndices.some((replyIndex) => replyIndex > parentIndex && replyIndex < childIndex)
+    if (!split) ids.add(parent)
+  }
+  return ids
+}
+
+function toolCallFolds(grouping: PageSessionGrouping, part: ToolCallPart): boolean {
+  if (part.state === 'approval-requested') return false
+  const parent = parentToolCallIdOf(part)
+  if (parent !== null && grouping.openCallIds.has(parent)) return true
+  return grouping.pageToolPrefix !== undefined && part.name.startsWith(grouping.pageToolPrefix)
 }
 
 function foldsIntoOpenSession(grouping: PageSessionGrouping, part: MessagePart): boolean {
-  if (part.type === 'text') return true
-  if (part.type === 'tool-call')
-    return grouping.pageToolPrefix !== undefined && part.name.startsWith(grouping.pageToolPrefix)
+  if (part.type === 'text' || part.type === 'thinking') return true
+  if (part.type === 'tool-call') return toolCallFolds(grouping, part)
   if (part.type === 'tool-result')
     return typeof part.toolCallId === 'string' && grouping.openCallIds.has(part.toolCallId)
   return false
@@ -77,20 +106,39 @@ function placeInChain(grouping: PageSessionGrouping, index: number): void {
   grouping.segments.push({kind: 'chain', indices: [index]})
 }
 
+function placeReply(grouping: PageSessionGrouping, index: number): void {
+  grouping.openCallIds.clear()
+  grouping.segments.push({kind: 'reply', index})
+}
+
+function sessionMemberCall(grouping: PageSessionGrouping, part: MessagePart): ToolCallPart | undefined {
+  if (part.type !== 'tool-call' || part.state === 'approval-requested') return undefined
+  return grouping.pageActNames.has(part.name) || grouping.actParentIds.has(part.id) ? part : undefined
+}
+
+function foldIntoSession(
+  grouping: PageSessionGrouping,
+  session: PageSessionSegment,
+  part: MessagePart,
+  index: number,
+): void {
+  if (part.type === 'tool-call' && part.id) grouping.openCallIds.add(part.id)
+  session.indices.push(index)
+}
+
 function placeSegmentPart(grouping: PageSessionGrouping, part: MessagePart, index: number): void {
   if (isReplyText(part)) {
-    grouping.openCallIds.clear()
-    grouping.segments.push({kind: 'reply', index})
+    placeReply(grouping, index)
     return
   }
-  if (part.type === 'tool-call' && grouping.pageActNames.has(part.name)) {
-    placePageAct(grouping, part, index)
+  const member = sessionMemberCall(grouping, part)
+  if (member) {
+    placePageAct(grouping, member, index)
     return
   }
   const session = openSessionOf(grouping.segments)
   if (session && foldsIntoOpenSession(grouping, part)) {
-    if (part.type === 'tool-call' && part.id) grouping.openCallIds.add(part.id)
-    session.indices.push(index)
+    foldIntoSession(grouping, session, part, index)
     return
   }
   placeInChain(grouping, index)
@@ -101,7 +149,13 @@ function groupWithPageSessions(
   pageActNames: ReadonlySet<string>,
   pageToolPrefix: string | undefined,
 ): Segment[] {
-  const grouping: PageSessionGrouping = {segments: [], openCallIds: new Set(), pageActNames, pageToolPrefix}
+  const grouping: PageSessionGrouping = {
+    segments: [],
+    openCallIds: new Set(),
+    pageActNames,
+    pageToolPrefix,
+    actParentIds: foldableParentIds(parts, pageActNames),
+  }
   parts.forEach((part, index) => placeSegmentPart(grouping, part, index))
   return grouping.segments
 }

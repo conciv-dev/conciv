@@ -28,6 +28,14 @@ import {
   type Segment,
   type Turn,
 } from '../store/grouping.js'
+import {
+  pageSessionCallParts,
+  pageSessionGroupingOptions,
+  pageSessionHasSteps,
+  pageSessionThinkingParts,
+  type PageSessionConfig,
+} from '../store/page-session.js'
+import {Dynamic} from 'solid-js/web'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
 import {useThreadAutoScroll} from '../behaviors/use-thread-auto-scroll.js'
 import {ToolCallCard} from '../tools/styled/tool-call-card.js'
@@ -42,12 +50,14 @@ type ActivityConfig = {
   tools: () => ToolCardEntry[]
   fallback: () => ToolUIComponent
   ctx: () => ToolViewCtx
+  pageSession: () => PageSessionConfig | undefined
 }
 
 const ActivityConfigContext = createContext<ActivityConfig>({
   tools: () => [],
   fallback: () => ToolFallback,
   ctx: () => ({...INERT_TOOL_CTX, respondApproval: () => {}}),
+  pageSession: () => undefined,
 })
 
 export type ActivityProps = ParentProps<{
@@ -57,6 +67,7 @@ export type ActivityProps = ParentProps<{
   tools?: ToolCardEntry[]
   ctx?: ToolViewCtx
   fallback?: ToolUIComponent
+  pageSession?: PageSessionConfig
   class?: string
 }>
 
@@ -69,6 +80,7 @@ function Root(props: ActivityProps): JSX.Element {
           tools: () => props.tools ?? [],
           fallback: () => props.fallback ?? ToolFallback,
           ctx: () => props.ctx ?? parent.ctx(),
+          pageSession: () => props.pageSession ?? parent.pageSession(),
         }}
       >
         <div
@@ -256,18 +268,26 @@ function userText(turn: Turn): string {
 
 function AssistantTurnView(props: {turn: Turn}): JSX.Element {
   const activity = useActivity()
-  const segments = createMemo(() => groupSegments(props.turn.parts))
+  const config = useContext(ActivityConfigContext)
+  const groupingOptions = createMemo(() => pageSessionGroupingOptions(config.pageSession()))
+  const segments = createMemo(() => groupSegments(props.turn.parts, groupingOptions()))
   const visibleChain = (segment: Segment): ChainSegment | null => {
     const chain = segment.kind === 'chain' ? segment : null
     return chain && stepIndices(props.turn, chain).length > 0 ? chain : null
   }
-  const lastChainIndex = createMemo(() => {
+  const asPageSession = (segment: Segment) => {
+    const pageSession = config.pageSession()
+    if (!pageSession || segment.kind !== 'page-session') return null
+    return pageSessionHasSteps(props.turn.parts, segment.indices, pageSession.actNames) ? segment : null
+  }
+  const renderable = (segment: Segment): boolean => asPageSession(segment) !== null || visibleChain(segment) !== null
+  const lastRenderableIndex = createMemo(() => {
     let last = -1
-    for (const [index, segment] of segments().entries()) if (visibleChain(segment)) last = index
+    for (const [index, segment] of segments().entries()) if (renderable(segment)) last = index
     return last
   })
   const liveSegment = (index: number) =>
-    activity.live() && activity.isLastTurn(props.turn) && index === lastChainIndex()
+    activity.live() && activity.isLastTurn(props.turn) && index === lastRenderableIndex()
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
   return (
     <div data-pw-msg class="flex flex-col gap-1.5 min-w-0 self-stretch anim-msg">
@@ -281,6 +301,21 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
               {(reply) => (
                 <Show when={asText(props.turn.parts[reply().index])}>
                   {(part) => <Markdown content={part().content} />}
+                </Show>
+              )}
+            </Match>
+            <Match when={asPageSession(segment())}>
+              {(session) => (
+                <Show when={config.pageSession()}>
+                  {(pageSession) => (
+                    <Dynamic
+                      component={pageSession().render}
+                      parts={pageSessionCallParts(props.turn.parts, session().indices)}
+                      thinking={pageSessionThinkingParts(props.turn.parts, session().indices)}
+                      resultFor={activity.resultFor}
+                      streaming={liveSegment(index)}
+                    />
+                  )}
                 </Show>
               )}
             </Match>

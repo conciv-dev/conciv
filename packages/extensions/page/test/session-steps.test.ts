@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ElementDescriptor, ToolCaptureView} from '@conciv/protocol/element-capture-types'
 import {PAGE_ACT_TOOL_NAMES} from '../src/shared/defs.js'
-import {pageSessionSteps} from '../src/client/cards/session-steps.js'
+import {pageSessionScripted, pageSessionSteps} from '../src/client/cards/session-steps.js'
 
 function actPart(
   id: string,
@@ -171,5 +171,34 @@ describe('pageSessionSteps', () => {
     const built = steps([streamingPart('c1', 'page.fill', JSON.stringify({selector: '#email', value: 'ada'}))])
     expect(built[0]?.target).toBe('#email')
     expect(built[0]?.value).toBe('ada')
+  })
+
+  it('summarizes an eval step with the first meaningful code line, clipped', () => {
+    const built = steps([actPart('c1', 'page.eval', {code: '\n\nconst title = document.title\nreturn title'})])
+    expect(built[0]?.target).toBe('script')
+    expect(built[0]?.value).toBe('const title = document.title')
+  })
+
+  it('clips a long eval line to the chip budget', () => {
+    const line = `document.querySelector('${'x'.repeat(80)}')`
+    const built = steps([actPart('c1', 'page.eval', {code: line})])
+    expect(built[0]?.value?.length).toBe(64)
+    expect(built[0]?.value?.endsWith('…')).toBe(true)
+  })
+
+  it('summarizes a css step with the first stylesheet rule line', () => {
+    const built = steps([actPart('c1', 'page.css', {text: '\n.cta { color: red }\n.other { display: none }'})])
+    expect(built[0]?.target).toBe('stylesheet')
+    expect(built[0]?.value).toBe('.cta { color: red }')
+  })
+})
+
+describe('pageSessionScripted', () => {
+  it('is true only when every act is a script-ish verb', () => {
+    const scriptOnly = steps([actPart('c1', 'page.eval', {code: '1'}), actPart('c2', 'page.css', {text: 'body{}'})])
+    const mixed = steps([actPart('c1', 'page.eval', {code: '1'}), actPart('c2', 'page.fill', {selector: '#a'})])
+    expect(pageSessionScripted(scriptOnly)).toBe(true)
+    expect(pageSessionScripted(mixed)).toBe(false)
+    expect(pageSessionScripted([])).toBe(false)
   })
 })

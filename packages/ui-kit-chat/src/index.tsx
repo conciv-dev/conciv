@@ -21,7 +21,12 @@ export {
   type GroupingOptions,
   type ResultPairing,
 } from './store/grouping.js'
-export type {PageSessionRenderProps, PageSessionRenderer, PageSessionConfig} from './store/page-session.js'
+export type {
+  PageSessionRenderProps,
+  PageSessionRenderer,
+  PageSessionConfig,
+  PageSessionThinkingPart,
+} from './store/page-session.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
 export {Activity, type ActivityProps} from './styled/activity.js'
@@ -142,7 +147,7 @@ export {useSizeHandle} from './behaviors/use-size-handle.js'
 export {Thread, type ThreadComponents, type ThreadMessagesProps, type ThreadRootProps} from './styled/thread.js'
 export {Composer, type ComposerProps} from './styled/composer.js'
 export {Markdown, type MarkdownProps} from './styled/markdown.js'
-export {Reasoning, type ReasoningProps} from './styled/reasoning.js'
+export {Reasoning, ReasoningText, type ReasoningProps} from './styled/reasoning.js'
 export {ChainOfThought, type ChainOfThoughtProps} from './styled/chain-of-thought.js'
 export {AssistantActionBar, UserActionBar} from './styled/action-bar.js'
 export {BranchPicker} from './styled/branch-picker.js'

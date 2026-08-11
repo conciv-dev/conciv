@@ -1,42 +1,46 @@
 import {z} from 'zod'
-import {createMemo, For, Match, Show, Switch, type JSX} from 'solid-js'
+import {createMemo, Index, Match, Show, Switch, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import {
-  Code,
-  Compass,
-  ListChecks,
-  MousePointerClick,
-  Palette,
-  Pointer,
-  Sparkles,
-  SquareCheck,
-  TextCursorInput,
-  type LucideIcon,
-} from 'lucide-solid'
+import Code from 'lucide-solid/icons/code'
+import Compass from 'lucide-solid/icons/compass'
+import ListChecks from 'lucide-solid/icons/list-checks'
+import MousePointerClick from 'lucide-solid/icons/mouse-pointer-click'
+import Palette from 'lucide-solid/icons/palette'
+import Pointer from 'lucide-solid/icons/pointer'
+import Sparkles from 'lucide-solid/icons/sparkles'
+import SquareCheck from 'lucide-solid/icons/square-check'
+import TextCursorInput from 'lucide-solid/icons/text-cursor-input'
+import type {LucideIcon} from 'lucide-solid'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {useToolCtx, type PageSessionRenderProps} from '@conciv/ui-kit-chat'
+import {ReasoningText, useToolCtx, type PageSessionRenderProps} from '@conciv/ui-kit-chat'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {
   CardShell,
   Chip,
   clip,
+  CodeBlock,
+  CollapsibleSection,
   ErrorBlock,
+  parseInput,
   parseResultPayload,
   SHIMMER,
   StatusVisual,
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
-import {PAGE_ACT_TOOL_NAMES} from '../../shared/defs.js'
+import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '../../shared/defs.js'
 import {cardErrorMessage, mutatingBadge} from './shared.js'
-import {pageSessionSteps, type PageSessionStep} from './session-steps.js'
+import {pageSessionScripted, pageSessionSteps, type PageSessionStep} from './session-steps.js'
 
-const SESSION_LABEL = {running: 'Editing the page', done: 'Edited the page'}
+const SESSION_LABEL = {
+  edit: {running: 'Editing the page', done: 'Edited the page'},
+  script: {running: 'Running script on the page', done: 'Ran script on the page'},
+}
 
 const SESSION_META: ToolViewMeta = {
   summary: 'the AI drove the live page',
   category: 'act',
   icon: 'pointer',
-  label: SESSION_LABEL,
+  label: SESSION_LABEL.edit,
   mutating: true,
   mirrors: false,
 }
@@ -124,15 +128,33 @@ function displayLocation(href: string): string {
 function sessionLocation(
   parts: ReadonlyArray<ToolCallPart>,
   resultFor: (toolCallId: string) => ToolResultPart | undefined,
-): string {
+  streaming: boolean,
+): string | undefined {
   for (let index = parts.length - 1; index >= 0; index -= 1) {
     const part = parts[index]
-    if (part === undefined || part.name !== 'page.route') continue
+    if (part === undefined || part.name !== `${PAGE_TOOL_PREFIX}route`) continue
     const payload = RoutePayload.safeParse(parseResultPayload(resultFor(part.id)))
     if (payload.success) return displayLocation(payload.data.href)
   }
+  if (!streaming) return undefined
   if (typeof location === 'undefined') return 'live page'
   return `${location.host}${location.pathname}`
+}
+
+const ScriptInput = z.looseObject({typescriptCode: z.string()})
+
+function sessionScripts(parts: ReadonlyArray<ToolCallPart>): string[] {
+  return parts.flatMap((part) => {
+    if (PAGE_ACT_TOOL_NAMES.has(part.name) || part.name.startsWith(PAGE_TOOL_PREFIX)) return []
+    const input = parseInput(ScriptInput, part)
+    return input ? [input.typescriptCode] : []
+  })
+}
+
+function contextLabel(thinkingCount: number, scriptCount: number): string {
+  if (thinkingCount > 0 && scriptCount > 0) return 'Reasoning · script'
+  if (thinkingCount > 0) return 'Reasoning'
+  return 'Script'
 }
 
 function sessionErrorMessage(
@@ -142,16 +164,15 @@ function sessionErrorMessage(
   for (let index = parts.length - 1; index >= 0; index -= 1) {
     const part = parts[index]
     if (part === undefined) continue
-    const result = resultFor(part.id)
-    if (result === undefined) continue
-    return cardErrorMessage(result)
+    const message = cardErrorMessage(resultFor(part.id))
+    if (message !== undefined) return message
   }
   return undefined
 }
 
-function sessionStatus(steps: ReadonlyArray<PageSessionStep>, streaming: boolean): ToolStatus {
+function sessionStatus(steps: ReadonlyArray<PageSessionStep>, streaming: boolean, errored: boolean): ToolStatus {
   if (streaming) return 'running'
-  return steps.some((step) => step.state === 'error') ? 'error' : 'complete'
+  return errored || steps.some((step) => step.state === 'error') ? 'error' : 'complete'
 }
 
 function activeSentence(step: PageSessionStep): string {
@@ -166,8 +187,7 @@ function rowGlyphClass(state: PageSessionStep['state'], streaming: boolean): str
   return streaming ? ROW_GLYPH_DONE : ROW_GLYPH
 }
 
-function rowClass(index: number, streaming: boolean): string {
-  if (streaming) return ROW
+function rowClass(index: number): string {
   const delay = ROW_DELAYS[Math.min(index, ROW_DELAYS.length - 1)] ?? ''
   return `${ROW} ${ROW_ENTRANCE} ${delay}`
 }
@@ -205,7 +225,7 @@ function rowTargetClass(state: PageSessionStep['state']): string {
 
 function StepRow(props: {step: PageSessionStep; index: number; streaming: boolean}): JSX.Element {
   return (
-    <li class={rowClass(props.index, props.streaming)}>
+    <li class={rowClass(props.index)}>
       <StepGlyph step={props.step} ordinal={props.index + 1} streaming={props.streaming} />
       <span class={rowVerbClass(props.step.state, props.streaming)}>
         <Dynamic component={VERB_ICONS[props.step.verb] ?? Pointer} size={12} aria-hidden="true" class="shrink-0" />
@@ -224,7 +244,7 @@ function StepRow(props: {step: PageSessionStep; index: number; streaming: boolea
 function SessionHeader(props: {
   title: string
   count: string
-  url: string
+  url?: string
   streaming: boolean
   status: ToolStatus
 }): JSX.Element {
@@ -238,9 +258,13 @@ function SessionHeader(props: {
       <span class={HEAD_TITLE}>{props.title}</span>
       <span class={HEAD_COUNT}>{props.count}</span>
       <span class={HEAD_SPACER}>
-        <span class={HEAD_URL}>
-          <span class="truncate">{props.url}</span>
-        </span>
+        <Show when={props.url}>
+          {(url) => (
+            <span class={HEAD_URL}>
+              <span class="truncate">{url()}</span>
+            </span>
+          )}
+        </Show>
       </span>
       <Show when={props.streaming} fallback={<span class={HEAD_BADGE}>{mutatingBadge(SESSION_META)}</span>}>
         <span class={HEAD_LIVE}>
@@ -259,11 +283,15 @@ export function SessionCard(props: PageSessionRenderProps): JSX.Element {
   const steps = createMemo(() =>
     pageSessionSteps(props.parts, props.resultFor, captureFor, PAGE_ACT_TOOL_NAMES, props.streaming),
   )
-  const status = () => sessionStatus(steps(), props.streaming)
-  const title = () => (props.streaming ? SESSION_LABEL.running : SESSION_LABEL.done)
   const errorMessage = () => sessionErrorMessage(props.parts, props.resultFor)
+  const status = () => sessionStatus(steps(), props.streaming, errorMessage() !== undefined)
+  const title = () => {
+    const labels = pageSessionScripted(steps()) ? SESSION_LABEL.script : SESSION_LABEL.edit
+    return props.streaming ? labels.running : labels.done
+  }
+  const scripts = createMemo(() => sessionScripts(props.parts))
   return (
-    <Show when={props.parts[0]}>
+    <Show when={steps().length > 0 ? props.parts[0] : undefined}>
       {(anchor) => (
         <CardShell
           meta={SESSION_META}
@@ -278,7 +306,7 @@ export function SessionCard(props: PageSessionRenderProps): JSX.Element {
             <SessionHeader
               title={title()}
               count={actionsLabel(steps().length)}
-              url={sessionLocation(props.parts, props.resultFor)}
+              url={sessionLocation(props.parts, props.resultFor, props.streaming)}
               streaming={props.streaming}
               status={status()}
             />
@@ -286,10 +314,20 @@ export function SessionCard(props: PageSessionRenderProps): JSX.Element {
         >
           <div class="flex flex-col gap-1.5">
             <ul class={RAIL}>
-              <For each={steps()}>
-                {(step, index) => <StepRow step={step} index={index()} streaming={props.streaming} />}
-              </For>
+              <Index each={steps()}>
+                {(step, index) => <StepRow step={step()} index={index} streaming={props.streaming} />}
+              </Index>
             </ul>
+            <Show when={props.thinking.length > 0 || scripts().length > 0}>
+              <CollapsibleSection header={<span>{contextLabel(props.thinking.length, scripts().length)}</span>}>
+                <div class="flex flex-col gap-2 min-w-0">
+                  <Index each={props.thinking}>{(part) => <ReasoningText text={part().content} />}</Index>
+                  <Index each={scripts()}>
+                    {(script) => <CodeBlock file={{name: 'session.ts', lang: 'ts', contents: script()}} />}
+                  </Index>
+                </div>
+              </CollapsibleSection>
+            </Show>
             <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
           </div>
         </CardShell>

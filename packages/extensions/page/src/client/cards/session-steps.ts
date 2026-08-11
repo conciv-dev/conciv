@@ -15,6 +15,28 @@ const StepInput = z.record(z.string(), z.unknown())
 
 const FIXED_TARGETS: Record<string, string> = {css: 'stylesheet', eval: 'script', effect: 'effect'}
 
+const SCRIPT_VERBS = new Set(['eval', 'css', 'effect'])
+
+const CODE_INPUT_KEYS: Record<string, string> = {eval: 'code', css: 'text'}
+
+const CHIP_BUDGET = 64
+
+function clipLine(value: string): string {
+  return value.length > CHIP_BUDGET ? `${value.slice(0, CHIP_BUDGET - 1)}…` : value
+}
+
+function firstMeaningfulLine(text: string): string | undefined {
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed.length > 0) return trimmed
+  }
+  return undefined
+}
+
+export function pageSessionScripted(steps: ReadonlyArray<PageSessionStep>): boolean {
+  return steps.length > 0 && steps.every((step) => SCRIPT_VERBS.has(step.verb))
+}
+
 function stepInput(part: ToolCallPart): Record<string, unknown> {
   const direct = StepInput.safeParse(part.input)
   if (direct.success) return direct.data
@@ -51,7 +73,17 @@ function stepTarget(
   return {target: 'page', namedTarget: false}
 }
 
-function stepValue(input: Record<string, unknown>, descriptor: ElementDescriptor | undefined): string | undefined {
+function stepValue(
+  verb: string,
+  input: Record<string, unknown>,
+  descriptor: ElementDescriptor | undefined,
+): string | undefined {
+  const codeKey = CODE_INPUT_KEYS[verb]
+  if (codeKey !== undefined) {
+    const source = nonEmpty(input[codeKey])
+    if (source === undefined) return undefined
+    return clipLine(firstMeaningfulLine(source) ?? source)
+  }
   return nonEmpty(input.value) ?? nonEmpty(descriptor?.value)
 }
 
@@ -77,7 +109,7 @@ export function pageSessionSteps(
       return {
         verb,
         ...stepTarget(verb, input, descriptor),
-        value: stepValue(input, descriptor),
+        value: stepValue(verb, input, descriptor),
         state: stepState(resultFor(part.id), streaming),
       }
     })

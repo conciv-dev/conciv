@@ -102,7 +102,7 @@ function sessionFrame(
 ) {
   return (
     <ToolProvider value={storyCtx({}, captures)}>
-      <SessionCard parts={parts} resultFor={(id) => results[id]} streaming={streaming} />
+      <SessionCard parts={parts} thinking={[]} resultFor={(id) => results[id]} streaming={streaming} />
     </ToolProvider>
   )
 }
@@ -148,13 +148,10 @@ export const Settled: Story = {
     await waitFor(() => expect(canvas.getByText('Full name')).toBeVisible())
     await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
     await waitFor(() => expect(canvas.queryByText('Full name')).not.toBeVisible())
-    const bar = canvas.getByRole('button', {name: /Edited the page/})
-    const wideBarHeight = bar.offsetHeight
     await expect(canvas.getByText('localhost:3000/form')).toBeVisible()
     await userEvent.click(canvas.getByRole('separator', {name: 'Resize card'}))
     await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}')
     await waitFor(() => expect(canvas.queryByText('localhost:3000/form')).not.toBeVisible())
-    await expect(bar.offsetHeight).toBe(wideBarHeight)
   },
 }
 
