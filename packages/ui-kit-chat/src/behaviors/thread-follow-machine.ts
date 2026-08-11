@@ -107,11 +107,16 @@ function onScrolled(state: ThreadFollowState, at: ThreadMeasurement): ThreadFoll
   return noted(settled(seekResolved(state, at, nowAtBottom), nowAtBottom), at)
 }
 
-function chased(state: ThreadFollowState, autoScroll: boolean, topAnchored: boolean): ThreadFollowState {
+function chased(
+  state: ThreadFollowState,
+  wasAtBottom: boolean,
+  autoScroll: boolean,
+  topAnchored: boolean,
+): ThreadFollowState {
   const behavior = seeking(state)
   if (behavior !== null && topAnchored) return withMode(state, {kind: 'following'})
   if (behavior !== null) return state
-  if (autoScroll && state.atBottom && !detached(state)) return withMode(state, {kind: 'seeking', behavior: 'instant'})
+  if (autoScroll && wasAtBottom && !detached(state)) return withMode(state, {kind: 'seeking', behavior: 'instant'})
   return state
 }
 
@@ -122,9 +127,15 @@ function onResized(
   topAnchored: boolean,
 ): ThreadFollowState {
   if (at.scrollHeight === state.resized.height && at.clientHeight === state.resized.clientHeight) return state
+  const priorDimensions = state.resized
   const measured = {...state, resized: {height: at.scrollHeight, clientHeight: at.clientHeight}}
   if (measured.hold) return recomputed(measured, at)
-  return chased(measured, autoScroll, topAnchored)
+  const wasAtBottom = isAtBottomNow({
+    scrollTop: at.scrollTop,
+    scrollHeight: priorDimensions.height,
+    clientHeight: priorDimensions.clientHeight,
+  })
+  return chased(measured, wasAtBottom, autoScroll, topAnchored)
 }
 
 function onTouchEnd(state: ThreadFollowState, at: ThreadMeasurement): ThreadFollowState {
