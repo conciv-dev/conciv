@@ -95,18 +95,18 @@ function nearestScroller(target: EventTarget | null): HTMLElement | null {
 
 function observeContent(element: HTMLElement, onResize: () => void): () => void {
   const resizeObserver = new ResizeObserver(onResize)
-  const observeChildren = () => {
-    resizeObserver.disconnect()
-    resizeObserver.observe(element)
-    for (const child of element.children) {
-      if (child instanceof HTMLElement) resizeObserver.observe(child)
-    }
+  const observed = new WeakSet<Element>()
+  const observeChild = (child: Element) => {
+    if (observed.has(child)) return
+    observed.add(child)
+    resizeObserver.observe(child)
   }
-  const mutationObserver = new MutationObserver((records) => {
-    if (records.some((record) => record.type === 'childList' && record.target === element)) observeChildren()
-    onResize()
-  })
-  mutationObserver.observe(element, {childList: true, subtree: true, characterData: true})
+  const observeChildren = () => {
+    for (const child of element.children) observeChild(child)
+  }
+  const mutationObserver = new MutationObserver(observeChildren)
+  mutationObserver.observe(element, {childList: true, subtree: true})
+  resizeObserver.observe(element)
   observeChildren()
   return () => {
     resizeObserver.disconnect()
