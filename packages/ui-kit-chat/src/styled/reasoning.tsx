@@ -1,6 +1,7 @@
 import {type JSX} from 'solid-js'
 import {CollapsibleCard} from '../tools/styled/collapsible-card.js'
 import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
+import {useOptionalThreadViewport} from '../primitives/thread/viewport-context.js'
 import {SHIMMER} from './shimmer.js'
 
 export type ReasoningProps = {text: string; streaming?: boolean; defaultOpen?: boolean}
@@ -10,7 +11,12 @@ export function ReasoningText(props: {text: string}): JSX.Element {
 }
 
 export function Reasoning(props: ReasoningProps): JSX.Element {
-  const collapse = createAutoCollapse({streaming: () => Boolean(props.streaming), defaultOpen: props.defaultOpen})
+  const viewport = useOptionalThreadViewport()
+  const collapse = createAutoCollapse({
+    streaming: () => Boolean(props.streaming),
+    defaultOpen: props.defaultOpen,
+    atBottom: viewport ? () => viewport.isAtBottom() : undefined,
+  })
   return (
     <CollapsibleCard
       open={collapse.open()}
