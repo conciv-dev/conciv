@@ -1,7 +1,6 @@
-import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {createSignal, For} from 'solid-js'
-import {createStickToBottom} from '../src/behaviors/stick-to-bottom.js'
+import {createStickToBottom} from '../src/stick-to-bottom.js'
 import {mountView} from './mount-view.js'
 
 function Harness(props: {onReady: (element: HTMLDivElement, addRow: () => void) => void}) {
