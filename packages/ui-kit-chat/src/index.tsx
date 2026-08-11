@@ -17,8 +17,11 @@ export {
   type Segment,
   type ChainSegment,
   type ReplySegment,
+  type PageSessionSegment,
+  type GroupingOptions,
   type ResultPairing,
 } from './store/grouping.js'
+export type {PageSessionRenderProps, PageSessionRenderer, PageSessionConfig} from './store/page-session.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
 export {Activity, type ActivityProps} from './styled/activity.js'

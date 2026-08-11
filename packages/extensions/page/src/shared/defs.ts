@@ -622,6 +622,10 @@ export const PAGE_TOOL_DEFS = [
   evalDef,
 ] as const
 
+export const PAGE_ACT_TOOL_NAMES: ReadonlySet<string> = new Set(
+  PAGE_TOOL_DEFS.filter((def) => def.meta?.mutating === true).map((def) => def.name),
+)
+
 export function pageToolMetaOf(verb: string): ToolMeta | undefined {
   return PAGE_TOOL_DEFS.find((def) => def.name === `${PAGE_TOOL_PREFIX}${verb}`)?.meta
 }

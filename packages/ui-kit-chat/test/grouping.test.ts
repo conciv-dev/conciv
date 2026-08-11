@@ -48,6 +48,119 @@ describe('groupSegments', () => {
   })
 })
 
+describe('groupSegments page-session', () => {
+  const pageOptions = {pageActNames: new Set(['page.click', 'page.fill']), pageToolPrefix: 'page.'}
+
+  it('folds acts and their paired results into one page-session segment', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 'p1', content: 'ok', state: 'complete'},
+        {type: 'tool-call', id: 'p2', name: 'page.fill', arguments: '{}', state: 'complete'},
+      ],
+      pageOptions,
+    )
+    expect(segments).toEqual([{kind: 'page-session', indices: [0, 1, 2]}])
+  })
+
+  it('folds interleaved page reads and blank text into an open session', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+        {type: 'tool-call', id: 'r1', name: 'page.text', arguments: '{}', state: 'complete'},
+        {type: 'text', content: '  '},
+        {type: 'tool-call', id: 'p2', name: 'page.fill', arguments: '{}', state: 'complete'},
+      ],
+      pageOptions,
+    )
+    expect(segments).toEqual([{kind: 'page-session', indices: [0, 1, 2, 3]}])
+  })
+
+  it('folds the result of a folded read into the open session', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 'p1', content: 'ok', state: 'complete'},
+        {type: 'tool-call', id: 'r1', name: 'page.text', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 'r1', content: 'body text', state: 'complete'},
+        {type: 'tool-call', id: 'p2', name: 'page.fill', arguments: '{}', state: 'complete'},
+      ],
+      pageOptions,
+    )
+    expect(segments).toEqual([{kind: 'page-session', indices: [0, 1, 2, 3, 4]}])
+  })
+
+  it('keeps a lone read and a foreign result as chain', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 'r1', name: 'page.text', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 'other', content: 'ok', state: 'complete'},
+      ],
+      pageOptions,
+    )
+    expect(segments).toEqual([{kind: 'chain', indices: [0, 1]}])
+  })
+
+  it('closes the session on reply text and non-page tools', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+        {type: 'text', content: 'clicked it'},
+        {type: 'tool-call', id: 'b1', name: 'bash', arguments: '{}', state: 'complete'},
+        {type: 'tool-call', id: 'p2', name: 'page.fill', arguments: '{}', state: 'complete'},
+      ],
+      pageOptions,
+    )
+    expect(segments).toEqual([
+      {kind: 'page-session', indices: [0]},
+      {kind: 'reply', index: 1},
+      {kind: 'chain', indices: [2]},
+      {kind: 'page-session', indices: [3]},
+    ])
+  })
+
+  it('leaves a result for a call outside the open session in the chain', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 'foreign', content: 'ok', state: 'complete'},
+      ],
+      pageOptions,
+    )
+    expect(segments).toEqual([
+      {kind: 'page-session', indices: [0]},
+      {kind: 'chain', indices: [1]},
+    ])
+  })
+
+  it('does not resume a session closed by a foreign tool through its stale call ids', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+        {type: 'tool-call', id: 'b1', name: 'bash', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 'p1', content: 'ok', state: 'complete'},
+      ],
+      pageOptions,
+    )
+    expect(segments).toEqual([
+      {kind: 'page-session', indices: [0]},
+      {kind: 'chain', indices: [1, 2]},
+    ])
+  })
+
+  it('groups page parts as plain chain when no options are passed', () => {
+    const parts: MessagePart[] = [
+      {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
+      {type: 'tool-result', toolCallId: 'p1', content: 'ok', state: 'complete'},
+      {type: 'text', content: 'done'},
+    ]
+    expect(groupSegments(parts)).toEqual([
+      {kind: 'chain', indices: [0, 1]},
+      {kind: 'reply', index: 2},
+    ])
+  })
+})
+
 describe('pairResults', () => {
   it('pairs a tool-result with its call and hides the standalone result', () => {
     const pairing = pairResults([
