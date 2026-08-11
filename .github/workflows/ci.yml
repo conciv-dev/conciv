@@ -21,10 +21,12 @@ env:
 
 jobs:
   # Package suites are sharded across runners so the big whiteboard IT suite and
-  # the real-browser suites stop starving each other on one 4-vCPU runner, with
-  # every shard fully uncapped (TURBO_CONCURRENCY=100% at the workflow env level
-  # overrides turbo.json's local 50% default; no VITEST_MAX_WORKERS). The
-  # planner derives the matrix instead of a hand-maintained package list: it
+  # the real-browser suites stop starving each other on one 4-vCPU runner. The
+  # build job below caps TURBO_CONCURRENCY at 50% (overriding this workflow's
+  # 100% default) for exactly that reason: uncapped, multiple Chromium fleets
+  # and vite hosts compete on the runner's 4 vCPUs and vitest browser mode has
+  # no session reconnect (#389). The planner derives the matrix instead of a
+  # hand-maintained package list: it
   # enumerates workspace packages, weighs each by its measured suite duration
   # from the ci-test-timings artifact (published by the last main push; unknown
   # packages get a small default), and LPT-bin-packs into as many shards as the
@@ -74,6 +76,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # 4-vCPU runners saturate under uncapped browser suites; vitest browser mode
+    # cannot survive a starved websocket (#389).
+    env:
+      TURBO_CONCURRENCY: '50%'
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
