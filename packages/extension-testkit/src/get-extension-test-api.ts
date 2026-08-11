@@ -61,7 +61,11 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
       return {page: second, close: () => second.close()}
     },
     dispose: async () => {
-      await settleTeardown([() => closeBrowser(), () => close(), () => stop()])
+      await settleTeardown([
+        {name: 'closeBrowser', run: () => closeBrowser()},
+        {name: 'close', run: () => close()},
+        {name: 'stop', run: () => stop()},
+      ])
     },
   }
 }

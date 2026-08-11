@@ -187,9 +187,11 @@ test.describe('the shared rpc observer correlates calls on both transports', () 
     const {observer} = await openProbePage(page)
     const core = observer.completed({path: ['page', 'queries'], timeout: 15_000})
     const settlement = {done: false}
-    void core.then(() => {
-      settlement.done = true
-    })
+    core
+      .then(() => {
+        settlement.done = true
+      })
+      .catch(() => undefined)
     await page
       .evaluate(() => window.__CONCIV_WS_PROBE__.call(['ext', 'page-probe', 'page', 'queries'], undefined))
       .catch(() => undefined)
