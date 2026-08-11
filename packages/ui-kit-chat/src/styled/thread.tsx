@@ -29,6 +29,8 @@ import {ChainOfThought} from './chain-of-thought.js'
 import {AssistantActionBar} from './action-bar.js'
 import {FOCUS} from './classes.js'
 
+const CHAIN_OF_THOUGHT_GROW = false
+
 export type ThreadComponents = {
   AssistantMessage?: Component
   ToolFallback?: ToolUIComponent
@@ -78,7 +80,7 @@ function ChainPart(props: {
       <Match when={asThinking(props.part)}>
         {(part) => (
           <ChainOfThought.Step icon={<Brain size={13} />} last={props.last}>
-            <Reasoning text={part().content} />
+            <Reasoning text={part().content} grow={CHAIN_OF_THOUGHT_GROW} />
           </ChainOfThought.Step>
         )}
       </Match>
@@ -132,6 +134,7 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
                 <ChainOfThought
                   streaming={thread.isRunning && message.isLast() && isLastSegment(segmentIndex)}
                   pinnedOpen={awaitsApproval(chain().indices)}
+                  grow={CHAIN_OF_THOUGHT_GROW}
                 >
                   <Index each={chain().indices}>
                     {(partIndex, partPosition) => (
