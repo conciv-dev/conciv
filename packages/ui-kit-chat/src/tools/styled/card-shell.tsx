@@ -46,6 +46,9 @@ export function CardShell(props: {
   iconClass?: string
   status?: ToolStatus
   defaultOpen?: boolean
+  header?: JSX.Element
+  flushHeader?: boolean
+  class?: string
   children?: JSX.Element
 }): JSX.Element {
   return (
@@ -60,6 +63,9 @@ export function CardShell(props: {
       durationMs={props.durationMs}
       status={props.status}
       defaultOpen={props.defaultOpen}
+      header={props.header}
+      flushHeader={props.flushHeader}
+      class={props.class}
     >
       {props.children}
     </ToolCard>
