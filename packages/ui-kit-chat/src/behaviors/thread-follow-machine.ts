@@ -23,6 +23,8 @@ export type ThreadFollowEvent =
   | {type: 'hold'; at: ThreadMeasurement; startedAt: number; durationMs: number}
   | {type: 'release'; startedAt: number}
   | {type: 'pointerDown'}
+  | {type: 'pointerMove'}
+  | {type: 'pointerUp'; at: ThreadMeasurement}
   | {type: 'wheelUp'}
   | {type: 'scrollKeyDown'}
   | {type: 'scrollKeySettled'; at: ThreadMeasurement}
@@ -120,6 +122,14 @@ function chased(
   return state
 }
 
+function contentShrank(at: ThreadMeasurement, priorDimensions: {height: number; clientHeight: number}): boolean {
+  return at.scrollHeight < priorDimensions.height
+}
+
+function relockedToBottom(state: ThreadFollowState, at: ThreadMeasurement): ThreadFollowState {
+  return noted(withMode({...state, atBottom: true}, {kind: 'following'}), at)
+}
+
 function onResized(
   state: ThreadFollowState,
   at: ThreadMeasurement,
@@ -130,6 +140,9 @@ function onResized(
   const priorDimensions = state.resized
   const measured = {...state, resized: {height: at.scrollHeight, clientHeight: at.clientHeight}}
   if (measured.hold) return recomputed(measured, at)
+  if (measured.mode.kind !== 'dragging' && contentShrank(at, priorDimensions) && isAtBottomNow(at)) {
+    return relockedToBottom(measured, at)
+  }
   const wasAtBottom = isAtBottomNow({
     scrollTop: at.scrollTop,
     scrollHeight: priorDimensions.height,
@@ -138,7 +151,7 @@ function onResized(
   return chased(measured, wasAtBottom, autoScroll, topAnchored)
 }
 
-function onTouchEnd(state: ThreadFollowState, at: ThreadMeasurement): ThreadFollowState {
+function onDragReleased(state: ThreadFollowState, at: ThreadMeasurement): ThreadFollowState {
   const next = recomputed(state, at)
   if (next.mode.kind !== 'dragging') return next
   return withMode(next, {kind: 'detached'})
@@ -165,10 +178,12 @@ export function followTransition(state: ThreadFollowState, event: ThreadFollowEv
   if (event.type === 'hold') return onHold(state, event.at, event.startedAt, event.durationMs)
   if (event.type === 'release') return onRelease(state, event.startedAt)
   if (event.type === 'pointerDown') return abandonSeek(state)
+  if (event.type === 'pointerMove') return withMode(state, {kind: 'dragging'})
+  if (event.type === 'pointerUp') return onDragReleased(state, event.at)
   if (event.type === 'wheelUp' || event.type === 'scrollKeyDown') return onDetach(state)
   if (event.type === 'scrollKeySettled') return recomputed(state, event.at)
   if (event.type === 'touchMove') return withMode(state, {kind: 'dragging'})
-  return onTouchEnd(state, event.at)
+  return onDragReleased(state, event.at)
 }
 
 function rescanAfter(after: ThreadFollowState, before: ThreadFollowState, event: ThreadFollowEvent): boolean {
