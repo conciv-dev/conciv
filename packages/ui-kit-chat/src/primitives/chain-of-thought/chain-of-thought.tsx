@@ -1,5 +1,6 @@
 import {createContext, splitProps, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import {createAutoCollapse} from '../util/create-auto-collapse.js'
+import {useOptionalThreadViewport} from '../thread/viewport-context.js'
 
 type ChainState = {
   open: Accessor<boolean>
@@ -26,7 +27,13 @@ type RootProps = ParentProps<{
 function Root(props: RootProps): JSX.Element {
   const streaming = () => Boolean(props.streaming)
   const forceOpen = () => Boolean(props.pinnedOpen)
-  const collapse = createAutoCollapse({streaming, defaultOpen: props.defaultOpen, forceOpen})
+  const viewport = useOptionalThreadViewport()
+  const collapse = createAutoCollapse({
+    streaming,
+    defaultOpen: props.defaultOpen,
+    forceOpen,
+    atBottom: viewport ? () => viewport.isAtBottom() : undefined,
+  })
   const state: ChainState = {
     open: collapse.open,
     setOpen: collapse.setOpen,
