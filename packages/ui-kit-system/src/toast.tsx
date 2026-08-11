@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {Toast as Ark, Toaster as ArkToaster, createToaster} from '@ark-ui/solid/toast'
-import {XIcon} from 'lucide-solid'
+import XIcon from 'lucide-solid/icons/x'
 
 const ROOT =
   'relative w-80 max-w-[calc(100vw-2rem)] flex flex-col gap-1 items-start py-3 pl-3.5 pr-9 rounded-pw-md bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg [translate:var(--x)_var(--y)] [scale:var(--scale)] [z-index:var(--z-index)] [height:var(--height)] [opacity:var(--opacity)] [transition:translate_400ms_var(--pw-ease),scale_400ms_var(--pw-ease),opacity_240ms_var(--pw-ease),height_400ms_var(--pw-ease)] data-[type=error]:[border-color:var(--pw-danger)] data-[type=success]:[border-color:var(--pw-success)]'

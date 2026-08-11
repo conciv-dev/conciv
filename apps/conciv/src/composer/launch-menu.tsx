@@ -1,6 +1,8 @@
 import {Match, Switch, splitProps, type JSX} from 'solid-js'
 import {Menu, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
-import {ClipboardCopy, RotateCw, SquareTerminal} from 'lucide-solid'
+import ClipboardCopy from 'lucide-solid/icons/clipboard-copy'
+import RotateCw from 'lucide-solid/icons/rotate-cw'
+import SquareTerminal from 'lucide-solid/icons/square-terminal'
 
 const RETRY_LABEL = 'Try again'
 

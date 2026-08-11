@@ -1,5 +1,6 @@
 import {onCleanup, Show, type JSX} from 'solid-js'
-import {FileText, X} from 'lucide-solid'
+import FileText from 'lucide-solid/icons/file-text'
+import X from 'lucide-solid/icons/x'
 import {Tooltip} from '@conciv/ui-kit-system'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {isCompleteAttachment, type AttachmentContentPart} from '../primitives/attachment/attachment-adapter.js'

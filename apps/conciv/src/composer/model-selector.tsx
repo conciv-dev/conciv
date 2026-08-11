@@ -1,7 +1,7 @@
 import {createEffect, createMemo, For, Match, on, Show, splitProps, Switch, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {Button} from '@conciv/ui-kit-system'
-import {RotateCw} from 'lucide-solid'
+import RotateCw from 'lucide-solid/icons/rotate-cw'
 import {ModelSelector, useModelSelectorContext, type ModelOption} from '@conciv/ui-kit-chat'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'

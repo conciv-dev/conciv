@@ -98,6 +98,11 @@
             "name": "@hono/node-server",
             "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
             "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve \u2014 the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+          },
+          {
+            "name": "lucide-solid",
+            "allowTypeImports": true,
+            "message": "Import each icon from its own entry point (e.g. import ArrowUp from 'lucide-solid/icons/arrow-up') \u2014 the barrel pulls all ~1700 icon modules through the vite transform on cold start. Type-only imports (LucideProps, LucideIcon, IconNode) are still allowed."
           }
         ],
         "patterns": [

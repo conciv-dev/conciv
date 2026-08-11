@@ -1,6 +1,7 @@
 import {children, For, Show, splitProps, type JSX} from 'solid-js'
 import {Combobox} from '@conciv/ui-kit-system'
-import {Check, ChevronsUpDown} from 'lucide-solid'
+import Check from 'lucide-solid/icons/check'
+import ChevronsUpDown from 'lucide-solid/icons/chevrons-up-down'
 import {
   ModelSelector as ModelSelectorPrimitive,
   useModelSelectorContext,

@@ -1,5 +1,6 @@
 import {Show, createRoot, createSignal, type JSX} from 'solid-js'
-import {MessageSquarePlus, Presentation} from 'lucide-solid'
+import MessageSquarePlus from 'lucide-solid/icons/message-square-plus'
+import Presentation from 'lucide-solid/icons/presentation'
 import {defineExtension, getHostApi} from '@conciv/extension'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'

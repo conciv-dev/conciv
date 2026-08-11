@@ -1,5 +1,5 @@
 import {Show, type JSX} from 'solid-js'
-import {Code} from 'lucide-solid'
+import Code from 'lucide-solid/icons/code'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Markdown} from '@conciv/ui-kit-chat'
 import {

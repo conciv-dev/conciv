@@ -10,7 +10,11 @@ import {
   type JSX,
   type ParentProps,
 } from 'solid-js'
-import {Check, ChevronDown, Loader, ShieldQuestion, X} from 'lucide-solid'
+import Check from 'lucide-solid/icons/check'
+import ChevronDown from 'lucide-solid/icons/chevron-down'
+import Loader from 'lucide-solid/icons/loader'
+import ShieldQuestion from 'lucide-solid/icons/shield-question-mark'
+import X from 'lucide-solid/icons/x'
 import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolUIComponent, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {Collapsible} from '@conciv/ui-kit-system'

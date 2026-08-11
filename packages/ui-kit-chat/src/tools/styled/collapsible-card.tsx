@@ -1,5 +1,5 @@
 import {children, Show, splitProps, type JSX} from 'solid-js'
-import {ChevronDown} from 'lucide-solid'
+import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible, Tooltip} from '@conciv/ui-kit-system'
 import {useOptionalThreadViewport} from '../../primitives/thread/viewport-context.js'
 

@@ -1,5 +1,5 @@
 import {splitProps, type JSX} from 'solid-js'
-import {ChevronDown} from 'lucide-solid'
+import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
 import {FOCUS_INSET} from '../../styled/classes.js'
 

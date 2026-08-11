@@ -1,5 +1,5 @@
 import type {JSX} from 'solid-js'
-import {Clapperboard} from 'lucide-solid'
+import Clapperboard from 'lucide-solid/icons/clapperboard'
 import {defineExtension, type RegisterExtension} from '@conciv/extension'
 import {RECORDER_NAME, recorderConfig} from './shared/protocol.js'
 import {recordingAttachment} from './shared/attachment.js'

@@ -1,5 +1,5 @@
 import type {JSX} from 'solid-js'
-import {MoveUpRight} from 'lucide-solid'
+import MoveUpRight from 'lucide-solid/icons/move-up-right'
 
 export type NoteRowTone = 'link' | 'accent'
 

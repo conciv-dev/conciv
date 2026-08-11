@@ -1,5 +1,6 @@
 import {type JSX} from 'solid-js'
-import {ChevronLeft, ChevronRight} from 'lucide-solid'
+import ChevronLeft from 'lucide-solid/icons/chevron-left'
+import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {BranchPicker as BranchPickerPrimitive} from '../primitives/branch-picker/branch-picker.js'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 

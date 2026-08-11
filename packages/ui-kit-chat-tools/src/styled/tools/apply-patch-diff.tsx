@@ -1,5 +1,5 @@
 import {type JSX} from 'solid-js'
-import {FileDiff} from 'lucide-solid'
+import FileDiff from 'lucide-solid/icons/file-diff'
 import {type FileDiffOptions} from '@conciv/solid-diffs'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {ApplyPatch, useApplyPatch, type ApplyPatchInfo} from '../../primitives/tools/apply-patch.js'

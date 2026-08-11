@@ -1,7 +1,11 @@
 import {Match, Switch, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {cva} from 'class-variance-authority'
-import {Check, CircleAlert, CircleX, LoaderCircle, type LucideIcon} from 'lucide-solid'
+import Check from 'lucide-solid/icons/check'
+import CircleAlert from 'lucide-solid/icons/circle-alert'
+import CircleX from 'lucide-solid/icons/circle-x'
+import LoaderCircle from 'lucide-solid/icons/loader-circle'
+import type {LucideIcon} from 'lucide-solid'
 import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
 import type {ToolStatus} from './tool-status.js'
 

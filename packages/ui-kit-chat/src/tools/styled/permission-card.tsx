@@ -1,5 +1,7 @@
 import {Show, type JSX} from 'solid-js'
-import {Check, ShieldAlert, X} from 'lucide-solid'
+import Check from 'lucide-solid/icons/check'
+import ShieldAlert from 'lucide-solid/icons/shield-alert'
+import X from 'lucide-solid/icons/x'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Permission, usePermission} from '../primitives/permission.js'
 import {ActionRow, ActionButton} from './action-row.js'

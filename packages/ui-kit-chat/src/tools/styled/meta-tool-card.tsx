@@ -1,5 +1,5 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
-import {ShieldAlert} from 'lucide-solid'
+import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import {z} from 'zod'
 import type {ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardProps, ToolViewError} from '@conciv/protocol/tool-view-types'

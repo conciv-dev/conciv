@@ -1,5 +1,6 @@
 import {createEffect, createSignal, onCleanup, Show, type JSX, type ParentProps} from 'solid-js'
-import {Brain, ChevronDown} from 'lucide-solid'
+import Brain from 'lucide-solid/icons/brain'
+import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
 import {
   ChainOfThought as ChainOfThoughtPrimitive,

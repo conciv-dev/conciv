@@ -2,7 +2,11 @@ import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js
 import {Button, Combobox, TooltipIconButton} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {useQuery, useMutation} from '@tanstack/solid-query'
-import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
+import Check from 'lucide-solid/icons/check'
+import ChevronDown from 'lucide-solid/icons/chevron-down'
+import Sparkles from 'lucide-solid/icons/sparkles'
+import SquarePen from 'lucide-solid/icons/square-pen'
+import Plus from 'lucide-solid/icons/plus'
 import type {SessionMeta} from '@conciv/contract'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 

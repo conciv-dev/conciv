@@ -1,6 +1,9 @@
 import {createMemo, createSignal, For, Match, Show, Switch, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {Check, ChevronDown, LayoutTemplate, MessageCircleOff} from 'lucide-solid'
+import Check from 'lucide-solid/icons/check'
+import ChevronDown from 'lucide-solid/icons/chevron-down'
+import LayoutTemplate from 'lucide-solid/icons/layout-template'
+import MessageCircleOff from 'lucide-solid/icons/message-circle-off'
 import {Button, createListCollection, Select, TextField} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {
