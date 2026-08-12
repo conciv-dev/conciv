@@ -22,8 +22,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/stick-to-bottom.d.ts",
+      "import": "./dist/stick-to-bottom.js"
     }
   },
   "publishConfig": {

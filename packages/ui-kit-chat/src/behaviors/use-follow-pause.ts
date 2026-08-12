@@ -12,7 +12,8 @@ export function usePauseFollowOnToggle(
     pauseFollow(FOLLOW_PAUSE_CEILING_MS)
     const element = animatedElement()
     if (!element) return
-    const clearListener = makeEventListener(element, 'animationend', () => {
+    const clearListener = makeEventListener(element, 'animationend', (event) => {
+      if (event.target !== element) return
       clearListener()
       pauseFollow(0)
     })

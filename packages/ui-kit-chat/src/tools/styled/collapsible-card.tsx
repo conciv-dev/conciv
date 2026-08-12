@@ -1,4 +1,4 @@
-import {children, createSignal, Show, splitProps, type JSX} from 'solid-js'
+import {children, Show, splitProps, type JSX, type Ref} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible, Tooltip} from '@conciv/ui-kit-system'
 import {useScrollLock} from '../../behaviors/use-scroll-lock.js'
@@ -45,11 +45,7 @@ function TriggerBody(props: {header: JSX.Element}): JSX.Element {
   )
 }
 
-function CardFrame(props: {
-  class: string | undefined
-  ref?: (element: HTMLDivElement) => void
-  children: JSX.Element
-}): JSX.Element {
+function CardFrame(props: {class: string | undefined; ref?: Ref<HTMLDivElement>; children: JSX.Element}): JSX.Element {
   return (
     <div ref={props.ref} class={`${CARD}  ${props.class ?? ''}`}>
       {props.children}
@@ -130,11 +126,11 @@ export function CollapsibleCard(
   ])
   const body = children(() => local.children)
   const flush = () => local.flush === true
-  const [cardEl, setCardEl] = createSignal<HTMLDivElement>()
-  const [contentEl, setContentEl] = createSignal<HTMLDivElement>()
-  const lockScroll = useScrollLock(cardEl, ANIMATION_DURATION_MS)
+  let cardEl: HTMLDivElement | undefined
+  let contentEl: HTMLDivElement | undefined
+  const lockScroll = useScrollLock(() => cardEl, ANIMATION_DURATION_MS)
   const viewport = useOptionalThreadViewport()
-  const settleFollow = usePauseFollowOnToggle(contentEl, viewport?.pauseFollow)
+  const settleFollow = usePauseFollowOnToggle(() => contentEl, viewport?.pauseFollow)
   const handleOpenChange = (open: boolean) => {
     lockScroll()
     settleFollow()
@@ -154,9 +150,9 @@ export function CollapsibleCard(
         defaultOpen={local.defaultOpen}
         onOpenChange={(details) => handleOpenChange(details.open)}
       >
-        <CardFrame class={local.class} ref={setCardEl}>
+        <CardFrame class={local.class} ref={(el) => (cardEl = el)}>
           <CardTrigger tooltip={local.tooltip} flush={flush()} header={local.header} />
-          <Collapsible.Content ref={setContentEl}>
+          <Collapsible.Content ref={(el) => (contentEl = el)}>
             <div class={BODY}>{body()}</div>
           </Collapsible.Content>
         </CardFrame>

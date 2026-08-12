@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
-        index: fileURLToPath(new URL('src/index.ts', import.meta.url)),
+        'stick-to-bottom': fileURLToPath(new URL('src/stick-to-bottom.ts', import.meta.url)),
       },
       formats: ['es'],
     },

@@ -219,11 +219,7 @@ export const WheelDownReturnReLocks: Story = {
     await realWheel(viewport, -400)
     await waitFor(() => expect(escapedFlag(canvasElement)).toHaveTextContent('true'))
 
-    let attempts = 0
-    while (escapedFlag(canvasElement).textContent !== 'false' && attempts < 40) {
-      await realWheel(viewport, 260)
-      attempts += 1
-    }
+    await realWheel(viewport, viewport.scrollHeight)
     await waitFor(() => expect(escapedFlag(canvasElement)).toHaveTextContent('false'))
     await expect(atBottomFlag(canvasElement)).toHaveTextContent('true')
   },

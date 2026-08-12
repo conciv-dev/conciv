@@ -53,11 +53,11 @@ function Log() {
 
 `StickToBottomOptions`:
 
-| Option    | Type                   | Description                                                            |
-| --------- | ---------------------- | ---------------------------------------------------------------------- |
-| `initial` | `Animation \| boolean` | Animation for the first scroll-to-bottom, or `false` to start unstuck. |
-| `resize`  | `Animation`            | Animation used when content grows or shrinks after the initial mount.  |
-| `follow`  | `Accessor<boolean>`    | Gate that must be true for growth to trigger an auto-scroll.           |
+| Option    | Type                   | Description                                                                                             |
+| --------- | ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| `initial` | `Animation \| boolean` | Animation for the first scroll-to-bottom, or `false` to start unstuck.                                  |
+| `resize`  | `Animation`            | Animation used when content grows after the initial mount; shrink re-locks instantly without animating. |
+| `follow`  | `Accessor<boolean>`    | Gate that must be true for growth to trigger an auto-scroll.                                            |
 
 `ScrollToBottomOptions` (passed to the returned `scrollToBottom`):
 

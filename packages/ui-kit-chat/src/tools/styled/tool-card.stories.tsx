@@ -1,5 +1,5 @@
 import {createSignal, type JSX} from 'solid-js'
-import {Wrench} from 'lucide-solid'
+import Wrench from 'lucide-solid/icons/wrench'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolStatus} from '../primitives/tool-status.js'
