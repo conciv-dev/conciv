@@ -5,6 +5,25 @@ packages:
   - apps/examples/*
   - e2e/*
 
+# e2e/nextjs and e2e/nextjs-component declare their @conciv/* runtime deps as
+# dependenciesMeta.injected (real hard-copies under node_modules, not symlinks) because
+# Turbopack's serverExternalPackages resolution requires packages to live under node_modules/
+# on disk. This resyncs the injected copies to a package's latest dist whenever that package's
+# own "build" script actually RUNS (a direct `pnpm --filter run build`) — but on a turbo cache
+# hit, turbo restores dist straight into the source package dir without executing the script, so
+# the sync never fires and injected copies silently go stale (proven on CI: cold install before
+# any dist exists → distless injected copies → turbo cache-hits every build → next dev
+# MODULE_NOT_FOUND). Neither a bare CLI resync command nor a plain `pnpm install` reliably
+# recovers from that drift (verified: pnpm 11.7.0 has no such command, and `pnpm install
+# --frozen-lockfile` no-ops on an already-satisfied lockfile even with a drifted injected copy).
+# So each nextjs e2e app's playwright.config.ts webServer command prepends a direct
+# `pnpm --filter ... run build` for exactly its injected deps, bypassing turbo's cache so the
+# script always actually runs and the sync always fires (not the app's own package.json test:e2e
+# script — e2e/init clones these apps as consumer templates and strips @conciv/* wiring from
+# package.json before running `conciv init`, so wiring stays out of anything that file governs).
+syncInjectedDepsAfterScripts:
+  - build
+
 # @orpc peer-pins every sibling package to the identical version (tanstack-query@1.15.0
 # peer-requires client@1.15.0 exactly), so a caret range is unsafe on any fresh install:
 # it can resolve two different @orpc releases and split the pair. Single-sourcing the

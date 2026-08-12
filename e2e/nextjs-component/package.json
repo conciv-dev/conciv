@@ -23,5 +23,16 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "typescript": "^5"
+  },
+  "dependenciesMeta": {
+    "@conciv/extension-terminal": {
+      "injected": true
+    },
+    "@conciv/it": {
+      "injected": true
+    },
+    "@conciv/react": {
+      "injected": true
+    }
   }
 }
