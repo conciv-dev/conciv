@@ -169,7 +169,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
 
   const toolCtx = makeToolViewCtx({
     rpc,
-    harnessId: () => meta.data?.harness.id ?? '',
+    harnessId: () => (meta.isPending ? '' : (meta.data?.harness.id ?? '')),
     catalog,
     sendMessage: (text) => void chat.sendMessage(text),
     addResult: (toolCallId, value) => uiReply.mutate({toolCallId, value}),
