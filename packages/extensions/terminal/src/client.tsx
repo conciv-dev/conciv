@@ -1,4 +1,4 @@
-import {SquareTerminal} from 'lucide-solid'
+import SquareTerminal from 'lucide-solid/icons/square-terminal'
 import {defineExtension, type RegisterExtension} from '@conciv/extension'
 import {TERMINAL_NAME} from './shared/protocol.js'
 import {TerminalPanelView} from './client/terminal-panel-view.js'

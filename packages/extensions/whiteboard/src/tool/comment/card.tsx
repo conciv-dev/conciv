@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {MessageSquare} from 'lucide-solid'
+import MessageSquare from 'lucide-solid/icons/message-square'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Chip, ErrorBlock, parseInput, parseResultMedia, ToolCard} from '@conciv/ui-kit-chat/tools'
 import {failureOf} from '../card-util.js'

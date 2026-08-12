@@ -1,5 +1,5 @@
 import {Show, type JSX} from 'solid-js'
-import {FileText} from 'lucide-solid'
+import FileText from 'lucide-solid/icons/file-text'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {FileRead, useFileRead} from '../../primitives/tools/file-read.js'
 import {Chip, CodeBlock, ToolCard} from '@conciv/ui-kit-chat/tools'

@@ -1,5 +1,6 @@
 import {Show, splitProps, type JSX} from 'solid-js'
-import {ChevronDown, Loader} from 'lucide-solid'
+import ChevronDown from 'lucide-solid/icons/chevron-down'
+import Loader from 'lucide-solid/icons/loader'
 import {Collapsible} from '@conciv/ui-kit-system'
 import {SPIN, FOCUS_INSET} from '../../styled/classes.js'
 import {SHIMMER} from '../../styled/shimmer.js'

@@ -1,5 +1,5 @@
 import {Show, type JSX} from 'solid-js'
-import {Search as SearchIcon} from 'lucide-solid'
+import SearchIcon from 'lucide-solid/icons/search'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Search, useSearch} from '../../primitives/tools/search.js'
 import {CodeBlock, ToolCard} from '@conciv/ui-kit-chat/tools'

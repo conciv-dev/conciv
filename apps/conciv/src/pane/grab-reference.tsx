@@ -1,5 +1,5 @@
 import {Show, type JSX} from 'solid-js'
-import {X} from 'lucide-solid'
+import X from 'lucide-solid/icons/x'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 import type {GrabPreview, Grab} from '@conciv/grab'
 import {sourceLabel} from './grab-source-label.js'

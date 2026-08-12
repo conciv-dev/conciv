@@ -1,6 +1,6 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import {X} from 'lucide-solid'
+import X from 'lucide-solid/icons/x'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {AttachmentUI} from './attachment-ui.js'
 import {FOCUS} from './classes.js'

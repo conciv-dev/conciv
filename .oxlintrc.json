@@ -25,6 +25,7 @@
   },
   "rules": {
     "conciv/banned-vocabulary": "error",
+    "conciv/lucide-per-icon": "error",
     "conciv/no-comments": "error",
     "conciv/no-locator-poll": "error",
     "conciv/solid-test-render": "error",

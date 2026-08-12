@@ -1,5 +1,5 @@
 import {Show, type JSX} from 'solid-js'
-import {X} from 'lucide-solid'
+import X from 'lucide-solid/icons/x'
 import {Button, Toast, ToastGroup, TooltipIconButton, createToaster} from '@conciv/ui-kit-system'
 
 export type NoticeTone = 'info' | 'success' | 'warn' | 'danger'

@@ -1,6 +1,7 @@
 import {type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import {SquarePen, FoldVertical} from 'lucide-solid'
+import SquarePen from 'lucide-solid/icons/square-pen'
+import FoldVertical from 'lucide-solid/icons/fold-vertical'
 import {Progress} from '@conciv/ui-kit-system'
 
 const DIVIDER =

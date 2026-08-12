@@ -1,5 +1,5 @@
 import type {JSX} from 'solid-js'
-import {Waypoints} from 'lucide-solid'
+import Waypoints from 'lucide-solid/icons/waypoints'
 import {Tooltip} from '@conciv/ui-kit-system'
 import {CONCIV_TANSTACK_CLIENT_LABEL} from '../client-sentinel.js'
 

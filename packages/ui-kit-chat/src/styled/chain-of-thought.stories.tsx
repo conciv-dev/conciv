@@ -1,5 +1,7 @@
 import {Index, type JSX} from 'solid-js'
-import {Brain, FileText, Search} from 'lucide-solid'
+import Brain from 'lucide-solid/icons/brain'
+import FileText from 'lucide-solid/icons/file-text'
+import Search from 'lucide-solid/icons/search'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Reasoning} from './reasoning.js'

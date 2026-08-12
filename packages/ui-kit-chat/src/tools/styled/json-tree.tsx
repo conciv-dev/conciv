@@ -1,5 +1,5 @@
 import type {JSX} from 'solid-js'
-import {ChevronRight} from 'lucide-solid'
+import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {JsonTreeView} from '@conciv/ui-kit-system'
 
 const JSON_TREE_ROOT =

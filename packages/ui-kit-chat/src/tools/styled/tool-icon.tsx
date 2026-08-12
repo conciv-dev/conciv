@@ -1,5 +1,12 @@
 import type {JSX} from 'solid-js'
-import {CircleHelp, Clock, Code, Component, Keyboard, MousePointerClick, ScanSearch, Wand2} from 'lucide-solid'
+import CircleHelp from 'lucide-solid/icons/circle-question-mark'
+import Clock from 'lucide-solid/icons/clock'
+import Code from 'lucide-solid/icons/code'
+import Component from 'lucide-solid/icons/component'
+import Keyboard from 'lucide-solid/icons/keyboard'
+import MousePointerClick from 'lucide-solid/icons/mouse-pointer-click'
+import ScanSearch from 'lucide-solid/icons/scan-search'
+import Wand2 from 'lucide-solid/icons/wand-sparkles'
 import {TOOL_ICON_KEYS, type ToolIconKey} from '@conciv/protocol/tool-icon-types'
 
 type IconRender = (props: {size: number}) => JSX.Element

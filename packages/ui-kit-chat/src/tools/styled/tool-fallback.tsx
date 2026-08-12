@@ -1,5 +1,5 @@
 import {createSignal, Show, type JSX} from 'solid-js'
-import {ChevronDown} from 'lucide-solid'
+import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primitives/tool-fallback.js'

@@ -1,5 +1,5 @@
 import {For, Show, type JSX} from 'solid-js'
-import {Search} from 'lucide-solid'
+import Search from 'lucide-solid/icons/search'
 import {z} from 'zod'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Markdown} from '@conciv/ui-kit-chat'

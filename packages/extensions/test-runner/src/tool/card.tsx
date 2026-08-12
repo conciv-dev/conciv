@@ -1,7 +1,8 @@
 import {createEffect, createMemo, For, onCleanup, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {StatusDot, type StatusDotTone} from '@conciv/ui-kit-system'
-import {ExternalLink, Sparkles} from 'lucide-solid'
+import ExternalLink from 'lucide-solid/icons/external-link'
+import Sparkles from 'lucide-solid/icons/sparkles'
 import {
   ActionButton,
   ActionRow,

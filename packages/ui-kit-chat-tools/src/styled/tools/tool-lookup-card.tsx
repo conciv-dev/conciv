@@ -1,5 +1,5 @@
 import {Show, type JSX} from 'solid-js'
-import {Wrench} from 'lucide-solid'
+import Wrench from 'lucide-solid/icons/wrench'
 import {z} from 'zod'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Chip, ToolCard, parseInput} from '@conciv/ui-kit-chat/tools'

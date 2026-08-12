@@ -1,5 +1,5 @@
 import {Show, type JSX} from 'solid-js'
-import {Square} from 'lucide-solid'
+import Square from 'lucide-solid/icons/square'
 import {FOCUS} from './classes.js'
 
 export function NowLine(props: {title: string; onStop?: () => void}): JSX.Element {

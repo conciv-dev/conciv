@@ -1,6 +1,7 @@
 import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {Inbox as InboxIcon, ListFilter} from 'lucide-solid'
+import InboxIcon from 'lucide-solid/icons/inbox'
+import ListFilter from 'lucide-solid/icons/list-filter'
 import {Button, RelativeTime, ScrollArea, TextField, TooltipIconButton} from '@conciv/ui-kit-system'
 import {useComments, type Comment} from './model/comments.js'
 import {Avatar, Menu, MenuCheckboxItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Tabs} from './ui.js'

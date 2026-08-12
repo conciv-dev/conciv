@@ -1,6 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {Palette, Trash2} from 'lucide-solid'
+import Palette from 'lucide-solid/icons/palette'
+import Trash2 from 'lucide-solid/icons/trash-2'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Chip, ErrorBlock, parseInput, parseResultMedia, ResultImage, ToolCard} from '@conciv/ui-kit-chat/tools'
 import {failureOf} from '../card-util.js'

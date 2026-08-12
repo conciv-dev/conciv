@@ -1,5 +1,6 @@
 import bannedVocabulary from './banned-vocabulary.js'
 import corePurity from './core-purity.js'
+import lucidePerIcon from './lucide-per-icon.js'
 import noComments from './no-comments.js'
 import noLocatorPoll from './no-locator-poll.js'
 import noPredicateWaits from './no-predicate-waits.js'
@@ -13,6 +14,7 @@ export default {
   rules: {
     'banned-vocabulary': bannedVocabulary,
     'core-purity': corePurity,
+    'lucide-per-icon': lucidePerIcon,
     'no-comments': noComments,
     'no-locator-poll': noLocatorPoll,
     'no-predicate-waits': noPredicateWaits,
