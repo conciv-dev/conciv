@@ -36,7 +36,7 @@ function StandaloneThread(): JSX.Element {
     connection: storyConnection({
       chunks: [
         ...createReasoningChunks('deciding what to confirm'),
-        ...createToolCallChunks('confirm_ui', {question: 'proceed?'}),
+        ...createToolCallChunks('confirm_ui', {question: 'proceed?'}, {result: 'confirmed'}),
       ],
       chunkDelay: 30,
     }),
@@ -71,4 +71,6 @@ it('renders a standalone tool card outside the chain even once the chain collaps
     .toHaveAttribute('aria-expanded', 'false')
 
   await expect.element(page.getByText('Confirm this action for confirm_ui'), {timeout: 3000}).toBeVisible()
+
+  expect(page.getByRole('button', {name: 'Chain of Thought'}).all()).toHaveLength(1)
 })

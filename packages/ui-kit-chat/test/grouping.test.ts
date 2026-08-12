@@ -292,6 +292,17 @@ describe('groupSegments page-session', () => {
     ])
   })
 
+  it('does not open a trailing chain for a standalone result under page-session grouping', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 's1', name: 'confirm_ui', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 's1', content: 'ok', state: 'complete'},
+      ],
+      {...pageOptions, standalone: (name) => name === 'confirm_ui'},
+    )
+    expect(segments).toEqual([{kind: 'standalone', index: 0}])
+  })
+
   it('groups page parts as plain chain when no options are passed', () => {
     const parts: MessagePart[] = [
       {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
@@ -300,6 +311,55 @@ describe('groupSegments page-session', () => {
     ]
     expect(groupSegments(parts)).toEqual([
       {kind: 'chain', indices: [0, 1]},
+      {kind: 'reply', index: 2},
+    ])
+  })
+})
+
+describe('groupSegments standalone', () => {
+  const standalone = (name: string) => name === 'confirm_ui'
+
+  it('places a standalone tool call in its own segment', () => {
+    const segments = groupSegments(
+      [{type: 'tool-call', id: 's1', name: 'confirm_ui', arguments: '{}', state: 'complete'}],
+      {standalone},
+    )
+    expect(segments).toEqual([{kind: 'standalone', index: 0}])
+  })
+
+  it('does not open a trailing chain for the paired result of a standalone call', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 's1', name: 'confirm_ui', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 's1', content: 'ok', state: 'complete'},
+      ],
+      {standalone},
+    )
+    expect(segments).toEqual([{kind: 'standalone', index: 0}])
+  })
+
+  it('still chains a result whose call is not standalone', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 't1', name: 'read', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 't1', content: 'ok', state: 'complete'},
+      ],
+      {standalone},
+    )
+    expect(segments).toEqual([{kind: 'chain', indices: [0, 1]}])
+  })
+
+  it('keeps content after a standalone result flowing normally', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 's1', name: 'confirm_ui', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 's1', content: 'ok', state: 'complete'},
+        {type: 'text', content: 'done'},
+      ],
+      {standalone},
+    )
+    expect(segments).toEqual([
+      {kind: 'standalone', index: 0},
       {kind: 'reply', index: 2},
     ])
   })
