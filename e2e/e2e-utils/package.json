@@ -11,13 +11,15 @@
     "./widget": "./src/widget.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "deploy": "tsx src/deploy-cli.ts"
   },
   "dependencies": {
     "@playwright/test": "^1.61.1"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   }
 }

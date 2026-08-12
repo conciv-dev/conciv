@@ -1,25 +1,33 @@
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import {E2E_PORTS, HARNESS_E2E_PORTS, type E2EApp, type HarnessApp} from './ports.js'
+
+const DEFAULT_WEB_SERVER_TIMEOUT = 180_000
 
 function reporters(): ReporterDescription[] {
   if (!process.env.GITHUB_ACTIONS) return [['line']]
   return [['line'], ['json', {outputFile: 'test-results.json'}]]
 }
 
-function serverEntry(command: string, port: number) {
+function serverEntry(command: string, port: number, webServerTimeout: number) {
   return {
     command,
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe' as const,
-    timeout: 180_000,
+    timeout: webServerTimeout,
     env: {CONCIV_E2E: '1'},
   }
 }
 
+export function deployDir(app: E2EApp): string {
+  return join(tmpdir(), 'conciv-e2e-deploy', app)
+}
+
 export function e2eConfig(
   app: E2EApp,
-  opts: {command: (port: number) => string; timeout?: number},
+  opts: {command: (port: number) => string; timeout?: number; webServerTimeout?: number},
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
@@ -30,7 +38,11 @@ export function e2eConfig(
     expect: {timeout},
     reporter: reporters(),
     use: {baseURL: `http://localhost:${port}`},
-    webServer: serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),
+    webServer: serverEntry(
+      `rm -rf .conciv && ${opts.command(port)}`,
+      port,
+      opts.webServerTimeout ?? DEFAULT_WEB_SERVER_TIMEOUT,
+    ),
     projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
   })
 }
@@ -61,7 +73,7 @@ export function harnessMatrixConfig(opts: {
     timeout: 150_000,
     reporter: reporters(),
     webServer: entries.map(([harness, port]) =>
-      serverEntry(`rm -rf .conciv-${harness} && ${opts.command(harness, port)}`, port),
+      serverEntry(`rm -rf .conciv-${harness} && ${opts.command(harness, port)}`, port, DEFAULT_WEB_SERVER_TIMEOUT),
     ),
     projects: entries.map(([harness, port]) => ({
       name: harness,

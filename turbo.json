@@ -59,7 +59,7 @@
     "test:e2e": {
       "dependsOn": ["^build"],
       "cache": false,
-      "env": ["CI", "GITHUB_ACTIONS", "CONCIV_E2E", "VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]
+      "env": ["CI", "GITHUB_ACTIONS", "CONCIV_E2E", "CONCIV_DEPLOY_FRESH", "VITEST_MAX_FORKS", "VITEST_MAX_WORKERS"]
     }
   }
 }

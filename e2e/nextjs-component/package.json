@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:e2e": "playwright test"
+    "test:e2e": "pnpm --filter @conciv/e2e-utils run deploy nextjs-component conciv-e2e-nextjs-component && playwright test"
   },
   "dependencies": {
     "@conciv/extension-terminal": "workspace:*",

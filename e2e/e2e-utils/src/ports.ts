@@ -16,6 +16,10 @@ export const E2E_PORTS = {
 
 export type E2EApp = keyof typeof E2E_PORTS
 
+export function isE2EApp(name: string): name is E2EApp {
+  return Object.hasOwn(E2E_PORTS, name)
+}
+
 export const HARNESS_E2E_PORTS = {
   claude: 5271,
   codex: 5272,
