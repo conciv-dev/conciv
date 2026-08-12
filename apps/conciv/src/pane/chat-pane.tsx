@@ -311,7 +311,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
               onSend,
               onSendError,
               onRefresh: () => chat.refresh(),
-              onCancel: () => chat.stop(),
+              onCancel: () => chat.interruptAndFlush(),
             }}
           >
             <div class="contents">

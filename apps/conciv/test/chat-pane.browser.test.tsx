@@ -19,6 +19,13 @@ function mountChatPane(config: Parameters<typeof installFakeCore>[0] = {}): void
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
+async function startStreamingRun(): Promise<void> {
+  mountChatPane({holdRun: true})
+  await input().fill('first turn')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+}
+
 test('restores the server-side draft text and staged grabs when the pane mounts', async () => {
   mountChatPane({
     draft: {
@@ -93,4 +100,84 @@ test('the initial load shows a conversation skeleton until the snapshot arrives'
 
   await expect.element(page.getByText('How can I help you today?')).toBeVisible()
   await expect.element(page.getByRole('status', {name: 'Loading conversation'})).not.toBeInTheDocument()
+})
+
+test('the trailing control morphs from send to a single stop button while streaming, and back once the run stops', async () => {
+  mountChatPane({holdRun: true})
+
+  await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
+
+  await input().fill('start a run')
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Send message'})).not.toBeInTheDocument()
+
+  await page.getByRole('button', {name: 'Stop generating'}).click()
+
+  await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
+})
+
+test('Enter while streaming queues the draft instead of sending or stopping', async () => {
+  await startStreamingRun()
+
+  await input().fill('a queued follow-up')
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByText('a queued follow-up')).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+  await expect.element(input()).toHaveTextContent('')
+})
+
+test('clicking stop with a queue interrupts the run and flushes every queued message, in order, as one turn', async () => {
+  await startStreamingRun()
+
+  await input().fill('alpha step')
+  await userEvent.keyboard('{Enter}')
+  await input().fill('bravo step')
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByText('alpha step')).toBeVisible()
+  await expect.element(page.getByText('bravo step')).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Remove from queue'}).first()).toBeVisible()
+
+  await page.getByRole('button', {name: 'Stop generating'}).click()
+
+  await expect.element(page.getByRole('button', {name: 'Remove from queue'})).not.toBeInTheDocument()
+  await expect.element(page.getByText(/alpha step[\s\S]*bravo step/)).toBeVisible()
+})
+
+test('clicking stop with an empty queue just stops the run', async () => {
+  await startStreamingRun()
+
+  await page.getByRole('button', {name: 'Stop generating'}).click()
+
+  await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
+})
+
+test('Escape in the focused composer does what the stop button does and leaves the draft untouched', async () => {
+  await startStreamingRun()
+
+  await input().fill('queued while running')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(page.getByRole('button', {name: 'Remove from queue'})).toBeVisible()
+
+  await input().fill('draft kept in place')
+  await userEvent.keyboard('{Escape}')
+
+  await expect.element(page.getByRole('button', {name: 'Remove from queue'})).not.toBeInTheDocument()
+  await expect.element(page.getByText('queued while running')).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+  await expect.element(input()).toHaveTextContent('draft kept in place')
+})
+
+test('Escape outside the composer does not stop the run', async () => {
+  await startStreamingRun()
+
+  await userEvent.click(page.getByRole('log', {name: 'Announcements'}))
+  await userEvent.keyboard('{Escape}')
+
+  await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
 })

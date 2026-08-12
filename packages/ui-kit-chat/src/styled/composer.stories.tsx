@@ -10,6 +10,15 @@ const meta: Meta = {title: 'ui-kit-chat/styled/Composer'}
 export default meta
 type Story = StoryObj
 
+function IdleComposer(): JSX.Element {
+  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000})})
+  return (
+    <ChatProvider chat={chat}>
+      <Composer inputLabel="Message" />
+    </ChatProvider>
+  )
+}
+
 function BusyComposer(): JSX.Element {
   const chat = useChat({
     connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
@@ -23,15 +32,24 @@ function BusyComposer(): JSX.Element {
   )
 }
 
-export const BusyRemainsSendableAndRemovesQueued: Story = {
+export const Idle: Story = {
+  render: () => <IdleComposer />,
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByRole('button', {name: 'Send message'})).toBeVisible()
+    await expect(c.queryByRole('button', {name: 'Stop generating'})).toBeNull()
+  },
+}
+
+export const StreamingAlwaysShowsStopAndQueuesOnEnter: Story = {
   render: () => <BusyComposer />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByRole('button', {name: 'Stop generating'})).toBeVisible())
     await userEvent.type(c.getByLabelText('Message'), 'queued follow-up')
-    await expect(c.getByRole('button', {name: 'Send message'})).toBeVisible()
-    await expect(c.queryByRole('button', {name: 'Stop generating'})).toBeNull()
-    await userEvent.click(c.getByRole('button', {name: 'Send message'}))
+    await expect(c.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+    await expect(c.queryByRole('button', {name: 'Send message'})).toBeNull()
+    await userEvent.type(c.getByLabelText('Message'), '{enter}')
     await waitFor(() => expect(c.getByText('queued follow-up')).toBeVisible())
     await userEvent.click(c.getByRole('button', {name: 'Remove from queue'}))
     await waitFor(() => expect(c.queryByText('queued follow-up')).toBeNull())
@@ -44,10 +62,8 @@ export const SteerInterruptsWithSelectedContent: Story = {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByRole('button', {name: 'Stop generating'})).toBeVisible())
     const input = c.getByLabelText('Message')
-    await userEvent.type(input, 'selected direction')
-    await userEvent.click(c.getByRole('button', {name: 'Send message'}))
-    await userEvent.type(input, 'remaining work')
-    await userEvent.click(c.getByRole('button', {name: 'Send message'}))
+    await userEvent.type(input, 'selected direction{enter}')
+    await userEvent.type(input, 'remaining work{enter}')
     await waitFor(() => expect(c.getByText('selected direction')).toBeVisible())
     await userEvent.click(c.getAllByRole('button', {name: 'Steer'})[0]!)
     await waitFor(() => expect(c.queryByText('selected direction')).toBeNull())
