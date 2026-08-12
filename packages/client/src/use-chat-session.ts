@@ -1,4 +1,4 @@
-import {useChat} from '@tanstack/ai-solid'
+import {useChat, type QueuedMessage} from '@tanstack/ai-solid'
 import type {RpcClient} from '@conciv/contract'
 import {chatConnection, type ChatConnectionOptions} from './chat-connection.js'
 
@@ -9,10 +9,19 @@ export type UseChatSessionOptions = {
   onError?: (error: Error) => void
 }
 
-export type ChatSession = ReturnType<typeof useChat> & {refresh: () => void}
+export type ChatSession = ReturnType<typeof useChat> & {refresh: () => void; interruptAndFlush: () => void}
 
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
+}
+
+function isTextContent(content: QueuedMessage['content']): content is string {
+  return typeof content === 'string'
+}
+
+function joinedQueueText(queued: QueuedMessage[]): string | null {
+  if (!queued.every((item) => isTextContent(item.content))) return null
+  return queued.map((item) => item.content).join('\n')
 }
 
 export function useChatSession(options: UseChatSessionOptions): ChatSession {
@@ -28,5 +37,22 @@ export function useChatSession(options: UseChatSessionOptions): ChatSession {
     chat.stop()
     void options.rpc.chat.stop({sessionId: options.sessionId}).catch((error) => options.onError?.(asError(error)))
   }
-  return {...chat, stop, refresh: connection.refresh}
+  const sendQueuedSequentially = async (queued: QueuedMessage[]): Promise<void> => {
+    for (const item of queued) await chat.sendMessage(item.content)
+  }
+  const interruptAndFlush = () => {
+    const queued = chat.queue()
+    if (queued.length === 0) {
+      stop()
+      return
+    }
+    stop()
+    const joined = joinedQueueText(queued)
+    if (joined !== null) {
+      void chat.sendMessage(joined)
+      return
+    }
+    void sendQueuedSequentially(queued)
+  }
+  return {...chat, stop, refresh: connection.refresh, interruptAndFlush}
 }

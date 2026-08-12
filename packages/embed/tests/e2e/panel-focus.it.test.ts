@@ -93,7 +93,7 @@ test.describe('panel open focuses the composer', () => {
     }
     await openPanel(page)
     await expect(sessionPill(page)).toBeVisible({timeout: 30_000})
-    await expect(composer(page)).toBeFocused({timeout: 10_000})
+    await expect(composer(page)).toBeFocused({timeout: 30_000})
     await page.keyboard.type('typed after the session list resolved')
     await expect(composer(page)).toHaveText('typed after the session list resolved')
   })

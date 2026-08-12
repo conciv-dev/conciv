@@ -41,7 +41,7 @@ it('shows send when idle and stop only while running with an empty input', async
   await expect.element(send).not.toBeInTheDocument()
 })
 
-it('typing during a run swaps stop back to send and stop click ends the run', async () => {
+it('typing during a run keeps showing stop, never flips back to send, and stop click ends the run', async () => {
   mountView(() => (
     <StyledHost connection={SLOW_STREAM}>
       <Composer />
@@ -50,13 +50,12 @@ it('typing during a run swaps stop back to send and stop click ends the run', as
   const input = page.getByRole('textbox', {name: 'Message'})
   await userEvent.fill(input, 'first question')
   await userEvent.click(page.getByRole('button', {name: 'Send message'}))
-  await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
-  await userEvent.fill(input, 'follow-up while running')
-  await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
-  await userEvent.fill(input, '')
   const stop = page.getByRole('button', {name: 'Stop generating'})
   await expect.element(stop).toBeVisible()
+  await userEvent.fill(input, 'follow-up while running')
+  await expect.element(stop).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Send message'})).not.toBeInTheDocument()
   await userEvent.click(stop)
   await expect.element(page.getByRole('button', {name: 'Send message'})).toBeVisible()
+  await expect.element(input).toHaveValue('follow-up while running')
 })
