@@ -113,12 +113,12 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
       .lastIndexOf('text'),
   )
   const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
-  const isLastSegment = (index: number) => index === segments().length - 1
-  const awaitsApproval = (indices: number[]) =>
-    indices.some((index) => {
-      const part = parts()[index]
-      return part?.type === 'tool-call' && part.state === 'approval-requested'
-    })
+  const lastPartIndex = createMemo(() => parts().length - 1)
+  const chainReasoningStreaming = (indices: number[]) => {
+    const last = indices.at(-1)
+    if (last === undefined || last !== lastPartIndex()) return false
+    return thread.isRunning && message.isLast() && asThinking(parts()[last]) !== null
+  }
   const asChain = (segment: Segment) => (segment.kind === 'chain' ? segment : null)
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
   return (
@@ -127,15 +127,11 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
       class={`flex flex-col gap-1.5 min-w-0 w-full [color:var(--chat-text)] self-stretch relative anim-msg ${message.isLast() ? '' : 'pb-11'}`}
     >
       <Index each={segments()}>
-        {(segment, segmentIndex) => (
+        {(segment) => (
           <Switch>
             <Match when={asChain(segment())}>
               {(chain) => (
-                <ChainOfThought
-                  streaming={thread.isRunning && message.isLast() && isLastSegment(segmentIndex)}
-                  pinnedOpen={awaitsApproval(chain().indices)}
-                  grow={CHAIN_OF_THOUGHT_GROW}
-                >
+                <ChainOfThought streaming={chainReasoningStreaming(chain().indices)} grow={CHAIN_OF_THOUGHT_GROW}>
                   <Index each={chain().indices}>
                     {(partIndex, partPosition) => (
                       <ChainPart

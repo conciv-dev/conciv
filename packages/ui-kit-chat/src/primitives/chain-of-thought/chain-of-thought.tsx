@@ -20,19 +20,17 @@ export function useChainOfThought(): ChainState {
 type RootProps = ParentProps<{
   defaultOpen?: boolean
   streaming?: boolean
-  pinnedOpen?: boolean
 }>
 
 function Root(props: RootProps): JSX.Element {
   const streaming = () => Boolean(props.streaming)
-  const forceOpen = () => Boolean(props.pinnedOpen)
-  const collapse = createAutoCollapse({streaming, defaultOpen: props.defaultOpen, forceOpen})
+  const collapse = createAutoCollapse({streaming, defaultOpen: props.defaultOpen})
   const state: ChainState = {
     open: collapse.open,
     setOpen: collapse.setOpen,
     toggle: collapse.toggle,
     streaming,
-    preview: () => collapse.isAutoOpen() && !forceOpen(),
+    preview: collapse.isAutoOpen,
   }
   return <ChainContext.Provider value={state}>{props.children}</ChainContext.Provider>
 }

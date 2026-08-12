@@ -7,11 +7,7 @@ export type AutoCollapse = {
   isAutoOpen: Accessor<boolean>
 }
 
-export function createAutoCollapse(props: {
-  streaming: Accessor<boolean>
-  defaultOpen?: boolean
-  forceOpen?: Accessor<boolean>
-}): AutoCollapse {
+export function createAutoCollapse(props: {streaming: Accessor<boolean>; defaultOpen?: boolean}): AutoCollapse {
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
   const [autoClosed, setAutoClosed] = createSignal(false)
   createEffect<boolean>((wasStreaming) => {
@@ -20,7 +16,7 @@ export function createAutoCollapse(props: {
     return streaming
   }, false)
   const isAutoOpen = () => userOpen() === undefined && !autoClosed() && props.streaming()
-  const open = () => userOpen() ?? (Boolean(props.forceOpen?.()) || isAutoOpen())
+  const open = () => userOpen() ?? isAutoOpen()
   const setOpen = (next: boolean) => {
     setAutoClosed(true)
     setUserOpen(next)
