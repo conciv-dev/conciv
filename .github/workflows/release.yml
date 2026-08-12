@@ -47,7 +47,7 @@ jobs:
       # changesets/action needs the git credential to push the version commit/PR; this job
       # uploads no artifacts, so credential persistence is safe here.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0 # zizmor: ignore[artipacked]
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 11.7.0 # keep in sync with packageManager in package.json
       # No dependency cache in this job: it holds id-token: write and publishes to
@@ -135,7 +135,7 @@ jobs:
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         if: steps.detect.outputs.run == 'true'
         with:
           version: 11.7.0 # keep in sync with packageManager in package.json
