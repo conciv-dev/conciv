@@ -78,7 +78,7 @@ function Shell(props: ParentProps<{grow: boolean}>): JSX.Element {
           <ChevronDown size={14} class={CHEVRON} aria-hidden="true" />
         </Collapsible.Trigger>
         <Collapsible.Content ref={setContentEl}>
-          <div ref={setScroller} class={`mt-2 ${capped() ? PREVIEW : ''}`}>
+          <div ref={setScroller} class={`pt-2 ${capped() ? PREVIEW : ''}`}>
             <div class="flex flex-col">{props.children}</div>
           </div>
         </Collapsible.Content>
