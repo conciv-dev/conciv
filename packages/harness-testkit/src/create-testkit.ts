@@ -14,6 +14,24 @@ function isTestHarness(harness: HarnessAdapter): harness is TestHarness {
   return 'script' in harness
 }
 
+const CLEANUP_STOP_TIMEOUT_MS = 3_000
+
+function withTimeout(promise: Promise<unknown>, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs)
+    promise.then(
+      () => {
+        clearTimeout(timer)
+        resolve()
+      },
+      () => {
+        clearTimeout(timer)
+        resolve()
+      },
+    )
+  })
+}
+
 export type BootEnv = {
   stateRoot: string
   cwd: string
@@ -141,6 +159,11 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
         },
         cleanup: async () => {
           for (const abort of aborts) abort.abort()
+          const liveSessions = (await rpc.sessions.list(undefined).catch(() => [])) ?? []
+          await withTimeout(
+            Promise.all(liveSessions.map((meta) => rpc.chat.stop({sessionId: meta.id}).catch(() => {}))),
+            CLEANUP_STOP_TIMEOUT_MS,
+          )
           await app.dispose()
           await served.close()
           rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})

@@ -1,5 +1,17 @@
 import {existsSync, writeFileSync} from 'node:fs'
 
+const ORPHAN_POLL_MS = 200
+
+function reapWhenOrphaned(): void {
+  const startingParentPid = process.ppid
+  const timer = setInterval(() => {
+    if (process.ppid !== startingParentPid) process.exit(0)
+  }, ORPHAN_POLL_MS)
+  timer.unref()
+}
+
+reapWhenOrphaned()
+
 const argv = process.argv.slice(2)
 const argvFile = process.env.CONCIV_TEST_ARGV_FILE
 if (argvFile) writeFileSync(argvFile, JSON.stringify(argv))
