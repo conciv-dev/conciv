@@ -71,14 +71,14 @@ function Shell(props: ParentProps<{grow: boolean}>): JSX.Element {
   }
   return (
     <Collapsible.Root open={chain.open()} onOpenChange={(details) => handleOpenChange(details.open)}>
-      <div ref={setRootEl} class="flex flex-col gap-2 min-w-0 w-full">
+      <div ref={setRootEl} class="flex flex-col min-w-0 w-full">
         <Collapsible.Trigger class={TRIGGER}>
           <Brain size={14} class="text-[color:var(--chat-text-3)] shrink-0" />
           <span class={chain.streaming() ? SHIMMER : ''}>{chain.streaming() ? 'Working…' : 'Chain of Thought'}</span>
           <ChevronDown size={14} class={CHEVRON} aria-hidden="true" />
         </Collapsible.Trigger>
         <Collapsible.Content ref={setContentEl}>
-          <div ref={setScroller} class={capped() ? PREVIEW : ''}>
+          <div ref={setScroller} class={`mt-2 ${capped() ? PREVIEW : ''}`}>
             <div class="flex flex-col">{props.children}</div>
           </div>
         </Collapsible.Content>
