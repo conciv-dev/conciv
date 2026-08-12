@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import pTimeout from 'p-timeout'
 import {serveApp} from './serve-app.js'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {ChatContentPartSchema, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
@@ -141,6 +142,12 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
         },
         cleanup: async () => {
           for (const abort of aborts) abort.abort()
+          const stopLiveSessions = async () => {
+            const sessions = (await rpc.sessions.list({includeHidden: true}).catch(() => [])) ?? []
+            const runningSessions = sessions.filter((meta) => meta.running)
+            await Promise.all(runningSessions.map((meta) => rpc.chat.stop({sessionId: meta.id}).catch(() => {})))
+          }
+          await pTimeout(stopLiveSessions(), {milliseconds: 3_000, fallback: () => undefined})
           await app.dispose()
           await served.close()
           rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})

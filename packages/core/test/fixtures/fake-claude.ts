@@ -1,5 +1,10 @@
 import {existsSync, writeFileSync} from 'node:fs'
 
+const spawnerPid = process.ppid
+setInterval(() => {
+  if (process.ppid !== spawnerPid) process.exit(0)
+}, 1000).unref()
+
 const argv = process.argv.slice(2)
 const argvFile = process.env.CONCIV_TEST_ARGV_FILE
 if (argvFile) writeFileSync(argvFile, JSON.stringify(argv))
