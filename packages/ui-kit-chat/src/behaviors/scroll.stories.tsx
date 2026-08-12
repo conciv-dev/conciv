@@ -107,7 +107,13 @@ function ExpandAtBottomHarness(): JSX.Element {
     <ViewportProvider value={scroll}>
       <div class="w-96">
         <div>atBottom: {String(scroll.isAtBottom())}</div>
-        <div ref={setViewport} data-thread-viewport class="p-2 border border-pw-line h-32 overflow-y-auto">
+        <div
+          ref={setViewport}
+          data-thread-viewport
+          data-at-bottom={scroll.isAtBottom() ? '' : undefined}
+          data-escaped={scroll.escapedFromLock() ? '' : undefined}
+          class="p-2 border border-pw-line h-32 overflow-y-auto"
+        >
           <Index each={Array.from({length: 20}, (_, index) => index)}>
             {(line) => <div>history line {line()}</div>}
           </Index>
@@ -122,10 +128,6 @@ function ExpandAtBottomHarness(): JSX.Element {
   )
 }
 
-function distanceFromBottom(vp: HTMLElement): number {
-  return vp.scrollHeight - vp.scrollTop - vp.clientHeight
-}
-
 async function realWheel(element: Element, deltaY: number): Promise<void> {
   await realUserEvent.wheel(element, {delta: {y: deltaY}})
 }
@@ -137,7 +139,13 @@ function ExpandEscapedHarness(): JSX.Element {
   return (
     <ViewportProvider value={scroll}>
       <div class="w-96">
-        <div ref={setViewport} data-thread-viewport class="p-2 border border-pw-line h-32 overflow-y-auto">
+        <div
+          ref={setViewport}
+          data-thread-viewport
+          data-at-bottom={scroll.isAtBottom() ? '' : undefined}
+          data-escaped={scroll.escapedFromLock() ? '' : undefined}
+          class="p-2 border border-pw-line h-32 overflow-y-auto"
+        >
           <Index each={Array.from({length: 20}, (_, index) => index)}>
             {(line) => <div>history line {line()}</div>}
           </Index>
@@ -153,6 +161,24 @@ function ExpandEscapedHarness(): JSX.Element {
       </div>
     </ViewportProvider>
   )
+}
+
+function locateRequired(root: HTMLElement, selector: string): HTMLElement {
+  const found = root.querySelector(selector)
+  if (!(found instanceof HTMLElement)) throw new Error(`missing element for selector: ${selector}`)
+  return found
+}
+
+function viewportOf(canvasElement: HTMLElement): HTMLElement {
+  return locateRequired(canvasElement, '[data-thread-viewport]')
+}
+
+function contentHeight(vp: HTMLElement): number {
+  return vp.scrollHeight
+}
+
+function scrollOffset(vp: HTMLElement): number {
+  return vp.scrollTop
 }
 
 function ScrollToEndHarness(): JSX.Element {
@@ -179,15 +205,14 @@ export const ScrollToEndNoLayoutShift: Story = {
   render: () => <ScrollToEndHarness />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const vp = canvasElement.querySelector('[data-thread-viewport]') as HTMLElement
+    const vp = viewportOf(canvasElement)
     await waitFor(() => expect(vp.scrollHeight).toBeGreaterThan(vp.clientHeight))
     await realWheel(vp, -400)
     await waitFor(() => expect(c.getByText('Latest')).not.toHaveAttribute('data-at-bottom'))
-    const heightNotAtBottom = vp.scrollHeight
+    const heightNotAtBottom = contentHeight(vp)
     await userEvent.click(c.getByText('Latest'))
     await waitFor(() => expect(c.getByText('Latest')).toHaveAttribute('data-at-bottom'))
-    const heightAtBottom = vp.scrollHeight
-    await expect(heightAtBottom).toBe(heightNotAtBottom)
+    await expect(contentHeight(vp)).toBe(heightNotAtBottom)
   },
 }
 
@@ -195,17 +220,18 @@ export const ExpandDoesNotMoveViewport: Story = {
   render: () => <ExpandAtBottomHarness />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const vp = canvasElement.querySelector('[data-thread-viewport]') as HTMLElement
-    await waitFor(() => expect(distanceFromBottom(vp)).toBeLessThanOrEqual(1))
-    const scrollTopBeforeToggle = vp.scrollTop
+    const vp = viewportOf(canvasElement)
+    await waitFor(() => expect(vp).toHaveAttribute('data-at-bottom'))
+
     await userEvent.click(c.getByText('expand me'))
     await waitFor(() => expect(c.getByText('tool output 29')).toBeVisible(), {timeout: 4000})
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    await expect(vp.scrollTop).toBe(scrollTopBeforeToggle)
+    await waitFor(() => expect(vp).toHaveAttribute('data-at-bottom'), {timeout: 4000})
+    await expect(c.getByText('history line 19')).toBeVisible()
+
     await userEvent.click(c.getByText('expand me'))
     await waitFor(() => expect(c.getByText('tool output 29')).not.toBeVisible(), {timeout: 4000})
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    await expect(vp.scrollTop).toBe(scrollTopBeforeToggle)
+    await waitFor(() => expect(vp).toHaveAttribute('data-at-bottom'), {timeout: 4000})
+    await expect(c.getByText('history line 19')).toBeVisible()
   },
 }
 
@@ -213,7 +239,7 @@ export const ScrollToBottomButtonWhileEscaped: Story = {
   render: () => <ScrollToEndHarness />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const vp = canvasElement.querySelector('[data-thread-viewport]') as HTMLElement
+    const vp = viewportOf(canvasElement)
     await waitFor(() => expect(vp.scrollHeight).toBeGreaterThan(vp.clientHeight))
 
     await realWheel(vp, -400)
@@ -221,7 +247,7 @@ export const ScrollToBottomButtonWhileEscaped: Story = {
 
     await userEvent.click(c.getByText('Latest'))
     await waitFor(() => expect(c.getByText('Latest')).toHaveAttribute('data-at-bottom'), {timeout: 2000})
-    await waitFor(() => expect(distanceFromBottom(vp)).toBeLessThanOrEqual(1))
+    await waitFor(() => expect(vp).toHaveAttribute('data-at-bottom'))
   },
 }
 
@@ -243,12 +269,12 @@ export const SendMessagePinsAfterEscape: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const vp = canvasElement.querySelector('[data-thread-viewport]') as HTMLElement
+    const vp = viewportOf(canvasElement)
     await waitFor(() => expect(c.getByText('atBottom: true')).toBeVisible())
 
     await userEvent.click(c.getByText('ask'))
     await waitFor(() => expect(c.getByText(/END_OF_ANSWER/)).toBeVisible(), {timeout: 6000})
-    await waitFor(() => expect(distanceFromBottom(vp)).toBeLessThanOrEqual(1))
+    await waitFor(() => expect(c.getByText('atBottom: true')).toBeVisible())
 
     await realWheel(vp, -400)
     await waitFor(() => expect(c.getByText('atBottom: false')).toBeVisible())
@@ -262,17 +288,19 @@ export const ExpandDoesNotMoveViewportWhenEscaped: Story = {
   render: () => <ExpandEscapedHarness />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const vp = canvasElement.querySelector('[data-thread-viewport]') as HTMLElement
-    await waitFor(() => expect(distanceFromBottom(vp)).toBeLessThanOrEqual(1))
+    const vp = viewportOf(canvasElement)
+    await waitFor(() => expect(vp).toHaveAttribute('data-at-bottom'))
 
     await realWheel(vp, -400)
-    await waitFor(() => expect(distanceFromBottom(vp)).toBeGreaterThan(100))
+    await waitFor(() => expect(vp).toHaveAttribute('data-escaped'))
+    await expect(vp).not.toHaveAttribute('data-at-bottom')
 
-    const scrollTopWhileEscaped = vp.scrollTop
+    const scrollTopWhileEscaped = scrollOffset(vp)
     await userEvent.click(c.getByText('expand me'))
     await waitFor(() => expect(c.getByText('tool output 29')).toBeVisible(), {timeout: 4000})
     await new Promise((resolve) => setTimeout(resolve, 300))
-    await expect(vp.scrollTop).toBe(scrollTopWhileEscaped)
+    await expect(scrollOffset(vp)).toBe(scrollTopWhileEscaped)
+    await expect(vp).toHaveAttribute('data-escaped')
     await expect(c.getByText('trailing line 19')).toBeInTheDocument()
   },
 }

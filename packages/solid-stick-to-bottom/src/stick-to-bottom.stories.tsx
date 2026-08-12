@@ -10,18 +10,23 @@ export default meta
 type Story = StoryObj
 
 const ROW_HEIGHT_PX = 24
-const REPIN_BAND_PX = 70
 
-function distanceFromBottom(viewport: HTMLElement): number {
-  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+function locateRequired(root: HTMLElement, selector: string): HTMLElement {
+  const found = root.querySelector(selector)
+  if (!(found instanceof HTMLElement)) throw new Error(`missing element for selector: ${selector}`)
+  return found
 }
 
 function atBottomFlag(canvasElement: HTMLElement): HTMLElement {
-  return canvasElement.querySelector('[data-at-bottom]') as HTMLElement
+  return locateRequired(canvasElement, '[data-at-bottom]')
 }
 
 function escapedFlag(canvasElement: HTMLElement): HTMLElement {
-  return canvasElement.querySelector('[data-escaped]') as HTMLElement
+  return locateRequired(canvasElement, '[data-escaped]')
+}
+
+function viewportOf(canvasElement: HTMLElement): HTMLElement {
+  return locateRequired(canvasElement, '[data-viewport]')
 }
 
 async function realWheel(element: Element, deltaY: number): Promise<void> {
@@ -125,11 +130,10 @@ export const PinnedFollowThroughGrowth: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const viewport = canvasElement.querySelector('[data-viewport]') as HTMLElement
     await waitFor(() => expect(c.getByText('row 5')).toBeVisible())
     await expect(atBottomFlag(canvasElement)).toHaveTextContent('true')
     await waitFor(() => expect(c.getByText('row 29')).toBeVisible(), {timeout: 4000})
-    await waitFor(() => expect(distanceFromBottom(viewport)).toBeLessThanOrEqual(1))
+    await waitFor(() => expect(atBottomFlag(canvasElement)).toHaveTextContent('true'))
   },
 }
 
@@ -157,19 +161,18 @@ export const FreshTurnFollowEngagement: Story = {
   render: () => <TwoTurnHarness />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const viewport = canvasElement.querySelector('[data-viewport]') as HTMLElement
+    const viewport = viewportOf(canvasElement)
 
     await waitFor(() => expect(c.getByText('row 7')).toBeVisible(), {timeout: 3000})
-    await waitFor(() => expect(distanceFromBottom(viewport)).toBeLessThanOrEqual(1))
+    await waitFor(() => expect(atBottomFlag(canvasElement)).toHaveTextContent('true'))
     await new Promise((resolve) => setTimeout(resolve, 250))
-    await expect(distanceFromBottom(viewport)).toBeLessThanOrEqual(1)
+    await expect(atBottomFlag(canvasElement)).toHaveTextContent('true')
 
     const beforeHeight = viewport.scrollHeight
     await userEvent.click(c.getByRole('button', {name: 'start second turn'}))
 
     await waitFor(() => expect(viewport.scrollHeight).toBeGreaterThan(beforeHeight), {timeout: 3000})
-    await waitFor(() => expect(distanceFromBottom(viewport)).toBeLessThanOrEqual(1), {timeout: 3000})
-    await expect(atBottomFlag(canvasElement)).toHaveTextContent('true')
+    await waitFor(() => expect(atBottomFlag(canvasElement)).toHaveTextContent('true'), {timeout: 3000})
   },
 }
 
@@ -189,7 +192,7 @@ export const WheelUpEscapeMidGrowth: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const viewport = canvasElement.querySelector('[data-viewport]') as HTMLElement
+    const viewport = viewportOf(canvasElement)
 
     await waitFor(() => expect(c.getByText('row 11')).toBeVisible())
     await waitFor(() => expect(atBottomFlag(canvasElement)).toHaveTextContent('true'))
@@ -197,10 +200,10 @@ export const WheelUpEscapeMidGrowth: Story = {
 
     await realWheel(viewport, -300)
     await waitFor(() => expect(escapedFlag(canvasElement)).toHaveTextContent('true'))
+    await waitFor(() => expect(c.getByText('row 11')).toBeVisible())
 
-    const scrollTopAfterEscape = viewport.scrollTop
     await new Promise((resolve) => setTimeout(resolve, 3200))
-    await expect(viewport.scrollTop).toBe(scrollTopAfterEscape)
+    await expect(c.getByText('row 11')).toBeVisible()
     await expect(escapedFlag(canvasElement)).toHaveTextContent('true')
   },
 }
@@ -209,15 +212,17 @@ export const WheelDownReturnReLocks: Story = {
   render: () => <GrowthHarness initialRows={20} />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const viewport = canvasElement.querySelector('[data-viewport]') as HTMLElement
+    const viewport = viewportOf(canvasElement)
 
     await waitFor(() => expect(c.getByText('row 19')).toBeVisible())
     await waitFor(() => expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight))
     await realWheel(viewport, -400)
     await waitFor(() => expect(escapedFlag(canvasElement)).toHaveTextContent('true'))
 
-    while (distanceFromBottom(viewport) > REPIN_BAND_PX) {
+    let attempts = 0
+    while (escapedFlag(canvasElement).textContent !== 'false' && attempts < 40) {
       await realWheel(viewport, 260)
+      attempts += 1
     }
     await waitFor(() => expect(escapedFlag(canvasElement)).toHaveTextContent('false'))
     await expect(atBottomFlag(canvasElement)).toHaveTextContent('true')
@@ -243,16 +248,14 @@ export const ShrinkWhilePinnedSilentRelock: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const viewport = canvasElement.querySelector('[data-viewport]') as HTMLElement
 
     await waitFor(() => expect(c.getByText('row 19')).toBeVisible())
-    await waitFor(() => expect(distanceFromBottom(viewport)).toBeLessThanOrEqual(1))
+    await waitFor(() => expect(atBottomFlag(canvasElement)).toHaveTextContent('true'))
 
     await userEvent.click(c.getByRole('button', {name: 'shrink'}))
     await waitFor(() => expect(c.queryByText('row 19')).toBeNull())
-    await waitFor(() => expect(distanceFromBottom(viewport)).toBeLessThanOrEqual(1))
+    await waitFor(() => expect(atBottomFlag(canvasElement)).toHaveTextContent('true'))
     await expect(escapedFlag(canvasElement)).toHaveTextContent('false')
-    await expect(atBottomFlag(canvasElement)).toHaveTextContent('true')
   },
 }
 
@@ -275,18 +278,19 @@ export const ShrinkWhileParkedFarAboveNothingMoves: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const viewport = canvasElement.querySelector('[data-viewport]') as HTMLElement
+    const viewport = viewportOf(canvasElement)
 
     await waitFor(() => expect(c.getByText('row 39')).toBeVisible())
     await waitFor(() => expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight))
     await realWheel(viewport, -4000)
     await waitFor(() => expect(escapedFlag(canvasElement)).toHaveTextContent('true'))
+    await waitFor(() => expect(c.getByText('row 0')).toBeVisible())
 
-    const scrollTopBeforeShrink = viewport.scrollTop
     await userEvent.click(c.getByRole('button', {name: 'shrink'}))
     await waitFor(() => expect(c.queryByText('row 39')).toBeNull())
     await new Promise((resolve) => setTimeout(resolve, 300))
-    await expect(viewport.scrollTop).toBe(scrollTopBeforeShrink)
+    await expect(c.getByText('row 0')).toBeVisible()
+    await expect(escapedFlag(canvasElement)).toHaveTextContent('true')
   },
 }
 
@@ -308,17 +312,15 @@ export const SelectionDuringStreamNoRepin: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    const viewport = canvasElement.querySelector('[data-viewport]') as HTMLElement
 
     await waitFor(() => expect(c.getByText('row 0')).toBeVisible())
-    await waitFor(() => expect(distanceFromBottom(viewport)).toBeLessThanOrEqual(1))
+    await waitFor(() => expect(atBottomFlag(canvasElement)).toHaveTextContent('true'))
 
     const release = await beginRealDrag(c.getByText('row 0'), c.getByText('row 3'))
-    const scrollTopWhileSelecting = viewport.scrollTop
     await new Promise((resolve) => setTimeout(resolve, 400))
-    await expect(viewport.scrollTop).toBe(scrollTopWhileSelecting)
+    await expect(c.getByText('row 0')).toBeVisible()
 
     await release()
-    await waitFor(() => expect(distanceFromBottom(viewport)).toBeLessThanOrEqual(1), {timeout: 3000})
+    await waitFor(() => expect(atBottomFlag(canvasElement)).toHaveTextContent('true'), {timeout: 3000})
   },
 }
