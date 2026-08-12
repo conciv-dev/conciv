@@ -1,7 +1,6 @@
 import {createSignal, Index, onCleanup, onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {userEvent as realUserEvent} from 'vitest/browser'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {ChatProvider} from '../store/chat-context.js'
 import {storyConnection, createTextChunks} from '../store/story-connection.js'
@@ -129,6 +128,7 @@ function ExpandAtBottomHarness(): JSX.Element {
 }
 
 async function realWheel(element: Element, deltaY: number): Promise<void> {
+  const {userEvent: realUserEvent} = await import('vitest/browser')
   await realUserEvent.wheel(element, {delta: {y: deltaY}})
 }
 
@@ -155,6 +155,37 @@ function ExpandEscapedHarness(): JSX.Element {
             </Index>
           </CollapsibleCard>
           <Index each={Array.from({length: 20}, (_, index) => index)}>
+            {(line) => <div>trailing line {line()}</div>}
+          </Index>
+        </div>
+      </div>
+    </ViewportProvider>
+  )
+}
+
+function TallCardNearBottomHarness(): JSX.Element {
+  const [viewport, setViewport] = createSignal<HTMLDivElement>()
+  const scroll = useThreadAutoScroll(viewport, {autoScroll: () => true})
+  onMount(() => scroll.scrollToBottom('instant'))
+  return (
+    <ViewportProvider value={scroll}>
+      <div class="w-96">
+        <div
+          ref={setViewport}
+          data-thread-viewport
+          data-at-bottom={scroll.isAtBottom() ? '' : undefined}
+          data-escaped={scroll.escapedFromLock() ? '' : undefined}
+          class="p-2 border border-pw-line h-72 overflow-y-auto"
+        >
+          <Index each={Array.from({length: 20}, (_, index) => index)}>
+            {(line) => <div>history line {line()}</div>}
+          </Index>
+          <CollapsibleCard header={<span>tall card trigger</span>} defaultOpen>
+            <Index each={Array.from({length: 60}, (_, index) => index)}>
+              {(line) => <div>tool output {line()}</div>}
+            </Index>
+          </CollapsibleCard>
+          <Index each={Array.from({length: 3}, (_, index) => index)}>
             {(line) => <div>trailing line {line()}</div>}
           </Index>
         </div>
@@ -302,6 +333,37 @@ export const ExpandDoesNotMoveViewportWhenEscaped: Story = {
     await expect(scrollOffset(vp)).toBe(scrollTopWhileEscaped)
     await expect(vp).toHaveAttribute('data-escaped')
     await expect(c.getByText('trailing line 19')).toBeInTheDocument()
+  },
+}
+
+export const TallCardNearBottomCollapseSettles: Story = {
+  render: () => <TallCardNearBottomHarness />,
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    const vp = viewportOf(canvasElement)
+    await waitFor(() => expect(c.getByText('tool output 59')).toBeVisible())
+
+    await realWheel(vp, -50)
+    await waitFor(() => expect(vp).toHaveAttribute('data-escaped'))
+    const distFromBottom = () => contentHeight(vp) - vp.clientHeight - scrollOffset(vp)
+    await waitFor(() => expect(distFromBottom()).toBeLessThan(90))
+
+    const frames: Array<{t: number; scrollTop: number}> = []
+    const start = performance.now()
+    const collectFrames = () => {
+      frames.push({t: Math.round(performance.now() - start), scrollTop: vp.scrollTop})
+      if (performance.now() - start < 650) requestAnimationFrame(collectFrames)
+    }
+    requestAnimationFrame(collectFrames)
+
+    await userEvent.click(c.getByText('tall card trigger'))
+    await new Promise((resolve) => setTimeout(resolve, 700))
+
+    const settledIndex = frames.findIndex((f) => f.t >= 220)
+    const tail = frames.slice(settledIndex)
+    const tailScrollTops = new Set(tail.map((f) => f.scrollTop))
+    await expect(tailScrollTops.size).toBe(1)
+    await expect(distFromBottom()).toBeLessThan(2)
   },
 }
 

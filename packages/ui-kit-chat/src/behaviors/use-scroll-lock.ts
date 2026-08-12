@@ -48,7 +48,7 @@ export function useScrollLock(animatedElement: Accessor<HTMLElement | undefined>
     }
 
     const resetPosition = () => {
-      scrollContainer.scrollTop = scrollPosition
+      if (scrollContainer.scrollTop > scrollPosition) scrollContainer.scrollTop = scrollPosition
     }
 
     createRoot((dispose) => {
