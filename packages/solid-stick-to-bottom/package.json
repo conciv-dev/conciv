@@ -33,7 +33,6 @@
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -42,12 +41,8 @@
     "@solid-primitives/timer": "^1.4.4"
   },
   "devDependencies": {
-    "@conciv/vitest-config": "workspace:*",
-    "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.10",
-    "@vitest/coverage-v8": "4.1.10",
-    "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
     "storybook": "^10.5.0",
     "storybook-solidjs-vite": "^10.6.0",
