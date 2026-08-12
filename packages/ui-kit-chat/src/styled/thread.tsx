@@ -43,7 +43,7 @@ import {ChainOfThought} from './chain-of-thought.js'
 import {AssistantActionBar} from './action-bar.js'
 import {FOCUS} from './classes.js'
 
-const CHAIN_OF_THOUGHT_GROW = false
+const CHAIN_OF_THOUGHT_GROW = true
 
 export type ThreadComponents = {
   AssistantMessage?: Component
