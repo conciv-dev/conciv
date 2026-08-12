@@ -89,6 +89,26 @@ describe('pageSessionSteps', () => {
     expect(byName[0]?.target).toBe('SaveButton')
   })
 
+  it('falls back per field to the before-capture name when the after capture is unnamed', () => {
+    const capture: ToolCaptureView = {
+      before: {kind: 'before', ts: 1, descriptor: descriptor({accessibleName: 'Save'})},
+      after: {kind: 'after', ts: 2, descriptor: descriptor({accessibleName: ''})},
+    }
+    const built = steps([actPart('c1', 'page.click', {selector: '#save'})], NO_RESULTS, lookup({c1: capture}))
+    expect(built[0]?.target).toBe('Save')
+    expect(built[0]?.namedTarget).toBe(true)
+  })
+
+  it('falls back per field to the before-capture value when the after capture carries none', () => {
+    const capture: ToolCaptureView = {
+      before: {kind: 'before', ts: 1, descriptor: descriptor({value: 'Full Stack'})},
+      after: {kind: 'after', ts: 2, descriptor: descriptor({accessibleName: 'Role'})},
+    }
+    const built = steps([actPart('c1', 'page.check', {selector: '#role'})], NO_RESULTS, lookup({c1: capture}))
+    expect(built[0]?.target).toBe('Role')
+    expect(built[0]?.value).toBe('Full Stack')
+  })
+
   it('ignores a capture whose accessible name is empty', () => {
     const built = steps(
       [actPart('c1', 'page.click', {selector: '#save'})],

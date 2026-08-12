@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ElementDescriptor, ToolCaptureView} from '@conciv/protocol/element-capture-types'
+import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
 import {pageVerbOfTool} from '../../shared/defs.js'
 
 export type PageSessionStep = {
@@ -53,18 +53,18 @@ function nonEmpty(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
-function stepDescriptor(capture: ToolCaptureView | undefined): ElementDescriptor | undefined {
-  return capture?.after?.descriptor ?? capture?.before?.descriptor
+function descriptorField(capture: ToolCaptureView | undefined, field: 'accessibleName' | 'value'): string | undefined {
+  return nonEmpty(capture?.after?.descriptor[field]) ?? nonEmpty(capture?.before?.descriptor[field])
 }
 
 function stepTarget(
   verb: string,
   input: Record<string, unknown>,
-  descriptor: ElementDescriptor | undefined,
+  capture: ToolCaptureView | undefined,
 ): {target: string; namedTarget: boolean} {
   const fixed = FIXED_TARGETS[verb]
   if (fixed !== undefined) return {target: fixed, namedTarget: false}
-  const named = nonEmpty(descriptor?.accessibleName)
+  const named = descriptorField(capture, 'accessibleName')
   if (named !== undefined) return {target: named, namedTarget: true}
   const located = nonEmpty(input.selector) ?? nonEmpty(input.ref)
   if (located !== undefined) return {target: located, namedTarget: false}
@@ -76,7 +76,7 @@ function stepTarget(
 function stepValue(
   verb: string,
   input: Record<string, unknown>,
-  descriptor: ElementDescriptor | undefined,
+  capture: ToolCaptureView | undefined,
 ): string | undefined {
   const codeKey = CODE_INPUT_KEYS[verb]
   if (codeKey !== undefined) {
@@ -84,7 +84,7 @@ function stepValue(
     if (source === undefined) return undefined
     return clipLine(firstMeaningfulLine(source) ?? source)
   }
-  return nonEmpty(input.value) ?? nonEmpty(descriptor?.value)
+  return nonEmpty(input.value) ?? descriptorField(capture, 'value')
 }
 
 function stepState(result: ToolResultPart | undefined, streaming: boolean): PageSessionStep['state'] {
@@ -105,11 +105,11 @@ export function pageSessionSteps(
     .map((part) => {
       const verb = pageVerbOfTool(part.name)
       const input = stepInput(part)
-      const descriptor = stepDescriptor(captureFor(part.id))
+      const capture = captureFor(part.id)
       return {
         verb,
-        ...stepTarget(verb, input, descriptor),
-        value: stepValue(verb, input, descriptor),
+        ...stepTarget(verb, input, capture),
+        value: stepValue(verb, input, capture),
         state: stepState(resultFor(part.id), streaming),
       }
     })

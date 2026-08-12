@@ -280,7 +280,9 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
     if (!pageSession || segment.kind !== 'page-session') return null
     return pageSessionHasSteps(props.turn.parts, segment.indices, pageSession.actNames) ? segment : null
   }
-  const renderable = (segment: Segment): boolean => asPageSession(segment) !== null || visibleChain(segment) !== null
+  const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
+  const renderable = (segment: Segment): boolean =>
+    asReply(segment) !== null || asPageSession(segment) !== null || visibleChain(segment) !== null
   const lastRenderableIndex = createMemo(() => {
     let last = -1
     for (const [index, segment] of segments().entries()) if (renderable(segment)) last = index
@@ -288,7 +290,6 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
   })
   const liveSegment = (index: number) =>
     activity.live() && activity.isLastTurn(props.turn) && index === lastRenderableIndex()
-  const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
   return (
     <div data-pw-msg class="flex flex-col gap-1.5 min-w-0 self-stretch anim-msg">
       <Index each={segments()}>

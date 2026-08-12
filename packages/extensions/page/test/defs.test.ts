@@ -4,6 +4,7 @@ import {
   PAGE_ACT_TOOL_NAMES,
   PAGE_TOOL_DEFS,
   pageToolMetaOf,
+  pageVerbGerund,
   pageVerbMirrors,
   pageVerbMutates,
   pageVerbOfTool,
@@ -94,6 +95,17 @@ describe('page tool declarations', () => {
     expect(pageVerbMirrors('click')).toBe(true)
     expect(pageVerbMirrors('setattr')).toBe(false)
     expect(pageToolMetaOf('nothing')).toBeUndefined()
+  })
+
+  it('gives every act verb a running gerund distinct from the raw verb', () => {
+    for (const name of PAGE_ACT_TOOL_NAMES) {
+      const verb = pageVerbOfTool(name)
+      const gerund = pageVerbGerund(verb)
+      expect(gerund, name).not.toBe(verb)
+      expect(gerund, name).toMatch(/ing$/)
+    }
+    expect(pageVerbGerund('hover')).toBe('Hovering')
+    expect(pageVerbGerund('nothing')).toBe('nothing')
   })
 
   it('derives the act tool-name set from mutating meta', () => {

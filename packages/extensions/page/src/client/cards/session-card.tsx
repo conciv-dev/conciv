@@ -27,7 +27,7 @@ import {
   StatusVisual,
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
-import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '../../shared/defs.js'
+import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageVerbGerund} from '../../shared/defs.js'
 import {cardErrorMessage, mutatingBadge} from './shared.js'
 import {pageSessionScripted, pageSessionSteps, type PageSessionStep} from './session-steps.js'
 
@@ -47,8 +47,6 @@ const SESSION_META: ToolViewMeta = {
 
 const ACTION_FORMAT = new Intl.NumberFormat()
 const ACTION_PLURAL = new Intl.PluralRules('en')
-
-const GERUNDS: Record<string, string> = {fill: 'Filling', check: 'Checking', select: 'Selecting', click: 'Clicking'}
 
 const VERB_ICONS: Record<string, LucideIcon> = {
   fill: TextCursorInput,
@@ -176,9 +174,8 @@ function sessionStatus(steps: ReadonlyArray<PageSessionStep>, streaming: boolean
 }
 
 function activeSentence(step: PageSessionStep): string {
-  const verb = GERUNDS[step.verb] ?? step.verb
   const target = step.namedTarget ? `“${step.target}”` : step.target
-  return `${verb} ${target}…`
+  return `${pageVerbGerund(step.verb)} ${target}…`
 }
 
 function rowGlyphClass(state: PageSessionStep['state'], streaming: boolean): string {

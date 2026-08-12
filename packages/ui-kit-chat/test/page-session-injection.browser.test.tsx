@@ -176,6 +176,25 @@ it('selects a trailing page-session as the live segment instead of the last chai
   await expect.element(page.getByRole('button', {name: '1 step'})).toBeVisible()
 })
 
+it('settles a live activity session once a trailing reply follows the acts', async () => {
+  mountView(() => (
+    <ActivityHarness
+      live
+      messages={[
+        user('u1', 'drive the page'),
+        assistant('a1', [
+          call('f1', 'page.fill', 'complete'),
+          result('f1', 'complete'),
+          {type: 'text', content: 'Form handled.'},
+        ]),
+      ]}
+    />
+  ))
+
+  await expect.element(page.getByText('session settled'), {timeout: 3000}).toBeVisible()
+  await expect.element(page.getByText('Form handled.')).toBeVisible()
+})
+
 it('renders a settled page-session between reply prose without a steps group', async () => {
   mountView(() => (
     <ActivityHarness

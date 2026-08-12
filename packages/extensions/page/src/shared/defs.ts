@@ -630,6 +630,12 @@ export function pageToolMetaOf(verb: string): ToolMeta | undefined {
   return PAGE_TOOL_DEFS.find((def) => def.name === `${PAGE_TOOL_PREFIX}${verb}`)?.meta
 }
 
+export function pageVerbGerund(verb: string): string {
+  const running = pageToolMetaOf(verb)?.label?.running ?? ''
+  const word = running.split(' ')[0] ?? ''
+  return word.length > 0 ? word : verb
+}
+
 export function pageVerbMutates(verb: string): boolean {
   return pageToolMetaOf(verb)?.mutating === true
 }

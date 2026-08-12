@@ -40,18 +40,32 @@ test('streamed act appends and token growth keep the existing step-rail rows mou
   const results = {f1: okResult('f1')}
   mount(() => <SessionCard parts={parts()} thinking={[]} resultFor={lookup(results)} streaming={true} />)
 
+  const rows = () => page.getByRole('listitem').elements()
   await expect.element(page.getByText('#name')).toBeVisible()
-  const firstRow = document.querySelector('li')
+  const firstRow = rows()[0]
 
   setParts((previous) => [...previous, fillCall('f2', '#email', 'ada@')])
-  await expect.element(page.getByText('Filling #email…')).toBeVisible()
-  expect(document.querySelectorAll('li')[0]).toBe(firstRow)
-  const secondRow = document.querySelectorAll('li')[1]
+  await expect.element(page.getByText('Typing #email…')).toBeVisible()
+  expect(rows()[0]).toBe(firstRow)
+  const secondRow = rows()[1]
 
   setParts((previous) => [...previous.slice(0, 1), fillCall('f2', '#email', 'ada@example.com')])
   await expect.element(page.getByText('“ada@example.com”')).toBeVisible()
-  expect(document.querySelectorAll('li')[0]).toBe(firstRow)
-  expect(document.querySelectorAll('li')[1]).toBe(secondRow)
+  expect(rows()[0]).toBe(firstRow)
+  expect(rows()[1]).toBe(secondRow)
+})
+
+test('a streaming act outside the shorthand verbs still reads as a running phrase', async () => {
+  mount(() => (
+    <SessionCard
+      parts={[toolCall('h1', 'page.hover', {selector: '#menu'}, 'input-complete')]}
+      thinking={[]}
+      resultFor={() => undefined}
+      streaming={true}
+    />
+  ))
+
+  await expect.element(page.getByText('Hovering #menu…')).toBeVisible()
 })
 
 const SCRIPT = "await external_page_settext({selector: '#prose', text: 'better prose'})"
