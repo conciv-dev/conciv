@@ -70,21 +70,22 @@ export function useThreadScroll(
 
   createEffect<boolean>((wasRunning) => {
     const running = isRunning()
-    if (running && !wasRunning && options.scrollToBottomOnRunStart && !topAnchored()) scroll.scrollToBottom('auto')
+    if (running && !wasRunning && (options.scrollToBottomOnRunStart ?? true) && !topAnchored())
+      scroll.scrollToBottom('auto')
     return running
   }, false)
 
   const signature = createMemo(() => chat.messages()[0]?.id ?? '')
   createEffect<string | undefined>((previous) => {
     const current = signature()
-    if (options.scrollToBottomOnThreadSwitch && previous !== undefined && previous !== current) {
+    if ((options.scrollToBottomOnThreadSwitch ?? true) && previous !== undefined && previous !== current) {
       scroll.scrollToBottom('auto')
     }
     return current
   }, undefined)
 
   onMount(() => {
-    if (options.scrollToBottomOnInitialize && chat.messages().length > 0) scroll.scrollToBottom('auto')
+    if ((options.scrollToBottomOnInitialize ?? true) && chat.messages().length > 0) scroll.scrollToBottom('auto')
   })
 
   return scroll
