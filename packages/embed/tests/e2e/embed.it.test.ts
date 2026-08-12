@@ -345,7 +345,9 @@ test.describe('embed at a phone viewport', () => {
   test.describe('a narrower phone width', () => {
     test.use({viewport: {width: 320, height: 800}})
 
-    test('keeps Stop and Send inside the sheet on a narrow phone while a run streams', async ({page}) => {
+    test('keeps the single trailing button and Select model inside the sheet on a narrow phone while a run streams', async ({
+      page,
+    }) => {
       test.setTimeout(180_000)
       await page.goto(host.base, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
@@ -355,11 +357,13 @@ test.describe('embed at a phone viewport', () => {
       await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('a question that keeps running')
       await send.click()
       await expect(stop).toBeVisible({timeout: 30_000})
+      await expect(send).toBeHidden()
       await expect(page.getByRole('button', {name: 'Select model'})).toBeInViewport({ratio: 1, timeout: 5_000})
       await expect(stop).toBeInViewport({ratio: 1, timeout: 5_000})
-      await expect(send).toBeInViewport({ratio: 1, timeout: 5_000})
       kit.harness.script.release()
       await expect(stop).toBeHidden({timeout: 30_000})
+      await expect(send).toBeVisible()
+      await expect(send).toBeInViewport({ratio: 1, timeout: 5_000})
     })
   })
 })
