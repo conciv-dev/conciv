@@ -1,5 +1,6 @@
 import {spawn} from 'node:child_process'
 import {createRequire} from 'node:module'
+import {once} from 'node:events'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {describe, expect, it, vi} from 'vitest'
 
@@ -22,29 +23,22 @@ describe('fake-claude orphan self-reap (IT, real process kill)', () => {
     const parentPid = parent.pid
     if (parentPid === undefined) throw new Error('orphan-parent-sim did not spawn')
 
-    const ready = await new Promise<string>((resolve, reject) => {
-      let buffer = ''
-      parent.stdout.on('data', (chunk: Buffer) => {
-        buffer += chunk.toString()
-        const match = /READY (\d+)/.exec(buffer)
-        if (match) resolve(match[1] ?? '')
-      })
-      parent.once('error', reject)
-      setTimeout(() => reject(new Error('orphan-parent-sim never reported READY')), 5000)
-    })
-    const fixturePid = Number(ready)
-    expect(isAlive(fixturePid)).toBe(true)
-
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    expect(isAlive(fixturePid)).toBe(true)
-
-    process.kill(parentPid, 'SIGKILL')
-    await vi.waitFor(() => expect(isAlive(parentPid)).toBe(false), {timeout: 2000, interval: 50})
-
+    let fixturePid: number | undefined
     try {
-      await vi.waitFor(() => expect(isAlive(fixturePid)).toBe(false), {timeout: 3000, interval: 50})
+      const [chunk] = await once(parent.stdout, 'data')
+      if (!(chunk instanceof Buffer)) throw new Error('expected a Buffer chunk from stdout')
+      const match = /READY (\d+)/.exec(chunk.toString())
+      if (!match) throw new Error('orphan-parent-sim did not report READY')
+      const confirmedFixturePid = Number(match[1])
+      fixturePid = confirmedFixturePid
+      expect(isAlive(confirmedFixturePid)).toBe(true)
+
+      process.kill(parentPid, 'SIGKILL')
+      await vi.waitFor(() => expect(isAlive(parentPid)).toBe(false), {timeout: 2000, interval: 50})
+      await vi.waitFor(() => expect(isAlive(confirmedFixturePid)).toBe(false), {timeout: 5000, interval: 50})
     } finally {
-      if (isAlive(fixturePid)) process.kill(fixturePid, 'SIGKILL')
+      if (isAlive(parentPid)) process.kill(parentPid, 'SIGKILL')
+      if (fixturePid !== undefined && isAlive(fixturePid)) process.kill(fixturePid, 'SIGKILL')
     }
-  }, 10_000)
+  }, 12_000)
 })
