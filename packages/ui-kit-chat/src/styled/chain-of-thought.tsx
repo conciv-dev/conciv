@@ -17,6 +17,7 @@ const ANIMATION_DURATION_MS = 200
 
 export type ChainOfThoughtProps = ParentProps<{
   streaming?: boolean
+  autoOpen?: boolean
   durationMs?: number
   grow?: boolean
 }>
@@ -54,16 +55,16 @@ function Step(props: {icon: JSX.Element; last?: boolean; children: JSX.Element})
 function Shell(props: ParentProps<{grow: boolean}>): JSX.Element {
   const chain = useChainOfThought()
   const [scroller, setScroller] = createSignal<HTMLDivElement>()
-  const [rootEl, setRootEl] = createSignal<HTMLDivElement>()
-  const [contentEl, setContentEl] = createSignal<HTMLDivElement>()
+  let rootEl: HTMLDivElement | undefined
+  let contentEl: HTMLDivElement | undefined
   const capped = () => !props.grow
   createStickToBottom(scroller, {
     initial: 'instant',
     follow: () => capped() && chain.streaming(),
   })
-  const lockScroll = useScrollLock(rootEl, ANIMATION_DURATION_MS)
+  const lockScroll = useScrollLock(() => rootEl, ANIMATION_DURATION_MS)
   const viewport = useOptionalThreadViewport()
-  const settleFollow = usePauseFollowOnToggle(contentEl, viewport?.pauseFollow)
+  const settleFollow = usePauseFollowOnToggle(() => contentEl, viewport?.pauseFollow)
   const handleOpenChange = (open: boolean) => {
     lockScroll()
     settleFollow()
@@ -71,13 +72,13 @@ function Shell(props: ParentProps<{grow: boolean}>): JSX.Element {
   }
   return (
     <Collapsible.Root open={chain.open()} onOpenChange={(details) => handleOpenChange(details.open)}>
-      <div ref={setRootEl} class="flex flex-col min-w-0 w-full">
+      <div ref={(el) => (rootEl = el)} class="flex flex-col min-w-0 w-full">
         <Collapsible.Trigger class={TRIGGER}>
           <Brain size={14} class="text-[color:var(--chat-text-3)] shrink-0" />
           <span class={chain.streaming() ? SHIMMER : ''}>{chain.streaming() ? 'Working…' : 'Chain of Thought'}</span>
           <ChevronDown size={14} class={CHEVRON} aria-hidden="true" />
         </Collapsible.Trigger>
-        <Collapsible.Content ref={setContentEl}>
+        <Collapsible.Content ref={(el) => (contentEl = el)}>
           <div ref={setScroller} class={`pt-2 ${capped() ? PREVIEW : ''}`}>
             <div class="flex flex-col">{props.children}</div>
           </div>
@@ -89,7 +90,7 @@ function Shell(props: ParentProps<{grow: boolean}>): JSX.Element {
 
 function Root(props: ChainOfThoughtProps): JSX.Element {
   return (
-    <ChainOfThoughtPrimitive.Root streaming={props.streaming}>
+    <ChainOfThoughtPrimitive.Root streaming={props.streaming} autoOpen={props.autoOpen}>
       <Shell grow={Boolean(props.grow)}>{props.children}</Shell>
     </ChainOfThoughtPrimitive.Root>
   )

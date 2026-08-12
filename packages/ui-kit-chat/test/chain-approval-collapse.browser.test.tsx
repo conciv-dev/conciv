@@ -79,4 +79,11 @@ it('keeps the chain open once the run settles so a pending approval on the newes
   await expect.element(page.getByText('Run this action?'), {timeout: 3000}).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Allow'}), {timeout: 3000}).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
+
+  await page.getByRole('button', {name: 'Chain of Thought'}).click()
+
+  await expect
+    .element(page.getByRole('button', {name: 'Chain of Thought'}), {timeout: 3000})
+    .toHaveAttribute('aria-expanded', 'false')
+  await expect.element(page.getByText('Run this action?'), {timeout: 3000}).not.toBeVisible()
 })

@@ -182,7 +182,11 @@ function AssistantTurn(props: {
           <Switch>
             <Match when={asChain(segment())}>
               {(chain) => (
-                <ChainOfThought streaming={chainAutoOpen(chain().indices)} grow={CHAIN_OF_THOUGHT_GROW}>
+                <ChainOfThought
+                  streaming={liveSegment(segmentIndex)}
+                  autoOpen={chainAutoOpen(chain().indices)}
+                  grow={CHAIN_OF_THOUGHT_GROW}
+                >
                   <Index each={chain().indices}>
                     {(partIndex, partPosition) => (
                       <ChainPart
