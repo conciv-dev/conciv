@@ -1,3 +1,4 @@
+import {uniqBy} from 'es-toolkit'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
 
 export type ToolCallPartWithParent = ToolCallPart & {metadata?: {parentToolCallId?: unknown}}
@@ -45,25 +46,24 @@ type PageSessionGrouping = {
 }
 
 function foldableParentIds(parts: ReadonlyArray<MessagePart>, pageActNames: ReadonlySet<string>): Set<string> {
-  const parentIndexById = new Map<string, number>()
-  const firstActChildIndex = new Map<string, number>()
-  const replyIndices: number[] = []
-  parts.forEach((part, index) => {
-    if (isReplyText(part)) replyIndices.push(index)
-    if (part.type !== 'tool-call') return
-    if (part.id && !parentIndexById.has(part.id)) parentIndexById.set(part.id, index)
-    if (!pageActNames.has(part.name)) return
-    const parent = parentToolCallIdOf(part)
-    if (parent !== null && !firstActChildIndex.has(parent)) firstActChildIndex.set(parent, index)
+  const replyIndices = parts.flatMap((part, index) => (isReplyText(part) ? [index] : []))
+  const calls = parts.flatMap((part, index) => (part.type === 'tool-call' ? [{call: part, index}] : []))
+  const firstIndexByCallId = new Map(
+    uniqBy(
+      calls.filter(({call}) => call.id.length > 0),
+      ({call}) => call.id,
+    ).map(({call, index}) => [call.id, index]),
+  )
+  const actChildren = calls.flatMap(({call, index}) => {
+    const parent = parentToolCallIdOf(call)
+    return pageActNames.has(call.name) && parent !== null ? [{parent, index}] : []
   })
-  const ids = new Set<string>()
-  for (const [parent, childIndex] of firstActChildIndex) {
-    const parentIndex = parentIndexById.get(parent)
-    if (parentIndex === undefined) continue
-    const split = replyIndices.some((replyIndex) => replyIndex > parentIndex && replyIndex < childIndex)
-    if (!split) ids.add(parent)
-  }
-  return ids
+  const unsplit = uniqBy(actChildren, ({parent}) => parent).filter(({parent, index: childIndex}) => {
+    const parentIndex = firstIndexByCallId.get(parent)
+    if (parentIndex === undefined) return false
+    return !replyIndices.some((replyIndex) => replyIndex > parentIndex && replyIndex < childIndex)
+  })
+  return new Set(unsplit.map(({parent}) => parent))
 }
 
 function toolCallFolds(grouping: PageSessionGrouping, part: ToolCallPart): boolean {
@@ -175,14 +175,11 @@ export function groupSegments(parts: ReadonlyArray<MessagePart>, options?: Group
 export type ResultPairing = {byCallId: Map<string, ToolResultPart>; hiddenResultIds: Set<string>}
 
 export function pairResults(parts: ReadonlyArray<MessagePart>): ResultPairing {
-  const callIds = new Set<string>()
-  for (const part of parts) if (part.type === 'tool-call' && part.id) callIds.add(part.id)
-  const byCallId = new Map<string, ToolResultPart>()
-  const hiddenResultIds = new Set<string>()
-  for (const part of parts) {
-    if (part.type !== 'tool-result' || !part.toolCallId) continue
-    byCallId.set(part.toolCallId, part)
-    if (callIds.has(part.toolCallId)) hiddenResultIds.add(part.toolCallId)
-  }
+  const callIds = new Set(parts.flatMap((part) => (part.type === 'tool-call' && part.id.length > 0 ? [part.id] : [])))
+  const results = parts.filter(
+    (part): part is ToolResultPart => part.type === 'tool-result' && part.toolCallId.length > 0,
+  )
+  const byCallId = new Map(results.map((part) => [part.toolCallId, part]))
+  const hiddenResultIds = new Set(results.map((part) => part.toolCallId).filter((id) => callIds.has(id)))
   return {byCallId, hiddenResultIds}
 }

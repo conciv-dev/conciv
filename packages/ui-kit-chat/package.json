@@ -61,6 +61,7 @@
     "@tanstack/pacer": "^0.21.1",
     "@tanstack/solid-virtual": "^3.13.12",
     "class-variance-authority": "^0.7.1",
+    "es-toolkit": "^1.50.0",
     "lucide-solid": "^1.18.0",
     "rrweb-snapshot": "2.1.0",
     "shiki": "^4.2.0",
