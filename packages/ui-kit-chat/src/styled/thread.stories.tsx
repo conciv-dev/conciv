@@ -168,7 +168,10 @@ export const PreviousTurnActionsRevealOnHover: Story = {
     const older = await waitFor(() => c.getByText('First reply, older.'))
     await waitFor(() => c.getByText('Second reply, latest.'))
 
-    await waitFor(() => expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(1))
+    await waitFor(async () => {
+      await userEvent.unhover(older)
+      expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(1)
+    })
 
     await userEvent.hover(older)
     await waitFor(() => expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(2))
