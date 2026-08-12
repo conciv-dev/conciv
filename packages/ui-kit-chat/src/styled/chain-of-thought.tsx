@@ -17,7 +17,6 @@ const ANIMATION_DURATION_MS = 200
 
 export type ChainOfThoughtProps = ParentProps<{
   streaming?: boolean
-  pinnedOpen?: boolean
   durationMs?: number
   grow?: boolean
 }>
@@ -90,7 +89,7 @@ function Shell(props: ParentProps<{grow: boolean}>): JSX.Element {
 
 function Root(props: ChainOfThoughtProps): JSX.Element {
   return (
-    <ChainOfThoughtPrimitive.Root streaming={props.streaming} pinnedOpen={props.pinnedOpen}>
+    <ChainOfThoughtPrimitive.Root streaming={props.streaming}>
       <Shell grow={Boolean(props.grow)}>{props.children}</Shell>
     </ChainOfThoughtPrimitive.Root>
   )

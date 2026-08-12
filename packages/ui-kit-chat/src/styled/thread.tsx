@@ -133,11 +133,12 @@ function AssistantTurn(props: {
       .lastIndexOf('text'),
   )
   const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
-  const awaitsApproval = (indices: number[]) =>
-    indices.some((index) => {
-      const part = parts()[index]
-      return part?.type === 'tool-call' && part.state === 'approval-requested'
-    })
+  const lastPartIndex = createMemo(() => parts().length - 1)
+  const chainReasoningStreaming = (indices: number[]) => {
+    const last = indices.at(-1)
+    if (last === undefined || last !== lastPartIndex()) return false
+    return thread.isRunning && message.isLast() && asThinking(parts()[last]) !== null
+  }
   const hasChainStep = (indices: number[]) =>
     indices.some((index) => {
       const part = parts()[index]
@@ -172,11 +173,7 @@ function AssistantTurn(props: {
           <Switch>
             <Match when={asChain(segment())}>
               {(chain) => (
-                <ChainOfThought
-                  streaming={liveSegment(segmentIndex)}
-                  pinnedOpen={awaitsApproval(chain().indices)}
-                  grow={CHAIN_OF_THOUGHT_GROW}
-                >
+                <ChainOfThought streaming={chainReasoningStreaming(chain().indices)} grow={CHAIN_OF_THOUGHT_GROW}>
                   <Index each={chain().indices}>
                     {(partIndex, partPosition) => (
                       <ChainPart
