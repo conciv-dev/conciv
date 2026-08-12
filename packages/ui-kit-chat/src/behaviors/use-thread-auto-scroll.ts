@@ -3,6 +3,7 @@ import {createStickToBottom} from '@conciv/solid-stick-to-bottom'
 
 export type ThreadAutoScroll = {
   isAtBottom: Accessor<boolean>
+  escapedFromLock: Accessor<boolean>
   scrollToBottom: (behavior?: ScrollBehavior) => void
   pauseFollow: (durationMs: number) => void
 }
@@ -18,6 +19,7 @@ export function useThreadAutoScroll(
   })
   return {
     isAtBottom: stick.isAtBottom,
+    escapedFromLock: stick.escapedFromLock,
     scrollToBottom: (behavior: ScrollBehavior = 'smooth') => {
       void stick.scrollToBottom({animation: behavior === 'smooth' ? undefined : 'instant'})
     },
