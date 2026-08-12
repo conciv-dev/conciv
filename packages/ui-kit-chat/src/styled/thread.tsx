@@ -20,7 +20,7 @@ import Search from 'lucide-solid/icons/search'
 import Terminal from 'lucide-solid/icons/terminal'
 import Wrench from 'lucide-solid/icons/wrench'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolUIComponent, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
@@ -68,6 +68,12 @@ function asToolCall(part: MessagePart | undefined): ToolCallPart | null {
 }
 function asText(part: MessagePart | undefined): Extract<MessagePart, {type: 'text'}> | null {
   return part?.type === 'text' && part.content.trim().length > 0 ? part : null
+}
+function isAwaitingApproval(part: MessagePart | undefined, ctx: ToolViewCtx): boolean {
+  const call = asToolCall(part)
+  return (
+    call !== null && call.state === 'approval-requested' && call.approval !== undefined && Boolean(ctx.respondApproval)
+  )
 }
 
 function toolStepIcon(name: string): JSX.Element {
@@ -125,6 +131,7 @@ function AssistantTurn(props: {
 }): JSX.Element {
   const message = useMessage()
   const thread = useThread()
+  const ctx = useToolCtx()
   const parts = () => message.message().parts
   const groupingOptions = createMemo(() => pageSessionGroupingOptions(props.pageSession))
   const segments = createMemo(() => groupSegments(parts(), groupingOptions()))
@@ -136,9 +143,10 @@ function AssistantTurn(props: {
   const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
   const lastPartIndex = createMemo(() => parts().length - 1)
   const livePart = (index: number) => thread.isRunning && message.isLast() && index === lastPartIndex()
-  const chainReasoningStreaming = (indices: number[]) => {
+  const chainAutoOpen = (indices: number[]) => {
     const last = indices.at(-1)
-    return last !== undefined && livePart(last) && asThinking(parts()[last]) !== null
+    const reasoningStreaming = last !== undefined && livePart(last) && asThinking(parts()[last]) !== null
+    return reasoningStreaming || indices.some((index) => isAwaitingApproval(parts()[index], ctx))
   }
   const hasChainStep = (indices: number[]) =>
     indices.some((index) => {
@@ -174,7 +182,7 @@ function AssistantTurn(props: {
           <Switch>
             <Match when={asChain(segment())}>
               {(chain) => (
-                <ChainOfThought streaming={chainReasoningStreaming(chain().indices)} grow={CHAIN_OF_THOUGHT_GROW}>
+                <ChainOfThought streaming={chainAutoOpen(chain().indices)} grow={CHAIN_OF_THOUGHT_GROW}>
                   <Index each={chain().indices}>
                     {(partIndex, partPosition) => (
                       <ChainPart
