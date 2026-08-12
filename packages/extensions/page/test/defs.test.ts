@@ -1,6 +1,14 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {PAGE_TOOL_DEFS, pageToolMetaOf, pageVerbMirrors, pageVerbMutates, pageVerbOfTool} from '../src/shared/defs.js'
+import {
+  PAGE_ACT_TOOL_NAMES,
+  PAGE_TOOL_DEFS,
+  pageToolMetaOf,
+  pageVerbGerund,
+  pageVerbMirrors,
+  pageVerbMutates,
+  pageVerbOfTool,
+} from '../src/shared/defs.js'
 
 const MUTATING_VERBS = [
   'addclass',
@@ -87,5 +95,24 @@ describe('page tool declarations', () => {
     expect(pageVerbMirrors('click')).toBe(true)
     expect(pageVerbMirrors('setattr')).toBe(false)
     expect(pageToolMetaOf('nothing')).toBeUndefined()
+  })
+
+  it('gives every act verb a running gerund distinct from the raw verb', () => {
+    for (const name of PAGE_ACT_TOOL_NAMES) {
+      const verb = pageVerbOfTool(name)
+      const gerund = pageVerbGerund(verb)
+      expect(gerund, name).not.toBe(verb)
+      expect(gerund, name).toMatch(/ing$/)
+    }
+    expect(pageVerbGerund('hover')).toBe('Hovering')
+    expect(pageVerbGerund('nothing')).toBe('nothing')
+  })
+
+  it('derives the act tool-name set from mutating meta', () => {
+    expect(PAGE_ACT_TOOL_NAMES.has('page.click')).toBe(true)
+    expect(PAGE_ACT_TOOL_NAMES.has('page.fill')).toBe(true)
+    expect(PAGE_ACT_TOOL_NAMES.has('page.snapshot')).toBe(false)
+    expect(PAGE_ACT_TOOL_NAMES.has('page.route')).toBe(false)
+    expect([...PAGE_ACT_TOOL_NAMES].toSorted()).toEqual(MUTATING_VERBS.map((verb) => `page.${verb}`))
   })
 })

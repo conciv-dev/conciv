@@ -8,6 +8,7 @@ export type CollapsibleCardProps = {
   onOpenChange?: (open: boolean) => void
   defaultOpen?: boolean
   tooltip?: string
+  flush?: boolean
   class?: string
 }
 
@@ -15,7 +16,10 @@ const CARD =
   'w-full min-w-0 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] overflow-hidden'
 const ROW =
   'w-full flex items-center gap-2 px-3 py-2 text-start text-[length:var(--chat-text-md)] text-[color:var(--chat-text-2)]'
+const ROW_FLUSH =
+  'w-full flex items-center gap-1.5 pe-2.5 text-start text-[length:var(--chat-text-md)] text-[color:var(--chat-text-2)] [background:var(--chat-fill)]'
 const TRIGGER = `group ${ROW} cursor-pointer select-none [background:transparent] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] focus-visible:[outline:0.125rem_solid_var(--chat-accent)] [outline-offset:-2px]`
+const TRIGGER_FLUSH = `group ${ROW_FLUSH} cursor-pointer select-none [transition:background_200ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] focus-visible:[outline:0.125rem_solid_var(--chat-accent)] [outline-offset:-2px]`
 const CHEVRON =
   'inline-flex shrink-0 text-[color:var(--chat-text-3)] [transition:rotate_150ms_var(--chat-ease)] data-[state=closed]:-rotate-90 data-[state=open]:rotate-0'
 const BODY = 'px-3 pt-0.5 pb-2.5 text-[length:var(--chat-text-md)] text-[color:var(--chat-text-2)]'
@@ -41,12 +45,13 @@ function CardFrame(props: {class: string | undefined; children: JSX.Element}): J
   return <div class={`${CARD}  ${props.class ?? ''}`}>{props.children}</div>
 }
 
-function StaticRow(props: {tooltip: string | undefined; header: JSX.Element}): JSX.Element {
+function StaticRow(props: {tooltip: string | undefined; flush: boolean; header: JSX.Element}): JSX.Element {
+  const rowClass = () => (props.flush ? ROW_FLUSH : ROW)
   return (
     <Show
       when={props.tooltip}
       fallback={
-        <div class={ROW}>
+        <div class={rowClass()}>
           <span class={HEADER_SLOT}>{props.header}</span>
         </div>
       }
@@ -55,7 +60,7 @@ function StaticRow(props: {tooltip: string | undefined; header: JSX.Element}): J
         <Tooltip.Root openDelay={400} unmountOnExit lazyMount>
           <Tooltip.Trigger
             asChild={(triggerProps) => (
-              <div {...triggerProps()} class={ROW}>
+              <div {...triggerProps()} class={rowClass()}>
                 <span class={HEADER_SLOT}>{props.header}</span>
               </div>
             )}
@@ -69,12 +74,13 @@ function StaticRow(props: {tooltip: string | undefined; header: JSX.Element}): J
   )
 }
 
-function CardTrigger(props: {tooltip: string | undefined; header: JSX.Element}): JSX.Element {
+function CardTrigger(props: {tooltip: string | undefined; flush: boolean; header: JSX.Element}): JSX.Element {
+  const triggerClass = () => (props.flush ? TRIGGER_FLUSH : TRIGGER)
   return (
     <Show
       when={props.tooltip}
       fallback={
-        <Collapsible.Trigger class={TRIGGER}>
+        <Collapsible.Trigger class={triggerClass()}>
           <TriggerBody header={props.header} />
         </Collapsible.Trigger>
       }
@@ -83,7 +89,7 @@ function CardTrigger(props: {tooltip: string | undefined; header: JSX.Element}):
         <Tooltip.Root openDelay={400} unmountOnExit lazyMount>
           <Tooltip.Trigger
             asChild={(triggerProps) => (
-              <Collapsible.Trigger {...triggerProps()} class={TRIGGER}>
+              <Collapsible.Trigger {...triggerProps()} class={triggerClass()}>
                 <TriggerBody header={props.header} />
               </Collapsible.Trigger>
             )}
@@ -100,15 +106,25 @@ function CardTrigger(props: {tooltip: string | undefined; header: JSX.Element}):
 export function CollapsibleCard(
   props: CollapsibleCardProps & {header: JSX.Element; children?: JSX.Element},
 ): JSX.Element {
-  const [local] = splitProps(props, ['open', 'onOpenChange', 'defaultOpen', 'tooltip', 'class', 'header', 'children'])
+  const [local] = splitProps(props, [
+    'open',
+    'onOpenChange',
+    'defaultOpen',
+    'tooltip',
+    'flush',
+    'class',
+    'header',
+    'children',
+  ])
   const viewport = useOptionalThreadViewport()
   const body = children(() => local.children)
+  const flush = () => local.flush === true
   return (
     <Show
       when={hasContent(body())}
       fallback={
         <CardFrame class={local.class}>
-          <StaticRow tooltip={local.tooltip} header={local.header} />
+          <StaticRow tooltip={local.tooltip} flush={flush()} header={local.header} />
         </CardFrame>
       }
     >
@@ -121,7 +137,7 @@ export function CollapsibleCard(
         }}
       >
         <CardFrame class={local.class}>
-          <CardTrigger tooltip={local.tooltip} header={local.header} />
+          <CardTrigger tooltip={local.tooltip} flush={flush()} header={local.header} />
           <Collapsible.Content>
             <div class={BODY}>{body()}</div>
           </Collapsible.Content>

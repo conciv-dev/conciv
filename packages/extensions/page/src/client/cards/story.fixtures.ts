@@ -1,4 +1,5 @@
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {ToolCaptureView} from '@conciv/protocol/element-capture-types'
 import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
 export const STORY_FRAME_CLASS =
@@ -6,19 +7,27 @@ export const STORY_FRAME_CLASS =
 
 export const storyAddResult = INERT_ADD_RESULT
 
-export function storyCtx(entries: Record<string, ToolViewMeta>): ToolViewCtx {
+export function storyCtx(
+  entries: Record<string, ToolViewMeta>,
+  captures?: Record<string, ToolCaptureView>,
+): ToolViewCtx {
   const catalog: ToolCatalogView = {loaded: () => true, meta: (name) => entries[name]}
-  return {...INERT_TOOL_CTX, catalog}
+  return {...INERT_TOOL_CTX, catalog, captureFor: (toolCallId) => captures?.[toolCallId]}
 }
 
 export function storyPart(
   name: string,
   input: Record<string, unknown>,
   state: ToolCallPart['state'] = 'complete',
+  id = 's1',
 ): ToolCallPart {
-  return {type: 'tool-call', id: 's1', name, arguments: JSON.stringify(input), input, state}
+  return {type: 'tool-call', id, name, arguments: JSON.stringify(input), input, state}
 }
 
-export function storyResult(payload: unknown, state: ToolResultPart['state'] = 'complete'): ToolResultPart {
-  return {type: 'tool-result', toolCallId: 's1', content: JSON.stringify(payload), state}
+export function storyResult(
+  payload: unknown,
+  state: ToolResultPart['state'] = 'complete',
+  toolCallId = 's1',
+): ToolResultPart {
+  return {type: 'tool-result', toolCallId, content: JSON.stringify(payload), state}
 }

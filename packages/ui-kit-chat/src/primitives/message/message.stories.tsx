@@ -4,6 +4,7 @@ import {expect, within, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
 import type {UIMessage} from '@tanstack/ai-client'
 import {ChatProvider} from '../../store/chat-context.js'
+import type {Segment} from '../../store/grouping.js'
 import {storyConnection} from '../../store/story-connection.js'
 import {Thread} from '../thread/thread.js'
 import {Attachment} from '../attachment/attachment.js'
@@ -92,7 +93,7 @@ const CHAIN_THEN_REPLY: UIMessage = {
   ],
 }
 
-function GroupBox(props: ParentProps<{indices: number[]; kind: 'chain' | 'reply'}>): JSX.Element {
+function GroupBox(props: ParentProps<{indices: number[]; kind: Segment['kind']}>): JSX.Element {
   return (
     <div data-kind={props.kind} class="p-1 border border-pw-line rounded-pw-sm">
       <span class="text-[0.625rem] text-pw-text-3">group:{props.kind}</span>

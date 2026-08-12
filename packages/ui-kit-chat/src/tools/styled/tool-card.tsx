@@ -52,6 +52,9 @@ export function ToolCard(props: {
   durationMs?: number
   defaultOpen?: boolean
   status?: ToolStatus
+  header?: JSX.Element
+  flushHeader?: boolean
+  class?: string
   children?: JSX.Element
 }): JSX.Element {
   const status = () => props.status ?? toolStatus(props.part, props.result)
@@ -61,15 +64,19 @@ export function ToolCard(props: {
     <CollapsibleCard
       defaultOpen={props.defaultOpen ?? status() === 'approval'}
       tooltip={props.titleTooltip}
+      flush={props.flushHeader}
+      class={props.class}
       header={
-        <HeaderContent
-          Icon={props.Icon}
-          title={props.title}
-          subtitle={props.subtitle}
-          meta={props.meta}
-          duration={duration()}
-          status={status()}
-        />
+        props.header ?? (
+          <HeaderContent
+            Icon={props.Icon}
+            title={props.title}
+            subtitle={props.subtitle}
+            meta={props.meta}
+            duration={duration()}
+            status={status()}
+          />
+        )
       }
     >
       {props.children}

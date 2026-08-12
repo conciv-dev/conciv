@@ -6,5 +6,7 @@ export const page = defineExtension({name: PAGE_EXTENSION_NAME, tools: PAGE_CLIE
 
 export default page
 
+export {SessionCard} from './client/cards/session-card.js'
+export {pageSessionSteps, type PageSessionStep} from './client/cards/session-steps.js'
 export {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from './client/page-result-views.js'
 export {formatHtml} from './client/page-format.js'

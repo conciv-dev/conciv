@@ -21,8 +21,11 @@ import {
   ToolProvider,
   pairResults,
   useComposerContext,
+  type PageSessionConfig,
   type Turn,
 } from '@conciv/ui-kit-chat'
+import {SessionCard} from '@conciv/extension-page/client'
+import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
@@ -58,6 +61,12 @@ import {PaneComposer} from './pane-composer.js'
 import {checkSend, type SendVerdict} from './send-checks.js'
 
 const GRAB_PREVIEW_MAX_W = 280
+
+const PAGE_SESSION: PageSessionConfig = {
+  render: SessionCard,
+  actNames: PAGE_ACT_TOOL_NAMES,
+  toolPrefix: PAGE_TOOL_PREFIX,
+}
 
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
 const RETRY =
@@ -328,6 +337,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                         attachmentCards={attachments().cards}
                         components={{ToolFallback: ToolFallbackCard}}
                         turnPrefix={renderTurnPrefix}
+                        pageSession={PAGE_SESSION}
                       />
                       <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
                       <Show when={compacting()}>

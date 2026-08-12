@@ -37,11 +37,10 @@ function rowIdentities(stored: SessionCaptures): string[] {
   return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
 }
 
-async function sendAndRevealThought(page: Page, message: string): Promise<void> {
+async function sendAndSettle(page: Page, message: string): Promise<void> {
   await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(message)
   await page.getByRole('button', {name: 'Send message'}).click()
   await expect(page.getByRole('button', {name: 'Stop generating'})).toBeHidden({timeout: 30_000})
-  await page.getByText('Chain of Thought').last().click()
 }
 
 test.describe('a page tool run through the widget stores a frozen picture of the element it touched', () => {
@@ -101,7 +100,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
     expect(rowIdentities(after)).toEqual(rowIdentities(before))
   })
 
-  test('renders a page verb run through real code mode with its element preview ready in the widget', async ({
+  test('renders a page verb run through real code mode as one aggregated session card fed by the capture pipeline', async ({
     page,
   }) => {
     test.setTimeout(180_000)
@@ -110,12 +109,15 @@ test.describe('a page tool run through the widget stores a frozen picture of the
     kit.harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: "await external_page_settext({selector: '#prose', text: 'rendered through the pipeline'})",
     })
-    await sendAndRevealThought(page, 'rewrite the prose through code mode')
-    const settextCard = page.getByRole('button', {name: /Set the text/})
-    await expect(settextCard).toBeVisible({timeout: 30_000})
-    await settextCard.click()
-    const preview = page.getByRole('img', {name: 'rendered through the pipeline'})
-    await expect(preview).toBeVisible({timeout: 30_000})
-    await expect(preview).not.toHaveAttribute('aria-busy')
+    await sendAndSettle(page, 'rewrite the prose through code mode')
+    const sessionCard = page.getByRole('button', {name: /Edited the page/})
+    await expect(sessionCard).toBeVisible({timeout: 30_000})
+    await expect(page.getByRole('button', {name: /Set the text/})).toHaveCount(0)
+    await sessionCard.click()
+    const dialog = page.getByRole('dialog', {name: 'conciv chat agent'})
+    const stepTarget = dialog.getByText('rendered through the pipeline', {exact: true})
+    await expect(stepTarget).toBeVisible({timeout: 30_000})
+    await dialog.getByRole('button', {name: 'Script'}).click()
+    await expect(dialog.getByText(/external_page_settext/).first()).toBeVisible({timeout: 30_000})
   })
 })

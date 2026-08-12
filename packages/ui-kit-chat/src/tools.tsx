@@ -42,6 +42,7 @@ export {ActionRow, ActionButton} from './tools/styled/action-row.js'
 export {CollapsibleSection} from './tools/styled/collapsible-section.js'
 export {JsonTree} from './tools/styled/json-tree.js'
 export {MirrorRow, NoteRow, type NoteRowTone} from './tools/styled/note-row.js'
+export {SHIMMER} from './styled/shimmer.js'
 export {
   ELEMENT_CAPTURE_FIXTURE_CSS,
   ELEMENT_CAPTURE_FIXTURE_FULL,
