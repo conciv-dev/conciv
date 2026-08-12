@@ -77,6 +77,7 @@
     "@conciv/extension-page",
     "@conciv/grab",
     "@conciv/mascot",
+    "@conciv/skills",
     "@conciv/solid-diffs",
     "@conciv/solid-streamdown",
     "@conciv/ui-kit-chat",
