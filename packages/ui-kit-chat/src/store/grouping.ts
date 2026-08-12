@@ -45,7 +45,6 @@ const isReplyText = (part: MessagePart): boolean => part.type === 'text' && part
 type PageSessionGrouping = {
   segments: Segment[]
   openCallIds: Set<string>
-  standaloneCallIds: Set<string>
   pageActNames: ReadonlySet<string>
   pageToolPrefix: string | undefined
   actParentIds: ReadonlySet<string>
@@ -118,18 +117,18 @@ function placeReply(grouping: PageSessionGrouping, index: number): void {
   grouping.segments.push({kind: 'reply', index})
 }
 
-function asStandaloneCall(grouping: PageSessionGrouping, part: MessagePart): ToolCallPart | null {
-  return part.type === 'tool-call' && (grouping.standalone?.(part.name) ?? false) ? part : null
+function isStandaloneCall(grouping: PageSessionGrouping, part: MessagePart): boolean {
+  return part.type === 'tool-call' && (grouping.standalone?.(part.name) ?? false)
 }
 
-function placeStandalone(grouping: PageSessionGrouping, part: ToolCallPart, index: number): void {
+function placeStandalone(grouping: PageSessionGrouping, index: number): void {
   grouping.openCallIds.clear()
-  if (part.id) grouping.standaloneCallIds.add(part.id)
   grouping.segments.push({kind: 'standalone', index})
 }
 
-function isStandaloneResult(grouping: PageSessionGrouping, part: MessagePart): boolean {
-  return part.type === 'tool-result' && grouping.standaloneCallIds.has(part.toolCallId)
+function foldResultIntoTrailingChain(grouping: PageSessionGrouping, index: number): void {
+  const last = grouping.segments.at(-1)
+  if (last?.kind === 'chain') last.indices.push(index)
 }
 
 function sessionMemberCall(grouping: PageSessionGrouping, part: MessagePart): ToolCallPart | undefined {
@@ -152,9 +151,8 @@ function placeSegmentPart(grouping: PageSessionGrouping, part: MessagePart, inde
     placeReply(grouping, index)
     return
   }
-  const standaloneCall = asStandaloneCall(grouping, part)
-  if (standaloneCall) {
-    placeStandalone(grouping, standaloneCall, index)
+  if (isStandaloneCall(grouping, part)) {
+    placeStandalone(grouping, index)
     return
   }
   const member = sessionMemberCall(grouping, part)
@@ -167,7 +165,10 @@ function placeSegmentPart(grouping: PageSessionGrouping, part: MessagePart, inde
     foldIntoSession(grouping, session, part, index)
     return
   }
-  if (isStandaloneResult(grouping, part)) return
+  if (part.type === 'tool-result') {
+    foldResultIntoTrailingChain(grouping, index)
+    return
+  }
   placeInChain(grouping, index)
 }
 
@@ -180,7 +181,6 @@ function groupWithPageSessions(
   const grouping: PageSessionGrouping = {
     segments: [],
     openCallIds: new Set(),
-    standaloneCallIds: new Set(),
     pageActNames,
     pageToolPrefix,
     actParentIds: foldableParentIds(parts, pageActNames),
@@ -192,21 +192,11 @@ function groupWithPageSessions(
 
 type PlainGrouping = {
   segments: Segment[]
-  standaloneCallIds: Set<string>
   standalone: ((name: string) => boolean) | undefined
 }
 
-function asPlainStandaloneCall(grouping: PlainGrouping, part: MessagePart): ToolCallPart | null {
-  return part.type === 'tool-call' && (grouping.standalone?.(part.name) ?? false) ? part : null
-}
-
-function placePlainStandalone(grouping: PlainGrouping, part: ToolCallPart, index: number): void {
-  if (part.id) grouping.standaloneCallIds.add(part.id)
-  grouping.segments.push({kind: 'standalone', index})
-}
-
-function isPlainStandaloneResult(grouping: PlainGrouping, part: MessagePart): boolean {
-  return part.type === 'tool-result' && grouping.standaloneCallIds.has(part.toolCallId)
+function isPlainStandaloneCall(grouping: PlainGrouping, part: MessagePart): boolean {
+  return part.type === 'tool-call' && (grouping.standalone?.(part.name) ?? false)
 }
 
 function placePlainChain(grouping: PlainGrouping, index: number): void {
@@ -223,17 +213,20 @@ function placePlainPart(grouping: PlainGrouping, part: MessagePart, index: numbe
     grouping.segments.push({kind: 'reply', index})
     return
   }
-  const standaloneCall = asPlainStandaloneCall(grouping, part)
-  if (standaloneCall) {
-    placePlainStandalone(grouping, standaloneCall, index)
+  if (isPlainStandaloneCall(grouping, part)) {
+    grouping.segments.push({kind: 'standalone', index})
     return
   }
-  if (isPlainStandaloneResult(grouping, part)) return
+  if (part.type === 'tool-result') {
+    const last = grouping.segments.at(-1)
+    if (last?.kind === 'chain') last.indices.push(index)
+    return
+  }
   placePlainChain(grouping, index)
 }
 
 function groupPlain(parts: ReadonlyArray<MessagePart>, standalone: ((name: string) => boolean) | undefined): Segment[] {
-  const grouping: PlainGrouping = {segments: [], standaloneCallIds: new Set(), standalone}
+  const grouping: PlainGrouping = {segments: [], standalone}
   parts.forEach((part, index) => placePlainPart(grouping, part, index))
   return grouping.segments
 }

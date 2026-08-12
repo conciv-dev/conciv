@@ -119,7 +119,7 @@ describe('groupSegments page-session', () => {
     ])
   })
 
-  it('leaves a result for a call outside the open session in the chain', () => {
+  it('skips a result for a call outside the open session instead of opening a trailing chain', () => {
     const segments = groupSegments(
       [
         {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
@@ -127,10 +127,7 @@ describe('groupSegments page-session', () => {
       ],
       pageOptions,
     )
-    expect(segments).toEqual([
-      {kind: 'page-session', indices: [0]},
-      {kind: 'chain', indices: [1]},
-    ])
+    expect(segments).toEqual([{kind: 'page-session', indices: [0]}])
   })
 
   it('does not resume a session closed by a foreign tool through its stale call ids', () => {
@@ -303,6 +300,41 @@ describe('groupSegments page-session', () => {
     expect(segments).toEqual([{kind: 'standalone', index: 0}])
   })
 
+  it('skips a standalone result that arrives before its call under page-session grouping', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-result', toolCallId: 's1', content: 'ok', state: 'complete'},
+        {type: 'tool-call', id: 's1', name: 'confirm_ui', arguments: '{}', state: 'complete'},
+      ],
+      {...pageOptions, standalone: (name) => name === 'confirm_ui'},
+    )
+    expect(segments).toEqual([{kind: 'standalone', index: 1}])
+  })
+
+  it('does not steal live state into a trailing chain when calls complete out of order under page-session grouping', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 'n1', name: 'read', arguments: '{}', state: 'complete'},
+        {type: 'tool-call', id: 's1', name: 'confirm_ui', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 'n1', content: 'ok', state: 'complete'},
+        {type: 'tool-result', toolCallId: 's1', content: 'ok', state: 'complete'},
+      ],
+      {...pageOptions, standalone: (name) => name === 'confirm_ui'},
+    )
+    expect(segments).toEqual([
+      {kind: 'chain', indices: [0]},
+      {kind: 'standalone', index: 1},
+    ])
+  })
+
+  it('skips an orphan result with no paired call anywhere under page-session grouping', () => {
+    const segments = groupSegments(
+      [{type: 'tool-result', toolCallId: 'nobody', content: 'ok', state: 'complete'}],
+      pageOptions,
+    )
+    expect(segments).toEqual([])
+  })
+
   it('groups page parts as plain chain when no options are passed', () => {
     const parts: MessagePart[] = [
       {type: 'tool-call', id: 'p1', name: 'page.click', arguments: '{}', state: 'complete'},
@@ -347,6 +379,40 @@ describe('groupSegments standalone', () => {
       {standalone},
     )
     expect(segments).toEqual([{kind: 'chain', indices: [0, 1]}])
+  })
+
+  it('skips a standalone result that arrives before its call', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-result', toolCallId: 's1', content: 'ok', state: 'complete'},
+        {type: 'tool-call', id: 's1', name: 'confirm_ui', arguments: '{}', state: 'complete'},
+      ],
+      {standalone},
+    )
+    expect(segments).toEqual([{kind: 'standalone', index: 1}])
+  })
+
+  it('does not steal live state into a trailing chain when calls complete out of order', () => {
+    const segments = groupSegments(
+      [
+        {type: 'tool-call', id: 'n1', name: 'read', arguments: '{}', state: 'complete'},
+        {type: 'tool-call', id: 's1', name: 'confirm_ui', arguments: '{}', state: 'complete'},
+        {type: 'tool-result', toolCallId: 'n1', content: 'ok', state: 'complete'},
+        {type: 'tool-result', toolCallId: 's1', content: 'ok', state: 'complete'},
+      ],
+      {standalone},
+    )
+    expect(segments).toEqual([
+      {kind: 'chain', indices: [0]},
+      {kind: 'standalone', index: 1},
+    ])
+  })
+
+  it('skips an orphan result with no paired call anywhere', () => {
+    const segments = groupSegments([{type: 'tool-result', toolCallId: 'nobody', content: 'ok', state: 'complete'}], {
+      standalone,
+    })
+    expect(segments).toEqual([])
   })
 
   it('keeps content after a standalone result flowing normally', () => {
