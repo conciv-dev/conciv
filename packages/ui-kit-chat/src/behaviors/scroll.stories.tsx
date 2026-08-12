@@ -1,6 +1,7 @@
 import {createSignal, Index, onCleanup, onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
+import {userEvent as realUserEvent} from 'vitest/browser'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
 import {ChatProvider} from '../store/chat-context.js'
 import {storyConnection, createTextChunks} from '../store/story-connection.js'
@@ -125,6 +126,35 @@ function distanceFromBottom(vp: HTMLElement): number {
   return vp.scrollHeight - vp.scrollTop - vp.clientHeight
 }
 
+async function realWheel(element: Element, deltaY: number): Promise<void> {
+  await realUserEvent.wheel(element, {delta: {y: deltaY}})
+}
+
+function ExpandEscapedHarness(): JSX.Element {
+  const [viewport, setViewport] = createSignal<HTMLDivElement>()
+  const scroll = useThreadAutoScroll(viewport, {autoScroll: () => true})
+  onMount(() => scroll.scrollToBottom('instant'))
+  return (
+    <ViewportProvider value={scroll}>
+      <div class="w-96">
+        <div ref={setViewport} data-thread-viewport class="p-2 border border-pw-line h-32 overflow-y-auto">
+          <Index each={Array.from({length: 20}, (_, index) => index)}>
+            {(line) => <div>history line {line()}</div>}
+          </Index>
+          <CollapsibleCard header={<span>expand me</span>}>
+            <Index each={Array.from({length: 30}, (_, index) => index)}>
+              {(line) => <div>tool output {line()}</div>}
+            </Index>
+          </CollapsibleCard>
+          <Index each={Array.from({length: 20}, (_, index) => index)}>
+            {(line) => <div>trailing line {line()}</div>}
+          </Index>
+        </div>
+      </div>
+    </ViewportProvider>
+  )
+}
+
 function ScrollToEndHarness(): JSX.Element {
   const chat = useChat({connection: storyConnection({chunks: [], chunkDelay: 1})})
   return (
@@ -151,10 +181,10 @@ export const ScrollToEndNoLayoutShift: Story = {
     const c = within(canvasElement)
     const vp = canvasElement.querySelector('[data-thread-viewport]') as HTMLElement
     await waitFor(() => expect(vp.scrollHeight).toBeGreaterThan(vp.clientHeight))
-    vp.scrollTop = 0
+    await realWheel(vp, -400)
     await waitFor(() => expect(c.getByText('Latest')).not.toHaveAttribute('data-at-bottom'))
     const heightNotAtBottom = vp.scrollHeight
-    vp.scrollTop = vp.scrollHeight
+    await userEvent.click(c.getByText('Latest'))
     await waitFor(() => expect(c.getByText('Latest')).toHaveAttribute('data-at-bottom'))
     const heightAtBottom = vp.scrollHeight
     await expect(heightAtBottom).toBe(heightNotAtBottom)
@@ -176,6 +206,74 @@ export const ExpandDoesNotMoveViewport: Story = {
     await waitFor(() => expect(c.getByText('tool output 29')).not.toBeVisible(), {timeout: 4000})
     await new Promise((resolve) => setTimeout(resolve, 300))
     await expect(vp.scrollTop).toBe(scrollTopBeforeToggle)
+  },
+}
+
+export const ScrollToBottomButtonWhileEscaped: Story = {
+  render: () => <ScrollToEndHarness />,
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    const vp = canvasElement.querySelector('[data-thread-viewport]') as HTMLElement
+    await waitFor(() => expect(vp.scrollHeight).toBeGreaterThan(vp.clientHeight))
+
+    await realWheel(vp, -400)
+    await waitFor(() => expect(c.getByText('Latest')).not.toHaveAttribute('data-at-bottom'))
+
+    await userEvent.click(c.getByText('Latest'))
+    await waitFor(() => expect(c.getByText('Latest')).toHaveAttribute('data-at-bottom'), {timeout: 2000})
+    await waitFor(() => expect(distanceFromBottom(vp)).toBeLessThanOrEqual(1))
+  },
+}
+
+export const SendMessagePinsAfterEscape: Story = {
+  render: () => {
+    let chat: UseChatReturn | undefined
+    return (
+      <div>
+        <button type="button" onClick={() => void chat?.sendMessage('why is it broken?')}>
+          ask
+        </button>
+        <StreamingThread
+          expose={(value) => {
+            chat = value
+          }}
+        />
+      </div>
+    )
+  },
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    const vp = canvasElement.querySelector('[data-thread-viewport]') as HTMLElement
+    await waitFor(() => expect(c.getByText('atBottom: true')).toBeVisible())
+
+    await userEvent.click(c.getByText('ask'))
+    await waitFor(() => expect(c.getByText(/END_OF_ANSWER/)).toBeVisible(), {timeout: 6000})
+    await waitFor(() => expect(distanceFromBottom(vp)).toBeLessThanOrEqual(1))
+
+    await realWheel(vp, -400)
+    await waitFor(() => expect(c.getByText('atBottom: false')).toBeVisible())
+
+    await userEvent.click(c.getByText('ask'))
+    await waitFor(() => expect(c.getByText('atBottom: true')).toBeVisible())
+  },
+}
+
+export const ExpandDoesNotMoveViewportWhenEscaped: Story = {
+  render: () => <ExpandEscapedHarness />,
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    const vp = canvasElement.querySelector('[data-thread-viewport]') as HTMLElement
+    await waitFor(() => expect(distanceFromBottom(vp)).toBeLessThanOrEqual(1))
+
+    await realWheel(vp, -400)
+    await waitFor(() => expect(distanceFromBottom(vp)).toBeGreaterThan(100))
+
+    const scrollTopWhileEscaped = vp.scrollTop
+    await userEvent.click(c.getByText('expand me'))
+    await waitFor(() => expect(c.getByText('tool output 29')).toBeVisible(), {timeout: 4000})
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await expect(vp.scrollTop).toBe(scrollTopWhileEscaped)
+    await expect(c.getByText('trailing line 19')).toBeInTheDocument()
   },
 }
 
