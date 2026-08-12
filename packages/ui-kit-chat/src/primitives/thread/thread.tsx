@@ -36,13 +36,13 @@ function Viewport(props: ViewportProps): JSX.Element {
     'ref',
   ])
   const [element, setElement] = createSignal<HTMLDivElement>()
-  const {isAtBottom, scrollToBottom} = useThreadScroll(element, local)
+  const {isAtBottom, scrollToBottom, pauseFollow} = useThreadScroll(element, local)
   const assignRef = (node: HTMLDivElement) => {
     setElement(node)
     if (typeof local.ref === 'function') local.ref(node)
   }
   return (
-    <ViewportProvider value={{isAtBottom, scrollToBottom}}>
+    <ViewportProvider value={{isAtBottom, scrollToBottom, pauseFollow}}>
       <Primitive.div data-thread-viewport ref={assignRef} {...rest} />
     </ViewportProvider>
   )

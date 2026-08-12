@@ -7,8 +7,13 @@ import {
   useChainOfThought,
 } from '../primitives/chain-of-thought/chain-of-thought.js'
 import {createStickToBottom} from '@conciv/solid-stick-to-bottom'
+import {useScrollLock} from '../behaviors/use-scroll-lock.js'
+import {usePauseFollowOnToggle} from '../behaviors/use-follow-pause.js'
+import {useOptionalThreadViewport} from '../primitives/thread/viewport-context.js'
 import {SHIMMER} from './shimmer.js'
 import {FOCUS} from './classes.js'
+
+const ANIMATION_DURATION_MS = 200
 
 export type ChainOfThoughtProps = ParentProps<{
   streaming?: boolean
@@ -50,20 +55,30 @@ function Step(props: {icon: JSX.Element; last?: boolean; children: JSX.Element})
 function Shell(props: ParentProps<{grow: boolean}>): JSX.Element {
   const chain = useChainOfThought()
   const [scroller, setScroller] = createSignal<HTMLDivElement>()
+  const [rootEl, setRootEl] = createSignal<HTMLDivElement>()
+  const [contentEl, setContentEl] = createSignal<HTMLDivElement>()
   const capped = () => !props.grow
   createStickToBottom(scroller, {
     initial: 'instant',
     follow: () => capped() && chain.streaming(),
   })
+  const lockScroll = useScrollLock(rootEl, ANIMATION_DURATION_MS)
+  const viewport = useOptionalThreadViewport()
+  const settleFollow = usePauseFollowOnToggle(contentEl, viewport?.pauseFollow)
+  const handleOpenChange = (open: boolean) => {
+    lockScroll()
+    settleFollow()
+    chain.setOpen(open)
+  }
   return (
-    <Collapsible.Root open={chain.open()} onOpenChange={(details) => chain.setOpen(details.open)}>
-      <div class="flex flex-col gap-2 min-w-0 w-full">
+    <Collapsible.Root open={chain.open()} onOpenChange={(details) => handleOpenChange(details.open)}>
+      <div ref={setRootEl} class="flex flex-col gap-2 min-w-0 w-full">
         <Collapsible.Trigger class={TRIGGER}>
           <Brain size={14} class="text-[color:var(--chat-text-3)] shrink-0" />
           <span class={chain.streaming() ? SHIMMER : ''}>{chain.streaming() ? 'Working…' : 'Chain of Thought'}</span>
           <ChevronDown size={14} class={CHEVRON} aria-hidden="true" />
         </Collapsible.Trigger>
-        <Collapsible.Content>
+        <Collapsible.Content ref={setContentEl}>
           <div ref={setScroller} class={capped() ? PREVIEW : ''}>
             <div class="flex flex-col">{props.children}</div>
           </div>
