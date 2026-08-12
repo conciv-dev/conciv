@@ -71,6 +71,7 @@ it('keeps the chain open once the run settles so a pending approval on the newes
 
   await page.getByRole('button', {name: 'ask'}).click()
 
+  await expect.element(page.getByText('run live'), {timeout: 3000}).toBeVisible()
   await expect.element(page.getByText('run settled'), {timeout: 3000}).toBeVisible()
 
   await expect
