@@ -1,4 +1,4 @@
-import {createEffect, createSignal, type Accessor} from 'solid-js'
+import {createSignal, type Accessor} from 'solid-js'
 
 export type AutoCollapse = {
   open: Accessor<boolean>
@@ -9,17 +9,7 @@ export type AutoCollapse = {
 
 export function createAutoCollapse(props: {streaming: Accessor<boolean>; defaultOpen?: boolean}): AutoCollapse {
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
-  const [autoClosed, setAutoClosed] = createSignal(false)
-  createEffect<boolean>((wasStreaming) => {
-    const streaming = props.streaming()
-    if (wasStreaming && !streaming && userOpen() === undefined) setAutoClosed(true)
-    return streaming
-  }, false)
-  const isAutoOpen = () => userOpen() === undefined && !autoClosed() && props.streaming()
-  const open = () => userOpen() ?? isAutoOpen()
-  const setOpen = (next: boolean) => {
-    setAutoClosed(true)
-    setUserOpen(next)
-  }
-  return {open, setOpen, toggle: () => setOpen(!open()), isAutoOpen}
+  const isAutoOpen = () => userOpen() === undefined && props.streaming()
+  const open = () => userOpen() ?? props.streaming()
+  return {open, setOpen: setUserOpen, toggle: () => setUserOpen(!open()), isAutoOpen}
 }

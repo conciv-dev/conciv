@@ -348,6 +348,7 @@ export const TallCardNearBottomCollapseSettles: Story = {
     const distFromBottom = () => contentHeight(vp) - vp.clientHeight - scrollOffset(vp)
     await waitFor(() => expect(distFromBottom()).toBeLessThan(90))
 
+    await userEvent.click(c.getByText('tall card trigger'))
     const frames: Array<{t: number; scrollTop: number}> = []
     const start = performance.now()
     const collectFrames = () => {
@@ -355,8 +356,6 @@ export const TallCardNearBottomCollapseSettles: Story = {
       if (performance.now() - start < 650) requestAnimationFrame(collectFrames)
     }
     requestAnimationFrame(collectFrames)
-
-    await userEvent.click(c.getByText('tall card trigger'))
     await new Promise((resolve) => setTimeout(resolve, 700))
 
     const settledIndex = frames.findIndex((f) => f.t >= 220)

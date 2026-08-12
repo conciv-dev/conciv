@@ -86,6 +86,7 @@ function ChainPart(props: {
   entries: ToolCardEntry[]
   fallback: ToolUIComponent
   last?: boolean
+  streaming?: boolean
 }): JSX.Element {
   const message = useMessage()
 
@@ -95,7 +96,7 @@ function ChainPart(props: {
       <Match when={asThinking(props.part)}>
         {(part) => (
           <ChainOfThought.Step icon={<Brain size={13} />} last={props.last}>
-            <Reasoning text={part().content} grow={CHAIN_OF_THOUGHT_GROW} />
+            <Reasoning text={part().content} streaming={props.streaming} grow={CHAIN_OF_THOUGHT_GROW} />
           </ChainOfThought.Step>
         )}
       </Match>
@@ -134,10 +135,10 @@ function AssistantTurn(props: {
   )
   const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
   const lastPartIndex = createMemo(() => parts().length - 1)
+  const livePart = (index: number) => thread.isRunning && message.isLast() && index === lastPartIndex()
   const chainReasoningStreaming = (indices: number[]) => {
     const last = indices.at(-1)
-    if (last === undefined || last !== lastPartIndex()) return false
-    return thread.isRunning && message.isLast() && asThinking(parts()[last]) !== null
+    return last !== undefined && livePart(last) && asThinking(parts()[last]) !== null
   }
   const hasChainStep = (indices: number[]) =>
     indices.some((index) => {
@@ -181,6 +182,7 @@ function AssistantTurn(props: {
                         entries={props.entries}
                         fallback={props.fallback}
                         last={partPosition === chain().indices.length - 1}
+                        streaming={livePart(partIndex())}
                       />
                     )}
                   </Index>
