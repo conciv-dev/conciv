@@ -29,6 +29,14 @@ function withoutConcivDependencies(cloneDir: string): void {
     if (!isRecord(section)) continue
     manifest[field] = Object.fromEntries(Object.entries(section).filter(([name]) => !name.startsWith('@conciv/')))
   }
+  const dependenciesMeta = manifest['dependenciesMeta']
+  if (isRecord(dependenciesMeta)) {
+    const strippedMeta = Object.fromEntries(
+      Object.entries(dependenciesMeta).filter(([name]) => !name.startsWith('@conciv/')),
+    )
+    if (Object.keys(strippedMeta).length === 0) delete manifest['dependenciesMeta']
+    else manifest['dependenciesMeta'] = strippedMeta
+  }
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 }
 

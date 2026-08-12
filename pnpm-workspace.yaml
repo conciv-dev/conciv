@@ -5,6 +5,9 @@ packages:
   - apps/examples/*
   - e2e/*
 
+syncInjectedDepsAfterScripts:
+  - build
+
 # @orpc peer-pins every sibling package to the identical version (tanstack-query@1.15.0
 # peer-requires client@1.15.0 exactly), so a caret range is unsafe on any fresh install:
 # it can resolve two different @orpc releases and split the pair. Single-sourcing the
