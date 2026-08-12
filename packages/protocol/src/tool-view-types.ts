@@ -62,4 +62,9 @@ export type ToolRenderContext<TArgs = unknown> = ToolViewCtx & {
 }
 
 export type ToolUIComponent = Component<ToolCardProps>
-export type ToolCardEntry = {names: string[]; render: ToolUIComponent; streamTitle?: string}
+export type ToolCardEntry = {
+  names: string[]
+  render: ToolUIComponent
+  streamTitle?: string
+  display?: 'standalone'
+}

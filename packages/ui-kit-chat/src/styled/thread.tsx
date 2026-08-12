@@ -133,7 +133,17 @@ function AssistantTurn(props: {
   const thread = useThread()
   const ctx = useToolCtx()
   const parts = () => message.message().parts
-  const groupingOptions = createMemo(() => pageSessionGroupingOptions(props.pageSession))
+  const standaloneNames = createMemo(() => {
+    const names = new Set<string>()
+    for (const entry of props.entries)
+      if (entry.display === 'standalone') for (const name of entry.names) names.add(name)
+    return names
+  })
+  const isStandaloneTool = (name: string) => standaloneNames().has(name)
+  const groupingOptions = createMemo(() => ({
+    ...pageSessionGroupingOptions(props.pageSession),
+    standalone: isStandaloneTool,
+  }))
   const segments = createMemo(() => groupSegments(parts(), groupingOptions()))
   const lastTextIndex = createMemo(() =>
     parts()
@@ -164,8 +174,12 @@ function AssistantTurn(props: {
     return pageSessionHasSteps(parts(), segment.indices, config.actNames) ? segment : null
   }
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
+  const asStandalone = (segment: Segment) => (segment.kind === 'standalone' ? segment : null)
   const renderableSegment = (segment: Segment): boolean =>
-    asChain(segment) !== null || asReply(segment) !== null || asPageSession(segment) !== null
+    asChain(segment) !== null ||
+    asReply(segment) !== null ||
+    asPageSession(segment) !== null ||
+    asStandalone(segment) !== null
   const lastRenderableIndex = createMemo(() => {
     let last = -1
     for (const [index, segment] of segments().entries()) if (renderableSegment(segment)) last = index
@@ -205,6 +219,22 @@ function AssistantTurn(props: {
               {(reply) => (
                 <Show when={asText(parts()[reply().index])}>
                   {(part) => <Markdown content={part().content} streaming={streamingAt(reply().index)} />}
+                </Show>
+              )}
+            </Match>
+            <Match when={asStandalone(segment())}>
+              {(standalone) => (
+                <Show when={asToolCall(parts()[standalone().index])}>
+                  {(part) => (
+                    <ToolCallCard
+                      part={part()}
+                      result={message.pairing().byCallId.get(part().id)}
+                      ctx={ctx}
+                      durationMs={ctx.durationFor?.(part().id)}
+                      tools={() => props.entries}
+                      fallback={props.fallback}
+                    />
+                  )}
                 </Show>
               )}
             </Match>

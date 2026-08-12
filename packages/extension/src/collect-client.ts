@@ -55,14 +55,14 @@ export function collectClientEffects(
 
 export function collectToolRenderers(
   builders: AnyExtension[],
-): {names: string[]; render: ToolRenderer; streamTitle?: string}[] {
+): {names: string[]; render: ToolRenderer; streamTitle?: string; display?: 'standalone'}[] {
   const seen = new Set<string>()
-  const entries: {names: string[]; render: ToolRenderer; streamTitle?: string}[] = []
+  const entries: {names: string[]; render: ToolRenderer; streamTitle?: string; display?: 'standalone'}[] = []
   for (const builder of builders)
     for (const tool of builder.tools ?? []) {
       if (!tool.__render || seen.has(tool.name)) continue
       seen.add(tool.name)
-      entries.push({names: [tool.name], render: tool.__render, streamTitle: tool.streamTitle})
+      entries.push({names: [tool.name], render: tool.__render, streamTitle: tool.streamTitle, display: tool.display})
     }
   return entries
 }

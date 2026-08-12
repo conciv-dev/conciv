@@ -31,9 +31,14 @@ export function coalesceTurns(messages: ReadonlyArray<UIMessage>): Turn[] {
 export type ChainSegment = {kind: 'chain'; indices: number[]}
 export type ReplySegment = {kind: 'reply'; index: number}
 export type PageSessionSegment = {kind: 'page-session'; indices: number[]}
-export type Segment = ChainSegment | ReplySegment | PageSessionSegment
+export type StandaloneSegment = {kind: 'standalone'; index: number}
+export type Segment = ChainSegment | ReplySegment | PageSessionSegment | StandaloneSegment
 
-export type GroupingOptions = {pageActNames?: ReadonlySet<string>; pageToolPrefix?: string}
+export type GroupingOptions = {
+  pageActNames?: ReadonlySet<string>
+  pageToolPrefix?: string
+  standalone?: (name: string) => boolean
+}
 
 const isReplyText = (part: MessagePart): boolean => part.type === 'text' && part.content.trim().length > 0
 
@@ -43,6 +48,7 @@ type PageSessionGrouping = {
   pageActNames: ReadonlySet<string>
   pageToolPrefix: string | undefined
   actParentIds: ReadonlySet<string>
+  standalone: ((name: string) => boolean) | undefined
 }
 
 function foldableParentIds(parts: ReadonlyArray<MessagePart>, pageActNames: ReadonlySet<string>): Set<string> {
@@ -111,6 +117,15 @@ function placeReply(grouping: PageSessionGrouping, index: number): void {
   grouping.segments.push({kind: 'reply', index})
 }
 
+function isStandalonePart(grouping: PageSessionGrouping, part: MessagePart): boolean {
+  return part.type === 'tool-call' && (grouping.standalone?.(part.name) ?? false)
+}
+
+function placeStandalone(grouping: PageSessionGrouping, index: number): void {
+  grouping.openCallIds.clear()
+  grouping.segments.push({kind: 'standalone', index})
+}
+
 function sessionMemberCall(grouping: PageSessionGrouping, part: MessagePart): ToolCallPart | undefined {
   if (part.type !== 'tool-call' || part.state === 'approval-requested') return undefined
   return grouping.pageActNames.has(part.name) || grouping.actParentIds.has(part.id) ? part : undefined
@@ -131,6 +146,10 @@ function placeSegmentPart(grouping: PageSessionGrouping, part: MessagePart, inde
     placeReply(grouping, index)
     return
   }
+  if (isStandalonePart(grouping, part)) {
+    placeStandalone(grouping, index)
+    return
+  }
   const member = sessionMemberCall(grouping, part)
   if (member) {
     placePageAct(grouping, member, index)
@@ -148,6 +167,7 @@ function groupWithPageSessions(
   parts: ReadonlyArray<MessagePart>,
   pageActNames: ReadonlySet<string>,
   pageToolPrefix: string | undefined,
+  standalone: ((name: string) => boolean) | undefined,
 ): Segment[] {
   const grouping: PageSessionGrouping = {
     segments: [],
@@ -155,6 +175,7 @@ function groupWithPageSessions(
     pageActNames,
     pageToolPrefix,
     actParentIds: foldableParentIds(parts, pageActNames),
+    standalone,
   }
   parts.forEach((part, index) => placeSegmentPart(grouping, part, index))
   return grouping.segments
@@ -162,9 +183,12 @@ function groupWithPageSessions(
 
 export function groupSegments(parts: ReadonlyArray<MessagePart>, options?: GroupingOptions): Segment[] {
   const pageActNames = options?.pageActNames
-  if (pageActNames) return groupWithPageSessions(parts, pageActNames, options?.pageToolPrefix)
+  const standalone = options?.standalone
+  if (pageActNames) return groupWithPageSessions(parts, pageActNames, options?.pageToolPrefix, standalone)
   return parts.reduce<Segment[]>((segments, part, index) => {
     if (isReplyText(part)) return [...segments, {kind: 'reply', index}]
+    if (part.type === 'tool-call' && (standalone?.(part.name) ?? false))
+      return [...segments, {kind: 'standalone', index}]
     const last = segments.at(-1)
     return last?.kind === 'chain'
       ? [...segments.slice(0, -1), {kind: 'chain', indices: [...last.indices, index]}]

@@ -316,7 +316,7 @@ function AttachmentByIndex(props: {index: number; components: AttachmentsCompone
 type GroupedComponents = PartsComponents & {Group?: Component<ParentProps<{indices: number[]; kind: Segment['kind']}>>}
 
 function segmentIndices(segment: Segment): number[] {
-  return segment.kind === 'reply' ? [segment.index] : segment.indices
+  return segment.kind === 'reply' || segment.kind === 'standalone' ? [segment.index] : segment.indices
 }
 
 function GroupBody(props: {
