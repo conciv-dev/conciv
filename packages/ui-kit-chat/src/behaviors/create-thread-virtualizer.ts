@@ -28,9 +28,6 @@ export type ThreadVirtualizer = {
 }
 
 export function createThreadVirtualizer(config: ThreadVirtualizerConfig): ThreadVirtualizer {
-  const [items, setItems] = createStore<VirtualItem[]>([])
-  const [totalSize, setTotalSize] = createSignal(0)
-
   const resolveOptions = (): VirtualizerOptions<HTMLElement, Element> => ({
     count: config.count(),
     getScrollElement: () => config.scrollElement() ?? null,
@@ -50,6 +47,9 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   const instance = new Virtualizer(resolveOptions())
   instance.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, virtualizer) =>
     !config.ownsViewport() && item.start < (virtualizer.scrollOffset ?? 0)
+
+  const [items, setItems] = createStore(instance.getVirtualItems())
+  const [totalSize, setTotalSize] = createSignal(instance.getTotalSize())
 
   const sync = () => {
     setItems(reconcile(instance.getVirtualItems(), {key: 'key'}))
