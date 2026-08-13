@@ -27,3 +27,29 @@ test('unmounting the router-rendered tree disposes every extension instance exac
 
   expect(dispose).toHaveBeenCalledTimes(1)
 })
+
+test('unmounting disposes every extension instance even when one disposer throws', async () => {
+  const order: string[] = []
+  const first = defineExtension({name: 'wrap-disposal-a'}).client(() => ({value: {}, dispose: () => order.push('a')}))
+  const second = defineExtension({name: 'wrap-disposal-b'}).client(() => ({
+    value: {},
+    dispose: () => {
+      order.push('b')
+      throw new Error('teardown b blew up')
+    },
+  }))
+  const third = defineExtension({name: 'wrap-disposal-c'}).client(() => ({value: {}, dispose: () => order.push('c')}))
+  const router = createConcivRouter({
+    rpc: makeRpcClient('http://127.0.0.1:9'),
+    history: createMemoryHistory({initialEntries: ['/']}),
+    environment: {rootNode: document, document},
+    settings: parseConcivSettings(''),
+    extensions: [first, second, third],
+  })
+  const mounted = render(() => <RouterProvider router={router} />)
+
+  await expect.element(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible()
+
+  expect(() => mounted.unmount()).not.toThrow()
+  expect(order).toEqual(['a', 'b', 'c'])
+})
