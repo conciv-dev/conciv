@@ -1,5 +1,4 @@
 import {
-  createComputed,
   createMemo,
   createSignal,
   For,
@@ -8,7 +7,6 @@ import {
   onMount,
   Show,
   splitProps,
-  untrack,
   type Accessor,
   type Component,
   type JSX,
@@ -148,6 +146,8 @@ function TurnSlot(props: TurnSlotProps): JSX.Element {
 
 type CapturedAnchor = {kind: 'bottom'} | {kind: 'anchor'; key: string; offset: number}
 
+type ModeSwapAnchor = {current?: CapturedAnchor}
+
 function captureAnchor(internal: ViewportInternalValue | undefined): CapturedAnchor | undefined {
   if (!internal) return undefined
   if (internal.isAtBottom()) return {kind: 'bottom'}
@@ -164,13 +164,17 @@ function captureAnchor(internal: ViewportInternalValue | undefined): CapturedAnc
 function FlatMessages(props: {
   messages: MessagesProps
   internal: ViewportInternalValue | undefined
-  anchor: CapturedAnchor | undefined
+  swapAnchor: ModeSwapAnchor
 }): JSX.Element {
   const thread = useThread()
   const turns = () => thread.turns
+  onCleanup(() => {
+    props.swapAnchor.current = captureAnchor(props.internal)
+  })
   onMount(() => {
-    const anchor = props.anchor
+    const anchor = props.swapAnchor.current
     const internal = props.internal
+    props.swapAnchor.current = undefined
     if (!anchor || !internal) return
     if (anchor.kind === 'bottom') {
       internal.pinToBottom()
@@ -194,7 +198,7 @@ function FlatMessages(props: {
 function VirtualMessages(props: {
   messages: MessagesProps
   internal: ViewportInternalValue
-  anchor: CapturedAnchor | undefined
+  swapAnchor: ModeSwapAnchor
 }): JSX.Element {
   const thread = useThread()
   const turns = () => thread.turns
@@ -213,6 +217,9 @@ function VirtualMessages(props: {
     estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
     gap,
     ownsViewport: () => props.internal.ownsViewport(),
+  })
+  onCleanup(() => {
+    props.swapAnchor.current = captureAnchor(props.internal)
   })
   onMount(() => {
     props.internal.setVirtualScroll({scrollToLast: virtualizer.scrollToLast})
@@ -243,7 +250,8 @@ function VirtualMessages(props: {
         viewport.style.overflowAnchor = previousAnchoring
       })
     }
-    const anchor = props.anchor
+    const anchor = props.swapAnchor.current
+    props.swapAnchor.current = undefined
     if (anchor?.kind === 'anchor') {
       const index = turns().findIndex((turn) => turn.key === anchor.key)
       if (index >= 0) {
@@ -292,20 +300,14 @@ function Messages(props: MessagesProps): JSX.Element {
   const internal = useViewportInternal()
   const eligible = () =>
     internal !== undefined && internal.turnAnchor() === 'bottom' && thread.turns.length >= virtualizeThreshold.value
-  const [mode, setMode] = createSignal<'flat' | 'virtual'>(untrack(eligible) ? 'virtual' : 'flat')
-  let anchor: CapturedAnchor | undefined
-  createComputed(() => {
-    const next = eligible() ? 'virtual' : 'flat'
-    if (next === untrack(mode)) return
-    anchor = captureAnchor(internal)
-    setMode(next)
-  })
+  const mode = createMemo(() => (eligible() ? 'virtual' : 'flat'))
+  const swapAnchor: ModeSwapAnchor = {}
   return (
     <Show
       when={mode() === 'virtual' ? internal : undefined}
-      fallback={<FlatMessages messages={props} internal={internal} anchor={anchor} />}
+      fallback={<FlatMessages messages={props} internal={internal} swapAnchor={swapAnchor} />}
     >
-      {(resolved) => <VirtualMessages messages={props} internal={resolved()} anchor={anchor} />}
+      {(resolved) => <VirtualMessages messages={props} internal={resolved()} swapAnchor={swapAnchor} />}
     </Show>
   )
 }
