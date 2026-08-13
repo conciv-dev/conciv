@@ -46,7 +46,6 @@ function CardBody(props: ToolCardProps): JSX.Element {
       meta={counts(patch.info())}
       part={props.part}
       result={props.result}
-      defaultOpen={patch.status() === 'approval'}
     >
       <Body />
     </ToolCard>

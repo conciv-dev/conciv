@@ -91,11 +91,11 @@ function CardTrigger(props: {tooltip: string | undefined; flush: boolean; header
     >
       {(tooltip) => (
         <Tooltip.Root openDelay={400} unmountOnExit lazyMount>
-          <Tooltip.Trigger
+          <Collapsible.Trigger
             asChild={(triggerProps) => (
-              <Collapsible.Trigger {...triggerProps()} class={triggerClass()}>
+              <Tooltip.Trigger {...triggerProps()} class={triggerClass()}>
                 <TriggerBody header={props.header} />
-              </Collapsible.Trigger>
+              </Tooltip.Trigger>
             )}
           />
           <Tooltip.Positioner>

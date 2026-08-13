@@ -5,7 +5,7 @@ import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {formatDuration} from '../primitives/tool-util.js'
 import {useToolCallDuration} from '../primitives/tool-duration.js'
 import {StatusVisual} from '../primitives/status-visual.js'
-import {createForceOpenOnce} from '../../primitives/util/create-force-open-once.js'
+import {createAutoCollapse} from '../../primitives/util/create-auto-collapse.js'
 import {CollapsibleCard} from './collapsible-card.js'
 
 const TITLE = 'text-[color:var(--chat-text)] flex-1 truncate [overflow-wrap:anywhere]'
@@ -52,6 +52,7 @@ export function ToolCard(props: {
   meta?: string
   durationMs?: number
   defaultOpen?: boolean
+  autoOpen?: boolean
   status?: ToolStatus
   header?: JSX.Element
   flushHeader?: boolean
@@ -61,11 +62,14 @@ export function ToolCard(props: {
   const status = () => props.status ?? toolStatus(props.part, props.result)
   const ambientDuration = useToolCallDuration()
   const duration = () => formatDuration(props.durationMs ?? ambientDuration())
-  const approvalOpen = createForceOpenOnce({active: () => status() === 'approval', defaultOpen: props.defaultOpen})
+  const collapse = createAutoCollapse({
+    streaming: () => props.autoOpen === true || status() === 'approval',
+    defaultOpen: props.defaultOpen,
+  })
   return (
     <CollapsibleCard
-      open={approvalOpen.open()}
-      onOpenChange={approvalOpen.setOpen}
+      open={collapse.open()}
+      onOpenChange={collapse.setOpen}
       tooltip={props.titleTooltip}
       flush={props.flushHeader}
       class={props.class}

@@ -37,6 +37,7 @@ import {
 } from '../store/page-session.js'
 import {Dynamic} from 'solid-js/web'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
+import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
 import {useThreadAutoScroll} from '../behaviors/use-thread-auto-scroll.js'
 import {ToolCallCard} from '../tools/styled/tool-call-card.js'
 import {ToolGroup} from '../tools/styled/tool-group.js'
@@ -125,10 +126,11 @@ function asToolCall(part: MessagePart | undefined): ToolCallPart | null {
 }
 
 function StepShell(
-  props: ParentProps<{glyph: JSX.Element; title: string; titleClass?: string; defaultOpen?: boolean}>,
+  props: ParentProps<{glyph: JSX.Element; title: string; titleClass?: string; autoOpen?: boolean}>,
 ): JSX.Element {
+  const collapse = createAutoCollapse({streaming: () => props.autoOpen === true})
   return (
-    <Collapsible.Root defaultOpen={props.defaultOpen}>
+    <Collapsible.Root open={collapse.open()} onOpenChange={(details) => collapse.setOpen(details.open)}>
       <Collapsible.Trigger class={STEP_TRIGGER}>
         {props.glyph}
         <span class={`text-left flex-1 min-w-0 truncate ${props.titleClass ?? ''}`}>{props.title}</span>
@@ -151,7 +153,7 @@ function ToolStep(props: {part: ToolCallPart; subCalls?: ToolCallPart[]}): JSX.E
       glyph={stepGlyph(status())}
       title={activity.label(props.part)}
       titleClass={status() === 'running' ? SHIMMER : ''}
-      defaultOpen={status() === 'approval'}
+      autoOpen={status() === 'approval'}
     >
       <ToolCallCard
         part={props.part}
