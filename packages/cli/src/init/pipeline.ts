@@ -13,7 +13,9 @@ import {webpackFamilyStep} from './steps/framework/webpack-family.js'
 import {agentsMdStep} from './steps/harness/agents-md.js'
 import {consentFile, writeConsent} from './steps/harness/consent.js'
 import {harnessInitStep} from './steps/harness/install-harness.js'
+import {concivSkillFileStep} from './steps/harness/skill-file.js'
 import {addWithNypm, installItStep, type AddDep} from './steps/install-it.js'
+import {installSkillsStep} from './steps/install-skills.js'
 import {
   approvePlan,
   clackOutput,
@@ -106,7 +108,9 @@ function stepList(detected: Detected, selections: ConfirmedSelections, runtime: 
   const consented = () => selections.harnesses
   return [
     installItStep(runtime.addDependency, detected.packageManager),
+    installSkillsStep(runtime.addDependency, detected.packageManager),
     ...(selections.framework ? [frameworkStep(detected)] : []),
+    concivSkillFileStep(),
     agentsMdStep(consented),
     ...harnessFileInits.map((init) => harnessInitStep(init, consented, {home: runtime.env.HOME, run: runtime.spawn})),
   ]

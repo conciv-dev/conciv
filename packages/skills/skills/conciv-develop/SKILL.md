@@ -3,6 +3,7 @@ name: conciv-develop
 description: Use when building a conciv extension in your own app — a file under conciv/extensions/ (or a package you plan to publish) that adds an agent tool via defineTool, a chat-attachment type via defineAttachment, or UI in the widget via Component/Surface/views. Covers defineExtension, the tool contract (server/client/render, errors, approval, meta), getExtensionApi/getHostApi, RPC to your extension's own server (makeExtRpcClient, subscriptionIterator), and testing with @conciv/extension-testkit. This is the consumer-facing skill, for an app that imports @conciv/extension as a dependency, not conciv's own source.
 metadata:
   package: '@conciv/skills'
+  library_version: '0.0.19'
 ---
 
 # Building a conciv extension

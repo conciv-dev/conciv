@@ -25,11 +25,20 @@ describe('runInit', () => {
   it('wires a vite project end to end with --yes over the injected runtime', async () => {
     const run = fixture()
     const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
-    expect(statusById(result)).toEqual({install: 'done', framework: 'done', agents: 'done', claude: 'done'})
-    expect(run.added).toEqual(['@conciv/it'])
+    expect(statusById(result)).toEqual({
+      install: 'done',
+      'install-skills': 'done',
+      framework: 'done',
+      skill: 'done',
+      agents: 'done',
+      claude: 'done',
+    })
+    expect(run.added).toEqual(['@conciv/it', '@conciv/skills'])
     expect(readFileSync(join(run.cwd, 'package.json'), 'utf8')).toContain('@conciv/it')
     expect(readFileSync(join(run.cwd, 'vite.config.ts'), 'utf8')).toContain('@conciv/it/plugin/vite')
-    expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
+    expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('conciv/skill.md')
+    expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('@conciv/skills')
+    expect(readFileSync(join(run.cwd, 'conciv', 'skill.md'), 'utf8')).toContain('external_catalog')
     expect(recordedConsent(run.cwd)).toEqual({harnesses: ['claude']})
     expect(run.spawned).toEqual([
       `claude plugin marketplace add ${claudeConnectDir(join(run.cwd, '.conciv'))}`,
@@ -42,8 +51,10 @@ describe('runInit', () => {
     expect(plans).toHaveLength(1)
     expect(plans[0]).toContain('Install @conciv/it')
     expect(plans[0]).toContain('package.json')
+    expect(plans[0]).toContain('Install @conciv/skills')
     expect(plans[0]).toContain('Wire the vite config')
     expect(plans[0]).toContain('vite.config.ts')
+    expect(plans[0]).toContain('Write the conciv skill')
     expect(plans[0]).toContain('Teach agents the conciv CLI')
     expect(plans[0]).toContain('Install the conciv claude plugin')
     expect(plans[0]).toContain('● claude')
@@ -67,11 +78,15 @@ describe('runInit', () => {
     const run = fixture()
     await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
     expect(run.events).toContain('step:Installing @conciv/it with pnpm…')
+    expect(run.events).toContain('step:Installing @conciv/skills with pnpm…')
     expect(run.events).toContain('step:Wiring vite.config.ts…')
+    expect(run.events).toContain('step:Writing the conciv skill…')
     expect(run.events).toContain('step:Installing the conciv claude plugin…')
     expect(settlesOf(run.events)).toEqual([
       'settle:done:Installed @conciv/it',
+      'settle:done:Installed @conciv/skills',
       'settle:done:Wired vite.config.ts',
+      'settle:done:Wrote conciv/skill.md',
       'settle:done:Wrote the conciv section to AGENTS.md',
       'settle:done:Installed the conciv claude plugin',
     ])
@@ -79,7 +94,7 @@ describe('runInit', () => {
     const settleAt = run.events.indexOf('settle:done:Wired vite.config.ts')
     expect(stepAt).toBeGreaterThan(-1)
     expect(settleAt).toBeGreaterThan(stepAt)
-    expect(run.events).toContain('success:4 wired')
+    expect(run.events).toContain('success:6 wired')
   })
 
   it('renders the applied config change as a note titled with the file, under its step', async () => {
@@ -94,10 +109,17 @@ describe('runInit', () => {
   it('resolves a step that can only card as a manual line with its own reason and keeps going', async () => {
     const run = fixture({configFixture: 'vite.config.no-plugins.ts'})
     const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
-    expect(statusById(result)).toEqual({install: 'done', framework: 'manual', agents: 'done', claude: 'done'})
+    expect(statusById(result)).toEqual({
+      install: 'done',
+      'install-skills': 'done',
+      framework: 'manual',
+      skill: 'done',
+      agents: 'done',
+      claude: 'done',
+    })
     expect(run.events).toContain('settle:manual:Wire the vite config — needs a manual step (see the card below)')
     expect(run.events.some((event) => event.startsWith('note:Wire the conciv vite plugin:'))).toBe(true)
-    expect(run.events).toContain('warn:3 wired · 1 manual step below')
+    expect(run.events).toContain('warn:5 wired · 1 manual step below')
     expect(run.events).toContain('settle:done:Installed the conciv claude plugin')
   })
 
@@ -150,7 +172,13 @@ describe('runInit', () => {
     expect(plans[0]).toContain('Wire the vite config')
     expect(plans[1]).not.toContain('Wire the vite config')
     expect(plans[1]).toContain('○ claude (not selected)')
-    expect(statusById(result)).toEqual({install: 'done', agents: 'done', claude: 'skipped'})
+    expect(statusById(result)).toEqual({
+      install: 'done',
+      'install-skills': 'done',
+      skill: 'done',
+      agents: 'done',
+      claude: 'skipped',
+    })
     expect(recordedConsent(run.cwd)).toEqual({harnesses: []})
     expect(run.spawned).toEqual([])
   })
@@ -167,12 +195,12 @@ describe('runInit', () => {
     for (const id of doneIds) {
       expect(statusById(second)[id], id).toBe('already')
     }
-    expect(run.added).toEqual(['@conciv/it'])
+    expect(run.added).toEqual(['@conciv/it', '@conciv/skills'])
     expect(run.spawned).toHaveLength(2)
     const plans = plansOf(run.events)
     expect(plans[1]).toContain('already wired')
     expect(run.events).toContain('settle:already:Install @conciv/it — already wired')
-    expect(run.events).toContain('success:4 already wired')
+    expect(run.events).toContain('success:6 already wired')
   })
 
   it('plans the dry run against this run selections, not the harnesses a previous run recorded', async () => {
@@ -312,7 +340,14 @@ describe('runInit', () => {
       {yes: true, dryRun: false, force: false, cwd: run.cwd},
       {...run.runtime, interactive: () => false},
     )
-    expect(statusById(result)).toEqual({install: 'done', framework: 'done', agents: 'done', claude: 'done'})
+    expect(statusById(result)).toEqual({
+      install: 'done',
+      'install-skills': 'done',
+      framework: 'done',
+      skill: 'done',
+      agents: 'done',
+      claude: 'done',
+    })
   })
 
   it('restores the config, says so, and exits 130 when the run is interrupted mid-apply', async () => {
@@ -421,7 +456,7 @@ describe('runInit', () => {
     expect(plansOf(run.events)[0]).toContain('Harnesses: none found')
     expect(statusById(result).agents).toBe('done')
     expect(statusById(result).claude).toBe('skipped')
-    expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
+    expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('conciv/skill.md')
   })
 
   it('reports a wizard cancel as a cancellation that changed nothing', async () => {

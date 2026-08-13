@@ -40,6 +40,14 @@
       "types": "./dist/claude/plugin-files.d.ts",
       "import": "./dist/claude/plugin-files.js"
     },
+    "./claude/entry-skill": {
+      "types": "./dist/claude/entry-skill.d.ts",
+      "import": "./dist/claude/entry-skill.js"
+    },
+    "./claude/pack-skills": {
+      "types": "./dist/claude/pack-skills.d.ts",
+      "import": "./dist/claude/pack-skills.js"
+    },
     "./claude/names": {
       "types": "./dist/claude/names.d.ts",
       "import": "./dist/claude/names.js"
@@ -86,6 +94,7 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
+    "@conciv/skills": "workspace:^",
     "zod": "^4.4.3"
   },
   "devDependencies": {

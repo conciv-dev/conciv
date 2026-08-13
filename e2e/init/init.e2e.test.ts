@@ -153,7 +153,9 @@ function expectPlanPreview(output: string, detection: string, frameworkRow: RegE
   expect(output).toContain('harnesses: none found')
   expect(output).toContain('Plan')
   expect(output).toMatch(/Install @conciv\/it\s+package\.json/)
+  expect(output).toMatch(/Install @conciv\/skills\s+package\.json/)
   expect(output).toMatch(frameworkRow)
+  expect(output).toMatch(/Write the conciv skill\s+conciv\/skill\.md/)
   expect(output).toMatch(/Teach agents the conciv CLI\s+AGENTS\.md/)
   expect(output).toMatch(/Install the conciv claude plugin\s+\.conciv\/claude-connect/)
   expect(output).toContain('Harnesses: none found')
@@ -161,7 +163,9 @@ function expectPlanPreview(output: string, detection: string, frameworkRow: RegE
 
 function expectChecklist(output: string, wiredLine: string): void {
   expect(output).toContain('Install @conciv/it — needs a manual step: No package manager auto-detected.')
+  expect(output).toContain('Install @conciv/skills — needs a manual step: No package manager auto-detected.')
   expect(output).toContain(wiredLine)
+  expect(output).toContain('Wrote conciv/skill.md')
   expect(output).toContain('Wrote the conciv section to AGENTS.md')
   expect(output).toContain('Install the conciv claude plugin — skipped: not selected')
 }
@@ -176,10 +180,11 @@ function expectAppliedDiff(output: string, configFile: string, addedLine: string
 function expectInstallCard(output: string): void {
   expect(output).toContain('The automatic install failed. Run this in your project:')
   expect(output).toContain('npm install --save-dev @conciv/it')
+  expect(output).toContain('npm install --save-dev @conciv/skills')
 }
 
 function expectClosingOutro(output: string): void {
-  expect(output).toContain('2 wired · 1 manual step below · 1 skipped')
+  expect(output).toContain('3 wired · 2 manual steps below · 1 skipped')
   expect(output).toContain('└  Next steps — start your app:')
   expect(output).toContain('ask your agent to run conciv tools --help')
   expect(output).toContain('docs: https://conciv.dev/docs/quick-start')
@@ -191,7 +196,7 @@ function expectCommonOutcome(cloneDir: string, outcome: {code: number; output: s
   expectInstallCard(outcome.output)
   expectClosingOutro(outcome.output)
   expect(readFileSync(join(cloneDir, 'package.json'), 'utf8')).not.toContain('@conciv/it')
-  expect(readFileSync(join(cloneDir, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
+  expect(readFileSync(join(cloneDir, 'AGENTS.md'), 'utf8')).toContain('conciv/skill.md')
   expect(JSON.parse(readFileSync(join(cloneDir, '.conciv', 'harnesses.json'), 'utf8'))).toEqual({harnesses: []})
 }
 
@@ -207,7 +212,7 @@ describe('conciv init against consumer-app clones', () => {
     const wired = readFileSync(join(cloneDir, 'vite.config.ts'), 'utf8')
     expect(wired).toContain("import conciv from '@conciv/it/plugin/vite'")
     expect(wired).toContain('conciv()')
-    expect(changedPaths(cloneDir)).toEqual([' M vite.config.ts', '?? .conciv/', '?? AGENTS.md'])
+    expect(changedPaths(cloneDir)).toEqual([' M vite.config.ts', '?? .conciv/', '?? AGENTS.md', '?? conciv/'])
   })
 
   it('wires a stripped nextjs clone end to end', async () => {
@@ -230,6 +235,7 @@ describe('conciv init against consumer-app clones', () => {
       ' M next.config.ts',
       '?? .conciv/',
       '?? AGENTS.md',
+      '?? conciv/',
       '?? instrumentation-client.ts',
       '?? instrumentation.ts',
     ])
@@ -261,8 +267,9 @@ describe('conciv init against consumer-app clones', () => {
     expect(second.output).toMatch(/Wire the vite config\s+already wired/)
     expect(second.output).toMatch(/Teach agents the conciv CLI\s+already wired/)
     expect(second.output).toContain('Wire the vite config — already wired')
+    expect(second.output).toContain('Write the conciv skill — already wired')
     expect(second.output).toContain('Teach agents the conciv CLI — already wired')
-    expect(second.output).toContain('2 already wired · 1 manual step below · 1 skipped')
+    expect(second.output).toContain('3 already wired · 2 manual steps below · 1 skipped')
     expect(second.output).not.toContain('--- vite.config.ts')
     expect(changedPaths(cloneDir)).toEqual([])
   })

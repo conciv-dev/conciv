@@ -68,7 +68,9 @@ describe('conciv init --json', () => {
     expect(parsed.data).toMatchObject({
       steps: [
         {id: 'install', status: 'done'},
+        {id: 'install-skills', status: 'done'},
         {id: 'framework', status: 'done'},
+        {id: 'skill', status: 'done'},
         {id: 'agents', status: 'done'},
         {id: 'claude', status: 'done'},
       ],

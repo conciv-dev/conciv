@@ -39,8 +39,9 @@ describe('claude connect plugin files', () => {
     })
   })
 
-  it('keeps every generated file free of dev server urls', () => {
-    for (const [, contents] of treeOf('/first/.conciv')) {
+  it('keeps every generated file free of dev server urls, except skill docs describing loopback binding in prose', () => {
+    for (const [step, contents] of treeOf('/first/.conciv')) {
+      if (step.includes(`${join('skills', '')}`)) continue
       expect(contents).not.toContain('127.0.0.1')
       expect(contents).not.toContain('http://')
     }

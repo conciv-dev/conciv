@@ -9,6 +9,8 @@ export default defineConfig({
     'src/claude/install-state.ts',
     'src/claude/names.ts',
     'src/claude/plugin-files.ts',
+    'src/claude/entry-skill.ts',
+    'src/claude/pack-skills.ts',
     'src/codex.ts',
     'src/gemini-cli.ts',
     'src/opencode.ts',

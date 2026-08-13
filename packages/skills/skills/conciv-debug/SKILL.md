@@ -3,6 +3,7 @@ name: conciv-debug
 description: Use when a conciv integration misbehaves at runtime — the conciv button/widget never appears, the widget loads but never connects to the engine, a tool call hangs or "hangs then fails after ~2 minutes", an approval/permission card never resolves or the agent gets silently denied, the engine reports a port already in use or the widget points at the wrong port, or an automated (Playwright/e2e) test against the live widget hangs. Covers the sandbox/gate/SSE runtime, not initial install (see conciv-setup) or extension authoring (see conciv-develop).
 metadata:
   package: '@conciv/skills'
+  library_version: '0.0.19'
 ---
 
 # Debugging a conciv integration

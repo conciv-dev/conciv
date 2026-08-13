@@ -2882,6 +2882,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/skills':
+        specifier: workspace:^
+        version: link:../skills
       zod:
         specifier: ^4.4.3
         version: 4.4.3

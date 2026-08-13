@@ -3,6 +3,7 @@ name: conciv-harness
 description: Use when wiring a new coding-agent CLI into conciv as a harness adapter — implementing HarnessAdapter/defineHarness, HarnessCapabilities, connect.plan() launch args, chatConfig() text-adapter wiring, or the models/history/connect/tty/commands sidecars. Also use when a harness turn misbehaves around cwd, resume, or transcript history.
 metadata:
   package: '@conciv/skills'
+  library_version: '0.0.19'
 ---
 
 # Building a conciv harness adapter
