@@ -419,6 +419,34 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     expect(JSON.stringify(node).length).toBeLessThanOrEqual(200_000)
   })
 
+  it('measures the payload budget in utf-8 bytes, not utf-16 code units', async () => {
+    const media = mediaContainer()
+    const filler = document.createElement('div')
+    filler.id = 'wide-filler'
+    filler.textContent = '€'.repeat(69_000)
+    media.appendChild(filler)
+
+    const bundle = await captureOf('probe.mark', {selector: '#media'})
+
+    expect(bundle.after?.descriptor.selectorPath).toContain('#media')
+    expect(bundle.after?.node).toBeUndefined()
+  })
+
+  it('rejects an encoder failure instead of admitting a non-image data url, while a sibling image still inlines', async () => {
+    const media = mediaContainer()
+    const oversized = await appendLoadedImage(media, 'oversized-image', await paintedBlobUrl(8, 8, solidPaint))
+    oversized.style.width = '70000px'
+    oversized.style.height = '10px'
+    await appendLoadedImage(media, 'sibling-image', await paintedBlobUrl(8, 8, solidPaint))
+
+    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const node = bundle.after?.node
+
+    expect(findById(node, 'sibling-image')?.attributes?.['rr_dataURL']).toBeDefined()
+    expect(findById(node, 'oversized-image')).toBeDefined()
+    expect(findById(node, 'oversized-image')?.attributes?.['rr_dataURL']).toBeUndefined()
+  })
+
   it('leaves the live element untouched and silent when the canvas taints, while a sibling image still inlines', async () => {
     const media = mediaContainer()
     const tainted = await appendLoadedImage(media, 'tainted-image', crossOriginFixtureImageUrl())

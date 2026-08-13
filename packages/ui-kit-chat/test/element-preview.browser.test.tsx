@@ -138,6 +138,13 @@ const HOSTILE_CAPTURE: ElementCapture = {
               },
               {
                 type: 2,
+                tagName: 'img',
+                attributes: {id: 'hostile-rr-data', rr_dataURL: `${PROBE_PREFIX}/rr-steal.png`},
+                childNodes: [],
+                id: 17,
+              },
+              {
+                type: 2,
                 tagName: 'input',
                 attributes: {id: 'safe-target', value: 'safe-target', 'data-rr-target': 'true'},
                 childNodes: [],
@@ -335,6 +342,7 @@ it('replays a hostile capture without running its script or fetching a single re
   expect(Reflect.get(window, XSS_FLAG)).toBeUndefined()
   expect(probeResourceNames()).toEqual([])
   expect(replicaTarget().value).toBe('safe-target')
+  expect(replicaRoot().querySelector('#hostile-rr-data')?.getAttribute('src')).toBeNull()
 })
 
 function inlinedImageCapture(dataUrl: string): ElementCapture {

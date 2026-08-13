@@ -103,7 +103,8 @@ function renderedImageDataUrl(image: HTMLImageElement): string | null {
   if (context === null) return null
   try {
     context.drawImage(image, 0, 0, size.width, size.height)
-    return canvas.toDataURL(INLINE_IMAGE_MIME, INLINE_IMAGE_QUALITY)
+    const dataUrl = canvas.toDataURL(INLINE_IMAGE_MIME, INLINE_IMAGE_QUALITY)
+    return dataUrl.startsWith('data:image/') ? dataUrl : null
   } catch {
     return null
   }
@@ -149,7 +150,7 @@ function serializeWithAncestors(el: Element, doc: Document): SerializedNode | nu
     depth += 1
   }
   neutralizeSubtree(chained)
-  const baseBytes = JSON.stringify(chained).length
+  const baseBytes = new TextEncoder().encode(JSON.stringify(chained)).length
   if (baseBytes > NODE_PAYLOAD_CAP_BYTES) return null
   inlineRenderedImages(target, mirror, NODE_PAYLOAD_CAP_BYTES - baseBytes)
   return chained

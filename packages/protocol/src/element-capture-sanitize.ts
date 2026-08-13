@@ -23,6 +23,10 @@ const URL_ATTRIBUTES = new Set([
 
 const LOCAL_REFERENCE_PATTERN = /^(?:#|data:)/i
 
+const INLINE_IMAGE_ATTRIBUTE = 'rr_dataurl'
+
+const RASTER_DATA_URL_PATTERN = /^data:image\//i
+
 const CSS_URL_PATTERN = /url\(|image-set\(|\\/i
 
 const CONTROL_AND_SPACE_PATTERN = new RegExp(`[${String.fromCharCode(0)}-${String.fromCharCode(0x20)}]`, 'g')
@@ -70,10 +74,18 @@ export function isDangerousTag(node: SanitizableNode): boolean {
   return node.tagName !== undefined && DANGEROUS_TAGS.has(node.tagName.toLowerCase())
 }
 
+function isRasterDataUrl(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  const decoded = decodeEntities(value)
+  if (decoded === undefined) return false
+  return RASTER_DATA_URL_PATTERN.test(decoded.replace(CONTROL_AND_SPACE_PATTERN, ''))
+}
+
 export function isDroppableAttribute(name: string, value: unknown): boolean {
   const lowered = name.toLowerCase()
   if (lowered.startsWith('on')) return true
   if (lowered === 'style') return typeof value === 'string' && CSS_URL_PATTERN.test(value)
+  if (lowered === INLINE_IMAGE_ATTRIBUTE) return !isRasterDataUrl(value)
   if (!URL_ATTRIBUTES.has(lowered)) return false
   return typeof value !== 'string' || !isLocalReference(value)
 }
