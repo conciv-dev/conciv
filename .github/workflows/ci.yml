@@ -131,6 +131,15 @@ jobs:
       - run: pnpm exec conciv-ci-shards run
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
+      # Playwright keeps a trace.zip per failed embed IT (trace: retain-on-failure);
+      # ship them so CI-only failures can be root-caused from the trace instead of
+      # guessed at. Direct directory path, never a packages/** glob (see below).
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-traces-${{ matrix.shard }}
+          path: packages/embed/test-results/
+          if-no-files-found: ignore
       # Collapse this shard's per-package results (vitest emits test-results.json
       # only in CI; turbo caches them so cache-hit packages still report) into ONE
       # file, then upload it by literal name. Never glob packages/** here: the
