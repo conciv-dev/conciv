@@ -5,6 +5,7 @@ export type ThreadAutoScroll = {
   isAtBottom: Accessor<boolean>
   escapedFromLock: Accessor<boolean>
   follows: Accessor<boolean>
+  paused: Accessor<boolean>
   scrollToBottom: (behavior?: ScrollBehavior) => void
   pauseFollow: (durationMs: number) => void
 }
@@ -23,6 +24,7 @@ export function useThreadAutoScroll(
     isAtBottom: stick.isAtBottom,
     escapedFromLock: stick.escapedFromLock,
     follows,
+    paused: () => Date.now() < pausedUntil,
     scrollToBottom: (behavior: ScrollBehavior = 'smooth') => {
       void stick.scrollToBottom({animation: behavior === 'smooth' ? undefined : 'instant'})
     },

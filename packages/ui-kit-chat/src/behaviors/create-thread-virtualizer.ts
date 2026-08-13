@@ -2,6 +2,7 @@ import {createComputed, createSignal, onCleanup, onMount, type Accessor} from 's
 import {createStore, reconcile} from 'solid-js/store'
 import {
   Virtualizer,
+  defaultRangeExtractor,
   elementScroll,
   observeElementOffset,
   observeElementRect,
@@ -13,9 +14,10 @@ export type ThreadVirtualizerConfig = {
   scrollElement: Accessor<HTMLElement | undefined>
   count: Accessor<number>
   keyAt: (index: number) => string
-  estimateSize: number
+  estimateSizeAt: (index: number) => number
   gap: Accessor<number>
   ownsViewport: Accessor<boolean>
+  extraIndices: Accessor<ReadonlyArray<number>>
 }
 
 export type ThreadVirtualizer = {
@@ -24,27 +26,36 @@ export type ThreadVirtualizer = {
   measureRow: (element: Element) => void
   scrollToLast: () => void
   scrollToAnchor: (index: number, offsetInViewport: number) => void
+  remeasure: () => void
+  measured: (key: string) => boolean
 }
 
 export function createThreadVirtualizer(config: ThreadVirtualizerConfig): ThreadVirtualizer {
   const [items, setItems] = createStore<VirtualItem[]>([])
   const [totalSize, setTotalSize] = createSignal(0)
 
-  const resolveOptions = (): VirtualizerOptions<HTMLElement, Element> => ({
-    count: config.count(),
-    getScrollElement: () => config.scrollElement() ?? null,
-    estimateSize: () => config.estimateSize,
-    getItemKey: config.keyAt,
-    gap: config.gap(),
-    overscan: 4,
-    anchorTo: 'end',
-    followOnAppend: false,
-    scrollEndThreshold: -1,
-    observeElementRect,
-    observeElementOffset,
-    scrollToFn: elementScroll,
-    onChange: () => sync(),
-  })
+  const resolveOptions = (): VirtualizerOptions<HTMLElement, Element> => {
+    const extra = config.extraIndices()
+    return {
+      rangeExtractor: (range) =>
+        extra.length === 0
+          ? defaultRangeExtractor(range)
+          : [...new Set([...defaultRangeExtractor(range), ...extra])].toSorted((a, b) => a - b),
+      count: config.count(),
+      getScrollElement: () => config.scrollElement() ?? null,
+      estimateSize: config.estimateSizeAt,
+      getItemKey: config.keyAt,
+      gap: config.gap(),
+      overscan: 4,
+      anchorTo: 'end',
+      followOnAppend: false,
+      scrollEndThreshold: -1,
+      observeElementRect,
+      observeElementOffset,
+      scrollToFn: elementScroll,
+      onChange: () => sync(),
+    }
+  }
 
   const instance = new Virtualizer(resolveOptions())
   instance.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, virtualizer) =>
@@ -78,8 +89,16 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       if (count > 0) instance.scrollToIndex(count - 1, {align: 'end'})
     },
     scrollToAnchor: (index, offsetInViewport) => {
-      const start = instance.measurementsCache[index]?.start ?? index * config.estimateSize
+      const start = instance.measurementsCache[index]?.start ?? index * config.estimateSizeAt(index)
       instance.scrollToOffset(start - offsetInViewport)
     },
+    remeasure: () => {
+      instance.measure()
+      for (const element of instance.elementsCache.values()) {
+        const index = instance.indexFromElement(element)
+        if (index >= 0) instance.resizeItem(index, instance.options.measureElement(element, undefined, instance))
+      }
+    },
+    measured: (key) => instance.itemSizeCache.has(key),
   }
 }

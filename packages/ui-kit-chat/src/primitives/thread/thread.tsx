@@ -15,6 +15,8 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {makeTimer} from '@solid-primitives/timer'
+import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {UIMessage} from '@tanstack/ai-client'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useComposer, useThread} from '../../store/chat-context.js'
@@ -30,9 +32,12 @@ import {
 } from './viewport-internal.js'
 import {useThreadScroll} from '../../behaviors/use-thread-scroll.js'
 import {createThreadVirtualizer} from '../../behaviors/create-thread-virtualizer.js'
+import {useTurnEstimator, type TurnEstimate} from './turn-estimate.js'
 
 const VIRTUALIZE_THRESHOLD = 50
-const ROW_ESTIMATE_PX = 120
+const ROW_ESTIMATE_PX = 72
+const PREWARM_BATCH = 8
+const PREWARM_TICK_MS = 120
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
 
@@ -71,7 +76,7 @@ function Viewport(props: ViewportProps): JSX.Element {
     element,
     turnAnchor: () => local.turnAnchor ?? 'bottom',
     isAtBottom: scroll.isAtBottom,
-    ownsViewport: () => scroll.isAtBottom() && scroll.follows(),
+    ownsViewport: () => scroll.paused() || (scroll.isAtBottom() && scroll.follows()),
     pinToBottom: scroll.pinToBottom,
     setVirtualScroll,
   }
@@ -194,21 +199,58 @@ function VirtualMessages(props: {
 }): JSX.Element {
   const thread = useThread()
   const turns = () => thread.turns
+  const estimator = useTurnEstimator()
   const [gap, setGap] = createSignal(0)
+  const settledEstimate = (index: number): TurnEstimate | undefined => {
+    if (index === turns().length - 1) return undefined
+    const turn = turns()[index]
+    if (!turn) return undefined
+    return estimator?.estimateTurn(turn)
+  }
+  const [prewarmIndices, setPrewarmIndices] = createSignal<ReadonlyArray<number>>([])
   const virtualizer = createThreadVirtualizer({
     scrollElement: () => props.internal.element(),
     count: () => turns().length,
     keyAt: (index) => turns()[index]?.key ?? `${index}`,
-    estimateSize: ROW_ESTIMATE_PX,
+    estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
     gap,
     ownsViewport: () => props.internal.ownsViewport(),
+    extraIndices: prewarmIndices,
   })
+  const nextPrewarmBatch = (): number[] => {
+    const batch: number[] = []
+    for (let index = 0; index < turns().length - 1 && batch.length < PREWARM_BATCH; index++) {
+      const turn = turns()[index]
+      if (!turn || virtualizer.measured(turn.key)) continue
+      if (settledEstimate(index)?.exact === true) continue
+      batch.push(index)
+    }
+    return batch
+  }
   onMount(() => {
+    makeTimer(() => setPrewarmIndices(nextPrewarmBatch()), PREWARM_TICK_MS, setInterval)
     props.internal.setVirtualScroll({scrollToLast: virtualizer.scrollToLast})
     onCleanup(() => props.internal.setVirtualScroll(undefined))
+    let disposed = false
+    onCleanup(() => {
+      disposed = true
+    })
+    void document.fonts.ready.then(() => {
+      if (disposed || !estimator) return
+      estimator.reset()
+      virtualizer.remeasure()
+    })
     const viewport = props.internal.element()
     if (viewport) {
       setGap(Number.parseFloat(getComputedStyle(viewport).rowGap) || 0)
+      let lastWidth = viewport.clientWidth
+      createResizeObserver(viewport, ({width}) => {
+        if (width === lastWidth) return
+        lastWidth = width
+        if (!estimator) return
+        estimator.reset()
+        virtualizer.remeasure()
+      })
       const previousAnchoring = viewport.style.overflowAnchor
       viewport.style.overflowAnchor = 'none'
       onCleanup(() => {
@@ -226,17 +268,23 @@ function VirtualMessages(props: {
     props.internal.pinToBottom()
   })
   return (
-    <div style={{position: 'relative', width: '100%', height: `${virtualizer.totalSize()}px`}}>
+    <div style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}>
       <For each={virtualizer.items}>
         {(item) => (
           <div
-            ref={virtualizer.measureRow}
+            ref={(element) =>
+              queueMicrotask(() => {
+                if (settledEstimate(item.index)?.exact !== true) virtualizer.measureRow(element)
+              })
+            }
             data-index={item.index}
             style={{
               position: 'absolute',
               top: '0',
               left: '0',
               width: '100%',
+              display: 'flex',
+              'flex-direction': 'column',
               transform: `translateY(${item.start}px)`,
             }}
           >

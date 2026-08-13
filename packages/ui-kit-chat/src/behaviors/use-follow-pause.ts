@@ -2,6 +2,7 @@ import type {Accessor} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 
 const FOLLOW_PAUSE_CEILING_MS = 1000
+const FOLLOW_PAUSE_RELEASE_GRACE_MS = 150
 
 export function usePauseFollowOnToggle(
   animatedElement: Accessor<HTMLElement | undefined>,
@@ -15,7 +16,7 @@ export function usePauseFollowOnToggle(
     const clearListener = makeEventListener(element, 'animationend', (event) => {
       if (event.target !== element) return
       clearListener()
-      pauseFollow(0)
+      pauseFollow(FOLLOW_PAUSE_RELEASE_GRACE_MS)
     })
   }
 }
