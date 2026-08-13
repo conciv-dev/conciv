@@ -1,6 +1,5 @@
 import {test, expect} from 'vitest'
-import {mkdir, mkdtemp, rm, symlink, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {mkdir, symlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {
   PUBLIC_PACKAGES,
@@ -11,6 +10,7 @@ import {
   assertValidTag,
   assertWorkspaceRoot,
 } from '../src/guards.ts'
+import {scaffoldWorkspaceRoot, writeManifest} from './fixtures.ts'
 
 test('accepts plain dist-tags', () => {
   expect(() => assertValidTag('beta')).not.toThrow()
@@ -44,14 +44,9 @@ test('rejects foreign scopes and flag-like package names (argument injection)', 
 })
 
 async function publicWorkspace(names: string[]): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'public-set-'))
-  await mkdir(join(root, 'packages', 'extensions'), {recursive: true})
+  const root = await scaffoldWorkspaceRoot('public-set-')
   await Promise.all(
-    names.map(async (name, index) => {
-      const dir = join(root, 'packages', `pkg-${index}`)
-      await mkdir(dir, {recursive: true})
-      await writeFile(join(dir, 'package.json'), JSON.stringify({name, version: '0.0.14'}))
-    }),
+    names.map((name, index) => writeManifest(join(root, 'packages', `pkg-${index}`), {name, version: '0.0.14'})),
   )
   return root
 }
@@ -59,50 +54,47 @@ async function publicWorkspace(names: string[]): Promise<string> {
 test('assertPublicSet accepts the full public set', async () => {
   const root = await publicWorkspace([...PUBLIC_PACKAGES])
   await expect(assertPublicSet(root)).resolves.toBeUndefined()
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertPublicSet reports the cli package when the workspace lost it', async () => {
   const root = await publicWorkspace(PUBLIC_PACKAGES.filter((name) => name !== '@conciv/cli'))
   await expect(assertPublicSet(root)).rejects.toThrow(/missing: \[@conciv\/cli\]/)
-  await rm(root, {recursive: true, force: true})
+})
+
+test('assertPublicSet rejects a manifest whose "private" field is a string instead of a boolean, naming the manifest', async () => {
+  const root = await scaffoldWorkspaceRoot('bad-manifest-')
+  const dir = join(root, 'packages', 'core')
+  await writeManifest(dir, {name: '@conciv/core', version: '0.0.14', private: 'false'})
+  await expect(assertPublicSet(root)).rejects.toThrow(/package\.json: invalid package manifest/)
 })
 
 async function workspaceWith(manifest: object): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'bootstrap-'))
-  const dir = join(root, 'packages', 'thing')
-  await mkdir(dir, {recursive: true})
-  await mkdir(join(root, 'packages', 'extensions'), {recursive: true})
-  await writeFile(join(dir, 'package.json'), JSON.stringify(manifest))
+  const root = await scaffoldWorkspaceRoot('bootstrap-')
+  await writeManifest(join(root, 'packages', 'thing'), manifest as Record<string, unknown>)
   return root
 }
 
 test('assertBootstrappable rejects names missing from PUBLIC_PACKAGES', async () => {
   const root = await workspaceWith({name: '@conciv/not-listed', version: '0.0.14'})
   await expect(assertBootstrappable(root, '@conciv/not-listed')).rejects.toThrow(/not in PUBLIC_PACKAGES/)
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertBootstrappable rejects packages absent from the workspace', async () => {
   const root = await workspaceWith({name: '@conciv/thing', version: '0.0.14'})
   await expect(assertBootstrappable(root, '@conciv/core')).rejects.toThrow(/not found in the workspace/)
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertBootstrappable rejects private and unversioned packages', async () => {
   const privateRoot = await workspaceWith({name: '@conciv/core', version: '0.0.14', private: true})
   await expect(assertBootstrappable(privateRoot, '@conciv/core')).rejects.toThrow(/is private/)
-  await rm(privateRoot, {recursive: true, force: true})
 
   const unversionedRoot = await workspaceWith({name: '@conciv/core', version: '0.0.0'})
   await expect(assertBootstrappable(unversionedRoot, '@conciv/core')).rejects.toThrow(/still 0\.0\.0/)
-  await rm(unversionedRoot, {recursive: true, force: true})
 })
 
 test('assertBootstrappable accepts a listed, public, versioned package', async () => {
   const root = await workspaceWith({name: '@conciv/core', version: '0.0.14'})
   await expect(assertBootstrappable(root, '@conciv/core')).resolves.toBeUndefined()
-  await rm(root, {recursive: true, force: true})
 })
 
 async function workspaceWithChangesets(names: string[], changesets: Record<string, string>): Promise<string> {
@@ -118,7 +110,6 @@ test('assertChangesetsResolve accepts a changeset naming a real workspace packag
     'brave-lions-fly.md': `---\n'@conciv/core': patch\n---\n\nSomething changed.\n`,
   })
   await expect(assertChangesetsResolve(root)).resolves.toBeUndefined()
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertChangesetsResolve rejects a changeset naming a non-workspace package, with file and name', async () => {
@@ -126,7 +117,6 @@ test('assertChangesetsResolve rejects a changeset naming a non-workspace package
     'small-donuts-shave.md': `---\n'conciv': patch\n---\n\nBroken entry.\n`,
   })
   await expect(assertChangesetsResolve(root)).rejects.toThrow(/small-donuts-shave\.md.*"conciv"/s)
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertChangesetsResolve ignores README.md and passes with zero changesets', async () => {
@@ -134,17 +124,14 @@ test('assertChangesetsResolve ignores README.md and passes with zero changesets'
     'README.md': '# Changesets\n\nNot a real changeset.\n',
   })
   await expect(assertChangesetsResolve(root)).resolves.toBeUndefined()
-  await rm(root, {recursive: true, force: true})
 
   const emptyRoot = await workspaceWithChangesets(['@conciv/core'], {})
   await expect(assertChangesetsResolve(emptyRoot)).resolves.toBeUndefined()
-  await rm(emptyRoot, {recursive: true, force: true})
 })
 
 test('assertChangesetsResolve rejects a missing .changeset directory instead of passing vacuously', async () => {
   const root = await publicWorkspace(['@conciv/core'])
   await expect(assertChangesetsResolve(root)).rejects.toThrow(/does not exist/)
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertChangesetsResolve rejects a symlinked changeset file, naming it', async () => {
@@ -154,7 +141,6 @@ test('assertChangesetsResolve rejects a symlinked changeset file, naming it', as
   const changesetDir = join(root, '.changeset')
   await symlink(join(changesetDir, 'harmless.md'), join(changesetDir, 'evil-link.md'))
   await expect(assertChangesetsResolve(root)).rejects.toThrow(/evil-link\.md.*must not be symlinks/s)
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertChangesetsResolve rejects a changeset that lists the same package twice, propagating the parser error with the filename', async () => {
@@ -162,7 +148,6 @@ test('assertChangesetsResolve rejects a changeset that lists the same package tw
     'double-entry.md': `---\n'@conciv/core': patch\n'@conciv/core': minor\n---\n\nDouble entry.\n`,
   })
   await expect(assertChangesetsResolve(root)).rejects.toThrow(/double-entry\.md.*duplicated mapping key/s)
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertChangesetsResolve rejects a changeset with malformed frontmatter, naming the file', async () => {
@@ -170,7 +155,13 @@ test('assertChangesetsResolve rejects a changeset with malformed frontmatter, na
     'malformed.md': 'no frontmatter here at all\n',
   })
   await expect(assertChangesetsResolve(root)).rejects.toThrow(/malformed\.md.*missing or invalid frontmatter/s)
-  await rm(root, {recursive: true, force: true})
+})
+
+test('assertChangesetsResolve rejects a changeset with empty frontmatter (zero releases), naming the file', async () => {
+  const root = await workspaceWithChangesets(['@conciv/core'], {
+    'empty-releases.md': `---\n---\n\nNothing to release.\n`,
+  })
+  await expect(assertChangesetsResolve(root)).rejects.toThrow(/empty-releases\.md.*no releases/s)
 })
 
 test('assertChangesetsResolve flows an unquoted entry name through to workspace validation, not parse failure', async () => {
@@ -178,7 +169,6 @@ test('assertChangesetsResolve flows an unquoted entry name through to workspace 
     'unquoted-bogus.md': `---\nconciv: patch\n---\n\nUnquoted bogus name.\n`,
   })
   await expect(assertChangesetsResolve(root)).rejects.toThrow(/unquoted-bogus\.md.*"conciv".*not in the workspace/s)
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertChangesetsResolve accepts a double-quoted entry naming a real workspace package', async () => {
@@ -186,41 +176,37 @@ test('assertChangesetsResolve accepts a double-quoted entry naming a real worksp
     'double-quoted.md': `---\n"@conciv/core": patch\n---\n\nDouble-quoted entry.\n`,
   })
   await expect(assertChangesetsResolve(root)).resolves.toBeUndefined()
-  await rm(root, {recursive: true, force: true})
 })
 
-test('assertPublicSet rejects a workspace missing the packages/extensions manifest group', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'no-extensions-'))
-  await mkdir(join(root, 'packages', 'core'), {recursive: true})
-  await writeFile(
-    join(root, 'packages', 'core', 'package.json'),
-    JSON.stringify({name: '@conciv/core', version: '0.0.14'}),
-  )
-  await expect(assertPublicSet(root)).rejects.toThrow(join(root, 'packages', 'extensions'))
-  await rm(root, {recursive: true, force: true})
+test('assertChangesetsResolve accepts a changeset naming a package that lives under an apps/ workspace group, not just packages/', async () => {
+  const root = await scaffoldWorkspaceRoot('apps-changeset-', ['packages/*', 'apps/*'])
+  await mkdir(join(root, '.changeset'), {recursive: true})
+  await Promise.all([
+    writeManifest(join(root, 'packages', 'core'), {name: '@conciv/core', version: '0.0.14'}),
+    writeManifest(join(root, 'apps', 'conciv'), {name: '@conciv/app', version: '0.0.14', private: true}),
+    writeFile(
+      join(root, '.changeset', 'router-owned.md'),
+      `---\n'@conciv/app': patch\n---\n\nRouter-owned disposal.\n`,
+    ),
+  ])
+  await expect(assertChangesetsResolve(root)).resolves.toBeUndefined()
 })
 
 test('assertWorkspaceRoot accepts a directory that looks like the workspace root', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'root-'))
-  await writeFile(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n')
+  const root = await scaffoldWorkspaceRoot('root-')
   await mkdir(join(root, '.changeset'), {recursive: true})
   await expect(assertWorkspaceRoot(root)).resolves.toBeUndefined()
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertWorkspaceRoot rejects a subdirectory of the workspace, naming the cwd', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'root-'))
-  await writeFile(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n')
+  const root = await scaffoldWorkspaceRoot('root-')
   await mkdir(join(root, '.changeset'), {recursive: true})
   const nested = join(root, 'packages', 'core')
   await mkdir(nested, {recursive: true})
   await expect(assertWorkspaceRoot(nested)).rejects.toThrow(nested)
-  await rm(root, {recursive: true, force: true})
 })
 
 test('assertWorkspaceRoot rejects a workspace missing the .changeset directory', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'root-'))
-  await writeFile(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n')
+  const root = await scaffoldWorkspaceRoot('root-')
   await expect(assertWorkspaceRoot(root)).rejects.toThrow(/workspace root/)
-  await rm(root, {recursive: true, force: true})
 })
