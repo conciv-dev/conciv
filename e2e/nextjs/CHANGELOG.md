@@ -1,5 +1,12 @@
 # conciv-e2e-nextjs
 
+## 0.1.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.19
+
 ## 0.1.10
 
 ### Patch Changes

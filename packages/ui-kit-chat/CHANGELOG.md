@@ -1,5 +1,23 @@
 # @conciv/ui-kit-chat
 
+## 0.0.19
+
+### Patch Changes
+
+- [#437](https://github.com/conciv-dev/conciv/pull/437) [`e628f93`](https://github.com/conciv-dev/conciv/commit/e628f93ed9d4067c6ad164a2af0369e543abd62f) Thanks [@omridevk](https://github.com/omridevk)! - Chat transcript scrolling is now owned by @conciv/solid-stick-to-bottom, a faithful Solid port of use-stick-to-bottom: the viewport only moves for pinned streaming follow, the scroll-to-bottom button, and sending a message. Chain-of-thought/reasoning cards auto-close once when their own content completes, and user toggles after that are permanent. Tool approval force-opens the tool card once. User card toggles never shift the viewport. Chain content defaults to grow, with a `grow` prop for the capped pane.
+
+- [#313](https://github.com/conciv-dev/conciv/pull/313) [`39c6072`](https://github.com/conciv-dev/conciv/commit/39c6072687cdedeabc42dabe798d88fa10dc716b) Thanks [@omridevk](https://github.com/omridevk)! - The widget composer now runs on the TipTap rich text field from @conciv/ui-kit-tap: slash commands and mentions are atomic chips with typeahead popovers, lowering to the same directive strings the server always received. The string-splice trigger layer is removed from @conciv/ui-kit-chat (trigger popover primitives, slash/mention adapters, directive formatter, the styled composer popover slot); ComposerPrimitive.Input remains the plain textarea primitive.
+
+- [#460](https://github.com/conciv-dev/conciv/pull/460) [`23f62c9`](https://github.com/conciv-dev/conciv/commit/23f62c9ad8a810cdf177a53701a1516b191436fe) Thanks [@omridevk](https://github.com/omridevk)! - Transcript virtualization: long threads render through a TanStack virtual-core window with stable turn identity, pretext-based height estimates, and lazy collapsed card bodies; fast-scroll main-thread stalls drop from ~380ms to ~70ms.
+
+- Updated dependencies [[`e628f93`](https://github.com/conciv-dev/conciv/commit/e628f93ed9d4067c6ad164a2af0369e543abd62f), [`6ce79cf`](https://github.com/conciv-dev/conciv/commit/6ce79cf66cb0629ba965af4d4d06b242c673b017)]:
+  - @conciv/solid-stick-to-bottom@0.0.19
+  - @conciv/ui-kit-system@0.0.19
+  - @conciv/protocol@0.0.19
+  - @conciv/solid-diffs@0.0.19
+  - @conciv/solid-streamdown@0.0.19
+  - @conciv/storage-history@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

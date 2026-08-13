@@ -1,5 +1,49 @@
 # @conciv/embed
 
+## 0.0.19
+
+### Patch Changes
+
+- [#349](https://github.com/conciv-dev/conciv/pull/349) [`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323) Thanks [@omridevk](https://github.com/omridevk)! - Closing a browser rpc connection no longer raises an unhandled error.
+
+  A disposed connection now answers writes itself instead of letting them reach a dead socket: peer
+  control frames (cancellations and client event-iterator payloads) are dropped, so oRPC's abort path
+  runs to completion and closes the call it was cancelling, while a request frame still fails fast so a
+  caller holding a stale link learns the connection is gone instead of hanging. Dispose delivers a
+  close event only when partysocket's own `close()` emits none — it already dispatches one
+  synchronously unless the socket never dialled or is already closing — so the peer observes exactly
+  one terminal event.
+
+  Unmounting the widget now releases the tab's connection: the socket is closed and the registry entry
+  dropped, instead of leaving partysocket and its reconnect timers alive for the rest of the tab's
+  life. A later mount re-creates the connection through the same registry, running the full transport
+  probe again.
+
+  `handle.rebind` now drops the old connection before tearing its consumers down, and rebinding to the
+  base the widget is already on re-runs the probe rather than being a no-op, so a tab that fell back to
+  fetch/SSE while the engine was unreachable can ride the websocket again once it recovers.
+
+  A live connection reports partysocket's real state: open while open, connecting while it will
+  reconnect, closed once it will not, so oRPC fails a send fast instead of waiting on a socket that is
+  never coming back.
+
+- Updated dependencies [[`e628f93`](https://github.com/conciv-dev/conciv/commit/e628f93ed9d4067c6ad164a2af0369e543abd62f), [`6ce79cf`](https://github.com/conciv-dev/conciv/commit/6ce79cf66cb0629ba965af4d4d06b242c673b017), [`39c6072`](https://github.com/conciv-dev/conciv/commit/39c6072687cdedeabc42dabe798d88fa10dc716b), [`23f62c9`](https://github.com/conciv-dev/conciv/commit/23f62c9ad8a810cdf177a53701a1516b191436fe), [`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323), [`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323), [`b329b47`](https://github.com/conciv-dev/conciv/commit/b329b47b889201093c5de042f389eac297caa249)]:
+  - @conciv/ui-kit-chat@0.0.19
+  - @conciv/ui-kit-system@0.0.19
+  - @conciv/contract@0.0.19
+  - @conciv/extension@0.0.19
+  - @conciv/extension-page@0.0.19
+  - @conciv/ui-kit-chat-tools@0.0.19
+  - @conciv/client@0.0.19
+  - @conciv/extension-ios@0.0.19
+  - @conciv/ui-kit-tap@0.0.19
+  - @conciv/grab@0.0.19
+  - @conciv/mascot@0.0.19
+  - @conciv/protocol@0.0.19
+  - @conciv/solid-diffs@0.0.19
+  - @conciv/solid-streamdown@0.0.19
+  - @conciv/storage-history@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

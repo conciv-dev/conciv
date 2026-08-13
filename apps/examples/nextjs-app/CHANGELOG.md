@@ -1,5 +1,14 @@
 # nextjs-app
 
+## 0.1.19
+
+### Patch Changes
+
+- Updated dependencies [[`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323)]:
+  - @conciv/embed@0.0.19
+  - @conciv/extension-tanstack@0.0.19
+  - @conciv/it@0.0.19
+
 ## 0.1.18
 
 ### Patch Changes

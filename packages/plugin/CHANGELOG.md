@@ -1,5 +1,22 @@
 # @conciv/plugin
 
+## 0.0.19
+
+### Patch Changes
+
+- [#357](https://github.com/conciv-dev/conciv/pull/357) [`c6aa92c`](https://github.com/conciv-dev/conciv/commit/c6aa92c53847d9f811eafebf414492335864955b) Thanks [@omridevk](https://github.com/omridevk)! - The configured engine port is a preference on the Vite dev server: when it is already taken the
+  engine falls back to a free port, logs the address it actually bound, and the page is stamped with
+  that address, so two dev servers can run at once instead of the second dying on EADDRINUSE. The
+  Next.js integration and the generic webpack/rspack plugin still bind their port exactly, because
+  both hand the client a fixed address before the engine ever boots.
+- Updated dependencies [[`c6aa92c`](https://github.com/conciv-dev/conciv/commit/c6aa92c53847d9f811eafebf414492335864955b), [`78977f0`](https://github.com/conciv-dev/conciv/commit/78977f03328d09224602b6162b9178c48b4e04a9), [`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323), [`b329b47`](https://github.com/conciv-dev/conciv/commit/b329b47b889201093c5de042f389eac297caa249), [`af72648`](https://github.com/conciv-dev/conciv/commit/af72648838bd828477102f87f78d457d17ebec41)]:
+  - @conciv/core@0.0.19
+  - @conciv/embed@0.0.19
+  - @conciv/extension@0.0.19
+  - @conciv/cli@0.0.19
+  - @conciv/extension-compiler@0.0.19
+  - @conciv/protocol@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes
