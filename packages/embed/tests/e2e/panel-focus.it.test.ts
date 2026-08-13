@@ -1,6 +1,8 @@
 import {expect, test, type Locator, type Page} from '@playwright/test'
+import {observeRpc} from '@conciv/extension-testkit/rpc-observer'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
+import {currentHref, setNavigation, waitForNavigationWrite} from './helpers/navigation.js'
 import {hostPage, serveHost} from '../helpers/host.js'
 
 const suite = setupWidgetSuite()
@@ -44,6 +46,10 @@ async function holdFirstSessionList(page: Page): Promise<() => void> {
 type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hostButton: Locator}
 
 const dedicatedHosts: Array<{close: () => Promise<void>}> = []
+
+test.beforeEach(async () => {
+  await setNavigation(suite.kit(), [{href: '/'}])
+})
 
 test.afterEach(async () => {
   for (const dedicatedHost of dedicatedHosts.splice(0)) await dedicatedHost.close()
@@ -136,6 +142,34 @@ test.describe('panel close restores focus: host element captured at open wins, F
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
     await expect(composer(page)).toBeVisible({timeout: 30_000})
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+    await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeFocused({timeout: 10_000})
+  })
+
+  test('closing a boot-restored open panel falls back to FAB focus', async ({page}) => {
+    test.setTimeout(180_000)
+    const observer = observeRpc(page)
+    const opened = waitForNavigationWrite(page, observer)
+    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+    await openPanel(page)
+    await opened
+    expect(await currentHref(suite.kit())).toContain('open=true')
+
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
+    await page.getByRole('button', {name: 'Close chat'}).click()
+    await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeFocused({timeout: 10_000})
+    observer.dispose()
+  })
+
+  test('closing the phone sheet falls back to FAB focus once the launcher remounts', async ({page}) => {
+    test.setTimeout(180_000)
+    await page.setViewportSize({width: 390, height: 780})
+    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+    await ensurePanelClosed(page)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    await expect(composer(page)).toBeVisible({timeout: 30_000})
+    await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeHidden({timeout: 30_000})
+    await page.getByRole('button', {name: 'Close chat'}).click()
     await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeFocused({timeout: 10_000})
   })
 })
