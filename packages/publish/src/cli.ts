@@ -8,13 +8,14 @@ import {
   PUBLIC_PACKAGES,
   assertBootstrappable,
   assertChangesetsResolve,
+  assertPublicDepsPublic,
   assertPublicSet,
   assertPublishedChangesCovered,
   assertValidTag,
   assertVersioned,
   assertWorkspaceRoot,
 } from './guards.ts'
-import {registryState} from './registry.ts'
+import {registryState, type RegistryState} from './registry.ts'
 import {
   assembleMirrorTree,
   extractCommitSubtree,
@@ -91,6 +92,7 @@ const release = defineCommand({
   async run() {
     const {cwd, turbo, changeset} = await atRoot()
     await assertPublicSet(cwd)
+    await assertPublicDepsPublic(cwd)
     await assertVersioned(cwd)
     await turbo('build', 'publint', 'attw')
     await changeset('publish')
@@ -104,6 +106,7 @@ const snapshot = defineCommand({
     assertValidTag(args.tag)
     const {cwd, turbo, changeset} = await atRoot()
     await assertPublicSet(cwd)
+    await assertPublicDepsPublic(cwd)
     await changeset('version', '--snapshot', args.tag)
     await turbo('build', 'publint', 'attw')
     await changeset('publish', '--tag', args.tag, '--no-git-checks')
@@ -134,6 +137,52 @@ async function wireTrust(run: Run, name: string): Promise<void> {
 }
 
 type Run = Awaited<ReturnType<typeof atRoot>>['run']
+type Turbo = Awaited<ReturnType<typeof atRoot>>['turbo']
+
+type SyncPackageState = {name: string; state: RegistryState}
+type SyncPlanEntry = SyncPackageState & {actions: string[]}
+
+async function gatherSyncStates(): Promise<SyncPackageState[]> {
+  return Promise.all(PUBLIC_PACKAGES.map(async (name) => ({name, state: await registryState(name)})))
+}
+
+function buildSyncPlan(unhealthy: SyncPackageState[]): SyncPlanEntry[] {
+  return unhealthy.map(({name, state}) => ({
+    name,
+    state,
+    actions: state === 'missing' ? ['publish', 'trust', 'tag'] : ['trust'],
+  }))
+}
+
+function printSyncPlan(states: SyncPackageState[], plan: SyncPlanEntry[], json: boolean): void {
+  const healthy = states.length - plan.length
+  if (json) {
+    console.log(JSON.stringify({healthy, plan}, null, 2))
+    return
+  }
+  for (const {name, state, actions} of plan) {
+    console.log(`${name}: ${state} -> ${actions.join(', ')}`)
+  }
+  console.log(`${healthy}/${states.length} packages healthy`)
+}
+
+async function bootstrapSyncPackage(cwd: string, run: Run, turbo: Turbo, name: string): Promise<void> {
+  await assertBootstrappable(cwd, name)
+  await turbo('build', 'publint', 'attw', `--filter=${name}`)
+  await firstPublish(run, name)
+}
+
+async function applySyncPlan(cwd: string, run: Run, turbo: Turbo, unhealthy: SyncPackageState[]): Promise<void> {
+  await run('npm', ['whoami'])
+  for (const {name, state} of unhealthy) {
+    if (state === 'missing') {
+      await bootstrapSyncPackage(cwd, run, turbo, name)
+    }
+    await wireTrust(run, name)
+  }
+  await run('pnpm', ['exec', 'changeset', 'tag'])
+  await run('git', ['push', 'origin', '--tags'])
+}
 
 const sync = defineCommand({
   meta: {
@@ -151,34 +200,13 @@ const sync = defineCommand({
   },
   async run({args}) {
     const {cwd, run, turbo} = await atRoot()
-    const states = await Promise.all(PUBLIC_PACKAGES.map(async (name) => ({name, state: await registryState(name)})))
+    await assertPublicDepsPublic(cwd)
+    const states = await gatherSyncStates()
     const unhealthy = states.filter(({state}) => state !== 'trusted')
-    const plan = unhealthy.map(({name, state}) => ({
-      name,
-      state,
-      actions: state === 'missing' ? ['publish', 'trust', 'tag'] : ['trust'],
-    }))
-    if (args.json) {
-      console.log(JSON.stringify({healthy: states.length - unhealthy.length, plan}, null, 2))
-    }
-    if (!args.json) {
-      for (const {name, state, actions} of plan) {
-        console.log(`${name}: ${state} -> ${actions.join(', ')}`)
-      }
-      console.log(`${states.length - unhealthy.length}/${states.length} packages healthy`)
-    }
+    const plan = buildSyncPlan(unhealthy)
+    printSyncPlan(states, plan, args.json)
     if (unhealthy.length === 0 || args['dry-run']) return
-    await run('npm', ['whoami'])
-    for (const {name, state} of unhealthy) {
-      if (state === 'missing') {
-        await assertBootstrappable(cwd, name)
-        await turbo('build', `--filter=${name}`)
-        await firstPublish(run, name)
-      }
-      await wireTrust(run, name)
-    }
-    await run('pnpm', ['exec', 'changeset', 'tag'])
-    await run('git', ['push', 'origin', '--tags'])
+    await applySyncPlan(cwd, run, turbo, unhealthy)
   },
 })
 
