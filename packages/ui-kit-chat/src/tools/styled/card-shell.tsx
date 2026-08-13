@@ -46,6 +46,7 @@ export function CardShell(props: {
   iconClass?: string
   status?: ToolStatus
   defaultOpen?: boolean
+  autoOpen?: boolean
   header?: JSX.Element
   flushHeader?: boolean
   class?: string
@@ -63,6 +64,7 @@ export function CardShell(props: {
       durationMs={props.durationMs}
       status={props.status}
       defaultOpen={props.defaultOpen}
+      autoOpen={props.autoOpen}
       header={props.header}
       flushHeader={props.flushHeader}
       class={props.class}

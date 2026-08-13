@@ -296,7 +296,7 @@ export function SessionCard(props: PageSessionRenderProps): JSX.Element {
           part={anchor()}
           result={props.resultFor(anchor().id)}
           status={status()}
-          defaultOpen={props.streaming}
+          autoOpen={props.streaming}
           flushHeader
           class="@container"
           header={
