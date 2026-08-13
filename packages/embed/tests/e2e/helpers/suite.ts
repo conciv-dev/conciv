@@ -11,12 +11,12 @@ export function setupWidgetSuite(options: Parameters<typeof bootEmbedKit>[0] = {
   let kit: EmbedKit
   let host: {base: string; close: () => Promise<void>}
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     kit = await bootEmbedKit(options)
     host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await host.close()
     await kit.cleanup()
   })
