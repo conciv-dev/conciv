@@ -2,7 +2,7 @@ import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {ChatPane} from '../src/pane/chat-pane.js'
-import {installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
+import {installFakeCore, sessionRow, type FakeCore, type FakeCoreConfig} from './helpers/fake-core.js'
 import {mountPane, PANE_SESSION} from './helpers/pane-harness.js'
 
 let core: FakeCore | null = null
@@ -12,7 +12,7 @@ afterEach(() => {
   core = null
 })
 
-function mountChatPane(config: Parameters<typeof installFakeCore>[0] = {}): void {
+function mountChatPane(config: FakeCoreConfig = {}): void {
   core = installFakeCore({sessions: [sessionRow({id: PANE_SESSION})], ...config})
   mountPane(() => <ChatPane sessionId={PANE_SESSION} />)
 }
@@ -20,7 +20,7 @@ function mountChatPane(config: Parameters<typeof installFakeCore>[0] = {}): void
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const removeGrab = () => page.getByRole('button', {name: 'Remove grabbed element'})
 
-function draftWithGrab(text: string): Parameters<typeof installFakeCore>[0]['draft'] {
+function draftWithGrab(text: string): FakeCoreConfig['draft'] {
   return {
     sessionId: PANE_SESSION,
     text: '',

@@ -9,8 +9,6 @@ import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {appendDraft} from '../pane/draft-storage.js'
 import {GrabReference} from '../pane/grab-reference.js'
 
-const GRAB_PREVIEW_MAX_W = 280
-
 export const Route = createFileRoute('/panel/$sessionId/$view')({component: PanelView})
 
 function PanelView(): JSX.Element {
@@ -64,13 +62,7 @@ function PanelView(): JSX.Element {
             <Show when={pane.grabStore.grabs().length > 0}>
               <div class="px-2.5 pt-2 flex flex-wrap gap-2">
                 <For each={pane.grabStore.grabs()}>
-                  {(grab) => (
-                    <GrabReference
-                      grab={grab}
-                      maxWidth={GRAB_PREVIEW_MAX_W}
-                      onRemove={() => pane.grabStore.remove(grab)}
-                    />
-                  )}
+                  {(grab) => <GrabReference grab={grab} onRemove={() => pane.grabStore.remove(grab)} />}
                 </For>
               </div>
             </Show>

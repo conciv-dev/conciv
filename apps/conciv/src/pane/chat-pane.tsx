@@ -61,8 +61,6 @@ import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {checkSend, type SendVerdict} from './send-checks.js'
 
-const GRAB_PREVIEW_MAX_W = 280
-
 const PAGE_SESSION: PageSessionConfig = {
   render: SessionCard,
   actNames: PAGE_ACT_TOOL_NAMES,
@@ -279,16 +277,19 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const dividersInRange = (start: number, end: number): MarkerRow[] =>
     (markers.data ?? []).filter((row) => row.afterTurn >= start && row.afterTurn <= end)
 
+  const sentGrabs = {current: [] as StagedGrab[]}
   const onSend = async (content: string | MultimodalContent) => {
     const verdict = checkSend(content, {
       busy: compacting(),
       connected: chat.connectionStatus() === 'connected',
     })
+    sentGrabs.current = pane.grabStore.grabs()
     if (!verdict.ok) throw sendRejection(verdict)
-    await chat.sendMessage(content)
     pane.grabStore.clear()
+    await chat.sendMessage(content)
   }
   const onSendError = (failure: unknown) => {
+    pane.grabStore.stageAll(sentGrabs.current)
     if (isSendRejection(failure)) {
       if (failure.message) notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
       return
@@ -374,13 +375,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                     <NoticeToaster />
                     <EngineStaleNotice />
                     <For each={pane.grabStore.grabs()}>
-                      {(grab) => (
-                        <GrabReference
-                          grab={grab}
-                          maxWidth={GRAB_PREVIEW_MAX_W}
-                          onRemove={() => pane.grabStore.remove(grab)}
-                        />
-                      )}
+                      {(grab) => <GrabReference grab={grab} onRemove={() => pane.grabStore.remove(grab)} />}
                     </For>
                     <Suspense>
                       <Show when={draftStorage()}>
