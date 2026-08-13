@@ -337,6 +337,68 @@ it('replays a hostile capture without running its script or fetching a single re
   expect(replicaTarget().value).toBe('safe-target')
 })
 
+function inlinedImageCapture(dataUrl: string): ElementCapture {
+  return {
+    kind: 'after',
+    ts: Date.now(),
+    descriptor: {tagName: 'input', accessibleName: 'inlined target', selectorPath: 'input#inlined-target'},
+    node: {
+      type: 2,
+      tagName: 'html',
+      attributes: {},
+      childNodes: [
+        {
+          type: 2,
+          tagName: 'body',
+          attributes: {},
+          childNodes: [
+            {
+              type: 2,
+              tagName: 'img',
+              attributes: {id: 'inlined-image', src: `${PROBE_PREFIX}/inlined.png`, rr_dataURL: dataUrl},
+              childNodes: [],
+              id: 1,
+            },
+            {
+              type: 2,
+              tagName: 'input',
+              attributes: {id: 'inlined-target', value: 'inlined-target', 'data-rr-target': 'true'},
+              childNodes: [],
+              id: 2,
+            },
+          ],
+          id: 3,
+        },
+      ],
+      id: 4,
+    },
+  }
+}
+
+it('replays an image from its inlined rr_dataURL without fetching its remote src', async () => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 8
+  canvas.height = 8
+  const context = canvas.getContext('2d')
+  if (context === null) throw new Error('the canvas exposes no context')
+  context.fillStyle = 'rgb(20, 120, 220)'
+  context.fillRect(0, 0, 8, 8)
+  const dataUrl = canvas.toDataURL('image/webp', 0.8)
+
+  mountView(() => (
+    <ElementPreview.Root capture={inlinedImageCapture(dataUrl)}>
+      <ElementPreview.Frame />
+    </ElementPreview.Root>
+  ))
+
+  await expect.element(page.getByRole('img', {name: 'inlined target'})).not.toHaveAttribute('aria-busy')
+  await fetch(`${PROBE_PREFIX}/sentinel`).catch(() => undefined)
+
+  const replicaImage = replicaRoot().querySelector('#inlined-image')
+  expect(replicaImage?.getAttribute('src')).toBe(dataUrl)
+  expect(probeResourceNames()).toEqual([])
+})
+
 it('keeps rendering when an attribute carries an out-of-range numeric character reference', async () => {
   Reflect.deleteProperty(window, XSS_FLAG)
 
