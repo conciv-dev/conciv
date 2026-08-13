@@ -70,7 +70,10 @@ describe('approvePlan', () => {
       }),
       output: recorderOutput(events),
     })
-    expect(approved).toEqual({decision: 'selections', selections: {framework: true, harnesses: ['claude', 'codex']}})
+    expect(approved).toEqual({
+      decision: 'selections',
+      selections: {framework: true, harnesses: ['claude', 'codex'], docsPack: false},
+    })
     expect(events).toEqual(['plan:selected:claude+codex'])
   })
 
@@ -113,7 +116,7 @@ describe('approvePlan', () => {
   it('renders the plan before the first prompt and loops adjust with a re-rendered plan', async () => {
     const events: string[] = []
     const decisions = ['adjust', 'proceed'] satisfies ('adjust' | 'proceed')[]
-    const adjusted: ConfirmedSelections = {framework: false, harnesses: ['codex']}
+    const adjusted: ConfirmedSelections = {framework: false, harnesses: ['codex'], docsPack: true}
     const approved = await approvePlan({
       yes: false,
       dryRun: false,

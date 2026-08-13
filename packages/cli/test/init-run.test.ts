@@ -5,6 +5,7 @@ import {describe, expect, it} from 'vitest'
 import {claudeConnectDir} from '@conciv/harness-init/claude/files'
 import {runInit} from '../src/init/pipeline.js'
 import {writeConsent} from '../src/init/steps/harness/consent.js'
+import type {PlanPrompts} from '../src/init/wizard.js'
 import {commitAll, fixture, pendingChanges, recorderPrompts, statusById, stepsOf} from './support/init-fixture.js'
 
 function recordedConsent(cwd: string): unknown {
@@ -19,6 +20,16 @@ function planLine(plan: string, title: string): string {
   const line = plan.split('\n').find((row) => row.includes(title))
   if (line === undefined) throw new Error(`plan has no row for ${title}`)
   return line
+}
+
+function decideAdjustThenProceed(onDecide?: () => void): PlanPrompts['decide'] {
+  const decisions: ('adjust' | 'proceed')[] = ['adjust', 'proceed']
+  return async () => {
+    onDecide?.()
+    const next = decisions.shift()
+    if (next === undefined) throw new Error('ran out of decisions')
+    return next
+  }
 }
 
 describe('runInit', () => {
@@ -111,7 +122,7 @@ describe('runInit', () => {
           decide: async () => (run.events.includes('adjust') ? 'proceed' : 'adjust'),
           adjust: async () => {
             run.events.push('adjust')
-            return {framework: true, harnesses: []}
+            return {framework: true, harnesses: [], docsPack: false}
           },
         },
       },
@@ -123,21 +134,15 @@ describe('runInit', () => {
 
   it('renders the plan before the first prompt and applies an adjusted selection', async () => {
     const run = fixture()
-    const decisions: ('adjust' | 'proceed')[] = ['adjust', 'proceed']
     const result = await runInit(
       {yes: false, dryRun: false, force: false, cwd: run.cwd},
       {
         ...run.runtime,
         prompts: {
-          decide: async () => {
-            run.events.push('decide')
-            const next = decisions.shift()
-            if (next === undefined) throw new Error('ran out of decisions')
-            return next
-          },
+          decide: decideAdjustThenProceed(() => run.events.push('decide')),
           adjust: async () => {
             run.events.push('adjust')
-            return {framework: false, harnesses: []}
+            return {framework: false, harnesses: [], docsPack: false}
           },
         },
       },
@@ -204,18 +209,13 @@ describe('runInit', () => {
     const run = fixture()
     await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
     commitAll(run.cwd)
-    const decisions: ('adjust' | 'proceed')[] = ['adjust', 'proceed']
     await runInit(
       {yes: false, dryRun: false, force: false, cwd: run.cwd},
       {
         ...run.runtime,
         prompts: {
-          decide: async () => {
-            const next = decisions.shift()
-            if (next === undefined) throw new Error('ran out of decisions')
-            return next
-          },
-          adjust: async () => ({framework: true, harnesses: []}),
+          decide: decideAdjustThenProceed(),
+          adjust: async () => ({framework: true, harnesses: [], docsPack: false}),
         },
       },
     )
@@ -422,6 +422,60 @@ describe('runInit', () => {
     expect(statusById(result).agents).toBe('done')
     expect(statusById(result).claude).toBe('skipped')
     expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
+  })
+
+  it('leaves the @conciv/skills docs pack untouched by default, even under --yes', async () => {
+    const run = fixture()
+    const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
+    expect(statusById(result)['docs-pack']).toBeUndefined()
+    expect(run.added).toEqual(['@conciv/it'])
+    expect(readFileSync(join(run.cwd, 'package.json'), 'utf8')).not.toContain('@conciv/skills')
+    expect(run.spawned).not.toContain('pnpm dlx @tanstack/intent@latest install')
+  })
+
+  it('adds the @conciv/skills docs pack and runs intent install once the user opts in during adjust', async () => {
+    const run = fixture()
+    const result = await runInit(
+      {yes: false, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        prompts: {
+          decide: decideAdjustThenProceed(),
+          adjust: async (_found, current) => ({...current, docsPack: true}),
+        },
+      },
+    )
+    expect(statusById(result)['docs-pack']).toBe('done')
+    expect(run.added).toEqual(['@conciv/it', '@conciv/skills'])
+    expect(readFileSync(join(run.cwd, 'package.json'), 'utf8')).toContain('@conciv/skills')
+    expect(run.spawned).toContain('pnpm dlx @tanstack/intent@latest install')
+  })
+
+  it('degrades the docs pack to a manual card when the intent install spawn fails', async () => {
+    const run = fixture()
+    const result = await runInit(
+      {yes: false, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        prompts: {
+          decide: decideAdjustThenProceed(),
+          adjust: async (_found, current) => ({...current, docsPack: true}),
+        },
+        spawn: async (bin, args, spawnCwd) => {
+          if (bin === 'pnpm' && args[0] === 'dlx' && args[1] === '@tanstack/intent@latest') {
+            return {code: 1, output: 'network unreachable'}
+          }
+          const outcome = await run.runtime.spawn?.(bin, args, spawnCwd)
+          return outcome ?? {code: 0, output: ''}
+        },
+      },
+    )
+    expect(statusById(result)['docs-pack']).toBe('manual')
+    expect(run.added).toEqual(['@conciv/it', '@conciv/skills'])
+    const docsPackEntry =
+      result.outcome === 'completed' ? result.steps.find((entry) => entry.id === 'docs-pack') : undefined
+    expect(docsPackEntry?.detail).toBe('network unreachable')
+    expect(docsPackEntry?.cards[0]?.snippet).toContain('pnpm dlx @tanstack/intent@latest install')
   })
 
   it('reports a wizard cancel as a cancellation that changed nothing', async () => {

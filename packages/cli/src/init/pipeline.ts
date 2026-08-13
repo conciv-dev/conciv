@@ -6,6 +6,7 @@ import {captureFile, guardBackups, onInterrupt, type FileBackup} from './interru
 import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan} from './ledger.js'
 import {emitOutro} from './outro.js'
 import {preflight} from './preflight.js'
+import {docsPackStep} from './steps/docs-pack.js'
 import {fallbackStep} from './steps/framework/fallback.js'
 import {nextjsStep} from './steps/framework/nextjs.js'
 import {viteStep} from './steps/framework/vite.js'
@@ -109,6 +110,7 @@ function stepList(detected: Detected, selections: ConfirmedSelections, runtime: 
     ...(selections.framework ? [frameworkStep(detected)] : []),
     agentsMdStep(consented),
     ...harnessFileInits.map((init) => harnessInitStep(init, consented, {home: runtime.env.HOME, run: runtime.spawn})),
+    ...(selections.docsPack ? [docsPackStep(runtime.addDependency, runtime.spawn)] : []),
   ]
 }
 

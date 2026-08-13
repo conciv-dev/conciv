@@ -18,7 +18,7 @@ import type {FoundHarness, HarnessId} from './harness-detect.js'
 import type {StepNote, StepStatus} from './ledger.js'
 
 export type FoundSelections = {framework: Framework; harnesses: FoundHarness[]}
-export type ConfirmedSelections = {framework: boolean; harnesses: HarnessId[]}
+export type ConfirmedSelections = {framework: boolean; harnesses: HarnessId[]; docsPack: boolean}
 
 export type PlanRow = {title: string; wouldEdit: string[]; already: boolean}
 export type HarnessRow = {id: HarnessId; found: boolean; selected: boolean}
@@ -72,7 +72,11 @@ export function renderPlan(rows: PlanRow[], harnesses: HarnessRow[]): string {
 }
 
 export async function approvePlan(args: ApprovePlan): Promise<PlanApproval> {
-  let selections: ConfirmedSelections = {framework: true, harnesses: args.found.harnesses.map((one) => one.id)}
+  let selections: ConfirmedSelections = {
+    framework: true,
+    harnesses: args.found.harnesses.map((one) => one.id),
+    docsPack: false,
+  }
   for (;;) {
     const plan = await args.renderSelected(selections)
     args.output.plan(plan)
@@ -171,7 +175,12 @@ export const clackPrompts: PlanPrompts = {
       initialValue: current.framework,
     })
     if (isCancel(framework)) return 'cancelled'
-    return {framework, harnesses}
+    const docsPack = await confirm({
+      message: docsPackQuestion,
+      initialValue: current.docsPack,
+    })
+    if (isCancel(docsPack)) return 'cancelled'
+    return {framework, harnesses, docsPack}
   },
 }
 
@@ -186,6 +195,9 @@ async function pickHarnesses(found: FoundHarness[], selected: HarnessId[]): Prom
   if (isCancel(picked)) return 'cancelled'
   return picked
 }
+
+const docsPackQuestion =
+  'Add the @conciv/skills docs pack (setup/extension-authoring/debugging guides) and TanStack intent skill-loading guidance?'
 
 function frameworkQuestion(framework: Framework): string {
   if (framework === 'unknown') return 'No known framework detected — show manual wiring instructions?'
