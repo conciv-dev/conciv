@@ -3,7 +3,7 @@ import {afterEach, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {installFakeCore, sessionRow, type FakeCore, type FakeCoreConfig} from './helpers/fake-core.js'
-import {mountPane, PANE_SESSION} from './helpers/pane-harness.js'
+import {mountPane, PANE_SESSION, type PaneMount} from './helpers/pane-harness.js'
 
 let core: FakeCore | null = null
 
@@ -12,9 +12,9 @@ afterEach(() => {
   core = null
 })
 
-function mountChatPane(config: FakeCoreConfig = {}): void {
+function mountChatPane(config: FakeCoreConfig = {}): PaneMount {
   core = installFakeCore({sessions: [sessionRow({id: PANE_SESSION})], ...config})
-  mountPane(() => <ChatPane sessionId={PANE_SESSION} />)
+  return mountPane(() => <ChatPane sessionId={PANE_SESSION} />)
 }
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -90,6 +90,27 @@ test('a send the server refuses puts the staged grab card back', async () => {
     .toHaveTextContent(/Internal Server Error|could not be sent/)
   await expect.element(removeGrab()).toBeVisible()
   await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
+})
+
+test('a queued second send cannot cross-restore the grabs of the turn that failed', async () => {
+  const mount = mountChatPane({holdRun: true, draft: draftWithGrab('the grabbed hero section')})
+
+  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
+  await input().fill('turn A')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+
+  mount.pane.grabStore.stageAll([{text: 'the grabbed pricing table'}])
+  await expect.element(page.getByText('the grabbed pricing table')).toBeVisible()
+  await input().fill('turn B')
+  await userEvent.keyboard('{Enter}')
+  await expect.element(page.getByRole('button', {name: 'Remove from queue'})).toBeVisible()
+  await expect.element(page.getByText('the grabbed pricing table')).not.toBeInTheDocument()
+
+  core?.push({type: 'RUN_ERROR', threadId: 'conciv_1', runId: 'conciv_run_1', message: 'turn A failed'})
+
+  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
+  await expect.element(page.getByText('the grabbed pricing table')).not.toBeInTheDocument()
 })
 
 test('sending announces thinking and then the reply through the live region', async () => {

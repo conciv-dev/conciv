@@ -277,19 +277,19 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const dividersInRange = (start: number, end: number): MarkerRow[] =>
     (markers.data ?? []).filter((row) => row.afterTurn >= start && row.afterTurn <= end)
 
-  const sentGrabs = {current: [] as StagedGrab[]}
   const onSend = async (content: string | MultimodalContent) => {
     const verdict = checkSend(content, {
       busy: compacting(),
       connected: chat.connectionStatus() === 'connected',
     })
-    sentGrabs.current = pane.grabStore.grabs()
     if (!verdict.ok) throw sendRejection(verdict)
+    const staged = pane.grabStore.grabs()
     pane.grabStore.clear()
+    const before = chat.error()
     await chat.sendMessage(content)
+    if (chat.error() !== before) pane.grabStore.stageAll(staged)
   }
   const onSendError = (failure: unknown) => {
-    pane.grabStore.stageAll(sentGrabs.current)
     if (isSendRejection(failure)) {
       if (failure.message) notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
       return
