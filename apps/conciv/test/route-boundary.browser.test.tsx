@@ -63,3 +63,11 @@ test('a pane whose queries all answer immediately never shows the route pending 
   await core?.idle()
   await expect.element(routePending(), WHILE_HELD).not.toBeInTheDocument()
 })
+
+test('a slow beforeLoad reveals the route pending loader, then hands off to the pane', async () => {
+  mountShell('/panel/latest?open=true', {delays: {'/rpc/sessions/resolve': 900}})
+
+  await expect.element(routePending()).toBeVisible()
+  await expect.element(editor(), {timeout: 2000}).toBeVisible()
+  await expect.element(routePending()).not.toBeInTheDocument()
+})

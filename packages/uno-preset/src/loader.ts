@@ -248,16 +248,6 @@ export const loaderPreflight: Preflight = {
     transform: scale(1.02);
   }
 }
-@keyframes pw-loader-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@keyframes pw-loader-spin-reverse {
-  to {
-    transform: rotate(-360deg);
-  }
-}
 @keyframes pw-loader-label-pulse {
   0%,
   100% {
@@ -295,24 +285,6 @@ export const loaderPreflight: Preflight = {
   syntax: '<angle>';
   inherits: false;
   initial-value: 270deg;
-}
-@supports not (background: conic-gradient(from var(--pw-loader-angle-a), red, blue)) {
-  .loader-arc-a {
-    background: conic-gradient(transparent 0deg, currentColor 90deg, transparent 180deg);
-    animation: pw-loader-spin 3s linear infinite;
-  }
-  .loader-arc-b {
-    background: conic-gradient(transparent 0deg, currentColor 120deg, transparent 240deg);
-    animation: pw-loader-spin 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  .loader-arc-c {
-    background: conic-gradient(transparent 0deg, currentColor 45deg, transparent 90deg);
-    animation: pw-loader-spin-reverse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  .loader-arc-d {
-    background: conic-gradient(transparent 0deg, currentColor 20deg, transparent 40deg);
-    animation: pw-loader-spin 3.5s linear infinite;
-  }
 }
 `,
 }

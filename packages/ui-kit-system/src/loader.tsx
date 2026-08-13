@@ -14,21 +14,23 @@ const DEFAULT_TRANSLATIONS = {value: () => 'Loading'}
 function LoaderArcs(): JSX.Element {
   return (
     <>
-      <span class="loader-arc loader-arc-a" />
-      <span class="loader-arc loader-arc-b" />
-      <span class="loader-arc loader-arc-c" />
-      <span class="loader-arc loader-arc-d" />
+      <span class="loader-arc-a loader-arc" />
+      <span class="loader-arc-b loader-arc" />
+      <span class="loader-arc-c loader-arc" />
+      <span class="loader-arc-d loader-arc" />
     </>
   )
 }
 
-function Root(props: ComponentProps<typeof Ark.Root> & {size?: LoaderSize}): JSX.Element {
+function Root(
+  props: Omit<ComponentProps<typeof Ark.Root>, 'value' | 'defaultValue'> & {size?: LoaderSize},
+): JSX.Element {
   const [local, rest] = splitProps(props, ['class', 'size'])
   return (
     <Ark.Root
-      value={null}
       translations={DEFAULT_TRANSLATIONS}
       {...rest}
+      value={null}
       class={`${ROOT}  ${local.class ?? ''}`}
       data-size={local.size ?? 'md'}
     />
