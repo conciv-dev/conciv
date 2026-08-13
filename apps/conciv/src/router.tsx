@@ -1,6 +1,7 @@
 import {createRouter} from '@tanstack/solid-router'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient} from '@tanstack/solid-query'
+import {onCleanup, type JSX} from 'solid-js'
 import type {RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {AnyExtension} from '@conciv/extension'
@@ -28,6 +29,7 @@ export type ConcivRouterContext = {
   grabProvider?: GrabProvider
   apiBase: () => string
   connectionGeneration: () => number
+  disposeInstances: () => void
 }
 
 export type ConcivRouterConfig = {
@@ -64,10 +66,35 @@ function createInstances(extensions: AnyExtension[]): ExtensionInstance[] {
   })
 }
 
+function disposeExtensionInstances(instances: ExtensionInstance[]): void {
+  for (const instance of instances) {
+    try {
+      instance.dispose()
+    } catch (error) {
+      console.error('[conciv] extension instance teardown failed', error)
+    }
+  }
+}
+
+function makeGuardedDisposer(instances: ExtensionInstance[]): () => void {
+  let disposed = false
+  return function disposeInstances(): void {
+    if (disposed) return
+    disposed = true
+    disposeExtensionInstances(instances)
+  }
+}
+
 export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient()
   const data = makeAppData(config.rpc, queryClient)
   const extensions = [highlight, ...(config.extensions ?? [])]
+  const instances = createInstances(extensions)
+  const disposeInstances = makeGuardedDisposer(instances)
+  function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
+    onCleanup(disposeInstances)
+    return <>{props.children}</>
+  }
   return createRouter({
     routeTree,
     history: config.history,
@@ -75,6 +102,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     defaultPendingComponent: PendingPane,
     defaultPendingMs: 300,
     defaultPendingMinMs: 500,
+    Wrap: ConcivRouterWrap,
     context: {
       rpc: config.rpc,
       environment: config.environment,
@@ -82,7 +110,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       queryClient,
       data,
       extensions,
-      instances: createInstances(extensions),
+      instances,
       connected: config.connected ?? (() => true),
       connectMode: config.connectMode ?? false,
       bindApiBase: config.bindApiBase,
@@ -90,18 +118,13 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       grabProvider: config.grabProvider,
       apiBase: config.apiBase ?? (() => ''),
       connectionGeneration: config.connectionGeneration ?? (() => 0),
+      disposeInstances,
     },
   })
 }
 
 export function disposeConcivRouter(router: ReturnType<typeof createConcivRouter>): void {
-  for (const instance of router.options.context.instances) {
-    try {
-      instance.dispose()
-    } catch (error) {
-      console.error('[conciv] extension instance teardown failed', error)
-    }
-  }
+  router.options.context.disposeInstances()
 }
 
 declare module '@tanstack/solid-router' {

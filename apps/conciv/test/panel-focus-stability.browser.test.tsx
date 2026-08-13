@@ -5,16 +5,14 @@ import {render} from '@solidjs/testing-library'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeRpcClient} from '@conciv/contract'
 import {parseConcivSettings} from '../src/data/settings.js'
-import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
+import {createConcivRouter} from '../src/router.js'
 import {CORE_BASE, installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
 
 const PANEL_SESSION = 'conciv_1'
 const SETTLED = {timeout: 1500}
-const routerDisposers: (() => void)[] = []
 let core: FakeCore | null = null
 
 afterEach(() => {
-  for (const dispose of routerDisposers.splice(0)) dispose()
   core?.restore()
   core = null
 })
@@ -28,7 +26,6 @@ function openPanel(config: Parameters<typeof installFakeCore>[0] = {}): void {
     settings: parseConcivSettings(''),
   })
   render(() => <RouterProvider router={router} />)
-  routerDisposers.push(() => disposeConcivRouter(router))
 }
 
 const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
