@@ -182,7 +182,7 @@ async function install(opts: HarnessAttachInstall): Promise<HarnessAttachResult>
   if (!meetsReloadFloor(probe.version))
     return failure(`claude ${probe.version} lacks ${CLAUDE_RELOAD_COMMAND} (needs ${CLAUDE_RELOAD_MIN_VERSION}+)`)
   const root = claudeConnectDir(opts.stateDir)
-  const files = claudeConnectPluginFiles({stateDir: opts.stateDir})
+  const files = claudeConnectPluginFiles({stateDir: opts.stateDir, cwd: opts.root})
   writeConnectFiles([...files, claudeConnectEndpointFile({stateDir: opts.stateDir, mcpUrl: opts.mcpUrl})])
   if (alreadyServing(files, opts)) return {ok: true, reloadCommand: CLAUDE_RELOAD_COMMAND}
   const added = stepFailure(

@@ -25,7 +25,7 @@ function makeProject(name: string): Project {
 }
 
 function filesOf(project: Project): HarnessConnectFile[] {
-  return claudeConnectPluginFiles({stateDir: project.stateDir})
+  return claudeConnectPluginFiles({stateDir: project.stateDir, cwd: project.root})
 }
 
 function writeTree(project: Project): void {

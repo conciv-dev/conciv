@@ -2,7 +2,7 @@ import {homedir} from 'node:os'
 import {detectProject, type Detected} from './detect.js'
 import {execFileOutcome, type CommandOutcome} from './exec.js'
 import {detectHarnesses, harnessFileInits, harnessIds, type FoundHarness} from './harness-detect.js'
-import {captureFile, guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
+import {captureFile, guardBackups, onInterrupt, type Backup} from './interrupt.js'
 import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan} from './ledger.js'
 import {emitOutro} from './outro.js'
 import {preflight} from './preflight.js'
@@ -33,7 +33,7 @@ export type RunSettings = {
   cwd: string
   yes: boolean
   dryRun: boolean
-  backup: (file: FileBackup) => void
+  backup: (entry: Backup) => void
   interrupt: (recover: () => void) => () => void
 }
 

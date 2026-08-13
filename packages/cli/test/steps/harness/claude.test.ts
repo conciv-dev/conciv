@@ -3,7 +3,11 @@ import {tmpdir} from 'node:os'
 import {delimiter, dirname, join, relative} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
-import {claudeConnectDir, claudeConnectPluginFiles} from '@conciv/harness-init/claude/files'
+import {
+  CLAUDE_CONNECT_PLUGIN_VERSION,
+  claudeConnectDir,
+  claudeConnectPluginFiles,
+} from '@conciv/harness-init/claude/files'
 import {execFileOutcome} from '../../../src/init/exec.js'
 import type {HarnessId} from '../../../src/init/harness-detect.js'
 import {runSteps} from '../../../src/init/pipeline.js'
@@ -27,7 +31,7 @@ function shimScript(): string {
     'printf \'%s\\n\' "$*" >> "$CONCIV_CLAUDE_RECORD"',
     '[ "$CONCIV_CLAUDE_EXIT" = "0" ] || exit "$CONCIV_CLAUDE_EXIT"',
     'PLUGINS="$HOME/.claude/plugins"',
-    'CACHE="$PLUGINS/cache/conciv/conciv-connect/0.0.0"',
+    `CACHE="$PLUGINS/cache/conciv/conciv-connect/${CLAUDE_CONNECT_PLUGIN_VERSION}"`,
     'if [ "$1" = "plugin" ] && [ "$2" = "marketplace" ] && [ "$3" = "add" ]; then',
     '  mkdir -p "$PLUGINS"',
     '  printf \'%s\' "$4" > "$PLUGINS/conciv-source"',
@@ -37,7 +41,7 @@ function shimScript(): string {
     '  ROOT=$(cat "$PLUGINS/conciv-source")',
     '  mkdir -p "$CACHE"',
     '  cp -R "$ROOT/conciv-connect/." "$CACHE/"',
-    '  printf \'{"version":2,"plugins":{"conciv-connect@conciv":[{"scope":"local","version":"0.0.0","installPath":"%s","projectPath":"%s"}]}}\' "$CACHE" "$PWD" > "$PLUGINS/installed_plugins.json"',
+    `  printf '{"version":2,"plugins":{"conciv-connect@conciv":[{"scope":"local","version":"${CLAUDE_CONNECT_PLUGIN_VERSION}","installPath":"%s","projectPath":"%s"}]}}' "$CACHE" "$PWD" > "$PLUGINS/installed_plugins.json"`,
     'fi',
     'exit 0',
     '',
@@ -79,11 +83,11 @@ function siblingProject(source: Fixture): Fixture {
 }
 
 function pluginCacheDir(home: string): string {
-  return join(home, '.claude', 'plugins', 'cache', 'conciv', 'conciv-connect', '0.0.0')
+  return join(home, '.claude', 'plugins', 'cache', 'conciv', 'conciv-connect', CLAUDE_CONNECT_PLUGIN_VERSION)
 }
 
 function connectFiles(stateDir: string): HarnessConnectFile[] {
-  return claudeConnectPluginFiles({stateDir})
+  return claudeConnectPluginFiles({stateDir, cwd: dirname(stateDir)})
 }
 
 function writeTree(stateDir: string): void {
@@ -113,7 +117,9 @@ function seedInstalled(opts: {home: string; cwd: string; marketplaceRoot?: strin
     JSON.stringify({
       version: 2,
       plugins: {
-        'conciv-connect@conciv': [{scope: 'local', version: '0.0.0', installPath: cache, projectPath: opts.cwd}],
+        'conciv-connect@conciv': [
+          {scope: 'local', version: CLAUDE_CONNECT_PLUGIN_VERSION, installPath: cache, projectPath: opts.cwd},
+        ],
       },
     }),
   )

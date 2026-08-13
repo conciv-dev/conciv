@@ -1,4 +1,4 @@
-import type {FileBackup} from '../../../src/init/interrupt.js'
+import type {Backup} from '../../../src/init/interrupt.js'
 import type {StepNote} from '../../../src/init/ledger.js'
 import type {InitContext, RunSettings} from '../../../src/init/pipeline.js'
 import type {InitOutput} from '../../../src/init/wizard.js'
@@ -7,7 +7,7 @@ import {recorderOutput} from '../../support/init-output.js'
 export type StepHarness = {
   reports: string[]
   notes: StepNote[]
-  backups: FileBackup[]
+  backups: Backup[]
   events: string[]
   output: InitOutput
   ctx: InitContext
@@ -17,7 +17,7 @@ export type StepHarness = {
 export function stepContext(cwd: string): StepHarness {
   const reports: string[] = []
   const notes: StepNote[] = []
-  const backups: FileBackup[] = []
+  const backups: Backup[] = []
   const ctx: InitContext = {
     cwd,
     yes: true,

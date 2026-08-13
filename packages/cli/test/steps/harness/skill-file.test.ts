@@ -54,6 +54,30 @@ describe('concivSkillFileStep', () => {
     expect(existsSync(concivSkillFilePath(cwd))).toBe(false)
   })
 
+  it('removes the conciv/ directory itself when interrupted, since the run created it', async () => {
+    const {cwd} = project()
+    const guard = guardBackups()
+    const step = concivSkillFileStep()
+    await step.apply({cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: guard.remember})
+    expect(existsSync(join(cwd, 'conciv'))).toBe(true)
+    guard.restore()
+    guard.release()
+    expect(existsSync(join(cwd, 'conciv'))).toBe(false)
+  })
+
+  it('keeps the conciv/ directory when it already held other files before the run', async () => {
+    const {cwd} = project()
+    mkdirSync(join(cwd, 'conciv'), {recursive: true})
+    writeFileSync(join(cwd, 'conciv', 'unrelated.txt'), 'kept')
+    const guard = guardBackups()
+    const step = concivSkillFileStep()
+    await step.apply({cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: guard.remember})
+    guard.restore()
+    guard.release()
+    expect(existsSync(join(cwd, 'conciv'))).toBe(true)
+    expect(readFileSync(join(cwd, 'conciv', 'unrelated.txt'), 'utf8')).toBe('kept')
+  })
+
   it('offers the skill content itself as the manual card snippet', () => {
     const {ctx} = project()
     const card = concivSkillFileStep().manualCard(ctx)

@@ -10,12 +10,17 @@ const SECOND_URL = 'http://127.0.0.1:5173/api/mcp'
 
 function treeOf(stateDir: string): Array<[string, string]> {
   const root = claudeConnectDir(stateDir)
-  return claudeConnectPluginFiles({stateDir}).map((file) => [relative(root, file.path), file.contents])
+  return claudeConnectPluginFiles({stateDir, cwd: process.cwd()}).map((file) => [
+    relative(root, file.path),
+    file.contents,
+  ])
 }
 
 function contentsAt(stateDir: string, step: string): string {
   const root = claudeConnectDir(stateDir)
-  const file = claudeConnectPluginFiles({stateDir}).find((candidate) => candidate.path === join(root, step))
+  const file = claudeConnectPluginFiles({stateDir, cwd: process.cwd()}).find(
+    (candidate) => candidate.path === join(root, step),
+  )
   if (!file) throw new Error(`no generated file at ${step}`)
   return file.contents
 }
@@ -40,8 +45,9 @@ describe('claude connect plugin files', () => {
   })
 
   it('keeps every generated file free of dev server urls, except skill docs describing loopback binding in prose', () => {
+    const packSkillsPrefix = join('conciv-connect', 'skills', '')
     for (const [step, contents] of treeOf('/first/.conciv')) {
-      if (step.includes(`${join('skills', '')}`)) continue
+      if (step.startsWith(packSkillsPrefix)) continue
       expect(contents).not.toContain('127.0.0.1')
       expect(contents).not.toContain('http://')
     }

@@ -1,8 +1,8 @@
-import {mkdirSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync} from 'node:fs'
 import {dirname, join, relative} from 'node:path'
 import type {HarnessInit, HarnessInitCommand, HarnessInitPlan} from '@conciv/protocol/harness-types'
 import type {HarnessId} from '../../harness-detect.js'
-import {captureFile} from '../../interrupt.js'
+import {captureDir, captureFile} from '../../interrupt.js'
 import type {StepOutcome} from '../../ledger.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
 
@@ -21,9 +21,30 @@ function projectOf(cwd: string): {cwd: string; stateDir: string} {
 
 function writePlanFiles(ctx: InitContext, plan: HarnessInitPlan): void {
   for (const file of plan.files) {
-    mkdirSync(dirname(file.path), {recursive: true})
+    const dir = dirname(file.path)
+    ctx.backup(captureDir(dir))
+    mkdirSync(dir, {recursive: true})
     ctx.backup(captureFile(file.path))
     writeFileSync(file.path, file.contents, {mode: file.mode ?? 0o600})
+  }
+}
+
+function filesUnder(dir: string): string[] {
+  if (!existsSync(dir)) return []
+  return readdirSync(dir).flatMap((entry) => {
+    const absolute = join(dir, entry)
+    return statSync(absolute).isDirectory() ? filesUnder(absolute) : [absolute]
+  })
+}
+
+function sweepOwnedDirs(ctx: InitContext, plan: HarnessInitPlan): void {
+  const planned = new Set(plan.files.map((file) => file.path))
+  for (const dir of plan.ownedDirs ?? []) {
+    for (const file of filesUnder(dir)) {
+      if (planned.has(file)) continue
+      ctx.backup(captureFile(file))
+      rmSync(file, {force: true})
+    }
   }
 }
 
@@ -46,7 +67,11 @@ async function applyInit(
 ): Promise<StepOutcome> {
   if (!consented().includes(init.harnessId)) return {status: 'skipped', detail: 'not selected'}
   const plan = init.plan(projectOf(ctx.cwd))
+  if (plan.unresolved !== undefined) {
+    return {status: 'manual', cards: [init.manualCard(plan.root)], detail: plan.unresolved}
+  }
   writePlanFiles(ctx, plan)
+  sweepOwnedDirs(ctx, plan)
   for (const command of plan.commands) {
     const failed = await runCommand(ctx, io, command)
     if (failed !== null) return {status: 'manual', cards: [init.manualCard(plan.root)], detail: failed}

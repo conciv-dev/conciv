@@ -1,7 +1,7 @@
 import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
-import {join} from 'node:path'
+import {join, relative} from 'node:path'
 import {concivEntrySkillMarkdown} from '@conciv/harness-init/claude/entry-skill'
-import {captureFile} from '../../interrupt.js'
+import {captureDir, captureFile} from '../../interrupt.js'
 import type {InitStep} from '../../pipeline.js'
 
 export function concivSkillFilePath(cwd: string): string {
@@ -26,12 +26,14 @@ export function concivSkillFileStep(): InitStep {
     detect,
     plan: async (ctx) => ({
       summary: 'write the conciv code-mode skill to conciv/skill.md',
-      wouldEdit: [concivSkillFilePath(ctx.cwd).slice(ctx.cwd.length + 1)],
+      wouldEdit: [relative(ctx.cwd, concivSkillFilePath(ctx.cwd))],
     }),
     apply: async (ctx) => {
       const file = concivSkillFilePath(ctx.cwd)
+      const dir = join(ctx.cwd, 'conciv')
+      ctx.backup(captureDir(dir))
       ctx.backup(captureFile(file))
-      mkdirSync(join(ctx.cwd, 'conciv'), {recursive: true})
+      mkdirSync(dir, {recursive: true})
       writeFileSync(file, content)
       return {status: 'done'}
     },

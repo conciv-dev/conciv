@@ -69,7 +69,13 @@ export type HarnessInitCard = {title: string; body: string; snippet: string}
 
 export type HarnessInitProject = {cwd: string; stateDir: string}
 
-export type HarnessInitPlan = {root: string; files: HarnessConnectFile[]; commands: HarnessInitCommand[]}
+export type HarnessInitPlan = {
+  root: string
+  files: HarnessConnectFile[]
+  commands: HarnessInitCommand[]
+  unresolved?: string
+  ownedDirs?: string[]
+}
 
 type HarnessInitBase<Id extends string> = {
   harnessId: Id

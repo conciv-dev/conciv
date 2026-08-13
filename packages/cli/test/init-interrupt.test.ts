@@ -1,8 +1,8 @@
-import {existsSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
+import {captureDir, captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
 
 function scratchFile(name: string, content: string): string {
   const dir = mkdtempSync(join(tmpdir(), 'conciv-interrupt-'))
@@ -69,6 +69,32 @@ describe('guardBackups', () => {
     guard.restore()
     guard.release()
     expect(readFileSync(path, 'utf8')).toBe('original')
+  })
+
+  it('removes a directory the run created when the captured backup recorded it as absent', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'conciv-interrupt-'))
+    const created = join(parent, 'conciv')
+    const guard = guardBackups()
+    guard.remember(captureDir(created))
+    mkdirSync(created, {recursive: true})
+    writeFileSync(join(created, 'skill.md'), 'written mid-run')
+    guard.restore()
+    guard.release()
+    expect(existsSync(created)).toBe(false)
+  })
+
+  it('keeps a directory that already existed before the run captured it', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'conciv-interrupt-'))
+    const existing = join(parent, 'conciv')
+    mkdirSync(existing, {recursive: true})
+    writeFileSync(join(existing, 'kept.txt'), 'kept')
+    const guard = guardBackups()
+    guard.remember(captureDir(existing))
+    writeFileSync(join(existing, 'skill.md'), 'written mid-run')
+    guard.restore()
+    guard.release()
+    expect(existsSync(existing)).toBe(true)
+    expect(readFileSync(join(existing, 'kept.txt'), 'utf8')).toBe('kept')
   })
 
   it('leaves no exit listener behind after release', () => {

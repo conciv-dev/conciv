@@ -1,11 +1,15 @@
 import {chmodSync, mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {delimiter, dirname, join, relative} from 'node:path'
+import {delimiter, dirname, join, relative, sep} from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import {CLAUDE_CONNECT_BRIDGE_FILE} from '@conciv/harness-init/claude/bridge'
 import {claudeConnectEndpointPath} from '@conciv/harness-init/claude/endpoint'
-import {claudeConnectDir, claudeConnectPluginFiles} from '@conciv/harness-init/claude/files'
+import {
+  CLAUDE_CONNECT_PLUGIN_VERSION,
+  claudeConnectDir,
+  claudeConnectPluginFiles,
+} from '@conciv/harness-init/claude/files'
 import {relatedCwd, meetsReloadFloor, parseLiveSessions, CLAUDE_RELOAD_COMMAND} from '../src/claude/attach.js'
 import {claude} from '../src/claude/index.js'
 
@@ -56,7 +60,7 @@ function fakeClaudeCliSource(): string {
     '  process.exit(0)',
     '}',
     "const plugins = join(process.env.CLAUDE_CONFIG_DIR, 'plugins')",
-    "const cache = join(plugins, 'cache', 'conciv', 'conciv-connect', '0.0.0')",
+    `const cache = join(plugins, 'cache', 'conciv', 'conciv-connect', '${CLAUDE_CONNECT_PLUGIN_VERSION}')`,
     "const marketplaces = join(plugins, 'known_marketplaces.json')",
     "const installs = join(plugins, 'installed_plugins.json')",
     "const target = 'conciv-connect@conciv'",
@@ -74,7 +78,7 @@ function fakeClaudeCliSource(): string {
     '  rmSync(cache, {recursive: true, force: true})',
     '  mkdirSync(cache, {recursive: true})',
     "  cpSync(join(location, 'conciv-connect'), cache, {recursive: true})",
-    "  writeRecords([...others(), {scope: 'local', version: '0.0.0', installPath: cache, projectPath: process.cwd()}])",
+    `  writeRecords([...others(), {scope: 'local', version: '${CLAUDE_CONNECT_PLUGIN_VERSION}', installPath: cache, projectPath: process.cwd()}])`,
     '  process.exit(0)',
     '}',
     "if (argv[1] === 'uninstall') {",
@@ -99,14 +103,14 @@ function claudePluginsDir(): string {
 }
 
 function pluginCacheDir(): string {
-  return join(claudePluginsDir(), 'cache', 'conciv', 'conciv-connect', '0.0.0')
+  return join(claudePluginsDir(), 'cache', 'conciv', 'conciv-connect', CLAUDE_CONNECT_PLUGIN_VERSION)
 }
 
 type InstallOptions = {root: string; stateDir: string; mcpUrl: string; hookUrl: string}
 
 function seedCachedPlugin(options: InstallOptions): void {
   const pluginRoot = join(claudeConnectDir(options.stateDir), 'conciv-connect')
-  for (const file of claudeConnectPluginFiles({stateDir: options.stateDir})) {
+  for (const file of claudeConnectPluginFiles({stateDir: options.stateDir, cwd: options.root})) {
     const step = relative(pluginRoot, file.path)
     if (step.startsWith('..')) continue
     const target = join(pluginCacheDir(), step)
@@ -125,7 +129,12 @@ function seedInstalledState(options: InstallOptions): void {
       version: 2,
       plugins: {
         'conciv-connect@conciv': [
-          {scope: 'local', installPath: pluginCacheDir(), version: '0.0.0', projectPath: options.root},
+          {
+            scope: 'local',
+            installPath: pluginCacheDir(),
+            version: CLAUDE_CONNECT_PLUGIN_VERSION,
+            projectPath: options.root,
+          },
         ],
       },
     }),
@@ -238,7 +247,7 @@ describe('claude reload version floor', () => {
 })
 
 describe('claude connect plugin files', () => {
-  const files = claudeConnectPluginFiles({stateDir: '/state/.conciv'})
+  const files = claudeConnectPluginFiles({stateDir: '/state/.conciv', cwd: process.cwd()})
   const root = claudeConnectDir('/state/.conciv')
   const contentsAt = (path: string): string => {
     const file = files.find((candidate) => candidate.path === path)
@@ -246,13 +255,18 @@ describe('claude connect plugin files', () => {
     return file.contents
   }
 
-  it('lays out a marketplace next to the plugin it publishes', () => {
-    expect(files.map((file) => file.path)).toEqual([
+  it('lays out a marketplace next to the plugin it publishes, with every skill under conciv-connect/skills/', () => {
+    const baseFiles = [
       join(root, '.claude-plugin', 'marketplace.json'),
       join(root, 'conciv-connect', '.claude-plugin', 'plugin.json'),
       join(root, 'conciv-connect', 'bin', CLAUDE_CONNECT_BRIDGE_FILE),
       join(root, 'conciv-connect', '.mcp.json'),
-    ])
+    ]
+    const skillsRoot = join(root, 'conciv-connect', 'skills')
+    const skillFiles = files.filter((file) => file.path.startsWith(`${skillsRoot}${sep}`))
+
+    expect(files.map((file) => file.path)).toEqual([...baseFiles, ...skillFiles.map((file) => file.path)])
+    expect(skillFiles.length).toBeGreaterThan(0)
     expect(JSON.parse(contentsAt(join(root, '.claude-plugin', 'marketplace.json')))).toMatchObject({
       name: 'conciv',
       plugins: [{name: 'conciv-connect', source: './conciv-connect'}],
@@ -387,7 +401,7 @@ describe('claude attach install', () => {
     const stateDir = installOptions().stateDir
 
     expect(JSON.parse(readFileSync(claudeConnectEndpointPath(stateDir), 'utf8'))).toEqual({mcpUrl: MCP_URL})
-    for (const file of claudeConnectPluginFiles({stateDir})) {
+    for (const file of claudeConnectPluginFiles({stateDir, cwd: installOptions().root})) {
       expect(readFileSync(file.path, 'utf8')).not.toContain(MCP_URL)
     }
   })
