@@ -7,7 +7,7 @@ import {
 } from '@chenglou/pretext'
 import type {Accessor} from 'solid-js'
 import type {MessagePart} from '@tanstack/ai-client'
-import {groupSegments, type GroupingOptions, type Segment, type Turn} from '../store/grouping.js'
+import {defaultGrouper, groupParts, type GroupNode, type Grouping, type Turn} from '../store/grouping.js'
 import type {TurnEstimate, TurnEstimator} from '../primitives/thread/turn-estimate.js'
 import {ASSISTANT_ROOT_SETTLED_CLASS, USER_BUBBLE_CLASS} from './turn-classes.js'
 
@@ -34,7 +34,7 @@ type RowStyle = {
 type Metrics = {user: RowStyle; assistant: RowStyle; viewportPadX: number}
 
 export type TurnEstimatorOptions = {
-  grouping?: Accessor<GroupingOptions | undefined>
+  grouping?: Accessor<Grouping | undefined>
   exactAllowed?: Accessor<boolean>
   disabled?: Accessor<boolean>
 }
@@ -159,10 +159,10 @@ export function createTurnEstimator(
     return {height, exact: bubbles.length === 1}
   }
 
-  const estimateSegment = (segment: Segment, parts: MessagePart[], style: RowStyle, width: number) => {
-    if (segment.kind === 'reply') {
-      const content = textOf(parts[segment.index])
-      if (content === undefined) return undefined
+  const estimateNode = (node: GroupNode, parts: MessagePart[], style: RowStyle, width: number) => {
+    if (node.type === 'part') {
+      const content = textOf(parts[node.index])
+      if (content === undefined) return {height: COLLAPSED_CARD_APPROX_PX, exact: false}
       const plain = !MARKDOWN_SYNTAX.test(content)
       const text = plain ? content : stripMarkdown(content)
       return {height: textHeight(text, style, width), exact: plain}
@@ -170,20 +170,22 @@ export function createTurnEstimator(
     return {height: COLLAPSED_CARD_APPROX_PX, exact: false}
   }
 
+  const nodesFor = (turn: Turn): readonly GroupNode[] => {
+    const grouping = options?.grouping?.()
+    return groupParts(turn.parts, grouping?.grouper ?? defaultGrouper, grouping?.context ?? {})
+  }
+
   const estimateAssistant = (turn: Turn, containerWidth: number): TurnEstimate | undefined => {
     const style = metrics?.assistant
     if (!style) return undefined
-    const segments = groupSegments(turn.parts, options?.grouping?.())
-    if (segments.length === 0) return undefined
-    let height = style.extraY + SEGMENT_GAP_PX * (segments.length - 1)
-    let exact = segments.length === 1
-    for (const segment of segments) {
-      const estimated = estimateSegment(segment, turn.parts, style, containerWidth)
-      if (!estimated) return undefined
-      height += estimated.height
-      exact = exact && estimated.exact
+    const nodes = nodesFor(turn)
+    if (nodes.length === 0) return undefined
+    const estimates = nodes.map((node) => estimateNode(node, turn.parts, style, containerWidth))
+    const content = estimates.reduce((sum, estimate) => sum + estimate.height, 0)
+    return {
+      height: style.extraY + SEGMENT_GAP_PX * (nodes.length - 1) + content,
+      exact: nodes.length === 1 && estimates.every((estimate) => estimate.exact),
     }
-    return {height, exact}
   }
 
   const resolveContainerWidth = (): number | undefined => {

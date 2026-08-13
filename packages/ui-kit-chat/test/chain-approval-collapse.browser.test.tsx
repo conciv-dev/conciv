@@ -4,7 +4,7 @@ import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import type {ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {ChatProvider, useThread} from '../src/store/chat-context.js'
+import {ChatProvider} from '../src/store/chat-context.js'
 import {ToolProvider} from '../src/store/tool-context.js'
 import {
   createApprovalChunk,
@@ -14,6 +14,7 @@ import {
 } from '../src/store/story-connection.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
+import {RunSettledIndicator, startRun, waitForRunSettled} from './run-harness.js'
 
 const bashMeta: ToolViewMeta = {
   summary: 'run a shell command',
@@ -31,11 +32,6 @@ function approvalToolCtx(): ToolViewCtx {
     addResult: () => {},
     respondApproval: () => {},
   }
-}
-
-function RunSettledIndicator(): JSX.Element {
-  const thread = useThread()
-  return <span>{thread.isRunning ? 'run live' : 'run settled'}</span>
 }
 
 function ApprovalThread(): JSX.Element {
@@ -69,10 +65,8 @@ function ApprovalThread(): JSX.Element {
 it('keeps the chain open once the run settles so a pending approval on the newest tool call stays visible', async () => {
   mountView(() => <ApprovalThread />)
 
-  await page.getByRole('button', {name: 'ask'}).click()
-
-  await expect.element(page.getByText('run live'), {timeout: 3000}).toBeVisible()
-  await expect.element(page.getByText('run settled'), {timeout: 3000}).toBeVisible()
+  await startRun()
+  await waitForRunSettled()
 
   await expect
     .element(page.getByRole('button', {name: 'Chain of Thought'}), {timeout: 3000})

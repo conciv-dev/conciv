@@ -21,17 +21,19 @@ import {Collapsible} from '@conciv/ui-kit-system'
 import {INERT_TOOL_CTX} from '../store/tool-context.js'
 import {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from '../primitives/activity/activity.js'
 import {
+  CHAIN_GROUP_KEY,
   childCallsFor,
-  groupSegments,
+  groupParts,
+  PAGE_SESSION_GROUP_KEY,
   parentToolCallIdOf,
-  type ChainSegment,
-  type Segment,
+  type GroupNode,
+  type GroupNodeGroup,
+  type GroupNodePart,
   type Turn,
 } from '../store/grouping.js'
 import {
+  createGrouping,
   pageSessionCallParts,
-  pageSessionGroupingOptions,
-  pageSessionHasSteps,
   pageSessionThinkingParts,
   type PageSessionConfig,
 } from '../store/page-session.js'
@@ -40,7 +42,7 @@ import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
 import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
 import {useThreadAutoScroll} from '../behaviors/use-thread-auto-scroll.js'
 import {ToolCallCard} from '../tools/styled/tool-call-card.js'
-import {ToolGroup} from '../tools/styled/tool-group.js'
+import {Group} from './group.js'
 import {ToolFallback} from '../tools/styled/tool-fallback.js'
 import {Markdown} from './markdown.js'
 import {NowLine} from './now-line.js'
@@ -180,9 +182,12 @@ function SubCallGroup(props: {parent: ToolCallPart; subCalls: ToolCallPart[]}): 
   return (
     <Show when={props.subCalls.length > 0}>
       <div class="mt-1.5">
-        <ToolGroup count={props.subCalls.length} active={parentRunning()} open={open()} onOpenChange={setUserOpen}>
-          <Index each={props.subCalls}>{(call) => <ToolStep part={call()} />}</Index>
-        </ToolGroup>
+        <Group.Root class={SUB_GROUP_ROOT} streaming={parentRunning()} open={open()} onOpenChange={setUserOpen}>
+          <Group.Trigger class={SUB_GROUP_TRIGGER} label="tool call" count={props.subCalls.length} iconSize={12} />
+          <Group.Content class={SUB_GROUP_BODY}>
+            <Index each={props.subCalls}>{(call) => <ToolStep part={call()} />}</Index>
+          </Group.Content>
+        </Group.Root>
       </div>
     </Show>
   )
@@ -202,8 +207,13 @@ const GROUP_TRIGGER = `group flex w-full items-center gap-2 px-2 py-1.5 rounded-
 const GROUP_CHEVRON =
   'size-3 shrink-0 ml-auto [transition:rotate_150ms_var(--chat-ease)] group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0'
 
-function stepIndices(turn: Turn, chain: ChainSegment): number[] {
-  return chain.indices.filter((index) => {
+const SUB_GROUP_ROOT =
+  'w-full rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] overflow-hidden'
+const SUB_GROUP_TRIGGER = `group w-full flex items-center gap-2 px-3 py-2 text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] cursor-pointer select-none [background:transparent] font-medium hover:[background:var(--chat-fill-strong)] ${FOCUS_INSET}`
+const SUB_GROUP_BODY = 'flex flex-col gap-2 px-3 pt-3 pb-2 [border-top:1px_solid_var(--chat-line)]'
+
+function stepIndices(turn: Turn, indices: readonly number[]): number[] {
+  return indices.filter((index) => {
     const part = turn.parts[index]
     const call = asToolCall(part)
     if (call) return parentToolCallIdOf(call) === null
@@ -211,12 +221,12 @@ function stepIndices(turn: Turn, chain: ChainSegment): number[] {
   })
 }
 
-function StepGroup(props: {turn: Turn; chain: ChainSegment; liveSegment: boolean}): JSX.Element {
+function StepGroup(props: {turn: Turn; node: GroupNodeGroup; liveSegment: boolean}): JSX.Element {
   const activity = useActivity()
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(undefined)
-  const steps = () => stepIndices(props.turn, props.chain)
+  const steps = () => stepIndices(props.turn, props.node.indices)
   const hasApproval = () =>
-    props.chain.indices.some((index) => {
+    props.node.indices.some((index) => {
       const call = asToolCall(props.turn.parts[index])
       return call !== null && toolStatus(call, activity.resultFor(call.id)) === 'approval'
     })
@@ -271,72 +281,49 @@ function userText(turn: Turn): string {
 function AssistantTurnView(props: {turn: Turn}): JSX.Element {
   const activity = useActivity()
   const config = useContext(ActivityConfigContext)
-  const standaloneNames = createMemo(() => {
-    const names = new Set<string>()
-    for (const entry of config.tools())
-      if (entry.display === 'standalone') for (const name of entry.names) names.add(name)
-    return names
-  })
-  const isStandaloneTool = (name: string) => standaloneNames().has(name)
-  const groupingOptions = createMemo(() => ({
-    ...pageSessionGroupingOptions(config.pageSession()),
-    standalone: isStandaloneTool,
-  }))
-  const segments = createMemo(() => groupSegments(props.turn.parts, groupingOptions()))
-  const visibleChain = (segment: Segment): ChainSegment | null => {
-    const chain = segment.kind === 'chain' ? segment : null
-    return chain && stepIndices(props.turn, chain).length > 0 ? chain : null
+  const grouping = createMemo(() => createGrouping(config.pageSession(), config.tools()))
+  const nodes = createMemo(() => groupParts(props.turn.parts, grouping().grouper, grouping().context))
+  const asStepGroup = (node: GroupNode): GroupNodeGroup | null => {
+    if (node.type !== 'group' || node.key !== CHAIN_GROUP_KEY) return null
+    return stepIndices(props.turn, node.indices).length > 0 ? node : null
   }
-  const asPageSession = (segment: Segment) => {
-    const pageSession = config.pageSession()
-    if (!pageSession || segment.kind !== 'page-session') return null
-    return pageSessionHasSteps(props.turn.parts, segment.indices, pageSession.actNames) ? segment : null
-  }
-  const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
-  const asStandalone = (segment: Segment) => (segment.kind === 'standalone' ? segment : null)
-  const renderable = (segment: Segment): boolean =>
-    asReply(segment) !== null ||
-    asPageSession(segment) !== null ||
-    visibleChain(segment) !== null ||
-    asStandalone(segment) !== null
-  const lastRenderableIndex = createMemo(() => {
-    let last = -1
-    for (const [index, segment] of segments().entries()) if (renderable(segment)) last = index
-    return last
-  })
+  const asPageSession = (node: GroupNode): GroupNodeGroup | null =>
+    node.type === 'group' && node.key === PAGE_SESSION_GROUP_KEY ? node : null
+  const asLeaf = (node: GroupNode): GroupNodePart | null => (node.type === 'part' ? node : null)
+  const renderable = (node: GroupNode): boolean =>
+    asLeaf(node) !== null || asStepGroup(node) !== null || asPageSession(node) !== null
+  const lastRenderableIndex = createMemo(() => nodes().map(renderable).lastIndexOf(true))
   const liveSegment = (index: number) =>
     activity.live() && activity.isLastTurn(props.turn) && index === lastRenderableIndex()
   return (
     <div data-pw-msg class="flex flex-col gap-1.5 min-w-0 self-stretch anim-msg">
-      <Index each={segments()}>
-        {(segment, index) => (
+      <Index each={nodes()}>
+        {(node, index) => (
           <Switch>
-            <Match when={visibleChain(segment())}>
-              {(chain) => <StepGroup turn={props.turn} chain={chain()} liveSegment={liveSegment(index)} />}
+            <Match when={asStepGroup(node())}>
+              {(group) => <StepGroup turn={props.turn} node={group()} liveSegment={liveSegment(index)} />}
             </Match>
-            <Match when={asReply(segment())}>
-              {(reply) => (
-                <Show when={asText(props.turn.parts[reply().index])}>
-                  {(part) => <Markdown content={part().content} />}
-                </Show>
+            <Match when={asLeaf(node())}>
+              {(leaf) => (
+                <Switch>
+                  <Match when={asText(props.turn.parts[leaf().index])}>
+                    {(part) => <Markdown content={part().content} />}
+                  </Match>
+                  <Match when={asToolCall(props.turn.parts[leaf().index])}>
+                    {(part) => (
+                      <ToolCallCard
+                        part={part()}
+                        result={activity.resultFor(part().id)}
+                        ctx={config.ctx()}
+                        tools={config.tools}
+                        fallback={config.fallback()}
+                      />
+                    )}
+                  </Match>
+                </Switch>
               )}
             </Match>
-            <Match when={asStandalone(segment())}>
-              {(standalone) => (
-                <Show when={asToolCall(props.turn.parts[standalone().index])}>
-                  {(part) => (
-                    <ToolCallCard
-                      part={part()}
-                      result={activity.resultFor(part().id)}
-                      ctx={config.ctx()}
-                      tools={config.tools}
-                      fallback={config.fallback()}
-                    />
-                  )}
-                </Show>
-              )}
-            </Match>
-            <Match when={asPageSession(segment())}>
+            <Match when={asPageSession(node())}>
               {(session) => (
                 <Show when={config.pageSession()}>
                   {(pageSession) => (

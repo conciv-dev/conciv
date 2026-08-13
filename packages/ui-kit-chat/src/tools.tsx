@@ -1,6 +1,5 @@
 export {INERT_ADD_RESULT, INERT_TOOL_CTX} from './store/tool-context.js'
 export {ToolFallback} from './tools/styled/tool-fallback.js'
-export {ToolGroup, type ToolGroupProps} from './tools/styled/tool-group.js'
 
 export {toolStatus, type ToolStatus} from './tools/primitives/tool-status.js'
 export {StatusVisual} from './tools/primitives/status-visual.js'

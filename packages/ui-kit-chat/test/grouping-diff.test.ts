@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import type {MessagePart, UIMessage} from '@tanstack/ai-client'
-import {coalesceTurns, diffTurns} from '../src/store/grouping.js'
+import {coalesceTurns, defaultGrouper, diffTurns, groupParts, type GroupNode} from '../src/store/grouping.js'
 
 function user(id: string, text: string): UIMessage {
   return {id, role: 'user', parts: [{type: 'text', content: text}]}
@@ -121,5 +121,32 @@ describe('diffTurns identity reuse', () => {
     const next: UIMessage[] = [user('u1', 'a'), user('a1', 'b'), assistant('a2', [text('c')])]
     const turns = diffTurns(previousTurns, previousMessages, next)
     expect(turns).toEqual(coalesceTurns(next))
+  })
+})
+
+describe('group tree keys under append-only streaming', () => {
+  const streamed: MessagePart[] = [
+    {type: 'thinking', content: 'plan'},
+    {type: 'tool-call', id: 't1', name: 'read', arguments: '{}', state: 'complete'},
+    {type: 'tool-result', toolCallId: 't1', content: 'ok', state: 'complete'},
+    {type: 'text', content: 'the answer'},
+    {type: 'tool-call', id: 't2', name: 'confirm', arguments: '{}', state: 'complete'},
+  ]
+
+  const keysOf = (parts: MessagePart[]): Array<[string, string | undefined]> =>
+    groupParts(parts, defaultGrouper, {}).map((node: GroupNode) => [node.nodeKey, node.idKey])
+
+  it('keeps the keys of already-emitted nodes stable as parts append', () => {
+    const prefixes = streamed.map((_part, index) => keysOf(streamed.slice(0, index + 1)))
+    const final = keysOf(streamed)
+    for (const prefix of prefixes) expect(final.slice(0, prefix.length)).toEqual(prefix)
+  })
+
+  it('keys a group by the identity of its first member, leaving id-less first members unkeyed', () => {
+    expect(keysOf(streamed)).toEqual([
+      ['0', undefined],
+      ['1', undefined],
+      ['2', 'id:t2'],
+    ])
   })
 })

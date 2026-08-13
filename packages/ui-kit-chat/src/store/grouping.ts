@@ -1,5 +1,7 @@
-import {uniqBy} from 'es-toolkit'
+import type {JSX} from 'solid-js'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
+import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
+import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 
 export type ToolCallPartWithParent = ToolCallPart & {metadata?: {parentToolCallId?: unknown}}
 
@@ -76,214 +78,183 @@ export function diffTurns(
   })
 }
 
-export type ChainSegment = {kind: 'chain'; indices: number[]}
-export type ReplySegment = {kind: 'reply'; index: number}
-export type PageSessionSegment = {kind: 'page-session'; indices: number[]}
-export type StandaloneSegment = {kind: 'standalone'; index: number}
-export type Segment = ChainSegment | ReplySegment | PageSessionSegment | StandaloneSegment
+export type GroupKey = `group-${string}`
+export type GroupPath = readonly GroupKey[]
 
-export type GroupingOptions = {
-  pageActNames?: ReadonlySet<string>
-  pageToolPrefix?: string
-  standalone?: (name: string) => boolean
+export type GroupByContext = {toolEntries?: ReadonlyArray<ToolCardEntry>}
+
+export type Grouper = (parts: ReadonlyArray<MessagePart>, context: GroupByContext) => ReadonlyArray<GroupPath | null>
+
+export type Grouping = {grouper: Grouper; context: GroupByContext}
+
+export type GroupNodeGroup = {
+  type: 'group'
+  key: GroupKey
+  nodeKey: string
+  idKey: string | undefined
+  indices: readonly number[]
+  children: readonly GroupNode[]
 }
 
-const isReplyText = (part: MessagePart): boolean => part.type === 'text' && part.content.trim().length > 0
-
-type PageSessionGrouping = {
-  segments: Segment[]
-  openCallIds: Set<string>
-  pageActNames: ReadonlySet<string>
-  pageToolPrefix: string | undefined
-  actParentIds: ReadonlySet<string>
-  standalone: ((name: string) => boolean) | undefined
+export type GroupNodePart = {
+  type: 'part'
+  index: number
+  nodeKey: string
+  idKey: string | undefined
 }
 
-function foldableParentIds(parts: ReadonlyArray<MessagePart>, pageActNames: ReadonlySet<string>): Set<string> {
-  const replyIndices = parts.flatMap((part, index) => (isReplyText(part) ? [index] : []))
-  const calls = parts.flatMap((part, index) => (part.type === 'tool-call' ? [{call: part, index}] : []))
-  const firstIndexByCallId = new Map(
-    uniqBy(
-      calls.filter(({call}) => call.id.length > 0),
-      ({call}) => call.id,
-    ).map(({call, index}) => [call.id, index]),
-  )
-  const actChildren = calls.flatMap(({call, index}) => {
-    const parent = parentToolCallIdOf(call)
-    return pageActNames.has(call.name) && parent !== null ? [{parent, index}] : []
-  })
-  const unsplit = uniqBy(actChildren, ({parent}) => parent).filter(({parent, index: childIndex}) => {
-    const parentIndex = firstIndexByCallId.get(parent)
-    if (parentIndex === undefined) return false
-    return !replyIndices.some((replyIndex) => replyIndex > parentIndex && replyIndex < childIndex)
-  })
-  return new Set(unsplit.map(({parent}) => parent))
+export type GroupNode = GroupNodeGroup | GroupNodePart
+
+export type GroupRenderProps = {
+  node: GroupNodeGroup
+  parts: () => readonly MessagePart[]
+  streaming: boolean
 }
 
-function toolCallFolds(grouping: PageSessionGrouping, part: ToolCallPart): boolean {
-  if (part.state === 'approval-requested') return false
-  const parent = parentToolCallIdOf(part)
-  if (parent !== null && grouping.openCallIds.has(parent)) return true
-  return grouping.pageToolPrefix !== undefined && part.name.startsWith(grouping.pageToolPrefix)
+export type GroupEntry = {key: GroupKey; render: (props: GroupRenderProps) => JSX.Element}
+
+export const CHAIN_GROUP_KEY: GroupKey = 'group-chain'
+export const PAGE_SESSION_GROUP_KEY: GroupKey = 'group-page-session'
+
+export const ROOT_PATH: GroupPath = []
+export const CHAIN_PATH: GroupPath = [CHAIN_GROUP_KEY]
+export const PAGE_SESSION_PATH: GroupPath = [PAGE_SESSION_GROUP_KEY]
+
+type GroupPartType = MessagePart['type'] | 'standalone-tool-call'
+
+export type PartTypePaths = Partial<Readonly<Record<GroupPartType, GroupPath>>>
+
+export function standaloneToolNames(context: GroupByContext): ReadonlySet<string> {
+  const entries = context.toolEntries ?? []
+  return new Set(entries.filter((entry) => entry.display === 'standalone').flatMap((entry) => [...entry.names]))
 }
 
-function foldsIntoOpenSession(grouping: PageSessionGrouping, part: MessagePart): boolean {
-  if (part.type === 'text' || part.type === 'thinking') return true
-  if (part.type === 'tool-call') return toolCallFolds(grouping, part)
-  if (part.type === 'tool-result')
-    return typeof part.toolCallId === 'string' && grouping.openCallIds.has(part.toolCallId)
+function isBlankTextual(part: MessagePart): boolean {
+  if (part.type === 'text' || part.type === 'thinking') return part.content.trim().length === 0
   return false
 }
 
-function openSessionOf(segments: ReadonlyArray<Segment>): PageSessionSegment | undefined {
-  const last = segments.at(-1)
-  return last?.kind === 'page-session' ? last : undefined
+function partTypeKey(part: MessagePart, standalone: ReadonlySet<string>): GroupPartType {
+  if (part.type === 'tool-call' && standalone.has(part.name)) return 'standalone-tool-call'
+  return part.type
 }
 
-function placePageAct(grouping: PageSessionGrouping, part: ToolCallPart, index: number): void {
-  if (part.id) grouping.openCallIds.add(part.id)
-  const session = openSessionOf(grouping.segments)
-  if (session) {
-    session.indices.push(index)
-    return
+function typePath(map: PartTypePaths, part: MessagePart, standalone: ReadonlySet<string>): GroupPath | null {
+  const key = partTypeKey(part, standalone)
+  if (key === 'standalone-tool-call') return map[key] ?? map['tool-call'] ?? null
+  return map[key] ?? null
+}
+
+export function groupPartByType(map: PartTypePaths): Grouper {
+  return (parts, context) => {
+    const standalone = standaloneToolNames(context)
+    return parts.map((part) => {
+      if (isBlankTextual(part) || partIsModelOnly(part)) return null
+      return typePath(map, part, standalone)
+    })
   }
-  grouping.segments.push({kind: 'page-session', indices: [index]})
 }
 
-function placeInChain(grouping: PageSessionGrouping, index: number): void {
-  grouping.openCallIds.clear()
-  const last = grouping.segments.at(-1)
-  if (last?.kind === 'chain') {
-    last.indices.push(index)
-    return
+export const defaultGrouper: Grouper = groupPartByType({
+  text: ROOT_PATH,
+  thinking: CHAIN_PATH,
+  'tool-call': CHAIN_PATH,
+  'standalone-tool-call': ROOT_PATH,
+})
+
+type BuildFrame = {
+  key: GroupKey
+  nodeKey: string
+  indices: number[]
+  children: GroupNode[]
+  nextChildIndex: number
+  claimed: Set<string>
+}
+
+function makeFrame(key: GroupKey, nodeKey: string): BuildFrame {
+  return {key, nodeKey, indices: [], children: [], nextChildIndex: 0, claimed: new Set()}
+}
+
+function makeChildNodeKey(parent: BuildFrame): string {
+  const index = parent.nextChildIndex
+  parent.nextChildIndex = index + 1
+  return parent.nodeKey === '' ? String(index) : `${parent.nodeKey}.${index}`
+}
+
+function claimIdKey(frame: BuildFrame, id: string | undefined): string | undefined {
+  if (id === undefined || frame.claimed.has(id)) return undefined
+  frame.claimed.add(id)
+  return `id:${id}`
+}
+
+function closeTop(stack: BuildFrame[], partIds: ReadonlyArray<string | undefined> | undefined): void {
+  const closing = stack.pop()
+  const parent = stack.at(-1)
+  if (!closing || !parent) return
+  const first = closing.indices[0]
+  parent.children.push({
+    type: 'group',
+    key: closing.key,
+    nodeKey: closing.nodeKey,
+    idKey: claimIdKey(parent, first === undefined ? undefined : partIds?.[first]),
+    indices: closing.indices,
+    children: closing.children,
+  })
+}
+
+function commonDepth(stack: ReadonlyArray<BuildFrame>, path: GroupPath): number {
+  let common = 0
+  while (common < stack.length - 1 && common < path.length) {
+    const frame = stack[common + 1]
+    if (!frame || frame.key !== path[common]) return common
+    common += 1
   }
-  grouping.segments.push({kind: 'chain', indices: [index]})
+  return common
 }
 
-function placeReply(grouping: PageSessionGrouping, index: number): void {
-  grouping.openCallIds.clear()
-  grouping.segments.push({kind: 'reply', index})
-}
-
-function isStandaloneCall(grouping: PageSessionGrouping, part: MessagePart): boolean {
-  return part.type === 'tool-call' && (grouping.standalone?.(part.name) ?? false)
-}
-
-function placeStandalone(grouping: PageSessionGrouping, index: number): void {
-  grouping.openCallIds.clear()
-  grouping.segments.push({kind: 'standalone', index})
-}
-
-function foldResultIntoTrailingChain(grouping: PageSessionGrouping, index: number): void {
-  const last = grouping.segments.at(-1)
-  if (last?.kind === 'chain') last.indices.push(index)
-}
-
-function sessionMemberCall(grouping: PageSessionGrouping, part: MessagePart): ToolCallPart | undefined {
-  if (part.type !== 'tool-call' || part.state === 'approval-requested') return undefined
-  return grouping.pageActNames.has(part.name) || grouping.actParentIds.has(part.id) ? part : undefined
-}
-
-function foldIntoSession(
-  grouping: PageSessionGrouping,
-  session: PageSessionSegment,
-  part: MessagePart,
-  index: number,
-): void {
-  if (part.type === 'tool-call' && part.id) grouping.openCallIds.add(part.id)
-  session.indices.push(index)
-}
-
-function placeSegmentPart(grouping: PageSessionGrouping, part: MessagePart, index: number): void {
-  if (isReplyText(part)) {
-    placeReply(grouping, index)
-    return
+function openPath(stack: BuildFrame[], path: GroupPath): void {
+  while (stack.length - 1 < path.length) {
+    const parent = stack.at(-1)
+    const key = path[stack.length - 1]
+    if (!parent || key === undefined) return
+    stack.push(makeFrame(key, makeChildNodeKey(parent)))
   }
-  if (isStandaloneCall(grouping, part)) {
-    placeStandalone(grouping, index)
-    return
-  }
-  const member = sessionMemberCall(grouping, part)
-  if (member) {
-    placePageAct(grouping, member, index)
-    return
-  }
-  const session = openSessionOf(grouping.segments)
-  if (session && foldsIntoOpenSession(grouping, part)) {
-    foldIntoSession(grouping, session, part, index)
-    return
-  }
-  if (part.type === 'tool-result') {
-    foldResultIntoTrailingChain(grouping, index)
-    return
-  }
-  placeInChain(grouping, index)
 }
 
-function groupWithPageSessions(
+export function buildGroupTree(
+  paths: ReadonlyArray<GroupPath | null>,
+  partIds?: ReadonlyArray<string | undefined>,
+): readonly GroupNode[] {
+  const root = makeFrame(CHAIN_GROUP_KEY, '')
+  const stack: BuildFrame[] = [root]
+  paths.forEach((path, index) => {
+    if (path === null || path === undefined) return
+    const common = commonDepth(stack, path)
+    while (stack.length - 1 > common) closeTop(stack, partIds)
+    openPath(stack, path)
+    const top = stack.at(-1)
+    if (!top) return
+    top.children.push({type: 'part', index, nodeKey: makeChildNodeKey(top), idKey: claimIdKey(top, partIds?.[index])})
+    for (const frame of stack.slice(1)) frame.indices.push(index)
+  })
+  while (stack.length > 1) closeTop(stack, partIds)
+  return root.children
+}
+
+function partIdOf(part: MessagePart): string | undefined {
+  return part.type === 'tool-call' && part.id.length > 0 ? part.id : undefined
+}
+
+export function groupParts(
   parts: ReadonlyArray<MessagePart>,
-  pageActNames: ReadonlySet<string>,
-  pageToolPrefix: string | undefined,
-  standalone: ((name: string) => boolean) | undefined,
-): Segment[] {
-  const grouping: PageSessionGrouping = {
-    segments: [],
-    openCallIds: new Set(),
-    pageActNames,
-    pageToolPrefix,
-    actParentIds: foldableParentIds(parts, pageActNames),
-    standalone,
-  }
-  parts.forEach((part, index) => placeSegmentPart(grouping, part, index))
-  return grouping.segments
+  grouper: Grouper,
+  context: GroupByContext,
+): readonly GroupNode[] {
+  return buildGroupTree(grouper(parts, context), parts.map(partIdOf))
 }
 
-type PlainGrouping = {
-  segments: Segment[]
-  standalone: ((name: string) => boolean) | undefined
-}
-
-function isPlainStandaloneCall(grouping: PlainGrouping, part: MessagePart): boolean {
-  return part.type === 'tool-call' && (grouping.standalone?.(part.name) ?? false)
-}
-
-function placePlainChain(grouping: PlainGrouping, index: number): void {
-  const last = grouping.segments.at(-1)
-  if (last?.kind === 'chain') {
-    last.indices.push(index)
-    return
-  }
-  grouping.segments.push({kind: 'chain', indices: [index]})
-}
-
-function placePlainPart(grouping: PlainGrouping, part: MessagePart, index: number): void {
-  if (isReplyText(part)) {
-    grouping.segments.push({kind: 'reply', index})
-    return
-  }
-  if (isPlainStandaloneCall(grouping, part)) {
-    grouping.segments.push({kind: 'standalone', index})
-    return
-  }
-  if (part.type === 'tool-result') {
-    const last = grouping.segments.at(-1)
-    if (last?.kind === 'chain') last.indices.push(index)
-    return
-  }
-  placePlainChain(grouping, index)
-}
-
-function groupPlain(parts: ReadonlyArray<MessagePart>, standalone: ((name: string) => boolean) | undefined): Segment[] {
-  const grouping: PlainGrouping = {segments: [], standalone}
-  parts.forEach((part, index) => placePlainPart(grouping, part, index))
-  return grouping.segments
-}
-
-export function groupSegments(parts: ReadonlyArray<MessagePart>, options?: GroupingOptions): Segment[] {
-  const pageActNames = options?.pageActNames
-  const standalone = options?.standalone
-  if (pageActNames) return groupWithPageSessions(parts, pageActNames, options?.pageToolPrefix, standalone)
-  return groupPlain(parts, standalone)
+export function isReplyText(part: MessagePart): boolean {
+  return part.type === 'text' && part.content.trim().length > 0
 }
 
 export type ResultPairing = {byCallId: Map<string, ToolResultPart>; hiddenResultIds: Set<string>}

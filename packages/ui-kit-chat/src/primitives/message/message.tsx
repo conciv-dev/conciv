@@ -7,7 +7,7 @@ import {Primitive, type Slottable} from '../util/primitive.js'
 import {MessagePart} from '../message-part/message-part.js'
 import {useChatContext} from '../../store/chat-context.js'
 import {useToolCtx} from '../../store/tool-context.js'
-import {groupSegments, type Segment} from '../../store/grouping.js'
+import {defaultGrouper, groupParts, type GroupKey, type GroupNode, type GroupNodeGroup} from '../../store/grouping.js'
 import type {CompleteAttachment} from '../attachment/attachment-adapter.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
 import {partIsModelOnly} from '../message-part/part-visibility.js'
@@ -313,14 +313,20 @@ function AttachmentByIndex(props: {index: number; components: AttachmentsCompone
   )
 }
 
-type GroupedComponents = PartsComponents & {Group?: Component<ParentProps<{indices: number[]; kind: Segment['kind']}>>}
+type GroupedComponents = PartsComponents & {
+  Group?: Component<ParentProps<{indices: readonly number[]; groupKey: GroupKey}>>
+}
 
-function segmentIndices(segment: Segment): number[] {
-  return segment.kind === 'reply' || segment.kind === 'standalone' ? [segment.index] : segment.indices
+function nodeIndices(node: GroupNode): readonly number[] {
+  return node.type === 'part' ? [node.index] : node.indices
+}
+
+function asGroup(node: GroupNode): GroupNodeGroup | null {
+  return node.type === 'group' ? node : null
 }
 
 function GroupBody(props: {
-  indices: number[]
+  indices: readonly number[]
   components: GroupedComponents
   ctx: ReturnType<typeof useToolCtx>
 }): JSX.Element {
@@ -344,18 +350,25 @@ function GroupedParts(props: {components?: GroupedComponents}): JSX.Element {
   const message = useMessage()
   const ctx = useToolCtx()
   const components = (): GroupedComponents => props.components ?? {}
-  const segments = createMemo(() => groupSegments(message.message().parts))
+  const nodes = createMemo(() => groupParts(message.message().parts, defaultGrouper, {}))
   return (
-    <Index each={segments()}>
-      {(segment) => (
+    <Index each={nodes()}>
+      {(node) => (
         <Show
-          when={components().Group}
-          fallback={<GroupBody indices={segmentIndices(segment())} components={components()} ctx={ctx} />}
+          when={asGroup(node())}
+          fallback={<GroupBody indices={nodeIndices(node())} components={components()} ctx={ctx} />}
         >
           {(group) => (
-            <Dynamic component={group()} indices={segmentIndices(segment())} kind={segment().kind}>
-              <GroupBody indices={segmentIndices(segment())} components={components()} ctx={ctx} />
-            </Dynamic>
+            <Show
+              when={components().Group}
+              fallback={<GroupBody indices={group().indices} components={components()} ctx={ctx} />}
+            >
+              {(component) => (
+                <Dynamic component={component()} indices={group().indices} groupKey={group().key}>
+                  <GroupBody indices={group().indices} components={components()} ctx={ctx} />
+                </Dynamic>
+              )}
+            </Show>
           )}
         </Show>
       )}

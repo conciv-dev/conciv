@@ -4,7 +4,7 @@ import {expect, within, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
 import type {UIMessage} from '@tanstack/ai-client'
 import {ChatProvider} from '../../store/chat-context.js'
-import type {Segment} from '../../store/grouping.js'
+import type {GroupKey} from '../../store/grouping.js'
 import {storyConnection} from '../../store/story-connection.js'
 import {Thread} from '../thread/thread.js'
 import {Attachment} from '../attachment/attachment.js'
@@ -93,10 +93,10 @@ const CHAIN_THEN_REPLY: UIMessage = {
   ],
 }
 
-function GroupBox(props: ParentProps<{indices: number[]; kind: Segment['kind']}>): JSX.Element {
+function GroupBox(props: ParentProps<{indices: readonly number[]; groupKey: GroupKey}>): JSX.Element {
   return (
-    <div data-kind={props.kind} class="p-1 border border-pw-line rounded-pw-sm">
-      <span class="text-[0.625rem] text-pw-text-3">group:{props.kind}</span>
+    <div data-kind={props.groupKey} class="p-1 border border-pw-line rounded-pw-sm">
+      <span class="text-[0.625rem] text-pw-text-3">{props.groupKey}</span>
       {props.children}
     </div>
   )
@@ -127,8 +127,8 @@ export const PartsGrouped: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
 
-    await waitFor(() => expect(c.getByText('group:chain')).toBeVisible())
-    await expect(c.getByText('group:reply')).toBeVisible()
+    await waitFor(() => expect(c.getByText('group-chain')).toBeVisible())
+    await expect(c.queryByText('group-page-session')).toBeNull()
     await expect(c.getByText('weighing the options')).toBeVisible()
     await expect(c.getByText('Here is the fix.')).toBeVisible()
   },
