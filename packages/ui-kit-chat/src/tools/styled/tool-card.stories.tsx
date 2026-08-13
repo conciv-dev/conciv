@@ -34,7 +34,7 @@ function ApprovalHarness(): JSX.Element {
   )
 }
 
-export const ApprovalForceOpensOnce: Story = {
+export const ApprovalAutoCollapse: Story = {
   render: () => frame(<ApprovalHarness />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
@@ -44,14 +44,16 @@ export const ApprovalForceOpensOnce: Story = {
     await waitFor(() => expect(c.getByText('confirm before clicking')).toBeVisible())
 
     await userEvent.click(c.getByRole('button', {name: 'resolve approval'}))
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    await expect(c.getByText('confirm before clicking')).toBeVisible()
+    await waitFor(() => expect(c.getByText('confirm before clicking')).not.toBeVisible())
+
+    await userEvent.click(c.getByRole('button', {name: 'request approval'}))
+    await waitFor(() => expect(c.getByText('confirm before clicking')).toBeVisible())
 
     await userEvent.click(c.getByText('click #submit'))
     await waitFor(() => expect(c.getByText('confirm before clicking')).not.toBeVisible())
 
+    await userEvent.click(c.getByRole('button', {name: 'resolve approval'}))
     await userEvent.click(c.getByRole('button', {name: 'request approval'}))
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    await expect(c.getByText('confirm before clicking')).not.toBeVisible()
+    await waitFor(() => expect(c.getByText('confirm before clicking')).not.toBeVisible())
   },
 }
