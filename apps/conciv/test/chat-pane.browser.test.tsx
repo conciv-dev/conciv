@@ -18,6 +18,18 @@ function mountChatPane(config: Parameters<typeof installFakeCore>[0] = {}): void
 }
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+const removeGrab = () => page.getByRole('button', {name: 'Remove grabbed element'})
+
+function draftWithGrab(text: string): Parameters<typeof installFakeCore>[0]['draft'] {
+  return {
+    sessionId: PANE_SESSION,
+    text: '',
+    selectionStart: 0,
+    selectionEnd: 0,
+    grabs: [text],
+    updatedAt: 1,
+  }
+}
 
 async function startStreamingRun(): Promise<void> {
   mountChatPane({holdRun: true})
@@ -53,6 +65,31 @@ test('a rejected send keeps the draft in the composer and tells the user why', a
     .element(page.getByRole('region', {name: /Notifications/}))
     .toHaveTextContent(/Internal Server Error|could not be sent/)
   await expect.element(input()).toHaveTextContent('a message the server refuses')
+})
+
+test('sending drops the staged grab card at once, while the turn is still streaming', async () => {
+  mountChatPane({holdRun: true, draft: draftWithGrab('the grabbed hero section')})
+
+  await expect.element(removeGrab()).toBeVisible()
+  await input().fill('explain the section I grabbed')
+  await userEvent.keyboard('{Enter}')
+
+  await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+  await expect.element(removeGrab()).not.toBeInTheDocument()
+})
+
+test('a send the server refuses puts the staged grab card back', async () => {
+  mountChatPane({rejectSend: true, draft: draftWithGrab('the grabbed hero section')})
+
+  await expect.element(removeGrab()).toBeVisible()
+  await input().fill('explain the section I grabbed')
+  await userEvent.keyboard('{Enter}')
+
+  await expect
+    .element(page.getByRole('region', {name: /Notifications/}))
+    .toHaveTextContent(/Internal Server Error|could not be sent/)
+  await expect.element(removeGrab()).toBeVisible()
+  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
 })
 
 test('sending announces thinking and then the reply through the live region', async () => {
