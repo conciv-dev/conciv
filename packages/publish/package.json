@@ -20,12 +20,16 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@changesets/parse": "^0.4.3",
     "citty": "^0.2.2",
     "execa": "^9.5.0",
+    "js-yaml": "4.3.1",
+    "minimatch": "10.2.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.19.21",
     "@vitest/coverage-v8": "^4.1.8",
     "typescript": "^6.0.3",

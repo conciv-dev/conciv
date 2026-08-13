@@ -206,6 +206,10 @@ jobs:
       contents: read
       actions: read # download the bundle-size baseline artifact from the latest main run
     steps:
+      # Shallow (default depth-1) is enough here: this job only runs the plain
+      # check-changesets (name validation against HEAD, no base diff). The
+      # --require-coverage diff against the PR's base sha - which needs full
+      # history - runs in the dedicated verify-changesets.yml workflow instead.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -226,6 +230,14 @@ jobs:
           mode: firewall-free
           firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
+      # Turns a post-merge-only release failure into a red PR check: validates every
+      # .changeset/*.md names a package that actually exists in the workspace before
+      # `changeset version` ever runs (see conciv-publish version, which runs the same
+      # guard). Runs straight from source (bin resolves src/cli.ts, no build needed).
+      # This is the name-only check on push/main and every PR; the PR-only
+      # --require-coverage check runs in verify-changesets.yml, which can also
+      # retrigger on label changes (pull_request's default types can't).
+      - run: pnpm exec conciv-publish check-changesets
       # Build the site too so bundle-size can measure the Cloudflare worker and gate it below.
       - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*' --filter=site
       # Bundle size: measure published dists, diff against the baseline saved by the
