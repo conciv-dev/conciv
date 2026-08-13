@@ -2,7 +2,7 @@ import {expect, test, type Page} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {handleHostPage, serveHost} from '../helpers/host.js'
 import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
-import {NAVIGATION_SET, setNavigation} from './helpers/navigation.js'
+import {setNavigation, waitForNavigationWriteCarrying} from './helpers/navigation.js'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
 import {mountHandle, rebindHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
@@ -70,18 +70,18 @@ test.describe('handle.rebind survives same-core port drift', () => {
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
 
     await mountHandle(page, proxyA.base)
+    const panelRouteWritten = waitForNavigationWriteCarrying(page, '/panel/')
     await openChatPanel(page)
 
     const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
     await expect(apiBaseProbe).toHaveText(proxyA.base, {timeout: 30_000})
 
-    const navigationObserver = rpcObserverFor(page)
-    const navigationMark = navigationObserver.mark()
-    await sendChatMessage(page, USER_TEXT)
-    await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
-    await navigationObserver.completed({path: NAVIGATION_SET, since: navigationMark, timeout: 30_000})
+    await panelRouteWritten
     const sessionBefore = await panelSession()
     expect(sessionBefore).not.toBeNull()
+
+    await sendChatMessage(page, USER_TEXT)
+    await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
 
     const beforeB = proxyB.trafficCount()
     await rebindHandle(page, proxyB.base)
