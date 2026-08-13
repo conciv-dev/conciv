@@ -9,6 +9,7 @@ import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
 import type {ExtensionInstance} from './extension/extension-slots.js'
 import highlight from './extensions/highlight.js'
+import {PendingPane} from './shell/pending.js'
 
 export type ConcivEnvironment = {rootNode: Node; document: Document}
 
@@ -71,6 +72,9 @@ export function createConcivRouter(config: ConcivRouterConfig) {
     routeTree,
     history: config.history,
     scrollRestoration: () => false,
+    defaultPendingComponent: PendingPane,
+    defaultPendingMs: 300,
+    defaultPendingMinMs: 500,
     context: {
       rpc: config.rpc,
       environment: config.environment,
