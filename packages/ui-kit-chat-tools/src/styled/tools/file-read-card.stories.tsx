@@ -40,7 +40,10 @@ export const Read: Story = {
     await waitFor(() => {
       const container = canvasElement.querySelector('diffs-container')
       expect(container?.shadowRoot?.textContent ?? '').toContain('return a + b')
-      expect(container?.shadowRoot?.querySelectorAll('span').length ?? 0).toBeGreaterThan(1)
+      const tokenColors = Array.from(
+        container?.shadowRoot?.querySelectorAll<HTMLSpanElement>('span[style*="--diffs-token-light"]') ?? [],
+      ).map((span) => span.style.getPropertyValue('--diffs-token-light'))
+      expect(new Set(tokenColors).size).toBeGreaterThan(1)
     })
   },
 }
