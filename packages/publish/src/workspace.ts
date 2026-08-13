@@ -1,5 +1,7 @@
-import {join, relative} from 'node:path'
-import {getPackages} from '@manypkg/get-packages'
+import {readdirSync, readFileSync} from 'node:fs'
+import {dirname, join, relative} from 'node:path'
+import {load} from 'js-yaml'
+import {minimatch} from 'minimatch'
 import {parseManifest, type Manifest} from './manifest.ts'
 
 export type WorkspacePackage = {
@@ -8,13 +10,78 @@ export type WorkspacePackage = {
   manifest: Manifest
 }
 
+const PACKAGE_JSON = 'package.json'
+const WORKSPACE_MANIFEST = 'pnpm-workspace.yaml'
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
+}
+
+function readWorkspaceGlobs(cwd: string): string[] {
+  const manifestPath = join(cwd, WORKSPACE_MANIFEST)
+  const content = readFileSync(manifestPath, 'utf8')
+  const parsed: unknown = load(content)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`${manifestPath}: expected a YAML mapping with a "packages" list`)
+  }
+  if (!('packages' in parsed) || !isStringArray(parsed.packages)) {
+    throw new Error(`${manifestPath}: "packages" must be a list of glob strings`)
+  }
+  return parsed.packages
+}
+
+function* deepFindFiles(directoryPath: string): Generator<string> {
+  for (const entry of readdirSync(directoryPath, {withFileTypes: true})) {
+    const entryPath = join(directoryPath, entry.name)
+    if (entry.isFile() && entry.name === PACKAGE_JSON) {
+      yield entryPath
+    } else if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+      yield* deepFindFiles(entryPath)
+    }
+  }
+}
+
+function ensureEndsWithPackageJson(glob: string): string {
+  if (glob.endsWith(`/${PACKAGE_JSON}`)) return glob
+  if (glob.endsWith('/')) return `${glob}${PACKAGE_JSON}`
+  return `${glob}/${PACKAGE_JSON}`
+}
+
+function readManifestAt(packageJsonPath: string): Manifest {
+  const content = readFileSync(packageJsonPath, 'utf8')
+  let raw: unknown
+  try {
+    raw = JSON.parse(content)
+  } catch (error: unknown) {
+    throw new Error(`${packageJsonPath}: invalid JSON`, {cause: error})
+  }
+  return parseManifest(raw, packageJsonPath)
+}
+
+function resolveWorkspacePackages(cwd: string, globs: string[]): WorkspacePackage[] {
+  const packageJsonPaths = [...deepFindFiles(cwd)]
+  const matched = new Set<string>()
+  for (const glob of globs) {
+    const packageJsonGlob = ensureEndsWithPackageJson(glob)
+    for (const packageJsonPath of packageJsonPaths) {
+      if (minimatch(relative(cwd, packageJsonPath), packageJsonGlob)) {
+        matched.add(packageJsonPath)
+      }
+    }
+  }
+  return [...matched].map((packageJsonPath) => {
+    const dir = dirname(packageJsonPath)
+    return {
+      dir,
+      relativeDir: relative(cwd, dir),
+      manifest: readManifestAt(packageJsonPath),
+    }
+  })
+}
+
 export async function readWorkspacePackages(cwd: string): Promise<WorkspacePackage[]> {
-  const {packages} = await getPackages(cwd)
-  return packages.map((pkg) => ({
-    dir: pkg.dir,
-    relativeDir: relative(cwd, pkg.dir),
-    manifest: parseManifest(pkg.packageJson, join(pkg.dir, 'package.json')),
-  }))
+  const globs = readWorkspaceGlobs(cwd)
+  return resolveWorkspacePackages(cwd, globs)
 }
 
 function workspaceDependencyNames(manifest: Manifest): string[] {
