@@ -154,6 +154,7 @@ const sync = defineCommand({
   },
   async run({args}) {
     const {cwd, run, turbo} = await atRoot()
+    await assertPublicDepsPublic(cwd)
     const states = await Promise.all(PUBLIC_PACKAGES.map(async (name) => ({name, state: await registryState(name)})))
     const unhealthy = states.filter(({state}) => state !== 'trusted')
     const plan = unhealthy.map(({name, state}) => ({
@@ -175,7 +176,7 @@ const sync = defineCommand({
     for (const {name, state} of unhealthy) {
       if (state === 'missing') {
         await assertBootstrappable(cwd, name)
-        await turbo('build', `--filter=${name}`)
+        await turbo('build', 'publint', 'attw', `--filter=${name}`)
         await firstPublish(run, name)
       }
       await wireTrust(run, name)

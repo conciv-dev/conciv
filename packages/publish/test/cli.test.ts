@@ -111,6 +111,23 @@ test('assertPublicDepsPublic accepts a public package whose workspace deps are a
   await expect(assertPublicDepsPublic(root)).resolves.toBeUndefined()
 })
 
+test('assertPublicDepsPublic accepts a public package whose private workspace dep appears only under devDependencies', async () => {
+  const root = await scaffoldWorkspaceRoot('deps-private-devdep-')
+  await Promise.all([
+    writeManifest(join(root, 'packages', 'internal-tool'), {
+      name: '@conciv/internal-tool',
+      version: '0.0.19',
+      private: true,
+    }),
+    writeManifest(join(root, 'packages', 'page'), {
+      name: '@conciv/page',
+      version: '0.0.19',
+      devDependencies: {'@conciv/internal-tool': 'workspace:*'},
+    }),
+  ])
+  await expect(assertPublicDepsPublic(root)).resolves.toBeUndefined()
+})
+
 test('assertPublicDepsPublic rejects a public package depending on a private workspace package, naming both', async () => {
   const root = await scaffoldWorkspaceRoot('deps-private-')
   await Promise.all([
