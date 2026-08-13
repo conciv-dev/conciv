@@ -28,6 +28,8 @@ export function agentsSection(consented: HarnessId[]): string {
     '- `conciv tools server` - inspect and nudge the dev server; `--help` lists every capability',
     '',
     'These commands need the dev server running.',
+    '',
+    'conciv ships first-party skills. Before conciv work, run `pnpm dlx @tanstack/intent@latest list` and load what you need with `pnpm dlx @tanstack/intent@latest load @conciv/skills#<skill>`.',
     ...setUpFor,
     ...notes,
     '',

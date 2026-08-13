@@ -2882,6 +2882,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/skills':
+        specifier: workspace:^
+        version: link:../skills
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -2986,6 +2989,9 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
+      '@conciv/skills':
+        specifier: workspace:^
+        version: link:../skills
       next:
         specifier: ^15.3.0 || ^16.0.0
         version: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sass@1.51.0)
@@ -18467,6 +18473,7 @@ snapshots:
       '@conciv/extension-test-runner': link:packages/extensions/test-runner
       '@conciv/extension-whiteboard': link:packages/extensions/whiteboard
       '@conciv/plugin': link:packages/plugin
+      '@conciv/skills': link:packages/skills
     optionalDependencies:
       next: 16.2.10(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0)
       vite: 8.1.3(@types/node@20.19.43)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)

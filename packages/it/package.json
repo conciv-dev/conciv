@@ -72,7 +72,8 @@
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-test-runner": "workspace:^",
     "@conciv/extension-whiteboard": "workspace:^",
-    "@conciv/plugin": "workspace:^"
+    "@conciv/plugin": "workspace:^",
+    "@conciv/skills": "workspace:^"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",

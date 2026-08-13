@@ -93,6 +93,15 @@ describe('agentsMdStep', () => {
     expect(readFileSync(join(cwd, 'AGENTS.md'), 'utf8')).toBe(doubled)
   })
 
+  it('writes the file an agent reads to find the conciv skills through intent', async () => {
+    const {cwd, settings, output} = project()
+    await runSteps([agentsMdStep(() => consented)], settings, output)
+    const written = readFileSync(join(cwd, 'AGENTS.md'), 'utf8')
+
+    expect(written).toContain('pnpm dlx @tanstack/intent@latest list')
+    expect(written).toContain('pnpm dlx @tanstack/intent@latest load @conciv/skills#<skill>')
+  })
+
   it('offers the section text itself as the manual card snippet', () => {
     const {ctx} = project()
     const card = agentsMdStep(() => consented).manualCard(ctx)

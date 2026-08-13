@@ -2,6 +2,7 @@ import {join} from 'node:path'
 import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
 import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE} from './bridge.js'
 import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './names.js'
+import {claudeConnectSkillFiles} from './skill-files.js'
 
 export const CLAUDE_CONNECT_ROOT = 'claude-connect'
 
@@ -74,5 +75,6 @@ export function claudeConnectPluginFiles(opts: {stateDir: string}): HarnessConne
       mode: BRIDGE_FILE_MODE,
     },
     {path: join(plugin, '.mcp.json'), contents: mcpManifest()},
+    ...claudeConnectSkillFiles(plugin),
   ]
 }

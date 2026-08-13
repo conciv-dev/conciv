@@ -86,6 +86,7 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
+    "@conciv/skills": "workspace:^",
     "zod": "^4.4.3"
   },
   "devDependencies": {

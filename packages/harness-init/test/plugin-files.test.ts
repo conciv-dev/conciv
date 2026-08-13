@@ -1,4 +1,6 @@
-import {join, relative} from 'node:path'
+import {readFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
+import {dirname, join, relative, sep} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {CLAUDE_CONNECT_BRIDGE_FILE} from '../src/claude/bridge.js'
 import {claudeConnectEndpointFile, claudeConnectEndpointPath} from '../src/claude/endpoint.js'
@@ -39,11 +41,46 @@ describe('claude connect plugin files', () => {
     })
   })
 
-  it('keeps every generated file free of dev server urls', () => {
-    for (const [, contents] of treeOf('/first/.conciv')) {
+  it('keeps every generated manifest free of dev server urls', () => {
+    for (const [path, contents] of treeOf('/first/.conciv')) {
+      if (path.includes(`${SKILLS_DIR}${sep}`)) continue
       expect(contents).not.toContain('127.0.0.1')
       expect(contents).not.toContain('http://')
     }
+  })
+})
+
+const SKILLS_DIR = 'skills'
+
+function skillsSourceDir(): string {
+  return join(dirname(createRequire(import.meta.url).resolve('@conciv/skills/package.json')), 'skills')
+}
+
+function pluginPaths(): string[] {
+  return treeOf('/first/.conciv').map(([path]) => path)
+}
+
+describe('claude connect plugin skills', () => {
+  it('ships every published conciv skill so claude lists them natively', () => {
+    const shipped = pluginPaths().filter((path) => path.includes(`${SKILLS_DIR}${sep}`))
+
+    expect(shipped).toContain(join('conciv-connect', SKILLS_DIR, 'conciv-setup', 'SKILL.md'))
+    expect(shipped).toContain(join('conciv-connect', SKILLS_DIR, 'conciv-develop', 'SKILL.md'))
+    expect(shipped).toContain(join('conciv-connect', SKILLS_DIR, 'conciv-debug', 'SKILL.md'))
+    expect(shipped).toContain(join('conciv-connect', SKILLS_DIR, 'conciv-harness', 'SKILL.md'))
+  })
+
+  it('ships the reference files a skill points at, never the authoring artifacts', () => {
+    const shipped = pluginPaths().filter((path) => path.includes(`${SKILLS_DIR}${sep}`))
+
+    expect(shipped).toContain(join('conciv-connect', SKILLS_DIR, 'conciv-develop', 'references', 'tool-contract.md'))
+    expect(shipped.filter((path) => path.includes('_artifacts'))).toEqual([])
+  })
+
+  it('copies skill markdown byte for byte from the published package', () => {
+    const shipped = contentsAt('/first/.conciv', join('conciv-connect', SKILLS_DIR, 'conciv-setup', 'SKILL.md'))
+
+    expect(shipped).toBe(readFileSync(join(skillsSourceDir(), 'conciv-setup', 'SKILL.md'), 'utf8'))
   })
 })
 
