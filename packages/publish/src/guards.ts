@@ -1,5 +1,28 @@
-import {readFile, readdir} from 'node:fs/promises'
+import {access, lstat, readFile, readdir} from 'node:fs/promises'
 import {join} from 'node:path'
+
+const CHANGESET_DIR = '.changeset'
+
+function isMissingPath(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  return access(path)
+    .then(() => true)
+    .catch((error: unknown) => {
+      if (isMissingPath(error)) return false
+      throw error
+    })
+}
+
+export async function assertWorkspaceRoot(cwd: string): Promise<void> {
+  const hasWorkspaceManifest = await pathExists(join(cwd, 'pnpm-workspace.yaml'))
+  const hasChangesetDir = await pathExists(join(cwd, CHANGESET_DIR))
+  if (!hasWorkspaceManifest || !hasChangesetDir) {
+    throw new Error(`conciv-publish must run at the workspace root (via the root pnpm scripts); cwd is ${cwd}`)
+  }
+}
 
 export function assertValidTag(tag: string): void {
   if (!/^[a-z][a-z0-9-]*$/.test(tag)) {
@@ -61,13 +84,23 @@ type Manifest = {name?: string; version?: string; private?: boolean}
 async function readManifests(cwd: string): Promise<Manifest[]> {
   const groups = await Promise.all(
     PACKAGE_GROUPS.map(async (group) => {
-      const dirs = await readdir(join(cwd, group)).catch(() => [])
+      const groupDir = join(cwd, group)
+      const dirs = await readdir(groupDir).catch((error: unknown) => {
+        if (isMissingPath(error)) {
+          throw new Error(`${groupDir} does not exist - is cwd the workspace root?`)
+        }
+        throw error
+      })
       return Promise.all(
-        dirs.map((dir) =>
-          readFile(join(cwd, group, dir, 'package.json'), 'utf8')
+        dirs.map((dir) => {
+          const manifestPath = join(groupDir, dir, 'package.json')
+          return readFile(manifestPath, 'utf8')
             .then((raw): Manifest => JSON.parse(raw))
-            .catch(() => null),
-        ),
+            .catch((error: unknown) => {
+              if (isMissingPath(error)) return null
+              throw new Error(`${manifestPath} could not be read as a package manifest`, {cause: error})
+            })
+        }),
       )
     }),
   )
@@ -96,6 +129,71 @@ export async function assertBootstrappable(cwd: string, name: string): Promise<v
   }
   if (manifest.version === '0.0.0') {
     throw new Error(`${name} is still 0.0.0 - land a changeset and merge the version PR before bootstrapping`)
+  }
+}
+
+const CHANGESET_ENTRY_PATTERN = /^'([^']+)':\s*(?:major|minor|patch)\s*$/
+
+function parseChangesetPackageNames(content: string, file: string): string[] {
+  const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  if (!frontmatterMatch) {
+    throw new Error(`${file}: missing changeset frontmatter`)
+  }
+  const [, frontmatter] = frontmatterMatch
+  const lines = (frontmatter ?? '').split(/\r?\n/).filter((line) => line.trim().length > 0)
+  return lines.map((line) => {
+    const entryMatch = line.match(CHANGESET_ENTRY_PATTERN)
+    const [, name] = entryMatch ?? []
+    if (!name) {
+      throw new Error(`${file}: unparseable changeset entry ${JSON.stringify(line)}`)
+    }
+    return name
+  })
+}
+
+async function listChangesetFiles(changesetDir: string): Promise<string[]> {
+  const entries = await readdir(changesetDir).catch((error: unknown) => {
+    if (isMissingPath(error)) {
+      throw new Error(`${changesetDir} does not exist - is cwd the workspace root?`)
+    }
+    throw error
+  })
+  return entries.filter((file) => file.endsWith('.md') && file !== 'README.md').toSorted()
+}
+
+async function assertNotSymlink(filePath: string): Promise<void> {
+  const stats = await lstat(filePath)
+  if (stats.isSymbolicLink()) {
+    throw new Error(`${filePath}: changeset files must not be symlinks`)
+  }
+}
+
+export async function assertChangesetsResolve(cwd: string): Promise<void> {
+  const changesetDir = join(cwd, CHANGESET_DIR)
+  const files = await listChangesetFiles(changesetDir)
+  if (files.length === 0) return
+  const workspaceNames = new Set(
+    (await readManifests(cwd)).map((pkg) => pkg.name).filter((name): name is string => typeof name === 'string'),
+  )
+  const errors: string[] = []
+  for (const file of files) {
+    const filePath = join(changesetDir, file)
+    await assertNotSymlink(filePath)
+    const content = await readFile(filePath, 'utf8')
+    const seen = new Set<string>()
+    for (const name of parseChangesetPackageNames(content, file)) {
+      if (seen.has(name)) {
+        errors.push(`${file}: package ${JSON.stringify(name)} is listed more than once`)
+        continue
+      }
+      seen.add(name)
+      if (!workspaceNames.has(name)) {
+        errors.push(`${file}: package ${JSON.stringify(name)} is not in the workspace`)
+      }
+    }
+  }
+  if (errors.length > 0) {
+    throw new Error(`invalid changeset package names:\n${errors.join('\n')}`)
   }
 }
 

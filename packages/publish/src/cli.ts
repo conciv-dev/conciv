@@ -4,8 +4,15 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineCommand, runMain} from 'citty'
 import {execa} from 'execa'
-import {findRoot} from './workspace-root.ts'
-import {PUBLIC_PACKAGES, assertBootstrappable, assertPublicSet, assertValidTag, assertVersioned} from './guards.ts'
+import {
+  PUBLIC_PACKAGES,
+  assertBootstrappable,
+  assertChangesetsResolve,
+  assertPublicSet,
+  assertValidTag,
+  assertVersioned,
+  assertWorkspaceRoot,
+} from './guards.ts'
 import {registryState} from './registry.ts'
 import {
   assembleMirrorTree,
@@ -26,7 +33,8 @@ const MIRROR_COMMIT_NAME = 'conciv-swift-mirror'
 const MIRROR_COMMIT_EMAIL = 'noreply@conciv.dev'
 
 async function atRoot() {
-  const cwd = await findRoot(process.cwd())
+  const cwd = process.cwd()
+  await assertWorkspaceRoot(cwd)
   const run = (file: string, args: string[]) => execa(file, args, {cwd, stdio: 'inherit'})
   const turbo = (...tasks: string[]) => run('pnpm', ['exec', 'turbo', 'run', ...tasks])
   const changeset = (...args: string[]) => run('pnpm', ['exec', 'changeset', ...args])
@@ -36,9 +44,18 @@ async function atRoot() {
 const version = defineCommand({
   meta: {name: 'version', description: 'Consume changesets, bump versions, resync the lockfile'},
   async run() {
-    const {run, changeset} = await atRoot()
+    const {cwd, run, changeset} = await atRoot()
+    await assertChangesetsResolve(cwd)
     await changeset('version')
     await run('pnpm', ['install', '--lockfile-only'])
+  },
+})
+
+const checkChangesets = defineCommand({
+  meta: {name: 'check-changesets', description: 'Validate every changeset names an existing workspace package'},
+  async run() {
+    const {cwd} = await atRoot()
+    await assertChangesetsResolve(cwd)
   },
 })
 
@@ -229,7 +246,8 @@ const swiftMirror = defineCommand({
     },
   },
   async run({args}) {
-    const cwd = await findRoot(process.cwd())
+    const cwd = process.cwd()
+    await assertWorkspaceRoot(cwd)
     const bridgeManifestPath = join(cwd, BRIDGE_MANIFEST)
     const bridgeVersion = await readBridgeVersion(bridgeManifestPath)
     const releaseCommit = await resolveVersionCommit(cwd, BRIDGE_MANIFEST, bridgeVersion)
@@ -291,7 +309,15 @@ async function assertTaggedTreeMatches(
 
 const main = defineCommand({
   meta: {name: 'conciv-publish', description: 'Release tooling for the aidx monorepo'},
-  subCommands: {version, check, release, snapshot, sync, 'swift-mirror': swiftMirror},
+  subCommands: {
+    version,
+    'check-changesets': checkChangesets,
+    check,
+    release,
+    snapshot,
+    sync,
+    'swift-mirror': swiftMirror,
+  },
 })
 
 runMain(main)
