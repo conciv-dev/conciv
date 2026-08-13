@@ -138,30 +138,28 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
       durationMs={props.durationMs}
       iconClass={accent()}
     >
-      <div class="flex flex-col gap-1.5">
-        <Show when={capture()}>
-          {(value) => (
-            <ElementPreview.Root capture={value()} css={props.capture?.css}>
-              <ElementPreview.Frame />
-              <ElementPreview.Descriptor />
-            </ElementPreview.Root>
-          )}
-        </Show>
-        <Show when={meta()?.summary}>{(summary) => <p class={SUMMARY}>{summary()}</p>}</Show>
-        <Show when={meta()?.hint}>{(hint) => <p class={HINT}>{hint()}</p>}</Show>
-        <Show when={meta()?.approval === 'ask'}>
-          <NoteRow icon={<ShieldAlert size={12} aria-hidden="true" />} tone="accent">
-            asks before it runs
-          </NoteRow>
-        </Show>
-        <Show when={meta()?.mirrors === true}>
-          <MirrorRow />
-        </Show>
-        <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
-        <Show when={errorMessage() === undefined && raw().length > 0}>
-          <ResultView outputSchema={meta()?.outputSchema} payload={payload()} raw={raw()} />
-        </Show>
-      </div>
+      <Show when={capture()}>
+        {(value) => (
+          <ElementPreview.Root capture={value()} css={props.capture?.css}>
+            <ElementPreview.Frame />
+            <ElementPreview.Descriptor />
+          </ElementPreview.Root>
+        )}
+      </Show>
+      <Show when={meta()?.summary}>{(summary) => <p class={SUMMARY}>{summary()}</p>}</Show>
+      <Show when={meta()?.hint}>{(hint) => <p class={HINT}>{hint()}</p>}</Show>
+      <Show when={meta()?.approval === 'ask'}>
+        <NoteRow icon={<ShieldAlert size={12} aria-hidden="true" />} tone="accent">
+          asks before it runs
+        </NoteRow>
+      </Show>
+      <Show when={meta()?.mirrors === true}>
+        <MirrorRow />
+      </Show>
+      <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
+      <Show when={errorMessage() === undefined && raw().length > 0}>
+        <ResultView outputSchema={meta()?.outputSchema} payload={payload()} raw={raw()} />
+      </Show>
     </CardShell>
   )
 }

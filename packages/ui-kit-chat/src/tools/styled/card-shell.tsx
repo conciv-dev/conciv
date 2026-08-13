@@ -1,3 +1,4 @@
+import {difference} from 'es-toolkit'
 import {For, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {z} from 'zod'
@@ -33,10 +34,11 @@ export function detailChips(
   input: Record<string, unknown>,
   skip: ReadonlySet<string> = new Set(),
 ): Array<CardChip> {
-  return schemaFields(meta?.inputSchema)
-    .filter((field) => !skip.has(field.name))
-    .filter((field) => input[field.name] !== undefined)
-    .map((field) => ({name: field.name, value: clip(displayValue(input[field.name]))}))
+  const declared = schemaFields(meta?.inputSchema).map((field) => field.name)
+  const undeclared = difference(Object.keys(input), declared)
+  return [...declared, ...undeclared]
+    .filter((name) => !skip.has(name) && input[name] !== undefined)
+    .map((name) => ({name, value: clip(displayValue(input[name]))}))
 }
 
 function cardIcon(icon: ToolIconKey | undefined, iconClass: string | undefined): JSX.Element {

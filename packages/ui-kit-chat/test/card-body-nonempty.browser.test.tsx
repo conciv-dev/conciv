@@ -48,6 +48,36 @@ it('MetaToolCard shows a quiet no-input row instead of an empty strip for a zero
   await expect.element(page.getByText('no input')).toBeVisible()
 })
 
+it('MetaToolCard shows an input key the schema never declared', async () => {
+  mountView(() => (
+    <MetaToolCard
+      part={part('page.fill', {selector: '#name', value: 'Ada', timeoutMs: 250})}
+      result={undefined}
+      ctx={ctxWith(catalogOf({'page.fill': FILL_META}))}
+      addResult={INERT_ADD_RESULT}
+    />
+  ))
+
+  await expandFirst()
+  await expect.element(page.getByText('timeoutMs')).toBeVisible()
+  await expect.element(page.getByText('250')).toBeVisible()
+})
+
+it('MetaToolCard shows the input of a declared tool that has no input schema', async () => {
+  mountView(() => (
+    <MetaToolCard
+      part={part('page.noop', {reason: 'warming the cache'})}
+      result={undefined}
+      ctx={ctxWith(catalogOf({'page.noop': NO_SCHEMA_META}))}
+      addResult={INERT_ADD_RESULT}
+    />
+  ))
+
+  await expandFirst()
+  await expect.element(page.getByText('warming the cache')).toBeVisible()
+  await expect.element(page.getByText('no input')).not.toBeInTheDocument()
+})
+
 it('MetaToolCard shows its input chips while running with no result yet', async () => {
   mountView(() => (
     <MetaToolCard
