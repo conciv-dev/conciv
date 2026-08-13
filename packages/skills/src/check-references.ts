@@ -21,6 +21,8 @@ type FindingKind =
   | 'empty-glob'
   | 'missing-sources'
   | 'escaping-citation'
+  | 'missing-library-version'
+  | 'stale-library-version'
 
 type SkillFinding = {
   file: string
@@ -429,10 +431,77 @@ function checkSourcesSection(repoRoot: string, fileRelative: string, text: strin
     .map((sourcePath): SkillFinding => ({file: fileRelative, kind: 'dead-source', detail: sourcePath}))
 }
 
-function checkFile(repoRoot: string, fileRelative: string, text: string, basenameMap: Map<string, string>) {
+const SKILLS_PACKAGE_MANIFEST = 'packages/skills/package.json'
+const SKILLS_PACKAGE_NAME = '@conciv/skills'
+
+function frontmatterBlock(text: string): string | null {
+  if (!text.startsWith('---\n')) return null
+  const end = text.indexOf('\n---', 4)
+  if (end === -1) return null
+  return text.slice(4, end)
+}
+
+const metadataFieldPattern = /^\s*([a-z_]+):\s*'([^']*)'\s*$/
+
+function frontmatterMetadata(text: string): Map<string, string> {
+  const block = frontmatterBlock(text)
+  if (block === null) return new Map()
+  const lines = block.split('\n')
+  const metadataIndex = lines.findIndex((line) => line.trim() === 'metadata:')
+  if (metadataIndex === -1) return new Map()
+  const fields = new Map<string, string>()
+  for (const line of lines.slice(metadataIndex + 1)) {
+    if (!line.startsWith(' ')) break
+    const match = line.match(metadataFieldPattern)
+    if (match === null) continue
+    const [, key, value] = match
+    if (key === undefined || value === undefined) continue
+    fields.set(key, value)
+  }
+  return fields
+}
+
+function readSkillsPackageVersion(repoRoot: string): string | null {
+  const manifestPath = join(repoRoot, SKILLS_PACKAGE_MANIFEST)
+  if (!existsSync(manifestPath)) return null
+  const parsed: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  if (typeof parsed !== 'object' || parsed === null || !('version' in parsed)) return null
+  const {version} = parsed
+  return typeof version === 'string' ? version : null
+}
+
+function checkLibraryVersion(fileRelative: string, text: string, packageVersion: string | null): Array<SkillFinding> {
+  if (packageVersion === null) return []
+  if (!fileRelative.startsWith('packages/skills/skills/') || !fileRelative.endsWith('SKILL.md')) return []
+  const metadata = frontmatterMetadata(text)
+  if (metadata.get('package') !== SKILLS_PACKAGE_NAME) return []
+  const libraryVersion = metadata.get('library_version')
+  if (libraryVersion === undefined) {
+    return [{file: fileRelative, kind: 'missing-library-version', detail: 'metadata.library_version is missing'}]
+  }
+  if (libraryVersion !== packageVersion) {
+    return [
+      {
+        file: fileRelative,
+        kind: 'stale-library-version',
+        detail: `metadata.library_version is '${libraryVersion}' but ${SKILLS_PACKAGE_MANIFEST} is '${packageVersion}'`,
+      },
+    ]
+  }
+  return []
+}
+
+function checkFile(
+  repoRoot: string,
+  fileRelative: string,
+  text: string,
+  basenameMap: Map<string, string>,
+  packageVersion: string | null,
+) {
   return [
     ...checkSourcesSection(repoRoot, fileRelative, text),
     ...checkCitationsSection(repoRoot, fileRelative, text, basenameMap),
+    ...checkLibraryVersion(fileRelative, text, packageVersion),
   ]
 }
 
@@ -440,7 +509,7 @@ function readMarkdownFiles(repoRoot: string, files: Array<string>) {
   return new Map(files.map((fileRelative) => [fileRelative, readFileSync(join(repoRoot, fileRelative), 'utf8')]))
 }
 
-function checkSkill(repoRoot: string, skillMarkdownRelative: string): SkillCheckResult {
+function checkSkill(repoRoot: string, skillMarkdownRelative: string, packageVersion: string | null): SkillCheckResult {
   const files = [skillMarkdownRelative, ...referenceMarkdownPaths(repoRoot, skillMarkdownRelative)]
   const fileTexts = readMarkdownFiles(repoRoot, files)
   const skillText = fileTexts.get(skillMarkdownRelative)
@@ -448,7 +517,7 @@ function checkSkill(repoRoot: string, skillMarkdownRelative: string): SkillCheck
   const basenameMap = buildBasenameMap(extractSourcesPaths(skillText))
   const findings = files.flatMap((fileRelative) => {
     const text = fileTexts.get(fileRelative)
-    return text === undefined ? [] : checkFile(repoRoot, fileRelative, text, basenameMap)
+    return text === undefined ? [] : checkFile(repoRoot, fileRelative, text, basenameMap, packageVersion)
   })
   const citationCount = files.reduce((sum, fileRelative) => {
     const text = fileTexts.get(fileRelative)
@@ -459,7 +528,8 @@ function checkSkill(repoRoot: string, skillMarkdownRelative: string): SkillCheck
 
 export function runCheck(repoRoot: string): CheckOutcome {
   const {paths: skillFiles, findings: globFindings} = skillMarkdownPaths(repoRoot)
-  const results = skillFiles.map((skillMarkdownRelative) => checkSkill(repoRoot, skillMarkdownRelative))
+  const packageVersion = readSkillsPackageVersion(repoRoot)
+  const results = skillFiles.map((skillMarkdownRelative) => checkSkill(repoRoot, skillMarkdownRelative, packageVersion))
   const findings = [...globFindings, ...results.flatMap((result) => result.findings)]
   const checkedFiles = results.reduce((sum, result) => sum + result.fileCount, 0)
   const checkedCitations = results.reduce((sum, result) => sum + result.citationCount, 0)

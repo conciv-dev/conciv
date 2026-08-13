@@ -37,6 +37,39 @@ async function writeSkill(
   return relativePath
 }
 
+async function writeSkillsPackageManifest(root: string, version: string): Promise<void> {
+  await writeRepoFile(root, 'packages/skills/package.json', JSON.stringify({name: '@conciv/skills', version}))
+}
+
+async function writeSkillWithMetadata(
+  root: string,
+  name: string,
+  libraryVersion: string | null,
+  sourcesLines: Array<string>,
+): Promise<string> {
+  const relativePath = `packages/skills/skills/${name}/SKILL.md`
+  const metadataLines =
+    libraryVersion === null
+      ? [`metadata:`, `  package: '@conciv/skills'`]
+      : [`metadata:`, `  package: '@conciv/skills'`, `  library_version: '${libraryVersion}'`]
+  const content = [
+    '---',
+    `name: ${name}`,
+    'description: A test skill.',
+    ...metadataLines,
+    '---',
+    '',
+    `# ${name}`,
+    '',
+    `Body text for ${name}.`,
+    '',
+    '## Sources',
+    ...sourcesLines,
+  ].join('\n')
+  await writeRepoFile(root, relativePath, content)
+  return relativePath
+}
+
 function fillerLines(count: number): Array<string> {
   return Array.from({length: count}, (_, index) => `const filler${index + 1} = ${index + 1}`)
 }
@@ -173,5 +206,32 @@ test('a fully clean skill produces no findings', async () => {
     expect(outcome.findings).toEqual([])
     expect(outcome.checkedCitations).toBe(1)
     expect(outcome.skillCount).toBe(3)
+  })
+})
+
+test('a library_version stamp older than packages/skills/package.json is flagged stale-library-version', async () => {
+  await withTempRepo(async (root) => {
+    await writeSkillsPackageManifest(root, '0.0.20')
+    await writeSkillWithMetadata(root, 'stale-stamp', '0.0.19', [])
+    const finding = expectSingleFinding(root, 'stale-library-version')
+    expect(finding?.detail).toContain("'0.0.19'")
+    expect(finding?.detail).toContain("'0.0.20'")
+  })
+})
+
+test('a skill metadata block naming @conciv/skills with no library_version field is flagged missing-library-version', async () => {
+  await withTempRepo(async (root) => {
+    await writeSkillsPackageManifest(root, '0.0.20')
+    await writeSkillWithMetadata(root, 'no-stamp', null, [])
+    expectSingleFinding(root, 'missing-library-version')
+  })
+})
+
+test('a library_version stamp matching packages/skills/package.json produces no findings', async () => {
+  await withTempRepo(async (root) => {
+    await writeSkillsPackageManifest(root, '0.0.20')
+    await writeSkillWithMetadata(root, 'matching-stamp', '0.0.20', [])
+    const outcome = runCheck(root)
+    expect(outcome.findings).toEqual([])
   })
 })
