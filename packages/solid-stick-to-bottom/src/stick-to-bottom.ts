@@ -335,14 +335,16 @@ export function createStickToBottom(
     })
   }
 
-  makeEventListener(document, 'mousedown', () => {
-    pointerIsDown = true
-  })
-  makeEventListener(document, 'mouseup', () => {
-    pointerIsDown = false
-  })
-  makeEventListener(document, 'click', () => {
-    pointerIsDown = false
+  createEffect(() => {
+    makeEventListener(document, 'mousedown', () => {
+      pointerIsDown = true
+    })
+    makeEventListener(document, 'mouseup', () => {
+      pointerIsDown = false
+    })
+    makeEventListener(document, 'click', () => {
+      pointerIsDown = false
+    })
   })
 
   createEffect(() => {
