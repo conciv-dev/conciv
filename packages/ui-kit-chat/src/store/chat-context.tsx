@@ -10,7 +10,8 @@ import {
 } from 'solid-js'
 import {createStore, type SetStoreFunction} from 'solid-js/store'
 import type {UseChatReturn} from '@tanstack/ai-solid'
-import {coalesceTurns, type Turn} from './grouping.js'
+import type {UIMessage} from '@tanstack/ai-client'
+import {diffTurns, type Turn} from './grouping.js'
 import {chatBusy} from './chat-busy.js'
 
 export type ViewState = {
@@ -73,7 +74,14 @@ export function useThread(): {
   readonly turns: Turn[]
 } {
   const chat = useChatContext()
-  const turns = createMemo(() => coalesceTurns(chat.messages()))
+  const grouped = createMemo<{messages: ReadonlyArray<UIMessage>; turns: Turn[]}>(
+    (prev) => {
+      const messages = chat.messages()
+      return {messages, turns: diffTurns(prev.turns, prev.messages, messages)}
+    },
+    {messages: [], turns: []},
+  )
+  const turns = () => grouped().turns
   const isRunning = createMemo(() => chatBusy(chat))
   return {
     get isEmpty() {

@@ -1,5 +1,6 @@
 import {createEffect, createMemo, createSignal, onMount, type Accessor} from 'solid-js'
 import {useChatContext} from '../store/chat-context.js'
+import type {ThreadVirtualScroll} from '../primitives/thread/viewport-internal.js'
 import {useThreadAutoScroll, type ThreadAutoScroll} from './use-thread-auto-scroll.js'
 import {useTopAnchorReserve, type TopAnchorClamp} from './use-top-anchor-reserve.js'
 import {getActiveTopAnchorTurn, parseCssLength} from './top-anchor.js'
@@ -22,7 +23,8 @@ function messageElement(viewport: HTMLElement | undefined, id: string | undefine
 export function useThreadScroll(
   viewport: Accessor<HTMLElement | undefined>,
   options: ThreadScrollOptions,
-): ThreadAutoScroll {
+  virtualScroll?: Accessor<ThreadVirtualScroll | undefined>,
+): ThreadAutoScroll & {pinToBottom: () => void} {
   const chat = useChatContext()
   const topAnchored = () => (options.turnAnchor ?? 'bottom') === 'top'
   const isRunning = () => chat.status() === 'streaming' || chat.status() === 'submitted'
@@ -42,6 +44,11 @@ export function useThreadScroll(
   const autoScroll = createMemo(() => options.autoScroll ?? (!topAnchored() || activeTurn() === null || released()))
   const hasActiveTopAnchor = () => activeTurn() !== null && !released()
   const scroll = useThreadAutoScroll(viewport, {autoScroll, hasActiveTopAnchor})
+
+  const pinToBottom = () => {
+    virtualScroll?.()?.scrollToLast()
+    scroll.scrollToBottom('auto')
+  }
 
   const clamp = createMemo<TopAnchorClamp | null>(() => {
     const element = viewport()
@@ -70,8 +77,7 @@ export function useThreadScroll(
 
   createEffect<boolean>((wasRunning) => {
     const running = isRunning()
-    if (running && !wasRunning && (options.scrollToBottomOnRunStart ?? true) && !topAnchored())
-      scroll.scrollToBottom('auto')
+    if (running && !wasRunning && (options.scrollToBottomOnRunStart ?? true) && !topAnchored()) pinToBottom()
     return running
   }, false)
 
@@ -79,14 +85,14 @@ export function useThreadScroll(
   createEffect<string | undefined>((previous) => {
     const current = signature()
     if ((options.scrollToBottomOnThreadSwitch ?? true) && previous !== undefined && previous !== current) {
-      scroll.scrollToBottom('auto')
+      pinToBottom()
     }
     return current
   }, undefined)
 
   onMount(() => {
-    if ((options.scrollToBottomOnInitialize ?? true) && chat.messages().length > 0) scroll.scrollToBottom('auto')
+    if ((options.scrollToBottomOnInitialize ?? true) && chat.messages().length > 0) pinToBottom()
   })
 
-  return scroll
+  return {...scroll, pinToBottom}
 }

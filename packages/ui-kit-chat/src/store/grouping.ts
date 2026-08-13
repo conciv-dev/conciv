@@ -28,6 +28,54 @@ export function coalesceTurns(messages: ReadonlyArray<UIMessage>): Turn[] {
   }, [])
 }
 
+type TurnBounds = {first: UIMessage; start: number; end: number}
+
+function turnBounds(messages: ReadonlyArray<UIMessage>): TurnBounds[] {
+  const bounds: TurnBounds[] = []
+  messages.forEach((message, index) => {
+    const last = bounds.at(-1)
+    if (last && message.role === 'assistant' && last.first.role === 'assistant') {
+      last.end = index
+      return
+    }
+    bounds.push({first: message, start: index, end: index})
+  })
+  return bounds
+}
+
+function sourceUnchanged(
+  bound: TurnBounds,
+  prevMessages: ReadonlyArray<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
+): boolean {
+  return messages
+    .slice(bound.start, bound.end + 1)
+    .every((message, offset) => prevMessages[bound.start + offset] === message)
+}
+
+function buildTurn(messages: ReadonlyArray<UIMessage>, bound: TurnBounds): Turn {
+  return {
+    key: bound.first.id,
+    role: bound.first.role,
+    parts: messages.slice(bound.start, bound.end + 1).flatMap((message) => message.parts),
+    start: bound.start,
+    end: bound.end,
+  }
+}
+
+export function diffTurns(
+  prevTurns: ReadonlyArray<Turn>,
+  prevMessages: ReadonlyArray<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
+): Turn[] {
+  return turnBounds(messages).map((bound, index) => {
+    const prev = prevTurns[index]
+    if (prev && prev.start === bound.start && prev.end === bound.end && sourceUnchanged(bound, prevMessages, messages))
+      return prev
+    return buildTurn(messages, bound)
+  })
+}
+
 export type ChainSegment = {kind: 'chain'; indices: number[]}
 export type ReplySegment = {kind: 'reply'; index: number}
 export type PageSessionSegment = {kind: 'page-session'; indices: number[]}
