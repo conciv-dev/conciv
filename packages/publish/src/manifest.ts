@@ -7,6 +7,8 @@ const manifestSchema = z.object({
   files: z.array(z.string()).optional(),
   dependencies: z.record(z.string(), z.string()).optional(),
   devDependencies: z.record(z.string(), z.string()).optional(),
+  optionalDependencies: z.record(z.string(), z.string()).optional(),
+  peerDependencies: z.record(z.string(), z.string()).optional(),
 })
 
 export type Manifest = z.infer<typeof manifestSchema>

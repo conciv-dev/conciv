@@ -8,6 +8,7 @@ import {
   PUBLIC_PACKAGES,
   assertBootstrappable,
   assertChangesetsResolve,
+  assertPublicDepsPublic,
   assertPublicSet,
   assertPublishedChangesCovered,
   assertValidTag,
@@ -96,6 +97,7 @@ const release = defineCommand({
   async run() {
     const {cwd, turbo, changeset} = await atRoot()
     await assertPublicSet(cwd)
+    await assertPublicDepsPublic(cwd)
     await assertVersioned(cwd)
     await turbo('build', 'publint', 'attw')
     await changeset('publish')
@@ -109,6 +111,7 @@ const snapshot = defineCommand({
     assertValidTag(args.tag)
     const {cwd, turbo, changeset} = await atRoot()
     await assertPublicSet(cwd)
+    await assertPublicDepsPublic(cwd)
     await changeset('version', '--snapshot', args.tag)
     await turbo('build', 'publint', 'attw')
     await changeset('publish', '--tag', args.tag, '--no-git-checks')
@@ -170,7 +173,7 @@ function printSyncPlan(states: SyncPackageState[], plan: SyncPlanEntry[], json: 
 
 async function bootstrapSyncPackage(cwd: string, run: Run, turbo: Turbo, name: string): Promise<void> {
   await assertBootstrappable(cwd, name)
-  await turbo('build', `--filter=${name}`)
+  await turbo('build', 'publint', 'attw', `--filter=${name}`)
   await firstPublish(run, name)
 }
 
@@ -202,6 +205,7 @@ const sync = defineCommand({
   },
   async run({args}) {
     const {cwd, run, turbo} = await atRoot()
+    await assertPublicDepsPublic(cwd)
     const states = await gatherSyncStates()
     const unhealthy = states.filter(({state}) => state !== 'trusted')
     const plan = buildSyncPlan(unhealthy)
