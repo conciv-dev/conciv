@@ -9,9 +9,6 @@
    copy. The ui-kit packages ship JS only, so the widget generates THEIR utilities too by scanning their
    source (see uno.config.ts), so there's no per-package CSS to @import here. */
 @import '@conciv/ui-kit-system/tokens.css';
-/* Loader orb: registered @property angles, keyframes and feathered gradient masks that no utility class
-   can express, shipped as a stylesheet by the design system. */
-@import '@conciv/ui-kit-system/loader.css';
 /* Neutral chat tokens (--chat-*) + the conciv theme layer that maps them onto the widget's --pw-*.
    @conciv/ui-kit-chat's styled set references only --chat-*; the shell applies `chat-theme-conciv`
    on its container so the chat renders in the dark/magenta look. */

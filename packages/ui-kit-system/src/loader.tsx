@@ -3,22 +3,21 @@ import {Progress as Ark} from '@ark-ui/solid/progress'
 
 export type LoaderSize = 'sm' | 'md' | 'lg'
 
-const ROOT = 'pw-loader'
-const ORB = 'pw-loader-orb'
-const ARC = 'pw-loader-arc'
-const TEXT = 'pw-loader-text'
-const LABEL = 'pw-loader-label'
-const DESCRIPTION = 'pw-loader-description'
+const ROOT = 'loader-size flex flex-col items-center justify-center gap-8 p-8'
+const ORB = 'loader-orb'
+const TEXT = 'loader-text'
+const LABEL = 'loader-label'
+const DESCRIPTION = 'loader-description'
 
 const DEFAULT_TRANSLATIONS = {value: () => 'Loading'}
 
 function LoaderArcs(): JSX.Element {
   return (
     <>
-      <span class={`${ARC}  ${ARC}-a`} />
-      <span class={`${ARC}  ${ARC}-b`} />
-      <span class={`${ARC}  ${ARC}-c`} />
-      <span class={`${ARC}  ${ARC}-d`} />
+      <span class="loader-arc loader-arc-a" />
+      <span class="loader-arc loader-arc-b" />
+      <span class="loader-arc loader-arc-c" />
+      <span class="loader-arc loader-arc-d" />
     </>
   )
 }

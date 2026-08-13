@@ -11,15 +11,17 @@ import {effects} from './effects.js'
 import {typography} from './typography.js'
 import {shortcuts} from './shortcuts.js'
 import {jsonTree} from './json-tree.js'
+import {loaderShortcuts, loaderRules, loaderPreflight} from './loader.js'
 
 export function presetConciv(): Preset {
   return {
     name: '@conciv/uno-preset',
 
     presets: [presetWind4({preflights: {reset: false}, variablePrefix: 'unx-'}), typography],
-    rules: [jsonTree],
+    rules: [jsonTree, ...loaderRules],
+    preflights: [loaderPreflight],
     separators: [':'],
     theme: {colors, radius, font, ease, animation},
-    shortcuts: {...shortcuts, ...motion, ...effects, ...shadows},
+    shortcuts: {...shortcuts, ...motion, ...effects, ...shadows, ...loaderShortcuts},
   }
 }
