@@ -126,6 +126,36 @@ test('assertPublicDepsPublic rejects a public package depending on a private wor
   )
 })
 
+test('assertPublicDepsPublic rejects a public package with the private dep under optionalDependencies, naming both', async () => {
+  const root = await scaffoldWorkspaceRoot('deps-private-optional-')
+  await Promise.all([
+    writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.19', private: true}),
+    writeManifest(join(root, 'packages', 'extension-page'), {
+      name: '@conciv/extension-page',
+      version: '0.0.19',
+      optionalDependencies: {'@conciv/page': 'workspace:^'},
+    }),
+  ])
+  await expect(assertPublicDepsPublic(root)).rejects.toThrow(
+    /@conciv\/extension-page depends on private workspace package @conciv\/page/,
+  )
+})
+
+test('assertPublicDepsPublic rejects a public package with the private dep under peerDependencies, naming both', async () => {
+  const root = await scaffoldWorkspaceRoot('deps-private-peer-')
+  await Promise.all([
+    writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.19', private: true}),
+    writeManifest(join(root, 'packages', 'extension-page'), {
+      name: '@conciv/extension-page',
+      version: '0.0.19',
+      peerDependencies: {'@conciv/page': 'workspace:^'},
+    }),
+  ])
+  await expect(assertPublicDepsPublic(root)).rejects.toThrow(
+    /@conciv\/extension-page depends on private workspace package @conciv\/page/,
+  )
+})
+
 async function workspaceWithChangesets(names: string[], changesets: Record<string, string>): Promise<string> {
   const root = await publicWorkspace(names)
   const changesetDir = join(root, '.changeset')
