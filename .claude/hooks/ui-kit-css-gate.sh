@@ -22,13 +22,18 @@ FILE_PATH="$(jq -r '.tool_input.file_path // empty' <<<"$INPUT" 2>/dev/null || t
 
 [ -n "$FILE_PATH" ] || exit 0
 
-printf '%s\n' "$FILE_PATH" | grep -Eq '(^|/)packages/ui-kit-[^/]+/src/.*\.css$' || exit 0
+NORMALIZED="$FILE_PATH"
+while printf '%s\n' "$NORMALIZED" | grep -Eq '(^|/)[^/]+/\.\.(/|$)|(^|/)\.(/|$)'; do
+  NORMALIZED="$(printf '%s\n' "$NORMALIZED" | sed -E 's#(^|/)[^/]+/\.\.(/|$)#\1#; s#(^|/)\.(/|$)#\1#; s#//#/#g')"
+done
 
-BASENAME="$(basename "$FILE_PATH")"
+printf '%s\n' "$NORMALIZED" | grep -Eq '(^|/)packages/ui-kit-[^/]+/src/.*\.css$' || exit 0
+
+BASENAME="$(basename "$NORMALIZED")"
 if [ "$BASENAME" = "tokens.css" ]; then
   exit 0
 fi
-if printf '%s\n' "$FILE_PATH" | grep -Eq '(^|/)theme/'; then
+if printf '%s\n' "$NORMALIZED" | grep -Eq '(^|/)theme/'; then
   exit 0
 fi
 

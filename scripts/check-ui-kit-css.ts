@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {execFileSync} from 'node:child_process'
+import {posix} from 'node:path'
 
 const UI_KIT_CSS_PATTERN = /^packages\/ui-kit-[^/]+\/src\/.*\.css$/
 const GIT_SCAN_PATHSPEC = ':(glob)packages/ui-kit-*/src/**/*.css'
@@ -17,7 +18,9 @@ function isAllowlisted(path: string): boolean {
 }
 
 function findBannedPaths(paths: string[]): string[] {
-  return paths.filter((path) => UI_KIT_CSS_PATTERN.test(path) && !isAllowlisted(path))
+  return paths
+    .map((path) => posix.normalize(path.replaceAll('\\', '/')))
+    .filter((path) => UI_KIT_CSS_PATTERN.test(path) && !isAllowlisted(path))
 }
 
 function scanTrackedFiles(): string[] {
