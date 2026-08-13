@@ -7,7 +7,7 @@ import {mountView} from './mount-view.js'
 
 it('renders a header-only row with no expand affordance when the card has no body content', async () => {
   mountView(() => (
-    <CollapsibleCard header={<span>Rendered choices</span>}>
+    <CollapsibleCard header={<span>Rendered choices</span>} hasBody={false}>
       <Show when={false}>
         <span>never</span>
       </Show>
@@ -31,7 +31,7 @@ it('renders a collapsible with an expand button when the card has body content',
 
 it('keeps the title tooltip on a static header-only row', async () => {
   mountView(() => (
-    <CollapsibleCard header={<span>Rendered choices</span>} tooltip="lets the user pick a value">
+    <CollapsibleCard header={<span>Rendered choices</span>} tooltip="lets the user pick a value" hasBody={false}>
       <Show when={false}>
         <span>never</span>
       </Show>
@@ -46,7 +46,7 @@ it('keeps the title tooltip on a static header-only row', async () => {
 it('upgrades from the static row to a collapsible when body content arrives later', async () => {
   const [ready, setReady] = createSignal(false)
   mountView(() => (
-    <CollapsibleCard header={<span>Ran a command</span>}>
+    <CollapsibleCard header={<span>Ran a command</span>} hasBody={ready()}>
       <Show when={ready()}>
         <span>streamed output</span>
       </Show>

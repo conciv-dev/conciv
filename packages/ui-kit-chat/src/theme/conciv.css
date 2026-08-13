@@ -34,3 +34,7 @@
   --chat-font: var(--pw-font);
   --chat-mono: var(--pw-mono);
 }
+
+[data-thread-viewport] [data-index] .anim-msg {
+  animation: none;
+}

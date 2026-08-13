@@ -38,7 +38,7 @@ export const ApprovalForceOpensOnce: Story = {
   render: () => frame(<ApprovalHarness />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('confirm before clicking')).not.toBeVisible()
+    expect(c.queryByText('confirm before clicking')).toBeNull()
 
     await userEvent.click(c.getByRole('button', {name: 'request approval'}))
     await waitFor(() => expect(c.getByText('confirm before clicking')).toBeVisible())

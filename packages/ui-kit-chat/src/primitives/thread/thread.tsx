@@ -1,5 +1,19 @@
-import {createMemo, createSignal, Index, Show, splitProps, type Component, type JSX, type ParentProps} from 'solid-js'
+import {
+  createMemo,
+  createSignal,
+  For,
+  Index,
+  onCleanup,
+  onMount,
+  Show,
+  splitProps,
+  type Accessor,
+  type Component,
+  type JSX,
+  type ParentProps,
+} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {UIMessage} from '@tanstack/ai-client'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useComposer, useThread} from '../../store/chat-context.js'
@@ -7,7 +21,18 @@ import {pairResults, type Turn} from '../../store/grouping.js'
 import {MessageProvider} from '../message/message-context.js'
 import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
 import {ViewportProvider, useThreadViewport} from './viewport-context.js'
+import {
+  ViewportInternalProvider,
+  useViewportInternal,
+  type ThreadVirtualScroll,
+  type ViewportInternalValue,
+} from './viewport-internal.js'
 import {useThreadScroll} from '../../behaviors/use-thread-scroll.js'
+import {createThreadVirtualizer} from '../../behaviors/create-thread-virtualizer.js'
+import {useTurnEstimator, type TurnEstimate} from './turn-estimate.js'
+import {virtualizeThreshold} from './virtualize-threshold.js'
+
+const ROW_ESTIMATE_PX = 72
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
 
@@ -36,20 +61,35 @@ function Viewport(props: ViewportProps): JSX.Element {
     'ref',
   ])
   const [element, setElement] = createSignal<HTMLDivElement>()
-  const {isAtBottom, escapedFromLock, scrollToBottom, pauseFollow} = useThreadScroll(element, local)
+  let virtualScroll: ThreadVirtualScroll | undefined
+  const scroll = useThreadScroll(element, local, () => virtualScroll)
   const assignRef = (node: HTMLDivElement) => {
     setElement(node)
     if (typeof local.ref === 'function') local.ref(node)
   }
+  const internal: ViewportInternalValue = {
+    element,
+    turnAnchor: () => local.turnAnchor ?? 'bottom',
+    isAtBottom: scroll.isAtBottom,
+    ownsViewport: () => scroll.paused() || (scroll.isAtBottom() && scroll.follows()),
+    pinToBottom: scroll.pinToBottom,
+    setVirtualScroll: (ops) => {
+      virtualScroll = ops
+    },
+  }
   return (
-    <ViewportProvider value={{isAtBottom, scrollToBottom, pauseFollow}}>
-      <Primitive.div
-        data-thread-viewport
-        data-at-bottom={isAtBottom() ? '' : undefined}
-        data-escaped={escapedFromLock() ? '' : undefined}
-        ref={assignRef}
-        {...rest}
-      />
+    <ViewportProvider
+      value={{isAtBottom: scroll.isAtBottom, scrollToBottom: scroll.scrollToBottom, pauseFollow: scroll.pauseFollow}}
+    >
+      <ViewportInternalProvider value={internal}>
+        <Primitive.div
+          data-thread-viewport
+          data-at-bottom={scroll.isAtBottom() ? '' : undefined}
+          data-escaped={scroll.escapedFromLock() ? '' : undefined}
+          ref={assignRef}
+          {...rest}
+        />
+      </ViewportInternalProvider>
     </ViewportProvider>
   )
 }
@@ -70,28 +110,205 @@ function componentForRole(role: Turn['role'], components: MessagesComponents): C
   return components.SystemMessage
 }
 
-function Messages(props: MessagesProps): JSX.Element {
-  const thread = useThread()
-  const turns = () => thread.turns
+type TurnSlotProps = {
+  turn: Accessor<Turn | undefined>
+  index: Accessor<number>
+  total: Accessor<number>
+  messages: MessagesProps
+}
+
+function TurnSlot(props: TurnSlotProps): JSX.Element {
   return (
-    <Index each={turns()}>
-      {(turn, index) => {
+    <Show when={props.turn()}>
+      {(turn) => {
         const pairing = createMemo(() => pairResults(turn().parts))
-        const isLast = () => index === turns().length - 1
-        const components = 'components' in props ? props.components : undefined
+        const isLast = () => props.index() === props.total() - 1
+        const components = 'components' in props.messages ? props.messages.components : undefined
         const component = () => (components ? componentForRole(turn().role, components) : undefined)
         return (
-          <MessageProvider value={{message: turn, index: () => index, pairing, isLast}}>
+          <MessageProvider value={{message: turn, index: props.index, pairing, isLast}}>
             <Show
               when={component()}
-              fallback={'children' in props && props.children ? props.children(() => toMessage(turn())) : null}
+              fallback={
+                'children' in props.messages && props.messages.children
+                  ? props.messages.children(() => toMessage(turn()))
+                  : null
+              }
             >
               {(resolved) => <Dynamic component={resolved()} />}
             </Show>
           </MessageProvider>
         )
       }}
+    </Show>
+  )
+}
+
+type CapturedAnchor = {kind: 'bottom'} | {kind: 'anchor'; key: string; offset: number}
+
+type ModeSwapAnchor = {current?: CapturedAnchor}
+
+function captureAnchor(internal: ViewportInternalValue | undefined): CapturedAnchor | undefined {
+  if (!internal) return undefined
+  if (internal.isAtBottom()) return {kind: 'bottom'}
+  const viewport = internal.element()
+  if (!viewport) return undefined
+  const viewportTop = viewport.getBoundingClientRect().top
+  const rows = Array.from(viewport.querySelectorAll('[data-message-id]'))
+  const anchorRow = rows.find((row) => row.getBoundingClientRect().bottom > viewportTop)
+  const key = anchorRow?.getAttribute('data-message-id')
+  if (!anchorRow || !key) return undefined
+  return {kind: 'anchor', key, offset: anchorRow.getBoundingClientRect().top - viewportTop}
+}
+
+function FlatMessages(props: {
+  messages: MessagesProps
+  internal: ViewportInternalValue | undefined
+  swapAnchor: ModeSwapAnchor
+}): JSX.Element {
+  const thread = useThread()
+  const turns = () => thread.turns
+  onCleanup(() => {
+    props.swapAnchor.current = captureAnchor(props.internal)
+  })
+  onMount(() => {
+    const anchor = props.swapAnchor.current
+    const internal = props.internal
+    props.swapAnchor.current = undefined
+    if (!anchor || !internal) return
+    if (anchor.kind === 'bottom') {
+      internal.pinToBottom()
+      return
+    }
+    const viewport = internal.element()
+    const row = viewport?.querySelector(`[data-message-id="${CSS.escape(anchor.key)}"]`)
+    if (!viewport || !row) return
+    const currentOffset = row.getBoundingClientRect().top - viewport.getBoundingClientRect().top
+    viewport.scrollTop += currentOffset - anchor.offset
+  })
+  return (
+    <Index each={turns()}>
+      {(turn, index) => (
+        <TurnSlot turn={turn} index={() => index} total={() => turns().length} messages={props.messages} />
+      )}
     </Index>
+  )
+}
+
+function VirtualMessages(props: {
+  messages: MessagesProps
+  internal: ViewportInternalValue
+  swapAnchor: ModeSwapAnchor
+}): JSX.Element {
+  const thread = useThread()
+  const turns = () => thread.turns
+  const estimator = useTurnEstimator()
+  const [gap, setGap] = createSignal(0)
+  const settledEstimate = (index: number): TurnEstimate | undefined => {
+    if (index === turns().length - 1) return undefined
+    const turn = turns()[index]
+    if (!turn) return undefined
+    return estimator?.estimateTurn(turn)
+  }
+  const virtualizer = createThreadVirtualizer({
+    scrollElement: () => props.internal.element(),
+    count: () => turns().length,
+    keyAt: (index) => turns()[index]?.key ?? `${index}`,
+    estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
+    gap,
+    ownsViewport: () => props.internal.ownsViewport(),
+  })
+  onCleanup(() => {
+    props.swapAnchor.current = captureAnchor(props.internal)
+  })
+  onMount(() => {
+    props.internal.setVirtualScroll({scrollToLast: virtualizer.scrollToLast})
+    onCleanup(() => props.internal.setVirtualScroll(undefined))
+    let disposed = false
+    onCleanup(() => {
+      disposed = true
+    })
+    void document.fonts.ready.then(() => {
+      if (disposed || !estimator) return
+      estimator.reset()
+      virtualizer.remeasure()
+    })
+    const viewport = props.internal.element()
+    if (viewport) {
+      setGap(Number.parseFloat(getComputedStyle(viewport).rowGap) || 0)
+      let lastWidth = viewport.clientWidth
+      createResizeObserver(viewport, ({width}) => {
+        if (width === lastWidth) return
+        lastWidth = width
+        if (!estimator) return
+        estimator.reset()
+        virtualizer.remeasure()
+      })
+      const previousAnchoring = viewport.style.overflowAnchor
+      viewport.style.overflowAnchor = 'none'
+      onCleanup(() => {
+        viewport.style.overflowAnchor = previousAnchoring
+      })
+    }
+    const anchor = props.swapAnchor.current
+    props.swapAnchor.current = undefined
+    if (anchor?.kind === 'anchor') {
+      const index = turns().findIndex((turn) => turn.key === anchor.key)
+      if (index >= 0) {
+        virtualizer.scrollToAnchor(index, anchor.offset)
+        return
+      }
+    }
+    props.internal.pinToBottom()
+  })
+  return (
+    <div style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}>
+      <For each={virtualizer.items}>
+        {(item) => (
+          <div
+            ref={(element) =>
+              queueMicrotask(() => {
+                if (settledEstimate(item.index)?.exact !== true) virtualizer.measureRow(element)
+              })
+            }
+            data-index={item.index}
+            style={{
+              position: 'absolute',
+              top: '0',
+              left: '0',
+              width: '100%',
+              display: 'flex',
+              'flex-direction': 'column',
+              transform: `translateY(${item.start}px)`,
+            }}
+          >
+            <TurnSlot
+              turn={() => turns()[item.index]}
+              index={() => item.index}
+              total={() => turns().length}
+              messages={props.messages}
+            />
+          </div>
+        )}
+      </For>
+    </div>
+  )
+}
+
+function Messages(props: MessagesProps): JSX.Element {
+  const thread = useThread()
+  const internal = useViewportInternal()
+  const eligible = () =>
+    internal !== undefined && internal.turnAnchor() === 'bottom' && thread.turns.length >= virtualizeThreshold.value
+  const mode = createMemo(() => (eligible() ? 'virtual' : 'flat'))
+  const swapAnchor: ModeSwapAnchor = {}
+  return (
+    <Show
+      when={mode() === 'virtual' ? internal : undefined}
+      fallback={<FlatMessages messages={props} internal={internal} swapAnchor={swapAnchor} />}
+    >
+      {(resolved) => <VirtualMessages messages={props} internal={resolved()} swapAnchor={swapAnchor} />}
+    </Show>
   )
 }
 

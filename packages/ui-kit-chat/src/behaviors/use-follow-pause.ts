@@ -2,6 +2,7 @@ import type {Accessor} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 
 const FOLLOW_PAUSE_CEILING_MS = 1000
+const FOLLOW_PAUSE_RELEASE_GRACE_MS = 150
 
 export function usePauseFollowOnToggle(
   animatedElement: Accessor<HTMLElement | undefined>,
@@ -10,12 +11,14 @@ export function usePauseFollowOnToggle(
   return () => {
     if (!pauseFollow) return
     pauseFollow(FOLLOW_PAUSE_CEILING_MS)
-    const element = animatedElement()
-    if (!element) return
-    const clearListener = makeEventListener(element, 'animationend', (event) => {
-      if (event.target !== element) return
-      clearListener()
-      pauseFollow(0)
+    queueMicrotask(() => {
+      const element = animatedElement()
+      if (!element) return
+      const clearListener = makeEventListener(element, 'animationend', (event) => {
+        if (event.target !== element) return
+        clearListener()
+        pauseFollow(FOLLOW_PAUSE_RELEASE_GRACE_MS)
+      })
     })
   }
 }

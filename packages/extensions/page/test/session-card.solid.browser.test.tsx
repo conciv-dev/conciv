@@ -88,7 +88,7 @@ test('a settled session shows its folded reasoning and script in a collapsed fla
   await page.getByRole('button', {name: /Edited the page/}).click()
   const section = page.getByRole('button', {name: 'Reasoning · script'})
   await expect.element(section).toBeVisible()
-  await expect.element(page.getByText('choose the field wisely')).not.toBeVisible()
+  await expect.element(page.getByText('choose the field wisely')).not.toBeInTheDocument()
   await section.click()
   await expect.element(page.getByText('choose the field wisely')).toBeVisible()
   await expect.element(page.getByText(/external_page_settext/).first()).toBeVisible()

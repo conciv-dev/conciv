@@ -4,6 +4,8 @@ import {createStickToBottom} from '@conciv/solid-stick-to-bottom'
 export type ThreadAutoScroll = {
   isAtBottom: Accessor<boolean>
   escapedFromLock: Accessor<boolean>
+  follows: Accessor<boolean>
+  paused: Accessor<boolean>
   scrollToBottom: (behavior?: ScrollBehavior) => void
   pauseFollow: (durationMs: number) => void
 }
@@ -13,13 +15,18 @@ export function useThreadAutoScroll(
   opts: {autoScroll: Accessor<boolean>; hasActiveTopAnchor?: Accessor<boolean>},
 ): ThreadAutoScroll {
   let pausedUntil = 0
+  const paused = () => Date.now() < pausedUntil
+  const topAnchored = () => opts.hasActiveTopAnchor?.() ?? false
+  const follows = () => opts.autoScroll() && !topAnchored() && !paused()
   const stick = createStickToBottom(viewport, {
     initial: 'instant',
-    follow: () => opts.autoScroll() && !(opts.hasActiveTopAnchor?.() ?? false) && Date.now() >= pausedUntil,
+    follow: follows,
   })
   return {
     isAtBottom: stick.isAtBottom,
     escapedFromLock: stick.escapedFromLock,
+    follows,
+    paused,
     scrollToBottom: (behavior: ScrollBehavior = 'smooth') => {
       void stick.scrollToBottom({animation: behavior === 'smooth' ? undefined : 'instant'})
     },

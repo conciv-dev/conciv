@@ -34,6 +34,10 @@ import {
   pageSessionThinkingParts,
   type PageSessionConfig,
 } from '../store/page-session.js'
+import {useViewportInternal} from '../primitives/thread/viewport-internal.js'
+import {TurnEstimateProvider} from '../primitives/thread/turn-estimate.js'
+import {createTurnEstimator} from './text-metrics.js'
+import {ASSISTANT_ROOT_CLASS, ASSISTANT_ROOT_SETTLED_CLASS, USER_BUBBLE_CLASS} from './turn-classes.js'
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
 import {Markdown} from './markdown.js'
 import {Reasoning} from './reasoning.js'
@@ -187,10 +191,7 @@ function AssistantTurn(props: {
   })
   const liveSegment = (index: number) => thread.isRunning && message.isLast() && index === lastRenderableIndex()
   return (
-    <Message.Root
-      data-pw-msg
-      class={`flex flex-col gap-1.5 min-w-0 w-full [color:var(--chat-text)] self-stretch relative anim-msg ${message.isLast() ? '' : 'pb-11'}`}
-    >
+    <Message.Root data-pw-msg class={message.isLast() ? ASSISTANT_ROOT_CLASS : ASSISTANT_ROOT_SETTLED_CLASS}>
       <Index each={segments()}>
         {(segment, segmentIndex) => (
           <Switch>
@@ -273,10 +274,7 @@ function UserTurn(): JSX.Element {
           <Message.Attachments components={{Document: DocumentCard}} />
         </div>
       </Message.If>
-      <Message.Root
-        data-pw-msg
-        class="px-3 py-1.5 rounded-[var(--chat-radius-md)] max-w-[80%] [background:var(--chat-accent)] [color:var(--chat-on-accent)] [overflow-wrap:anywhere] self-end anim-msg"
-      >
+      <Message.Root data-pw-msg class={USER_BUBBLE_CLASS}>
         <Message.Parts />
       </Message.Root>
     </>
@@ -362,6 +360,23 @@ function ThreadWelcome(props: ParentProps): JSX.Element {
 }
 
 function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
+  const internal = useViewportInternal()
+  const standaloneNames = createMemo(() => {
+    const names = new Set<string>()
+    for (const entry of props.tools ?? [])
+      if (entry.display === 'standalone') for (const name of entry.names) names.add(name)
+    return names
+  })
+  const estimator = internal
+    ? createTurnEstimator(internal.element, {
+        grouping: () => ({
+          ...pageSessionGroupingOptions(props.pageSession),
+          standalone: (name) => standaloneNames().has(name),
+        }),
+        exactAllowed: () => props.turnPrefix === undefined,
+        disabled: () => props.components?.AssistantMessage !== undefined,
+      })
+    : undefined
   return (
     <ThreadConfigContext.Provider
       value={{
@@ -373,7 +388,9 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         pageSession: () => props.pageSession,
       }}
     >
-      <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
+      <TurnEstimateProvider value={estimator}>
+        <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
+      </TurnEstimateProvider>
     </ThreadConfigContext.Provider>
   )
 }

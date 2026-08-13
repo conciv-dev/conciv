@@ -143,7 +143,7 @@ export const Settled: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Edited the page')).toBeVisible()
     await expect(canvas.getByText('4 actions')).toBeVisible()
-    await expect(canvas.queryByText('Full name')).not.toBeVisible()
+    expect(canvas.queryByText('Full name')).toBeNull()
     await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))
     await waitFor(() => expect(canvas.getByText('Full name')).toBeVisible())
     await userEvent.click(canvas.getByRole('button', {name: /Edited the page/}))

@@ -61,7 +61,7 @@ export const SettledCollapsedThenExpand: Story = {
     const c = within(canvasElement)
     const trigger = await waitFor(() => c.getByText('Chain of Thought'))
 
-    await expect(c.getByText(/grep -rn/)).not.toBeVisible()
+    expect(c.queryByText(/grep -rn/)).toBeNull()
     await userEvent.click(trigger)
     await waitFor(() => expect(c.getByText(/grep -rn/)).toBeVisible())
   },
