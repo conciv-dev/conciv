@@ -157,13 +157,35 @@ test('assertChangesetsResolve rejects a symlinked changeset file, naming it', as
   await rm(root, {recursive: true, force: true})
 })
 
-test('assertChangesetsResolve rejects a changeset that lists the same package twice, naming file and package', async () => {
+test('assertChangesetsResolve rejects a changeset that lists the same package twice, propagating the parser error with the filename', async () => {
   const root = await workspaceWithChangesets(['@conciv/core'], {
     'double-entry.md': `---\n'@conciv/core': patch\n'@conciv/core': minor\n---\n\nDouble entry.\n`,
   })
-  await expect(assertChangesetsResolve(root)).rejects.toThrow(
-    /double-entry\.md.*"@conciv\/core".*listed more than once/s,
-  )
+  await expect(assertChangesetsResolve(root)).rejects.toThrow(/double-entry\.md.*duplicated mapping key/s)
+  await rm(root, {recursive: true, force: true})
+})
+
+test('assertChangesetsResolve rejects a changeset with malformed frontmatter, naming the file', async () => {
+  const root = await workspaceWithChangesets(['@conciv/core'], {
+    'malformed.md': 'no frontmatter here at all\n',
+  })
+  await expect(assertChangesetsResolve(root)).rejects.toThrow(/malformed\.md.*missing or invalid frontmatter/s)
+  await rm(root, {recursive: true, force: true})
+})
+
+test('assertChangesetsResolve flows an unquoted entry name through to workspace validation, not parse failure', async () => {
+  const root = await workspaceWithChangesets(['@conciv/core'], {
+    'unquoted-bogus.md': `---\nconciv: patch\n---\n\nUnquoted bogus name.\n`,
+  })
+  await expect(assertChangesetsResolve(root)).rejects.toThrow(/unquoted-bogus\.md.*"conciv".*not in the workspace/s)
+  await rm(root, {recursive: true, force: true})
+})
+
+test('assertChangesetsResolve accepts a double-quoted entry naming a real workspace package', async () => {
+  const root = await workspaceWithChangesets(['@conciv/core'], {
+    'double-quoted.md': `---\n"@conciv/core": patch\n---\n\nDouble-quoted entry.\n`,
+  })
+  await expect(assertChangesetsResolve(root)).resolves.toBeUndefined()
   await rm(root, {recursive: true, force: true})
 })
 

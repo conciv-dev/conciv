@@ -1,5 +1,6 @@
 import {access, lstat, readFile, readdir} from 'node:fs/promises'
 import {join} from 'node:path'
+import parseChangesetFile from '@changesets/parse'
 
 const CHANGESET_DIR = '.changeset'
 
@@ -132,23 +133,13 @@ export async function assertBootstrappable(cwd: string, name: string): Promise<v
   }
 }
 
-const CHANGESET_ENTRY_PATTERN = /^'([^']+)':\s*(?:major|minor|patch)\s*$/
-
 function parseChangesetPackageNames(content: string, file: string): string[] {
-  const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  if (!frontmatterMatch) {
-    throw new Error(`${file}: missing changeset frontmatter`)
+  try {
+    return parseChangesetFile(content).releases.map((release) => release.name)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`${file}: ${message}`, {cause: error})
   }
-  const [, frontmatter] = frontmatterMatch
-  const lines = (frontmatter ?? '').split(/\r?\n/).filter((line) => line.trim().length > 0)
-  return lines.map((line) => {
-    const entryMatch = line.match(CHANGESET_ENTRY_PATTERN)
-    const [, name] = entryMatch ?? []
-    if (!name) {
-      throw new Error(`${file}: unparseable changeset entry ${JSON.stringify(line)}`)
-    }
-    return name
-  })
 }
 
 async function listChangesetFiles(changesetDir: string): Promise<string[]> {
@@ -180,13 +171,7 @@ export async function assertChangesetsResolve(cwd: string): Promise<void> {
     const filePath = join(changesetDir, file)
     await assertNotSymlink(filePath)
     const content = await readFile(filePath, 'utf8')
-    const seen = new Set<string>()
     for (const name of parseChangesetPackageNames(content, file)) {
-      if (seen.has(name)) {
-        errors.push(`${file}: package ${JSON.stringify(name)} is listed more than once`)
-        continue
-      }
-      seen.add(name)
       if (!workspaceNames.has(name)) {
         errors.push(`${file}: package ${JSON.stringify(name)} is not in the workspace`)
       }
