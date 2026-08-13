@@ -29,6 +29,7 @@ export type ConcivRouterContext = {
   grabProvider?: GrabProvider
   apiBase: () => string
   connectionGeneration: () => number
+  disposeInstances: () => void
 }
 
 export type ConcivRouterConfig = {
@@ -65,7 +66,7 @@ function createInstances(extensions: AnyExtension[]): ExtensionInstance[] {
   })
 }
 
-function disposeInstances(instances: ExtensionInstance[]): void {
+function disposeExtensionInstances(instances: ExtensionInstance[]): void {
   for (const instance of instances) {
     try {
       instance.dispose()
@@ -75,13 +76,23 @@ function disposeInstances(instances: ExtensionInstance[]): void {
   }
 }
 
+function makeGuardedDisposer(instances: ExtensionInstance[]): () => void {
+  let disposed = false
+  return function disposeInstances(): void {
+    if (disposed) return
+    disposed = true
+    disposeExtensionInstances(instances)
+  }
+}
+
 export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient()
   const data = makeAppData(config.rpc, queryClient)
   const extensions = [highlight, ...(config.extensions ?? [])]
   const instances = createInstances(extensions)
+  const disposeInstances = makeGuardedDisposer(instances)
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
-    onCleanup(() => disposeInstances(instances))
+    onCleanup(disposeInstances)
     return <>{props.children}</>
   }
   return createRouter({
@@ -107,8 +118,13 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       grabProvider: config.grabProvider,
       apiBase: config.apiBase ?? (() => ''),
       connectionGeneration: config.connectionGeneration ?? (() => 0),
+      disposeInstances,
     },
   })
+}
+
+export function disposeConcivRouter(router: ReturnType<typeof createConcivRouter>): void {
+  router.options.context.disposeInstances()
 }
 
 declare module '@tanstack/solid-router' {

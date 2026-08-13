@@ -13,7 +13,7 @@ import {
 import pageExtension from '@conciv/extension-page/client'
 import type {GrabProvider} from '@conciv/grab'
 import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
-import {createConcivRouter} from '@conciv/app/router'
+import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
@@ -134,6 +134,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     storage.dispose,
     () => plane.dispose(),
     disposeApp,
+    () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
     closeConnection,
@@ -184,6 +185,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
   const disposers = [
     () => planeDispose?.(),
     disposeApp,
+    () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
     deferred.close,

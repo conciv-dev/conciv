@@ -6,18 +6,22 @@ import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeRpcClient} from '@conciv/contract'
 import {defineExtension} from '@conciv/extension'
 import {parseConcivSettings} from '../src/data/settings.js'
-import {createConcivRouter} from '../src/router.js'
+import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
 
-test('unmounting the router-rendered tree disposes every extension instance exactly once', async () => {
-  const dispose = vi.fn()
-  const extension = defineExtension({name: 'wrap-disposal-probe'}).client(() => ({value: {}, dispose}))
-  const router = createConcivRouter({
+function routerWithDisposeSpy(name: string, dispose: () => void) {
+  const extension = defineExtension({name}).client(() => ({value: {}, dispose}))
+  return createConcivRouter({
     rpc: makeRpcClient('http://127.0.0.1:9'),
     history: createMemoryHistory({initialEntries: ['/']}),
     environment: {rootNode: document, document},
     settings: parseConcivSettings(''),
     extensions: [extension],
   })
+}
+
+test('unmounting the router-rendered tree disposes every extension instance exactly once', async () => {
+  const dispose = vi.fn()
+  const router = routerWithDisposeSpy('wrap-disposal-probe', dispose)
   const mounted = render(() => <RouterProvider router={router} />)
 
   await expect.element(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible()
@@ -52,4 +56,28 @@ test('unmounting disposes every extension instance even when one disposer throws
 
   expect(() => mounted.unmount()).not.toThrow()
   expect(order).toEqual(['a', 'b', 'c'])
+})
+
+test('calling disposeConcivRouter after an unmount is a no-op', async () => {
+  const dispose = vi.fn()
+  const router = routerWithDisposeSpy('wrap-disposal-idempotent', dispose)
+  const mounted = render(() => <RouterProvider router={router} />)
+
+  await expect.element(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible()
+  mounted.unmount()
+
+  disposeConcivRouter(router)
+
+  expect(dispose).toHaveBeenCalledTimes(1)
+})
+
+test('disposeConcivRouter disposes a router that was never rendered, and is idempotent', () => {
+  const dispose = vi.fn()
+  const router = routerWithDisposeSpy('wrap-disposal-never-rendered', dispose)
+
+  disposeConcivRouter(router)
+  expect(dispose).toHaveBeenCalledTimes(1)
+
+  disposeConcivRouter(router)
+  expect(dispose).toHaveBeenCalledTimes(1)
 })
