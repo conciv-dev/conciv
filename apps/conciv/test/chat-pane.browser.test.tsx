@@ -181,3 +181,24 @@ test('Escape outside the composer does not stop the run', async () => {
 
   await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
 })
+
+test('a new-session divider does not flash before the transcript snapshot hydrates', async () => {
+  mountChatPane({
+    holdSnapshot: true,
+    markers: [{id: 'marker-1', sessionId: PANE_SESSION, afterTurn: 0, kind: 'new'}],
+    snapshotFor: () => [
+      {id: 'u1', role: 'user', parts: [{type: 'text', content: 'restart with a clean slate'}]},
+      {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'starting a fresh session'}]},
+    ],
+  })
+
+  await expect.element(page.getByRole('status', {name: 'Loading conversation'})).toBeVisible()
+  await core?.idle()
+  await expect.element(page.getByRole('separator', {name: 'New session'})).not.toBeInTheDocument()
+
+  core?.releaseSnapshot()
+
+  await expect.element(page.getByText('starting a fresh session')).toBeVisible()
+  await expect.element(page.getByRole('separator', {name: 'New session'})).toBeVisible()
+  await expect.element(page.getByRole('status', {name: 'Loading conversation'})).not.toBeInTheDocument()
+})
