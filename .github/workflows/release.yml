@@ -7,6 +7,10 @@ on:
 # Supersede a stale waiting/pending run instead of queueing behind it, so an
 # unapproved run can't wedge later merges. The newest run publishes every
 # still-unpublished package once approved, so cancelling older ones loses nothing.
+# cancel-in-progress also owns the window where a run is cancelled mid-`changeset
+# publish`: that's acceptable because publish is resumable per package (npm
+# rejects a version that's already there as a no-op, not an error), so the next
+# run picks up and publishes whatever the cancelled run left unpublished.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -44,9 +48,9 @@ jobs:
       contents: write # changesets/action pushes the version commit
       pull-requests: write # changesets/action opens the version PR
     steps:
-      # changesets/action needs the git credential to push the version commit/PR; this job
-      # uploads no artifacts, so credential persistence is safe here.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0 # zizmor: ignore[artipacked]
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 11.7.0 # keep in sync with packageManager in package.json
@@ -66,12 +70,19 @@ jobs:
       # would be a registry-compromise straight into the publish path.
       - run: sfw npm i -g npm@12.0.1
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
+      # commitMode: github-api pushes the version commit/tags through the GitHub API
+      # instead of the git CLI: commits and tags come back GPG-signed and attributed
+      # to the token's identity, and this job never needs a persisted git credential
+      # (setupGitUser: false skips configuring a local git user that would otherwise
+      # go unused). Checkout above sets persist-credentials: false accordingly.
+      - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           version: pnpm release:version
           publish: pnpm release
           commit: 'chore: version packages'
           title: 'chore: version packages'
+          commitMode: 'github-api'
+          setupGitUser: false
         env:
           GITHUB_TOKEN: ${{ github.token }}
           NPM_CONFIG_PROVENANCE: 'true' # npm CLI
