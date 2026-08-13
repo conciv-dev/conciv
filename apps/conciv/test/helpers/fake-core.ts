@@ -1,4 +1,10 @@
-import {browserRpcConnection, closeBrowserRpcConnection, type DraftRow, type SessionMeta} from '@conciv/contract'
+import {
+  browserRpcConnection,
+  closeBrowserRpcConnection,
+  type DraftRow,
+  type MarkerRow,
+  type SessionMeta,
+} from '@conciv/contract'
 import '../../src/lib/api-base.js'
 
 export const CORE_BASE = 'http://conciv.test'
@@ -24,6 +30,7 @@ export type FakeCoreConfig = {
   rejectSend?: boolean
   snapshotFor?: (subscribeIndex: number) => unknown[]
   holdSnapshot?: boolean
+  markers?: MarkerRow[]
   holdRun?: boolean
   launchOk?: boolean
   launchRejects?: boolean
@@ -139,7 +146,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     '/rpc/sessions/compact': () => reply({ok: true}),
     '/rpc/drafts/get': () => reply(config.draft ?? null),
     '/rpc/drafts/set': () => reply({ok: true}),
-    '/rpc/markers/list': () => reply([]),
+    '/rpc/markers/list': () => reply(config.markers ?? []),
     '/rpc/captures/list': () => reply({captures: [], cssBundles: {}}),
     '/rpc/meta/models': () =>
       reply({

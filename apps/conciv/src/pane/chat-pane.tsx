@@ -147,6 +147,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const isStreaming = () => chat.status() === 'streaming'
   const working = () => isThinking() || isStreaming()
   const disconnected = () => chat.connectionStatus() !== 'connected'
+  const hydrated = createMemo<boolean>((prev) => prev || !disconnected(), false)
 
   const panelFocus = usePanelComposerFocus()
   const [inputHandle, setInputHandle] = createSignal<ComposerInputHandle>()
@@ -328,40 +329,42 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                 <Thread>
                   <Thread.Viewport>
                     <Suspense fallback={<ConversationSkeleton />}>
-                      <Thread.Welcome>
-                        <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
-                          <EmptyStateSlot
-                            onStarter={(starter) => void chat.sendMessage(starter)}
-                            instances={instances}
-                          />
+                      <Show when={hydrated()} fallback={<ConversationSkeleton />}>
+                        <Thread.Welcome>
+                          <Show when={!disconnected()} fallback={<ConversationSkeleton />}>
+                            <EmptyStateSlot
+                              onStarter={(starter) => void chat.sendMessage(starter)}
+                              instances={instances}
+                            />
+                          </Show>
+                        </Thread.Welcome>
+                        <Thread.Messages
+                          tools={tools()}
+                          attachmentCards={attachments().cards}
+                          components={{ToolFallback: ToolFallbackCard}}
+                          turnPrefix={renderTurnPrefix}
+                          pageSession={PAGE_SESSION}
+                        />
+                        <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                        <Show when={compacting()}>
+                          <Divider kind="compact" pending />
                         </Show>
-                      </Thread.Welcome>
-                      <Thread.Messages
-                        tools={tools()}
-                        attachmentCards={attachments().cards}
-                        components={{ToolFallback: ToolFallbackCard}}
-                        turnPrefix={renderTurnPrefix}
-                        pageSession={PAGE_SESSION}
-                      />
-                      <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
-                      <Show when={compacting()}>
-                        <Divider kind="compact" pending />
-                      </Show>
-                      <Show when={isThinking()}>
-                        <ThinkingBubble />
-                      </Show>
-                      <Show when={nowTitleText()}>
-                        {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
-                      </Show>
-                      <Show when={visibleError()}>
-                        {(error) => (
-                          <div class={ERROR} role="alert">
-                            <span class="flex-1">{error().message}</span>
-                            <button type="button" class={RETRY} onClick={() => void chat.reload()}>
-                              Retry
-                            </button>
-                          </div>
-                        )}
+                        <Show when={isThinking()}>
+                          <ThinkingBubble />
+                        </Show>
+                        <Show when={nowTitleText()}>
+                          {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
+                        </Show>
+                        <Show when={visibleError()}>
+                          {(error) => (
+                            <div class={ERROR} role="alert">
+                              <span class="flex-1">{error().message}</span>
+                              <button type="button" class={RETRY} onClick={() => void chat.reload()}>
+                                Retry
+                              </button>
+                            </div>
+                          )}
+                        </Show>
                       </Show>
                     </Suspense>
                   </Thread.Viewport>
