@@ -15,7 +15,9 @@ export function useThreadAutoScroll(
   opts: {autoScroll: Accessor<boolean>; hasActiveTopAnchor?: Accessor<boolean>},
 ): ThreadAutoScroll {
   let pausedUntil = 0
-  const follows = () => opts.autoScroll() && !(opts.hasActiveTopAnchor?.() ?? false) && Date.now() >= pausedUntil
+  const paused = () => Date.now() < pausedUntil
+  const topAnchored = () => opts.hasActiveTopAnchor?.() ?? false
+  const follows = () => opts.autoScroll() && !topAnchored() && !paused()
   const stick = createStickToBottom(viewport, {
     initial: 'instant',
     follow: follows,
@@ -24,7 +26,7 @@ export function useThreadAutoScroll(
     isAtBottom: stick.isAtBottom,
     escapedFromLock: stick.escapedFromLock,
     follows,
-    paused: () => Date.now() < pausedUntil,
+    paused,
     scrollToBottom: (behavior: ScrollBehavior = 'smooth') => {
       void stick.scrollToBottom({animation: behavior === 'smooth' ? undefined : 'instant'})
     },
