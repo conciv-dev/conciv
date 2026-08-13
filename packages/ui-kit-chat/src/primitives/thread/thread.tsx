@@ -63,8 +63,8 @@ function Viewport(props: ViewportProps): JSX.Element {
     'ref',
   ])
   const [element, setElement] = createSignal<HTMLDivElement>()
-  const [virtualScroll, setVirtualScroll] = createSignal<ThreadVirtualScroll>()
-  const scroll = useThreadScroll(element, local, virtualScroll)
+  let virtualScroll: ThreadVirtualScroll | undefined
+  const scroll = useThreadScroll(element, local, () => virtualScroll)
   const assignRef = (node: HTMLDivElement) => {
     setElement(node)
     if (typeof local.ref === 'function') local.ref(node)
@@ -75,7 +75,9 @@ function Viewport(props: ViewportProps): JSX.Element {
     isAtBottom: scroll.isAtBottom,
     ownsViewport: () => scroll.paused() || (scroll.isAtBottom() && scroll.follows()),
     pinToBottom: scroll.pinToBottom,
-    setVirtualScroll,
+    setVirtualScroll: (ops) => {
+      virtualScroll = ops
+    },
   }
   return (
     <ViewportProvider
@@ -291,19 +293,19 @@ function Messages(props: MessagesProps): JSX.Element {
   const eligible = () =>
     internal !== undefined && internal.turnAnchor() === 'bottom' && thread.turns.length >= virtualizeThreshold.value
   const [mode, setMode] = createSignal<'flat' | 'virtual'>(untrack(eligible) ? 'virtual' : 'flat')
-  const [anchor, setAnchor] = createSignal<CapturedAnchor>()
+  let anchor: CapturedAnchor | undefined
   createComputed(() => {
     const next = eligible() ? 'virtual' : 'flat'
     if (next === untrack(mode)) return
-    setAnchor(captureAnchor(internal))
+    anchor = captureAnchor(internal)
     setMode(next)
   })
   return (
     <Show
       when={mode() === 'virtual' ? internal : undefined}
-      fallback={<FlatMessages messages={props} internal={internal} anchor={anchor()} />}
+      fallback={<FlatMessages messages={props} internal={internal} anchor={anchor} />}
     >
-      {(resolved) => <VirtualMessages messages={props} internal={resolved()} anchor={anchor()} />}
+      {(resolved) => <VirtualMessages messages={props} internal={resolved()} anchor={anchor} />}
     </Show>
   )
 }
