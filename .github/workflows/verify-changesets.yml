@@ -1,0 +1,56 @@
+name: Verify changesets
+
+# Separate from ci.yml so the "no-changeset" label bypass can retrigger this
+# check on label add/remove: pull_request's default types (opened, synchronize,
+# reopened) don't include labeled/unlabeled, and adding those types to ci.yml
+# would rerun the entire build+test matrix on every label flip, which this repo
+# batches deliberately. This workflow is cheap (no build, no test matrix), so
+# retriggering it on every label change is fine.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check-changesets:
+    name: check-changesets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # --require-coverage diffs against the PR's base sha, which needs full
+      # history a depth-1 checkout doesn't have.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.7.0 # keep in sync with packageManager in package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+          firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
+      - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
+      # Validates every .changeset/*.md names a package that actually exists in
+      # the workspace before `changeset version` ever runs (see conciv-publish
+      # version, which runs the same guard). Runs straight from source (bin
+      # resolves src/cli.ts, no build needed).
+      - run: pnpm exec conciv-publish check-changesets
+      # Also require a changeset when the PR touches non-test code in a
+      # published package (fixed versioning means one @conciv entry covers the
+      # whole set). Base is the PR's actual merge base sha, not a branch name,
+      # so the diff is stable regardless of what main does after the PR opens.
+      # The "no-changeset" label is an escape hatch for PRs that intentionally
+      # ship no release (docs, CI-only, internal tooling); read straight from
+      # the PR event payload, never a GitHub API call from the guard itself.
+      - name: check-changesets --require-coverage
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changeset') }}
+        run: pnpm exec conciv-publish check-changesets --require-coverage --base "${{ github.event.pull_request.base.sha }}"
