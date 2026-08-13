@@ -40,6 +40,7 @@ export const Read: Story = {
     await waitFor(() => {
       const container = canvasElement.querySelector('diffs-container')
       expect(container?.shadowRoot?.textContent ?? '').toContain('return a + b')
+      expect(container?.shadowRoot?.querySelectorAll('span').length ?? 0).toBeGreaterThan(1)
     })
   },
 }

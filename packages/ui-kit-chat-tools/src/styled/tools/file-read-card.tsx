@@ -19,11 +19,7 @@ function Body(): JSX.Element {
         </Show>
       }
     >
-      <CodeBlock
-        size="sm"
-        maxHeight="log"
-        file={{name: view.path() || 'file', lang: 'text', contents: view.contents()}}
-      />
+      <CodeBlock size="sm" maxHeight="log" file={{name: view.path() || 'file', contents: view.contents()}} />
     </Show>
   )
 }

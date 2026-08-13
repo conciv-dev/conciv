@@ -46,7 +46,7 @@ const diffBlock = cva(
 )
 
 export function CodeBlock(props: {
-  file: {name: string; lang: string; contents: string}
+  file: {name: string; lang?: string; contents: string}
   size?: 'xs' | 'sm'
   maxHeight?: 'result' | 'log'
   chrome?: 'plain' | 'file'
