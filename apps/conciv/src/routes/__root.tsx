@@ -169,6 +169,15 @@ function RootChrome(props: {
 
   const sessions = useQuery(() => ({...data.utils.sessions.list.queryOptions(), enabled: connected()}))
   const working = () => (sessions.data ?? []).some((session) => session.running)
+  const latestSessionRow = () => {
+    if (!sessions.isSuccess) return undefined
+    if (sessions.data.length === 0) return undefined
+    return sessions.data.toSorted((a, b) => b.updatedAt - a.updatedAt)[0]
+  }
+  const warmSession = useQuery(() => ({
+    ...data.utils.sessions.resolve.queryOptions({input: {id: latestSessionRow()?.id}}),
+    enabled: connected() && Boolean(latestSessionRow()),
+  }))
 
   const [openIntent, setOpenIntent] = createSignal(false)
 
@@ -207,7 +216,7 @@ function RootChrome(props: {
       return
     }
     setOpenIntent(true)
-    const sessionId = await latestSessionId()
+    const sessionId = warmSession.data?.sessionId ?? (await latestSessionId())
     if (!sessionId) return
     if (!openIntent()) return
     void router.navigate({
