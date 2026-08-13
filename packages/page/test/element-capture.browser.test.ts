@@ -1,4 +1,4 @@
-import {afterEach, beforeEach, describe, expect, it} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
 import {collectClientTools, defineExtension, defineTool} from '@conciv/extension'
 import type {ElementCapture, PageCaptureBundle} from '@conciv/protocol/element-capture-types'
@@ -167,6 +167,78 @@ function findById(node: unknown, id: string): ProbeNode | undefined {
   return undefined
 }
 
+const FIXTURE_IMAGE_URL = new URL('./fixtures/sample.png', import.meta.url).href
+
+function crossOriginFixtureImageUrl(): string {
+  const fixture = new URL(FIXTURE_IMAGE_URL)
+  fixture.hostname = '[::1]'
+  return fixture.href
+}
+
+function mediaContainer(): HTMLDivElement {
+  const panel = host.querySelector('#panel')
+  if (panel === null) throw new Error('the fixture panel is missing')
+  const media = document.createElement('div')
+  media.id = 'media'
+  panel.appendChild(media)
+  return media
+}
+
+function solidPaint(context: CanvasRenderingContext2D, width: number, height: number): void {
+  context.fillStyle = 'rgb(200, 30, 30)'
+  context.fillRect(0, 0, width, height)
+}
+
+function noisePaint(context: CanvasRenderingContext2D, width: number, height: number): void {
+  const pixels = context.createImageData(width, height)
+  for (let index = 0; index < pixels.data.length; index += 1) {
+    pixels.data[index] = Math.floor(Math.random() * 256)
+  }
+  context.putImageData(pixels, 0, 0)
+}
+
+async function paintedBlobUrl(
+  width: number,
+  height: number,
+  paint: (context: CanvasRenderingContext2D, width: number, height: number) => void,
+): Promise<string> {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+  if (context === null) throw new Error('the canvas exposes no context')
+  paint(context, width, height)
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve))
+  if (blob === null) throw new Error('the canvas produced no blob')
+  return URL.createObjectURL(blob)
+}
+
+async function appendLoadedImage(parent: Element, id: string, src: string): Promise<HTMLImageElement> {
+  const image = document.createElement('img')
+  image.id = id
+  image.src = src
+  parent.appendChild(image)
+  await image.decode()
+  return image
+}
+
+function requiredDataUrl(node: unknown, id: string): string {
+  const value = findById(node, id)?.attributes?.['rr_dataURL']
+  if (typeof value !== 'string') throw new Error(`the ${id} image carries no inlined data url`)
+  return value
+}
+
+function inlineImageCost(dataUrl: string): number {
+  return dataUrl.length + 'rr_dataURL'.length + 6
+}
+
+async function decodedDataUrlSize(dataUrl: string): Promise<{width: number; height: number}> {
+  const probe = new Image()
+  probe.src = dataUrl
+  await probe.decode()
+  return {width: probe.naturalWidth, height: probe.naturalHeight}
+}
+
 describe('a page tool capture freezes the element as it was when the tool ran', () => {
   it('survives a later class flip and a later deletion of the captured node', async () => {
     const bundle = await captureOf('probe.settext', {selector: '#prose', text: 'rewritten'})
@@ -301,6 +373,119 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     const overflowLink = findById(node, 'hostile-overflow-link')
     expect(overflowLink).toBeDefined()
     expect(overflowLink?.attributes?.['href']).toBeUndefined()
+  })
+
+  it('inlines a same-origin image as a webp data url at rendered size while its remote src is stripped', async () => {
+    const media = mediaContainer()
+    const image = await appendLoadedImage(media, 'fixture-image', FIXTURE_IMAGE_URL)
+    image.style.width = '24px'
+    image.style.height = '16px'
+
+    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const imageNode = findById(bundle.after?.node, 'fixture-image')
+
+    expect(imageNode).toBeDefined()
+    expect(imageNode?.attributes?.['src']).toBeUndefined()
+    const dataUrl = imageNode?.attributes?.['rr_dataURL']
+    if (typeof dataUrl !== 'string') throw new Error('the image carries no inlined data url')
+    expect(dataUrl.startsWith('data:image/webp')).toBe(true)
+    expect(await decodedDataUrlSize(dataUrl)).toEqual({width: 24, height: 16})
+  })
+
+  it('admits images in document order: with room for only one of two equal images, the first wins', async () => {
+    const media = mediaContainer()
+    const noiseUrl = await paintedBlobUrl(64, 64, noisePaint)
+    await appendLoadedImage(media, 'first-image', noiseUrl)
+    await appendLoadedImage(media, 'second-image', noiseUrl)
+
+    const unconstrained = await captureOf('probe.mark', {selector: '#media'})
+    const probeNode = unconstrained.after?.node
+    const firstCost = inlineImageCost(requiredDataUrl(probeNode, 'first-image'))
+    const secondCost = inlineImageCost(requiredDataUrl(probeNode, 'second-image'))
+    const baseBytes = JSON.stringify(probeNode).length - firstCost - secondCost
+
+    const filler = document.createElement('div')
+    filler.id = 'filler'
+    filler.textContent = 'x'.repeat(200_000 - baseBytes - firstCost - Math.floor(firstCost / 2))
+    media.appendChild(filler)
+
+    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const node = bundle.after?.node
+
+    expect(node).toBeDefined()
+    expect(requiredDataUrl(node, 'first-image').startsWith('data:image/webp')).toBe(true)
+    expect(findById(node, 'second-image')).toBeDefined()
+    expect(findById(node, 'second-image')?.attributes?.['rr_dataURL']).toBeUndefined()
+    expect(JSON.stringify(node).length).toBeLessThanOrEqual(200_000)
+  })
+
+  it('measures the payload budget in utf-8 bytes, not utf-16 code units', async () => {
+    const media = mediaContainer()
+    const filler = document.createElement('div')
+    filler.id = 'wide-filler'
+    filler.textContent = '€'.repeat(69_000)
+    media.appendChild(filler)
+
+    const bundle = await captureOf('probe.mark', {selector: '#media'})
+
+    expect(bundle.after?.descriptor.selectorPath).toContain('#media')
+    expect(bundle.after?.node).toBeUndefined()
+  })
+
+  it('rejects an encoder failure instead of admitting a non-image data url, while a sibling image still inlines', async () => {
+    const media = mediaContainer()
+    const oversized = await appendLoadedImage(media, 'oversized-image', await paintedBlobUrl(8, 8, solidPaint))
+    oversized.style.width = '70000px'
+    oversized.style.height = '10px'
+    await appendLoadedImage(media, 'sibling-image', await paintedBlobUrl(8, 8, solidPaint))
+
+    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const node = bundle.after?.node
+
+    expect(findById(node, 'sibling-image')?.attributes?.['rr_dataURL']).toBeDefined()
+    expect(findById(node, 'oversized-image')).toBeDefined()
+    expect(findById(node, 'oversized-image')?.attributes?.['rr_dataURL']).toBeUndefined()
+  })
+
+  it('leaves the live element untouched and silent when the canvas taints, while a sibling image still inlines', async () => {
+    const media = mediaContainer()
+    const tainted = await appendLoadedImage(media, 'tainted-image', crossOriginFixtureImageUrl())
+    await appendLoadedImage(media, 'clean-image', await paintedBlobUrl(8, 8, solidPaint))
+    const attributeNamesBefore = tainted.getAttributeNames().join(',')
+    const warnSpy = vi.spyOn(console, 'warn')
+    const errorSpy = vi.spyOn(console, 'error')
+    const listenerSpy = vi.spyOn(tainted, 'addEventListener')
+
+    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const node = bundle.after?.node
+
+    expect(findById(node, 'clean-image')?.attributes?.['rr_dataURL']).toBeDefined()
+    expect(findById(node, 'tainted-image')).toBeDefined()
+    expect(findById(node, 'tainted-image')?.attributes?.['rr_dataURL']).toBeUndefined()
+    expect(tainted.getAttributeNames().join(',')).toBe(attributeNamesBefore)
+    expect(tainted.getAttribute('crossorigin')).toBeNull()
+    expect(listenerSpy).not.toHaveBeenCalled()
+    expect(warnSpy).not.toHaveBeenCalled()
+    expect(errorSpy).not.toHaveBeenCalled()
+  })
+
+  it('never inlines a conciv-block image, direct or nested', async () => {
+    const media = mediaContainer()
+    const blockedImage = await appendLoadedImage(media, 'blocked-image', await paintedBlobUrl(8, 8, solidPaint))
+    blockedImage.className = 'conciv-block'
+    const blockedWrap = document.createElement('div')
+    blockedWrap.className = 'conciv-block'
+    media.appendChild(blockedWrap)
+    await appendLoadedImage(blockedWrap, 'nested-blocked-image', await paintedBlobUrl(8, 8, solidPaint))
+    await appendLoadedImage(media, 'plain-image', await paintedBlobUrl(8, 8, solidPaint))
+
+    const bundle = await captureOf('probe.mark', {selector: '#media'})
+    const node = bundle.after?.node
+
+    expect(findById(node, 'plain-image')?.attributes?.['rr_dataURL']).toBeDefined()
+    expect(findById(node, 'nested-blocked-image')).toBeUndefined()
+    const serialized = JSON.stringify(node)
+    expect(serialized.split('rr_dataURL').length - 1).toBe(1)
   })
 
   it('omits the serialized node and keeps the descriptor when the subtree blows past the payload budget', async () => {

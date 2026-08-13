@@ -74,6 +74,17 @@ describe('isDroppableAttribute', () => {
     expect(isDroppableAttribute('style', 'color:red')).toBe(false)
   })
 
+  it('drops a non-raster rr_dataURL, decoded and stripped like every url check', () => {
+    expect(isDroppableAttribute('rr_dataURL', 'https://evil.example/x.png')).toBe(true)
+    expect(isDroppableAttribute('rr_dataURL', 'https&colon;//evil.example/x.png')).toBe(true)
+    expect(isDroppableAttribute('rr_dataURL', 'javascript:alert(1)')).toBe(true)
+    expect(isDroppableAttribute('rr_dataURL', '&#x110000;data:image/png,AAAA')).toBe(true)
+    expect(isDroppableAttribute('rr_dataURL', 42)).toBe(true)
+    expect(isDroppableAttribute('rr_dataURL', 'data:text/html,<script>boom()</script>')).toBe(true)
+    expect(isDroppableAttribute('rr_dataURL', 'data:image/webp;base64,AAAA')).toBe(false)
+    expect(isDroppableAttribute('rr_dataURL', 'data:image/png;base64,AAAA')).toBe(false)
+  })
+
   it('keeps ordinary attributes', () => {
     expect(isDroppableAttribute('class', 'card')).toBe(false)
     expect(isDroppableAttribute('value', 'ada@example.com')).toBe(false)
@@ -116,6 +127,18 @@ describe('neutralizeSubtree', () => {
     expect(tree.childNodes?.[0]?.attributes).toEqual({})
     expect(tree.childNodes?.[1]?.attributes).toEqual({})
     expect(tree.childNodes?.[1]?.childNodes?.[0]?.attributes).toEqual({})
+  })
+
+  it('drops a hostile rr_dataURL from a stored capture but keeps an inlined raster image', () => {
+    const tree = elementNode('div', {}, [
+      elementNode('img', {rr_dataURL: 'https://evil.example/x.png'}),
+      elementNode('img', {rr_dataURL: 'data:image/webp;base64,AAAA'}),
+    ])
+
+    neutralizeSubtree(tree)
+
+    expect(tree.childNodes?.[0]?.attributes).toEqual({})
+    expect(tree.childNodes?.[1]?.attributes).toEqual({rr_dataURL: 'data:image/webp;base64,AAAA'})
   })
 
   it('never throws on an attribute carrying an out-of-range numeric character reference', () => {
