@@ -1,7 +1,7 @@
 import './helpers/utilities.css'
 import {render} from '@solidjs/testing-library'
-import {beforeEach, expect, test} from 'vitest'
-import {page, userEvent} from 'vitest/browser'
+import {expect, test} from 'vitest'
+import {page} from 'vitest/browser'
 import type {Grab} from '@conciv/grab'
 import {makeImageHostGrab} from '@conciv/extension-testkit/host/grab'
 import {GrabReference} from '../src/pane/grab-reference.js'
@@ -24,9 +24,9 @@ function domGrab(size: {width: number; height: number} = {width: 200, height: 40
   }
 }
 
-const resizer = () => page.getByRole('separator', {name: 'Resize grabbed element preview'})
-
-beforeEach(() => localStorage.removeItem('conciv-grab-preview-height'))
+function previewBox(host: HTMLElement): HTMLElement | null | undefined {
+  return host.querySelector('[data-pw-grab-scale]')?.parentElement?.parentElement
+}
 
 test('grab reference renders the dom preview arm by appending the cloned node', () => {
   const host = mount(domGrab())
@@ -39,29 +39,16 @@ test('grab reference renders the image preview arm as an img element', () => {
   expect(host.querySelector('img')?.getAttribute('src')).toBe(IMAGE_DATA_URL)
 })
 
-test('a tall preview opens at the default preview height, not at its own height', async () => {
-  mount(domGrab({width: 900, height: 2400}))
+test('a tall preview renders inside the capped, user-resizable preview box', () => {
+  const host = mount(domGrab({width: 900, height: 2400}))
 
-  await expect.element(resizer()).toHaveAttribute('aria-valuenow', '160')
+  expect(page.getByText('Payroll Deposit clone').elements()).toHaveLength(1)
+  expect(previewBox(host)).toHaveClass('max-h-40', 'min-h-16', 'overflow-auto', 'resize-y')
 })
 
-test('the preview resizer is keyboard operable and reports the height it settles on', async () => {
-  mount(domGrab({width: 900, height: 2400}))
+test('a text-only grab has no preview box to resize', () => {
+  const host = mount({text: 'just the copied text'})
 
-  await userEvent.tab()
-  await userEvent.tab()
-  await userEvent.keyboard('{ArrowUp}{ArrowUp}')
-
-  await expect.element(resizer()).toHaveAttribute('aria-valuenow', '112')
-
-  await userEvent.keyboard('{ArrowDown}')
-
-  await expect.element(resizer()).toHaveAttribute('aria-valuenow', '136')
-})
-
-test('a text-only grab has no preview to resize', async () => {
-  mount({text: 'just the copied text'})
-
-  await expect.element(page.getByText('just the copied text')).toBeVisible()
-  await expect.element(resizer()).not.toBeInTheDocument()
+  expect(page.getByText('just the copied text').elements()).toHaveLength(1)
+  expect(previewBox(host)).toBeUndefined()
 })

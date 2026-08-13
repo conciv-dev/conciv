@@ -1,40 +1,24 @@
-import {Show, createMemo, type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import X from 'lucide-solid/icons/x'
-import {TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
+import {TooltipIconButton} from '@conciv/ui-kit-system'
 import type {GrabPreview, Grab} from '@conciv/grab'
 import {sourceLabel} from './grab-source-label.js'
 
 const PREVIEW_MAX_WIDTH = 280
-const PREVIEW_MAX_HEIGHT = 160
-const PREVIEW_MIN_HEIGHT = 64
-const PREVIEW_HEIGHT_KEY = 'conciv-grab-preview-height'
 
-const RESIZER =
-  'w-full h-2 shrink-0 cursor-ns-resize rounded-pw-pill bg-transparent trans-color-bg hover:bg-pw-line focus-visible:outline-none focus-visible:bg-pw-accent-20 focus-visible:ring-inset-accent'
+const PREVIEW_BOX = 'max-w-full max-h-40 min-h-16 overflow-auto resize-y cursor-default'
 
-function widthScale(width: number): number {
+function fitScale(width: number): number {
   if (width <= 0) return 1
   return Math.min(1, PREVIEW_MAX_WIDTH / width)
 }
 
-function containScale(preview: GrabPreview, available: number): number {
-  const byWidth = widthScale(preview.width)
-  if (preview.height <= 0 || preview.height * byWidth <= available) return byWidth
-  return available / preview.height
-}
-
 function ScaledSnapshot(props: {preview: GrabPreview}): JSX.Element {
-  const resize = createResizable({
-    initial: PREVIEW_MAX_HEIGHT,
-    min: PREVIEW_MIN_HEIGHT,
-    storageKey: PREVIEW_HEIGHT_KEY,
-    grow: () => 'down',
-  })
-  const scale = createMemo(() => containScale(props.preview, resize.size()))
+  const scale = () => fitScale(props.preview.width)
   return (
-    <>
+    <div class={PREVIEW_BOX}>
       <div
-        class="inline-flex max-w-full cursor-default overflow-hidden"
+        class="overflow-hidden"
         style={{
           width: `${Math.ceil(props.preview.width * scale())}px`,
           height: `${Math.ceil(props.preview.height * scale())}px`,
@@ -63,18 +47,7 @@ function ScaledSnapshot(props: {preview: GrabPreview}): JSX.Element {
           }}
         />
       </div>
-      <div
-        class={RESIZER}
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label="Resize grabbed element preview"
-        aria-valuemin={PREVIEW_MIN_HEIGHT}
-        aria-valuenow={Math.round(resize.size())}
-        tabindex={0}
-        onPointerDown={resize.onPointerDown}
-        onKeyDown={resize.onKeyDown}
-      />
-    </>
+    </div>
   )
 }
 
