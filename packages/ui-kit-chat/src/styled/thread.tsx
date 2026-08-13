@@ -29,7 +29,6 @@ import {useMessage} from '../primitives/message/message-context.js'
 import {
   CHAIN_GROUP_KEY,
   groupParts,
-  PAGE_SESSION_GROUP_KEY,
   type GroupEntry,
   type GroupKey,
   type GroupNode,
@@ -38,12 +37,7 @@ import {
   type GroupRenderProps,
   type Turn,
 } from '../store/grouping.js'
-import {
-  createGrouping,
-  pageSessionCallParts,
-  pageSessionThinkingParts,
-  type PageSessionConfig,
-} from '../store/page-session.js'
+import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {useViewportInternal} from '../primitives/thread/viewport-internal.js'
 import {TurnEstimateProvider} from '../primitives/thread/turn-estimate.js'
 import {createTurnEstimator} from './text-metrics.js'
@@ -189,22 +183,10 @@ function AssistantTurn(props: {
       </Index>
     </ChainOfThought>
   )
-  const pageSessionEntry = (config: PageSessionConfig): GroupEntry => ({
-    key: PAGE_SESSION_GROUP_KEY,
-    render: (groupProps) => (
-      <Dynamic
-        component={config.render}
-        parts={pageSessionCallParts(groupProps.parts(), groupProps.node.indices)}
-        thinking={pageSessionThinkingParts(groupProps.parts(), groupProps.node.indices)}
-        resultFor={(toolCallId: string) => message.pairing().byCallId.get(toolCallId)}
-        streaming={groupProps.streaming}
-      />
-    ),
-  })
   const groupEntries = createMemo<GroupEntry[]>(() => {
     const chain: GroupEntry = {key: CHAIN_GROUP_KEY, render: ChainGroup}
     const config = props.pageSession
-    return config ? [chain, pageSessionEntry(config)] : [chain]
+    return config ? [chain, config.entry] : [chain]
   })
   const entryFor = (key: GroupKey) => groupEntries().find((entry) => entry.key === key)
   const renderableNode = (node: GroupNode) => node.type === 'part' || entryFor(node.key) !== undefined
@@ -219,7 +201,13 @@ function AssistantTurn(props: {
               {(group) => (
                 <Show when={entryFor(group().key)}>
                   {(entry) => (
-                    <Dynamic component={entry().render} node={group()} parts={parts} streaming={liveNode(nodeIndex)} />
+                    <Dynamic
+                      component={entry().render}
+                      node={group()}
+                      parts={parts}
+                      resultFor={(toolCallId: string) => message.pairing().byCallId.get(toolCallId)}
+                      streaming={liveNode(nodeIndex)}
+                    />
                   )}
                 </Show>
               )}

@@ -1,6 +1,5 @@
 import {uniqBy} from 'es-toolkit'
-import type {JSX} from 'solid-js'
-import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {
   defaultGrouper,
@@ -8,6 +7,7 @@ import {
   parentToolCallIdOf,
   PAGE_SESSION_GROUP_KEY,
   PAGE_SESSION_PATH,
+  type GroupEntry,
   type GroupPath,
   type Grouper,
   type Grouping,
@@ -15,17 +15,8 @@ import {
 
 export type PageSessionThinkingPart = Extract<MessagePart, {type: 'thinking'}>
 
-export type PageSessionRenderProps = {
-  parts: ReadonlyArray<ToolCallPart>
-  thinking: ReadonlyArray<PageSessionThinkingPart>
-  resultFor: (toolCallId: string) => ToolResultPart | undefined
-  streaming: boolean
-}
-
-export type PageSessionRenderer = (props: PageSessionRenderProps) => JSX.Element
-
 export type PageSessionConfig = {
-  render: PageSessionRenderer
+  entry: GroupEntry
   actNames: ReadonlySet<string>
   toolPrefix: string
 }

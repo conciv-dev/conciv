@@ -25,7 +25,7 @@ import {
   type PageSessionConfig,
   type Turn,
 } from '@conciv/ui-kit-chat'
-import {SessionCard} from '@conciv/extension-page/client'
+import {pageSessionEntry} from '@conciv/extension-page/client'
 import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
@@ -64,7 +64,7 @@ import {checkSend, type SendVerdict} from './send-checks.js'
 const GRAB_PREVIEW_MAX_W = 280
 
 const PAGE_SESSION: PageSessionConfig = {
-  render: SessionCard,
+  entry: pageSessionEntry,
   actNames: PAGE_ACT_TOOL_NAMES,
   toolPrefix: PAGE_TOOL_PREFIX,
 }

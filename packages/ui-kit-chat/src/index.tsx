@@ -39,8 +39,6 @@ export {
   createPageSessionGrouper,
   pageSessionCallParts,
   pageSessionThinkingParts,
-  type PageSessionRenderProps,
-  type PageSessionRenderer,
   type PageSessionConfig,
   type PageSessionGrouperConfig,
   type PageSessionThinkingPart,
@@ -115,10 +113,6 @@ export {
   type PendingAttachmentStatus,
   type CompleteAttachmentStatus,
 } from './primitives/attachment/attachment-adapter.js'
-export {
-  ChainOfThought as ChainOfThoughtPrimitive,
-  useChainOfThought,
-} from './primitives/chain-of-thought/chain-of-thought.js'
 export {
   BranchPicker as BranchPickerPrimitive,
   BranchProvider,

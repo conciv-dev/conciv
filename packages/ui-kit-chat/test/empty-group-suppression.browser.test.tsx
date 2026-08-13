@@ -5,18 +5,22 @@ import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import type {MessagePart, UIMessage} from '@tanstack/ai-client'
 import {ChatProvider} from '../src/store/chat-context.js'
-import type {PageSessionConfig, PageSessionRenderProps} from '../src/store/page-session.js'
+import {PAGE_SESSION_GROUP_KEY, type GroupEntry, type GroupRenderProps} from '../src/store/grouping.js'
+import {pageSessionCallParts, type PageSessionConfig} from '../src/store/page-session.js'
 import {createReasoningChunks, storyConnection} from '../src/store/story-connection.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 import {haltRun, RunSettledIndicator, startRun} from './run-harness.js'
 
-function StubSessionCard(props: PageSessionRenderProps): JSX.Element {
-  return <span>{`session acts ${props.parts.length}`}</span>
+function StubSessionCard(props: GroupRenderProps): JSX.Element {
+  const parts = () => pageSessionCallParts(props.parts(), props.node.indices)
+  return <span>{`session acts ${parts().length}`}</span>
 }
 
+const PAGE_SESSION_ENTRY: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: StubSessionCard}
+
 const PAGE_SESSION: PageSessionConfig = {
-  render: StubSessionCard,
+  entry: PAGE_SESSION_ENTRY,
   actNames: new Set(['page.fill']),
   toolPrefix: 'page.',
 }

@@ -12,10 +12,15 @@ import SquareCheck from 'lucide-solid/icons/square-check'
 import TextCursorInput from 'lucide-solid/icons/text-cursor-input'
 import type {LucideIcon} from 'lucide-solid'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {ReasoningText, useToolCtx, type PageSessionRenderProps} from '@conciv/ui-kit-chat'
+import {
+  pageSessionCallParts,
+  pageSessionThinkingParts,
+  ReasoningText,
+  useToolCtx,
+  type GroupRenderProps,
+} from '@conciv/ui-kit-chat'
 import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {
-  CardShell,
   Chip,
   clip,
   CodeBlock,
@@ -25,6 +30,7 @@ import {
   parseResultPayload,
   SHIMMER,
   StatusVisual,
+  ToolCard,
   type ToolStatus,
 } from '@conciv/ui-kit-chat/tools'
 import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX, pageVerbGerund} from '../../shared/defs.js'
@@ -274,25 +280,27 @@ function SessionHeader(props: {
   )
 }
 
-export function SessionCard(props: PageSessionRenderProps): JSX.Element {
+export function SessionCard(props: GroupRenderProps): JSX.Element {
   const ctx = useToolCtx()
   const captureFor = (toolCallId: string) => ctx.captureFor?.(toolCallId)
+  const parts = createMemo(() => pageSessionCallParts(props.parts(), props.node.indices))
+  const thinking = createMemo(() => pageSessionThinkingParts(props.parts(), props.node.indices))
   const steps = createMemo(() =>
-    pageSessionSteps(props.parts, props.resultFor, captureFor, PAGE_ACT_TOOL_NAMES, props.streaming),
+    pageSessionSteps(parts(), props.resultFor, captureFor, PAGE_ACT_TOOL_NAMES, props.streaming),
   )
-  const errorMessage = () => sessionErrorMessage(props.parts, props.resultFor)
+  const errorMessage = () => sessionErrorMessage(parts(), props.resultFor)
   const status = () => sessionStatus(steps(), props.streaming, errorMessage() !== undefined)
   const title = () => {
     const labels = pageSessionScripted(steps()) ? SESSION_LABEL.script : SESSION_LABEL.edit
     return props.streaming ? labels.running : labels.done
   }
-  const scripts = createMemo(() => sessionScripts(props.parts))
+  const scripts = createMemo(() => sessionScripts(parts()))
   return (
-    <Show when={steps().length > 0 ? props.parts[0] : undefined}>
+    <Show when={steps().length > 0 ? parts()[0] : undefined}>
       {(anchor) => (
-        <CardShell
-          meta={SESSION_META}
+        <ToolCard
           title={title()}
+          titleTooltip={SESSION_META.summary}
           part={anchor()}
           result={props.resultFor(anchor().id)}
           status={status()}
@@ -303,7 +311,7 @@ export function SessionCard(props: PageSessionRenderProps): JSX.Element {
             <SessionHeader
               title={title()}
               count={actionsLabel(steps().length)}
-              url={sessionLocation(props.parts, props.resultFor, props.streaming)}
+              url={sessionLocation(parts(), props.resultFor, props.streaming)}
               streaming={props.streaming}
               status={status()}
             />
@@ -315,10 +323,10 @@ export function SessionCard(props: PageSessionRenderProps): JSX.Element {
                 {(step, index) => <StepRow step={step()} index={index} streaming={props.streaming} />}
               </Index>
             </ul>
-            <Show when={props.thinking.length > 0 || scripts().length > 0}>
-              <CollapsibleSection header={<span>{contextLabel(props.thinking.length, scripts().length)}</span>}>
+            <Show when={thinking().length > 0 || scripts().length > 0}>
+              <CollapsibleSection header={<span>{contextLabel(thinking().length, scripts().length)}</span>}>
                 <div class="flex flex-col gap-2 min-w-0">
-                  <Index each={props.thinking}>{(part) => <ReasoningText text={part().content} />}</Index>
+                  <Index each={thinking()}>{(part) => <ReasoningText text={part().content} />}</Index>
                   <Index each={scripts()}>
                     {(script) => <CodeBlock file={{name: 'session.ts', lang: 'ts', contents: script()}} />}
                   </Index>
@@ -327,7 +335,7 @@ export function SessionCard(props: PageSessionRenderProps): JSX.Element {
             </Show>
             <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
           </div>
-        </CardShell>
+        </ToolCard>
       )}
     </Show>
   )

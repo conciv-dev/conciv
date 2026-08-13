@@ -108,6 +108,7 @@ export type GroupNode = GroupNodeGroup | GroupNodePart
 export type GroupRenderProps = {
   node: GroupNodeGroup
   parts: () => readonly MessagePart[]
+  resultFor: (toolCallId: string) => ToolResultPart | undefined
   streaming: boolean
 }
 

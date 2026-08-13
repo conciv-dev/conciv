@@ -31,12 +31,7 @@ import {
   type GroupNodePart,
   type Turn,
 } from '../store/grouping.js'
-import {
-  createGrouping,
-  pageSessionCallParts,
-  pageSessionThinkingParts,
-  type PageSessionConfig,
-} from '../store/page-session.js'
+import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {Dynamic} from 'solid-js/web'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
 import {createAutoCollapse} from '../primitives/util/create-auto-collapse.js'
@@ -328,9 +323,9 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
                 <Show when={config.pageSession()}>
                   {(pageSession) => (
                     <Dynamic
-                      component={pageSession().render}
-                      parts={pageSessionCallParts(props.turn.parts, session().indices)}
-                      thinking={pageSessionThinkingParts(props.turn.parts, session().indices)}
+                      component={pageSession().entry.render}
+                      node={session()}
+                      parts={() => props.turn.parts}
                       resultFor={activity.resultFor}
                       streaming={liveSegment(index)}
                     />

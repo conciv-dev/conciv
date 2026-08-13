@@ -2,12 +2,23 @@ import {createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {PageSessionThinkingPart} from '@conciv/ui-kit-chat'
+import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
 import {SessionCard} from '../src/client/cards/session-card.js'
 
 function mount(view: () => JSX.Element): void {
   render(view)
+}
+
+function sessionNode(parts: readonly MessagePart[]): GroupNodeGroup {
+  return {
+    type: 'group',
+    key: PAGE_SESSION_GROUP_KEY,
+    nodeKey: '',
+    idKey: undefined,
+    indices: parts.map((_, index) => index),
+    children: [],
+  }
 }
 
 function toolCall(
@@ -38,7 +49,7 @@ function lookup(results: Record<string, ToolResultPart>): (id: string) => ToolRe
 test('streamed act appends and token growth keep the existing step-rail rows mounted', async () => {
   const [parts, setParts] = createSignal<ToolCallPart[]>([fillCall('f1', '#name', 'Ada')])
   const results = {f1: okResult('f1')}
-  mount(() => <SessionCard parts={parts()} thinking={[]} resultFor={lookup(results)} streaming={true} />)
+  mount(() => <SessionCard node={sessionNode(parts())} parts={parts} resultFor={lookup(results)} streaming={true} />)
 
   const rows = () => page.getByRole('listitem').elements()
   await expect.element(page.getByText('#name')).toBeVisible()
@@ -56,13 +67,9 @@ test('streamed act appends and token growth keep the existing step-rail rows mou
 })
 
 test('a streaming act outside the shorthand verbs still reads as a running phrase', async () => {
+  const parts: ToolCallPart[] = [toolCall('h1', 'page.hover', {selector: '#menu'}, 'input-complete')]
   mount(() => (
-    <SessionCard
-      parts={[toolCall('h1', 'page.hover', {selector: '#menu'}, 'input-complete')]}
-      thinking={[]}
-      resultFor={() => undefined}
-      streaming={true}
-    />
+    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={() => undefined} streaming={true} />
   ))
 
   await expect.element(page.getByText('Hovering #menu…')).toBeVisible()
@@ -76,13 +83,13 @@ const THINKING: PageSessionThinkingPart[] = [{type: 'thinking', content: 'choose
 
 test('a settled session shows its folded reasoning and script in a collapsed flat section', async () => {
   const results = {p1: okResult('p1'), f1: okResult('f1')}
+  const parts: MessagePart[] = [
+    ...THINKING,
+    codeRun('p1'),
+    toolCall('f1', 'page.fill', {selector: '#prose', value: 'better prose'}, 'complete'),
+  ]
   mount(() => (
-    <SessionCard
-      parts={[codeRun('p1'), toolCall('f1', 'page.fill', {selector: '#prose', value: 'better prose'}, 'complete')]}
-      thinking={THINKING}
-      resultFor={lookup(results)}
-      streaming={false}
-    />
+    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
   ))
 
   await page.getByRole('button', {name: /Edited the page/}).click()
@@ -94,15 +101,26 @@ test('a settled session shows its folded reasoning and script in a collapsed fla
   await expect.element(page.getByText(/external_page_settext/).first()).toBeVisible()
 })
 
+test('an expanded session shows its step rail without a tool-input row of its own', async () => {
+  const results = {f1: okResult('f1')}
+  const parts: ToolCallPart[] = [toolCall('f1', 'page.fill', {selector: '#name', value: 'Ada'}, 'complete')]
+  mount(() => (
+    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
+  ))
+
+  await page.getByRole('button', {name: /Edited the page/}).click()
+  await expect.element(page.getByText('#name')).toBeVisible()
+  await expect.element(page.getByText('no input')).not.toBeInTheDocument()
+})
+
 test('a session whose only error is the folded script run reports error status', async () => {
   const results = {p1: errorResult('p1', 'Script exploded'), f1: okResult('f1')}
+  const parts: ToolCallPart[] = [
+    codeRun('p1'),
+    toolCall('f1', 'page.fill', {selector: '#prose', value: 'x'}, 'complete'),
+  ]
   mount(() => (
-    <SessionCard
-      parts={[codeRun('p1'), toolCall('f1', 'page.fill', {selector: '#prose', value: 'x'}, 'complete')]}
-      thinking={[]}
-      resultFor={lookup(results)}
-      streaming={false}
-    />
+    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
   ))
 
   await expect.element(page.getByText('Edited the page')).toBeVisible()
@@ -112,13 +130,9 @@ test('a session whose only error is the folded script run reports error status',
 
 test('a settled session without a folded route result shows no location pill', async () => {
   const results = {f1: okResult('f1')}
+  const parts: ToolCallPart[] = [toolCall('f1', 'page.fill', {selector: '#name', value: 'Ada'}, 'complete')]
   mount(() => (
-    <SessionCard
-      parts={[toolCall('f1', 'page.fill', {selector: '#name', value: 'Ada'}, 'complete')]}
-      thinking={[]}
-      resultFor={lookup(results)}
-      streaming={false}
-    />
+    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={lookup(results)} streaming={false} />
   ))
 
   await expect.element(page.getByText('Edited the page')).toBeVisible()
@@ -126,13 +140,9 @@ test('a settled session without a folded route result shows no location pill', a
 })
 
 test('a streaming session without a route result shows the current location honestly', async () => {
+  const parts: ToolCallPart[] = [toolCall('f1', 'page.fill', {selector: '#name', value: 'Ada'}, 'input-complete')]
   mount(() => (
-    <SessionCard
-      parts={[toolCall('f1', 'page.fill', {selector: '#name', value: 'Ada'}, 'input-complete')]}
-      thinking={[]}
-      resultFor={() => undefined}
-      streaming={true}
-    />
+    <SessionCard node={sessionNode(parts)} parts={() => parts} resultFor={() => undefined} streaming={true} />
   ))
 
   await expect.element(page.getByText('Editing the page')).toBeVisible()

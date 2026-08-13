@@ -9,6 +9,7 @@ import {
   parseInput,
   parseResultPayload,
   resultText,
+  type CardChip,
 } from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 
@@ -29,7 +30,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function resultChips(result: ToolCardProps['result']): Array<{name: string; value: string}> {
+export function resultChips(result: ToolCardProps['result']): Array<CardChip> {
   const payload = parseResultPayload(result)
   if (!isPlainRecord(payload)) return []
   return Object.entries(payload)
@@ -37,11 +38,10 @@ export function resultChips(result: ToolCardProps['result']): Array<{name: strin
     .map(([name, value]) => ({name, value: clip(displayValue(value))}))
 }
 
-export function ChipRow(props: {element?: string; chips: ReadonlyArray<{name: string; value: string}>}): JSX.Element {
+export function ChipRow(props: {chips: ReadonlyArray<CardChip>}): JSX.Element {
   return (
-    <Show when={props.element !== undefined || props.chips.length > 0}>
+    <Show when={props.chips.length > 0}>
       <ChipRowShell>
-        <Show when={props.element}>{(value) => <Chip name="element" value={value()} />}</Show>
         <For each={props.chips}>{(chip) => <Chip name={chip.name} value={chip.value} />}</For>
       </ChipRowShell>
     </Show>
@@ -56,7 +56,7 @@ export function mutatingBadge(meta: ToolViewMeta | undefined): string | undefine
   return meta?.mutating === true ? MUTATING_BADGE : undefined
 }
 
-export function elementTargetValue(input: Record<string, unknown>): string | undefined {
+function elementTargetValue(input: Record<string, unknown>): string | undefined {
   const selector = input.selector
   const ref = input.ref
   const name = input.name
@@ -64,6 +64,11 @@ export function elementTargetValue(input: Record<string, unknown>): string | und
   if (typeof ref === 'string' && ref.length > 0) return ref
   if (typeof name === 'string' && name.length > 0) return name
   return undefined
+}
+
+export function elementChip(part: ToolCardProps['part']): CardChip | undefined {
+  const value = elementTargetValue(toolInput(part))
+  return value === undefined ? undefined : {name: 'element', value}
 }
 
 export function cardErrorMessage(result: ToolCardProps['result']): string | undefined {
