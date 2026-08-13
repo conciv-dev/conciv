@@ -29,7 +29,7 @@ export const NestedInsideCardBody: Story = {
     const canvas = within(canvasElement)
     const trigger = canvas.getByRole('button', {name: 'src/utils/format.ts'})
     await expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    await expect(canvas.queryByText('3 assertions failed')).not.toBeVisible()
+    expect(canvas.queryByText('3 assertions failed')).toBeNull()
 
     await userEvent.click(trigger)
     await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'))

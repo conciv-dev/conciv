@@ -26,7 +26,7 @@ export const CollapsedThenExpand: Story = {
 
     const trigger = await waitFor(() => c.getByText('3 tool calls'))
     await expect(trigger).toBeVisible()
-    await expect(c.getByText('grep TODO')).not.toBeVisible()
+    expect(c.queryByText('grep TODO')).toBeNull()
     await userEvent.click(trigger)
     await waitFor(() => expect(c.getByText('grep TODO')).toBeVisible())
   },

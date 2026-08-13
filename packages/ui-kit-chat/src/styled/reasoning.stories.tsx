@@ -37,7 +37,7 @@ export const SettledCollapsedThenExpand: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     const trigger = await waitFor(() => c.getByText('Reasoning'))
-    await expect(c.getByText(/missing await/)).not.toBeVisible()
+    expect(c.queryByText(/missing await/)).toBeNull()
     await userEvent.click(trigger)
     await waitFor(() => expect(c.getByText(/missing await/)).toBeVisible())
   },
