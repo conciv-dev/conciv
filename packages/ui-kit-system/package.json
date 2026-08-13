@@ -19,7 +19,8 @@
   },
   "files": [
     "dist",
-    "src/tokens.css"
+    "src/tokens.css",
+    "src/loader.css"
   ],
   "type": "module",
   "exports": {
@@ -31,7 +32,8 @@
       "types": "./dist/tokens.d.ts",
       "import": "./dist/tokens.js"
     },
-    "./tokens.css": "./src/tokens.css"
+    "./tokens.css": "./src/tokens.css",
+    "./loader.css": "./src/loader.css"
   },
   "publishConfig": {
     "access": "public"
@@ -43,7 +45,7 @@
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only --exclude-entrypoints tokens.css"
+    "attw": "attw --pack . --profile esm-only --exclude-entrypoints tokens.css loader.css"
   },
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",

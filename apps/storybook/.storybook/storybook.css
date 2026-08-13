@@ -1,5 +1,6 @@
 @import '@unocss/reset/tailwind.css';
 @import '@conciv/ui-kit-system/tokens.css';
+@import '@conciv/ui-kit-system/loader.css';
 @import '@conciv/ui-kit-chat/theme/tokens.css';
 @import '@conciv/ui-kit-chat/theme/conciv.css';
 @import '@conciv/solid-streamdown/styles.css';

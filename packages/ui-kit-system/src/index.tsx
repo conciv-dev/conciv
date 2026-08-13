@@ -7,6 +7,7 @@ export {Select, createListCollection} from './select.js'
 export {Dialog, type DialogApi} from './dialog.js'
 export {TextField, TextArea, type TextAreaProps} from './text-field.js'
 export {Progress} from './progress.js'
+export {Loader, type LoaderSize} from './loader.js'
 export {Tooltip} from './tooltip.js'
 export {
   TooltipIconButton,
