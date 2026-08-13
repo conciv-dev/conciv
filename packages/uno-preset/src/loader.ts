@@ -219,6 +219,63 @@ ${s} {
 
 export const loaderPreflight: Preflight = {
   getCSS: () => `
+@keyframes pw-loader-sweep-a {
+  to {
+    --pw-loader-angle-a: 360deg;
+  }
+}
+@keyframes pw-loader-sweep-b {
+  to {
+    --pw-loader-angle-b: 360deg;
+  }
+}
+@keyframes pw-loader-sweep-c {
+  to {
+    --pw-loader-angle-c: -180deg;
+  }
+}
+@keyframes pw-loader-sweep-d {
+  to {
+    --pw-loader-angle-d: 630deg;
+  }
+}
+@keyframes pw-loader-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+@keyframes pw-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pw-loader-spin-reverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes pw-loader-label-pulse {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+@keyframes pw-loader-description-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
 @property --pw-loader-angle-a {
   syntax: '<angle>';
   inherits: false;
