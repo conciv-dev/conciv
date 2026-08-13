@@ -1,14 +1,26 @@
 {
   "name": "@conciv/page",
   "version": "0.0.19",
-  "private": true,
   "description": "The DOM half of the conciv page plane: page-query driver + handlers, react bridge, react-grab picking, overlays. Inlined by @conciv/embed; subscribes rpc.page.queries and replies with executed verbs.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/page"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsdown",

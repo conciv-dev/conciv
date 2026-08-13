@@ -55,6 +55,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/storage-history',
   '@conciv/client',
   '@conciv/grab',
+  '@conciv/page',
   '@conciv/tools',
   '@conciv/extension',
   '@conciv/extension-compiler',
@@ -249,5 +250,34 @@ export async function assertPublicSet(cwd: string): Promise<void> {
     throw new Error(
       `public package set drift - unexpected: [${unexpected.join(', ')}], missing: [${missing.join(', ')}]`,
     )
+  }
+}
+
+function declaredDependencyNames(manifest: WorkspacePackage['manifest']): string[] {
+  const deps = {
+    ...manifest.dependencies,
+    ...manifest.optionalDependencies,
+    ...manifest.peerDependencies,
+  }
+  return Object.keys(deps)
+}
+
+export async function assertPublicDepsPublic(cwd: string): Promise<void> {
+  const packages = await readWorkspacePackages(cwd)
+  const privateByName = new Set(
+    packages
+      .filter((pkg) => pkg.manifest.private)
+      .map((pkg) => pkg.manifest.name)
+      .filter((name): name is string => typeof name === 'string'),
+  )
+  const violations = packages
+    .filter((pkg) => !pkg.manifest.private)
+    .flatMap((pkg) =>
+      declaredDependencyNames(pkg.manifest)
+        .filter((dep) => privateByName.has(dep))
+        .map((dep) => `${pkg.manifest.name ?? '(unnamed)'} depends on private workspace package ${dep}`),
+    )
+  if (violations.length > 0) {
+    throw new Error(violations.join('\n'))
   }
 }

@@ -8,6 +8,7 @@ import {
   PUBLIC_PACKAGES,
   assertBootstrappable,
   assertChangesetsResolve,
+  assertPublicDepsPublic,
   assertPublicSet,
   assertPublishedChangesCovered,
   assertValidTag,
@@ -91,6 +92,7 @@ const release = defineCommand({
   async run() {
     const {cwd, turbo, changeset} = await atRoot()
     await assertPublicSet(cwd)
+    await assertPublicDepsPublic(cwd)
     await assertVersioned(cwd)
     await turbo('build', 'publint', 'attw')
     await changeset('publish')
@@ -104,6 +106,7 @@ const snapshot = defineCommand({
     assertValidTag(args.tag)
     const {cwd, turbo, changeset} = await atRoot()
     await assertPublicSet(cwd)
+    await assertPublicDepsPublic(cwd)
     await changeset('version', '--snapshot', args.tag)
     await turbo('build', 'publint', 'attw')
     await changeset('publish', '--tag', args.tag, '--no-git-checks')

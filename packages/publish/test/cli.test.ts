@@ -5,6 +5,7 @@ import {
   PUBLIC_PACKAGES,
   assertBootstrappable,
   assertChangesetsResolve,
+  assertPublicDepsPublic,
   assertPublicSet,
   assertValidPackageName,
   assertValidTag,
@@ -95,6 +96,34 @@ test('assertBootstrappable rejects private and unversioned packages', async () =
 test('assertBootstrappable accepts a listed, public, versioned package', async () => {
   const root = await workspaceWith({name: '@conciv/core', version: '0.0.14'})
   await expect(assertBootstrappable(root, '@conciv/core')).resolves.toBeUndefined()
+})
+
+test('assertPublicDepsPublic accepts a public package whose workspace deps are all public', async () => {
+  const root = await scaffoldWorkspaceRoot('deps-public-')
+  await Promise.all([
+    writeManifest(join(root, 'packages', 'grab'), {name: '@conciv/grab', version: '0.0.19'}),
+    writeManifest(join(root, 'packages', 'page'), {
+      name: '@conciv/page',
+      version: '0.0.19',
+      dependencies: {'@conciv/grab': 'workspace:^'},
+    }),
+  ])
+  await expect(assertPublicDepsPublic(root)).resolves.toBeUndefined()
+})
+
+test('assertPublicDepsPublic rejects a public package depending on a private workspace package, naming both', async () => {
+  const root = await scaffoldWorkspaceRoot('deps-private-')
+  await Promise.all([
+    writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.19', private: true}),
+    writeManifest(join(root, 'packages', 'extension-page'), {
+      name: '@conciv/extension-page',
+      version: '0.0.19',
+      dependencies: {'@conciv/page': 'workspace:^'},
+    }),
+  ])
+  await expect(assertPublicDepsPublic(root)).rejects.toThrow(
+    /@conciv\/extension-page depends on private workspace package @conciv\/page/,
+  )
 })
 
 async function workspaceWithChangesets(names: string[], changesets: Record<string, string>): Promise<string> {
