@@ -222,6 +222,16 @@ async function appendLoadedImage(parent: Element, id: string, src: string): Prom
   return image
 }
 
+function requiredDataUrl(node: unknown, id: string): string {
+  const value = findById(node, id)?.attributes?.['rr_dataURL']
+  if (typeof value !== 'string') throw new Error(`the ${id} image carries no inlined data url`)
+  return value
+}
+
+function inlineImageCost(dataUrl: string): number {
+  return dataUrl.length + 'rr_dataURL'.length + 6
+}
+
 async function decodedDataUrlSize(dataUrl: string): Promise<{width: number; height: number}> {
   const probe = new Image()
   probe.src = dataUrl
@@ -382,25 +392,30 @@ describe('a page tool capture freezes the element as it was when the tool ran', 
     expect(await decodedDataUrlSize(dataUrl)).toEqual({width: 24, height: 16})
   })
 
-  it('admits images in document order and skips one that busts the byte budget, keeping earlier admissions intact', async () => {
+  it('admits images in document order: with room for only one of two equal images, the first wins', async () => {
     const media = mediaContainer()
+    const noiseUrl = await paintedBlobUrl(64, 64, noisePaint)
+    await appendLoadedImage(media, 'first-image', noiseUrl)
+    await appendLoadedImage(media, 'second-image', noiseUrl)
+
+    const unconstrained = await captureOf('probe.mark', {selector: '#media'})
+    const probeNode = unconstrained.after?.node
+    const firstCost = inlineImageCost(requiredDataUrl(probeNode, 'first-image'))
+    const secondCost = inlineImageCost(requiredDataUrl(probeNode, 'second-image'))
+    const baseBytes = JSON.stringify(probeNode).length - firstCost - secondCost
+
     const filler = document.createElement('div')
     filler.id = 'filler'
-    filler.textContent = 'x'.repeat(188_000)
+    filler.textContent = 'x'.repeat(200_000 - baseBytes - firstCost - Math.floor(firstCost / 2))
     media.appendChild(filler)
-    await appendLoadedImage(media, 'small-image', await paintedBlobUrl(8, 8, solidPaint))
-    await appendLoadedImage(media, 'large-image', await paintedBlobUrl(240, 240, noisePaint))
 
     const bundle = await captureOf('probe.mark', {selector: '#media'})
     const node = bundle.after?.node
 
     expect(node).toBeDefined()
-    expect(JSON.stringify(node)).toContain('xxxx')
-    const smallDataUrl = findById(node, 'small-image')?.attributes?.['rr_dataURL']
-    if (typeof smallDataUrl !== 'string') throw new Error('the small image was not admitted')
-    expect(smallDataUrl.startsWith('data:image/webp')).toBe(true)
-    expect(findById(node, 'large-image')).toBeDefined()
-    expect(findById(node, 'large-image')?.attributes?.['rr_dataURL']).toBeUndefined()
+    expect(requiredDataUrl(node, 'first-image').startsWith('data:image/webp')).toBe(true)
+    expect(findById(node, 'second-image')).toBeDefined()
+    expect(findById(node, 'second-image')?.attributes?.['rr_dataURL']).toBeUndefined()
     expect(JSON.stringify(node).length).toBeLessThanOrEqual(200_000)
   })
 
