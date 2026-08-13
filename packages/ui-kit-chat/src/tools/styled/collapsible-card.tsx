@@ -1,4 +1,4 @@
-import {children, Show, splitProps, type JSX, type Ref} from 'solid-js'
+import {Show, splitProps, type JSX, type Ref} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible, Tooltip} from '@conciv/ui-kit-system'
 import {useScrollLock} from '../../behaviors/use-scroll-lock.js'
@@ -11,6 +11,7 @@ export type CollapsibleCardProps = {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   defaultOpen?: boolean
+  hasBody?: boolean
   tooltip?: string
   flush?: boolean
   class?: string
@@ -28,11 +29,6 @@ const CHEVRON =
   'inline-flex shrink-0 text-[color:var(--chat-text-3)] [transition:rotate_150ms_var(--chat-ease)] data-[state=closed]:-rotate-90 data-[state=open]:rotate-0'
 const BODY = 'px-3 pt-0.5 pb-2.5 text-[length:var(--chat-text-md)] text-[color:var(--chat-text-2)]'
 const HEADER_SLOT = 'flex flex-1 gap-2 min-w-0 items-center'
-
-function hasContent(value: unknown): boolean {
-  if (Array.isArray(value)) return value.some(hasContent)
-  return value !== undefined && value !== null && value !== false && value !== ''
-}
 
 function TriggerBody(props: {header: JSX.Element}): JSX.Element {
   return (
@@ -118,13 +114,13 @@ export function CollapsibleCard(
     'open',
     'onOpenChange',
     'defaultOpen',
+    'hasBody',
     'tooltip',
     'flush',
     'class',
     'header',
     'children',
   ])
-  const body = children(() => local.children)
   const flush = () => local.flush === true
   let cardEl: HTMLDivElement | undefined
   let contentEl: HTMLDivElement | undefined
@@ -138,7 +134,7 @@ export function CollapsibleCard(
   }
   return (
     <Show
-      when={hasContent(body())}
+      when={local.hasBody !== false}
       fallback={
         <CardFrame class={local.class}>
           <StaticRow tooltip={local.tooltip} flush={flush()} header={local.header} />
@@ -153,7 +149,7 @@ export function CollapsibleCard(
         <CardFrame class={local.class} ref={(el) => (cardEl = el)}>
           <CardTrigger tooltip={local.tooltip} flush={flush()} header={local.header} />
           <Collapsible.Content ref={(el) => (contentEl = el)}>
-            <div class={BODY}>{body()}</div>
+            <div class={BODY}>{local.children}</div>
           </Collapsible.Content>
         </CardFrame>
       </Collapsible.Root>

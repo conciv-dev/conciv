@@ -13,7 +13,7 @@ it('starts collapsed by default, hiding the body and reporting aria-expanded fal
 
   const trigger = page.getByRole('button', {name: 'test-suite.spec.ts'})
   await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
-  await expect.element(page.getByText('assertion failed: expected 2, got 3')).not.toBeVisible()
+  expect(page.getByText('assertion failed: expected 2, got 3').query()).toBeNull()
 })
 
 it('starts open when defaultOpen is set, showing the body and reporting aria-expanded true', async () => {

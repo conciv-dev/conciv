@@ -81,11 +81,12 @@ export function useThreadScroll(
     return running
   }, false)
 
-  const signature = createMemo(() => chat.messages()[0]?.id ?? '')
+  const firstMessageId = createMemo(() => chat.messages()[0]?.id ?? '')
   createEffect<string | undefined>((previous) => {
-    const current = signature()
+    const current = firstMessageId()
     if ((options.scrollToBottomOnThreadSwitch ?? true) && previous !== undefined && previous !== current) {
-      pinToBottom()
+      const prepended = previous !== '' && chat.messages().some((message) => message.id === previous)
+      if (!prepended) pinToBottom()
     }
     return current
   }, undefined)

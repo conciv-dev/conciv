@@ -15,7 +15,6 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import {makeTimer} from '@solid-primitives/timer'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {UIMessage} from '@tanstack/ai-client'
 import {Primitive, type Slottable} from '../util/primitive.js'
@@ -33,11 +32,9 @@ import {
 import {useThreadScroll} from '../../behaviors/use-thread-scroll.js'
 import {createThreadVirtualizer} from '../../behaviors/create-thread-virtualizer.js'
 import {useTurnEstimator, type TurnEstimate} from './turn-estimate.js'
+import {virtualizeThreshold} from './virtualize-threshold.js'
 
-const VIRTUALIZE_THRESHOLD = 50
 const ROW_ESTIMATE_PX = 72
-const PREWARM_BATCH = 8
-const PREWARM_TICK_MS = 120
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
 
@@ -207,7 +204,6 @@ function VirtualMessages(props: {
     if (!turn) return undefined
     return estimator?.estimateTurn(turn)
   }
-  const [prewarmIndices, setPrewarmIndices] = createSignal<ReadonlyArray<number>>([])
   const virtualizer = createThreadVirtualizer({
     scrollElement: () => props.internal.element(),
     count: () => turns().length,
@@ -215,20 +211,8 @@ function VirtualMessages(props: {
     estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
     gap,
     ownsViewport: () => props.internal.ownsViewport(),
-    extraIndices: prewarmIndices,
   })
-  const nextPrewarmBatch = (): number[] => {
-    const batch: number[] = []
-    for (let index = 0; index < turns().length - 1 && batch.length < PREWARM_BATCH; index++) {
-      const turn = turns()[index]
-      if (!turn || virtualizer.measured(turn.key)) continue
-      if (settledEstimate(index)?.exact === true) continue
-      batch.push(index)
-    }
-    return batch
-  }
   onMount(() => {
-    makeTimer(() => setPrewarmIndices(nextPrewarmBatch()), PREWARM_TICK_MS, setInterval)
     props.internal.setVirtualScroll({scrollToLast: virtualizer.scrollToLast})
     onCleanup(() => props.internal.setVirtualScroll(undefined))
     let disposed = false
@@ -305,7 +289,7 @@ function Messages(props: MessagesProps): JSX.Element {
   const thread = useThread()
   const internal = useViewportInternal()
   const eligible = () =>
-    internal !== undefined && internal.turnAnchor() === 'bottom' && thread.turns.length >= VIRTUALIZE_THRESHOLD
+    internal !== undefined && internal.turnAnchor() === 'bottom' && thread.turns.length >= virtualizeThreshold.value
   const [mode, setMode] = createSignal<'flat' | 'virtual'>(untrack(eligible) ? 'virtual' : 'flat')
   const [anchor, setAnchor] = createSignal<CapturedAnchor>()
   createComputed(() => {

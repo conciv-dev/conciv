@@ -11,12 +11,14 @@ export function usePauseFollowOnToggle(
   return () => {
     if (!pauseFollow) return
     pauseFollow(FOLLOW_PAUSE_CEILING_MS)
-    const element = animatedElement()
-    if (!element) return
-    const clearListener = makeEventListener(element, 'animationend', (event) => {
-      if (event.target !== element) return
-      clearListener()
-      pauseFollow(FOLLOW_PAUSE_RELEASE_GRACE_MS)
+    queueMicrotask(() => {
+      const element = animatedElement()
+      if (!element) return
+      const clearListener = makeEventListener(element, 'animationend', (event) => {
+        if (event.target !== element) return
+        clearListener()
+        pauseFollow(FOLLOW_PAUSE_RELEASE_GRACE_MS)
+      })
     })
   }
 }
