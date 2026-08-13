@@ -39,3 +39,25 @@ test('buildDependencyGraph + transitiveDependents trace a workspace:* dependency
   const graph = buildDependencyGraph(packages)
   expect(transitiveDependents(graph, '@conciv/shared')).toEqual(new Set(['@conciv/consumer']))
 })
+
+test('buildDependencyGraph ignores an ordinary semver-range dependency, only workspace:* creates an edge', async () => {
+  const root = await scaffoldWorkspaceRoot('dep-graph-semver-')
+  await Promise.all([
+    writeManifest(join(root, 'packages', 'shared'), {name: '@conciv/shared', version: '0.0.14', private: true}),
+    writeManifest(join(root, 'packages', 'consumer'), {
+      name: '@conciv/consumer',
+      version: '0.0.14',
+      dependencies: {'@conciv/shared': '^0.0.14'},
+    }),
+  ])
+  const packages = await readWorkspacePackages(root)
+  const graph = buildDependencyGraph(packages)
+  expect(transitiveDependents(graph, '@conciv/shared')).toEqual(new Set())
+})
+
+test('readWorkspacePackages never includes the workspace root itself as a package', async () => {
+  const root = await scaffoldWorkspaceRoot('no-root-pkg-')
+  await writeManifest(join(root, 'packages', 'core'), {name: '@conciv/core', version: '0.0.14'})
+  const packages = await readWorkspacePackages(root)
+  expect(packages.some((pkg) => pkg.relativeDir === '' || pkg.relativeDir === '.')).toBe(false)
+})

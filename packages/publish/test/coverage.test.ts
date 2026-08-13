@@ -19,6 +19,9 @@ async function initRepo(): Promise<{repo: string; git: (...args: string[]) => Pr
 async function scaffoldWorkspace(repo: string): Promise<void> {
   await writeFile(join(repo, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n')
   await writeFile(join(repo, 'package.json'), `${JSON.stringify({name: 'workspace-root', private: true}, null, 2)}\n`)
+  await writeFile(join(repo, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n')
+  await mkdir(join(repo, '.github', 'workflows'), {recursive: true})
+  await writeFile(join(repo, '.github', 'workflows', 'ci.yml'), 'name: CI\non:\n  push: {}\n')
   await mkdir(join(repo, '.changeset'), {recursive: true})
 
   await mkdir(join(repo, 'packages', 'core', 'src'), {recursive: true})
@@ -229,5 +232,28 @@ test('(M2) assertPublishedChangesCovered detects a file moved out of a published
 
   await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
     /no changeset covers changed published packages.*@conciv\/core/s,
+  )
+})
+
+test('assertPublishedChangesCovered passes with zero changesets when only root-level files (lockfile, workflow) and a dependent-less private package change', async () => {
+  const {repo, git, base} = await scaffoldBase()
+
+  await writeFile(join(repo, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\nsettings:\n  autoInstallPeers: true\n')
+  await writeFile(join(repo, '.github', 'workflows', 'ci.yml'), 'name: CI\non:\n  push: {}\n  pull_request: {}\n')
+  await writeFile(join(repo, 'packages', 'internal', 'index.ts'), 'export const internal = 2\n')
+  await commitAll(git, 'bump lockfile, tweak a workflow, edit a private tool package')
+
+  await expect(assertPublishedChangesCovered(repo, base)).resolves.toBeUndefined()
+})
+
+test('assertPublishedChangesCovered still requires coverage for a private package a published package genuinely depends on (workspace:*), alongside the root/private-tool-only pass case above', async () => {
+  const {repo, git, base} = await scaffoldBase()
+
+  await writeFile(join(repo, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\nsettings:\n  autoInstallPeers: true\n')
+  await writeFile(join(repo, 'packages', 'shared', 'index.ts'), 'export const shared = 2\n')
+  await commitAll(git, 'bump lockfile and edit the private dependency of a published package')
+
+  await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
+    /no changeset covers changed published packages.*@conciv\/consumer/s,
   )
 })

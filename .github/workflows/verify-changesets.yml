@@ -21,10 +21,20 @@ jobs:
     permissions:
       contents: read
     steps:
-      # --require-coverage diffs against the PR's base sha, which needs full
-      # history a depth-1 checkout doesn't have.
+      # --require-coverage diffs base.sha...HEAD, which needs full history a
+      # depth-1 checkout doesn't have. ref pins the checkout to the PR's own
+      # head commit: pull_request's default checkout is the ephemeral merge
+      # of that head into the CURRENT tip of main, which can be newer than
+      # base.sha (a snapshot from when the event fired) if main advanced
+      # while this run was queued or re-run - e.g. a changesets "version
+      # packages" release landing bumps every package.json, so the diff
+      # against a stale base picks up every published package as "touched"
+      # even though the PR never touched them. Diffing two fixed commits
+      # (base.sha and head.sha) instead of a moving merge commit makes the
+      # result depend only on this PR's own changes.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
           fetch-depth: 0
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
