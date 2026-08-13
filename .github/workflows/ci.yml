@@ -206,9 +206,13 @@ jobs:
       contents: read
       actions: read # download the bundle-size baseline artifact from the latest main run
     steps:
+      # check-changesets --require-coverage diffs against the PR's base sha, which a
+      # depth-1 checkout of the merge ref doesn't have in history; full history only on
+      # pull_request runs, shallow (the default) everywhere else.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 1 }}
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 11.7.0 # keep in sync with packageManager in package.json
@@ -231,6 +235,16 @@ jobs:
       # `changeset version` ever runs (see conciv-publish version, which runs the same
       # guard). Runs straight from source (bin resolves src/cli.ts, no build needed).
       - run: pnpm exec conciv-publish check-changesets
+      # PR-only: also require a changeset when the PR touches non-test code in a
+      # published package (fixed versioning means one @conciv entry covers the whole
+      # set). Base is the PR's actual merge base sha, not a branch name, so the diff
+      # is stable regardless of what main does after the PR opens. The "no-changeset"
+      # label is an escape hatch for PRs that intentionally ship no release (docs,
+      # CI-only, internal tooling); read straight from the PR event payload, never a
+      # GitHub API call from the guard itself.
+      - name: check-changesets --require-coverage
+        if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-changeset')
+        run: pnpm exec conciv-publish check-changesets --require-coverage --base "${{ github.event.pull_request.base.sha }}"
       # Build the site too so bundle-size can measure the Cloudflare worker and gate it below.
       - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*' --filter=site
       # Bundle size: measure published dists, diff against the baseline saved by the

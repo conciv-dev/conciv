@@ -1,6 +1,7 @@
 import {access, lstat, readFile, readdir} from 'node:fs/promises'
-import {join} from 'node:path'
+import {join, relative} from 'node:path'
 import parseChangesetFile from '@changesets/parse'
+import {execa} from 'execa'
 
 const CHANGESET_DIR = '.changeset'
 
@@ -81,8 +82,9 @@ export const PUBLIC_PACKAGES = [
 ]
 
 type Manifest = {name?: string; version?: string; private?: boolean}
+type ManifestEntry = {dir: string; manifest: Manifest}
 
-async function readManifests(cwd: string): Promise<Manifest[]> {
+async function readManifestEntries(cwd: string): Promise<ManifestEntry[]> {
   const groups = await Promise.all(
     PACKAGE_GROUPS.map(async (group) => {
       const groupDir = join(cwd, group)
@@ -94,9 +96,10 @@ async function readManifests(cwd: string): Promise<Manifest[]> {
       })
       return Promise.all(
         dirs.map((dir) => {
-          const manifestPath = join(groupDir, dir, 'package.json')
+          const packageDir = join(groupDir, dir)
+          const manifestPath = join(packageDir, 'package.json')
           return readFile(manifestPath, 'utf8')
-            .then((raw): Manifest => JSON.parse(raw))
+            .then((raw): ManifestEntry => ({dir: packageDir, manifest: JSON.parse(raw)}))
             .catch((error: unknown) => {
               if (isMissingPath(error)) return null
               throw new Error(`${manifestPath} could not be read as a package manifest`, {cause: error})
@@ -105,7 +108,11 @@ async function readManifests(cwd: string): Promise<Manifest[]> {
       )
     }),
   )
-  return groups.flat().filter((manifest): manifest is Manifest => manifest !== null)
+  return groups.flat().filter((entry): entry is ManifestEntry => entry !== null)
+}
+
+async function readManifests(cwd: string): Promise<Manifest[]> {
+  return (await readManifestEntries(cwd)).map((entry) => entry.manifest)
 }
 
 export async function assertVersioned(cwd: string): Promise<void> {
@@ -180,6 +187,68 @@ export async function assertChangesetsResolve(cwd: string): Promise<void> {
   if (errors.length > 0) {
     throw new Error(`invalid changeset package names:\n${errors.join('\n')}`)
   }
+}
+
+const CODE_FILE_EXTENSIONS = new Set(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'html', 'json'])
+
+function isTestPath(relativePath: string): boolean {
+  const segments = relativePath.split('/')
+  const base = segments.at(-1) ?? ''
+  return segments.includes('test') || segments.includes('tests') || /\.(test|spec)\./.test(base)
+}
+
+function isCodePath(relativePath: string): boolean {
+  const extension = relativePath.split('.').at(-1) ?? ''
+  return CODE_FILE_EXTENSIONS.has(extension.toLowerCase())
+}
+
+function qualifiesForCoverage(relativePath: string): boolean {
+  return isCodePath(relativePath) && !isTestPath(relativePath)
+}
+
+async function changedFiles(cwd: string, base: string): Promise<string[]> {
+  const {stdout} = await execa('git', ['diff', '--name-only', `${base}...HEAD`], {cwd})
+  return stdout.split(/\r?\n/).filter((line) => line.length > 0)
+}
+
+async function changesetPackageNames(cwd: string): Promise<string[]> {
+  const changesetDir = join(cwd, CHANGESET_DIR)
+  const files = await listChangesetFiles(changesetDir)
+  const names = await Promise.all(
+    files.map(async (file) => {
+      const filePath = join(changesetDir, file)
+      await assertNotSymlink(filePath)
+      const content = await readFile(filePath, 'utf8')
+      return parseChangesetPackageNames(content, file)
+    }),
+  )
+  return [...new Set(names.flat())]
+}
+
+export async function assertPublishedChangesCovered(cwd: string, base: string): Promise<void> {
+  const [entries, files] = await Promise.all([readManifestEntries(cwd), changedFiles(cwd, base)])
+  const publishedPackages = entries
+    .filter((entry) => !entry.manifest.private)
+    .map((entry) => ({name: entry.manifest.name, relativeDir: relative(cwd, entry.dir)}))
+    .filter((pkg): pkg is {name: string; relativeDir: string} => typeof pkg.name === 'string')
+  const touchedPackageNames = [
+    ...new Set(
+      files
+        .filter(qualifiesForCoverage)
+        .map(
+          (file) =>
+            publishedPackages.find((pkg) => file === pkg.relativeDir || file.startsWith(`${pkg.relativeDir}/`))?.name,
+        )
+        .filter((name): name is string => typeof name === 'string'),
+    ),
+  ]
+  if (touchedPackageNames.length === 0) return
+  const changesetNames = await changesetPackageNames(cwd)
+  const covered = changesetNames.some((name) => name.startsWith('@conciv/'))
+  if (covered) return
+  throw new Error(
+    `no changeset covers changed published packages: ${touchedPackageNames.toSorted().join(', ')} - add a changeset naming any @conciv package (fixed versioning releases the whole set together), or apply the "no-changeset" label if this PR intentionally ships no release`,
+  )
 }
 
 export async function assertPublicSet(cwd: string): Promise<void> {

@@ -9,6 +9,7 @@ import {
   assertBootstrappable,
   assertChangesetsResolve,
   assertPublicSet,
+  assertPublishedChangesCovered,
   assertValidTag,
   assertVersioned,
   assertWorkspaceRoot,
@@ -53,9 +54,27 @@ const version = defineCommand({
 
 const checkChangesets = defineCommand({
   meta: {name: 'check-changesets', description: 'Validate every changeset names an existing workspace package'},
-  async run() {
+  args: {
+    'require-coverage': {
+      type: 'boolean',
+      default: false,
+      description:
+        'Also require every changed non-test code file in a published package to be covered by a changeset naming an @conciv package',
+    },
+    base: {
+      type: 'string',
+      description: 'Git ref to diff against HEAD when --require-coverage is set',
+    },
+  },
+  async run({args}) {
     const {cwd} = await atRoot()
     await assertChangesetsResolve(cwd)
+    if (args['require-coverage']) {
+      if (!args.base) {
+        throw new Error('--require-coverage requires --base <ref>')
+      }
+      await assertPublishedChangesCovered(cwd, args.base)
+    }
   },
 })
 
