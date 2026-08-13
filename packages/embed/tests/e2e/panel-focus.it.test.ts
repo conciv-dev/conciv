@@ -48,7 +48,7 @@ type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hos
 const dedicatedHosts: Array<{close: () => Promise<void>}> = []
 
 test.beforeEach(async () => {
-  await setNavigation(suite.kit(), [{href: '/'}])
+  expect(await setNavigation(suite.kit(), [{href: '/'}])).toBe(true)
 })
 
 test.afterEach(async () => {
