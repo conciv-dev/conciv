@@ -59,6 +59,9 @@ README.md; this file is the non-obvious operational rules.
 - TypeScript is strict (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`, NodeNext). Avoid
   `any`/`as`/`@ts-ignore`.
 - oxfmt: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
+- Component styles go through `packages/uno-preset` (`animation.ts` / `motion.ts` / effects /
+  preflights); `.css` files in ui-kit `src/` are banned except `tokens.css` and `theme/` sheets,
+  enforced by prek + CI + the agent PreToolUse hook.
 
 ## TanStack Router
 

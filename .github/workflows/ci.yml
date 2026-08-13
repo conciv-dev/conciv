@@ -216,6 +216,9 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      # ui-kit component styling goes through packages/uno-preset; per-component .css files
+      # are banned. Needs only node + git, so it runs before install/build.
+      - run: node scripts/check-ui-kit-css.ts
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo

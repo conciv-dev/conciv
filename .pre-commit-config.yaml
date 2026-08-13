@@ -20,3 +20,9 @@ repos:
         pass_filenames: true
         files: '\.(m?[jt]sx?|c[jt]s)$'
         exclude: '^(.*/)?(dist|build|\.turbo)/'
+      - id: ui-kit-css-gate
+        name: ui-kit CSS gate (no per-component .css)
+        entry: node scripts/check-ui-kit-css.ts
+        language: system
+        pass_filenames: true
+        files: '^packages/ui-kit-[^/]+/src/.*\.css$'
