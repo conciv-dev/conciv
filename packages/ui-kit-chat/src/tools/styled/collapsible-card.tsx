@@ -1,7 +1,11 @@
-import {children, Show, splitProps, type JSX} from 'solid-js'
+import {children, Show, splitProps, type JSX, type Ref} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible, Tooltip} from '@conciv/ui-kit-system'
+import {useScrollLock} from '../../behaviors/use-scroll-lock.js'
+import {usePauseFollowOnToggle} from '../../behaviors/use-follow-pause.js'
 import {useOptionalThreadViewport} from '../../primitives/thread/viewport-context.js'
+
+const ANIMATION_DURATION_MS = 200
 
 export type CollapsibleCardProps = {
   open?: boolean
@@ -41,8 +45,12 @@ function TriggerBody(props: {header: JSX.Element}): JSX.Element {
   )
 }
 
-function CardFrame(props: {class: string | undefined; children: JSX.Element}): JSX.Element {
-  return <div class={`${CARD}  ${props.class ?? ''}`}>{props.children}</div>
+function CardFrame(props: {class: string | undefined; ref?: Ref<HTMLDivElement>; children: JSX.Element}): JSX.Element {
+  return (
+    <div ref={props.ref} class={`${CARD}  ${props.class ?? ''}`}>
+      {props.children}
+    </div>
+  )
 }
 
 function StaticRow(props: {tooltip: string | undefined; flush: boolean; header: JSX.Element}): JSX.Element {
@@ -116,9 +124,18 @@ export function CollapsibleCard(
     'header',
     'children',
   ])
-  const viewport = useOptionalThreadViewport()
   const body = children(() => local.children)
   const flush = () => local.flush === true
+  let cardEl: HTMLDivElement | undefined
+  let contentEl: HTMLDivElement | undefined
+  const lockScroll = useScrollLock(() => cardEl, ANIMATION_DURATION_MS)
+  const viewport = useOptionalThreadViewport()
+  const settleFollow = usePauseFollowOnToggle(() => contentEl, viewport?.pauseFollow)
+  const handleOpenChange = (open: boolean) => {
+    lockScroll()
+    settleFollow()
+    local.onOpenChange?.(open)
+  }
   return (
     <Show
       when={hasContent(body())}
@@ -131,14 +148,11 @@ export function CollapsibleCard(
       <Collapsible.Root
         open={local.open}
         defaultOpen={local.defaultOpen}
-        onOpenChange={(details) => {
-          viewport?.holdPosition()
-          local.onOpenChange?.(details.open)
-        }}
+        onOpenChange={(details) => handleOpenChange(details.open)}
       >
-        <CardFrame class={local.class}>
+        <CardFrame class={local.class} ref={(el) => (cardEl = el)}>
           <CardTrigger tooltip={local.tooltip} flush={flush()} header={local.header} />
-          <Collapsible.Content>
+          <Collapsible.Content ref={(el) => (contentEl = el)}>
             <div class={BODY}>{body()}</div>
           </Collapsible.Content>
         </CardFrame>

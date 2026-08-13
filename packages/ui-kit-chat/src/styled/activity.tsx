@@ -269,7 +269,17 @@ function userText(turn: Turn): string {
 function AssistantTurnView(props: {turn: Turn}): JSX.Element {
   const activity = useActivity()
   const config = useContext(ActivityConfigContext)
-  const groupingOptions = createMemo(() => pageSessionGroupingOptions(config.pageSession()))
+  const standaloneNames = createMemo(() => {
+    const names = new Set<string>()
+    for (const entry of config.tools())
+      if (entry.display === 'standalone') for (const name of entry.names) names.add(name)
+    return names
+  })
+  const isStandaloneTool = (name: string) => standaloneNames().has(name)
+  const groupingOptions = createMemo(() => ({
+    ...pageSessionGroupingOptions(config.pageSession()),
+    standalone: isStandaloneTool,
+  }))
   const segments = createMemo(() => groupSegments(props.turn.parts, groupingOptions()))
   const visibleChain = (segment: Segment): ChainSegment | null => {
     const chain = segment.kind === 'chain' ? segment : null
@@ -281,8 +291,12 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
     return pageSessionHasSteps(props.turn.parts, segment.indices, pageSession.actNames) ? segment : null
   }
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
+  const asStandalone = (segment: Segment) => (segment.kind === 'standalone' ? segment : null)
   const renderable = (segment: Segment): boolean =>
-    asReply(segment) !== null || asPageSession(segment) !== null || visibleChain(segment) !== null
+    asReply(segment) !== null ||
+    asPageSession(segment) !== null ||
+    visibleChain(segment) !== null ||
+    asStandalone(segment) !== null
   const lastRenderableIndex = createMemo(() => {
     let last = -1
     for (const [index, segment] of segments().entries()) if (renderable(segment)) last = index
@@ -302,6 +316,21 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
               {(reply) => (
                 <Show when={asText(props.turn.parts[reply().index])}>
                   {(part) => <Markdown content={part().content} />}
+                </Show>
+              )}
+            </Match>
+            <Match when={asStandalone(segment())}>
+              {(standalone) => (
+                <Show when={asToolCall(props.turn.parts[standalone().index])}>
+                  {(part) => (
+                    <ToolCallCard
+                      part={part()}
+                      result={activity.resultFor(part().id)}
+                      ctx={config.ctx()}
+                      tools={config.tools}
+                      fallback={config.fallback()}
+                    />
+                  )}
                 </Show>
               )}
             </Match>

@@ -256,7 +256,7 @@ test.describe('embed boots the conciv app against a real core', () => {
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('ask me something')
     await page.getByRole('button', {name: 'Send message'}).click()
-    await expect(page.getByText('Proceed with the change?')).toBeVisible({timeout: 30_000})
+    await expect(page.getByText('Proceed with the change?', {exact: true})).toBeVisible({timeout: 30_000})
     await page.getByRole('button', {name: 'Approve'}).click()
     await expect(page.getByRole('status').getByText('yes')).toBeVisible({timeout: 30_000})
     await expect(page.getByRole('button', {name: 'Approve'})).toBeHidden({timeout: 30_000})

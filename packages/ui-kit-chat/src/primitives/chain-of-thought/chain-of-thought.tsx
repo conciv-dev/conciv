@@ -1,4 +1,5 @@
-import {createContext, createSignal, splitProps, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
+import {createContext, splitProps, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
+import {createAutoCollapse} from '../util/create-auto-collapse.js'
 
 type ChainState = {
   open: Accessor<boolean>
@@ -19,18 +20,19 @@ export function useChainOfThought(): ChainState {
 type RootProps = ParentProps<{
   defaultOpen?: boolean
   streaming?: boolean
-  pinnedOpen?: boolean
+  autoOpen?: boolean
 }>
 
 function Root(props: RootProps): JSX.Element {
-  const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
-  const open = () => userOpen() ?? (Boolean(props.streaming) || Boolean(props.pinnedOpen))
+  const streaming = () => Boolean(props.streaming)
+  const shouldAutoOpen = () => (props.autoOpen ?? props.streaming) === true
+  const collapse = createAutoCollapse({streaming: shouldAutoOpen, defaultOpen: props.defaultOpen})
   const state: ChainState = {
-    open,
-    setOpen: (next) => setUserOpen(next),
-    toggle: () => setUserOpen(!open()),
-    streaming: () => props.streaming ?? false,
-    preview: () => userOpen() === undefined && !props.pinnedOpen && Boolean(props.streaming),
+    open: collapse.open,
+    setOpen: collapse.setOpen,
+    toggle: collapse.toggle,
+    streaming,
+    preview: collapse.isAutoOpen,
   }
   return <ChainContext.Provider value={state}>{props.children}</ChainContext.Provider>
 }

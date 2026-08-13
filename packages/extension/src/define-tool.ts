@@ -60,6 +60,7 @@ export type ToolDefinition<
   promptSnippet?: string
   promptGuidelines?: string[]
   streamTitle?: string
+  display?: 'standalone'
   approval?: 'ask'
 }
 
@@ -239,6 +240,7 @@ function toolBuilder<
     promptSnippet: definition.promptSnippet,
     promptGuidelines: definition.promptGuidelines,
     streamTitle: definition.streamTitle,
+    display: definition.display,
     approval: definition.approval,
     binding: state.binding,
     __execute: state.execute,

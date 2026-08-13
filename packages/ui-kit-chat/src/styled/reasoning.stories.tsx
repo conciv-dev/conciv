@@ -54,3 +54,24 @@ export const DefaultOpen: Story = {
     await waitFor(() => expect(c.getByText(/missing await/)).toBeVisible())
   },
 }
+
+const LONG_TEXT = Array.from({length: 20}, (_, index) => `Line ${index}: ${TEXT}`).join('\n')
+
+export const CappedVsGrowSideBySide: Story = {
+  render: () => (
+    <div class="p-3 flex gap-4 [background:var(--chat-bg)]">
+      <div class="w-96">
+        <div class="text-[length:var(--chat-text-xs)] pb-1.5 [color:var(--chat-text-3)]">grow=false (default)</div>
+        <Reasoning streaming text={LONG_TEXT} />
+      </div>
+      <div class="w-96">
+        <div class="text-[length:var(--chat-text-xs)] pb-1.5 [color:var(--chat-text-3)]">grow=true</div>
+        <Reasoning streaming grow text={LONG_TEXT} />
+      </div>
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await waitFor(() => expect(c.getAllByText(/Line 19:/)).toHaveLength(2))
+  },
+}

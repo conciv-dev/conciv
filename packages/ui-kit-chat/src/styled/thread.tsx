@@ -20,7 +20,7 @@ import Search from 'lucide-solid/icons/search'
 import Terminal from 'lucide-solid/icons/terminal'
 import Wrench from 'lucide-solid/icons/wrench'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolUIComponent, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
@@ -42,6 +42,8 @@ import {ToolCallCard} from '../tools/styled/tool-call-card.js'
 import {ChainOfThought} from './chain-of-thought.js'
 import {AssistantActionBar} from './action-bar.js'
 import {FOCUS} from './classes.js'
+
+const CHAIN_OF_THOUGHT_GROW = true
 
 export type ThreadComponents = {
   AssistantMessage?: Component
@@ -67,6 +69,12 @@ function asToolCall(part: MessagePart | undefined): ToolCallPart | null {
 function asText(part: MessagePart | undefined): Extract<MessagePart, {type: 'text'}> | null {
   return part?.type === 'text' && part.content.trim().length > 0 ? part : null
 }
+function isAwaitingApproval(part: MessagePart | undefined, ctx: ToolViewCtx): boolean {
+  const call = asToolCall(part)
+  return (
+    call !== null && call.state === 'approval-requested' && call.approval !== undefined && Boolean(ctx.respondApproval)
+  )
+}
 
 function toolStepIcon(name: string): JSX.Element {
   const lower = name.toLowerCase()
@@ -84,6 +92,7 @@ function ChainPart(props: {
   entries: ToolCardEntry[]
   fallback: ToolUIComponent
   last?: boolean
+  streaming?: boolean
 }): JSX.Element {
   const message = useMessage()
 
@@ -93,7 +102,7 @@ function ChainPart(props: {
       <Match when={asThinking(props.part)}>
         {(part) => (
           <ChainOfThought.Step icon={<Brain size={13} />} last={props.last}>
-            <Reasoning text={part().content} />
+            <Reasoning text={part().content} streaming={props.streaming} grow={CHAIN_OF_THOUGHT_GROW} />
           </ChainOfThought.Step>
         )}
       </Match>
@@ -122,8 +131,19 @@ function AssistantTurn(props: {
 }): JSX.Element {
   const message = useMessage()
   const thread = useThread()
+  const ctx = useToolCtx()
   const parts = () => message.message().parts
-  const groupingOptions = createMemo(() => pageSessionGroupingOptions(props.pageSession))
+  const standaloneNames = createMemo(() => {
+    const names = new Set<string>()
+    for (const entry of props.entries)
+      if (entry.display === 'standalone') for (const name of entry.names) names.add(name)
+    return names
+  })
+  const isStandaloneTool = (name: string) => standaloneNames().has(name)
+  const groupingOptions = createMemo(() => ({
+    ...pageSessionGroupingOptions(props.pageSession),
+    standalone: isStandaloneTool,
+  }))
   const segments = createMemo(() => groupSegments(parts(), groupingOptions()))
   const lastTextIndex = createMemo(() =>
     parts()
@@ -131,11 +151,13 @@ function AssistantTurn(props: {
       .lastIndexOf('text'),
   )
   const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
-  const awaitsApproval = (indices: number[]) =>
-    indices.some((index) => {
-      const part = parts()[index]
-      return part?.type === 'tool-call' && part.state === 'approval-requested'
-    })
+  const lastPartIndex = createMemo(() => parts().length - 1)
+  const livePart = (index: number) => thread.isRunning && message.isLast() && index === lastPartIndex()
+  const chainAutoOpen = (indices: number[]) => {
+    const last = indices.at(-1)
+    const reasoningStreaming = last !== undefined && livePart(last) && asThinking(parts()[last]) !== null
+    return reasoningStreaming || indices.some((index) => isAwaitingApproval(parts()[index], ctx))
+  }
   const hasChainStep = (indices: number[]) =>
     indices.some((index) => {
       const part = parts()[index]
@@ -152,8 +174,12 @@ function AssistantTurn(props: {
     return pageSessionHasSteps(parts(), segment.indices, config.actNames) ? segment : null
   }
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
+  const asStandalone = (segment: Segment) => (segment.kind === 'standalone' ? segment : null)
   const renderableSegment = (segment: Segment): boolean =>
-    asChain(segment) !== null || asReply(segment) !== null || asPageSession(segment) !== null
+    asChain(segment) !== null ||
+    asReply(segment) !== null ||
+    asPageSession(segment) !== null ||
+    asStandalone(segment) !== null
   const lastRenderableIndex = createMemo(() => {
     let last = -1
     for (const [index, segment] of segments().entries()) if (renderableSegment(segment)) last = index
@@ -170,7 +196,11 @@ function AssistantTurn(props: {
           <Switch>
             <Match when={asChain(segment())}>
               {(chain) => (
-                <ChainOfThought streaming={liveSegment(segmentIndex)} pinnedOpen={awaitsApproval(chain().indices)}>
+                <ChainOfThought
+                  streaming={liveSegment(segmentIndex)}
+                  autoOpen={chainAutoOpen(chain().indices)}
+                  grow={CHAIN_OF_THOUGHT_GROW}
+                >
                   <Index each={chain().indices}>
                     {(partIndex, partPosition) => (
                       <ChainPart
@@ -178,6 +208,7 @@ function AssistantTurn(props: {
                         entries={props.entries}
                         fallback={props.fallback}
                         last={partPosition === chain().indices.length - 1}
+                        streaming={livePart(partIndex())}
                       />
                     )}
                   </Index>
@@ -188,6 +219,22 @@ function AssistantTurn(props: {
               {(reply) => (
                 <Show when={asText(parts()[reply().index])}>
                   {(part) => <Markdown content={part().content} streaming={streamingAt(reply().index)} />}
+                </Show>
+              )}
+            </Match>
+            <Match when={asStandalone(segment())}>
+              {(standalone) => (
+                <Show when={asToolCall(parts()[standalone().index])}>
+                  {(part) => (
+                    <ToolCallCard
+                      part={part()}
+                      result={message.pairing().byCallId.get(part().id)}
+                      ctx={ctx}
+                      durationMs={ctx.durationFor?.(part().id)}
+                      tools={() => props.entries}
+                      fallback={props.fallback}
+                    />
+                  )}
                 </Show>
               )}
             </Match>

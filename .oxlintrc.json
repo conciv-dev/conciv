@@ -28,6 +28,7 @@
     "conciv/lucide-per-icon": "error",
     "conciv/no-comments": "error",
     "conciv/no-locator-poll": "error",
+    "conciv/no-signal-ref": "error",
     "conciv/solid-test-render": "error",
     "conciv/tool-card-shell": "error",
     "unicorn/consistent-function-scoping": "off",

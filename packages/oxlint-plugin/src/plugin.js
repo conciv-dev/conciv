@@ -4,6 +4,7 @@ import lucidePerIcon from './lucide-per-icon.js'
 import noComments from './no-comments.js'
 import noLocatorPoll from './no-locator-poll.js'
 import noPredicateWaits from './no-predicate-waits.js'
+import noSignalRef from './no-signal-ref.js'
 import noTimersInTests from './no-timers-in-tests.js'
 import routerIdioms from './router-idioms.js'
 import solidTestRender from './solid-test-render.js'
@@ -18,6 +19,7 @@ export default {
     'no-comments': noComments,
     'no-locator-poll': noLocatorPoll,
     'no-predicate-waits': noPredicateWaits,
+    'no-signal-ref': noSignalRef,
     'no-timers-in-tests': noTimersInTests,
     'router-idioms': routerIdioms,
     'solid-test-render': solidTestRender,

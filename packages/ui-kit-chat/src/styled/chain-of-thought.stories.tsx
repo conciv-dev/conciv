@@ -87,3 +87,39 @@ export const StreamingPreviewCapsHeight: Story = {
     await expect(canvasElement.getBoundingClientRect().height).toBeLessThan(500)
   },
 }
+
+function ManySteps(): JSX.Element {
+  return (
+    <Index each={Array.from({length: 30}, (_, index) => index)}>
+      {(step) => (
+        <ChainOfThought.Step icon={<Search size={13} />} last={step() === 29}>
+          <div class={STEP}>step number {step()}</div>
+        </ChainOfThought.Step>
+      )}
+    </Index>
+  )
+}
+
+export const CappedVsGrowSideBySide: Story = {
+  render: () => (
+    <div class="p-3 flex gap-4 [background:var(--chat-bg)]">
+      <div class="w-96">
+        <div class="text-[length:var(--chat-text-xs)] pb-1.5 [color:var(--chat-text-3)]">grow=false (default)</div>
+        <ChainOfThought streaming>
+          <ManySteps />
+        </ChainOfThought>
+      </div>
+      <div class="w-96">
+        <div class="text-[length:var(--chat-text-xs)] pb-1.5 [color:var(--chat-text-3)]">grow=true</div>
+        <ChainOfThought streaming grow>
+          <ManySteps />
+        </ChainOfThought>
+      </div>
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await waitFor(() => expect(c.getAllByText('step number 29')).toHaveLength(2))
+    await expect(c.getAllByText('step number 0')).toHaveLength(2)
+  },
+}

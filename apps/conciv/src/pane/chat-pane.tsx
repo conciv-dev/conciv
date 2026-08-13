@@ -2,6 +2,7 @@ import {
   createEffect,
   createMemo,
   createResource,
+  createSignal,
   For,
   onCleanup,
   onMount,
@@ -148,9 +149,12 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const disconnected = () => chat.connectionStatus() !== 'connected'
 
   const panelFocus = usePanelComposerFocus()
-  let inputHandle: ComposerInputHandle | undefined
-  onCleanup(() => {
-    if (inputHandle) panelFocus?.release(inputHandle)
+  const [inputHandle, setInputHandle] = createSignal<ComposerInputHandle>()
+  createEffect(() => {
+    const handle = inputHandle()
+    if (!handle) return
+    panelFocus?.register(handle)
+    onCleanup(() => panelFocus?.release(handle))
   })
   const composerApi = {current: null as ComposerApi | null}
 
@@ -234,9 +238,9 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const compacting = () => compact.isPending
 
   const triggerSources = useComposerTriggerSources(sessionId)
-  const focusInput = () => requestAnimationFrame(() => inputHandle?.focus())
+  const focusInput = () => requestAnimationFrame(() => inputHandle()?.focus())
   const insert = (text: string) => {
-    inputHandle?.append(text)
+    inputHandle()?.append(text)
     focusInput()
   }
   const attach = (file: File) => {
@@ -385,10 +389,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                             inputLabel="Message the conciv agent"
                             attachmentAdapter={attachments().adapter}
                             AttachmentComponent={PaneAttachment}
-                            onInputReady={(handle) => {
-                              inputHandle = handle
-                              panelFocus?.register(handle)
-                            }}
+                            onInputReady={setInputHandle}
                             onSelectionChange={storage().noteSelection}
                             initialSelection={storage().restoredSelection}
                             busy={compacting() ? <CompactSpinner /> : undefined}
