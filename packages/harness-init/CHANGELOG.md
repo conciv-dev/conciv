@@ -1,5 +1,12 @@
 # @conciv/harness-init
 
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@conciv/solid-stick-to-bottom",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "description": "SolidJS port of use-stick-to-bottom: a stick-to-bottom scroll behavior for chat/log viewports (spring-follow scroll, escape on up-scroll, silent re-lock on shrink, selection guard).",
   "keywords": [
     "conciv",

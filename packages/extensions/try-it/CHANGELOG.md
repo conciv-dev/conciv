@@ -1,5 +1,14 @@
 # @conciv/extension-try-it
 
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies [[`6ce79cf`](https://github.com/conciv-dev/conciv/commit/6ce79cf66cb0629ba965af4d4d06b242c673b017), [`b329b47`](https://github.com/conciv-dev/conciv/commit/b329b47b889201093c5de042f389eac297caa249)]:
+  - @conciv/ui-kit-system@0.0.19
+  - @conciv/extension@0.0.19
+  - @conciv/protocol@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

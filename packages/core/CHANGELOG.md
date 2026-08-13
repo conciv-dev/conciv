@@ -1,5 +1,31 @@
 # @conciv/core
 
+## 0.0.19
+
+### Patch Changes
+
+- [#357](https://github.com/conciv-dev/conciv/pull/357) [`c6aa92c`](https://github.com/conciv-dev/conciv/commit/c6aa92c53847d9f811eafebf414492335864955b) Thanks [@omridevk](https://github.com/omridevk)! - The configured engine port is a preference on the Vite dev server: when it is already taken the
+  engine falls back to a free port, logs the address it actually bound, and the page is stamped with
+  that address, so two dev servers can run at once instead of the second dying on EADDRINUSE. The
+  Next.js integration and the generic webpack/rspack plugin still bind their port exactly, because
+  both hand the client a fixed address before the engine ever boots.
+
+- [#343](https://github.com/conciv-dev/conciv/pull/343) [`78977f0`](https://github.com/conciv-dev/conciv/commit/78977f03328d09224602b6162b9178c48b4e04a9) Thanks [@omridevk](https://github.com/omridevk)! - Detect and announce a stale engine. The engine builds its staleness probe as its own modules are first imported, fingerprinting the contents of every published entry of the server packages it loaded, and re-hashes them on demand — so a rebuild that lands on disk under a running dev server stops being invisible — and a re-link or cache extraction that only moves mtimes with identical bytes does not raise a false alarm. `/health` gains an `engine` field (`stale`, `changed`, `tracked`, `bootedAt`, `fingerprint`), a new `meta.engine` RPC carries the same reading to the widget, and the MCP server folds a warning into its `instructions` when the loaded code is behind the disk. The widget raises a standing danger notice naming what actually moved: the server code on disk is newer than the running engine, restart the dev server. The notice is keyed by fingerprint, so it clears itself when the engine is restarted, stays down once dismissed for that same stamp, and speaks up again after a further rebuild.
+
+- [#319](https://github.com/conciv-dev/conciv/pull/319) [`af72648`](https://github.com/conciv-dev/conciv/commit/af72648838bd828477102f87f78d457d17ebec41) Thanks [@omridevk](https://github.com/omridevk)! - Serve one composite oRPC router (core procedures plus `ext.<slug>` extension routers) over both a fetch mount at `/rpc` and a new additive WebSocket mount at `/rpc-ws`. Per-call request headers are now derived from the oRPC standard request by a single shared root interceptor, so session-scoped calls behave identically on both transports. `@conciv/serve` gains an explicit `maxPayload`, a graceful socket close that only terminates after a deadline, and a `fetch` type that accepts the server env argument. Existing `/rpc` and `/rpc/ext/<slug>` URLs are unchanged.
+
+- Updated dependencies [[`e628f93`](https://github.com/conciv-dev/conciv/commit/e628f93ed9d4067c6ad164a2af0369e543abd62f), [`39c6072`](https://github.com/conciv-dev/conciv/commit/39c6072687cdedeabc42dabe798d88fa10dc716b), [`23f62c9`](https://github.com/conciv-dev/conciv/commit/23f62c9ad8a810cdf177a53701a1516b191436fe), [`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323), [`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323), [`b329b47`](https://github.com/conciv-dev/conciv/commit/b329b47b889201093c5de042f389eac297caa249)]:
+  - @conciv/ui-kit-chat@0.0.19
+  - @conciv/contract@0.0.19
+  - @conciv/extension@0.0.19
+  - @conciv/serve@0.0.19
+  - @conciv/extension-page@0.0.19
+  - @conciv/tools@0.0.19
+  - @conciv/db@0.0.19
+  - @conciv/harness@0.0.19
+  - @conciv/protocol@0.0.19
+  - @conciv/solid-diffs@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

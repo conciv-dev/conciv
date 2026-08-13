@@ -1,5 +1,23 @@
 # @conciv/serve
 
+## 0.0.19
+
+### Patch Changes
+
+- [#335](https://github.com/conciv-dev/conciv/pull/335) [`b329b47`](https://github.com/conciv-dev/conciv/commit/b329b47b889201093c5de042f389eac297caa249) Thanks [@omridevk](https://github.com/omridevk)! - Move the rpc mount seam (`makeCompositeRpcRouter`, `rpcFetchMiddleware`, `rpcWebsocketRoute`, `RPC_PREFIX`,
+  `RPC_WS_PATH`) from `@conciv/core` into `@conciv/extension/rpc-mount`, so extension fixtures and test harnesses
+  mount the same composite router over both transports instead of hand-rolling a second one. `@conciv/core`
+  imports the seam from there; behavior is unchanged.
+
+  `rpcWebsocketRoute(router, {upgrade, onError})` now takes its `upgradeWebSocket` adapter as an injected
+  argument instead of importing `@hono/node-server` directly, so every caller (core's own mount, the test
+  harnesses, extension fixtures) shares one `@hono/node-server` module instance for the upgrade — a second
+  instance silently refuses the upgrade. `@conciv/serve` re-exports `upgradeWebSocket` as the one sanctioned
+  source for that adapter; pass it (and an optional `onError` for rejected frames) at every call site.
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.19
+
 ## 0.0.18
 
 ## 0.0.17

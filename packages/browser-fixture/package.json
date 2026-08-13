@@ -1,6 +1,6 @@
 {
   "name": "@conciv/browser-fixture",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "private": true,
   "description": "Internal test infra: a vitest test.extend() fixture that boots one playwright chromium instance per test file, with a p-timeout-bounded close. Zero @conciv/* dependencies by design, so any package can use it without risking a workspace dependency cycle.",
   "homepage": "https://conciv.dev",

@@ -1,5 +1,30 @@
 # conciv
 
+## 0.0.19
+
+### Patch Changes
+
+- [#469](https://github.com/conciv-dev/conciv/pull/469) [`8a1ddc9`](https://github.com/conciv-dev/conciv/commit/8a1ddc94555aec8d7070b42073ecdf9e7af29c94) Thanks [@omridevk](https://github.com/omridevk)! - Extension instance disposal is now owned by `createConcivRouter` itself: a `Wrap` component registers `onCleanup` for every extension instance's `dispose()`, riding whatever unmounts the tree that rendered `RouterProvider`. The three `apps/conciv` browser suites that used to pair `disposeConcivRouter` with a manual unmount no longer need to — they were forgettable by construction, and every consumer that forgot leaked extension state.
+
+  `disposeConcivRouter` stays exported as an explicit, idempotent escape hatch for the one case `Wrap` can't cover: a router created but never rendered (e.g. a boot that fails before `render()` runs) still needs an owner for its eagerly-created extension instances. It shares one guarded disposer with `Wrap`'s `onCleanup` — first call disposes, every later call (whether from a normal unmount or a repeat call) is a no-op — so `packages/embed/src/mount-impl.tsx` can keep calling it unconditionally in its disposer list without double-disposing.
+
+- Updated dependencies [[`e628f93`](https://github.com/conciv-dev/conciv/commit/e628f93ed9d4067c6ad164a2af0369e543abd62f), [`c6aa92c`](https://github.com/conciv-dev/conciv/commit/c6aa92c53847d9f811eafebf414492335864955b), [`6ce79cf`](https://github.com/conciv-dev/conciv/commit/6ce79cf66cb0629ba965af4d4d06b242c673b017), [`78977f0`](https://github.com/conciv-dev/conciv/commit/78977f03328d09224602b6162b9178c48b4e04a9), [`39c6072`](https://github.com/conciv-dev/conciv/commit/39c6072687cdedeabc42dabe798d88fa10dc716b), [`23f62c9`](https://github.com/conciv-dev/conciv/commit/23f62c9ad8a810cdf177a53701a1516b191436fe), [`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323), [`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323), [`b329b47`](https://github.com/conciv-dev/conciv/commit/b329b47b889201093c5de042f389eac297caa249), [`af72648`](https://github.com/conciv-dev/conciv/commit/af72648838bd828477102f87f78d457d17ebec41)]:
+  - @conciv/ui-kit-chat@0.0.19
+  - @conciv/core@0.0.19
+  - @conciv/ui-kit-system@0.0.19
+  - @conciv/contract@0.0.19
+  - @conciv/extension@0.0.19
+  - @conciv/tools@0.0.19
+  - @conciv/ui-kit-chat-tools@0.0.19
+  - @conciv/client@0.0.19
+  - @conciv/ui-kit-tap@0.0.19
+  - @conciv/page@0.0.19
+  - @conciv/grab@0.0.19
+  - @conciv/mascot@0.0.19
+  - @conciv/protocol@0.0.19
+  - @conciv/solid-diffs@0.0.19
+  - @conciv/solid-streamdown@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

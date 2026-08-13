@@ -1,5 +1,22 @@
 # @conciv/extension-testkit
 
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies [[`e628f93`](https://github.com/conciv-dev/conciv/commit/e628f93ed9d4067c6ad164a2af0369e543abd62f), [`c6aa92c`](https://github.com/conciv-dev/conciv/commit/c6aa92c53847d9f811eafebf414492335864955b), [`6ce79cf`](https://github.com/conciv-dev/conciv/commit/6ce79cf66cb0629ba965af4d4d06b242c673b017), [`78977f0`](https://github.com/conciv-dev/conciv/commit/78977f03328d09224602b6162b9178c48b4e04a9), [`39c6072`](https://github.com/conciv-dev/conciv/commit/39c6072687cdedeabc42dabe798d88fa10dc716b), [`23f62c9`](https://github.com/conciv-dev/conciv/commit/23f62c9ad8a810cdf177a53701a1516b191436fe), [`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323), [`ea23bf6`](https://github.com/conciv-dev/conciv/commit/ea23bf6fa956703ba66399513c5de4af40770323), [`b329b47`](https://github.com/conciv-dev/conciv/commit/b329b47b889201093c5de042f389eac297caa249), [`af72648`](https://github.com/conciv-dev/conciv/commit/af72648838bd828477102f87f78d457d17ebec41)]:
+  - @conciv/ui-kit-chat@0.0.19
+  - @conciv/core@0.0.19
+  - @conciv/ui-kit-system@0.0.19
+  - @conciv/contract@0.0.19
+  - @conciv/extension@0.0.19
+  - @conciv/harness-testkit@0.0.19
+  - @conciv/extension-compiler@0.0.19
+  - @conciv/browser-fixture@0.0.19
+  - @conciv/grab@0.0.19
+  - @conciv/protocol@0.0.19
+  - @conciv/uno-preset@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes
