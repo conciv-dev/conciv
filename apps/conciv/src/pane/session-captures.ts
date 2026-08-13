@@ -15,6 +15,7 @@ export function useSessionCaptures(sessionId: string): SessionCapturesView {
     staleTime: Infinity,
   }))
   const views = createMemo<Record<string, ToolCaptureView>>(() => {
+    if (captures.isPending) return {}
     const data = captures.data
     return data === undefined ? {} : toolCaptureViews(data)
   })

@@ -142,6 +142,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
 
   const routes: Record<string, (body: unknown, signal: AbortSignal) => Response> = {
     '/rpc/sessions/list': () => reply(config.sessions ?? [sessionRow({id: 'conciv_1'})]),
+    '/rpc/sessions/resolve': () => reply({sessionId: config.sessions?.[0]?.id ?? 'conciv_1'}),
     '/rpc/sessions/create': () => reply({sessionId: 'conciv_2'}),
     '/rpc/sessions/compact': () => reply({ok: true}),
     '/rpc/drafts/get': () => reply(config.draft ?? null),

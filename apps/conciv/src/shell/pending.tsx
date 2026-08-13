@@ -1,6 +1,21 @@
 import {type JSX} from 'solid-js'
+import {Loader} from '@conciv/ui-kit-system'
 
 const SKEL = 'skel-bg [background-size:200%_100%] anim-skel'
+
+const PENDING_PANE_LABEL = 'Loading conciv'
+
+export function PendingPane(): JSX.Element {
+  return (
+    <Loader.Root class="h-full w-full text-pw-text" translations={{value: () => PENDING_PANE_LABEL}}>
+      <Loader.Indicator />
+      <Loader.Text>
+        <Loader.Label>{`${PENDING_PANE_LABEL}…`}</Loader.Label>
+        <Loader.Description>Reconnecting to your workspace.</Loader.Description>
+      </Loader.Text>
+    </Loader.Root>
+  )
+}
 
 export function SessionPillPending(props: {variant: 'pill' | 'bar'}): JSX.Element {
   return (
