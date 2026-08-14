@@ -80,19 +80,22 @@ function startWorking(registration: Registration): void {
   registration.activity.start(registration.pose.eyeRestScaleY())
 }
 
-function stopWorking(registration: Registration, next: MascotConfig): void {
+function applyWork(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
+  if (!previous.working) return startWorking(registration)
+  if (previous.state === next.state) return
+  registration.activity.start(registration.pose.eyeRestScaleY())
+}
+
+function endWork(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
   registration.activity.stop()
+  applyPose(registration, previous, next)
   if (followTarget(next)) registration.follow.arm()
 }
 
-function applyWorking(registration: Registration, next: MascotConfig): void {
-  if (next.working) return startWorking(registration)
-  stopWorking(registration, next)
-}
-
 function applyTransition(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
+  if (previous.working && !next.working) return endWork(registration, previous, next)
   applyPose(registration, previous, next)
-  if (previous.working !== next.working) return applyWorking(registration, next)
+  if (next.working) return applyWork(registration, previous, next)
   applyFollow(registration, previous, next)
 }
 
@@ -151,12 +154,18 @@ export function createMascot(initial: MascotConfig): MascotService {
       syncSlots()
     }
 
+  const rootRef = slotRef('root')
+  const headRef = slotRef('head')
+  const eyesRef = slotRef('eyes')
+  const antennaRef = slotRef('antenna')
+  const effectHostRef = slotRef('effectHost')
+
   const connect = (): MascotConnect => ({
-    getRootProps: () => ({style: rootStyle(), ref: slotRef('root')}),
-    getHeadProps: () => ({style: headStyle(), ref: slotRef('head')}),
-    getEyesProps: () => ({style: eyesStyle(), ref: slotRef('eyes')}),
-    getAntennaProps: () => ({style: antennaStyle(), ref: slotRef('antenna')}),
-    getEffectHostProps: () => ({style: effectHostStyle(), ref: slotRef('effectHost')}),
+    getRootProps: () => ({style: rootStyle(), ref: rootRef}),
+    getHeadProps: () => ({style: headStyle(), ref: headRef}),
+    getEyesProps: () => ({style: eyesStyle(), ref: eyesRef}),
+    getAntennaProps: () => ({style: antennaStyle(), ref: antennaRef}),
+    getEffectHostProps: () => ({style: effectHostStyle(), ref: effectHostRef}),
   })
 
   const destroy = () => {
