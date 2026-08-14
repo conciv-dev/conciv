@@ -6,6 +6,8 @@ import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
 import {openPipWindow, type PipWindow} from '../shell/pip.js'
+import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
+import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
 
 export const Route = createFileRoute('/pip/$sessionId')({component: PipSession})
 
@@ -33,15 +35,20 @@ function PipSession(): JSX.Element {
       {(target) => (
         <Portal mount={target.wrap}>
           <EnvironmentProvider value={() => target.root}>
-            <Show when={params().sessionId} keyed>
-              {(sessionId) => (
-                <PaneProvider sessionId={sessionId}>
-                  <div class="flex flex-col h-full min-h-0 bg-pw-panel text-pw-text font-pw text-[0.875rem] leading-[1.45]">
-                    <ChatPane sessionId={sessionId} />
-                  </div>
-                </PaneProvider>
-              )}
-            </Show>
+            <NoticeContextProvider>
+              <Show when={params().sessionId} keyed>
+                {(sessionId) => (
+                  <PaneProvider sessionId={sessionId}>
+                    <div class="flex flex-col h-full min-h-0 bg-pw-panel text-pw-text font-pw text-[0.875rem] leading-[1.45]">
+                      <NoticeSurface />
+                      <EngineStaleNotice />
+                      <EngineUnreachableNotice />
+                      <ChatPane sessionId={sessionId} />
+                    </div>
+                  </PaneProvider>
+                )}
+              </Show>
+            </NoticeContextProvider>
           </EnvironmentProvider>
         </Portal>
       )}

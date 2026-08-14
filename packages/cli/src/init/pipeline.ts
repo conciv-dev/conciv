@@ -6,6 +6,7 @@ import {captureFile, guardBackups, onInterrupt, type FileBackup} from './interru
 import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan} from './ledger.js'
 import {emitOutro} from './outro.js'
 import {preflight} from './preflight.js'
+import {docsPackStep} from './steps/docs-pack.js'
 import {fallbackStep} from './steps/framework/fallback.js'
 import {nextjsStep} from './steps/framework/nextjs.js'
 import {viteStep} from './steps/framework/vite.js'
@@ -38,6 +39,7 @@ export type RunSettings = {
 export type InitContext = Omit<RunSettings, 'interrupt'> & {
   report: (line: string) => void
   note: (note: StepNote) => void
+  feed: (line: string) => void
 }
 
 export type InitStep = {
@@ -60,7 +62,12 @@ export type InitResult =
   | {outcome: 'planned'; plan: string}
   | {outcome: 'completed'; steps: LedgerEntry[]; next: string[]}
 
-export type SpawnBin = (bin: string, args: string[], cwd: string) => Promise<{code: number; output: string}>
+export type SpawnBin = (
+  bin: string,
+  args: string[],
+  cwd: string,
+  onLine: (line: string) => void,
+) => Promise<{code: number; output: string}>
 
 export type InitRuntime = {
   addDependency: AddDep
@@ -74,8 +81,8 @@ export type InitRuntime = {
 
 type Emission = {kind: 'line'; text: string} | {kind: 'note'; note: StepNote}
 
-function spawnBin(bin: string, args: string[], cwd: string): Promise<CommandOutcome> {
-  return execFileOutcome(bin, args, {cwd})
+function spawnBin(bin: string, args: string[], cwd: string, onLine: (line: string) => void): Promise<CommandOutcome> {
+  return execFileOutcome(bin, args, {cwd}, onLine)
 }
 
 function defaultRuntime(): InitRuntime {
@@ -109,6 +116,7 @@ function stepList(detected: Detected, selections: ConfirmedSelections, runtime: 
     ...(selections.framework ? [frameworkStep(detected)] : []),
     agentsMdStep(consented),
     ...harnessFileInits.map((init) => harnessInitStep(init, consented, {home: runtime.env.HOME, run: runtime.spawn})),
+    ...(selections.docsPack ? [docsPackStep(runtime.addDependency, runtime.spawn)] : []),
   ]
 }
 
@@ -137,7 +145,7 @@ async function planRows(steps: InitStep[], ctx: InitContext): Promise<PlanRow[]>
 }
 
 function quietContext(cwd: string, yes: boolean): InitContext {
-  return {cwd, yes, dryRun: true, report: () => {}, note: () => {}, backup: () => {}}
+  return {cwd, yes, dryRun: true, report: () => {}, note: () => {}, backup: () => {}, feed: () => {}}
 }
 
 export async function runInit(options: InitOptions, overrides: Partial<InitRuntime> = {}): Promise<InitResult> {
@@ -215,6 +223,7 @@ export async function runSteps(steps: InitStep[], settings: RunSettings, output:
 async function runOne(step: InitStep, settings: RunSettings, output: InitOutput): Promise<LedgerEntry> {
   const emissions: Emission[] = []
   const {interrupt, ...base} = settings
+  const line = output.step(step.running)
   const ctx: InitContext = {
     ...base,
     report: (text) => {
@@ -223,8 +232,10 @@ async function runOne(step: InitStep, settings: RunSettings, output: InitOutput)
     note: (note) => {
       emissions.push({kind: 'note', note})
     },
+    feed: (text) => {
+      line.line(text)
+    },
   }
-  const line = output.step(step.running)
   const release = interrupt(() => {
     line.settle({status: 'skipped', summary: `${step.title} — interrupted`})
   })

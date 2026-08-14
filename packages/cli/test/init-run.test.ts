@@ -5,6 +5,7 @@ import {describe, expect, it} from 'vitest'
 import {claudeConnectDir} from '@conciv/harness-init/claude/files'
 import {runInit} from '../src/init/pipeline.js'
 import {writeConsent} from '../src/init/steps/harness/consent.js'
+import type {ConfirmedSelections, FoundSelections, PlanPrompts} from '../src/init/wizard.js'
 import {commitAll, fixture, pendingChanges, recorderPrompts, statusById, stepsOf} from './support/init-fixture.js'
 
 function recordedConsent(cwd: string): unknown {
@@ -19,6 +20,26 @@ function planLine(plan: string, title: string): string {
   const line = plan.split('\n').find((row) => row.includes(title))
   if (line === undefined) throw new Error(`plan has no row for ${title}`)
   return line
+}
+
+function acceptWith(selections: ConfirmedSelections): PlanPrompts {
+  return {
+    selections: async () => selections,
+    confirmRun: async () => true,
+  }
+}
+
+function acceptingAllFound(events: string[]): PlanPrompts {
+  return {
+    selections: async (found: FoundSelections) => {
+      events.push('selections')
+      return {framework: true, harnesses: found.harnesses.map((one) => one.id), docsPack: false}
+    },
+    confirmRun: async () => {
+      events.push('confirmRun')
+      return true
+    },
+  }
 }
 
 describe('runInit', () => {
@@ -37,7 +58,7 @@ describe('runInit', () => {
     ])
     expect(run.events).toContain('intro:conciv init')
     expect(run.events).toContain('spin-stop:Detected: vite (vite.config.ts) · pnpm · harnesses: claude')
-    expect(run.events).not.toContain('decide')
+    expect(run.events).not.toContain('selections')
     const plans = plansOf(run.events)
     expect(plans).toHaveLength(1)
     expect(plans[0]).toContain('Install @conciv/it')
@@ -82,6 +103,29 @@ describe('runInit', () => {
     expect(run.events).toContain('success:4 wired')
   })
 
+  it('streams the claude plugin install output into that step before it settles', async () => {
+    const run = fixture()
+    await runInit(
+      {yes: true, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        spawn: async (bin, args, spawnCwd, onLine) => {
+          onLine(`running: ${bin} ${args.join(' ')}`)
+          const outcome = await run.runtime.spawn?.(bin, args, spawnCwd, onLine)
+          return outcome ?? {code: 0, output: ''}
+        },
+      },
+    )
+    const stepAt = run.events.indexOf('step:Installing the conciv claude plugin…')
+    const settleAt = run.events.indexOf('settle:done:Installed the conciv claude plugin')
+    const streamedAt = run.events.findIndex((event) =>
+      event.startsWith('stepline:running: claude plugin marketplace add'),
+    )
+    expect(stepAt).toBeGreaterThan(-1)
+    expect(streamedAt).toBeGreaterThan(stepAt)
+    expect(streamedAt).toBeLessThan(settleAt)
+  })
+
   it('renders the applied config change as a note titled with the file, under its step', async () => {
     const run = fixture()
     await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
@@ -105,51 +149,40 @@ describe('runInit', () => {
     const run = fixture()
     const result = await runInit(
       {yes: false, dryRun: false, force: false, cwd: run.cwd},
-      {
-        ...run.runtime,
-        prompts: {
-          decide: async () => (run.events.includes('adjust') ? 'proceed' : 'adjust'),
-          adjust: async () => {
-            run.events.push('adjust')
-            return {framework: true, harnesses: []}
-          },
-        },
-      },
+      {...run.runtime, prompts: acceptWith({framework: true, harnesses: [], docsPack: false})},
     )
     expect(statusById(result).claude).toBe('skipped')
     expect(run.events).toContain('settle:skipped:Install the conciv claude plugin — skipped: not selected')
     expect(run.spawned).toEqual([])
   })
 
-  it('renders the plan before the first prompt and applies an adjusted selection', async () => {
+  it('asks the questions once, renders the plan once, then applies the chosen selection', async () => {
     const run = fixture()
-    const decisions: ('adjust' | 'proceed')[] = ['adjust', 'proceed']
     const result = await runInit(
       {yes: false, dryRun: false, force: false, cwd: run.cwd},
       {
         ...run.runtime,
         prompts: {
-          decide: async () => {
-            run.events.push('decide')
-            const next = decisions.shift()
-            if (next === undefined) throw new Error('ran out of decisions')
-            return next
+          selections: async () => {
+            run.events.push('selections')
+            return {framework: false, harnesses: [], docsPack: false}
           },
-          adjust: async () => {
-            run.events.push('adjust')
-            return {framework: false, harnesses: []}
+          confirmRun: async () => {
+            run.events.push('confirmRun')
+            return true
           },
         },
       },
     )
+    const selectionsAt = run.events.indexOf('selections')
+    expect(selectionsAt).toBeGreaterThan(-1)
     const firstPlanAt = run.events.findIndex((event) => event.startsWith('plan:'))
-    expect(firstPlanAt).toBeGreaterThanOrEqual(0)
-    expect(firstPlanAt).toBeLessThan(run.events.indexOf('decide'))
+    expect(firstPlanAt).toBeGreaterThan(selectionsAt)
+    expect(firstPlanAt).toBeLessThan(run.events.indexOf('confirmRun'))
     const plans = plansOf(run.events)
-    expect(plans).toHaveLength(2)
-    expect(plans[0]).toContain('Wire the vite config')
-    expect(plans[1]).not.toContain('Wire the vite config')
-    expect(plans[1]).toContain('○ claude (not selected)')
+    expect(plans).toHaveLength(1)
+    expect(plans[0]).not.toContain('Wire the vite config')
+    expect(plans[0]).toContain('○ claude (not selected)')
     expect(statusById(result)).toEqual({install: 'done', agents: 'done', claude: 'skipped'})
     expect(recordedConsent(run.cwd)).toEqual({harnesses: []})
     expect(run.spawned).toEqual([])
@@ -186,11 +219,11 @@ describe('runInit', () => {
         ...run.runtime,
         interactive: () => false,
         prompts: {
-          decide: async () => {
-            throw new Error('decide must not run under --dry-run')
+          selections: async () => {
+            throw new Error('selections must not run under --dry-run')
           },
-          adjust: async () => {
-            throw new Error('adjust must not run under --dry-run')
+          confirmRun: async () => {
+            throw new Error('confirmRun must not run under --dry-run')
           },
         },
       },
@@ -198,31 +231,6 @@ describe('runInit', () => {
     const plan = result.outcome === 'planned' ? result.plan : ''
     expect(planLine(plan, 'Teach agents the conciv CLI')).toContain('already wired')
     expect(planLine(plan, 'Teach agents the conciv CLI')).not.toContain('AGENTS.md')
-  })
-
-  it('re-renders the plan against the adjusted harness selection', async () => {
-    const run = fixture()
-    await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
-    commitAll(run.cwd)
-    const decisions: ('adjust' | 'proceed')[] = ['adjust', 'proceed']
-    await runInit(
-      {yes: false, dryRun: false, force: false, cwd: run.cwd},
-      {
-        ...run.runtime,
-        prompts: {
-          decide: async () => {
-            const next = decisions.shift()
-            if (next === undefined) throw new Error('ran out of decisions')
-            return next
-          },
-          adjust: async () => ({framework: true, harnesses: []}),
-        },
-      },
-    )
-    const plans = plansOf(run.events).slice(-2)
-    expect(plans).toHaveLength(2)
-    expect(planLine(plans[1] ?? '', 'Teach agents the conciv CLI')).toContain('AGENTS.md')
-    expect(planLine(plans[0] ?? '', 'Teach agents the conciv CLI')).toContain('already wired')
   })
 
   it('prints the plan and touches nothing with --dry-run', async () => {
@@ -233,11 +241,11 @@ describe('runInit', () => {
         ...run.runtime,
         interactive: () => false,
         prompts: {
-          decide: async () => {
-            throw new Error('decide must not run under --dry-run')
+          selections: async () => {
+            throw new Error('selections must not run under --dry-run')
           },
-          adjust: async () => {
-            throw new Error('adjust must not run under --dry-run')
+          confirmRun: async () => {
+            throw new Error('confirmRun must not run under --dry-run')
           },
         },
       },
@@ -261,11 +269,11 @@ describe('runInit', () => {
         ...run.runtime,
         interactive: () => false,
         prompts: {
-          decide: async () => {
-            throw new Error('decide must not run under --dry-run')
+          selections: async () => {
+            throw new Error('selections must not run under --dry-run')
           },
-          adjust: async () => {
-            throw new Error('adjust must not run under --dry-run')
+          confirmRun: async () => {
+            throw new Error('confirmRun must not run under --dry-run')
           },
         },
       },
@@ -289,11 +297,11 @@ describe('runInit', () => {
         ...run.runtime,
         interactive: () => false,
         prompts: {
-          decide: async () => {
-            throw new Error('decide must not run without a terminal')
+          selections: async () => {
+            throw new Error('selections must not run without a terminal')
           },
-          adjust: async () => {
-            throw new Error('adjust must not run without a terminal')
+          confirmRun: async () => {
+            throw new Error('confirmRun must not run without a terminal')
           },
         },
       },
@@ -424,11 +432,56 @@ describe('runInit', () => {
     expect(readFileSync(join(run.cwd, 'AGENTS.md'), 'utf8')).toContain('conciv tools')
   })
 
+  it('leaves the @conciv/skills docs pack untouched by default, even under --yes', async () => {
+    const run = fixture()
+    const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
+    expect(statusById(result)['docs-pack']).toBeUndefined()
+    expect(run.added).toEqual(['@conciv/it'])
+    expect(readFileSync(join(run.cwd, 'package.json'), 'utf8')).not.toContain('@conciv/skills')
+    expect(run.spawned).not.toContain('pnpm dlx @tanstack/intent@latest install')
+  })
+
+  it('adds the @conciv/skills docs pack and runs intent install once the user opts in', async () => {
+    const run = fixture()
+    const result = await runInit(
+      {yes: false, dryRun: false, force: false, cwd: run.cwd},
+      {...run.runtime, prompts: acceptWith({framework: true, harnesses: ['claude'], docsPack: true})},
+    )
+    expect(statusById(result)['docs-pack']).toBe('done')
+    expect(run.added).toEqual(['@conciv/it', '@conciv/skills'])
+    expect(readFileSync(join(run.cwd, 'package.json'), 'utf8')).toContain('@conciv/skills')
+    expect(run.spawned).toContain('pnpm dlx @tanstack/intent@latest install')
+  })
+
+  it('degrades the docs pack to a manual card when the intent install spawn fails', async () => {
+    const run = fixture()
+    const result = await runInit(
+      {yes: false, dryRun: false, force: false, cwd: run.cwd},
+      {
+        ...run.runtime,
+        prompts: acceptWith({framework: true, harnesses: ['claude'], docsPack: true}),
+        spawn: async (bin, args, spawnCwd, onLine) => {
+          if (bin === 'pnpm' && args[0] === 'dlx' && args[1] === '@tanstack/intent@latest') {
+            return {code: 1, output: 'network unreachable'}
+          }
+          const outcome = await run.runtime.spawn?.(bin, args, spawnCwd, onLine)
+          return outcome ?? {code: 0, output: ''}
+        },
+      },
+    )
+    expect(statusById(result)['docs-pack']).toBe('manual')
+    expect(run.added).toEqual(['@conciv/it', '@conciv/skills'])
+    const docsPackEntry =
+      result.outcome === 'completed' ? result.steps.find((entry) => entry.id === 'docs-pack') : undefined
+    expect(docsPackEntry?.detail).toBe('network unreachable')
+    expect(docsPackEntry?.cards[0]?.snippet).toContain('pnpm dlx @tanstack/intent@latest install')
+  })
+
   it('reports a wizard cancel as a cancellation that changed nothing', async () => {
     const run = fixture()
     const result = await runInit(
       {yes: false, dryRun: false, force: false, cwd: run.cwd},
-      {...run.runtime, prompts: {...recorderPrompts(run.events), decide: async () => 'cancelled'}},
+      {...run.runtime, prompts: {...recorderPrompts(run.events), selections: async () => 'cancelled'}},
     )
     expect(result).toEqual({outcome: 'cancelled', reason: 'cancelled — nothing changed'})
     expect(run.events).toContain('cancel:Nothing changed.')
@@ -437,15 +490,31 @@ describe('runInit', () => {
     expect(run.spawned).toEqual([])
   })
 
-  it('reports a cancel inside adjust as a cancellation that changed nothing', async () => {
+  it('declines the final confirm and writes nothing — no edit loop, no re-render', async () => {
+    const run = fixture()
+    const result = await runInit(
+      {yes: false, dryRun: false, force: false, cwd: run.cwd},
+      {...run.runtime, prompts: {...acceptingAllFound(run.events), confirmRun: async () => false}},
+    )
+    expect(result).toEqual({outcome: 'cancelled', reason: 'cancelled — nothing changed'})
+    expect(run.events).toContain('cancel:Nothing changed.')
+    expect(plansOf(run.events)).toHaveLength(1)
+    expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
+    expect(run.added).toEqual([])
+    expect(run.spawned).toEqual([])
+  })
+
+  it('reports a cancel while answering the questions as a cancellation that changed nothing', async () => {
     const run = fixture()
     const result = await runInit(
       {yes: false, dryRun: false, force: false, cwd: run.cwd},
       {
         ...run.runtime,
         prompts: {
-          decide: async () => 'adjust',
-          adjust: async () => 'cancelled',
+          selections: async () => 'cancelled',
+          confirmRun: async () => {
+            throw new Error('confirmRun must not run once the questions were cancelled')
+          },
         },
       },
     )

@@ -8,7 +8,7 @@ import {hasIt, installItStep} from '../../src/init/steps/install-it.js'
 function project(manifest: object): InitContext {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-install-'))
   writeFileSync(join(cwd, 'package.json'), JSON.stringify(manifest))
-  return {cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: () => {}}
+  return {cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: () => {}, feed: () => {}}
 }
 
 describe('hasIt', () => {

@@ -6,7 +6,7 @@ export function silentOutput(): InitOutput {
     intro: quiet,
     spinner: () => ({stop: quiet, fail: quiet}),
     plan: quiet,
-    step: () => ({settle: quiet}),
+    step: () => ({line: quiet, settle: quiet}),
     note: quiet,
     line: quiet,
     success: quiet,

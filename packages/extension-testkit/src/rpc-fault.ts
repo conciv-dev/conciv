@@ -53,3 +53,44 @@ export async function failRpcCalls(
     },
   }
 }
+
+export type RpcHold = {hold: () => void; release: () => void}
+
+export async function holdRpcCalls(page: Page): Promise<RpcHold> {
+  const held = {value: false}
+  const sockets = new Set<WebSocketRoute>()
+
+  await page.route(
+    (url) => url.pathname.startsWith('/rpc/') || url.pathname === '/rpc',
+    async (route) => {
+      if (!held.value) return route.continue()
+      await route.abort('connectionrefused')
+    },
+  )
+
+  await page.routeWebSocket(
+    (url) => url.pathname.endsWith('/rpc-ws'),
+    (socket) => {
+      if (held.value) {
+        void socket.close()
+        return
+      }
+      sockets.add(socket)
+      socket.onClose(() => sockets.delete(socket))
+      const server = socket.connectToServer()
+      socket.onMessage((message) => server.send(message))
+      server.onMessage((message) => socket.send(message))
+    },
+  )
+
+  return {
+    hold: () => {
+      held.value = true
+      for (const socket of sockets) void socket.close()
+      sockets.clear()
+    },
+    release: () => {
+      held.value = false
+    },
+  }
+}

@@ -27,6 +27,7 @@ export type AppContextValue = {
   disconnect?: () => void
   grabProvider?: GrabProvider
   connectionGeneration: () => number
+  apiBase: () => string
 }
 
 export const AppContext = createContext<AppContextValue>()
@@ -95,4 +96,8 @@ export function useGrabProvider(): GrabProvider | undefined {
 
 export function useConnectionGeneration(): () => number {
   return useAppScope('useConnectionGeneration', (app) => app.connectionGeneration)
+}
+
+export function useApiBase(): () => string {
+  return useAppScope('useApiBase', (app) => app.apiBase)
 }

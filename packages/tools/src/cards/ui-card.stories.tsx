@@ -171,3 +171,20 @@ export const AnswersAChoice: Story = {
     await expect(c.getByRole('button', {name: 'hold'})).toBeDisabled()
   },
 }
+
+export const AwaitingSpec: Story = {
+  render: () =>
+    frame(
+      'chat-theme-conciv',
+      <UiCard
+        part={{type: 'tool-call', id: 'u1', name: 'conciv_ui', arguments: '{"kind":', state: 'input-streaming'}}
+        result={undefined}
+        ctx={INERT_TOOL_CTX}
+        addResult={INERT_ADD_RESULT}
+      />,
+    ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('waiting for the form')).toBeVisible()
+  },
+}

@@ -3,14 +3,12 @@ import {page} from 'vitest/browser'
 import type {GrabApi} from '@conciv/grab'
 import {HostApiProvider} from '@conciv/extension'
 import {ComposerActions} from '../src/composer/actions.js'
-import {NoticeToaster, toaster} from '../src/shell/notices.js'
 import {installFakeCore, type FakeCore} from './helpers/fake-core.js'
 import {mountPane, PANE_SESSION} from './helpers/pane-harness.js'
 
 let core: FakeCore | null = null
 
 afterEach(() => {
-  toaster.remove()
   core?.restore()
   core = null
 })
@@ -37,7 +35,6 @@ function mountActions(config: Parameters<typeof installFakeCore>[0] = {}): FakeC
         onNewSession={() => {}}
         onStageGrab={() => {}}
       />
-      <NoticeToaster />
     </HostApiProvider>
   ))
   return fake

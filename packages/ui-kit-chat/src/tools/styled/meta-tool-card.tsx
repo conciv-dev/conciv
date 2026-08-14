@@ -1,14 +1,13 @@
-import {For, Match, Show, Switch, type JSX} from 'solid-js'
+import {Match, Show, Switch, type JSX} from 'solid-js'
 import ShieldAlert from 'lucide-solid/icons/shield-alert'
 import {z} from 'zod'
 import type {ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardProps, ToolViewError} from '@conciv/protocol/tool-view-types'
 import type {ElementCapture} from '@conciv/protocol/element-capture-types'
 import {parseInput, parseResultPayload, resultText} from '../primitives/tool-util.js'
-import {schemaFields} from '../primitives/schema-params.js'
 import {MUTATING_BADGE, clip, displayValue} from '../primitives/tool-presentation.js'
 import {CardShell, cardHeader} from './card-shell.js'
-import {Chip, CHIP, ChipRow} from './chip.js'
+import {CHIP} from './chip.js'
 import {JsonTree} from './json-tree.js'
 import {ElementPreview} from './element-preview.js'
 import {MirrorRow, NoteRow} from './note-row.js'
@@ -116,16 +115,6 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
     const value = positionalValue()
     return value === undefined ? title() : `${title()} ${value}`
   }
-  const chips = (): Array<{name: string; value: string}> => {
-    const declared = meta()
-    const values = input()
-    const skip = declared?.positional
-    const declaredOrder = schemaFields(declared?.inputSchema).map((field) => field.name)
-    const extras = Object.keys(values).filter((name) => !declaredOrder.includes(name))
-    return [...declaredOrder, ...extras]
-      .filter((name) => name !== skip && values[name] !== undefined)
-      .map((name) => ({name, value: clip(displayValue(values[name]))}))
-  }
   const capture = (): ElementCapture | undefined => props.capture?.after ?? props.capture?.before
   const errorMessage = (): string | undefined => failureText(props.result, meta()?.errors)
   const raw = () => resultText(props.result)
@@ -149,35 +138,28 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
       durationMs={props.durationMs}
       iconClass={accent()}
     >
-      <div class="flex flex-col gap-1.5">
-        <Show when={capture()}>
-          {(value) => (
-            <ElementPreview.Root capture={value()} css={props.capture?.css}>
-              <ElementPreview.Frame />
-              <ElementPreview.Descriptor />
-            </ElementPreview.Root>
-          )}
-        </Show>
-        <Show when={meta()?.summary}>{(summary) => <p class={SUMMARY}>{summary()}</p>}</Show>
-        <Show when={meta()?.hint}>{(hint) => <p class={HINT}>{hint()}</p>}</Show>
-        <Show when={chips().length > 0}>
-          <ChipRow>
-            <For each={chips()}>{(chip) => <Chip name={chip.name} value={chip.value} />}</For>
-          </ChipRow>
-        </Show>
-        <Show when={meta()?.approval === 'ask'}>
-          <NoteRow icon={<ShieldAlert size={12} aria-hidden="true" />} tone="accent">
-            asks before it runs
-          </NoteRow>
-        </Show>
-        <Show when={meta()?.mirrors === true}>
-          <MirrorRow />
-        </Show>
-        <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
-        <Show when={errorMessage() === undefined && raw().length > 0}>
-          <ResultView outputSchema={meta()?.outputSchema} payload={payload()} raw={raw()} />
-        </Show>
-      </div>
+      <Show when={capture()}>
+        {(value) => (
+          <ElementPreview.Root capture={value()} css={props.capture?.css}>
+            <ElementPreview.Frame />
+            <ElementPreview.Descriptor />
+          </ElementPreview.Root>
+        )}
+      </Show>
+      <Show when={meta()?.summary}>{(summary) => <p class={SUMMARY}>{summary()}</p>}</Show>
+      <Show when={meta()?.hint}>{(hint) => <p class={HINT}>{hint()}</p>}</Show>
+      <Show when={meta()?.approval === 'ask'}>
+        <NoteRow icon={<ShieldAlert size={12} aria-hidden="true" />} tone="accent">
+          asks before it runs
+        </NoteRow>
+      </Show>
+      <Show when={meta()?.mirrors === true}>
+        <MirrorRow />
+      </Show>
+      <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
+      <Show when={errorMessage() === undefined && raw().length > 0}>
+        <ResultView outputSchema={meta()?.outputSchema} payload={payload()} raw={raw()} />
+      </Show>
     </CardShell>
   )
 }

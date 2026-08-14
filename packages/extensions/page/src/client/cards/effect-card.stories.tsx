@@ -39,6 +39,8 @@ export const EffectTurnedOn: Story = {
     await expect(canvas.getByText('Drove an effect')).toBeVisible()
     await userEvent.click(canvas.getByRole('button'))
     await waitFor(() => expect(canvas.getByText('grid-overlay')).toBeVisible())
+    await expect(canvas.getAllByText('grid-overlay')).toHaveLength(1)
+    await waitFor(() => expect(canvas.getByText('enable')).toBeVisible())
     await waitFor(() => expect(canvas.getByText('on')).toBeVisible())
     await waitFor(() => expect(canvas.getByText('shown on your page')).toBeVisible())
   },

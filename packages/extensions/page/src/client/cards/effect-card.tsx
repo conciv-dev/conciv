@@ -11,6 +11,8 @@ const EffectList = z.looseObject({
   effects: z.array(z.looseObject({name: z.string(), description: z.string().optional(), enabled: z.boolean()})),
 })
 
+const EFFECT_NAME_KEYS = new Set(['effect'])
+
 const LIST = 'm-0 p-0 list-none flex flex-col gap-1.5'
 const ROW = 'text-[length:var(--chat-text-sm)] m-0 flex gap-2 items-center'
 const NAME = '[color:var(--chat-text)] [font-family:var(--chat-mono)] min-w-0 [overflow-wrap:anywhere]'
@@ -55,6 +57,7 @@ export function EffectCard(props: ToolCardProps): JSX.Element {
   const payload = () => cardPayload(props.result)
   const rows = () => rowsOf(payload())
   const errorMessage = () => cardErrorMessage(props.result)
+  const chipSkip = () => (rows() === undefined ? undefined : EFFECT_NAME_KEYS)
   return (
     <CardShell
       meta={meta()}
@@ -63,6 +66,7 @@ export function EffectCard(props: ToolCardProps): JSX.Element {
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}
+      chipSkip={chipSkip()}
     >
       <div class="flex flex-col gap-1.5">
         <Switch>

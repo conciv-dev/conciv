@@ -15,21 +15,33 @@ export {isSensitiveField, MASKED_VALUE} from './element-descriptor.js'
 export {startTracking, stopTracking, report as trackReport} from './render-tracker.js'
 export * as reactBridge from './react-bridge.js'
 
-async function sleep(ms: number, signal: AbortSignal): Promise<void> {
+async function sleep(
+  ms: number,
+  signal: AbortSignal,
+  subscribeOnline?: (listener: () => void) => () => void,
+): Promise<void> {
   await new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms)
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        resolve()
-      },
-      {once: true},
-    )
+    const finish = (): void => {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', onAbort)
+      unsubscribe?.()
+      resolve()
+    }
+    const onAbort = (): void => finish()
+    const timer = setTimeout(finish, ms)
+    signal.addEventListener('abort', onAbort, {once: true})
+    const unsubscribe = subscribeOnline?.(finish)
   })
 }
 
-async function serveQueries(rpc: RpcClient, driver: PageDriver, signal: AbortSignal): Promise<void> {
+export type PagePlaneRpc = {
+  page: {
+    queries: RpcClient['page']['queries']
+    reply: RpcClient['page']['reply']
+  }
+}
+
+async function serveQueries(rpc: PagePlaneRpc, driver: PageDriver, signal: AbortSignal): Promise<void> {
   const iterator = await rpc.page.queries(undefined, {signal})
   for await (const item of iterator) {
     const parsed = PageQuerySchema.safeParse(item.query)
@@ -39,14 +51,27 @@ async function serveQueries(rpc: RpcClient, driver: PageDriver, signal: AbortSig
   }
 }
 
-async function pump(rpc: RpcClient, driver: PageDriver, signal: AbortSignal): Promise<void> {
+const PAGE_PLANE_POLL_MS = 500
+const PAGE_PLANE_OFFLINE_POLL_MS = 2000
+
+export function pagePlanePollDelayMs(isOnline: () => boolean): number {
+  return isOnline() ? PAGE_PLANE_POLL_MS : PAGE_PLANE_OFFLINE_POLL_MS
+}
+
+export async function pump(
+  rpc: PagePlaneRpc,
+  driver: PageDriver,
+  signal: AbortSignal,
+  isOnline: () => boolean,
+  subscribeOnline?: (listener: () => void) => () => void,
+): Promise<void> {
   while (!signal.aborted) {
     try {
       await serveQueries(rpc, driver, signal)
     } catch {
       if (signal.aborted) return
     }
-    await sleep(500, signal)
+    await sleep(pagePlanePollDelayMs(isOnline), signal, subscribeOnline)
   }
 }
 
@@ -55,11 +80,13 @@ export function startPagePlane(opts: {
   document: Document
   driver?: PageDriver
   tools?: readonly ClientToolEntry[]
+  isOnline?: () => boolean
+  subscribeOnline?: (listener: () => void) => () => void
 }): {
   dispose: () => void
 } {
   const driver = opts.driver ?? makeDomPageDriver({tools: opts.tools})
   const abort = new AbortController()
-  void pump(opts.rpc, driver, abort.signal)
+  void pump(opts.rpc, driver, abort.signal, opts.isOnline ?? (() => true), opts.subscribeOnline)
   return {dispose: () => abort.abort()}
 }

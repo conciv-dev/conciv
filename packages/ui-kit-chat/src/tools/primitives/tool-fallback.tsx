@@ -4,10 +4,11 @@ import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {toolStatus, type ToolStatus} from './tool-status.js'
 
 function argsText(part: ToolCallPart): string {
+  const raw = part.arguments?.trim() ?? ''
   try {
-    return JSON.stringify(JSON.parse(part.arguments || '{}'), null, 2)
+    return JSON.stringify(JSON.parse(raw || '{}'), null, 2)
   } catch {
-    return part.arguments || ''
+    return raw
   }
 }
 

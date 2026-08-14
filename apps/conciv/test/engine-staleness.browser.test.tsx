@@ -3,26 +3,19 @@ import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {EngineStaleNotice} from '../src/shell/engine-notice.js'
-import {NoticeToaster, toaster} from '../src/shell/notices.js'
 import {installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
 import {mountPane, PANE_SESSION} from './helpers/pane-harness.js'
 
 let core: FakeCore | null = null
 
 afterEach(() => {
-  toaster.remove()
   core?.restore()
   core = null
 })
 
 function mountNotice(config: Parameters<typeof installFakeCore>[0] = {}): {refetch: () => Promise<void>} {
   core = installFakeCore({sessions: [sessionRow({id: PANE_SESSION})], ...config})
-  const mounted = mountPane(() => (
-    <>
-      <NoticeToaster />
-      <EngineStaleNotice />
-    </>
-  ))
+  const mounted = mountPane(() => <EngineStaleNotice />)
   return {refetch: mounted.refetch}
 }
 

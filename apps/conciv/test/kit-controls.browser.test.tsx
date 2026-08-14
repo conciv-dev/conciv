@@ -1,6 +1,6 @@
 import '@conciv/ui-kit-system/tokens.css'
 import './helpers/utilities.css'
-import {afterEach, expect, test} from 'vitest'
+import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
 import type {JSX} from 'solid-js'
@@ -8,12 +8,8 @@ import type {ToolCallPart} from '@tanstack/ai-client'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import {INERT_TOOL_CATALOG} from '@conciv/protocol/tool-view-types'
 import {UiCard} from '@conciv/tools/cards'
-import {NoticeToaster, notify, toaster} from '../src/shell/notices.js'
+import {createNoticeStore} from '../src/shell/notices.js'
 import {QuickTerminalHeader} from '../src/routes/quick.js'
-
-afterEach(() => {
-  toaster.remove()
-})
 
 function mount(view: () => JSX.Element): void {
   render(view)
@@ -24,8 +20,9 @@ function uiPart(spec: unknown): ToolCallPart {
 }
 
 test('the way out of a notice explains itself with a tooltip a touch reader can reach, not a native title', async () => {
-  mount(() => <NoticeToaster />)
-  notify('Command copied. Paste it in your terminal.')
+  const store = createNoticeStore()
+  mount(() => <store.Toaster />)
+  store.notify('Command copied. Paste it in your terminal.')
 
   await page.getByRole('button', {name: 'Dismiss'}).hover()
 

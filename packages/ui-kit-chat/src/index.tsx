@@ -7,25 +7,41 @@ export {
   type ChatContextValue,
 } from './store/chat-context.js'
 export {
+  buildGroupTree,
   childCallsFor,
   coalesceTurns,
-  groupSegments,
+  defaultGrouper,
+  groupPartByType,
+  groupParts,
+  isReplyText,
   pairResults,
   parentToolCallIdOf,
+  standaloneToolNames,
+  CHAIN_GROUP_KEY,
+  PAGE_SESSION_GROUP_KEY,
   type ToolCallPartWithParent,
   type Turn,
-  type Segment,
-  type ChainSegment,
-  type ReplySegment,
-  type PageSessionSegment,
-  type GroupingOptions,
+  type GroupKey,
+  type GroupPath,
+  type GroupByContext,
+  type Grouper,
+  type Grouping,
+  type GroupNode,
+  type GroupNodeGroup,
+  type GroupNodePart,
+  type GroupRenderProps,
+  type GroupEntry,
+  type PartTypePaths,
   type ResultPairing,
 } from './store/grouping.js'
-export type {
-  PageSessionRenderProps,
-  PageSessionRenderer,
-  PageSessionConfig,
-  PageSessionThinkingPart,
+export {
+  createGrouping,
+  createPageSessionGrouper,
+  pageSessionCallParts,
+  pageSessionThinkingParts,
+  type PageSessionConfig,
+  type PageSessionGrouperConfig,
+  type PageSessionThinkingPart,
 } from './store/page-session.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
@@ -98,10 +114,6 @@ export {
   type CompleteAttachmentStatus,
 } from './primitives/attachment/attachment-adapter.js'
 export {
-  ChainOfThought as ChainOfThoughtPrimitive,
-  useChainOfThought,
-} from './primitives/chain-of-thought/chain-of-thought.js'
-export {
   BranchPicker as BranchPickerPrimitive,
   BranchProvider,
   useBranch,
@@ -149,6 +161,7 @@ export {Composer, type ComposerProps} from './styled/composer.js'
 export {Markdown, type MarkdownProps} from './styled/markdown.js'
 export {Reasoning, ReasoningText, type ReasoningProps} from './styled/reasoning.js'
 export {ChainOfThought, type ChainOfThoughtProps} from './styled/chain-of-thought.js'
+export {Group, type GroupRootProps, type GroupTriggerProps, type GroupContentProps} from './styled/group.js'
 export {AssistantActionBar, UserActionBar} from './styled/action-bar.js'
 export {BranchPicker} from './styled/branch-picker.js'
 export {FollowUpSuggestions} from './styled/follow-up-suggestions.js'

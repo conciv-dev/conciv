@@ -11,7 +11,7 @@ import {
   untrack,
   type JSX,
 } from 'solid-js'
-import {useMutation, useQuery} from '@tanstack/solid-query'
+import {useQuery} from '@tanstack/solid-query'
 import {useChatSession} from '@conciv/client'
 import {
   AttachmentByMime,
@@ -25,14 +25,13 @@ import {
   type PageSessionConfig,
   type Turn,
 } from '@conciv/ui-kit-chat'
-import {SessionCard} from '@conciv/extension-page/client'
+import {pageSessionEntry} from '@conciv/extension-page/client'
 import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
-import type {MessagePart, MultimodalContent, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
-import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
 import {collectToolRenderers, HostApiProvider} from '@conciv/extension'
 import type {Grab} from '@conciv/grab'
@@ -53,17 +52,16 @@ import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
-import {NoticeToaster, notify} from '../shell/notices.js'
-import {EngineStaleNotice} from '../shell/engine-notice.js'
+import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage} from './draft-storage.js'
 import {useSessionCaptures} from './session-captures.js'
 import {makeToolViewCtx} from './tool-view-ctx.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
-import {checkSend, type SendVerdict} from './send-checks.js'
+import {usePaneMessaging} from './use-pane-messaging.js'
 
 const PAGE_SESSION: PageSessionConfig = {
-  render: SessionCard,
+  entry: pageSessionEntry,
   actNames: PAGE_ACT_TOOL_NAMES,
   toolPrefix: PAGE_TOOL_PREFIX,
 }
@@ -72,21 +70,6 @@ const ABOVE_COMPOSER = 'flex flex-col min-h-0 shrink max-h-40 overflow-y-auto em
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
-
-type SendRejection = {rejected: true; message: string | null; tone: 'info' | 'warn'}
-
-function sendRejection(verdict: Extract<SendVerdict, {ok: false}>): SendRejection {
-  return {rejected: true, message: verdict.message, tone: verdict.tone}
-}
-
-function isSendRejection(failure: unknown): failure is SendRejection {
-  return typeof failure === 'object' && failure !== null && 'rejected' in failure && failure.rejected === true
-}
-
-function failureMessage(failure: unknown): string {
-  if (failure instanceof Error && failure.message.length > 0) return failure.message
-  return 'The message could not be sent.'
-}
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {
@@ -138,6 +121,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const appData = useAppData()
   const announce = useAnnounce()
   const connected = useConnected()
+  const {reachability, notices} = useEngineNotices()
   const instances = useInstances()
   const pane = usePane()
   const sessionId = untrack(() => props.sessionId)
@@ -175,18 +159,23 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     {},
   )
 
-  const uiReply = useMutation(() => ({
-    mutationFn: (input: {toolCallId: string; value: UiAnswerValue}) =>
-      rpc.chat.uiReply({sessionId, toolCallId: input.toolCallId, value: input.value}),
-    onError: () => notify('That question is no longer waiting for an answer.'),
-  }))
+  const messaging = usePaneMessaging({
+    rpc,
+    sessionId,
+    chat,
+    appData,
+    reachability,
+    notices,
+    grabStore: pane.grabStore,
+    refetchMarkers: () => markers.refetch(),
+  })
 
   const toolCtx = makeToolViewCtx({
     rpc,
     harnessId: () => (meta.isPending ? '' : (meta.data?.harness.id ?? '')),
     catalog,
     sendMessage: (text) => void chat.sendMessage(text),
-    addResult: (toolCallId, value) => uiReply.mutate({toolCallId, value}),
+    addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
     durationFor: (toolCallId) => durations()[toolCallId],
     captureFor: captures.lookup,
   })
@@ -223,20 +212,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     return now
   }, false)
 
-  const visibleError = () => {
-    const error = chat.error()
-    return error && error.message !== 'stopped' ? error : undefined
-  }
-
-  const compact = useMutation(() => ({
-    mutationFn: () => rpc.sessions.compact({sessionId}),
-    onError: () => notify('Compaction failed. The session may be busy. Try again in a moment.'),
-    onSettled: () => {
-      appData.invalidateSessions()
-      void markers.refetch()
-    },
-  }))
-  const compacting = () => compact.isPending
+  const compacting = messaging.compacting
 
   const triggerSources = useComposerTriggerSources(sessionId)
   const focusInput = () => requestAnimationFrame(() => inputHandle()?.focus())
@@ -279,31 +255,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const dividersInRange = (start: number, end: number): MarkerRow[] =>
     (markers.data ?? []).filter((row) => row.afterTurn >= start && row.afterTurn <= end)
 
-  const onSend = async (content: string | MultimodalContent) => {
-    const verdict = checkSend(content, {
-      busy: compacting(),
-      connected: chat.connectionStatus() === 'connected',
-    })
-    if (!verdict.ok) throw sendRejection(verdict)
-    const staged = pane.grabStore.grabs()
-    pane.grabStore.clear()
-    const before = chat.error()
-    try {
-      await chat.sendMessage(content)
-    } catch (failure) {
-      pane.grabStore.stageAll(staged)
-      throw failure
-    }
-    if (chat.error() !== before) pane.grabStore.stageAll(staged)
-  }
-  const onSendError = (failure: unknown) => {
-    if (isSendRejection(failure)) {
-      if (failure.message) notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
-      return
-    }
-    notify(failureMessage(failure), {tone: 'danger'})
-  }
-
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
   const renderTurnPrefix = (turn: Turn): JSX.Element => (
     <For each={dividersInRange(turn.start, turn.end)}>{renderDivider}</For>
@@ -321,8 +272,8 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
         <ToolProvider value={toolCtx}>
           <ComposerHandlersProvider
             value={{
-              onSend,
-              onSendError,
+              onSend: messaging.onSend,
+              onSendError: messaging.onSendError,
               onRefresh: () => chat.refresh(),
               onCancel: () => chat.interruptAndFlush(),
             }}
@@ -363,7 +314,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                         <Show when={nowTitleText()}>
                           {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
                         </Show>
-                        <Show when={visibleError()}>
+                        <Show when={messaging.visibleError()}>
                           {(error) => (
                             <div class={ERROR} role="alert">
                               <span class="flex-1">{error().message}</span>
@@ -380,8 +331,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                     <div class={ABOVE_COMPOSER}>
                       <ExtensionSurface name="status" instances={instances} />
                       <ExtensionSurface name="footer" instances={instances} />
-                      <NoticeToaster />
-                      <EngineStaleNotice />
                     </div>
                     <Show when={pane.grabStore.grabs().length > 0}>
                       <GrabStrip class="flex flex-col">
@@ -410,7 +359,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                               <ComposerActions
                                 sessionId={sessionId}
                                 compacting={compacting()}
-                                onCompact={() => compact.mutate()}
+                                onCompact={() => messaging.compact.mutate()}
                                 onNewSession={() => pane.newSession()}
                                 onStageGrab={stageGrab}
                               />

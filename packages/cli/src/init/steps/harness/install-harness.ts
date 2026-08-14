@@ -8,7 +8,12 @@ import type {InitContext, InitStep} from '../../pipeline.js'
 
 export type HarnessInitIo = {
   home: string
-  run: (bin: string, args: string[], cwd: string) => Promise<{code: number; output: string}>
+  run: (
+    bin: string,
+    args: string[],
+    cwd: string,
+    onLine: (line: string) => void,
+  ) => Promise<{code: number; output: string}>
 }
 
 function stateDirOf(cwd: string): string {
@@ -29,7 +34,7 @@ function writePlanFiles(ctx: InitContext, plan: HarnessInitPlan): void {
 
 async function runCommand(ctx: InitContext, io: HarnessInitIo, command: HarnessInitCommand): Promise<string | null> {
   const rendered = `${command.bin} ${command.args.join(' ')}`
-  const outcome = await io.run(command.bin, command.args, ctx.cwd).catch((error: unknown) => {
+  const outcome = await io.run(command.bin, command.args, ctx.cwd, ctx.feed).catch((error: unknown) => {
     const reason = error instanceof Error ? error.message : String(error)
     return {code: -1, output: reason}
   })

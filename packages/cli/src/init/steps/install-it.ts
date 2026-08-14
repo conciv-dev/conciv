@@ -1,30 +1,16 @@
-import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {addDependencyCommand, addDevDependency, detectPackageManager} from 'nypm'
-import {z} from 'zod'
 import {captureFile} from '../interrupt.js'
 import type {ManualCard} from '../ledger.js'
 import type {InitStep} from '../pipeline.js'
+import {hasDependency, readManifest, type PackageJson} from './manifest.js'
 
 const itName = '@conciv/it'
-
-const manifestSchema = z.object({
-  dependencies: z.record(z.string(), z.string()).optional(),
-  devDependencies: z.record(z.string(), z.string()).optional(),
-})
-
-export type PackageJson = z.infer<typeof manifestSchema>
 
 export type AddDep = (name: string, opts: {cwd: string}) => Promise<void>
 
 export function hasIt(pkg: PackageJson): boolean {
-  return itName in (pkg.dependencies ?? {}) || itName in (pkg.devDependencies ?? {})
-}
-
-function readManifest(cwd: string): PackageJson {
-  const parsed = manifestSchema.safeParse(JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8')))
-  if (!parsed.success) return {}
-  return parsed.data
+  return hasDependency(pkg, itName)
 }
 
 async function installCard(cwd: string): Promise<ManualCard> {

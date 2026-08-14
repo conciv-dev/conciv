@@ -6,6 +6,8 @@ import {useFabPosition, useLayers, useSuppressed} from '../app/context.js'
 import {makePanelComposerFocus, PanelComposerFocusContext} from '../app/panel-focus.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
+import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
+import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
 
 const PANEL_POS: Record<TriggerPosition, string> = {
   'top-left': 'top-21 left-5 [transform-origin:top_left]',
@@ -74,49 +76,54 @@ function PanelLayout(): JSX.Element {
 
   return (
     <Show when={mounted()}>
-      <PanelComposerFocusContext.Provider value={composerFocus}>
-        <FocusTrap
-          disabled={!open() || layers.anyOpen()}
-          initialFocus={keepTrapFromFocusing}
-          returnFocusOnDeactivate={false}
-        >
-          <section
-            class={`${PANEL_BASE} ${phone() ? PANEL_SHEET : `${PANEL_CARD} ${PANEL_POS[position()]}`} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
-            data-pw-panel
-            data-pw-suppressed={suppressed()}
-            style={phone() ? undefined : {height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
-            role="dialog"
-            aria-label="conciv chat agent"
-            id="pw-chat-panel"
+      <NoticeContextProvider>
+        <PanelComposerFocusContext.Provider value={composerFocus}>
+          <FocusTrap
+            disabled={!open() || layers.anyOpen()}
+            initialFocus={keepTrapFromFocusing}
+            returnFocusOnDeactivate={false}
           >
-            <Show when={!phone()}>
-              <div
-                class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
-                role="separator"
-                aria-orientation="horizontal"
-                aria-label="Resize chat height"
-                aria-valuemin={PANEL_MIN_HEIGHT}
-                aria-valuenow={Math.round(resizeY.size())}
-                tabindex={0}
-                onPointerDown={resizeY.onPointerDown}
-                onKeyDown={resizeY.onKeyDown}
-              />
-              <div
-                class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize chat width"
-                aria-valuemin={300}
-                aria-valuenow={Math.round(resizeX.size())}
-                tabindex={0}
-                onPointerDown={resizeX.onPointerDown}
-                onKeyDown={resizeX.onKeyDown}
-              />
-            </Show>
-            <Outlet />
-          </section>
-        </FocusTrap>
-      </PanelComposerFocusContext.Provider>
+            <section
+              class={`${PANEL_BASE} ${phone() ? PANEL_SHEET : `${PANEL_CARD} ${PANEL_POS[position()]}`} ${open() ? PANEL_OPEN : PANEL_CLOSING}`}
+              data-pw-panel
+              data-pw-suppressed={suppressed()}
+              style={phone() ? undefined : {height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
+              role="dialog"
+              aria-label="conciv chat agent"
+              id="pw-chat-panel"
+            >
+              <NoticeSurface />
+              <EngineStaleNotice />
+              <EngineUnreachableNotice />
+              <Show when={!phone()}>
+                <div
+                  class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-label="Resize chat height"
+                  aria-valuemin={PANEL_MIN_HEIGHT}
+                  aria-valuenow={Math.round(resizeY.size())}
+                  tabindex={0}
+                  onPointerDown={resizeY.onPointerDown}
+                  onKeyDown={resizeY.onKeyDown}
+                />
+                <div
+                  class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize chat width"
+                  aria-valuemin={300}
+                  aria-valuenow={Math.round(resizeX.size())}
+                  tabindex={0}
+                  onPointerDown={resizeX.onPointerDown}
+                  onKeyDown={resizeX.onKeyDown}
+                />
+              </Show>
+              <Outlet />
+            </section>
+          </FocusTrap>
+        </PanelComposerFocusContext.Provider>
+      </NoticeContextProvider>
     </Show>
   )
 }

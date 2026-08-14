@@ -7,7 +7,8 @@ import SquarePen from 'lucide-solid/icons/square-pen'
 import {getHostApi} from '@conciv/extension'
 import type {Grab} from '@conciv/grab'
 import {useAppData} from '../app/context.js'
-import {notify} from '../shell/notices.js'
+import {useNotices} from '../shell/notice-context.js'
+import type {Notify} from '../shell/notices.js'
 import {LaunchMenu} from './launch-menu.js'
 import {terminalRpc} from './terminal-rpc.js'
 
@@ -26,7 +27,7 @@ function errorCode(error: unknown): string | null {
   return null
 }
 
-async function copyCommand(command: string): Promise<void> {
+async function copyCommand(notify: Notify, command: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(command)
     notify('Command copied. Paste it in your terminal.')
@@ -43,6 +44,7 @@ export function ComposerActions(props: {
   onStageGrab: (grab: Grab) => void
 }): JSX.Element {
   const appData = useAppData()
+  const notices = useNotices()
   const grab = getHostApi().useGrab()
   const toast = getHostApi().useToast()
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
@@ -78,18 +80,18 @@ export function ComposerActions(props: {
     },
     onSuccess: async (outcome: LaunchOutcome) => {
       if (outcome.opened) {
-        notify(`Opened in ${harnessName()}.`)
+        notices.notify(`Opened in ${harnessName()}.`)
         return
       }
-      if (outcome.command) await copyCommand(outcome.command)
+      if (outcome.command) await copyCommand(notices.notify, outcome.command)
     },
-    onError: (error: unknown) => notify(launchFailure(error), {tone: 'warn'}),
+    onError: (error: unknown) => notices.notify(launchFailure(error), {tone: 'warn'}),
   }))
 
   const copyConnect = useMutation(() => ({
     mutationFn: () => terminal.connectCommand({sessionId: props.sessionId}),
-    onSuccess: (result: {command: string}) => void copyCommand(result.command),
-    onError: (error: unknown) => notify(launchFailure(error), {tone: 'warn'}),
+    onSuccess: (result: {command: string}) => void copyCommand(notices.notify, result.command),
+    onError: (error: unknown) => notices.notify(launchFailure(error), {tone: 'warn'}),
   }))
 
   return (

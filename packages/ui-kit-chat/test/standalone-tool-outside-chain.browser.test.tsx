@@ -4,11 +4,12 @@ import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import type {ToolCardEntry, ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {ChatProvider, useThread} from '../src/store/chat-context.js'
+import {ChatProvider} from '../src/store/chat-context.js'
 import {ToolProvider} from '../src/store/tool-context.js'
 import {createReasoningChunks, createToolCallChunks, storyConnection} from '../src/store/story-connection.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
+import {RunSettledIndicator, startRun, waitForRunSettled} from './run-harness.js'
 
 function confirmToolCtx(): ToolViewCtx {
   return {
@@ -25,11 +26,6 @@ function ConfirmCard(props: ToolCardProps): JSX.Element {
 }
 
 const entries: ToolCardEntry[] = [{names: ['confirm_ui'], render: ConfirmCard, display: 'standalone'}]
-
-function RunSettledIndicator(): JSX.Element {
-  const thread = useThread()
-  return <span>{thread.isRunning ? 'run live' : 'run settled'}</span>
-}
 
 function StandaloneThread(): JSX.Element {
   const chat = useChat({
@@ -61,10 +57,8 @@ function StandaloneThread(): JSX.Element {
 it('renders a standalone tool card outside the chain even once the chain collapses on settle', async () => {
   mountView(() => <StandaloneThread />)
 
-  await page.getByRole('button', {name: 'ask'}).click()
-
-  await expect.element(page.getByText('run live'), {timeout: 3000}).toBeVisible()
-  await expect.element(page.getByText('run settled'), {timeout: 3000}).toBeVisible()
+  await startRun()
+  await waitForRunSettled()
 
   await expect
     .element(page.getByRole('button', {name: 'Chain of Thought'}), {timeout: 3000})

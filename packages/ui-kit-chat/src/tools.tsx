@@ -1,6 +1,5 @@
 export {INERT_ADD_RESULT, INERT_TOOL_CTX} from './store/tool-context.js'
 export {ToolFallback} from './tools/styled/tool-fallback.js'
-export {ToolGroup, type ToolGroupProps} from './tools/styled/tool-group.js'
 
 export {toolStatus, type ToolStatus} from './tools/primitives/tool-status.js'
 export {StatusVisual} from './tools/primitives/status-visual.js'
@@ -17,13 +16,14 @@ export {
   formatDuration,
 } from './tools/primitives/tool-util.js'
 export {ToolCard} from './tools/styled/tool-card.js'
-export {CardShell, cardHeader, detailChips} from './tools/styled/card-shell.js'
+export {CardShell, cardHeader, detailChips, type CardChip} from './tools/styled/card-shell.js'
 export {InlineRow, InlineShell} from './tools/styled/inline-row.js'
 export {GENERIC_TOOL_ICON, toolIconRender} from './tools/styled/tool-icon.js'
 export {schemaFields, schemaParams, type SchemaField} from './tools/primitives/schema-params.js'
 export {
   DANGER_TEXT_CLASS,
   MUTATING_BADGE,
+  QUIET_TEXT_CLASS,
   displayValue,
   clip,
   cardPhase,

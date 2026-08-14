@@ -48,3 +48,21 @@ export const DeleteConfirmed: Story = {
     await waitFor(() => expect(canvas.getByText('delete el_1')).toBeVisible())
   },
 }
+
+export const RunningOp: Story = {
+  render: () => (
+    <div class={STORY_FRAME_CLASS}>
+      <CanvasOpCard
+        part={storyPart('canvas.draw', {}, 'input-complete')}
+        result={undefined}
+        ctx={storyCtx()}
+        addResult={storyAddResult}
+      />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button'))
+    await waitFor(() => expect(canvas.getByText('draw')).toBeVisible())
+  },
+}

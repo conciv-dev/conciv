@@ -7,7 +7,15 @@ import {Primitive, type Slottable} from '../util/primitive.js'
 import {MessagePart} from '../message-part/message-part.js'
 import {useChatContext} from '../../store/chat-context.js'
 import {useToolCtx} from '../../store/tool-context.js'
-import {groupSegments, type Segment} from '../../store/grouping.js'
+import {
+  defaultGrouper,
+  groupParts,
+  type GroupByContext,
+  type GroupKey,
+  type GroupNode,
+  type GroupNodeGroup,
+  type Grouping,
+} from '../../store/grouping.js'
 import type {CompleteAttachment} from '../attachment/attachment-adapter.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
 import {partIsModelOnly} from '../message-part/part-visibility.js'
@@ -313,14 +321,20 @@ function AttachmentByIndex(props: {index: number; components: AttachmentsCompone
   )
 }
 
-type GroupedComponents = PartsComponents & {Group?: Component<ParentProps<{indices: number[]; kind: Segment['kind']}>>}
+type GroupedComponents = PartsComponents & {
+  Group?: Component<ParentProps<{indices: readonly number[]; groupKey: GroupKey}>>
+}
 
-function segmentIndices(segment: Segment): number[] {
-  return segment.kind === 'reply' || segment.kind === 'standalone' ? [segment.index] : segment.indices
+function nodeIndices(node: GroupNode): readonly number[] {
+  return node.type === 'part' ? [node.index] : node.indices
+}
+
+function asGroup(node: GroupNode): GroupNodeGroup | null {
+  return node.type === 'group' ? node : null
 }
 
 function GroupBody(props: {
-  indices: number[]
+  indices: readonly number[]
   components: GroupedComponents
   ctx: ReturnType<typeof useToolCtx>
 }): JSX.Element {
@@ -340,27 +354,50 @@ function GroupBody(props: {
   )
 }
 
-function GroupedParts(props: {components?: GroupedComponents}): JSX.Element {
+function toolEntriesOf(tools: PartsComponents['tools']): ReadonlyArray<ToolCardEntry> | undefined {
+  if (!tools || 'Override' in tools) return undefined
+  return tools.entries
+}
+
+function partRenders(part: Part | undefined, components: GroupedComponents): boolean {
+  if (part === undefined || partIsModelOnly(part)) return false
+  if (part.type === 'tool-call') return resolveToolComponent(part, components.tools) !== null
+  if (part.type === 'structured-output') return components.StructuredOutput !== undefined
+  return part.type === 'text' || part.type === 'thinking' || part.type === 'image'
+}
+
+function GroupedParts(props: {components?: GroupedComponents; grouping?: Grouping}): JSX.Element {
   const message = useMessage()
   const ctx = useToolCtx()
   const components = (): GroupedComponents => props.components ?? {}
-  const segments = createMemo(() => groupSegments(message.message().parts))
-  return (
-    <Index each={segments()}>
-      {(segment) => (
+  const grouper = () => props.grouping?.grouper ?? defaultGrouper
+  const groupContext = (): GroupByContext => props.grouping?.context ?? {toolEntries: toolEntriesOf(components().tools)}
+  const nodes = createMemo(() => groupParts(message.message().parts, grouper(), groupContext()))
+  const groupRenders = (group: GroupNodeGroup): boolean =>
+    group.indices.some((index) => partRenders(message.message().parts[index], components()))
+  const NodesView = (nodesProps: {nodes: readonly GroupNode[]}): JSX.Element => (
+    <Index each={nodesProps.nodes}>
+      {(node) => (
         <Show
-          when={components().Group}
-          fallback={<GroupBody indices={segmentIndices(segment())} components={components()} ctx={ctx} />}
+          when={asGroup(node())}
+          fallback={<GroupBody indices={nodeIndices(node())} components={components()} ctx={ctx} />}
         >
           {(group) => (
-            <Dynamic component={group()} indices={segmentIndices(segment())} kind={segment().kind}>
-              <GroupBody indices={segmentIndices(segment())} components={components()} ctx={ctx} />
-            </Dynamic>
+            <Show when={groupRenders(group())}>
+              <Show when={components().Group} fallback={<NodesView nodes={group().children} />}>
+                {(component) => (
+                  <Dynamic component={component()} indices={group().indices} groupKey={group().key}>
+                    <NodesView nodes={group().children} />
+                  </Dynamic>
+                )}
+              </Show>
+            </Show>
           )}
         </Show>
       )}
     </Index>
   )
+  return <NodesView nodes={nodes()} />
 }
 
 export const Message = Object.assign(Root, {

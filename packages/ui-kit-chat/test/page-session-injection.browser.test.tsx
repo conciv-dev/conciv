@@ -6,33 +6,33 @@ import {useChat} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {EventType} from '@tanstack/ai'
-import {
-  createReasoningChunks,
-  createTextChunks,
-  createToolCallChunks,
-  storyConnection,
-} from '../src/store/story-connection.js'
-import type {PageSessionConfig, PageSessionRenderProps} from '../src/store/page-session.js'
+import {createTextChunks, createToolCallChunks, storyConnection} from '../src/store/story-connection.js'
+import {PAGE_SESSION_GROUP_KEY, type GroupEntry, type GroupRenderProps} from '../src/store/grouping.js'
+import {pageSessionCallParts, pageSessionThinkingParts, type PageSessionConfig} from '../src/store/page-session.js'
 import {Thread} from '../src/styled/thread.js'
 import {Activity} from '../src/styled/activity.js'
 import {mountView} from './mount-view.js'
 
 const cardMounts: string[] = []
 
-function StubSessionCard(props: PageSessionRenderProps): JSX.Element {
+function StubSessionCard(props: GroupRenderProps): JSX.Element {
   onMount(() => cardMounts.push('card'))
+  const parts = () => pageSessionCallParts(props.parts(), props.node.indices)
+  const thinking = () => pageSessionThinkingParts(props.parts(), props.node.indices)
   return (
     <div>
       <span>{props.streaming ? 'session live' : 'session settled'}</span>
-      <span>{`session acts ${props.parts.length}`}</span>
-      <span>{`first result ${props.resultFor(props.parts[0]?.id ?? '') === undefined ? 'missing' : 'paired'}`}</span>
-      <span>{`session thinking ${props.thinking.length}`}</span>
+      <span>{`session acts ${parts().length}`}</span>
+      <span>{`first result ${props.resultFor(parts()[0]?.id ?? '') === undefined ? 'missing' : 'paired'}`}</span>
+      <span>{`session thinking ${thinking().length}`}</span>
     </div>
   )
 }
 
+const PAGE_SESSION_ENTRY: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render: StubSessionCard}
+
 const PAGE_SESSION: PageSessionConfig = {
-  render: StubSessionCard,
+  entry: PAGE_SESSION_ENTRY,
   actNames: new Set(['page.fill', 'page.check']),
   toolPrefix: 'page.',
 }
@@ -258,16 +258,6 @@ it('keeps the injected card and its DOM node mounted across streamed act appends
   await page.getByRole('button', {name: 'halt'}).click()
   await expect.element(page.getByText('session settled'), {timeout: 3000}).toBeVisible()
   expect(cardMounts.length).toBe(1)
-})
-
-it('keeps rendering a streaming empty-thinking chain for non-opted-in consumers', async () => {
-  mountView(
-    threadHarness({chunks: [...createReasoningChunks(' ', 'empty-thought')], chunkDelay: 1, runsUntilStopped: true}),
-  )
-
-  await page.getByRole('button', {name: 'ask'}).click()
-  await expect.element(page.getByText('Working…'), {timeout: 3000}).toBeVisible()
-  await page.getByRole('button', {name: 'halt'}).click()
 })
 
 it('keeps the live session streaming when a trailing foreign result arrives', async () => {

@@ -1,12 +1,25 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
+import * as clack from '@clack/prompts'
 import {
   approvePlan,
+  clackPrompts,
   renderPlan,
   type ConfirmedSelections,
   type FoundSelections,
   type PlanPrompts,
 } from '../src/init/wizard.js'
 import {recorderOutput} from './support/init-output.js'
+
+vi.mock('@clack/prompts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@clack/prompts')>()
+  return {
+    ...actual,
+    multiselect: vi.fn(async () => {
+      throw new Error('multiselect must not run when no harnesses were found')
+    }),
+    confirm: vi.fn(async (options: {initialValue: boolean}) => options.initialValue),
+  }
+})
 
 const found: FoundSelections = {
   framework: 'vite',
@@ -18,13 +31,13 @@ const found: FoundSelections = {
 
 function harness(events: string[], prompts: Partial<PlanPrompts>): PlanPrompts {
   return {
-    decide: async () => {
-      events.push('decide')
-      return 'proceed'
+    selections: async (foundSelections) => {
+      events.push('selections')
+      return {framework: true, harnesses: foundSelections.harnesses.map((one) => one.id), docsPack: false}
     },
-    adjust: async (_foundSelections, current) => {
-      events.push('adjust')
-      return current
+    confirmRun: async () => {
+      events.push('confirmRun')
+      return true
     },
     ...prompts,
   }
@@ -64,13 +77,16 @@ describe('approvePlan', () => {
       found,
       renderSelected: async (selections) => `selected:${selections.harnesses.join('+')}`,
       prompts: harness(events, {
-        decide: async () => {
-          throw new Error('decide must not run under --yes')
+        selections: async () => {
+          throw new Error('selections must not run under --yes')
         },
       }),
       output: recorderOutput(events),
     })
-    expect(approved).toEqual({decision: 'selections', selections: {framework: true, harnesses: ['claude', 'codex']}})
+    expect(approved).toEqual({
+      decision: 'selections',
+      selections: {framework: true, harnesses: ['claude', 'codex'], docsPack: false},
+    })
     expect(events).toEqual(['plan:selected:claude+codex'])
   })
 
@@ -82,8 +98,8 @@ describe('approvePlan', () => {
       found,
       renderSelected: async () => 'the plan',
       prompts: harness(events, {
-        decide: async () => {
-          throw new Error('decide must not run under --dry-run')
+        selections: async () => {
+          throw new Error('selections must not run under --dry-run')
         },
       }),
       output: recorderOutput(events),
@@ -100,8 +116,8 @@ describe('approvePlan', () => {
       found,
       renderSelected: async () => 'the plan',
       prompts: harness(events, {
-        decide: async () => {
-          throw new Error('decide must not run under --dry-run')
+        selections: async () => {
+          throw new Error('selections must not run under --dry-run')
         },
       }),
       output: recorderOutput(events),
@@ -110,53 +126,56 @@ describe('approvePlan', () => {
     expect(events).toEqual(['plan:the plan'])
   })
 
-  it('renders the plan before the first prompt and loops adjust with a re-rendered plan', async () => {
+  it('asks the questions once, renders the plan once, then confirms once and proceeds', async () => {
     const events: string[] = []
-    const decisions = ['adjust', 'proceed'] satisfies ('adjust' | 'proceed')[]
-    const adjusted: ConfirmedSelections = {framework: false, harnesses: ['codex']}
+    const picked: ConfirmedSelections = {framework: false, harnesses: ['codex'], docsPack: true}
     const approved = await approvePlan({
       yes: false,
       dryRun: false,
       found,
       renderSelected: async (selections) => `selected:${selections.harnesses.join('+')}:${selections.framework}`,
       prompts: harness(events, {
-        decide: async () => {
-          events.push('decide')
-          const next = decisions.shift()
-          if (next === undefined) throw new Error('ran out of decisions')
-          return next
-        },
-        adjust: async () => {
-          events.push('adjust')
-          return adjusted
+        selections: async () => {
+          events.push('selections')
+          return picked
         },
       }),
       output: recorderOutput(events),
     })
-    expect(approved).toEqual({decision: 'selections', selections: adjusted})
-    expect(events).toEqual([
-      'plan:selected:claude+codex:true',
-      'decide',
-      'adjust',
-      'plan:selected:codex:false',
-      'decide',
-    ])
+    expect(approved).toEqual({decision: 'selections', selections: picked})
+    expect(events).toEqual(['selections', 'plan:selected:codex:false', 'confirmRun'])
   })
 
-  it('treats a cancel at the decision prompt as cancelled', async () => {
+  it('treats a cancel while answering the questions as cancelled', async () => {
+    const events: string[] = []
+    const approved = await approvePlan({
+      yes: false,
+      dryRun: false,
+      found,
+      renderSelected: async () => {
+        throw new Error('the plan must not render when the questions are cancelled')
+      },
+      prompts: harness(events, {selections: async () => 'cancelled'}),
+      output: recorderOutput(events),
+    })
+    expect(approved).toEqual({decision: 'cancelled'})
+  })
+
+  it('treats a cancel at the final confirm as cancelled, with the plan already rendered once', async () => {
     const events: string[] = []
     const approved = await approvePlan({
       yes: false,
       dryRun: false,
       found,
       renderSelected: async () => 'the plan',
-      prompts: harness(events, {decide: async () => 'cancelled'}),
+      prompts: harness(events, {confirmRun: async () => 'cancelled'}),
       output: recorderOutput(events),
     })
     expect(approved).toEqual({decision: 'cancelled'})
+    expect(events).toEqual(['selections', 'plan:the plan'])
   })
 
-  it('treats a cancel inside adjust as cancelled', async () => {
+  it('declining the final confirm cancels — no edit loop, no re-render', async () => {
     const events: string[] = []
     const approved = await approvePlan({
       yes: false,
@@ -164,14 +183,23 @@ describe('approvePlan', () => {
       found,
       renderSelected: async () => 'the plan',
       prompts: harness(events, {
-        decide: async () => {
-          events.push('decide')
-          return 'adjust'
+        confirmRun: async () => {
+          events.push('confirmRun')
+          return false
         },
-        adjust: async () => 'cancelled',
       }),
       output: recorderOutput(events),
     })
     expect(approved).toEqual({decision: 'cancelled'})
+    expect(events).toEqual(['selections', 'plan:the plan', 'confirmRun'])
+    expect(events.filter((event) => event.startsWith('plan:'))).toHaveLength(1)
+  })
+})
+
+describe('clackPrompts.selections', () => {
+  it('skips the harness question entirely when zero harnesses were detected', async () => {
+    const selections = await clackPrompts.selections({framework: 'vite', harnesses: []})
+    expect(selections).toEqual({framework: true, harnesses: [], docsPack: false})
+    expect(clack.multiselect).not.toHaveBeenCalled()
   })
 })

@@ -1,17 +1,9 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CardShell, ErrorBlock, JsonTree, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
+import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from '../page-result-views.js'
-import {
-  ChipRow,
-  ELEMENT_TARGET_KEYS,
-  QUIET_TEXT_CLASS,
-  cardErrorMessage,
-  cardPayload,
-  elementTargetValue,
-  toolInput,
-} from './shared.js'
+import {ELEMENT_TARGET_KEYS, QUIET_TEXT_CLASS, cardErrorMessage, cardPayload, elementChip} from './shared.js'
 
 const HtmlPayload = z.looseObject({html: z.string()})
 
@@ -53,18 +45,22 @@ function matchesOf(payload: unknown): {count: number; elements: readonly unknown
 
 export function ReadBulkCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
-  const input = () => toolInput(props.part)
-  const element = () => elementTargetValue(input())
-  const chips = () => detailChips(meta(), input(), ELEMENT_TARGET_KEYS)
   const payload = () => cardPayload(props.result)
   const markup = () => htmlOf(payload())
   const nodes = () => nodesOf(payload())
   const matches = () => matchesOf(payload())
   const errorMessage = () => cardErrorMessage(props.result)
   return (
-    <CardShell meta={meta()} title={title()} part={props.part} result={props.result} durationMs={props.durationMs}>
+    <CardShell
+      meta={meta()}
+      title={title()}
+      part={props.part}
+      result={props.result}
+      durationMs={props.durationMs}
+      chipSkip={ELEMENT_TARGET_KEYS}
+      leadChip={elementChip(props.part)}
+    >
       <div class="flex flex-col gap-1.5">
-        <ChipRow element={element()} chips={chips()} />
         <Switch>
           <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
           <Match when={markup() !== undefined}>

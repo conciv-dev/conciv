@@ -11,7 +11,6 @@ export type CollapsibleCardProps = {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   defaultOpen?: boolean
-  hasBody?: boolean
   tooltip?: string
   flush?: boolean
   class?: string
@@ -46,35 +45,6 @@ function CardFrame(props: {class: string | undefined; ref?: Ref<HTMLDivElement>;
     <div ref={props.ref} class={`${CARD}  ${props.class ?? ''}`}>
       {props.children}
     </div>
-  )
-}
-
-function StaticRow(props: {tooltip: string | undefined; flush: boolean; header: JSX.Element}): JSX.Element {
-  const rowClass = () => (props.flush ? ROW_FLUSH : ROW)
-  return (
-    <Show
-      when={props.tooltip}
-      fallback={
-        <div class={rowClass()}>
-          <span class={HEADER_SLOT}>{props.header}</span>
-        </div>
-      }
-    >
-      {(tooltip) => (
-        <Tooltip.Root openDelay={400} unmountOnExit lazyMount>
-          <Tooltip.Trigger
-            asChild={(triggerProps) => (
-              <div {...triggerProps()} class={rowClass()}>
-                <span class={HEADER_SLOT}>{props.header}</span>
-              </div>
-            )}
-          />
-          <Tooltip.Positioner>
-            <Tooltip.Content>{tooltip()}</Tooltip.Content>
-          </Tooltip.Positioner>
-        </Tooltip.Root>
-      )}
-    </Show>
   )
 }
 
@@ -114,7 +84,6 @@ export function CollapsibleCard(
     'open',
     'onOpenChange',
     'defaultOpen',
-    'hasBody',
     'tooltip',
     'flush',
     'class',
@@ -133,26 +102,17 @@ export function CollapsibleCard(
     local.onOpenChange?.(open)
   }
   return (
-    <Show
-      when={local.hasBody !== false}
-      fallback={
-        <CardFrame class={local.class}>
-          <StaticRow tooltip={local.tooltip} flush={flush()} header={local.header} />
-        </CardFrame>
-      }
+    <Collapsible.Root
+      open={local.open}
+      defaultOpen={local.defaultOpen}
+      onOpenChange={(details) => handleOpenChange(details.open)}
     >
-      <Collapsible.Root
-        open={local.open}
-        defaultOpen={local.defaultOpen}
-        onOpenChange={(details) => handleOpenChange(details.open)}
-      >
-        <CardFrame class={local.class} ref={(el) => (cardEl = el)}>
-          <CardTrigger tooltip={local.tooltip} flush={flush()} header={local.header} />
-          <Collapsible.Content ref={(el) => (contentEl = el)}>
-            <div class={BODY}>{local.children}</div>
-          </Collapsible.Content>
-        </CardFrame>
-      </Collapsible.Root>
-    </Show>
+      <CardFrame class={local.class} ref={(el) => (cardEl = el)}>
+        <CardTrigger tooltip={local.tooltip} flush={flush()} header={local.header} />
+        <Collapsible.Content ref={(el) => (contentEl = el)}>
+          <div class={BODY}>{local.children}</div>
+        </Collapsible.Content>
+      </CardFrame>
+    </Collapsible.Root>
   )
 }

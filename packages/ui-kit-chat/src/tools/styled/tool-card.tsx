@@ -15,7 +15,7 @@ const METRIC =
   'text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] shrink-0 [font-family:var(--chat-mono)] tabular-nums'
 
 function HeaderContent(props: {
-  Icon: Component
+  Icon: Component | undefined
   title: string
   subtitle: string | undefined
   meta: string | undefined
@@ -24,9 +24,13 @@ function HeaderContent(props: {
 }): JSX.Element {
   return (
     <>
-      <span class="text-[color:var(--chat-text-3)] inline-flex shrink-0 items-center" aria-hidden="true">
-        <Dynamic component={props.Icon} />
-      </span>
+      <Show when={props.Icon}>
+        {(Icon) => (
+          <span class="text-[color:var(--chat-text-3)] inline-flex shrink-0 items-center" aria-hidden="true">
+            <Dynamic component={Icon()} />
+          </span>
+        )}
+      </Show>
       <Show when={props.subtitle} fallback={<span class={TITLE}>{props.title}</span>}>
         {(subtitle) => (
           <>
@@ -43,7 +47,7 @@ function HeaderContent(props: {
 }
 
 export function ToolCard(props: {
-  Icon: Component
+  Icon?: Component
   title: string
   subtitle?: string
   titleTooltip?: string
