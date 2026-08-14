@@ -71,6 +71,25 @@ CC0 → W1 → W2 → M1; W1 → W3 → M2; C1 (after CC0, parallel to wrappers)
 - Files: `apps/site/src/components/landing/robot-fab.tsx` → compound API INSIDE the existing button (the button, its handlers, delegated `onActivate`, dynamic labeling stay owned by the site component; Mascot replaces only the rig-layers span — codex 10). Behavior mapping written into the task brief from the current source before dispatch: hover → awake, click/pending → working, label transitions unchanged.
 - Gates: site typecheck + build, focused site e2e covering hover/awake, click/working, delegated activation, label transitions, cleanup (codex 19 — unconditional, added if missing), fallow. Idle cost: harness asserts zero running tweens when rest+idle (site landing perf).
 
+#### M1/M2 acceptance inventory — real layer boxes on both consumers (recorded 2026-08-15, phase-1 fix wave)
+
+Recorded from the live sources so W2/W3 sizing and the M1/M2 acceptance lists are not guessed:
+
+|               | widget (`apps/conciv`)                                                                  | site (`apps/site`)                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| stage element | `span.pw-fab-rig` inside the FAB `<button>`                                             | the `<button>` itself (`className="relative size-14 …"`)                                            |
+| stage box     | 44×44px (`.pw-fab-rig` in `apps/conciv/src/styles.css`), sitting in a 52px pill button  | 56×56px (`size-14`), `position: relative`, `rounded-full`                                           |
+| layer boxes   | `inset: 0` (`.pw-rig-layer`, `apps/conciv/src/styles.css`) → layers fill the 44px stage | `inset: 6` (`LAYER` in `robot-fab.tsx`) → layers are a 44×44px box inset 6px inside the 56px button |
+| layer order   | head, antenna, eyes                                                                     | head, antenna, eyes                                                                                 |
+| effect host   | none — emitter mounts into the stage                                                    | none — emitter mounts into the `<button>`                                                           |
+
+Consequences the wrappers must honor:
+
+- The lean wrapper cannot assume `inset: 0` on the antenna. Phase 1 fixed this by computing the wrapper's `transform-origin` in PIXELS from the antenna's own layout box (`antennaOriginOffset`, `core/tip-anchor.ts`) instead of the `'50% 32.8%'` string, which was measured against the wrapper's box and therefore landed 2px off the antenna base on the site. Wrappers must not reintroduce a percentage origin on the wrapper.
+- The emitter tip anchor is likewise layout-box based and transform-aware (`antennaTipAnchor`), not `getBoundingClientRect`-based, so a rotated or scaled antenna does not inflate the anchor. A wrapper that inserts extra positioned elements between the antenna and the stage stays correct (the offset walk stops at the host).
+- Core `ROOT_STYLE` (`core/layer-styles.ts`) is `{position: relative, display: block}` — it carries NO intrinsic size. A bare `<Mascot>` with no consumer sizing therefore collapses to 0×0. **Giving the root a default size is a W2 requirement**, and the W2 gate item "bare-`<Mascot>` full default render" is exactly this check.
+- No `contain` and no `overflow: hidden` anywhere on the stage or layers: the binary digits rise 54px above the tip, well outside both host boxes.
+
 ### Task C1: Curve builders + auto resolution
 
 - Files: `core/path.ts` grows builders (arc, hook, fan [OD-1], straight) + `'auto'`; MotionPathPlugin registration per Global Constraints; Binary honors `curve` config (default `straight`).
