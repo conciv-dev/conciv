@@ -4,49 +4,30 @@ import {TooltipIconButton} from '@conciv/ui-kit-system'
 import type {GrabPreview, Grab} from '@conciv/grab'
 import {sourceLabel} from './grab-source-label.js'
 
-const PREVIEW_MAX_WIDTH = 280
-
-const PREVIEW_BOX = 'max-w-full max-h-40 overflow-auto cursor-default'
-
-function fitScale(width: number): number {
-  if (width <= 0) return 1
-  return Math.min(1, PREVIEW_MAX_WIDTH / width)
-}
-
 function ScaledSnapshot(props: {preview: GrabPreview}): JSX.Element {
-  const scale = () => fitScale(props.preview.width)
   return (
-    <div class={PREVIEW_BOX}>
+    <div class="w-full [container-type:inline-size] cursor-default">
       <div
-        class="overflow-hidden"
+        class="pointer-events-none"
+        data-pw-grab-scale
         style={{
-          width: `${Math.ceil(props.preview.width * scale())}px`,
-          height: `${Math.ceil(props.preview.height * scale())}px`,
+          width: `${props.preview.width}px`,
+          zoom: `min(1, calc(100cqw / ${props.preview.width}px))`,
         }}
-      >
-        <div
-          class="flex-none pointer-events-none origin-top-left"
-          data-pw-grab-scale
-          style={{
-            width: `${props.preview.width}px`,
-            height: `${props.preview.height}px`,
-            transform: `scale(${scale()})`,
-          }}
-          ref={(el) => {
-            const preview = props.preview
-            if (preview.kind === 'dom') {
-              el.appendChild(preview.node.cloneNode(true))
-              return
-            }
-            const img = document.createElement('img')
-            img.src = preview.dataUrl
-            img.width = preview.width
-            img.height = preview.height
-            img.alt = ''
-            el.appendChild(img)
-          }}
-        />
-      </div>
+        ref={(el) => {
+          const preview = props.preview
+          if (preview.kind === 'dom') {
+            el.appendChild(preview.node.cloneNode(true))
+            return
+          }
+          const img = document.createElement('img')
+          img.src = preview.dataUrl
+          img.width = preview.width
+          img.height = preview.height
+          img.alt = ''
+          el.appendChild(img)
+        }}
+      />
     </div>
   )
 }

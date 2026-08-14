@@ -25,7 +25,7 @@ function domGrab(size: {width: number; height: number} = {width: 200, height: 40
 }
 
 function previewBox(host: HTMLElement): HTMLElement | null | undefined {
-  return host.querySelector('[data-pw-grab-scale]')?.parentElement?.parentElement
+  return host.querySelector('[data-pw-grab-scale]')?.parentElement
 }
 
 test('grab reference renders the dom preview arm by appending the cloned node', () => {
@@ -37,20 +37,6 @@ test('grab reference renders the dom preview arm by appending the cloned node', 
 test('grab reference renders the image preview arm as an img element', () => {
   const host = mount(makeImageHostGrab(IMAGE_DATA_URL))
   expect(host.querySelector('img')?.getAttribute('src')).toBe(IMAGE_DATA_URL)
-})
-
-test('a tall preview renders inside the height-bounded preview box', () => {
-  const host = mount(domGrab({width: 900, height: 2400}))
-
-  expect(page.getByText('Payroll Deposit clone').elements()).toHaveLength(1)
-  expect(previewBox(host)).toHaveClass('max-h-40', 'overflow-auto')
-})
-
-test('the preview itself carries no resize handle — the grabs container owns resizing', () => {
-  const host = mount(domGrab({width: 900, height: 2400}))
-
-  expect(page.getByText('Payroll Deposit clone').elements()).toHaveLength(1)
-  expect(previewBox(host)).not.toHaveClass('resize-y')
 })
 
 test('a text-only grab has no preview box at all', () => {
