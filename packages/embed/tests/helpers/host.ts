@@ -45,19 +45,36 @@ export function handleHostPage(body?: string): string {
   </body></html>`
 }
 
-export async function listenLocal(server: Server): Promise<{base: string; port: number; close: () => Promise<void>}> {
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+export async function listenLocal(
+  server: Server,
+  port = 0,
+): Promise<{base: string; port: number; close: () => Promise<void>}> {
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error): void => reject(error)
+    server.once('error', onError)
+    server.listen(port, '127.0.0.1', () => {
+      server.removeListener('error', onError)
+      resolve()
+    })
+  })
   const address = server.address()
-  const port = typeof address === 'object' && address !== null ? address.port : 0
+  const boundPort = typeof address === 'object' && address !== null ? address.port : 0
   return {
-    base: `http://127.0.0.1:${port}`,
-    port,
+    base: `http://127.0.0.1:${boundPort}`,
+    port: boundPort,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.closeAllConnections?.()
         server.close((error) => (error ? reject(error) : resolve()))
       }),
   }
+}
+
+export async function reserveDeadPort(): Promise<{base: string; port: number}> {
+  const probe: Server = createServer()
+  const {port} = await listenLocal(probe)
+  await new Promise<void>((resolve) => probe.close(() => resolve()))
+  return {base: `http://127.0.0.1:${port}`, port}
 }
 
 export async function serveHost(html: (url: URL) => string): Promise<{base: string; close: () => Promise<void>}> {

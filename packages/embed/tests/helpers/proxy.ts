@@ -22,7 +22,10 @@ function handshakeResponse(upstream: IncomingMessage): string {
   return [statusLine, ...headers, '', ''].join('\r\n')
 }
 
-export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean} = {}): Promise<ProxyCore> {
+export async function proxyTo(
+  targetBase: string,
+  opts: {blockUpgrades?: boolean; port?: number} = {},
+): Promise<ProxyCore> {
   const target = new URL(targetBase)
   let count = 0
   let upgrades = 0
@@ -78,7 +81,7 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
     proxyReq.on('error', () => clientSocket.destroy())
     proxyReq.end()
   })
-  const {base, port, close} = await listenLocal(server)
+  const {base, port, close} = await listenLocal(server, opts.port ?? 0)
   return {
     base,
     port,

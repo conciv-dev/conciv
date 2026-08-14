@@ -7,6 +7,7 @@
     "**/*.d.ts",
     "**/*.generated.ts",
     "packages/aidx/**",
+    "packages/contract/test/helpers/fake-native-socket.ts",
     "packages/extensions/tanstack/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/oxlint-plugin/fixtures/**",

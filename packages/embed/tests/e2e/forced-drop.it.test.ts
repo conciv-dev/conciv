@@ -1,33 +1,17 @@
 import {expect, test, type Page} from '@playwright/test'
-import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {hostPage, serveHost} from '../helpers/host.js'
-import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
 import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
 import {setNavigation} from './helpers/navigation.js'
+import {setupProxiedEmbedSuite} from './helpers/proxied-suite.js'
 
 const ASSISTANT_TEXT = 'Reply across the drop'
 const FIRST_TEXT = 'first turn before the drop'
 const SECOND_TEXT = 'second turn after the drop'
 const MOUNT_TIMEOUT_MS = 20_000
 
-let kit: EmbedKit
-let core: ProxyCore
-let host: {base: string; close: () => Promise<void>}
-
-test.beforeAll(async () => {
-  kit = await bootEmbedKit({text: ASSISTANT_TEXT})
-  core = await proxyTo(kit.base)
-  host = await serveHost(() => hostPage({apiBase: core.base, widget: '{"quickTerminal":false}'}))
-})
-
-test.afterAll(async () => {
-  await host.close()
-  await core.close()
-  await kit.cleanup()
-})
+const suite = setupProxiedEmbedSuite({text: ASSISTANT_TEXT})
 
 test.beforeEach(async () => {
-  expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
+  expect(await setNavigation(suite.kit(), [{href: '/'}])).toBe(true)
 })
 
 async function sendTurn(page: Page, text: string): Promise<void> {
@@ -44,7 +28,7 @@ test.describe('chat survives a forced websocket drop', () => {
     page.on('pageerror', (error) => pageErrors.push(String(error)))
     const observer = rpcObserverFor(page)
     try {
-      await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
       await page.getByRole('button', {name: 'Open conciv chat'}).click()
       await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({
         timeout: MOUNT_TIMEOUT_MS,
@@ -55,7 +39,7 @@ test.describe('chat survives a forced websocket drop', () => {
 
       const socketsBefore = observer.socketCount()
       const mark = observer.mark()
-      core.dropConnections()
+      suite.core().dropConnections()
 
       await sendTurn(page, SECOND_TEXT)
 

@@ -5,17 +5,10 @@ import Clock from 'lucide-solid/icons/clock'
 import Paperclip from 'lucide-solid/icons/paperclip'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import Square from 'lucide-solid/icons/square'
-import {
-  ComposerPrimitive,
-  QueueItem,
-  AttachmentUI,
-  useComposer,
-  useComposerContext,
-  useComposerHandlers,
-  type AttachmentAdapter,
-} from '@conciv/ui-kit-chat'
-import {Swap, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
+import {ComposerPrimitive, QueueItem, AttachmentUI, useComposer, type AttachmentAdapter} from '@conciv/ui-kit-chat'
+import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
+import {useEngineReachability} from '../app/reachability.js'
 import {
   ComposerInputAdapter,
   type ComposerInputHandle,
@@ -49,34 +42,28 @@ const QUEUE_ROW =
 const QUEUE_ACTION =
   'shrink-0 px-2 py-1 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-md)] leading-[1.45] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease),transform_100ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] [&:active]:scale-[0.96]'
 
-function SendOrStopButton(): JSX.Element {
+const ENGINE_UNREACHABLE_LABEL = 'conciv lost connection to the engine'
+
+function ComposerSendControl(): JSX.Element {
   const composer = useComposer()
-  const context = useComposerContext()
-  const handlers = useComposerHandlers()
-  const stopping = () => composer.canCancel()
-  const cancel = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
-  const sendDisabled = () => context.sendingAttachments() || (!composer.canSend() && context.attachments().length === 0)
+  const reachability = useEngineReachability()
   return (
-    <button
-      type={stopping() ? 'button' : 'submit'}
-      class={stopping() ? CANCEL : SEND}
-      aria-label={stopping() ? 'Stop generating' : 'Send message'}
-      disabled={!stopping() && sendDisabled()}
-      onClick={(event) => {
-        if (!stopping()) return
-        event.preventDefault()
-        cancel()
-      }}
-    >
-      <Swap.Root swap={stopping()}>
-        <Swap.Indicator type="on">
-          <Square size={14} fill="currentColor" aria-hidden="true" />
-        </Swap.Indicator>
-        <Swap.Indicator type="off">
+    <Show
+      when={composer.canCancel()}
+      fallback={
+        <ComposerPrimitive.Send
+          class={SEND}
+          disabled={!reachability.online()}
+          aria-label={reachability.online() ? 'Send message' : ENGINE_UNREACHABLE_LABEL}
+        >
           <ArrowUp size={18} aria-hidden="true" />
-        </Swap.Indicator>
-      </Swap.Root>
-    </button>
+        </ComposerPrimitive.Send>
+      }
+    >
+      <ComposerPrimitive.Cancel class={CANCEL} aria-label="Stop generating">
+        <Square size={14} fill="currentColor" aria-hidden="true" />
+      </ComposerPrimitive.Cancel>
+    </Show>
   )
 }
 
@@ -90,7 +77,7 @@ function TrailingControls(): JSX.Element {
           </ComposerPrimitive.Refresh>
         )}
       </TooltipIconButtonSlot>
-      <SendOrStopButton />
+      <ComposerSendControl />
     </>
   )
 }
