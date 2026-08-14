@@ -71,8 +71,10 @@ const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, mil
 
 const near = (value, target, tolerance) => Math.abs(value - target) <= tolerance
 
+const VIEWPORT = {width: 1280, height: 720}
+
 const openPage = async (browser, baseUrl, reducedMotion) => {
-  const page = await browser.newPage()
+  const page = await browser.newPage({viewport: VIEWPORT})
   await page.addInitScript(instrumentPointerMove)
   await page.emulateMedia({reducedMotion})
   await page.goto(baseUrl, {waitUntil: 'domcontentloaded'})
@@ -146,7 +148,7 @@ const checkLegacyWork = async (page) => {
     const harness = window.mascotHarness
     window.rig.apply('closed')
     const emitter = harness.emitters()[0]
-    const values = await harness.sampleFrames(() => harness.property(emitter, 'opacity'), 350)
+    const values = await harness.sampleFrames(() => harness.property(emitter, 'opacity'), 400)
     await harness.wait(700)
     return {drain: harness.summarize(values), emitters: harness.emitters().length}
   })
@@ -637,7 +639,15 @@ const CHECKS = [
   },
 ]
 
+const SECTIONS = ['all', ...new Set(CHECKS.map((check) => check.section))]
+
 const selectedChecks = () => (onlySection === 'all' ? CHECKS : CHECKS.filter((check) => check.section === onlySection))
+
+const reportUnknownSection = () => {
+  console.error(`unknown --only section ${JSON.stringify(onlySection)}: expected one of ${SECTIONS.join(', ')}`)
+  console.error('refusing to report a pass for an empty selection')
+  process.exitCode = 1
+}
 
 const formatEntry = (entry) => `    ${entry[1] ? 'PASS' : 'FAIL'}  ${entry[0]} -> ${JSON.stringify(entry[2])}`
 
@@ -651,18 +661,27 @@ const runCheck = async (browser, baseUrl, check) => {
   return failures.length
 }
 
-const main = async () => {
+const runAll = async (checks) => {
   await access(join(distDirectory, 'rig.js'))
   const server = await startServer()
   const baseUrl = `http://127.0.0.1:${server.address().port}/`
   const browser = await chromium.launch()
   console.log(`@conciv/mascot behavior harness\ndist: ${distDirectory}\nsection: ${onlySection}\n`)
   let failures = 0
-  for (const check of selectedChecks()) failures += await runCheck(browser, baseUrl, check)
+  for (const check of checks) failures += await runCheck(browser, baseUrl, check)
   await browser.close()
   server.close()
-  console.log(`\n${failures === 0 ? 'ALL CHECKS PASS' : `${failures} FAILING ASSERTIONS`}`)
-  process.exitCode = failures === 0 ? 0 : 1
+  return failures
+}
+
+const summarizeRun = (failures) => (failures === 0 ? 'ALL CHECKS PASS' : `${failures} FAILING ASSERTIONS`)
+
+const main = async () => {
+  const checks = selectedChecks()
+  if (checks.length === 0) return reportUnknownSection()
+  const failures = await runAll(checks)
+  console.log(`\n${summarizeRun(failures)}`)
+  process.exitCode = Math.min(failures, 1)
 }
 
 await main()
