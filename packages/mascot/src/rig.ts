@@ -2,6 +2,7 @@ import gsap from 'gsap'
 
 export {robotLayers} from './layers.gen.js'
 export * from './core/config.js'
+export * from './core/parts/pose.js'
 
 export type RigState = 'closed' | 'open' | 'work'
 
