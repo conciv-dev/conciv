@@ -39,7 +39,7 @@ function toneClass(type: string | undefined): string {
 }
 
 export function createNoticeStore(): NoticeStore {
-  const toaster = createToaster({placement: 'bottom', gap: 8, max: STANDING_LIMIT, offsets: '1rem'})
+  const toaster = createToaster({placement: 'bottom', gap: 8, max: STANDING_LIMIT})
 
   const notify: Notify = (message, options = {}) => {
     const action = options.action
@@ -57,7 +57,7 @@ export function createNoticeStore(): NoticeStore {
 
   function Toaster(): JSX.Element {
     return (
-      <ToastGroup toaster={toaster} class="pb-2 empty:hidden" style={{position: 'static'}}>
+      <ToastGroup toaster={toaster} class="p-2.5 empty:hidden" style={{position: 'static'}}>
         {(toast) => (
           <Toast.Root
             class={`${NOTICE} ${toneClass(toast().type)}`}
