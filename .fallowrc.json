@@ -28,7 +28,9 @@
     "**/*.stories.tsx",
     "**/*.test-d.ts",
     "**/*.fixtures.ts",
-    "packages/ui-kit-chat/src/store/story-connection.ts"
+    "packages/ui-kit-chat/src/store/story-connection.ts",
+    "packages/mascot/src/story-support.tsx",
+    "packages/mascot/src/story-bubble-effects.tsx"
   ],
   "duplicates": {
     "minOccurrences": 3
