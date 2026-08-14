@@ -25,6 +25,7 @@ export function stepContext(cwd: string): StepHarness {
     report: (line) => reports.push(line),
     note: (note) => notes.push(note),
     backup: (file) => backups.push(file),
+    feed: () => {},
   }
   const settings: RunSettings = {cwd, yes: true, dryRun: false, backup: ctx.backup, interrupt: () => () => {}}
   const events: string[] = []

@@ -48,11 +48,11 @@ function fakeTerminal(): {restore: () => void} {
 }
 
 const throwingPrompts = {
-  decide: async () => {
-    throw new Error('decide must not run here')
+  selections: async () => {
+    throw new Error('selections must not run here')
   },
-  adjust: async () => {
-    throw new Error('adjust must not run here')
+  confirmRun: async () => {
+    throw new Error('confirmRun must not run here')
   },
 }
 
@@ -83,7 +83,7 @@ describe('conciv init --json', () => {
       {
         ...run.runtime,
         interactive: () => true,
-        prompts: {...recorderPrompts(run.events), decide: async () => 'cancelled'},
+        prompts: {...recorderPrompts(run.events), selections: async () => 'cancelled'},
       },
     )
     expect(code).toBe(1)
@@ -154,7 +154,7 @@ describe('conciv init human mode', () => {
     const code = await writeOutcome(
       runInitCommand(
         {yes: false, dryRun: false, force: false, cwd: run.cwd, json: false},
-        {...run.runtime, prompts: {...recorderPrompts(run.events), decide: async () => 'cancelled'}},
+        {...run.runtime, prompts: {...recorderPrompts(run.events), selections: async () => 'cancelled'}},
       ),
     )
     expect(code).toBe(1)

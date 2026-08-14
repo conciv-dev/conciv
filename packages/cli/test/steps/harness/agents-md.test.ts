@@ -14,6 +14,25 @@ function project(): {cwd: string} & ReturnType<typeof stepContext> {
   return {cwd, ...stepContext(cwd)}
 }
 
+describe('agentsSection', () => {
+  it('teaches the MCP discovery workflow instead of a static command list', () => {
+    const section = agentsSection(consented)
+    expect(section).toContain('await external_catalog({})')
+    expect(section).toContain('connected via MCP')
+    expect(section).toContain('conciv tools --help')
+    expect(section).not.toContain('conciv tools page')
+    expect(section).not.toContain('conciv tools react')
+    expect(section).not.toContain('conciv tools server')
+  })
+
+  it('omits the "Set up for" line and explains no harness connected when consented is empty', () => {
+    const section = agentsSection([])
+    expect(section).not.toContain('Set up for:')
+    expect(section).toContain('No harness was connected')
+    expect(section).toContain('re-run `conciv init`')
+  })
+})
+
 describe('agentsMdStep', () => {
   it('creates AGENTS.md with exactly the marked section on a fresh project', async () => {
     const {cwd, settings, output} = project()

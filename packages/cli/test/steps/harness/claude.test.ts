@@ -47,17 +47,22 @@ function shimScript(): string {
 function claudeIo(opts: {home: string; binDir: string; recordFile: string; exitCode: number}): HarnessInitIo {
   return {
     home: opts.home,
-    run: (bin, args, cwd) =>
-      execFileOutcome(bin, args, {
-        cwd,
-        env: {
-          ...process.env,
-          PATH: `${opts.binDir}${delimiter}${process.env.PATH ?? ''}`,
-          HOME: opts.home,
-          CONCIV_CLAUDE_RECORD: opts.recordFile,
-          CONCIV_CLAUDE_EXIT: String(opts.exitCode),
+    run: (bin, args, cwd, onLine) =>
+      execFileOutcome(
+        bin,
+        args,
+        {
+          cwd,
+          env: {
+            ...process.env,
+            PATH: `${opts.binDir}${delimiter}${process.env.PATH ?? ''}`,
+            HOME: opts.home,
+            CONCIV_CLAUDE_RECORD: opts.recordFile,
+            CONCIV_CLAUDE_EXIT: String(opts.exitCode),
+          },
         },
-      }),
+        onLine,
+      ),
   }
 }
 

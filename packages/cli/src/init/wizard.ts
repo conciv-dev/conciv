@@ -9,8 +9,8 @@ import {
   multiselect,
   note,
   outro,
-  select,
   spinner,
+  taskLog,
 } from '@clack/prompts'
 import pc from 'picocolors'
 import type {Framework} from './detect.js'
@@ -18,23 +18,21 @@ import type {FoundHarness, HarnessId} from './harness-detect.js'
 import type {StepNote, StepStatus} from './ledger.js'
 
 export type FoundSelections = {framework: Framework; harnesses: FoundHarness[]}
-export type ConfirmedSelections = {framework: boolean; harnesses: HarnessId[]}
+export type ConfirmedSelections = {framework: boolean; harnesses: HarnessId[]; docsPack: boolean}
 
 export type PlanRow = {title: string; wouldEdit: string[]; already: boolean}
 export type HarnessRow = {id: HarnessId; found: boolean; selected: boolean}
 
-export type Decision = 'proceed' | 'adjust' | 'cancelled'
-
 export type PlanPrompts = {
-  decide: () => Promise<Decision>
-  adjust: (found: FoundSelections, current: ConfirmedSelections) => Promise<ConfirmedSelections | 'cancelled'>
+  selections: (found: FoundSelections) => Promise<ConfirmedSelections | 'cancelled'>
+  confirmRun: () => Promise<boolean | 'cancelled'>
 }
 
 export type SpinnerHandle = {stop: (summary: string) => void; fail: (summary: string) => void}
 
 export type StepResult = {status: StepStatus; summary: string}
 
-export type StepHandle = {settle: (result: StepResult) => void}
+export type StepHandle = {line: (text: string) => void; settle: (result: StepResult) => void}
 
 export type InitOutput = {
   intro: (title: string) => void
@@ -71,20 +69,29 @@ export function renderPlan(rows: PlanRow[], harnesses: HarnessRow[]): string {
   return [...lines, '', harnessLine(harnesses)].join('\n')
 }
 
+function defaultSelections(found: FoundSelections): ConfirmedSelections {
+  return {framework: true, harnesses: found.harnesses.map((one) => one.id), docsPack: false}
+}
+
 export async function approvePlan(args: ApprovePlan): Promise<PlanApproval> {
-  let selections: ConfirmedSelections = {framework: true, harnesses: args.found.harnesses.map((one) => one.id)}
-  for (;;) {
+  if (args.dryRun) {
+    const plan = await args.renderSelected(defaultSelections(args.found))
+    args.output.plan(plan)
+    return {decision: 'dry-run', plan}
+  }
+  if (args.yes) {
+    const selections = defaultSelections(args.found)
     const plan = await args.renderSelected(selections)
     args.output.plan(plan)
-    if (args.dryRun) return {decision: 'dry-run', plan}
-    if (args.yes) return {decision: 'selections', selections}
-    const decision = await args.prompts.decide()
-    if (decision === 'cancelled') return {decision: 'cancelled'}
-    if (decision === 'proceed') return {decision: 'selections', selections}
-    const adjusted = await args.prompts.adjust(args.found, selections)
-    if (adjusted === 'cancelled') return {decision: 'cancelled'}
-    selections = adjusted
+    return {decision: 'selections', selections}
   }
+  const selections = await args.prompts.selections(args.found)
+  if (selections === 'cancelled') return {decision: 'cancelled'}
+  const plan = await args.renderSelected(selections)
+  args.output.plan(plan)
+  const proceed = await args.prompts.confirmRun()
+  if (proceed === 'cancelled' || !proceed) return {decision: 'cancelled'}
+  return {decision: 'selections', selections}
 }
 
 function planLine(row: PlanRow, width: number): string {
@@ -114,18 +121,12 @@ export function interactiveTerminal(): boolean {
   return isTTY(process.stdout) && process.stdin.isTTY === true && !isCI()
 }
 
-function settleStepLine(active: ReturnType<typeof spinner>, result: StepResult): void {
+function settleTaskLog(active: ReturnType<typeof taskLog>, result: StepResult): void {
   if (result.status === 'manual') {
-    active.clear()
-    log.warn(result.summary)
+    active.error(result.summary)
     return
   }
-  if (result.status === 'skipped') {
-    active.clear()
-    log.message(pc.dim(result.summary))
-    return
-  }
-  active.stop(result.summary)
+  active.success(result.summary)
 }
 
 export const clackOutput: InitOutput = {
@@ -137,9 +138,8 @@ export const clackOutput: InitOutput = {
   },
   plan: (body) => note(body, 'Plan'),
   step: (title) => {
-    const active = spinner()
-    active.start(title)
-    return {settle: (result) => settleStepLine(active, result)}
+    const active = taskLog({title})
+    return {line: (text) => active.message(text), settle: (result) => settleTaskLog(active, result)}
   },
   note: (payload) => note(payload.body, payload.title),
   line: (text) => log.message(text),
@@ -151,41 +151,37 @@ export const clackOutput: InitOutput = {
   failure: (message) => outro(pc.red(message)),
 }
 
-const decisionOptions: {value: 'proceed' | 'adjust' | 'cancel'; label: string; hint: string}[] = [
-  {value: 'proceed', label: 'Proceed', hint: 'run the plan above'},
-  {value: 'adjust', label: 'Adjust', hint: 'change harnesses or framework wiring'},
-  {value: 'cancel', label: 'Cancel', hint: 'nothing is written'},
-]
-
 export const clackPrompts: PlanPrompts = {
-  decide: async () => {
-    const decision = await select({message: 'Run this plan?', options: decisionOptions})
-    if (isCancel(decision) || decision === 'cancel') return 'cancelled'
-    return decision
-  },
-  adjust: async (found, current) => {
-    const harnesses = await pickHarnesses(found.harnesses, current.harnesses)
+  selections: async (found) => {
+    const harnesses = await pickHarnesses(found.harnesses)
     if (harnesses === 'cancelled') return 'cancelled'
-    const framework = await confirm({
-      message: frameworkQuestion(found.framework),
-      initialValue: current.framework,
-    })
+    const framework = await confirm({message: frameworkQuestion(found.framework), initialValue: true})
     if (isCancel(framework)) return 'cancelled'
-    return {framework, harnesses}
+    const docsPack = await confirm({message: docsPackQuestion, initialValue: false})
+    if (isCancel(docsPack)) return 'cancelled'
+    return {framework, harnesses, docsPack}
+  },
+  confirmRun: async () => {
+    const proceed = await confirm({message: 'Run this plan?', initialValue: true})
+    if (isCancel(proceed)) return 'cancelled'
+    return proceed
   },
 }
 
-async function pickHarnesses(found: FoundHarness[], selected: HarnessId[]): Promise<HarnessId[] | 'cancelled'> {
+async function pickHarnesses(found: FoundHarness[]): Promise<HarnessId[] | 'cancelled'> {
   if (found.length === 0) return []
   const picked = await multiselect({
     message: 'Teach these agent harnesses about conciv?',
     options: found.map((harness) => ({value: harness.id, label: harness.id, hint: `found via ${harness.via}`})),
-    initialValues: found.filter((harness) => selected.includes(harness.id)).map((harness) => harness.id),
+    initialValues: found.map((harness) => harness.id),
     required: false,
   })
   if (isCancel(picked)) return 'cancelled'
   return picked
 }
+
+const docsPackQuestion =
+  'Add the @conciv/skills docs pack (setup/extension-authoring/debugging guides) and TanStack intent skill-loading guidance?'
 
 function frameworkQuestion(framework: Framework): string {
   if (framework === 'unknown') return 'No known framework detected — show manual wiring instructions?'

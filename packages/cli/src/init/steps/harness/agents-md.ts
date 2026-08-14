@@ -9,7 +9,10 @@ const startMarker = '<!-- conciv:start -->'
 const endMarker = '<!-- conciv:end -->'
 
 export function agentsSection(consented: HarnessId[]): string {
-  const setUpFor = consented.length > 0 ? ['', `Set up for: ${consented.join(', ')}.`] : []
+  const setUpFor =
+    consented.length > 0
+      ? ['', `Set up for: ${consented.join(', ')}.`]
+      : ['', 'No harness was connected; install one and re-run `conciv init` to finish setup.']
   const notes = consented.flatMap((id) => {
     const note = harnessAgentsMdNote(id)
     return note === undefined ? [] : ['', note]
@@ -19,15 +22,13 @@ export function agentsSection(consented: HarnessId[]): string {
     '',
     '## conciv',
     '',
-    'conciv connects coding agents to the app running in the browser.',
+    'conciv is connected via MCP.',
     '',
-    'Run `conciv tools --help` to discover every command. The CLI finds the running dev server itself: no config, no addresses.',
+    'Capabilities are discovered inside the sandbox with `await external_catalog({})`, never a static list.',
     '',
-    '- `conciv tools page` - read and drive the live page; `--help` lists every capability',
-    '- `conciv tools react` - inspect and edit live React components',
-    '- `conciv tools server` - inspect and nudge the dev server; `--help` lists every capability',
+    "The project's conciv dev server must be running.",
     '',
-    'These commands need the dev server running.',
+    'One-shot CLI equivalent: `conciv tools --help`.',
     ...setUpFor,
     ...notes,
     '',
