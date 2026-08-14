@@ -16,6 +16,8 @@ import {cardErrorMessage, toolInput} from './shared.js'
 
 const CODE_VERBS = new Set(['eval', 'css'])
 
+const CODE_INPUT_KEYS = new Set(['code', 'text'])
+
 function descriptorSummary(capture: ElementCapture | undefined): string {
   if (capture === undefined) return ''
   const descriptor = capture.descriptor
@@ -48,6 +50,7 @@ export function EditLiveCard(props: ToolCardProps): JSX.Element {
   const before = () => props.capture?.before
   const after = () => props.capture?.after
   const errorMessage = () => cardErrorMessage(props.result)
+  const chipSkip = () => (CODE_VERBS.has(verb()) ? CODE_INPUT_KEYS : undefined)
   return (
     <CardShell
       meta={meta()}
@@ -56,6 +59,7 @@ export function EditLiveCard(props: ToolCardProps): JSX.Element {
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}
+      chipSkip={chipSkip()}
     >
       <div class="flex flex-col gap-1.5">
         <Switch>

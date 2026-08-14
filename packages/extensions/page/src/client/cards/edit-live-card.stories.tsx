@@ -99,5 +99,6 @@ export const EvalCodeBlock: Story = {
           .join('\n'),
       ).toContain('document.title'),
     )
+    await expect(canvas.queryByText('return document.title')).toBeNull()
   },
 }
