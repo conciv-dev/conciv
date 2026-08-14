@@ -100,6 +100,7 @@ type PageSessionGrouping = {
 }
 
 function foldableParentIds(parts: ReadonlyArray<MessagePart>, pageActNames: ReadonlySet<string>): Set<string> {
+  if (pageActNames.size === 0) return new Set()
   const replyIndices = parts.flatMap((part, index) => (isReplyText(part) ? [index] : []))
   const calls = parts.flatMap((part, index) => (part.type === 'tool-call' ? [{call: part, index}] : []))
   const firstIndexByCallId = new Map(
