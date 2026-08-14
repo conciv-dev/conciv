@@ -10,8 +10,14 @@ export type NoticeOptions = {key?: string; tone?: NoticeTone; action?: NoticeAct
 
 export type Notify = (message: string, options?: NoticeOptions) => void
 
+export type NoticeStore = {
+  notify: Notify
+  remove: (key: string) => void
+  Toaster: () => JSX.Element
+}
+
 const FUSE_MS = 6_000
-const STANDING_LIMIT = 2
+const STANDING_LIMIT = 3
 
 const TOAST_TYPE: Record<NoticeTone, string> = {info: 'info', success: 'success', warn: 'warning', danger: 'error'}
 
@@ -32,50 +38,56 @@ function toneClass(type: string | undefined): string {
   return TONE_INFO
 }
 
-export const toaster = createToaster({placement: 'bottom', gap: 8, max: STANDING_LIMIT, offsets: '1rem'})
+export function createNoticeStore(): NoticeStore {
+  const toaster = createToaster({placement: 'bottom', gap: 8, max: STANDING_LIMIT, offsets: '1rem'})
 
-export const notify: Notify = (message, options = {}) => {
-  const action = options.action
-  const standing = options.persist === true || action !== undefined
-  toaster.create({
-    ...(options.key ? {id: options.key} : {}),
-    ...(action ? {action: {label: action.label, onClick: action.run}} : {}),
-    title: message,
-    type: TOAST_TYPE[options.tone ?? 'info'],
-    duration: standing ? Number.POSITIVE_INFINITY : FUSE_MS,
-  })
-}
+  const notify: Notify = (message, options = {}) => {
+    const action = options.action
+    const standing = options.persist === true || action !== undefined
+    toaster.create({
+      ...(options.key ? {id: options.key} : {}),
+      ...(action ? {action: {label: action.label, onClick: action.run}} : {}),
+      title: message,
+      type: TOAST_TYPE[options.tone ?? 'info'],
+      duration: standing ? Number.POSITIVE_INFINITY : FUSE_MS,
+    })
+  }
 
-export function NoticeToaster(): JSX.Element {
-  return (
-    <ToastGroup toaster={toaster} class="pb-2 empty:hidden" style={{position: 'static'}}>
-      {(toast) => (
-        <Toast.Root
-          class={`${NOTICE} ${toneClass(toast().type)}`}
-          style={{position: 'relative'}}
-          role={toast().type === 'error' ? 'alert' : 'status'}
-        >
-          <Toast.Title class="flex-1 min-w-0">{toast().title}</Toast.Title>
-          <Show when={toast().action}>
-            {(action) => (
-              <Toast.ActionTrigger
-                asChild={(triggerProps) => (
-                  <Button variant="link" size="bare" class={ACTION} {...triggerProps()}>
-                    {action().label}
-                  </Button>
-                )}
-              />
-            )}
-          </Show>
-          <Toast.CloseTrigger
-            asChild={(triggerProps) => (
-              <TooltipIconButton tooltip="Dismiss" class={DISMISS} {...triggerProps()}>
-                <X class="size-3.5 block" aria-hidden="true" />
-              </TooltipIconButton>
-            )}
-          />
-        </Toast.Root>
-      )}
-    </ToastGroup>
-  )
+  const remove = (key: string): void => toaster.remove(key)
+
+  function Toaster(): JSX.Element {
+    return (
+      <ToastGroup toaster={toaster} class="pb-2 empty:hidden" style={{position: 'static'}}>
+        {(toast) => (
+          <Toast.Root
+            class={`${NOTICE} ${toneClass(toast().type)}`}
+            style={{position: 'relative'}}
+            role={toast().type === 'error' ? 'alert' : 'status'}
+          >
+            <Toast.Title class="flex-1 min-w-0">{toast().title}</Toast.Title>
+            <Show when={toast().action}>
+              {(action) => (
+                <Toast.ActionTrigger
+                  asChild={(triggerProps) => (
+                    <Button variant="link" size="bare" class={ACTION} {...triggerProps()}>
+                      {action().label}
+                    </Button>
+                  )}
+                />
+              )}
+            </Show>
+            <Toast.CloseTrigger
+              asChild={(triggerProps) => (
+                <TooltipIconButton tooltip="Dismiss" class={DISMISS} {...triggerProps()}>
+                  <X class="size-3.5 block" aria-hidden="true" />
+                </TooltipIconButton>
+              )}
+            />
+          </Toast.Root>
+        )}
+      </ToastGroup>
+    )
+  }
+
+  return {notify, remove, Toaster}
 }

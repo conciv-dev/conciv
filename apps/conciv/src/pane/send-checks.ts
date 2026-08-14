@@ -4,7 +4,7 @@ export const MAX_CONTENT_PARTS = 16
 
 export type SendContent = string | {content: string | ReadonlyArray<unknown>}
 
-export type SendState = {busy: boolean; connected: boolean}
+export type SendState = {busy: boolean; connected: boolean; reachable: boolean}
 
 export type SendVerdict = {ok: true} | {ok: false; message: string | null; tone: 'info' | 'warn'}
 
@@ -23,6 +23,12 @@ export function checkSend(content: SendContent, state: SendState): SendVerdict {
     return {
       ok: false,
       message: 'Message too large to send. Remove an attachment or shorten it.',
+      tone: 'warn',
+    }
+  if (!state.reachable)
+    return {
+      ok: false,
+      message: 'conciv lost connection to the engine. Your message is still in the composer.',
       tone: 'warn',
     }
   if (!state.connected)

@@ -52,8 +52,7 @@ import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
-import {NoticeToaster, notify} from '../shell/notices.js'
-import {EngineStaleNotice} from '../shell/engine-notice.js'
+import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage} from './draft-storage.js'
 import {useSessionCaptures} from './session-captures.js'
 import {makeToolViewCtx} from './tool-view-ctx.js'
@@ -86,6 +85,11 @@ function isSendRejection(failure: unknown): failure is SendRejection {
 function failureMessage(failure: unknown): string {
   if (failure instanceof Error && failure.message.length > 0) return failure.message
   return 'The message could not be sent.'
+}
+
+function notifyUnlessOffline(sustainedOffline: boolean, notify: () => void): void {
+  if (sustainedOffline) return
+  notify()
 }
 
 function resetSlideOnSelf(reset: () => void) {
@@ -138,6 +142,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const appData = useAppData()
   const announce = useAnnounce()
   const connected = useConnected()
+  const {reachability, notices} = useEngineNotices()
   const instances = useInstances()
   const pane = usePane()
   const sessionId = untrack(() => props.sessionId)
@@ -178,7 +183,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const uiReply = useMutation(() => ({
     mutationFn: (input: {toolCallId: string; value: UiAnswerValue}) =>
       rpc.chat.uiReply({sessionId, toolCallId: input.toolCallId, value: input.value}),
-    onError: () => notify('That question is no longer waiting for an answer.'),
+    onError: () =>
+      notifyUnlessOffline(reachability.sustainedOffline(), () =>
+        notices.notify('That question is no longer waiting for an answer.'),
+      ),
   }))
 
   const toolCtx = makeToolViewCtx({
@@ -224,13 +232,16 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   }, false)
 
   const visibleError = () => {
-    const error = chat.error()
+    const error = reachability.sustainedOffline() ? undefined : chat.error()
     return error && error.message !== 'stopped' ? error : undefined
   }
 
   const compact = useMutation(() => ({
     mutationFn: () => rpc.sessions.compact({sessionId}),
-    onError: () => notify('Compaction failed. The session may be busy. Try again in a moment.'),
+    onError: () =>
+      notifyUnlessOffline(reachability.sustainedOffline(), () =>
+        notices.notify('Compaction failed. The session may be busy. Try again in a moment.'),
+      ),
     onSettled: () => {
       appData.invalidateSessions()
       void markers.refetch()
@@ -283,6 +294,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     const verdict = checkSend(content, {
       busy: compacting(),
       connected: chat.connectionStatus() === 'connected',
+      reachable: reachability.online(),
     })
     if (!verdict.ok) throw sendRejection(verdict)
     await chat.sendMessage(content)
@@ -290,10 +302,12 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   }
   const onSendError = (failure: unknown) => {
     if (isSendRejection(failure)) {
-      if (failure.message) notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
+      if (failure.message) notices.notify(failure.message, {tone: failure.tone === 'warn' ? 'warn' : 'info'})
       return
     }
-    notify(failureMessage(failure), {tone: 'danger'})
+    notifyUnlessOffline(reachability.sustainedOffline(), () =>
+      notices.notify(failureMessage(failure), {tone: 'danger'}),
+    )
   }
 
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
@@ -371,8 +385,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                   <Thread.Composer>
                     <ExtensionSurface name="status" instances={instances} />
                     <ExtensionSurface name="footer" instances={instances} />
-                    <NoticeToaster />
-                    <EngineStaleNotice />
                     <For each={pane.grabStore.grabs()}>
                       {(grab) => (
                         <GrabReference

@@ -3,7 +3,7 @@ import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 
-const ready = {busy: false, connected: true}
+const ready = {busy: false, connected: true, reachable: true}
 
 function parts(count: number): {content: {type: 'text'; content: string}[]} {
   return {content: Array.from({length: count}, () => ({type: 'text', content: 'x'}))}
@@ -20,7 +20,7 @@ test('turns an empty message down without saying anything', () => {
 })
 
 test('turns a send down while the conversation is being compressed', () => {
-  expect(checkSend('rename the widget package', {busy: true, connected: true}).ok).toBe(false)
+  expect(checkSend('rename the widget package', {busy: true, connected: true, reachable: true}).ok).toBe(false)
 })
 
 test('says why it turned down too many attachments instead of dropping them', () => {
@@ -56,10 +56,19 @@ test('lets a message with a budget-sized attachment through', () => {
 })
 
 test('says the connection is down instead of swallowing the message', () => {
-  const verdict = checkSend('rename the widget package', {busy: false, connected: false})
+  const verdict = checkSend('rename the widget package', {busy: false, connected: false, reachable: true})
   expect(verdict).toEqual({
     ok: false,
     message: 'Not connected yet. Your message is still in the composer.',
+    tone: 'warn',
+  })
+})
+
+test('says the engine is unreachable with a distinct message from the hydration case', () => {
+  const verdict = checkSend('rename the widget package', {busy: false, connected: false, reachable: false})
+  expect(verdict).toEqual({
+    ok: false,
+    message: 'conciv lost connection to the engine. Your message is still in the composer.',
     tone: 'warn',
   })
 })

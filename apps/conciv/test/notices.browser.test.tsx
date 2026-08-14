@@ -1,28 +1,25 @@
 import '@conciv/ui-kit-system/tokens.css'
 import './helpers/utilities.css'
-import {afterEach, expect, test} from 'vitest'
+import {expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
 import {createSignal, Show} from 'solid-js'
-import {NoticeToaster, notify, toaster} from '../src/shell/notices.js'
+import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 
-afterEach(() => {
-  toaster.remove()
-})
-
-function mountToaster(): {showToaster: (visible: boolean) => void} {
+function mountToaster(): {notify: Notify; showToaster: (visible: boolean) => void} {
+  const store = createNoticeStore()
   const [standing, setStanding] = createSignal(true)
   const mounted = render(() => (
     <Show when={standing()} fallback={<p>another session</p>}>
-      <NoticeToaster />
+      <store.Toaster />
     </Show>
   ))
   mounted.container.className = 'chat-theme-conciv'
-  return {showToaster: (visible) => setStanding(visible)}
+  return {notify: store.notify, showToaster: (visible) => setStanding(visible)}
 }
 
 test('a notice stands in the notifications region until it is dismissed by hand', async () => {
-  mountToaster()
+  const {notify} = mountToaster()
 
   notify('Command copied. Paste it in your terminal.')
 
@@ -36,7 +33,7 @@ test('a notice stands in the notifications region until it is dismissed by hand'
 })
 
 test('an alarming notice asks to be read at once, a plain one waits its turn', async () => {
-  mountToaster()
+  const {notify} = mountToaster()
 
   notify('Still connected to your terminal.', {tone: 'danger'})
 
@@ -48,7 +45,7 @@ test('an alarming notice asks to be read at once, a plain one waits its turn', a
 })
 
 test('the way out of a notice runs once and takes the notice with it', async () => {
-  mountToaster()
+  const {notify} = mountToaster()
   let handedBack = 0
   notify('Now following fix the flaky test.', {
     action: {
@@ -66,7 +63,7 @@ test('the way out of a notice runs once and takes the notice with it', async () 
 })
 
 test('a notice raised again under the same name replaces the one already standing', async () => {
-  mountToaster()
+  const {notify} = mountToaster()
 
   notify('Still connected to your terminal.', {key: 'hand-back', tone: 'danger'})
   await expect.element(page.getByText('Still connected to your terminal.')).toBeVisible()
@@ -78,20 +75,20 @@ test('a notice raised again under the same name replaces the one already standin
 })
 
 test('a notice that offers a way out survives leaving the session it was raised in', async () => {
-  const mounted = mountToaster()
+  const {notify, showToaster} = mountToaster()
   notify('Now following fix the flaky test.', {action: {label: 'Undo', run: () => {}}})
   await expect.element(page.getByText('Now following fix the flaky test.')).toBeVisible()
 
-  mounted.showToaster(false)
+  showToaster(false)
   await expect.element(page.getByText('another session')).toBeVisible()
-  mounted.showToaster(true)
+  showToaster(true)
 
   await expect.element(page.getByText('Now following fix the flaky test.')).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Undo'})).toBeVisible()
 })
 
 test('an alarming notice that offers a way out shows both the way out and the way to dismiss', async () => {
-  mountToaster()
+  const {notify} = mountToaster()
 
   notify('Still connected to your terminal.', {tone: 'danger', action: {label: 'Hand it back', run: () => {}}})
 
@@ -101,7 +98,7 @@ test('an alarming notice that offers a way out shows both the way out and the wa
 })
 
 test('the way out of a notice explains itself with a tooltip a touch reader can reach', async () => {
-  mountToaster()
+  const {notify} = mountToaster()
   notify('Command copied. Paste it in your terminal.')
 
   await page.getByRole('button', {name: 'Dismiss'}).hover()

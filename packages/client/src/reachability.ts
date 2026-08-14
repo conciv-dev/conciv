@@ -62,3 +62,7 @@ const ENGINE_PROBE_INTERVAL_MS = 2000
 export function engineProbeRefetchInterval(reachable: boolean, intervalMs = ENGINE_PROBE_INTERVAL_MS): number | false {
   return reachable ? false : intervalMs
 }
+
+export function voteEngineProbeSettled(succeeded: boolean): void {
+  if (succeeded) onlineManager.setOnline(true)
+}

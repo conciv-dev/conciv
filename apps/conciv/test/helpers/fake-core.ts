@@ -1,3 +1,4 @@
+import {onlineManager} from '@tanstack/query-core'
 import {
   browserRpcConnection,
   closeBrowserRpcConnection,
@@ -19,6 +20,7 @@ export type FakeCore = {
   idle: () => Promise<void>
   restore: () => void
   setEngine: (next: {stale: boolean; fingerprint?: string}) => void
+  setNetworkFail: (fail: boolean) => void
 }
 
 const QUIET_MS = 60
@@ -35,6 +37,7 @@ export type FakeCoreConfig = {
   launchOk?: boolean
   launchRejects?: boolean
   engineStale?: boolean
+  networkFail?: boolean
 }
 
 export function sessionRow(overrides: Partial<SessionMeta> & {id: string}): SessionMeta {
@@ -87,6 +90,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
   const calls: CoreCall[] = []
   let subscribes = 0
   let snapshotReleased = false
+  let networkFail = config.networkFail ?? false
   if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = CORE_BASE
   let inFlight = 0
   let quietTimer: ReturnType<typeof setTimeout> | undefined
@@ -113,11 +117,15 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     restore: () => {
       globalThis.fetch = realFetch
       closeBrowserRpcConnection(CORE_BASE)
+      onlineManager.setOnline(true)
       if (typeof window !== 'undefined') delete window.__CONCIV_API_BASE__
     },
     setEngine: (next) => {
       engine.stale = next.stale
       if (next.fingerprint !== undefined) engine.fingerprint = next.fingerprint
+    },
+    setNetworkFail: (fail) => {
+      networkFail = fail
     },
   }
 
@@ -165,6 +173,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
         fingerprint: engine.fingerprint,
       }),
     '/rpc/meta/tools': () => reply({tools: []}),
+    '/rpc/registry/catalog': () => reply([]),
     '/rpc/chat/subscribe': (_body, signal) => liveStream(signal),
     '/rpc/chat/stop': () => reply({ok: true}),
     '/rpc/chat/send': () => {
@@ -187,6 +196,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     const request = input instanceof Request ? input : new Request(input, init)
     const url = new URL(request.url)
     if (url.origin !== CORE_BASE) return realFetch(input, init)
+    if (networkFail) throw new TypeError('Failed to fetch')
     const route = routes[url.pathname]
     if (!route) throw new Error(`the fake core has no route for ${url.pathname}`)
     inFlight += 1
