@@ -238,52 +238,15 @@ function groupWithPageSessions(
   return grouping.segments
 }
 
-type PlainGrouping = {
-  segments: Segment[]
-  standalone: ((name: string) => boolean) | undefined
-}
-
-function isPlainStandaloneCall(grouping: PlainGrouping, part: MessagePart): boolean {
-  return part.type === 'tool-call' && (grouping.standalone?.(part.name) ?? false)
-}
-
-function placePlainChain(grouping: PlainGrouping, index: number): void {
-  const last = grouping.segments.at(-1)
-  if (last?.kind === 'chain') {
-    last.indices.push(index)
-    return
-  }
-  grouping.segments.push({kind: 'chain', indices: [index]})
-}
-
-function placePlainPart(grouping: PlainGrouping, part: MessagePart, index: number): void {
-  if (isReplyText(part)) {
-    grouping.segments.push({kind: 'reply', index})
-    return
-  }
-  if (isPlainStandaloneCall(grouping, part)) {
-    grouping.segments.push({kind: 'standalone', index})
-    return
-  }
-  if (part.type === 'tool-result') {
-    const last = grouping.segments.at(-1)
-    if (last?.kind === 'chain') last.indices.push(index)
-    return
-  }
-  placePlainChain(grouping, index)
-}
-
-function groupPlain(parts: ReadonlyArray<MessagePart>, standalone: ((name: string) => boolean) | undefined): Segment[] {
-  const grouping: PlainGrouping = {segments: [], standalone}
-  parts.forEach((part, index) => placePlainPart(grouping, part, index))
-  return grouping.segments
-}
+const emptyPageActNames: ReadonlySet<string> = new Set()
 
 export function groupSegments(parts: ReadonlyArray<MessagePart>, options?: GroupingOptions): Segment[] {
-  const pageActNames = options?.pageActNames
-  const standalone = options?.standalone
-  if (pageActNames) return groupWithPageSessions(parts, pageActNames, options?.pageToolPrefix, standalone)
-  return groupPlain(parts, standalone)
+  return groupWithPageSessions(
+    parts,
+    options?.pageActNames ?? emptyPageActNames,
+    options?.pageToolPrefix,
+    options?.standalone,
+  )
 }
 
 export type ResultPairing = {byCallId: Map<string, ToolResultPart>; hiddenResultIds: Set<string>}
