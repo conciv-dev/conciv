@@ -35,6 +35,7 @@ import {
   type GroupNodeGroup,
   type GroupNodePart,
   type GroupRenderProps,
+  type Grouping,
   type Turn,
 } from '../store/grouping.js'
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
@@ -66,6 +67,8 @@ export type ThreadMessagesProps = {
   turnPrefix?: (turn: Turn) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
   pageSession?: PageSessionConfig
+  grouping?: Grouping
+  groupEntries?: readonly GroupEntry[]
 }
 
 function asThinking(part: MessagePart | undefined): Extract<MessagePart, {type: 'thinking'}> | null {
@@ -144,12 +147,14 @@ function AssistantTurn(props: {
   entries: ToolCardEntry[]
   fallback: ToolUIComponent
   pageSession?: PageSessionConfig
+  grouping?: Grouping
+  groupEntries?: readonly GroupEntry[]
 }): JSX.Element {
   const message = useMessage()
   const thread = useThread()
   const ctx = useToolCtx()
   const parts = () => message.message().parts
-  const grouping = createMemo(() => createGrouping(props.pageSession, props.entries))
+  const grouping = createMemo(() => props.grouping ?? createGrouping(props.pageSession, props.entries))
   const nodes = createMemo(() => groupParts(parts(), grouping().grouper, grouping().context))
   const lastTextIndex = createMemo(() =>
     parts()
@@ -186,56 +191,69 @@ function AssistantTurn(props: {
   const groupEntries = createMemo<GroupEntry[]>(() => {
     const chain: GroupEntry = {key: CHAIN_GROUP_KEY, render: ChainGroup}
     const config = props.pageSession
-    return config ? [chain, config.entry] : [chain]
+    return [chain, ...(config ? [config.entry] : []), ...(props.groupEntries ?? [])]
   })
   const entryFor = (key: GroupKey) => groupEntries().find((entry) => entry.key === key)
-  const renderableNode = (node: GroupNode) => node.type === 'part' || entryFor(node.key) !== undefined
-  const lastRenderableIndex = createMemo(() => nodes().map(renderableNode).lastIndexOf(true))
-  const liveNode = (index: number) => thread.isRunning && message.isLast() && index === lastRenderableIndex()
+  const renderableNode = (node: GroupNode): boolean => {
+    if (node.type === 'part') return true
+    if (entryFor(node.key) !== undefined) return true
+    return node.children.some(renderableNode)
+  }
+  const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => (
+    <Switch>
+      <Match when={asText(parts()[leafProps.node.index])}>
+        {(part) => <Markdown content={part().content} streaming={streamingAt(leafProps.node.index)} />}
+      </Match>
+      <Match when={asToolCall(parts()[leafProps.node.index])}>
+        {(part) => (
+          <ToolCallCard
+            part={part()}
+            result={message.pairing().byCallId.get(part().id)}
+            ctx={ctx}
+            durationMs={ctx.durationFor?.(part().id)}
+            tools={() => props.entries}
+            fallback={props.fallback}
+          />
+        )}
+      </Match>
+    </Switch>
+  )
+  const NodeView = (nodeProps: {node: GroupNode; streaming: boolean}): JSX.Element => (
+    <Switch>
+      <Match when={asGroupNode(nodeProps.node)}>
+        {(group) => (
+          <Show
+            when={entryFor(group().key)}
+            fallback={<NodeListView nodes={group().children} streaming={nodeProps.streaming} />}
+          >
+            {(entry) => (
+              <Dynamic
+                component={entry().render}
+                node={group()}
+                parts={parts}
+                resultFor={(toolCallId: string) => message.pairing().byCallId.get(toolCallId)}
+                streaming={nodeProps.streaming}
+              >
+                <NodeListView nodes={group().children} streaming={nodeProps.streaming} />
+              </Dynamic>
+            )}
+          </Show>
+        )}
+      </Match>
+      <Match when={asPartNode(nodeProps.node)}>{(leaf) => <PartLeaf node={leaf()} />}</Match>
+    </Switch>
+  )
+  const NodeListView = (listProps: {nodes: readonly GroupNode[]; streaming: boolean}): JSX.Element => {
+    const lastRenderableIndex = createMemo(() => listProps.nodes.map(renderableNode).lastIndexOf(true))
+    return (
+      <Index each={listProps.nodes}>
+        {(node, index) => <NodeView node={node()} streaming={listProps.streaming && index === lastRenderableIndex()} />}
+      </Index>
+    )
+  }
   return (
     <Message.Root data-pw-msg class={message.isLast() ? ASSISTANT_ROOT_CLASS : ASSISTANT_ROOT_SETTLED_CLASS}>
-      <Index each={nodes()}>
-        {(node, nodeIndex) => (
-          <Switch>
-            <Match when={asGroupNode(node())}>
-              {(group) => (
-                <Show when={entryFor(group().key)}>
-                  {(entry) => (
-                    <Dynamic
-                      component={entry().render}
-                      node={group()}
-                      parts={parts}
-                      resultFor={(toolCallId: string) => message.pairing().byCallId.get(toolCallId)}
-                      streaming={liveNode(nodeIndex)}
-                    />
-                  )}
-                </Show>
-              )}
-            </Match>
-            <Match when={asPartNode(node())}>
-              {(leaf) => (
-                <Switch>
-                  <Match when={asText(parts()[leaf().index])}>
-                    {(part) => <Markdown content={part().content} streaming={streamingAt(leaf().index)} />}
-                  </Match>
-                  <Match when={asToolCall(parts()[leaf().index])}>
-                    {(part) => (
-                      <ToolCallCard
-                        part={part()}
-                        result={message.pairing().byCallId.get(part().id)}
-                        ctx={ctx}
-                        durationMs={ctx.durationFor?.(part().id)}
-                        tools={() => props.entries}
-                        fallback={props.fallback}
-                      />
-                    )}
-                  </Match>
-                </Switch>
-              )}
-            </Match>
-          </Switch>
-        )}
-      </Index>
+      <NodeListView nodes={nodes()} streaming={thread.isRunning && message.isLast()} />
       <Message.Error />
       <AssistantActionBar />
     </Message.Root>
@@ -267,6 +285,8 @@ type ThreadConfig = {
   turnPrefix: () => ((turn: Turn) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
   pageSession: () => PageSessionConfig | undefined
+  grouping: () => Grouping | undefined
+  groupEntries: () => readonly GroupEntry[]
 }
 
 const ThreadConfigContext = createContext<ThreadConfig>({
@@ -276,6 +296,8 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   turnPrefix: () => undefined,
   attachmentCards: () => [],
   pageSession: () => undefined,
+  grouping: () => undefined,
+  groupEntries: () => [],
 })
 
 function TurnPrefix(): JSX.Element {
@@ -292,7 +314,13 @@ function AssistantMessageView(): JSX.Element {
       <Show
         when={config.assistant()}
         fallback={
-          <AssistantTurn entries={config.entries()} fallback={config.fallback()} pageSession={config.pageSession()} />
+          <AssistantTurn
+            entries={config.entries()}
+            fallback={config.fallback()}
+            pageSession={config.pageSession()}
+            grouping={config.grouping()}
+            groupEntries={config.groupEntries()}
+          />
         }
       >
         {(component) => <Dynamic component={component()} />}
@@ -342,7 +370,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
   const internal = useViewportInternal()
   const estimator = internal
     ? createTurnEstimator(internal.element, {
-        grouping: () => createGrouping(props.pageSession, props.tools ?? []),
+        grouping: () => props.grouping ?? createGrouping(props.pageSession, props.tools ?? []),
         exactAllowed: () => props.turnPrefix === undefined,
         disabled: () => props.components?.AssistantMessage !== undefined,
       })
@@ -356,6 +384,8 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         turnPrefix: () => props.turnPrefix,
         attachmentCards: () => props.attachmentCards ?? [],
         pageSession: () => props.pageSession,
+        grouping: () => props.grouping,
+        groupEntries: () => props.groupEntries ?? [],
       }}
     >
       <TurnEstimateProvider value={estimator}>

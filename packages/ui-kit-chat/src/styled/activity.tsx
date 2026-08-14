@@ -30,6 +30,7 @@ import {
   type GroupNode,
   type GroupNodeGroup,
   type GroupNodePart,
+  type Grouping,
   type Turn,
 } from '../store/grouping.js'
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
@@ -50,6 +51,8 @@ type ActivityConfig = {
   fallback: () => ToolUIComponent
   ctx: () => ToolViewCtx
   pageSession: () => PageSessionConfig | undefined
+  grouping: () => Grouping | undefined
+  groupEntries: () => readonly GroupEntry[]
 }
 
 const ActivityConfigContext = createContext<ActivityConfig>({
@@ -57,6 +60,8 @@ const ActivityConfigContext = createContext<ActivityConfig>({
   fallback: () => ToolFallback,
   ctx: () => ({...INERT_TOOL_CTX, respondApproval: () => {}}),
   pageSession: () => undefined,
+  grouping: () => undefined,
+  groupEntries: () => [],
 })
 
 export type ActivityProps = ParentProps<{
@@ -67,6 +72,8 @@ export type ActivityProps = ParentProps<{
   ctx?: ToolViewCtx
   fallback?: ToolUIComponent
   pageSession?: PageSessionConfig
+  grouping?: Grouping
+  groupEntries?: readonly GroupEntry[]
   class?: string
 }>
 
@@ -80,6 +87,8 @@ function Root(props: ActivityProps): JSX.Element {
           fallback: () => props.fallback ?? ToolFallback,
           ctx: () => props.ctx ?? parent.ctx(),
           pageSession: () => props.pageSession ?? parent.pageSession(),
+          grouping: () => props.grouping ?? parent.grouping(),
+          groupEntries: () => props.groupEntries ?? parent.groupEntries(),
         }}
       >
         <div
@@ -277,7 +286,7 @@ function userText(turn: Turn): string {
 function AssistantTurnView(props: {turn: Turn}): JSX.Element {
   const activity = useActivity()
   const config = useContext(ActivityConfigContext)
-  const grouping = createMemo(() => createGrouping(config.pageSession(), config.tools()))
+  const grouping = createMemo(() => config.grouping() ?? createGrouping(config.pageSession(), config.tools()))
   const nodes = createMemo(() => groupParts(props.turn.parts, grouping().grouper, grouping().context))
   const groupEntries = createMemo<GroupEntry[]>(() => {
     const chain: GroupEntry = {
@@ -285,7 +294,7 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
       render: (groupProps) => <StepGroup turn={props.turn} node={groupProps.node} liveSegment={groupProps.streaming} />,
     }
     const pageSession = config.pageSession()
-    return pageSession ? [chain, pageSession.entry] : [chain]
+    return [chain, ...(pageSession ? [pageSession.entry] : []), ...config.groupEntries()]
   })
   const hasSteps = (node: GroupNodeGroup): boolean =>
     node.key !== CHAIN_GROUP_KEY || stepIndices(props.turn, node.indices).length > 0
@@ -293,54 +302,70 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
     if (node.type !== 'group' || !hasSteps(node)) return null
     return groupEntryFor(groupEntries(), node.key) === undefined ? null : node
   }
+  const asFlattened = (node: GroupNode): GroupNodeGroup | null => {
+    if (node.type !== 'group' || !hasSteps(node)) return null
+    return groupEntryFor(groupEntries(), node.key) === undefined ? node : null
+  }
   const asLeaf = (node: GroupNode): GroupNodePart | null => (node.type === 'part' ? node : null)
-  const renderable = (node: GroupNode): boolean => asLeaf(node) !== null || asGroup(node) !== null
-  const lastRenderableIndex = createMemo(() => nodes().map(renderable).lastIndexOf(true))
-  const liveSegment = (index: number) =>
-    activity.live() && activity.isLastTurn(props.turn) && index === lastRenderableIndex()
+  const renderable = (node: GroupNode): boolean => {
+    if (asLeaf(node) !== null || asGroup(node) !== null) return true
+    const flattened = asFlattened(node)
+    return flattened !== null && flattened.children.some(renderable)
+  }
+  const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => (
+    <Switch>
+      <Match when={asText(props.turn.parts[leafProps.node.index])}>
+        {(part) => <Markdown content={part().content} />}
+      </Match>
+      <Match when={asToolCall(props.turn.parts[leafProps.node.index])}>
+        {(part) => (
+          <ToolCallCard
+            part={part()}
+            result={activity.resultFor(part().id)}
+            ctx={config.ctx()}
+            tools={config.tools}
+            fallback={config.fallback()}
+          />
+        )}
+      </Match>
+    </Switch>
+  )
+  const NodeView = (nodeProps: {node: GroupNode; streaming: boolean}): JSX.Element => (
+    <Switch>
+      <Match when={asGroup(nodeProps.node)}>
+        {(group) => (
+          <Show when={groupEntryFor(groupEntries(), group().key)}>
+            {(entry) => (
+              <Dynamic
+                component={entry().render}
+                node={group()}
+                parts={() => props.turn.parts}
+                resultFor={activity.resultFor}
+                streaming={nodeProps.streaming}
+              >
+                <NodeListView nodes={group().children} streaming={nodeProps.streaming} />
+              </Dynamic>
+            )}
+          </Show>
+        )}
+      </Match>
+      <Match when={asFlattened(nodeProps.node)}>
+        {(group) => <NodeListView nodes={group().children} streaming={nodeProps.streaming} />}
+      </Match>
+      <Match when={asLeaf(nodeProps.node)}>{(leaf) => <PartLeaf node={leaf()} />}</Match>
+    </Switch>
+  )
+  const NodeListView = (listProps: {nodes: readonly GroupNode[]; streaming: boolean}): JSX.Element => {
+    const lastRenderableIndex = createMemo(() => listProps.nodes.map(renderable).lastIndexOf(true))
+    return (
+      <Index each={listProps.nodes}>
+        {(node, index) => <NodeView node={node()} streaming={listProps.streaming && index === lastRenderableIndex()} />}
+      </Index>
+    )
+  }
   return (
     <div data-pw-msg class="flex flex-col gap-1.5 min-w-0 self-stretch anim-msg">
-      <Index each={nodes()}>
-        {(node, index) => (
-          <Switch>
-            <Match when={asGroup(node())}>
-              {(group) => (
-                <Show when={groupEntryFor(groupEntries(), group().key)}>
-                  {(entry) => (
-                    <Dynamic
-                      component={entry().render}
-                      node={group()}
-                      parts={() => props.turn.parts}
-                      resultFor={activity.resultFor}
-                      streaming={liveSegment(index)}
-                    />
-                  )}
-                </Show>
-              )}
-            </Match>
-            <Match when={asLeaf(node())}>
-              {(leaf) => (
-                <Switch>
-                  <Match when={asText(props.turn.parts[leaf().index])}>
-                    {(part) => <Markdown content={part().content} />}
-                  </Match>
-                  <Match when={asToolCall(props.turn.parts[leaf().index])}>
-                    {(part) => (
-                      <ToolCallCard
-                        part={part()}
-                        result={activity.resultFor(part().id)}
-                        ctx={config.ctx()}
-                        tools={config.tools}
-                        fallback={config.fallback()}
-                      />
-                    )}
-                  </Match>
-                </Switch>
-              )}
-            </Match>
-          </Switch>
-        )}
-      </Index>
+      <NodeListView nodes={nodes()} streaming={activity.live() && activity.isLastTurn(props.turn)} />
     </div>
   )
 }

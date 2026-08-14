@@ -375,8 +375,8 @@ function GroupedParts(props: {components?: GroupedComponents; grouping?: Groupin
   const nodes = createMemo(() => groupParts(message.message().parts, grouper(), groupContext()))
   const groupRenders = (group: GroupNodeGroup): boolean =>
     group.indices.some((index) => partRenders(message.message().parts[index], components()))
-  return (
-    <Index each={nodes()}>
+  const NodesView = (nodesProps: {nodes: readonly GroupNode[]}): JSX.Element => (
+    <Index each={nodesProps.nodes}>
       {(node) => (
         <Show
           when={asGroup(node())}
@@ -384,13 +384,10 @@ function GroupedParts(props: {components?: GroupedComponents; grouping?: Groupin
         >
           {(group) => (
             <Show when={groupRenders(group())}>
-              <Show
-                when={components().Group}
-                fallback={<GroupBody indices={group().indices} components={components()} ctx={ctx} />}
-              >
+              <Show when={components().Group} fallback={<NodesView nodes={group().children} />}>
                 {(component) => (
                   <Dynamic component={component()} indices={group().indices} groupKey={group().key}>
-                    <GroupBody indices={group().indices} components={components()} ctx={ctx} />
+                    <NodesView nodes={group().children} />
                   </Dynamic>
                 )}
               </Show>
@@ -400,6 +397,7 @@ function GroupedParts(props: {components?: GroupedComponents; grouping?: Groupin
       )}
     </Index>
   )
+  return <NodesView nodes={nodes()} />
 }
 
 export const Message = Object.assign(Root, {

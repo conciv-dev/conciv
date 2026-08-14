@@ -79,8 +79,7 @@ export function diffTurns(
 }
 
 export type GroupKey = `group-${string}`
-export type GroupPath = readonly [] | readonly [GroupKey]
-type NestedGroupPath = readonly GroupKey[]
+export type GroupPath = readonly GroupKey[]
 
 export type GroupByContext = {toolEntries?: ReadonlyArray<ToolCardEntry>}
 
@@ -111,6 +110,7 @@ export type GroupRenderProps = {
   parts: () => readonly MessagePart[]
   resultFor: (toolCallId: string) => ToolResultPart | undefined
   streaming: boolean
+  children?: JSX.Element
 }
 
 export type GroupEntry = {key: GroupKey; render: (props: GroupRenderProps) => JSX.Element}
@@ -206,7 +206,7 @@ function closeTop(stack: BuildFrame[], partIds: ReadonlyArray<string | undefined
   })
 }
 
-function commonDepth(stack: ReadonlyArray<BuildFrame>, path: NestedGroupPath): number {
+function commonDepth(stack: ReadonlyArray<BuildFrame>, path: GroupPath): number {
   let common = 0
   while (common < stack.length - 1 && common < path.length) {
     const frame = stack[common + 1]
@@ -216,7 +216,7 @@ function commonDepth(stack: ReadonlyArray<BuildFrame>, path: NestedGroupPath): n
   return common
 }
 
-function openPath(stack: BuildFrame[], path: NestedGroupPath): void {
+function openPath(stack: BuildFrame[], path: GroupPath): void {
   while (stack.length - 1 < path.length) {
     const parent = stack.at(-1)
     const key = path[stack.length - 1]
@@ -226,7 +226,7 @@ function openPath(stack: BuildFrame[], path: NestedGroupPath): void {
 }
 
 export function buildGroupTree(
-  paths: ReadonlyArray<NestedGroupPath | null>,
+  paths: ReadonlyArray<GroupPath | null>,
   partIds?: ReadonlyArray<string | undefined>,
 ): readonly GroupNode[] {
   const root = makeFrame(CHAIN_GROUP_KEY, '')

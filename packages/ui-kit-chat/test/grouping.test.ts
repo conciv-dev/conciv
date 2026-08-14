@@ -456,6 +456,85 @@ describe('group tree keys', () => {
   })
 })
 
+describe('nested group paths', () => {
+  const nestedGrouper: Grouper = (parts) =>
+    parts.map((part) => {
+      if (part.type === 'thinking') return ['group-outer', 'group-inner']
+      if (part.type === 'tool-call') return ['group-outer']
+      return []
+    })
+
+  it('coalesces adjacent parts by shared path prefix into one nested tree', () => {
+    const nodes = groupParts(
+      [
+        {type: 'thinking', content: 'first'},
+        {type: 'thinking', content: 'second'},
+        {type: 'tool-call', id: 't1', name: 'read', arguments: '{}', state: 'complete'},
+        {type: 'thinking', content: 'third'},
+      ],
+      nestedGrouper,
+      {},
+    )
+    expect(nodes).toHaveLength(1)
+    const [outer] = nodes
+    if (outer?.type !== 'group') throw new Error('expected a group node')
+    expect(outer.key).toBe('group-outer')
+    expect([...outer.indices]).toEqual([0, 1, 2, 3])
+    expect(outer.children.map((child) => child.type)).toEqual(['group', 'part', 'group'])
+    const [firstInner, , secondInner] = outer.children
+    if (firstInner?.type !== 'group' || secondInner?.type !== 'group') throw new Error('expected inner groups')
+    expect(firstInner.key).toBe('group-inner')
+    expect([...firstInner.indices]).toEqual([0, 1])
+    expect([...secondInner.indices]).toEqual([3])
+  })
+
+  it('assigns structural node keys per depth and claims identity keys at every level', () => {
+    const nodes = groupParts(
+      [
+        {type: 'tool-call', id: 'p1', name: 'run', arguments: '{}', state: 'complete'},
+        {type: 'thinking', content: 'plan'},
+      ],
+      nestedGrouper,
+      {},
+    )
+    const [outer] = nodes
+    if (outer?.type !== 'group') throw new Error('expected a group node')
+    expect(outer.nodeKey).toBe('0')
+    expect(outer.idKey).toBe('id:p1')
+    expect(outer.children.map((child) => child.nodeKey)).toEqual(['0.0', '0.1'])
+    const [leaf, inner] = outer.children
+    expect(leaf?.type).toBe('part')
+    if (inner?.type !== 'group') throw new Error('expected an inner group')
+    expect(inner.children.map((child) => child.nodeKey)).toEqual(['0.1.0'])
+  })
+
+  it('closes only the unshared suffix when the path prefix changes', () => {
+    const nodes = groupParts(
+      [
+        {type: 'thinking', content: 'deep'},
+        {type: 'tool-call', id: 't1', name: 'read', arguments: '{}', state: 'complete'},
+        {type: 'thinking', content: 'deep again'},
+        {type: 'text', content: 'done'},
+      ],
+      nestedGrouper,
+      {},
+    )
+    expect(shape(nodes)).toEqual([{group: 'group-outer', indices: [0, 1, 2]}, leaf(3)])
+  })
+
+  it('keeps a two-level path as one top-level node so the turn estimator treats nested groups flat', () => {
+    const nodes = groupParts(
+      [
+        {type: 'thinking', content: 'first'},
+        {type: 'thinking', content: 'second'},
+      ],
+      nestedGrouper,
+      {},
+    )
+    expect(nodes).toHaveLength(1)
+  })
+})
+
 describe('pairResults', () => {
   it('pairs a tool-result with its call and hides the standalone result', () => {
     const pairing = pairResults([
