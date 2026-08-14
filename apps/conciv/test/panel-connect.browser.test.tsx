@@ -1,20 +1,20 @@
 import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import {defineExtension} from '@conciv/extension'
-import {getHostApi} from '@conciv/extension/host'
+import {defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import {Show, type JSX} from 'solid-js'
 import {createShellHarness} from './helpers/shell-harness.js'
 import {expectRetryRecovers} from './helpers/retry-recovery.js'
 
 const PANEL_SESSION = 'conciv_1'
 const FOUND_API_BASE = 'http://found.test'
+const CONNECT_PROBE_NAME = 'connect-probe'
 const harness = createShellHarness(PANEL_SESSION)
 
 afterEach(harness.dispose)
 
 function ConnectProbe(): JSX.Element {
-  const connect = getHostApi().useConnect()
+  const connect = getExtensionApi(CONNECT_PROBE_NAME).useConnect()
   return (
     <button type="button" onClick={() => connect.found(FOUND_API_BASE)}>
       Simulate found
@@ -23,13 +23,17 @@ function ConnectProbe(): JSX.Element {
 }
 
 const connectProbe = defineExtension({
-  name: 'connect-probe',
+  name: CONNECT_PROBE_NAME,
   Component: () => (
-    <Show when={getHostApi().useSlot() === 'connect'}>
+    <Show when={getExtensionApi(CONNECT_PROBE_NAME).useSlot() === 'connect'}>
       <ConnectProbe />
     </Show>
   ),
 }).client(() => ({value: {}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof connectProbe> {}
+}
 
 const mountShell = (config: Parameters<typeof harness.mountShell>[1] = {}): void =>
   harness.mountShell('/panel/connect?open=true', config, [connectProbe])
