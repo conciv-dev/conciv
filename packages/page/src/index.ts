@@ -39,14 +39,23 @@ async function serveQueries(rpc: RpcClient, driver: PageDriver, signal: AbortSig
   }
 }
 
-async function pump(rpc: RpcClient, driver: PageDriver, signal: AbortSignal): Promise<void> {
+const PAGE_PLANE_POLL_MS = 500
+const PAGE_PLANE_OFFLINE_POLL_MS = 2000
+
+export function pagePlanePollDelayMs(isOnline: () => boolean): number {
+  return isOnline() ? PAGE_PLANE_POLL_MS : PAGE_PLANE_OFFLINE_POLL_MS
+}
+
+async function pump(rpc: RpcClient, driver: PageDriver, signal: AbortSignal, isOnline: () => boolean): Promise<void> {
   while (!signal.aborted) {
-    try {
-      await serveQueries(rpc, driver, signal)
-    } catch {
-      if (signal.aborted) return
+    if (isOnline()) {
+      try {
+        await serveQueries(rpc, driver, signal)
+      } catch {
+        if (signal.aborted) return
+      }
     }
-    await sleep(500, signal)
+    await sleep(pagePlanePollDelayMs(isOnline), signal)
   }
 }
 
@@ -55,11 +64,12 @@ export function startPagePlane(opts: {
   document: Document
   driver?: PageDriver
   tools?: readonly ClientToolEntry[]
+  isOnline?: () => boolean
 }): {
   dispose: () => void
 } {
   const driver = opts.driver ?? makeDomPageDriver({tools: opts.tools})
   const abort = new AbortController()
-  void pump(opts.rpc, driver, abort.signal)
+  void pump(opts.rpc, driver, abort.signal, opts.isOnline ?? (() => true))
   return {dispose: () => abort.abort()}
 }

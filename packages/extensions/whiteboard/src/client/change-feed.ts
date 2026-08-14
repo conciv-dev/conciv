@@ -5,6 +5,22 @@ import type {WhiteboardRouter} from '../server/router.js'
 export type ChangeMessage = {type: 'upsert'; row: unknown} | {type: 'delete'; key: string}
 type Handler = (message: ChangeMessage) => void
 
+const RESUBSCRIBE_DELAY_MS = 250
+
+async function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms)
+    signal.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer)
+        resolve()
+      },
+      {once: true},
+    )
+  })
+}
+
 export function createChangeFeed(apiBase: string, room: string) {
   const tableHandlers = new Map<string, Set<Handler>>()
   const reconnectHandlers = new Set<() => void>()
@@ -13,30 +29,39 @@ export function createChangeFeed(apiBase: string, room: string) {
   const client = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard')
 
   const abort = new AbortController()
-  void (async () => {
-    try {
-      const changes = await client.changes(
-        {room},
-        {
-          signal: abort.signal,
-          context: {
-            retry: Number.POSITIVE_INFINITY,
-            onRetry: () => (success) => {
-              if (success) reconnectHandlers.forEach((handler) => handler())
-            },
+  async function runOnce(): Promise<void> {
+    const changes = await client.changes(
+      {room},
+      {
+        signal: abort.signal,
+        context: {
+          retry: Number.POSITIVE_INFINITY,
+          onRetry: () => (success) => {
+            if (success) reconnectHandlers.forEach((handler) => handler())
           },
         },
-      )
-      for await (const event of changes) {
-        if (event.table === 'cursor') {
-          cursorHandlers.forEach((handler) => handler(event.cursor))
-          continue
-        }
-        const message: ChangeMessage =
-          event.type === 'delete' ? {type: 'delete', key: event.key} : {type: 'upsert', row: event.row}
-        tableHandlers.get(event.table)?.forEach((handler) => handler(message))
+      },
+    )
+    for await (const event of changes) {
+      if (event.table === 'cursor') {
+        cursorHandlers.forEach((handler) => handler(event.cursor))
+        continue
       }
-    } catch {}
+      const message: ChangeMessage =
+        event.type === 'delete' ? {type: 'delete', key: event.key} : {type: 'upsert', row: event.row}
+      tableHandlers.get(event.table)?.forEach((handler) => handler(message))
+    }
+  }
+  void (async () => {
+    while (!abort.signal.aborted) {
+      try {
+        await runOnce()
+      } catch {
+        if (abort.signal.aborted) return
+      }
+      if (abort.signal.aborted) return
+      await sleep(RESUBSCRIBE_DELAY_MS, abort.signal)
+    }
   })()
 
   return {

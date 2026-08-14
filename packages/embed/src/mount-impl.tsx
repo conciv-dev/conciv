@@ -1,7 +1,7 @@
 import {createSignal} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeDeferredRpcClient, makeRebindableRpcClient} from '@conciv/contract'
+import {makeBrowserRpcClient} from '@conciv/contract'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
   collectClientEffects,
@@ -86,7 +86,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     rpc,
     rebind: rebindClient,
     close: closeConnection,
-  } = makeRebindableRpcClient(config.apiBase, {
+  } = makeBrowserRpcClient(config.apiBase, {
     transport: config.settings.transport,
   })
 
@@ -150,7 +150,7 @@ type BootConnectConfig = {
 }
 
 function bootConnect(config: BootConnectConfig): BootResult {
-  const deferred = makeDeferredRpcClient({transport: config.settings.transport})
+  const deferred = makeBrowserRpcClient(() => null, {transport: config.settings.transport})
 
   let boundApiBase: string | undefined
   let planeDispose: (() => void) | undefined

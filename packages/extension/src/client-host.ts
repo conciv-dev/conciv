@@ -38,7 +38,7 @@ export function ensureEffectsSurface(options?: {styles?: string}): HTMLElement {
 }
 
 export async function openSource(apiBase: string, locateResult: LocateResult): Promise<OpenSourceResult> {
-  const rpc = makeBrowserRpcClient(apiBase)
+  const {rpc} = makeBrowserRpcClient(apiBase)
   try {
     if (locateResult.source) {
       await rpc.editor.open({file: locateResult.source.file, line: locateResult.source.line})

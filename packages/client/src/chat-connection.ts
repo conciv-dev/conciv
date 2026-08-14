@@ -1,12 +1,27 @@
 import type {ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
 import type {SubscribeConnectionAdapter} from '@tanstack/ai-solid'
 import {AsyncRetryer} from '@tanstack/pacer'
+import {ORPCError} from '@orpc/client'
 import type {RpcClient} from '@conciv/contract'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
 
 export type ChatConnectionOptions = {
   retryDelayMs?: number
+  offlineRetryDelayMs?: number
+  isOnline?: () => boolean
   onRetry?: (error: unknown) => void
+}
+
+const DEFAULT_RETRY_DELAY_MS = 500
+const DEFAULT_OFFLINE_RETRY_DELAY_MS = 2000
+
+export function chatRetryDelayMs(options: ChatConnectionOptions): number {
+  if (options.isOnline && !options.isOnline()) return options.offlineRetryDelayMs ?? DEFAULT_OFFLINE_RETRY_DELAY_MS
+  return options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS
+}
+
+export function isReachabilityError(error: unknown): boolean {
+  return !(error instanceof ORPCError)
 }
 
 export type ChatConnection = SubscribeConnectionAdapter & {refresh: () => void}
@@ -80,10 +95,12 @@ async function openStream(
 ): Promise<SessionStream | undefined> {
   const retryer = new AsyncRetryer(async () => await rpc.chat.subscribe({sessionId}, {signal}), {
     backoff: 'fixed',
-    baseWait: options.retryDelayMs ?? 500,
+    baseWait: () => chatRetryDelayMs(options),
     throwOnError: false,
     maxAttempts: () => (signal.aborted ? 1 : Number.MAX_SAFE_INTEGER),
-    onRetry: (_attempt, error) => options.onRetry?.(error),
+    onRetry: (_attempt, error) => {
+      if (isReachabilityError(error)) options.onRetry?.(error)
+    },
   })
   const abortRetryer = () => retryer.abort()
   signal.addEventListener('abort', abortRetryer, {once: true})
@@ -122,7 +139,7 @@ async function* subscribeStream(
       if (!attempt.signal.aborted) return
     } catch (error) {
       if (!stillListening(consumerSignal)) return
-      if (!attempt.signal.aborted) options.onRetry?.(error)
+      if (!attempt.signal.aborted && isReachabilityError(error)) options.onRetry?.(error)
     }
   }
 }

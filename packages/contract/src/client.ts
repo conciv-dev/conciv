@@ -1,10 +1,11 @@
-import {createORPCClient, DynamicLink, type ClientLink} from '@orpc/client'
+import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
 import type {ContractRouterClient} from '@orpc/contract'
 import {contract} from './contract.js'
 import {
-  browserRpcConnection,
   closeBrowserRpcConnection,
+  dynamicBrowserRpcLink,
+  RPC_UNBOUND_MESSAGE,
   type RpcClientContext,
   type RpcTransportPreference,
 } from './browser-transport.js'
@@ -23,50 +24,36 @@ export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): 
 
 export type BrowserRpcClientOptions = {transport?: RpcTransportPreference}
 
-export function makeBrowserRpcClient(apiBase: string, options: BrowserRpcClientOptions = {}): RpcClient {
-  return createORPCClient(browserRpcConnection(apiBase, options.transport).link)
-}
-
-export type DeferredRpcClient = {
+export type BrowserRpcClient = {
   rpc: RpcClient
-  bind: (apiBase: string) => void
   bound: () => boolean
+  bind: (apiBase: string) => void
+  rebind: (apiBase: string) => void
   close: () => void
 }
 
-export function makeDeferredRpcClient(options: BrowserRpcClientOptions = {}): DeferredRpcClient {
-  const state: {base: string | null; ready: Promise<ClientLink<RpcClientContext>> | null} = {base: null, ready: null}
-  const link = new DynamicLink<RpcClientContext>(() => {
-    if (!state.ready) throw new Error('conciv core not connected yet')
-    return state.ready
-  })
+export function makeBrowserRpcClient(
+  base: string | (() => string | null),
+  options: BrowserRpcClientOptions = {},
+): BrowserRpcClient {
+  const state: {base: string | null} = {base: typeof base === 'function' ? base() : base}
+  const link = dynamicBrowserRpcLink(() => state.base, options.transport)
   return {
     rpc: createORPCClient(link),
-    bind: (apiBase) => {
-      if (state.base !== null) throw new Error('deferred rpc already bound')
-      if (apiBase === '') throw new Error('deferred rpc cannot bind an empty api base')
-      state.base = apiBase
-      state.ready = Promise.resolve(browserRpcConnection(apiBase, options.transport).link)
-    },
     bound: () => state.base !== null,
-    close: () => {
-      if (state.base === null) return
-      closeBrowserRpcConnection(state.base)
+    bind: (apiBase) => {
+      if (state.base !== null) throw new Error('conciv rpc client already bound')
+      if (apiBase === '') throw new Error('conciv rpc cannot bind an empty api base')
+      state.base = apiBase
     },
-  }
-}
-
-export type RebindableRpcClient = {rpc: RpcClient; rebind: (apiBase: string) => void; close: () => void}
-
-export function makeRebindableRpcClient(apiBase: string, options: BrowserRpcClientOptions = {}): RebindableRpcClient {
-  const state = {base: apiBase}
-  const link = new DynamicLink<RpcClientContext>(() => browserRpcConnection(state.base, options.transport).link)
-  return {
-    rpc: createORPCClient(link),
     rebind: (nextApiBase) => {
-      closeBrowserRpcConnection(state.base)
+      if (state.base !== null) closeBrowserRpcConnection(state.base)
       state.base = nextApiBase
     },
-    close: () => closeBrowserRpcConnection(state.base),
+    close: () => {
+      if (state.base !== null) closeBrowserRpcConnection(state.base)
+    },
   }
 }
+
+export {RPC_UNBOUND_MESSAGE}

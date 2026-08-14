@@ -10,7 +10,7 @@ function start(): void {
   const apiBase = params.get('core') ?? ''
   window.__CONCIV_API_BASE__ = apiBase
   const router = createConcivRouter({
-    rpc: makeBrowserRpcClient(apiBase, {transport: settings.transport}),
+    rpc: makeBrowserRpcClient(apiBase, {transport: settings.transport}).rpc,
     history: createBrowserHistory(),
     environment: {rootNode: document, document},
     settings,
