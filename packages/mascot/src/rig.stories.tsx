@@ -12,6 +12,7 @@ const STAGE_SIZE_PX = 44
 const STATES: RigState[] = ['closed', 'open', 'work']
 
 const stageStyle: JSX.CSSProperties = {
+  display: 'inline-block',
   position: 'relative',
   width: `${STAGE_SIZE_PX}px`,
   height: `${STAGE_SIZE_PX}px`,
