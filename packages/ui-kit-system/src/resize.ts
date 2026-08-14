@@ -14,6 +14,7 @@ const KEY_DIRECTION: Record<Grow, Record<string, 1 | -1>> = {
 export function createResizable(opts: {
   initial: number
   min: number
+  max?: () => number
   storageKey?: string
   grow: () => Grow
   collapseAt?: number
@@ -41,6 +42,10 @@ export function createResizable(opts: {
   const persist = (value: number) => {
     if (storageKey !== undefined) writeStorage(storageKey, value)
   }
+  const bound = (next: number) => {
+    const capped = opts.max === undefined ? next : Math.min(next, opts.max())
+    return Math.max(opts.min, capped)
+  }
   const [resizing, setResizing] = createSignal(false)
   let stopDrag: VoidFunction | undefined
 
@@ -64,7 +69,7 @@ export function createResizable(opts: {
         opts.onCollapse?.()
         return
       }
-      setSize(Math.max(opts.min, next))
+      setSize(bound(next))
     }
     const up = () => {
       stopDrag?.()
@@ -85,14 +90,14 @@ export function createResizable(opts: {
     const dir = KEY_DIRECTION[opts.grow()][e.key] ?? 0
     if (dir === 0) return
     e.preventDefault()
-    const next = Math.max(opts.min, size() + dir * STEP)
+    const next = bound(size() + dir * STEP)
     setSize(next)
     persist(next)
   }
 
   onCleanup(() => stopDrag?.())
 
-  const set = (next: number) => setSize(Math.max(opts.min, next))
+  const set = (next: number) => setSize(bound(next))
 
   return {size, set, isResizing: resizing, onPointerDown, onKeyDown}
 }

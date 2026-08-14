@@ -7,14 +7,16 @@ const GRABBER =
   'rounded-full bg-pw-line-2 h-1.5 w-9 cursor-ns-resize self-center shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:bg-pw-accent hover:bg-pw-text-3'
 
 export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
+  let scroller: HTMLDivElement | undefined
+  let content: HTMLDivElement | undefined
   const resize = createResizable({
     initial: 288,
     min: GRAB_STRIP_MIN,
+    max: () => content?.offsetHeight ?? Number.POSITIVE_INFINITY,
     grow: () => 'up',
   })
   const [sized, setSized] = createSignal(false)
-  let scroller: HTMLDivElement | undefined
-  const clampToRendered = () => {
+  const beginResize = () => {
     if (scroller) resize.set(scroller.getBoundingClientRect().height)
     setSized(true)
   }
@@ -29,11 +31,11 @@ export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
         aria-valuenow={Math.round(resize.size())}
         tabindex={0}
         onPointerDown={(event) => {
-          clampToRendered()
+          beginResize()
           resize.onPointerDown(event)
         }}
         onKeyDown={(event) => {
-          clampToRendered()
+          beginResize()
           resize.onKeyDown(event)
         }}
       />
@@ -41,10 +43,17 @@ export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
         ref={(el) => {
           scroller = el
         }}
-        class={`min-h-0 overflow-y-auto ${props.class}`}
+        class="min-h-0 overflow-y-auto"
         style={sized() ? {height: `${resize.size()}px`} : undefined}
       >
-        {props.children}
+        <div
+          ref={(el) => {
+            content = el
+          }}
+          class={props.class}
+        >
+          {props.children}
+        </div>
       </div>
     </div>
   )
