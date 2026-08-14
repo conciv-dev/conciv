@@ -1,8 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import X from 'lucide-solid/icons/x'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
-import type {GrabPreview, Grab} from '@conciv/grab'
-import {sourceLabel} from './grab-source-label.js'
+import {sourceLabel, type GrabPreview, type Grab} from '@conciv/grab'
 
 function domPreview(preview: GrabPreview): Extract<GrabPreview, {kind: 'dom'}> | null {
   return preview.kind === 'dom' ? preview : null
