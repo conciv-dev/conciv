@@ -88,6 +88,7 @@ function applyFollow(registration: Registration, previous: MascotConfig, next: M
 function startWorking(registration: Registration): void {
   registration.follow.disarm(false)
   registration.activity.start(registration.pose.eyeRestScaleY())
+  registration.activity.trackTip()
 }
 
 function applyWork(registration: Registration, previous: MascotConfig, next: MascotConfig): void {

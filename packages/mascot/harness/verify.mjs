@@ -204,6 +204,48 @@ const checkLegacyWork = async (page) => {
   ]
 }
 
+const checkRisingEdgeTracking = async (page) => {
+  await buildLegacyRig(page)
+  const result = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    window.rig.apply('open')
+    await harness.wait(900)
+    const leaned = harness.property(window.parts.antenna, 'rotation')
+    window.rig.apply('work')
+    await harness.nextFrame()
+    const emitter = harness.emitters()[0]
+    const entry = harness.anchorOf(emitter)
+    await harness.wait(1200)
+    return {
+      leaned,
+      entry,
+      settled: harness.anchorOf(emitter),
+      rotation: harness.property(window.parts.antenna, 'rotation'),
+      stage: {width: window.parts.root.offsetWidth, height: window.parts.root.offsetHeight},
+    }
+  })
+  const expected = {x: result.stage.width * 0.5, y: result.stage.height * 0.15625}
+  return [
+    ['the open pose really leaned the antenna', near(result.leaned, -4, 0.01), result.leaned],
+    [
+      'entering work anchors at the leaned tip, not the rest tip',
+      Math.abs(result.entry.left - expected.x) > 1,
+      {entry: result.entry, restTip: expected},
+    ],
+    ['the work pose returns the antenna to rest', near(result.rotation, 0, 0.01), result.rotation],
+    [
+      'the anchor tracks the settling pose to the rest tip x',
+      near(result.settled.left, expected.x, 0.05),
+      {settled: result.settled, expected},
+    ],
+    [
+      'the anchor tracks the settling pose to the rest tip y',
+      near(result.settled.top, expected.y, 0.05),
+      {settled: result.settled, expected},
+    ],
+  ]
+}
+
 const checkLegacyOpenPose = async (page) => {
   await buildLegacyRig(page)
   const pose = await page.evaluate(async () => {
@@ -787,6 +829,13 @@ const CHECKS = [
     section: 'core',
     name: 'required refs and effectHost',
     run: checkRequiredRefs,
+    reducedMotion: 'no-preference',
+  },
+  {
+    id: 'N',
+    section: 'core',
+    name: 'working rising edge tracks the tip',
+    run: checkRisingEdgeTracking,
     reducedMotion: 'no-preference',
   },
 ]

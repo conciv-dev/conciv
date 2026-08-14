@@ -92,7 +92,7 @@ export function createActivityController(parts: ActivityParts): ActivityControll
   const anchorEmitter = () => {
     if (emitter === undefined) return
     const tip = antennaTipAnchor(stage, antenna)
-    gsap.set(emitter.element, {left: tip.x, top: tip.y})
+    gsap.set(emitter.element, {left: tip.x, top: tip.y, autoRound: false})
   }
 
   const trackTip = () => {

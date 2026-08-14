@@ -111,6 +111,8 @@
 
   const boxOf = (element) => ({left: element.offsetLeft, top: element.offsetTop})
 
+  const anchorOf = (element) => ({left: parseFloat(element.style.left), top: parseFloat(element.style.top)})
+
   const repeatingTimeline = () =>
     gsap.globalTimeline.getChildren(false, false, true).find((child) => child.repeat() === -1)
 
@@ -132,6 +134,7 @@
     stageCenter,
     globalTweenCount,
     boxOf,
+    anchorOf,
     repeatingTimeline,
   }
   document.documentElement.dataset.harness = 'ready'
