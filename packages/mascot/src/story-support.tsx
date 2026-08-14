@@ -135,6 +135,37 @@ export function TipTransition(props: {active: boolean; children: JSX.Element}): 
   )
 }
 
+const EDGE_MARGIN_PX = 12
+
+const DESIRED_RISE_PX = 54
+
+const MINIMUM_RISE_PX = 8
+
+const BEND_OVERSHOOT = 0.4
+
+const BEND_THRESHOLD_PX = 10
+
+export type EmitterAnchor = {x: number; y: number}
+
+export type EmitterBounds = {top: number; left: number; right: number}
+
+export type EmitterRoom = {rise: number; bend: number}
+
+export type EmitterPoint = {x: number; y: number}
+
+export function measureEmitterRoom(anchor: EmitterAnchor, bounds: EmitterBounds): EmitterRoom {
+  const headroom = anchor.y - bounds.top - EDGE_MARGIN_PX
+  const rise = Math.max(MINIMUM_RISE_PX, Math.min(DESIRED_RISE_PX, headroom))
+  const shortfall = DESIRED_RISE_PX - rise
+  if (shortfall <= BEND_THRESHOLD_PX) return {rise, bend: 0}
+  const roomLeft = anchor.x - bounds.left - EDGE_MARGIN_PX
+  const roomRight = bounds.right - anchor.x - EDGE_MARGIN_PX
+  const towardRight = roomRight >= roomLeft
+  const available = Math.max(0, towardRight ? roomRight : roomLeft)
+  const reach = Math.min(shortfall * (1 + BEND_OVERSHOOT), available)
+  return {rise, bend: towardRight ? reach : -reach}
+}
+
 export type AntennaMotion = (element: HTMLElement) => () => void
 
 export const vibrationBurst: AntennaMotion = (element) => {

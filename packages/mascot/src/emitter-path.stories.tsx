@@ -19,7 +19,10 @@ import {
   TIP_STAGE_X,
   TIP_STAGE_Y,
   toggleStyle,
+  type EmitterPoint,
+  type EmitterRoom,
 } from './story-support.js'
+import {measureEmitterRoom} from './story-support.js'
 
 gsap.registerPlugin(MotionPathPlugin)
 
@@ -33,16 +36,6 @@ const BOX_HEIGHT_PX = 150
 
 const BOX_INSET_PX = 20
 
-const EDGE_MARGIN_PX = 12
-
-const DESIRED_RISE_PX = 54
-
-const MINIMUM_RISE_PX = 8
-
-const BEND_OVERSHOOT = 0.4
-
-const BEND_THRESHOLD_PX = 10
-
 const DIGIT_INDEXES = [0, 1, 2, 3, 4]
 
 const DIGIT_STAGGER_SECONDS = 0.42
@@ -51,28 +44,9 @@ const DIGIT_TRAVEL_SECONDS = 2.2
 
 const TANGENT_ROTATION_OFFSET = 90
 
+const LANE_OFFSET_PX = 3
+
 const accentColor = '#e0218a'
-
-export type EmitterAnchor = {x: number; y: number}
-
-export type EmitterBounds = {top: number; left: number; right: number}
-
-export type EmitterRoom = {rise: number; bend: number}
-
-export type EmitterPoint = {x: number; y: number}
-
-export function measureEmitterRoom(anchor: EmitterAnchor, bounds: EmitterBounds): EmitterRoom {
-  const headroom = anchor.y - bounds.top - EDGE_MARGIN_PX
-  const rise = Math.max(MINIMUM_RISE_PX, Math.min(DESIRED_RISE_PX, headroom))
-  const shortfall = DESIRED_RISE_PX - rise
-  if (shortfall <= BEND_THRESHOLD_PX) return {rise, bend: 0}
-  const roomLeft = anchor.x - bounds.left - EDGE_MARGIN_PX
-  const roomRight = bounds.right - anchor.x - EDGE_MARGIN_PX
-  const towardRight = roomRight >= roomLeft
-  const available = Math.max(0, towardRight ? roomRight : roomLeft)
-  const reach = Math.min(shortfall * (1 + BEND_OVERSHOOT), available)
-  return {rise, bend: towardRight ? reach : -reach}
-}
 
 type CurveStyle = {
   id: string
@@ -151,7 +125,16 @@ const boxStyle: JSX.CSSProperties = {
   'border-radius': '0.5rem',
 }
 
-const digitStyle: JSX.CSSProperties = {
+const riderStyle: JSX.CSSProperties = {
+  position: 'absolute',
+  left: '0',
+  top: '0',
+  width: '0',
+  height: '0',
+  'will-change': 'transform, opacity',
+}
+
+const glyphStyleBase: JSX.CSSProperties = {
   position: 'absolute',
   left: '0',
   top: '0',
@@ -160,7 +143,14 @@ const digitStyle: JSX.CSSProperties = {
   'font-weight': '700',
   'line-height': '1',
   color: accentColor,
-  'will-change': 'transform, opacity',
+}
+
+function laneOffsetPixels(index: number): number {
+  return index % 2 === 0 ? LANE_OFFSET_PX : -LANE_OFFSET_PX
+}
+
+function glyphStyle(index: number): JSX.CSSProperties {
+  return {...glyphStyleBase, transform: `translate(-50%, -50%) translateX(${laneOffsetPixels(index)}px)`}
 }
 
 const placementCellStyle: JSX.CSSProperties = {...cellStyle, 'padding-block-start': '0.75rem'}
@@ -201,17 +191,10 @@ function PathEmitter(props: {plan: EmitterPlan}): JSX.Element {
         const points = style.path(room, index)
         const last = points[points.length - 1]
         const fraction = (index + 1) / (DIGIT_INDEXES.length + 1)
-        gsap.set(digit, {
-          xPercent: -50,
-          yPercent: -50,
-          x: (last?.x ?? 0) * fraction,
-          y: (last?.y ?? 0) * fraction,
-          opacity: 1 - index * 0.16,
-        })
+        gsap.set(digit, {x: (last?.x ?? 0) * fraction, y: (last?.y ?? 0) * fraction, opacity: 1 - index * 0.16})
       }
       return
     }
-    gsap.set(digitElements, {xPercent: -50, yPercent: -50})
     timeline = gsap.timeline()
     for (const [index, digit] of digitElements.entries()) {
       const start = index * DIGIT_STAGGER_SECONDS
@@ -222,7 +205,6 @@ function PathEmitter(props: {plan: EmitterPlan}): JSX.Element {
             path: style.path(room, index),
             curviness: style.curviness,
             autoRotate: TANGENT_ROTATION_OFFSET,
-            alignOrigin: [0.5, 0.5],
           },
           duration: DIGIT_TRAVEL_SECONDS,
           ease: 'none',
@@ -250,8 +232,8 @@ function PathEmitter(props: {plan: EmitterPlan}): JSX.Element {
   return (
     <For each={DIGIT_INDEXES}>
       {(index) => (
-        <span ref={(element) => digitElements.push(element)} style={digitStyle}>
-          {index % 2 === 0 ? '1' : '0'}
+        <span ref={(element) => digitElements.push(element)} style={riderStyle}>
+          <span style={glyphStyle(index)}>{index % 2 === 0 ? '1' : '0'}</span>
         </span>
       )}
     </For>
