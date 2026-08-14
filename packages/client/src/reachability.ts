@@ -1,5 +1,5 @@
 import {createEffect, createSignal, onCleanup, type Accessor} from 'solid-js'
-import {debounce} from '@solid-primitives/scheduled'
+import {Debouncer} from '@tanstack/pacer'
 import {onlineManager} from '@tanstack/query-core'
 import {subscribeRpcReachability} from '@conciv/contract'
 
@@ -44,16 +44,16 @@ export function engineOnline(): Accessor<boolean> {
 export function sustainedEngineOffline(graceMs = ENGINE_OFFLINE_GRACE_MS): Accessor<boolean> {
   const online = engineOnline()
   const [sustained, setSustained] = createSignal(!online())
-  const scheduleOffline = debounce(() => setSustained(true), graceMs)
+  const offlineDebouncer = new Debouncer(() => setSustained(true), {wait: graceMs})
   createEffect(() => {
     if (online()) {
-      scheduleOffline.clear()
+      offlineDebouncer.cancel()
       setSustained(false)
       return
     }
-    scheduleOffline()
+    offlineDebouncer.maybeExecute()
   })
-  onCleanup(() => scheduleOffline.clear())
+  onCleanup(() => offlineDebouncer.cancel())
   return sustained
 }
 

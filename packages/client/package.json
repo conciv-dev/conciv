@@ -43,7 +43,6 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "catalog:",
-    "@solid-primitives/scheduled": "^1.5.3",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-solid": "catalog:",
     "@tanstack/pacer": "^0.21.1",
