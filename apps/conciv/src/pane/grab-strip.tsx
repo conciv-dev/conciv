@@ -4,7 +4,7 @@ import type {JSX, ParentProps} from 'solid-js'
 const GRAB_STRIP_MIN = 48
 
 const GRABBER =
-  'rounded-full bg-pw-line-2 h-2 w-11.5 cursor-ns-resize top-[0.3125rem] left-1/2 absolute z-[2] focus-visible:outline-none focus-visible:bg-pw-accent hover:bg-pw-text-3 -translate-x-1/2'
+  'rounded-full bg-pw-line-2 h-1.5 w-9 cursor-ns-resize top-1 left-1/2 absolute z-[2] opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:bg-pw-accent hover:bg-pw-text-3 -translate-x-1/2'
 
 export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
   const resize = createResizable({
@@ -13,8 +13,12 @@ export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
     storageKey: 'conciv-grab-strip-height',
     grow: () => 'up',
   })
+  let scroller: HTMLDivElement | undefined
+  const clampToRendered = () => {
+    if (scroller) resize.set(Math.min(resize.size(), scroller.getBoundingClientRect().height))
+  }
   return (
-    <div class="relative flex flex-col min-h-0 shrink">
+    <div class="relative flex flex-col min-h-0 shrink group">
       <div
         class={GRABBER}
         role="separator"
@@ -23,10 +27,22 @@ export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
         aria-valuemin={GRAB_STRIP_MIN}
         aria-valuenow={Math.round(resize.size())}
         tabindex={0}
-        onPointerDown={resize.onPointerDown}
-        onKeyDown={resize.onKeyDown}
+        onPointerDown={(event) => {
+          clampToRendered()
+          resize.onPointerDown(event)
+        }}
+        onKeyDown={(event) => {
+          clampToRendered()
+          resize.onKeyDown(event)
+        }}
       />
-      <div class={`min-h-0 overflow-y-auto pt-4 ${props.class}`} style={{'max-height': `${resize.size()}px`}}>
+      <div
+        ref={(el) => {
+          scroller = el
+        }}
+        class={`min-h-0 max-h-max overflow-y-auto pt-3 ${props.class}`}
+        style={{height: `${resize.size()}px`}}
+      >
         {props.children}
       </div>
     </div>

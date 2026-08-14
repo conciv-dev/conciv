@@ -20,6 +20,7 @@ export function createResizable(opts: {
   onCollapse?: () => void
 }): {
   size: () => number
+  set: (next: number) => void
   isResizing: () => boolean
   onPointerDown: (e: PointerEvent) => void
   onKeyDown: (e: KeyboardEvent) => void
@@ -84,5 +85,7 @@ export function createResizable(opts: {
 
   onCleanup(() => stopDrag?.())
 
-  return {size, isResizing: resizing, onPointerDown, onKeyDown}
+  const set = (next: number) => setSize(Math.max(opts.min, next))
+
+  return {size, set, isResizing: resizing, onPointerDown, onKeyDown}
 }
