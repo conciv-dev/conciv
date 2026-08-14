@@ -22,6 +22,9 @@ export function recorderOutput(events: string[]): InitOutput {
     step: (title) => {
       events.push(`step:${title}`)
       return {
+        line: (text) => {
+          events.push(`stepline:${text}`)
+        },
         settle: (result) => {
           events.push(`settle:${result.status}:${result.summary}`)
         },

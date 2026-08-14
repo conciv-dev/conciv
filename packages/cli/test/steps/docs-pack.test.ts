@@ -8,10 +8,10 @@ import {docsPackStep} from '../../src/init/steps/docs-pack.js'
 
 const intentBlock = '<!-- intent-skills:start -->\nguidance\n<!-- intent-skills:end -->\n'
 
-function project(manifest: object): InitContext {
+function project(manifest: object, feed: (line: string) => void = () => {}): InitContext {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-docs-pack-'))
   writeFileSync(join(cwd, 'package.json'), JSON.stringify(manifest))
-  return {cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: () => {}}
+  return {cwd, yes: true, dryRun: false, report: () => {}, note: () => {}, backup: () => {}, feed}
 }
 
 describe('docsPackStep', () => {
@@ -125,6 +125,28 @@ describe('docsPackStep', () => {
       ],
     })
     expect(await step.detect(ctx)).toBe('missing')
+  })
+
+  it('streams spawned intent-install lines into the step feed while the manual card keeps the full output', async () => {
+    const fed: string[] = []
+    const ctx = project({name: 'app', packageManager: 'pnpm@10.14.0'}, (line) => fed.push(line))
+    const step = docsPackStep(
+      async (name, opts) => {
+        const manifestPath = join(opts.cwd, 'package.json')
+        writeFileSync(
+          manifestPath,
+          JSON.stringify({name: 'app', packageManager: 'pnpm@10.14.0', devDependencies: {[name]: '^0.0.19'}}),
+        )
+      },
+      async (_bin, _args, _cwd, onLine) => {
+        onLine('resolving intent skill…')
+        onLine('installed 1 package')
+        return {code: 1, output: 'resolving intent skill…\ninstalled 1 package'}
+      },
+    )
+    const outcome = await step.apply(ctx)
+    expect(fed).toEqual(['resolving intent skill…', 'installed 1 package'])
+    expect(outcome).toMatchObject({status: 'manual', detail: 'resolving intent skill…\ninstalled 1 package'})
   })
 
   it('uses the detected package manager for npm projects, not a hardcoded pnpm command', async () => {

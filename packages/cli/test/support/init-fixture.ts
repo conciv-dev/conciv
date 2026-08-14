@@ -53,13 +53,13 @@ export function pendingChanges(cwd: string): string[] {
 
 export function recorderPrompts(events: string[]): PlanPrompts {
   return {
-    decide: async () => {
-      events.push('decide')
-      return 'proceed'
+    selections: async (found) => {
+      events.push('selections')
+      return {framework: true, harnesses: found.harnesses.map((one) => one.id), docsPack: false}
     },
-    adjust: async (_found, current) => {
-      events.push('adjust')
-      return current
+    confirmRun: async () => {
+      events.push('confirmRun')
+      return true
     },
   }
 }

@@ -75,7 +75,10 @@ export function docsPackStep(add: AddDep, spawn: SpawnBin): InitStep {
       if (intentBlockPresent(ctx.cwd)) return {status: 'done'}
       const commands = await resolveIntentCommands(ctx.cwd)
       const [bin, ...args] = commands.spawn
-      const outcome = await spawn(bin, args, ctx.cwd).catch((error: unknown) => ({code: -1, output: message(error)}))
+      const outcome = await spawn(bin, args, ctx.cwd, ctx.feed).catch((error: unknown) => ({
+        code: -1,
+        output: message(error),
+      }))
       if (outcome.code === 0) return {status: 'done'}
       const reason = outcome.output.trim()
       return {
