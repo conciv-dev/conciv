@@ -24,6 +24,13 @@ describe('agentsSection', () => {
     expect(section).not.toContain('conciv tools react')
     expect(section).not.toContain('conciv tools server')
   })
+
+  it('omits the "Set up for" line and explains no harness connected when consented is empty', () => {
+    const section = agentsSection([])
+    expect(section).not.toContain('Set up for:')
+    expect(section).toContain('No harness was connected')
+    expect(section).toContain('re-run `conciv init`')
+  })
 })
 
 describe('agentsMdStep', () => {

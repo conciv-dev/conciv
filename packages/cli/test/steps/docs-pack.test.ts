@@ -3,10 +3,12 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {dlxCommand} from 'nypm'
 import {describe, expect, it} from 'vitest'
+import {guardBackups} from '../../src/init/interrupt.js'
 import type {InitContext} from '../../src/init/pipeline.js'
 import {docsPackStep} from '../../src/init/steps/docs-pack.js'
 
 const intentBlock = '<!-- intent-skills:start -->\nguidance\n<!-- intent-skills:end -->\n'
+const intentStartOnly = '<!-- intent-skills:start -->\nguidance, no end marker\n'
 
 function project(manifest: object, feed: (line: string) => void = () => {}): InitContext {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-docs-pack-'))
@@ -25,6 +27,37 @@ describe('docsPackStep', () => {
     expect(await step.detect(withDepOnly)).toBe('missing')
     writeFileSync(join(withDepOnly.cwd, 'AGENTS.md'), intentBlock)
     expect(await step.detect(withDepOnly)).toBe('present')
+  })
+
+  it('does not treat a lone start marker as an installed block', async () => {
+    const step = docsPackStep(
+      async () => {},
+      async () => ({code: 0, output: ''}),
+    )
+    const ctx = project({devDependencies: {'@conciv/skills': '^0.0.19'}})
+    writeFileSync(join(ctx.cwd, 'AGENTS.md'), intentStartOnly)
+    expect(await step.detect(ctx)).toBe('missing')
+  })
+
+  it('backs up AGENTS.md before the intent spawn so an interrupt restores its pre-run content', async () => {
+    const ctx = project({name: 'app', packageManager: 'pnpm@10.14.0', devDependencies: {'@conciv/skills': '^0.0.19'}})
+    const original = '# my project\n\nhand-written rules stay put.\n'
+    writeFileSync(join(ctx.cwd, 'AGENTS.md'), original)
+    const guard = guardBackups()
+    const contextWithGuard: InitContext = {...ctx, backup: guard.remember}
+    const step = docsPackStep(
+      async () => {},
+      async (_bin, _args, cwd) => {
+        writeFileSync(join(cwd, 'AGENTS.md'), intentBlock)
+        return {code: 0, output: ''}
+      },
+    )
+    const outcome = await step.apply(contextWithGuard)
+    expect(outcome).toEqual({status: 'done'})
+    expect(readFileSync(join(ctx.cwd, 'AGENTS.md'), 'utf8')).toBe(intentBlock)
+    guard.restore()
+    guard.release()
+    expect(readFileSync(join(ctx.cwd, 'AGENTS.md'), 'utf8')).toBe(original)
   })
 
   it('adds the dependency and runs intent install, landing the dep and verifying', async () => {

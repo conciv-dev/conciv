@@ -9,7 +9,8 @@ import {hasDependency, readManifest} from './manifest.js'
 
 const skillsName = '@conciv/skills'
 const intentPackage = '@tanstack/intent@latest'
-const intentBlockMarker = '<!-- intent-skills:start -->'
+const intentBlockStartMarker = '<!-- intent-skills:start -->'
+const intentBlockEndMarker = '<!-- intent-skills:end -->'
 
 type IntentCommands = {
   spawn: [string, ...string[]]
@@ -24,7 +25,8 @@ function message(error: unknown): string {
 function intentBlockPresent(cwd: string): boolean {
   const agentsMdPath = join(cwd, 'AGENTS.md')
   if (!existsSync(agentsMdPath)) return false
-  return readFileSync(agentsMdPath, 'utf8').includes(intentBlockMarker)
+  const content = readFileSync(agentsMdPath, 'utf8')
+  return content.includes(intentBlockStartMarker) && content.includes(intentBlockEndMarker)
 }
 
 async function resolveIntentCommands(cwd: string): Promise<IntentCommands> {
@@ -73,6 +75,7 @@ export function docsPackStep(add: AddDep, spawn: SpawnBin): InitStep {
           return {status: 'manual', cards: [await failureCard(ctx.cwd, depPresent)], detail: addFailure}
       }
       if (intentBlockPresent(ctx.cwd)) return {status: 'done'}
+      ctx.backup(captureFile(join(ctx.cwd, 'AGENTS.md')))
       const commands = await resolveIntentCommands(ctx.cwd)
       const [bin, ...args] = commands.spawn
       const outcome = await spawn(bin, args, ctx.cwd, ctx.feed).catch((error: unknown) => ({
@@ -90,7 +93,7 @@ export function docsPackStep(add: AddDep, spawn: SpawnBin): InitStep {
     verify: async (ctx) => present(ctx),
     manualCard: () => ({
       title: `Add the ${skillsName} docs pack`,
-      body: `Add ${skillsName} as a dev dependency, then run \`${intentPackage} install\` with your package manager's dlx equivalent — or re-run conciv init.`,
+      body: `Add ${skillsName} as a dev dependency, then run \`${intentPackage} install\` with your package manager's dlx equivalent, or re-run conciv init.`,
     }),
   }
 }

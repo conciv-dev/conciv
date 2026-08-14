@@ -23,9 +23,14 @@ export function execFileOutcome(
     child.stdout?.on('data', consume)
     child.stderr?.on('data', consume)
     child.on('error', reject)
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       if (pending.length > 0) onLine(pending)
-      settle({code: code ?? 0, output})
+      if (code === null) {
+        const note = signal ? `terminated by ${signal}` : 'terminated without exit code'
+        settle({code: 1, output: output.length > 0 ? `${output}\n${note}` : note})
+        return
+      }
+      settle({code, output})
     })
   })
 }

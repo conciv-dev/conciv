@@ -9,7 +9,10 @@ const startMarker = '<!-- conciv:start -->'
 const endMarker = '<!-- conciv:end -->'
 
 export function agentsSection(consented: HarnessId[]): string {
-  const setUpFor = consented.length > 0 ? ['', `Set up for: ${consented.join(', ')}.`] : []
+  const setUpFor =
+    consented.length > 0
+      ? ['', `Set up for: ${consented.join(', ')}.`]
+      : ['', 'No harness was connected; install one and re-run `conciv init` to finish setup.']
   const notes = consented.flatMap((id) => {
     const note = harnessAgentsMdNote(id)
     return note === undefined ? [] : ['', note]
@@ -21,7 +24,7 @@ export function agentsSection(consented: HarnessId[]): string {
     '',
     'conciv is connected via MCP.',
     '',
-    'Capabilities are discovered inside the sandbox with `await external_catalog({})` — never a static list.',
+    'Capabilities are discovered inside the sandbox with `await external_catalog({})`, never a static list.',
     '',
     "The project's conciv dev server must be running.",
     '',
