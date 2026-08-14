@@ -67,7 +67,8 @@ const PAGE_SESSION: PageSessionConfig = {
   toolPrefix: PAGE_TOOL_PREFIX,
 }
 
-const ABOVE_COMPOSER = 'flex flex-col min-h-0 shrink max-h-28 overflow-y-auto empty:hidden'
+const ABOVE_COMPOSER = 'flex flex-col min-h-0 shrink max-h-40 overflow-y-auto empty:hidden'
+const GRAB_STRIP = 'flex flex-col min-h-0 shrink max-h-72 overflow-y-auto resize-y empty:hidden'
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
@@ -381,6 +382,8 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                       <ExtensionSurface name="footer" instances={instances} />
                       <NoticeToaster />
                       <EngineStaleNotice />
+                    </div>
+                    <div class={GRAB_STRIP}>
                       <For each={pane.grabStore.grabs()}>
                         {(grab) => <GrabReference grab={grab} onRemove={() => pane.grabStore.remove(grab)} />}
                       </For>

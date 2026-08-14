@@ -39,14 +39,21 @@ test('grab reference renders the image preview arm as an img element', () => {
   expect(host.querySelector('img')?.getAttribute('src')).toBe(IMAGE_DATA_URL)
 })
 
-test('a tall preview renders inside the capped, user-resizable preview box', () => {
+test('a tall preview renders inside the height-bounded preview box', () => {
   const host = mount(domGrab({width: 900, height: 2400}))
 
   expect(page.getByText('Payroll Deposit clone').elements()).toHaveLength(1)
-  expect(previewBox(host)).toHaveClass('max-h-40', 'min-h-16', 'overflow-auto', 'resize-y')
+  expect(previewBox(host)).toHaveClass('max-h-40', 'overflow-auto')
 })
 
-test('a text-only grab has no preview box to resize', () => {
+test('the preview itself carries no resize handle — the grabs container owns resizing', () => {
+  const host = mount(domGrab({width: 900, height: 2400}))
+
+  expect(page.getByText('Payroll Deposit clone').elements()).toHaveLength(1)
+  expect(previewBox(host)).not.toHaveClass('resize-y')
+})
+
+test('a text-only grab has no preview box at all', () => {
   const host = mount({text: 'just the copied text'})
 
   expect(page.getByText('just the copied text').elements()).toHaveLength(1)

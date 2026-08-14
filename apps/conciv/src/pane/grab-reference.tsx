@@ -6,7 +6,7 @@ import {sourceLabel} from './grab-source-label.js'
 
 const PREVIEW_MAX_WIDTH = 280
 
-const PREVIEW_BOX = 'max-w-full max-h-40 min-h-16 overflow-auto resize-y cursor-default'
+const PREVIEW_BOX = 'max-w-full max-h-40 overflow-auto cursor-default'
 
 function fitScale(width: number): number {
   if (width <= 0) return 1

@@ -63,6 +63,8 @@ test('the staged grabs come back into the flow once the panel has room again', a
 
   await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
   await expect.element(page.getByText('the grabbed nav')).toBeVisible()
+  await page.getByRole('button', {name: 'Remove grabbed element'}).last().click()
+  await expect.element(page.getByText('the grabbed nav')).not.toBeInTheDocument()
   await input().click()
   await input().fill('room to breathe')
   await page.getByRole('button', {name: 'Send message'}).click()

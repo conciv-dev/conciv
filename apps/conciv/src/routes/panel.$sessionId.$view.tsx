@@ -60,7 +60,7 @@ function PanelView(): JSX.Element {
             class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
           >
             <Show when={pane.grabStore.grabs().length > 0}>
-              <div class="px-2.5 pt-2 flex flex-wrap gap-2 min-h-0 max-h-28 overflow-y-auto">
+              <div class="px-2.5 pt-2 flex flex-wrap gap-2 min-h-0 max-h-72 overflow-y-auto resize-y">
                 <For each={pane.grabStore.grabs()}>
                   {(grab) => <GrabReference grab={grab} onRemove={() => pane.grabStore.remove(grab)} />}
                 </For>
