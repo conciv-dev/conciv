@@ -128,7 +128,8 @@ export type PartTypePaths = Partial<Readonly<Record<GroupPartType, GroupPath>>>
 
 export function standaloneToolNames(context: GroupByContext): ReadonlySet<string> {
   const entries = context.toolEntries ?? []
-  return new Set(entries.filter((entry) => entry.display === 'standalone').flatMap((entry) => [...entry.names]))
+  const names = [...new Set(entries.flatMap((entry) => [...entry.names]))]
+  return new Set(names.filter((name) => entries.find((entry) => entry.names.includes(name))?.display === 'standalone'))
 }
 
 function isBlankTextual(part: MessagePart): boolean {
