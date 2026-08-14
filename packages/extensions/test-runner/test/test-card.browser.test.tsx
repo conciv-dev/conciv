@@ -2,7 +2,7 @@ import {describe, it, expect} from 'vitest'
 import {render} from '@solidjs/testing-library'
 import {page} from 'vitest/browser'
 import type {ToolCatalogView, ToolViewCtx, ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {HostApiProvider} from '@conciv/extension'
+import {HostApiProvider} from '@conciv/extension/host'
 import {TestCard} from '../src/tool/card.js'
 
 const FILE = '/proj/app/math.test.ts'

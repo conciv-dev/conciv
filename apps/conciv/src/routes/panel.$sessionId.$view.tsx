@@ -1,6 +1,6 @@
 import {createFileRoute, useBlocker, useRouter} from '@tanstack/solid-router'
 import {For, Show, Suspense, createMemo, type JSX} from 'solid-js'
-import {HostApiProvider} from '@conciv/extension'
+import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
 import {useAppData, useConnectionGeneration, useInstances, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'

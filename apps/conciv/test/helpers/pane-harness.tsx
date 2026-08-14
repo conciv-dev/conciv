@@ -2,7 +2,7 @@ import {createRoot, createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
 import {makeRpcClient} from '@conciv/contract'
-import {HostApiProvider} from '@conciv/extension'
+import {HostApiProvider} from '@conciv/extension/host'
 import {AppContext, type AppContextValue} from '../../src/app/context.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../../src/app/reachability.js'
 import {

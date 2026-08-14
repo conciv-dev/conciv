@@ -1,7 +1,8 @@
 import {Show, onMount, type Accessor, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
-import {getHostApi} from '@conciv/extension'
+import {getExtensionApi} from '@conciv/extension'
+import {WHITEBOARD_NAME} from '../shared/meta.js'
 import {Island} from '../canvas/island.js'
 import {CommentsProvider, useComments, type ComposeTarget} from './model/comments.js'
 import {Inbox, InboxToggle} from './inbox.js'
@@ -77,7 +78,7 @@ function CanvasView(props: {
 }
 
 export default function CanvasSurface(props: {state: SurfaceState; room: Accessor<string>; self: Self}): JSX.Element {
-  const host = getHostApi()
+  const host = getExtensionApi(WHITEBOARD_NAME)
   const apiBase = host.useApiBase()
   const toast = host.useToast()
   const onComposeSettled = (outcome: 'added' | 'cancelled'): void => {

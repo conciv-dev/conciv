@@ -79,7 +79,7 @@ const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'wh
 transport for you: inside a browser (`typeof location !== 'undefined'`) it reuses the widget's own
 `browserRpcConnection`, scoped to `['ext', extensionSlug]`; from node (a test harness, an SSR
 context) it builds a plain fetch-based `RPCLink` at `${apiBase}/rpc/ext/${extensionSlug}` with a
-retry plugin. `apiBase` is the value `getHostApi().useApiBase()` gives you inside a mounted
+retry plugin. `apiBase` is the value `getExtensionApi(YOUR_NAME).useApiBase()` gives you inside a mounted
 component, or the `apiBase` the testkit hands you.
 
 ## Testing: the real `ExtensionTestApi`

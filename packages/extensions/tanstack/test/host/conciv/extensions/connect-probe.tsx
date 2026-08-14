@@ -1,4 +1,4 @@
-import {defineExtension, getHostApi} from '@conciv/extension'
+import {defineExtension, getExtensionApi} from '@conciv/extension'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Show, type JSX} from 'solid-js'
 
@@ -8,17 +8,21 @@ declare global {
   }
 }
 
+const CONNECT_PROBE_NAME = 'connect-probe'
+
+const probeApi = getExtensionApi(CONNECT_PROBE_NAME)
+
 function ConnectPane(): JSX.Element {
-  const connect = getHostApi().useConnect()
+  const connect = probeApi.useConnect()
   makeEventListener(window, 'embedtest:connect', (event) => connect.found(event.detail.base))
   return <output aria-label="connect pane ready">ready</output>
 }
 
 const connectProbe = defineExtension({
-  name: 'connect-probe',
+  name: CONNECT_PROBE_NAME,
   connectGate: {preflight: async () => null},
   Component: () => (
-    <Show when={getHostApi().useSlot() === 'connect'}>
+    <Show when={probeApi.useSlot() === 'connect'}>
       <ConnectPane />
     </Show>
   ),

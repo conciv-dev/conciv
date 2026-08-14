@@ -1,7 +1,7 @@
 import {afterEach, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import type {GrabApi} from '@conciv/grab'
-import {HostApiProvider} from '@conciv/extension'
+import {HostApiProvider} from '@conciv/extension/host'
 import {ComposerActions} from '../src/composer/actions.js'
 import {installFakeCore, type FakeCore} from './helpers/fake-core.js'
 import {mountPane, PANE_SESSION} from './helpers/pane-harness.js'

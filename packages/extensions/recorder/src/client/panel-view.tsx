@@ -2,7 +2,7 @@ import {Show, createResource, createSignal, onCleanup, type JSX} from 'solid-js'
 import {makeTimer} from '@solid-primitives/timer'
 import {QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient} from '@tanstack/solid-query'
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
-import {getHostApi, makeExtRpcClient} from '@conciv/extension'
+import {getExtensionApi, makeExtRpcClient} from '@conciv/extension'
 import {Button} from '@conciv/ui-kit-system'
 import {RECORDER_MIME, RECORDER_NAME, recordingPoster, recordingRefJson, type RrwebEvent} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
@@ -30,7 +30,7 @@ export function RecorderPanelView(): JSX.Element {
 }
 
 function RecorderPanel(): JSX.Element {
-  const host = getHostApi()
+  const host = getExtensionApi(RECORDER_NAME)
   const apiBase = host.useApiBase()
   const attach = host.useComposerAttach()
   const leaveView = host.useLeaveView()

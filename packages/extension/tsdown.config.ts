@@ -2,7 +2,14 @@ import {defineConfig} from 'tsdown'
 import Solid from 'unplugin-solid/rolldown'
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/catalog.ts', 'src/define-tool.ts', 'src/rpc-mount.ts', 'src/tool-registry.ts'],
+  entry: [
+    'src/index.ts',
+    'src/host.ts',
+    'src/catalog.ts',
+    'src/define-tool.ts',
+    'src/rpc-mount.ts',
+    'src/tool-registry.ts',
+  ],
   format: 'esm',
   fixedExtension: false,
   dts: true,

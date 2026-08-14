@@ -1,6 +1,6 @@
 ---
 name: conciv-develop
-description: Use when building a conciv extension in your own app — a file under conciv/extensions/ (or a package you plan to publish) that adds an agent tool via defineTool, a chat-attachment type via defineAttachment, or UI in the widget via Component/Surface/views. Covers defineExtension, the tool contract (server/client/render, errors, approval, meta), getExtensionApi/getHostApi, RPC to your extension's own server (makeExtRpcClient, subscriptionIterator), and testing with @conciv/extension-testkit. This is the consumer-facing skill, for an app that imports @conciv/extension as a dependency, not conciv's own source.
+description: Use when building a conciv extension in your own app — a file under conciv/extensions/ (or a package you plan to publish) that adds an agent tool via defineTool, a chat-attachment type via defineAttachment, or UI in the widget via Component/Surface/views. Covers defineExtension, the tool contract (server/client/render, errors, approval, meta), getExtensionApi, RPC to your extension's own server (makeExtRpcClient, subscriptionIterator), and testing with @conciv/extension-testkit. This is the consumer-facing skill, for an app that imports @conciv/extension as a dependency, not conciv's own source.
 metadata:
   package: '@conciv/skills'
 ---
@@ -31,7 +31,6 @@ export {defineExtension} from '@conciv/extension'
 export {defineTool, toolDefinition, toolError, isToolError} from '@conciv/extension'
 export {defineAttachment} from '@conciv/extension'
 export {getExtensionApi} from '@conciv/extension'
-export {getHostApi, HostApiProvider} from '@conciv/extension'
 export {MountedExtension, MountedSurface, MountedView} from '@conciv/extension'
 export {makeExtRpcClient, subscriptionIterator} from '@conciv/extension'
 ```
@@ -40,6 +39,11 @@ export {makeExtRpcClient, subscriptionIterator} from '@conciv/extension'
 publishes. `./client` re-exports the identical module, so `@conciv/extension` and
 `@conciv/extension/client` are interchangeable import specifiers.)
 
+`@conciv/extension/host` is a separate, host-integration-only surface (`getHostApi`,
+`HostApiProvider`, `HostWiring`, `ConnectHostApi`): it is what an app embedding the widget uses to
+WIRE the host capabilities. Extension code never imports it — `getExtensionApi(id)` already carries
+every host hook.
+
 ## Your first extension, trimmed for brevity
 
 Two real, current example extensions ship in this repo's Vite example app. Read both before writing
@@ -47,7 +51,9 @@ your own — the real file additionally draws an inline SVG icon on the button, 
 
 ```tsx title="apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx:1-46 (trimmed)"
 import {z} from 'zod'
-import {defineExtension, defineTool, getHostApi} from '@conciv/extension'
+import {defineExtension, defineTool, getExtensionApi} from '@conciv/extension'
+
+const DEPLOY_NAME = 'deploy'
 
 const deployRun = defineTool({
   name: 'deploy_run',
@@ -61,11 +67,11 @@ const deployRun = defineTool({
   .server(({env}) => ({url: `https://${env}.example.com`}))
   .render((props) => <div data-pw-deploy-card>Deploying… ({props.part.name})</div>)
 
-const deploy = defineExtension({name: 'deploy', Component: DeploySurface, tools: [deployRun]})
+const deploy = defineExtension({name: DEPLOY_NAME, Component: DeploySurface, tools: [deployRun]})
 export default deploy
 
 function DeploySurface() {
-  const host = getHostApi()
+  const host = getExtensionApi(DEPLOY_NAME)
   const slot = host.useSlot()
   const notify = host.useToast()
   if (slot === 'composer')
@@ -226,7 +232,7 @@ tool `.server` handlers get typed context.
 ## Widget UI: `Component`, `Surface`, `views`
 
 - **`Component`** mounts once per slot (`header`, `footer`, `composer`, `empty`, `status`,
-  `widget`, `surface`, `connect`); branch on `getHostApi().useSlot()` inside it, as
+  `widget`, `surface`, `connect`); branch on `getExtensionApi(YOUR_NAME).useSlot()` inside it, as
   `deploy-button.tsx` does above. The host wraps it in `MountedExtension` — you normally never call
   that directly; it exists for custom hosts (see Testing below).
 - **`Surface`** is a second, always-mounted component for the dedicated `'surface'` slot — used for
@@ -244,18 +250,20 @@ export const terminal = defineExtension({
 }).client(() => ({value: {store: createTerminalStore()}}))
 ```
 
-`getHostApi()` (`packages/extension/src/hooks.tsx:20-38`) is the host surface available inside any
-mounted `Component`/`Surface`/view/render: `useSlot`, `useToast`, `useDialog`, `usePopover`,
-`useSessionId`, `useGrab`, `useComposerInsert`, `useComposerAttach`, `useNewSession`, `useRpc`,
-`useApiBase`, `useOpenEditor`, `useConnect`, `useViewLock`, `useLeaveView`, plus `Suppress`/
-`YieldFocus` layer-gate components. Each throws with a clear "used outside a host that provides…"
-message if called where the host never wired that value — that error means the component rendered
-outside `MountedExtension`/`MountedSurface`/`MountedView` (a stray render in your own test harness,
+`getExtensionApi(id)` (`packages/extension/src/extension-api.ts`) is the one surface extension code
+uses. It carries every host hook — `useSlot`, `useToast`, `useDialog`, `usePopover`, `useSessionId`,
+`useGrab`, `useComposerInsert`, `useComposerAttach`, `useNewSession`, `useRpc`, `useApiBase`,
+`useOpenEditor`, `useConnect`, `useViewLock`, `useLeaveView`, plus the `Suppress`/`YieldFocus`
+layer-gate components — and adds `useContext`, scoped to the extension you named. Each hook throws
+with a clear "used outside a host that provides…" message if called where the host never wired that
+value — that error means the component rendered outside
+`MountedExtension`/`MountedSurface`/`MountedView` (a stray render in your own test harness,
 usually), not a bug in the hook.
 
-`getExtensionApi(id)` returns `{useSlot, useContext}` scoped to one named extension — use it from a
-sibling module that needs your own extension's client value without importing the whole
-`defineExtension(...)` object:
+Pass your extension's own name, so a shared component is never bound to someone else's id: a
+component reused by two extensions takes the capability it needs as a prop from each owner instead
+of calling `getExtensionApi` itself. Use it from a sibling module that needs your own extension's
+client value without importing the whole `defineExtension(...)` object:
 
 ```ts title="packages/extensions/terminal/src/client/terminal-context.ts"
 import {getExtensionApi} from '@conciv/extension'
@@ -336,7 +344,7 @@ block and the Next.js-specific JSX constraint on local, non-installed extensions
   throws at load time, so this fails immediately, not in some later review.
 - A `.render` card that assumes `result` is always defined — it is `undefined` while the tool call
   streams; render a pending state.
-- `getHostApi()`/`getExtensionApi(...).useContext()` called from a component never mounted through
+- `getExtensionApi(...)` hooks called from a component never mounted through
   `MountedExtension`/`MountedSurface`/`MountedView` (a bare unit test, a stray `render()`) — every
   hook throws "used outside a host that provides …"; mount through the testkit or those exports
   instead of hand-assembling a `HostApiContext.Provider`.
