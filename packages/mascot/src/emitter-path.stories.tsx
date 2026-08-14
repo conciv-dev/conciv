@@ -46,6 +46,10 @@ const TANGENT_ROTATION_OFFSET = 90
 
 const LANE_OFFSET_PX = 3
 
+const PATH_SAMPLE_COUNT = 60
+
+const PATH_SAMPLES = Array.from({length: PATH_SAMPLE_COUNT + 1}, (_, index) => index / PATH_SAMPLE_COUNT)
+
 const accentColor = '#e0218a'
 
 type CurveStyle = {
@@ -178,6 +182,27 @@ const sectionHeadingStyle: JSX.CSSProperties = {
   'font-weight': '600',
 }
 
+function digitPath(style: CurveStyle, room: EmitterRoom, index: number): EmitterPoint[] {
+  if (room.bend === 0) {
+    return [
+      {x: 0, y: 0},
+      {x: 0, y: -room.rise * 0.5},
+      {x: 0, y: -room.rise},
+    ]
+  }
+  return style.path(room, index)
+}
+
+function evenSpeedPoints(style: CurveStyle, room: EmitterRoom, index: number): EmitterPoint[] {
+  const rawPath = MotionPathPlugin.cacheRawPathMeasurements(
+    MotionPathPlugin.arrayToRawPath(digitPath(style, room, index), {curviness: style.curviness}),
+  )
+  return PATH_SAMPLES.map((sample) => {
+    const point = MotionPathPlugin.getPositionOnPath(rawPath, sample)
+    return {x: point.x, y: point.y}
+  })
+}
+
 type EmitterPlan = {room: EmitterRoom; style: CurveStyle}
 
 function PathEmitter(props: {plan: EmitterPlan}): JSX.Element {
@@ -188,13 +213,14 @@ function PathEmitter(props: {plan: EmitterPlan}): JSX.Element {
     const {room, style} = props.plan
     if (prefersReducedMotion()) {
       for (const [index, digit] of digitElements.entries()) {
-        const points = style.path(room, index)
+        const points = digitPath(style, room, index)
         const last = points[points.length - 1]
         const fraction = (index + 1) / (DIGIT_INDEXES.length + 1)
         gsap.set(digit, {x: (last?.x ?? 0) * fraction, y: (last?.y ?? 0) * fraction, opacity: 1 - index * 0.16})
       }
       return
     }
+    gsap.set(digitElements, {opacity: 0})
     timeline = gsap.timeline()
     for (const [index, digit] of digitElements.entries()) {
       const start = index * DIGIT_STAGGER_SECONDS
@@ -202,8 +228,8 @@ function PathEmitter(props: {plan: EmitterPlan}): JSX.Element {
         digit,
         {
           motionPath: {
-            path: style.path(room, index),
-            curviness: style.curviness,
+            path: evenSpeedPoints(style, room, index),
+            curviness: 0,
             autoRotate: TANGENT_ROTATION_OFFSET,
           },
           duration: DIGIT_TRAVEL_SECONDS,
