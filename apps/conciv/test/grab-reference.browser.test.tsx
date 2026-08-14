@@ -14,11 +14,9 @@ function mount(grab: Grab | {text: string}): HTMLElement {
 }
 
 function domGrab(size: {width: number; height: number} = {width: 200, height: 40}): Grab {
-  const node = document.createElement('div')
-  node.textContent = 'Payroll Deposit clone'
   return {
     text: 'Payroll Deposit',
-    preview: {kind: 'dom', node, width: size.width, height: size.height},
+    preview: {kind: 'dom', html: '<div>Payroll Deposit clone</div>', width: size.width, height: size.height},
     source: null,
     rect: {x: 0, y: 0, width: size.width, height: size.height},
   }
@@ -28,7 +26,7 @@ function previewBox(host: HTMLElement): HTMLElement | null | undefined {
   return host.querySelector('[data-pw-grab-scale]')?.parentElement
 }
 
-test('grab reference renders the dom preview arm by appending the cloned node', () => {
+test('grab reference renders the dom preview arm from the captured markup', () => {
   const host = mount(domGrab())
   expect(page.getByText('Payroll Deposit clone').elements()).toHaveLength(1)
   expect(host.querySelector('img')).toBeNull()

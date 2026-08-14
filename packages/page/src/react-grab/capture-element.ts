@@ -8,8 +8,9 @@ export function captureElement(el: Element): Promise<DomPreview> {
 
 function captureSync(el: Element): DomPreview {
   const rect = el.getBoundingClientRect()
-  const clone = el.cloneNode(true) as HTMLElement
+  const clone = el.cloneNode(true)
   const rules: string[] = []
+  if (!(clone instanceof HTMLElement)) return {kind: 'dom', html: '', width: rect.width, height: rect.height}
   inlineComputedStyles(el, clone, rules)
   neutralizeLayout(clone)
 
@@ -22,7 +23,7 @@ function captureSync(el: Element): DomPreview {
     node.appendChild(style)
   }
   node.appendChild(clone)
-  return {kind: 'dom', node, width: rect.width, height: rect.height}
+  return {kind: 'dom', html: node.outerHTML, width: rect.width, height: rect.height}
 }
 
 const SKIP_PROPS = new Set(['cursor', 'pointer-events', 'user-select', '-webkit-user-select'])

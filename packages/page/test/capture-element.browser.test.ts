@@ -23,34 +23,45 @@ function mountStyled(): HTMLElement {
   return section instanceof HTMLElement ? section : host
 }
 
+function rebuild(html: string): HTMLElement {
+  const host = document.createElement('div')
+  host.innerHTML = html
+  return host
+}
+
 describe('captureElement', () => {
-  it('clones with inlined computed styles and measured size', async () => {
+  it('captures the clone as markup carrying the inlined styles', async () => {
     const el = mountStyled()
     const preview = await captureElement(el)
     expect(preview.width).toBeGreaterThan(0)
-    const clone = preview.node.querySelector('section')
+    expect(preview.html.startsWith('<div')).toBe(true)
+    expect(preview.html).toContain('tagged')
+    const rebuilt = rebuild(preview.html)
+    const clone = rebuilt.querySelector('section')
     expect(clone).not.toBeNull()
-    expect(clone?.style.color).toBe('rgb(0, 128, 0)')
-    const child = preview.node.querySelector('span')
-    expect(child?.style.fontWeight).toBe('700')
+    expect(clone instanceof HTMLElement ? clone.style.color : '').toBe('rgb(0, 128, 0)')
+    const child = rebuilt.querySelector('span')
+    expect(child instanceof HTMLElement ? child.style.fontWeight : '').toBe('700')
   })
 
   it('captures pseudo-element rules into a scoped stylesheet', async () => {
     const el = mountStyled()
     const preview = await captureElement(el)
-    const sheet = preview.node.querySelector('style')?.textContent ?? ''
+    const rebuilt = rebuild(preview.html)
+    const sheet = rebuilt.querySelector('style')?.textContent ?? ''
     expect(sheet).toContain('::before')
     expect(sheet).toContain('content:"★"')
-    const clone = preview.node.querySelector('section')
+    const clone = rebuilt.querySelector('section')
     expect([...(clone?.classList ?? [])].some((cls) => cls.startsWith('pw-grab-pseudo-'))).toBe(true)
   })
 
   it('strips ids and neutralizes the root layout', async () => {
     const el = mountStyled()
     const preview = await captureElement(el)
-    expect(preview.node.querySelector('[id]')).toBeNull()
-    const clone = preview.node.querySelector('section')
-    expect(clone?.style.position).toBe('static')
-    expect(clone?.style.margin).toBe('0px')
+    const rebuilt = rebuild(preview.html)
+    expect(rebuilt.querySelector('[id]')).toBeNull()
+    const clone = rebuilt.querySelector('section')
+    expect(clone instanceof HTMLElement ? clone.style.position : '').toBe('static')
+    expect(clone instanceof HTMLElement ? clone.style.margin : '').toBe('0px')
   })
 })

@@ -42,7 +42,7 @@ function ScaledSnapshot(props: {preview: GrabPreview}): JSX.Element {
               class="pointer-events-none"
               data-pw-grab-scale
               style={{width: `${preview().width}px`, height: `${preview().height}px`}}
-              ref={(el) => el.appendChild(preview().node.cloneNode(true))}
+              innerHTML={preview().html}
             />
           </foreignObject>
         </svg>

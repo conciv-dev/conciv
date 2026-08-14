@@ -13,7 +13,7 @@ export type ElementRect = {
 
 export type DomPreview = {
   kind: 'dom'
-  node: HTMLElement
+  html: string
   width: number
   height: number
 }
