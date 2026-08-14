@@ -4,31 +4,49 @@ import {TooltipIconButton} from '@conciv/ui-kit-system'
 import type {GrabPreview, Grab} from '@conciv/grab'
 import {sourceLabel} from './grab-source-label.js'
 
+function domPreview(preview: GrabPreview): Extract<GrabPreview, {kind: 'dom'}> | null {
+  return preview.kind === 'dom' ? preview : null
+}
+
+function imagePreview(preview: GrabPreview): Extract<GrabPreview, {kind: 'image'}> | null {
+  return preview.kind === 'image' ? preview : null
+}
+
 function ScaledSnapshot(props: {preview: GrabPreview}): JSX.Element {
   return (
-    <div class="w-full [container-type:inline-size] cursor-default">
-      <div
-        class="pointer-events-none"
-        data-pw-grab-scale
-        style={{
-          width: `${props.preview.width}px`,
-          zoom: `min(1, calc(100cqw / ${props.preview.width}px))`,
-        }}
-        ref={(el) => {
-          const preview = props.preview
-          if (preview.kind === 'dom') {
-            el.appendChild(preview.node.cloneNode(true))
-            return
-          }
-          const img = document.createElement('img')
-          img.src = preview.dataUrl
-          img.width = preview.width
-          img.height = preview.height
-          img.alt = ''
-          el.appendChild(img)
-        }}
-      />
-    </div>
+    <Show
+      when={domPreview(props.preview)}
+      fallback={
+        <Show when={imagePreview(props.preview)}>
+          {(preview) => (
+            <img
+              class="max-w-full h-auto block"
+              src={preview().dataUrl}
+              width={preview().width}
+              height={preview().height}
+              alt=""
+            />
+          )}
+        </Show>
+      }
+    >
+      {(preview) => (
+        <svg
+          class="w-full h-auto block"
+          style={{'max-width': `${preview().width}px`}}
+          viewBox={`0 0 ${preview().width} ${preview().height}`}
+        >
+          <foreignObject width={preview().width} height={preview().height}>
+            <div
+              class="pointer-events-none"
+              data-pw-grab-scale
+              style={{width: `${preview().width}px`, height: `${preview().height}px`}}
+              ref={(el) => el.appendChild(preview().node.cloneNode(true))}
+            />
+          </foreignObject>
+        </svg>
+      )}
+    </Show>
   )
 }
 
