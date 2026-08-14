@@ -95,8 +95,8 @@ function Trigger(props: GroupTriggerProps): JSX.Element {
 function Content(props: GroupContentProps): JSX.Element {
   const setContentElement = useContext(GroupContentRef)
   return (
-    <Collapsible.Content ref={setContentElement} class={props.class}>
-      {props.children}
+    <Collapsible.Content ref={setContentElement}>
+      <div class={props.class}>{props.children}</div>
     </Collapsible.Content>
   )
 }

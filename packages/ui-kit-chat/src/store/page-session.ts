@@ -114,31 +114,28 @@ function isSessionPath(path: GroupPath | null | undefined): boolean {
 
 type SessionRun = {start: number; end: number; hasAct: boolean}
 
+type SessionRunFold = {runs: readonly SessionRun[]; open: boolean}
+
 function sessionRuns(
   parts: ReadonlyArray<MessagePart>,
   paths: ReadonlyArray<GroupPath | null>,
   actNames: ReadonlySet<string>,
-): SessionRun[] {
-  const runs: SessionRun[] = []
-  let open = false
-  paths.forEach((path, index) => {
-    if (path === null || path === undefined) return
-    if (!isSessionPath(path)) {
-      open = false
-      return
-    }
-    const part = parts[index]
-    const isAct = part?.type === 'tool-call' && actNames.has(part.name)
-    const current = open ? runs.at(-1) : undefined
-    if (current) {
-      current.end = index
-      current.hasAct = current.hasAct || isAct
-      return
-    }
-    runs.push({start: index, end: index, hasAct: isAct})
-    open = true
-  })
-  return runs
+): readonly SessionRun[] {
+  return paths.reduce<SessionRunFold>(
+    (state, path, index) => {
+      if (path === null || path === undefined) return state
+      if (!isSessionPath(path)) return {runs: state.runs, open: false}
+      const part = parts[index]
+      const isAct = part?.type === 'tool-call' && actNames.has(part.name)
+      const current = state.open ? state.runs.at(-1) : undefined
+      if (!current) return {runs: [...state.runs, {start: index, end: index, hasAct: isAct}], open: true}
+      return {
+        runs: [...state.runs.slice(0, -1), {start: current.start, end: index, hasAct: current.hasAct || isAct}],
+        open: true,
+      }
+    },
+    {runs: [], open: false},
+  ).runs
 }
 
 function dropActlessSessions(

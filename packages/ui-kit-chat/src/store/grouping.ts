@@ -79,7 +79,8 @@ export function diffTurns(
 }
 
 export type GroupKey = `group-${string}`
-export type GroupPath = readonly GroupKey[]
+export type GroupPath = readonly [] | readonly [GroupKey]
+type NestedGroupPath = readonly GroupKey[]
 
 export type GroupByContext = {toolEntries?: ReadonlyArray<ToolCardEntry>}
 
@@ -203,7 +204,7 @@ function closeTop(stack: BuildFrame[], partIds: ReadonlyArray<string | undefined
   })
 }
 
-function commonDepth(stack: ReadonlyArray<BuildFrame>, path: GroupPath): number {
+function commonDepth(stack: ReadonlyArray<BuildFrame>, path: NestedGroupPath): number {
   let common = 0
   while (common < stack.length - 1 && common < path.length) {
     const frame = stack[common + 1]
@@ -213,7 +214,7 @@ function commonDepth(stack: ReadonlyArray<BuildFrame>, path: GroupPath): number 
   return common
 }
 
-function openPath(stack: BuildFrame[], path: GroupPath): void {
+function openPath(stack: BuildFrame[], path: NestedGroupPath): void {
   while (stack.length - 1 < path.length) {
     const parent = stack.at(-1)
     const key = path[stack.length - 1]
@@ -223,7 +224,7 @@ function openPath(stack: BuildFrame[], path: GroupPath): void {
 }
 
 export function buildGroupTree(
-  paths: ReadonlyArray<GroupPath | null>,
+  paths: ReadonlyArray<NestedGroupPath | null>,
   partIds?: ReadonlyArray<string | undefined>,
 ): readonly GroupNode[] {
   const root = makeFrame(CHAIN_GROUP_KEY, '')
@@ -252,6 +253,10 @@ export function groupParts(
   context: GroupByContext,
 ): readonly GroupNode[] {
   return buildGroupTree(grouper(parts, context), parts.map(partIdOf))
+}
+
+export function groupEntryFor(entries: ReadonlyArray<GroupEntry>, key: GroupKey): GroupEntry | undefined {
+  return entries.find((entry) => entry.key === key)
 }
 
 export function isReplyText(part: MessagePart): boolean {

@@ -23,9 +23,10 @@ import {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from '
 import {
   CHAIN_GROUP_KEY,
   childCallsFor,
+  groupEntryFor,
   groupParts,
-  PAGE_SESSION_GROUP_KEY,
   parentToolCallIdOf,
+  type GroupEntry,
   type GroupNode,
   type GroupNodeGroup,
   type GroupNodePart,
@@ -278,15 +279,22 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
   const config = useContext(ActivityConfigContext)
   const grouping = createMemo(() => createGrouping(config.pageSession(), config.tools()))
   const nodes = createMemo(() => groupParts(props.turn.parts, grouping().grouper, grouping().context))
-  const asStepGroup = (node: GroupNode): GroupNodeGroup | null => {
-    if (node.type !== 'group' || node.key !== CHAIN_GROUP_KEY) return null
-    return stepIndices(props.turn, node.indices).length > 0 ? node : null
+  const groupEntries = createMemo<GroupEntry[]>(() => {
+    const chain: GroupEntry = {
+      key: CHAIN_GROUP_KEY,
+      render: (groupProps) => <StepGroup turn={props.turn} node={groupProps.node} liveSegment={groupProps.streaming} />,
+    }
+    const pageSession = config.pageSession()
+    return pageSession ? [chain, pageSession.entry] : [chain]
+  })
+  const hasSteps = (node: GroupNodeGroup): boolean =>
+    node.key !== CHAIN_GROUP_KEY || stepIndices(props.turn, node.indices).length > 0
+  const asGroup = (node: GroupNode): GroupNodeGroup | null => {
+    if (node.type !== 'group' || !hasSteps(node)) return null
+    return groupEntryFor(groupEntries(), node.key) === undefined ? null : node
   }
-  const asPageSession = (node: GroupNode): GroupNodeGroup | null =>
-    node.type === 'group' && node.key === PAGE_SESSION_GROUP_KEY ? node : null
   const asLeaf = (node: GroupNode): GroupNodePart | null => (node.type === 'part' ? node : null)
-  const renderable = (node: GroupNode): boolean =>
-    asLeaf(node) !== null || asStepGroup(node) !== null || asPageSession(node) !== null
+  const renderable = (node: GroupNode): boolean => asLeaf(node) !== null || asGroup(node) !== null
   const lastRenderableIndex = createMemo(() => nodes().map(renderable).lastIndexOf(true))
   const liveSegment = (index: number) =>
     activity.live() && activity.isLastTurn(props.turn) && index === lastRenderableIndex()
@@ -295,8 +303,20 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
       <Index each={nodes()}>
         {(node, index) => (
           <Switch>
-            <Match when={asStepGroup(node())}>
-              {(group) => <StepGroup turn={props.turn} node={group()} liveSegment={liveSegment(index)} />}
+            <Match when={asGroup(node())}>
+              {(group) => (
+                <Show when={groupEntryFor(groupEntries(), group().key)}>
+                  {(entry) => (
+                    <Dynamic
+                      component={entry().render}
+                      node={group()}
+                      parts={() => props.turn.parts}
+                      resultFor={activity.resultFor}
+                      streaming={liveSegment(index)}
+                    />
+                  )}
+                </Show>
+              )}
             </Match>
             <Match when={asLeaf(node())}>
               {(leaf) => (
@@ -316,21 +336,6 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
                     )}
                   </Match>
                 </Switch>
-              )}
-            </Match>
-            <Match when={asPageSession(node())}>
-              {(session) => (
-                <Show when={config.pageSession()}>
-                  {(pageSession) => (
-                    <Dynamic
-                      component={pageSession().entry.render}
-                      node={session()}
-                      parts={() => props.turn.parts}
-                      resultFor={activity.resultFor}
-                      streaming={liveSegment(index)}
-                    />
-                  )}
-                </Show>
               )}
             </Match>
           </Switch>
