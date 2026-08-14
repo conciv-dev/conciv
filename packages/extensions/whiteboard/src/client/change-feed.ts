@@ -7,17 +7,17 @@ type Handler = (message: ChangeMessage) => void
 
 const RESUBSCRIBE_DELAY_MS = 250
 
-async function sleep(ms: number, signal: AbortSignal): Promise<void> {
+export async function sleep(ms: number, signal: AbortSignal): Promise<void> {
   await new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms)
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        resolve()
-      },
-      {once: true},
-    )
+    const onAbort = (): void => {
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal.addEventListener('abort', onAbort, {once: true})
   })
 }
 

@@ -7,7 +7,12 @@ import {
   reprobeBrowserRpcConnection,
   subscribeRpcReachability,
 } from '../src/browser-transport.js'
-import {FakeNativeSocket, nextSocket} from './helpers/fake-native-socket.js'
+import {
+  fakeNativeSocketConstructor,
+  nextSocket,
+  resetFakeNativeSockets,
+  type FakeNativeSocket,
+} from './helpers/fake-native-socket.js'
 
 async function connectAndTrackVotes(base: string): Promise<{votes: boolean[]; socket: FakeNativeSocket}> {
   const votes: boolean[] = []
@@ -17,17 +22,13 @@ async function connectAndTrackVotes(base: string): Promise<{votes: boolean[]; so
   return {votes, socket}
 }
 
-let originalWebSocket: typeof globalThis.WebSocket | undefined
-
 beforeEach(() => {
-  FakeNativeSocket.instances = []
-  originalWebSocket = globalThis.WebSocket
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  globalThis.WebSocket = FakeNativeSocket as any
+  resetFakeNativeSockets()
+  vi.stubGlobal('WebSocket', fakeNativeSocketConstructor)
 })
 
 afterEach(() => {
-  globalThis.WebSocket = originalWebSocket as typeof globalThis.WebSocket
+  vi.unstubAllGlobals()
 })
 
 function apiBase(name: string): string {

@@ -36,22 +36,27 @@ export function makeBrowserRpcClient(
   base: string | (() => string | null),
   options: BrowserRpcClientOptions = {},
 ): BrowserRpcClient {
-  const state: {base: string | null} = {base: typeof base === 'function' ? base() : base}
-  const link = dynamicBrowserRpcLink(() => state.base, options.transport)
+  const state: {accessor: () => string | null} = {accessor: typeof base === 'function' ? base : () => base}
+  const currentBase = (): string | null => state.accessor()
+  const link = dynamicBrowserRpcLink(currentBase, options.transport)
   return {
     rpc: createORPCClient(link),
-    bound: () => state.base !== null,
+    bound: () => currentBase() !== null,
     bind: (apiBase) => {
-      if (state.base !== null) throw new Error('conciv rpc client already bound')
+      if (currentBase() !== null) throw new Error('conciv rpc client already bound')
       if (apiBase === '') throw new Error('conciv rpc cannot bind an empty api base')
-      state.base = apiBase
+      state.accessor = () => apiBase
     },
     rebind: (nextApiBase) => {
-      if (state.base !== null) closeBrowserRpcConnection(state.base)
-      state.base = nextApiBase
+      const previous = currentBase()
+      if (previous !== null) closeBrowserRpcConnection(previous)
+      state.accessor = () => nextApiBase
     },
     close: () => {
-      if (state.base !== null) closeBrowserRpcConnection(state.base)
+      const previous = currentBase()
+      if (previous === null) return
+      closeBrowserRpcConnection(previous)
+      state.accessor = () => null
     },
   }
 }
