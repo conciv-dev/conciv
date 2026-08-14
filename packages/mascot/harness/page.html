@@ -1,0 +1,129 @@
+<meta charset="utf-8" />
+<title>@conciv/mascot behavior harness</title>
+<style>
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+    background: #101014;
+  }
+</style>
+<script type="importmap">
+  {"imports": {"gsap": "/gsap/index.js"}}
+</script>
+<script type="module">
+  import gsap from 'gsap'
+  import * as mascot from '/rig.js'
+
+  const LAYER_STYLE =
+    'position:absolute;inset:0;background-repeat:no-repeat;background-position:center;' +
+    'background-size:contain;image-rendering:pixelated;will-change:transform'
+
+  const STAGE_STYLE = 'position:absolute;left:560px;top:300px;width:120px;height:120px;display:block'
+
+  const makeLayer = (image) => {
+    const layer = document.createElement('div')
+    layer.style.cssText = `${LAYER_STYLE};background-image:url('${image}')`
+    return layer
+  }
+
+  const buildStage = () => {
+    const root = document.createElement('div')
+    root.style.cssText = STAGE_STYLE
+    const head = makeLayer(mascot.robotLayers.head)
+    const eyes = makeLayer(mascot.robotLayers.eyes)
+    const antenna = makeLayer(mascot.robotLayers.antenna)
+    root.append(head, eyes, antenna)
+    document.body.append(root)
+    return {root, head, eyes, antenna}
+  }
+
+  const buildBareStage = () => {
+    const root = document.createElement('div')
+    root.style.cssText = STAGE_STYLE
+    document.body.append(root)
+    return root
+  }
+
+  const applyStyle = (element, style) => {
+    Object.entries(style).forEach(([property, value]) => element.style.setProperty(property, value))
+    return element
+  }
+
+  const hiddenSpans = () => Array.from(document.querySelectorAll('span[aria-hidden="true"]'))
+
+  const isLeanWrapper = (element) => element.style.inset === '0px'
+
+  const isEmitter = (element) => element.style.width === '0px'
+
+  const leanWrappers = () => hiddenSpans().filter(isLeanWrapper)
+
+  const emitters = () => hiddenSpans().filter(isEmitter)
+
+  const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+
+  const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve))
+
+  const sampleFrames = async (read, milliseconds) => {
+    const deadline = performance.now() + milliseconds
+    const values = [read()]
+    while (performance.now() < deadline) {
+      await nextFrame()
+      values.push(read())
+    }
+    return values
+  }
+
+  const summarize = (values) => ({
+    min: Math.round(Math.min(...values) * 1000) / 1000,
+    max: Math.round(Math.max(...values) * 1000) / 1000,
+    last: Math.round(values[values.length - 1] * 1000) / 1000,
+  })
+
+  const reversals = (values, deadband) => {
+    const directions = []
+    let anchor = values[0]
+    values.forEach((value) => {
+      const delta = value - anchor
+      if (Math.abs(delta) < deadband) return
+      directions.push(Math.sign(delta))
+      anchor = value
+    })
+    return directions.filter((direction, index) => index > 0 && direction !== directions[index - 1]).length
+  }
+
+  const waitUntil = async (predicate, milliseconds) => {
+    const deadline = performance.now() + milliseconds
+    while (performance.now() < deadline && !predicate()) await nextFrame()
+    return predicate()
+  }
+
+  const property = (element, name) => Number(gsap.getProperty(element, name))
+
+  const stageCenter = (root) => {
+    const bounds = root.getBoundingClientRect()
+    return {x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2}
+  }
+
+  const globalTweenCount = () => gsap.globalTimeline.getChildren(true, true, true).length
+
+  window.mascotHarness = {
+    mascot,
+    gsap,
+    buildStage,
+    buildBareStage,
+    applyStyle,
+    leanWrappers,
+    emitters,
+    wait,
+    nextFrame,
+    sampleFrames,
+    summarize,
+    reversals,
+    waitUntil,
+    property,
+    stageCenter,
+    globalTweenCount,
+  }
+  document.documentElement.dataset.harness = 'ready'
+</script>

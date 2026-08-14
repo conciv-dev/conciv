@@ -3027,6 +3027,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      playwright:
+        specifier: ^1.61.1
+        version: 1.61.1
       tsdown:
         specifier: ^0.22.4
         version: 0.22.4(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
