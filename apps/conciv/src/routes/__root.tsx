@@ -18,14 +18,13 @@ import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
   useAppData,
-  useAppQueryClient,
   useConnected,
   useLayers,
-  useRpc,
   useSettings,
   useSuppressed,
   type AppContextValue,
 } from '../app/context.js'
+import {EngineReachabilityContext, makeEngineReachability} from '../app/reachability.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
@@ -113,6 +112,7 @@ function RootComponent() {
     disconnect: app.disconnect,
     grabProvider: app.grabProvider,
     connectionGeneration: app.connectionGeneration,
+    apiBase: app.apiBase,
   }
 
   createEffect(() => {
@@ -120,23 +120,27 @@ function RootComponent() {
     window.dispatchEvent(new CustomEvent('conciv:connection-changed', {detail: {connected: isConnected}}))
   })
 
+  const reachability = makeEngineReachability()
+
   return (
     <EnvironmentProvider value={() => app.environment.rootNode}>
       <QueryClientProvider client={app.queryClient}>
         <AppContext.Provider value={value}>
-          <HostApiProvider
-            rpc={app.rpc}
-            apiBase={app.apiBase}
-            toast={showToast}
-            openEditor={(file, line) => void app.rpc.editor.open({file, line}).catch(() => {})}
-            registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
-            dialog={layers.track(Dialog)}
-            popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
-            sessionId={activeSession}
-          >
-            <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
-            <EffectsSurface instances={app.instances} />
-          </HostApiProvider>
+          <EngineReachabilityContext.Provider value={reachability}>
+            <HostApiProvider
+              rpc={app.rpc}
+              apiBase={app.apiBase}
+              toast={showToast}
+              openEditor={(file, line) => void app.rpc.editor.open({file, line}).catch(() => {})}
+              registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
+              dialog={layers.track(Dialog)}
+              popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
+              sessionId={activeSession}
+            >
+              <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
+              <EffectsSurface instances={app.instances} />
+            </HostApiProvider>
+          </EngineReachabilityContext.Provider>
         </AppContext.Provider>
       </QueryClientProvider>
     </EnvironmentProvider>
@@ -148,9 +152,7 @@ function RootChrome(props: {
   politeMessage: () => string
   assertiveMessage: () => string
 }) {
-  const rpc = useRpc()
   const data = useAppData()
-  const queryClient = useAppQueryClient()
   const settings = useSettings()
   const layers = useLayers()
   const suppressed = useSuppressed()
@@ -179,22 +181,11 @@ function RootChrome(props: {
     enabled: connected() && Boolean(latestSessionRow()),
   }))
 
-  const [openIntent, setOpenIntent] = createSignal(false)
-
   let rootEl: HTMLDivElement | undefined
   let fabEl: HTMLButtonElement | undefined
   let pendingFabFocus = false
   let hostRestoreTarget: HTMLElement | null = null
 
-  const latestSessionId = async (): Promise<string | null> => {
-    try {
-      const rows = await queryClient.ensureQueryData(data.utils.sessions.list.queryOptions())
-      const latest = rows.toSorted((a, b) => b.updatedAt - a.updatedAt)[0]
-      return (await rpc.sessions.resolve(latest ? {id: latest.id} : {})).sessionId
-    } catch {
-      return null
-    }
-  }
   const mascotRect = (): {x: number; y: number; width: number; height: number} | null => {
     if (settings.launcher !== 'mascot') return null
     const rect = fabEl?.getBoundingClientRect()
@@ -208,26 +199,25 @@ function RootChrome(props: {
       }),
     )
   }
-  const openPanel = async () => {
+  const openPanel = () => {
     if (!panelOpen()) hostRestoreTarget = rootEl ? hostFocusTarget(rootEl) : null
     if (panelMatch() || connectMatch()) {
-      setOpenIntent(true)
       void setShutter(router, true)
       return
     }
-    setOpenIntent(true)
-    const sessionId = warmSession.data?.sessionId ?? (await latestSessionId())
-    if (!sessionId) return
-    if (!openIntent()) return
-    void router.navigate({
-      to: '/panel/$sessionId',
-      params: {sessionId},
-      search: {open: true},
-      replace: Boolean(quickMatch()),
-    })
+    const sessionId = warmSession.data?.sessionId
+    if (sessionId) {
+      void router.navigate({
+        to: '/panel/$sessionId',
+        params: {sessionId},
+        search: {open: true},
+        replace: Boolean(quickMatch()),
+      })
+      return
+    }
+    void router.navigate({to: '/panel/latest', search: {open: true}, replace: Boolean(quickMatch())})
   }
   const closePanel = () => {
-    setOpenIntent(false)
     const captured = hostRestoreTarget
     hostRestoreTarget = null
     void setShutter(router, false).then(() => {
@@ -273,11 +263,7 @@ function RootChrome(props: {
     if (settings.defaultOpen && closedMatch()) void openPanel()
     const openFromHost = () => void openPanel()
     const closeFromHost = () => {
-      if (panelOpen()) {
-        closePanel()
-        return
-      }
-      setOpenIntent(false)
+      if (panelOpen()) closePanel()
     }
     const toggleFromHost = () => togglePanel()
     makeEventListener(window, 'resize', reportPanelState)

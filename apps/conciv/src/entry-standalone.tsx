@@ -14,6 +14,7 @@ function start(): void {
     history: createBrowserHistory(),
     environment: {rootNode: document, document},
     settings,
+    apiBase: () => apiBase,
   })
   const root = document.getElementById('app')
   if (root) render(() => <RouterProvider router={router} />, root)

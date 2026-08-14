@@ -1,18 +1,21 @@
 import {createFileRoute, redirect, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import {For, Show, Suspense, onCleanup, onMount, type JSX} from 'solid-js'
-import {TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
+import {For, Show, Suspense, createEffect, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
+import {Button, TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
 import Columns2 from 'lucide-solid/icons/columns-2'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import X from 'lucide-solid/icons/x'
 import {useAppData, useRpc, useSuppressed} from '../app/context.js'
+import {useEngineReachability} from '../app/reachability.js'
 import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
 import {ContextTracker} from '../pane/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {SessionPillPending, UsagePending} from '../shell/pending.js'
+import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
+import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
 import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-search.js'
 
 const CLOSE =
@@ -100,16 +103,31 @@ function QuickLayer(): JSX.Element {
 
   let rowEl: HTMLDivElement | undefined
 
+  const reachability = useEngineReachability()
+  const [addPaneError, setAddPaneError] = createSignal<string | null>(null)
+
   const setSearch = (ids: string[], focus: number) =>
     void router.navigate({to: '/quick', search: quickSearchFor(ids, focus), replace: true})
 
   const addPane = async () => {
-    const {sessionId} = await rpc.sessions.resolve({})
-    const ids = [...paneIds(), sessionId]
-    setSearch(ids, ids.length - 1)
-    appData.invalidateSessions()
-    resetPaneFlex(rowEl)
+    try {
+      const {sessionId} = await rpc.sessions.resolve({})
+      const ids = [...paneIds(), sessionId]
+      setSearch(ids, ids.length - 1)
+      appData.invalidateSessions()
+      resetPaneFlex(rowEl)
+      setAddPaneError(null)
+    } catch {
+      setAddPaneError('conciv could not start a pane. Check the engine connection and retry.')
+    }
   }
+
+  let wasOnline = reachability.online()
+  createEffect(() => {
+    const isOnline = reachability.online()
+    if (isOnline && !wasOnline && paneIds().length === 0) void addPane()
+    wasOnline = isOnline
+  })
 
   const closePane = (index: number) => {
     const ids = paneIds()
@@ -154,92 +172,114 @@ function QuickLayer(): JSX.Element {
   onCleanup(() => restoreFocus?.focus())
 
   return (
-    <section
-      class={qtShellClass()}
-      data-pw-qt
-      data-pw-suppressed={suppressed()}
-      style={{height: `${resize.size()}px`}}
-      role="dialog"
-      aria-label="conciv quick terminal"
-    >
-      <QuickTerminalHeader
-        onPip={() => {
-          const id = paneIds()[focusedIndex()]
-          if (id) void router.navigate({to: '/pip/$sessionId', params: {sessionId: id}})
-        }}
-        onSplit={() => void addPane()}
-        onClose={() => router.history.back()}
-      />
-      <div
-        class="flex flex-1 min-h-0 overflow-x-auto"
-        ref={(el) => {
-          rowEl = el
-        }}
+    <NoticeContextProvider>
+      <section
+        class={qtShellClass()}
+        data-pw-qt
+        data-pw-suppressed={suppressed()}
+        style={{height: `${resize.size()}px`}}
+        role="dialog"
+        aria-label="conciv quick terminal"
       >
-        <For each={paneIds()}>
-          {(id, index) => (
-            <>
-              <Show when={index() > 0}>
-                <div
-                  class="flex-[0_0_0.4375rem] cursor-col-resize relative before:bg-pw-line before:content-[''] before:transition-[background-color] before:duration-[120ms] before:ease-pw before:inset-x-[0.1875rem] before:inset-y-0 before:absolute hover:before:bg-pw-accent-line"
-                  aria-hidden="true"
-                  onPointerDown={onGutterDown}
-                />
-              </Show>
+        <NoticeSurface />
+        <EngineStaleNotice />
+        <EngineUnreachableNotice />
+        <QuickTerminalHeader
+          onPip={() => {
+            const id = paneIds()[focusedIndex()]
+            if (id) void router.navigate({to: '/pip/$sessionId', params: {sessionId: id}})
+          }}
+          onSplit={() => void addPane()}
+          onClose={() => router.history.back()}
+        />
+        <div
+          class="flex flex-1 min-h-0 overflow-x-auto"
+          ref={(el) => {
+            rowEl = el
+          }}
+        >
+          <Show
+            when={paneIds().length > 0}
+            fallback={
               <div
-                data-pw-qt-pane
-                class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-pw relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-pw-accent before:opacity-90" : 'opacity-[0.62]'}`}
-                onPointerDown={() => focusPane(index())}
-                onFocusIn={() => {
-                  if (focusedIndex() !== index()) focusPane(index())
-                }}
+                class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-pw-text-2 text-[0.8125rem]"
+                role="status"
               >
-                <div class="text-xs text-pw-text-3 leading-none font-pw-mono px-3 py-2 border-b border-b-pw-line-soft flex shrink-0 gap-2 items-center">
-                  <Suspense fallback={<SessionPillPending variant="bar" />}>
-                    <SessionSelector
-                      variant="bar"
-                      activeId={() => id}
-                      onActivate={(next) => activatePane(index(), next)}
-                      onNewSession={() => void addPane()}
-                    />
-                  </Suspense>
-                  <Suspense fallback={<UsagePending />}>
-                    <ContextTracker usage={usageOf(id)} />
-                  </Suspense>
-                  <TooltipIconButton
-                    tooltip="Close pane"
-                    class={CLOSE_PANE}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      closePane(index())
-                    }}
-                  >
-                    <X size={14} aria-hidden="true" />
-                  </TooltipIconButton>
-                </div>
-                <Show when={id} keyed>
-                  {(sessionId) => (
-                    <PaneProvider sessionId={sessionId} onNewSession={() => void addPane()}>
-                      <ChatPane sessionId={sessionId} />
-                    </PaneProvider>
-                  )}
+                <p>{addPaneError() ?? 'Starting a pane…'}</p>
+                <Show when={addPaneError()}>
+                  <Button variant="outline-danger" onClick={() => void addPane()}>
+                    Retry
+                  </Button>
                 </Show>
               </div>
-            </>
-          )}
-        </For>
-      </div>
-      <div
-        class="rounded-full bg-pw-line-2 h-2 w-11.5 cursor-ns-resize bottom-[0.3125rem] left-1/2 absolute z-[2] focus-visible:outline-none focus-visible:bg-pw-accent hover:bg-pw-text-3 -translate-x-1/2"
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label="Resize quick terminal height"
-        aria-valuemin={200}
-        aria-valuenow={Math.round(resize.size())}
-        tabindex={0}
-        onPointerDown={resize.onPointerDown}
-        onKeyDown={resize.onKeyDown}
-      />
-    </section>
+            }
+          >
+            <For each={paneIds()}>
+              {(id, index) => (
+                <>
+                  <Show when={index() > 0}>
+                    <div
+                      class="flex-[0_0_0.4375rem] cursor-col-resize relative before:bg-pw-line before:content-[''] before:transition-[background-color] before:duration-[120ms] before:ease-pw before:inset-x-[0.1875rem] before:inset-y-0 before:absolute hover:before:bg-pw-accent-line"
+                      aria-hidden="true"
+                      onPointerDown={onGutterDown}
+                    />
+                  </Show>
+                  <div
+                    data-pw-qt-pane
+                    class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-pw relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-pw-accent before:opacity-90" : 'opacity-[0.62]'}`}
+                    onPointerDown={() => focusPane(index())}
+                    onFocusIn={() => {
+                      if (focusedIndex() !== index()) focusPane(index())
+                    }}
+                  >
+                    <div class="text-xs text-pw-text-3 leading-none font-pw-mono px-3 py-2 border-b border-b-pw-line-soft flex shrink-0 gap-2 items-center">
+                      <Suspense fallback={<SessionPillPending variant="bar" />}>
+                        <SessionSelector
+                          variant="bar"
+                          activeId={() => id}
+                          onActivate={(next) => activatePane(index(), next)}
+                          onNewSession={() => void addPane()}
+                        />
+                      </Suspense>
+                      <Suspense fallback={<UsagePending />}>
+                        <ContextTracker usage={usageOf(id)} />
+                      </Suspense>
+                      <TooltipIconButton
+                        tooltip="Close pane"
+                        class={CLOSE_PANE}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          closePane(index())
+                        }}
+                      >
+                        <X size={14} aria-hidden="true" />
+                      </TooltipIconButton>
+                    </div>
+                    <Show when={id} keyed>
+                      {(sessionId) => (
+                        <PaneProvider sessionId={sessionId} onNewSession={() => void addPane()}>
+                          <ChatPane sessionId={sessionId} />
+                        </PaneProvider>
+                      )}
+                    </Show>
+                  </div>
+                </>
+              )}
+            </For>
+          </Show>
+        </div>
+        <div
+          class="rounded-full bg-pw-line-2 h-2 w-11.5 cursor-ns-resize bottom-[0.3125rem] left-1/2 absolute z-[2] focus-visible:outline-none focus-visible:bg-pw-accent hover:bg-pw-text-3 -translate-x-1/2"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize quick terminal height"
+          aria-valuemin={200}
+          aria-valuenow={Math.round(resize.size())}
+          tabindex={0}
+          onPointerDown={resize.onPointerDown}
+          onKeyDown={resize.onKeyDown}
+        />
+      </section>
+    </NoticeContextProvider>
   )
 }

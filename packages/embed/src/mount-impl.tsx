@@ -1,7 +1,8 @@
-import {createSignal} from 'solid-js'
+import {createRoot, createSignal} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient} from '@conciv/contract'
+import {engineOnline} from '@conciv/client'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
   collectClientEffects,
@@ -113,17 +114,19 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const driver = makeDomPageDriver({tools: mountedClientTools(router), effects: mountedClientEffects(router)})
   window.__CONCIV_PAGE_DRIVER__ = driver
 
+  const reachabilityRoot = createRoot((dispose) => ({isOnline: engineOnline(), dispose}))
+
   const container = document.createElement('div')
   config.root.appendChild(container)
   const disposeApp = render(() => <RouterProvider router={router} />, container)
-  let plane = startPagePlane({rpc, document, driver})
+  let plane = startPagePlane({rpc, document, driver, isOnline: reachabilityRoot.isOnline})
 
   const rebind = (nextApiBase: string): void => {
     rebindClient(nextApiBase)
     storage.dispose()
     plane.dispose()
     setApiBase(nextApiBase)
-    plane = startPagePlane({rpc, document, driver})
+    plane = startPagePlane({rpc, document, driver, isOnline: reachabilityRoot.isOnline})
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)
   }
@@ -137,6 +140,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
+    reachabilityRoot.dispose,
     closeConnection,
   ]
   return {dispose: () => runDisposers(disposers), rebind}
@@ -151,6 +155,7 @@ type BootConnectConfig = {
 
 function bootConnect(config: BootConnectConfig): BootResult {
   const deferred = makeBrowserRpcClient(() => null, {transport: config.settings.transport})
+  const reachabilityRoot = createRoot((dispose) => ({isOnline: engineOnline(), dispose}))
 
   let boundApiBase: string | undefined
   let planeDispose: (() => void) | undefined
@@ -159,7 +164,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     boundApiBase = nextApiBase
     deferred.bind(nextApiBase)
     setApiBase(nextApiBase)
-    planeDispose = startPagePlane({rpc: deferred.rpc, document, driver}).dispose
+    planeDispose = startPagePlane({rpc: deferred.rpc, document, driver, isOnline: reachabilityRoot.isOnline}).dispose
   }
   const hostRouter = window.__TSR_ROUTER__
   const router = createConcivRouter({
@@ -188,6 +193,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
+    reachabilityRoot.dispose,
     deferred.close,
   ]
   return {dispose: () => runDisposers(disposers)}
