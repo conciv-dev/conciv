@@ -86,7 +86,10 @@ README.md; this file is the non-obvious operational rules.
   stale code.
 - In widget ITs use `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory).
 - Never add tests under `apps/examples/*`: example apps are demos; verify behavior via the owning
-  package's tests, `@conciv/extension-testkit`, or an `e2e/` consumer app.
+  package's tests, `@conciv/extension-testkit`, or an `e2e/` consumer app. Sanctioned exception:
+  `apps/examples/tanstack-start` carries a handful of demo tests so the in-chat test runner has
+  something to run out of the box; they are demo content, not behavior verification — behavior
+  tests still live in the owning packages.
 - Every Solid package's `vitest.config.ts` must pin `test: {environment: 'node'}`.
   `vite-plugin-solid` otherwise injects a jsdom environment and the run exits 1 even with all tests
   passing.
