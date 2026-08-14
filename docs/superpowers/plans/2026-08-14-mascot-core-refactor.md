@@ -197,3 +197,17 @@ work   → {state: 'rest',  working: true,  follow: false}
 ## Codex-review disposition (run 2026-08-14, gpt-5.6-sol, 15 findings)
 
 Blockers 1-4: resolved by binding decisions 1-4 (compositional controllers + matrix; emitter `stop(onRemoved)` ownership; greenfield structure with donor-as-values-only; explicit lifecycle). Majors 5-12: adapter table now exact (Task 5); publish surface pinned + publint/attw gate (Global Constraints, Task 5); `connect()` framework-neutral records + per-part refs + effect-host getter (decision 6); gsap ownership rule (decision 5); MotionPathPlugin/curves explicitly deferred with the `CurveStyle` type removed from phase 1 (Global Constraints); reduced-motion boundary rule + harness check (decision 7, Task 6); harness checked into the package with a script (Task 6); state-machine/lifecycle tests added as harness checks incl. awake+working (Task 6). Minors 13-15: moot (no story-support edits on the new branch), exact test values precomputed with derivations (Task 1), donor policy tightened to an approved-values list (Global Constraints).
+
+### Task 7: Widget working-signal fix (owner-ordered addition, 2026-08-15)
+
+Found during the final fix wave's real-page evidence run: the widget FAB never flips to `working` in the tab that sent the message during a held stream (evidence run needed a reload). Suspected mechanism: `usePaneMessaging.onSend` awaits `chat.sendMessage` before invalidating `sessions.list`, so the sender tab misses the streaming state.
+
+- [ ] **Step 1 (evidence-only):** Reproduce in a real browser against the prebuilt widget bundle: send a message on a held stream, assert the FAB stays non-working in the sender tab while a second tab shows working. Confirm or correct the suspected mechanism by reading the actual code path.
+- [ ] **Step 2:** Fix per confirmed RCA (expected shape: invalidate/refresh the streaming-state source at send time, not after completion — exact fix follows the RCA, no back-compat concerns).
+- [ ] **Step 3:** Regression test in the owning package's real-browser suite (bundle rebuilt first; `browser.newPage()`; no networkidle).
+- [ ] **Step 4:** Gates: embed rebuild, widget ITs, typecheck trio, fallow. Commit `fix(app): flip FAB working state in the sending tab`.
+
+### Post-review additions (owner decisions, 2026-08-15)
+
+- Harness runs in CI: `verify:behavior` wired into the package `test` script + CI Chromium provisioning (separate small task on this branch).
+- Phase-1 visual breakpoint: one core-driven storybook story (state/working/follow controls + docs) lands on this branch; owner verifies visually before merge. HARD rule going forward: every UI phase ends with a human visual-verification breakpoint.
