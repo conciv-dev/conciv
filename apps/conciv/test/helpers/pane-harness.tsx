@@ -12,6 +12,7 @@ import {
   type PaneContextValue,
 } from '../../src/app/pane-context.js'
 import {makeAppData} from '../../src/data/app-data.js'
+import {makeLiveSessions} from '../../src/app/live-sessions.js'
 import {parseConcivSettings} from '../../src/data/settings.js'
 import {makeLayerStack} from '../../src/shell/dialogs.js'
 import {NoticeContextProvider, NoticeSurface} from '../../src/shell/notice-context.js'
@@ -44,6 +45,7 @@ export function mountPane(view: (pane: PaneContextValue) => JSX.Element): PaneMo
     settings: parseConcivSettings(''),
     environment: {rootNode: document, document},
     data,
+    liveSessions: makeLiveSessions(),
     queryClient,
     announce: (message) => setAnnounced((entries) => [...entries, message]),
     layers: makeLayerStack(),
