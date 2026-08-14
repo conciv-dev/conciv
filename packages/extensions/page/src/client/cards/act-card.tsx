@@ -1,14 +1,12 @@
 import {Show, type JSX} from 'solid-js'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CardShell, ElementPreview, ErrorBlock, MirrorRow, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
-import {ChipRow, ELEMENT_TARGET_KEYS, cardErrorMessage, elementTargetValue, mutatingBadge, toolInput} from './shared.js'
+import {CardShell, ElementPreview, ErrorBlock, MirrorRow, cardHeader} from '@conciv/ui-kit-chat/tools'
+import {ELEMENT_TARGET_KEYS, cardErrorMessage, elementChip, mutatingBadge} from './shared.js'
 
 export function ActCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
-  const input = () => toolInput(props.part)
-  const chips = () => detailChips(meta(), input(), ELEMENT_TARGET_KEYS)
   const capture = () => props.capture?.after
-  const element = () => (capture() === undefined ? elementTargetValue(input()) : undefined)
+  const element = () => (capture() === undefined ? elementChip(props.part) : undefined)
   const errorMessage = () => cardErrorMessage(props.result)
   return (
     <CardShell
@@ -18,6 +16,8 @@ export function ActCard(props: ToolCardProps): JSX.Element {
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}
+      chipSkip={ELEMENT_TARGET_KEYS}
+      leadChip={element()}
     >
       <div class="flex flex-col gap-1.5">
         <Show when={capture()}>
@@ -28,7 +28,6 @@ export function ActCard(props: ToolCardProps): JSX.Element {
             </ElementPreview.Root>
           )}
         </Show>
-        <ChipRow element={element()} chips={chips()} />
         <Show when={meta()?.mirrors === true}>
           <MirrorRow />
         </Show>

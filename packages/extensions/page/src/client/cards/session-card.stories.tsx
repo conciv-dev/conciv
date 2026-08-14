@@ -4,10 +4,21 @@ import {createSignal} from 'solid-js'
 import {Splitter} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ElementCapture, ToolCaptureView} from '@conciv/protocol/element-capture-types'
-import {ToolProvider} from '@conciv/ui-kit-chat'
+import {PAGE_SESSION_GROUP_KEY, ToolProvider, type GroupNodeGroup} from '@conciv/ui-kit-chat'
 import {ELEMENT_CAPTURE_FIXTURE_CSS, ELEMENT_CAPTURE_FIXTURE_FULL} from '@conciv/ui-kit-chat/tools'
 import {SessionCard} from './session-card.js'
 import {storyCtx, storyPart, storyResult} from './story.fixtures.js'
+
+function sessionNode(parts: readonly ToolCallPart[]): GroupNodeGroup {
+  return {
+    type: 'group',
+    key: PAGE_SESSION_GROUP_KEY,
+    nodeKey: '',
+    idKey: undefined,
+    indices: parts.map((_, index) => index),
+    children: [],
+  }
+}
 
 const STAGE = 'chat-theme-dark p-4 w-[40rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]'
 const RESIZE_TRIGGER =
@@ -102,7 +113,12 @@ function sessionFrame(
 ) {
   return (
     <ToolProvider value={storyCtx({}, captures)}>
-      <SessionCard parts={parts} thinking={[]} resultFor={(id) => results[id]} streaming={streaming} />
+      <SessionCard
+        node={sessionNode(parts)}
+        parts={() => parts}
+        resultFor={(id) => results[id]}
+        streaming={streaming}
+      />
     </ToolProvider>
   )
 }

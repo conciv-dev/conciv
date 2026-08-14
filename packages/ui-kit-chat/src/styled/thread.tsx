@@ -26,14 +26,19 @@ import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
 import {Message} from '../primitives/message/message.js'
 import {useMessage} from '../primitives/message/message-context.js'
-import {groupSegments, type Segment, type Turn} from '../store/grouping.js'
 import {
-  pageSessionCallParts,
-  pageSessionGroupingOptions,
-  pageSessionHasSteps,
-  pageSessionThinkingParts,
-  type PageSessionConfig,
-} from '../store/page-session.js'
+  CHAIN_GROUP_KEY,
+  groupParts,
+  type GroupEntry,
+  type GroupKey,
+  type GroupNode,
+  type GroupNodeGroup,
+  type GroupNodePart,
+  type GroupRenderProps,
+  type Grouping,
+  type Turn,
+} from '../store/grouping.js'
+import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {useViewportInternal} from '../primitives/thread/viewport-internal.js'
 import {TurnEstimateProvider} from '../primitives/thread/turn-estimate.js'
 import {createTurnEstimator} from './text-metrics.js'
@@ -62,6 +67,8 @@ export type ThreadMessagesProps = {
   turnPrefix?: (turn: Turn) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
   pageSession?: PageSessionConfig
+  grouping?: Grouping
+  groupEntries?: readonly GroupEntry[]
 }
 
 function asThinking(part: MessagePart | undefined): Extract<MessagePart, {type: 'thinking'}> | null {
@@ -128,27 +135,27 @@ function ChainPart(props: {
   )
 }
 
+function asGroupNode(node: GroupNode): GroupNodeGroup | null {
+  return node.type === 'group' ? node : null
+}
+
+function asPartNode(node: GroupNode): GroupNodePart | null {
+  return node.type === 'part' ? node : null
+}
+
 function AssistantTurn(props: {
   entries: ToolCardEntry[]
   fallback: ToolUIComponent
   pageSession?: PageSessionConfig
+  grouping?: Grouping
+  groupEntries?: readonly GroupEntry[]
 }): JSX.Element {
   const message = useMessage()
   const thread = useThread()
   const ctx = useToolCtx()
   const parts = () => message.message().parts
-  const standaloneNames = createMemo(() => {
-    const names = new Set<string>()
-    for (const entry of props.entries)
-      if (entry.display === 'standalone') for (const name of entry.names) names.add(name)
-    return names
-  })
-  const isStandaloneTool = (name: string) => standaloneNames().has(name)
-  const groupingOptions = createMemo(() => ({
-    ...pageSessionGroupingOptions(props.pageSession),
-    standalone: isStandaloneTool,
-  }))
-  const segments = createMemo(() => groupSegments(parts(), groupingOptions()))
+  const grouping = createMemo(() => props.grouping ?? createGrouping(props.pageSession, props.entries))
+  const nodes = createMemo(() => groupParts(parts(), grouping().grouper, grouping().context))
   const lastTextIndex = createMemo(() =>
     parts()
       .map((part) => part.type)
@@ -157,106 +164,96 @@ function AssistantTurn(props: {
   const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
   const lastPartIndex = createMemo(() => parts().length - 1)
   const livePart = (index: number) => thread.isRunning && message.isLast() && index === lastPartIndex()
-  const chainAutoOpen = (indices: number[]) => {
+  const chainAutoOpen = (indices: readonly number[]) => {
     const last = indices.at(-1)
     const reasoningStreaming = last !== undefined && livePart(last) && asThinking(parts()[last]) !== null
     return reasoningStreaming || indices.some((index) => isAwaitingApproval(parts()[index], ctx))
   }
-  const hasChainStep = (indices: number[]) =>
-    indices.some((index) => {
-      const part = parts()[index]
-      return part?.type === 'thinking' || part?.type === 'tool-call'
-    })
-  const asChain = (segment: Segment) => {
-    if (segment.kind !== 'chain') return null
-    if (props.pageSession && !hasChainStep(segment.indices)) return null
-    return segment
-  }
-  const asPageSession = (segment: Segment) => {
-    const config = props.pageSession
-    if (!config || segment.kind !== 'page-session') return null
-    return pageSessionHasSteps(parts(), segment.indices, config.actNames) ? segment : null
-  }
-  const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
-  const asStandalone = (segment: Segment) => (segment.kind === 'standalone' ? segment : null)
-  const renderableSegment = (segment: Segment): boolean =>
-    asChain(segment) !== null ||
-    asReply(segment) !== null ||
-    asPageSession(segment) !== null ||
-    asStandalone(segment) !== null
-  const lastRenderableIndex = createMemo(() => {
-    let last = -1
-    for (const [index, segment] of segments().entries()) if (renderableSegment(segment)) last = index
-    return last
-  })
-  const liveSegment = (index: number) => thread.isRunning && message.isLast() && index === lastRenderableIndex()
-  return (
-    <Message.Root data-pw-msg class={message.isLast() ? ASSISTANT_ROOT_CLASS : ASSISTANT_ROOT_SETTLED_CLASS}>
-      <Index each={segments()}>
-        {(segment, segmentIndex) => (
-          <Switch>
-            <Match when={asChain(segment())}>
-              {(chain) => (
-                <ChainOfThought
-                  streaming={liveSegment(segmentIndex)}
-                  autoOpen={chainAutoOpen(chain().indices)}
-                  grow={CHAIN_OF_THOUGHT_GROW}
-                >
-                  <Index each={chain().indices}>
-                    {(partIndex, partPosition) => (
-                      <ChainPart
-                        part={parts()[partIndex()]}
-                        entries={props.entries}
-                        fallback={props.fallback}
-                        last={partPosition === chain().indices.length - 1}
-                        streaming={livePart(partIndex())}
-                      />
-                    )}
-                  </Index>
-                </ChainOfThought>
-              )}
-            </Match>
-            <Match when={asReply(segment())}>
-              {(reply) => (
-                <Show when={asText(parts()[reply().index])}>
-                  {(part) => <Markdown content={part().content} streaming={streamingAt(reply().index)} />}
-                </Show>
-              )}
-            </Match>
-            <Match when={asStandalone(segment())}>
-              {(standalone) => (
-                <Show when={asToolCall(parts()[standalone().index])}>
-                  {(part) => (
-                    <ToolCallCard
-                      part={part()}
-                      result={message.pairing().byCallId.get(part().id)}
-                      ctx={ctx}
-                      durationMs={ctx.durationFor?.(part().id)}
-                      tools={() => props.entries}
-                      fallback={props.fallback}
-                    />
-                  )}
-                </Show>
-              )}
-            </Match>
-            <Match when={asPageSession(segment())}>
-              {(session) => (
-                <Show when={props.pageSession}>
-                  {(config) => (
-                    <Dynamic
-                      component={config().render}
-                      parts={pageSessionCallParts(parts(), session().indices)}
-                      thinking={pageSessionThinkingParts(parts(), session().indices)}
-                      resultFor={(toolCallId: string) => message.pairing().byCallId.get(toolCallId)}
-                      streaming={liveSegment(segmentIndex)}
-                    />
-                  )}
-                </Show>
-              )}
-            </Match>
-          </Switch>
+  const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => (
+    <ChainOfThought
+      streaming={groupProps.streaming}
+      autoOpen={chainAutoOpen(groupProps.node.indices)}
+      grow={CHAIN_OF_THOUGHT_GROW}
+    >
+      <Index each={groupProps.node.indices}>
+        {(partIndex, position) => (
+          <ChainPart
+            part={groupProps.parts()[partIndex()]}
+            entries={props.entries}
+            fallback={props.fallback}
+            last={position === groupProps.node.indices.length - 1}
+            streaming={livePart(partIndex())}
+          />
         )}
       </Index>
+    </ChainOfThought>
+  )
+  const groupEntries = createMemo<GroupEntry[]>(() => {
+    const chain: GroupEntry = {key: CHAIN_GROUP_KEY, render: ChainGroup}
+    const config = props.pageSession
+    return [chain, ...(config ? [config.entry] : []), ...(props.groupEntries ?? [])]
+  })
+  const entryFor = (key: GroupKey) => groupEntries().find((entry) => entry.key === key)
+  const renderableNode = (node: GroupNode): boolean => {
+    if (node.type === 'part') return true
+    if (entryFor(node.key) !== undefined) return true
+    return node.children.some(renderableNode)
+  }
+  const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => (
+    <Switch>
+      <Match when={asText(parts()[leafProps.node.index])}>
+        {(part) => <Markdown content={part().content} streaming={streamingAt(leafProps.node.index)} />}
+      </Match>
+      <Match when={asToolCall(parts()[leafProps.node.index])}>
+        {(part) => (
+          <ToolCallCard
+            part={part()}
+            result={message.pairing().byCallId.get(part().id)}
+            ctx={ctx}
+            durationMs={ctx.durationFor?.(part().id)}
+            tools={() => props.entries}
+            fallback={props.fallback}
+          />
+        )}
+      </Match>
+    </Switch>
+  )
+  const NodeView = (nodeProps: {node: GroupNode; streaming: boolean}): JSX.Element => (
+    <Switch>
+      <Match when={asGroupNode(nodeProps.node)}>
+        {(group) => (
+          <Show
+            when={entryFor(group().key)}
+            fallback={<NodeListView nodes={group().children} streaming={nodeProps.streaming} />}
+          >
+            {(entry) => (
+              <Dynamic
+                component={entry().render}
+                node={group()}
+                parts={parts}
+                resultFor={(toolCallId: string) => message.pairing().byCallId.get(toolCallId)}
+                streaming={nodeProps.streaming}
+              >
+                <NodeListView nodes={group().children} streaming={nodeProps.streaming} />
+              </Dynamic>
+            )}
+          </Show>
+        )}
+      </Match>
+      <Match when={asPartNode(nodeProps.node)}>{(leaf) => <PartLeaf node={leaf()} />}</Match>
+    </Switch>
+  )
+  const NodeListView = (listProps: {nodes: readonly GroupNode[]; streaming: boolean}): JSX.Element => {
+    const lastRenderableIndex = createMemo(() => listProps.nodes.map(renderableNode).lastIndexOf(true))
+    return (
+      <Index each={listProps.nodes}>
+        {(node, index) => <NodeView node={node()} streaming={listProps.streaming && index === lastRenderableIndex()} />}
+      </Index>
+    )
+  }
+  return (
+    <Message.Root data-pw-msg class={message.isLast() ? ASSISTANT_ROOT_CLASS : ASSISTANT_ROOT_SETTLED_CLASS}>
+      <NodeListView nodes={nodes()} streaming={thread.isRunning && message.isLast()} />
       <Message.Error />
       <AssistantActionBar />
     </Message.Root>
@@ -288,6 +285,8 @@ type ThreadConfig = {
   turnPrefix: () => ((turn: Turn) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
   pageSession: () => PageSessionConfig | undefined
+  grouping: () => Grouping | undefined
+  groupEntries: () => readonly GroupEntry[]
 }
 
 const ThreadConfigContext = createContext<ThreadConfig>({
@@ -297,6 +296,8 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   turnPrefix: () => undefined,
   attachmentCards: () => [],
   pageSession: () => undefined,
+  grouping: () => undefined,
+  groupEntries: () => [],
 })
 
 function TurnPrefix(): JSX.Element {
@@ -313,7 +314,13 @@ function AssistantMessageView(): JSX.Element {
       <Show
         when={config.assistant()}
         fallback={
-          <AssistantTurn entries={config.entries()} fallback={config.fallback()} pageSession={config.pageSession()} />
+          <AssistantTurn
+            entries={config.entries()}
+            fallback={config.fallback()}
+            pageSession={config.pageSession()}
+            grouping={config.grouping()}
+            groupEntries={config.groupEntries()}
+          />
         }
       >
         {(component) => <Dynamic component={component()} />}
@@ -361,18 +368,9 @@ function ThreadWelcome(props: ParentProps): JSX.Element {
 
 function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
   const internal = useViewportInternal()
-  const standaloneNames = createMemo(() => {
-    const names = new Set<string>()
-    for (const entry of props.tools ?? [])
-      if (entry.display === 'standalone') for (const name of entry.names) names.add(name)
-    return names
-  })
   const estimator = internal
     ? createTurnEstimator(internal.element, {
-        grouping: () => ({
-          ...pageSessionGroupingOptions(props.pageSession),
-          standalone: (name) => standaloneNames().has(name),
-        }),
+        grouping: () => props.grouping ?? createGrouping(props.pageSession, props.tools ?? []),
         exactAllowed: () => props.turnPrefix === undefined,
         disabled: () => props.components?.AssistantMessage !== undefined,
       })
@@ -386,6 +384,8 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         turnPrefix: () => props.turnPrefix,
         attachmentCards: () => props.attachmentCards ?? [],
         pageSession: () => props.pageSession,
+        grouping: () => props.grouping,
+        groupEntries: () => props.groupEntries ?? [],
       }}
     >
       <TurnEstimateProvider value={estimator}>

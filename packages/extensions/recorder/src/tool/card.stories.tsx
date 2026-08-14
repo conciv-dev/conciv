@@ -51,3 +51,21 @@ export const ErrorState: Story = {
     await waitFor(() => expect(canvas.getByText('no active capture cap_9')).toBeVisible())
   },
 }
+
+export const Recording: Story = {
+  render: () => (
+    <div class={STORY_FRAME_CLASS}>
+      <RecordingToolCard
+        part={storyPart('recording_pull', {secondsBack: 30}, 'input-complete')}
+        result={undefined}
+        ctx={storyCtx({})}
+        addResult={storyAddResult}
+      />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button'))
+    await waitFor(() => expect(canvas.getByText('recording…')).toBeVisible())
+  },
+}

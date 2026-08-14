@@ -1,16 +1,15 @@
 import {Match, Show, Switch, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CardShell, ErrorBlock, JsonTree, cardHeader, detailChips} from '@conciv/ui-kit-chat/tools'
+import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {
   ChipRow,
   ELEMENT_TARGET_KEYS,
   QUIET_TEXT_CLASS,
   cardErrorMessage,
   cardPayload,
-  elementTargetValue,
+  elementChip,
   mutatingBadge,
-  toolInput,
 } from './shared.js'
 
 const SourcePayload = z.looseObject({
@@ -75,9 +74,6 @@ function trackOf(payload: unknown): TrackReportView | undefined {
 
 export function ReactCard(props: ToolCardProps): JSX.Element {
   const {meta, title} = cardHeader(props)
-  const input = () => toolInput(props.part)
-  const element = () => elementTargetValue(input())
-  const chips = () => detailChips(meta(), input(), ELEMENT_TARGET_KEYS)
   const payload = () => cardPayload(props.result)
   const descriptor = () => sourceOf(payload())
   const track = () => trackOf(payload())
@@ -90,6 +86,8 @@ export function ReactCard(props: ToolCardProps): JSX.Element {
       part={props.part}
       result={props.result}
       durationMs={props.durationMs}
+      chipSkip={ELEMENT_TARGET_KEYS}
+      leadChip={elementChip(props.part)}
     >
       <div class="flex flex-col gap-1.5">
         <Show when={descriptor().component !== undefined || descriptor().location !== undefined}>
@@ -98,7 +96,6 @@ export function ReactCard(props: ToolCardProps): JSX.Element {
             <Show when={descriptor().location}>{(location) => <span class={SOURCE_LOCATION}>{location()}</span>}</Show>
           </p>
         </Show>
-        <ChipRow element={element()} chips={chips()} />
         <Switch>
           <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
           <Match when={track()}>

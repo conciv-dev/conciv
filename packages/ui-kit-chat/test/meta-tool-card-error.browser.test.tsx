@@ -1,10 +1,11 @@
 import 'virtual:uno.css'
 import {expect, it} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolCatalogView, ToolViewCtx, ToolViewMeta} from '@conciv/protocol/tool-view-types'
+import type {ToolResultPart} from '@tanstack/ai-client'
+import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {MetaToolCard} from '../src/tools/styled/meta-tool-card.js'
-import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '../src/store/tool-context.js'
+import {INERT_ADD_RESULT} from '../src/store/tool-context.js'
+import {cardPart as part, cardResult, catalogOf, ctxWith} from './card-fixtures.js'
 import {mountView} from './mount-view.js'
 
 const fillMeta: ToolViewMeta = {
@@ -36,24 +37,12 @@ const shipMeta: ToolViewMeta = {
   outputSchema: {type: 'string'},
 }
 
-function catalogOf(entries: Record<string, ToolViewMeta>): ToolCatalogView {
-  return {loaded: () => true, meta: (name) => entries[name]}
-}
-
-function ctxWith(catalog: ToolCatalogView): ToolViewCtx {
-  return {...INERT_TOOL_CTX, catalog}
-}
-
-function part(name: string, input: Record<string, unknown>): ToolCallPart {
-  return {type: 'tool-call', id: 'e1', name, arguments: JSON.stringify(input), input, state: 'complete'}
-}
-
 function errorResult(content: string): ToolResultPart {
-  return {type: 'tool-result', toolCallId: 'e1', content, state: 'error'}
+  return cardResult(content, 'error')
 }
 
 function successResult(content: string): ToolResultPart {
-  return {type: 'tool-result', toolCallId: 'e1', content, state: 'complete'}
+  return cardResult(content, 'complete')
 }
 
 it('a structured payload whose code matches a declared error renders the declared message', async () => {
