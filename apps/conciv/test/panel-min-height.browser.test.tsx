@@ -53,6 +53,18 @@ test('the composer stays reachable when the viewport clamps the panel below its 
   await expect.element(page.getByText('still typeable at the smallest panel')).toBeVisible()
 })
 
+test('the grabs strip resizes through the shared separator handle', async () => {
+  await page.viewport(1000, 900)
+  localStorage.removeItem('conciv-grab-strip-height')
+  openPanel()
+
+  const handle = page.getByRole('separator', {name: 'Resize grabs height'})
+  await expect.element(handle).toBeVisible()
+  await expect.element(handle).toHaveAttribute('aria-valuenow', '288')
+  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
+  await expect.element(page.getByText('the grabbed nav')).toBeVisible()
+})
+
 test('the staged grabs come back into the flow once the panel has room again', async () => {
   await page.viewport(1000, 400)
   openPanel()

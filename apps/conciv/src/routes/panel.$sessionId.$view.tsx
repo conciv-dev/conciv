@@ -8,6 +8,7 @@ import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {appendDraft} from '../pane/draft-storage.js'
 import {GrabReference} from '../pane/grab-reference.js'
+import {GrabStrip} from '../pane/grab-strip.js'
 
 export const Route = createFileRoute('/panel/$sessionId/$view')({component: PanelView})
 
@@ -60,11 +61,11 @@ function PanelView(): JSX.Element {
             class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
           >
             <Show when={pane.grabStore.grabs().length > 0}>
-              <div class="px-2.5 pt-2 flex flex-wrap gap-2 min-h-0 max-h-72 overflow-y-auto resize-y">
+              <GrabStrip class="px-2.5 flex flex-wrap gap-2">
                 <For each={pane.grabStore.grabs()}>
                   {(grab) => <GrabReference grab={grab} onRemove={() => pane.grabStore.remove(grab)} />}
                 </For>
-              </div>
+              </GrabStrip>
             </Show>
             <Suspense>
               <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
