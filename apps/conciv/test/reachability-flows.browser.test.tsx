@@ -1,36 +1,13 @@
 import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import {render} from '@solidjs/testing-library'
-import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeBrowserRpcClient} from '@conciv/contract'
-import {parseConcivSettings} from '../src/data/settings.js'
-import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
-import {CORE_BASE, installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
+import {createShellHarness} from './helpers/shell-harness.js'
 
 const PANEL_SESSION = 'conciv_1'
-let core: FakeCore | null = null
-let mountedRouter: ReturnType<typeof createConcivRouter> | null = null
+const harness = createShellHarness(PANEL_SESSION)
+const mountShell = harness.mountShell
 
-afterEach(() => {
-  if (mountedRouter) disposeConcivRouter(mountedRouter)
-  mountedRouter = null
-  core?.restore()
-  core = null
-})
-
-function mountShell(entry: string, config: Parameters<typeof installFakeCore>[0] = {}): void {
-  core = installFakeCore({sessions: [sessionRow({id: PANEL_SESSION})], ...config})
-  const router = createConcivRouter({
-    rpc: makeBrowserRpcClient(CORE_BASE, {transport: 'fetch'}).rpc,
-    history: createMemoryHistory({initialEntries: [entry]}),
-    environment: {rootNode: document, document},
-    settings: parseConcivSettings(''),
-    apiBase: () => CORE_BASE,
-  })
-  mountedRouter = router
-  render(() => <RouterProvider router={router} />)
-}
+afterEach(harness.dispose)
 
 const errorScreen = () => page.getByText(/couldn.t reach the engine/)
 const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -43,7 +20,7 @@ test('a dead engine at boot shows our error screen, not the generic boundary, an
   await expect.element(errorScreen(), {timeout: 8000}).toBeVisible()
   await expect.element(genericBoundary()).not.toBeInTheDocument()
 
-  core?.setNetworkFail(false)
+  harness.core()?.setNetworkFail(false)
   await page
     .getByRole('alert')
     .filter({hasText: /couldn.t reach the engine/})
@@ -64,11 +41,11 @@ test('a sustained outage raises exactly one standing notice, and it clears once 
   mountShell(`/panel/${PANEL_SESSION}?open=true`)
   await expect.element(editor(), {timeout: 8000}).toBeVisible()
 
-  core?.setNetworkFail(true)
+  harness.core()?.setNetworkFail(true)
   await expect.element(engineUnreachableNotice(), {timeout: 8000}).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Retry'})).toBeVisible()
 
-  core?.setNetworkFail(false)
+  harness.core()?.setNetworkFail(false)
   await expect.element(engineUnreachableNotice(), {timeout: 8000}).not.toBeInTheDocument()
 })
 
@@ -90,7 +67,7 @@ test('the composer disables sending with a distinct message once the engine is u
   await expect.element(editor(), {timeout: 8000}).toBeVisible()
   await editor().fill('rename the widget package')
 
-  core?.setNetworkFail(true)
+  harness.core()?.setNetworkFail(true)
 
   await expect
     .element(page.getByRole('button', {name: 'conciv lost connection to the engine'}), {timeout: 8000})

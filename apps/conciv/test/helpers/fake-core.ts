@@ -21,6 +21,7 @@ export type FakeCore = {
   restore: () => void
   setEngine: (next: {stale: boolean; fingerprint?: string}) => void
   setNetworkFail: (fail: boolean) => void
+  setResolveRejects: (fail: boolean) => void
 }
 
 const QUIET_MS = 60
@@ -38,6 +39,7 @@ export type FakeCoreConfig = {
   launchRejects?: boolean
   engineStale?: boolean
   networkFail?: boolean
+  resolveRejects?: boolean
 }
 
 export function sessionRow(overrides: Partial<SessionMeta> & {id: string}): SessionMeta {
@@ -91,6 +93,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
   let subscribes = 0
   let snapshotReleased = false
   let networkFail = config.networkFail ?? false
+  let resolveRejects = config.resolveRejects ?? false
   if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = CORE_BASE
   let inFlight = 0
   let quietTimer: ReturnType<typeof setTimeout> | undefined
@@ -127,6 +130,9 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     setNetworkFail: (fail) => {
       networkFail = fail
     },
+    setResolveRejects: (fail) => {
+      resolveRejects = fail
+    },
   }
 
   const liveStream = (signal: AbortSignal): Response => {
@@ -150,7 +156,10 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
 
   const routes: Record<string, (body: unknown, signal: AbortSignal) => Response> = {
     '/rpc/sessions/list': () => reply(config.sessions ?? [sessionRow({id: 'conciv_1'})]),
-    '/rpc/sessions/resolve': () => reply({sessionId: config.sessions?.[0]?.id ?? 'conciv_1'}),
+    '/rpc/sessions/resolve': () =>
+      resolveRejects
+        ? new Response('resolve refused', {status: 500})
+        : reply({sessionId: config.sessions?.[0]?.id ?? 'conciv_1'}),
     '/rpc/sessions/create': () => reply({sessionId: 'conciv_2'}),
     '/rpc/sessions/compact': () => reply({ok: true}),
     '/rpc/drafts/get': () => reply(config.draft ?? null),
