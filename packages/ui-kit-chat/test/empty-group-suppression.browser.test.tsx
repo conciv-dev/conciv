@@ -7,7 +7,7 @@ import type {MessagePart, UIMessage} from '@tanstack/ai-client'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {PAGE_SESSION_GROUP_KEY, type GroupEntry, type GroupRenderProps} from '../src/store/grouping.js'
 import {pageSessionCallParts, type PageSessionConfig} from '../src/store/page-session.js'
-import {createReasoningChunks, storyConnection} from '../src/store/story-connection.js'
+import {createReasoningChunks, createTextChunks, storyConnection} from '../src/store/story-connection.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 import {haltRun, RunSettledIndicator, startRun} from './run-harness.js'
@@ -101,7 +101,7 @@ it('keeps a chain group for a thinking part that has content', async () => {
 function StreamingEmptyThinkingThread(): JSX.Element {
   const chat = useChat({
     connection: storyConnection({
-      chunks: [...createReasoningChunks(' ', 'blank-thought')],
+      chunks: [...createReasoningChunks(' ', 'blank-thought'), ...createTextChunks('blank run reply', 'blank-reply')],
       chunkDelay: 1,
       runsUntilStopped: true,
     }),
@@ -128,6 +128,7 @@ it('opens no streaming group for a blank thinking part mid-run', async () => {
   mountView(() => <StreamingEmptyThinkingThread />)
 
   await startRun()
+  await expect.element(page.getByText('blank run reply'), {timeout: 3000}).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Working…'})).not.toBeInTheDocument()
 
   await haltRun()
