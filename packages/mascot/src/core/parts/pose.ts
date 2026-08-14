@@ -14,8 +14,8 @@ const HEAD_ORIGIN = '50% 80%'
 const EYES_ORIGIN = '49.6% 58.6%'
 
 const HEAD_POSED_PROPERTIES = 'yPercent,rotation,scaleX,scaleY'
-const EYES_POSED_PROPERTIES = 'scaleX,scaleY'
-const ANTENNA_POSED_PROPERTIES = 'rotation,scaleX,scaleY'
+const EYES_POSED_PROPERTIES = 'scaleX'
+const ANTENNA_POSED_PROPERTIES = 'rotation'
 
 const AWAKE_HEAD_Y_PERCENT = -2
 const AWAKE_ANTENNA_ROTATION_DEG = -4

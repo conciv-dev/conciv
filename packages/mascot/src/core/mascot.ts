@@ -4,7 +4,13 @@ import {type ActivityController, createActivityController} from './parts/activit
 import {createFollowController, type FollowController, wrapForLean} from './parts/follow.js'
 import {createPoseController, type PoseController} from './parts/pose.js'
 
-export type MascotParts = {stage: HTMLElement; head: HTMLElement; eyes: HTMLElement; antenna: HTMLElement}
+export type MascotParts = {
+  stage: HTMLElement
+  head: HTMLElement
+  eyes: HTMLElement
+  antenna: HTMLElement
+  effectHost?: HTMLElement
+}
 
 export type MascotPartRef = (element: HTMLElement | null) => void
 
@@ -43,23 +49,27 @@ type Slots = {
 
 const followTarget = (config: MascotConfig): boolean => config.follow && !config.working && !reduceMotion()
 
-function samePartsAs(registration: Registration, parts: MascotParts): boolean {
-  const current = registration.parts
-  if (current.stage !== parts.stage || current.head !== parts.head) return false
+function sameLayersAs(current: MascotParts, parts: MascotParts): boolean {
+  if (current.head !== parts.head) return false
   return current.eyes === parts.eyes && current.antenna === parts.antenna
 }
 
+function samePartsAs(registration: Registration, parts: MascotParts): boolean {
+  const current = registration.parts
+  if (current.stage !== parts.stage || current.effectHost !== parts.effectHost) return false
+  return sameLayersAs(current, parts)
+}
+
 function layersOf(slots: Slots, stage: HTMLElement): MascotParts | undefined {
-  const {head, eyes, antenna} = slots
+  const {head, eyes, antenna, effectHost} = slots
   if (head === undefined || eyes === undefined) return undefined
   if (antenna === undefined) return undefined
-  return {stage, head, eyes, antenna}
+  return {stage, head, eyes, antenna, effectHost}
 }
 
 function readyParts(slots: Slots): MascotParts | undefined {
-  const stage = slots.effectHost ?? slots.root
-  if (stage === undefined) return undefined
-  return layersOf(slots, stage)
+  if (slots.root === undefined) return undefined
+  return layersOf(slots, slots.root)
 }
 
 function applyPose(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
@@ -83,7 +93,8 @@ function startWorking(registration: Registration): void {
 function applyWork(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
   if (!previous.working) return startWorking(registration)
   if (previous.state === next.state) return
-  registration.activity.start(registration.pose.eyeRestScaleY())
+  registration.activity.setEyeRest(registration.pose.eyeRestScaleY())
+  registration.activity.trackTip()
 }
 
 function endWork(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
@@ -118,7 +129,11 @@ export function createMascot(initial: MascotConfig): MascotService {
     const leanWrapper = wrapForLean(parts.antenna)
     const pose = createPoseController(parts)
     const follow = createFollowController({eyes: parts.eyes, leanWrapper})
-    const activity = createActivityController({stage: parts.stage, antenna: parts.antenna, eyes: parts.eyes})
+    const activity = createActivityController({
+      stage: parts.effectHost ?? parts.stage,
+      antenna: parts.antenna,
+      eyes: parts.eyes,
+    })
     registration = {parts, leanWrapper, pose, follow, activity}
     pose.set(config.state)
     if (config.working) activity.start(pose.eyeRestScaleY())

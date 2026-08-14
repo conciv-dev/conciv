@@ -5,7 +5,10 @@ export type MascotConfig = {state: MascotState; working: boolean; follow: boolea
 export const reduceMotion = (): boolean =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
-export const ANTENNA_TRANSFORM_ORIGIN = '50% 32.8%'
+export const ANTENNA_ORIGIN_FRACTION_X = 0.5
+export const ANTENNA_ORIGIN_FRACTION_Y = 0.328
+
+export const ANTENNA_TRANSFORM_ORIGIN = `${ANTENNA_ORIGIN_FRACTION_X * 100}% ${ANTENNA_ORIGIN_FRACTION_Y * 100}%`
 
 export const GAZE_FALLOFF_PX = 220
 export const GAZE_EYE_RANGE_PX = 3
@@ -50,6 +53,7 @@ export const BINARY_EMITTER_DIGIT_TOP_PX = -12
 export const TIP_FRACTION_X = 0.5
 export const TIP_FRACTION_Y = 0.15625
 export const TIP_SCALE = 0.2
+export const TIP_TRACK_DURATION_S = 0.45
 
 export const ENTER_EASE = 'back.out(2.2)'
 export const ENTER_DURATION_S = 0.36

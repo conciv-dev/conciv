@@ -12,6 +12,7 @@ import {
   GAZE_WRAPPER_QUICK_TO_EASE,
   reduceMotion,
 } from '../config.js'
+import {antennaOriginOffset} from '../tip-anchor.js'
 
 export type FollowParts = {eyes: HTMLElement; leanWrapper: HTMLElement | undefined}
 
@@ -30,6 +31,12 @@ type FollowDrivers = {
 
 const LEAN_WRAPPER_STYLE = 'position:absolute;inset:0;pointer-events:none;will-change:transform'
 
+function leanOrigin(antenna: HTMLElement, wrapper: HTMLElement): string {
+  if (antenna.offsetWidth === 0 || antenna.offsetHeight === 0) return ANTENNA_TRANSFORM_ORIGIN
+  const origin = antennaOriginOffset(antenna, wrapper)
+  return `${origin.x}px ${origin.y}px`
+}
+
 export function wrapForLean(antenna: HTMLElement): HTMLElement | undefined {
   const parent = antenna.parentElement
   if (parent === null) return undefined
@@ -38,7 +45,7 @@ export function wrapForLean(antenna: HTMLElement): HTMLElement | undefined {
   wrapper.style.cssText = LEAN_WRAPPER_STYLE
   parent.insertBefore(wrapper, antenna)
   wrapper.append(antenna)
-  gsap.set(wrapper, {transformOrigin: ANTENNA_TRANSFORM_ORIGIN})
+  gsap.set(wrapper, {transformOrigin: leanOrigin(antenna, wrapper)})
   return wrapper
 }
 
