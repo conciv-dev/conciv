@@ -120,10 +120,15 @@ function QuickLayer(): JSX.Element {
     },
   }))
 
+  const triggerAddPane = (): void => {
+    if (addPane.isPending) return
+    addPane.mutate()
+  }
+
   let wasOnline = reachability.online()
   createEffect(() => {
     const isOnline = reachability.online()
-    if (isOnline && !wasOnline && paneIds().length === 0) addPane.mutate()
+    if (isOnline && !wasOnline && paneIds().length === 0) triggerAddPane()
     wasOnline = isOnline
   })
 
@@ -160,12 +165,12 @@ function QuickLayer(): JSX.Element {
     onCollapse: () => router.history.back(),
   })
 
-  createHotkey({key: 'D', mod: true}, () => addPane.mutate())
+  createHotkey({key: 'D', mod: true}, () => triggerAddPane())
 
   let restoreFocus: HTMLElement | null = null
   onMount(() => {
     restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    if (paneIds().length === 0) addPane.mutate()
+    if (paneIds().length === 0) triggerAddPane()
   })
   onCleanup(() => restoreFocus?.focus())
 
@@ -187,7 +192,7 @@ function QuickLayer(): JSX.Element {
             const id = paneIds()[focusedIndex()]
             if (id) void router.navigate({to: '/pip/$sessionId', params: {sessionId: id}})
           }}
-          onSplit={() => addPane.mutate()}
+          onSplit={() => triggerAddPane()}
           onClose={() => router.history.back()}
         />
         <div
@@ -205,7 +210,7 @@ function QuickLayer(): JSX.Element {
               >
                 <p>{addPane.isError ? ADD_PANE_FAILED_MESSAGE : 'Starting a pane…'}</p>
                 <Show when={addPane.isError}>
-                  <Button variant="outline-danger" onClick={() => addPane.mutate()}>
+                  <Button variant="outline-danger" onClick={triggerAddPane} disabled={addPane.isPending}>
                     Retry
                   </Button>
                 </Show>
@@ -236,7 +241,7 @@ function QuickLayer(): JSX.Element {
                           variant="bar"
                           activeId={() => id}
                           onActivate={(next) => activatePane(index(), next)}
-                          onNewSession={() => addPane.mutate()}
+                          onNewSession={triggerAddPane}
                         />
                       </Suspense>
                       <Suspense fallback={<UsagePending />}>
@@ -255,7 +260,7 @@ function QuickLayer(): JSX.Element {
                     </div>
                     <Show when={id} keyed>
                       {(sessionId) => (
-                        <PaneProvider sessionId={sessionId} onNewSession={() => addPane.mutate()}>
+                        <PaneProvider sessionId={sessionId} onNewSession={triggerAddPane}>
                           <ChatPane sessionId={sessionId} />
                         </PaneProvider>
                       )}

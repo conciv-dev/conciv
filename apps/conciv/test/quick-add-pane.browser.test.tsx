@@ -2,6 +2,8 @@ import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {createShellHarness} from './helpers/shell-harness.js'
+import {sessionRow} from './helpers/fake-core.js'
+import {expectRetryRecovers} from './helpers/retry-recovery.js'
 
 const PANEL_SESSION = 'conciv_1'
 const harness = createShellHarness(PANEL_SESSION)
@@ -23,9 +25,24 @@ test('retrying a failed quick terminal pane against a healthy engine starts it',
   mountShell({resolveRejects: true})
   await expect.element(startFailure(), {timeout: 8000}).toBeVisible()
 
-  harness.core()?.setResolveRejects(false)
-  await page.getByRole('button', {name: 'Retry'}).click()
+  await expectRetryRecovers(() => harness.core()?.setResolveRejects(false), editor, startFailure)
+})
 
+test('rapid double-trigger creates exactly one pane', async () => {
+  harness.mountShell('/quick?panes=conciv_1&focus=0', {
+    sessions: [sessionRow({id: 'conciv_1'})],
+    delays: {'/rpc/sessions/resolve': 300},
+  })
   await expect.element(editor(), {timeout: 8000}).toBeVisible()
-  await expect.element(startFailure()).not.toBeInTheDocument()
+
+  const splitButton = page.getByRole('button', {name: 'Split pane (Mod+D)'})
+  const firstClick = splitButton.click()
+  const secondClick = splitButton.click()
+  await Promise.all([firstClick, secondClick])
+
+  await harness.core()?.idle()
+  const addPaneCalls = harness
+    .core()
+    ?.calls.filter((call) => call.path === '/rpc/sessions/resolve' && Object.keys(call.body ?? {}).length === 0).length
+  expect(addPaneCalls).toBe(1)
 })

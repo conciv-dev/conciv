@@ -2,6 +2,7 @@ import './helpers/utilities.css'
 import {afterEach, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {createShellHarness} from './helpers/shell-harness.js'
+import {expectRetryRecovers} from './helpers/retry-recovery.js'
 
 const PANEL_SESSION = 'conciv_1'
 const harness = createShellHarness(PANEL_SESSION)
@@ -13,6 +14,7 @@ const errorScreen = () => page.getByText(/couldn.t reach the engine/)
 const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const genericBoundary = () => page.getByText('Something went wrong!')
 const engineUnreachableNotice = () => page.getByText('conciv lost connection to the engine.')
+const serverError = () => page.getByText('Internal Server Error')
 
 test('a dead engine at boot shows our error screen, not the generic boundary, and Retry recovers it', async () => {
   mountShell('/panel/latest?open=true', {networkFail: true})
@@ -28,6 +30,16 @@ test('a dead engine at boot shows our error screen, not the generic boundary, an
     .click()
 
   await expect.element(editor(), {timeout: 8000}).toBeVisible()
+})
+
+test('a server error while resolving /panel/latest shows the actual error, not the unreachable message', async () => {
+  mountShell('/panel/latest?open=true', {resolveRejects: true})
+
+  await expect.element(serverError(), {timeout: 8000}).toBeVisible()
+  await expect.element(errorScreen()).not.toBeInTheDocument()
+  await expect.element(genericBoundary()).not.toBeInTheDocument()
+
+  await expectRetryRecovers(() => harness.core()?.setResolveRejects(false), editor, serverError)
 })
 
 test('a healthy engine resolves /panel/latest straight to the warm session', async () => {
@@ -59,6 +71,14 @@ test('a 500 from an otherwise healthy engine never raises the unreachable notice
   await expect
     .element(page.getByRole('region', {name: /Notifications/}))
     .toHaveTextContent(/Internal Server Error|could not be sent/)
+  await expect.element(engineUnreachableNotice()).not.toBeInTheDocument()
+})
+
+test('a failing engine-info probe on an otherwise healthy connection never raises the unreachable notice', async () => {
+  mountShell(`/panel/${PANEL_SESSION}?open=true`, {rejectEngineProbe: true})
+
+  await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  await harness.core()?.idle()
   await expect.element(engineUnreachableNotice()).not.toBeInTheDocument()
 })
 

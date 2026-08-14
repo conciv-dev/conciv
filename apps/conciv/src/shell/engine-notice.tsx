@@ -35,7 +35,7 @@ export function EngineStaleNotice(): JSX.Element {
     const settledAt = engine.dataUpdatedAt
     if (settledAt === lastSettle.at) return
     lastSettle.at = settledAt
-    voteEngineProbeSettled(engine.isSuccess)
+    voteEngineProbeSettled(engine.isSuccess, engine.error)
   })
   createEffect(() => {
     const reading = engine.data
