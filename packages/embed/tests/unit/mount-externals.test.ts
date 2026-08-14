@@ -10,6 +10,16 @@ const globalBundle = readFileSync(distDir + 'conciv-widget.global.js', 'utf8')
 
 const externalized = (specifier: string) => new RegExp(`from\\s*["']${specifier.replace('/', '\\/')}`).test(mount)
 
+describe('embed mount build pins the onlineManager singleton topology (#350)', () => {
+  it('never externalizes @tanstack/query-core, so the mounted app shares one onlineManager with its own QueryClient', () => {
+    expect(externalized('@tanstack/query-core')).toBe(false)
+  })
+
+  it('never inlines @conciv/contract, so its reachability seam cannot capture a second query-core instance', () => {
+    expect(externalized('@conciv/contract')).toBe(true)
+  })
+})
+
 describe('embed mount build shares one Ark environment instance with extensions', () => {
   it('externalizes ui-kit-system so the root EnvironmentProvider and extension Combobox read the same context', () => {
     expect(externalized('@conciv/ui-kit-system')).toBe(true)

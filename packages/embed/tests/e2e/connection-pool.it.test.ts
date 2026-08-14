@@ -1,32 +1,16 @@
 import {expect, test, type BrowserContext, type Page} from '@playwright/test'
 import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
-import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {hostPage, serveHost} from '../helpers/host.js'
-import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
 import {setNavigation} from './helpers/navigation.js'
+import {setupProxiedEmbedSuite} from './helpers/proxied-suite.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
 const SHARED_CONTEXT_TAB_COUNT = 6
 const MOUNT_TIMEOUT_MS = 20_000
 
-let kit: EmbedKit
-let core: ProxyCore
-let host: {base: string; close: () => Promise<void>}
-
-test.beforeAll(async () => {
-  kit = await bootEmbedKit({text: ASSISTANT_TEXT})
-  core = await proxyTo(kit.base)
-  host = await serveHost(() => hostPage({apiBase: core.base, widget: '{"quickTerminal":false}'}))
-})
-
-test.afterAll(async () => {
-  await host.close()
-  await core.close()
-  await kit.cleanup()
-})
+const suite = setupProxiedEmbedSuite({text: ASSISTANT_TEXT})
 
 test.beforeEach(async () => {
-  expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
+  expect(await setNavigation(suite.kit(), [{href: '/'}])).toBe(true)
 })
 
 type Tab = {page: Page; observer: RpcObserver; httpRpcUrls: string[]}
@@ -39,7 +23,7 @@ async function openTab(context: BrowserContext): Promise<Tab> {
     if (pathname.startsWith('/rpc/') || pathname === '/rpc') httpRpcUrls.push(request.url())
   })
   const observer = observeRpc(page)
-  await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
   await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
   return {page, observer, httpRpcUrls}
 }
