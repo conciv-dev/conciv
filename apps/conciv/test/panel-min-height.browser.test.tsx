@@ -40,8 +40,8 @@ function openPanel(): void {
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
-test('the composer stays reachable when the panel is shorter than everything stacked above it', async () => {
-  await page.viewport(1000, 430)
+test('the composer stays reachable when the viewport clamps the panel below its minimum height', async () => {
+  await page.viewport(1000, 400)
   openPanel()
 
   await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
@@ -54,7 +54,7 @@ test('the composer stays reachable when the panel is shorter than everything sta
 })
 
 test('the staged grabs come back into the flow once the panel has room again', async () => {
-  await page.viewport(1000, 430)
+  await page.viewport(1000, 400)
   openPanel()
 
   await expect.element(input()).toBeVisible()

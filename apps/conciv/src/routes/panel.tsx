@@ -23,7 +23,7 @@ const PANEL_OPEN =
   'pointer-events-auto visible trans-pop-in opacity-100 [transform:none] starting:opacity-0 starting:[transform:translateY(8px)_scale(0.98)]'
 const PANEL_CLOSING = 'pointer-events-none invisible trans-pop-out opacity-0 [transform:translateY(8px)_scale(0.98)]'
 
-const PANEL_MIN_HEIGHT = 320
+const PANEL_MIN_HEIGHT = 400
 
 const RESIZE = 'absolute z-[3] focus-visible:outline-none focus-visible:bg-pw-accent-20 focus-visible:ring-inset-accent'
 const RESIZE_Y = 'left-0 right-0 h-2 cursor-ns-resize'

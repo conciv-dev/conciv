@@ -101,7 +101,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
       attachmentAdapter={props.attachmentAdapter}
       draftStorage={props.draftStorage}
       draftKey={props.draftKey}
-      class="flex flex-col gap-1.5 relative"
+      class="flex flex-col gap-1.5 relative shrink-0"
     >
       <div class="rounded-[var(--chat-radius-md)] flex flex-col [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] empty:hidden">
         <ComposerPrimitive.Queue>

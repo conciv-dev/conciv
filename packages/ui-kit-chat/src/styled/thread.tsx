@@ -396,7 +396,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
 }
 
 function ThreadComposer(props: ParentProps): JSX.Element {
-  return <div class="p-2 shrink-0 [border-top:1px_solid_var(--chat-line)]">{props.children}</div>
+  return <div class="p-2 flex flex-col min-h-0 [border-top:1px_solid_var(--chat-line)]">{props.children}</div>
 }
 
 export const Thread = Object.assign(ThreadRoot, {
