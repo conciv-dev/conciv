@@ -7,7 +7,7 @@ import ListTodo from 'lucide-solid/icons/list-todo'
 import type {LucideIcon} from 'lucide-solid'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Todo, useTodo, type TodoItemStatus} from '../../primitives/tools/todo.js'
-import {ToolCard} from '@conciv/ui-kit-chat/tools'
+import {QUIET_TEXT_CLASS, ToolCard} from '@conciv/ui-kit-chat/tools'
 const STATUS_ICON: Record<TodoItemStatus, LucideIcon> = {
   pending: CircleDashed,
   in_progress: Circle,
@@ -34,7 +34,7 @@ function Icon(): JSX.Element {
 function Body(): JSX.Element {
   const view = useTodo()
   return (
-    <Show when={view.total()}>
+    <Show when={view.total()} fallback={<p class={QUIET_TEXT_CLASS}>no to-dos yet</p>}>
       <ul class="text-[length:var(--chat-text-md)] m-0 p-0 list-none">
         <For each={view.todos()}>
           {(todo) => (

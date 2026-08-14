@@ -276,7 +276,9 @@ export function UiCard(props: ToolCardProps): JSX.Element {
       <div class={BODY}>
         <Show when={question()}>{(text) => <p class={QUESTION}>{text()}</p>}</Show>
         <Show when={!settled()} fallback={<Answered answer={answer()} />}>
-          <Show when={input()}>{(spec) => <Pending spec={spec()} disabled={sent()} onAnswer={answerWith} />}</Show>
+          <Show when={input()} fallback={<p class={SENT}>waiting for the form</p>}>
+            {(spec) => <Pending spec={spec()} disabled={sent()} onAnswer={answerWith} />}
+          </Show>
           <Show when={sent()}>
             <p role="status" class={SENT}>
               Sending your answer…

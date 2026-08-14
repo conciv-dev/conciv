@@ -107,7 +107,7 @@ it('MetaToolCard shows the error block alongside its input chips for an error-on
   await expect.element(page.getByText('element not found')).toBeVisible()
 })
 
-it('ToolFallback shows the raw args block for a zero-argument call', async () => {
+it('ToolFallback shows a quiet no-input row for a zero-argument call', async () => {
   mountView(() => (
     <ToolFallback
       part={{type: 'tool-call', id: 'z1', name: 'ping', arguments: '', state: 'complete'}}
@@ -119,5 +119,19 @@ it('ToolFallback shows the raw args block for a zero-argument call', async () =>
 
   await expect.element(page.getByRole('button')).toHaveAttribute('aria-expanded', 'false')
   await page.getByRole('button').click()
-  await expect.element(page.getByText(/\{\}/).first()).toBeVisible()
+  await expect.element(page.getByText('no input')).toBeVisible()
+})
+
+it('ToolFallback shows a quiet no-input row for whitespace-only arguments', async () => {
+  mountView(() => (
+    <ToolFallback
+      part={{type: 'tool-call', id: 'z2', name: 'ping', arguments: '   ', state: 'complete'}}
+      result={undefined}
+      ctx={INERT_TOOL_CTX}
+      addResult={INERT_ADD_RESULT}
+    />
+  ))
+
+  await page.getByRole('button').click()
+  await expect.element(page.getByText('no input')).toBeVisible()
 })

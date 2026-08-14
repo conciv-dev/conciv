@@ -5,6 +5,8 @@ export type CardPhase = 'running' | 'done'
 
 export const MUTATING_BADGE = 'edits page'
 
+export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 [color:var(--chat-text-3)]'
+
 export const DANGER_TEXT_CLASS =
   'text-[length:var(--chat-text-sm)] whitespace-pre-wrap [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'
 

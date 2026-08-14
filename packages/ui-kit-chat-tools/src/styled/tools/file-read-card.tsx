@@ -2,7 +2,7 @@ import {Show, type JSX} from 'solid-js'
 import FileText from 'lucide-solid/icons/file-text'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {FileRead, useFileRead} from '../../primitives/tools/file-read.js'
-import {Chip, CodeBlock, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {Chip, CodeBlock, QUIET_TEXT_CLASS, ToolCard} from '@conciv/ui-kit-chat/tools'
 
 function Icon(): JSX.Element {
   return <FileText size={14} aria-hidden="true" />
@@ -14,7 +14,7 @@ function Body(): JSX.Element {
     <Show
       when={view.contents()}
       fallback={
-        <Show when={view.path()}>
+        <Show when={view.path()} fallback={<p class={QUIET_TEXT_CLASS}>waiting for the file</p>}>
           <Chip kind="pill" value={`${view.path()}${view.range() ?? ''}`} />
         </Show>
       }

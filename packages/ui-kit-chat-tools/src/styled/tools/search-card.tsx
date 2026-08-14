@@ -1,11 +1,18 @@
 import {Show, type JSX} from 'solid-js'
 import SearchIcon from 'lucide-solid/icons/search'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolStatus} from '@conciv/ui-kit-chat/tools'
 import {Search, useSearch} from '../../primitives/tools/search.js'
-import {CodeBlock, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {CodeBlock, QUIET_TEXT_CLASS, ToolCard} from '@conciv/ui-kit-chat/tools'
 
 function Icon(): JSX.Element {
   return <SearchIcon size={14} />
+}
+
+function emptyLabel(status: ToolStatus): string {
+  if (status === 'running') return 'searching…'
+  if (status === 'error') return 'the search failed'
+  return 'no matches'
 }
 
 function Body(): JSX.Element {
@@ -18,7 +25,7 @@ function Body(): JSX.Element {
       result={search.result()}
       meta={search.meta()}
     >
-      <Show when={search.count() > 0}>
+      <Show when={search.count() > 0} fallback={<p class={QUIET_TEXT_CLASS}>{emptyLabel(search.status())}</p>}>
         <CodeBlock size="xs" maxHeight="result" file={{name: 'results.txt', lang: 'text', contents: search.text()}} />
       </Show>
     </ToolCard>

@@ -89,6 +89,9 @@ export function RecordingToolCard(props: ToolCardProps): JSX.Element {
           </For>
         </div>
       </Show>
+      <Show when={!recording().error && !settled()}>
+        <span class="text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]">recording…</span>
+      </Show>
       <Show when={!recording().error && settled() && recording().actions.length === 0 && !recording().captureId}>
         <span class="text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]">no recorded activity</span>
       </Show>

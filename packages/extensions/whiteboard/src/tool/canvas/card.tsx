@@ -116,19 +116,15 @@ export function CanvasOpCard(props: ToolCardProps): JSX.Element {
       status={failure() ? 'error' : undefined}
     >
       <div class="flex flex-col gap-2">
-        <Show when={destructive()}>
-          <div class="flex">
+        <div class="flex flex-wrap gap-1.5">
+          <Show when={destructive()} fallback={<Chip kind="pill" value={op()} />}>
             <Chip kind="pill" tone="danger" value={`${op()} ${summarize(op(), props.part, detail())}`.trim()} />
-          </div>
-        </Show>
+          </Show>
+          <Show when={!media().imageUrl && !destructive() && summarize(op(), props.part, detail())}>
+            {(text) => <Chip kind="pill" value={text()} />}
+          </Show>
+        </div>
         <Show when={media().imageUrl}>{(imageUrl) => <ResultImage src={imageUrl()} alt={`canvas ${op()}`} />}</Show>
-        <Show when={!media().imageUrl && !destructive() && summarize(op(), props.part, detail())}>
-          {(text) => (
-            <div class="flex">
-              <Chip kind="pill" value={text()} />
-            </div>
-          )}
-        </Show>
         <Show when={failure()}>
           {(error) => <ErrorBlock message={error().reason ? `${error().error} · ${error().reason}` : error().error} />}
         </Show>

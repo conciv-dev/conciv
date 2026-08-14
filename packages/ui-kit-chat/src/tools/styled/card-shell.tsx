@@ -4,7 +4,14 @@ import {Dynamic} from 'solid-js/web'
 import {z} from 'zod'
 import type {ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
-import {cardPhase, cardTitle, clip, displayValue, type CardPhase} from '../primitives/tool-presentation.js'
+import {
+  cardPhase,
+  cardTitle,
+  clip,
+  displayValue,
+  QUIET_TEXT_CLASS,
+  type CardPhase,
+} from '../primitives/tool-presentation.js'
 import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {parseInput} from '../primitives/tool-util.js'
 import {schemaFields} from '../primitives/schema-params.js'
@@ -13,8 +20,6 @@ import {ToolCard} from './tool-card.js'
 import {Chip, ChipRow} from './chip.js'
 
 const InputRecord = z.record(z.string(), z.unknown())
-
-const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 [color:var(--chat-text-3)]'
 
 export function cardHeader(props: ToolCardProps): {
   meta: () => ToolViewMeta | undefined

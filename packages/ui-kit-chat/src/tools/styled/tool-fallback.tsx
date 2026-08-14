@@ -6,6 +6,7 @@ import {ToolFallback as ToolFallbackPrimitive, useToolFallback} from '../primiti
 import {Permission, usePermission} from '../primitives/permission.js'
 import {StatusVisual} from '../primitives/status-visual.js'
 import {formatDuration} from '../primitives/tool-util.js'
+import {QUIET_TEXT_CLASS} from '../primitives/tool-presentation.js'
 import {SHIMMER} from '../../styled/shimmer.js'
 import {FOCUS} from '../../styled/classes.js'
 import {ActionRow, ActionButton} from './action-row.js'
@@ -66,9 +67,13 @@ function Content(props: {children: JSX.Element}): JSX.Element {
 
 function Args(): JSX.Element {
   const tool = useToolFallback()
+  const hasInput = () => {
+    const text = tool.argsText().trim()
+    return text.length > 0 && text !== '{}'
+  }
   return (
-    <Show when={tool.argsText()}>
-      {(text) => <CodeBlock maxHeight="log" file={{name: 'args.txt', lang: 'text', contents: text()}} />}
+    <Show when={hasInput()} fallback={<p class={QUIET_TEXT_CLASS}>no input</p>}>
+      <CodeBlock maxHeight="log" file={{name: 'args.txt', lang: 'text', contents: tool.argsText()}} />
     </Show>
   )
 }

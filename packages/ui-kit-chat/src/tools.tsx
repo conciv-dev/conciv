@@ -23,6 +23,7 @@ export {schemaFields, schemaParams, type SchemaField} from './tools/primitives/s
 export {
   DANGER_TEXT_CLASS,
   MUTATING_BADGE,
+  QUIET_TEXT_CLASS,
   displayValue,
   clip,
   cardPhase,
