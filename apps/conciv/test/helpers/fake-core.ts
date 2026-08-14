@@ -28,6 +28,7 @@ export type FakeCoreConfig = {
   delays?: Record<string, number | number[]>
   sessions?: SessionMeta[]
   rejectSend?: boolean
+  throwSend?: boolean
   snapshotFor?: (subscribeIndex: number) => unknown[]
   holdSnapshot?: boolean
   markers?: MarkerRow[]
@@ -168,6 +169,7 @@ export function installFakeCore(config: FakeCoreConfig = {}): FakeCore {
     '/rpc/chat/subscribe': (_body, signal) => liveStream(signal),
     '/rpc/chat/stop': () => reply({ok: true}),
     '/rpc/chat/send': () => {
+      if (config.throwSend) throw new TypeError('Failed to fetch')
       if (config.rejectSend) return new Response('send refused', {status: 500})
       queueMicrotask(() => {
         core.push({type: 'RUN_STARTED', threadId: 'conciv_1', runId: RUN_ID})

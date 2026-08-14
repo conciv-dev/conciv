@@ -287,7 +287,12 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     const staged = pane.grabStore.grabs()
     pane.grabStore.clear()
     const before = chat.error()
-    await chat.sendMessage(content)
+    try {
+      await chat.sendMessage(content)
+    } catch (failure) {
+      pane.grabStore.stageAll(staged)
+      throw failure
+    }
     if (chat.error() !== before) pane.grabStore.stageAll(staged)
   }
   const onSendError = (failure: unknown) => {

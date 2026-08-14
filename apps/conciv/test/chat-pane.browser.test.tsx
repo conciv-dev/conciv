@@ -31,6 +31,13 @@ function draftWithGrab(text: string): FakeCoreConfig['draft'] {
   }
 }
 
+async function sendWithStagedGrab(config: FakeCoreConfig): Promise<void> {
+  mountChatPane({...config, draft: draftWithGrab('the grabbed hero section')})
+  await expect.element(removeGrab()).toBeVisible()
+  await input().fill('explain the section I grabbed')
+  await userEvent.keyboard('{Enter}')
+}
+
 async function startStreamingRun(): Promise<void> {
   mountChatPane({holdRun: true})
   await input().fill('first turn')
@@ -68,26 +75,26 @@ test('a rejected send keeps the draft in the composer and tells the user why', a
 })
 
 test('sending drops the staged grab card at once, while the turn is still streaming', async () => {
-  mountChatPane({holdRun: true, draft: draftWithGrab('the grabbed hero section')})
-
-  await expect.element(removeGrab()).toBeVisible()
-  await input().fill('explain the section I grabbed')
-  await userEvent.keyboard('{Enter}')
+  await sendWithStagedGrab({holdRun: true})
 
   await expect.element(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
   await expect.element(removeGrab()).not.toBeInTheDocument()
 })
 
 test('a send the server refuses puts the staged grab card back', async () => {
-  mountChatPane({rejectSend: true, draft: draftWithGrab('the grabbed hero section')})
-
-  await expect.element(removeGrab()).toBeVisible()
-  await input().fill('explain the section I grabbed')
-  await userEvent.keyboard('{Enter}')
+  await sendWithStagedGrab({rejectSend: true})
 
   await expect
     .element(page.getByRole('region', {name: /Notifications/}))
     .toHaveTextContent(/Internal Server Error|could not be sent/)
+  await expect.element(removeGrab()).toBeVisible()
+  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
+})
+
+test('a send that throws at the transport puts the staged grab card back', async () => {
+  await sendWithStagedGrab({throwSend: true})
+
+  await expect.element(page.getByRole('region', {name: /Notifications/})).toHaveTextContent(/could not be sent|fetch/)
   await expect.element(removeGrab()).toBeVisible()
   await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
 })
