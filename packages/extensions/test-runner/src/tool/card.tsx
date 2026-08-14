@@ -16,7 +16,8 @@ import {
   resultText,
 } from '@conciv/ui-kit-chat/tools'
 import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {getHostApi, makeExtRpcClient} from '@conciv/extension'
+import {getExtensionApi, makeExtRpcClient} from '@conciv/extension'
+import {TEST_RUNNER_NAME} from '../shared/meta.js'
 import type {TestRunnerRouter} from '../server.js'
 import {
   TestRunResultSchema,
@@ -126,7 +127,7 @@ function TestRow(props: {state: RowState; name: string}): JSX.Element {
 }
 
 function TestFailure(props: {error: TestError; ctx: ToolViewCtx}): JSX.Element {
-  const openEditor = getHostApi().useOpenEditor()
+  const openEditor = getExtensionApi(TEST_RUNNER_NAME).useOpenEditor()
   const stack = () => stackDetail(props.error)
   return (
     <div class={FAILURE_BODY}>

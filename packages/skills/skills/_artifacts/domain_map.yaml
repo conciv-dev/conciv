@@ -83,7 +83,7 @@ skills:
     covers:
       - 'defineExtension, defineTool, defineAttachment'
       - 'tool contract: server/client/render, errors, approval, meta'
-      - 'getExtensionApi / getHostApi'
+      - 'getExtensionApi (extension surface) / @conciv/extension/host (host wiring surface)'
       - 'RPC to an extension server via makeExtRpcClient/subscriptionIterator'
       - '@conciv/extension-testkit'
     tasks:
@@ -101,10 +101,10 @@ skills:
           }
         correct_pattern: |
           function Surface() {
-            const host = getHostApi()
+            const host = getExtensionApi(YOUR_NAME)
             return <button onClick={() => store.set(latestValue)}>Save</button>
           }
-        source: 'packages/extension/src/hooks.tsx'
+        source: 'packages/extension/src/extension-api.ts'
         priority: 'HIGH'
         status: 'active'
         skills: ['conciv-develop']

@@ -1,5 +1,6 @@
 import {ErrorBoundary, Show, Suspense, lazy, type JSX} from 'solid-js'
-import {getHostApi} from '@conciv/extension'
+import {getExtensionApi} from '@conciv/extension'
+import {WHITEBOARD_NAME} from '../shared/meta.js'
 import {WhiteboardDbProvider} from './db.js'
 import type {Self, SurfaceState} from './surface-types.js'
 
@@ -14,7 +15,7 @@ const OverlayLoading = (): JSX.Element => <div class={NOTICE}>Loading the whiteb
 const SessionPending = (): JSX.Element => <div class={NOTICE}>Start a chat session to open the whiteboard.</div>
 
 function OverlayError(): JSX.Element {
-  const toast = getHostApi().useToast()
+  const toast = getExtensionApi(WHITEBOARD_NAME).useToast()
   toast('The whiteboard needs a running conciv server', 'error')
   return <div class={NOTICE}>The whiteboard is unavailable.</div>
 }
@@ -28,7 +29,7 @@ function selfIdentity(win: Window): Self {
 }
 
 function Board(props: {state: SurfaceState}): JSX.Element {
-  const host = getHostApi()
+  const host = getExtensionApi(WHITEBOARD_NAME)
   const sessionId = host.useSessionId()
   const apiBase = host.useApiBase()
   return (
@@ -43,7 +44,7 @@ function Board(props: {state: SurfaceState}): JSX.Element {
 }
 
 export function WhiteboardSurface(props: {state: SurfaceState}): JSX.Element {
-  const {YieldFocus} = getHostApi()
+  const {YieldFocus} = getExtensionApi(WHITEBOARD_NAME)
   return (
     <Show when={props.state.engaged()}>
       <div class="text-pw-text font-pw pointer-events-none inset-0 fixed">

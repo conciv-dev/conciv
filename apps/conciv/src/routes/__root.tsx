@@ -9,7 +9,7 @@ import {
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
-import {HostApiProvider} from '@conciv/extension'
+import {HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createSignal, onCleanup, onMount} from 'solid-js'

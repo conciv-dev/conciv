@@ -1,7 +1,7 @@
 import {Match, Show, Switch, createResource, createSignal, onCleanup, type JSX} from 'solid-js'
 import {QueryClient, QueryClientProvider, useMutation, useQuery} from '@tanstack/solid-query'
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
-import {getHostApi, makeExtRpcClient, type AttachmentCardProps} from '@conciv/extension'
+import {getExtensionApi, makeExtRpcClient, type AttachmentCardProps} from '@conciv/extension'
 import {useAttachment} from '@conciv/ui-kit-chat'
 import {Button} from '@conciv/ui-kit-system'
 import {
@@ -37,7 +37,7 @@ export function RecordingCard(props: AttachmentCardProps): JSX.Element {
 
 function CardBody(props: AttachmentCardProps): JSX.Element {
   const attachment = useAttachment()
-  const host = getHostApi()
+  const host = getExtensionApi(RECORDER_NAME)
   const apiBase = host.useApiBase()
   const toast = host.useToast()
   const Dialog = host.useDialog()

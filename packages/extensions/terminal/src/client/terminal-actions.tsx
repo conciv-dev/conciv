@@ -8,7 +8,8 @@ import type {ModelOption} from '@conciv/ui-kit-chat'
 import {Button, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {ORPCError} from '@orpc/client'
-import {getHostApi} from '@conciv/extension'
+import {getExtensionApi} from '@conciv/extension'
+import {TERMINAL_NAME} from '../shared/protocol.js'
 import {useTerminalContext} from './terminal-context.js'
 import {terminalClient} from './rpc.js'
 
@@ -45,7 +46,7 @@ function ModelList(): JSX.Element {
 }
 
 export function TerminalActions(): JSX.Element {
-  const host = getHostApi()
+  const host = getExtensionApi(TERMINAL_NAME)
   const store = useTerminalContext((context) => context.store)
   const rpc = host.useRpc()
   const apiBase = host.useApiBase()

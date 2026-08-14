@@ -1,5 +1,7 @@
 import {z} from 'zod'
-import {defineExtension, defineTool, getHostApi} from '@conciv/extension'
+import {defineExtension, defineTool, getExtensionApi} from '@conciv/extension'
+
+const DEPLOY_NAME = 'deploy'
 
 const RocketIcon = (props: {class?: string}) => (
   <svg
@@ -27,11 +29,11 @@ const deployRun = defineTool({
   .server(({env}) => ({url: `https://${env}.example.com`}))
   .render((props) => <div data-pw-deploy-card>Deploying… ({props.part.name})</div>)
 
-const deploy = defineExtension({name: 'deploy', Component: DeploySurface, tools: [deployRun]})
+const deploy = defineExtension({name: DEPLOY_NAME, Component: DeploySurface, tools: [deployRun]})
 export default deploy
 
 function DeploySurface() {
-  const host = getHostApi()
+  const host = getExtensionApi(DEPLOY_NAME)
   const slot = host.useSlot()
   const notify = host.useToast()
   if (slot === 'composer')

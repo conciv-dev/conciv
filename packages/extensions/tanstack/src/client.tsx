@@ -1,5 +1,5 @@
 import {Show, type JSX} from 'solid-js'
-import {defineExtension, getHostApi} from '@conciv/extension'
+import {defineExtension, getExtensionApi} from '@conciv/extension'
 import {InspectorChip} from './client/inspector-chip.js'
 import {tanstackVerbTools} from './client/verbs.js'
 import {installRuntimeErrorListeners} from './client/error-ring.js'
@@ -20,8 +20,10 @@ import {
 
 export {CONCIV_TANSTACK_CLIENT_SENTINEL} from './client-sentinel.js'
 
+const TANSTACK_NAME = 'tanstack'
+
 function Component(): JSX.Element {
-  const slot = getHostApi().useSlot()
+  const slot = getExtensionApi(TANSTACK_NAME).useSlot()
   return (
     <Show when={slot === 'composer'}>
       <InspectorChip />
@@ -30,7 +32,7 @@ function Component(): JSX.Element {
 }
 
 export const tanstack = defineExtension({
-  name: 'tanstack',
+  name: TANSTACK_NAME,
   Component,
   tools: [
     routerStateClient,

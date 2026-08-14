@@ -1,4 +1,4 @@
-import {HostApiProvider} from '@conciv/extension'
+import {HostApiProvider} from '@conciv/extension/host'
 import {createFileRoute, useRouter} from '@tanstack/solid-router'
 import {useMutation} from '@tanstack/solid-query'
 import {reprobeBrowserRpcConnection} from '@conciv/contract'

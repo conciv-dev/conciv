@@ -1,15 +1,17 @@
 import {createSignal, onMount, Show, type JSX} from 'solid-js'
-import {defineExtension, getHostApi, makeExtRpcClient} from '@conciv/extension'
+import {defineExtension, getExtensionApi, makeExtRpcClient} from '@conciv/extension'
 import type {PingRouter} from './router.js'
 
+const PING_NAME = 'ping'
+
 function Component(): JSX.Element {
-  const host = getHostApi()
+  const host = getExtensionApi(PING_NAME)
   const grab = host.useGrab()
   const apiBase = host.useApiBase()
   const [pinged, setPinged] = createSignal(false)
   const [picked, setPicked] = createSignal<string | null>(null)
   const [pong, setPong] = createSignal<string | null>(null)
-  const rpc = (): ReturnType<typeof makeExtRpcClient<PingRouter>> => makeExtRpcClient<PingRouter>(apiBase(), 'ping')
+  const rpc = (): ReturnType<typeof makeExtRpcClient<PingRouter>> => makeExtRpcClient<PingRouter>(apiBase(), PING_NAME)
   const callPing = async (value: string): Promise<void> => {
     const result = await rpc().ping({value})
     setPong(result.pong)
@@ -43,6 +45,6 @@ function Component(): JSX.Element {
   )
 }
 
-const ping = defineExtension({name: 'ping', Component})
+const ping = defineExtension({name: PING_NAME, Component})
 
 export default ping

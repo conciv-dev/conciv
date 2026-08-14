@@ -2,10 +2,18 @@ import {describe, expect, inject, it} from 'vitest'
 import {page} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
 import {createSignal, type Accessor, type JSX} from 'solid-js'
-import {HostApiProvider} from '@conciv/extension'
+import {getExtensionApi} from '@conciv/extension'
+import {HostApiProvider} from '@conciv/extension/host'
 import {ConnectPane} from '../src/client/connect-pane.js'
 
 const ORIGIN = 'https://conciv.test'
+
+const tryItApi = getExtensionApi('try-it')
+
+function CrossEntryPaneOwner(props: {token: string}): JSX.Element {
+  const connect = tryItApi.useConnect()
+  return <ConnectPane token={props.token} connect={connect} />
+}
 
 function mount(ui: () => JSX.Element): () => void {
   return render(ui).unmount
@@ -15,7 +23,7 @@ function mountPane(token: string, label: string): {dispose: () => void; handOff:
   const [handOff, setHandOff] = createSignal('')
   const dispose = mount(() => (
     <HostApiProvider connect={{origin: ORIGIN, found: setHandOff}}>
-      <ConnectPane token={token} />
+      <CrossEntryPaneOwner token={token} />
       <section aria-label={label}>{handOff()}</section>
     </HostApiProvider>
   ))
@@ -49,6 +57,14 @@ function idleFor(ms: number): Promise<void> {
 const LEAK_WINDOW_MS = 3_000
 
 describe('connect pane', () => {
+  it('resolves host wiring across entries: HostApiProvider from @conciv/extension/host, getExtensionApi from @conciv/extension', async () => {
+    const pane = mountPane('cross-entry', 'cross entry handoff')
+    await expect.element(waitingLine()).toBeVisible()
+    await startCore('cross-entry')
+    await expect.element(handOffLog('cross entry handoff')).toHaveTextContent('/t/cross-entry')
+    pane.dispose()
+  })
+
   it('hands the core over once one answers on a connect port', async () => {
     const pane = mountPane('appears', 'appears handoff')
     await expect.element(waitingLine()).toBeVisible()

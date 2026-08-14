@@ -266,14 +266,16 @@ function writeFixtureFiles(appDir: string, overrides: Record<string, string>): v
 
 export function secondExtensionSource(): string {
   return [
-    `import {defineExtension, getHostApi} from '@conciv/extension'`,
+    `import {defineExtension, getExtensionApi} from '@conciv/extension'`,
+    ``,
+    `const NAME = 'fixture-second'`,
     ``,
     `function Component() {`,
-    `  const slot = getHostApi().useSlot()`,
+    `  const slot = getExtensionApi(NAME).useSlot()`,
     `  return slot === 'composer' ? '${SECOND_SENTINEL}' : null`,
     `}`,
     ``,
-    `export default defineExtension({name: 'fixture-second', Component}).client(() => ({value: {}}))`,
+    `export default defineExtension({name: NAME, Component}).client(() => ({value: {}}))`,
     ``,
   ].join('\n')
 }
