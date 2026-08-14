@@ -19,12 +19,26 @@ export const SessionMetaSchema = z.object({
 })
 export type SessionMeta = z.infer<typeof SessionMetaSchema>
 
+export const PersistedAttachmentSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  name: z.string(),
+  contentType: z.string(),
+  data: z.string(),
+})
+export type PersistedAttachment = z.infer<typeof PersistedAttachmentSchema>
+
 export const DraftRowSchema = z.object({
   sessionId: z.string(),
   text: z.string(),
   selectionStart: z.number().int().min(0),
   selectionEnd: z.number().int().min(0),
   grabs: z.array(z.string()),
+  attachments: z
+    .array(PersistedAttachmentSchema)
+    .nullable()
+    .default([])
+    .transform((value) => value ?? []),
   updatedAt: z.number(),
 })
 export type DraftRow = z.infer<typeof DraftRowSchema>

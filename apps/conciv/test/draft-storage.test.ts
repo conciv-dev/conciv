@@ -168,6 +168,30 @@ test('appends to the stored draft on a new line with the caret at the end', asyn
   })
 })
 
+const PERSISTED = {
+  id: 'a1',
+  type: 'document',
+  name: 'Grabbed element',
+  contentType: 'application/vnd.conciv.grab+json',
+  data: 'eyJ4IjoxfQ==',
+}
+
+test('an attachment written to the draft comes back on the next mount', async ({kit, core, sessionId}) => {
+  const first = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+  first.storage.setItem(
+    sessionId,
+    JSON.stringify({text: 'look at this', quote: null, grabs: [], attachments: [PERSISTED]}),
+  )
+  await core.awaitRequest(DRAFTS_SET_PATH)
+
+  expect((await kit.rpc.drafts.get({sessionId}))?.attachments).toEqual([PERSISTED])
+
+  const second = await makeDraftStorage(makeRpcClient(core.base), sessionId)
+
+  expect(JSON.parse(second.storage.getItem(sessionId) ?? '{}')).toMatchObject({attachments: [{id: 'a1'}]})
+})
+
 test('survives a failed initial read and still accepts writes', async ({kit, core, sessionId}) => {
   await seedDraft(kit.rpc, sessionId, {text: 'unreachable at boot'})
   core.fail(DRAFTS_GET_PATH)
