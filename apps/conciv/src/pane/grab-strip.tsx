@@ -4,7 +4,7 @@ import {createSignal, type JSX, type ParentProps} from 'solid-js'
 const GRAB_STRIP_MIN = 48
 
 const GRABBER_HIT =
-  'flex items-center justify-center h-4 w-24 rounded-pw-pill cursor-ns-resize self-center shrink-0 touch-none focus-visible:outline-none focus-visible:bg-pw-accent-20'
+  'flex items-center justify-center h-4 w-24 rounded-pw-pill cursor-ns-resize self-center shrink-0 touch-none trans-color-bg hover:bg-pw-fill-strong focus-visible:outline-none focus-visible:bg-pw-accent-20'
 const GRABBER_PILL =
   'rounded-full bg-pw-line-2 h-1.5 w-9 opacity-0 transition-opacity duration-150 group-hover:opacity-100'
 
