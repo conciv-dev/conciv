@@ -1,233 +1,199 @@
-# Mascot Core Refactor Implementation Plan (Phase 1 of 5)
+# Mascot Core Implementation Plan (Phase 1 of 5) — v2 after codex review
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restructure `packages/mascot/src/rig.ts` into the framework-free core described in the approved spec (`docs/superpowers/specs/2026-08-14-mascot-componentization-design.md`), behind `createMascot` with a `connect()` prop-getter surface, with zero visual behavior change, while both consumers keep working through a temporary `createFabRobotRig` adapter.
+**Goal:** Build the framework-free compositional core of the approved spec (`docs/superpowers/specs/2026-08-14-mascot-componentization-design.md`) on a fresh branch, with independent pose/activity/follow controllers, one shipped effect (Binary), a `connect()` surface wrappers can mirror mechanically, and a temporary `createFabRobotRig` adapter keeping both consumers untouched.
 
-**Architecture:** Pure code motion plus one new composition layer. Every animation, constant, and lifecycle guard currently in `rig.ts` moves verbatim into a focused core module; `createMascot` composes them driven by plain config (`state: 'rest' | 'awake'`, `working`, `follow`, `effects`); a thin `createFabRobotRig` adapter maps the old three-state API onto config updates so `apps/conciv` and `apps/site` need no changes in this phase (adapter dies in phase 5).
+**Architecture:** Greenfield structure, donor-verified values. Three independent controllers compose on shared part elements — pose (rest/awake expressions), follow (pointer tracking), activity (working overlay: antenna throb, eye blink, effect start/stop). `createMascot` owns lifecycle (unregistered → registered → destroyed) and config diffing. The donor branch (`feat/mascot-gaze`) supplies tuned constants, timeline values, and lifecycle guards as reference — never its three-exclusive-state machine.
 
-**Tech Stack:** TypeScript strict, gsap (+ MotionPathPlugin registered in core), tsdown, vitest (node env), Playwright harness for behavior parity.
+**Tech Stack:** TypeScript strict, gsap, tsdown, vitest (node env, pure math only), Playwright behavior harness checked into the package.
 
 ## Global Constraints
 
 - Repo style: zero comments, no classes, no IIFEs, no `any`/`as`/`@ts-ignore`, oxfmt (no semicolons, single quotes, 120 width).
-- Package stays published: dist must contain no Solid/React references; `files: ["dist"]`; only `rig`-replacing entries added to tsdown config.
-- No new dependencies. gsap is the only runtime dep.
-- Behavior parity is the acceptance bar: the existing verify harness (scratchpad `gaze/verify.mjs`, 15 checks) must pass unchanged post-refactor.
-- Branch strategy (owner decision 2026-08-14): implementation happens on a NEW branch `feat/mascot-component` cut from `main`, in a fresh worktree. `feat/mascot-gaze` (PR #486) is the DONOR branch — never merged, closed when the replacement lands. "Move verbatim" in tasks means: port the cited donor code deliberately into the new structure (logic and tuned values identical, imports/organization new); the parity harness is the referee. Exploration stories (`work-bubble`, `antenna-motion`, `antenna-art`, `work-combo`, `emitter-path`, `story-support`, `story-bubble-effects`) are NOT ported in this phase; the real-API gallery replaces them in phase 4. The spec and plan docs are copied onto the new branch in Task 0. Never `git stash`. Bash cwd resets: pin absolute paths.
-- Task 0 (before Task 1): create worktree+branch from origin/main, copy `docs/superpowers/specs/2026-08-14-mascot-componentization-design.md` and this plan from the donor branch, commit them as the first commit, open a draft PR.
-- Gates before each commit: `pnpm exec fallow audit --format json --quiet --explain --gate-marker agent` (fix INTRODUCED), and at task end `TURBO_CONCURRENCY=70% pnpm turbo run typecheck --filter=@conciv/mascot --filter=@conciv/app --filter=site`.
-- Storybook dev may be running on 6006 from this worktree: never run the storybook vitest gate, never touch `.vite`/`.cache/storybook`, never kill the server.
+- Branch: NEW `feat/mascot-component` off `origin/main`, fresh worktree. Donor `feat/mascot-gaze` (PR #486) is read-only reference; it is never merged and never edited by this plan. Task 0 copies spec + this plan onto the new branch as its first commit and opens a draft PR.
+- Approved-production donor values (owner-approved via the playground picks; everything else in the stories is NOT approved): gaze falloff 220px / eye range 3px / quickTo 0.6s power3.out; antenna lean 10° / quickTo 0.5s power3.out; lean-wrapper isolation technique; throb timeline values (scaleY 1.3 / scaleX 0.88, beats 0/0.3/1.15/1.45, elastic.out(1,0.5)); blink values (scaleY 0.1 in 0.07s power2.in, back to pose eye scale in 0.18s power2.out at beats 1.15/1.22); binary emitter (5 digits, two lanes ±3px, 9px ui-monospace 700, rise −54px 2.2s stagger 0.42, color `var(--pw-accent, #e0218a)`, pre-set opacity 0 before timeline — donor commit `740e5d55` fix); tip fractions (0.5, 0.15625); enter back.out(2.2) 0.36s / exit power2.in 0.5s; pose values from donor `rig.ts` `setOpenPose`/`playOpen`/`playClose`; `measureEmitterRoom` math (donor `story-support.tsx`).
+- Deferred OUT of phase 1 (explicit): curve styles / MotionPathPlugin / `CurveStyle` type (path-curve phase, after wrappers); the other 15 effects (phase 4); reduced-motion live re-evaluation (current product behavior — sampled at transitions — is kept; a media-query listener is a later enhancement and is NOT in scope).
+- No new runtime dependencies. ONE new devDependency is pre-approved by the owner for this plan: `playwright` in `packages/mascot` at the exact version `packages/embed` pins, used only by the checked-in behavior harness.
+- Package publish surface this phase: `exports` stays exactly `{".": {types: "./dist/rig.d.ts", import: "./dist/rig.js"}}`; `rig.ts` remains the single tsdown entry and re-exports the new core API (`createMascot`, types) alongside the legacy adapter. No package.json exports change. Gate: `pnpm turbo run publint attw --filter=@conciv/mascot` green. Subpath restructuring is phase 2.
+- Gates before every commit: `pnpm exec fallow audit --format json --quiet --explain --gate-marker agent` (fix INTRODUCED). Task-end gate: `TURBO_CONCURRENCY=70% pnpm turbo run typecheck --filter=@conciv/mascot --filter=@conciv/app --filter=site`.
+- Never `git stash`. Bash cwd resets between calls: pin absolute paths to the NEW worktree.
 
-## Source-of-truth note
+## Core design decisions (binding, from codex-review triage)
 
-Tasks below move existing, verified code. Where a step says "move X from `rig.ts:A-B` verbatim", the implementer copies that exact code (adjusting only imports/exports); the cited range in the current `feat/mascot-gaze` HEAD is the authoritative content. Do not rewrite, "improve", or reformat moved logic beyond what imports require. NOTE: an emitter bug-fix batch may land on the branch before execution starts — re-resolve cited line ranges against HEAD at execution time; symbol names are stable.
+1. **Controllers, not a state machine.** `parts/pose.ts`, `parts/follow.ts`, `parts/activity.ts` are independent; each owns disjoint gsap property sets on the shared elements: pose owns head `yPercent/rotation/scaleX/scaleY`, eyes `scaleX/scaleY` (resting values), antenna `rotation/scaleX/scaleY` on the antenna element; follow owns eyes `x/y` and lean-wrapper `rotation`; activity owns antenna `scaleX/scaleY` pulses layered via its own timeline (started only when pose is settled — see matrix), eye blink `scaleY` excursions returning to the pose-defined value, and effect start/stop.
+2. **state × working matrix** (all four cells defined; parity harness pins the three legacy ones):
+   - rest+idle: rest pose; follow armed if `follow`.
+   - rest+working: rest pose; throb+blink+effects; follow disarmed while working (arming rule below).
+   - awake+idle: awake pose (perk-up animation on entry); follow armed if `follow`.
+   - awake+working: awake pose retained; throb+blink+effects run from the awake pose (blink returns to awake eye scale 1.06); effects anchored at the awake antenna tip.
+   - Follow arming rule: armed iff `follow && !working` (working owns the antenna scale channel and attention; the adapter reproduces legacy behavior with its table below).
+3. **Effect ownership.** `createBinaryEmitter(stage, tip)` returns `{element, start(), stop(onRemoved), remove()}`; `stop` runs the staged exit and calls `onRemoved` after removal so the owner (activity controller) clears its reference in one place; `remove` is immediate teardown for destroy. Owner holds at most one reference; `start` while an exit is in flight kills the exit and re-enters (donor `startEmitter` guard semantics).
+4. **Lifecycle.** `createMascot(initialConfig)` → service in `unregistered` state: `update()` only stores config. `registerParts({stage, head, eyes, antenna})` tears down any previous registration completely (destroy-equivalent, then re-setup: transform origins, lean wrapper, instant pose set from stored config — no entry animations on registration) and is therefore safe under React StrictMode/HMR re-attachment. `destroy()` → terminal: all controllers disposed, listener removed, emitter removed, lean wrapper unwrapped (`replaceWith`), further calls no-op.
+5. **gsap ownership rule.** Every controller retains handles to every tween/timeline it creates and exposes `dispose()`; transitions kill-then-create through the owning controller only — no cross-controller `killTweensOf` by property string on shared elements except the documented pose/lean split (lean rotation lives on the wrapper element, pose rotation on the antenna element — donor technique). `destroy` = dispose all controllers, in order activity → follow → pose.
+6. **connect() contract (framework-neutral).** `connect()` returns per-part getters: `getRootProps() / getHeadProps() / getEyesProps() / getAntennaProps() / getEffectHostProps()`, each `{style: Record<string, string>, ref: (el: HTMLElement | null) => void}` — style as a property record (spreadable in Solid; React wrappers convert keys where needed, documented in phase 2), ref as a per-part setter so wrappers register parts individually; core applies registration when all required parts are present (root+head+eyes+antenna) and tears down when any goes null. The phase-1 adapter does NOT use `connect()`; a harness check drives it directly so the contract is executable before phase 2.
+7. **Reduced motion at boundaries.** Checked (`matchMedia`) at each transition exactly as the donor does: under reduce, poses set instantly, follow never arms, activity starts no timelines and no effects. No live listener (deferred, see Global Constraints).
 
 ---
 
-### Task 1: Core scaffolding — constants, types, config
+### Task 0: Branch, worktree, docs seed
+
+- [ ] **Step 1:** `git -C /Users/omrikatz/Public/web/aidx worktree add .claude/worktrees/mascot-component -b feat/mascot-component origin/main` (then `pnpm install` in the new worktree).
+- [ ] **Step 2:** Copy `docs/superpowers/specs/2026-08-14-mascot-componentization-design.md` and `docs/superpowers/plans/2026-08-14-mascot-core-refactor.md` from `feat/mascot-gaze` (e.g. `git show feat/mascot-gaze:docs/... > docs/...`) into the new worktree, commit: `docs(mascot): componentization spec and phase-1 plan`.
+- [ ] **Step 3:** Push and open draft PR titled `feat(mascot): componentized core (phase 1)`, body linking PR #486 as the prototype it replaces.
+
+### Task 1: config.ts + path.ts with exact-value unit tests
 
 **Files:**
 
-- Create: `packages/mascot/src/core/config.ts`
-- Test: none (types/constants only; typecheck is the gate)
+- Create: `packages/mascot/src/core/config.ts` — types `MascotState = 'rest' | 'awake'`, `MascotConfig = {state: MascotState; working: boolean; follow: boolean}`, all approved constants from Global Constraints, `reduceMotion()`.
+- Create: `packages/mascot/src/core/path.ts` — `measureEmitterRoom(anchor: {x: number; y: number}, bounds: {top: number; left: number; right: number}): {rise: number; bend: number}` — reimplemented to the donor algorithm (clamp rise to [8, 54] from headroom minus 12px margin; shortfall < 10px → bend 0; else bend = shortfall × 1.4 toward the roomier side, clamped to that side's room, sign = direction, tie → right).
+- Create: `packages/mascot/test/path.test.ts`.
 
-**Interfaces:**
-
-- Produces:
-
-```ts
-export type MascotState = 'rest' | 'awake'
-export type CurveStyle = 'arc' | 'hook' | 'fan' | 'straight' | 'auto'
-export type MascotConfig = {
-  state: MascotState
-  working: boolean
-  follow: boolean
-}
-export const posedProperties = 'yPercent,rotation,scaleX,scaleY'
-export const gazeProperties = 'x,y'
-export const gazeFalloffPixels = 220
-export const gazeRangePixels = 3
-export const leanRangeDegrees = 10
-export const antennaOrigin = '50% 32.8%'
-export const antennaTipFractionX = 0.5
-export const antennaTipFractionY = 0.15625
-export const reduceMotion = () =>
-  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-```
-
-- [ ] **Step 1:** Create `core/config.ts` with exactly the block above (constant values copied from `rig.ts:11-33`; they must not drift).
-- [ ] **Step 2:** Run `TURBO_CONCURRENCY=70% pnpm turbo run typecheck --filter=@conciv/mascot`. Expected: pass.
-- [ ] **Step 3:** Commit: `git add packages/mascot/src/core/config.ts && git commit -m "refactor(mascot): core config module"`.
-
-### Task 2: Pure path math with unit tests
-
-**Files:**
-
-- Create: `packages/mascot/src/core/path.ts`
-- Create: `packages/mascot/test/path.test.ts`
-- Modify: `packages/mascot/src/story-support.tsx` (import `measureEmitterRoom` + types from `../core/path.js` instead of defining them; delete the local copies)
-
-**Interfaces:**
-
-- Produces (moved verbatim from `story-support.tsx` — signature is already final):
-
-```ts
-export type EmitterAnchor = {x: number; y: number}
-export type EmitterBounds = {top: number; left: number; right: number}
-export type EmitterRoom = {rise: number; bend: number}
-export function measureEmitterRoom(anchor: EmitterAnchor, bounds: EmitterBounds): EmitterRoom
-```
-
-- [ ] **Step 1: Write the failing test** at `packages/mascot/test/path.test.ts`:
+- [ ] **Step 1: Write the failing test** with EXACT precomputed values (from the algorithm above, no post-hoc adjustment):
 
 ```ts
 import {describe, expect, it} from 'vitest'
 import {measureEmitterRoom} from '../src/core/path.js'
 
 describe('measureEmitterRoom', () => {
-  it('gives the full rise and no bend with ample headroom', () => {
+  it('full rise, no bend, ample headroom', () => {
     expect(measureEmitterRoom({x: 130, y: 100}, {top: 0, left: 0, right: 260})).toEqual({rise: 54, bend: 0})
   })
-  it('bends right when squeezed at the top left', () => {
-    const room = measureEmitterRoom({x: 30, y: 28}, {top: 0, left: 0, right: 260})
-    expect(room.rise).toBeLessThan(54)
-    expect(room.bend).toBeGreaterThan(0)
+  it('squeezed top-left bends right by 1.4x the shortfall', () => {
+    expect(measureEmitterRoom({x: 30, y: 28}, {top: 0, left: 0, right: 260})).toEqual({rise: 16, bend: 53.2})
   })
-  it('bends left when squeezed at the top right', () => {
-    const room = measureEmitterRoom({x: 230, y: 28}, {top: 0, left: 0, right: 260})
-    expect(room.bend).toBeLessThan(0)
+  it('squeezed top-right bends left', () => {
+    expect(measureEmitterRoom({x: 230, y: 28}, {top: 0, left: 0, right: 260})).toEqual({rise: 16, bend: -53.2})
   })
-  it('keeps a straight column for a trivial squeeze', () => {
-    const room = measureEmitterRoom({x: 130, y: 62}, {top: 0, left: 0, right: 260})
-    expect(room.bend).toBe(0)
+  it('trivial squeeze stays straight', () => {
+    expect(measureEmitterRoom({x: 130, y: 58}, {top: 0, left: 0, right: 260})).toEqual({rise: 46, bend: 0})
   })
 })
 ```
 
-Adjust the literal expectations to the actual constants found in `story-support.tsx`'s `measureEmitterRoom` (clamp floor 8, cap 54, 12px edge margin, 10px trivial-shortfall threshold, 1.4 bend factor) — the four behaviors above are the contract; exact numbers come from the moved code.
+Derivations, so the implementer can check the tests are right before running: headroom = y − top − 12; rise = clamp(headroom, 8, 54). y=100 → 88 → 54, shortfall 0. y=28 → 16, shortfall 38 → bend 38×1.4 = 53.2, left room = 30−12 = 18 < right room = 260−30−12 = 218 → +53.2 (clamped to 218, no-op). x=230 mirror → −53.2. y=58 → 46, shortfall 8 < 10 → 0.
 
-- [ ] **Step 2:** Run `cd packages/mascot && pnpm exec vitest run test/path.test.ts`. Expected: FAIL (module not found).
-- [ ] **Step 3:** Create `core/path.ts` by moving `measureEmitterRoom` + its types + its private tuning constants verbatim out of `story-support.tsx`; update `story-support.tsx` to import them from `../core/path.js` and re-export for the stories that use them.
-- [ ] **Step 4:** Run the test again. Expected: PASS. Also `TURBO_CONCURRENCY=70% pnpm turbo run typecheck --filter=@conciv/mascot --filter=conciv-storybook`: pass.
-- [ ] **Step 5:** Commit: `refactor(mascot): pure path math in core with unit tests`.
+- [ ] **Step 2:** Run `cd <worktree>/packages/mascot && pnpm exec vitest run test/path.test.ts`. Expected: FAIL (module not found).
+- [ ] **Step 3:** Implement both files. If any expected value disagrees with the implementation, re-derive by hand FIRST (the numbers above are the contract); only a derivation error in the plan justifies changing a test literal, and the change must be called out in the task report.
+- [ ] **Step 4:** Test green; typecheck filter `@conciv/mascot` green.
+- [ ] **Step 5:** Commit: `feat(mascot): core config and pure emitter-path math`.
 
-### Task 3: parts/eyes.ts and parts/antenna.ts
-
-**Files:**
-
-- Create: `packages/mascot/src/core/parts/eyes.ts`
-- Create: `packages/mascot/src/core/parts/antenna.ts`
-- Test: parity harness in Task 6 (DOM+gsap; no unit tests — repo forbids jsdom)
-
-**Interfaces:**
-
-- Produces:
-
-```ts
-// eyes.ts — the translate-gaze half of the current combined handler
-export function createEyesFollow(eyes: HTMLElement): {
-  pointOf: (event: PointerEvent) => {reach: number; angle: number} | null
-  moveTo: (reach: number, angle: number) => void
-  reset: (animated: boolean) => void
-  kill: () => void
-}
-// antenna.ts
-export function wrapForLean(antenna: HTMLElement): HTMLElement | undefined // rig.ts:42-52 verbatim
-export function createAntennaLean(wrapper: HTMLElement): {
-  leanTo: (reach: number, angle: number) => void
-  reset: (animated: boolean) => void
-  kill: () => void
-}
-export function throbTimeline(antenna: HTMLElement, eyes: HTMLElement): gsap.core.Timeline // the work-loop body, rig.ts startWork timeline verbatim
-export function tipOffset(stage: HTMLElement, antenna: HTMLElement): {x: number; y: number} // rig.ts:54-61 verbatim
-```
-
-- Consumes: constants from `core/config.ts` (Task 1).
-
-- [ ] **Step 1:** Create `eyes.ts`: `pointOf` holds the shared falloff math from the current `gazePointerMove` body (bounds check, offset, distance, `reach = min(1, distance/gazeFalloffPixels)`, `atan2`); `moveTo` wraps the two `quickTo` setters (x/y, 0.6s power3.out) created lazily on first use; `reset(animated)` reproduces `stopGaze`/`resetGaze` eye halves; `kill` = `gsap.killTweensOf(eyes, gazeProperties)`.
-- [ ] **Step 2:** Create `antenna.ts`: move `wrapForLean` and `tipOffset` verbatim; `createAntennaLean` wraps the rotation `quickTo` (0.5s power3.out) + reset/kill on the wrapper; `throbTimeline` returns the repeat -1 timeline currently built inline in `startWork` (throb beats at 0/0.3/1.15/1.45 + eye blink at 1.15/1.22, exact values from `rig.ts` HEAD).
-- [ ] **Step 3:** Typecheck filter `@conciv/mascot`. Expected: pass (modules not yet imported anywhere — fallow will flag unused; acceptable INSIDE this task only, resolve by Task 5 before any push; if committing now, fold Tasks 3-5 into one commit at Task 5 instead).
-- [ ] **Step 4:** Proceed to Task 4 (no separate commit — see Step 3).
-
-### Task 4: Binary effect module + tip transition
+### Task 2: parts/pose.ts
 
 **Files:**
 
-- Create: `packages/mascot/src/core/tip-transition.ts`
-- Create: `packages/mascot/src/core/effects/binary.ts`
+- Create: `packages/mascot/src/core/parts/pose.ts`
 
-**Interfaces:**
-
-- Produces:
+**Interfaces — Produces:**
 
 ```ts
-// tip-transition.ts
-export function enterFromTip(element: HTMLElement): gsap.core.Tween // fromTo scale .2→1 back.out(2.2) .36s
-export function exitIntoTip(element: HTMLElement, onComplete: () => void): gsap.core.Tween // to scale .2 opacity 0 power2.in .5s
-// effects/binary.ts
-export type BinaryEmitter = {element: HTMLElement; start: () => void; stop: () => void; remove: () => void}
-export function createBinaryEmitter(stage: HTMLElement, tip: {x: number; y: number}): BinaryEmitter
+export type PoseParts = {head: HTMLElement; eyes: HTMLElement; antenna: HTMLElement}
+export type PoseController = {
+  set: (state: MascotState) => void
+  animateTo: (state: MascotState) => void
+  eyeRestScaleY: () => number
+  dispose: () => void
+}
+export function createPoseController(parts: PoseParts): PoseController
 ```
 
-- Consumes: `tipOffset` callers pass the tip; constants from config.
+- [ ] **Step 1:** Implement from donor `rig.ts` (branch `feat/mascot-gaze`, symbols `setClosed`, `setOpenPose`, `playOpen`, `playClose`): `set('rest')` = clearProps transform on all three parts; `set('awake')` = the `setOpenPose` sets; `animateTo('awake')` = the `playOpen` timeline; `animateTo('rest')` = the `playClose` timeline (WITHOUT the donor's `startGaze()` tail call — arming is the service's job now). Retain the active timeline in a local; kill it before starting a new one; `dispose` kills it and clears transforms it owns. `eyeRestScaleY()` returns 1 for rest, 1.06 for awake — activity's blink return value.
+- [ ] **Step 2:** Typecheck green. Commit folded into Task 5 if fallow flags unused; otherwise commit `feat(mascot): pose controller`.
 
-- [ ] **Step 1:** Move the enter/exit tween shapes out of the current `startEmitter`/`stopEmitter` into `tip-transition.ts` with the exact values above.
-- [ ] **Step 2:** Move `buildEmitter` (`rig.ts:63-88` at current HEAD — post-bug-batch content wins) into `effects/binary.ts` as the body of `createBinaryEmitter`; `start` = enterFromTip + timeline play, `stop` = exitIntoTip then internal removal, `remove` = immediate kill+remove (current `removeEmitter` body). Keep the emitter-reference-is-the-state idempotence exactly as on HEAD.
-- [ ] **Step 3:** Typecheck. Proceed (commit consolidated in Task 5).
+### Task 3: parts/follow.ts
 
-### Task 5: createMascot + connect + adapter, rig.ts reduced to re-exports
+**Files:**
+
+- Create: `packages/mascot/src/core/parts/follow.ts`
+
+**Interfaces — Produces:**
+
+```ts
+export type FollowParts = {eyes: HTMLElement; leanWrapper: HTMLElement | undefined}
+export type FollowController = {
+  arm: () => void
+  disarm: (animated: boolean) => void
+  dispose: () => void
+}
+export function createFollowController(parts: FollowParts): FollowController
+export function wrapForLean(antenna: HTMLElement): HTMLElement | undefined
+```
+
+- [ ] **Step 1:** Implement from donor `rig.ts` `startGaze`/`stopGaze`/`resetGaze`/`detachGaze`/`wrapForLean`: one window pointermove listener; shared falloff math (bounds from eyes element, `reach = min(1, d/220)`, `atan2`); eyes quickTo x/y (0.6s power3.out) × 3px; wrapper quickTo rotation (0.5s power3.out) × 10°; `arm` idempotent (listener-reference-is-the-state), respects `reduceMotion()`; `disarm(true)` = detach + 0.25s power2.out return to zero, `disarm(false)` = detach + instant zero; `dispose` = detach + kill.
+- [ ] **Step 2:** Typecheck green. Commit policy as Task 2.
+
+### Task 4: parts/activity.ts + effects/binary.ts + tip-transition.ts
+
+**Files:**
+
+- Create: `packages/mascot/src/core/tip-transition.ts` — `enterFromTip(element)` (fromTo scale 0.2→1, opacity 0→1, back.out(2.2), 0.36s), `exitIntoTip(element, onComplete)` (to scale 0.2 opacity 0, power2.in, 0.5s), both returning their tween.
+- Create: `packages/mascot/src/core/effects/binary.ts` — decision 3's `createBinaryEmitter` with the approved digit/timeline values (including the `gsap.set(digits, {opacity: 0})` pre-timeline fix and straight −54px rise; NO curve support this phase).
+- Create: `packages/mascot/src/core/parts/activity.ts`:
+
+```ts
+export type ActivityParts = {stage: HTMLElement; antenna: HTMLElement; eyes: HTMLElement}
+export type ActivityController = {
+  start: (eyeRestScaleY: number) => void
+  stop: () => void
+  dispose: () => void
+}
+export function createActivityController(parts: ActivityParts): ActivityController
+```
+
+- [ ] **Step 1:** Implement activity: `start` builds the throb+blink repeat timeline (approved beats; blink returns to the passed `eyeRestScaleY`) and starts the binary emitter (created lazily from `tipOffset(stage, antenna)` — tip-fraction math from config constants; skipped entirely under `reduceMotion()`); `stop` kills the timeline, returns antenna scale and eye scaleY to their pose values with short tweens (0.2s power2.out), and calls `emitter.stop(onRemoved → clear ref)`; `start` during an in-flight exit kills the exit and re-enters (decision 3). `dispose` = kill + `emitter.remove()`.
+- [ ] **Step 2:** Typecheck green. Commit with Task 5 or standalone per fallow.
+
+### Task 5: mascot.ts (service) + adapter in rig.ts + publish gates
 
 **Files:**
 
 - Create: `packages/mascot/src/core/mascot.ts`
-- Modify: `packages/mascot/src/rig.ts` — becomes: `export {robotLayers}`, old types, and `createFabRobotRig` implemented over `createMascot`
-- Modify: `packages/mascot/tsdown.config.ts` — add `src/core/mascot.ts` entry if entries are explicit (inspect; keep dist surface = `rig` + new `core` entry)
+- Create: `packages/mascot/src/rig.ts` (new branch's version): `export {robotLayers}`, legacy types, `createFabRobotRig` adapter, `export {createMascot}` + core types.
 
-**Interfaces:**
-
-- Produces:
+**Interfaces — Produces:**
 
 ```ts
 export type MascotService = {
   update: (config: MascotConfig) => void
-  connect: () => {
-    getRootProps: () => {style: string}
-    getHeadProps: () => {style: string}
-    getEyesProps: () => {style: string}
-    getAntennaProps: () => {style: string}
-  }
   registerParts: (parts: {stage: HTMLElement; head: HTMLElement; eyes: HTMLElement; antenna: HTMLElement}) => void
+  connect: () => MascotConnect
   destroy: () => void
 }
 export function createMascot(initial: MascotConfig): MascotService
 ```
 
-`connect()` getters return the layer styling currently supplied by consumers (`position:absolute;inset:0;background-image:url(<layer data URI>);background-repeat:no-repeat;background-position:center;background-size:contain;image-rendering:pixelated`) — content from `robotLayers`; wrappers spread these in phase 2, and the adapter ignores them this phase.
+- [ ] **Step 1:** Implement per binding decisions 1-7: unregistered stores config; `registerParts` full-teardown-then-setup, instant pose from stored config, controllers created here; `update` diffs previous vs next and orders transitions: working rising edge → disarm follow (instant), activity.start; working falling edge → activity.stop, then arm follow if eligible; state change → pose.animateTo (activity keeps running across it when working — matrix cell 4); follow change → arm/disarm per rule `follow && !working`.
+- [ ] **Step 2:** `connect()` per decision 6, including `getEffectHostProps()`; getters' style records carry the layer styling (position absolute, inset 0, layer data URI background, contain, pixelated) from `robotLayers`.
+- [ ] **Step 3:** Adapter — exact translation table (decision + codex finding 5):
 
-- Consumes: everything from Tasks 1-4.
+```ts
+closed → {state: 'rest',  working: false, follow: true}
+open   → {state: 'awake', working: false, follow: false}
+work   → {state: 'rest',  working: true,  follow: false}
+```
 
-- [ ] **Step 1:** Implement `createMascot`: internal state = last config; `registerParts` wires gsap targets (transform origins from `rig.ts:99-101`, `wrapForLean`, `sharedParent` from `rig.ts:37-40`); `update(next)` diffs against previous config and drives transitions by mapping the current `apply` state machine (`rig.ts` `apply`/`applyFirst`/`playOpen`/`playClose`/`setOpenPose`/`setClosed`/`startWork`/`stopWork` bodies move here verbatim) with the translation: `rest+!working ↔ closed`, `awake+!working ↔ open`, `working ↔ work` (either state; awake+working runs the work visuals from the awake pose — new but additive; parity harness only pins the three legacy combinations). Follow arming: `startGaze`-equivalent listens when `follow && !working && state === 'rest'` is NOT the rule anymore — arming is purely `follow === true && !working`; the adapter passes `follow: state === 'closed'` to preserve legacy behavior exactly.
-- [ ] **Step 2:** Rewrite `createFabRobotRig` as adapter: creates `createMascot`, calls `registerParts` with the caller's layers + derived stage, and maps `apply('closed'|'open'|'work')` to `update({state, working, follow})` with the translation table above; `destroy` passes through. Public exports of `rig.ts` unchanged (`robotLayers`, `RigState`, `RigLayers`, `FabRobotRig`, `createFabRobotRig`) so consumers and stories compile untouched.
-- [ ] **Step 3:** Full gates: typecheck (mascot, @conciv/app, site, conciv-storybook), `pnpm lint`, `pnpm format:check`, mascot vitest (path tests), fallow audit (unused-module flags from Tasks 3-4 must now be gone).
-- [ ] **Step 4:** Commit Tasks 3-5 together: `refactor(mascot): framework-free core behind createMascot, rig API as adapter`.
+`createFabRobotRig({head, eyes, antenna})` derives stage as the layers' shared parent (donor `sharedParent`), creates service with the `closed` record, registers parts, maps `apply`, passes through `destroy`.
 
-### Task 6: Behavior parity verification + embed rebuild
+- [ ] **Step 4:** Gates: typecheck (mascot, @conciv/app, site), `pnpm lint`, `pnpm format:check`, mascot vitest, fallow audit, `pnpm turbo run publint attw --filter=@conciv/mascot`, dist grep: no `solid`/`react` strings.
+- [ ] **Step 5:** Commit: `feat(mascot): compositional core with pose/follow/activity controllers and legacy adapter`.
+
+### Task 6: Checked-in behavior harness + parity + consumers
 
 **Files:**
 
-- None in repo (scratchpad harness only)
+- Create: `packages/mascot/harness/verify.mjs` + `packages/mascot/harness/page.html` — the donor scratch harness (`gaze/verify.mjs` pattern) rebuilt as a repository artifact: serves the built dist, drives Chromium via playwright, prints PASS/FAIL per check, exits non-zero on any FAIL.
+- Modify: `packages/mascot/package.json` — devDep `playwright` (embed's exact version), script `"verify:behavior": "node harness/verify.mjs"` (not wired into turbo test — manual/agent gate; note this in the PR body).
 
-- [ ] **Step 1:** Run the existing 15-check harness (`/private/tmp/claude-501/-Users-omrikatz-Public-web-aidx/57957ac0-a044-4f90-bf9d-35d83ccaccf6/scratchpad/gaze/verify.mjs` pattern) against a fresh `pnpm turbo run build --filter=@conciv/mascot` dist. Expected: 15/15 PASS including reduced-motion. Any FAIL: fix core, re-run; do not weaken checks.
-- [ ] **Step 2:** Revert-check: swap in the pre-refactor `rig.ts` build, confirm harness still passes there too (both green = true parity), restore.
-- [ ] **Step 3:** `pnpm turbo run build --filter=@conciv/embed`; grep `conciv-widget.global.js` for `elastic.out(1, 0.5)` and `var(--pw-accent` (evidence the moved code ships). Verify dist has no `solid`/`react` strings.
-- [ ] **Step 4:** Check running storybook (if up): rig stories + WorkCombo render without page errors (playwright probe, no server restart).
-- [ ] **Step 5:** Commit any fixes; push branch; report harness output verbatim.
+**Checks (supersets the donor's 15):** legacy trio via the adapter — closed gaze (eyes ±3px, antenna ±10° with falloff ratio ≈ 0.5 at half distance), work (throb maxScaleY 1.3, 5 digits, staged enter, drain exit, flap ×5 → one emitter, no runaway tweens), open pose values; PLUS new-surface checks driven through `createMascot` directly: awake+working (awake pose retained while throbbing, blink returns to 1.06), update-before-registerParts (no throw, config applied on registration), repeated registerParts (no duplicate listeners/wrappers — assert one lean wrapper, pointermove count via instrumented addEventListener), destroy-during-exit (no dangling element), reduced-motion (all static, no emitter).
+
+- [ ] **Step 1:** Build harness; run against `pnpm turbo run build --filter=@conciv/mascot` dist. All checks PASS.
+- [ ] **Step 2:** Donor-parity spot check: run the SAME harness's legacy-trio section against the donor worktree's built dist (`/Users/omrikatz/Public/web/aidx/.claude/worktrees/agent-a7c0a33a7e8995ce3/packages/mascot/dist`) — both green proves parity without file swapping.
+- [ ] **Step 3:** `pnpm turbo run build --filter=@conciv/embed`; grep bundle for `elastic.out(1, 0.5)` and `var(--pw-accent`; run widget typecheck trio again.
+- [ ] **Step 4:** Commit: `test(mascot): checked-in behavior harness`; push; report full harness output verbatim in the PR + changeset `.changeset/mascot-core.md` (patch, describing the internal restructuring + new core API).
 
 ---
 
-## Self-review record
+## Codex-review disposition (run 2026-08-14, gpt-5.6-sol, 15 findings)
 
-- Spec coverage: phase-1 scope only by design — API/context/wrappers (spec §API, solid/, react/) are phases 2-3; 15 remaining effects are phase 4 (spec lists them under architecture, not phase 1); deletion of adapter is phase 5. Core modules, prop-getter `connect`, path math, parity, testing map to Tasks 1-6.
-- Placeholders: none; moved-code steps cite exact current symbols/ranges with a HEAD-drift warning.
-- Type consistency: `MascotConfig`/`MascotState`/`CurveStyle` defined Task 1, consumed Tasks 5; `tipOffset`/`wrapForLean` signatures identical to rig.ts originals; `measureEmitterRoom` signature unchanged from story-support.
+Blockers 1-4: resolved by binding decisions 1-4 (compositional controllers + matrix; emitter `stop(onRemoved)` ownership; greenfield structure with donor-as-values-only; explicit lifecycle). Majors 5-12: adapter table now exact (Task 5); publish surface pinned + publint/attw gate (Global Constraints, Task 5); `connect()` framework-neutral records + per-part refs + effect-host getter (decision 6); gsap ownership rule (decision 5); MotionPathPlugin/curves explicitly deferred with the `CurveStyle` type removed from phase 1 (Global Constraints); reduced-motion boundary rule + harness check (decision 7, Task 6); harness checked into the package with a script (Task 6); state-machine/lifecycle tests added as harness checks incl. awake+working (Task 6). Minors 13-15: moot (no story-support edits on the new branch), exact test values precomputed with derivations (Task 1), donor policy tightened to an approved-values list (Global Constraints).
