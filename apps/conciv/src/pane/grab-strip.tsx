@@ -3,8 +3,10 @@ import {createSignal, type JSX, type ParentProps} from 'solid-js'
 
 const GRAB_STRIP_MIN = 48
 
-const GRABBER =
-  'rounded-full bg-pw-line-2 h-1.5 w-9 cursor-ns-resize self-center shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:bg-pw-accent hover:bg-pw-text-3'
+const GRABBER_HIT =
+  'flex items-center justify-center h-4 w-24 rounded-pw-pill cursor-ns-resize self-center shrink-0 touch-none focus-visible:outline-none focus-visible:bg-pw-accent-20'
+const GRABBER_PILL =
+  'rounded-full bg-pw-line-2 h-1.5 w-9 opacity-0 transition-opacity duration-150 group-hover:opacity-100'
 
 export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
   let scroller: HTMLDivElement | undefined
@@ -23,7 +25,7 @@ export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
   return (
     <div class="flex flex-col min-h-0 shrink group gap-1 pt-1">
       <div
-        class={GRABBER}
+        class={GRABBER_HIT}
         role="separator"
         aria-orientation="horizontal"
         aria-label="Resize grabs height"
@@ -38,7 +40,9 @@ export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
           beginResize()
           resize.onKeyDown(event)
         }}
-      />
+      >
+        <div class={GRABBER_PILL} />
+      </div>
       <div
         ref={(el) => {
           scroller = el
