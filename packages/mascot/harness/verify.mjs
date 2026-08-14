@@ -30,8 +30,11 @@ const ROUTES = {
   '/rig.js': () => join(distDirectory, 'rig.js'),
 }
 
-const gsapAsset = (url) =>
-  url.startsWith(GSAP_PREFIX) ? join(gsapDirectory, normalize(url.slice(GSAP_PREFIX.length))) : undefined
+const gsapAsset = (url) => {
+  if (!url.startsWith(GSAP_PREFIX)) return undefined
+  const relative = normalize(url.slice(GSAP_PREFIX.length))
+  return relative.startsWith('..') ? undefined : join(gsapDirectory, relative)
+}
 
 const resolveRequest = (url) => ROUTES[url]?.() ?? gsapAsset(url)
 
@@ -210,8 +213,13 @@ const checkMidWorkStateChange = async (page) => {
   const result = await page.evaluate(async () => {
     const harness = window.mascotHarness
     await harness.wait(2200)
+    const emitter = harness.emitters()[0]
+    const anchorBefore = harness.boxOf(emitter)
+    const timelineBefore = harness.repeatingTimeline()
     window.service.update({state: 'awake', working: true, follow: false})
-    await harness.wait(900)
+    const during = await harness.sampleFrames(() => harness.property(emitter, 'scale'), 900)
+    const anchorAfter = harness.boxOf(emitter)
+    const sameTimeline = harness.repeatingTimeline() === timelineBefore
     const values = await harness.sampleFrames(
       () => [harness.property(window.parts.antenna, 'scaleY'), harness.property(window.parts.eyes, 'scaleY')],
       2400,
@@ -219,13 +227,29 @@ const checkMidWorkStateChange = async (page) => {
     return {
       antenna: harness.summarize(values.map((entry) => entry[0])),
       eyes: harness.summarize(values.map((entry) => entry[1])),
+      emitterScale: harness.summarize(during),
+      sameTimeline,
+      sameEmitter: harness.emitters()[0] === emitter,
+      emitters: harness.emitters().length,
+      anchorBefore,
+      anchorAfter,
     }
   })
+  const anchorShift = Math.abs(result.anchorAfter.left - result.anchorBefore.left)
   return [
     ['throb still peaks at 1.3 after the change', near(result.antenna.max, 1.3, 0.01), result.antenna.max],
     ['throb still oscillates after the change', result.antenna.min < 1.2, result.antenna.min],
     ['blink still closes the eyes', result.eyes.min < 0.5, result.eyes.min],
     ['blink returns to the awake 1.06', near(result.eyes.max, 1.06, 0.01), result.eyes.max],
+    ['the mid-work change keeps the ORIGINAL work timeline running', result.sameTimeline, result.sameTimeline],
+    ['the mid-work change keeps the same emitter node', result.sameEmitter, result.sameEmitter],
+    ['the mid-work change leaves exactly one emitter', result.emitters === 1, result.emitters],
+    [
+      'no returnToFull tween fires: emitter scale stays 1 across the change',
+      near(result.emitterScale.min, 1, 0.001) && near(result.emitterScale.max, 1, 0.001),
+      result.emitterScale,
+    ],
+    ['the emitter re-anchors to the leaned antenna tip', anchorShift > 0.5, {anchorShift, ...result.anchorAfter}],
   ]
 }
 
@@ -573,6 +597,76 @@ const checkPartialConnect = async (page) => {
   ]
 }
 
+const checkRequiredRefs = async (page) => {
+  const result = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    const bind = (connected, parts, effectHost) => {
+      connected.getRootProps().ref(parts.root)
+      connected.getEffectHostProps().ref(effectHost)
+      connected.getHeadProps().ref(parts.head)
+      connected.getEyesProps().ref(parts.eyes)
+      connected.getAntennaProps().ref(parts.antenna)
+    }
+    const slots = ['getRootProps', 'getHeadProps', 'getEyesProps', 'getAntennaProps']
+    const torndown = []
+    for (const slot of slots) {
+      const service = harness.mascot.createMascot({state: 'rest', working: false, follow: true})
+      const connected = service.connect()
+      const parts = harness.buildStage()
+      const effectHost = document.createElement('div')
+      effectHost.style.cssText = 'position:absolute;inset:0;pointer-events:none'
+      parts.root.append(effectHost)
+      bind(connected, parts, effectHost)
+      const armed = {wrappers: harness.leanWrappers().length, listeners: window.pointerMoveListenerCount}
+      connected[slot]().ref(null)
+      torndown.push({
+        slot,
+        armed,
+        wrappers: harness.leanWrappers().length,
+        listeners: window.pointerMoveListenerCount,
+        antennaRestored: parts.antenna.parentElement === parts.root,
+      })
+      service.destroy()
+      parts.root.remove()
+    }
+    const service = harness.mascot.createMascot({state: 'rest', working: true, follow: true})
+    const connected = service.connect()
+    const host = harness.buildBareStage()
+    connected.getEffectHostProps().ref(host)
+    await harness.wait(200)
+    const effectHostAlone = {
+      wrappers: harness.leanWrappers().length,
+      listeners: window.pointerMoveListenerCount,
+      emitters: harness.emitters().length,
+    }
+    service.destroy()
+    host.remove()
+    return {torndown, effectHostAlone}
+  })
+  const everyArmed = result.torndown.every((entry) => entry.armed.wrappers === 1 && entry.armed.listeners === 1)
+  return [
+    ['each required ref registers before it is nulled', everyArmed, result.torndown.map((entry) => entry.armed)],
+    [
+      'nulling any required ref drops the lean wrapper',
+      result.torndown.every((entry) => entry.wrappers === 0),
+      result.torndown.map((entry) => [entry.slot, entry.wrappers]),
+    ],
+    [
+      'nulling any required ref detaches the gaze listener',
+      result.torndown.every((entry) => entry.listeners === 0),
+      result.torndown.map((entry) => [entry.slot, entry.listeners]),
+    ],
+    [
+      'nulling any required ref restores the antenna to its parent',
+      result.torndown.every((entry) => entry.antennaRestored),
+      result.torndown.map((entry) => [entry.slot, entry.antennaRestored]),
+    ],
+    ['an effectHost alone never registers a wrapper', result.effectHostAlone.wrappers === 0, result.effectHostAlone],
+    ['an effectHost alone never arms a listener', result.effectHostAlone.listeners === 0, result.effectHostAlone],
+    ['an effectHost alone never starts an emitter', result.effectHostAlone.emitters === 0, result.effectHostAlone],
+  ]
+}
+
 const CHECKS = [
   {id: 'M1', section: 'legacy', name: 'legacy closed gaze', run: checkLegacyClosedGaze, reducedMotion: 'no-preference'},
   {id: 'M2', section: 'legacy', name: 'legacy work activity', run: checkLegacyWork, reducedMotion: 'no-preference'},
@@ -635,6 +729,13 @@ const CHECKS = [
     section: 'core',
     name: 'partial part sets via connect()',
     run: checkPartialConnect,
+    reducedMotion: 'no-preference',
+  },
+  {
+    id: 'M',
+    section: 'core',
+    name: 'required refs and effectHost',
+    run: checkRequiredRefs,
     reducedMotion: 'no-preference',
   },
 ]

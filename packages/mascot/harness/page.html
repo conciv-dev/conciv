@@ -52,9 +52,11 @@
 
   const hiddenSpans = () => Array.from(document.querySelectorAll('span[aria-hidden="true"]'))
 
-  const isLeanWrapper = (element) => element.style.inset === '0px'
+  const isDigit = (child) => child.textContent === '0' || child.textContent === '1'
 
-  const isEmitter = (element) => element.style.width === '0px'
+  const isEmitter = (element) => element.childElementCount === 5 && Array.from(element.children).every(isDigit)
+
+  const isLeanWrapper = (element) => element.childElementCount === 1 && !isEmitter(element)
 
   const leanWrappers = () => hiddenSpans().filter(isLeanWrapper)
 
@@ -107,6 +109,11 @@
 
   const globalTweenCount = () => gsap.globalTimeline.getChildren(true, true, true).length
 
+  const boxOf = (element) => ({left: element.offsetLeft, top: element.offsetTop})
+
+  const repeatingTimeline = () =>
+    gsap.globalTimeline.getChildren(false, false, true).find((child) => child.repeat() === -1)
+
   window.mascotHarness = {
     mascot,
     gsap,
@@ -124,6 +131,8 @@
     property,
     stageCenter,
     globalTweenCount,
+    boxOf,
+    repeatingTimeline,
   }
   document.documentElement.dataset.harness = 'ready'
 </script>
