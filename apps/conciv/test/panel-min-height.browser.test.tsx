@@ -55,7 +55,6 @@ test('the composer stays reachable when the viewport clamps the panel below its 
 
 test('the grabs strip resizes through the shared separator handle', async () => {
   await page.viewport(1000, 900)
-  localStorage.removeItem('conciv-grab-strip-height')
   openPanel()
 
   const handle = page.getByRole('separator', {name: 'Resize grabs height'})

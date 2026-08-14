@@ -14,7 +14,7 @@ const KEY_DIRECTION: Record<Grow, Record<string, 1 | -1>> = {
 export function createResizable(opts: {
   initial: number
   min: number
-  storageKey: string
+  storageKey?: string
   grow: () => Grow
   collapseAt?: number
   onCollapse?: () => void
@@ -25,15 +25,22 @@ export function createResizable(opts: {
   onPointerDown: (e: PointerEvent) => void
   onKeyDown: (e: KeyboardEvent) => void
 } {
-  const stored = readStorage(
-    opts.storageKey,
-    (raw) => {
-      const value = Number(raw)
-      return Number.isFinite(value) && value >= opts.min ? value : undefined
-    },
-    opts.initial,
-  )
+  const storageKey = opts.storageKey
+  const stored =
+    storageKey === undefined
+      ? opts.initial
+      : readStorage(
+          storageKey,
+          (raw) => {
+            const value = Number(raw)
+            return Number.isFinite(value) && value >= opts.min ? value : undefined
+          },
+          opts.initial,
+        )
   const [size, setSize] = createSignal(stored)
+  const persist = (value: number) => {
+    if (storageKey !== undefined) writeStorage(storageKey, value)
+  }
   const [resizing, setResizing] = createSignal(false)
   let stopDrag: VoidFunction | undefined
 
@@ -63,7 +70,7 @@ export function createResizable(opts: {
       stopDrag?.()
       stopDrag = undefined
       setResizing(false)
-      writeStorage(opts.storageKey, size())
+      persist(size())
     }
     const clearMove = makeEventListener(window, 'pointermove', move)
     const clearUp = makeEventListener(window, 'pointerup', up)
@@ -80,7 +87,7 @@ export function createResizable(opts: {
     e.preventDefault()
     const next = Math.max(opts.min, size() + dir * STEP)
     setSize(next)
-    writeStorage(opts.storageKey, next)
+    persist(next)
   }
 
   onCleanup(() => stopDrag?.())
