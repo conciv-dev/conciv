@@ -160,6 +160,7 @@ export function groupPartByType(map: PartTypePaths): Grouper {
 
 export const defaultGrouper: Grouper = groupPartByType({
   text: ROOT_PATH,
+  image: ROOT_PATH,
   thinking: CHAIN_PATH,
   'tool-call': CHAIN_PATH,
   'standalone-tool-call': ROOT_PATH,

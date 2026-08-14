@@ -3,8 +3,9 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
 import type {UIMessage} from '@tanstack/ai-client'
+import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {ChatProvider} from '../../store/chat-context.js'
-import type {GroupKey} from '../../store/grouping.js'
+import {defaultGrouper, type GroupKey} from '../../store/grouping.js'
 import {storyConnection} from '../../store/story-connection.js'
 import {Thread} from '../thread/thread.js'
 import {Attachment} from '../attachment/attachment.js'
@@ -130,6 +131,67 @@ export const PartsGrouped: Story = {
     await waitFor(() => expect(c.getByText('group-chain')).toBeVisible())
     await expect(c.queryByText('group-page-session')).toBeNull()
     await expect(c.getByText('weighing the options')).toBeVisible()
+    await expect(c.getByText('Here is the fix.')).toBeVisible()
+  },
+}
+
+const CONFIRM_ENTRY: ToolCardEntry = {
+  names: ['confirm_ui'],
+  render: () => <span>confirm card</span>,
+  display: 'standalone',
+}
+
+const GROUPED_WITH_STANDALONE: UIMessage = {
+  id: 'a-grouped-standalone',
+  role: 'assistant',
+  parts: [
+    {type: 'thinking', content: 'weighing the options'},
+    {type: 'tool-call', id: 't1', name: 'confirm_ui', arguments: '{}', state: 'complete'},
+    {type: 'image', source: {type: 'url', value: 'https://example.com/diagram.png'}},
+    {type: 'text', content: 'Here is the fix.'},
+  ],
+}
+
+function CountingGroupBox(props: ParentProps<{indices: readonly number[]; groupKey: GroupKey}>): JSX.Element {
+  return (
+    <div class="p-1 border border-pw-line rounded-pw-sm">
+      <span class="text-[0.625rem] text-pw-text-3">{`${props.groupKey} holds ${props.indices.length}`}</span>
+      {props.children}
+    </div>
+  )
+}
+
+function GroupedWithGrouping(): JSX.Element {
+  return (
+    <Message.Root class="text-pw-text flex flex-col gap-1 self-start">
+      <Message.Unstable_PartsGrouped
+        components={{Group: CountingGroupBox, tools: {entries: [CONFIRM_ENTRY]}}}
+        grouping={{grouper: defaultGrouper, context: {toolEntries: [CONFIRM_ENTRY]}}}
+      />
+    </Message.Root>
+  )
+}
+
+export const PartsGroupedWithGrouping: Story = {
+  render: () => {
+    const chat = useChat({connection: storyConnection()})
+    onMount(() => chat.setMessages([GROUPED_WITH_STANDALONE]))
+    return (
+      <ChatProvider chat={chat}>
+        <Thread.Root>
+          <Thread.Viewport class="flex flex-col gap-2">
+            <Thread.Messages components={{AssistantMessage: GroupedWithGrouping}} />
+          </Thread.Viewport>
+        </Thread.Root>
+      </ChatProvider>
+    )
+  },
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+
+    await waitFor(() => expect(c.getByText('group-chain holds 1')).toBeVisible())
+    await expect(c.getByText('confirm card')).toBeVisible()
+    await expect(c.getByRole('img')).toBeVisible()
     await expect(c.getByText('Here is the fix.')).toBeVisible()
   },
 }

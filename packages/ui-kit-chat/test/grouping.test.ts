@@ -8,6 +8,7 @@ import {
   groupParts,
   pairResults,
   parentToolCallIdOf,
+  standaloneToolNames,
   type GroupByContext,
   type GroupNode,
   type Grouper,
@@ -508,5 +509,37 @@ describe('childCallsFor', () => {
     expect(childCallsFor(parts, 'p1').map((part) => part.id)).toEqual(['c1', 'c2'])
     expect(childCallsFor(parts, 'p2').map((part) => part.id)).toEqual(['other'])
     expect(childCallsFor(parts, 'none')).toEqual([])
+  })
+})
+
+describe('image parts', () => {
+  it('places an image part as a root leaf so the grouped primitive path still renders it', () => {
+    expect(
+      group([
+        {type: 'thinking', content: 'looking'},
+        {type: 'image', source: {type: 'url', value: 'https://example.com/diagram.png'}},
+        {type: 'text', content: 'here it is'},
+      ]),
+    ).toEqual([chain(0), leaf(1), leaf(2)])
+  })
+})
+
+describe('standaloneToolNames', () => {
+  it('lets the first entry claiming a name decide, matching card resolution', () => {
+    const inlineFirst: ToolCardEntry = {names: ['confirm_ui'], render: () => null}
+    const context: GroupByContext = {toolEntries: [inlineFirst, CONFIRM_ENTRY]}
+    expect([...standaloneToolNames(context)]).toEqual([])
+    expect(
+      group(
+        [{type: 'tool-call', id: 's1', name: 'confirm_ui', arguments: '{}', state: 'complete'}],
+        defaultGrouper,
+        context,
+      ),
+    ).toEqual([chain(0)])
+  })
+
+  it('marks the name standalone when the first entry claiming it is standalone', () => {
+    const context: GroupByContext = {toolEntries: [CONFIRM_ENTRY, {names: ['confirm_ui'], render: () => null}]}
+    expect([...standaloneToolNames(context)]).toEqual(['confirm_ui'])
   })
 })
