@@ -1,7 +1,5 @@
 import gsap from 'gsap'
-import {ENTER_DURATION_S, ENTER_EASE, EXIT_DURATION_S, EXIT_EASE} from './config.js'
-
-const TIP_SCALE = 0.2
+import {ENTER_DURATION_S, ENTER_EASE, EXIT_DURATION_S, EXIT_EASE, TIP_SCALE} from './config.js'
 
 export function enterFromTip(element: HTMLElement): gsap.core.Tween {
   return gsap.fromTo(

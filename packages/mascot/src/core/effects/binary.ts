@@ -2,6 +2,8 @@ import gsap from 'gsap'
 import {
   BINARY_EMITTER_COLOR,
   BINARY_EMITTER_DIGIT_COUNT,
+  BINARY_EMITTER_DIGIT_LEFT_PX,
+  BINARY_EMITTER_DIGIT_TOP_PX,
   BINARY_EMITTER_FONT_FAMILY,
   BINARY_EMITTER_FONT_SIZE_PX,
   BINARY_EMITTER_FONT_WEIGHT,
@@ -22,9 +24,6 @@ export type BinaryEmitter = {
   remove: () => void
 }
 
-const FONT_STACK = `${BINARY_EMITTER_FONT_FAMILY},SFMono-Regular,monospace`
-const DIGIT_CENTER_LEFT_PX = -4
-const DIGIT_TOP_PX = -12
 const DIGIT_INDEXES = Array.from({length: BINARY_EMITTER_DIGIT_COUNT}, (_, index) => index)
 
 const isLeadingLane = (index: number): boolean => index % 2 === 0
@@ -33,7 +32,7 @@ function createDigit(index: number): HTMLElement {
   const digit = document.createElement('span')
   const lane = isLeadingLane(index) ? BINARY_EMITTER_LANE_OFFSET_PX : -BINARY_EMITTER_LANE_OFFSET_PX
   digit.textContent = isLeadingLane(index) ? '1' : '0'
-  digit.style.cssText = `position:absolute;left:${DIGIT_CENTER_LEFT_PX + lane}px;top:${DIGIT_TOP_PX}px`
+  digit.style.cssText = `position:absolute;left:${BINARY_EMITTER_DIGIT_LEFT_PX + lane}px;top:${BINARY_EMITTER_DIGIT_TOP_PX}px`
   return digit
 }
 
@@ -42,7 +41,7 @@ function createShell(tip: EmitterAnchor): HTMLElement {
   element.setAttribute('aria-hidden', 'true')
   element.style.cssText =
     `position:absolute;left:${tip.x}px;top:${tip.y}px;width:0;height:0;pointer-events:none;` +
-    `color:${BINARY_EMITTER_COLOR};font-family:${FONT_STACK};font-size:${BINARY_EMITTER_FONT_SIZE_PX}px;` +
+    `color:${BINARY_EMITTER_COLOR};font-family:${BINARY_EMITTER_FONT_FAMILY};font-size:${BINARY_EMITTER_FONT_SIZE_PX}px;` +
     `font-weight:${BINARY_EMITTER_FONT_WEIGHT};line-height:1;will-change:transform,opacity`
   return element
 }

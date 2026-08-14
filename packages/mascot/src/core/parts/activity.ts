@@ -6,9 +6,14 @@ import {
   BLINK_CLOSE_SCALE_Y,
   BLINK_OPEN_DURATION_S,
   BLINK_OPEN_EASE,
+  RECOVERY_DURATION_S,
+  RECOVERY_EASE,
   reduceMotion,
   THROB_BEATS,
-  THROB_EASE,
+  THROB_RETURN_DURATION_S,
+  THROB_RETURN_EASE,
+  THROB_RISE_DURATION_S,
+  THROB_RISE_EASE,
   THROB_SCALE_X,
   THROB_SCALE_Y,
   TIP_FRACTION_X,
@@ -25,11 +30,6 @@ export type ActivityController = {
   dispose: () => void
 }
 
-const THROB_RISE_DURATION_S = 0.3
-const THROB_RISE_EASE = 'power2.out'
-const THROB_RETURN_DURATION_S = 0.55
-const RECOVERY_DURATION_S = 0.2
-const RECOVERY_EASE = 'power2.out'
 const NEUTRAL_SCALE = 1
 
 function tipOffset(stage: HTMLElement, antenna: HTMLElement): EmitterAnchor {
@@ -52,7 +52,7 @@ const throbOut = (): gsap.TweenVars => ({
   scaleY: NEUTRAL_SCALE,
   scaleX: NEUTRAL_SCALE,
   duration: THROB_RETURN_DURATION_S,
-  ease: THROB_EASE,
+  ease: THROB_RETURN_EASE,
 })
 
 function buildWorkTimeline(antenna: HTMLElement, eyes: HTMLElement, eyeRestScaleY: number): gsap.core.Timeline {

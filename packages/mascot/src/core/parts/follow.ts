@@ -1,10 +1,13 @@
 import gsap from 'gsap'
 import {
+  ANTENNA_TRANSFORM_ORIGIN,
   GAZE_ANTENNA_LEAN_DEG,
   GAZE_EYE_RANGE_PX,
   GAZE_EYES_QUICK_TO_DURATION_S,
   GAZE_EYES_QUICK_TO_EASE,
   GAZE_FALLOFF_PX,
+  GAZE_RETURN_DURATION_S,
+  GAZE_RETURN_EASE,
   GAZE_WRAPPER_QUICK_TO_DURATION_S,
   GAZE_WRAPPER_QUICK_TO_EASE,
   reduceMotion,
@@ -25,10 +28,7 @@ type FollowDrivers = {
   tweens: gsap.core.Tween[]
 }
 
-const LEAN_WRAPPER_TRANSFORM_ORIGIN = '50% 32.8%'
 const LEAN_WRAPPER_STYLE = 'position:absolute;inset:0;pointer-events:none;will-change:transform'
-const RETURN_DURATION_S = 0.25
-const RETURN_EASE = 'power2.out'
 
 export function wrapForLean(antenna: HTMLElement): HTMLElement | undefined {
   const parent = antenna.parentElement
@@ -38,7 +38,7 @@ export function wrapForLean(antenna: HTMLElement): HTMLElement | undefined {
   wrapper.style.cssText = LEAN_WRAPPER_STYLE
   parent.insertBefore(wrapper, antenna)
   wrapper.append(antenna)
-  gsap.set(wrapper, {transformOrigin: LEAN_WRAPPER_TRANSFORM_ORIGIN})
+  gsap.set(wrapper, {transformOrigin: ANTENNA_TRANSFORM_ORIGIN})
   return wrapper
 }
 
@@ -102,9 +102,9 @@ export function createFollowController(parts: FollowParts): FollowController {
   }
 
   const animateToZero = () => {
-    ownedTweens.push(gsap.to(eyes, {x: 0, y: 0, duration: RETURN_DURATION_S, ease: RETURN_EASE}))
+    ownedTweens.push(gsap.to(eyes, {x: 0, y: 0, duration: GAZE_RETURN_DURATION_S, ease: GAZE_RETURN_EASE}))
     if (leanWrapper === undefined) return
-    ownedTweens.push(gsap.to(leanWrapper, {rotation: 0, duration: RETURN_DURATION_S, ease: RETURN_EASE}))
+    ownedTweens.push(gsap.to(leanWrapper, {rotation: 0, duration: GAZE_RETURN_DURATION_S, ease: GAZE_RETURN_EASE}))
   }
 
   const disarm = (animated: boolean) => {

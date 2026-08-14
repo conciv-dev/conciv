@@ -1,5 +1,5 @@
 import gsap from 'gsap'
-import {AWAKE_EYE_REST_SCALE_Y, type MascotState} from '../config.js'
+import {ANTENNA_TRANSFORM_ORIGIN, AWAKE_EYE_REST_SCALE_Y, type MascotState, REST_EYE_SCALE_Y} from '../config.js'
 
 export type PoseParts = {head: HTMLElement; eyes: HTMLElement; antenna: HTMLElement}
 
@@ -12,13 +12,11 @@ export type PoseController = {
 
 const HEAD_ORIGIN = '50% 80%'
 const EYES_ORIGIN = '49.6% 58.6%'
-const ANTENNA_ORIGIN = '50% 32.8%'
 
 const HEAD_POSED_PROPERTIES = 'yPercent,rotation,scaleX,scaleY'
 const EYES_POSED_PROPERTIES = 'scaleX,scaleY'
 const ANTENNA_POSED_PROPERTIES = 'rotation,scaleX,scaleY'
 
-const REST_EYE_SCALE_Y = 1
 const AWAKE_HEAD_Y_PERCENT = -2
 const AWAKE_ANTENNA_ROTATION_DEG = -4
 
@@ -29,7 +27,7 @@ export function createPoseController(parts: PoseParts): PoseController {
 
   gsap.set(head, {transformOrigin: HEAD_ORIGIN})
   gsap.set(eyes, {transformOrigin: EYES_ORIGIN})
-  gsap.set(antenna, {transformOrigin: ANTENNA_ORIGIN})
+  gsap.set(antenna, {transformOrigin: ANTENNA_TRANSFORM_ORIGIN})
 
   const killTimeline = () => {
     timeline?.kill()
@@ -102,6 +100,7 @@ export function createPoseController(parts: PoseParts): PoseController {
     killTimeline()
     killPosedTweens()
     setRestPose()
+    current = 'rest'
   }
 
   return {set, animateTo, eyeRestScaleY, dispose}
