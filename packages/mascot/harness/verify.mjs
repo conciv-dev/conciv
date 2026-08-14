@@ -140,7 +140,13 @@ const checkLegacyWork = async (page) => {
     await harness.nextFrame()
     const emitter = harness.emitters()[0]
     const scales = await harness.sampleFrames(() => harness.property(emitter, 'scale'), 500)
-    return {digits: emitter.childElementCount, scale: harness.summarize(scales), emitters: harness.emitters().length}
+    return {
+      digits: emitter.childElementCount,
+      scale: harness.summarize(scales),
+      emitters: harness.emitters().length,
+      anchor: harness.boxOf(emitter),
+      stage: {width: window.parts.root.offsetWidth, height: window.parts.root.offsetHeight},
+    }
   })
   const throb = await page.evaluate(async () => {
     const harness = window.mascotHarness
@@ -168,8 +174,19 @@ const checkLegacyWork = async (page) => {
     await harness.wait(1500)
     return {emitters: harness.emitters().length, tweens: harness.globalTweenCount()}
   })
+  const expectedTip = {x: enter.stage.width * 0.5, y: enter.stage.height * 0.15625}
   return [
     ['emitter carries 5 digits', enter.digits === 5, enter.digits],
+    [
+      'emitter anchors at the antenna tip x = stage width x 0.5',
+      near(enter.anchor.left, expectedTip.x, 1),
+      {anchor: enter.anchor.left, expected: expectedTip.x},
+    ],
+    [
+      'emitter anchors at the antenna tip y = stage height x 0.15625',
+      near(enter.anchor.top, expectedTip.y, 1),
+      {anchor: enter.anchor.top, expected: expectedTip.y},
+    ],
     ['staged enter starts scaled into the tip', enter.scale.min < 0.5, enter.scale.min],
     ['staged enter overshoots to full size', enter.scale.max >= 1, enter.scale.max],
     ['exactly one emitter while working', enter.emitters === 1, enter.emitters],
@@ -641,8 +658,30 @@ const checkRequiredRefs = async (page) => {
     }
     service.destroy()
     host.remove()
-    return {torndown, effectHostAlone}
+
+    const mounted = harness.mascot.createMascot({state: 'rest', working: true, follow: false})
+    const bound = mounted.connect()
+    const parts = harness.buildStage()
+    const effectHost = document.createElement('div')
+    effectHost.style.cssText = 'position:absolute;inset:0;pointer-events:none'
+    parts.root.append(effectHost)
+    bind(bound, parts, effectHost)
+    await harness.wait(700)
+    const emitter = harness.emitters()[0]
+    const hosted = {
+      emitters: harness.emitters().length,
+      parentIsEffectHost: emitter?.parentElement === effectHost,
+      anchor: emitter ? harness.boxOf(emitter) : undefined,
+      stage: {width: parts.root.offsetWidth, height: parts.root.offsetHeight},
+    }
+    mounted.destroy()
+    parts.root.remove()
+    return {torndown, effectHostAlone, hosted}
   })
+  const hostedTip = {
+    x: result.hosted.stage.width * 0.5,
+    y: result.hosted.stage.height * 0.15625,
+  }
   const everyArmed = result.torndown.every((entry) => entry.armed.wrappers === 1 && entry.armed.listeners === 1)
   return [
     ['each required ref registers before it is nulled', everyArmed, result.torndown.map((entry) => entry.armed)],
@@ -664,6 +703,18 @@ const checkRequiredRefs = async (page) => {
     ['an effectHost alone never registers a wrapper', result.effectHostAlone.wrappers === 0, result.effectHostAlone],
     ['an effectHost alone never arms a listener', result.effectHostAlone.listeners === 0, result.effectHostAlone],
     ['an effectHost alone never starts an emitter', result.effectHostAlone.emitters === 0, result.effectHostAlone],
+    ['a bound effectHost hosts exactly one emitter', result.hosted.emitters === 1, result.hosted.emitters],
+    ['the emitter mounts inside the effectHost', result.hosted.parentIsEffectHost, result.hosted.parentIsEffectHost],
+    [
+      'the effect-hosted emitter anchors at the tip x, not the page offset',
+      result.hosted.anchor !== undefined && near(result.hosted.anchor.left, hostedTip.x, 1),
+      {anchor: result.hosted.anchor, expected: hostedTip},
+    ],
+    [
+      'the effect-hosted emitter anchors at the tip y, not the page offset',
+      result.hosted.anchor !== undefined && near(result.hosted.anchor.top, hostedTip.y, 1),
+      {anchor: result.hosted.anchor, expected: hostedTip},
+    ],
   ]
 }
 

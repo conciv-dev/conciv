@@ -1,11 +1,11 @@
 import {ANTENNA_ORIGIN_FRACTION_X, ANTENNA_ORIGIN_FRACTION_Y, TIP_FRACTION_X, TIP_FRACTION_Y} from './config.js'
 import type {EmitterAnchor} from './path.js'
 
-function layoutOffsetWithin(element: HTMLElement, host: HTMLElement): EmitterAnchor {
+function layoutOffsetToRoot(element: HTMLElement): EmitterAnchor {
   let x = 0
   let y = 0
   let node: HTMLElement | null = element
-  while (node !== null && node !== host) {
+  while (node !== null) {
     x += node.offsetLeft
     y += node.offsetTop
     const parent: Element | null = node.offsetParent
@@ -14,10 +14,18 @@ function layoutOffsetWithin(element: HTMLElement, host: HTMLElement): EmitterAnc
   return {x, y}
 }
 
+function layoutOffsetWithin(element: HTMLElement, host: HTMLElement): EmitterAnchor {
+  const target = layoutOffsetToRoot(element)
+  const origin = layoutOffsetToRoot(host)
+  return {x: target.x - origin.x, y: target.y - origin.y}
+}
+
 function localMatrix(element: HTMLElement): DOMMatrixReadOnly {
   const {transform} = getComputedStyle(element)
   if (transform === '' || transform === 'none') return new DOMMatrixReadOnly()
-  return new DOMMatrixReadOnly(transform)
+  const matrix = new DOMMatrixReadOnly(transform)
+  const angle = Math.atan2(matrix.b, matrix.a)
+  return new DOMMatrixReadOnly([Math.cos(angle), Math.sin(angle), -Math.sin(angle), Math.cos(angle), 0, 0])
 }
 
 export function antennaTipAnchor(host: HTMLElement, antenna: HTMLElement): EmitterAnchor {
