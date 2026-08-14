@@ -15,7 +15,8 @@ const PANEL_POS: Record<TriggerPosition, string> = {
   'bottom-left': 'bottom-21 left-5 [transform-origin:bottom_left]',
   'bottom-right': 'bottom-21 right-5 [transform-origin:bottom_right]',
 }
-const PANEL_BASE = 'fixed flex flex-col text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden'
+const PANEL_BASE =
+  'fixed flex flex-col text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden [container-type:size]'
 const PANEL_CARD =
   'bg-pw-glass w-120 max-w-[calc(100vw-2.5rem)] h-140 max-h-[calc(100vh-7.5rem)] border border-pw-line-soft rounded-pw-lg shadow-pw-lg'
 const PANEL_SHEET = 'bg-pw-panel inset-0 w-full h-full rounded-none pad-safe'

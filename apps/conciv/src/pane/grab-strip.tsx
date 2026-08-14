@@ -1,5 +1,5 @@
 import {createResizable} from '@conciv/ui-kit-system'
-import type {JSX, ParentProps} from 'solid-js'
+import {createSignal, type JSX, type ParentProps} from 'solid-js'
 
 const GRAB_STRIP_MIN = 48
 
@@ -12,9 +12,11 @@ export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
     min: GRAB_STRIP_MIN,
     grow: () => 'up',
   })
+  const [sized, setSized] = createSignal(false)
   let scroller: HTMLDivElement | undefined
   const clampToRendered = () => {
     if (scroller) resize.set(Math.min(resize.size(), scroller.getBoundingClientRect().height))
+    setSized(true)
   }
   return (
     <div class="flex flex-col min-h-0 shrink group gap-1 pt-1">
@@ -39,8 +41,8 @@ export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
         ref={(el) => {
           scroller = el
         }}
-        class={`min-h-0 max-h-max overflow-y-auto ${props.class}`}
-        style={{height: `${resize.size()}px`}}
+        class={`min-h-0 overflow-y-auto ${props.class}`}
+        style={sized() ? {height: `${resize.size()}px`} : undefined}
       >
         {props.children}
       </div>

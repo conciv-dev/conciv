@@ -20,7 +20,7 @@ function ScaledSnapshot(props: {preview: GrabPreview}): JSX.Element {
         <Show when={imagePreview(props.preview)}>
           {(preview) => (
             <img
-              class="max-w-full h-auto block"
+              class="block w-auto h-auto max-w-full max-h-[40cqh]"
               src={preview().dataUrl}
               width={preview().width}
               height={preview().height}
@@ -32,8 +32,9 @@ function ScaledSnapshot(props: {preview: GrabPreview}): JSX.Element {
     >
       {(preview) => (
         <svg
-          class="w-full h-auto block"
-          style={{'max-width': `${preview().width}px`}}
+          class="block w-auto h-auto max-w-full max-h-[40cqh]"
+          width={preview().width}
+          height={preview().height}
           viewBox={`0 0 ${preview().width} ${preview().height}`}
         >
           <foreignObject width={preview().width} height={preview().height}>
