@@ -15,17 +15,22 @@ export {isSensitiveField, MASKED_VALUE} from './element-descriptor.js'
 export {startTracking, stopTracking, report as trackReport} from './render-tracker.js'
 export * as reactBridge from './react-bridge.js'
 
-async function sleep(ms: number, signal: AbortSignal): Promise<void> {
+async function sleep(
+  ms: number,
+  signal: AbortSignal,
+  subscribeOnline?: (listener: () => void) => () => void,
+): Promise<void> {
   await new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms)
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        resolve()
-      },
-      {once: true},
-    )
+    const finish = (): void => {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', onAbort)
+      unsubscribe?.()
+      resolve()
+    }
+    const onAbort = (): void => finish()
+    const timer = setTimeout(finish, ms)
+    signal.addEventListener('abort', onAbort, {once: true})
+    const unsubscribe = subscribeOnline?.(finish)
   })
 }
 
@@ -58,6 +63,7 @@ export async function pump(
   driver: PageDriver,
   signal: AbortSignal,
   isOnline: () => boolean,
+  subscribeOnline?: (listener: () => void) => () => void,
 ): Promise<void> {
   while (!signal.aborted) {
     try {
@@ -65,7 +71,7 @@ export async function pump(
     } catch {
       if (signal.aborted) return
     }
-    await sleep(pagePlanePollDelayMs(isOnline), signal)
+    await sleep(pagePlanePollDelayMs(isOnline), signal, subscribeOnline)
   }
 }
 
@@ -75,11 +81,12 @@ export function startPagePlane(opts: {
   driver?: PageDriver
   tools?: readonly ClientToolEntry[]
   isOnline?: () => boolean
+  subscribeOnline?: (listener: () => void) => () => void
 }): {
   dispose: () => void
 } {
   const driver = opts.driver ?? makeDomPageDriver({tools: opts.tools})
   const abort = new AbortController()
-  void pump(opts.rpc, driver, abort.signal, opts.isOnline ?? (() => true))
+  void pump(opts.rpc, driver, abort.signal, opts.isOnline ?? (() => true), opts.subscribeOnline)
   return {dispose: () => abort.abort()}
 }

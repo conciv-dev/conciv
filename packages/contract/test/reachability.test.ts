@@ -103,6 +103,16 @@ describe('isRetryableRpcFailure', () => {
   it('never retries once the connection has been deliberately closed', () => {
     expect(isRetryableRpcFailure(false, new TypeError('fetch failed'))).toBe(false)
   })
+
+  it('never treats a self-initiated abort as retryable: the signal.reason a real AbortController produces', () => {
+    const controller = new AbortController()
+    controller.abort()
+    expect(isRetryableRpcFailure(true, controller.signal.reason)).toBe(false)
+  })
+
+  it('never treats the native AbortError DOMException fetch throws as retryable', () => {
+    expect(isRetryableRpcFailure(true, new DOMException('The operation was aborted.', 'AbortError'))).toBe(false)
+  })
 })
 
 describe('retry-settle reachability votes over the fetch transport', () => {

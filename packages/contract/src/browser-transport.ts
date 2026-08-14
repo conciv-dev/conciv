@@ -91,8 +91,12 @@ function websocketUrl(apiBase: string): string {
   return url.toString()
 }
 
+function isAbortedFailure(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
 export function isRetryableRpcFailure(alive: boolean, error: unknown): boolean {
-  return alive && !(error instanceof ORPCError)
+  return alive && !(error instanceof ORPCError) && !isAbortedFailure(error)
 }
 
 function retryPlugin(alive: () => boolean, vote: ReachabilityListener): ClientRetryPlugin<RpcClientContext> {

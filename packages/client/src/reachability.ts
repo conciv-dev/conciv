@@ -89,6 +89,12 @@ export function engineProbeRefetchInterval(reachable: boolean, intervalMs = ENGI
   return reachable ? false : intervalMs
 }
 
+export function subscribeEngineOnline(listener: () => void): () => void {
+  return onlineManager.subscribe((online) => {
+    if (online) listener()
+  })
+}
+
 export function voteEngineProbeSettled(succeeded: boolean, error?: unknown): void {
   if (succeeded) {
     onlineManager.setOnline(true)

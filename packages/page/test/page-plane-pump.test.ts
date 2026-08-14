@@ -40,6 +40,39 @@ describe('pump', () => {
     }
   })
 
+  it('wakes immediately from the offline cadence sleep on an online edge instead of waiting out the full 2000ms', async () => {
+    vi.useFakeTimers()
+    try {
+      let calls = 0
+      const rpc = fakeRpc(async () => {
+        calls += 1
+        throw new Error('offline')
+      })
+      const abort = new AbortController()
+      let wake: (() => void) | undefined
+      let unsubscribed = false
+      const subscribeOnline = (listener: () => void): (() => void) => {
+        wake = listener
+        return () => {
+          unsubscribed = true
+        }
+      }
+      void pump(rpc, fakeDriver(), abort.signal, () => false, subscribeOnline)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(calls).toBe(1)
+      await vi.advanceTimersByTimeAsync(100)
+      expect(calls).toBe(1)
+      wake?.()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(calls).toBe(2)
+      abort.abort()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(unsubscribed).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('polls at the fast cadence while online', async () => {
     vi.useFakeTimers()
     try {

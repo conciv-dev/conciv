@@ -2,7 +2,7 @@ import {createRoot, createSignal} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient} from '@conciv/contract'
-import {engineOnline, voteEngineProbeSettled} from '@conciv/client'
+import {engineOnline, subscribeEngineOnline} from '@conciv/client'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
   collectClientEffects,
@@ -119,15 +119,26 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const container = document.createElement('div')
   config.root.appendChild(container)
   const disposeApp = render(() => <RouterProvider router={router} />, container)
-  let plane = startPagePlane({rpc, document, driver, isOnline: reachabilityRoot.isOnline})
+  let plane = startPagePlane({
+    rpc,
+    document,
+    driver,
+    isOnline: reachabilityRoot.isOnline,
+    subscribeOnline: subscribeEngineOnline,
+  })
 
   const rebind = (nextApiBase: string): void => {
     rebindClient(nextApiBase)
     storage.dispose()
     plane.dispose()
     setApiBase(nextApiBase)
-    voteEngineProbeSettled(true)
-    plane = startPagePlane({rpc, document, driver, isOnline: reachabilityRoot.isOnline})
+    plane = startPagePlane({
+      rpc,
+      document,
+      driver,
+      isOnline: reachabilityRoot.isOnline,
+      subscribeOnline: subscribeEngineOnline,
+    })
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)
   }
@@ -165,7 +176,13 @@ function bootConnect(config: BootConnectConfig): BootResult {
     boundApiBase = nextApiBase
     deferred.bind(nextApiBase)
     setApiBase(nextApiBase)
-    planeDispose = startPagePlane({rpc: deferred.rpc, document, driver, isOnline: reachabilityRoot.isOnline}).dispose
+    planeDispose = startPagePlane({
+      rpc: deferred.rpc,
+      document,
+      driver,
+      isOnline: reachabilityRoot.isOnline,
+      subscribeOnline: subscribeEngineOnline,
+    }).dispose
   }
   const hostRouter = window.__TSR_ROUTER__
   const router = createConcivRouter({
