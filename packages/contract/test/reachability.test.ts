@@ -133,4 +133,28 @@ describe('retry-settle reachability votes over the fetch transport', () => {
     expect(votes).toEqual([false, true])
     closeBrowserRpcConnection(base)
   })
+
+  it('a retry settle from an already-closed connection never votes: closing revokes its vote eligibility', async () => {
+    vi.useFakeTimers()
+    const base = apiBase('fetch-retry-closed')
+    let calls = 0
+    globalThis.fetch = vi.fn(async () => {
+      calls += 1
+      if (calls === 1) throw new TypeError('network error')
+      return new Response(JSON.stringify({json: []}), {headers: {'content-type': 'application/json'}})
+    })
+    const votes: boolean[] = []
+    subscribeRpcReachability(base, (reachable) => votes.push(reachable))
+    const connection = browserRpcConnection(base, 'fetch')
+    const {createORPCClient} = await import('@orpc/client')
+    const client = createORPCClient<{sessions: {list: (input: undefined) => Promise<unknown>}}>(connection.link)
+    const pending = client.sessions.list(undefined).catch(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(votes).toEqual([false])
+    closeBrowserRpcConnection(base)
+    votes.length = 0
+    await vi.advanceTimersByTimeAsync(300)
+    await pending
+    expect(votes).toEqual([])
+  })
 })

@@ -29,7 +29,14 @@ async function sleep(ms: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-async function serveQueries(rpc: RpcClient, driver: PageDriver, signal: AbortSignal): Promise<void> {
+export type PagePlaneRpc = {
+  page: {
+    queries: RpcClient['page']['queries']
+    reply: RpcClient['page']['reply']
+  }
+}
+
+async function serveQueries(rpc: PagePlaneRpc, driver: PageDriver, signal: AbortSignal): Promise<void> {
   const iterator = await rpc.page.queries(undefined, {signal})
   for await (const item of iterator) {
     const parsed = PageQuerySchema.safeParse(item.query)
@@ -46,14 +53,17 @@ export function pagePlanePollDelayMs(isOnline: () => boolean): number {
   return isOnline() ? PAGE_PLANE_POLL_MS : PAGE_PLANE_OFFLINE_POLL_MS
 }
 
-async function pump(rpc: RpcClient, driver: PageDriver, signal: AbortSignal, isOnline: () => boolean): Promise<void> {
+export async function pump(
+  rpc: PagePlaneRpc,
+  driver: PageDriver,
+  signal: AbortSignal,
+  isOnline: () => boolean,
+): Promise<void> {
   while (!signal.aborted) {
-    if (isOnline()) {
-      try {
-        await serveQueries(rpc, driver, signal)
-      } catch {
-        if (signal.aborted) return
-      }
+    try {
+      await serveQueries(rpc, driver, signal)
+    } catch {
+      if (signal.aborted) return
     }
     await sleep(pagePlanePollDelayMs(isOnline), signal)
   }

@@ -2,7 +2,7 @@ import {createRoot, createSignal} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient} from '@conciv/contract'
-import {engineOnline} from '@conciv/client'
+import {engineOnline, voteEngineProbeSettled} from '@conciv/client'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
   collectClientEffects,
@@ -126,6 +126,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     storage.dispose()
     plane.dispose()
     setApiBase(nextApiBase)
+    voteEngineProbeSettled(true)
     plane = startPagePlane({rpc, document, driver, isOnline: reachabilityRoot.isOnline})
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)

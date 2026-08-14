@@ -310,6 +310,7 @@ export function closeBrowserRpcConnection(apiBase: string): void {
   const existing = connections.get(key)
   if (!existing) return
   connections.delete(key)
+  activeConnections().delete(key)
   existing.close()
 }
 
@@ -322,6 +323,7 @@ export function reprobeBrowserRpcConnection(
   const existing = connections.get(key)
   if (existing) {
     connections.delete(key)
+    activeConnections().delete(key)
     existing.close()
   }
   const created = preference === 'auto' ? probedConnection(key) : pinnedConnection(key, preference)
