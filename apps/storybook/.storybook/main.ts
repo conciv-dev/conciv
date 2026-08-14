@@ -16,6 +16,7 @@ const config: StorybookConfig = {
     '../../../packages/ui-kit-tap/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/solid-diffs/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/solid-streamdown/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
+    '../../../packages/mascot/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
   ],
   addons: ['@chromatic-com/storybook', '@storybook/addon-vitest', '@storybook/addon-a11y', '@storybook/addon-docs'],
   framework: process.env.VITEST ? {name: 'storybook-solidjs-vite', options: {docgen: false}} : 'storybook-solidjs-vite',

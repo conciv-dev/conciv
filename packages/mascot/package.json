@@ -29,7 +29,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.stories.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests",
     "publint": "publint",
@@ -40,7 +40,11 @@
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
+    "solid-js": "^1.9.13",
+    "storybook": "^10.5.0",
+    "storybook-solidjs-vite": "^10.6.0",
     "tsdown": "^0.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vite-plugin-solid": "^2.11.12"
   }
 }
