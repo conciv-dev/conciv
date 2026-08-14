@@ -16,7 +16,7 @@ const roundClean = (value: number): number => Math.round(value * ROUNDING_PRECIS
 export function measureEmitterRoom(anchor: EmitterAnchor, bounds: EmitterBounds): EmitterRoom {
   const headroom = anchor.y - bounds.top - MARGIN
   const rise = Math.min(MAX_RISE, Math.max(MIN_RISE, headroom))
-  const shortfall = Math.max(0, MAX_RISE - headroom)
+  const shortfall = MAX_RISE - rise
   if (shortfall < SHORTFALL_THRESHOLD) return {rise, bend: 0}
   const leftRoom = anchor.x - bounds.left - MARGIN
   const rightRoom = bounds.right - anchor.x - MARGIN

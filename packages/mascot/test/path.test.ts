@@ -14,4 +14,7 @@ describe('measureEmitterRoom', () => {
   it('trivial squeeze stays straight', () => {
     expect(measureEmitterRoom({x: 130, y: 58}, {top: 0, left: 0, right: 260})).toEqual({rise: 46, bend: 0})
   })
+  it('negative headroom clamps rise to floor and shortfall to the contract ceiling', () => {
+    expect(measureEmitterRoom({x: 130, y: 5}, {top: 0, left: 0, right: 260})).toEqual({rise: 8, bend: 64.4})
+  })
 })
