@@ -15,7 +15,7 @@ export function GrabStrip(props: ParentProps<{class: string}>): JSX.Element {
   const [sized, setSized] = createSignal(false)
   let scroller: HTMLDivElement | undefined
   const clampToRendered = () => {
-    if (scroller) resize.set(Math.min(resize.size(), scroller.getBoundingClientRect().height))
+    if (scroller) resize.set(scroller.getBoundingClientRect().height)
     setSized(true)
   }
   return (
