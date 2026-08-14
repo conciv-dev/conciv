@@ -1,9 +1,12 @@
 import {mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {dlxCommand} from 'nypm'
 import {describe, expect, it} from 'vitest'
 import type {InitContext} from '../../src/init/pipeline.js'
 import {docsPackStep} from '../../src/init/steps/docs-pack.js'
+
+const intentBlock = '<!-- intent-skills:start -->\nguidance\n<!-- intent-skills:end -->\n'
 
 function project(manifest: object): InitContext {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-docs-pack-'))
@@ -12,25 +15,32 @@ function project(manifest: object): InitContext {
 }
 
 describe('docsPackStep', () => {
-  it('detects present and missing from the real package.json', async () => {
+  it('detects present only once the dependency and the intent guidance block both exist', async () => {
     const step = docsPackStep(
       async () => {},
       async () => ({code: 0, output: ''}),
     )
-    expect(await step.detect(project({devDependencies: {'@conciv/skills': '^0.0.19'}}))).toBe('present')
     expect(await step.detect(project({name: 'app'}))).toBe('missing')
+    const withDepOnly = project({devDependencies: {'@conciv/skills': '^0.0.19'}})
+    expect(await step.detect(withDepOnly)).toBe('missing')
+    writeFileSync(join(withDepOnly.cwd, 'AGENTS.md'), intentBlock)
+    expect(await step.detect(withDepOnly)).toBe('present')
   })
 
   it('adds the dependency and runs intent install, landing the dep and verifying', async () => {
-    const ctx = project({name: 'app'})
+    const ctx = project({name: 'app', packageManager: 'pnpm@10.14.0'})
     const spawned: {bin: string; args: string[]; cwd: string}[] = []
     const step = docsPackStep(
       async (name, opts) => {
         const manifestPath = join(opts.cwd, 'package.json')
-        writeFileSync(manifestPath, JSON.stringify({name: 'app', devDependencies: {[name]: '^0.0.19'}}))
+        writeFileSync(
+          manifestPath,
+          JSON.stringify({name: 'app', packageManager: 'pnpm@10.14.0', devDependencies: {[name]: '^0.0.19'}}),
+        )
       },
       async (bin, args, cwd) => {
         spawned.push({bin, args, cwd})
+        writeFileSync(join(cwd, 'AGENTS.md'), intentBlock)
         return {code: 0, output: ''}
       },
     )
@@ -39,7 +49,32 @@ describe('docsPackStep', () => {
     expect(await step.verify(ctx)).toBe(true)
     expect(spawned).toEqual([{bin: 'pnpm', args: ['dlx', '@tanstack/intent@latest', 'install'], cwd: ctx.cwd}])
     const written: unknown = JSON.parse(readFileSync(join(ctx.cwd, 'package.json'), 'utf8'))
-    expect(written).toEqual({name: 'app', devDependencies: {'@conciv/skills': '^0.0.19'}})
+    expect(written).toEqual({
+      name: 'app',
+      packageManager: 'pnpm@10.14.0',
+      devDependencies: {'@conciv/skills': '^0.0.19'},
+    })
+  })
+
+  it('an already-present dependency skips the add call but still runs intent install for a missing block', async () => {
+    const ctx = project({name: 'app', packageManager: 'pnpm@10.14.0', devDependencies: {'@conciv/skills': '^0.0.19'}})
+    let addCalled = false
+    const spawned: {bin: string; args: string[]; cwd: string}[] = []
+    const step = docsPackStep(
+      async () => {
+        addCalled = true
+      },
+      async (bin, args, cwd) => {
+        spawned.push({bin, args, cwd})
+        writeFileSync(join(cwd, 'AGENTS.md'), intentBlock)
+        return {code: 0, output: ''}
+      },
+    )
+    expect(await step.detect(ctx)).toBe('missing')
+    expect(await step.apply(ctx)).toEqual({status: 'done'})
+    expect(addCalled).toBe(false)
+    expect(spawned).toEqual([{bin: 'pnpm', args: ['dlx', '@tanstack/intent@latest', 'install'], cwd: ctx.cwd}])
+    expect(await step.verify(ctx)).toBe(true)
   })
 
   it('a throwing add degrades to manual with both commands on the card', async () => {
@@ -65,7 +100,7 @@ describe('docsPackStep', () => {
     expect(await step.verify(ctx)).toBe(false)
   })
 
-  it('a failing intent install spawn degrades to manual once the dependency already landed', async () => {
+  it('a failing intent install spawn degrades to manual once the dependency already landed, card omits the add line', async () => {
     const ctx = project({name: 'app', packageManager: 'pnpm@10.14.0'})
     const step = docsPackStep(
       async (name, opts) => {
@@ -85,10 +120,41 @@ describe('docsPackStep', () => {
         {
           title: 'Add the @conciv/skills docs pack',
           body: 'The automatic setup failed. Run these in your project:',
-          snippet: 'pnpm add --save-dev @conciv/skills\npnpm dlx @tanstack/intent@latest install',
+          snippet: 'pnpm dlx @tanstack/intent@latest install',
         },
       ],
     })
-    expect(await step.detect(ctx)).toBe('present')
+    expect(await step.detect(ctx)).toBe('missing')
+  })
+
+  it('uses the detected package manager for npm projects, not a hardcoded pnpm command', async () => {
+    const ctx = project({name: 'app'})
+    writeFileSync(join(ctx.cwd, 'package-lock.json'), JSON.stringify({name: 'app', lockfileVersion: 3}))
+    const spawned: {bin: string; args: string[]; cwd: string}[] = []
+    const step = docsPackStep(
+      async (name, opts) => {
+        const manifestPath = join(opts.cwd, 'package.json')
+        writeFileSync(manifestPath, JSON.stringify({name: 'app', devDependencies: {[name]: '^0.0.19'}}))
+      },
+      async (bin, args, cwd) => {
+        spawned.push({bin, args, cwd})
+        return {code: 1, output: 'intent: still missing'}
+      },
+    )
+    const outcome = await step.apply(ctx)
+    const expectedCommand = dlxCommand('npm', '@tanstack/intent@latest', {args: ['install']})
+    const [expectedBin, ...expectedArgs] = expectedCommand.split(' ')
+    expect(spawned).toEqual([{bin: expectedBin, args: expectedArgs, cwd: ctx.cwd}])
+    expect(outcome).toEqual({
+      status: 'manual',
+      detail: 'intent: still missing',
+      cards: [
+        {
+          title: 'Add the @conciv/skills docs pack',
+          body: 'The automatic setup failed. Run these in your project:',
+          snippet: expectedCommand,
+        },
+      ],
+    })
   })
 })

@@ -1,5 +1,5 @@
 import {execFileSync} from 'node:child_process'
-import {chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
+import {appendFileSync, chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
@@ -9,6 +9,8 @@ import type {PlanPrompts} from '../../src/init/wizard.js'
 import {recorderOutput} from './init-output.js'
 
 const fixturesDir = new URL('../fixtures/', import.meta.url)
+
+const intentSkillsBlock = '<!-- intent-skills:start -->\nguidance\n<!-- intent-skills:end -->\n'
 
 const manifestSchema = z.object({
   name: z.string(),
@@ -148,6 +150,9 @@ export function fixture(options: FixtureOptions = {}): Fixture {
     spawn: async (bin, args, spawnCwd) => {
       spawned.push(`${bin} ${args.join(' ')}`)
       recordClaudePluginState({home, cwd: spawnCwd, args})
+      if (args.includes('@tanstack/intent@latest') && args.includes('install')) {
+        appendFileSync(join(spawnCwd, 'AGENTS.md'), intentSkillsBlock)
+      }
       return {code: 0, output: ''}
     },
     env: {PATH: binDir, HOME: home},
