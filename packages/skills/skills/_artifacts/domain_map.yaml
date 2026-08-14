@@ -101,7 +101,6 @@ skills:
           }
         correct_pattern: |
           function Surface() {
-            const host = getExtensionApi(YOUR_NAME)
             return <button onClick={() => store.set(latestValue)}>Save</button>
           }
         source: 'packages/extension/src/extension-api.ts'
