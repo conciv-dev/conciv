@@ -153,13 +153,78 @@ function RigStage(props: {state: RigState}): JSX.Element {
   )
 }
 
-const anchorStyle: JSX.CSSProperties = {
+const ANTENNA_PIXEL_SIZE = 128
+
+const TIP_PIXEL_X = 64
+
+const TIP_PIXEL_Y = 20
+
+const TIP_STAGE_X = (TIP_PIXEL_X * STAGE_SIZE_PX) / ANTENNA_PIXEL_SIZE
+
+const TIP_STAGE_Y = (TIP_PIXEL_Y * STAGE_SIZE_PX) / ANTENNA_PIXEL_SIZE
+
+const tipAnchorStyle: JSX.CSSProperties = {
   position: 'absolute',
-  left: '22px',
-  top: '4px',
+  left: `${TIP_STAGE_X}px`,
+  top: `${TIP_STAGE_Y}px`,
   width: '0',
   height: '0',
   'pointer-events': 'none',
+}
+
+const anchorStyle: JSX.CSSProperties = {
+  position: 'absolute',
+  left: '0',
+  top: '0',
+  width: '0',
+  height: '0',
+  'pointer-events': 'none',
+}
+
+function TipTransition(props: {active: boolean; children: JSX.Element}): JSX.Element {
+  const [rendered, setRendered] = createSignal(false)
+  let containerElement: HTMLDivElement | undefined
+  let tween: gsap.core.Tween | undefined
+
+  createEffect(() => {
+    if (props.active) setRendered(true)
+  })
+
+  createEffect(() => {
+    const active = props.active
+    const element = containerElement
+    if (!rendered() || element === undefined) return
+    tween?.kill()
+    if (prefersReducedMotion()) {
+      gsap.set(element, {scale: 1, opacity: active ? 1 : 0})
+      if (!active) setRendered(false)
+      return
+    }
+    if (active) {
+      tween = gsap.fromTo(
+        element,
+        {scale: 0.2, opacity: 0},
+        {scale: 1, opacity: 1, duration: 0.36, ease: 'back.out(2.2)'},
+      )
+      return
+    }
+    tween = gsap.to(element, {
+      scale: 0.2,
+      opacity: 0,
+      duration: 0.24,
+      ease: 'power2.in',
+      onComplete: () => setRendered(false),
+    })
+  })
+  onCleanup(() => tween?.kill())
+
+  return (
+    <Show when={rendered()}>
+      <div ref={(element) => (containerElement = element)} style={tipAnchorStyle}>
+        {props.children}
+      </div>
+    </Show>
+  )
 }
 
 function trailDotStyle(size: number, left: number, top: number): JSX.CSSProperties {
@@ -1086,9 +1151,9 @@ function Playground(): JSX.Element {
             <div style={cellStyle}>
               <div style={stageWrapStyle}>
                 <RigStage state={state()} />
-                <Show when={working()}>
+                <TipTransition active={working()}>
                   <Dynamic component={variation.effect} />
-                </Show>
+                </TipTransition>
               </div>
               <span style={labelStyle}>{variation.name}</span>
             </div>
