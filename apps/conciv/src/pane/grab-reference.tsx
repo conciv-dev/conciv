@@ -4,44 +4,50 @@ import {TooltipIconButton} from '@conciv/ui-kit-system'
 import type {GrabPreview, Grab} from '@conciv/grab'
 import {sourceLabel} from './grab-source-label.js'
 
-function fitScale(width: number, maxWidth: number): number {
-  if (width <= 0) return 1
-  return Math.min(1, maxWidth / width)
+function domPreview(preview: GrabPreview): Extract<GrabPreview, {kind: 'dom'}> | null {
+  return preview.kind === 'dom' ? preview : null
 }
 
-function ScaledSnapshot(props: {preview: GrabPreview; maxWidth: number}): JSX.Element {
-  const scale = () => fitScale(props.preview.width, props.maxWidth)
+function imagePreview(preview: GrabPreview): Extract<GrabPreview, {kind: 'image'}> | null {
+  return preview.kind === 'image' ? preview : null
+}
+
+function ScaledSnapshot(props: {preview: GrabPreview}): JSX.Element {
   return (
-    <div
-      class="inline-flex max-w-full cursor-default overflow-hidden"
-      style={{
-        width: `${Math.ceil(props.preview.width * scale())}px`,
-        height: `${Math.ceil(props.preview.height * scale())}px`,
-      }}
+    <Show
+      when={domPreview(props.preview)}
+      fallback={
+        <Show when={imagePreview(props.preview)}>
+          {(preview) => (
+            <img
+              class="block w-auto h-auto max-w-full max-h-[40cqh]"
+              src={preview().dataUrl}
+              width={preview().width}
+              height={preview().height}
+              alt=""
+            />
+          )}
+        </Show>
+      }
     >
-      <div
-        class="flex-none pointer-events-none origin-top-left"
-        data-pw-grab-scale
-        style={{
-          width: `${props.preview.width}px`,
-          height: `${props.preview.height}px`,
-          transform: `scale(${scale()})`,
-        }}
-        ref={(el) => {
-          const preview = props.preview
-          if (preview.kind === 'dom') {
-            el.appendChild(preview.node.cloneNode(true))
-            return
-          }
-          const img = document.createElement('img')
-          img.src = preview.dataUrl
-          img.width = preview.width
-          img.height = preview.height
-          img.alt = ''
-          el.appendChild(img)
-        }}
-      />
-    </div>
+      {(preview) => (
+        <svg
+          class="block w-auto h-auto max-w-full max-h-[40cqh]"
+          width={preview().width}
+          height={preview().height}
+          viewBox={`0 0 ${preview().width} ${preview().height}`}
+        >
+          <foreignObject width={preview().width} height={preview().height}>
+            <div
+              class="pointer-events-none"
+              data-pw-grab-scale
+              style={{width: `${preview().width}px`, height: `${preview().height}px`}}
+              ref={(el) => el.appendChild(preview().node.cloneNode(true))}
+            />
+          </foreignObject>
+        </svg>
+      )}
+    </Show>
   )
 }
 
@@ -49,11 +55,7 @@ function stagedGrab(grab: Grab | {text: string}): Grab | null {
   return 'preview' in grab ? grab : null
 }
 
-export function GrabReference(props: {
-  grab: Grab | {text: string}
-  maxWidth: number
-  onRemove: () => void
-}): JSX.Element {
+export function GrabReference(props: {grab: Grab | {text: string}; onRemove: () => void}): JSX.Element {
   return (
     <div
       class="text-[0.6875rem] font-pw-mono mb-2 p-3 border-b border-r border-t border-y-pw-line border-l-[0.1875rem] border-l-pw-accent border-r-pw-line rounded-pw-md bg-pw-fill flex flex-col gap-2.5 items-start relative anim-presence-in"
@@ -72,7 +74,7 @@ export function GrabReference(props: {
       >
         {(grab) => (
           <>
-            <ScaledSnapshot preview={grab().preview} maxWidth={props.maxWidth} />
+            <ScaledSnapshot preview={grab().preview} />
             <Show when={grab().source}>
               {(source) => (
                 <Show when={sourceLabel(source())}>

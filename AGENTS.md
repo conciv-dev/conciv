@@ -129,6 +129,10 @@ README.md; this file is the non-obvious operational rules.
 - All `@conciv/*` share ONE version: `.changeset/config.json` sets `fixed: [["@conciv/*"]]`, so a single
   changeset bumps the whole set in lockstep (currently the 0.0.x patch line). One changeset entry naming
   any `@conciv/*` package is enough to release them all.
+- EVERY PR that changes published packages (including `apps/conciv`, which ships inside `@conciv/embed`)
+  needs a changeset or the `no-changeset` label — CI `check-changesets --require-coverage` blocks
+  otherwise. Verify locally before handoff:
+  `pnpm exec conciv-publish check-changesets --require-coverage --base origin/main`.
 - Adding a new PUBLISHED package (`private` unset/false)? Add its name to `PUBLIC_PACKAGES` in
   `packages/publish/src/guards.ts` or `assertPublicSet` aborts the release on drift; give it
   `homepage: https://conciv.dev` + a `repository` block with its `directory` (matches every public manifest).
