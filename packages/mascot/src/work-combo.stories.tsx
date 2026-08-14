@@ -100,8 +100,8 @@ function Playground(): JSX.Element {
       </div>
       <span style={noteStyle}>
         the antenna motion applies to every cell at once, and the rig is pinned to its closed pose so the story timeline
-        is the only thing driving the antenna. cursor-lean composes with the rig's own closed-state gaze, so the eyes
-        and the antenna both track the pointer
+        is the only thing driving the antenna transform. the rig's own closed-state pointer-follow still composes on
+        top: the eyes translate and the antenna leans toward the cursor
       </span>
       <div style={gridStyle}>
         <For each={bubbleVariations}>

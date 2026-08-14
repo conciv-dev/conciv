@@ -3,7 +3,6 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import gsap from 'gsap'
 import {
   cellStyle,
-  cursorLean,
   driveAntenna,
   elasticWobble,
   gridStyle,
@@ -36,7 +35,6 @@ const variations: Variation[] = [
   },
   {name: 'Elastic wobble', note: 'flick then settle', motion: elasticWobble, staticPose: {rotation: 18}},
   {name: 'Metronome tick', note: 'stepped, on a beat', motion: metronomeTick, staticPose: {rotation: -10}},
-  {name: 'Cursor lean', note: 'follows the pointer, also while closed', motion: cursorLean, staticPose: {rotation: 8}},
   {name: 'Throb + burst', note: 'alternating beats', motion: throbAndBurst, staticPose: {scaleY: 1.24}},
 ]
 

@@ -174,28 +174,6 @@ export const throbAndBurst: AntennaMotion = (element) => {
   return () => timeline.kill()
 }
 
-export const LEAN_FALLOFF_PX = 220
-
-export const LEAN_DEGREES = 14
-
-export const cursorLean: AntennaMotion = (element) => {
-  const rotateTo = gsap.quickTo(element, 'rotation', {duration: 0.5, ease: 'power3.out'})
-  const onPointerMove = (event: PointerEvent) => {
-    const bounds = element.getBoundingClientRect()
-    if (bounds.width === 0 || bounds.height === 0) return
-    const offsetX = event.clientX - (bounds.left + bounds.width / 2)
-    const offsetY = event.clientY - (bounds.top + bounds.height / 2)
-    const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY)
-    const reach = Math.min(1, distance / LEAN_FALLOFF_PX) * LEAN_DEGREES
-    rotateTo(Math.cos(Math.atan2(offsetY, offsetX)) * reach)
-  }
-  window.addEventListener('pointermove', onPointerMove)
-  return () => {
-    window.removeEventListener('pointermove', onPointerMove)
-    gsap.killTweensOf(element)
-  }
-}
-
 export type MotionOption = {id: string; label: string; motion?: AntennaMotion; staticPose: gsap.TweenVars}
 
 export const workMotions: MotionOption[] = [
@@ -205,7 +183,6 @@ export const workMotions: MotionOption[] = [
   {id: 'wobble', label: 'wobble', motion: elasticWobble, staticPose: {rotation: 18}},
   {id: 'metronome', label: 'metronome', motion: metronomeTick, staticPose: {rotation: -10}},
   {id: 'throb+burst', label: 'throb+burst', motion: throbAndBurst, staticPose: {scaleY: 1.24}},
-  {id: 'cursor-lean', label: 'cursor-lean', motion: cursorLean, staticPose: {rotation: 8}},
 ]
 
 export function driveAntenna(
