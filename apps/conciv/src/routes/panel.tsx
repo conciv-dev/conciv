@@ -23,6 +23,8 @@ const PANEL_OPEN =
   'pointer-events-auto visible trans-pop-in opacity-100 [transform:none] starting:opacity-0 starting:[transform:translateY(8px)_scale(0.98)]'
 const PANEL_CLOSING = 'pointer-events-none invisible trans-pop-out opacity-0 [transform:translateY(8px)_scale(0.98)]'
 
+const PANEL_MIN_HEIGHT = 320
+
 const RESIZE = 'absolute z-[3] focus-visible:outline-none focus-visible:bg-pw-accent-20 focus-visible:ring-inset-accent'
 const RESIZE_Y = 'left-0 right-0 h-2 cursor-ns-resize'
 const RESIZE_X = 'top-0 bottom-0 w-2 cursor-ew-resize'
@@ -56,7 +58,7 @@ function PanelLayout(): JSX.Element {
 
   const resizeY = createResizable({
     initial: 560,
-    min: 240,
+    min: PANEL_MIN_HEIGHT,
     collapseAt: 140,
     storageKey: 'conciv-modal-height',
     grow: () => (anchoredBottom() ? 'up' : 'down'),
@@ -92,7 +94,7 @@ function PanelLayout(): JSX.Element {
                 role="separator"
                 aria-orientation="horizontal"
                 aria-label="Resize chat height"
-                aria-valuemin={240}
+                aria-valuemin={PANEL_MIN_HEIGHT}
                 aria-valuenow={Math.round(resizeY.size())}
                 tabindex={0}
                 onPointerDown={resizeY.onPointerDown}
