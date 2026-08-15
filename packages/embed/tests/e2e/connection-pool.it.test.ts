@@ -1,6 +1,5 @@
 import {expect, test, type BrowserContext, type Page} from '@playwright/test'
 import {httpRpcRequestUrls, rpcCallCursor, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
-import {seedRoute} from './helpers/navigation.js'
 import {setupProxiedEmbedSuite} from './helpers/proxied-suite.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
@@ -8,10 +7,6 @@ const SHARED_CONTEXT_TAB_COUNT = 6
 const MOUNT_TIMEOUT_MS = 20_000
 
 const suite = setupProxiedEmbedSuite({text: ASSISTANT_TEXT})
-
-test.beforeEach(async () => {
-  expect(await seedRoute(suite.kit(), {to: '/'})).toBe(true)
-})
 
 type Tab = {page: Page; calls: RpcCallCursor; httpRpcUrls: string[]}
 

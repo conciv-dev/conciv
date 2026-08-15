@@ -24,7 +24,6 @@
     "./listen-local": "./src/listen-local.ts",
     "./serve-host": "./src/serve-host.ts",
     "./navigation-state": "./src/navigation-state.ts",
-    "./navigation-wire": "./src/navigation-wire.ts",
     "./rpc-frames": "./src/rpc-frames.ts",
     "./rpc-counts": "./src/rpc-counts.ts",
     "./rpc-wire": "./src/rpc-wire.ts",

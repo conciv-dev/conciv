@@ -3,7 +3,7 @@ import {gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 import {currentHref} from '@conciv/extension-testkit/navigation-state'
-import {seedRoute, untilNavigationHref} from './helpers/navigation.js'
+import {until} from '@conciv/harness-testkit/until'
 import {hostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 
@@ -32,10 +32,6 @@ async function ensurePanelClosed(page: Page): Promise<void> {
 type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hostButton: Locator}
 
 const dedicatedHosts: Array<{close: () => Promise<void>}> = []
-
-test.beforeEach(async () => {
-  expect(await seedRoute(suite.kit(), {to: '/'})).toBe(true)
-})
 
 test.afterEach(async () => {
   for (const dedicatedHost of dedicatedHosts.splice(0)) await dedicatedHost.close()
@@ -137,7 +133,10 @@ test.describe('panel close restores focus: host element captured at open wins, F
     test.setTimeout(180_000)
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
-    await untilNavigationHref(suite.kit(), (href) => href.includes('open=true'))
+    await until(async () => (await currentHref(suite.kit())).includes('open=true'), {
+      hangGuardMs: 30_000,
+      intervalMs: 100,
+    })
     expect(await currentHref(suite.kit())).toContain('open=true')
 
     await page.reload({waitUntil: 'domcontentloaded'})

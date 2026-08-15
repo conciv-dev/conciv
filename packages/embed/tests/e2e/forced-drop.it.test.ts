@@ -1,7 +1,6 @@
 import {expect, test, type Page} from '@playwright/test'
 import {rpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
-import {seedRoute} from './helpers/navigation.js'
 import {setupProxiedEmbedSuite} from './helpers/proxied-suite.js'
 
 const ASSISTANT_TEXT = 'Reply across the drop'
@@ -10,10 +9,6 @@ const SECOND_TEXT = 'second turn after the drop'
 const MOUNT_TIMEOUT_MS = 20_000
 
 const suite = setupProxiedEmbedSuite({text: ASSISTANT_TEXT})
-
-test.beforeEach(async () => {
-  expect(await seedRoute(suite.kit(), {to: '/'})).toBe(true)
-})
 
 async function sendTurn(page: Page, text: string): Promise<void> {
   await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(text)

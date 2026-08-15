@@ -2,7 +2,6 @@ import {expect, test} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {handleHostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
-import {seedRoute} from './helpers/navigation.js'
 import {mountHandle, openHostWithHandle, remountHandle, unmountHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
 
@@ -23,7 +22,6 @@ test.afterAll(async () => {
 
 test.beforeEach(async () => {
   kit = await bootEmbedKit({text: ASSISTANT_TEXT})
-  expect(await seedRoute(kit, {to: '/'})).toBe(true)
 })
 
 test.afterEach(async () => {

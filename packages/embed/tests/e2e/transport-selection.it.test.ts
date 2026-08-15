@@ -5,7 +5,6 @@ import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
-import {seedRoute} from './helpers/navigation.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
 const MOUNT_TIMEOUT_MS = 30_000
@@ -17,7 +16,7 @@ let openHost: {base: string; close: () => Promise<void>}
 let blockedHost: {base: string; close: () => Promise<void>}
 let pinnedFetchHost: {base: string; close: () => Promise<void>}
 
-test.beforeAll(async () => {
+test.beforeEach(async () => {
   kit = await bootEmbedKit({text: ASSISTANT_TEXT})
   openCore = await proxyTo(kit.base)
   blockedCore = await proxyTo(kit.base, {blockUpgrades: true})
@@ -28,17 +27,13 @@ test.beforeAll(async () => {
   )
 })
 
-test.afterAll(async () => {
+test.afterEach(async () => {
   await openHost.close()
   await blockedHost.close()
   await pinnedFetchHost.close()
   await openCore.close()
   await blockedCore.close()
   await kit.cleanup()
-})
-
-test.beforeEach(async () => {
-  expect(await seedRoute(kit, {to: '/'})).toBe(true)
 })
 
 type Tab = {page: Page; calls: RpcCallCursor; wire: RpcWireWatch; httpRpcUrls: string[]}

@@ -21,13 +21,13 @@ export function setupProxiedEmbedSuite(
   let core: ProxyCore
   let host: {base: string; close: () => Promise<void>}
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     kit = await bootEmbedKit({text: opts.text})
     core = await proxyTo(kit.base, opts.proxy)
     host = await serveHost(() => hostPage({apiBase: core.base, widget: opts.widget ?? '{"quickTerminal":false}'}))
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await host.close()
     await core.close()
     await kit.cleanup()

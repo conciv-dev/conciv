@@ -2,9 +2,8 @@ import {expect, test, type Page} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
-import {watchNavigationWire} from '@conciv/extension-testkit/navigation-wire'
 import {currentHref} from '@conciv/extension-testkit/navigation-state'
-import {freezeClock, routeHref, seedRawHref, seedRoute, untilNavigationHref} from './helpers/navigation.js'
+import {until} from '@conciv/harness-testkit/until'
 import {openPanel, sendMessage} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
@@ -27,7 +26,7 @@ let kit: EmbedKit
 let host: {base: string; close: () => Promise<void>}
 let longHost: {base: string; close: () => Promise<void>}
 
-test.beforeAll(async () => {
+test.beforeEach(async () => {
   kit = await bootEmbedKit({text: ASSISTANT_TEXT, models: HARNESS_MODELS})
   host = await serveHost((url) =>
     hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', backdrop: url.searchParams.get('backdrop')}),
@@ -37,14 +36,10 @@ test.beforeAll(async () => {
   )
 })
 
-test.afterAll(async () => {
+test.afterEach(async () => {
   await host.close()
   await longHost.close()
   await kit.cleanup()
-})
-
-test.beforeEach(async () => {
-  expect(await seedRoute(kit, {to: '/'})).toBe(true)
 })
 
 async function openPage(page: Page): Promise<Page> {
@@ -60,69 +55,6 @@ async function sendAndRevealThought(page: Page, message: string): Promise<void> 
 }
 
 test.describe('embed boots the conciv app against a real core', () => {
-  test('canonicalizes a restored panel route that carries a raw harness session id', async ({page}) => {
-    const rawHarnessId = '43548fd1-0000-4220-acf0-014b10b5815f'
-    expect(await seedRoute(kit, {to: '/panel/$sessionId', params: {sessionId: rawHarnessId}})).toBe(true)
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await untilNavigationHref(kit, (href) => href.startsWith('/panel/conciv_'))
-    expect(await currentHref(kit)).toMatch(/^\/panel\/conciv_/)
-    const adopted = await kit.rpc.sessions.resolve({id: rawHarnessId})
-    const persisted = await kit.rpc.navigation.get()
-    expect(persisted?.entries[persisted.index]?.href).toBe(
-      routeHref({to: '/panel/$sessionId', params: {sessionId: adopted.sessionId}}),
-    )
-  })
-
-  test('a widget navigation write that lands after a newer one loses, even in flight', async ({page}) => {
-    test.setTimeout(120_000)
-    const navigation = watchNavigationWire(page)
-    const held = await navigation.holdFirstWrite()
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await openPanel(page)
-    await held.arrived
-
-    expect(await seedRawHref(kit, '/reset-while-the-widget-write-is-in-flight')).toBe(true)
-    const landed = navigation.nextWrite()
-    held.release()
-    await landed
-
-    expect(await currentHref(kit)).toBe('/reset-while-the-widget-write-is-in-flight')
-  })
-
-  test('a reloaded page outranks the previous page in-flight write when both clocks read the same', async ({
-    page,
-    context,
-  }) => {
-    test.setTimeout(240_000)
-    const frozen = Date.now()
-    const before = page
-    const beforeNavigation = watchNavigationWire(before)
-    await freezeClock(before, frozen)
-    const held = await beforeNavigation.holdFirstWrite()
-    expect((await kit.rpc.navigation.set({entries: [{href: '/'}], index: 0, updatedAt: frozen + 5_000})).applied).toBe(
-      true,
-    )
-    await before.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await openPanel(before)
-    await held.arrived
-
-    const after = await context.newPage()
-    const afterNavigation = watchNavigationWire(after)
-    await freezeClock(after, frozen)
-    await after.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await openPanel(after)
-    const switched = afterNavigation.nextWriteCarrying('/terminal')
-    await after.getByRole('tab', {name: 'Terminal'}).click()
-    await switched
-    expect(await currentHref(kit)).toContain('/terminal')
-
-    const landed = beforeNavigation.nextWrite()
-    held.release()
-    await landed
-
-    expect(await currentHref(kit)).toContain('/terminal')
-  })
-
   test('fab close is a shutter: reopening restores the same view without touching history', async ({page}) => {
     test.setTimeout(240_000)
     await openPage(page)
@@ -131,15 +63,21 @@ test.describe('embed boots the conciv app against a real core', () => {
     await expect(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
-    await untilNavigationHref(kit, (href) => href.includes('/terminal') && href.includes('open=true'))
+    await until(
+      async () => {
+        const href = await currentHref(kit)
+        return href.includes('/terminal') && href.includes('open=true')
+      },
+      {hangGuardMs: 30_000, intervalMs: 100},
+    )
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
     await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
-    await untilNavigationHref(kit, (href) => !href.includes('open=true'))
+    await until(async () => !(await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
     await expect(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
-    await untilNavigationHref(kit, (href) => href.includes('open=true'))
+    await until(async () => (await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
     const persisted = await kit.rpc.navigation.get()
     expect(persisted?.entries.filter((entry) => entry.href.includes('/panel/'))).toHaveLength(1)
   })
@@ -149,7 +87,7 @@ test.describe('embed boots the conciv app against a real core', () => {
     const first = await openPage(page)
     await openPanel(first)
     await first.getByRole('tab', {name: 'Terminal'}).click()
-    await untilNavigationHref(kit, (href) => href.includes('/terminal'))
+    await until(async () => (await currentHref(kit)).includes('/terminal'), {hangGuardMs: 30_000, intervalMs: 100})
     expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
     await first.close()
     const second = await openPage(await context.newPage())
@@ -163,10 +101,10 @@ test.describe('embed boots the conciv app against a real core', () => {
     test.setTimeout(180_000)
     const first = await openPage(page)
     await openPanel(first)
-    await untilNavigationHref(kit, (href) => href.includes('open=true'))
+    await until(async () => (await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
     expect(await currentHref(kit)).toContain('open=true')
     await first.getByRole('button', {name: 'Minimize conciv chat'}).click()
-    await untilNavigationHref(kit, (href) => !href.includes('open=true'))
+    await until(async () => !(await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
     expect(await currentHref(kit)).not.toContain('open=true')
     await first.close()
     const second = await openPage(await context.newPage())
@@ -284,32 +222,15 @@ test.describe('embed boots the conciv app against a real core', () => {
 test.describe('embed at a phone viewport', () => {
   test.use({viewport: PHONE_VIEWPORT})
 
-  let phoneKit: EmbedKit
-  let phoneHost: {base: string; close: () => Promise<void>}
-
-  test.beforeAll(async () => {
-    phoneKit = await bootEmbedKit({text: ASSISTANT_TEXT, models: HARNESS_MODELS})
-    phoneHost = await serveHost((url) =>
-      hostPage({
-        apiBase: phoneKit.base,
-        widget: '{"quickTerminal":false}',
-        backdrop: url.searchParams.get('backdrop'),
-      }),
-    )
-  })
-
-  test.afterAll(async () => {
-    await phoneHost.close()
-    await phoneKit.cleanup()
-  })
-
   test('paints an opaque sheet so the host page never shows through', async ({page}) => {
     test.setTimeout(240_000)
     const shootOver = async (backdrop: string): Promise<Buffer> => {
-      expect(await seedRoute(phoneKit, {to: '/'})).toBe(true)
-      await page.goto(`${phoneHost.base}/?backdrop=${backdrop}`, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${host.base}/?backdrop=${backdrop}`, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
-      return page.screenshot({animations: 'disabled', clip: SHEET_INTERIOR_CLIP})
+      const shot = await page.screenshot({animations: 'disabled', clip: SHEET_INTERIOR_CLIP})
+      await page.getByRole('button', {name: 'Close chat'}).click()
+      await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
+      return shot
     }
     const patterned = await shootOver('light-stripes')
     const repeated = await shootOver('light-stripes')

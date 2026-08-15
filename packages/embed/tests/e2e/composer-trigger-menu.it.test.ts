@@ -2,7 +2,6 @@ import {expect, test, type Locator, type Page} from '@playwright/test'
 import recorderServer from '@conciv/extension-recorder'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
-import {seedRoute} from './helpers/navigation.js'
 
 const LONG_LIST_SIZE = 60
 
@@ -28,8 +27,6 @@ const commandMenu = (page: Page) => page.getByRole('listbox', {name: 'Commands'}
 const toolMenu = (page: Page) => page.getByRole('listbox', {name: 'Tools'})
 
 async function openComposer(page: Page): Promise<void> {
-  const {sessionId} = await suite.kit().rpc.sessions.create()
-  expect(await seedRoute(suite.kit(), {to: '/panel/$sessionId', params: {sessionId}})).toBe(true)
   await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
   await openPanel(page)
   const input = composer(page)

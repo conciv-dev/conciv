@@ -3,8 +3,7 @@ import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {handleHostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
-import {watchNavigationWire} from '@conciv/extension-testkit/navigation-wire'
-import {seedRoute} from './helpers/navigation.js'
+import {until} from '@conciv/harness-testkit/until'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
 import {mountHandle, openHostWithHandle, rebindHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
@@ -16,18 +15,14 @@ const SECOND_USER_TEXT = 'second message after the drift'
 let kit: EmbedKit
 let host: {base: string; close: () => Promise<void>}
 
-test.beforeAll(async () => {
+test.beforeEach(async () => {
   kit = await bootEmbedKit({text: ASSISTANT_TEXT})
   host = await serveHost(() => handleHostPage())
 })
 
-test.afterAll(async () => {
+test.afterEach(async () => {
   await host.close()
   await kit.cleanup()
-})
-
-test.beforeEach(async () => {
-  expect(await seedRoute(kit, {to: '/'})).toBe(true)
 })
 
 async function openPanelTabs(page: Page): Promise<void> {
@@ -48,12 +43,12 @@ test.describe('handle.rebind survives same-core port drift', () => {
   let proxyA: ProxyCore
   let proxyB: ProxyCore
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     proxyA = await proxyTo(kit.base)
     proxyB = await proxyTo(kit.base)
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await proxyB.close()
   })
 
@@ -63,17 +58,15 @@ test.describe('handle.rebind survives same-core port drift', () => {
     test.setTimeout(480_000)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
-    const navigation = watchNavigationWire(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
 
     await mountHandle(page, proxyA.base)
-    const panelRouteWritten = navigation.nextWriteCarrying('/panel/')
     await openChatPanel(page)
 
     const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
     await expect(apiBaseProbe).toHaveText(proxyA.base, {timeout: 30_000})
 
-    await panelRouteWritten
+    await until(async () => (await panelSession()) !== null, {hangGuardMs: 30_000, intervalMs: 100})
     const sessionBefore = await panelSession()
     expect(sessionBefore).not.toBeNull()
 
@@ -108,12 +101,12 @@ test.describe('handle.rebind remounts extension surfaces on the new core', () =>
   let proxyC: ProxyCore
   let proxyD: ProxyCore
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     proxyC = await proxyTo(kit.base)
     proxyD = await proxyTo(kit.base)
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await proxyD.close()
   })
 
@@ -146,12 +139,12 @@ test.describe('handle.rebind quiesces the old connection before tearing consumer
   let proxyE: ProxyCore
   let proxyF: ProxyCore
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     proxyE = await proxyTo(kit.base)
     proxyF = await proxyTo(kit.base)
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await proxyE.close()
     await proxyF.close()
   })
@@ -191,11 +184,11 @@ test.describe('handle.rebind quiesces the old connection before tearing consumer
 test.describe('handle.rebind to the base the widget is already on re-runs the transport probe', () => {
   let blockedCore: ProxyCore
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     blockedCore = await proxyTo(kit.base, {blockUpgrades: true})
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await blockedCore.close()
   })
 
