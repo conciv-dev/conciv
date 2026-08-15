@@ -381,7 +381,6 @@ test.describe('embed settings', () => {
   test('theme.accent and theme.hue set the shadow host CSS vars and repaint the accent-colored send button', async ({
     page,
   }) => {
-    test.setTimeout(120_000)
     const themedHost = await serveHost(() =>
       hostPage({
         apiBase: kit.base,
@@ -391,17 +390,12 @@ test.describe('embed settings', () => {
     observedPage(page)
     await page.goto(themedHost.base, {waitUntil: 'domcontentloaded'})
     const shadowHost = page.locator('[data-conciv-root]')
-    await expect(shadowHost).toBeAttached()
-    await expect
-      .poll(() => shadowHost.evaluate((el) => el.style.getPropertyValue('--pw-accent')))
-      .toBe('oklch(0.7 0.19 32)')
-    expect(await shadowHost.evaluate((el) => el.style.getPropertyValue('--pw-hue'))).toBe('30')
+    await expect(shadowHost).toHaveAttribute('style', /--pw-accent:\s*oklch\(0\.7 0\.19 32\)/)
+    await expect(shadowHost).toHaveAttribute('style', /--pw-hue:\s*30/)
 
     await openPanel(page)
     const send = page.getByRole('button', {name: 'Send message'})
-    await expect(send).toBeVisible()
-    const background = await send.evaluate((el) => getComputedStyle(el).backgroundColor)
-    expect(background).not.toBe('rgb(255, 64, 224)')
+    await expect(send).not.toHaveCSS('background-color', 'rgb(255, 64, 224)')
     await themedHost.close()
   })
 })
