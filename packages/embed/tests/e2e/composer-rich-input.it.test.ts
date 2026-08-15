@@ -3,7 +3,7 @@ import recorderServer from '@conciv/extension-recorder'
 import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
-import {setNavigation} from './helpers/navigation.js'
+import {seedRoute} from './helpers/navigation.js'
 import {untilPanelDraft} from './helpers/drafts.js'
 
 const ASSISTANT_TEXT = 'Rich input reply'
@@ -24,7 +24,7 @@ const waitForDraftWrite = (fragment: string) => untilPanelDraft(suite.kit(), (dr
 
 async function openComposer(page: Page): Promise<void> {
   const {sessionId} = await suite.kit().rpc.sessions.create()
-  expect(await setNavigation(suite.kit(), [{href: `/panel/${sessionId}`}])).toBe(true)
+  expect(await seedRoute(suite.kit(), {to: '/panel/$sessionId', params: {sessionId}})).toBe(true)
   await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
   await openPanel(page)
   const input = composer(page)

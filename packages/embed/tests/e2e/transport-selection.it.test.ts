@@ -5,7 +5,7 @@ import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
-import {setNavigation} from './helpers/navigation.js'
+import {seedRoute} from './helpers/navigation.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
 const MOUNT_TIMEOUT_MS = 30_000
@@ -38,7 +38,7 @@ test.afterAll(async () => {
 })
 
 test.beforeEach(async () => {
-  expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
+  expect(await seedRoute(kit, {to: '/'})).toBe(true)
 })
 
 type Tab = {page: Page; calls: RpcCallCursor; wire: RpcWireWatch; httpRpcUrls: string[]}

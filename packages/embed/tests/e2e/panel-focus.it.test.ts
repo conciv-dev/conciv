@@ -3,7 +3,7 @@ import {gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 import {currentHref} from '@conciv/extension-testkit/navigation-state'
-import {setNavigation, untilNavigationHref} from './helpers/navigation.js'
+import {seedRoute, untilNavigationHref} from './helpers/navigation.js'
 import {hostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 
@@ -34,7 +34,7 @@ type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hos
 const dedicatedHosts: Array<{close: () => Promise<void>}> = []
 
 test.beforeEach(async () => {
-  expect(await setNavigation(suite.kit(), [{href: '/'}])).toBe(true)
+  expect(await seedRoute(suite.kit(), {to: '/'})).toBe(true)
 })
 
 test.afterEach(async () => {

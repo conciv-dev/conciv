@@ -5,7 +5,7 @@ import {handleHostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {mountHandle, remountHandle, unmountHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
-import {setNavigation} from './helpers/navigation.js'
+import {seedRoute} from './helpers/navigation.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
 
@@ -128,7 +128,7 @@ test.describe('createConciv lifecycle', () => {
 
   test('closes the tab rpc websocket on unmount and dials a fresh one on remount', async ({page}) => {
     test.setTimeout(180_000)
-    expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
+    expect(await seedRoute(kit, {to: '/'})).toBe(true)
     const wire = watchRpcWire(page)
     await openPage(page)
     const pageErrors: string[] = []

@@ -4,7 +4,7 @@ import {hostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {watchNavigationWire} from '@conciv/extension-testkit/navigation-wire'
 import {currentHref} from '@conciv/extension-testkit/navigation-state'
-import {freezeClock, setNavigation, untilNavigationHref} from './helpers/navigation.js'
+import {freezeClock, routeHref, seedRawHref, seedRoute, untilNavigationHref} from './helpers/navigation.js'
 import {openPanel, sendMessage} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
@@ -44,7 +44,7 @@ test.afterAll(async () => {
 })
 
 test.beforeEach(async () => {
-  expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
+  expect(await seedRoute(kit, {to: '/'})).toBe(true)
 })
 
 async function openPage(page: Page): Promise<Page> {
@@ -62,13 +62,15 @@ async function sendAndRevealThought(page: Page, message: string): Promise<void> 
 test.describe('embed boots the conciv app against a real core', () => {
   test('canonicalizes a restored panel route that carries a raw harness session id', async ({page}) => {
     const rawHarnessId = '43548fd1-0000-4220-acf0-014b10b5815f'
-    expect(await setNavigation(kit, [{href: `/panel/${rawHarnessId}`}])).toBe(true)
+    expect(await seedRoute(kit, {to: '/panel/$sessionId', params: {sessionId: rawHarnessId}})).toBe(true)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await untilNavigationHref(kit, (href) => href.startsWith('/panel/conciv_'))
     expect(await currentHref(kit)).toMatch(/^\/panel\/conciv_/)
     const adopted = await kit.rpc.sessions.resolve({id: rawHarnessId})
     const persisted = await kit.rpc.navigation.get()
-    expect(persisted?.entries[persisted.index]?.href).toBe(`/panel/${adopted.sessionId}`)
+    expect(persisted?.entries[persisted.index]?.href).toBe(
+      routeHref({to: '/panel/$sessionId', params: {sessionId: adopted.sessionId}}),
+    )
   })
 
   test('a widget navigation write that lands after a newer one loses, even in flight', async ({page}) => {
@@ -79,7 +81,7 @@ test.describe('embed boots the conciv app against a real core', () => {
     await openPanel(page)
     await held.arrived
 
-    expect(await setNavigation(kit, [{href: '/reset-while-the-widget-write-is-in-flight'}])).toBe(true)
+    expect(await seedRawHref(kit, '/reset-while-the-widget-write-is-in-flight')).toBe(true)
     const landed = navigation.nextWrite()
     held.release()
     await landed
@@ -304,7 +306,7 @@ test.describe('embed at a phone viewport', () => {
   test('paints an opaque sheet so the host page never shows through', async ({page}) => {
     test.setTimeout(240_000)
     const shootOver = async (backdrop: string): Promise<Buffer> => {
-      expect(await setNavigation(phoneKit, [{href: '/'}])).toBe(true)
+      expect(await seedRoute(phoneKit, {to: '/'})).toBe(true)
       await page.goto(`${phoneHost.base}/?backdrop=${backdrop}`, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
       return page.screenshot({animations: 'disabled', clip: SHEET_INTERIOR_CLIP})

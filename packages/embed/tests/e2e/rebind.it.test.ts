@@ -4,7 +4,7 @@ import {handleHostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {watchNavigationWire} from '@conciv/extension-testkit/navigation-wire'
-import {setNavigation} from './helpers/navigation.js'
+import {seedRoute} from './helpers/navigation.js'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
 import {mountHandle, openHostWithHandle, rebindHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
@@ -27,7 +27,7 @@ test.afterAll(async () => {
 })
 
 test.beforeEach(async () => {
-  expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
+  expect(await seedRoute(kit, {to: '/'})).toBe(true)
 })
 
 async function openPanelTabs(page: Page): Promise<void> {
