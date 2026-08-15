@@ -83,6 +83,17 @@ describe('makeScriptedRun', () => {
     expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
   })
 
+  it('keeps a scripted null tool result as null instead of substituting the default', async () => {
+    const scripted = makeScriptedRun()
+    const ids = scripted.scriptTurn({toolCalls: [{name: 'nullish_tool', input: {a: 1}, result: null}]})
+    const chunks: StreamChunk[] = []
+    for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+    const results = chunks.flatMap((chunk) =>
+      chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+    )
+    expect(results).toEqual([{id: ids[0], content: 'null'}])
+  })
+
   it('streams a queued tool call and a queued turn in the order they were scripted', async () => {
     const scripted = makeScriptedRun()
     scripted.scriptToolCall('first_tool', {a: 1})

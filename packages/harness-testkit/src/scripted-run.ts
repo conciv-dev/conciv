@@ -21,6 +21,11 @@ type QueuedTurn = {toolCalls: QueuedToolCall[]; text?: string; blocking: boolean
 
 const THREAD = {threadId: 'scripted', runId: 'scripted'} as const
 
+function scriptedResult(call: ScriptedTurnToolCall): unknown {
+  if (call.result === undefined) return {ok: true}
+  return call.result
+}
+
 function* requestChunks(call: {id: string; name: string; input: unknown}): Generator<StreamChunk> {
   const toolCallId = call.id
   yield {type: EventType.TOOL_CALL_START, toolCallId, toolCallName: call.name, toolName: call.name}
@@ -81,7 +86,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const scriptTurn = (turn: ScriptedTurn) => {
     const calls = turn.toolCalls.map((call) => {
       toolCalls.count += 1
-      return {id: `tc-${toolCalls.count}`, name: call.name, input: call.input, result: call.result ?? {ok: true}}
+      return {id: `tc-${toolCalls.count}`, name: call.name, input: call.input, result: scriptedResult(call)}
     })
     queuedTurns.push({toolCalls: calls, text: turn.text, blocking: false})
     return calls.map((call) => call.id)

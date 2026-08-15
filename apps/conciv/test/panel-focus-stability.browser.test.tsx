@@ -30,16 +30,18 @@ async function openPanel(): Promise<void> {
   harness.mountShell(`/panel/${sessionId}?open=true`)
 }
 
-async function expectFocusSurvives(path: string[]): Promise<void> {
+async function expectFocusSurvivesPendingRequest(path: string[]): Promise<void> {
   const since = await coreControl.rpcMark()
   const held = await faults.install({kind: 'gate', path})
   await openPanel()
   await coreControl.awaitFaultPending(held, 1)
 
-  await coreControl.releaseFault(held)
-
   await expect.element(editor(), SETTLED).toBeVisible()
   const mountedNode = editor().element()
+  await expect.element(editor(), SETTLED).toHaveFocus()
+  expect(await coreControl.faultPending(held)).toBe(1)
+
+  await coreControl.releaseFault(held)
   await coreControl.awaitRpcCall(path, since)
 
   await expect.element(editor(), SETTLED).toHaveFocus()
@@ -47,13 +49,25 @@ async function expectFocusSurvives(path: string[]): Promise<void> {
 }
 
 test('a composer that mounts after a slow draft load keeps the focus the panel gave it', async () => {
-  await expectFocusSurvives(['drafts', 'get'])
+  const path = ['drafts', 'get']
+  const since = await coreControl.rpcMark()
+  const held = await faults.install({kind: 'gate', path})
+  await openPanel()
+  await coreControl.awaitFaultPending(held, 1)
+
+  await coreControl.releaseFault(held)
+  await coreControl.awaitRpcCall(path, since)
+
+  await expect.element(editor(), SETTLED).toBeVisible()
+  const mountedNode = editor().element()
+  await expect.element(editor(), SETTLED).toHaveFocus()
+  expect(editor().element().isSameNode(mountedNode)).toBe(true)
 }, 30_000)
 
 test('a composer that mounts while the harness metadata is still loading takes the focus the panel gave it', async () => {
-  await expectFocusSurvives(['meta', 'models'])
+  await expectFocusSurvivesPendingRequest(['meta', 'models'])
 }, 30_000)
 
 test('a composer that mounts while the transcript is still loading takes the focus the panel gave it', async () => {
-  await expectFocusSurvives(['markers', 'list'])
+  await expectFocusSurvivesPendingRequest(['markers', 'list'])
 }, 30_000)
