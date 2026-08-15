@@ -3,7 +3,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {CommentOpCard} from './card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from '../story.fixtures.js'
 
-const meta: Meta = {title: 'extension-whiteboard/tool/comment/CommentOpCard'}
+const meta: Meta = {title: 'Extensions/Whiteboard/tool/comment/CommentOpCard'}
 export default meta
 type Story = StoryObj
 

@@ -9,7 +9,7 @@ import {
 import {EditLiveCard} from './edit-live-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
-const meta: Meta = {title: 'extension-page/client/cards/EditLiveCard'}
+const meta: Meta = {title: 'Extensions/Page/tool/EditLiveCard'}
 export default meta
 type Story = StoryObj
 
