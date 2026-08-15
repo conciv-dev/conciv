@@ -1,3 +1,24 @@
+const FRAME_COUNTING_SCRIPT = `
+  const pendingFrames = new Set()
+  const requestFrame = window.requestAnimationFrame.bind(window)
+  const cancelFrame = window.cancelAnimationFrame.bind(window)
+  window.requestAnimationFrame = (callback) => {
+    const handle = requestFrame((now) => {
+      pendingFrames.delete(handle)
+      callback(now)
+    })
+    pendingFrames.add(handle)
+    return handle
+  }
+  window.cancelAnimationFrame = (handle) => {
+    pendingFrames.delete(handle)
+    cancelFrame(handle)
+  }
+  Object.defineProperty(window, 'pendingFrameLoopCount', {get: () => pendingFrames.size})
+`
+
+export const frameCountingScript = (): string => FRAME_COUNTING_SCRIPT
+
 const HARNESS_SCRIPT = `
   import gsap from 'gsap'
   import * as mascot from '/rig.js'
@@ -15,26 +36,10 @@ const HARNESS_SCRIPT = `
   }
   Object.defineProperty(window, 'pointerMoveListenerCount', {get: () => pointerMoveListeners})
 
-  const pendingFrames = new Set()
-  const requestFrame = window.requestAnimationFrame.bind(window)
-  const cancelFrame = window.cancelAnimationFrame.bind(window)
-  window.requestAnimationFrame = (callback) => {
-    const handle = requestFrame((now) => {
-      pendingFrames.delete(handle)
-      callback(now)
-    })
-    pendingFrames.add(handle)
-    return handle
-  }
-  window.cancelAnimationFrame = (handle) => {
-    pendingFrames.delete(handle)
-    cancelFrame(handle)
-  }
-
-  const pendingFrameCount = () => pendingFrames.size
+  const pendingFrameCount = () => window.pendingFrameLoopCount
 
   const settleFrames = () =>
-    new Promise((resolve) => requestAnimationFrame(() => setTimeout(() => resolve(pendingFrames.size), 0)))
+    new Promise((resolve) => requestAnimationFrame(() => setTimeout(() => resolve(pendingFrameCount()), 0)))
 
   const loadEffect = async (name, exportName) => {
     const module = await import('/core/effects/' + name + '.js')

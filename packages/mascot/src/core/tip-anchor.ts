@@ -23,20 +23,11 @@ function layoutOffsetWithin(element: HTMLElement, host: HTMLElement): EmitterAnc
 function localMatrix(element: HTMLElement): DOMMatrixReadOnly {
   const {transform} = getComputedStyle(element)
   if (transform === '' || transform === 'none') return new DOMMatrixReadOnly()
-  const matrix = new DOMMatrixReadOnly(transform)
-  const angle = Math.atan2(matrix.b, matrix.a)
-  return new DOMMatrixReadOnly([
-    Math.cos(angle),
-    Math.sin(angle),
-    -Math.sin(angle),
-    Math.cos(angle),
-    matrix.e,
-    matrix.f,
-  ])
+  return new DOMMatrixReadOnly(transform)
 }
 
-export function antennaTipAnchor(host: HTMLElement, antenna: HTMLElement, skin: MascotSkin): EmitterAnchor {
-  const base = layoutOffsetWithin(antenna, host)
+export function antennaTipInRoot(antenna: HTMLElement, skin: MascotSkin): EmitterAnchor {
+  const base = layoutOffsetToRoot(antenna)
   const width = antenna.offsetWidth
   const height = antenna.offsetHeight
   const originX = width * skin.originFractions.x
@@ -44,6 +35,15 @@ export function antennaTipAnchor(host: HTMLElement, antenna: HTMLElement, skin: 
   const local = new DOMPoint(width * skin.tipFractions.x - originX, height * skin.tipFractions.y - originY)
   const moved = localMatrix(antenna).transformPoint(local)
   return {x: base.x + originX + moved.x, y: base.y + originY + moved.y}
+}
+
+export function tipWithinHost(tip: EmitterAnchor, host: HTMLElement): EmitterAnchor {
+  const origin = layoutOffsetToRoot(host)
+  return {x: tip.x - origin.x, y: tip.y - origin.y}
+}
+
+export function antennaTipAnchor(host: HTMLElement, antenna: HTMLElement, skin: MascotSkin): EmitterAnchor {
+  return tipWithinHost(antennaTipInRoot(antenna, skin), host)
 }
 
 export function antennaOriginOffset(antenna: HTMLElement, wrapper: HTMLElement, skin: MascotSkin): EmitterAnchor {

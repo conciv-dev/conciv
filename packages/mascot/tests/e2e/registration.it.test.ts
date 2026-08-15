@@ -1,7 +1,14 @@
 import {expect, test} from '@playwright/test'
 import type {MascotConnect} from '../../src/rig.js'
 import {expectNear} from './helpers/near.js'
-import {buildService, installManualClock, openMascotPage, restTip, type StageParts} from './helpers/mascot-stage.js'
+import {
+  buildService,
+  installManualClock,
+  openMascotPage,
+  restTip,
+  type StageParts,
+  tipUnderTransform,
+} from './helpers/mascot-stage.js'
 
 type RequiredSlot = 'getRootProps' | 'getHeadProps' | 'getEyesProps' | 'getAntennaProps'
 
@@ -223,7 +230,6 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
       emitters: harness.emitters().length,
       parentIsEffectHost: emitter?.parentElement === effectHost,
       anchor: emitter === undefined ? undefined : harness.boxOf(emitter),
-      bobPx: parts.antenna.offsetHeight * 0.05,
       stage: {width: parts.root.offsetWidth, height: parts.root.offsetHeight},
     }
     mounted.destroy()
@@ -231,6 +237,7 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
     return {torndown, effectHostAlone, hosted}
   })
   const tip = restTip(result.hosted.stage)
+  const lifted = tipUnderTransform(result.hosted.stage, 1.3, -5)
   const {anchor} = result.hosted
 
   expect(
@@ -259,7 +266,9 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
     `the effect-hosted emitter anchors at the tip x, not the page offset -> ${JSON.stringify(anchor)}`,
   ).toBe(true)
   expect(
-    anchor !== undefined && anchor.top <= tip.y + 1 && anchor.top >= tip.y - result.hosted.bobPx - 1,
-    `the effect-hosted emitter anchors at the bobbing tip y, not the page offset -> ${JSON.stringify(anchor)}`,
+    anchor !== undefined && anchor.top <= tip.y + 1 && anchor.top >= lifted.y - 1,
+    `the effect-hosted emitter anchors between the resting and the fully bobbed and throbbed tip y, not the page offset -> ${JSON.stringify(
+      anchor,
+    )}`,
   ).toBe(true)
 })

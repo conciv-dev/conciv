@@ -1,6 +1,13 @@
 import {expect, test} from '@playwright/test'
 import {expectNear} from './helpers/near.js'
-import {buildLegacyRig, buildService, installManualClock, openMascotPage, restTip} from './helpers/mascot-stage.js'
+import {
+  buildLegacyRig,
+  installManualClock,
+  openIdleService,
+  openMascotPage,
+  restTip,
+  tipUnderTransform,
+} from './helpers/mascot-stage.js'
 
 test.beforeEach(async ({page}) => {
   await openMascotPage(page)
@@ -114,9 +121,34 @@ test('entering work anchors on the leaned tip and rides the antenna through ever
   expectNear('the bob never drags the anchor sideways', result.peak.anchor.left, tip.x, 0.3)
 })
 
+test('the emitter anchor rides the throb stretch, not the unstretched tip', async ({page}) => {
+  await openIdleService(page)
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    const {antenna, root} = window.parts
+    const sample = () => ({
+      anchor: harness.anchorOf(harness.requireEmitter()),
+      scaleY: harness.property(antenna, 'scaleY'),
+      yPercent: harness.property(antenna, 'yPercent'),
+    })
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.3)
+    const peak = sample()
+    harness.advanceBy(0.85)
+    const settled = sample()
+    return {peak, settled, stage: {width: root.offsetWidth, height: root.offsetHeight}}
+  })
+  const peakTip = tipUnderTransform(result.stage, result.peak.scaleY, result.peak.yPercent)
+  const settledTip = tipUnderTransform(result.stage, result.settled.scaleY, result.settled.yPercent)
+
+  expectNear('the sampled beat really is the throb peak', result.peak.scaleY, 1.3, 0.01)
+  expect(result.settled.scaleY, 'the second sample really left the throb peak').toBeLessThan(1.1)
+  expectNear('the anchor rides the stretched tip at the throb peak', result.peak.anchor.top, peakTip.y, 0.3)
+  expectNear('the anchor follows the tip back as the throb settles', result.settled.anchor.top, settledTip.y, 0.3)
+})
+
 test('the work timeline bobs the head and leaves every other pose channel untouched', async ({page}) => {
-  await installManualClock(page)
-  await buildService(page, {state: 'rest', working: false, follow: false})
+  await openIdleService(page)
   const result = await page.evaluate(() => {
     const harness = window.mascotHarness
     const {head, eyes, antenna} = window.parts
@@ -147,8 +179,7 @@ test('the work timeline bobs the head and leaves every other pose channel untouc
 })
 
 test('the work bob carries the head, the antenna and the eyes as one unit', async ({page}) => {
-  await installManualClock(page)
-  await buildService(page, {state: 'rest', working: false, follow: false})
+  await openIdleService(page)
   const result = await page.evaluate(() => {
     const harness = window.mascotHarness
     const {head, eyes, antenna} = window.parts
@@ -197,8 +228,7 @@ test('the work bob carries the head, the antenna and the eyes as one unit', asyn
 })
 
 test('stopping work returns the antenna and the eyes to the pose yPercent of the current state', async ({page}) => {
-  await installManualClock(page)
-  await buildService(page, {state: 'rest', working: false, follow: false})
+  await openIdleService(page)
   const result = await page.evaluate(() => {
     const harness = window.mascotHarness
     const {eyes, antenna} = window.parts
@@ -246,8 +276,7 @@ test('stopping work returns the antenna and the eyes to the pose yPercent of the
 })
 
 test('stopping work returns the head to the pose yPercent of the current state', async ({page}) => {
-  await installManualClock(page)
-  await buildService(page, {state: 'rest', working: false, follow: false})
+  await openIdleService(page)
   const result = await page.evaluate(() => {
     const harness = window.mascotHarness
     const settleHead = () => {

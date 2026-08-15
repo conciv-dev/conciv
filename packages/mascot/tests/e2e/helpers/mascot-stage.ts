@@ -4,7 +4,7 @@ import {dirname, join, normalize} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {expect, type Page, type Route} from '@playwright/test'
 import type {CurveStyle, MascotConfig} from '../../../src/rig.js'
-import {harnessPage} from './harness-page.js'
+import {frameCountingScript, harnessPage} from './harness-page.js'
 
 export type StagePoint = {x: number; y: number}
 
@@ -70,6 +70,7 @@ async function handleRoute(route: Route): Promise<void> {
 
 export async function openMascotPage(page: Page): Promise<void> {
   await access(RIG_BUNDLE)
+  await page.addInitScript(frameCountingScript())
   await page.route(`${MASCOT_BASE}**`, handleRoute)
   await page.goto(MASCOT_BASE, {waitUntil: 'domcontentloaded'})
   await expect(page.locator('html[data-harness="ready"]')).toBeAttached()
@@ -148,6 +149,11 @@ export const buildService = (
 export const buildBareService = (page: Page, config: MascotConfig): Promise<StagePoint> =>
   buildStage(page, config, false)
 
+export async function openIdleService(page: Page): Promise<void> {
+  await installManualClock(page)
+  await buildService(page, {state: 'rest', working: false, follow: false})
+}
+
 export type Gaze = {eyesX: number; eyesY: number; lean: number}
 
 export function readGaze(page: Page): Promise<Gaze> {
@@ -161,6 +167,16 @@ export function readGaze(page: Page): Promise<Gaze> {
 export type StageSize = {width: number; height: number}
 
 export const restTip = (stage: StageSize): StagePoint => ({x: stage.width * 0.5, y: stage.height * 0.15625})
+
+const ANTENNA_ORIGIN_FRACTION_Y = 0.328
+
+export function tipUnderTransform(stage: StageSize, scaleY: number, yPercent: number): StagePoint {
+  const originY = stage.height * ANTENNA_ORIGIN_FRACTION_Y
+  return {
+    x: stage.width * 0.5,
+    y: originY + (restTip(stage).y - originY) * scaleY + (stage.height * yPercent) / 100,
+  }
+}
 
 export type EmitterGeometryExpectation = {
   fontSizePx: number

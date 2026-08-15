@@ -75,7 +75,7 @@ function createSparkFountainEmitter(context: EffectContext): EffectHandle {
   host.append(canvas)
   const canvasContext = canvas.getContext('2d')
   let sparks: Spark[] = []
-  let lastEmit = 0
+  let lastEmit: number | undefined
   let cancelLoop: (() => void) | undefined
 
   const stopLoop = () => {
@@ -91,9 +91,9 @@ function createSparkFountainEmitter(context: EffectContext): EffectHandle {
   const startLoop = () => {
     if (cancelLoop !== undefined || canvasContext === null) return
     sparks = []
-    lastEmit = 0
+    lastEmit = undefined
     cancelLoop = runFrameLoop((now) => {
-      if (now - lastEmit >= EMIT_INTERVAL_MS) {
+      if (lastEmit === undefined || now - lastEmit >= EMIT_INTERVAL_MS) {
         const emitted = Array.from({length: SPARKS_PER_EMIT}, () => makeFountainSpark(now, geometry))
         sparks = [...sparks, ...emitted]
         lastEmit = now

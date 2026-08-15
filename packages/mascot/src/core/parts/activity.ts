@@ -22,8 +22,9 @@ import {
   THROB_SCALE_Y,
 } from '../config.js'
 import type {EffectHandle, EffectMount} from '../effects/effect.js'
+import type {EmitterAnchor} from '../path.js'
 import type {MascotSkin} from '../skin.js'
-import {antennaTipAnchor} from '../tip-anchor.js'
+import {antennaTipInRoot, tipWithinHost} from '../tip-anchor.js'
 
 export type ActivityParts = {stage: HTMLElement; head: HTMLElement; antenna: HTMLElement; eyes: HTMLElement}
 
@@ -132,12 +133,17 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     recoveryTweens = []
   }
 
-  const anchorEntry = (entry: EffectEntry) => {
+  const anchorEntryTo = (entry: EffectEntry, tip: EmitterAnchor) => {
     if (entry.handle?.anchor === undefined) return
-    entry.handle.anchor(antennaTipAnchor(entry.host ?? stage, antenna, skin))
+    entry.handle.anchor(tipWithinHost(tip, entry.host ?? stage))
   }
 
-  const anchorEffects = () => effects.forEach(anchorEntry)
+  const anchorEffects = () => {
+    const tip = antennaTipInRoot(antenna, skin)
+    effects.forEach((entry) => anchorEntryTo(entry, tip))
+  }
+
+  const anchorEntry = (entry: EffectEntry) => anchorEntryTo(entry, antennaTipInRoot(antenna, skin))
 
   const startEntry = (entry: EffectEntry) => {
     const host = entry.host ?? stage

@@ -55,5 +55,6 @@ declare global {
     rig: MascotModule.FabRobotRig
     service: MascotModule.MascotService
     readonly pointerMoveListenerCount: number
+    readonly pendingFrameLoopCount: number
   }
 }
