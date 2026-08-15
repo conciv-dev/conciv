@@ -46,6 +46,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   window.__CONCIV_API_BASE__ = options.base
   browserRpcConnection(options.base, 'fetch')
   const queryClient = new QueryClient()
+  const instances = createInstances(options.extensions ?? [])
   const data = makeAppData(rpc, queryClient)
   const [announced, setAnnounced] = createSignal<string[]>([])
   const app: AppContextValue = {
@@ -58,7 +59,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     layers: makeLayerStack(),
     suppressed: () => undefined,
     fabPosition: () => 'bottom-right',
-    instances: createInstances(options.extensions ?? []),
+    instances,
     connected: () => true,
     arrivedFromConnect: () => false,
     connectBind: async () => '',
@@ -104,6 +105,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   return {
     dispose: () => {
       mounted.unmount()
+      for (const instance of instances) instance.dispose()
       reachabilityRoot.dispose()
       closeBrowserRpcConnection(options.base)
       delete window.__CONCIV_API_BASE__
