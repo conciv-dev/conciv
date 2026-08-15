@@ -155,6 +155,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   const startEntry = (entry: EffectEntry) => {
     const host = entry.host ?? stage
     entry.handle = entry.handle ?? entry.mount({host, stage, antenna, skin})
+    draining.delete(entry.handle)
     anchorEntry(entry)
     entry.handle.start()
   }

@@ -195,6 +195,31 @@ test('unmounting an effect during its staged exit drains once and never double-r
   expect(result.disposed.stops, 'a handle already exiting is never asked to stop a second time').toBe(1)
 })
 
+test('restarting an effect during its staged exit leaves it drainable on the next falling edge', async ({page}) => {
+  await buildBareService(page, {state: 'rest', working: true, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    window.service.mountEffect('counted', harness.countingEffect)
+    harness.advanceBy(0.2)
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.2)
+    const midExit = harness.countingEffectTotals()
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.2)
+    const restarted = harness.countingEffectTotals()
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.8)
+    return {midExit, restarted, drained: harness.countingEffectTotals()}
+  })
+
+  expect(result.midExit.live, 'the restart really lands inside the staged exit window').toBe(1)
+  expect(result.restarted.starts, 'the restart reuses the handle rather than mounting a second one').toBe(2)
+  expect(result.restarted.live, 'the restarted effect is live again').toBe(1)
+  expect(result.drained.stops, 'the second falling edge really asks the restarted handle to stop').toBe(2)
+  expect(result.drained.live, 'the second falling edge drains the restarted effect').toBe(0)
+  expect(result.drained.removes, 'the restarted handle is removed exactly once').toBe(1)
+})
+
 test('a custom skin drives the layer art and the emitter scale reference', async ({page}) => {
   const result = await page.evaluate(
     ([image, referenceAntennaPx, antennaPx]) => {

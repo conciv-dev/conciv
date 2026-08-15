@@ -114,7 +114,7 @@ test('leaving work for a new pose hands every shared channel to the pose transit
       antennaScaleX: harness.property(antenna, 'scaleX'),
       antennaScaleY: harness.property(antenna, 'scaleY'),
     })
-    const writers = () => [harness.activeWritersOf(head), harness.activeWritersOf(eyes)] as [number, number]
+    const writers = (): [number, number] => [harness.activeWritersOf(head), harness.activeWritersOf(eyes)]
     window.service.update({state: 'rest', working: true, follow: false})
     harness.advanceBy(1.3)
     window.service.update({state: 'awake', working: false, follow: false})

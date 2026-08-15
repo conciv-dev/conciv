@@ -83,11 +83,22 @@ const HARNESS_SCRIPT = `
     return digit
   }
 
-  const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
+  const requireRealClock = (call) => {
+    if (!manualClockInstalled) return
+    throw new Error(
+      'the manual clock owns time: ' + call + ' cannot advance an animation, use advanceBy/advanceTo instead',
+    )
+  }
+
+  const wait = (milliseconds) => {
+    requireRealClock('wait(' + milliseconds + ')')
+    return new Promise((resolve) => setTimeout(resolve, milliseconds))
+  }
 
   const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve))
 
   const sampleFrames = async (read, milliseconds) => {
+    requireRealClock('sampleFrames(' + milliseconds + ')')
     const deadline = performance.now() + milliseconds
     const values = [read()]
     while (performance.now() < deadline) {
@@ -96,6 +107,8 @@ const HARNESS_SCRIPT = `
     }
     return values
   }
+
+  let manualClockInstalled = false
 
   const effectRuns = []
 
@@ -157,10 +170,14 @@ const HARNESS_SCRIPT = `
     gsap.ticker.remove(gsap.updateRoot)
     manualOriginS = gsap.ticker.time
     manualElapsedS = 0
+    manualClockInstalled = true
     renderManualClock()
   }
 
   const advanceTo = (seconds) => {
+    if (seconds < manualElapsedS) {
+      throw new Error('the manual clock only moves forward: cannot rewind from ' + manualElapsedS + ' to ' + seconds)
+    }
     while (manualElapsedS + MANUAL_STEP_S < seconds) {
       manualElapsedS += MANUAL_STEP_S
       renderManualClock()
@@ -200,6 +217,7 @@ const HARNESS_SCRIPT = `
   }
 
   const waitUntil = async (predicate, milliseconds) => {
+    requireRealClock('waitUntil(' + milliseconds + ')')
     const deadline = performance.now() + milliseconds
     while (performance.now() < deadline && !predicate()) await nextFrame()
     return predicate()

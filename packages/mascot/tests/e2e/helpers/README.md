@@ -8,7 +8,15 @@ per stepped frame.
 
 Install it **before** the mascot is built, so every timeline starts at manual time 0 and a beat is addressable
 by its own number: `advanceTo(0.3)` is the throb peak, `advanceTo(1.0)` the bob floor, `advanceTo(1.22)` the
-closed blink.
+closed blink. Time only moves forward — `advanceTo` throws on a rewind.
+
+Once installed, `wait`, `sampleFrames` and `waitUntil` throw rather than sit through real milliseconds that
+move no animation; `settle()` throws through `wait`. A test either owns time or it does not.
+
+One ordering is load-bearing: GSAP commits a `fromTo` from-state on the first root render, not at tween
+construction. Reading a `fromTo` start value (the emitter's 0.2 tip scale) therefore needs a zero-length
+`advanceBy(0)` first to render that frame. Under the real ticker the same render is the frame the browser
+paints, so this is a read ordering, not a product bug.
 
 ## Which tests step and which stay on the wall clock
 
