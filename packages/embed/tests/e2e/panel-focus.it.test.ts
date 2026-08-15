@@ -1,14 +1,17 @@
 import {expect, test, type Locator, type Page} from '@playwright/test'
-import {observeRpc} from '@conciv/extension-testkit/rpc-observer'
+import {gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
-import {currentHref, setNavigation, waitForNavigationWrite} from './helpers/navigation.js'
-import {hostPage, serveHost} from '../helpers/host.js'
+import {currentHref} from '@conciv/extension-testkit/navigation-state'
+import {until} from '@conciv/harness-testkit/until'
+import {hostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 
 const suite = setupWidgetSuite()
 
 const COMPOSER_NAME = 'Message the conciv agent'
 const SESSION_PILL_NAME = 'Session: New session'
+const SESSIONS_LIST = ['sessions', 'list'] as const
 
 function composer(page: Page) {
   return page.getByRole('textbox', {name: COMPOSER_NAME})
@@ -26,30 +29,9 @@ async function ensurePanelClosed(page: Page): Promise<void> {
   await expect(opener).toBeVisible({timeout: 30_000})
 }
 
-async function holdFirstSessionList(page: Page): Promise<() => void> {
-  let release = (): void => {}
-  const held = new Promise<void>((resolve) => {
-    release = () => resolve()
-  })
-  let seen = 0
-  await page.route(
-    (url) => url.pathname.endsWith('/rpc/sessions/list'),
-    async (route) => {
-      seen += 1
-      if (seen === 1) await held
-      await route.continue()
-    },
-  )
-  return release
-}
-
 type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hostButton: Locator}
 
 const dedicatedHosts: Array<{close: () => Promise<void>}> = []
-
-test.beforeEach(async () => {
-  expect(await setNavigation(suite.kit(), [{href: '/'}])).toBe(true)
-})
 
 test.afterEach(async () => {
   for (const dedicatedHost of dedicatedHosts.splice(0)) await dedicatedHost.close()
@@ -96,12 +78,14 @@ test.describe('panel open focuses the composer', () => {
       hostPage({apiBase: suite.kit().base, widget: '{"quickTerminal":false,"transport":"fetch"}'}),
     )
     dedicatedHosts.push(host)
-    const releaseSessionList = await holdFirstSessionList(page)
+    const sessionListGate = await gateRpcCalls(page, {path: SESSIONS_LIST})
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     try {
+      await sessionListGate.awaitCaptured(1)
       await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 15_000})
+      expect(sessionListGate.pending()).toBeGreaterThan(0)
     } finally {
-      releaseSessionList()
+      await sessionListGate.dispose()
     }
     await openPanel(page)
     await expect(sessionPill(page)).toBeVisible({timeout: 30_000})
@@ -153,18 +137,18 @@ test.describe('panel close restores focus: host element captured at open wins, F
 
   test('closing a boot-restored open panel falls back to FAB focus', async ({page}) => {
     test.setTimeout(180_000)
-    const observer = observeRpc(page)
-    const opened = waitForNavigationWrite(page, observer)
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
-    await opened
+    await until(async () => (await currentHref(suite.kit())).includes('open=true'), {
+      hangGuardMs: 30_000,
+      intervalMs: 100,
+    })
     expect(await currentHref(suite.kit())).toContain('open=true')
 
     await page.reload({waitUntil: 'domcontentloaded'})
     await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeFocused({timeout: 10_000})
-    observer.dispose()
   })
 
   test('closing the phone sheet falls back to FAB focus once the launcher remounts', async ({page}) => {

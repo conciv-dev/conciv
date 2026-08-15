@@ -10,5 +10,13 @@
     "jsxImportSource": "solid-js",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "fixtures/**/*.ts", "fixtures/**/*.tsx"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "test/**/*.ts",
+    "test/**/*.tsx",
+    "e2e/**/*.ts",
+    "fixtures/**/*.ts",
+    "fixtures/**/*.tsx"
+  ]
 }

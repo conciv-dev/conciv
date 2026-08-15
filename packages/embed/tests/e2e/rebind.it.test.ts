@@ -1,10 +1,11 @@
 import {expect, test, type Page} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {handleHostPage, serveHost} from '../helpers/host.js'
-import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
-import {setNavigation, waitForNavigationWriteCarrying} from './helpers/navigation.js'
+import {handleHostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
+import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
+import {until} from '@conciv/harness-testkit/until'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
-import {mountHandle, rebindHandle} from './helpers/handle.js'
+import {mountHandle, openHostWithHandle, rebindHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
 
 const ASSISTANT_TEXT = 'Rebound reply'
@@ -14,24 +15,15 @@ const SECOND_USER_TEXT = 'second message after the drift'
 let kit: EmbedKit
 let host: {base: string; close: () => Promise<void>}
 
-test.beforeAll(async () => {
+test.beforeEach(async () => {
   kit = await bootEmbedKit({text: ASSISTANT_TEXT})
   host = await serveHost(() => handleHostPage())
 })
 
-test.afterAll(async () => {
+test.afterEach(async () => {
   await host.close()
   await kit.cleanup()
 })
-
-test.beforeEach(async () => {
-  expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
-})
-
-function observedPage(page: Page): Page {
-  rpcObserverFor(page)
-  return page
-}
 
 async function openPanelTabs(page: Page): Promise<void> {
   const opener = page.getByRole('button', {name: 'Open conciv chat'})
@@ -51,12 +43,12 @@ test.describe('handle.rebind survives same-core port drift', () => {
   let proxyA: ProxyCore
   let proxyB: ProxyCore
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     proxyA = await proxyTo(kit.base)
     proxyB = await proxyTo(kit.base)
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await proxyB.close()
   })
 
@@ -64,19 +56,17 @@ test.describe('handle.rebind survives same-core port drift', () => {
     page,
   }) => {
     test.setTimeout(480_000)
-    observedPage(page)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
 
     await mountHandle(page, proxyA.base)
-    const panelRouteWritten = waitForNavigationWriteCarrying(page, '/panel/')
     await openChatPanel(page)
 
     const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
     await expect(apiBaseProbe).toHaveText(proxyA.base, {timeout: 30_000})
 
-    await panelRouteWritten
+    await until(async () => (await panelSession()) !== null, {hangGuardMs: 30_000, intervalMs: 100})
     const sessionBefore = await panelSession()
     expect(sessionBefore).not.toBeNull()
 
@@ -111,23 +101,18 @@ test.describe('handle.rebind remounts extension surfaces on the new core', () =>
   let proxyC: ProxyCore
   let proxyD: ProxyCore
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     proxyC = await proxyTo(kit.base)
     proxyD = await proxyTo(kit.base)
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await proxyD.close()
   })
 
   test('rebuilds the global surface and the open extension view against the new base', async ({page}) => {
     test.setTimeout(240_000)
-    observedPage(page)
-    const pageErrors: string[] = []
-    page.on('pageerror', (error) => pageErrors.push(String(error)))
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-
-    await mountHandle(page, proxyC.base)
+    const pageErrors = await openHostWithHandle(page, host.base, proxyC.base)
     await openPanelTabs(page)
 
     const surfaceProbe = page.getByRole('status', {name: 'surface mount api base'})
@@ -154,20 +139,19 @@ test.describe('handle.rebind quiesces the old connection before tearing consumer
   let proxyE: ProxyCore
   let proxyF: ProxyCore
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     proxyE = await proxyTo(kit.base)
     proxyF = await proxyTo(kit.base)
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await proxyE.close()
     await proxyF.close()
   })
 
   test('writes nothing more to the old core once rebind is called', async ({page}) => {
     test.setTimeout(180_000)
-    observedPage(page)
-    const observer = rpcObserverFor(page)
+    const wire = watchRpcWire(page)
     const framesSentPerSocket: number[] = []
     page.on('websocket', (socket) => {
       if (!socket.url().includes('/rpc-ws')) return
@@ -189,9 +173,9 @@ test.describe('handle.rebind quiesces the old connection before tearing consumer
     await expect(apiBaseProbe).toHaveText(proxyF.base, {timeout: 30_000})
 
     const settledOnOldSocket = framesSentPerSocket[0] ?? 0
-    const mark = observer.mark()
+    const sentOnNewCore = wire.nextChatSend()
     await sendChatMessage(page, SECOND_USER_TEXT)
-    await observer.completed({path: ['chat', 'send'], since: mark, timeout: 30_000})
+    await sentOnNewCore
 
     expect(framesSentPerSocket[0]).toBe(settledOnOldSocket)
   })
@@ -200,32 +184,30 @@ test.describe('handle.rebind quiesces the old connection before tearing consumer
 test.describe('handle.rebind to the base the widget is already on re-runs the transport probe', () => {
   let blockedCore: ProxyCore
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     blockedCore = await proxyTo(kit.base, {blockUpgrades: true})
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await blockedCore.close()
   })
 
   test('rides the websocket after the blocked upgrade path opens up again', async ({page}) => {
     test.setTimeout(180_000)
-    const observer = rpcObserverFor(page)
+    const wire = watchRpcWire(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
 
     await mountHandle(page, blockedCore.base)
     await openChatPanel(page)
+    const blocked = wire.nextChatSend()
     await sendChatMessage(page, 'while upgrades are blocked')
-    const blocked = await observer.completed({path: ['chat', 'send'], timeout: 30_000})
-    expect(blocked.transport).toBe('fetch')
+    expect((await blocked).transport).toBe('fetch')
 
     blockedCore.setUpgradesBlocked(false)
-    const mark = observer.mark()
     await rebindHandle(page, blockedCore.base)
     await expect(chatBox(page)).toBeVisible({timeout: 30_000})
+    const reprobed = wire.nextChatSend()
     await sendChatMessage(page, 'after the upgrade path opens')
-
-    const reprobed = await observer.completed({path: ['chat', 'send'], since: mark, timeout: 30_000})
-    expect(reprobed.transport).toBe('websocket')
+    expect((await reprobed).transport).toBe('websocket')
   })
 })

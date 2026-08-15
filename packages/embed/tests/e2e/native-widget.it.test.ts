@@ -1,9 +1,12 @@
+import {Buffer} from 'node:buffer'
 import {fileURLToPath} from 'node:url'
 import {expect, test, type Page} from '@playwright/test'
+import type {DraftRow} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
-import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
+import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {captureNativePosts, installNativeStub, type NativeBridge} from './helpers/native-bridge.js'
+import {untilPanelDraft} from './helpers/drafts.js'
 
 type NativeMethod = keyof NonNullable<Window['__concivNative']>
 
@@ -34,6 +37,12 @@ const NEUTRAL_GRAB = {
   },
 }
 
+function grabPayloadOf(draft: DraftRow): GrabPayload | null {
+  const attachment = draft.attachments.find((candidate) => candidate.contentType === GRAB_MIME)
+  if (!attachment) return null
+  return parseGrabPayload(Buffer.from(attachment.data, 'base64').toString('utf8'))
+}
+
 let kit: CoreKit
 
 test.beforeAll(async () => {
@@ -47,15 +56,13 @@ test.afterAll(async () => {
 type Native = {
   page: Page
   bridge: NativeBridge
-  observer: RpcObserver
   rebinds: {apiBase?: string}[]
   onRebind: () => void
 }
 
 async function openNative(page: Page): Promise<Native> {
-  const observer = observeRpc(page)
   const bridge = await captureNativePosts(page)
-  const native: Native = {page, bridge, observer, rebinds: [], onRebind: () => {}}
+  const native: Native = {page, bridge, rebinds: [], onRebind: () => {}}
   await page.exposeFunction('concivNativeRebind', (detail: {apiBase?: string}) => {
     native.rebinds.push(detail)
     native.onRebind()
@@ -125,12 +132,7 @@ test.describe('native widget bridge', () => {
     page: fixturePage,
   }) => {
     test.setTimeout(120_000)
-    const {page, bridge, observer} = await openNative(fixturePage)
-    const persistedGrab = observer.completed({
-      path: ['drafts', 'set'],
-      input: /application\/vnd\.conciv\.grab\+json/,
-      timeout: 30_000,
-    })
+    const {page, bridge} = await openNative(fixturePage)
     const picked = Promise.withResolvers<PageToNativeMessage>()
     bridge.notify = (message) => {
       if (message.type === 'grab.pick') picked.resolve(message)
@@ -148,7 +150,10 @@ test.describe('native widget bridge', () => {
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
     await expect(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
     await expect(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
-    expect(JSON.stringify((await persistedGrab).input)).toContain('Grabbed element')
+    await untilPanelDraft(kit, (draft) => {
+      const payload = grabPayloadOf(draft)
+      return payload !== null && payload.text.includes('[view]') && payload.text.includes('PaymentCardCell')
+    })
   })
 
   test('ignores a grabResult whose requestId does not match the pending pick', async ({page: fixturePage}) => {

@@ -1,7 +1,8 @@
 import {expect, test} from '@playwright/test'
 import {holdRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {hostPage, serveHost} from '../helpers/host.js'
+import {hostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {chatBox, openChatPanel} from './helpers/chat.js'
 
 const ASSISTANT_TEXT = 'Recovered mid-session'

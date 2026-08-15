@@ -1,6 +1,7 @@
 import {test} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../../helpers/boot.js'
-import {hostPage, serveHost} from '../../helpers/host.js'
+import {hostPage} from '../../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 
 export type WidgetSuite = {
   kit: () => EmbedKit

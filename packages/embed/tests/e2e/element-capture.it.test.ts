@@ -1,7 +1,8 @@
 import {expect, test, type Page} from '@playwright/test'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {hostPage, serveHost} from '../helpers/host.js'
+import {hostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {openPagePlaneHost} from './helpers/page-plane-host.js'
 import {openPanel} from './helpers/panel.js'
 

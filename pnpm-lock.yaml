@@ -1817,15 +1817,15 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.14.7(@opentelemetry/api@1.9.1)(crossws@0.4.10(srvx@0.11.22))(ws@8.21.0)
-      '@orpc/standard-server-peer':
-        specifier: 'catalog:'
-        version: 1.14.7(@opentelemetry/api@1.9.1)
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
       '@solid-primitives/event-listener':
         specifier: ^2.4.6
         version: 2.4.6(solid-js@1.9.14)
+      '@tanstack/router-core':
+        specifier: ^1.171.14
+        version: 1.171.22
       '@types/node':
         specifier: ^26.1.0
         version: 26.1.0
