@@ -9,6 +9,16 @@ type LayoutReads = {computedStyle: number; offset: number; rect: number}
 
 type EmitterGeometry = {fontSizePx: number; leadingLeft: number; trailingLeft: number; top: number}
 
+type EmitterFlight = {
+  launchLeft: number
+  stageWidth: number
+  antennaPx: number
+  fontSizePx: number
+  leadingLeft: number
+  top: number
+  rise: number[]
+}
+
 type EffectTotals = {starts: number; stops: number; removes: number; rests: number; live: number}
 
 type ScrollStageParts = StageParts & {scroller: HTMLElement}
@@ -32,9 +42,13 @@ type MascotHarness = {
   settleFrames: () => Promise<number>
   loadEffect: (name: string, exportName: string) => Promise<MascotModule.EffectMount>
   emitterGeometry: (emitter: HTMLElement) => EmitterGeometry
+  emitterFlight: (parts: StageParts, seconds: number) => EmitterFlight
   curvedDigitPlacement: (emitter: HTMLElement, index: number) => DigitPlacement
   countingEffect: MascotModule.EffectMount
   countingEffectTotals: () => EffectTotals
+  failingEffect: MascotModule.EffectMount
+  layoutReads: () => LayoutReads
+  transformOriginOf: (element: HTMLElement) => string
   wait: (milliseconds: number) => Promise<void>
   nextFrame: () => Promise<number>
   sampleFrames: <T>(read: () => T, milliseconds: number) => Promise<T[]>
@@ -66,6 +80,6 @@ declare global {
     service: MascotModule.MascotService
     readonly pointerMoveListenerCount: number
     readonly pendingFrameLoopCount: number
-    readonly layoutReads: LayoutReads
+    readonly layoutReads?: LayoutReads
   }
 }

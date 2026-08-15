@@ -250,3 +250,24 @@ test('a custom skin drives the layer art and the emitter scale reference', async
   expectNear('the skin reference antenna scales the leading lane', result.geometry.leadingLeft, -1 * factor, 0.05)
   expectNear('the skin reference antenna scales the digit top', result.geometry.top, -12 * factor, 0.05)
 })
+
+test('an effect that refuses to mount is skipped and never takes the other effects down with it', async ({page}) => {
+  await buildBareService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    window.service.mountEffect('boom', harness.failingEffect)
+    window.service.mountEffect('binary', harness.mascot.binaryEffect)
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.9)
+    const working = harness.emitters().length
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.9)
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.9)
+    return {working, resumed: harness.emitters().length, digits: harness.requireEmitter().childElementCount}
+  })
+
+  expect(result.working, 'the healthy emitter still mounts behind the broken one').toBe(1)
+  expect(result.resumed, 'a later work turn still starts the healthy emitter').toBe(1)
+  expect(result.digits, 'the healthy emitter is fully built').toBe(5)
+})

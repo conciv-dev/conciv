@@ -2,6 +2,16 @@ import {expect, test} from '@playwright/test'
 import {expectNear} from './helpers/near.js'
 import {buildLegacyRig, buildService, openMascotPage, readGaze, settle} from './helpers/mascot-stage.js'
 
+const INSET_STAGE_PX = 56
+
+const INSET_LAYER_PX = 6
+
+const ANTENNA_ORIGIN_FRACTION_Y = 0.328
+
+const POINTER_REACH_PX = 300
+
+const GAZE_SETTLE_MS = 250
+
 test.beforeEach(async ({page}) => {
   await openMascotPage(page)
 })
@@ -195,4 +205,37 @@ test('follow arms, disarms and settles without leaking pointermove listeners', a
   ).toBe(true)
   expectNear('animated disarm settles the lean to zero', settled.lean, 0, 0.001)
   expect(settled.listeners, 'animated disarm detaches the listener').toBe(0)
+})
+
+test('a lean armed on a collapsed antenna re-measures its pivot once the antenna has a real box', async ({page}) => {
+  const center = await buildService(
+    page,
+    {state: 'rest', working: false, follow: false},
+    INSET_STAGE_PX,
+    INSET_LAYER_PX,
+  )
+  await page.evaluate(() => {
+    window.mascotHarness.applyStyle(window.parts.antenna, {display: 'none'})
+    window.service.update({state: 'rest', working: false, follow: true})
+  })
+  const collapsed = await page.evaluate(() => ({
+    antennaPx: window.parts.antenna.offsetWidth,
+    origin: window.mascotHarness.transformOriginOf(window.mascotHarness.requireLeanWrapper()),
+  }))
+  await page.evaluate(() => window.mascotHarness.applyStyle(window.parts.antenna, {display: 'block'}))
+  await page.mouse.move(center.x + POINTER_REACH_PX, center.y)
+  await settle(page, GAZE_SETTLE_MS)
+  const restored = await page.evaluate(() => ({
+    antennaPx: window.parts.antenna.offsetWidth,
+    inset: window.parts.antenna.offsetLeft,
+    origin: window.mascotHarness.transformOriginOf(window.mascotHarness.requireLeanWrapper()),
+    lean: window.mascotHarness.property(window.parts.antenna.parentElement, 'rotation'),
+  }))
+  const pivotY = Number.parseFloat(restored.origin.split(' ')[1] ?? '')
+  const antennaPivotY = restored.inset + restored.antennaPx * ANTENNA_ORIGIN_FRACTION_Y
+
+  expect(collapsed.antennaPx, 'the lean really armed while the antenna had no box').toBe(0)
+  expect(restored.antennaPx, 'the antenna really got its box back').toBeGreaterThan(0)
+  expect(Math.abs(restored.lean), 'the restored antenna really leans at the pointer').toBeGreaterThan(1)
+  expectNear('the lean pivots on the antenna origin, not the stage-percentage fallback', pivotY, antennaPivotY, 0.2)
 })

@@ -180,16 +180,21 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     })
   }
 
-  window.addEventListener('resize', forgetLayout, {passive: true})
-
-  const startEntry = (entry: EffectEntry) => {
-    const host = entry.host ?? stage
-    forgetLayout()
-    entry.hostOrigin = hostOriginInRoot(host)
+  const launchEntry = (entry: EffectEntry, host: HTMLElement) => {
     entry.handle = entry.handle ?? entry.mount({host, stage, antenna, skin})
     draining.delete(entry.handle)
     anchorEntry(entry)
     entry.handle.start()
+  }
+
+  const startEntry = (entry: EffectEntry) => {
+    const host = entry.host ?? stage
+    entry.hostOrigin = hostOriginInRoot(host)
+    try {
+      launchEntry(entry, host)
+    } catch {
+      removeEntry(entry)
+    }
   }
 
   const beginDrain = (entry: EffectEntry, handle: EffectHandle) => {
@@ -228,6 +233,25 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     handle.remove()
   }
 
+  const restartEntry = (entry: EffectEntry) => {
+    forgetLayout()
+    startEntry(entry)
+  }
+
+  const restartEntries = () => {
+    forgetLayout()
+    effects.forEach(startEntry)
+  }
+
+  const remeasure = () => {
+    forgetLayout()
+    effects.forEach(removeEntry)
+    if (!isRunning()) return
+    effects.forEach(startEntry)
+  }
+
+  window.addEventListener('resize', remeasure, {passive: true})
+
   const setRest = (rest: ActivityRest) => {
     resting = rest
     if (session === undefined) return
@@ -244,7 +268,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     const started: WorkSession = {...buildWorkTimeline(parts, rest, anchorEffects), layout: undefined}
     session = started
     if (!visible) return started.timeline.pause()
-    effects.forEach(startEntry)
+    restartEntries()
   }
 
   const suspend = (current: WorkSession) => {
@@ -256,7 +280,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
 
   const resume = (current: WorkSession) => {
     current.timeline.play()
-    effects.forEach(startEntry)
+    restartEntries()
   }
 
   const setVisible = (next: boolean) => {
@@ -304,7 +328,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     if (existing !== undefined) removeEntry(existing)
     const entry: EffectEntry = {mount, host, handle: undefined, hostOrigin: undefined}
     effects.set(id, entry)
-    if (isRunning()) startEntry(entry)
+    if (isRunning()) restartEntry(entry)
   }
 
   const unmountEffect = (id: string) => {
@@ -320,11 +344,11 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     detachAndDrain(entry)
     entry.host = host
     entry.hostOrigin = undefined
-    if (isRunning()) startEntry(entry)
+    if (isRunning()) restartEntry(entry)
   }
 
   const dispose = () => {
-    window.removeEventListener('resize', forgetLayout)
+    window.removeEventListener('resize', remeasure)
     killTimeline()
     killRecoveryTweens()
     effects.forEach(removeEntry)

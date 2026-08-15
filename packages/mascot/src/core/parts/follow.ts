@@ -40,15 +40,19 @@ type FollowDrivers = {
   moveEyesX: ((value: number) => void) | undefined
   moveEyesY: ((value: number) => void) | undefined
   leanTo: ((value: number) => void) | undefined
+  pinLean: () => boolean
   tweens: gsap.core.Tween[]
 }
 
 const LEAN_WRAPPER_STYLE = 'position:absolute;inset:0;pointer-events:none;will-change:transform'
 
-function leanOrigin(antenna: HTMLElement, wrapper: HTMLElement, skin: MascotSkin): string {
-  if (antenna.offsetWidth === 0 || antenna.offsetHeight === 0) return skin.transformOrigins.antenna
+const leanPivotSettled = (): boolean => true
+
+function pinLeanPivot(antenna: HTMLElement, wrapper: HTMLElement, skin: MascotSkin): boolean {
+  if (antenna.offsetWidth === 0 || antenna.offsetHeight === 0) return false
   const origin = antennaOriginOffset(antenna, wrapper, skin)
-  return `${origin.x}px ${origin.y}px`
+  gsap.set(wrapper, {transformOrigin: `${origin.x}px ${origin.y}px`})
+  return true
 }
 
 export function wrapForLean(antenna: HTMLElement, skin: MascotSkin): HTMLElement | undefined {
@@ -64,23 +68,28 @@ export function wrapForLean(antenna: HTMLElement, skin: MascotSkin): HTMLElement
 }
 
 function eyesDrivers(eyes: HTMLElement, armed: boolean): FollowDrivers {
-  if (!armed) return {moveEyesX: undefined, moveEyesY: undefined, leanTo: undefined, tweens: []}
+  const idle = {moveEyesX: undefined, moveEyesY: undefined, leanTo: undefined, pinLean: leanPivotSettled}
+  if (!armed) return {...idle, tweens: []}
   const eyesVars = {duration: GAZE_EYES_QUICK_TO_DURATION_S, ease: GAZE_EYES_QUICK_TO_EASE}
   const moveEyesX = gsap.quickTo(eyes, 'x', eyesVars)
   const moveEyesY = gsap.quickTo(eyes, 'y', eyesVars)
-  return {moveEyesX, moveEyesY, leanTo: undefined, tweens: [moveEyesX.tween, moveEyesY.tween]}
+  return {...idle, moveEyesX, moveEyesY, tweens: [moveEyesX.tween, moveEyesY.tween]}
 }
 
 function createDrivers(parts: FollowParts, channels: FollowChannels): FollowDrivers {
   const {eyes, antenna, leanWrapper, skin} = parts
   const drivers = eyesDrivers(eyes, channels.eyes)
   if (!channels.antenna || leanWrapper === undefined) return drivers
-  gsap.set(leanWrapper, {transformOrigin: leanOrigin(antenna, leanWrapper, skin)})
   const leanTo = gsap.quickTo(leanWrapper, 'rotation', {
     duration: GAZE_WRAPPER_QUICK_TO_DURATION_S,
     ease: GAZE_WRAPPER_QUICK_TO_EASE,
   })
-  return {...drivers, leanTo, tweens: [...drivers.tweens, leanTo.tween]}
+  return {
+    ...drivers,
+    leanTo,
+    pinLean: () => pinLeanPivot(antenna, leanWrapper, skin),
+    tweens: [...drivers.tweens, leanTo.tween],
+  }
 }
 
 function measureGazeOrigin(eyes: HTMLElement): GazeOrigin | undefined {
@@ -112,6 +121,7 @@ function createGazeTracker(eyes: HTMLElement, drivers: FollowDrivers): GazeTrack
   let origin: GazeOrigin | undefined
   let pending: GazePoint | undefined
   let registered: gsap.Callback | undefined
+  let pivoted = drivers.pinLean()
 
   const restingOrigin = (): GazeOrigin | undefined => {
     const held = origin
@@ -124,6 +134,7 @@ function createGazeTracker(eyes: HTMLElement, drivers: FollowDrivers): GazeTrack
     const point = pending
     pending = undefined
     if (point === undefined) return
+    if (!pivoted) pivoted = drivers.pinLean()
     const measured = restingOrigin()
     if (measured === undefined) return
     aimAt(drivers, measured, point)
@@ -136,16 +147,21 @@ function createGazeTracker(eyes: HTMLElement, drivers: FollowDrivers): GazeTrack
     registered = gsap.ticker.add(flush, true)
   }
 
-  const forget = () => {
+  const forgetOrigin = () => {
     origin = undefined
   }
 
-  window.addEventListener('scroll', forget, {passive: true, capture: true})
-  window.addEventListener('resize', forget, {passive: true})
+  const forgetMeasurements = () => {
+    origin = undefined
+    pivoted = false
+  }
+
+  window.addEventListener('scroll', forgetOrigin, {passive: true, capture: true})
+  window.addEventListener('resize', forgetMeasurements, {passive: true})
 
   const detach = () => {
-    window.removeEventListener('scroll', forget, {capture: true})
-    window.removeEventListener('resize', forget)
+    window.removeEventListener('scroll', forgetOrigin, {capture: true})
+    window.removeEventListener('resize', forgetMeasurements)
     if (registered !== undefined) gsap.ticker.remove(registered)
     registered = undefined
     pending = undefined

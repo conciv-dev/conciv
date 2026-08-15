@@ -26,7 +26,7 @@ test('a warmed work cycle rides the antenna without reading layout again', async
       window.service.update({state: 'rest', working: true, follow: false})
       harness.advanceBy(warmupSeconds)
       const emitter = harness.requireEmitter()
-      const before = window.layoutReads
+      const before = harness.layoutReads()
       const frames = harness.stepFrames<number[]>(
         () => [
           ...[0, 1, 2, 3, 4].map((index) => harness.digitFlightOf(emitter, index).top),
@@ -35,7 +35,7 @@ test('a warmed work cycle rides the antenna without reading layout again', async
         ],
         sampleSeconds,
       )
-      const after = window.layoutReads
+      const after = harness.layoutReads()
       return {
         computedStyle: after.computedStyle - before.computedStyle,
         offset: after.offset - before.offset,
@@ -60,16 +60,16 @@ test('a warmed work cycle rides the antenna without reading layout again', async
 
 test('the armed gaze measures the eye box once and reuses it for every later pointer move', async ({page}) => {
   const center = await buildService(page, {state: 'rest', working: false, follow: true})
-  const armed = await page.evaluate(() => window.layoutReads.rect)
+  const armed = await page.evaluate(() => window.mascotHarness.layoutReads().rect)
   await page.mouse.move(center.x + POINTER_REACH_PX, center.y)
   await settle(page, GAZE_SETTLE_MS)
-  const measured = await page.evaluate(() => window.layoutReads.rect)
+  const measured = await page.evaluate(() => window.mascotHarness.layoutReads().rect)
   for (let step = 1; step <= POINTER_MOVE_COUNT; step += 1) {
     await page.mouse.move(center.x + POINTER_REACH_PX - step * POINTER_STEP_PX, center.y + step * POINTER_STEP_PX)
   }
   await settle(page, GAZE_SETTLE_MS)
   const tracked = await page.evaluate(() => ({
-    rect: window.layoutReads.rect,
+    rect: window.mascotHarness.layoutReads().rect,
     eyesX: window.mascotHarness.property(window.parts.eyes, 'x'),
     eyesY: window.mascotHarness.property(window.parts.eyes, 'y'),
   }))

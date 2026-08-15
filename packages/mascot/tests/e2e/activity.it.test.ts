@@ -1,8 +1,9 @@
 import {expect, test} from '@playwright/test'
-import {collectLaunches, launchFrames} from './helpers/launches.js'
+import {collectLaunches, launchFrames, medianStep, risePerFrame} from './helpers/launches.js'
 import {
   buildLegacyRig,
   buildService,
+  expectedEmitterGeometry,
   installManualClock,
   openIdleService,
   openMascotPage,
@@ -26,6 +27,12 @@ const STRETCHED_LAUNCH_WINDOW_S = 0.2
 const STRETCHED_DIGIT = 0
 
 const RELAUNCH_SETTLE_S = 2.4
+
+const RISE_SAMPLE_S = 0.3
+
+const RISE_STEP_TOLERANCE_PX = 0.05
+
+const RESIZE_BURST_WIDTHS = [1200, 900, 1500, 1100]
 
 test.beforeEach(async ({page}) => {
   await openMascotPage(page)
@@ -189,35 +196,53 @@ test('a digit launching mid-throb starts from the stretched tip, not the unstret
   expectNear('the launching digit starts on the stretched tip', launched[0], stretchedTip.y, LAUNCH_TIP_TOLERANCE_PX)
 })
 
-test('a viewport resize re-measures the antenna so later digits launch from the real tip', async ({page}) => {
+test('a viewport resize rebuilds the emitter so later digits launch from the real tip at the new scale', async ({
+  page,
+}) => {
   await page.setViewportSize({width: 1000, height: 800})
   await installManualClock(page)
   await buildService(page, {state: 'rest', working: false, follow: false})
-  const before = await page.evaluate(() => {
+  const before = await page.evaluate((riseSeconds) => {
     const harness = window.mascotHarness
     harness.applyStyle(window.parts.root, {width: '20vw', height: '20vw'})
     window.service.update({state: 'rest', working: true, follow: false})
     harness.advanceBy(0.5)
     harness.watchResize()
-    return {
-      launchLeft: harness.digitFlightOf(harness.requireEmitter(), 0).left,
-      stageWidth: window.parts.root.offsetWidth,
-    }
-  })
+    return harness.emitterFlight(window.parts, riseSeconds)
+  }, RISE_SAMPLE_S)
   await page.setViewportSize({width: 1600, height: 800})
-  const after = await page.evaluate(async (settleSeconds) => {
-    const harness = window.mascotHarness
-    await harness.awaitResize()
-    harness.advanceBy(settleSeconds)
-    return {
-      launchLeft: harness.digitFlightOf(harness.requireEmitter(), 0).left,
-      stageWidth: window.parts.root.offsetWidth,
-    }
-  }, RELAUNCH_SETTLE_S)
+  const after = await page.evaluate(
+    async ([settleSeconds, riseSeconds]) => {
+      const harness = window.mascotHarness
+      await harness.awaitResize()
+      harness.advanceBy(settleSeconds)
+      return harness.emitterFlight(window.parts, riseSeconds)
+    },
+    [RELAUNCH_SETTLE_S, RISE_SAMPLE_S] as const,
+  )
+  const narrow = expectedEmitterGeometry(before.antennaPx)
+  const widened = expectedEmitterGeometry(after.antennaPx)
 
   expectNear('digits launch on the antenna axis of the narrow stage', before.launchLeft, before.stageWidth * 0.5, 0.5)
   expect(after.stageWidth, 'the resize really widened the stage').toBeGreaterThan(before.stageWidth + 50)
+  expect(after.antennaPx, 'the resize really grew the antenna box').toBeGreaterThan(before.antennaPx + 50)
   expectNear('digits launch on the antenna axis of the widened stage', after.launchLeft, after.stageWidth * 0.5, 0.5)
+  expectNear('the narrow stage sizes its digits to its own antenna', before.fontSizePx, narrow.fontSizePx, 0.5)
+  expectNear('the widened stage re-sizes its digits to the grown antenna', after.fontSizePx, widened.fontSizePx, 0.5)
+  expectNear('the widened stage re-scales the digit lane offset', after.leadingLeft, widened.leadingLeft, 0.5)
+  expectNear('the widened stage re-scales the digit placement', after.top, widened.top, 0.5)
+  expectNear(
+    'the narrow stage rises at its own antenna scale',
+    medianStep(before.rise),
+    risePerFrame(before.antennaPx),
+    RISE_STEP_TOLERANCE_PX,
+  )
+  expectNear(
+    'the widened stage rises at the grown antenna scale',
+    medianStep(after.rise),
+    risePerFrame(after.antennaPx),
+    RISE_STEP_TOLERANCE_PX,
+  )
 })
 
 test('the work timeline bobs the head and leaves every other pose channel untouched', async ({page}) => {
@@ -374,4 +399,36 @@ test('stopping work returns the head to the pose yPercent of the current state',
   expectNear('rest recovery returns the head to yPercent 0', result.rest, 0, 0.001)
   expect(result.awakeBob.min, 'the awake head bobs too').toBeLessThan(-4)
   expectNear('awake recovery returns the head to yPercent -2', result.awake, -2, 0.001)
+})
+
+test('a burst of resizes rebuilds the emitter without leaking emitters or tweens', async ({page}) => {
+  await page.setViewportSize({width: 1000, height: 800})
+  await installManualClock(page)
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const settled = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    harness.applyStyle(window.parts.root, {width: '20vw', height: '20vw'})
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(1)
+    return {emitters: harness.emitters().length, tweens: harness.globalTweenCount()}
+  })
+  for (const width of RESIZE_BURST_WIDTHS) {
+    await page.evaluate(() => window.mascotHarness.watchResize())
+    await page.setViewportSize({width, height: 800})
+    await page.evaluate(() => window.mascotHarness.awaitResize())
+  }
+  const after = await page.evaluate((settleSeconds) => {
+    const harness = window.mascotHarness
+    harness.advanceBy(settleSeconds)
+    return {
+      emitters: harness.emitters().length,
+      tweens: harness.globalTweenCount(),
+      digits: harness.requireEmitter().childElementCount,
+    }
+  }, RELAUNCH_SETTLE_S)
+
+  expect(settled.emitters, 'the working stage really carries one emitter before the burst').toBe(1)
+  expect(after.emitters, 'a burst of resizes leaves exactly one emitter').toBe(1)
+  expect(after.digits, 'the rebuilt emitter is fully built').toBe(5)
+  expect(after.tweens, 'a burst of resizes accumulates no runaway tweens').toBeLessThanOrEqual(settled.tweens)
 })

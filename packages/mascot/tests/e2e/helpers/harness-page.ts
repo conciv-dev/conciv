@@ -376,11 +376,39 @@ const HARNESS_SCRIPT = `
     top: parseFloat(element.style.top) + property(element, 'y'),
   })
 
+  const layoutReads = () => {
+    const reads = window.layoutReads
+    if (reads === undefined) throw new Error('this page was opened without layout-read counting')
+    return reads
+  }
+
+  const transformOriginOf = (element) => String(gsap.getProperty(element, 'transformOrigin'))
+
+  const failingEffect = () => {
+    throw new Error('this effect refuses to mount')
+  }
+
   const digitFlightOf = (emitter, index) => {
     const digit = requireDigit(emitter, index)
     return {
       left: parseFloat(emitter.style.left) + property(emitter, 'x') + property(digit, 'x'),
       top: parseFloat(emitter.style.top) + property(emitter, 'y') + property(digit, 'y'),
+    }
+  }
+
+  const emitterFlight = (parts, seconds) => {
+    const emitter = requireEmitter()
+    const digit = requireDigit(emitter, 0)
+    const launchLeft = digitFlightOf(emitter, 0).left
+    const geometry = emitterGeometry(emitter)
+    return {
+      launchLeft,
+      stageWidth: parts.root.offsetWidth,
+      antennaPx: Math.min(parts.antenna.offsetWidth, parts.antenna.offsetHeight),
+      fontSizePx: geometry.fontSizePx,
+      leadingLeft: geometry.leadingLeft,
+      top: geometry.top,
+      rise: stepFrames(() => property(digit, 'y'), seconds),
     }
   }
 
@@ -436,9 +464,13 @@ const HARNESS_SCRIPT = `
     settleFrames,
     loadEffect,
     emitterGeometry,
+    emitterFlight,
     curvedDigitPlacement,
     countingEffect,
     countingEffectTotals,
+    failingEffect,
+    layoutReads,
+    transformOriginOf,
     wait,
     nextFrame,
     sampleFrames,
