@@ -1,40 +1,11 @@
 import {batch, createRoot, createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
-import {QueryClient} from '@tanstack/solid-query'
-import {makeRpcClient} from '@conciv/contract'
 import {describe, expect, it} from 'vitest'
 import {AppContext, type AppContextValue} from '../src/app/context.js'
-import {makeLiveSessions} from '../src/app/live-sessions.js'
-import {makeAppData} from '../src/data/app-data.js'
-import {parseConcivSettings} from '../src/data/settings.js'
-import {makeLayerStack} from '../src/shell/dialogs.js'
 import {trackSessionActivity} from '../src/pane/session-activity.js'
+import {makeAppContextValue} from './helpers/app-context-value.js'
 
 const OFFLINE_BASE = 'http://127.0.0.1:1'
-
-function makeAppValue(): AppContextValue {
-  const rpc = makeRpcClient(OFFLINE_BASE)
-  const queryClient = new QueryClient()
-  return {
-    rpc,
-    settings: parseConcivSettings(''),
-    environment: {rootNode: document, document},
-    data: makeAppData(rpc, queryClient),
-    liveSessions: makeLiveSessions(),
-    queryClient,
-    announce: () => {},
-    layers: makeLayerStack(),
-    suppressed: () => undefined,
-    fabPosition: () => 'bottom-right',
-    instances: [],
-    connected: () => true,
-    arrivedFromConnect: () => false,
-    connectBind: async () => '',
-    connectMode: false,
-    connectionGeneration: () => 0,
-    apiBase: () => OFFLINE_BASE,
-  }
-}
 
 type ActivityProbe = {
   app: AppContextValue
@@ -45,7 +16,7 @@ type ActivityProbe = {
 }
 
 function mountActivity(): ActivityProbe {
-  const scope = createRoot((dispose) => ({app: makeAppValue(), dispose}))
+  const scope = createRoot((dispose) => ({app: makeAppContextValue({base: OFFLINE_BASE}), dispose}))
   const [working, setWorking] = createSignal(false)
   let invalidations = 0
   let settles = 0

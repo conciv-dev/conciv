@@ -76,6 +76,25 @@ describe('makeLiveSessions', () => {
     dispose()
   })
 
+  it('disposes registrations one at a time even when two panes share one accessor', () => {
+    const {live, dispose} = trackAnyRunning()
+    const chat = makeChat()
+    const closeFirst = live.register(chat.working)
+    const closeSecond = live.register(chat.working)
+    chat.setWorking(true)
+
+    expect(live.anyRunning()).toBe(true)
+
+    closeFirst()
+
+    expect(live.anyRunning(), 'the surviving registration still holds the launcher').toBe(true)
+
+    closeSecond()
+
+    expect(live.anyRunning(), 'the last registration releases the launcher').toBe(false)
+    dispose()
+  })
+
   it('disposing a registration stops that pane holding the launcher busy', () => {
     const {live, dispose} = trackAnyRunning()
     const chat = makeChat()

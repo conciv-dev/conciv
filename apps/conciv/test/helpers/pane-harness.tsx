@@ -1,10 +1,11 @@
 import {createRoot, createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
-import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
-import {browserRpcConnection, closeBrowserRpcConnection, makeRpcClient} from '@conciv/contract'
+import {QueryClientProvider, type QueryClient} from '@tanstack/solid-query'
+import {browserRpcConnection, closeBrowserRpcConnection} from '@conciv/contract'
 import '../../src/lib/api-base.js'
 import {HostApiProvider} from '@conciv/extension/host'
-import {AppContext, type AppContextValue} from '../../src/app/context.js'
+import {AppContext} from '../../src/app/context.js'
+import {makeAppContextValue} from './app-context-value.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../../src/app/reachability.js'
 import {
   PaneContext,
@@ -12,10 +13,7 @@ import {
   makePendingAttachmentQueue,
   type PaneContextValue,
 } from '../../src/app/pane-context.js'
-import {makeLiveSessions} from '../../src/app/live-sessions.js'
-import {makeAppData, type AppData} from '../../src/data/app-data.js'
-import {parseConcivSettings} from '../../src/data/settings.js'
-import {makeLayerStack} from '../../src/shell/dialogs.js'
+import {type AppData} from '../../src/data/app-data.js'
 import {NoticeContextProvider, NoticeSurface} from '../../src/shell/notice-context.js'
 
 export type PaneMountOptions = {base: string; sessionId: string}
@@ -38,31 +36,14 @@ function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
 }
 
 export function mountPane(options: PaneMountOptions, view: (pane: PaneContextValue) => JSX.Element): PaneMount {
-  const rpc = makeRpcClient(options.base)
   window.__CONCIV_API_BASE__ = options.base
   browserRpcConnection(options.base, 'fetch')
-  const queryClient = new QueryClient()
-  const data = makeAppData(rpc, queryClient)
   const [announced, setAnnounced] = createSignal<string[]>([])
-  const app: AppContextValue = {
-    rpc,
-    settings: parseConcivSettings(''),
-    environment: {rootNode: document, document},
-    data,
-    liveSessions: makeLiveSessions(),
-    queryClient,
+  const app = makeAppContextValue({
+    base: options.base,
     announce: (message) => setAnnounced((entries) => [...entries, message]),
-    layers: makeLayerStack(),
-    suppressed: () => undefined,
-    fabPosition: () => 'bottom-right',
-    instances: [],
-    connected: () => true,
-    arrivedFromConnect: () => false,
-    connectBind: async () => '',
-    connectMode: false,
-    connectionGeneration: () => 0,
-    apiBase: () => options.base,
-  }
+  })
+  const {rpc, data, queryClient} = app
   const pane: PaneContextValue = {
     sessionId: () => options.sessionId,
     running: () => false,
