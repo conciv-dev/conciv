@@ -1,11 +1,17 @@
 import type {AnyExtension} from '@conciv/extension'
-import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
+import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 
 export type EmbedKit = CoreKit
 
 export async function bootEmbedKit(
-  opts: {text?: string; extensions?: AnyExtension[]; models?: HarnessModel[]; commands?: HarnessCommand[]} = {},
+  opts: {
+    text?: string
+    extensions?: AnyExtension[]
+    models?: HarnessModel[]
+    commands?: HarnessCommand[]
+    history?: HarnessSessionMeta[]
+  } = {},
 ): Promise<EmbedKit> {
   const kit = await bootCoreKit({
     id: 'fake-embed',
@@ -13,6 +19,7 @@ export async function bootEmbedKit(
     extensions: opts.extensions,
     models: opts.models,
     commands: opts.commands,
+    history: opts.history,
   })
   return {
     ...kit,
