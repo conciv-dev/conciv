@@ -63,6 +63,9 @@ export async function openMascotPage(page: Page): Promise<void> {
 export const settle = (page: Page, milliseconds: number): Promise<void> =>
   page.evaluate((wait) => window.mascotHarness.wait(wait), milliseconds)
 
+export const installManualClock = (page: Page): Promise<void> =>
+  page.evaluate(() => window.mascotHarness.installManualClock())
+
 export function buildLegacyRig(page: Page): Promise<StagePoint> {
   return page.evaluate(() => {
     const harness = window.mascotHarness

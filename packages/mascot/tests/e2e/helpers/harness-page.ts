@@ -97,6 +97,90 @@ const HARNESS_SCRIPT = `
     return values
   }
 
+  const effectRuns = []
+
+  const countingEffect = (context) => {
+    const element = document.createElement('span')
+    element.setAttribute('aria-hidden', 'true')
+    context.host.append(element)
+    const run = {starts: 0, stops: 0, removes: 0, element}
+    effectRuns.push(run)
+    let exit
+    const remove = () => {
+      run.removes += 1
+      exit?.kill()
+      exit = undefined
+      element.remove()
+    }
+    const start = () => {
+      run.starts += 1
+      exit?.kill()
+      exit = undefined
+      gsap.set(element, {opacity: 1})
+    }
+    const stop = (onRemoved) => {
+      run.stops += 1
+      if (exit !== undefined) return
+      exit = gsap.to(element, {
+        opacity: 0,
+        duration: 0.5,
+        onComplete: () => {
+          exit = undefined
+          remove()
+          onRemoved()
+        },
+      })
+    }
+    return {start, stop, remove}
+  }
+
+  const countingEffectTotals = () =>
+    effectRuns.reduce(
+      (total, run) => ({
+        starts: total.starts + run.starts,
+        stops: total.stops + run.stops,
+        removes: total.removes + run.removes,
+        live: total.live + (run.element.isConnected ? 1 : 0),
+      }),
+      {starts: 0, stops: 0, removes: 0, live: 0},
+    )
+
+  const MANUAL_STEP_S = 1 / 60
+
+  let manualOriginS = 0
+  let manualElapsedS = 0
+
+  const renderManualClock = () => gsap.updateRoot(manualOriginS + manualElapsedS)
+
+  const installManualClock = () => {
+    gsap.ticker.lagSmoothing(0)
+    gsap.ticker.remove(gsap.updateRoot)
+    manualOriginS = gsap.ticker.time
+    manualElapsedS = 0
+    renderManualClock()
+  }
+
+  const advanceTo = (seconds) => {
+    while (manualElapsedS + MANUAL_STEP_S < seconds) {
+      manualElapsedS += MANUAL_STEP_S
+      renderManualClock()
+    }
+    manualElapsedS = seconds
+    renderManualClock()
+  }
+
+  const advanceBy = (seconds) => advanceTo(manualElapsedS + seconds)
+
+  const stepFrames = (read, seconds) => {
+    const target = manualElapsedS + seconds
+    const values = [read()]
+    while (manualElapsedS < target) {
+      advanceTo(Math.min(manualElapsedS + MANUAL_STEP_S, target))
+      values.push(read())
+    }
+    return values
+  }
+
   const summarize = (values) => ({
     min: Math.round(Math.min(...values) * 1000) / 1000,
     max: Math.round(Math.max(...values) * 1000) / 1000,
@@ -157,9 +241,15 @@ const HARNESS_SCRIPT = `
     requireLeanWrapper,
     requireDigit,
     emitterGeometry,
+    countingEffect,
+    countingEffectTotals,
     wait,
     nextFrame,
     sampleFrames,
+    installManualClock,
+    advanceTo,
+    advanceBy,
+    stepFrames,
     summarize,
     reversals,
     waitUntil,

@@ -1,7 +1,7 @@
 import {expect, test} from '@playwright/test'
 import type {MascotConnect} from '../../src/rig.js'
 import {expectNear} from './helpers/near.js'
-import {buildService, openMascotPage, restTip, type StageParts} from './helpers/mascot-stage.js'
+import {buildService, installManualClock, openMascotPage, restTip, type StageParts} from './helpers/mascot-stage.js'
 
 type RequiredSlot = 'getRootProps' | 'getHeadProps' | 'getEyesProps' | 'getAntennaProps'
 
@@ -18,7 +18,8 @@ test.beforeEach(async ({page}) => {
 })
 
 test('connect() hands back stable refs and rebinding never duplicates the rig', async ({page}) => {
-  const result = await page.evaluate(async () => {
+  await installManualClock(page)
+  const result = await page.evaluate(() => {
     const harness = window.mascotHarness
     const service = harness.mascot.createMascot({state: 'rest', working: false, follow: false})
     const first = service.connect()
@@ -41,7 +42,7 @@ test('connect() hands back stable refs and rebinding never duplicates the rig', 
     first.getAntennaProps().ref(parts.antenna)
     service.mountEffect('binary', harness.mascot.binaryEffect)
     service.update({state: 'rest', working: true, follow: false})
-    await harness.wait(900)
+    harness.advanceBy(0.9)
     const emitterBefore = harness.requireEmitter()
     const wrapperBefore = harness.requireLeanWrapper()
     const rebound = service.connect()
@@ -49,7 +50,7 @@ test('connect() hands back stable refs and rebinding never duplicates the rig', 
     rebound.getHeadProps().ref(parts.head)
     rebound.getEyesProps().ref(parts.eyes)
     rebound.getAntennaProps().ref(parts.antenna)
-    const values = await harness.sampleFrames(() => harness.property(parts.antenna, 'scaleY'), 2200)
+    const values = harness.stepFrames(() => harness.property(parts.antenna, 'scaleY'), 2.2)
     return {
       sameGetterTwice,
       sameAcrossConnectCalls,

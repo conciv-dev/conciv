@@ -7,6 +7,8 @@ type Anchor = {left: number; top: number}
 
 type EmitterGeometry = {fontSizePx: number; leadingLeft: number; trailingLeft: number; top: number}
 
+type EffectTotals = {starts: number; stops: number; removes: number; live: number}
+
 type MascotHarness = {
   mascot: typeof MascotModule
   buildStage: (sizePx?: number, layerInsetPx?: number) => StageParts
@@ -18,9 +20,15 @@ type MascotHarness = {
   requireLeanWrapper: () => HTMLElement
   requireDigit: (emitter: HTMLElement, index: number) => HTMLElement
   emitterGeometry: (emitter: HTMLElement) => EmitterGeometry
+  countingEffect: MascotModule.EffectMount
+  countingEffectTotals: () => EffectTotals
   wait: (milliseconds: number) => Promise<void>
   nextFrame: () => Promise<number>
   sampleFrames: <T>(read: () => T, milliseconds: number) => Promise<T[]>
+  installManualClock: () => void
+  advanceTo: (seconds: number) => void
+  advanceBy: (seconds: number) => void
+  stepFrames: <T>(read: () => T, seconds: number) => T[]
   summarize: (values: readonly number[]) => Summary
   reversals: (values: readonly number[], deadband: number) => number
   waitUntil: (predicate: () => boolean, milliseconds: number) => Promise<boolean>

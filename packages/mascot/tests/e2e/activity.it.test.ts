@@ -1,49 +1,55 @@
 import {expect, test} from '@playwright/test'
 import {expectNear} from './helpers/near.js'
-import {buildLegacyRig, buildService, openMascotPage, restTip} from './helpers/mascot-stage.js'
+import {buildLegacyRig, buildService, installManualClock, openMascotPage, restTip} from './helpers/mascot-stage.js'
 
 test.beforeEach(async ({page}) => {
   await openMascotPage(page)
 })
 
 test('the legacy work state stages the emitter, throbs and drains without leaking tweens', async ({page}) => {
+  await installManualClock(page)
   await buildLegacyRig(page)
-  const enter = await page.evaluate(async () => {
+  const enter = await page.evaluate(() => {
     const harness = window.mascotHarness
     window.rig.apply('work')
     const emitter = harness.requireEmitter()
-    const scales = await harness.sampleFrames(() => harness.property(emitter, 'scale'), 500)
+    harness.advanceBy(0)
+    const startScale = harness.property(emitter, 'scale')
+    const scales = harness.stepFrames(() => harness.property(emitter, 'scale'), 0.36)
     return {
       digits: emitter.childElementCount,
+      startScale,
       scale: harness.summarize(scales),
       emitters: harness.emitters().length,
       anchor: harness.boxOf(emitter),
       stage: {width: window.parts.root.offsetWidth, height: window.parts.root.offsetHeight},
     }
   })
-  const throb = await page.evaluate(async () => {
+  const throb = await page.evaluate(() => {
     const harness = window.mascotHarness
-    const values = await harness.sampleFrames(() => harness.property(window.parts.antenna, 'scaleY'), 2400)
-    return {antenna: harness.summarize(values), tweens: harness.globalTweenCount()}
+    harness.advanceTo(2.3)
+    const peak = harness.property(window.parts.antenna, 'scaleY')
+    const values = harness.stepFrames(() => harness.property(window.parts.antenna, 'scaleY'), 2)
+    return {peak, antenna: harness.summarize(values), tweens: harness.globalTweenCount()}
   })
-  const exit = await page.evaluate(async () => {
+  const exit = await page.evaluate(() => {
     const harness = window.mascotHarness
     window.rig.apply('closed')
     const emitter = harness.requireEmitter()
-    const values = await harness.sampleFrames(() => harness.property(emitter, 'opacity'), 400)
-    await harness.wait(700)
+    const values = harness.stepFrames(() => harness.property(emitter, 'opacity'), 0.4)
+    harness.advanceBy(0.7)
     return {drain: harness.summarize(values), emitters: harness.emitters().length}
   })
-  const flap = await page.evaluate(async () => {
+  const flap = await page.evaluate(() => {
     const harness = window.mascotHarness
     for (let cycle = 0; cycle < 5; cycle += 1) {
       window.rig.apply('work')
-      await harness.wait(140)
+      harness.advanceBy(0.14)
       window.rig.apply('closed')
-      await harness.wait(140)
+      harness.advanceBy(0.14)
     }
     window.rig.apply('work')
-    await harness.wait(1500)
+    harness.advanceBy(1.5)
     return {emitters: harness.emitters().length, tweens: harness.globalTweenCount()}
   })
   const tip = restTip(enter.stage)
@@ -51,9 +57,11 @@ test('the legacy work state stages the emitter, throbs and drains without leakin
   expect(enter.digits, 'emitter carries 5 digits').toBe(5)
   expectNear('emitter anchors at the antenna tip x = stage width x 0.5', enter.anchor.left, tip.x, 1)
   expectNear('emitter anchors at the antenna tip y = stage height x 0.15625', enter.anchor.top, tip.y, 1)
+  expectNear('staged enter starts scaled into the tip at 0.2', enter.startScale, 0.2, 0.01)
   expect(enter.scale.min, 'staged enter starts scaled into the tip').toBeLessThan(0.5)
   expect(enter.scale.max, 'staged enter overshoots to full size').toBeGreaterThanOrEqual(1)
   expect(enter.emitters, 'exactly one emitter while working').toBe(1)
+  expectNear('the throb beat at 0.3 peaks at scaleY 1.3', throb.peak, 1.3, 0.01)
   expectNear('throb peaks at scaleY 1.3', throb.antenna.max, 1.3, 0.01)
   expect(throb.antenna.min, 'throb oscillates below the peak').toBeLessThan(1.2)
   expect(exit.drain.max, 'exit starts from a fully visible emitter').toBeGreaterThan(0.99)
@@ -95,8 +103,9 @@ test('entering work anchors on the leaned tip and tracks the pose back to rest',
 })
 
 test('the work timeline bobs the head and leaves every other pose channel untouched', async ({page}) => {
+  await installManualClock(page)
   await buildService(page, {state: 'rest', working: false, follow: false})
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(() => {
     const harness = window.mascotHarness
     const {head, eyes, antenna} = window.parts
     const drift = () =>
@@ -108,9 +117,9 @@ test('the work timeline bobs the head and leaves every other pose channel untouc
         Math.abs(harness.property(eyes, 'y')),
       )
     window.service.update({state: 'rest', working: true, follow: false})
-    const values = await harness.sampleFrames<[number, number, number]>(
+    const values = harness.stepFrames<[number, number, number]>(
       () => [drift(), harness.property(antenna, 'scaleY'), harness.property(head, 'yPercent')],
-      2400,
+      2.4,
     )
     return {
       drift: harness.summarize(values.map((entry) => entry[0])),
@@ -126,24 +135,25 @@ test('the work timeline bobs the head and leaves every other pose channel untouc
 })
 
 test('stopping work returns the head to the pose yPercent of the current state', async ({page}) => {
+  await installManualClock(page)
   await buildService(page, {state: 'rest', working: false, follow: false})
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(() => {
     const harness = window.mascotHarness
-    const settleHead = async () => {
-      await harness.wait(1200)
+    const settleHead = () => {
+      harness.advanceBy(0.25)
       return harness.property(window.parts.head, 'yPercent')
     }
     window.service.update({state: 'rest', working: true, follow: false})
-    await harness.wait(1300)
+    harness.advanceBy(1.3)
     const bobbed = harness.property(window.parts.head, 'yPercent')
     window.service.update({state: 'rest', working: false, follow: false})
-    const rest = await settleHead()
+    const rest = settleHead()
     window.service.update({state: 'awake', working: false, follow: false})
-    await harness.wait(900)
+    harness.advanceBy(0.9)
     window.service.update({state: 'awake', working: true, follow: false})
-    const awakeValues = await harness.sampleFrames(() => harness.property(window.parts.head, 'yPercent'), 2400)
+    const awakeValues = harness.stepFrames(() => harness.property(window.parts.head, 'yPercent'), 2.4)
     window.service.update({state: 'awake', working: false, follow: false})
-    const awake = await settleHead()
+    const awake = settleHead()
     return {bobbed, rest, awakeBob: harness.summarize(awakeValues), awake}
   })
 

@@ -1,6 +1,12 @@
 import {test, type Page} from '@playwright/test'
 import {expectNear} from './helpers/near.js'
-import {buildService, expectedEmitterGeometry, openMascotPage, PRODUCT_FAB_ANTENNA_PX} from './helpers/mascot-stage.js'
+import {
+  buildService,
+  expectedEmitterGeometry,
+  installManualClock,
+  openMascotPage,
+  PRODUCT_FAB_ANTENNA_PX,
+} from './helpers/mascot-stage.js'
 
 const TRIPLE_ANTENNA_PX = PRODUCT_FAB_ANTENNA_PX * 3
 
@@ -8,22 +14,23 @@ const SITE_FAB_BUTTON_PX = 56
 
 const SITE_FAB_LAYER_INSET_PX = 6
 
-const RISE_SAMPLE_MS = 2600
+const RISE_SAMPLE_S = 2.6
 
 type Reading = {fontSizePx: number; leadingLeft: number; trailingLeft: number; top: number; risePx: number}
 
 test.beforeEach(async ({page}) => {
   await openMascotPage(page)
+  await installManualClock(page)
 })
 
 const readEmitterGeometry = (page: Page): Promise<Reading> =>
-  page.evaluate(async (sampleMilliseconds) => {
+  page.evaluate((sampleSeconds) => {
     const harness = window.mascotHarness
     const emitter = harness.requireEmitter()
     const leading = harness.requireDigit(emitter, 0)
-    const rise = await harness.sampleFrames(() => harness.property(leading, 'y'), sampleMilliseconds)
+    const rise = harness.stepFrames(() => harness.property(leading, 'y'), sampleSeconds)
     return {...harness.emitterGeometry(emitter), risePx: harness.summarize(rise).min}
-  }, RISE_SAMPLE_MS)
+  }, RISE_SAMPLE_S)
 
 function assertGeometry(label: string, reading: Reading, antennaBoxPx: number, tolerance: number): void {
   const expected = expectedEmitterGeometry(antennaBoxPx)
