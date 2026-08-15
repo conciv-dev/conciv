@@ -6,3 +6,5 @@ export const gitConfig = {
   repo: 'conciv',
   branch: 'main',
 }
+
+export const repoUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}`

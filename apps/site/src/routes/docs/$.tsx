@@ -13,6 +13,7 @@ import {
 } from 'fumadocs-ui/layouts/docs/page'
 import {baseOptions} from '@/lib/layout.shared'
 import {gitConfig} from '@/lib/shared'
+import {GitHubStarLink} from '@/components/landing/github-star-link'
 import {buildDocsHead} from '@/lib/docs-head'
 import {useFumadocsLoader} from 'fumadocs-core/source/client'
 import {Suspense} from 'react'
@@ -81,7 +82,7 @@ function Page() {
   const {path, pageTree, markdownUrl} = useFumadocsLoader(Route.useLoaderData())
 
   return (
-    <DocsLayout {...baseOptions()} tree={pageTree}>
+    <DocsLayout {...baseOptions()} sidebar={{footer: <GitHubStarLink className="px-3 py-2" />}} tree={pageTree}>
       <Suspense>{clientLoader.useContent(path, {markdownUrl, path})}</Suspense>
     </DocsLayout>
   )

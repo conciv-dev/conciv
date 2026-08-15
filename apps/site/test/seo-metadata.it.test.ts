@@ -1,4 +1,5 @@
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {starsResponseSchema} from '../src/lib/star-count'
 import {startWranglerDev, type WranglerDev} from './wrangler-dev'
 
 const SITE_PORT = 8793
@@ -57,6 +58,22 @@ describe('per-page canonical, og:url, and title metadata', () => {
   it('renders real server-side navigation anchors on the landing page', async () => {
     const {html} = await fetchHtml('/')
     expect(html).toMatch(/<a[^>]*href="\/docs"/)
+  })
+
+  it.each([['/'], ['/docs/quick-start']])('renders a server-side GitHub star link anchor on %s', async (path) => {
+    const {html} = await fetchHtml(path)
+    expect(html).toContain('<a href="https://github.com/conciv-dev/conciv"')
+  })
+})
+
+describe('/api/stars', () => {
+  it('returns a stars count and a cache-control header', async () => {
+    const response = await fetch(`${ORIGIN}/api/stars`)
+    const body = starsResponseSchema.parse(await response.json())
+
+    expect(response.status).toBe(200)
+    expect(typeof body.stars === 'number' || body.stars === null).toBe(true)
+    expect(response.headers.get('cache-control')).toMatch(/^public, max-age=\d+/)
   })
 })
 
