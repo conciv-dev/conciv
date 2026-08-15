@@ -1,5 +1,7 @@
 import {Link} from '@tanstack/react-router'
 import {SparkMark} from './spark-mark'
+import {GitHubStarLink} from './github-star-link'
+import {repoUrl} from '@/lib/shared'
 
 const PRODUCT = [
   {label: 'Docs', splat: ''},
@@ -9,14 +11,13 @@ const PRODUCT = [
 ]
 
 const COMMUNITY = [
-  {label: 'GitHub', href: 'https://github.com/conciv-dev/conciv'},
-  {label: 'Issues', href: 'https://github.com/conciv-dev/conciv/issues'},
-  {label: 'Releases', href: 'https://github.com/conciv-dev/conciv/releases'},
+  {label: 'Issues', href: `${repoUrl}/issues`},
+  {label: 'Releases', href: `${repoUrl}/releases`},
 ]
 
 const INSTALL = [
   {label: 'npm: @conciv/it', href: 'https://www.npmjs.com/package/@conciv/it'},
-  {label: 'Example app', href: 'https://github.com/conciv-dev/conciv/tree/main/apps/examples/tanstack-start'},
+  {label: 'Example app', href: `${repoUrl}/tree/main/apps/examples/tanstack-start`},
 ]
 
 const LINK_CLASS = 'mb-2.5 block text-[13.5px] text-[oklch(0.85_0.008_75)] transition-colors hover:text-white'
@@ -55,6 +56,20 @@ function Column({title, links}: {title: string; links: {label: string; href: str
   )
 }
 
+function CommunityColumn() {
+  return (
+    <div>
+      <ColumnHeading title="Community" />
+      <GitHubStarLink className={LINK_CLASS} />
+      {COMMUNITY.map((link) => (
+        <a key={link.label} href={link.href} className={LINK_CLASS}>
+          {link.label}
+        </a>
+      ))}
+    </div>
+  )
+}
+
 export function SiteFooter() {
   return (
     <footer className="od-footer relative overflow-hidden">
@@ -76,7 +91,7 @@ export function SiteFooter() {
           </p>
         </div>
         <DocsColumn />
-        <Column title="Community" links={COMMUNITY} />
+        <CommunityColumn />
         <Column title="Install" links={INSTALL} />
       </div>
       <div className="relative border-t border-[oklch(0.31_0.01_65)]">
