@@ -16,14 +16,7 @@ function trackAnyRunning(): {live: LiveSessions; notifications: () => number; di
 
 function makeChat(): {working: Accessor<boolean>; setWorking: (value: boolean) => void} {
   const [working, setWorking] = createSignal(false)
-  return {working, setWorking: (value) => setWorking(value)}
-}
-
-function mountPane(live: LiveSessions, working: Accessor<boolean>): () => void {
-  return createRoot((dispose) => {
-    live.register(working)
-    return dispose
-  })
+  return {working, setWorking}
 }
 
 describe('makeLiveSessions', () => {
@@ -32,7 +25,7 @@ describe('makeLiveSessions', () => {
     const chat = makeChat()
 
     expect(notifications()).toBe(1)
-    const closePane = mountPane(live, chat.working)
+    const closePane = live.register(chat.working)
 
     expect(notifications(), 'registering an idle pane leaves the launcher asleep').toBe(1)
     expect(live.anyRunning()).toBe(false)
@@ -43,7 +36,7 @@ describe('makeLiveSessions', () => {
   it('notifies on the real start and the real settle of a registered pane', () => {
     const {live, notifications, dispose} = trackAnyRunning()
     const chat = makeChat()
-    const closePane = mountPane(live, chat.working)
+    const closePane = live.register(chat.working)
 
     chat.setWorking(true)
 
@@ -58,12 +51,12 @@ describe('makeLiveSessions', () => {
     dispose()
   })
 
-  it('keeps the launcher busy until every pane watching the same session has settled', () => {
+  it('keeps the launcher busy until every registered pane has settled', () => {
     const {live, notifications, dispose} = trackAnyRunning()
     const firstPane = makeChat()
     const secondPane = makeChat()
-    const closeFirst = mountPane(live, firstPane.working)
-    const closeSecond = mountPane(live, secondPane.working)
+    const closeFirst = live.register(firstPane.working)
+    const closeSecond = live.register(secondPane.working)
 
     firstPane.setWorking(true)
     secondPane.setWorking(true)
@@ -72,28 +65,28 @@ describe('makeLiveSessions', () => {
 
     firstPane.setWorking(false)
 
-    expect(live.anyRunning(), 'the second pane still holds the same session live').toBe(true)
+    expect(live.anyRunning(), 'the second pane still holds the launcher busy').toBe(true)
 
     secondPane.setWorking(false)
 
-    expect(live.anyRunning(), 'the last pane settling drains the session').toBe(false)
+    expect(live.anyRunning(), 'the last pane settling releases the launcher').toBe(false)
     expect(notifications(), 'only the two real edges wake the launcher').toBe(3)
     closeFirst()
     closeSecond()
     dispose()
   })
 
-  it('a closed pane stops holding the launcher busy', () => {
+  it('disposing a registration stops that pane holding the launcher busy', () => {
     const {live, dispose} = trackAnyRunning()
     const chat = makeChat()
-    const closePane = mountPane(live, chat.working)
+    const closePane = live.register(chat.working)
     chat.setWorking(true)
 
     expect(live.anyRunning()).toBe(true)
 
     closePane()
 
-    expect(live.anyRunning(), 'an unmounted pane no longer counts as running').toBe(false)
+    expect(live.anyRunning(), 'a disposed registration no longer counts as running').toBe(false)
     dispose()
   })
 })

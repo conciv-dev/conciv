@@ -1,8 +1,8 @@
-import {createMemo, createSignal, onCleanup, type Accessor} from 'solid-js'
+import {createMemo, createSignal, type Accessor} from 'solid-js'
 
 export type LiveSessions = {
   anyRunning: Accessor<boolean>
-  register: (running: Accessor<boolean>) => void
+  register: (running: Accessor<boolean>) => () => void
 }
 
 export function makeLiveSessions(): LiveSessions {
@@ -12,7 +12,7 @@ export function makeLiveSessions(): LiveSessions {
     anyRunning,
     register(running) {
       setPanes((prev) => [...prev, running])
-      onCleanup(() => setPanes((prev) => prev.filter((entry) => entry !== running)))
+      return () => setPanes((prev) => prev.filter((entry) => entry !== running))
     },
   }
 }
