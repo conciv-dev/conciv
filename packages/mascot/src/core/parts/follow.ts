@@ -17,7 +17,12 @@ import {
 import type {MascotSkin} from '../skin.js'
 import {antennaOriginOffset, gsapNumber} from '../tip-anchor.js'
 
-export type FollowParts = {eyes: HTMLElement; leanWrapper: HTMLElement | undefined}
+export type FollowParts = {
+  eyes: HTMLElement
+  antenna: HTMLElement
+  leanWrapper: HTMLElement | undefined
+  skin: MascotSkin
+}
 
 export type FollowController = {
   arm: (channels: FollowChannels) => void
@@ -25,11 +30,11 @@ export type FollowController = {
   dispose: () => void
 }
 
-type GazeOrigin = {centerX: number; centerY: number; width: number; height: number; scaleX: number; scaleY: number}
+type GazeOrigin = {centerX: number; centerY: number; scaleX: number; scaleY: number}
 
 type GazePoint = {clientX: number; clientY: number}
 
-type GazeTracker = {handle: (event: PointerEvent) => void; cancel: () => void}
+type GazeTracker = {handle: (event: PointerEvent) => void; detach: () => void}
 
 type FollowDrivers = {
   moveEyesX: ((value: number) => void) | undefined
@@ -55,10 +60,6 @@ export function wrapForLean(antenna: HTMLElement, skin: MascotSkin): HTMLElement
   parent.insertBefore(wrapper, antenna)
   wrapper.append(antenna)
   gsap.set(wrapper, {transformOrigin: skin.transformOrigins.antenna})
-  requestAnimationFrame(() => {
-    if (!wrapper.isConnected) return
-    gsap.set(wrapper, {transformOrigin: leanOrigin(antenna, wrapper, skin)})
-  })
   return wrapper
 }
 
@@ -70,13 +71,11 @@ function eyesDrivers(eyes: HTMLElement, armed: boolean): FollowDrivers {
   return {moveEyesX, moveEyesY, leanTo: undefined, tweens: [moveEyesX.tween, moveEyesY.tween]}
 }
 
-function createDrivers(
-  eyes: HTMLElement,
-  leanWrapper: HTMLElement | undefined,
-  channels: FollowChannels,
-): FollowDrivers {
+function createDrivers(parts: FollowParts, channels: FollowChannels): FollowDrivers {
+  const {eyes, antenna, leanWrapper, skin} = parts
   const drivers = eyesDrivers(eyes, channels.eyes)
   if (!channels.antenna || leanWrapper === undefined) return drivers
+  gsap.set(leanWrapper, {transformOrigin: leanOrigin(antenna, leanWrapper, skin)})
   const leanTo = gsap.quickTo(leanWrapper, 'rotation', {
     duration: GAZE_WRAPPER_QUICK_TO_DURATION_S,
     ease: GAZE_WRAPPER_QUICK_TO_EASE,
@@ -84,17 +83,14 @@ function createDrivers(
   return {...drivers, leanTo, tweens: [...drivers.tweens, leanTo.tween]}
 }
 
-function measureGazeOrigin(eyes: HTMLElement): GazeOrigin {
+function measureGazeOrigin(eyes: HTMLElement): GazeOrigin | undefined {
   const bounds = eyes.getBoundingClientRect()
-  const scaleX = gsapNumber(eyes, 'scaleX')
-  const scaleY = gsapNumber(eyes, 'scaleY')
+  if (bounds.width === 0 || bounds.height === 0) return undefined
   return {
     centerX: bounds.left + bounds.width / 2 - gsapNumber(eyes, 'x'),
     centerY: bounds.top + bounds.height / 2 - gsapNumber(eyes, 'y'),
-    width: bounds.width / scaleX,
-    height: bounds.height / scaleY,
-    scaleX,
-    scaleY,
+    scaleX: gsapNumber(eyes, 'scaleX'),
+    scaleY: gsapNumber(eyes, 'scaleY'),
   }
 }
 
@@ -115,8 +111,9 @@ function aimAt(drivers: FollowDrivers, origin: GazeOrigin, point: GazePoint): vo
 function createGazeTracker(eyes: HTMLElement, drivers: FollowDrivers): GazeTracker {
   let origin: GazeOrigin | undefined
   let pending: GazePoint | undefined
+  let registered: gsap.Callback | undefined
 
-  const restingOrigin = (): GazeOrigin => {
+  const restingOrigin = (): GazeOrigin | undefined => {
     const held = origin
     if (held !== undefined && originHolds(eyes, held)) return held
     origin = measureGazeOrigin(eyes)
@@ -128,21 +125,33 @@ function createGazeTracker(eyes: HTMLElement, drivers: FollowDrivers): GazeTrack
     pending = undefined
     if (point === undefined) return
     const measured = restingOrigin()
-    if (measured.width === 0 || measured.height === 0) return
+    if (measured === undefined) return
     aimAt(drivers, measured, point)
   }
 
   const handle = (event: PointerEvent) => {
     const scheduled = pending !== undefined
     pending = {clientX: event.clientX, clientY: event.clientY}
-    if (!scheduled) gsap.ticker.add(flush, true)
+    if (scheduled) return
+    registered = gsap.ticker.add(flush, true)
   }
 
-  const cancel = () => {
+  const forget = () => {
+    origin = undefined
+  }
+
+  window.addEventListener('scroll', forget, {passive: true, capture: true})
+  window.addEventListener('resize', forget, {passive: true})
+
+  const detach = () => {
+    window.removeEventListener('scroll', forget, {capture: true})
+    window.removeEventListener('resize', forget)
+    if (registered !== undefined) gsap.ticker.remove(registered)
+    registered = undefined
     pending = undefined
   }
 
-  return {handle, cancel}
+  return {handle, detach}
 }
 
 export function createFollowController(parts: FollowParts): FollowController {
@@ -154,7 +163,7 @@ export function createFollowController(parts: FollowParts): FollowController {
   const detach = () => {
     if (tracker === undefined) return
     window.removeEventListener('pointermove', tracker.handle)
-    tracker.cancel()
+    tracker.detach()
     tracker = undefined
   }
 
@@ -175,7 +184,7 @@ export function createFollowController(parts: FollowParts): FollowController {
   }
 
   const bindPointerMove = (channels: FollowChannels) => {
-    const drivers = createDrivers(eyes, leanWrapper, channels)
+    const drivers = createDrivers(parts, channels)
     ownedTweens.push(...drivers.tweens)
     tracker = createGazeTracker(eyes, drivers)
     window.addEventListener('pointermove', tracker.handle, {passive: true})

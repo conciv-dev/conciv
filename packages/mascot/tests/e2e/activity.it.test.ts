@@ -2,6 +2,7 @@ import {expect, test} from '@playwright/test'
 import {expectNear} from './helpers/near.js'
 import {
   buildLegacyRig,
+  buildService,
   installManualClock,
   openIdleService,
   openMascotPage,
@@ -145,6 +146,31 @@ test('the emitter anchor rides the throb stretch, not the unstretched tip', asyn
   expect(result.settled.scaleY, 'the second sample really left the throb peak').toBeLessThan(1.1)
   expectNear('the anchor rides the stretched tip at the throb peak', result.peak.anchor.top, peakTip.y, 0.3)
   expectNear('the anchor follows the tip back as the throb settles', result.settled.anchor.top, settledTip.y, 0.3)
+})
+
+test('a viewport resize re-measures the antenna so the emitter keeps riding the real tip', async ({page}) => {
+  await page.setViewportSize({width: 1000, height: 800})
+  await installManualClock(page)
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const before = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    harness.applyStyle(window.parts.root, {width: '20vw', height: '20vw'})
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.5)
+    harness.watchResize()
+    return {anchorLeft: harness.anchorOf(harness.requireEmitter()).left, stageWidth: window.parts.root.offsetWidth}
+  })
+  await page.setViewportSize({width: 1600, height: 800})
+  const after = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    await harness.awaitResize()
+    harness.advanceBy(0.5)
+    return {anchorLeft: harness.anchorOf(harness.requireEmitter()).left, stageWidth: window.parts.root.offsetWidth}
+  })
+
+  expectNear('the emitter rides the antenna axis of the narrow stage', before.anchorLeft, before.stageWidth * 0.5, 0.5)
+  expect(after.stageWidth, 'the resize really widened the stage').toBeGreaterThan(before.stageWidth + 50)
+  expectNear('the emitter rides the antenna axis of the widened stage', after.anchorLeft, after.stageWidth * 0.5, 0.5)
 })
 
 test('the work timeline bobs the head and leaves every other pose channel untouched', async ({page}) => {

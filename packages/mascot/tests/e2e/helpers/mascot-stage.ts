@@ -68,10 +68,12 @@ async function handleRoute(route: Route): Promise<void> {
   return fulfillFile(route, asset)
 }
 
-export async function openMascotPage(page: Page): Promise<void> {
+export type MascotPageOptions = {countLayoutReads: boolean}
+
+export async function openMascotPage(page: Page, options?: MascotPageOptions): Promise<void> {
   await access(RIG_BUNDLE)
   await page.addInitScript(frameCountingScript())
-  await page.addInitScript(layoutCountingScript())
+  if (options?.countLayoutReads === true) await page.addInitScript(layoutCountingScript())
   await page.route(`${MASCOT_BASE}**`, handleRoute)
   await page.goto(MASCOT_BASE, {waitUntil: 'domcontentloaded'})
   await expect(page.locator('html[data-harness="ready"]')).toBeAttached()

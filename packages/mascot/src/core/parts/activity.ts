@@ -57,7 +57,7 @@ type WorkTimeline = {
   bobReturn: gsap.core.Tween
 }
 
-type WorkSession = WorkTimeline & {layout: AntennaLayout}
+type WorkSession = WorkTimeline & {layout: AntennaLayout | undefined}
 
 const NEUTRAL_SCALE = 1
 
@@ -142,31 +142,49 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     recoveryTweens = []
   }
 
-  const anchorEntryTo = (entry: EffectEntry, tip: EmitterAnchor) => {
-    const origin = entry.hostOrigin
-    if (origin === undefined) return
-    entry.handle?.anchor?.({x: tip.x - origin.x, y: tip.y - origin.y})
+  const sessionTip = (current: WorkSession): EmitterAnchor => {
+    const layout = current.layout ?? measureAntennaLayout(antenna, skin)
+    current.layout = layout
+    return antennaTipOf(antenna, layout)
+  }
+
+  const tipWithinHostOf = (entry: EffectEntry, tip: EmitterAnchor): EmitterAnchor => {
+    const origin = entry.hostOrigin ?? hostOriginInRoot(entry.host ?? stage)
+    entry.hostOrigin = origin
+    return {x: tip.x - origin.x, y: tip.y - origin.y}
   }
 
   const anchorEffects = () => {
-    const layout = session?.layout
-    if (layout === undefined) return
+    const current = session
+    if (current === undefined) return
     let tip: EmitterAnchor | undefined
     effects.forEach((entry) => {
-      if (entry.handle?.anchor === undefined) return
-      tip = tip ?? antennaTipOf(antenna, layout)
-      anchorEntryTo(entry, tip)
+      const anchor = entry.handle?.anchor
+      if (anchor === undefined) return
+      tip = tip ?? sessionTip(current)
+      anchor(tipWithinHostOf(entry, tip))
     })
   }
 
   const anchorEntry = (entry: EffectEntry) => {
-    const layout = session?.layout
-    if (layout === undefined) return
-    anchorEntryTo(entry, antennaTipOf(antenna, layout))
+    const current = session
+    const anchor = entry.handle?.anchor
+    if (current === undefined || anchor === undefined) return
+    anchor(tipWithinHostOf(entry, sessionTip(current)))
   }
+
+  const forgetLayout = () => {
+    if (session !== undefined) session.layout = undefined
+    effects.forEach((entry) => {
+      entry.hostOrigin = undefined
+    })
+  }
+
+  window.addEventListener('resize', forgetLayout, {passive: true})
 
   const startEntry = (entry: EffectEntry) => {
     const host = entry.host ?? stage
+    forgetLayout()
     entry.hostOrigin = hostOriginInRoot(host)
     entry.handle = entry.handle ?? entry.mount({host, stage, antenna, skin})
     draining.delete(entry.handle)
@@ -223,8 +241,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     resting = rest
     killTimeline()
     killRecoveryTweens()
-    const layout = measureAntennaLayout(antenna, skin)
-    const started = {...buildWorkTimeline(parts, rest, anchorEffects), layout}
+    const started: WorkSession = {...buildWorkTimeline(parts, rest, anchorEffects), layout: undefined}
     session = started
     if (!visible) return started.timeline.pause()
     effects.forEach(startEntry)
@@ -307,6 +324,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   }
 
   const dispose = () => {
+    window.removeEventListener('resize', forgetLayout)
     killTimeline()
     killRecoveryTweens()
     effects.forEach(removeEntry)

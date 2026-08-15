@@ -14,7 +14,7 @@ const POINTER_STEP_PX = 20
 const GAZE_SETTLE_MS = 250
 
 test.beforeEach(async ({page}) => {
-  await openMascotPage(page)
+  await openMascotPage(page, {countLayoutReads: true})
 })
 
 test('a warmed work cycle rides the antenna without reading layout again', async ({page}) => {

@@ -170,7 +170,7 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
   const setup = (parts: MascotParts) => {
     const leanWrapper = wrapForLean(parts.antenna, skin)
     const pose = createPoseController(parts, skin)
-    const follow = createFollowController({eyes: parts.eyes, leanWrapper})
+    const follow = createFollowController({eyes: parts.eyes, antenna: parts.antenna, leanWrapper, skin})
     const activity = createActivityController(
       {stage: parts.stage, head: parts.head, antenna: parts.antenna, eyes: parts.eyes},
       skin,

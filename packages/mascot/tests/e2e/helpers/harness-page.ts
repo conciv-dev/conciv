@@ -344,6 +344,14 @@ const HARNESS_SCRIPT = `
     return predicate()
   }
 
+  let resizeSettled = Promise.resolve()
+
+  const watchResize = () => {
+    resizeSettled = new Promise((resolve) => window.addEventListener('resize', () => resolve(), {once: true}))
+  }
+
+  const awaitResize = () => resizeSettled
+
   const property = (element, name) => Number.parseFloat(gsap.getProperty(element, name))
 
   const stageCenter = (root) => {
@@ -435,6 +443,8 @@ const HARNESS_SCRIPT = `
     waitUntil,
     property,
     stageCenter,
+    watchResize,
+    awaitResize,
     globalTweenCount,
     activeWritersOf,
     activeWritersOfProperty,

@@ -104,6 +104,47 @@ test('narrowing follow to one channel returns the dropped channel to zero', asyn
   expect(narrowed.listeners, 'narrowing keeps exactly one listener').toBe(1)
 })
 
+test('a pointer move while the eyes have no box leaves the gaze live once the box returns', async ({page}) => {
+  const center = await buildService(page, {state: 'rest', working: false, follow: true})
+  await page.evaluate(() => window.mascotHarness.applyStyle(window.parts.eyes, {display: 'none'}))
+  await page.mouse.move(center.x + 400, center.y)
+  await settle(page, 300)
+  const blind = await readGaze(page)
+  await page.evaluate(() => window.mascotHarness.applyStyle(window.parts.eyes, {display: ''}))
+  await page.mouse.move(center.x + 400, center.y + 1)
+  await settle(page, 1400)
+  const restored = await readGaze(page)
+
+  expectNear('a boxless mascot aims nowhere', blind.eyesX, 0, 0.001)
+  expectNear('the gaze saturates once the eyes have a box again', restored.eyesX, 3, 0.05)
+})
+
+test('scrolling the page re-measures the eye box instead of aiming at the stale viewport center', async ({page}) => {
+  const center = await buildService(page, {state: 'rest', working: false, follow: true})
+  await page.evaluate(() => {
+    const spacer = document.createElement('div')
+    spacer.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:4000px'
+    document.body.append(spacer)
+  })
+  await page.mouse.move(center.x + 400, center.y)
+  await settle(page, 1400)
+  const before = await readGaze(page)
+  const scrolled = await page.evaluate(() => {
+    window.scrollTo(0, 300)
+    return {offset: window.scrollY, center: window.mascotHarness.stageCenter(window.parts.root)}
+  })
+  await page.mouse.move(scrolled.center.x, scrolled.center.y)
+  await settle(page, 1400)
+  const recentred = await readGaze(page)
+
+  expect(scrolled.offset, 'the page really scrolled').toBe(300)
+  expectNear('the gaze saturated before the scroll', before.eyesX, 3, 0.05)
+  expect(
+    Math.abs(recentred.eyesX) <= 0.05 && Math.abs(recentred.eyesY) <= 0.05,
+    `a pointer on the scrolled eye centre aims nowhere: ${JSON.stringify(recentred)}`,
+  ).toBe(true)
+})
+
 test('follow arms, disarms and settles without leaking pointermove listeners', async ({page}) => {
   const center = await buildService(page, {state: 'rest', working: false, follow: true})
   await page.mouse.move(center.x + 400, center.y)

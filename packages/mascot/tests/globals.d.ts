@@ -47,6 +47,8 @@ type MascotHarness = {
   waitUntil: (predicate: () => boolean, milliseconds: number) => Promise<boolean>
   property: (element: Element | null, name: string) => number
   stageCenter: (root: HTMLElement) => StagePoint
+  watchResize: () => void
+  awaitResize: () => Promise<void>
   globalTweenCount: () => number
   activeWritersOf: (element: HTMLElement) => number
   activeWritersOfProperty: (element: HTMLElement, property: string) => number

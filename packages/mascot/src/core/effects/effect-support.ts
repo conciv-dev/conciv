@@ -93,10 +93,12 @@ export type TipEmitter = {
 }
 
 function placedTipOf(element: HTMLElement, origin: EmitterAnchor): EmitterAnchor {
-  return {
-    x: Number.parseFloat(element.style.left) + origin.x,
-    y: Number.parseFloat(element.style.top) + origin.y,
+  const left = Number.parseFloat(element.style.left)
+  const top = Number.parseFloat(element.style.top)
+  if (Number.isNaN(left) || Number.isNaN(top)) {
+    throw new Error('a tip emitter needs inline left and top in pixels before it can be anchored')
   }
+  return {x: left + origin.x, y: top + origin.y}
 }
 
 export function createTipEmitter(emitter: TipEmitter): EffectHandle {
