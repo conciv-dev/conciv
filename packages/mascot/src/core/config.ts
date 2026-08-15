@@ -75,4 +75,3 @@ export const EXIT_DURATION_S = 0.5
 
 export const REST_EYE_SCALE_Y = 1
 export const REST_HEAD_Y_PERCENT = 0
-export const REST_LAYER_Y_PERCENT = 0

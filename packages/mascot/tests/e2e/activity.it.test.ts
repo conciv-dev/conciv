@@ -145,11 +145,9 @@ test('the work bob carries the head, the antenna and the eyes as one unit', asyn
       harness.property(antenna, 'yPercent'),
       harness.property(eyes, 'yPercent'),
     ]
-    const drift = (values: [number, number, number][], headRest: number) =>
+    const drift = (values: [number, number, number][]) =>
       harness.summarize(
-        values.map(([headY, antennaY, eyesY]) =>
-          Math.max(Math.abs(antennaY - headY + headRest), Math.abs(eyesY - headY + headRest)),
-        ),
+        values.map(([headY, antennaY, eyesY]) => Math.max(Math.abs(antennaY - headY), Math.abs(eyesY - headY))),
       )
     const peaks = (values: [number, number, number][]) => ({
       head: harness.summarize(values.map((entry) => entry[0])),
@@ -166,9 +164,9 @@ test('the work bob carries the head, the antenna and the eyes as one unit', asyn
     const awakeValues = harness.stepFrames<[number, number, number]>(readLayers, 2.4)
     return {
       rest: peaks(restValues),
-      restDrift: drift(restValues, 0),
+      restDrift: drift(restValues),
       awake: peaks(awakeValues),
-      awakeDrift: drift(awakeValues, -2),
+      awakeDrift: drift(awakeValues),
     }
   })
 
@@ -178,13 +176,15 @@ test('the work bob carries the head, the antenna and the eyes as one unit', asyn
   expectNear('the antenna returns to its rest yPercent 0', result.rest.antenna.max, 0, 0.05)
   expectNear('the eyes return to their rest yPercent 0', result.rest.eyes.max, 0, 0.05)
   expect(result.restDrift.max, 'the rest bob never separates the antenna or eyes from the head').toBeLessThan(0.001)
-  expect(result.awake.head.min, 'the awake head really bobs').toBeLessThan(-4)
-  expectNear('the awake antenna bobs by the same 3 percent the awake head travels', result.awake.antenna.min, -3, 0.05)
-  expectNear('the awake eyes bob by the same 3 percent the awake head travels', result.awake.eyes.min, -3, 0.05)
+  expectNear('the awake head bobs down to yPercent -5', result.awake.head.min, -5, 0.05)
+  expectNear('the awake antenna bobs down to the head yPercent -5', result.awake.antenna.min, -5, 0.05)
+  expectNear('the awake eyes bob down to the head yPercent -5', result.awake.eyes.min, -5, 0.05)
+  expectNear('the awake antenna returns to the awake rest yPercent -2', result.awake.antenna.max, -2, 0.05)
+  expectNear('the awake eyes return to the awake rest yPercent -2', result.awake.eyes.max, -2, 0.05)
   expect(result.awakeDrift.max, 'the awake bob never separates the antenna or eyes from the head').toBeLessThan(0.001)
 })
 
-test('stopping work returns the antenna and the eyes to their rest yPercent', async ({page}) => {
+test('stopping work returns the antenna and the eyes to the pose yPercent of the current state', async ({page}) => {
   await installManualClock(page)
   await buildService(page, {state: 'rest', working: false, follow: false})
   const result = await page.evaluate(() => {
@@ -199,21 +199,38 @@ test('stopping work returns the antenna and the eyes to their rest yPercent', as
     const bobbed = readLayers()
     window.service.update({state: 'rest', working: false, follow: false})
     harness.advanceBy(0.25)
-    const held = readLayers()
+    const heldRest = readLayers()
     window.service.update({state: 'rest', working: true, follow: false})
     harness.advanceBy(0.7)
     window.service.update({state: 'awake', working: false, follow: false})
-    harness.advanceBy(0.45)
-    const posed = readLayers()
-    return {bobbed, held, posed}
+    harness.advanceBy(0.9)
+    const posedAwake = readLayers()
+    window.service.update({state: 'awake', working: true, follow: false})
+    harness.advanceBy(0.7)
+    const awakeBobbed = readLayers()
+    window.service.update({state: 'awake', working: false, follow: false})
+    harness.advanceBy(0.25)
+    const heldAwake = readLayers()
+    window.service.update({state: 'awake', working: true, follow: false})
+    harness.advanceBy(0.7)
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.9)
+    const posedRest = readLayers()
+    return {bobbed, heldRest, posedAwake, awakeBobbed, heldAwake, posedRest}
   })
 
   expect(result.bobbed.antenna, 'the antenna really left its rest yPercent while working').toBeLessThan(-1)
   expect(result.bobbed.eyes, 'the eyes really left their rest yPercent while working').toBeLessThan(-1)
-  expectNear('same-state recovery returns the antenna to yPercent 0', result.held.antenna, 0, 0.001)
-  expectNear('same-state recovery returns the eyes to yPercent 0', result.held.eyes, 0, 0.001)
-  expectNear('a pose change still returns the antenna to yPercent 0', result.posed.antenna, 0, 0.001)
-  expectNear('a pose change still returns the eyes to yPercent 0', result.posed.eyes, 0, 0.001)
+  expectNear('same-state rest recovery returns the antenna to yPercent 0', result.heldRest.antenna, 0, 0.001)
+  expectNear('same-state rest recovery returns the eyes to yPercent 0', result.heldRest.eyes, 0, 0.001)
+  expectNear('the work to awake edge lands the antenna on yPercent -2', result.posedAwake.antenna, -2, 0.001)
+  expectNear('the work to awake edge lands the eyes on yPercent -2', result.posedAwake.eyes, -2, 0.001)
+  expect(result.awakeBobbed.antenna, 'the antenna really left the awake yPercent while working').toBeLessThan(-2.5)
+  expect(result.awakeBobbed.eyes, 'the eyes really left the awake yPercent while working').toBeLessThan(-2.5)
+  expectNear('same-state awake recovery returns the antenna to yPercent -2', result.heldAwake.antenna, -2, 0.001)
+  expectNear('same-state awake recovery returns the eyes to yPercent -2', result.heldAwake.eyes, -2, 0.001)
+  expectNear('the work to rest edge lands the antenna on yPercent 0', result.posedRest.antenna, 0, 0.001)
+  expectNear('the work to rest edge lands the eyes on yPercent 0', result.posedRest.eyes, 0, 0.001)
 })
 
 test('stopping work returns the head to the pose yPercent of the current state', async ({page}) => {

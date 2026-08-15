@@ -170,6 +170,40 @@ test('leaving work for a new pose hands every shared channel to the pose transit
   expect(result.restHead, 'no recovery tween fights the rest pose on the head').toBeLessThanOrEqual(1)
 })
 
+test('the awake pose lifts the head, the antenna and the eyes as one unit', async ({page}) => {
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    const {head, eyes, antenna} = window.parts
+    const readLayers = (): [number, number, number] => [
+      harness.property(head, 'yPercent'),
+      harness.property(antenna, 'yPercent'),
+      harness.property(eyes, 'yPercent'),
+    ]
+    const spread = (values: [number, number, number][]) =>
+      harness.summarize(
+        values.map(([headY, antennaY, eyesY]) => Math.max(Math.abs(antennaY - headY), Math.abs(eyesY - headY))),
+      )
+    const rest = readLayers()
+    window.service.update({state: 'awake', working: false, follow: false})
+    const transition = harness.stepFrames<[number, number, number]>(readLayers, 0.9)
+    const awake = readLayers()
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.9)
+    return {rest, awake, back: readLayers(), spread: spread(transition)}
+  })
+
+  expectNear('the rest pose parks the head at yPercent 0', result.rest[0], 0, 0.001)
+  expectNear('the rest pose parks the antenna at yPercent 0', result.rest[1], 0, 0.001)
+  expectNear('the rest pose parks the eyes at yPercent 0', result.rest[2], 0, 0.001)
+  expectNear('the awake pose lifts the head to yPercent -2', result.awake[0], -2, 0.001)
+  expectNear('the awake pose lifts the antenna to the head yPercent -2', result.awake[1], -2, 0.001)
+  expectNear('the awake pose lifts the eyes to the head yPercent -2', result.awake[2], -2, 0.001)
+  expect(result.spread.max, 'the awake pose never separates the antenna or eyes from the head').toBeLessThan(0.001)
+  expectNear('the rest pose drops the antenna back to yPercent 0', result.back[1], 0, 0.001)
+  expectNear('the rest pose drops the eyes back to yPercent 0', result.back[2], 0, 0.001)
+})
+
 test('a mid-work state change re-centers the head bob on the new pose value', async ({page}) => {
   await buildService(page, {state: 'rest', working: true, follow: false})
   const result = await page.evaluate(() => {

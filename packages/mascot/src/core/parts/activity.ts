@@ -13,7 +13,6 @@ import {
   RECOVERY_DURATION_S,
   RECOVERY_EASE,
   reduceMotion,
-  REST_LAYER_Y_PERCENT,
   THROB_BEATS,
   THROB_RETURN_DURATION_S,
   THROB_RETURN_EASE,
@@ -51,7 +50,6 @@ type WorkTimeline = {
   blinkReturn: gsap.core.Tween
   bobDown: gsap.core.Tween
   bobReturn: gsap.core.Tween
-  layerBobDown: gsap.core.Tween
 }
 
 const NEUTRAL_SCALE = 1
@@ -70,18 +68,16 @@ const throbOut = (): gsap.TweenVars => ({
   ease: THROB_RETURN_EASE,
 })
 
-const bobTravel = (rest: ActivityRest): number => HEAD_BOB_Y_PERCENT - rest.headYPercent
-
 function buildWorkTimeline(parts: ActivityParts, rest: ActivityRest): WorkTimeline {
   const {head, antenna, eyes} = parts
-  const bobbedLayers = [antenna, eyes]
+  const bobbed = [head, antenna, eyes]
   const blinkReturn = gsap.to(eyes, {
     scaleY: rest.eyeScaleY,
     duration: BLINK_OPEN_DURATION_S,
     ease: BLINK_OPEN_EASE,
   })
   const bobDown = gsap.fromTo(
-    head,
+    bobbed,
     {yPercent: rest.headYPercent},
     {
       yPercent: HEAD_BOB_Y_PERCENT,
@@ -90,39 +86,22 @@ function buildWorkTimeline(parts: ActivityParts, rest: ActivityRest): WorkTimeli
       immediateRender: false,
     },
   )
-  const bobReturn = gsap.to(head, {
+  const bobReturn = gsap.to(bobbed, {
     yPercent: rest.headYPercent,
-    duration: HEAD_BOB_DURATION_S,
-    ease: HEAD_BOB_EASE,
-  })
-  const layerBobDown = gsap.fromTo(
-    bobbedLayers,
-    {yPercent: REST_LAYER_Y_PERCENT},
-    {
-      yPercent: bobTravel(rest),
-      duration: HEAD_BOB_DURATION_S,
-      ease: HEAD_BOB_EASE,
-      immediateRender: false,
-    },
-  )
-  const layerBobReturn = gsap.to(bobbedLayers, {
-    yPercent: REST_LAYER_Y_PERCENT,
     duration: HEAD_BOB_DURATION_S,
     ease: HEAD_BOB_EASE,
   })
   const timeline = gsap
     .timeline({repeat: -1})
     .add(bobDown, HEAD_BOB_BEATS[0])
-    .add(layerBobDown, HEAD_BOB_BEATS[0])
     .add(bobReturn, HEAD_BOB_BEATS[1])
-    .add(layerBobReturn, HEAD_BOB_BEATS[1])
     .to(antenna, throbIn(), THROB_BEATS[0])
     .to(antenna, throbOut(), THROB_BEATS[1])
     .to(antenna, throbIn(), THROB_BEATS[2])
     .to(antenna, throbOut(), THROB_BEATS[3])
     .to(eyes, {scaleY: BLINK_CLOSE_SCALE_Y, duration: BLINK_CLOSE_DURATION_S, ease: BLINK_CLOSE_EASE}, BLINK_BEATS[0])
     .add(blinkReturn, BLINK_BEATS[1])
-  return {timeline, blinkReturn, bobDown, bobReturn, layerBobDown}
+  return {timeline, blinkReturn, bobDown, bobReturn}
 }
 
 function retarget(tween: gsap.core.Tween, property: string, value: number): void {
@@ -217,8 +196,6 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     retarget(work.blinkReturn, 'scaleY', rest.eyeScaleY)
     retarget(work.bobReturn, 'yPercent', rest.headYPercent)
     rebase(work.bobDown, 'yPercent', rest.headYPercent)
-    retarget(work.layerBobDown, 'yPercent', bobTravel(rest))
-    rebase(work.layerBobDown, 'yPercent', REST_LAYER_Y_PERCENT)
   }
 
   const start = (rest: ActivityRest) => {
@@ -231,13 +208,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   }
 
   const recover = (recovery: ActivityRecovery) => {
-    recoveryTweens = [
-      gsap.to([antenna, eyes], {
-        yPercent: REST_LAYER_Y_PERCENT,
-        duration: RECOVERY_DURATION_S,
-        ease: RECOVERY_EASE,
-      }),
-    ]
+    recoveryTweens = []
     if (recovery.antennaScale) {
       recoveryTweens.push(
         gsap.to(antenna, {
@@ -251,7 +222,11 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     if (!recovery.pose) return
     recoveryTweens.push(
       gsap.to(eyes, {scaleY: resting.eyeScaleY, duration: RECOVERY_DURATION_S, ease: RECOVERY_EASE}),
-      gsap.to(head, {yPercent: resting.headYPercent, duration: RECOVERY_DURATION_S, ease: RECOVERY_EASE}),
+      gsap.to([head, antenna, eyes], {
+        yPercent: resting.headYPercent,
+        duration: RECOVERY_DURATION_S,
+        ease: RECOVERY_EASE,
+      }),
     )
   }
 
@@ -291,7 +266,6 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     killTimeline()
     killRecoveryTweens()
     killTipTracker()
-    gsap.set([antenna, eyes], {yPercent: REST_LAYER_Y_PERCENT})
     effects.forEach(removeEntry)
     effects.clear()
     draining.forEach((handle) => handle.remove())
