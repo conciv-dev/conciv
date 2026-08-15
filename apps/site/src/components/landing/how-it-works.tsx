@@ -3,6 +3,7 @@ import screenshots from '../../../public/screenshots/index.json'
 import {InstallCommand} from './install-command'
 import {FrameworkTabs} from './framework-tabs'
 import {FRAMEWORK_SNIPPETS} from './framework-snippets'
+import {CopyButton} from './copy-button'
 
 type ScreenshotEntry = (typeof screenshots)[number]
 
@@ -10,6 +11,25 @@ function findScreenshot(file: string): ScreenshotEntry {
   const entry = screenshots.find((item) => item.file === file)
   if (!entry) throw new Error(`Missing screenshot manifest entry for ${file}`)
   return entry
+}
+
+const PNPM_DEV_COMMAND = 'pnpm dev'
+
+function TerminalBlock({command}: {command: string}) {
+  return (
+    <div className="w-full max-w-[320px] overflow-hidden rounded-[10px] border bg-card">
+      <div className="flex items-center justify-between border-b px-3.5 py-2">
+        <span className="od-mono text-[11px] text-muted-foreground">terminal</span>
+        <CopyButton.Root text={command}>
+          <CopyButton.Trigger label="Copy command" />
+          <CopyButton.Feedback />
+        </CopyButton.Root>
+      </div>
+      <pre className="od-mono overflow-x-auto px-3.5 py-3 text-[12.5px] leading-[1.7]">
+        <span className="text-primary">$</span> {command}
+      </pre>
+    </div>
+  )
 }
 
 function StepRow({number, title, body, children}: {number: string; title: string; body: string; children: ReactNode}) {
@@ -53,9 +73,7 @@ export function HowItWorks() {
           body="The spark appears bottom-right. Click it, or press Mod+` for the quick terminal."
         >
           <div className="flex flex-wrap items-center gap-6">
-            <pre className="od-mono overflow-x-auto rounded-[10px] border bg-card px-4 py-3 text-[12.5px] leading-[1.7]">
-              <span className="text-primary">$</span> pnpm dev
-            </pre>
+            <TerminalBlock command={PNPM_DEV_COMMAND} />
             <figure className="w-[120px]">
               <img
                 src={`/screenshots/${fabClosed.file}`}

@@ -17,7 +17,7 @@ const PRINCIPLES: Principle[] = [
 
 export function PrinciplesStrip() {
   return (
-    <section className="grid grid-cols-1 gap-8 px-8 py-12 sm:grid-cols-3">
+    <section className="grid grid-cols-1 gap-8 px-8 py-16 sm:grid-cols-3">
       {PRINCIPLES.map((principle) => (
         <div key={principle.title}>
           <h3 className="text-[15px] font-semibold">{principle.title}</h3>

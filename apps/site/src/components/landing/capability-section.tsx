@@ -1,4 +1,5 @@
 import screenshots from '../../../public/screenshots/index.json'
+import {Card} from '@/components/ui/card'
 
 type ScreenshotEntry = (typeof screenshots)[number]
 
@@ -51,15 +52,17 @@ function CapabilityFigure({figure}: {figure: Figure}) {
   const screenshot = findScreenshot(figure.file)
   return (
     <figure>
-      <img
-        src={`/screenshots/${screenshot.file}`}
-        width={screenshot.width}
-        height={screenshot.height}
-        alt={screenshot.alt}
-        loading="lazy"
-        decoding="async"
-        className="od-screenshot w-full"
-      />
+      <Card className="gap-0 rounded-[10px] border-(--od-line) bg-transparent p-0 shadow-none ring-0">
+        <img
+          src={`/screenshots/${screenshot.file}`}
+          width={screenshot.width}
+          height={screenshot.height}
+          alt={screenshot.alt}
+          loading="lazy"
+          decoding="async"
+          className="od-screenshot w-full rounded-[10px]"
+        />
+      </Card>
       <figcaption className="mt-3">
         <p className="text-[15px] font-semibold">{figure.title}</p>
         <p className="mt-1 text-[14px] text-muted-foreground">{figure.body}</p>
@@ -70,7 +73,7 @@ function CapabilityFigure({figure}: {figure: Figure}) {
 
 export function CapabilitySection() {
   return (
-    <section className="px-8 py-14">
+    <section className="px-8 py-16">
       <p className="od-eyebrow mb-3">On the page</p>
       <h2 className="od-h2 mb-10">The page becomes the agent's context.</h2>
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2">

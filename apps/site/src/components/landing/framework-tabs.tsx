@@ -1,3 +1,4 @@
+import {m} from 'motion/react'
 import {Tabs as TabsPrimitive} from 'radix-ui'
 import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
 import {createContext, useCallback, useContext, useRef, useState, type ReactNode} from 'react'
@@ -140,6 +141,7 @@ function FrameworkSelect() {
 }
 
 function Trigger({snippet}: {snippet: FrameworkSnippet}) {
+  const {active} = useFrameworkTabs()
   const scrollIntoView = (event: React.MouseEvent<HTMLButtonElement>) =>
     event.currentTarget.scrollIntoView({inline: 'nearest', block: 'nearest', behavior: 'smooth'})
 
@@ -148,8 +150,15 @@ function Trigger({snippet}: {snippet: FrameworkSnippet}) {
       value={snippet.id}
       disabled={snippet.soon}
       onClick={scrollIntoView}
-      className="group inline-flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-2 font-mono text-[12.5px] font-semibold text-muted-foreground transition-colors duration-150 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-muted-foreground data-[state=active]:border-border data-[state=active]:bg-background data-[state=active]:text-foreground"
+      className="group relative inline-flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-2 font-mono text-[12.5px] font-semibold text-muted-foreground transition-colors duration-150 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-muted-foreground data-[state=active]:border-border data-[state=active]:bg-background data-[state=active]:text-foreground"
     >
+      {active.id === snippet.id && (
+        <m.span
+          layoutId="framework-tabs-indicator"
+          transition={{type: 'spring', stiffness: 500, damping: 34}}
+          className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-primary"
+        />
+      )}
       <img
         src={snippet.icon}
         alt=""
