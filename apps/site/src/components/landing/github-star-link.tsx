@@ -12,11 +12,17 @@ function GithubMark({className}: {className?: string}) {
   )
 }
 
-function useStarCount(): number | null {
+export function useStarCount(): number | null {
   return useSyncExternalStore(subscribeStarCount, getStarCountSnapshot, getServerStarCountSnapshot)
 }
 
-export function GitHubStarLink({className}: {className?: string}) {
+export function GitHubStarLink({
+  className,
+  hideCountOnMobile = false,
+}: {
+  className?: string
+  hideCountOnMobile?: boolean
+}) {
   const stars = useStarCount()
 
   return (
@@ -29,7 +35,9 @@ export function GitHubStarLink({className}: {className?: string}) {
         <GithubMark className="size-4" />
         GitHub
         {stars !== null ? (
-          <span className="inline-flex min-w-[2.5ch] justify-end tabular-nums">
+          <span
+            className={cn('inline-flex min-w-[2.5ch] justify-end tabular-nums', hideCountOnMobile && 'max-sm:hidden')}
+          >
             <span aria-hidden="true">{formatStarCount(stars)}</span>
             <span className="sr-only">{stars} stars</span>
           </span>

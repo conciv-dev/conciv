@@ -20,7 +20,7 @@ const INSTALL = [
   {label: 'Example app', href: `${repoUrl}/tree/main/apps/examples/tanstack-start`},
 ]
 
-const LINK_CLASS = 'mb-2.5 block text-[13.5px] text-[oklch(0.85_0.008_75)] transition-colors hover:text-white'
+const LINK_CLASS = 'od-mono mb-2.5 block text-[13px] text-[oklch(0.85_0.008_75)] transition-colors hover:text-white'
 
 function ColumnHeading({title}: {title: string}) {
   return (
@@ -72,16 +72,8 @@ function CommunityColumn() {
 
 export function SiteFooter() {
   return (
-    <footer className="od-footer relative overflow-hidden">
-      <iframe
-        src="/radiant/ink-dissolve.html"
-        title=""
-        aria-hidden
-        tabIndex={-1}
-        sandbox="allow-scripts"
-        className="od-footer-shader pointer-events-none absolute inset-0 size-full border-0 opacity-25 [mask-image:linear-gradient(200deg,transparent_35%,#000_78%)]"
-      />
-      <div className="relative mx-auto grid max-w-[1180px] gap-10 px-8 pb-10 pt-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+    <footer className="od-footer">
+      <div className="mx-auto grid max-w-[1180px] gap-10 px-8 pb-10 pt-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <div className="od-display flex items-center gap-2 text-[19px] font-bold text-[oklch(0.94_0.006_75)]">
             <SparkMark className="text-[oklch(0.7_0.19_32)]" /> conciv
@@ -94,8 +86,8 @@ export function SiteFooter() {
         <CommunityColumn />
         <Column title="Install" links={INSTALL} />
       </div>
-      <div className="relative border-t border-[oklch(0.31_0.01_65)]">
-        <div className="mx-auto flex max-w-[1180px] justify-between px-8 py-[18px] font-mono text-[11.5px] font-medium text-[oklch(0.68_0.012_70)]">
+      <div className="border-t border-[oklch(0.31_0.01_65)]">
+        <div className="od-mono mx-auto flex max-w-[1180px] justify-between px-8 py-[18px] text-[11.5px] font-medium text-[oklch(0.68_0.012_70)]">
           <span>MIT © conciv</span>
           <span className="text-[oklch(0.7_0.19_32)]">beta</span>
         </div>

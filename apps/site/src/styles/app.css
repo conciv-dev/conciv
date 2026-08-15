@@ -170,12 +170,7 @@ html > body[data-scroll-locked] {
 
 /* footer: fixed warm-charcoal bookend, both themes */
 .od-footer {
-  background: radial-gradient(90% 120% at 80% 110%, oklch(0.7 0.19 32 / 0.1), transparent 60%), oklch(0.23 0.012 65);
-}
-@media (prefers-reduced-motion: reduce) {
-  .od-footer-shader {
-    display: none;
-  }
+  background: oklch(0.23 0.012 65);
 }
 
 /* shiki dual theme + twoslash popups (landing snippets) */

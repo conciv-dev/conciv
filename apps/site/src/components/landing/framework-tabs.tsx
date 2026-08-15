@@ -1,4 +1,3 @@
-import {m} from 'motion/react'
 import {Tabs as TabsPrimitive} from 'radix-ui'
 import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
 import {createContext, useCallback, useContext, useRef, useState, type ReactNode} from 'react'
@@ -85,25 +84,12 @@ function Root({snippets, children}: {snippets: FrameworkSnippet[]; children: Rea
 
 function List() {
   const {snippets} = useFrameworkTabs()
-  const [clipped, setClipped] = useState(false)
-  const observerRef = useRef<ResizeObserver | null>(null)
-
-  const attach = useCallback((el: HTMLDivElement | null) => {
-    observerRef.current?.disconnect()
-    observerRef.current = null
-    if (!el) return
-    const measure = () => setClipped(el.scrollWidth > el.clientWidth + 1)
-    observerRef.current = new ResizeObserver(measure)
-    observerRef.current.observe(el)
-    measure()
-  }, [])
 
   return (
     <>
       <FrameworkSelect />
-      <div className="relative mb-2.5 hidden w-fit max-w-full sm:block">
+      <div className="mb-2.5 hidden w-fit max-w-full sm:block">
         <TabsPrimitive.List
-          ref={attach}
           aria-label="Frameworks"
           className="flex w-fit max-w-full gap-0.5 overflow-x-auto rounded-[10px] border bg-card p-[3px]"
         >
@@ -111,12 +97,6 @@ function List() {
             <Trigger key={snippet.id} snippet={snippet} />
           ))}
         </TabsPrimitive.List>
-        {clipped && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-[3px] right-[3px] w-8 rounded-r-[8px] bg-gradient-to-l from-card to-transparent"
-          />
-        )}
       </div>
     </>
   )
@@ -160,7 +140,6 @@ function FrameworkSelect() {
 }
 
 function Trigger({snippet}: {snippet: FrameworkSnippet}) {
-  const {active} = useFrameworkTabs()
   const scrollIntoView = (event: React.MouseEvent<HTMLButtonElement>) =>
     event.currentTarget.scrollIntoView({inline: 'nearest', block: 'nearest', behavior: 'smooth'})
 
@@ -169,28 +148,21 @@ function Trigger({snippet}: {snippet: FrameworkSnippet}) {
       value={snippet.id}
       disabled={snippet.soon}
       onClick={scrollIntoView}
-      className="group relative inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 font-mono text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-muted-foreground data-[state=active]:text-foreground"
+      className="group inline-flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-2 font-mono text-[12.5px] font-semibold text-muted-foreground transition-colors duration-150 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:text-muted-foreground data-[state=active]:border-border data-[state=active]:bg-background data-[state=active]:text-foreground"
     >
-      {active.id === snippet.id && (
-        <m.span
-          layoutId="framework-tabs-pill"
-          transition={{type: 'spring', stiffness: 400, damping: 34}}
-          className="absolute inset-0 rounded-lg border bg-background shadow-[0_2px_8px_-4px_oklch(0.23_0.012_65/0.4)]"
-        />
-      )}
       <img
         src={snippet.icon}
         alt=""
-        className="relative z-10 size-[15px] opacity-65 grayscale transition-[filter,opacity] duration-200 group-data-[state=active]:opacity-100 group-data-[state=active]:grayscale-0"
+        className="size-[15px] opacity-65 grayscale transition-[filter,opacity] duration-150 group-data-[state=active]:opacity-100 group-data-[state=active]:grayscale-0"
       />
-      <span className="relative z-10">{snippet.label}</span>
+      <span>{snippet.label}</span>
       {snippet.soon && (
-        <span className="relative z-10 rounded-full bg-accent px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-accent-foreground">
+        <span className="rounded-full bg-accent px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-accent-foreground">
           soon
         </span>
       )}
       {snippet.alpha && (
-        <span className="relative z-10 rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-primary">
+        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.08em] text-primary">
           alpha
         </span>
       )}
@@ -204,7 +176,7 @@ function Panel({children}: {children: ReactNode}) {
     <>
       <TabsPrimitive.Content
         value={active.id}
-        className="overflow-hidden rounded-xl border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        className="overflow-hidden rounded-[10px] border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         {children}
       </TabsPrimitive.Content>
@@ -237,63 +209,9 @@ function Copy() {
   )
 }
 
-type EdgeFade = {start: boolean; end: boolean}
-
-function readEdgeFade(el: HTMLElement): EdgeFade {
-  return {start: el.scrollLeft > 1, end: el.scrollLeft + el.clientWidth < el.scrollWidth - 1}
-}
-
-function useEdgeFade() {
-  const [fade, setFade] = useState<EdgeFade>({start: false, end: false})
-  const elRef = useRef<HTMLElement | null>(null)
-  const observerRef = useRef<ResizeObserver | null>(null)
-
-  const refresh = useCallback(() => {
-    const el = elRef.current
-    if (!el) return
-    const next = readEdgeFade(el)
-    setFade((prev) => (prev.start === next.start && prev.end === next.end ? prev : next))
-  }, [])
-
-  const watch = useCallback(
-    (el: HTMLElement | null) => {
-      observerRef.current?.disconnect()
-      observerRef.current = null
-      elRef.current = el
-      if (!el) return
-      observerRef.current = new ResizeObserver(refresh)
-      observerRef.current.observe(el)
-      requestAnimationFrame(refresh)
-    },
-    [refresh],
-  )
-
-  return {fade, watch, refresh}
-}
-
-function FadeEdges({fade}: {fade: EdgeFade}) {
-  return (
-    <>
-      {fade.start && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-card to-transparent"
-        />
-      )}
-      {fade.end && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card to-transparent"
-        />
-      )}
-    </>
-  )
-}
-
 function Code() {
   const {active} = useFrameworkTabs()
   const [anchors, setAnchors] = useState<Anchor[]>([])
-  const {fade, watch, refresh} = useEdgeFade()
   const containerRef = useRef<HTMLDivElement>(null)
   const activeIdRef = useRef(active.id)
   activeIdRef.current = active.id
@@ -307,81 +225,72 @@ function Code() {
     const container = containerRef.current
     if (!container) return
     setAnchors(twoslashRef.current ? measureAnchors(container, activeIdRef.current) : [])
-    refresh()
   }
   const settleRef = useRef(settle)
   settleRef.current = settle
 
-  const attach = useCallback(
-    (el: HTMLDivElement | null) => {
-      containerRef.current = el
-      watch(el)
-      if (el && twoslashRef.current) requestAnimationFrame(() => settleRef.current())
-    },
-    [watch],
-  )
+  const attach = useCallback((el: HTMLDivElement | null) => {
+    containerRef.current = el
+    if (el && twoslashRef.current) requestAnimationFrame(() => settleRef.current())
+  }, [])
 
   return (
-    <div className="relative">
-      <div
-        ref={attach}
-        onScroll={refresh}
-        tabIndex={0}
-        role="region"
-        aria-label={`${active.file ?? active.label} config`}
-        className="od-snippet relative overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-      >
-        <ShikiMagicMovePrecompiled
-          steps={MAGIC_MOVE_STEPS}
-          step={step}
-          options={{duration: 500, stagger: 2, animateContainer: true, containerStyle: false}}
-          onStart={() => setAnchors([])}
-          onEnd={settle}
-        />
-        {anchors.map((anchor, index) => (
-          <HoverCard key={index} openDelay={150} closeDelay={250}>
-            <HoverCardTrigger asChild>
-              <span
-                className="od-hover-anchor"
-                style={{left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.height}}
-              >
-                {anchor.caret === true && <span className="od-caret" />}
-              </span>
-            </HoverCardTrigger>
-            <HoverCardContent
-              side="bottom"
-              align="start"
-              sideOffset={6}
-              className="od-popup w-auto max-w-[min(440px,80vw)] px-3.5 py-2.5 font-mono text-[11.5px] leading-[1.6]"
+    <div
+      ref={attach}
+      tabIndex={0}
+      role="region"
+      aria-label={`${active.file ?? active.label} config`}
+      className="od-snippet relative overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+    >
+      <ShikiMagicMovePrecompiled
+        steps={MAGIC_MOVE_STEPS}
+        step={step}
+        options={{duration: 0, stagger: 0, animateContainer: false, containerStyle: false}}
+        onStart={() => setAnchors([])}
+        onEnd={settle}
+      />
+      {anchors.map((anchor, index) => (
+        <HoverCard key={index} openDelay={150} closeDelay={250}>
+          <HoverCardTrigger asChild>
+            <span
+              className="od-hover-anchor"
+              style={{left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.height}}
             >
-              {anchor.hover && (
-                <>
-                  <code
-                    className="block overflow-x-auto whitespace-pre"
-                    dangerouslySetInnerHTML={{__html: anchor.hover.html}}
-                  />
-                  {anchor.hover.docs && (
-                    <p className="mt-1.5 border-t border-dashed pt-1.5 font-sans text-muted-foreground">
-                      {anchor.hover.docs}
-                    </p>
-                  )}
-                </>
-              )}
-              {anchor.caret === true && completion && (
-                <ul className="flex flex-col gap-0.5">
-                  {completion.items.map((name) => (
-                    <li key={name} className="rounded px-1.5 py-0.5 first:bg-accent">
-                      <span className="font-semibold text-primary">{completion.target}</span>
-                      <span className="text-muted-foreground">{name.slice(completion.target.length)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </HoverCardContent>
-          </HoverCard>
-        ))}
-      </div>
-      <FadeEdges fade={fade} />
+              {anchor.caret === true && <span className="od-caret" />}
+            </span>
+          </HoverCardTrigger>
+          <HoverCardContent
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            className="od-popup w-auto max-w-[min(440px,80vw)] px-3.5 py-2.5 font-mono text-[11.5px] leading-[1.6]"
+          >
+            {anchor.hover && (
+              <>
+                <code
+                  className="block overflow-x-auto whitespace-pre"
+                  dangerouslySetInnerHTML={{__html: anchor.hover.html}}
+                />
+                {anchor.hover.docs && (
+                  <p className="mt-1.5 border-t border-dashed pt-1.5 font-sans text-muted-foreground">
+                    {anchor.hover.docs}
+                  </p>
+                )}
+              </>
+            )}
+            {anchor.caret === true && completion && (
+              <ul className="flex flex-col gap-0.5">
+                {completion.items.map((name) => (
+                  <li key={name} className="rounded px-1.5 py-0.5 first:bg-accent">
+                    <span className="font-semibold text-primary">{completion.target}</span>
+                    <span className="text-muted-foreground">{name.slice(completion.target.length)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </HoverCardContent>
+        </HoverCard>
+      ))}
     </div>
   )
 }
