@@ -2,6 +2,7 @@ import type {StorybookConfig} from 'storybook-solidjs-vite'
 
 const config: StorybookConfig = {
   stories: [
+    '../src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/ui-kit-system/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/solid-stick-to-bottom/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
     '../../../packages/ui-kit-chat/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
