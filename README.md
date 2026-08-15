@@ -182,6 +182,8 @@ pnpm install
 pnpm dev        # runs the tanstack-start example with conciv wired in
 ```
 
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for setup, everyday commands, and PR guidelines.
+
 ## Star history
 
 <a href="https://www.star-history.com/#conciv-dev/conciv&Date">
