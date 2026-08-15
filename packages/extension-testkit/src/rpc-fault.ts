@@ -24,7 +24,7 @@ function isPreflight(route: Route): boolean {
 
 export async function failRpcCalls(
   page: Page,
-  options: {path: readonly string[]; status?: number},
+  options: {path: readonly string[]; status?: number; websocket?: boolean},
 ): Promise<RpcFaultInjector> {
   const status = options.status ?? 500
   const broken = {value: true}
@@ -58,7 +58,7 @@ export async function failRpcCalls(
     server.onMessage((message) => socket.send(message))
   }
 
-  await page.routeWebSocket((url) => url.pathname.endsWith('/rpc-ws'), holdSocket)
+  if (options.websocket) await page.routeWebSocket((url) => url.pathname.endsWith('/rpc-ws'), holdSocket)
 
   return {
     repair: () => {

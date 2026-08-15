@@ -1,14 +1,9 @@
-import type {Plugin} from 'vite'
 import {defineConfig} from 'vitest/config'
 import {BaseSequencer, type TestSpecification} from 'vitest/node'
-import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
-import {makeFakeCoreRouter} from './test/helpers/fake-core-router.js'
 import {coreCommands} from './test/commands/core-control.js'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
-
-const FAKE_CORE_ADDRESS_PATH = '/__fake-core'
 
 const SESSION_KILLER_SUITE = 'router-restore.browser.test.ts'
 
@@ -19,21 +14,6 @@ class RunSessionKillerLastSequencer extends BaseSequencer {
     const isSessionKiller = (spec: TestSpecification): boolean => spec.moduleId.endsWith(SESSION_KILLER_SUITE)
     return [...sorted.filter((spec) => !isSessionKiller(spec)), ...sorted.filter(isSessionKiller)]
   }
-}
-
-const fakeCoreSocket: Plugin = {
-  name: 'fake-core-socket',
-  async configureServer(server) {
-    const {router} = makeFakeCoreRouter()
-    const served = await serveRpcRouter({router})
-    server.middlewares.use((req, res, next) => {
-      if (req.url !== FAKE_CORE_ADDRESS_PATH) return next()
-      res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({base: served.base, wsUrl: served.wsUrl}))
-    })
-    served.unref()
-    server.httpServer?.on('close', () => void served.close())
-  },
 }
 
 export default defineConfig({
@@ -52,7 +32,7 @@ export default defineConfig({
         },
       },
       {
-        plugins: [solidPlugin(), fakeCoreSocket],
+        plugins: [solidPlugin()],
         optimizeDeps: browserOptimizeDeps(),
         test: {
           ...ciTestSolidBrowser(),

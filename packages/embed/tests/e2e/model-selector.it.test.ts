@@ -15,7 +15,7 @@ test.describe('model selector error path', () => {
 
   test('offers a retry when meta.models fails and recovers on retry', async ({page}) => {
     test.setTimeout(180_000)
-    const models = await failRpcCalls(page, {path: ['meta', 'models']})
+    const models = await failRpcCalls(page, {path: ['meta', 'models'], websocket: true})
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
 

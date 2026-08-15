@@ -1,10 +1,4 @@
-import {
-  createFakeHarness,
-  createRecordingTerminalOpener,
-  createTestkit,
-  type FakeHarness,
-  type Kit,
-} from '@conciv/harness-testkit'
+import {createFakeHarness, createTestkit, type FakeHarness, type Kit} from '@conciv/harness-testkit'
 import type {AnyExtension} from '@conciv/extension'
 import {makeApp} from '@conciv/core/app'
 
@@ -26,7 +20,6 @@ export async function bootClientKit(opts: {extensions?: AnyExtension[]} = {}): P
       },
       cwd: env.cwd,
       openInEditor: () => {},
-      openTerminal: createRecordingTerminalOpener().open,
       harness: env.harness,
       extensions: opts.extensions,
     })

@@ -5,8 +5,10 @@ import {listenLocal} from './listen-local.js'
 export type ProxyCore = {
   base: string
   port: number
-  requestCount: () => number
+  requestCount: (pathname?: string) => number
   wsConnectionCount: () => number
+  fail: (pathname: string) => void
+  repair: () => void
   close: () => Promise<void>
 }
 
@@ -21,11 +23,18 @@ function handshakeResponse(upstream: IncomingMessage): string {
 
 export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean} = {}): Promise<ProxyCore> {
   const target = new URL(targetBase)
-  let count = 0
+  const seen: string[] = []
+  const refused = new Set<string>()
   let upgrades = 0
   const piped = new Set<Duplex>()
   const server: Server = createServer((req, res) => {
-    count += 1
+    const pathname = new URL(req.url ?? '/', target).pathname
+    seen.push(pathname)
+    if (refused.has(pathname)) {
+      res.writeHead(500, {'content-type': 'text/plain'})
+      res.end('the proxied core refused the call')
+      return
+    }
     const proxyReq = httpRequest(
       {
         hostname: target.hostname,
@@ -78,8 +87,13 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
   return {
     base,
     port,
-    requestCount: () => count,
+    requestCount: (pathname) =>
+      pathname === undefined ? seen.length : seen.filter((entry) => entry === pathname).length,
     wsConnectionCount: () => upgrades,
+    fail: (pathname) => {
+      refused.add(pathname)
+    },
+    repair: () => refused.clear(),
     close: async () => {
       for (const socket of piped) socket.destroy()
       piped.clear()
