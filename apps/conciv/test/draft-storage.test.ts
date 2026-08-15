@@ -7,7 +7,6 @@ import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 
 const DRAFTS_GET_PATH = '/rpc/drafts/get'
 const DRAFTS_SET_PATH = '/rpc/drafts/set'
-const SETTLED = {timeout: 4000, interval: 25}
 
 type StoredDraft = {sessionId: string; text: string; selectionStart: number; selectionEnd: number; grabs: string[]}
 
@@ -71,15 +70,15 @@ test('writes the composer draft back to the server with the caret at the end', a
 
   draftStorage.storage.setItem('any', composerDraft('a fresh draft', ['a heading']))
 
-  await expect
-    .poll(() => storedDraft(kit.rpc, sessionId), SETTLED)
-    .toEqual({
-      sessionId,
-      text: 'a fresh draft',
-      selectionStart: 13,
-      selectionEnd: 13,
-      grabs: ['a heading'],
-    })
+  await core.awaitRequest(DRAFTS_SET_PATH)
+
+  expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+    sessionId,
+    text: 'a fresh draft',
+    selectionStart: 13,
+    selectionEnd: 13,
+    grabs: ['a heading'],
+  })
 })
 
 test('collapses a burst of writes into the last draft', async ({kit, core, sessionId}) => {
@@ -89,15 +88,15 @@ test('collapses a burst of writes into the last draft', async ({kit, core, sessi
   draftStorage.storage.setItem('any', composerDraft('ab'))
   draftStorage.storage.setItem('any', composerDraft('abc'))
 
-  await expect
-    .poll(() => storedDraft(kit.rpc, sessionId), SETTLED)
-    .toEqual({
-      sessionId,
-      text: 'abc',
-      selectionStart: 3,
-      selectionEnd: 3,
-      grabs: [],
-    })
+  await core.awaitRequest(DRAFTS_SET_PATH)
+
+  expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+    sessionId,
+    text: 'abc',
+    selectionStart: 3,
+    selectionEnd: 3,
+    grabs: [],
+  })
   expect(core.requestCount(DRAFTS_SET_PATH)).toBe(1)
 })
 
@@ -109,15 +108,15 @@ test('keeps the latest value readable even when the payload cannot be persisted'
 
   draftStorage.storage.setItem('any', composerDraft('a draft that parses'))
 
-  await expect
-    .poll(() => storedDraft(kit.rpc, sessionId), SETTLED)
-    .toEqual({
-      sessionId,
-      text: 'a draft that parses',
-      selectionStart: 19,
-      selectionEnd: 19,
-      grabs: [],
-    })
+  await core.awaitRequest(DRAFTS_SET_PATH)
+
+  expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+    sessionId,
+    text: 'a draft that parses',
+    selectionStart: 19,
+    selectionEnd: 19,
+    grabs: [],
+  })
   expect(core.requestCount(DRAFTS_SET_PATH)).toBe(1)
 })
 
@@ -127,15 +126,15 @@ test('persists the noted caret offsets with the draft text', async ({kit, core, 
   draftStorage.storage.setItem('any', composerDraft('say hello!'))
   draftStorage.noteSelection({start: 4, end: 4})
 
-  await expect
-    .poll(() => storedDraft(kit.rpc, sessionId), SETTLED)
-    .toEqual({
-      sessionId,
-      text: 'say hello!',
-      selectionStart: 4,
-      selectionEnd: 4,
-      grabs: [],
-    })
+  await core.awaitRequest(DRAFTS_SET_PATH)
+
+  expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+    sessionId,
+    text: 'say hello!',
+    selectionStart: 4,
+    selectionEnd: 4,
+    grabs: [],
+  })
 })
 
 test('clamps noted offsets that fall beyond the persisted text', async ({kit, core, sessionId}) => {
@@ -144,15 +143,15 @@ test('clamps noted offsets that fall beyond the persisted text', async ({kit, co
   draftStorage.noteSelection({start: 40, end: 44})
   draftStorage.storage.setItem('any', composerDraft('short'))
 
-  await expect
-    .poll(() => storedDraft(kit.rpc, sessionId), SETTLED)
-    .toEqual({
-      sessionId,
-      text: 'short',
-      selectionStart: 5,
-      selectionEnd: 5,
-      grabs: [],
-    })
+  await core.awaitRequest(DRAFTS_SET_PATH)
+
+  expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+    sessionId,
+    text: 'short',
+    selectionStart: 5,
+    selectionEnd: 5,
+    grabs: [],
+  })
 })
 
 test('appends to the stored draft on a new line with the caret at the end', async ({kit, core, sessionId}) => {
@@ -181,13 +180,13 @@ test('survives a failed initial read and still accepts writes', async ({kit, cor
   draftStorage.storage.setItem('any', composerDraft('after the outage'))
 
   expect(draftStorage.storage.getItem('any')).toContain('after the outage')
-  await expect
-    .poll(() => storedDraft(kit.rpc, sessionId), SETTLED)
-    .toEqual({
-      sessionId,
-      text: 'after the outage',
-      selectionStart: 16,
-      selectionEnd: 16,
-      grabs: [],
-    })
+  await core.awaitRequest(DRAFTS_SET_PATH)
+
+  expect(await storedDraft(kit.rpc, sessionId)).toEqual({
+    sessionId,
+    text: 'after the outage',
+    selectionStart: 16,
+    selectionEnd: 16,
+    grabs: [],
+  })
 })

@@ -1,5 +1,5 @@
 import './helpers/utilities.css'
-import {afterAll, afterEach, beforeAll, expect, test, vi} from 'vitest'
+import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
@@ -56,7 +56,7 @@ test('rapid double-trigger creates exactly one pane', async () => {
   const firstClick = splitButton.click()
   const secondClick = splitButton.click()
   await Promise.all([firstClick, secondClick])
-  await vi.waitUntil(async () => (await coreControl.faultPending(held)) === 1, {timeout: 5000, interval: 20})
+  await coreControl.awaitFaultPending(held, 1)
 
   await coreControl.releaseFault(held)
 

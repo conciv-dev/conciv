@@ -24,7 +24,12 @@ export type FaultSpec =
   | {kind: 'abort'; path?: string[]}
   | {kind: 'gate'; path?: string[]}
 
-type Fault = {pending: () => number; release: () => Promise<void>; dispose: () => Promise<void>}
+type Fault = {
+  pending: () => number
+  awaitCaptured: (count: number) => Promise<void>
+  release: () => Promise<void>
+  dispose: () => Promise<void>
+}
 
 type CoreTestkit = typeof import('./core-testkit.js')
 
@@ -189,6 +194,9 @@ const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<str
       : await failRpcCalls(ctx.page, {path: spec.path, ...(spec.status ? {status: spec.status} : {})})
   state.faults.set(handle, {
     pending: () => 0,
+    awaitCaptured: async () => {
+      throw new Error(`the fault "${handle}" is a ${spec.kind} fault, which never captures pending requests`)
+    },
     release: () => {
       injector.repair()
       return Promise.resolve()
@@ -203,6 +211,26 @@ const releaseFault: BrowserCommand<[string]> = async (ctx, handle): Promise<void
 }
 
 const faultPending: BrowserCommand<[string]> = (ctx, handle): number => faultOf(ctx, handle).pending()
+
+const awaitFaultPending: BrowserCommand<[string, number]> = async (ctx, handle, count): Promise<void> => {
+  const timer: {value: ReturnType<typeof setTimeout> | null} = {value: null}
+  const deadline = new Promise<never>((_, reject) => {
+    timer.value = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `the fault "${handle}" captured ${faultOf(ctx, handle).pending()} of ${count} pending requests within ${AWAIT_RPC_TIMEOUT_MS}ms`,
+          ),
+        ),
+      AWAIT_RPC_TIMEOUT_MS,
+    )
+  })
+  try {
+    await Promise.race([faultOf(ctx, handle).awaitCaptured(count), deadline])
+  } finally {
+    if (timer.value) clearTimeout(timer.value)
+  }
+}
 
 export const coreCommands = {
   bootCore,
@@ -220,4 +248,5 @@ export const coreCommands = {
   installFault,
   releaseFault,
   faultPending,
+  awaitFaultPending,
 }

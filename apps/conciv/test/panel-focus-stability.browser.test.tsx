@@ -1,5 +1,5 @@
 import './helpers/utilities.css'
-import {afterAll, afterEach, beforeAll, expect, test, vi} from 'vitest'
+import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
@@ -34,7 +34,7 @@ async function expectFocusSurvives(path: string[]): Promise<void> {
   const since = await coreControl.rpcMark()
   const held = await faults.install({kind: 'gate', path})
   await openPanel()
-  await vi.waitUntil(async () => (await coreControl.faultPending(held)) > 0, {timeout: 5000, interval: 20})
+  await coreControl.awaitFaultPending(held, 1)
 
   await coreControl.releaseFault(held)
 

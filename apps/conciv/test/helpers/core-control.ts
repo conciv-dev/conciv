@@ -20,6 +20,7 @@ declare module 'vitest/internal/browser' {
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>
     faultPending: (handle: string) => Promise<number>
+    awaitFaultPending: (handle: string, count: number) => Promise<void>
   }
 }
 

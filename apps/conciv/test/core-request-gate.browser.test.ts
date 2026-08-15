@@ -1,4 +1,4 @@
-import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {EventType} from '@tanstack/ai'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {coreControl} from './helpers/core-control.js'
@@ -44,7 +44,7 @@ describe('gated rpc requests against a real core', () => {
         return iterator
       })
 
-    await vi.waitUntil(async () => (await coreControl.faultPending(gate)) === 1, {timeout: 5_000, interval: 20})
+    await coreControl.awaitFaultPending(gate, 1)
     expect(arrived.value).toBe(false)
 
     await coreControl.releaseFault(gate)
