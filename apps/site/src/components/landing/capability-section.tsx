@@ -1,5 +1,4 @@
 import screenshots from '../../../public/screenshots/index.json'
-import {Reveal} from './reveal'
 
 type ScreenshotEntry = (typeof screenshots)[number]
 
@@ -71,24 +70,22 @@ function CapabilityFigure({figure}: {figure: Figure}) {
 
 export function CapabilitySection() {
   return (
-    <Reveal>
-      <section className="px-8 py-14">
-        <p className="od-eyebrow mb-3">On the page</p>
-        <h2 className="od-h2 mb-10">The page becomes the agent's context.</h2>
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-          {ROW_A.map((figure) => (
-            <CapabilityFigure key={figure.file} figure={figure} />
-          ))}
-        </div>
-        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {ROW_B.map((figure) => (
-            <CapabilityFigure key={figure.file} figure={figure} />
-          ))}
-        </div>
-        <div className="mt-8">
-          <CapabilityFigure figure={ROW_C} />
-        </div>
-      </section>
-    </Reveal>
+    <section className="px-8 py-14">
+      <p className="od-eyebrow mb-3">On the page</p>
+      <h2 className="od-h2 mb-10">The page becomes the agent's context.</h2>
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+        {ROW_A.map((figure) => (
+          <CapabilityFigure key={figure.file} figure={figure} />
+        ))}
+      </div>
+      <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        {ROW_B.map((figure) => (
+          <CapabilityFigure key={figure.file} figure={figure} />
+        ))}
+      </div>
+      <div className="mt-8">
+        <CapabilityFigure figure={ROW_C} />
+      </div>
+    </section>
   )
 }

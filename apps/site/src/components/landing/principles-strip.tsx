@@ -1,5 +1,3 @@
-import {Reveal} from './reveal'
-
 type Principle = {title: string; body: string}
 
 const PRINCIPLES: Principle[] = [
@@ -19,15 +17,13 @@ const PRINCIPLES: Principle[] = [
 
 export function PrinciplesStrip() {
   return (
-    <Reveal>
-      <section className="grid grid-cols-1 gap-8 px-8 py-12 sm:grid-cols-3">
-        {PRINCIPLES.map((principle) => (
-          <div key={principle.title}>
-            <h3 className="text-[15px] font-semibold">{principle.title}</h3>
-            <p className="mt-1.5 text-[14px] text-muted-foreground">{principle.body}</p>
-          </div>
-        ))}
-      </section>
-    </Reveal>
+    <section className="grid grid-cols-1 gap-8 px-8 py-12 sm:grid-cols-3">
+      {PRINCIPLES.map((principle) => (
+        <div key={principle.title}>
+          <h3 className="text-[15px] font-semibold">{principle.title}</h3>
+          <p className="mt-1.5 text-[14px] text-muted-foreground">{principle.body}</p>
+        </div>
+      ))}
+    </section>
   )
 }
