@@ -2,7 +2,7 @@ import {createFakeHarness, createTestkit, type FakeHarness, type Kit} from '@con
 import {makeApp} from '@conciv/core/app'
 import type {AnyExtension} from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
-import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import type {HarnessCommand, HarnessConnect, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
 
 export type CoreKit = Kit & {harness: FakeHarness; registry: ToolRegistry}
@@ -10,6 +10,9 @@ export type CoreKit = Kit & {harness: FakeHarness; registry: ToolRegistry}
 export async function bootCoreKit(opts: {
   id: string
   text?: string
+  resume?: boolean
+  displayName?: string
+  connect?: HarnessConnect
   extensions?: AnyExtension[]
   models?: HarnessModel[]
   commands?: HarnessCommand[]
@@ -21,6 +24,9 @@ export async function bootCoreKit(opts: {
   const harness = createFakeHarness({
     id: opts.id,
     text: opts.text ?? 'Hello from conciv',
+    ...(opts.resume ? {resume: true} : {}),
+    ...(opts.displayName ? {displayName: opts.displayName} : {}),
+    ...(opts.connect ? {connect: opts.connect} : {}),
     models: opts.models,
     commands: opts.commands,
     history: opts.history,

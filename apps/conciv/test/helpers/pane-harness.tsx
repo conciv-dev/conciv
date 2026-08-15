@@ -1,7 +1,8 @@
 import {createRoot, createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
-import {makeRpcClient} from '@conciv/contract'
+import {browserRpcConnection, closeBrowserRpcConnection, makeRpcClient} from '@conciv/contract'
+import '../../src/lib/api-base.js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {AppContext, type AppContextValue} from '../../src/app/context.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../../src/app/reachability.js'
@@ -11,18 +12,19 @@ import {
   makePendingAttachmentQueue,
   type PaneContextValue,
 } from '../../src/app/pane-context.js'
-import {makeAppData} from '../../src/data/app-data.js'
+import {makeAppData, type AppData} from '../../src/data/app-data.js'
 import {parseConcivSettings} from '../../src/data/settings.js'
 import {makeLayerStack} from '../../src/shell/dialogs.js'
 import {NoticeContextProvider, NoticeSurface} from '../../src/shell/notice-context.js'
-import {CORE_BASE} from './fake-core.js'
 
-export const PANE_SESSION = 'conciv_1'
+export type PaneMountOptions = {base: string; sessionId: string}
 
 export type PaneMount = {
   dispose: () => void
   announced: () => string[]
   pane: PaneContextValue
+  data: AppData
+  queryClient: QueryClient
   refetch: () => Promise<void>
 }
 
@@ -34,8 +36,10 @@ function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
   )
 }
 
-export function mountPane(view: (pane: PaneContextValue) => JSX.Element): PaneMount {
-  const rpc = makeRpcClient(CORE_BASE)
+export function mountPane(options: PaneMountOptions, view: (pane: PaneContextValue) => JSX.Element): PaneMount {
+  const rpc = makeRpcClient(options.base)
+  window.__CONCIV_API_BASE__ = options.base
+  browserRpcConnection(options.base, 'fetch')
   const queryClient = new QueryClient()
   const data = makeAppData(rpc, queryClient)
   const [announced, setAnnounced] = createSignal<string[]>([])
@@ -55,10 +59,10 @@ export function mountPane(view: (pane: PaneContextValue) => JSX.Element): PaneMo
     connectBind: async () => '',
     connectMode: false,
     connectionGeneration: () => 0,
-    apiBase: () => CORE_BASE,
+    apiBase: () => options.base,
   }
   const pane: PaneContextValue = {
-    sessionId: () => PANE_SESSION,
+    sessionId: () => options.sessionId,
     running: () => false,
     viewLocked: () => false,
     setLockedFor: () => () => {},
@@ -96,9 +100,13 @@ export function mountPane(view: (pane: PaneContextValue) => JSX.Element): PaneMo
     dispose: () => {
       mounted.unmount()
       reachabilityRoot.dispose()
+      closeBrowserRpcConnection(options.base)
+      delete window.__CONCIV_API_BASE__
     },
     announced,
     pane,
+    data,
+    queryClient,
     refetch: () => queryClient.invalidateQueries({queryKey: data.utils.meta.engine.key()}),
   }
 }

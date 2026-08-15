@@ -12,6 +12,9 @@ declare module 'vitest/internal/browser' {
     releaseTurn: () => Promise<void>
     scriptError: (message: string) => Promise<void>
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>
+    setTerminalLaunch: (succeeds: boolean) => Promise<void>
+    terminalLaunches: () => Promise<number>
+    rpcCallCount: (path: string[]) => Promise<number>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>
     faultPending: (handle: string) => Promise<number>

@@ -45,6 +45,11 @@ function* turnChunks(turn: QueuedTurn): Generator<StreamChunk> {
   }
 }
 
+function sessionIdChunk(deps: HarnessChatDeps): StreamChunk {
+  const sessionId = deps.resumeSessionId ?? `fake-${deps.sessionId}`
+  return {type: EventType.CUSTOM, name: 'fake.session-id', value: {sessionId}, ...THREAD}
+}
+
 function* customEventChunks(events: {name: string; value: unknown}[]): Generator<StreamChunk> {
   for (const event of events) yield {type: EventType.CUSTOM, name: event.name, value: event.value, ...THREAD}
 }
@@ -91,7 +96,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     turns.count += 1
     const messageId = `scripted-${turns.count}`
     yield {type: EventType.RUN_STARTED, ...THREAD}
-    yield {type: EventType.CUSTOM, name: 'fake.session-id', value: {sessionId: `fake-${deps.sessionId}`}, ...THREAD}
+    yield sessionIdChunk(deps)
     const scriptedTurn = queuedTurns.shift()
     if (scriptedTurn) yield* turnChunks(scriptedTurn)
     const toolCall = scriptedTurn ? undefined : queuedToolCalls.shift()

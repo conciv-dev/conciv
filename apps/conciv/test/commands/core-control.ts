@@ -4,27 +4,39 @@ import type {EngineStaleness} from '@conciv/contract'
 import type {HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
+import type {RpcObserver} from '@conciv/extension-testkit/rpc-observer'
 
 export type BootCoreInput = {
   id: string
   text?: string
+  resume?: boolean
+  displayName?: string
+  connect?: boolean
+  terminal?: boolean
   history?: HarnessSessionMeta[]
   allowedOrigins?: string[]
 }
 
 export type BootCoreResult = {base: string; wsBase: string; bootMs: number}
 
-export type FaultSpec = {kind: 'fail'; path: string[]; status?: number} | {kind: 'gate'; path?: string[]}
+export type FaultSpec =
+  | {kind: 'fail'; path: string[]; status?: number}
+  | {kind: 'abort'; path: string[]}
+  | {kind: 'gate'; path?: string[]}
 
 type Fault = {pending: () => number; release: () => Promise<void>; dispose: () => Promise<void>}
 
 type CoreTestkit = typeof import('./core-testkit.js')
+
+type TerminalState = {launches: number; succeeds: boolean}
 
 type FileState = {
   kit: CoreKit | null
   staleness: {value: EngineStaleness}
   faults: Map<string, Fault>
   handles: {count: number}
+  terminal: TerminalState
+  observer: RpcObserver | null
 }
 
 const FRESH: EngineStaleness = {
@@ -46,7 +58,14 @@ function stateOf(ctx: BrowserCommandContext): FileState {
   const key = ctx.testPath ?? 'shared'
   const existing = files.get(key)
   if (existing) return existing
-  const created: FileState = {kit: null, staleness: {value: FRESH}, faults: new Map(), handles: {count: 0}}
+  const created: FileState = {
+    kit: null,
+    staleness: {value: FRESH},
+    faults: new Map(),
+    handles: {count: 0},
+    terminal: {launches: 0, succeeds: true},
+    observer: null,
+  }
   files.set(key, created)
   return created
 }
@@ -55,6 +74,12 @@ function kitOf(ctx: BrowserCommandContext): CoreKit {
   const kit = stateOf(ctx).kit
   if (!kit) throw new Error('no core is booted for this test file; call bootCore first')
   return kit
+}
+
+function observerOf(ctx: BrowserCommandContext): RpcObserver {
+  const observer = stateOf(ctx).observer
+  if (!observer) throw new Error('no core is booted for this test file; call bootCore first')
+  return observer
 }
 
 function faultOf(ctx: BrowserCommandContext, handle: string): Fault {
@@ -67,15 +92,34 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   const state = stateOf(ctx)
   if (state.kit) throw new Error('a core is already booted for this test file; call closeCore first')
   const startedAt = Date.now()
-  const {bootCoreKit} = await testkitOf(ctx)
+  const openedTerminal = (): Promise<boolean> => {
+    state.terminal.launches += 1
+    return Promise.resolve(state.terminal.succeeds)
+  }
+  const {bootCoreKit, createTerminalExtension, observeRpc} = await testkitOf(ctx)
   const kit = await bootCoreKit({
     id: input.id,
     text: input.text,
+    resume: input.resume,
+    displayName: input.displayName,
     history: input.history,
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
+    ...(input.terminal ? {extensions: [createTerminalExtension({openTerminal: openedTerminal})]} : {}),
+    ...(input.connect
+      ? {
+          connect: {
+            plan: (context) => ({
+              argv: ['claude', '--resume', context.harnessSessionId ?? 'new'],
+              env: {},
+              files: [],
+            }),
+          },
+        }
+      : {}),
   })
   state.kit = kit
+  state.observer = observeRpc(ctx.page)
   return {base: kit.base, wsBase: kit.wsBase, bootMs: Date.now() - startedAt}
 }
 
@@ -84,6 +128,10 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   for (const fault of state.faults.values()) await fault.dispose()
   state.faults.clear()
   state.staleness.value = FRESH
+  state.terminal.launches = 0
+  state.terminal.succeeds = true
+  state.observer?.dispose()
+  state.observer = null
   const kit = state.kit
   state.kit = null
   if (!kit) return
@@ -109,16 +157,27 @@ const scriptError: BrowserCommand<[string]> = (ctx, message): void => {
 
 const scriptTurn: BrowserCommand<[ScriptedTurn]> = (ctx, turn): string[] => kitOf(ctx).harness.script.scriptTurn(turn)
 
+const setTerminalLaunch: BrowserCommand<[boolean]> = (ctx, succeeds): void => {
+  stateOf(ctx).terminal.succeeds = succeeds
+}
+
+const terminalLaunches: BrowserCommand<[]> = (ctx): number => stateOf(ctx).terminal.launches
+
+const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => observerOf(ctx).completedCount({path})
+
 const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<string> => {
   const state = stateOf(ctx)
-  const {failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
+  const {abortRpcCalls, failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
   state.handles.count += 1
   const handle = `fault-${state.handles.count}`
   if (spec.kind === 'gate') {
     state.faults.set(handle, await gateRpcCalls(ctx.page, spec.path ? {path: spec.path} : {}))
     return handle
   }
-  const injector = await failRpcCalls(ctx.page, {path: spec.path, ...(spec.status ? {status: spec.status} : {})})
+  const injector =
+    spec.kind === 'abort'
+      ? await abortRpcCalls(ctx.page, {path: spec.path})
+      : await failRpcCalls(ctx.page, {path: spec.path, ...(spec.status ? {status: spec.status} : {})})
   state.faults.set(handle, {
     pending: () => 0,
     release: () => {
@@ -144,6 +203,9 @@ export const coreCommands = {
   releaseTurn,
   scriptError,
   scriptTurn,
+  setTerminalLaunch,
+  terminalLaunches,
+  rpcCallCount,
   installFault,
   releaseFault,
   faultPending,

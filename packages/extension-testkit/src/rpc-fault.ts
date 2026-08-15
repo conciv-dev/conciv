@@ -71,6 +71,27 @@ export async function failRpcCalls(
   }
 }
 
+export async function abortRpcCalls(page: Page, options: {path: readonly string[]}): Promise<RpcFaultInjector> {
+  const broken = {value: true}
+  const matcher = pathMatcher(options.path)
+  const handler: RouteHandler = async (route) => {
+    if (isPreflight(route) || !broken.value) return route.continue()
+    await route.abort('connectionrefused')
+  }
+
+  await page.route(matcher, handler)
+
+  return {
+    repair: () => {
+      broken.value = false
+    },
+    dispose: async () => {
+      broken.value = false
+      await page.unroute(matcher, handler)
+    },
+  }
+}
+
 export type RpcHold = {hold: () => void; release: () => void}
 
 export async function holdRpcCalls(page: Page): Promise<RpcHold> {

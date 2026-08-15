@@ -3,6 +3,7 @@ import {
   defineHarness,
   type HarnessAdapter,
   type HarnessCommand,
+  type HarnessConnect,
   type HarnessConnectContext,
   type HarnessHistory,
   type HarnessModel,
@@ -28,6 +29,8 @@ const BASE_CAPABILITIES = {
 type SharedFields = {
   id: string
   binName: string
+  displayName?: string
+  connect?: HarnessConnect
   chatConfig: HarnessAdapter['chatConfig']
   models: HarnessModel[] | undefined
   tty: {command(ctx: HarnessConnectContext): TtyCommand} | undefined
@@ -48,6 +51,7 @@ function fixtureHistory(rows: HarnessSessionMeta[]): HarnessHistory {
 
 function buildAdapter(
   shared: SharedFields,
+  base: Omit<typeof BASE_CAPABILITIES, 'resume'> & {resume: boolean},
   history: HarnessHistory | undefined,
   commands: HarnessCommand[] | undefined,
 ): HarnessAdapter {
@@ -55,7 +59,7 @@ function buildAdapter(
   if (history && listCommands) {
     return defineHarness({
       ...shared,
-      capabilities: {...BASE_CAPABILITIES, transcriptHistory: true, slashCommands: 'live'},
+      capabilities: {...base, transcriptHistory: true, slashCommands: 'live'},
       history,
       commands: listCommands,
     })
@@ -63,20 +67,20 @@ function buildAdapter(
   if (history) {
     return defineHarness({
       ...shared,
-      capabilities: {...BASE_CAPABILITIES, transcriptHistory: true, slashCommands: 'none'},
+      capabilities: {...base, transcriptHistory: true, slashCommands: 'none'},
       history,
     })
   }
   if (listCommands) {
     return defineHarness({
       ...shared,
-      capabilities: {...BASE_CAPABILITIES, transcriptHistory: false, slashCommands: 'live'},
+      capabilities: {...base, transcriptHistory: false, slashCommands: 'live'},
       commands: listCommands,
     })
   }
   return defineHarness({
     ...shared,
-    capabilities: {...BASE_CAPABILITIES, transcriptHistory: false, slashCommands: 'none'},
+    capabilities: {...base, transcriptHistory: false, slashCommands: 'none'},
   })
 }
 
@@ -84,6 +88,9 @@ export function createFakeHarness(
   opts: {
     id?: string
     text?: string
+    resume?: boolean
+    displayName?: string
+    connect?: HarnessConnect
     models?: HarnessModel[]
     commands?: HarnessCommand[]
     history?: HarnessSessionMeta[]
@@ -95,10 +102,18 @@ export function createFakeHarness(
   const shared: SharedFields = {
     id,
     binName: 'true',
+    ...(opts.displayName ? {displayName: opts.displayName} : {}),
+    ...(opts.connect ? {connect: opts.connect} : {}),
     chatConfig: (deps) => ({adapter: makeTextAdapter(id, () => scripted.chatStream(deps))}),
     models: opts.models,
     tty: opts.tty,
   }
-  const adapter = buildAdapter(shared, opts.history ? fixtureHistory(opts.history) : undefined, opts.commands)
+  const capabilities = {...BASE_CAPABILITIES, resume: opts.resume ?? false}
+  const adapter = buildAdapter(
+    shared,
+    capabilities,
+    opts.history ? fixtureHistory(opts.history) : undefined,
+    opts.commands,
+  )
   return Object.assign(adapter, {script: scripted})
 }
