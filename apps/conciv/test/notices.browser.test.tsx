@@ -18,6 +18,20 @@ function mountToaster(): {notify: Notify; showToaster: (visible: boolean) => voi
   return {notify: store.notify, showToaster: (visible) => setStanding(visible)}
 }
 
+test('an empty notifications region takes no space above the header', async () => {
+  const {notify} = mountToaster()
+
+  await expect.element(page.getByRole('region', {name: /Notifications/})).not.toBeVisible()
+
+  notify('Command copied. Paste it in your terminal.')
+  await expect.element(page.getByRole('region', {name: /Notifications/})).toBeVisible()
+
+  await page.getByRole('button', {name: 'Dismiss'}).click()
+
+  await expect.element(page.getByText('Command copied. Paste it in your terminal.')).not.toBeInTheDocument()
+  await expect.element(page.getByRole('region', {name: /Notifications/})).not.toBeVisible()
+})
+
 test('a notice stands in the notifications region until it is dismissed by hand', async () => {
   const {notify} = mountToaster()
 

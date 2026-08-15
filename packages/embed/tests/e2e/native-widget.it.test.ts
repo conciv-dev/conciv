@@ -1,7 +1,10 @@
+import {Buffer} from 'node:buffer'
 import {fileURLToPath} from 'node:url'
 import {expect, test, type Page} from '@playwright/test'
+import type {DraftRow} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
+import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {captureNativePosts, installNativeStub, type NativeBridge} from './helpers/native-bridge.js'
 import {untilPanelDraft} from './helpers/drafts.js'
 
@@ -32,6 +35,12 @@ const NEUTRAL_GRAB = {
       },
     ],
   },
+}
+
+function grabPayloadOf(draft: DraftRow): GrabPayload | null {
+  const attachment = draft.attachments.find((candidate) => candidate.contentType === GRAB_MIME)
+  if (!attachment) return null
+  return parseGrabPayload(Buffer.from(attachment.data, 'base64').toString('utf8'))
 }
 
 let kit: CoreKit
@@ -141,9 +150,10 @@ test.describe('native widget bridge', () => {
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
     await expect(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
     await expect(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
-    await untilPanelDraft(kit, (draft) =>
-      draft.grabs.some((grab) => grab.includes('[view]') && grab.includes('PaymentCardCell')),
-    )
+    await untilPanelDraft(kit, (draft) => {
+      const payload = grabPayloadOf(draft)
+      return payload !== null && payload.text.includes('[view]') && payload.text.includes('PaymentCardCell')
+    })
   })
 
   test('ignores a grabResult whose requestId does not match the pending pick', async ({page: fixturePage}) => {

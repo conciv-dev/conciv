@@ -49,7 +49,7 @@ async function openProbePage(page: Page): Promise<{page: Page; observer: ReturnT
 }
 
 function draft(sessionId: string, text: string): Record<string, unknown> {
-  return {sessionId, text, selectionStart: 0, selectionEnd: 0, grabs: []}
+  return {sessionId, text, selectionStart: 0, selectionEnd: 0}
 }
 
 test.describe('the shared rpc observer correlates calls on both transports', () => {

@@ -4,7 +4,6 @@ import type {RpcClient} from '@conciv/contract'
 import type {MultimodalContent} from '@tanstack/ai-client'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {AppData} from '../data/app-data.js'
-import type {StagedGrab} from '../app/pane-context.js'
 import type {EngineNotices} from '../shell/notice-context.js'
 import {checkSend, type SendVerdict} from './send-checks.js'
 
@@ -35,11 +34,6 @@ type PaneMessagingDeps = {
   appData: AppData
   reachability: EngineNotices['reachability']
   notices: EngineNotices['notices']
-  grabStore: {
-    grabs: () => StagedGrab[]
-    clear: () => void
-    stageAll: (grabs: StagedGrab[]) => void
-  }
   refetchMarkers: () => Promise<unknown>
 }
 
@@ -87,16 +81,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
       reachable: deps.reachability.online(),
     })
     if (!verdict.ok) throw sendRejection(verdict)
-    const staged = deps.grabStore.grabs()
-    deps.grabStore.clear()
-    const before = deps.chat.error()
-    try {
-      await deps.chat.sendMessage(content)
-    } catch (failure) {
-      deps.grabStore.stageAll(staged)
-      throw failure
-    }
-    if (deps.chat.error() !== before) deps.grabStore.stageAll(staged)
+    await deps.chat.sendMessage(content)
   }
 
   const onSendError = (failure: unknown): void => {

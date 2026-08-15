@@ -6,9 +6,17 @@ import type {SelectionOffsets} from './composer-input-adapter.js'
 
 const WRITE_DELAY_MS = 300
 
+const PersistedAttachmentSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  name: z.string(),
+  contentType: z.string(),
+  data: z.string(),
+})
+
 const PersistedDraftSchema = z.object({
   text: z.string().catch(''),
-  grabs: z.array(z.string()).catch([]),
+  attachments: z.array(PersistedAttachmentSchema).catch([]),
 })
 
 type PersistedDraft = z.infer<typeof PersistedDraftSchema>
@@ -41,13 +49,13 @@ export async function appendDraft(rpc: RpcClient, sessionId: string, text: strin
     text: nextText,
     selectionStart: nextText.length,
     selectionEnd: nextText.length,
-    grabs: row?.grabs ?? [],
+    attachments: row?.attachments ?? [],
   })
 }
 
 export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promise<PaneDraftStorage> {
   const row = await rpc.drafts.get({sessionId}).catch(() => null)
-  let cache = row ? JSON.stringify({text: row.text, quote: null, grabs: row.grabs, attachments: []}) : null
+  let cache = row ? JSON.stringify({text: row.text, quote: null, attachments: row.attachments}) : null
   let selection: SelectionOffsets | null = null
   const write = debounce(
     (draft: PersistedDraft) => {
@@ -58,7 +66,7 @@ export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promi
           text: draft.text,
           selectionStart: offsets.start,
           selectionEnd: offsets.end,
-          grabs: draft.grabs,
+          attachments: draft.attachments,
         })
         .catch(() => {})
     },

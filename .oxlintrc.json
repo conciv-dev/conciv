@@ -137,9 +137,24 @@
       }
     },
     {
-      "files": ["packages/react/**", "packages/preact/**"],
+      "files": ["apps/site/**", "packages/react/**", "packages/preact/**"],
       "rules": {
-        "solid/reactivity": "off"
+        "solid/jsx-no-duplicate-props": "off",
+        "solid/jsx-no-undef": "off",
+        "solid/jsx-uses-vars": "off",
+        "solid/no-unknown-namespaces": "off",
+        "solid/no-innerhtml": "off",
+        "solid/jsx-no-script-url": "off",
+        "solid/components-return-once": "off",
+        "solid/no-destructure": "off",
+        "solid/prefer-for": "off",
+        "solid/reactivity": "off",
+        "solid/event-handlers": "off",
+        "solid/imports": "off",
+        "solid/style-prop": "off",
+        "solid/no-react-deps": "off",
+        "solid/no-react-specific-props": "off",
+        "solid/self-closing-comp": "off"
       }
     },
     {

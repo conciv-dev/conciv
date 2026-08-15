@@ -1,5 +1,5 @@
 import 'virtual:uno.css'
-import {createSignal, For, Show, untrack, type Accessor, type JSX, type ParentProps} from 'solid-js'
+import {createSignal, Show, untrack, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
@@ -8,7 +8,6 @@ import {ChatProvider} from '../src/store/chat-context.js'
 import {createTextChunks, storyConnection, type StoryConnectionOptions} from '../src/store/story-connection.js'
 import {Composer as ComposerPrimitive} from '../src/primitives/composer/composer.js'
 import {ComposerHandlersProvider, type ComposerHandlers} from '../src/primitives/composer/composer-handlers.js'
-import {useComposerContext} from '../src/primitives/composer/composer-context.js'
 import {Error as ErrorPrimitive} from '../src/primitives/error/error.js'
 import {mountView} from './mount-view.js'
 
@@ -35,23 +34,11 @@ function ChatHost(props: ParentProps<{connection?: StoryConnectionOptions; handl
   )
 }
 
-function GrabProbe(): JSX.Element {
-  const context = useComposerContext()
-  return (
-    <ul>
-      <For each={context.grabs()}>{(grab) => <li>grab: {grab}</li>}</For>
-    </ul>
-  )
-}
-
-function ComposerHarness(props: {storage?: WebStorage; showGrabs?: boolean; showRefresh?: boolean}): JSX.Element {
+function ComposerHarness(props: {storage?: WebStorage; showRefresh?: boolean}): JSX.Element {
   return (
     <ComposerPrimitive.Root draftStorage={props.storage} draftKey={DRAFT_KEY}>
       <ComposerPrimitive.Input aria-label="Message" />
       <ComposerPrimitive.Quote />
-      <Show when={props.showGrabs}>
-        <GrabProbe />
-      </Show>
       <ComposerPrimitive.Send>Send</ComposerPrimitive.Send>
       <Show when={props.showRefresh}>
         <ComposerPrimitive.Refresh>Refresh</ComposerPrimitive.Refresh>
@@ -63,11 +50,10 @@ function ComposerHarness(props: {storage?: WebStorage; showGrabs?: boolean; show
   )
 }
 
-function seeded(draft: {text?: string; quote?: string | null; grabs?: string[]}): string {
+function seeded(draft: {text?: string; quote?: string | null}): string {
   return JSON.stringify({
     text: draft.text ?? '',
     quote: draft.quote ?? null,
-    grabs: draft.grabs ?? [],
     attachments: [],
   })
 }
@@ -88,19 +74,16 @@ it('persists the typed draft into the supplied storage', async () => {
     .toBeVisible()
 })
 
-it('restores a persisted draft, quote and grabs when the composer mounts', async () => {
-  const probe = createProbeStorage(
-    seeded({text: 'kept across the reload', quote: 'a quoted line', grabs: ['a grabbed heading']}),
-  )
+it('restores a persisted draft and quote when the composer mounts', async () => {
+  const probe = createProbeStorage(seeded({text: 'kept across the reload', quote: 'a quoted line'}))
   mountView(() => (
     <ChatHost>
-      <ComposerHarness storage={probe.storage} showGrabs />
+      <ComposerHarness storage={probe.storage} />
     </ChatHost>
   ))
 
   await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('kept across the reload')
   await expect.element(page.getByText('a quoted line')).toBeVisible()
-  await expect.element(page.getByText('grab: a grabbed heading')).toBeVisible()
 })
 
 it('restores the draft when the send handler rejects', async () => {

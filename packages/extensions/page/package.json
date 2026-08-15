@@ -59,6 +59,7 @@
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
+    "@conciv/grab": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:*",

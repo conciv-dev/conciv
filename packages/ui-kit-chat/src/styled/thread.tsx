@@ -271,9 +271,11 @@ function UserTurn(): JSX.Element {
           <Message.Attachments components={{Document: DocumentCard}} />
         </div>
       </Message.If>
-      <Message.Root data-pw-msg class={USER_BUBBLE_CLASS}>
-        <Message.Parts />
-      </Message.Root>
+      <Message.If hasText>
+        <Message.Root data-pw-msg class={USER_BUBBLE_CLASS}>
+          <Message.Parts />
+        </Message.Root>
+      </Message.If>
     </>
   )
 }

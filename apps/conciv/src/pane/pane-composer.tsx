@@ -104,7 +104,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           )}
         </ComposerPrimitive.Queue>
       </div>
-      <div class="flex flex-wrap gap-1 empty:hidden">
+      <div class="flex flex-wrap gap-1 empty:hidden min-h-0 shrink max-h-[25vh] overflow-y-auto">
         <ComposerPrimitive.Attachments
           component={() => (
             <Show when={props.AttachmentComponent} fallback={<AttachmentUI removable />}>

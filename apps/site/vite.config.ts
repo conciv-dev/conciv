@@ -7,13 +7,15 @@ import mdx from 'fumadocs-mdx/vite'
 import conciv from '@conciv/it/plugin/vite'
 import {sourceAnnotations} from './src/lib/source-annotations'
 
-function dropWasmFromServerBundle(): Plugin {
+const ONNX_RUNTIME_WASM_PREFIX = 'assets/ort-'
+
+function dropOnnxRuntimeWasmFromServerBundle(): Plugin {
   return {
-    name: 'drop-wasm-from-server-bundle',
+    name: 'drop-onnx-runtime-wasm-from-server-bundle',
     generateBundle(_options, bundle) {
       if (this.environment.name !== 'ssr') return
       Object.keys(bundle)
-        .filter((fileName) => fileName.endsWith('.wasm'))
+        .filter((fileName) => fileName.endsWith('.wasm') && fileName.startsWith(ONNX_RUNTIME_WASM_PREFIX))
         .forEach((fileName) => delete bundle[fileName])
     },
   }
@@ -25,7 +27,7 @@ export default defineConfig({
   },
   plugins: [
     sourceAnnotations(import.meta.dirname),
-    dropWasmFromServerBundle(),
+    dropOnnxRuntimeWasmFromServerBundle(),
     cloudflare({viteEnvironment: {name: 'ssr'}}),
     mdx(),
     tailwindcss(),

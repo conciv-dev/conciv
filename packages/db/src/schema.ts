@@ -24,12 +24,14 @@ export const sessions = sqliteTable(
   (table) => [uniqueIndex('sessions_native_key_unique').on(table.harnessKind, table.cwd, table.harnessSessionId)],
 )
 
+type PersistedAttachment = {id: string; type: string; name: string; contentType: string; data: string}
+
 export const drafts = sqliteTable('drafts', {
   sessionId: text('session_id').primaryKey(),
   text: text('text').notNull(),
   selectionStart: integer('selection_start').notNull(),
   selectionEnd: integer('selection_end').notNull(),
-  grabs: text('grabs', {mode: 'json'}).$type<string[]>().notNull(),
+  attachments: text('attachments', {mode: 'json'}).$type<PersistedAttachment[]>(),
   updatedAt: integer('updated_at').notNull(),
 })
 
