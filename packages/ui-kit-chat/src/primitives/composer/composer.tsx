@@ -43,7 +43,6 @@ type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
 type ComposerState = {
   attachments: Attachment[]
   quote: string | null
-  grabs: string[]
   editing: boolean
   dictating: boolean
   sendingAttachments: boolean
@@ -188,7 +187,6 @@ function Root(props: FormProps): JSX.Element {
   const [state, setState] = createStore<ComposerState>({
     attachments: [],
     quote: null,
-    grabs: [],
     editing: false,
     dictating: false,
     sendingAttachments: false,
@@ -260,27 +258,26 @@ function Root(props: FormProps): JSX.Element {
     draft: chat.view.draft,
     attachments: [...state.attachments],
     quote: state.quote,
-    grabs: [...state.grabs],
   })
   const restoreDraft = (original: ComposerDraft) => {
     setState('attachments', (current) => {
       const currentIds = new Set(current.map((value) => value.id))
       return [...current, ...original.attachments.filter((value) => !currentIds.has(value.id))]
     })
-    if (chat.view.draft !== '' || state.quote !== null || state.grabs.length > 0) return
+    if (chat.view.draft !== '' || state.quote !== null) return
     chat.setView('draft', original.draft)
-    setState({quote: original.quote, grabs: original.grabs})
+    setState({quote: original.quote})
   }
   const clearDraft = () => {
     chat.setView('draft', '')
-    setState({attachments: [], quote: null, grabs: []})
+    setState({attachments: [], quote: null})
   }
   onMount(() => {
     const storage = local.draftStorage
     const restored = storage ? readComposerDraft(storage, draftKey()) : null
     if (!restored) return
     chat.setView('draft', restored.draft)
-    setState({attachments: restored.attachments, quote: restored.quote, grabs: restored.grabs})
+    setState({attachments: restored.attachments, quote: restored.quote})
   })
   useComposerDraftPersistence({storage: () => local.draftStorage, key: draftKey, draft: snapshotDraft})
   const markSendFailed = (error: unknown) => {
@@ -336,8 +333,6 @@ function Root(props: FormProps): JSX.Element {
         clearDraft,
         quote: () => state.quote,
         setQuote: (value) => setState('quote', value),
-        grabs: () => state.grabs,
-        setGrabs: (values) => setState('grabs', values),
         editing: () => state.editing,
         setEditing: (value) => setState('editing', value),
         dictating: () => state.dictating,

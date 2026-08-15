@@ -174,8 +174,18 @@ const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => observer
 
 const rpcMark: BrowserCommand<[]> = (ctx): number => observerOf(ctx).mark()
 
-const awaitRpcCall: BrowserCommand<[string[], number]> = async (ctx, path, since): Promise<number | null> => {
-  const record = await observerOf(ctx).completed({path, since, timeout: AWAIT_RPC_TIMEOUT_MS})
+const awaitRpcCall: BrowserCommand<[string[], number, unknown?]> = async (
+  ctx,
+  path,
+  since,
+  input,
+): Promise<number | null> => {
+  const record = await observerOf(ctx).completed({
+    path,
+    since,
+    timeout: AWAIT_RPC_TIMEOUT_MS,
+    ...(input === undefined ? {} : {input}),
+  })
   return record.status
 }
 

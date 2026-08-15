@@ -16,7 +16,6 @@ const PersistedAttachmentSchema = z.object({
 const PersistedDraftSchema = z.object({
   text: z.string().catch(''),
   quote: z.string().nullable().catch(null),
-  grabs: z.array(z.string()).catch([]),
   attachments: z.array(PersistedAttachmentSchema).catch([]),
 })
 
@@ -66,7 +65,6 @@ export function readComposerDraft(storage: WebStorage, key: string): ComposerDra
   return {
     draft: parsed.data.text,
     quote: parsed.data.quote,
-    grabs: parsed.data.grabs,
     attachments: parsed.data.attachments.flatMap(toPendingAttachment),
   }
 }
@@ -101,7 +99,6 @@ export async function writeComposerDraft(storage: WebStorage, key: string, draft
   const payload: PersistedComposerDraft = {
     text: draft.draft,
     quote: draft.quote,
-    grabs: [...draft.grabs],
     attachments: await encodeAttachments(draft.attachments),
   }
   try {

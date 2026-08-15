@@ -8,7 +8,7 @@ import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 const DRAFTS_GET_PATH = '/rpc/drafts/get'
 const DRAFTS_SET_PATH = '/rpc/drafts/set'
 
-type StoredDraft = {sessionId: string; text: string; selectionStart: number; selectionEnd: number; grabs: string[]}
+type StoredDraft = {sessionId: string; text: string; selectionStart: number; selectionEnd: number}
 
 const test = baseTest.extend<{kit: CoreKit; core: ProxyCore; sessionId: string}>({
   kit: [
@@ -30,8 +30,8 @@ const test = baseTest.extend<{kit: CoreKit; core: ProxyCore; sessionId: string}>
   },
 })
 
-function composerDraft(text: string, grabs: string[] = []): string {
-  return JSON.stringify({text, quote: null, grabs, attachments: []})
+function composerDraft(text: string): string {
+  return JSON.stringify({text, quote: null, attachments: []})
 }
 
 async function storedDraft(rpc: RpcClient, sessionId: string): Promise<StoredDraft | null> {
@@ -42,19 +42,17 @@ async function storedDraft(rpc: RpcClient, sessionId: string): Promise<StoredDra
     text: row.text,
     selectionStart: row.selectionStart,
     selectionEnd: row.selectionEnd,
-    grabs: row.grabs,
   }
 }
 
 test('seeds the cache from the server draft row in the composer draft shape', async ({kit, core, sessionId}) => {
-  await seedDraft(kit.rpc, sessionId, {text: 'kept across the reload', grabs: ['a grabbed heading']})
+  await seedDraft(kit.rpc, sessionId, {text: 'kept across the reload'})
 
   const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
 
   expect(JSON.parse(draftStorage.storage.getItem('any') ?? '')).toEqual({
     text: 'kept across the reload',
     quote: null,
-    grabs: ['a grabbed heading'],
     attachments: [],
   })
 })
@@ -68,7 +66,7 @@ test('starts empty when the server has no draft', async ({core, sessionId}) => {
 test('writes the composer draft back to the server with the caret at the end', async ({kit, core, sessionId}) => {
   const draftStorage = await makeDraftStorage(makeRpcClient(core.base), sessionId)
 
-  draftStorage.storage.setItem('any', composerDraft('a fresh draft', ['a heading']))
+  draftStorage.storage.setItem('any', composerDraft('a fresh draft'))
 
   await core.awaitRequest(DRAFTS_SET_PATH)
 
@@ -77,7 +75,6 @@ test('writes the composer draft back to the server with the caret at the end', a
     text: 'a fresh draft',
     selectionStart: 13,
     selectionEnd: 13,
-    grabs: ['a heading'],
   })
 })
 
@@ -95,7 +92,6 @@ test('collapses a burst of writes into the last draft', async ({kit, core, sessi
     text: 'abc',
     selectionStart: 3,
     selectionEnd: 3,
-    grabs: [],
   })
   expect(core.requestCount(DRAFTS_SET_PATH)).toBe(1)
 })
@@ -115,7 +111,6 @@ test('keeps the latest value readable even when the payload cannot be persisted'
     text: 'a draft that parses',
     selectionStart: 19,
     selectionEnd: 19,
-    grabs: [],
   })
   expect(core.requestCount(DRAFTS_SET_PATH)).toBe(1)
 })
@@ -133,7 +128,6 @@ test('persists the noted caret offsets with the draft text', async ({kit, core, 
     text: 'say hello!',
     selectionStart: 4,
     selectionEnd: 4,
-    grabs: [],
   })
 })
 
@@ -150,12 +144,11 @@ test('clamps noted offsets that fall beyond the persisted text', async ({kit, co
     text: 'short',
     selectionStart: 5,
     selectionEnd: 5,
-    grabs: [],
   })
 })
 
 test('appends to the stored draft on a new line with the caret at the end', async ({kit, core, sessionId}) => {
-  await seedDraft(kit.rpc, sessionId, {text: 'a first line', grabs: ['a heading']})
+  await seedDraft(kit.rpc, sessionId, {text: 'a first line'})
 
   await appendDraft(makeRpcClient(core.base), sessionId, 'a second line')
 
@@ -164,7 +157,6 @@ test('appends to the stored draft on a new line with the caret at the end', asyn
     text: 'a first line\na second line',
     selectionStart: 26,
     selectionEnd: 26,
-    grabs: ['a heading'],
   })
 })
 
@@ -179,10 +171,7 @@ const PERSISTED = {
 test('an attachment written to the draft comes back on the next mount', async ({kit, core, sessionId}) => {
   const first = await makeDraftStorage(makeRpcClient(core.base), sessionId)
 
-  first.storage.setItem(
-    sessionId,
-    JSON.stringify({text: 'look at this', quote: null, grabs: [], attachments: [PERSISTED]}),
-  )
+  first.storage.setItem(sessionId, JSON.stringify({text: 'look at this', quote: null, attachments: [PERSISTED]}))
   await core.awaitRequest(DRAFTS_SET_PATH)
 
   expect((await kit.rpc.drafts.get({sessionId}))?.attachments).toEqual([PERSISTED])
@@ -211,6 +200,5 @@ test('survives a failed initial read and still accepts writes', async ({kit, cor
     text: 'after the outage',
     selectionStart: 16,
     selectionEnd: 16,
-    grabs: [],
   })
 })

@@ -43,7 +43,6 @@ test.describe('holdFirstNavigationWrite holds one websocket frame without stalli
       text: 'sent while the navigation frame is held',
       selectionStart: 0,
       selectionEnd: 0,
-      grabs: [],
     })
     expect(overtaking).toEqual({ok: true})
     expect(await currentHref(suite.kit())).toBe('')

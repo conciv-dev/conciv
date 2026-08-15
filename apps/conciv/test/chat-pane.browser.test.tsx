@@ -3,7 +3,7 @@ import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import type {RpcClient} from '@conciv/contract'
 import pageExtension from '@conciv/extension-page/client'
-import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
+import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {coreControl} from './helpers/core-control.js'
@@ -51,7 +51,10 @@ function grabOptions(...grabs: Grab[]): Pick<PaneMountOptions, 'grabProvider' | 
   return {grabProvider: grabProviderFor(...grabs), extensions: [pageExtension]}
 }
 
-function mountChatPane(sessionId: string, options: Pick<PaneMountOptions, 'grabProvider' | 'extensions'> = {}): PaneMount {
+function mountChatPane(
+  sessionId: string,
+  options: Pick<PaneMountOptions, 'grabProvider' | 'extensions'> = {},
+): PaneMount {
   const mount = mountPane({base: core.base, sessionId, ...options}, () => <ChatPane sessionId={sessionId} />)
   active.pane = mount
   return mount
@@ -109,7 +112,9 @@ test('a staged grab keeps its snapshot and source label across a panel reload', 
   const first = mountChatPane(sessionId, grabOptions(HERO_GRAB))
   await stageGrabThroughComposer()
 
-  expect(await coreControl.awaitRpcCall(DRAFTS_SET_PATH, since)).toBe(200)
+  expect(await coreControl.awaitRpcCall(DRAFTS_SET_PATH, since, {sessionId})).toBe(200)
+  const persisted = await coreRpc(core.base).drafts.get({sessionId})
+  expect(persisted?.attachments.map((attachment) => attachment.contentType)).toEqual([GRAB_MIME])
   first.dispose()
 
   mountChatPane(sessionId, {extensions: [pageExtension]})

@@ -31,7 +31,6 @@ export const drafts = sqliteTable('drafts', {
   text: text('text').notNull(),
   selectionStart: integer('selection_start').notNull(),
   selectionEnd: integer('selection_end').notNull(),
-  grabs: text('grabs', {mode: 'json'}).$type<string[]>().notNull(),
   attachments: text('attachments', {mode: 'json'}).$type<PersistedAttachment[]>(),
   updatedAt: integer('updated_at').notNull(),
 })

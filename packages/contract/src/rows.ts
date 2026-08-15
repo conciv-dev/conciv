@@ -33,7 +33,6 @@ export const DraftRowSchema = z.object({
   text: z.string(),
   selectionStart: z.number().int().min(0),
   selectionEnd: z.number().int().min(0),
-  grabs: z.array(z.string()),
   attachments: z
     .array(PersistedAttachmentSchema)
     .nullable()

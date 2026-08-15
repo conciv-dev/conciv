@@ -71,7 +71,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(types).toContain(EventType.RUN_STARTED)
   })
 
-  it('send consumes the server-side draft: grabs prefix the turn, row cleared', async () => {
+  it('send consumes the server-side draft: the turn is the user text alone and the row is cleared', async () => {
     const {kit} = await bootWire()
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
@@ -80,7 +80,6 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       text: 'draft-text',
       selectionStart: 0,
       selectionEnd: 0,
-      grabs: ['<div id="grabbed"/>'],
     })
     await kit.rpc.chat.send({runId: 'wire-5', sessionId, text: 'about the grabbed element'})
     await stream.done({hangGuardMs: 10_000})
@@ -89,12 +88,11 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     )
     const firstPart = partsOf(visibleUser)[0]
     const text = isRecord(firstPart) && typeof firstPart.content === 'string' ? firstPart.content : ''
-    expect(text.startsWith('<div id="grabbed"/>\n')).toBe(true)
-    expect(text).toContain('about the grabbed element')
+    expect(text).toBe('about the grabbed element')
     expect(await kit.rpc.drafts.get({sessionId})).toBeNull()
   })
 
-  it('send forwards multimodal content and keeps grab references as a text prefix', async () => {
+  it('send forwards multimodal content untouched by the draft row', async () => {
     const {kit} = await bootWire()
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
@@ -103,7 +101,6 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       text: 'draft-text',
       selectionStart: 0,
       selectionEnd: 0,
-      grabs: ['<button>Save</button>'],
     })
     await kit.rpc.chat.send({
       runId: 'wire-12',
@@ -120,7 +117,6 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     if (!isRecord(visibleUser) || !('parts' in visibleUser))
       throw new Error('stream did not include the user message parts')
     expect(visibleUser.parts).toEqual([
-      {type: 'text', content: '<button>Save</button>\n'},
       {type: 'text', content: 'what color is this? '},
       {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='}},
     ])
