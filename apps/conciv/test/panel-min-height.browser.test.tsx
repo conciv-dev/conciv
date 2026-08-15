@@ -1,48 +1,38 @@
 import './helpers/utilities.css'
-import {afterEach, expect, test} from 'vitest'
+import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import {render} from '@solidjs/testing-library'
-import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeRpcClient} from '@conciv/contract'
-import {parseConcivSettings} from '../src/data/settings.js'
-import {createConcivRouter} from '../src/router.js'
-import {CORE_BASE, installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
+import {coreControl} from './helpers/core-control.js'
+import {coreRpc, createSession, seedDraft} from './helpers/core-session.js'
+import {createShellHarness} from './helpers/shell-harness.js'
 
-const PANEL_SESSION = 'conciv_1'
 const STAGED = ['the grabbed hero section', 'the grabbed price row', 'the grabbed footer', 'the grabbed nav']
-let core: FakeCore | null = null
 
-afterEach(() => {
-  core?.restore()
-  core = null
-})
+const core = {base: ''}
+const harness = createShellHarness(() => core.base)
 
-function openPanel(): void {
-  core = installFakeCore({
-    sessions: [sessionRow({id: PANEL_SESSION})],
-    draft: {
-      sessionId: PANEL_SESSION,
-      text: '',
-      selectionStart: 0,
-      selectionEnd: 0,
-      grabs: STAGED,
-      updatedAt: 1,
-    },
-  })
-  const router = createConcivRouter({
-    rpc: makeRpcClient(CORE_BASE),
-    history: createMemoryHistory({initialEntries: [`/panel/${PANEL_SESSION}?open=true`]}),
-    environment: {rootNode: document, document},
-    settings: parseConcivSettings(''),
-  })
-  render(() => <RouterProvider router={router} />)
+beforeAll(async () => {
+  const booted = await coreControl.bootCore({id: 'panel-min-height', allowedOrigins: [window.location.origin]})
+  core.base = booted.base
+}, 60_000)
+
+afterAll(async () => {
+  await coreControl.closeCore()
+}, 30_000)
+
+afterEach(harness.dispose)
+
+async function openPanel(): Promise<void> {
+  const rpc = coreRpc(core.base)
+  const sessionId = await createSession(rpc)
+  await seedDraft(rpc, sessionId, {grabs: STAGED})
+  harness.mountShell(`/panel/${sessionId}?open=true`)
 }
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
 test('the composer stays reachable when the viewport clamps the panel below its minimum height', async () => {
   await page.viewport(1000, 400)
-  openPanel()
+  await openPanel()
 
   await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
 
@@ -51,22 +41,22 @@ test('the composer stays reachable when the viewport clamps the panel below its 
   await page.getByRole('button', {name: 'Send message'}).click()
 
   await expect.element(page.getByText('still typeable at the smallest panel')).toBeVisible()
-})
+}, 30_000)
 
 test('the grabs strip resizes through the shared separator handle', async () => {
   await page.viewport(1000, 900)
-  openPanel()
+  await openPanel()
 
   const handle = page.getByRole('separator', {name: 'Resize grabs height'})
   await expect.element(handle).toBeVisible()
   await expect.element(handle).toHaveAttribute('aria-valuenow', '288')
   await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
   await expect.element(page.getByText('the grabbed nav')).toBeVisible()
-})
+}, 30_000)
 
 test('the staged grabs come back into the flow once the panel has room again', async () => {
   await page.viewport(1000, 400)
-  openPanel()
+  await openPanel()
 
   await expect.element(input()).toBeVisible()
 
@@ -80,4 +70,4 @@ test('the staged grabs come back into the flow once the panel has room again', a
   await input().fill('room to breathe')
   await page.getByRole('button', {name: 'Send message'}).click()
   await expect.element(page.getByText('room to breathe')).toBeVisible()
-})
+}, 30_000)

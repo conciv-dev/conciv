@@ -21,7 +21,7 @@ export type BootCoreResult = {base: string; wsBase: string; bootMs: number}
 
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
-  | {kind: 'abort'; path: string[]}
+  | {kind: 'abort'; path?: string[]}
   | {kind: 'gate'; path?: string[]}
 
 type Fault = {pending: () => number; release: () => Promise<void>; dispose: () => Promise<void>}
@@ -46,6 +46,8 @@ const FRESH: EngineStaleness = {
   bootedAt: 0,
   fingerprint: 'testkit0000',
 }
+
+const AWAIT_RPC_TIMEOUT_MS = 15_000
 
 const files = new Map<string, FileState>()
 
@@ -165,6 +167,13 @@ const terminalLaunches: BrowserCommand<[]> = (ctx): number => stateOf(ctx).termi
 
 const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => observerOf(ctx).completedCount({path})
 
+const rpcMark: BrowserCommand<[]> = (ctx): number => observerOf(ctx).mark()
+
+const awaitRpcCall: BrowserCommand<[string[], number]> = async (ctx, path, since): Promise<number | null> => {
+  const record = await observerOf(ctx).completed({path, since, timeout: AWAIT_RPC_TIMEOUT_MS})
+  return record.status
+}
+
 const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<string> => {
   const state = stateOf(ctx)
   const {abortRpcCalls, failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
@@ -176,7 +185,7 @@ const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<str
   }
   const injector =
     spec.kind === 'abort'
-      ? await abortRpcCalls(ctx.page, {path: spec.path})
+      ? await abortRpcCalls(ctx.page, spec.path ? {path: spec.path} : {})
       : await failRpcCalls(ctx.page, {path: spec.path, ...(spec.status ? {status: spec.status} : {})})
   state.faults.set(handle, {
     pending: () => 0,
@@ -206,6 +215,8 @@ export const coreCommands = {
   setTerminalLaunch,
   terminalLaunches,
   rpcCallCount,
+  rpcMark,
+  awaitRpcCall,
   installFault,
   releaseFault,
   faultPending,

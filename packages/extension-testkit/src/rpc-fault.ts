@@ -71,7 +71,7 @@ export async function failRpcCalls(
   }
 }
 
-export async function abortRpcCalls(page: Page, options: {path: readonly string[]}): Promise<RpcFaultInjector> {
+export async function abortRpcCalls(page: Page, options: {path?: readonly string[]} = {}): Promise<RpcFaultInjector> {
   const broken = {value: true}
   const matcher = pathMatcher(options.path)
   const handler: RouteHandler = async (route) => {

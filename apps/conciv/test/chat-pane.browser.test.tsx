@@ -107,7 +107,7 @@ test('a send the server refuses puts the staged grab card back', async () => {
 
   await expect.element(notifications()).toHaveTextContent(/Internal Server Error|could not be sent/)
   await expect.element(removeGrab()).toBeVisible()
-  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
+  await expect.element(page.getByText('the grabbed hero section', {exact: true})).toBeVisible()
 })
 
 test('a send that throws at the transport puts the staged grab card back', async () => {
@@ -116,7 +116,7 @@ test('a send that throws at the transport puts the staged grab card back', async
 
   await expect.element(notifications()).toHaveTextContent(/could not be sent|fetch/)
   await expect.element(removeGrab()).toBeVisible()
-  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
+  await expect.element(page.getByText('the grabbed hero section', {exact: true})).toBeVisible()
 })
 
 test('a queued second send cannot cross-restore the grabs of the turn that failed', async () => {
@@ -125,23 +125,23 @@ test('a queued second send cannot cross-restore the grabs of the turn that faile
   await coreControl.holdTurn()
   const mount = mountChatPane(sessionId)
 
-  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
+  await expect.element(page.getByText('the grabbed hero section', {exact: true})).toBeVisible()
   await input().fill('turn A')
   await userEvent.keyboard('{Enter}')
   await expect.element(stopButton()).toBeVisible()
 
   mount.pane.grabStore.stageAll([{text: 'the grabbed pricing table'}])
-  await expect.element(page.getByText('the grabbed pricing table')).toBeVisible()
+  await expect.element(page.getByText('the grabbed pricing table', {exact: true})).toBeVisible()
   await input().fill('turn B')
   await userEvent.keyboard('{Enter}')
   await expect.element(page.getByRole('button', {name: 'Remove from queue'})).toBeVisible()
-  await expect.element(page.getByText('the grabbed pricing table')).not.toBeInTheDocument()
+  await expect.element(page.getByText('the grabbed pricing table', {exact: true})).not.toBeInTheDocument()
 
   await coreControl.scriptError('turn A failed')
   await coreControl.releaseTurn()
 
-  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
-  await expect.element(page.getByText('the grabbed pricing table')).not.toBeInTheDocument()
+  await expect.element(page.getByText('the grabbed hero section', {exact: true})).toBeVisible()
+  await expect.element(page.getByText('the grabbed pricing table', {exact: true})).not.toBeInTheDocument()
 })
 
 test('sending announces thinking and then the reply through the live region', async () => {

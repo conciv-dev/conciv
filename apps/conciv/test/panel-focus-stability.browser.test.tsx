@@ -1,61 +1,57 @@
 import './helpers/utilities.css'
-import {afterEach, expect, test} from 'vitest'
+import {afterAll, afterEach, beforeAll, expect, test, vi} from 'vitest'
 import {page} from 'vitest/browser'
-import {render} from '@solidjs/testing-library'
-import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeRpcClient} from '@conciv/contract'
-import {parseConcivSettings} from '../src/data/settings.js'
-import {createConcivRouter} from '../src/router.js'
-import {CORE_BASE, installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
+import {coreControl} from './helpers/core-control.js'
+import {coreRpc, createSession} from './helpers/core-session.js'
+import {createShellHarness} from './helpers/shell-harness.js'
 
-const PANEL_SESSION = 'conciv_1'
 const SETTLED = {timeout: 1500}
-let core: FakeCore | null = null
 
-afterEach(() => {
-  core?.restore()
-  core = null
-})
+const core = {base: ''}
+const harness = createShellHarness(() => core.base)
 
-function openPanel(config: Parameters<typeof installFakeCore>[0] = {}): void {
-  core = installFakeCore({sessions: [sessionRow({id: PANEL_SESSION})], ...config})
-  const router = createConcivRouter({
-    rpc: makeRpcClient(CORE_BASE),
-    history: createMemoryHistory({initialEntries: [`/panel/${PANEL_SESSION}?open=true`]}),
-    environment: {rootNode: document, document},
-    settings: parseConcivSettings(''),
-  })
-  render(() => <RouterProvider router={router} />)
-}
+beforeAll(async () => {
+  const booted = await coreControl.bootCore({id: 'panel-focus-stability', allowedOrigins: [window.location.origin]})
+  core.base = booted.base
+}, 60_000)
+
+afterAll(async () => {
+  await coreControl.closeCore()
+}, 30_000)
+
+afterEach(harness.dispose)
 
 const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
-test('a composer that mounts after a slow draft load keeps the focus the panel gave it', async () => {
-  openPanel({delays: {'/rpc/drafts/get': 250}})
+async function openPanel(): Promise<void> {
+  const sessionId = await createSession(coreRpc(core.base))
+  harness.mountShell(`/panel/${sessionId}?open=true`)
+}
+
+async function expectFocusSurvives(path: string[]): Promise<void> {
+  const since = await coreControl.rpcMark()
+  const held = await coreControl.installFault({kind: 'gate', path})
+  await openPanel()
+  await vi.waitUntil(async () => (await coreControl.faultPending(held)) > 0, {timeout: 5000, interval: 20})
+
+  await coreControl.releaseFault(held)
 
   await expect.element(editor(), SETTLED).toBeVisible()
   const mountedNode = editor().element()
-  await core?.idle()
+  await coreControl.awaitRpcCall(path, since)
+
   await expect.element(editor(), SETTLED).toHaveFocus()
   expect(editor().element().isSameNode(mountedNode)).toBe(true)
-})
+}
+
+test('a composer that mounts after a slow draft load keeps the focus the panel gave it', async () => {
+  await expectFocusSurvives(['drafts', 'get'])
+}, 30_000)
 
 test('a composer that mounts while the harness metadata is still loading takes the focus the panel gave it', async () => {
-  openPanel({delays: {'/rpc/meta/models': 400}})
-
-  await expect.element(editor(), SETTLED).toBeVisible()
-  const mountedNode = editor().element()
-  await core?.idle()
-  await expect.element(editor(), SETTLED).toHaveFocus()
-  expect(editor().element().isSameNode(mountedNode)).toBe(true)
-})
+  await expectFocusSurvives(['meta', 'models'])
+}, 30_000)
 
 test('a composer that mounts while the transcript is still loading takes the focus the panel gave it', async () => {
-  openPanel({delays: {'/rpc/markers/list': 400}})
-
-  await expect.element(editor(), SETTLED).toBeVisible()
-  const mountedNode = editor().element()
-  await core?.idle()
-  await expect.element(editor(), SETTLED).toHaveFocus()
-  expect(editor().element().isSameNode(mountedNode)).toBe(true)
-})
+  await expectFocusSurvives(['markers', 'list'])
+}, 30_000)
