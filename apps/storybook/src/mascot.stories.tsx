@@ -2,7 +2,7 @@ import {createEffect, onCleanup, onMount, Show, untrack, type JSX} from 'solid-j
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {createMascot, robotLayers, type MascotConfig, type MascotState} from '@conciv/mascot'
 
-const PRODUCT_FAB_STAGE_PX = 44
+const PRODUCT_FAB_ANTENNA_PX = 44
 
 const HEADROOM_RATIO = 1.6
 
@@ -109,16 +109,18 @@ everything that happens while work is in flight: the antenna throb, the eye blin
 **Binary emitter** — the one effect shipped in phase 1. Five binary digits rise out of the antenna tip in two
 lanes, stay anchored to the tip as the antenna leans, and drain back into it when work stops.
 
-**Stage size** — the emitter is stage-relative. Every emitter distance (digit size, the two lane offsets, the
-digit placement, the rise) is the approved value multiplied by \`min(stageWidth, stageHeight) / 44\`, where
-44px is the widget FAB stage the values were approved against. Drag \`stageSizePx\` and the digits grow with
-the robot instead of staying 9px specks on a 320px stage. Rise duration, stagger and eases are timing, not
+**Stage size** — the emitter is scale-relative. Every emitter distance (digit size, the two lane offsets, the
+digit placement, the rise) is the approved value multiplied by \`min(antennaWidth, antennaHeight) / 44\`. The
+reference is the antenna layer's own box, not the stage: the widget FAB fills its 44px stage with the antenna,
+while the site FAB insets a 44px antenna inside a 56px button, and both must render the same emitter. Here the
+layers sit at \`inset: 0\`, so the antenna box tracks \`stageSizePx\` — drag it and the digits grow with the
+robot instead of staying 9px specks on a 320px stage. Rise duration, stagger and eases are timing, not
 geometry, so they never scale. At 44px the factor is exactly 1 and the output is the shipped FAB, unchanged.
 
 **Pose apply** — \`animate\` routes a \`state\` change through \`update()\`, which runs the pose transition.
 \`set\` routes it through the registration path instead: the parts are registered again, and registration
 always lands the pose instantly. Changing \`stageSizePx\` also re-registers, because the emitter reads its
-scale factor from the stage when it is created.
+scale factor off the antenna box when it is created.
 
 **Reduced motion** — under \`prefers-reduced-motion: reduce\` poses are set instantly, follow never arms, and
 the activity overlay starts no timelines and no effects, so the emitter never appears. There is no control for
@@ -137,8 +139,8 @@ const meta: Meta<PlaygroundProps> = {
     working: {control: 'boolean', description: 'Activity overlay: antenna throb, eye blink, binary emitter'},
     follow: {control: 'boolean', description: 'Pointer tracking, armed only while not working'},
     stageSizePx: {
-      control: {type: 'range', min: PRODUCT_FAB_STAGE_PX, max: 320, step: 4},
-      description: 'Stage box size; the emitter scales relative to it (44px = the widget FAB)',
+      control: {type: 'range', min: PRODUCT_FAB_ANTENNA_PX, max: 320, step: 4},
+      description: 'Stage box size; the layers fill it, so the emitter scales with it (44px = the widget FAB)',
     },
     poseApply: {
       control: 'inline-radio',

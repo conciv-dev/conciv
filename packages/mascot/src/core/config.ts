@@ -38,7 +38,7 @@ export const BLINK_OPEN_DURATION_S = 0.18
 export const BLINK_OPEN_EASE = 'power2.out'
 export const BLINK_BEATS = [1.15, 1.22] as const
 
-export const EMITTER_REFERENCE_STAGE_PX = 44
+export const EMITTER_REFERENCE_ANTENNA_PX = 44
 
 export const BINARY_EMITTER_DIGIT_COUNT = 5
 export const BINARY_EMITTER_LANE_OFFSET_PX = 3

@@ -11,7 +11,7 @@ import {
   BINARY_EMITTER_RISE_DURATION_S,
   BINARY_EMITTER_RISE_PX,
   BINARY_EMITTER_STAGGER_S,
-  EMITTER_REFERENCE_STAGE_PX,
+  EMITTER_REFERENCE_ANTENNA_PX,
   ENTER_DURATION_S,
   ENTER_EASE,
 } from '../config.js'
@@ -29,10 +29,10 @@ const DIGIT_INDEXES = Array.from({length: BINARY_EMITTER_DIGIT_COUNT}, (_, index
 
 const isLeadingLane = (index: number): boolean => index % 2 === 0
 
-function stageScaleFactor(stage: HTMLElement): number {
-  const size = Math.min(stage.offsetWidth, stage.offsetHeight)
+function antennaScaleFactor(antenna: HTMLElement): number {
+  const size = Math.min(antenna.offsetWidth, antenna.offsetHeight)
   if (size <= 0) return 1
-  return size / EMITTER_REFERENCE_STAGE_PX
+  return size / EMITTER_REFERENCE_ANTENNA_PX
 }
 
 function createDigit(factor: number, index: number): HTMLElement {
@@ -75,8 +75,8 @@ function createRiseTimeline(digits: HTMLElement[], factor: number): gsap.core.Ti
 const returnToFull = (element: HTMLElement): gsap.core.Tween =>
   gsap.to(element, {scale: 1, opacity: 1, duration: ENTER_DURATION_S, ease: ENTER_EASE})
 
-export function createBinaryEmitter(stage: HTMLElement, tip: EmitterAnchor): BinaryEmitter {
-  const factor = stageScaleFactor(stage)
+export function createBinaryEmitter(stage: HTMLElement, antenna: HTMLElement, tip: EmitterAnchor): BinaryEmitter {
+  const factor = antennaScaleFactor(antenna)
   const element = createShell(tip, factor)
   const digits = DIGIT_INDEXES.map((index) => createDigit(factor, index))
   element.append(...digits)

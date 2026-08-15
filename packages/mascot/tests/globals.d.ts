@@ -9,7 +9,7 @@ type EmitterGeometry = {fontSizePx: number; leadingLeft: number; trailingLeft: n
 
 type MascotHarness = {
   mascot: typeof MascotModule
-  buildStage: (sizePx?: number) => StageParts
+  buildStage: (sizePx?: number, layerInsetPx?: number) => StageParts
   buildBareStage: (sizePx?: number) => HTMLElement
   applyStyle: (element: HTMLElement, style: Record<string, string>) => HTMLElement
   leanWrappers: () => HTMLElement[]

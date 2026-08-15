@@ -15,8 +15,8 @@ const HARNESS_SCRIPT = `
   }
   Object.defineProperty(window, 'pointerMoveListenerCount', {get: () => pointerMoveListeners})
 
-  const LAYER_STYLE =
-    'position:absolute;inset:0;background-repeat:no-repeat;background-position:center;' +
+  const layerStyle = (insetPx) =>
+    'position:absolute;inset:' + insetPx + 'px;background-repeat:no-repeat;background-position:center;' +
     'background-size:contain;image-rendering:pixelated;will-change:transform'
 
   const DEFAULT_STAGE_SIZE_PX = 120
@@ -24,18 +24,18 @@ const HARNESS_SCRIPT = `
   const stageStyle = (sizePx) =>
     'position:absolute;left:560px;top:300px;display:block;width:' + sizePx + 'px;height:' + sizePx + 'px'
 
-  const makeLayer = (image) => {
+  const makeLayer = (image, insetPx) => {
     const layer = document.createElement('div')
-    layer.style.cssText = LAYER_STYLE + ";background-image:url('" + image + "')"
+    layer.style.cssText = layerStyle(insetPx) + ";background-image:url('" + image + "')"
     return layer
   }
 
-  const buildStage = (sizePx = DEFAULT_STAGE_SIZE_PX) => {
+  const buildStage = (sizePx = DEFAULT_STAGE_SIZE_PX, layerInsetPx = 0) => {
     const root = document.createElement('div')
     root.style.cssText = stageStyle(sizePx)
-    const head = makeLayer(mascot.robotLayers.head)
-    const eyes = makeLayer(mascot.robotLayers.eyes)
-    const antenna = makeLayer(mascot.robotLayers.antenna)
+    const head = makeLayer(mascot.robotLayers.head, layerInsetPx)
+    const eyes = makeLayer(mascot.robotLayers.eyes, layerInsetPx)
+    const antenna = makeLayer(mascot.robotLayers.antenna, layerInsetPx)
     root.append(head, eyes, antenna)
     document.body.append(root)
     return {root, head, eyes, antenna}

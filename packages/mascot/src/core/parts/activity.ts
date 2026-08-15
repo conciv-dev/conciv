@@ -102,7 +102,7 @@ export function createActivityController(parts: ActivityParts): ActivityControll
   }
 
   const startEmitter = () => {
-    if (emitter === undefined) emitter = createBinaryEmitter(stage, antennaTipAnchor(stage, antenna))
+    if (emitter === undefined) emitter = createBinaryEmitter(stage, antenna, antennaTipAnchor(stage, antenna))
     emitter.start()
   }
 

@@ -73,17 +73,22 @@ export function buildLegacyRig(page: Page): Promise<StagePoint> {
   })
 }
 
-export function buildService(page: Page, config: MascotConfig, stageSizePx?: number): Promise<StagePoint> {
+export function buildService(
+  page: Page,
+  config: MascotConfig,
+  stageSizePx?: number,
+  layerInsetPx?: number,
+): Promise<StagePoint> {
   return page.evaluate(
-    ([initial, sizePx]) => {
+    ([initial, sizePx, insetPx]) => {
       const harness = window.mascotHarness
-      const parts = harness.buildStage(sizePx)
+      const parts = harness.buildStage(sizePx, insetPx)
       window.parts = parts
       window.service = harness.mascot.createMascot(initial)
       window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
       return harness.stageCenter(parts.root)
     },
-    [config, stageSizePx] as const,
+    [config, stageSizePx, layerInsetPx] as const,
   )
 }
 
@@ -109,10 +114,10 @@ export type EmitterGeometryExpectation = {
   risePx: number
 }
 
-export const PRODUCT_FAB_STAGE_PX = 44
+export const PRODUCT_FAB_ANTENNA_PX = 44
 
-export function expectedEmitterGeometry(stageSizePx: number): EmitterGeometryExpectation {
-  const factor = stageSizePx / PRODUCT_FAB_STAGE_PX
+export function expectedEmitterGeometry(antennaBoxPx: number): EmitterGeometryExpectation {
+  const factor = antennaBoxPx / PRODUCT_FAB_ANTENNA_PX
   return {
     fontSizePx: 9 * factor,
     leadingLeft: (-4 + 3) * factor,
