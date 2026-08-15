@@ -2,7 +2,7 @@ import {expect, test} from 'vitest'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
 import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
-import {rpcObserverFor, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
+import {rpcCallCursor, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import {ELEMENT_WRITE_THROTTLE_MS} from '../src/client/whiteboard-collection.js'
 import {until} from '@conciv/harness-testkit'
 import {openCanvas, testHost} from './canvas-it-helpers.js'
@@ -27,9 +27,9 @@ const drawRectangle = async (page: Page, x1: number, y1: number, x2: number, y2:
 const UPSERT_PATH = ['ext', 'whiteboard', 'elements', 'upsert']
 const BULK_UPSERT_PATH = ['ext', 'whiteboard', 'elements', 'bulkUpsert']
 
-const putCounts = (observer: RpcObserver, since: number): {single: number; bulk: number} => ({
-  single: observer.startedCount({path: UPSERT_PATH, since}),
-  bulk: observer.startedCount({path: BULK_UPSERT_PATH, since}),
+const putCounts = (calls: RpcCallCursor): {single: number; bulk: number} => ({
+  single: calls.startedSince(UPSERT_PATH),
+  bulk: calls.startedSince(BULK_UPSERT_PATH),
 })
 
 const dragBursts = async (page: Page, fromX: number, y: number, dx: number): Promise<void> => {
@@ -47,15 +47,14 @@ test('a single-element drag coalesces per-frame writes into few throttled PUTs',
     await until(async () => ((await readElements(api))[0]?.width ?? 0) > 100, {hangGuardMs: 30_000, intervalMs: 250})
     const startX = (await readElements(api))[0]?.x ?? 0
     await api.page.getByRole('radio', {name: 'Selection'}).click({force: true})
-    const observer = rpcObserverFor(api.page)
-    const mark = observer.mark()
+    const calls = rpcCallCursor(api.page)
     const dragStartedAt = Date.now()
     await dragBursts(api.page, cx, cy, 40)
     await until(async () => ((await readElements(api))[0]?.x ?? startX) - startX > 180, {
       hangGuardMs: 30_000,
       intervalMs: 250,
     })
-    const counts = putCounts(observer, mark)
+    const counts = putCounts(calls)
     expect(counts.single).toBeGreaterThan(1)
     expect(counts.single).toBeLessThanOrEqual(flushBudget(Date.now() - dragStartedAt))
     expect(counts.bulk).toBe(0)
@@ -77,8 +76,7 @@ test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async
     await api.page.mouse.down()
     await api.page.mouse.move(cx + 300, cy + 140, {steps: 10})
     await api.page.mouse.up()
-    const observer = rpcObserverFor(api.page)
-    const mark = observer.mark()
+    const calls = rpcCallCursor(api.page)
     const dragStartedAt = Date.now()
     await dragBursts(api.page, cx - 170, cy, 26)
     await until(
@@ -90,7 +88,7 @@ test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async
       },
       {hangGuardMs: 30_000, intervalMs: 250},
     )
-    const counts = putCounts(observer, mark)
+    const counts = putCounts(calls)
     expect(counts.bulk).toBeGreaterThan(0)
     expect(counts.single + counts.bulk).toBeLessThanOrEqual(flushBudget(Date.now() - dragStartedAt))
   } finally {

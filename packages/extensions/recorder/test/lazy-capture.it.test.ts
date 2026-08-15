@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeExtRpcClient} from '@conciv/extension'
 import {until} from '@conciv/harness-testkit/until'
-import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
+import {rpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import type {RecorderRouter} from '../src/server.js'
 import {useRecorderTestApi} from './helpers/test-api.js'
 import {addMarker} from './helpers/fixtures.js'
@@ -16,8 +16,8 @@ const FullSnapshotSchema = z.object({type: z.literal(2), data: z.looseObject({no
 describe('lazy capture lifecycle (real browser)', () => {
   it('flushes nothing while idle, captures while a recording is live, and goes quiet after stop', async () => {
     const page = api().page
-    const observer = rpcObserverFor(page)
-    const flushCount = (): number => observer.startedCount({path: FLUSH_PATH})
+    const calls = rpcCallCursor(page)
+    const flushCount = (): number => calls.startedSince(FLUSH_PATH)
 
     await addMarker(page)
     await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})

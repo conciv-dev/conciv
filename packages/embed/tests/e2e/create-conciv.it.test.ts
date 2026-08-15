@@ -1,5 +1,5 @@
 import {expect, test, type Page, type WebSocket as PageWebSocket} from '@playwright/test'
-import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
+import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {handleHostPage, serveHost} from '../helpers/host.js'
 import {mountHandle, remountHandle, unmountHandle} from './helpers/handle.js'
@@ -128,8 +128,8 @@ test.describe('createConciv lifecycle', () => {
   test('closes the tab rpc websocket on unmount and dials a fresh one on remount', async ({page}) => {
     test.setTimeout(180_000)
     expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
+    const wire = watchRpcWire(page)
     await openPage(page)
-    const observer = rpcObserverFor(page)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
     const socketOpened = rpcSocket(page)
@@ -146,10 +146,9 @@ test.describe('createConciv lifecycle', () => {
 
     await remountHandle(page)
     await expect(chatBox(page)).toBeVisible({timeout: 30_000})
-    const mark = observer.mark()
+    const remounted = wire.nextChatSend()
     await sendChatMessage(page, 'after the remount')
-    const remounted = await observer.completed({path: ['chat', 'send'], since: mark, timeout: 30_000})
-    expect(remounted.transport).toBe('websocket')
+    expect((await remounted).transport).toBe('websocket')
     expect(pageErrors).toEqual([])
   })
 })

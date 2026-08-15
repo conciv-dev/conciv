@@ -1,7 +1,6 @@
 import {expect, test, type Page} from '@playwright/test'
-import {z} from 'zod'
 import recorderServer from '@conciv/extension-recorder'
-import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
+import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 import {setNavigation} from './helpers/navigation.js'
@@ -20,17 +19,6 @@ const suite = setupWidgetSuite({
 
 const composer = (page: Page) => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const panel = (page: Page) => page.getByRole('dialog', {name: 'conciv chat agent'})
-
-const sendInputSchema = z.object({content: z.string()})
-
-function observedPage(page: Page): {page: Page; observer: RpcObserver} {
-  return {page, observer: observeRpc(page)}
-}
-
-const waitForSend = (observer: RpcObserver): Promise<string> =>
-  observer
-    .completed({path: ['chat', 'send'], since: observer.mark(), timeout: 30_000})
-    .then((call) => sendInputSchema.parse(call.input).content)
 
 const waitForDraftWrite = (fragment: string) => untilPanelDraft(suite.kit(), (draft) => draft.text.includes(fragment))
 
@@ -61,7 +49,8 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     page: fixturePage,
   }) => {
     test.setTimeout(180_000)
-    const {page, observer} = observedPage(fixturePage)
+    const page = fixturePage
+    const wire = watchRpcWire(page)
     await openComposer(page)
     const input = composer(page)
 
@@ -77,12 +66,11 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     await input.pressSequentially('second line')
 
     const expected = 'please run /config then @recording_start \nsecond line'
-    const sent = waitForSend(observer)
+    const sent = wire.nextChatSend().then((send) => send.content)
     await page.getByRole('button', {name: 'Send message'}).click()
     expect(await sent).toBe(expected)
     await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
     await expect(input).toHaveText('')
-    observer.dispose()
   })
 
   test('backspace removes a selected command chip in two steps, never a partial directive', async ({page}) => {
@@ -205,7 +193,8 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     page: fixturePage,
   }) => {
     test.setTimeout(90_000)
-    const {page, observer} = observedPage(fixturePage)
+    const page = fixturePage
+    const wire = watchRpcWire(page)
     await openComposer(page)
     const input = composer(page)
     const cdp = await page.context().newCDPSession(page)
@@ -217,18 +206,18 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
 
     await cdp.send('Input.insertText', {text: 'ん'})
     await expect(input).toHaveText('helloん')
-    const sent = waitForSend(observer)
+    const sent = wire.nextChatSend().then((send) => send.content)
     await page.keyboard.press('Enter')
     expect(await sent).toBe('helloん')
 
     await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
     await expect(page.getByText('helloん', {exact: true})).toBeVisible()
-    observer.dispose()
   })
 
   test('the send button submits the visible draft including pending composition text', async ({page: fixturePage}) => {
     test.setTimeout(90_000)
-    const {page, observer} = observedPage(fixturePage)
+    const page = fixturePage
+    const wire = watchRpcWire(page)
     await openComposer(page)
     const input = composer(page)
     const cdp = await page.context().newCDPSession(page)
@@ -236,12 +225,11 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
     await input.pressSequentially('committed draft')
     await cdp.send('Input.imeSetComposition', {text: 'か', selectionStart: 1, selectionEnd: 1})
     await expect(input).toHaveText('committed draftか')
-    const sent = waitForSend(observer)
+    const sent = wire.nextChatSend().then((send) => send.content)
     await page.getByRole('button', {name: 'Send message'}).click()
     expect(await sent).toBe('committed draftか')
 
     await expect(page.getByText(ASSISTANT_TEXT).first()).toBeVisible({timeout: 30_000})
     await expect(page.getByText('committed draftか', {exact: true})).toBeVisible()
-    observer.dispose()
   })
 })

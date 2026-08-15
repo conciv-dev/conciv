@@ -21,8 +21,11 @@
     "./widget-suite": "./src/widget-suite.ts",
     "./test-host": "./src/test-host-config.ts",
     "./page-plane": "./src/page-plane.ts",
+    "./navigation-wire": "./src/navigation-wire.ts",
     "./rpc-frames": "./src/rpc-frames.ts",
     "./rpc-observer": "./src/rpc-observer.ts",
+    "./rpc-counts": "./src/rpc-counts.ts",
+    "./rpc-wire": "./src/rpc-wire.ts",
     "./rpc-fault": "./src/rpc-fault.ts"
   },
   "scripts": {

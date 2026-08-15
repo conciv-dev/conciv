@@ -16,7 +16,9 @@ declare module 'vitest/internal/browser' {
     terminalLaunches: () => Promise<number>
     rpcCallCount: (path: string[]) => Promise<number>
     rpcMark: () => Promise<number>
-    awaitRpcCall: (path: string[], since: number) => Promise<number | null>
+    awaitFaultAnswered: (handle: string) => Promise<void>
+    awaitWarmSessionResolved: (since: number) => Promise<number | null>
+    awaitSessionsListed: (since: number) => Promise<number | null>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>
     faultPending: (handle: string) => Promise<number>

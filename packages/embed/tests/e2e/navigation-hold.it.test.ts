@@ -1,7 +1,8 @@
 import {expect, test, type Page} from '@playwright/test'
 import {setupWsProbeSuite} from './helpers/probe-suite.js'
 import {startProbeServer, type ProbeServer} from './helpers/probe-server.js'
-import {currentHref, holdFirstNavigationWrite, navigationStamp, type HeldNavigationWrite} from './helpers/navigation.js'
+import {watchNavigationWire, type HeldNavigationWrite} from '@conciv/extension-testkit/navigation-wire'
+import {currentHref, navigationStamp} from './helpers/navigation.js'
 
 const suite = setupWsProbeSuite()
 
@@ -16,7 +17,7 @@ function navigationInput(href: string): Record<string, unknown> {
 }
 
 async function bootHeldNavigationPage(page: Page, server: ProbeServer): Promise<HeldNavigationWrite> {
-  const held = await holdFirstNavigationWrite(page)
+  const held = await watchNavigationWire(page).holdFirstWrite()
   await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
   await page.evaluate((wsUrl) => window.__CONCIV_WS_PROBE__.connect(wsUrl), server.wsUrl)
   return held
@@ -26,7 +27,7 @@ test.describe('holdFirstNavigationWrite holds one websocket frame without stalli
   test('retains the first navigation write, forwards a later call, and releases on its own response', async ({
     page,
   }) => {
-    const held = await holdFirstNavigationWrite(page)
+    const held = await watchNavigationWire(page).holdFirstWrite()
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await page.evaluate((wsUrl) => window.__CONCIV_WS_PROBE__.connect(wsUrl), suite.socketUrl())
 

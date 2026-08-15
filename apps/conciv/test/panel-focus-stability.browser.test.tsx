@@ -31,7 +31,6 @@ async function openPanel(): Promise<void> {
 }
 
 async function expectFocusSurvivesPendingRequest(path: string[]): Promise<void> {
-  const since = await coreControl.rpcMark()
   const held = await faults.install({kind: 'gate', path})
   await openPanel()
   await coreControl.awaitFaultPending(held, 1)
@@ -42,21 +41,19 @@ async function expectFocusSurvivesPendingRequest(path: string[]): Promise<void> 
   expect(await coreControl.faultPending(held)).toBe(1)
 
   await coreControl.releaseFault(held)
-  await coreControl.awaitRpcCall(path, since)
+  await coreControl.awaitFaultAnswered(held)
 
   await expect.element(editor(), SETTLED).toHaveFocus()
   expect(editor().element().isSameNode(mountedNode)).toBe(true)
 }
 
 test('a composer that mounts after a slow draft load keeps the focus the panel gave it', async () => {
-  const path = ['drafts', 'get']
-  const since = await coreControl.rpcMark()
-  const held = await faults.install({kind: 'gate', path})
+  const held = await faults.install({kind: 'gate', path: ['drafts', 'get']})
   await openPanel()
   await coreControl.awaitFaultPending(held, 1)
 
   await coreControl.releaseFault(held)
-  await coreControl.awaitRpcCall(path, since)
+  await coreControl.awaitFaultAnswered(held)
 
   await expect.element(editor(), SETTLED).toBeVisible()
   const mountedNode = editor().element()

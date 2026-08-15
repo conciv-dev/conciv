@@ -1,5 +1,6 @@
 import {expect, test, type Page} from '@playwright/test'
-import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
+import {rpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
+import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {setNavigation} from './helpers/navigation.js'
 import {setupProxiedEmbedSuite} from './helpers/proxied-suite.js'
 
@@ -26,30 +27,24 @@ test.describe('chat survives a forced websocket drop', () => {
     test.setTimeout(120_000)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
-    const observer = rpcObserverFor(page)
-    try {
-      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-      await page.getByRole('button', {name: 'Open conciv chat'}).click()
-      await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({
-        timeout: MOUNT_TIMEOUT_MS,
-      })
+    const wire = watchRpcWire(page)
+    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({
+      timeout: MOUNT_TIMEOUT_MS,
+    })
 
-      await sendTurn(page, FIRST_TEXT)
-      await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: MOUNT_TIMEOUT_MS})
+    await sendTurn(page, FIRST_TEXT)
+    await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: MOUNT_TIMEOUT_MS})
 
-      const socketsBefore = observer.socketCount()
-      const mark = observer.mark()
-      suite.core().dropConnections()
+    const reconnected = rpcCallCursor(page)
+    const frames = wire.chatReconnect()
+    suite.core().dropConnections()
 
-      await sendTurn(page, SECOND_TEXT)
+    await sendTurn(page, SECOND_TEXT)
 
-      await observer.completed({path: ['chat', 'stop'], since: mark, timeout: MOUNT_TIMEOUT_MS})
-      await observer.completed({path: ['chat', 'send'], since: mark, timeout: MOUNT_TIMEOUT_MS})
-      await observer.completed({path: ['chat', 'subscribe'], since: mark, timeout: MOUNT_TIMEOUT_MS})
-      expect(observer.socketCount()).toBeGreaterThan(socketsBefore)
-      expect(pageErrors).toEqual([])
-    } finally {
-      observer.dispose()
-    }
+    expect(await frames).toEqual({stop: 'websocket', send: 'websocket', subscribe: 'websocket'})
+    expect(reconnected.socketsSince()).toBeGreaterThan(0)
+    expect(pageErrors).toEqual([])
   })
 })

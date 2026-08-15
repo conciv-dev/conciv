@@ -1,6 +1,6 @@
 import {expect, test, type Page} from '@playwright/test'
 import {gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
-import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
+import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {hostPage, serveHost} from '../helpers/host.js'
 
@@ -39,12 +39,10 @@ test.describe('first panel open does not re-run session resolution at click time
       hostPage({apiBase: suite.kit().base, widget: '{"quickTerminal":false,"transport":"fetch"}'}),
     )
     dedicatedHosts.push(host)
-    const observer = rpcObserverFor(page)
-
+    const wire = watchRpcWire(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await expect(launcher(page)).toBeVisible({timeout: 15_000})
-    await observer.completed({path: SESSIONS_LIST, timeout: 5_000})
-    await observer.completed({path: SESSIONS_RESOLVE, timeout: 1_500}).catch(() => {})
+    await wire.sessionsBootTraffic()
 
     await stallSessionRpcs(page)
     await launcher(page).click()

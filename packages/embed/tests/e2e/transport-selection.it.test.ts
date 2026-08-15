@@ -1,5 +1,6 @@
 import {expect, test, type Page} from '@playwright/test'
-import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
+import {httpRpcRequestUrls, rpcCallCursor, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
+import {watchRpcWire, type RpcWireWatch} from '@conciv/extension-testkit/rpc-wire'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage, serveHost} from '../helpers/host.js'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
@@ -39,17 +40,14 @@ test.beforeEach(async () => {
   expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
 })
 
-type Tab = {page: Page; observer: RpcObserver; httpRpcUrls: string[]}
+type Tab = {page: Page; calls: RpcCallCursor; wire: RpcWireWatch; httpRpcUrls: string[]}
 
 async function openTab(page: Page, hostBase: string): Promise<Tab> {
-  const httpRpcUrls: string[] = []
-  page.on('request', (request) => {
-    const pathname = new URL(request.url()).pathname
-    if (pathname.startsWith('/rpc/') || pathname === '/rpc') httpRpcUrls.push(request.url())
-  })
-  const observer = observeRpc(page)
+  const {urls} = httpRpcRequestUrls(page)
+  const calls = rpcCallCursor(page)
+  const wire = watchRpcWire(page)
   await page.goto(hostBase, {waitUntil: 'domcontentloaded'})
-  return {page, observer, httpRpcUrls}
+  return {page, calls, wire, httpRpcUrls: urls}
 }
 
 async function completeTurn(page: Page): Promise<void> {
@@ -64,38 +62,26 @@ test.describe('the browser factory picks one transport per tab at boot', () => {
   test('rides the websocket when the boot probe succeeds', async ({page}) => {
     test.setTimeout(90_000)
     const tab = await openTab(page, openHost.base)
-    try {
-      await completeTurn(tab.page)
-      expect(tab.observer.socketCount()).toBe(1)
-      expect(tab.httpRpcUrls).toEqual([])
-    } finally {
-      tab.observer.dispose()
-    }
+    await completeTurn(tab.page)
+    expect(tab.calls.socketsSince()).toBe(1)
+    expect(tab.httpRpcUrls).toEqual([])
   })
 
   test('falls back to fetch for the whole tab when the websocket upgrade is blocked', async ({page}) => {
     test.setTimeout(120_000)
     const tab = await openTab(page, blockedHost.base)
-    try {
-      await completeTurn(tab.page)
-      const call = await tab.observer.completed({path: ['chat', 'send'], timeout: MOUNT_TIMEOUT_MS})
-      expect(call.transport).toBe('fetch')
-      expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
-    } finally {
-      tab.observer.dispose()
-    }
+    const sent = tab.wire.nextChatSend()
+    await completeTurn(tab.page)
+    expect((await sent).transport).toBe('fetch')
+    expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
   })
 
   test('honours the fetch escape hatch without probing the websocket', async ({page}) => {
     test.setTimeout(120_000)
     const tab = await openTab(page, pinnedFetchHost.base)
-    try {
-      await completeTurn(tab.page)
-      expect(tab.observer.socketCount()).toBe(0)
-      const call = await tab.observer.completed({path: ['chat', 'send'], timeout: MOUNT_TIMEOUT_MS})
-      expect(call.transport).toBe('fetch')
-    } finally {
-      tab.observer.dispose()
-    }
+    const sent = tab.wire.nextChatSend()
+    await completeTurn(tab.page)
+    expect(tab.calls.socketsSince()).toBe(0)
+    expect((await sent).transport).toBe('fetch')
   })
 })

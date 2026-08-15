@@ -1,16 +1,8 @@
 import {expect, test, type Page} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage, serveHost} from '../helpers/host.js'
-import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
-import {
-  currentHref,
-  freezeClock,
-  holdFirstNavigationWrite,
-  setNavigation,
-  untilNavigationHref,
-  waitForNavigationWrite,
-  waitForNavigationWriteCarrying,
-} from './helpers/navigation.js'
+import {watchNavigationWire} from '@conciv/extension-testkit/navigation-wire'
+import {currentHref, freezeClock, setNavigation, untilNavigationHref} from './helpers/navigation.js'
 import {openPanel, sendMessage} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
@@ -53,11 +45,6 @@ test.beforeEach(async () => {
   expect(await setNavigation(kit, [{href: '/'}])).toBe(true)
 })
 
-function observedPage(page: Page): Page {
-  rpcObserverFor(page)
-  return page
-}
-
 async function openPage(page: Page): Promise<Page> {
   await page.goto(host.base, {waitUntil: 'domcontentloaded'})
   return page
@@ -84,14 +71,14 @@ test.describe('embed boots the conciv app against a real core', () => {
 
   test('a widget navigation write that lands after a newer one loses, even in flight', async ({page}) => {
     test.setTimeout(120_000)
-    observedPage(page)
-    const held = await holdFirstNavigationWrite(page)
+    const navigation = watchNavigationWire(page)
+    const held = await navigation.holdFirstWrite()
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
     await held.arrived
 
     expect(await setNavigation(kit, [{href: '/reset-while-the-widget-write-is-in-flight'}])).toBe(true)
-    const landed = waitForNavigationWrite(page)
+    const landed = navigation.nextWrite()
     held.release()
     await landed
 
@@ -104,9 +91,10 @@ test.describe('embed boots the conciv app against a real core', () => {
   }) => {
     test.setTimeout(240_000)
     const frozen = Date.now()
-    const before = observedPage(page)
+    const before = page
+    const beforeNavigation = watchNavigationWire(before)
     await freezeClock(before, frozen)
-    const held = await holdFirstNavigationWrite(before)
+    const held = await beforeNavigation.holdFirstWrite()
     expect((await kit.rpc.navigation.set({entries: [{href: '/'}], index: 0, updatedAt: frozen + 5_000})).applied).toBe(
       true,
     )
@@ -114,16 +102,17 @@ test.describe('embed boots the conciv app against a real core', () => {
     await openPanel(before)
     await held.arrived
 
-    const after = observedPage(await context.newPage())
+    const after = await context.newPage()
+    const afterNavigation = watchNavigationWire(after)
     await freezeClock(after, frozen)
     await after.goto(host.base, {waitUntil: 'domcontentloaded'})
     await openPanel(after)
-    const switched = waitForNavigationWriteCarrying(after, '/terminal')
+    const switched = afterNavigation.nextWriteCarrying('/terminal')
     await after.getByRole('tab', {name: 'Terminal'}).click()
     await switched
     expect(await currentHref(kit)).toContain('/terminal')
 
-    const landed = waitForNavigationWrite(before)
+    const landed = beforeNavigation.nextWrite()
     held.release()
     await landed
 
