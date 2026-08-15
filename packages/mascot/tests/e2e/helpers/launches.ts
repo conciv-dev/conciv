@@ -8,7 +8,7 @@ import {type StageSize, tipUnderTransform} from './mascot-stage.js'
 
 const LAUNCH_JUMP_PX = 10
 
-const FRAMES_PER_SECOND = 60
+export const FRAMES_PER_SECOND = 60
 
 const LAUNCH_FRAME_COLUMNS = BINARY_EMITTER_DIGIT_COUNT + 2
 
@@ -17,9 +17,9 @@ export type Launch = {top: number; tipY: number}
 export const stepsBetween = (values: readonly number[]): number[] =>
   values.slice(1).map((value, index) => value - (values[index] ?? 0))
 
-export const launchFrames = (tops: readonly number[]): number[] =>
+export const launchFrames = (tops: readonly number[], travelPx = BINARY_EMITTER_RISE_PX): number[] =>
   stepsBetween(tops)
-    .map((step, index) => (step > LAUNCH_JUMP_PX ? index + 1 : -1))
+    .map((step, index) => (step * Math.sign(travelPx) < -LAUNCH_JUMP_PX ? index + 1 : -1))
     .filter((index) => index >= 0)
 
 export function medianStep(values: readonly number[]): number {
@@ -28,10 +28,13 @@ export function medianStep(values: readonly number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? Number.NaN
 }
 
+export const scaleFactorOf = (antennaPx: number): number => antennaPx / robotSkin.referenceAntennaPx
+
+export const travelPerFrame = (travelPx: number, durationS: number, antennaPx: number): number =>
+  (travelPx * scaleFactorOf(antennaPx)) / durationS / FRAMES_PER_SECOND
+
 export const risePerFrame = (antennaPx: number): number =>
-  (BINARY_EMITTER_RISE_PX * (antennaPx / robotSkin.referenceAntennaPx)) /
-  BINARY_EMITTER_RISE_DURATION_S /
-  FRAMES_PER_SECOND
+  travelPerFrame(BINARY_EMITTER_RISE_PX, BINARY_EMITTER_RISE_DURATION_S, antennaPx)
 
 function requireLaunchFrames(frames: readonly number[][]): number[][] {
   const ragged = frames.find((frame) => frame.length !== LAUNCH_FRAME_COLUMNS)

@@ -29,7 +29,7 @@ test('a warmed work cycle rides the antenna without reading layout again', async
       const before = harness.layoutReads()
       const frames = harness.stepFrames<number[]>(
         () => [
-          ...[0, 1, 2, 3, 4].map((index) => harness.digitFlightOf(emitter, index).top),
+          ...[0, 1, 2, 3, 4].map((index) => harness.particleFlightOf(emitter, index).top),
           harness.property(window.parts.antenna, 'scaleY'),
           harness.property(window.parts.antenna, 'yPercent'),
         ],

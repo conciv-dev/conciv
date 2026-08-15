@@ -27,7 +27,7 @@ const readEmitterGeometry = (page: Page): Promise<Reading> =>
   page.evaluate((sampleSeconds) => {
     const harness = window.mascotHarness
     const emitter = harness.requireEmitter()
-    const leading = harness.requireDigit(emitter, 0)
+    const leading = harness.requireParticle(emitter, 0)
     const rise = harness.stepFrames(() => harness.property(leading, 'y'), sampleSeconds)
     return {...harness.emitterGeometry(emitter), risePx: harness.summarize(rise).min}
   }, RISE_SAMPLE_S)

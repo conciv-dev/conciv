@@ -13,12 +13,12 @@ test('a state change mid-work keeps the original timeline, emitter and scale', a
     const harness = window.mascotHarness
     harness.advanceBy(2.2)
     const emitter = harness.requireEmitter()
-    const anchorBefore = harness.digitFlightOf(emitter, 0)
+    const anchorBefore = harness.particleFlightOf(emitter, 0)
     const timelineBefore = harness.repeatingTimeline()
     window.service.update({state: 'awake', working: true, follow: false})
     const during = harness.stepFrames(() => harness.property(emitter, 'scale'), 0.9)
     harness.advanceBy(1.4)
-    const anchorAfter = harness.digitFlightOf(emitter, 0)
+    const anchorAfter = harness.particleFlightOf(emitter, 0)
     const sameTimeline = harness.repeatingTimeline() === timelineBefore
     const values = harness.stepFrames<[number, number]>(
       () => [harness.property(window.parts.antenna, 'scaleY'), harness.property(window.parts.eyes, 'scaleY')],

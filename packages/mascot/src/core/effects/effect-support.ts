@@ -1,6 +1,6 @@
 import gsap from 'gsap'
 import {ENTER_DURATION_S, ENTER_EASE} from '../config.js'
-import type {EmitterAnchor} from '../path.js'
+import type {EmitterAnchor, EmitterPoint} from '../path.js'
 import {enterFromTip, exitIntoTip} from '../tip-transition.js'
 import type {EffectHandle} from './effect.js'
 
@@ -182,4 +182,40 @@ export function createTimelineEmitter(
     onRest: clearTimeline,
     onRemove: clearTimeline,
   })
+}
+
+export type NozzleEmitter = {
+  host: HTMLElement
+  element: HTMLElement
+  mouth: EmitterAnchor
+  buildTimeline: (nozzle: EmitterPoint) => gsap.core.Timeline
+}
+
+export function createNozzleEmitter(emitter: NozzleEmitter): EffectHandle {
+  const {host, element, mouth, buildTimeline} = emitter
+  const nozzle: EmitterPoint = {x: 0, y: 0}
+  let timeline: gsap.core.Timeline | undefined
+  const clearTimeline = () => {
+    timeline?.kill()
+    timeline = undefined
+  }
+
+  const aimNozzle = (tip: EmitterAnchor) => {
+    nozzle.x = tip.x - mouth.x
+    nozzle.y = tip.y - mouth.y
+  }
+
+  const tip = createTipEmitter({
+    host,
+    element,
+    origin: TIP_ORIGIN,
+    onStart: () => {
+      timeline = timeline ?? buildTimeline(nozzle)
+    },
+    onPauseEmission: noEmitterWork,
+    onRest: clearTimeline,
+    onRemove: clearTimeline,
+  })
+
+  return {...tip, anchor: aimNozzle}
 }

@@ -160,6 +160,16 @@ const HARNESS_SCRIPT = `
     return emitter
   }
 
+  const requireStreamEmitter = (host, particleCount) => {
+    const shell = Array.from(host.children).find(
+      (child) => child.getAttribute('aria-hidden') === 'true' && child.childElementCount === particleCount,
+    )
+    if (shell === undefined) {
+      throw new Error('no stream emitter with ' + particleCount + ' particles is mounted')
+    }
+    return shell
+  }
+
   const requireLeanWrapper = () => {
     const wrapper = leanWrappers()[0]
     if (wrapper === undefined) throw new Error('no lean wrapper is mounted')
@@ -190,10 +200,10 @@ const HARNESS_SCRIPT = `
 
   const tickerListenerCount = () => gsap.ticker._listeners.length
 
-  const requireDigit = (emitter, index) => {
-    const digit = emitter.children[index]
-    if (!(digit instanceof HTMLElement)) throw new Error('the emitter has no digit at index ' + index)
-    return digit
+  const requireParticle = (emitter, index) => {
+    const particle = emitter.children[index]
+    if (!(particle instanceof HTMLElement)) throw new Error('the emitter has no particle at index ' + index)
+    return particle
   }
 
   const requireRealClock = (call) => {
@@ -388,11 +398,11 @@ const HARNESS_SCRIPT = `
     throw new Error('this effect refuses to mount')
   }
 
-  const digitFlightOf = (emitter, index) => {
-    const digit = requireDigit(emitter, index)
+  const particleFlightOf = (emitter, index) => {
+    const particle = requireParticle(emitter, index)
     return {
-      left: parseFloat(emitter.style.left) + property(emitter, 'x') + property(digit, 'x'),
-      top: parseFloat(emitter.style.top) + property(emitter, 'y') + property(digit, 'y'),
+      left: parseFloat(emitter.style.left) + property(emitter, 'x') + property(particle, 'x'),
+      top: parseFloat(emitter.style.top) + property(emitter, 'y') + property(particle, 'y'),
     }
   }
 
@@ -431,8 +441,8 @@ const HARNESS_SCRIPT = `
 
   const emitterFlight = (parts, seconds) => {
     const emitter = requireEmitter()
-    const digit = requireDigit(emitter, 0)
-    const launchLeft = digitFlightOf(emitter, 0).left
+    const digit = requireParticle(emitter, 0)
+    const launchLeft = particleFlightOf(emitter, 0).left
     const geometry = emitterGeometry(emitter)
     return {
       launchLeft,
@@ -446,7 +456,7 @@ const HARNESS_SCRIPT = `
   }
 
   const requireFlatDigit = (emitter, index) => {
-    const digit = requireDigit(emitter, index)
+    const digit = requireParticle(emitter, index)
     if (digit.firstElementChild === null) return digit
     throw new Error(
       'emitterGeometry reads the straight emitter placement, but digit ' + index +
@@ -462,7 +472,7 @@ const HARNESS_SCRIPT = `
   })
 
   const curvedDigitPlacement = (emitter, index) => {
-    const rider = requireDigit(emitter, index)
+    const rider = requireParticle(emitter, index)
     const glyph = rider.firstElementChild
     if (!(glyph instanceof HTMLElement)) {
       throw new Error('the digit at index ' + index + ' is not a curve rider')
@@ -487,8 +497,9 @@ const HARNESS_SCRIPT = `
     leanWrappers,
     emitters,
     requireEmitter,
+    requireStreamEmitter,
     requireLeanWrapper,
-    requireDigit,
+    requireParticle,
     requireCanvas,
     canvasSignature,
     canvasInk,
@@ -526,7 +537,7 @@ const HARNESS_SCRIPT = `
     activeWritersOfProperty,
     boxOf,
     anchorOf,
-    digitFlightOf,
+    particleFlightOf,
     repeatingTimeline,
   }
   document.documentElement.dataset.harness = 'ready'

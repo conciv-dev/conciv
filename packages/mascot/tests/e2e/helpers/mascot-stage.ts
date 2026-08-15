@@ -157,6 +157,22 @@ export async function openIdleService(page: Page): Promise<void> {
   await buildService(page, {state: 'rest', working: false, follow: false})
 }
 
+export async function openStreamService(page: Page, effectName: string, exportName: string): Promise<void> {
+  await installManualClock(page)
+  await page.evaluate(
+    async ([name, mount]) => {
+      const harness = window.mascotHarness
+      const effect = await harness.loadEffect(name, mount)
+      const parts = harness.buildStage()
+      window.parts = parts
+      window.service = harness.mascot.createMascot({state: 'rest', working: false, follow: false})
+      window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
+      window.service.mountEffect(name, effect)
+    },
+    [effectName, exportName] as const,
+  )
+}
+
 export type Gaze = {eyesX: number; eyesY: number; lean: number}
 
 export function readGaze(page: Page): Promise<Gaze> {

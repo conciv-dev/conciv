@@ -34,8 +34,8 @@ test('a digit in flight holds its world rise through the throb release while the
       const emitter = harness.requireEmitter()
       const frames = harness.stepFrames<[number, number, number, number]>(
         () => [
-          harness.digitFlightOf(emitter, inFlight).top,
-          harness.digitFlightOf(emitter, launching).top,
+          harness.particleFlightOf(emitter, inFlight).top,
+          harness.particleFlightOf(emitter, launching).top,
           harness.property(antenna, 'scaleY'),
           harness.property(antenna, 'yPercent'),
         ],

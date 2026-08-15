@@ -60,7 +60,7 @@ async function trackLeadingDigit(page: Page): Promise<DigitTrack> {
     ([names, seconds]) => {
       const harness = window.mascotHarness
       harness.advanceBy(0)
-      const digit = harness.requireDigit(harness.requireEmitter(), 0)
+      const digit = harness.requireParticle(harness.requireEmitter(), 0)
       return harness.stepFrames(() => names.map((name) => harness.property(digit, name)), seconds)
     },
     [TRACKED_PROPERTIES, TRAVEL_SAMPLE_S] as const,
@@ -74,7 +74,7 @@ const sampleEveryDigitX = (page: Page): Promise<number[][]> =>
     const harness = window.mascotHarness
     harness.advanceBy(0)
     const emitter = harness.requireEmitter()
-    const digits = [0, 1, 2, 3, 4].map((index) => harness.requireDigit(emitter, index))
+    const digits = [0, 1, 2, 3, 4].map((index) => harness.requireParticle(emitter, index))
     return harness.stepFrames(() => digits.map((digit) => harness.property(digit, 'x')), seconds)
   }, FAN_SAMPLE_S)
 
@@ -193,7 +193,7 @@ test('restarting into a room that no longer bends returns the digits to the ante
       window.service.update({state: 'rest', working: false, follow: false})
       window.service.update({state: 'rest', working: true, follow: false})
       harness.advanceBy(0)
-      const digit = harness.requireDigit(harness.requireEmitter(), 0)
+      const digit = harness.requireParticle(harness.requireEmitter(), 0)
       return harness.stepFrames(() => [harness.property(digit, 'x'), harness.property(digit, 'rotation')], seconds)
     },
     [AT_BOTTOM_EDGE.top, TRAVEL_SAMPLE_S] as const,

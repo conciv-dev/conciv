@@ -1,6 +1,7 @@
 import gsap from 'gsap'
+import type {EmitterPoint} from '../path.js'
 import {antennaTipAnchor} from '../tip-anchor.js'
-import {antennaScaleFactor, createTimelineEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
+import {antennaScaleFactor, createNozzleEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
 const STEAM_CORE_COLOR = 'rgba(148, 158, 178, 0.55)'
@@ -11,7 +12,7 @@ const STEAM_CORE_STOP = '46%'
 
 const STEAM_EDGE_STOP = '100%'
 
-const PUFF_COUNT = 4
+export const PUFF_COUNT = 4
 
 const PUFF_INDEXES = Array.from({length: PUFF_COUNT}, (_, index) => index)
 
@@ -25,7 +26,7 @@ const PUFF_INITIAL_OPACITY_BASE = 0.55
 
 const PUFF_INITIAL_OPACITY_STEP = 0.12
 
-const PUFF_RISE_Y_PX = -52
+export const PUFF_RISE_Y_PX = -52
 
 const PUFF_LEAD_LANE_X_PX = 10
 
@@ -35,7 +36,7 @@ const PUFF_START_SCALE = 0.45
 
 const PUFF_END_SCALE = 1.7
 
-const PUFF_RISE_DURATION_S = 2.4
+export const PUFF_RISE_DURATION_S = 2.4
 
 const PUFF_RISE_EASE = 'sine.out'
 
@@ -56,32 +57,49 @@ function createPuff(factor: number, index: number): HTMLElement {
   return puff
 }
 
-function createPuffTimeline(puffs: HTMLElement[], factor: number): gsap.core.Timeline {
-  return gsap.timeline().fromTo(
-    puffs,
-    {y: 0, x: 0, scale: PUFF_START_SCALE, opacity: 0},
-    {
-      y: PUFF_RISE_Y_PX * factor,
-      x: (index: number) => (isLeadPuff(index) ? PUFF_LEAD_LANE_X_PX : PUFF_TRAIL_LANE_X_PX) * factor,
-      scale: PUFF_END_SCALE,
-      opacity: 0,
-      duration: PUFF_RISE_DURATION_S,
-      ease: PUFF_RISE_EASE,
-      stagger: {each: PUFF_RISE_STAGGER_S, repeat: -1},
-      keyframes: {opacity: PUFF_OPACITY_KEYFRAMES, easeEach: 'none'},
-    },
-    0,
-  )
+const puffLaunch = (nozzle: EmitterPoint): gsap.TweenVars => ({
+  y: () => nozzle.y,
+  x: () => nozzle.x,
+  scale: PUFF_START_SCALE,
+  opacity: 0,
+})
+
+const puffTravel = (nozzle: EmitterPoint, factor: number, index: number): gsap.TweenVars => ({
+  y: () => nozzle.y + PUFF_RISE_Y_PX * factor,
+  x: () => nozzle.x + (isLeadPuff(index) ? PUFF_LEAD_LANE_X_PX : PUFF_TRAIL_LANE_X_PX) * factor,
+  scale: PUFF_END_SCALE,
+  opacity: 0,
+  duration: PUFF_RISE_DURATION_S,
+  ease: PUFF_RISE_EASE,
+  repeat: -1,
+  repeatRefresh: true,
+  immediateRender: false,
+  keyframes: {opacity: PUFF_OPACITY_KEYFRAMES, easeEach: 'none'},
+})
+
+function createPuffTimeline(puffs: HTMLElement[], factor: number, nozzle: EmitterPoint): gsap.core.Timeline {
+  gsap.set(puffs, {x: 0, y: 0, scale: PUFF_START_SCALE, opacity: 0})
+  const timeline = gsap.timeline()
+  puffs.forEach((puff, index) => {
+    timeline.fromTo(puff, puffLaunch(nozzle), puffTravel(nozzle, factor, index), index * PUFF_RISE_STAGGER_S)
+  })
+  return timeline
 }
 
 function createSteamEffect(context: EffectContext): EffectHandle {
   const {host, antenna, skin} = context
   const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
-  const element = createTipShell(antennaTipAnchor(host, antenna, skin), WILL_CHANGE_STYLE)
+  const mouth = antennaTipAnchor(host, antenna, skin)
+  const element = createTipShell(mouth, WILL_CHANGE_STYLE)
   const puffs = PUFF_INDEXES.map((index) => createPuff(factor, index))
   element.append(...puffs)
   host.append(element)
-  return createTimelineEmitter(host, element, () => createPuffTimeline(puffs, factor))
+  return createNozzleEmitter({
+    host,
+    element,
+    mouth,
+    buildTimeline: (nozzle) => createPuffTimeline(puffs, factor, nozzle),
+  })
 }
 
 export const steamEffect: EffectMount = (context) => createSteamEffect(context)

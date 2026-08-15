@@ -32,8 +32,9 @@ type MascotHarness = {
   leanWrappers: () => HTMLElement[]
   emitters: () => HTMLElement[]
   requireEmitter: () => HTMLElement
+  requireStreamEmitter: (host: HTMLElement, particleCount: number) => HTMLElement
   requireLeanWrapper: () => HTMLElement
-  requireDigit: (emitter: HTMLElement, index: number) => HTMLElement
+  requireParticle: (emitter: HTMLElement, index: number) => HTMLElement
   requireCanvas: (host: HTMLElement) => HTMLCanvasElement
   canvasSignature: (canvas: HTMLCanvasElement) => number
   canvasInk: (canvas: HTMLCanvasElement) => number
@@ -71,7 +72,7 @@ type MascotHarness = {
   activeWritersOfProperty: (element: HTMLElement, property: string) => number
   boxOf: (element: HTMLElement) => Anchor
   anchorOf: (element: HTMLElement) => Anchor
-  digitFlightOf: (emitter: HTMLElement, index: number) => Anchor
+  particleFlightOf: (emitter: HTMLElement, index: number) => Anchor
   repeatingTimeline: () => object | undefined
 }
 

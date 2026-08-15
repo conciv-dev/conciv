@@ -120,11 +120,11 @@ test('entering work launches the first digit from the leaned tip and every later
       const leaned = harness.property(antenna, 'rotation')
       window.rig.apply('work')
       const emitter = harness.requireEmitter()
-      const entry = harness.digitFlightOf(emitter, 0)
+      const entry = harness.particleFlightOf(emitter, 0)
       harness.advanceBy(sampleStart)
       const frames = harness.stepFrames<number[]>(
         () => [
-          ...[0, 1, 2, 3, 4].map((index) => harness.digitFlightOf(emitter, index).top),
+          ...[0, 1, 2, 3, 4].map((index) => harness.particleFlightOf(emitter, index).top),
           harness.property(antenna, 'scaleY'),
           harness.property(antenna, 'yPercent'),
         ],
@@ -173,7 +173,7 @@ test('a digit launching mid-throb starts from the stretched tip, not the unstret
       const emitter = harness.requireEmitter()
       const frames = harness.stepFrames<[number, number, number]>(
         () => [
-          harness.digitFlightOf(emitter, digit).top,
+          harness.particleFlightOf(emitter, digit).top,
           harness.property(antenna, 'scaleY'),
           harness.property(antenna, 'yPercent'),
         ],
