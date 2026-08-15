@@ -1,7 +1,7 @@
 import {createEffect, onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {sparkFountainEffect} from './core/effects/spark-fountain.js'
-import {createMascot, robotLayers, type MascotConfig, type MascotState} from './core/index.js'
+import {createMascot, robotLayers, type MascotConfig, type MascotState} from './rig.js'
 
 const STAGE_SIZE_PX = 120
 

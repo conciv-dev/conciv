@@ -1,6 +1,6 @@
 import gsap from 'gsap'
 import {antennaTipAnchor} from '../tip-anchor.js'
-import {antennaScaleFactor, createTimelineEmitter, createTipShell, NO_SHELL_STYLE} from './effect-support.js'
+import {antennaScaleFactor, createTimelineEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
 const HEART_CELLS: [number, number][] = [
@@ -72,7 +72,7 @@ function createPulseTimeline(heart: HTMLElement): gsap.core.Timeline {
 function createHeartEmitter(context: EffectContext): EffectHandle {
   const {host, antenna, skin} = context
   const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
-  const element = createTipShell(antennaTipAnchor(host, antenna, skin), NO_SHELL_STYLE)
+  const element = createTipShell(antennaTipAnchor(host, antenna, skin), WILL_CHANGE_STYLE)
   const heart = createHeart(factor)
   element.append(heart)
   host.append(element)

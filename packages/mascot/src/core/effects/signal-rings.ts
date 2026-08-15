@@ -1,8 +1,9 @@
 import gsap from 'gsap'
-import {BINARY_EMITTER_COLOR} from '../config.js'
 import {antennaTipAnchor} from '../tip-anchor.js'
 import {antennaScaleFactor, createTimelineEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
+
+const SIGNAL_RINGS_COLOR = 'var(--pw-accent, #e0218a)'
 
 const RING_COUNT = 3
 
@@ -47,7 +48,7 @@ function createRing(factor: number, index: number): HTMLElement {
   ring.style.cssText =
     `position:absolute;left:${RING_LEFT_PX * factor}px;top:${RING_TOP_PX * factor}px;` +
     `width:${RING_SIZE_PX * factor}px;height:${RING_SIZE_PX * factor}px;border-radius:50%;` +
-    `border:${RING_BORDER_WIDTH_PX * factor}px solid ${BINARY_EMITTER_COLOR};` +
+    `border:${RING_BORDER_WIDTH_PX * factor}px solid ${SIGNAL_RINGS_COLOR};` +
     `opacity:${ringInitialOpacity(index)};transform:scale(${ringInitialScale(index)})`
   return ring
 }

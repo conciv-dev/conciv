@@ -19,6 +19,11 @@ type MascotHarness = {
   requireEmitter: () => HTMLElement
   requireLeanWrapper: () => HTMLElement
   requireDigit: (emitter: HTMLElement, index: number) => HTMLElement
+  requireCanvas: (host: HTMLElement) => HTMLCanvasElement
+  canvasSignature: (canvas: HTMLCanvasElement) => number
+  pendingFrameCount: () => number
+  settleFrames: () => Promise<number>
+  loadEffect: (name: string, exportName: string) => Promise<MascotModule.EffectMount>
   emitterGeometry: (emitter: HTMLElement) => EmitterGeometry
   curvedDigitPlacement: (emitter: HTMLElement, index: number) => DigitPlacement
   countingEffect: MascotModule.EffectMount

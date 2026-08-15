@@ -1,28 +1,13 @@
 import {readdirSync, readFileSync} from 'node:fs'
-import {dirname, join, matchesGlob, relative, resolve} from 'node:path'
+import {dirname, join, matchesGlob, relative, resolve, sep} from 'node:path'
 import {expect, test} from 'vitest'
+import {EFFECT_MOUNTS} from '../effect-catalog.js'
 
 const packageRoot = resolve(import.meta.dirname, '../..')
 const distRoot = join(packageRoot, 'dist')
 const coreIndexFile = join(distRoot, 'core/index.js')
-const EFFECT_MOUNTS: Record<string, string> = {
-  binary: 'binaryEffect',
-  matrix: 'matrixEffect',
-  'thought-cloud': 'thoughtCloudEffect',
-  'pixel-bubbles': 'pixelBubblesEffect',
-  'signal-rings': 'signalRingsEffect',
-  'speech-bubble': 'speechBubbleEffect',
-  steam: 'steamEffect',
-  spark: 'sparkEffect',
-  'spark-burst': 'sparkBurstEffect',
-  'spark-fountain': 'sparkFountainEffect',
-  satellite: 'satelliteEffect',
-  'led-cone': 'ledConeEffect',
-  'tick-ring': 'tickRingEffect',
-  'signal-bars': 'signalBarsEffect',
-  heart: 'heartEffect',
-  notes: 'notesEffect',
-}
+const effectsDirectory = join(distRoot, 'core/effects') + sep
+const effectSupportFile = join(distRoot, 'core/effects/effect-support.js')
 const effectSubpaths = Object.keys(EFFECT_MOUNTS).map((name) => `./effects/${name}`)
 const IMPORT_PATTERN = /(?:from|import)\s*["'](\.[^"']*)["']/g
 const FRAMEWORK_PATTERN = /(?:from|import)\s*["'](?:solid-js|react|react-dom)(?:\/[^"']*)?["']/
@@ -90,9 +75,11 @@ function usesMotionPath(file: string): boolean {
   return readFileSync(file, 'utf8').includes('motionPath')
 }
 
-function publishedEntries(): string[] {
+function builtEntries(): string[] {
   return ['.', ...effectSubpaths].map(exportedImportFile).concat(coreIndexFile)
 }
+
+const isEffectModule = (file: string): boolean => file.startsWith(effectsDirectory)
 
 function packageRelative(file: string): string {
   return `./${relative(packageRoot, file)}`
@@ -106,7 +93,7 @@ test('the compat entry keeps the rig surface both consumers import', async () =>
   expect(typeof field(compat, 'binaryEffect')).toBe('function')
 })
 
-test('the core index entry publishes the framework-free service', async () => {
+test('the core index entry builds the framework-free service', async () => {
   const core: unknown = await import(coreIndexFile)
   expect(typeof field(core, 'createMascot')).toBe('function')
   expect(typeof field(core, 'robotSkin')).toBe('object')
@@ -140,25 +127,27 @@ test('every emitted module that registers a gsap plugin is named by sideEffects'
 })
 
 test('every entry that animates along a motion path carries the plugin registration', () => {
-  const animating = publishedEntries().filter((entry) => moduleGraph(entry).some(usesMotionPath))
+  const animating = builtEntries().filter((entry) => moduleGraph(entry).some(usesMotionPath))
   expect(animating).toEqual([exportedImportFile('.'), exportedImportFile('./effects/binary')])
   for (const entry of animating) {
     expect(moduleGraph(entry).filter(registersMotionPathPlugin)).not.toEqual([])
   }
 })
 
-test('the core index entry pulls in no effect module', () => {
-  expect(moduleGraph(coreIndexFile).filter(usesMotionPath).map(packageRelative)).toEqual([])
+test('the internal core index entry pulls in no effect module at all', () => {
+  expect(moduleGraph(coreIndexFile).filter(isEffectModule).map(packageRelative)).toEqual([])
 })
 
-test.each(effectSubpaths)('importing %s reaches no other effect module', (subpath) => {
-  const others = effectSubpaths.filter((other) => other !== subpath).map(exportedImportFile)
-  const reached = moduleGraph(exportedImportFile(subpath)).filter((file) => others.includes(file))
+test.each(effectSubpaths)('importing %s reaches no effect module but its own', (subpath) => {
+  const entry = exportedImportFile(subpath)
+  const reached = moduleGraph(entry).filter(
+    (file) => isEffectModule(file) && file !== entry && file !== effectSupportFile,
+  )
   expect(reached.map(packageRelative)).toEqual([])
 })
 
 test('the core and effect entries pull in no framework runtime', () => {
-  const framework = publishedEntries()
+  const framework = builtEntries()
     .flatMap(moduleGraph)
     .filter((file) => FRAMEWORK_PATTERN.test(readFileSync(file, 'utf8')))
     .map(packageRelative)

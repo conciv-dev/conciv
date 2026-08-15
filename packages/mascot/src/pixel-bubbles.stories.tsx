@@ -59,9 +59,8 @@ function MascotStage(props: StageProps): JSX.Element {
   onMount(() => {
     if (stage === undefined || head === undefined || eyes === undefined || antenna === undefined) return
     service.registerParts({stage, head, eyes, antenna})
+    service.mountEffect('pixel-bubbles', pixelBubblesEffect)
   })
-
-  createEffect(() => service.mountEffect('pixel-bubbles', pixelBubblesEffect))
 
   createEffect(() => service.update(config()))
 

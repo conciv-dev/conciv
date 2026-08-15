@@ -20,7 +20,6 @@ import {
   THROB_RISE_EASE,
   THROB_SCALE_X,
   THROB_SCALE_Y,
-  TIP_TRACK_DURATION_S,
 } from '../config.js'
 import type {EffectHandle, EffectMount} from '../effects/effect.js'
 import type {MascotSkin} from '../skin.js'
@@ -35,7 +34,6 @@ export type ActivityRecovery = {pose: boolean; antennaScale: boolean}
 export type ActivityController = {
   start: (rest: ActivityRest) => void
   setRest: (rest: ActivityRest) => void
-  trackTip: () => void
   stop: (recovery: ActivityRecovery) => void
   mountEffect: (id: string, mount: EffectMount, host: HTMLElement | undefined) => void
   unmountEffect: (id: string) => void
@@ -68,7 +66,7 @@ const throbOut = (): gsap.TweenVars => ({
   ease: THROB_RETURN_EASE,
 })
 
-function buildWorkTimeline(parts: ActivityParts, rest: ActivityRest): WorkTimeline {
+function buildWorkTimeline(parts: ActivityParts, rest: ActivityRest, onUpdate: () => void): WorkTimeline {
   const {head, antenna, eyes} = parts
   const bobbed = [head, antenna, eyes]
   const blinkReturn = gsap.to(eyes, {
@@ -92,7 +90,7 @@ function buildWorkTimeline(parts: ActivityParts, rest: ActivityRest): WorkTimeli
     ease: HEAD_BOB_EASE,
   })
   const timeline = gsap
-    .timeline({repeat: -1})
+    .timeline({repeat: -1, onUpdate})
     .add(bobDown, HEAD_BOB_BEATS[0])
     .add(bobReturn, HEAD_BOB_BEATS[1])
     .to(antenna, throbIn(), THROB_BEATS[0])
@@ -120,7 +118,6 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   const draining = new Set<EffectHandle>()
   let work: WorkTimeline | undefined
   let recoveryTweens: gsap.core.Tween[] = []
-  let tipTracker: gsap.core.Tween | undefined
   let resting: ActivityRest = {eyeScaleY: NEUTRAL_SCALE, headYPercent: 0}
 
   const isWorking = () => work !== undefined
@@ -135,23 +132,12 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     recoveryTweens = []
   }
 
-  const killTipTracker = () => {
-    tipTracker?.kill()
-    tipTracker = undefined
-  }
-
   const anchorEntry = (entry: EffectEntry) => {
     if (entry.handle?.anchor === undefined) return
     entry.handle.anchor(antennaTipAnchor(entry.host ?? stage, antenna, skin))
   }
 
   const anchorEffects = () => effects.forEach(anchorEntry)
-
-  const trackTip = () => {
-    if (work === undefined || effects.size === 0) return
-    killTipTracker()
-    tipTracker = gsap.to({}, {duration: TIP_TRACK_DURATION_S, onUpdate: anchorEffects, onComplete: anchorEffects})
-  }
 
   const startEntry = (entry: EffectEntry) => {
     const host = entry.host ?? stage
@@ -203,7 +189,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     resting = rest
     killTimeline()
     killRecoveryTweens()
-    work = buildWorkTimeline(parts, rest)
+    work = buildWorkTimeline(parts, rest, anchorEffects)
     effects.forEach(startEntry)
   }
 
@@ -234,7 +220,6 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     if (work === undefined) return
     killTimeline()
     killRecoveryTweens()
-    killTipTracker()
     recover(recovery)
     effects.forEach(stopEntry)
   }
@@ -265,12 +250,11 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   const dispose = () => {
     killTimeline()
     killRecoveryTweens()
-    killTipTracker()
     effects.forEach(removeEntry)
     effects.clear()
     draining.forEach((handle) => handle.remove())
     draining.clear()
   }
 
-  return {start, setRest, trackTip, stop, mountEffect, unmountEffect, setEffectHost, dispose}
+  return {start, setRest, stop, mountEffect, unmountEffect, setEffectHost, dispose}
 }

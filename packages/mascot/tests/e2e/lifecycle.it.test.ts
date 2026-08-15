@@ -170,6 +170,38 @@ test('leaving work for a new pose hands every shared channel to the pose transit
   expect(result.restHead, 'no recovery tween fights the rest pose on the head').toBeLessThanOrEqual(1)
 })
 
+test('a state change while working overlaps the pose and the bob, then converges on the bob', async ({page}) => {
+  await buildService(page, {state: 'rest', working: true, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    const {head, eyes, antenna} = window.parts
+    const writers = (): [number, number, number] => [
+      harness.activeWritersOfProperty(head, 'yPercent'),
+      harness.activeWritersOfProperty(antenna, 'yPercent'),
+      harness.activeWritersOfProperty(eyes, 'yPercent'),
+    ]
+    const spread = (values: [number, number, number][]) => ({
+      head: harness.summarize(values.map((entry) => entry[0])),
+      antenna: harness.summarize(values.map((entry) => entry[1])),
+      eyes: harness.summarize(values.map((entry) => entry[2])),
+    })
+    harness.advanceBy(2.2)
+    const beforeChange = writers()
+    window.service.update({state: 'awake', working: true, follow: false})
+    const handoff = harness.stepFrames<[number, number, number]>(writers, 0.7)
+    const settled = harness.stepFrames<[number, number, number]>(writers, 1.7)
+    return {beforeChange, handoff: spread(handoff), settled: spread(settled)}
+  })
+
+  expect(result.beforeChange, 'the bob alone writes yPercent before the change').toEqual([1, 1, 1])
+  expect(result.handoff.head.max, 'the accepted pose-over-bob overlap on the head is two writers').toBe(2)
+  expect(result.handoff.antenna.max, 'the accepted pose-over-bob overlap on the antenna is two writers').toBe(2)
+  expect(result.handoff.eyes.max, 'the accepted pose-over-bob overlap on the eyes is two writers').toBe(2)
+  expect(result.settled.head.max, 'the overlap converges back to the bob alone on the head').toBe(1)
+  expect(result.settled.antenna.max, 'the overlap converges back to the bob alone on the antenna').toBe(1)
+  expect(result.settled.eyes.max, 'the overlap converges back to the bob alone on the eyes').toBe(1)
+})
+
 test('the awake pose lifts the head, the antenna and the eyes as one unit', async ({page}) => {
   await buildService(page, {state: 'rest', working: false, follow: false})
   const result = await page.evaluate(() => {

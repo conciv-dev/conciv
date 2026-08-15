@@ -1,6 +1,6 @@
 import gsap from 'gsap'
 import {antennaTipAnchor} from '../tip-anchor.js'
-import {antennaScaleFactor, createTimelineEmitter, createTipShell, NO_SHELL_STYLE} from './effect-support.js'
+import {antennaScaleFactor, createTimelineEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
 const NOTE_GLYPHS = ['♪', '♫', '♩']
@@ -48,7 +48,7 @@ function createRiseTimeline(notes: HTMLElement[], factor: number): gsap.core.Tim
 function createNotesEmitter(context: EffectContext): EffectHandle {
   const {host, antenna, skin} = context
   const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
-  const element = createTipShell(antennaTipAnchor(host, antenna, skin), NO_SHELL_STYLE)
+  const element = createTipShell(antennaTipAnchor(host, antenna, skin), WILL_CHANGE_STYLE)
   const notes = NOTE_GLYPHS.map((glyph) => createNote(factor, glyph))
   element.append(...notes)
   host.append(element)

@@ -1,4 +1,4 @@
-import {createEffect, onCleanup, onMount, type JSX} from 'solid-js'
+import {createEffect, onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {heartEffect} from './core/effects/heart.js'
 import {createMascot, robotLayers, type MascotConfig, type MascotState} from './rig.js'
@@ -37,7 +37,7 @@ type StageProps = {state: MascotState; working: boolean}
 
 function HeartStage(props: StageProps): JSX.Element {
   const config = (): MascotConfig => ({state: props.state, working: props.working, follow: true})
-  const service = createMascot(config())
+  const service = createMascot(untrack(config))
   let stage: HTMLDivElement | undefined
   let head: HTMLDivElement | undefined
   let eyes: HTMLDivElement | undefined

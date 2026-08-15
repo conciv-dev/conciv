@@ -15,6 +15,34 @@ const HARNESS_SCRIPT = `
   }
   Object.defineProperty(window, 'pointerMoveListenerCount', {get: () => pointerMoveListeners})
 
+  const pendingFrames = new Set()
+  const requestFrame = window.requestAnimationFrame.bind(window)
+  const cancelFrame = window.cancelAnimationFrame.bind(window)
+  window.requestAnimationFrame = (callback) => {
+    const handle = requestFrame((now) => {
+      pendingFrames.delete(handle)
+      callback(now)
+    })
+    pendingFrames.add(handle)
+    return handle
+  }
+  window.cancelAnimationFrame = (handle) => {
+    pendingFrames.delete(handle)
+    cancelFrame(handle)
+  }
+
+  const pendingFrameCount = () => pendingFrames.size
+
+  const settleFrames = () =>
+    new Promise((resolve) => requestAnimationFrame(() => setTimeout(() => resolve(pendingFrames.size), 0)))
+
+  const loadEffect = async (name, exportName) => {
+    const module = await import('/core/effects/' + name + '.js')
+    const mount = module[exportName]
+    if (typeof mount !== 'function') throw new Error('the ' + name + ' module exports no ' + exportName + ' mount')
+    return mount
+  }
+
   const layerStyle = (insetPx) =>
     'position:absolute;inset:' + insetPx + 'px;background-repeat:no-repeat;background-position:center;' +
     'background-size:contain;image-rendering:pixelated;will-change:transform'
@@ -78,6 +106,19 @@ const HARNESS_SCRIPT = `
     const wrapper = leanWrappers()[0]
     if (wrapper === undefined) throw new Error('no lean wrapper is mounted')
     return wrapper
+  }
+
+  const requireCanvas = (host) => {
+    const canvas = host.querySelector('canvas')
+    if (canvas === null) throw new Error('no canvas effect is mounted')
+    return canvas
+  }
+
+  const canvasSignature = (canvas) => {
+    const context = canvas.getContext('2d')
+    if (context === null) throw new Error('the canvas effect has no 2d context')
+    const {data} = context.getImageData(0, 0, canvas.width, canvas.height)
+    return data.reduce((total, value, index) => total + value * ((index % 7) + 1), 0)
   }
 
   const requireDigit = (emitter, index) => {
@@ -287,6 +328,11 @@ const HARNESS_SCRIPT = `
     requireEmitter,
     requireLeanWrapper,
     requireDigit,
+    requireCanvas,
+    canvasSignature,
+    pendingFrameCount,
+    settleFrames,
+    loadEffect,
     emitterGeometry,
     curvedDigitPlacement,
     countingEffect,

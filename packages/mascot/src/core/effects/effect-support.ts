@@ -6,7 +6,65 @@ import type {EffectHandle} from './effect.js'
 
 export const WILL_CHANGE_STYLE = 'will-change:transform,opacity'
 
-export const NO_SHELL_STYLE = ''
+export const SPARK_COLOR = '#ffd23f'
+
+export const SPARK_ACCENT_COLOR = '#e0218a'
+
+const SPARK_CANVAS_WIDTH_PX = 120
+
+const SPARK_CANVAS_HEIGHT_PX = 104
+
+const SPARK_ORIGIN_X_PX = 60
+
+const SPARK_ORIGIN_Y_PX = 96
+
+const SPARK_SIZE_PX = 10
+
+const SPARK_LINE_WIDTH_PX = 2
+
+export type CanvasGeometry = {
+  width: number
+  height: number
+  originX: number
+  originY: number
+  size: number
+  lineWidth: number
+}
+
+export function sparkCanvasGeometry(factor: number): CanvasGeometry {
+  return {
+    width: SPARK_CANVAS_WIDTH_PX * factor,
+    height: SPARK_CANVAS_HEIGHT_PX * factor,
+    originX: SPARK_ORIGIN_X_PX * factor,
+    originY: SPARK_ORIGIN_Y_PX * factor,
+    size: SPARK_SIZE_PX * factor,
+    lineWidth: SPARK_LINE_WIDTH_PX * factor,
+  }
+}
+
+export function createSparkCanvas(tip: EmitterAnchor, geometry: CanvasGeometry): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.setAttribute('aria-hidden', 'true')
+  canvas.style.cssText =
+    `position:absolute;left:${tip.x - geometry.originX}px;top:${tip.y - geometry.originY}px;` +
+    `width:${geometry.width}px;height:${geometry.height}px;pointer-events:none;${WILL_CHANGE_STYLE}`
+  const ratio = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1
+  canvas.width = geometry.width * ratio
+  canvas.height = geometry.height * ratio
+  const context = canvas.getContext('2d')
+  context?.scale(ratio, ratio)
+  return canvas
+}
+
+export function runFrameLoop(step: (now: number) => void): () => void {
+  let handle = 0
+  const frame = (now: number) => {
+    step(now)
+    handle = requestAnimationFrame(frame)
+  }
+  handle = requestAnimationFrame(frame)
+  return () => cancelAnimationFrame(handle)
+}
 
 export function createTipShell(tip: EmitterAnchor, style: string): HTMLElement {
   const element = document.createElement('span')

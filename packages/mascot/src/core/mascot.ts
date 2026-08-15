@@ -101,14 +101,12 @@ function applyFollow(registration: Registration, previous: MascotConfig, next: M
 function startWorking(registration: Registration): void {
   registration.follow.disarm(false)
   registration.activity.start(poseRest(registration))
-  registration.activity.trackTip()
 }
 
 function applyWork(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
   if (!previous.working) return startWorking(registration)
   if (previous.state === next.state) return
   registration.activity.setRest(poseRest(registration))
-  registration.activity.trackTip()
 }
 
 function recoveryFor(previous: MascotConfig, next: MascotConfig): ActivityRecovery {

@@ -1,6 +1,6 @@
 import gsap from 'gsap'
 import {antennaTipAnchor} from '../tip-anchor.js'
-import {antennaScaleFactor, createTimelineEmitter, createTipShell, NO_SHELL_STYLE} from './effect-support.js'
+import {antennaScaleFactor, createTimelineEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
 const SIGNAL_BARS_COUNT = 4
@@ -46,7 +46,7 @@ function createPulseTimeline(bars: HTMLElement[]): gsap.core.Timeline {
 function createSignalBarsEmitter(context: EffectContext): EffectHandle {
   const {host, antenna, skin} = context
   const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
-  const element = createTipShell(antennaTipAnchor(host, antenna, skin), NO_SHELL_STYLE)
+  const element = createTipShell(antennaTipAnchor(host, antenna, skin), WILL_CHANGE_STYLE)
   const bars = BAR_INDEXES.map((index) => createBar(factor, index))
   element.append(...bars)
   host.append(element)

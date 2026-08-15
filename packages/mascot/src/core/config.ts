@@ -66,7 +66,6 @@ export const BINARY_EMITTER_DIGIT_TOP_PX = -12
 export const BINARY_EMITTER_TANGENT_OFFSET_DEG = 90
 
 export const TIP_SCALE = 0.2
-export const TIP_TRACK_DURATION_S = 0.45
 
 export const ENTER_EASE = 'back.out(2.2)'
 export const ENTER_DURATION_S = 0.36

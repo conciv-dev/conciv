@@ -25,7 +25,14 @@ function localMatrix(element: HTMLElement): DOMMatrixReadOnly {
   if (transform === '' || transform === 'none') return new DOMMatrixReadOnly()
   const matrix = new DOMMatrixReadOnly(transform)
   const angle = Math.atan2(matrix.b, matrix.a)
-  return new DOMMatrixReadOnly([Math.cos(angle), Math.sin(angle), -Math.sin(angle), Math.cos(angle), 0, 0])
+  return new DOMMatrixReadOnly([
+    Math.cos(angle),
+    Math.sin(angle),
+    -Math.sin(angle),
+    Math.cos(angle),
+    matrix.e,
+    matrix.f,
+  ])
 }
 
 export function antennaTipAnchor(host: HTMLElement, antenna: HTMLElement, skin: MascotSkin): EmitterAnchor {

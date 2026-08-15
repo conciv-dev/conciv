@@ -223,6 +223,7 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
       emitters: harness.emitters().length,
       parentIsEffectHost: emitter?.parentElement === effectHost,
       anchor: emitter === undefined ? undefined : harness.boxOf(emitter),
+      bobPx: parts.antenna.offsetHeight * 0.05,
       stage: {width: parts.root.offsetWidth, height: parts.root.offsetHeight},
     }
     mounted.destroy()
@@ -258,7 +259,7 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
     `the effect-hosted emitter anchors at the tip x, not the page offset -> ${JSON.stringify(anchor)}`,
   ).toBe(true)
   expect(
-    anchor !== undefined && Math.abs(anchor.top - tip.y) <= 1,
-    `the effect-hosted emitter anchors at the tip y, not the page offset -> ${JSON.stringify(anchor)}`,
+    anchor !== undefined && anchor.top <= tip.y + 1 && anchor.top >= tip.y - result.hosted.bobPx - 1,
+    `the effect-hosted emitter anchors at the bobbing tip y, not the page offset -> ${JSON.stringify(anchor)}`,
   ).toBe(true)
 })

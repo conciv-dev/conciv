@@ -15,13 +15,14 @@ test('the legacy work state stages the emitter, throbs and drains without leakin
     const emitter = harness.requireEmitter()
     harness.advanceBy(0)
     const startScale = harness.property(emitter, 'scale')
+    const anchor = harness.boxOf(emitter)
     const scales = harness.stepFrames(() => harness.property(emitter, 'scale'), 0.36)
     return {
       digits: emitter.childElementCount,
       startScale,
       scale: harness.summarize(scales),
       emitters: harness.emitters().length,
-      anchor: harness.boxOf(emitter),
+      anchor,
       stage: {width: window.parts.root.offsetWidth, height: window.parts.root.offsetHeight},
     }
   })
@@ -55,8 +56,8 @@ test('the legacy work state stages the emitter, throbs and drains without leakin
   const tip = restTip(enter.stage)
 
   expect(enter.digits, 'emitter carries 5 digits').toBe(5)
-  expectNear('emitter anchors at the antenna tip x = stage width x 0.5', enter.anchor.left, tip.x, 1)
-  expectNear('emitter anchors at the antenna tip y = stage height x 0.15625', enter.anchor.top, tip.y, 1)
+  expectNear('the entering emitter anchors at the antenna tip x = stage width x 0.5', enter.anchor.left, tip.x, 1)
+  expectNear('the entering emitter anchors at the unbobbed tip y = stage height x 0.15625', enter.anchor.top, tip.y, 1)
   expectNear('staged enter starts scaled into the tip at 0.2', enter.startScale, 0.2, 0.01)
   expect(enter.scale.min, 'staged enter starts scaled into the tip').toBeLessThan(0.5)
   expect(enter.scale.max, 'staged enter overshoots to full size').toBeGreaterThanOrEqual(1)
@@ -71,23 +72,31 @@ test('the legacy work state stages the emitter, throbs and drains without leakin
   expect(flap.tweens, 'no runaway tween accumulation').toBeLessThanOrEqual(throb.tweens)
 })
 
-test('entering work anchors on the leaned tip and tracks the pose back to rest', async ({page}) => {
+test('entering work anchors on the leaned tip and rides the antenna through every bob', async ({page}) => {
+  await installManualClock(page)
   await buildLegacyRig(page)
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(() => {
     const harness = window.mascotHarness
+    const {antenna, root} = window.parts
     window.rig.apply('open')
-    await harness.wait(900)
-    const leaned = harness.property(window.parts.antenna, 'rotation')
+    harness.advanceBy(0.9)
+    const leaned = harness.property(antenna, 'rotation')
     window.rig.apply('work')
     const emitter = harness.requireEmitter()
+    const sample = () => ({anchor: harness.anchorOf(emitter), yPercent: harness.property(antenna, 'yPercent')})
     const entry = harness.anchorOf(emitter)
-    await harness.wait(1200)
+    harness.advanceBy(1)
+    const trough = sample()
+    harness.advanceBy(1)
+    const peak = sample()
     return {
       leaned,
       entry,
-      settled: harness.anchorOf(emitter),
-      rotation: harness.property(window.parts.antenna, 'rotation'),
-      stage: {width: window.parts.root.offsetWidth, height: window.parts.root.offsetHeight},
+      trough,
+      peak,
+      rotation: harness.property(antenna, 'rotation'),
+      bobPx: antenna.offsetHeight * 0.05,
+      stage: {width: root.offsetWidth, height: root.offsetHeight},
     }
   })
   const tip = restTip(result.stage)
@@ -98,8 +107,11 @@ test('entering work anchors on the leaned tip and tracks the pose back to rest',
     'entering work anchors at the leaned tip, not the rest tip',
   ).toBeGreaterThan(1)
   expectNear('the work pose returns the antenna to rest', result.rotation, 0, 0.01)
-  expectNear('the anchor tracks the settling pose to the rest tip x', result.settled.left, tip.x, 0.05)
-  expectNear('the anchor tracks the settling pose to the rest tip y', result.settled.top, tip.y, 0.05)
+  expectNear('the sampled trough really is the bob floor', result.trough.yPercent, -5, 0.05)
+  expectNear('the sampled peak really is the bob top', result.peak.yPercent, 0, 0.05)
+  expectNear('the anchor rides the antenna down to the bob floor', result.trough.anchor.top, tip.y - result.bobPx, 0.3)
+  expectNear('the anchor rides the antenna back up to the bob top', result.peak.anchor.top, tip.y, 0.3)
+  expectNear('the bob never drags the anchor sideways', result.peak.anchor.left, tip.x, 0.3)
 })
 
 test('the work timeline bobs the head and leaves every other pose channel untouched', async ({page}) => {
