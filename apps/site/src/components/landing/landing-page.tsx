@@ -1,5 +1,6 @@
 import {SiteNav} from './site-nav'
-import {Hero} from './hero'
+import {HeroCopy} from './hero'
+import {ProductFrame} from './product-frame'
 import {LandingMotion} from './lazy-motion'
 import {BundlerBand} from './bundler-band'
 import {FeaturesSection} from './features-section'
@@ -13,7 +14,10 @@ export function LandingPage() {
       <div className="min-h-screen">
         <SiteNav />
         <main className="od-container">
-          <Hero />
+          <Reveal>
+            <HeroCopy />
+          </Reveal>
+          <ProductFrame />
           <div className="od-rule" />
           <BundlerBand />
           <div className="od-rule" />

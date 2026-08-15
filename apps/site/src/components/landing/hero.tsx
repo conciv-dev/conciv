@@ -1,45 +1,23 @@
-import {Suspense, lazy} from 'react'
-import {ClientOnly} from '@tanstack/react-router'
-import {Badge} from '@/components/ui/badge'
 import {useIsMobile} from '@/lib/use-is-mobile'
+import {InstallCommand} from './install-command'
 import {TryLiveButton} from './try-live-button'
-import {InstallChip} from './install-chip'
 
-const Demo = lazy(() => import('./demo/demo').then((module) => ({default: module.Demo})))
+export const HERO_HEADLINE = "Your coding agent, inside the app it's building."
 
-export function Hero() {
+export function HeroCopy() {
   const isMobile = useIsMobile()
   return (
-    <header className="mx-auto grid max-w-[1180px] items-center gap-14 px-8 pb-12 pt-3 md:grid-cols-[1fr_1.02fr] md:pt-10">
-      <div>
-        <Badge
-          variant="outline"
-          className="mb-4 max-w-full gap-2 border-primary/30 font-mono text-[11.5px] uppercase tracking-[0.06em] text-primary sm:tracking-[0.12em]"
-        >
-          <span className="size-1.5 rounded-full bg-primary" /> Beta · Dev-only · Open source
-        </Badge>
-        <p className="mb-3 font-mono text-[13px] font-semibold uppercase tracking-[0.3em] text-primary">Conceive it.</p>
-        <h1 className="od-display mb-5 text-[clamp(40px,5.2vw,62px)] font-bold leading-[1.02] tracking-[-0.03em]">
-          Claude Code, living inside your <span className="od-underline">running app</span>.
-        </h1>
-        <p className="mb-8 max-w-[30ch] text-[18px] text-muted-foreground">
-          Add one plugin. Then <b className="font-semibold text-foreground">chat</b>, let it{' '}
-          <b className="font-semibold text-foreground">drive the page</b>, and{' '}
-          <b className="font-semibold text-foreground">run your tests</b>, without ever leaving the thing you're
-          building.
-        </p>
-        {!isMobile && (
-          <>
-            <InstallChip />
-            <TryLiveButton />
-          </>
-        )}
+    <div className="mx-auto max-w-[720px] px-8 pb-10 pt-10 text-center md:pt-[72px]">
+      <p className="od-eyebrow mb-5">Beta · Open source · MIT · dev-only</p>
+      <h1 className="od-h1 mb-5">{HERO_HEADLINE}</h1>
+      <p className="mx-auto mb-8 max-w-[52ch] text-[18px] text-muted-foreground">
+        conciv connects Claude Code or Codex to your running dev app. It sees the real DOM, edits the page live, writes
+        the change to source, and runs your tests — without you leaving the page.
+      </p>
+      <div className="flex flex-wrap items-center justify-center gap-4">
+        <InstallCommand compact={Boolean(isMobile)} />
+        {!isMobile && <TryLiveButton />}
       </div>
-      <ClientOnly>
-        <Suspense>
-          <Demo />
-        </Suspense>
-      </ClientOnly>
-    </header>
+    </div>
   )
 }

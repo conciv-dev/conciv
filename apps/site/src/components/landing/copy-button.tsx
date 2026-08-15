@@ -2,7 +2,9 @@ import {Check, Copy} from 'lucide-react'
 import {createContext, useContext, useRef, useState, type ReactNode} from 'react'
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/components/ui/tooltip'
 
-type CopyButtonContextValue = {copied: boolean}
+type CopyState = 'idle' | 'copied' | 'failed'
+
+type CopyButtonContextValue = {state: CopyState}
 
 const CopyButtonContext = createContext<CopyButtonContextValue | null>(null)
 
@@ -12,58 +14,73 @@ function useCopyButton(): CopyButtonContextValue {
   return value
 }
 
+const RESET_DELAY_MS = 1400
+
+function feedbackLabel(state: CopyState): string {
+  if (state === 'copied') return 'Copied'
+  if (state === 'failed') return 'Copy failed — select the text'
+  return ''
+}
+
 function Root({text, onCopy, children}: {text: string; onCopy?: () => void; children: ReactNode}) {
-  const [copied, setCopied] = useState(false)
+  const [state, setState] = useState<CopyState>('idle')
   const [open, setOpen] = useState(false)
   const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const copy = () => {
-    void navigator.clipboard.writeText(text)
-    onCopy?.()
-    setCopied(true)
-    setOpen(true)
+  const copy = async () => {
     clearTimeout(resetTimer.current)
+    try {
+      await navigator.clipboard.writeText(text)
+      setState('copied')
+      onCopy?.()
+    } catch {
+      setState('failed')
+    }
+    setOpen(true)
     resetTimer.current = setTimeout(() => {
-      setCopied(false)
+      setState('idle')
       setOpen(false)
-    }, 1400)
+    }, RESET_DELAY_MS)
   }
 
   return (
-    <CopyButtonContext.Provider value={{copied}}>
+    <CopyButtonContext.Provider value={{state}}>
       <TooltipProvider delayDuration={250}>
-        <Tooltip open={copied || open} onOpenChange={setOpen}>
-          <span onClick={copy} className="contents">
+        <Tooltip open={state !== 'idle' || open} onOpenChange={setOpen}>
+          <span onClick={() => void copy()} className="contents">
             {children}
           </span>
         </Tooltip>
       </TooltipProvider>
+      <span role="status" aria-live="polite" className="sr-only">
+        {feedbackLabel(state)}
+      </span>
     </CopyButtonContext.Provider>
   )
 }
 
 function Trigger({label = 'Copy'}: {label?: string}) {
-  const {copied} = useCopyButton()
+  const {state} = useCopyButton()
   return (
     <TooltipTrigger asChild>
       <button
         type="button"
         aria-label={label}
-        data-copied={copied}
-        className="group inline-grid size-7 place-items-center rounded-md border bg-background text-muted-foreground transition-[color,transform] duration-150 hover:text-foreground active:scale-[0.97]"
+        data-copied={state === 'copied'}
+        className="group inline-grid size-7 place-items-center rounded-md border bg-background text-muted-foreground transition-colors duration-150 hover:text-foreground"
       >
-        <Copy className="col-start-1 row-start-1 size-3.5 scale-100 opacity-100 transition-[transform,opacity] duration-200 group-data-[copied=true]:scale-50 group-data-[copied=true]:opacity-0" />
-        <Check className="col-start-1 row-start-1 size-3.5 scale-50 text-primary opacity-0 transition-[transform,opacity] duration-200 group-data-[copied=true]:scale-100 group-data-[copied=true]:opacity-100" />
+        <Copy className="col-start-1 row-start-1 size-3.5 opacity-100 transition-opacity duration-150 group-data-[copied=true]:opacity-0" />
+        <Check className="col-start-1 row-start-1 size-3.5 text-primary opacity-0 transition-opacity duration-150 group-data-[copied=true]:opacity-100" />
       </button>
     </TooltipTrigger>
   )
 }
 
 function Feedback() {
-  const {copied} = useCopyButton()
+  const {state} = useCopyButton()
   return (
     <TooltipContent side="top" sideOffset={6}>
-      {copied ? 'Copied!' : 'Copy'}
+      {state === 'idle' ? 'Copy' : feedbackLabel(state)}
     </TooltipContent>
   )
 }

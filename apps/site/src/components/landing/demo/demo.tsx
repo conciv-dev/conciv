@@ -197,12 +197,8 @@ export function Demo() {
   const selectedModel = MODELS.find((option) => option.id === model.selected)
 
   return (
-    <div className="relative min-w-0" ref={scope}>
-      <div
-        className="pointer-events-none absolute -inset-3 -z-10 rounded-[28px] opacity-60 blur-2xl"
-        style={{background: 'radial-gradient(60% 60% at 70% 20%, var(--od-accent-soft), transparent)'}}
-      />
-      <Card className="gap-0 overflow-hidden p-0 shadow-xl">
+    <div className="relative flex h-full min-w-0 flex-col" ref={scope}>
+      <Card className="h-full gap-0 overflow-hidden rounded-none border-0 p-0 shadow-none ring-0">
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
           <SparkMark className="text-base text-primary" />
           <span className="text-[13.5px] font-semibold">conciv</span>
@@ -254,8 +250,9 @@ export function Demo() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:h-[460px] sm:grid-cols-2">
-          <div className="flex min-h-[19rem] flex-col border-b sm:min-h-0 sm:border-b-0 sm:border-r">
+        <div className="grid flex-1 grid-cols-1 overflow-hidden sm:grid-cols-[1fr_420px]">
+          <AppPreview picking={state.picking} onPick={onPick} />
+          <div className="flex min-h-[19rem] flex-col border-t sm:min-h-0 sm:border-t-0 sm:border-l">
             <Transcript
               messages={state.messages}
               hint={state.messages.length === 1 && !state.grabbed && !state.picking}
@@ -272,7 +269,6 @@ export function Demo() {
               grabRef={grabRef}
             />
           </div>
-          <AppPreview picking={state.picking} onPick={onPick} />
         </div>
       </Card>
 
