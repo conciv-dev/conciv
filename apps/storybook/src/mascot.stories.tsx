@@ -1,10 +1,10 @@
-import {createEffect, onCleanup, onMount, untrack, type JSX} from 'solid-js'
+import {createEffect, onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {createMascot, robotLayers, type MascotConfig, type MascotState} from '@conciv/mascot'
 
-const STAGE_SIZE_PX = 120
+const PRODUCT_FAB_STAGE_PX = 44
 
-const HEADROOM_PX = 140
+const HEADROOM_RATIO = 1.6
 
 const LAYER_STYLE: JSX.CSSProperties = {
   position: 'absolute',
@@ -17,22 +17,26 @@ const LAYER_STYLE: JSX.CSSProperties = {
 
 const layerStyle = (image: string): JSX.CSSProperties => ({...LAYER_STYLE, 'background-image': `url('${image}')`})
 
-const stageStyle: JSX.CSSProperties = {
+const stageStyle = (sizePx: number): JSX.CSSProperties => ({
   position: 'relative',
   display: 'block',
-  'inline-size': `${STAGE_SIZE_PX}px`,
-  'block-size': `${STAGE_SIZE_PX}px`,
-}
+  'inline-size': `${sizePx}px`,
+  'block-size': `${sizePx}px`,
+})
 
-const frameStyle: JSX.CSSProperties = {
+const frameStyle = (sizePx: number): JSX.CSSProperties => ({
   display: 'flex',
   'flex-direction': 'column',
   'align-items': 'center',
-  'padding-block-start': `${HEADROOM_PX}px`,
+  'padding-block-start': `${Math.round(sizePx * HEADROOM_RATIO)}px`,
   'padding-block-end': '24px',
-}
+})
 
-type StageProps = {state: MascotState; working: boolean; follow: boolean}
+type PoseApply = 'animate' | 'set'
+
+type StageProps = {state: MascotState; working: boolean; follow: boolean; stageSizePx: number}
+
+type PlaygroundProps = StageProps & {poseApply: PoseApply}
 
 function MascotStage(props: StageProps): JSX.Element {
   const config = (): MascotConfig => ({state: props.state, working: props.working, follow: props.follow})
@@ -52,10 +56,32 @@ function MascotStage(props: StageProps): JSX.Element {
   onCleanup(() => service.destroy())
 
   return (
-    <div ref={(element) => (stage = element)} style={stageStyle} role="img" aria-label="conciv robot mascot">
+    <div
+      ref={(element) => (stage = element)}
+      style={stageStyle(props.stageSizePx)}
+      role="img"
+      aria-label="conciv robot mascot"
+    >
       <div ref={(element) => (head = element)} style={layerStyle(robotLayers.head)} />
       <div ref={(element) => (eyes = element)} style={layerStyle(robotLayers.eyes)} />
       <div ref={(element) => (antenna = element)} style={layerStyle(robotLayers.antenna)} />
+    </div>
+  )
+}
+
+function MascotPlayground(props: PlaygroundProps): JSX.Element {
+  const registrationKey = () => `${props.stageSizePx}|${props.poseApply === 'set' ? props.state : 'animate'}`
+
+  return (
+    <div style={frameStyle(props.stageSizePx)}>
+      <Show keyed when={registrationKey()}>
+        <MascotStage
+          state={props.state}
+          working={props.working}
+          follow={props.follow}
+          stageSizePx={props.stageSizePx}
+        />
+      </Show>
     </div>
   )
 }
@@ -83,28 +109,55 @@ everything that happens while work is in flight: the antenna throb, the eye blin
 **Binary emitter** — the one effect shipped in phase 1. Five binary digits rise out of the antenna tip in two
 lanes, stay anchored to the tip as the antenna leans, and drain back into it when work stops.
 
+**Stage size** — the emitter is stage-relative. Every emitter distance (digit size, the two lane offsets, the
+digit placement, the rise) is the approved value multiplied by \`min(stageWidth, stageHeight) / 44\`, where
+44px is the widget FAB stage the values were approved against. Drag \`stageSizePx\` and the digits grow with
+the robot instead of staying 9px specks on a 320px stage. Rise duration, stagger and eases are timing, not
+geometry, so they never scale. At 44px the factor is exactly 1 and the output is the shipped FAB, unchanged.
+
+**Pose apply** — \`animate\` routes a \`state\` change through \`update()\`, which runs the pose transition.
+\`set\` routes it through the registration path instead: the parts are registered again, and registration
+always lands the pose instantly. Changing \`stageSizePx\` also re-registers, because the emitter reads its
+scale factor from the stage when it is created.
+
 **Reduced motion** — under \`prefers-reduced-motion: reduce\` poses are set instantly, follow never arms, and
-the activity overlay starts no timelines and no effects, so the emitter never appears.
+the activity overlay starts no timelines and no effects, so the emitter never appears. There is no control for
+it here: \`prefers-reduced-motion\` is a browser-level media query that page script cannot flip, and faking it
+in the story would demo the story rather than the core. Toggle it in the OS accessibility settings, or in the
+DevTools **Rendering** panel ("Emulate CSS prefers-reduced-motion"), then reload the story.
 `
 
-const meta: Meta<StageProps> = {
+const meta: Meta<PlaygroundProps> = {
   title: 'mascot/Core',
   tags: ['autodocs'],
   parameters: {docs: {description: {component: COMPONENT_DOCS}}},
-  args: {state: 'rest', working: false, follow: true},
+  args: {state: 'rest', working: false, follow: true, stageSizePx: 120, poseApply: 'animate'},
   argTypes: {
     state: {control: 'inline-radio', options: ['rest', 'awake'], description: 'Resting expression'},
     working: {control: 'boolean', description: 'Activity overlay: antenna throb, eye blink, binary emitter'},
     follow: {control: 'boolean', description: 'Pointer tracking, armed only while not working'},
+    stageSizePx: {
+      control: {type: 'range', min: PRODUCT_FAB_STAGE_PX, max: 320, step: 4},
+      description: 'Stage box size; the emitter scales relative to it (44px = the widget FAB)',
+    },
+    poseApply: {
+      control: 'inline-radio',
+      options: ['animate', 'set'],
+      description: 'Apply a state change through update() (animated) or through registration (instant)',
+    },
   },
 }
 export default meta
-type Story = StoryObj<StageProps>
+type Story = StoryObj<PlaygroundProps>
 
 export const Playground: Story = {
   render: (args) => (
-    <div style={frameStyle}>
-      <MascotStage state={args.state} working={args.working} follow={args.follow} />
-    </div>
+    <MascotPlayground
+      state={args.state}
+      working={args.working}
+      follow={args.follow}
+      stageSizePx={args.stageSizePx}
+      poseApply={args.poseApply}
+    />
   ),
 }
