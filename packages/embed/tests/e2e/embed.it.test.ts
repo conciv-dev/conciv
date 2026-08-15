@@ -7,6 +7,7 @@ import {
   freezeClock,
   holdFirstNavigationWrite,
   setNavigation,
+  untilNavigationHref,
   waitForNavigationWrite,
   waitForNavigationWriteCarrying,
 } from './helpers/navigation.js'
@@ -58,7 +59,6 @@ function observedPage(page: Page): Page {
 }
 
 async function openPage(page: Page): Promise<Page> {
-  observedPage(page)
   await page.goto(host.base, {waitUntil: 'domcontentloaded'})
   return page
 }
@@ -74,10 +74,8 @@ test.describe('embed boots the conciv app against a real core', () => {
   test('canonicalizes a restored panel route that carries a raw harness session id', async ({page}) => {
     const rawHarnessId = '43548fd1-0000-4220-acf0-014b10b5815f'
     expect(await setNavigation(kit, [{href: `/panel/${rawHarnessId}`}])).toBe(true)
-    observedPage(page)
-    const canonicalized = waitForNavigationWrite(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await canonicalized
+    await untilNavigationHref(kit, (href) => href.startsWith('/panel/conciv_'))
     expect(await currentHref(kit)).toMatch(/^\/panel\/conciv_/)
     const adopted = await kit.rpc.sessions.resolve({id: rawHarnessId})
     const persisted = await kit.rpc.navigation.get()
@@ -140,14 +138,15 @@ test.describe('embed boots the conciv app against a real core', () => {
     await expect(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
+    await untilNavigationHref(kit, (href) => href.includes('/terminal') && href.includes('open=true'))
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
     await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
-    const reopened = waitForNavigationWrite(page)
+    await untilNavigationHref(kit, (href) => !href.includes('open=true'))
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
     await expect(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
       timeout: 30_000,
     })
-    await reopened
+    await untilNavigationHref(kit, (href) => href.includes('open=true'))
     const persisted = await kit.rpc.navigation.get()
     expect(persisted?.entries.filter((entry) => entry.href.includes('/panel/'))).toHaveLength(1)
   })
@@ -156,9 +155,8 @@ test.describe('embed boots the conciv app against a real core', () => {
     test.setTimeout(180_000)
     const first = await openPage(page)
     await openPanel(first)
-    const switched = waitForNavigationWriteCarrying(first, '/terminal')
     await first.getByRole('tab', {name: 'Terminal'}).click()
-    await switched
+    await untilNavigationHref(kit, (href) => href.includes('/terminal'))
     expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
     await first.close()
     const second = await openPage(await context.newPage())
@@ -170,15 +168,12 @@ test.describe('embed boots the conciv app against a real core', () => {
 
   test('a reload after closing the panel boots shut', async ({page, context}) => {
     test.setTimeout(180_000)
-    const first = observedPage(page)
-    const opened = waitForNavigationWrite(first)
-    await first.goto(host.base, {waitUntil: 'domcontentloaded'})
+    const first = await openPage(page)
     await openPanel(first)
-    await opened
+    await untilNavigationHref(kit, (href) => href.includes('open=true'))
     expect(await currentHref(kit)).toContain('open=true')
-    const shut = waitForNavigationWrite(first)
     await first.getByRole('button', {name: 'Minimize conciv chat'}).click()
-    await shut
+    await untilNavigationHref(kit, (href) => !href.includes('open=true'))
     expect(await currentHref(kit)).not.toContain('open=true')
     await first.close()
     const second = await openPage(await context.newPage())
@@ -196,7 +191,6 @@ test.describe('embed boots the conciv app against a real core', () => {
 
   test('opening and closing the panel keeps the host page where the reader scrolled it', async ({page}) => {
     test.setTimeout(180_000)
-    observedPage(page)
     await page.goto(longHost.base, {waitUntil: 'domcontentloaded'})
     const heading = page.getByRole('heading', {name: HOST_HEADING})
     const headingTop = async () => (await heading.boundingBox())?.y ?? Number.NaN
@@ -371,7 +365,6 @@ test.describe('embed at a phone viewport', () => {
 test.describe('embed settings', () => {
   test('modal disabled renders no fab', async ({page}) => {
     const disabledHost = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"modal": false}'}))
-    observedPage(page)
     await page.goto(disabledHost.base, {waitUntil: 'domcontentloaded'})
     await page.getByRole('status').waitFor({state: 'attached', timeout: 15_000})
     expect(await page.getByRole('button', {name: 'Open conciv chat'}).count()).toBe(0)

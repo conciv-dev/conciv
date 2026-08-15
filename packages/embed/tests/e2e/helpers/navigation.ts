@@ -2,6 +2,7 @@ import type {Page, Route, WebSocketRoute} from '@playwright/test'
 import type {NavigationEntry} from '@conciv/protocol/chat-types'
 import {rpcObserverFor, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
 import {decodeRpcFrame} from '@conciv/extension-testkit/rpc-frames'
+import {until} from '@conciv/harness-testkit/until'
 import type {EmbedKit} from '../../helpers/boot.js'
 
 export const NAVIGATION_SET: readonly string[] = ['navigation', 'set']
@@ -23,6 +24,16 @@ export async function setNavigation(kit: EmbedKit, entries: NavigationEntry[], i
 export async function currentHref(kit: EmbedKit): Promise<string> {
   const persisted = await kit.rpc.navigation.get()
   return persisted?.entries[persisted.index]?.href ?? ''
+}
+
+export function untilNavigationHref(kit: EmbedKit, matches: (href: string) => boolean): Promise<void> {
+  return until(async () => matches(await currentHref(kit)), {hangGuardMs: 30_000, intervalMs: 100})
+}
+
+export async function panelSessionId(kit: EmbedKit): Promise<string> {
+  const persisted = await kit.rpc.navigation.get()
+  const panelEntry = persisted?.entries.find((entry) => entry.href.startsWith('/panel/'))
+  return (panelEntry?.href.split('/')[2] ?? '').split('?')[0] ?? ''
 }
 
 function isNavigationWriteUrl(url: URL): boolean {
