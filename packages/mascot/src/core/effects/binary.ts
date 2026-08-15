@@ -11,13 +11,28 @@ import {
   BINARY_EMITTER_RISE_DURATION_S,
   BINARY_EMITTER_RISE_PX,
   BINARY_EMITTER_STAGGER_S,
+  BINARY_EMITTER_TANGENT_OFFSET_DEG,
   ENTER_DURATION_S,
   ENTER_EASE,
 } from '../config.js'
-import type {EmitterAnchor} from '../path.js'
+import {
+  type CurveStyle,
+  type EmitterAnchor,
+  emitterCurvePoints,
+  type EmitterPoint,
+  measureEmitterRoom,
+  resolveCurveStyle,
+  stageViewportBounds,
+} from '../path.js'
 import {antennaTipAnchor} from '../tip-anchor.js'
 import {enterFromTip, exitIntoTip} from '../tip-transition.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
+
+export type BinaryEffectConfig = {curve: CurveStyle}
+
+type Rider = {element: HTMLElement; path: EmitterPoint[]}
+
+const DEFAULT_BINARY_CURVE: CurveStyle = 'straight'
 
 const DIGIT_INDEXES = Array.from({length: BINARY_EMITTER_DIGIT_COUNT}, (_, index) => index)
 
@@ -37,6 +52,13 @@ function createDigit(factor: number, index: number): HTMLElement {
   digit.textContent = isLeadingLane(index) ? '1' : '0'
   digit.style.cssText = `position:absolute;left:${left}px;top:${top}px`
   return digit
+}
+
+function createRider(factor: number, index: number): HTMLElement {
+  const rider = document.createElement('span')
+  rider.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0'
+  rider.append(createDigit(factor, index))
+  return rider
 }
 
 function createShell(tip: EmitterAnchor, factor: number): HTMLElement {
@@ -66,19 +88,68 @@ function createRiseTimeline(digits: HTMLElement[], factor: number): gsap.core.Ti
   )
 }
 
+const curveTravel = (path: EmitterPoint[]): gsap.TweenVars => ({
+  motionPath: {path, curviness: 0, autoRotate: BINARY_EMITTER_TANGENT_OFFSET_DEG},
+  duration: BINARY_EMITTER_RISE_DURATION_S,
+  ease: 'none',
+  repeat: -1,
+})
+
+const curveFade = (): gsap.TweenVars => ({
+  keyframes: {opacity: [0, 1, 1, 0], easeEach: 'none'},
+  duration: BINARY_EMITTER_RISE_DURATION_S,
+  ease: 'none',
+  repeat: -1,
+})
+
+function createCurveTimeline(riders: Rider[]): gsap.core.Timeline {
+  gsap.set(
+    riders.map((rider) => rider.element),
+    {opacity: 0},
+  )
+  const timeline = gsap.timeline()
+  riders.forEach((rider, index) => {
+    const beat = index * BINARY_EMITTER_STAGGER_S
+    timeline.to(rider.element, curveTravel(rider.path), beat)
+    timeline.to(rider.element, curveFade(), beat)
+  })
+  return timeline
+}
+
+function measuredRoom(context: EffectContext, factor: number) {
+  const {stage, antenna, skin} = context
+  const anchor = antennaTipAnchor(stage, antenna, skin)
+  return measureEmitterRoom({x: anchor.x / factor, y: anchor.y / factor}, stageViewportBounds(stage, factor))
+}
+
+function planRiders(context: EffectContext, factor: number, curve: CurveStyle, elements: HTMLElement[]): Rider[] {
+  const room = measuredRoom(context, factor)
+  const style = resolveCurveStyle(curve, room)
+  if (style === 'straight') return []
+  return elements.flatMap((element, index) => ({element, path: emitterCurvePoints(style, room, index, factor)}))
+}
+
 const returnToFull = (element: HTMLElement): gsap.core.Tween =>
   gsap.to(element, {scale: 1, opacity: 1, duration: ENTER_DURATION_S, ease: ENTER_EASE})
 
-function createBinaryEmitter(context: EffectContext, tip: EmitterAnchor): EffectHandle {
+function createBinaryEmitter(context: EffectContext, curve: CurveStyle): EffectHandle {
   const {host, antenna, skin} = context
   const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
-  const element = createShell(tip, factor)
-  const digits = DIGIT_INDEXES.map((index) => createDigit(factor, index))
-  element.append(...digits)
+  const element = createShell(antennaTipAnchor(host, antenna, skin), factor)
+  const curved = curve !== 'straight'
+  const elements = DIGIT_INDEXES.map((index) => (curved ? createRider(factor, index) : createDigit(factor, index)))
+  element.append(...elements)
   host.append(element)
-  const timeline = createRiseTimeline(digits, factor)
+  let timeline: gsap.core.Timeline | undefined = curved ? undefined : createRiseTimeline(elements, factor)
   let enter: gsap.core.Tween | undefined
   let exit: gsap.core.Tween | undefined
+
+  const rebuildCurve = () => {
+    if (!curved) return
+    timeline?.kill()
+    const riders = planRiders(context, factor, curve, elements)
+    timeline = riders.length === 0 ? createRiseTimeline(elements, factor) : createCurveTimeline(riders)
+  }
 
   const anchor = (next: EmitterAnchor) => {
     gsap.set(element, {left: next.x, top: next.y, autoRound: false})
@@ -89,13 +160,14 @@ function createBinaryEmitter(context: EffectContext, tip: EmitterAnchor): Effect
     exit = undefined
     enter?.kill()
     enter = undefined
-    timeline.kill()
+    timeline?.kill()
     element.remove()
   }
 
   const start = () => {
     exit?.kill()
     exit = undefined
+    rebuildCurve()
     enter = enter === undefined ? enterFromTip(element) : returnToFull(element)
   }
 
@@ -112,5 +184,9 @@ function createBinaryEmitter(context: EffectContext, tip: EmitterAnchor): Effect
   return {start, stop, remove, anchor}
 }
 
-export const binaryEffect: EffectMount = (context) =>
-  createBinaryEmitter(context, antennaTipAnchor(context.host, context.antenna, context.skin))
+export const binaryEffect: EffectMount = (context) => createBinaryEmitter(context, DEFAULT_BINARY_CURVE)
+
+export const configureBinaryEffect =
+  (config: BinaryEffectConfig): EffectMount =>
+  (context) =>
+    createBinaryEmitter(context, config.curve)

@@ -63,6 +63,7 @@ export const BINARY_EMITTER_STAGGER_S = 0.42
 export const BINARY_EMITTER_COLOR = 'var(--pw-accent, #e0218a)'
 export const BINARY_EMITTER_DIGIT_LEFT_PX = -4
 export const BINARY_EMITTER_DIGIT_TOP_PX = -12
+export const BINARY_EMITTER_TANGENT_OFFSET_DEG = 90
 
 export const TIP_SCALE = 0.2
 export const TIP_TRACK_DURATION_S = 0.45

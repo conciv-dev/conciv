@@ -21,8 +21,11 @@ const HARNESS_SCRIPT = `
 
   const DEFAULT_STAGE_SIZE_PX = 120
 
-  const stageStyle = (sizePx) =>
-    'position:absolute;left:560px;top:300px;display:block;width:' + sizePx + 'px;height:' + sizePx + 'px'
+  const DEFAULT_PLACEMENT = {left: 560, top: 300}
+
+  const stageStyle = (sizePx, placement) =>
+    'position:absolute;left:' + placement.left + 'px;top:' + placement.top + 'px;display:block;width:' +
+    sizePx + 'px;height:' + sizePx + 'px'
 
   const makeLayer = (image, insetPx) => {
     const layer = document.createElement('div')
@@ -30,9 +33,9 @@ const HARNESS_SCRIPT = `
     return layer
   }
 
-  const buildStage = (sizePx = DEFAULT_STAGE_SIZE_PX, layerInsetPx = 0) => {
+  const buildStage = (sizePx = DEFAULT_STAGE_SIZE_PX, layerInsetPx = 0, placement = DEFAULT_PLACEMENT) => {
     const root = document.createElement('div')
-    root.style.cssText = stageStyle(sizePx)
+    root.style.cssText = stageStyle(sizePx, placement)
     const head = makeLayer(mascot.robotLayers.head, layerInsetPx)
     const eyes = makeLayer(mascot.robotLayers.eyes, layerInsetPx)
     const antenna = makeLayer(mascot.robotLayers.antenna, layerInsetPx)
@@ -43,7 +46,7 @@ const HARNESS_SCRIPT = `
 
   const buildBareStage = (sizePx = DEFAULT_STAGE_SIZE_PX) => {
     const root = document.createElement('div')
-    root.style.cssText = stageStyle(sizePx)
+    root.style.cssText = stageStyle(sizePx, DEFAULT_PLACEMENT)
     document.body.append(root)
     return root
   }
@@ -287,7 +290,7 @@ export const harnessPage = (): string =>
     <meta charset="utf-8" />
     <title>@conciv/mascot behavior harness</title>
     <style>html,body{margin:0;height:100%;background:#101014}</style>
-    <script type="importmap">{"imports":{"gsap":"/gsap/index.js"}}</script>
+    <script type="importmap">{"imports":{"gsap":"/gsap/index.js","gsap/MotionPathPlugin":"/gsap/MotionPathPlugin.js"}}</script>
   </head><body>
     <script type="module">${HARNESS_SCRIPT}</script>
   </body></html>`

@@ -1,5 +1,5 @@
 import type {FollowChannels, MascotConfig, MascotFollow, MascotState} from './core/config.js'
-import {binaryEffect} from './core/effects/binary.js'
+import {type BinaryEffectConfig, binaryEffect, configureBinaryEffect} from './core/effects/binary.js'
 import type {EffectContext, EffectHandle, EffectMount} from './core/effects/effect.js'
 import {
   createMascot,
@@ -9,11 +9,14 @@ import {
   type MascotParts,
   type MascotService,
 } from './core/mascot.js'
+import type {CurveStyle} from './core/path.js'
 import {type MascotSkin, robotSkin} from './core/skin.js'
 
 export {robotLayers} from './layers.gen.js'
-export {binaryEffect, createMascot, robotSkin}
+export {binaryEffect, configureBinaryEffect, createMascot, robotSkin}
 export type {
+  BinaryEffectConfig,
+  CurveStyle,
   EffectContext,
   EffectHandle,
   EffectMount,

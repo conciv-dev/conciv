@@ -18,6 +18,9 @@
     "dist"
   ],
   "type": "module",
+  "sideEffects": [
+    "./dist/rig.js"
+  ],
   "exports": {
     ".": {
       "types": "./dist/rig.d.ts",

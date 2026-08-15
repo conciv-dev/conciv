@@ -1,10 +1,18 @@
 import {createEffect, onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {binaryEffect, createMascot, robotLayers, type MascotConfig, type MascotFollow, type MascotState} from './rig.js'
+import {
+  configureBinaryEffect,
+  createMascot,
+  robotLayers,
+  type CurveStyle,
+  type MascotConfig,
+  type MascotFollow,
+  type MascotState,
+} from './rig.js'
 
 const PRODUCT_FAB_ANTENNA_PX = 44
 
-const HEADROOM_RATIO = 1.6
+const DEFAULT_HEADROOM_PX = 192
 
 const LAYER_STYLE: JSX.CSSProperties = {
   position: 'absolute',
@@ -24,11 +32,11 @@ const stageStyle = (sizePx: number): JSX.CSSProperties => ({
   'block-size': `${sizePx}px`,
 })
 
-const frameStyle = (sizePx: number): JSX.CSSProperties => ({
+const frameStyle = (headroomPx: number): JSX.CSSProperties => ({
   display: 'flex',
   'flex-direction': 'column',
   'align-items': 'center',
-  'padding-block-start': `${Math.round(sizePx * HEADROOM_RATIO)}px`,
+  'padding-block-start': `${headroomPx}px`,
   'padding-block-end': '24px',
 })
 
@@ -43,9 +51,9 @@ const FOLLOW_MODES: Record<FollowMode, MascotFollow> = {
   none: false,
 }
 
-type StageProps = {state: MascotState; working: boolean; follow: FollowMode; stageSizePx: number}
+type StageProps = {state: MascotState; working: boolean; follow: FollowMode; stageSizePx: number; curve: CurveStyle}
 
-type PlaygroundProps = StageProps & {poseApply: PoseApply}
+type PlaygroundProps = StageProps & {poseApply: PoseApply; headroomPx: number}
 
 function MascotStage(props: StageProps): JSX.Element {
   const config = (): MascotConfig => ({
@@ -62,8 +70,9 @@ function MascotStage(props: StageProps): JSX.Element {
   onMount(() => {
     if (stage === undefined || head === undefined || eyes === undefined || antenna === undefined) return
     service.registerParts({stage, head, eyes, antenna})
-    service.mountEffect('binary', binaryEffect)
   })
+
+  createEffect(() => service.mountEffect('binary', configureBinaryEffect({curve: props.curve})))
 
   createEffect(() => service.update(config()))
 
@@ -84,16 +93,18 @@ function MascotStage(props: StageProps): JSX.Element {
 }
 
 function MascotPlayground(props: PlaygroundProps): JSX.Element {
-  const registrationKey = () => `${props.stageSizePx}|${props.poseApply === 'set' ? props.state : 'animate'}`
+  const registrationKey = () =>
+    `${props.stageSizePx}|${props.headroomPx}|${props.poseApply === 'set' ? props.state : 'animate'}`
 
   return (
-    <div style={frameStyle(props.stageSizePx)}>
+    <div style={frameStyle(props.headroomPx)}>
       <Show keyed when={registrationKey()}>
         <MascotStage
           state={props.state}
           working={props.working}
           follow={props.follow}
           stageSizePx={props.stageSizePx}
+          curve={props.curve}
         />
       </Show>
     </div>
@@ -133,6 +144,27 @@ to ride the antenna tip exposes an optional \`anchor(tip)\`; un-anchored effects
 digits rise out of the antenna tip in two lanes, stay anchored to the tip as the antenna leans, and drain back
 into it when work stops.
 
+**Effect config** — an effect carries its own configuration; the core never learns about it. \`binaryEffect\` is
+the bare default mount, and \`configureBinaryEffect({curve})\` returns an \`EffectMount\` closed over the
+configuration you picked. \`mountEffect(id, mount)\` takes either one, so \`mountEffect\`'s signature never grows
+a config argument and every future effect follows the same two-export shape.
+
+**Curve** — \`curve\` picks the path the digits ride out of the tip. \`straight\` is the default and the shipped
+FAB behavior: a plain vertical rise, unchanged. \`arc\` leaves the tip along the antenna axis and eases into the
+open side, \`hook\` climbs the axis, turns a corner and runs sideways, and \`fan\` gives every digit its own lane
+so the five spread apart. \`auto\` measures instead of guessing: the gap between the antenna tip and the
+viewport decides, so a robot with room above rises straight and a robot squeezed against the top bends toward
+whichever side has more room. Every curved digit tilts with its tangent, and every curve leaves the tip
+vertically, so the launch looks the same whichever style is running. The room is measured in stage-local
+coordinates once per emitter start, not live on scroll or resize, and the whole curve scales with the same
+antenna factor as the rest of the emitter.
+
+**Headroom** — a curve only bends when the room says it must, so with space above the robot every style
+degrades to the plain vertical rise. Drag \`headroomPx\` down with \`working\` on to squeeze the emitter against
+the top of the frame and watch the curves appear, \`auto\` flip from straight to bent, and the bend follow
+whichever side has more room. The measurement happens when the emitter starts, so changing the headroom
+re-registers the stage rather than bending a curve that is already in flight.
+
 **Skin** — every art-coupled value (layer images, transform origins, the antenna origin and tip fractions, the
 awake eye scale, the emitter's reference antenna size) lives in one \`MascotSkin\`, defaulting to
 \`robotSkin\`. Motion timing and eases are behavior, not art, so they stay in the core.
@@ -161,7 +193,15 @@ const meta: Meta<PlaygroundProps> = {
   title: 'mascot/Core',
   tags: ['autodocs'],
   parameters: {docs: {description: {component: COMPONENT_DOCS}}},
-  args: {state: 'rest', working: false, follow: 'both', stageSizePx: 120, poseApply: 'animate'},
+  args: {
+    state: 'rest',
+    working: false,
+    follow: 'both',
+    stageSizePx: 120,
+    poseApply: 'animate',
+    curve: 'straight',
+    headroomPx: DEFAULT_HEADROOM_PX,
+  },
   argTypes: {
     state: {control: 'inline-radio', options: ['rest', 'awake'], description: 'Resting expression'},
     working: {
@@ -176,6 +216,15 @@ const meta: Meta<PlaygroundProps> = {
     stageSizePx: {
       control: {type: 'range', min: PRODUCT_FAB_ANTENNA_PX, max: 320, step: 4},
       description: 'Stage box size; the layers fill it, so the emitter scales with it (44px = the widget FAB)',
+    },
+    curve: {
+      control: 'inline-radio',
+      options: ['straight', 'arc', 'hook', 'fan', 'auto'],
+      description: 'The path the emitter digits ride out of the antenna tip',
+    },
+    headroomPx: {
+      control: {type: 'range', min: 0, max: 320, step: 8},
+      description: 'Space above the robot; shrink it to squeeze the emitter and watch the curves bend',
     },
     poseApply: {
       control: 'inline-radio',
@@ -195,6 +244,8 @@ export const Playground: Story = {
       follow={args.follow}
       stageSizePx={args.stageSizePx}
       poseApply={args.poseApply}
+      curve={args.curve}
+      headroomPx={args.headroomPx}
     />
   ),
 }

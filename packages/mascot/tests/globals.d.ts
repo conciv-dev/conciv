@@ -1,5 +1,5 @@
 import type * as MascotModule from '../src/rig.js'
-import type {StageParts, StagePoint} from './e2e/helpers/mascot-stage.js'
+import type {StagePlacement, StageParts, StagePoint} from './e2e/helpers/mascot-stage.js'
 
 type Summary = {min: number; max: number; last: number}
 
@@ -11,7 +11,7 @@ type EffectTotals = {starts: number; stops: number; removes: number; live: numbe
 
 type MascotHarness = {
   mascot: typeof MascotModule
-  buildStage: (sizePx?: number, layerInsetPx?: number) => StageParts
+  buildStage: (sizePx?: number, layerInsetPx?: number, placement?: StagePlacement) => StageParts
   buildBareStage: (sizePx?: number) => HTMLElement
   applyStyle: (element: HTMLElement, style: Record<string, string>) => HTMLElement
   leanWrappers: () => HTMLElement[]

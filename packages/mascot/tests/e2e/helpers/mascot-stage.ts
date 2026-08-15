@@ -3,7 +3,7 @@ import {createRequire} from 'node:module'
 import {dirname, join, normalize} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {expect, type Page, type Route} from '@playwright/test'
-import type {MascotConfig} from '../../../src/rig.js'
+import type {CurveStyle, MascotConfig} from '../../../src/rig.js'
 import {harnessPage} from './harness-page.js'
 
 export type StagePoint = {x: number; y: number}
@@ -95,6 +95,29 @@ function buildStage(
       return harness.stageCenter(parts.root)
     },
     [config, withBinary, stageSizePx, layerInsetPx] as const,
+  )
+}
+
+export type StagePlacement = {left: number; top: number}
+
+export function buildCurvedService(
+  page: Page,
+  config: MascotConfig,
+  curve: CurveStyle,
+  placement: StagePlacement,
+  stageSizePx: number,
+): Promise<StagePoint> {
+  return page.evaluate(
+    ([initial, style, spot, sizePx]) => {
+      const harness = window.mascotHarness
+      const parts = harness.buildStage(sizePx, 0, spot)
+      window.parts = parts
+      window.service = harness.mascot.createMascot(initial)
+      window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
+      window.service.mountEffect('binary', harness.mascot.configureBinaryEffect({curve: style}))
+      return harness.stageCenter(parts.root)
+    },
+    [config, curve, placement, stageSizePx] as const,
   )
 }
 
