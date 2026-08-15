@@ -3,7 +3,7 @@ import {
   GRAB_MIME,
   grabToFile,
   grabToPayload,
-  MAX_PAYLOAD_BYTES,
+  imagePreviewBudget,
   parseGrabPayload,
   type GrabPayload,
 } from '@conciv/grab/grab-attachment'
@@ -49,8 +49,9 @@ function isGrabAttachment(attachment: AttachmentState): boolean {
 }
 
 async function fitted(grab: Grab): Promise<Grab> {
-  if (grab.preview.kind !== 'image') return grab
-  return {...grab, preview: await fitImagePreview(grab.preview, MAX_PAYLOAD_BYTES)}
+  const preview = grab.preview
+  if (preview.kind !== 'image') return grab
+  return {...grab, preview: await fitImagePreview(preview, imagePreviewBudget(grab, preview))}
 }
 
 export function makeGrabStaging(deps: Deps): GrabStaging {
@@ -70,13 +71,25 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
     setPending((current) => current.filter((candidate) => candidate !== entry))
   }
 
+  const isLive = (entry: StagedEntry, composer: ComposerGrabPort): boolean =>
+    port() === composer && pending().includes(entry)
+
   const putOnComposer = async (entry: StagedEntry, composer: ComposerGrabPort): Promise<void> => {
-    const prepared = await fitted(entry.grounded ?? entry.grab)
-    const id = await composer.addAttachment(grabToFile(prepared))
-    entry.id = id
-    if (id) remember(id, grabToPayload(prepared))
-    if (entry.grounded === null) return
-    drop(entry)
+    try {
+      const prepared = await fitted(entry.grounded ?? entry.grab)
+      if (!isLive(entry, composer)) return
+      const id = await composer.addAttachment(grabToFile(prepared))
+      if (!isLive(entry, composer)) {
+        if (id) void composer.removeAttachment(id)
+        return
+      }
+      entry.id = id
+      if (id) remember(id, grabToPayload(prepared))
+      if (entry.grounded === null) return
+      drop(entry)
+    } finally {
+      if (entry.id === null) entry.placing = null
+    }
   }
 
   const ensureOnComposer = (entry: StagedEntry): Promise<void> => {
@@ -91,7 +104,12 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
     const composer = port()
     if (!composer || entry.id === null || entry.grounded === null) return
     const prepared = await fitted(entry.grounded)
+    if (!isLive(entry, composer)) return
     const replaced = await composer.replaceAttachment(entry.id, grabToFile(prepared))
+    if (!isLive(entry, composer)) {
+      if (replaced) void composer.removeAttachment(replaced)
+      return
+    }
     forget(entry.id)
     if (replaced) remember(replaced, grabToPayload(prepared))
     drop(entry)
@@ -107,14 +125,14 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
   }
 
   const placeThenGround = async (entry: StagedEntry): Promise<void> => {
-    await ensureOnComposer(entry)
+    await ensureOnComposer(entry).catch(() => {})
     await ground(entry)
   }
 
   const stage = (grab: Grab): void => {
     const entry: StagedEntry = {grab, id: null, grounded: null, placing: null}
     setPending((current) => [...current, entry])
-    void placeThenGround(entry)
+    void placeThenGround(entry).catch(() => {})
   }
 
   const staged = (): readonly Grab[] => {
@@ -155,7 +173,8 @@ export function makeGrabStaging(deps: Deps): GrabStaging {
 
   const connect = (next: ComposerGrabPort): void => {
     setPort(() => next)
-    for (const entry of pending().filter((candidate) => candidate.id === null)) void ensureOnComposer(entry)
+    for (const entry of pending().filter((candidate) => candidate.id === null))
+      void ensureOnComposer(entry).catch(() => {})
   }
 
   const disconnect = (): void => {

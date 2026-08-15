@@ -15,11 +15,24 @@ const GRAB: Grab = {
 
 const GROUNDED: Grab = {...GRAB, text: '<h1>Payroll Deposit</h1> at src/routes/hero.tsx:4:1'}
 
-type FakeComposer = ComposerGrabPort & {list: () => AttachmentState[]; nextAdd: () => Promise<AttachmentState>}
+type FakeComposer = ComposerGrabPort & {
+  list: () => AttachmentState[]
+  nextAdd: () => Promise<AttachmentState>
+  nextRemove: () => Promise<string>
+  nextAddStart: () => Promise<void>
+  nextReplace: () => Promise<AttachmentState>
+  holdAdds: () => () => void
+  failNextAdd: () => void
+}
 
 function fakeComposer(): FakeComposer {
   const entries: AttachmentState[] = []
   const addWaiters: ((attachment: AttachmentState) => void)[] = []
+  const removeWaiters: ((id: string) => void)[] = []
+  const startWaiters: (() => void)[] = []
+  const replaceWaiters: ((attachment: AttachmentState) => void)[] = []
+  const gate: {open: Promise<void> | null; release: () => void} = {open: null, release: () => {}}
+  const failure = {pending: 0}
   let nextId = 0
   const entryFor = (id: string, file: File): AttachmentState => ({
     id,
@@ -32,9 +45,30 @@ function fakeComposer(): FakeComposer {
   return {
     list: () => entries,
     nextAdd: () => new Promise<AttachmentState>((resolve) => addWaiters.push(resolve)),
+    nextRemove: () => new Promise<string>((resolve) => removeWaiters.push(resolve)),
+    nextAddStart: () => new Promise<void>((resolve) => startWaiters.push(resolve)),
+    nextReplace: () => new Promise<AttachmentState>((resolve) => replaceWaiters.push(resolve)),
+    holdAdds: () => {
+      gate.open = new Promise<void>((resolve) => {
+        gate.release = resolve
+      })
+      return () => {
+        gate.open = null
+        gate.release()
+      }
+    },
+    failNextAdd: () => {
+      failure.pending += 1
+    },
     attachments: () => entries,
     hasAttachment: (id) => entries.some((entry) => entry.id === id),
     addAttachment: async (file) => {
+      startWaiters.splice(0).forEach((resolve) => resolve())
+      if (failure.pending > 0) {
+        failure.pending -= 1
+        throw new Error('the adapter refused the attachment')
+      }
+      if (gate.open) await gate.open
       nextId += 1
       const id = `attachment-${nextId}`
       const added = entryFor(id, file)
@@ -47,12 +81,15 @@ function fakeComposer(): FakeComposer {
       if (position < 0) return null
       nextId += 1
       const next = `attachment-${nextId}`
-      entries.splice(position, 1, entryFor(next, file))
+      const swapped = entryFor(next, file)
+      entries.splice(position, 1, swapped)
+      replaceWaiters.splice(0).forEach((resolve) => resolve(swapped))
       return next
     },
     removeAttachment: async (id) => {
       const position = entries.findIndex((entry) => entry.id === id)
       if (position >= 0) entries.splice(position, 1)
+      removeWaiters.splice(0).forEach((resolve) => resolve(id))
     },
   }
 }
@@ -100,17 +137,14 @@ function neverGrounds(): Promise<Grab | null> {
   return Promise.resolve(null)
 }
 
-async function settled(): Promise<void> {
-  for (let turn = 0; turn < 12; turn += 1) await Promise.resolve()
-}
-
 it('attaches optimistically and replaces the payload once grounding resolves', async () => {
   const composer = fakeComposer()
   const staging = makeGrabStaging({ground: async () => GROUNDED})
   staging.connect(composer)
+  const replaced = composer.nextReplace()
 
   staging.stage(GRAB)
-  await settled()
+  await replaced
 
   expect(composer.list()).toHaveLength(1)
   expect(await grabTextOf(composer.list()[0] ?? never())).toBe(GROUNDED.text)
@@ -120,9 +154,10 @@ it('keeps the optimistic attachment when grounding yields nothing', async () => 
   const composer = fakeComposer()
   const staging = makeGrabStaging({ground: neverGrounds})
   staging.connect(composer)
+  const added = composer.nextAdd()
 
   staging.stage(GRAB)
-  await settled()
+  await added
 
   expect(composer.list()).toHaveLength(1)
   expect(await grabTextOf(composer.list()[0] ?? never())).toBe(GRAB.text)
@@ -133,12 +168,12 @@ it('attaches a grab staged before the composer connected, carrying its grounded 
   const staging = makeGrabStaging({ground: async () => GROUNDED})
 
   staging.stage(GRAB)
-  await settled()
+  expect(await stagedWhen(staging, 1)).toHaveLength(1)
   expect(composer.list()).toHaveLength(0)
-  expect(staging.staged().map((grab) => grab.text)).toEqual([GROUNDED.text])
 
+  const added = composer.nextAdd()
   staging.connect(composer)
-  await settled()
+  await added
 
   expect(composer.list()).toHaveLength(1)
   expect(await grabTextOf(composer.list()[0] ?? never())).toBe(GROUNDED.text)
@@ -149,9 +184,11 @@ it('attaches a grab staged before the composer connected even when grounding yie
   const staging = makeGrabStaging({ground: neverGrounds})
 
   staging.stage(GRAB)
-  await settled()
+  expect(await stagedWhen(staging, 1)).toHaveLength(1)
+
+  const added = composer.nextAdd()
   staging.connect(composer)
-  await settled()
+  await added
 
   expect(composer.list()).toHaveLength(1)
   expect(await grabTextOf(composer.list()[0] ?? never())).toBe(GRAB.text)
@@ -168,7 +205,7 @@ it('reports a staged grab reactively once its payload is known', async () => {
   })
 
   staging.stage(GRAB)
-  await settled()
+  await stagedWhen(staging, 1)
 
   expect(seen.at(-1)).toBe(1)
   dispose()
@@ -179,11 +216,13 @@ it('clears only the grab attachments', async () => {
   const staging = makeGrabStaging({ground: neverGrounds})
   staging.connect(composer)
   await composer.addAttachment(new File(['hello'], 'notes.txt', {type: 'text/plain'}))
+  const added = composer.nextAdd()
   staging.stage(GRAB)
-  await settled()
+  await added
 
+  const removed = composer.nextRemove()
   staging.clear()
-  await settled()
+  await removed
 
   expect(composer.list().map((entry) => entry.name)).toEqual(['notes.txt'])
   expect(staging.staged()).toHaveLength(0)
@@ -217,7 +256,6 @@ it('does not hydrate a payload whose attachment was removed while it decoded', a
   staging.reconcile(composer.attachments())
   await composer.removeAttachment(restored)
   await body.text()
-  await settled()
 
   expect(staging.staged()).toHaveLength(0)
 })
@@ -243,10 +281,12 @@ it('fits an oversized image preview into the payload budget instead of dropping 
 
 it('stages through a port that arrives and leaves again', async () => {
   const composer = fakeComposer()
-  const staging: GrabStaging = makeGrabStaging({ground: neverGrounds})
+  const staging: GrabStaging = makeGrabStaging({ground: async () => GROUNDED})
   staging.connect(composer)
+  const replaced = composer.nextReplace()
   staging.stage(GRAB)
-  await settled()
+  await replaced
+  await stagedWhen(staging, 1)
 
   staging.disconnect()
 
@@ -258,3 +298,73 @@ it('stages through a port that arrives and leaves again', async () => {
 function never(): never {
   throw new Error('expected an attachment')
 }
+
+it('a clear while a placement is in flight does not put the grab back on the composer', async () => {
+  const composer = fakeComposer()
+  const release = composer.holdAdds()
+  const staging = makeGrabStaging({ground: neverGrounds})
+  staging.connect(composer)
+  const started = composer.nextAddStart()
+
+  staging.stage(GRAB)
+  await started
+  const added = composer.nextAdd()
+  const removed = composer.nextRemove()
+  staging.clear()
+  release()
+  await added
+  await removed
+
+  expect(composer.list()).toHaveLength(0)
+  expect(staging.staged()).toHaveLength(0)
+})
+
+it('a placement that lands after disconnect is redirected to the composer connected next', async () => {
+  const first = fakeComposer()
+  const second = fakeComposer()
+  const release = first.holdAdds()
+  const staging = makeGrabStaging({ground: neverGrounds})
+  staging.connect(first)
+  const started = first.nextAddStart()
+
+  staging.stage(GRAB)
+  await started
+  const firstAdded = first.nextAdd()
+  const firstRemoved = first.nextRemove()
+  staging.disconnect()
+  release()
+  await firstAdded
+  await firstRemoved
+
+  const secondAdded = second.nextAdd()
+  staging.connect(second)
+  await secondAdded
+
+  expect(first.list()).toHaveLength(0)
+  expect(second.list()).toHaveLength(1)
+})
+
+it('a grab whose placement fails can still be placed on the next connection', async () => {
+  const composer = fakeComposer()
+  composer.failNextAdd()
+  const grounding: {reached: () => void} = {reached: () => {}}
+  const groundingReached = new Promise<void>((resolve) => {
+    grounding.reached = resolve
+  })
+  const staging = makeGrabStaging({
+    ground: async () => {
+      grounding.reached()
+      return null
+    },
+  })
+  staging.connect(composer)
+
+  staging.stage(GRAB)
+  await groundingReached
+
+  const added = composer.nextAdd()
+  staging.connect(composer)
+  await added
+
+  expect(composer.list()).toHaveLength(1)
+})
