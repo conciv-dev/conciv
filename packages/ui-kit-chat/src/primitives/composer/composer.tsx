@@ -175,7 +175,7 @@ function pastedFiles(event: ClipboardEvent): File[] {
 async function addPastedFiles(
   event: ClipboardEvent,
   enabled: boolean | undefined,
-  add: (file: File) => Promise<void>,
+  add: (file: File) => Promise<unknown>,
 ): Promise<void> {
   if (!enabled) return
   await Promise.allSettled(pastedFiles(event).map((file) => add(file)))
@@ -206,11 +206,44 @@ function Root(props: FormProps): JSX.Element {
       return current.toSpliced(index, 1, attachment)
     })
   }
-  const addAttachment = async (file: File) => {
+  const addAttachment = async (file: File): Promise<string | null> => {
     const adapter = requireAttachmentAdapter(attachmentAdapter())
     assertAcceptedFile(file, adapter)
     const id = await addAdapterAttachment(adapter, file, upsertAttachment)
     if (id) removedIds.delete(id)
+    return id ?? null
+  }
+  const hasAttachment = (id: string): boolean => attachments().some((entry) => entry.id === id)
+  const replaceAttachment = async (id: string, file: File): Promise<string | null> => {
+    if (!hasAttachment(id)) return null
+    const adapter = requireAttachmentAdapter(attachmentAdapter())
+    assertAcceptedFile(file, adapter)
+    const staged: PendingAttachment[] = []
+    const collect = (attachment: PendingAttachment): void => {
+      const index = staged.findIndex((entry) => entry.id === attachment.id)
+      if (index < 0) staged.push(attachment)
+      if (index >= 0) staged.splice(index, 1, attachment)
+    }
+    const added = await addAdapterAttachment(adapter, file, collect).catch(async (error: unknown) => {
+      const orphan = staged.at(-1)
+      if (orphan) await removeAdapterAttachment(adapter, orphan).catch(() => {})
+      throw error
+    })
+    const replacement = staged.find((entry) => entry.id === added)
+    if (!added || !replacement) return null
+    const displaced = attachments().find((entry) => entry.id === id)
+    if (!displaced) {
+      await removeAdapterAttachment(adapter, replacement).catch(() => {})
+      return null
+    }
+    setState('attachments', (current) => {
+      const position = current.findIndex((entry) => entry.id === id)
+      if (position < 0) return current
+      return current.toSpliced(position, 1, replacement)
+    })
+    removedIds.add(id)
+    await removeAdapterAttachment(adapter, displaced).catch(() => {})
+    return added
   }
   const removeAttachment = async (id: string) => {
     const attachment = requireAttachment(attachments(), id)
@@ -294,6 +327,8 @@ function Root(props: FormProps): JSX.Element {
         attachments,
         attachmentAdapter,
         addAttachment,
+        hasAttachment,
+        replaceAttachment,
         removeAttachment,
         sendingAttachments: () => state.sendingAttachments,
         snapshotDraft,

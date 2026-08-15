@@ -101,7 +101,7 @@ function grabTexts(grabs: ReadonlyArray<StagedGrab>): string[] {
 }
 
 type ComposerApi = {
-  addAttachment: (file: File) => Promise<void>
+  addAttachment: (file: File) => Promise<string | null>
 }
 
 function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Element {

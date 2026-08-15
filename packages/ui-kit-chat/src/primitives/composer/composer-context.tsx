@@ -6,7 +6,9 @@ export type ComposerDraft = {draft: string; attachments: Attachment[]; quote: st
 export type ComposerContextValue = {
   attachments: Accessor<Attachment[]>
   attachmentAdapter: Accessor<AttachmentAdapter | undefined>
-  addAttachment: (file: File) => Promise<void>
+  addAttachment: (file: File) => Promise<string | null>
+  hasAttachment: (id: string) => boolean
+  replaceAttachment: (id: string, file: File) => Promise<string | null>
   removeAttachment: (id: string) => Promise<void>
   sendingAttachments: Accessor<boolean>
   snapshotDraft: () => ComposerDraft

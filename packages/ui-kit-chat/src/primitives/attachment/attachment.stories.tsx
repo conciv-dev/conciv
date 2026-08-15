@@ -33,7 +33,9 @@ function Harness(): JSX.Element {
       value={{
         attachments,
         attachmentAdapter: () => undefined,
-        addAttachment: async () => {},
+        addAttachment: async () => null,
+        hasAttachment: () => false,
+        replaceAttachment: async () => null,
         removeAttachment: async (id) => {
           setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
         },
