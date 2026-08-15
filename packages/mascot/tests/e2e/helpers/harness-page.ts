@@ -19,7 +19,10 @@ const HARNESS_SCRIPT = `
     'position:absolute;inset:0;background-repeat:no-repeat;background-position:center;' +
     'background-size:contain;image-rendering:pixelated;will-change:transform'
 
-  const STAGE_STYLE = 'position:absolute;left:560px;top:300px;width:120px;height:120px;display:block'
+  const DEFAULT_STAGE_SIZE_PX = 120
+
+  const stageStyle = (sizePx) =>
+    'position:absolute;left:560px;top:300px;display:block;width:' + sizePx + 'px;height:' + sizePx + 'px'
 
   const makeLayer = (image) => {
     const layer = document.createElement('div')
@@ -27,9 +30,9 @@ const HARNESS_SCRIPT = `
     return layer
   }
 
-  const buildStage = () => {
+  const buildStage = (sizePx = DEFAULT_STAGE_SIZE_PX) => {
     const root = document.createElement('div')
-    root.style.cssText = STAGE_STYLE
+    root.style.cssText = stageStyle(sizePx)
     const head = makeLayer(mascot.robotLayers.head)
     const eyes = makeLayer(mascot.robotLayers.eyes)
     const antenna = makeLayer(mascot.robotLayers.antenna)
@@ -38,9 +41,9 @@ const HARNESS_SCRIPT = `
     return {root, head, eyes, antenna}
   }
 
-  const buildBareStage = () => {
+  const buildBareStage = (sizePx = DEFAULT_STAGE_SIZE_PX) => {
     const root = document.createElement('div')
-    root.style.cssText = STAGE_STYLE
+    root.style.cssText = stageStyle(sizePx)
     document.body.append(root)
     return root
   }
@@ -66,6 +69,18 @@ const HARNESS_SCRIPT = `
     const emitter = emitters()[0]
     if (emitter === undefined) throw new Error('no binary emitter is mounted')
     return emitter
+  }
+
+  const requireLeanWrapper = () => {
+    const wrapper = leanWrappers()[0]
+    if (wrapper === undefined) throw new Error('no lean wrapper is mounted')
+    return wrapper
+  }
+
+  const requireDigit = (emitter, index) => {
+    const digit = emitter.children[index]
+    if (!(digit instanceof HTMLElement)) throw new Error('the emitter has no digit at index ' + index)
+    return digit
   }
 
   const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
@@ -119,6 +134,13 @@ const HARNESS_SCRIPT = `
 
   const anchorOf = (element) => ({left: parseFloat(element.style.left), top: parseFloat(element.style.top)})
 
+  const emitterGeometry = (emitter) => ({
+    fontSizePx: parseFloat(emitter.style.fontSize),
+    leadingLeft: parseFloat(requireDigit(emitter, 0).style.left),
+    trailingLeft: parseFloat(requireDigit(emitter, 1).style.left),
+    top: parseFloat(requireDigit(emitter, 0).style.top),
+  })
+
   const repeatingTimeline = () =>
     gsap.globalTimeline.getChildren(false, false, true).find((child) => child.repeat() === -1)
 
@@ -130,6 +152,9 @@ const HARNESS_SCRIPT = `
     leanWrappers,
     emitters,
     requireEmitter,
+    requireLeanWrapper,
+    requireDigit,
+    emitterGeometry,
     wait,
     nextFrame,
     sampleFrames,

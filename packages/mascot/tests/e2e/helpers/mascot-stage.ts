@@ -73,15 +73,18 @@ export function buildLegacyRig(page: Page): Promise<StagePoint> {
   })
 }
 
-export function buildService(page: Page, config: MascotConfig): Promise<StagePoint> {
-  return page.evaluate((initial) => {
-    const harness = window.mascotHarness
-    const parts = harness.buildStage()
-    window.parts = parts
-    window.service = harness.mascot.createMascot(initial)
-    window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
-    return harness.stageCenter(parts.root)
-  }, config)
+export function buildService(page: Page, config: MascotConfig, stageSizePx?: number): Promise<StagePoint> {
+  return page.evaluate(
+    ([initial, sizePx]) => {
+      const harness = window.mascotHarness
+      const parts = harness.buildStage(sizePx)
+      window.parts = parts
+      window.service = harness.mascot.createMascot(initial)
+      window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
+      return harness.stageCenter(parts.root)
+    },
+    [config, stageSizePx] as const,
+  )
 }
 
 export type Gaze = {eyesX: number; eyesY: number; lean: number}
@@ -97,3 +100,24 @@ export function readGaze(page: Page): Promise<Gaze> {
 export type StageSize = {width: number; height: number}
 
 export const restTip = (stage: StageSize): StagePoint => ({x: stage.width * 0.5, y: stage.height * 0.15625})
+
+export type EmitterGeometryExpectation = {
+  fontSizePx: number
+  leadingLeft: number
+  trailingLeft: number
+  top: number
+  risePx: number
+}
+
+export const PRODUCT_FAB_STAGE_PX = 44
+
+export function expectedEmitterGeometry(stageSizePx: number): EmitterGeometryExpectation {
+  const factor = stageSizePx / PRODUCT_FAB_STAGE_PX
+  return {
+    fontSizePx: 9 * factor,
+    leadingLeft: (-4 + 3) * factor,
+    trailingLeft: (-4 - 3) * factor,
+    top: -12 * factor,
+    risePx: -54 * factor,
+  }
+}

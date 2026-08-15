@@ -46,7 +46,7 @@ test('connect() hands back stable refs and rebinding never duplicates the rig', 
     service.update({state: 'rest', working: true, follow: false})
     await harness.wait(900)
     const emitterBefore = harness.requireEmitter()
-    const wrapperBefore = harness.leanWrappers()[0]
+    const wrapperBefore = harness.requireLeanWrapper()
     const rebound = service.connect()
     rebound.getRootProps().ref(parts.root)
     rebound.getHeadProps().ref(parts.head)
@@ -57,7 +57,7 @@ test('connect() hands back stable refs and rebinding never duplicates the rig', 
       sameGetterTwice,
       sameAcrossConnectCalls,
       sameEmitterNode: harness.emitters()[0] === emitterBefore,
-      sameWrapperNode: harness.leanWrappers()[0] === wrapperBefore,
+      sameWrapperNode: harness.requireLeanWrapper() === wrapperBefore,
       emitters: harness.emitters().length,
       wrappers: harness.leanWrappers().length,
       antenna: harness.summarize(values),
@@ -95,7 +95,7 @@ test('registerParts is idempotent and re-homes the lean wrapper onto a replaceme
       wrappers: harness.leanWrappers().length,
       listeners: window.pointerMoveListenerCount,
       oldAntennaRestored: antenna.parentElement === root,
-      newAntennaWrapped: harness.leanWrappers()[0] === replacement.parentElement,
+      newAntennaWrapped: harness.requireLeanWrapper() === replacement.parentElement,
     }
   })
 

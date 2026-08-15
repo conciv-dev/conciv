@@ -5,14 +5,19 @@ type Summary = {min: number; max: number; last: number}
 
 type Anchor = {left: number; top: number}
 
+type EmitterGeometry = {fontSizePx: number; leadingLeft: number; trailingLeft: number; top: number}
+
 type MascotHarness = {
   mascot: typeof MascotModule
-  buildStage: () => StageParts
-  buildBareStage: () => HTMLElement
+  buildStage: (sizePx?: number) => StageParts
+  buildBareStage: (sizePx?: number) => HTMLElement
   applyStyle: (element: HTMLElement, style: Record<string, string>) => HTMLElement
   leanWrappers: () => HTMLElement[]
   emitters: () => HTMLElement[]
   requireEmitter: () => HTMLElement
+  requireLeanWrapper: () => HTMLElement
+  requireDigit: (emitter: HTMLElement, index: number) => HTMLElement
+  emitterGeometry: (emitter: HTMLElement) => EmitterGeometry
   wait: (milliseconds: number) => Promise<void>
   nextFrame: () => Promise<number>
   sampleFrames: <T>(read: () => T, milliseconds: number) => Promise<T[]>
