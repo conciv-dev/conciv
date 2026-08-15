@@ -1,17 +1,19 @@
-import {afterEach, expect, test} from 'vitest'
+import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import type {GrabApi} from '@conciv/grab'
-import {HostApiProvider} from '@conciv/extension'
+import {HostApiProvider} from '@conciv/extension/host'
 import {ComposerActions} from '../src/composer/actions.js'
-import {installFakeCore, type FakeCore} from './helpers/fake-core.js'
-import {mountPane, PANE_SESSION} from './helpers/pane-harness.js'
+import {coreControl} from './helpers/core-control.js'
+import {coreRpc, createSession} from './helpers/core-session.js'
+import {mountPane, type PaneMount} from './helpers/pane-harness.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 
-let core: FakeCore | null = null
+const CONNECT_COMMAND_PATH = ['ext', 'terminal', 'connectCommand']
+const LAUNCH_PATH = ['ext', 'terminal', 'launch']
 
-afterEach(() => {
-  core?.restore()
-  core = null
-})
+const core = {base: ''}
+const mounted: {pane: PaneMount | null} = {pane: null}
+const faults = trackedFaults()
 
 const grabApi: GrabApi = {
   pick: async () => null,
@@ -23,13 +25,34 @@ const grabApi: GrabApi = {
   clear: () => {},
 }
 
-function mountActions(config: Parameters<typeof installFakeCore>[0] = {}): FakeCore {
-  const fake = installFakeCore(config)
-  core = fake
-  mountPane(() => (
+beforeAll(async () => {
+  const booted = await coreControl.bootCore({
+    id: 'launch-actions',
+    displayName: 'Claude',
+    connect: true,
+    terminal: true,
+    resume: true,
+    allowedOrigins: [window.location.origin],
+  })
+  core.base = booted.base
+}, 60_000)
+
+afterAll(async () => {
+  await coreControl.closeCore()
+}, 30_000)
+
+afterEach(async () => {
+  mounted.pane?.dispose()
+  mounted.pane = null
+  await coreControl.setTerminalLaunch(true)
+})
+
+async function mountActions(): Promise<void> {
+  const sessionId = await createSession(coreRpc(core.base))
+  mounted.pane = mountPane({base: core.base, sessionId}, () => (
     <HostApiProvider grab={grabApi} toast={() => {}}>
       <ComposerActions
-        sessionId={PANE_SESSION}
+        sessionId={sessionId}
         compacting={false}
         onCompact={() => {}}
         onNewSession={() => {}}
@@ -37,7 +60,6 @@ function mountActions(config: Parameters<typeof installFakeCore>[0] = {}): FakeC
       />
     </HostApiProvider>
   ))
-  return fake
 }
 
 async function openMenu(): Promise<void> {
@@ -45,7 +67,7 @@ async function openMenu(): Promise<void> {
 }
 
 test('the terminal menu offers launch and copy, and the connect candidates are gone', async () => {
-  mountActions()
+  await mountActions()
 
   await openMenu()
 
@@ -55,44 +77,47 @@ test('the terminal menu offers launch and copy, and the connect candidates are g
 })
 
 test('opening externally launches through the terminal extension', async () => {
-  const fake = mountActions({launchOk: true})
+  await mountActions()
 
   await openMenu()
   await page.getByText('Open in Claude').click()
 
   await expect.element(page.getByText('Opened in Claude.')).toBeVisible()
-  expect(fake.calls.filter((call) => call.path === '/rpc/ext/terminal/launch')).toHaveLength(1)
+  expect(await coreControl.terminalLaunches()).toBe(1)
+  expect(await coreControl.rpcCallCount(LAUNCH_PATH)).toBe(1)
 })
 
 test('when the terminal cannot open, the connect command is offered instead', async () => {
-  const fake = mountActions({launchOk: false})
+  await coreControl.setTerminalLaunch(false)
+  await mountActions()
+  const before = await coreControl.rpcCallCount(CONNECT_COMMAND_PATH)
 
   await openMenu()
   await page.getByText('Open in Claude').click()
 
-  await expect
-    .element(page.getByText(/Command copied|Run in your terminal: claude --resume fake-session/))
-    .toBeVisible()
-  expect(fake.calls.filter((call) => call.path === '/rpc/ext/terminal/connectCommand')).toHaveLength(1)
+  await expect.element(page.getByText(/Command copied|Run in your terminal: cd .*'claude' '--resume'/)).toBeVisible()
+  expect((await coreControl.rpcCallCount(CONNECT_COMMAND_PATH)) - before).toBe(1)
 })
 
 test('copy command asks the terminal extension for the command', async () => {
-  const fake = mountActions()
+  await mountActions()
+  const before = await coreControl.rpcCallCount(CONNECT_COMMAND_PATH)
 
   await openMenu()
   await page.getByText('Copy command').click()
 
-  await expect
-    .element(page.getByText(/Command copied|Run in your terminal: claude --resume fake-session/))
-    .toBeVisible()
-  expect(fake.calls.filter((call) => call.path === '/rpc/ext/terminal/connectCommand')).toHaveLength(1)
+  await expect.element(page.getByText(/Command copied|Run in your terminal: cd .*'claude' '--resume'/)).toBeVisible()
+  expect((await coreControl.rpcCallCount(CONNECT_COMMAND_PATH)) - before).toBe(1)
 })
 
 test('a launch failure is surfaced instead of swallowed', async () => {
-  mountActions({launchRejects: true})
+  const fault = await faults.install({kind: 'fail', path: LAUNCH_PATH, status: 500})
+  await mountActions()
 
   await openMenu()
   await page.getByText('Open in Claude').click()
 
   await expect.element(page.getByText('Couldn’t open Claude.')).toBeVisible()
+
+  await coreControl.releaseFault(fault)
 })

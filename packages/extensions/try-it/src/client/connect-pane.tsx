@@ -1,4 +1,4 @@
-import {getHostApi} from '@conciv/extension'
+import type {ExtensionApi} from '@conciv/extension'
 import {Collapsible, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
 import Check from 'lucide-solid/icons/check'
 import Copy from 'lucide-solid/icons/copy'
@@ -10,6 +10,8 @@ import {stepStates, type StepState, type TryStep} from '../shared/try-steps.js'
 import {useLocalNetworkAccessPermission} from './use-lna-permission.js'
 
 const COPY_FEEDBACK_MS = 1_400
+
+export type ConnectCapability = ReturnType<ExtensionApi['useConnect']>
 
 const STEP_TITLES: Record<TryStep, string> = {
   copy: 'Copy the connect command',
@@ -86,20 +88,19 @@ function Step(props: {index: number; state: StepState; title: string; children?:
   )
 }
 
-export function ConnectPane(props: {token: string}): JSX.Element {
-  const connect = getHostApi().useConnect()
+export function ConnectPane(props: {token: string; connect: ConnectCapability}): JSX.Element {
   const [copied, setCopied] = createSignal(false)
-  const probe = useCoreProbe({token: () => props.token, onFound: (base) => connect.found(base)})
+  const probe = useCoreProbe({token: () => props.token, onFound: (base) => props.connect.found(base)})
   const connected = probe.connected
   const slow = probe.slow
   const localNetworkAccess = useLocalNetworkAccessPermission()
   const localNetworkBlocked = () => localNetworkAccess() === 'denied'
   const states = () => stepStates({copied: copied(), connected: connected()})
   const promptText = () =>
-    `I'm pairing my browser tab at ${connect.origin} with a local conciv core so you can drive the page. ` +
+    `I'm pairing my browser tab at ${props.connect.origin} with a local conciv core so you can drive the page. ` +
     `Run \`npx @conciv/try --token ${props.token}\` and keep it running; it binds to 127.0.0.1 only and ` +
     `only my tab can reach it. The package source is packages/try in https://github.com/conciv-dev/conciv; ` +
-    `inspect it first if you want (details: ${connect.origin}/pair/${props.token}). ` +
+    `inspect it first if you want (details: ${props.connect.origin}/pair/${props.token}). ` +
     `If you'd rather not run it, tell me and I'll run it in my own terminal.`
   const npxText = () => `npx @conciv/try --token ${props.token}`
   const markCopied = () => setCopied(true)

@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {Hono} from 'hono'
 import {z} from 'zod'
-import {EngineStalenessSchema} from '@conciv/contract'
+import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
 import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -94,6 +94,8 @@ export type MakeAppOpts = {
   nativePageDir?: string
 
   nativeUrl?: () => string | undefined
+
+  staleness?: () => EngineStaleness
 }
 
 export function slug(name: string): string {
@@ -211,7 +213,11 @@ export const HealthSchema = z.object({
 
 export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 
-function composeRoutes(vars: CoreVars, rpc: CompositeRpcRouter, onShutdown?: () => void) {
+function composeRoutes(
+  vars: CoreVars,
+  rpc: CompositeRpcRouter,
+  deps: {staleness: () => EngineStaleness; onShutdown?: () => void},
+) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
@@ -226,11 +232,11 @@ function composeRoutes(vars: CoreVars, rpc: CompositeRpcRouter, onShutdown?: () 
     })
     .use(corsMiddleware())
     .get('/health', (c) =>
-      c.json(HealthSchema.parse({ok: true, harness: vars.chat.harness.id, engine: engineStaleness()})),
+      c.json(HealthSchema.parse({ok: true, harness: vars.chat.harness.id, engine: deps.staleness()})),
     )
     .post('/api/shutdown', (c) => {
-      if (!onShutdown) return c.json({message: 'shutdown not supported'}, 404)
-      setTimeout(onShutdown, 50)
+      if (!deps.onShutdown) return c.json({message: 'shutdown not supported'}, 404)
+      setTimeout(deps.onShutdown, 50)
       return c.json({ok: true})
     })
     .get(
@@ -270,6 +276,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   assertUniqueExtensionSlugs(extensions)
 
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
+  const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   await recoverInterruptedRuns({db, harness, claudeHome: opts.claudeHome})
   const asks = createAskRegistry()
@@ -465,6 +472,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     page: pageEnv,
     registry,
+    staleness,
     ...(opts.askTimeoutMs === undefined ? {} : {askTimeoutMs: opts.askTimeoutMs}),
   })
 
@@ -493,11 +501,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         sessionModel,
         sessionForNativeId: async (nativeId) => (await rowByNativeId(db, nativeId))?.id ?? null,
         noteToolCall: (sessionId, toolCallId, toolName) => asks.noteToolCall(sessionId, toolCallId, toolName),
-        staleness: engineStaleness,
+        staleness,
       },
     },
     compositeRpc,
-    opts.onShutdown,
+    {staleness, onShutdown: opts.onShutdown},
   )
 
   if (opts.nativePageDir) app.route(NATIVE_PAGE_PATH, makeNativePageApp(opts.nativePageDir))

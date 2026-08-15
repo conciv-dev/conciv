@@ -1,41 +1,42 @@
+import {onlineManager} from '@tanstack/query-core'
 import {render} from '@solidjs/testing-library'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeBrowserRpcClient} from '@conciv/contract'
+import {closeBrowserRpcConnection, makeBrowserRpcClient} from '@conciv/contract'
 import type {AnyExtension} from '@conciv/extension'
+import '../../src/lib/api-base.js'
 import {parseConcivSettings} from '../../src/data/settings.js'
 import {createConcivRouter, disposeConcivRouter} from '../../src/router.js'
-import {CORE_BASE, installFakeCore, sessionRow, type FakeCore, type FakeCoreConfig} from './fake-core.js'
 
 export type ShellHarness = {
-  mountShell: (entry: string, config?: FakeCoreConfig, extensions?: AnyExtension[]) => void
-  core: () => FakeCore | null
+  mountShell: (entry: string, extensions?: AnyExtension[]) => void
   dispose: () => void
 }
 
-export function createShellHarness(sessionId: string): ShellHarness {
-  let core: FakeCore | null = null
-  let mountedRouter: ReturnType<typeof createConcivRouter> | null = null
+export function createShellHarness(base: () => string): ShellHarness {
+  const mounted: {router: ReturnType<typeof createConcivRouter> | null} = {router: null}
 
-  const mountShell = (entry: string, config: FakeCoreConfig = {}, extensions: AnyExtension[] = []): void => {
-    core = installFakeCore({sessions: [sessionRow({id: sessionId})], ...config})
+  const mountShell = (entry: string, extensions: AnyExtension[] = []): void => {
+    const apiBase = base()
+    window.__CONCIV_API_BASE__ = apiBase
     const router = createConcivRouter({
-      rpc: makeBrowserRpcClient(CORE_BASE, {transport: 'fetch'}).rpc,
+      rpc: makeBrowserRpcClient(apiBase, {transport: 'fetch'}).rpc,
       history: createMemoryHistory({initialEntries: [entry]}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(''),
-      apiBase: () => CORE_BASE,
+      apiBase: () => apiBase,
       extensions,
     })
-    mountedRouter = router
+    mounted.router = router
     render(() => <RouterProvider router={router} />)
   }
 
   const dispose = (): void => {
-    if (mountedRouter) disposeConcivRouter(mountedRouter)
-    mountedRouter = null
-    core?.restore()
-    core = null
+    if (mounted.router) disposeConcivRouter(mounted.router)
+    mounted.router = null
+    closeBrowserRpcConnection(base())
+    onlineManager.setOnline(true)
+    delete window.__CONCIV_API_BASE__
   }
 
-  return {mountShell, core: () => core, dispose}
+  return {mountShell, dispose}
 }

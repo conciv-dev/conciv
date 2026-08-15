@@ -1,26 +1,56 @@
 import '@conciv/ui-kit-system/tokens.css'
 import './helpers/utilities.css'
-import {afterEach, expect, test} from 'vitest'
+import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
+import type {EngineStaleness} from '@conciv/contract'
 import {EngineStaleNotice} from '../src/shell/engine-notice.js'
-import {installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
-import {mountPane, PANE_SESSION} from './helpers/pane-harness.js'
+import {coreControl} from './helpers/core-control.js'
+import {coreRpc, createSession} from './helpers/core-session.js'
+import {mountPane, type PaneMount} from './helpers/pane-harness.js'
 
-let core: FakeCore | null = null
+const core = {base: ''}
+const mounted: {pane: PaneMount | null} = {pane: null}
+
+const TRACKED = ['@conciv/core', '@conciv/tools']
+
+function staleness(stale: boolean, fingerprint: string): EngineStaleness {
+  return {
+    stale,
+    changed: stale ? ['@conciv/tools'] : [],
+    tracked: TRACKED,
+    bootedAt: 0,
+    fingerprint,
+  }
+}
+
+beforeAll(async () => {
+  const booted = await coreControl.bootCore({id: 'engine-staleness', allowedOrigins: [window.location.origin]})
+  core.base = booted.base
+}, 60_000)
+
+afterAll(async () => {
+  await coreControl.closeCore()
+}, 30_000)
 
 afterEach(() => {
-  core?.restore()
-  core = null
+  mounted.pane?.dispose()
+  mounted.pane = null
 })
 
-function mountNotice(config: Parameters<typeof installFakeCore>[0] = {}): {refetch: () => Promise<void>} {
-  core = installFakeCore({sessions: [sessionRow({id: PANE_SESSION})], ...config})
-  const mounted = mountPane(() => <EngineStaleNotice />)
-  return {refetch: mounted.refetch}
+async function mountNotice(engine: EngineStaleness): Promise<PaneMount> {
+  await coreControl.setStaleness(engine)
+  const sessionId = await createSession(coreRpc(core.base))
+  const pane = mountPane({base: core.base, sessionId}, () => <EngineStaleNotice />)
+  mounted.pane = pane
+  return pane
+}
+
+async function settleEngine(pane: PaneMount): Promise<void> {
+  await pane.queryClient.ensureQueryData(pane.data.utils.meta.engine.queryOptions())
 }
 
 test('an engine running outdated code says so, and says it is the server code that moved', async () => {
-  mountNotice({engineStale: true})
+  await mountNotice(staleness(true, 'stamp-boot'))
 
   await expect
     .element(page.getByRole('alert'))
@@ -29,15 +59,15 @@ test('an engine running outdated code says so, and says it is the server code th
 })
 
 test('an engine that matches the code on disk raises nothing at all', async () => {
-  mountNotice({engineStale: false})
+  const pane = await mountNotice(staleness(false, 'stamp-boot'))
 
-  await core?.idle()
+  await settleEngine(pane)
 
   await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
 })
 
 test('the outdated-engine notice stands until it is dismissed by hand', async () => {
-  mountNotice({engineStale: true})
+  await mountNotice(staleness(true, 'stamp-boot'))
   await expect.element(page.getByRole('alert')).toBeVisible()
 
   await page.getByRole('button', {name: 'Dismiss'}).click()
@@ -46,33 +76,33 @@ test('the outdated-engine notice stands until it is dismissed by hand', async ()
 })
 
 test('restarting the engine takes the notice down without anyone dismissing it', async () => {
-  const mounted = mountNotice({engineStale: true})
+  const pane = await mountNotice(staleness(true, 'stamp-boot'))
   await expect.element(page.getByRole('alert')).toBeVisible()
 
-  core?.setEngine({stale: false, fingerprint: 'stamp-restarted'})
-  await mounted.refetch()
+  await coreControl.setStaleness(staleness(false, 'stamp-restarted'))
+  await pane.refetch()
 
   await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
 })
 
 test('a dismissed notice stays down while the engine is stale in the very same way', async () => {
-  const mounted = mountNotice({engineStale: true})
+  const pane = await mountNotice(staleness(true, 'stamp-boot'))
   await page.getByRole('button', {name: 'Dismiss'}).click()
   await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
 
-  await mounted.refetch()
-  await core?.idle()
+  await pane.refetch()
+  await settleEngine(pane)
 
   await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
 })
 
 test('a further rebuild speaks up again even after the earlier notice was dismissed', async () => {
-  const mounted = mountNotice({engineStale: true})
+  const pane = await mountNotice(staleness(true, 'stamp-boot'))
   await page.getByRole('button', {name: 'Dismiss'}).click()
   await expect.element(page.getByRole('alert')).not.toBeInTheDocument()
 
-  core?.setEngine({stale: true, fingerprint: 'stamp-rebuilt-again'})
-  await mounted.refetch()
+  await coreControl.setStaleness(staleness(true, 'stamp-rebuilt-again'))
+  await pane.refetch()
 
   await expect.element(page.getByRole('alert')).toBeVisible()
 })

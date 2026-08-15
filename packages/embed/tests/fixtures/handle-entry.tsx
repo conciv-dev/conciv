@@ -1,5 +1,5 @@
 import terminal from '@conciv/extension-terminal/client'
-import {defineExtension, getHostApi} from '@conciv/extension'
+import {defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Show, type JSX} from 'solid-js'
 import {createConciv, type ConcivHandle} from '../../src/mount.js'
@@ -10,8 +10,12 @@ declare global {
   }
 }
 
+const API_BASE_PROBE_NAME = 'api-base-probe'
+const MOUNT_PROBE_NAME = 'mount-probe'
+const CONNECT_GATE_PROBE_NAME = 'connect-gate-probe'
+
 function ApiBaseProbe(): JSX.Element {
-  const apiBase = getHostApi().useApiBase()
+  const apiBase = getExtensionApi(API_BASE_PROBE_NAME).useApiBase()
   return (
     <output
       aria-label="host api base probe"
@@ -22,11 +26,11 @@ function ApiBaseProbe(): JSX.Element {
   )
 }
 
-const apiBaseProbe = defineExtension({name: 'api-base-probe', Surface: ApiBaseProbe}).client(() => ({value: {}}))
+const apiBaseProbe = defineExtension({name: API_BASE_PROBE_NAME, Surface: ApiBaseProbe}).client(() => ({value: {}}))
 
 function mountBaseProbe(label: string): () => JSX.Element {
   return () => {
-    const mountedBase = getHostApi().useApiBase()()
+    const mountedBase = getExtensionApi(MOUNT_PROBE_NAME).useApiBase()()
     return (
       <output aria-label={label} style={{position: 'fixed', bottom: '0', right: '0', opacity: '0'}}>
         {mountedBase}
@@ -36,9 +40,9 @@ function mountBaseProbe(label: string): () => JSX.Element {
 }
 
 const mountProbe = defineExtension({
-  name: 'mount-probe',
+  name: MOUNT_PROBE_NAME,
   Surface: mountBaseProbe('surface mount api base'),
-  views: [{id: 'mount-probe', label: 'Mount probe', Component: mountBaseProbe('view mount api base')}],
+  views: [{id: MOUNT_PROBE_NAME, label: 'Mount probe', Component: mountBaseProbe('view mount api base')}],
 }).client(() => ({value: {}}))
 
 export function makeHandle(apiBase: string): ConcivHandle {
@@ -46,7 +50,7 @@ export function makeHandle(apiBase: string): ConcivHandle {
 }
 
 function ConnectPane(): JSX.Element {
-  const connect = getHostApi().useConnect()
+  const connect = getExtensionApi(CONNECT_GATE_PROBE_NAME).useConnect()
   makeEventListener(window, 'embedtest:connect', (event) => connect.found(event.detail.base))
   return (
     <output
@@ -59,10 +63,10 @@ function ConnectPane(): JSX.Element {
 }
 
 const connectGateProbe = defineExtension({
-  name: 'connect-gate-probe',
+  name: CONNECT_GATE_PROBE_NAME,
   connectGate: {preflight: async () => null},
   Component: () => (
-    <Show when={getHostApi().useSlot() === 'connect'}>
+    <Show when={getExtensionApi(CONNECT_GATE_PROBE_NAME).useSlot() === 'connect'}>
       <ConnectPane />
     </Show>
   ),
@@ -70,4 +74,12 @@ const connectGateProbe = defineExtension({
 
 export function makeConnectHandle(): ConcivHandle {
   return createConciv({extensions: [connectGateProbe], settings: {defaultOpen: true}})
+}
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry
+    extends
+      RegisterExtension<typeof apiBaseProbe>,
+      RegisterExtension<typeof mountProbe>,
+      RegisterExtension<typeof connectGateProbe> {}
 }

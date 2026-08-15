@@ -1,5 +1,4 @@
 import type {ExtensionRegistry} from '@conciv/protocol/config-types'
-import type {ExtensionSlot} from './types.js'
 import {getHostApi, useExtensionValue} from './hooks.js'
 
 export type ExtensionId = keyof ExtensionRegistry extends never ? string : keyof ExtensionRegistry & string
@@ -10,18 +9,21 @@ type ContextOf<Id> = Id extends keyof ExtensionRegistry
     : object
   : object
 
-export type ExtensionApi<Context extends object = object> = {
-  useSlot: () => ExtensionSlot
+type ExtensionContextApi<Context extends object> = {
   useContext: {
     (): Context
     <Selected>(select: (context: Context) => Selected): Selected
   }
 }
 
+export type ExtensionApi<Context extends object = object> = ReturnType<typeof getHostApi> & ExtensionContextApi<Context>
+
 export function getExtensionApi<Id extends ExtensionId>(id: Id): ExtensionApi<ContextOf<Id>> {
+  function useContextHook(): ContextOf<Id>
+  function useContextHook<Selected>(select: (context: ContextOf<Id>) => Selected): Selected
   function useContextHook<Selected>(select?: (context: ContextOf<Id>) => Selected): ContextOf<Id> | Selected {
     const value = useExtensionValue(`${id}.useContext`) as ContextOf<Id>
     return select ? select(value) : value
   }
-  return {useSlot: getHostApi().useSlot, useContext: useContextHook} as ExtensionApi<ContextOf<Id>>
+  return {...getHostApi(), useContext: useContextHook} satisfies ExtensionApi<ContextOf<Id>>
 }

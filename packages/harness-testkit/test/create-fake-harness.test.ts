@@ -15,6 +15,26 @@ const context: HarnessConnectContext = {
   hookUrl: null,
 }
 
+describe('createFakeHarness transcript history', () => {
+  it('declares no transcript history by default', () => {
+    const harness = createFakeHarness()
+    expect(harness.capabilities.transcriptHistory).toBe(false)
+    expect(harness.history).toBeUndefined()
+  })
+
+  it('serves the injected rows as the harness transcript list', async () => {
+    const rows = [
+      {id: 'external-1', derivedTitle: 'An external session', updatedAt: 1_700, messageCount: 7},
+      {id: 'external-2', derivedTitle: 'Another one', updatedAt: 1_800, messageCount: 2},
+    ]
+    const harness = createFakeHarness({history: rows})
+
+    expect(harness.capabilities.transcriptHistory).toBe(true)
+    expect(await harness.history?.list('/project')).toEqual(rows)
+    expect(await harness.history?.messages('/project', 'external-1')).toEqual([])
+  })
+})
+
 describe('createFakeHarness tty', () => {
   it('has no tty by default', () => {
     expect(createFakeHarness().tty).toBeUndefined()

@@ -3,7 +3,8 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {ORPCError} from '@orpc/client'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {Button} from '@conciv/ui-kit-system'
-import {getHostApi} from '@conciv/extension'
+import {getExtensionApi} from '@conciv/extension'
+import {TERMINAL_NAME} from '../shared/protocol.js'
 import {useTerminalContext} from './terminal-context.js'
 import {terminalClient, terminalUrl} from './rpc.js'
 
@@ -50,7 +51,7 @@ function isPlainEnter(event: KeyboardEvent): boolean {
 }
 
 function TerminalSurface(props: {generation: number; themeHost: () => Element}): JSX.Element {
-  const host = getHostApi()
+  const host = getExtensionApi(TERMINAL_NAME)
   const store = useTerminalContext((context) => context.store)
   const apiBase = host.useApiBase()
   const sessionId = host.useSessionId()
@@ -146,7 +147,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
 }
 
 export function TerminalPanelView(): JSX.Element {
-  const host = getHostApi()
+  const host = getExtensionApi(TERMINAL_NAME)
   const store = useTerminalContext((context) => context.store)
   const apiBase = host.useApiBase()
   const sessionId = host.useSessionId()

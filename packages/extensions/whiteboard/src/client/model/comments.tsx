@@ -1,6 +1,7 @@
 import {createContext, createMemo, createSignal, untrack, useContext, type Accessor, type JSX} from 'solid-js'
 import {useLiveQuery} from '@tanstack/solid-db'
-import {getHostApi} from '@conciv/extension'
+import {getExtensionApi} from '@conciv/extension'
+import {WHITEBOARD_NAME} from '../../shared/meta.js'
 import {INERT_TOOL_CATALOG, type ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {MentionSegment} from '@conciv/ui-kit-tap'
 import {useWhiteboardDb} from '../db.js'
@@ -375,7 +376,7 @@ export function CommentsProvider(props: {
   onComposeSettled: (outcome: 'added' | 'cancelled') => void
   children: JSX.Element
 }): JSX.Element {
-  const {Suppress} = getHostApi()
+  const {Suppress} = getExtensionApi(WHITEBOARD_NAME)
   const model = untrack(() => createCommentsModel(props.room, props.apiBase, props.canvasOpen, props.onComposeSettled))
   return (
     <CommentsContext.Provider value={model}>

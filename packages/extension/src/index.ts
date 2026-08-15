@@ -36,8 +36,6 @@ export {
 export type {ClientToolEntry} from './collect-client.js'
 export {getExtensionApi} from './extension-api.js'
 export type {ExtensionApi, ExtensionId} from './extension-api.js'
-export {getHostApi, HostApiProvider} from './hooks.js'
-export type {ConnectHostApi, HostWiring} from './host-context.js'
 export type {
   AttachmentCardEntry,
   AttachmentCardProps,

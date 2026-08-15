@@ -106,7 +106,6 @@
     "@conciv/extension-whiteboard",
     "@conciv/grab",
     "@conciv/harness",
-    "@conciv/harness-testkit",
     "@conciv/it",
     "@conciv/mascot",
     "@conciv/plugin",
@@ -149,6 +148,7 @@
     "packages/extensions/tanstack/test/host/conciv/extensions/connect-probe.tsx",
     "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
     "e2e/harnesses/vite.*.config.ts",
-    "apps/conciv/test/helpers/fake-core-router.ts"
+    "apps/conciv/test/commands/core-control.ts",
+    "apps/conciv/test/commands/core-testkit.ts"
   ]
 }

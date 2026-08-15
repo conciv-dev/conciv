@@ -1,27 +1,40 @@
-import type {Page, WebSocketRoute} from 'playwright'
+import type {Page, Route, WebSocketRoute} from 'playwright'
 import {toHttpPath} from '@orpc/client/standard'
 import {encodeResponseMessage, MessageType} from '@orpc/standard-server-peer'
 import {decodeRpcFrame} from './rpc-frames.js'
 
 const FAILURE_BODY = {json: {}, meta: []}
 
-export type RpcFaultInjector = {repair: () => void}
+const RPC_PREFIX = '/rpc'
+
+type UrlMatcher = (url: URL) => boolean
+type RouteHandler = (route: Route) => Promise<void>
+
+export type RpcFaultInjector = {repair: () => void; dispose: () => Promise<void>}
+
+function pathMatcher(path: readonly string[] | undefined): UrlMatcher {
+  if (!path) return (url) => url.pathname === RPC_PREFIX || url.pathname.startsWith(`${RPC_PREFIX}/`)
+  const httpPath = toHttpPath(path)
+  return (url) => url.pathname.endsWith(httpPath)
+}
+
+function isPreflight(route: Route): boolean {
+  return route.request().method() === 'OPTIONS'
+}
 
 export async function failRpcCalls(
   page: Page,
-  options: {path: readonly string[]; status?: number},
+  options: {path: readonly string[]; status?: number; websocket?: boolean},
 ): Promise<RpcFaultInjector> {
   const status = options.status ?? 500
-  const httpPath = toHttpPath(options.path)
   const broken = {value: true}
+  const matcher = pathMatcher(options.path)
+  const handler: RouteHandler = async (route) => {
+    if (isPreflight(route) || !broken.value) return route.continue()
+    await route.fulfill({status, contentType: 'application/json', body: JSON.stringify(FAILURE_BODY)})
+  }
 
-  await page.route(
-    (url) => url.pathname.endsWith(httpPath),
-    async (route) => {
-      if (!broken.value) return route.continue()
-      await route.fulfill({status, contentType: 'application/json', body: JSON.stringify(FAILURE_BODY)})
-    },
-  )
+  await page.route(matcher, handler)
 
   const holdSocket = (socket: WebSocketRoute): void => {
     const server = socket.connectToServer()
@@ -45,11 +58,36 @@ export async function failRpcCalls(
     server.onMessage((message) => socket.send(message))
   }
 
-  await page.routeWebSocket((url) => url.pathname.endsWith('/rpc-ws'), holdSocket)
+  if (options.websocket) await page.routeWebSocket((url) => url.pathname.endsWith('/rpc-ws'), holdSocket)
 
   return {
     repair: () => {
       broken.value = false
+    },
+    dispose: async () => {
+      broken.value = false
+      await page.unroute(matcher, handler)
+    },
+  }
+}
+
+export async function abortRpcCalls(page: Page, options: {path?: readonly string[]} = {}): Promise<RpcFaultInjector> {
+  const broken = {value: true}
+  const matcher = pathMatcher(options.path)
+  const handler: RouteHandler = async (route) => {
+    if (isPreflight(route) || !broken.value) return route.continue()
+    await route.abort('connectionrefused')
+  }
+
+  await page.route(matcher, handler)
+
+  return {
+    repair: () => {
+      broken.value = false
+    },
+    dispose: async () => {
+      broken.value = false
+      await page.unroute(matcher, handler)
     },
   }
 }
@@ -61,9 +99,9 @@ export async function holdRpcCalls(page: Page): Promise<RpcHold> {
   const sockets = new Set<WebSocketRoute>()
 
   await page.route(
-    (url) => url.pathname.startsWith('/rpc/') || url.pathname === '/rpc',
+    (url) => url.pathname.startsWith('/rpc/') || url.pathname === RPC_PREFIX,
     async (route) => {
-      if (!held.value) return route.continue()
+      if (isPreflight(route) || !held.value) return route.continue()
       await route.abort('connectionrefused')
     },
   )
@@ -91,6 +129,57 @@ export async function holdRpcCalls(page: Page): Promise<RpcHold> {
     },
     release: () => {
       held.value = false
+    },
+  }
+}
+
+export type RpcGate = {
+  pending: () => number
+  awaitCaptured: (count: number) => Promise<void>
+  release: () => Promise<void>
+  dispose: () => Promise<void>
+}
+
+type CaptureWaiter = {count: number; deliver: () => void}
+
+export async function gateRpcCalls(page: Page, options: {path?: readonly string[]} = {}): Promise<RpcGate> {
+  const matcher = pathMatcher(options.path)
+  const open = {value: false}
+  const captured: Route[] = []
+  const waiters = new Set<CaptureWaiter>()
+  const handler: RouteHandler = async (route) => {
+    if (isPreflight(route) || open.value) return route.continue()
+    captured.push(route)
+    for (const waiter of waiters) {
+      if (captured.length < waiter.count) continue
+      waiters.delete(waiter)
+      waiter.deliver()
+    }
+  }
+
+  await page.route(matcher, handler)
+
+  const settle = async (): Promise<void> => {
+    const pending = captured.splice(0)
+    await Promise.all(pending.map((route) => route.continue().catch(() => {})))
+  }
+
+  return {
+    pending: () => captured.length,
+    awaitCaptured: (count) => {
+      if (captured.length >= count) return Promise.resolve()
+      return new Promise<void>((resolve) => {
+        waiters.add({count, deliver: resolve})
+      })
+    },
+    release: async () => {
+      open.value = true
+      await settle()
+    },
+    dispose: async () => {
+      open.value = true
+      await settle()
+      await page.unroute(matcher, handler)
     },
   }
 }

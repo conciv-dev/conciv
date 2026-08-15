@@ -40,6 +40,77 @@ describe('makeScriptedRun', () => {
     expect(secondEmittedId).toBe(secondScriptedId)
   })
 
+  it('keeps two independently queued tool calls in two separate turns', async () => {
+    const scripted = makeScriptedRun()
+    scripted.scriptToolCall('first_tool', {a: 1})
+    scripted.scriptToolCall('second_tool', {b: 2})
+    const drainTurn = async (): Promise<StreamChunk[]> => {
+      const chunks: StreamChunk[] = []
+      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+      return chunks
+    }
+    const first = await drainTurn()
+    const second = await drainTurn()
+    const startsIn = (chunks: StreamChunk[]): string[] =>
+      chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_START ? [chunk.toolCallName] : []))
+    expect(startsIn(first)).toEqual(['first_tool'])
+    expect(startsIn(second)).toEqual(['second_tool'])
+  })
+
+  it('emits every tool call of a scripted turn, with its result, inside one turn', async () => {
+    const scripted = makeScriptedRun()
+    const ids = scripted.scriptTurn({
+      toolCalls: [
+        {name: 'first_tool', input: {a: 1}, result: {ok: 'one'}},
+        {name: 'second_tool', input: {b: 2}, result: {ok: 'two'}},
+      ],
+      text: 'both tools ran',
+    })
+    const chunks: StreamChunk[] = []
+    for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+
+    const starts = chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_START ? [chunk.toolCallId] : []))
+    const results = chunks.flatMap((chunk) =>
+      chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+    )
+    const text = chunks.flatMap((chunk) => (chunk.type === EventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : []))
+    expect(starts).toEqual(ids)
+    expect(results).toEqual([
+      {id: ids[0], content: JSON.stringify({ok: 'one'})},
+      {id: ids[1], content: JSON.stringify({ok: 'two'})},
+    ])
+    expect(text).toEqual(['both tools ran'])
+    expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+  })
+
+  it('keeps a scripted null tool result as null instead of substituting the default', async () => {
+    const scripted = makeScriptedRun()
+    const ids = scripted.scriptTurn({toolCalls: [{name: 'nullish_tool', input: {a: 1}, result: null}]})
+    const chunks: StreamChunk[] = []
+    for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+    const results = chunks.flatMap((chunk) =>
+      chunk.type === EventType.TOOL_CALL_RESULT ? [{id: chunk.toolCallId, content: chunk.content}] : [],
+    )
+    expect(results).toEqual([{id: ids[0], content: 'null'}])
+  })
+
+  it('streams a queued tool call and a queued turn in the order they were scripted', async () => {
+    const scripted = makeScriptedRun()
+    scripted.scriptToolCall('first_tool', {a: 1})
+    scripted.scriptTurn({toolCalls: [{name: 'second_tool', input: {b: 2}}], text: 'turn ran'})
+    const drainTurn = async (): Promise<StreamChunk[]> => {
+      const chunks: StreamChunk[] = []
+      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+      return chunks
+    }
+    const first = await drainTurn()
+    const second = await drainTurn()
+    const startsIn = (chunks: StreamChunk[]): string[] =>
+      chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_START ? [chunk.toolCallName] : []))
+    expect(startsIn(first)).toEqual(['first_tool'])
+    expect(startsIn(second)).toEqual(['second_tool'])
+  })
+
   it('holds the turn open until release()', async () => {
     const scripted = makeScriptedRun()
     scripted.hold()

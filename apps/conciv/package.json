@@ -58,7 +58,6 @@
     "@conciv/storage-history": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@orpc/server": "catalog:",
     "@solidjs/testing-library": "^0.8.10",
     "@tanstack/ai": "catalog:",
     "@tanstack/query-core": "^5.80.2",

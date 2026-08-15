@@ -33,7 +33,8 @@ import {coreToolCards} from '@conciv/core/cards'
 import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
-import {collectToolRenderers, HostApiProvider} from '@conciv/extension'
+import {collectToolRenderers} from '@conciv/extension'
+import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments} from './pane-attachments.js'
 import {resolveGrabSource} from './grab-source-resolve.js'
@@ -44,6 +45,7 @@ import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {GrabReference} from './grab-reference.js'
+import {GrabStrip} from './grab-strip.js'
 import {CompactSpinner, ConversationSkeleton, Divider, ThinkingBubble} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
@@ -60,14 +62,13 @@ import {PaneComposer} from './pane-composer.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
 import {trackSessionActivity} from './session-activity.js'
 
-const GRAB_PREVIEW_MAX_W = 280
-
 const PAGE_SESSION: PageSessionConfig = {
   entry: pageSessionEntry,
   actNames: PAGE_ACT_TOOL_NAMES,
   toolPrefix: PAGE_TOOL_PREFIX,
 }
 
+const ABOVE_COMPOSER = 'flex flex-col min-h-0 shrink max-h-40 overflow-y-auto empty:hidden'
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
@@ -328,17 +329,17 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                     </Suspense>
                   </Thread.Viewport>
                   <Thread.Composer>
-                    <ExtensionSurface name="status" instances={instances} />
-                    <ExtensionSurface name="footer" instances={instances} />
-                    <For each={pane.grabStore.grabs()}>
-                      {(grab) => (
-                        <GrabReference
-                          grab={grab}
-                          maxWidth={GRAB_PREVIEW_MAX_W}
-                          onRemove={() => pane.grabStore.remove(grab)}
-                        />
-                      )}
-                    </For>
+                    <div class={ABOVE_COMPOSER}>
+                      <ExtensionSurface name="status" instances={instances} />
+                      <ExtensionSurface name="footer" instances={instances} />
+                    </div>
+                    <Show when={pane.grabStore.grabs().length > 0}>
+                      <GrabStrip class="flex flex-col">
+                        <For each={pane.grabStore.grabs()}>
+                          {(grab) => <GrabReference grab={grab} onRemove={() => pane.grabStore.remove(grab)} />}
+                        </For>
+                      </GrabStrip>
+                    </Show>
                     <Suspense>
                       <Show when={draftStorage()}>
                         {(storage) => (

@@ -1,5 +1,7 @@
 import {z} from 'zod'
-import {defineExtension, defineTool, getHostApi} from '@conciv/extension'
+import {defineExtension, defineTool, getExtensionApi} from '@conciv/extension'
+
+const BLUE_NAME = 'blue'
 
 const hello = defineTool({
   name: 'acme_hello',
@@ -10,7 +12,7 @@ const hello = defineTool({
 }).server(({name}) => ({greeting: `Hello, ${name}!`}))
 
 const blue = defineExtension({
-  name: 'blue',
+  name: BLUE_NAME,
   Component: BlueSurface,
   systemPrompt: 'This app is themed blue. Greet users with the acme_hello tool.',
   theme: {'pw-accent': 'rgb(37, 99, 235)'},
@@ -19,7 +21,7 @@ const blue = defineExtension({
 export default blue
 
 function BlueSurface() {
-  const slot = getHostApi().useSlot()
+  const slot = getExtensionApi(BLUE_NAME).useSlot()
   if (slot === 'status') return <span>Blue theme active</span>
   return null
 }

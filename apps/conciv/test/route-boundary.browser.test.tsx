@@ -1,67 +1,72 @@
 import './helpers/utilities.css'
-import {afterEach, expect, test} from 'vitest'
+import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
-import {render} from '@solidjs/testing-library'
-import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeRpcClient} from '@conciv/contract'
-import {parseConcivSettings} from '../src/data/settings.js'
-import {createConcivRouter} from '../src/router.js'
-import {CORE_BASE, installFakeCore, sessionRow, type FakeCore} from './helpers/fake-core.js'
+import {coreControl} from './helpers/core-control.js'
+import {coreRpc, createSession} from './helpers/core-session.js'
+import {createShellHarness} from './helpers/shell-harness.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 
-const PANEL_SESSION = 'conciv_1'
-const HELD_ROUTE_MS = 1500
 const WHILE_HELD = {timeout: 700}
-let core: FakeCore | null = null
 
-afterEach(() => {
-  core?.restore()
-  core = null
-})
+const core = {base: ''}
+const harness = createShellHarness(() => core.base)
+const faults = trackedFaults()
 
-const PANEL_ENTRY = `/panel/${PANEL_SESSION}?open=true`
-const CLOSED_ENTRY = '/'
+beforeAll(async () => {
+  const booted = await coreControl.bootCore({id: 'route-boundary', allowedOrigins: [window.location.origin]})
+  core.base = booted.base
+}, 60_000)
 
-function mountShell(entry: string, config: Parameters<typeof installFakeCore>[0] = {}): void {
-  core = installFakeCore({sessions: [sessionRow({id: PANEL_SESSION})], ...config})
-  const router = createConcivRouter({
-    rpc: makeRpcClient(CORE_BASE),
-    history: createMemoryHistory({initialEntries: [entry]}),
-    environment: {rootNode: document, document},
-    settings: parseConcivSettings(''),
-  })
-  render(() => <RouterProvider router={router} />)
-}
+afterAll(async () => {
+  await coreControl.closeCore()
+}, 30_000)
+
+afterEach(harness.dispose)
 
 const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
 const routePending = () => page.getByRole('progressbar', {name: 'Loading conciv'})
 
+async function openPanel(): Promise<void> {
+  const sessionId = await createSession(coreRpc(core.base))
+  harness.mountShell(`/panel/${sessionId}?open=true`)
+}
+
 test('the pane paints its composer while the element captures query is still in flight', async () => {
-  mountShell(PANEL_ENTRY, {delays: {'/rpc/captures/list': HELD_ROUTE_MS}})
+  const held = await faults.install({kind: 'gate', path: ['captures', 'list']})
+  await openPanel()
 
   await expect.element(editor(), WHILE_HELD).toBeVisible()
   await expect.element(routePending(), WHILE_HELD).not.toBeInTheDocument()
-})
+
+  await coreControl.releaseFault(held)
+}, 30_000)
 
 test('the shell keeps its launcher while the session list query is still in flight', async () => {
-  mountShell(CLOSED_ENTRY, {delays: {'/rpc/sessions/list': HELD_ROUTE_MS}})
+  const held = await faults.install({kind: 'gate', path: ['sessions', 'list']})
+  harness.mountShell('/')
 
   await expect.element(launcher(), WHILE_HELD).toBeVisible()
   await expect.element(routePending(), WHILE_HELD).not.toBeInTheDocument()
-})
+
+  await coreControl.releaseFault(held)
+}, 30_000)
 
 test('a pane whose queries all answer immediately never shows the route pending loader', async () => {
-  mountShell(PANEL_ENTRY)
+  await openPanel()
 
   await expect.element(editor(), WHILE_HELD).toBeVisible()
-  await core?.idle()
   await expect.element(routePending(), WHILE_HELD).not.toBeInTheDocument()
-})
+}, 30_000)
 
 test('a slow beforeLoad reveals the route pending loader, then hands off to the pane', async () => {
-  mountShell('/panel/latest?open=true', {delays: {'/rpc/sessions/resolve': 900}})
+  const held = await faults.install({kind: 'gate', path: ['sessions', 'resolve']})
+  harness.mountShell('/panel/latest?open=true')
 
   await expect.element(routePending()).toBeVisible()
-  await expect.element(editor(), {timeout: 2000}).toBeVisible()
+
+  await coreControl.releaseFault(held)
+
+  await expect.element(editor(), {timeout: 8000}).toBeVisible()
   await expect.element(routePending()).not.toBeInTheDocument()
-})
+}, 30_000)

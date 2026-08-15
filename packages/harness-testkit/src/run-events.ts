@@ -26,7 +26,7 @@ function parseArgs(raw: string): unknown {
   }
 }
 
-export function renderedMessages(all: StreamChunk[]): unknown[] {
+function renderedMessages(all: StreamChunk[]): unknown[] {
   const processor = new StreamProcessor({})
   for (const chunk of all) processor.processChunk(chunk)
   return processor.getMessages()
@@ -64,7 +64,7 @@ export function collectToolCalls(all: StreamChunk[], name?: string): SeenToolCal
     .map((part) => ({toolCallId: part.id, name: part.name, input: parseArgs(part.arguments)}))
 }
 
-export function snapshotText(all: StreamChunk[]): string {
+function snapshotText(all: StreamChunk[]): string {
   return partsOf(all, 'assistant')
     .flatMap((part) => {
       const parsed = TextPartSchema.safeParse(part)

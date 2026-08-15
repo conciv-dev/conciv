@@ -5,7 +5,7 @@ import {os} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, type ServerApi} from '@conciv/extension'
 import {SessionId} from '@conciv/protocol/chat-types'
-import type {HarnessConnectContext, HarnessConnectPlan} from '@conciv/protocol/harness-types'
+import type {HarnessConnectContext, HarnessConnectPlan, TerminalOpener} from '@conciv/protocol/harness-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
@@ -23,6 +23,7 @@ const ESCAPE_KEY = String.fromCharCode(27)
 type TerminalRuntime = {
   server: ServerApi<Record<never, never>>
   tty: ReturnType<typeof createTtySessions>
+  openTerminal?: TerminalOpener
 }
 
 type TerminalEnv = {Variables: {terminal: TerminalRuntime}}
@@ -166,7 +167,13 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
         const plan = await connectPlanFor(runtime, input.sessionId, input.model ?? null, apiBase(runtime, context))
         if (!plan) throw errors.NO_CONNECT()
         const {server} = runtime
-        return {ok: await launchConnectPlan(plan, {cwd: server.cwd, stateDir: server.stateDir})}
+        return {
+          ok: await launchConnectPlan(plan, {
+            cwd: server.cwd,
+            stateDir: server.stateDir,
+            ...(runtime.openTerminal ? {openTerminal: runtime.openTerminal} : {}),
+          }),
+        }
       }),
     connectCommand: terminalOs
       .errors(noConnect)
@@ -221,21 +228,25 @@ const app = new Hono<TerminalEnv>().get(
 
 export type TerminalAppType = typeof app
 
-export default defineExtension({name: TERMINAL_NAME}).server((server) => {
-  const tty = createTtySessions()
-  const runtime: TerminalRuntime = {server, tty}
-  return {
-    context: {},
-    router: makeTerminalRouter(runtime),
-    app: new Hono<TerminalEnv>()
-      .use(async (c, next) => {
-        c.set('terminal', runtime)
-        await next()
-      })
-      .route('/', app),
-    dispose: () => tty.shutdown(),
-  }
-})
+export function createTerminalExtension(opts: {openTerminal?: TerminalOpener} = {}) {
+  return defineExtension({name: TERMINAL_NAME}).server((server) => {
+    const tty = createTtySessions()
+    const runtime: TerminalRuntime = {server, tty, ...(opts.openTerminal ? {openTerminal: opts.openTerminal} : {})}
+    return {
+      context: {},
+      router: makeTerminalRouter(runtime),
+      app: new Hono<TerminalEnv>()
+        .use(async (c, next) => {
+          c.set('terminal', runtime)
+          await next()
+        })
+        .route('/', app),
+      dispose: () => tty.shutdown(),
+    }
+  })
+}
+
+export default createTerminalExtension()
 
 function parseControl(text: string): TtyClientControl | null {
   if (!text.startsWith('{')) return null

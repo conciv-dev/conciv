@@ -1,7 +1,7 @@
 import {Match, Show, Switch, createResource, createSignal, onCleanup, type JSX} from 'solid-js'
 import {QueryClient, QueryClientProvider, useMutation, useQuery} from '@tanstack/solid-query'
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
-import {getHostApi, makeExtRpcClient, type AttachmentCardProps} from '@conciv/extension'
+import {getExtensionApi, makeExtRpcClient, type AttachmentCardProps} from '@conciv/extension'
 import {useAttachment} from '@conciv/ui-kit-chat'
 import {Button} from '@conciv/ui-kit-system'
 import {
@@ -17,11 +17,26 @@ import {saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 
 type AttachmentState = ReturnType<typeof useAttachment>
+type AttachmentContentPart = Extract<AttachmentState, {content: unknown}>['content'][number]
+
+function dataDocumentValue(part: AttachmentContentPart): string | null {
+  if (part.type !== 'document') return null
+  if (part.source.type !== 'data') return null
+  return part.source.value
+}
+
+function contentRef(attachment: AttachmentState): RecordingRef | null {
+  if (!('content' in attachment)) return null
+  for (const part of attachment.content) {
+    const value = dataDocumentValue(part)
+    if (value !== null) return decodeRecordingRef(value)
+  }
+  return null
+}
 
 async function resolveRef(attachment: AttachmentState): Promise<RecordingRef | null> {
-  if ('content' in attachment)
-    for (const part of attachment.content)
-      if (part.type === 'document' && part.source.type === 'data') return decodeRecordingRef(part.source.value)
+  const fromContent = contentRef(attachment)
+  if (fromContent) return fromContent
   if (attachment.file) return parseRecordingRefJson(await attachment.file.text())
   return null
 }
@@ -37,7 +52,7 @@ export function RecordingCard(props: AttachmentCardProps): JSX.Element {
 
 function CardBody(props: AttachmentCardProps): JSX.Element {
   const attachment = useAttachment()
-  const host = getHostApi()
+  const host = getExtensionApi(RECORDER_NAME)
   const apiBase = host.useApiBase()
   const toast = host.useToast()
   const Dialog = host.useDialog()
@@ -53,6 +68,7 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
     return data && 'events' in data ? (data.events ?? null) : null
   }
   const expired = (): boolean => Boolean(recording.data && 'expired' in recording.data)
+  const poster = (): string => ref()?.poster ?? 'Screen recording'
   const play = (playable: RrwebEvent[]) => (container: HTMLDivElement) => {
     onCleanup(mountPlayer(container, playable))
   }
@@ -69,7 +85,7 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
   }
   return (
     <div class="py-2 pe-2 ps-3 border border-pw-line rounded-pw-md bg-pw-fill flex gap-2 min-w-55 items-center overflow-hidden">
-      <RecorderNotice text={ref()?.poster ?? 'Screen recording'} />
+      <RecorderNotice text={poster()} />
       <Button size="sm" disabled={!ref()} onClick={() => setOpen(true)}>
         Play
       </Button>
@@ -78,7 +94,7 @@ function CardBody(props: AttachmentCardProps): JSX.Element {
         <Show when={open()}>
           <div class="flex flex-col gap-2">
             <div class="flex gap-2 items-center">
-              <RecorderNotice text={ref()?.poster ?? 'Screen recording'} />
+              <RecorderNotice text={poster()} />
               <Button
                 class="ml-auto"
                 variant="ghost"

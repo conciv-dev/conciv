@@ -242,9 +242,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
-      '@orpc/server':
-        specifier: 'catalog:'
-        version: 1.14.7(@opentelemetry/api@1.9.1)(crossws@0.4.10(srvx@0.11.22))(ws@8.21.0)
       '@solidjs/testing-library':
         specifier: ^0.8.10
         version: 0.8.10(@solidjs/router@0.15.4(solid-js@1.9.14))(solid-js@1.9.14)
