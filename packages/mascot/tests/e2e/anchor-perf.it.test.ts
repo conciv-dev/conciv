@@ -1,9 +1,10 @@
 import {expect, test} from '@playwright/test'
+import {collectLaunches} from './helpers/launches.js'
 import {buildService, openIdleService, openMascotPage, settle} from './helpers/mascot-stage.js'
 
 const WORK_WARMUP_S = 2.5
 
-const WORK_SAMPLE_S = 1
+const WORK_SAMPLE_S = 2.4
 
 const POINTER_MOVE_COUNT = 8
 
@@ -24,23 +25,34 @@ test('a warmed work cycle rides the antenna without reading layout again', async
       const harness = window.mascotHarness
       window.service.update({state: 'rest', working: true, follow: false})
       harness.advanceBy(warmupSeconds)
+      const emitter = harness.requireEmitter()
       const before = window.layoutReads
-      const tops = harness.stepFrames(() => harness.anchorOf(harness.requireEmitter()).top, sampleSeconds)
+      const frames = harness.stepFrames<number[]>(
+        () => [
+          ...[0, 1, 2, 3, 4].map((index) => harness.digitFlightOf(emitter, index).top),
+          harness.property(window.parts.antenna, 'scaleY'),
+          harness.property(window.parts.antenna, 'yPercent'),
+        ],
+        sampleSeconds,
+      )
       const after = window.layoutReads
       return {
         computedStyle: after.computedStyle - before.computedStyle,
         offset: after.offset - before.offset,
-        frames: tops.length,
-        travel: harness.summarize(tops),
+        frames,
+        stage: {width: window.parts.root.offsetWidth, height: window.parts.root.offsetHeight},
       }
     },
     [WORK_WARMUP_S, WORK_SAMPLE_S] as const,
   )
+  const launches = collectLaunches(sampled.frames, sampled.stage)
+  const tips = launches.map((launch) => launch.tipY)
 
-  expect(sampled.frames, 'the sampled window really stepped a full second of frames').toBeGreaterThan(50)
+  expect(sampled.frames.length, 'the sampled window really stepped a full work cycle of frames').toBeGreaterThan(50)
+  expect(launches.length, 'the sampled window really restarts several digit cycles').toBeGreaterThanOrEqual(2)
   expect(
-    sampled.travel.max - sampled.travel.min,
-    `the anchor really rode the antenna across the window: ${JSON.stringify(sampled.travel)}`,
+    Math.max(...tips) - Math.min(...tips),
+    `the launch point really rode the antenna across the window: ${JSON.stringify(tips)}`,
   ).toBeGreaterThan(0.5)
   expect(sampled.offset, 'the per-frame anchor path reads no layout offsets').toBe(0)
   expect(sampled.computedStyle, 'the per-frame anchor path reads no computed styles').toBe(0)

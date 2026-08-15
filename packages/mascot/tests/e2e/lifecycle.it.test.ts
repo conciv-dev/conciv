@@ -13,11 +13,12 @@ test('a state change mid-work keeps the original timeline, emitter and scale', a
     const harness = window.mascotHarness
     harness.advanceBy(2.2)
     const emitter = harness.requireEmitter()
-    const anchorBefore = harness.boxOf(emitter)
+    const anchorBefore = harness.digitFlightOf(emitter, 0)
     const timelineBefore = harness.repeatingTimeline()
     window.service.update({state: 'awake', working: true, follow: false})
     const during = harness.stepFrames(() => harness.property(emitter, 'scale'), 0.9)
-    const anchorAfter = harness.boxOf(emitter)
+    harness.advanceBy(1.4)
+    const anchorAfter = harness.digitFlightOf(emitter, 0)
     const sameTimeline = harness.repeatingTimeline() === timelineBefore
     const values = harness.stepFrames<[number, number]>(
       () => [harness.property(window.parts.antenna, 'scaleY'), harness.property(window.parts.eyes, 'scaleY')],
@@ -47,7 +48,7 @@ test('a state change mid-work keeps the original timeline, emitter and scale', a
     Math.abs(result.emitterScale.min - 1) <= 0.001 && Math.abs(result.emitterScale.max - 1) <= 0.001,
     `no returnToFull tween fires: emitter scale stays 1 across the change -> ${JSON.stringify(result.emitterScale)}`,
   ).toBe(true)
-  expect(anchorShift, 'the emitter re-anchors to the leaned antenna tip').toBeGreaterThan(0.5)
+  expect(anchorShift, 'digits launched after the change leave from the leaned antenna tip').toBeGreaterThan(0.5)
 })
 
 test('leaving work for the open pose raises the eyes monotonically to their awake rest', async ({page}) => {

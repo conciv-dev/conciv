@@ -54,6 +54,7 @@ type MascotHarness = {
   activeWritersOfProperty: (element: HTMLElement, property: string) => number
   boxOf: (element: HTMLElement) => Anchor
   anchorOf: (element: HTMLElement) => Anchor
+  digitFlightOf: (emitter: HTMLElement, index: number) => Anchor
   repeatingTimeline: () => object | undefined
 }
 

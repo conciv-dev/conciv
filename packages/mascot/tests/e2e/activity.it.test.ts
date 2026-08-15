@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test'
-import {expectNear} from './helpers/near.js'
+import {collectLaunches, launchFrames} from './helpers/launches.js'
 import {
   buildLegacyRig,
   buildService,
@@ -9,6 +9,23 @@ import {
   restTip,
   tipUnderTransform,
 } from './helpers/mascot-stage.js'
+import {expectNear} from './helpers/near.js'
+
+const LAUNCH_SAMPLE_START_S = 1
+
+const LAUNCH_SAMPLE_S = 2.6
+
+const LAUNCH_TIP_TOLERANCE_PX = 1.2
+
+const NOZZLE_TRAVEL_PX = 3
+
+const STRETCHED_LAUNCH_AT_S = 2.15
+
+const STRETCHED_LAUNCH_WINDOW_S = 0.2
+
+const STRETCHED_DIGIT = 0
+
+const RELAUNCH_SETTLE_S = 2.4
 
 test.beforeEach(async ({page}) => {
   await openMascotPage(page)
@@ -80,75 +97,99 @@ test('the legacy work state stages the emitter, throbs and drains without leakin
   expect(flap.tweens, 'no runaway tween accumulation').toBeLessThanOrEqual(throb.tweens)
 })
 
-test('entering work anchors on the leaned tip and rides the antenna through every bob', async ({page}) => {
+test('entering work launches the first digit from the leaned tip and every later digit from the tip of its own launch frame', async ({
+  page,
+}) => {
   await installManualClock(page)
   await buildLegacyRig(page)
-  const result = await page.evaluate(() => {
-    const harness = window.mascotHarness
-    const {antenna, root} = window.parts
-    window.rig.apply('open')
-    harness.advanceBy(0.9)
-    const leaned = harness.property(antenna, 'rotation')
-    window.rig.apply('work')
-    const emitter = harness.requireEmitter()
-    const sample = () => ({anchor: harness.anchorOf(emitter), yPercent: harness.property(antenna, 'yPercent')})
-    const entry = harness.anchorOf(emitter)
-    harness.advanceBy(1)
-    const trough = sample()
-    harness.advanceBy(1)
-    const peak = sample()
-    return {
-      leaned,
-      entry,
-      trough,
-      peak,
-      rotation: harness.property(antenna, 'rotation'),
-      bobPx: antenna.offsetHeight * 0.05,
-      stage: {width: root.offsetWidth, height: root.offsetHeight},
-    }
-  })
+  const result = await page.evaluate(
+    ([sampleStart, sampleSeconds]) => {
+      const harness = window.mascotHarness
+      const {antenna, root} = window.parts
+      window.rig.apply('open')
+      harness.advanceBy(0.9)
+      const leaned = harness.property(antenna, 'rotation')
+      window.rig.apply('work')
+      const emitter = harness.requireEmitter()
+      const entry = harness.digitFlightOf(emitter, 0)
+      harness.advanceBy(sampleStart)
+      const frames = harness.stepFrames<number[]>(
+        () => [
+          ...[0, 1, 2, 3, 4].map((index) => harness.digitFlightOf(emitter, index).top),
+          harness.property(antenna, 'scaleY'),
+          harness.property(antenna, 'yPercent'),
+        ],
+        sampleSeconds,
+      )
+      return {
+        leaned,
+        entry,
+        frames,
+        rotation: harness.property(antenna, 'rotation'),
+        stage: {width: root.offsetWidth, height: root.offsetHeight},
+      }
+    },
+    [LAUNCH_SAMPLE_START_S, LAUNCH_SAMPLE_S] as const,
+  )
   const tip = restTip(result.stage)
+  const launches = collectLaunches(result.frames, result.stage)
+  const drifts = launches.map((launch) => Math.abs(launch.top - launch.tipY))
+  const tips = launches.map((launch) => launch.tipY)
 
   expectNear('the open pose really leaned the antenna', result.leaned, -4, 0.01)
   expect(
     Math.abs(result.entry.left - tip.x),
-    'entering work anchors at the leaned tip, not the rest tip',
+    'the first digit launches from the leaned tip, not the rest tip',
   ).toBeGreaterThan(1)
   expectNear('the work pose returns the antenna to rest', result.rotation, 0, 0.01)
-  expectNear('the sampled trough really is the bob floor', result.trough.yPercent, -5, 0.05)
-  expectNear('the sampled peak really is the bob top', result.peak.yPercent, 0, 0.05)
-  expectNear('the anchor rides the antenna down to the bob floor', result.trough.anchor.top, tip.y - result.bobPx, 0.3)
-  expectNear('the anchor rides the antenna back up to the bob top', result.peak.anchor.top, tip.y, 0.3)
-  expectNear('the bob never drags the anchor sideways', result.peak.anchor.left, tip.x, 0.3)
+  expect(launches.length, 'the sampled bob really restarts several digit cycles').toBeGreaterThanOrEqual(4)
+  expect(
+    Math.max(...drifts),
+    `every digit launches from the tip of its own launch frame: worst drift ${Math.max(...drifts)}px`,
+  ).toBeLessThanOrEqual(LAUNCH_TIP_TOLERANCE_PX)
+  expect(
+    Math.max(...tips) - Math.min(...tips),
+    'the bob really carried the launch point across the sampled window',
+  ).toBeGreaterThan(NOZZLE_TRAVEL_PX)
 })
 
-test('the emitter anchor rides the throb stretch, not the unstretched tip', async ({page}) => {
+test('a digit launching mid-throb starts from the stretched tip, not the unstretched one', async ({page}) => {
   await openIdleService(page)
-  const result = await page.evaluate(() => {
-    const harness = window.mascotHarness
-    const {antenna, root} = window.parts
-    const sample = () => ({
-      anchor: harness.anchorOf(harness.requireEmitter()),
-      scaleY: harness.property(antenna, 'scaleY'),
-      yPercent: harness.property(antenna, 'yPercent'),
-    })
-    window.service.update({state: 'rest', working: true, follow: false})
-    harness.advanceBy(0.3)
-    const peak = sample()
-    harness.advanceBy(0.85)
-    const settled = sample()
-    return {peak, settled, stage: {width: root.offsetWidth, height: root.offsetHeight}}
-  })
-  const peakTip = tipUnderTransform(result.stage, result.peak.scaleY, result.peak.yPercent)
-  const settledTip = tipUnderTransform(result.stage, result.settled.scaleY, result.settled.yPercent)
+  const result = await page.evaluate(
+    ([launchAt, windowSeconds, digit]) => {
+      const harness = window.mascotHarness
+      const {antenna, root} = window.parts
+      window.service.update({state: 'rest', working: true, follow: false})
+      harness.advanceTo(launchAt)
+      const emitter = harness.requireEmitter()
+      const frames = harness.stepFrames<[number, number, number]>(
+        () => [
+          harness.digitFlightOf(emitter, digit).top,
+          harness.property(antenna, 'scaleY'),
+          harness.property(antenna, 'yPercent'),
+        ],
+        windowSeconds,
+      )
+      return {frames, stage: {width: root.offsetWidth, height: root.offsetHeight}}
+    },
+    [STRETCHED_LAUNCH_AT_S, STRETCHED_LAUNCH_WINDOW_S, STRETCHED_DIGIT] as const,
+  )
+  const tops = result.frames.map((frame) => frame[0])
+  const frame = launchFrames(tops)[0] ?? -1
+  const launched = result.frames[frame] ?? [Number.NaN, Number.NaN, Number.NaN]
+  const stretchedTip = tipUnderTransform(result.stage, launched[1], launched[2])
+  const unstretchedTip = tipUnderTransform(result.stage, 1, launched[2])
 
-  expectNear('the sampled beat really is the throb peak', result.peak.scaleY, 1.3, 0.01)
-  expect(result.settled.scaleY, 'the second sample really left the throb peak').toBeLessThan(1.1)
-  expectNear('the anchor rides the stretched tip at the throb peak', result.peak.anchor.top, peakTip.y, 0.3)
-  expectNear('the anchor follows the tip back as the throb settles', result.settled.anchor.top, settledTip.y, 0.3)
+  expect(frame, 'the sampled window really restarts one digit cycle').toBeGreaterThan(0)
+  expect(launched[1], 'the digit really launches while the antenna is stretched').toBeGreaterThan(1.1)
+  expect(
+    Math.abs(stretchedTip.y - unstretchedTip.y),
+    'the stretch really displaces the tip the digit launches from',
+  ).toBeGreaterThan(1)
+  expectNear('the launching digit starts on the stretched tip', launched[0], stretchedTip.y, LAUNCH_TIP_TOLERANCE_PX)
 })
 
-test('a viewport resize re-measures the antenna so the emitter keeps riding the real tip', async ({page}) => {
+test('a viewport resize re-measures the antenna so later digits launch from the real tip', async ({page}) => {
   await page.setViewportSize({width: 1000, height: 800})
   await installManualClock(page)
   await buildService(page, {state: 'rest', working: false, follow: false})
@@ -158,19 +199,25 @@ test('a viewport resize re-measures the antenna so the emitter keeps riding the 
     window.service.update({state: 'rest', working: true, follow: false})
     harness.advanceBy(0.5)
     harness.watchResize()
-    return {anchorLeft: harness.anchorOf(harness.requireEmitter()).left, stageWidth: window.parts.root.offsetWidth}
+    return {
+      launchLeft: harness.digitFlightOf(harness.requireEmitter(), 0).left,
+      stageWidth: window.parts.root.offsetWidth,
+    }
   })
   await page.setViewportSize({width: 1600, height: 800})
-  const after = await page.evaluate(async () => {
+  const after = await page.evaluate(async (settleSeconds) => {
     const harness = window.mascotHarness
     await harness.awaitResize()
-    harness.advanceBy(0.5)
-    return {anchorLeft: harness.anchorOf(harness.requireEmitter()).left, stageWidth: window.parts.root.offsetWidth}
-  })
+    harness.advanceBy(settleSeconds)
+    return {
+      launchLeft: harness.digitFlightOf(harness.requireEmitter(), 0).left,
+      stageWidth: window.parts.root.offsetWidth,
+    }
+  }, RELAUNCH_SETTLE_S)
 
-  expectNear('the emitter rides the antenna axis of the narrow stage', before.anchorLeft, before.stageWidth * 0.5, 0.5)
+  expectNear('digits launch on the antenna axis of the narrow stage', before.launchLeft, before.stageWidth * 0.5, 0.5)
   expect(after.stageWidth, 'the resize really widened the stage').toBeGreaterThan(before.stageWidth + 50)
-  expectNear('the emitter rides the antenna axis of the widened stage', after.anchorLeft, after.stageWidth * 0.5, 0.5)
+  expectNear('digits launch on the antenna axis of the widened stage', after.launchLeft, after.stageWidth * 0.5, 0.5)
 })
 
 test('the work timeline bobs the head and leaves every other pose channel untouched', async ({page}) => {

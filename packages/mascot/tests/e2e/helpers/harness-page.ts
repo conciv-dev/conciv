@@ -376,6 +376,14 @@ const HARNESS_SCRIPT = `
     top: parseFloat(element.style.top) + property(element, 'y'),
   })
 
+  const digitFlightOf = (emitter, index) => {
+    const digit = requireDigit(emitter, index)
+    return {
+      left: parseFloat(emitter.style.left) + property(emitter, 'x') + property(digit, 'x'),
+      top: parseFloat(emitter.style.top) + property(emitter, 'y') + property(digit, 'y'),
+    }
+  }
+
   const requireFlatDigit = (emitter, index) => {
     const digit = requireDigit(emitter, index)
     if (digit.firstElementChild === null) return digit
@@ -450,6 +458,7 @@ const HARNESS_SCRIPT = `
     activeWritersOfProperty,
     boxOf,
     anchorOf,
+    digitFlightOf,
     repeatingTimeline,
   }
   document.documentElement.dataset.harness = 'ready'
