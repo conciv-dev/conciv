@@ -3089,6 +3089,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@fontsource-variable/wix-madefor-text':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@types/node':
         specifier: ^26.1.0
         version: 26.1.0

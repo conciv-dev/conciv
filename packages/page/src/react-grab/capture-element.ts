@@ -1,17 +1,21 @@
 import type {DomPreview} from '@conciv/grab'
+import {correctFallbackMetrics, type TextRun} from './fallback-metrics.js'
 
-export function captureElement(el: Element): Promise<DomPreview> {
+function nextFrame(): Promise<void> {
   return new Promise((resolve) => {
-    requestAnimationFrame(() => resolve(captureSync(el)))
+    requestAnimationFrame(() => resolve())
   })
 }
 
-function captureSync(el: Element): DomPreview {
+export async function captureElement(el: Element): Promise<DomPreview> {
+  await nextFrame()
   const rect = el.getBoundingClientRect()
   const clone = el.cloneNode(true)
   const rules: string[] = []
+  const runs: TextRun[] = []
   if (!(clone instanceof HTMLElement)) return {kind: 'dom', html: '', width: rect.width, height: rect.height}
-  inlineComputedStyles(el, clone, rules)
+  inlineComputedStyles(el, clone, rules, runs)
+  await correctFallbackMetrics(runs)
   neutralizeLayout(clone)
 
   clone.removeAttribute('id')
@@ -28,7 +32,11 @@ function captureSync(el: Element): DomPreview {
 
 const SKIP_PROPS = new Set(['cursor', 'pointer-events', 'user-select', '-webkit-user-select'])
 
-function inlineComputedStyles(src: Element, dst: HTMLElement, rules: string[]): void {
+function isTextRun(node: Element): boolean {
+  return node.children.length === 0 && (node.textContent ?? '').trim() !== ''
+}
+
+function inlineComputedStyles(src: Element, dst: HTMLElement, rules: string[], runs: TextRun[]): void {
   const cs = getComputedStyle(src)
   let cssText = ''
   for (const prop of cs) {
@@ -37,12 +45,13 @@ function inlineComputedStyles(src: Element, dst: HTMLElement, rules: string[]): 
   }
   dst.style.cssText = cssText
   capturePseudo(src, dst, rules)
+  if (src instanceof HTMLElement && isTextRun(src)) runs.push({source: src, clone: dst})
   const sk = src.children
   const dk = dst.children
   for (let i = 0; i < sk.length; i++) {
     const childSrc = sk[i]
     const childDst = dk[i]
-    if (childSrc && childDst) inlineComputedStyles(childSrc, childDst as HTMLElement, rules)
+    if (childSrc && childDst) inlineComputedStyles(childSrc, childDst as HTMLElement, rules, runs)
   }
 }
 
