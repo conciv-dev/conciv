@@ -1,6 +1,6 @@
 import {useCallback, useSyncExternalStore} from 'react'
 
-export function useMediaQuery(query: string): boolean {
+export function useMediaQuery(query: string): boolean | undefined {
   const subscribe = useCallback(
     (onChange: () => void) => {
       if (typeof matchMedia === 'undefined') return () => {}
@@ -10,6 +10,6 @@ export function useMediaQuery(query: string): boolean {
     },
     [query],
   )
-  const getSnapshot = () => typeof matchMedia !== 'undefined' && matchMedia(query).matches
-  return useSyncExternalStore(subscribe, getSnapshot, () => false)
+  const getSnapshot = () => (typeof matchMedia === 'undefined' ? undefined : matchMedia(query).matches)
+  return useSyncExternalStore(subscribe, getSnapshot, () => undefined)
 }

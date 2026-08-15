@@ -1,4 +1,3 @@
-import ClickSpark from '@/components/ClickSpark'
 import {SiteNav} from './site-nav'
 import {Hero} from './hero'
 import {LandingMotion} from './lazy-motion'
@@ -6,25 +5,26 @@ import {BundlerBand} from './bundler-band'
 import {FeaturesSection} from './features-section'
 import {HowItWorks} from './how-it-works'
 import {SiteFooter} from './site-footer'
-import {SmoothScroll} from './smooth-scroll'
+import {Reveal} from './reveal'
 
 export function LandingPage() {
   return (
     <LandingMotion>
-      <SmoothScroll>
-        <div className="od-page min-h-screen">
-          <SiteNav />
-          <main>
-            <ClickSpark sparkColor="var(--od-accent)" sparkRadius={18} sparkCount={6} duration={420}>
-              <Hero />
-            </ClickSpark>
-            <BundlerBand />
-            <FeaturesSection />
+      <div className="min-h-screen">
+        <SiteNav />
+        <main className="od-container">
+          <Hero />
+          <div className="od-rule" />
+          <BundlerBand />
+          <div className="od-rule" />
+          <FeaturesSection />
+          <div className="od-rule" />
+          <Reveal>
             <HowItWorks />
-          </main>
-          <SiteFooter />
-        </div>
-      </SmoothScroll>
+          </Reveal>
+        </main>
+        <SiteFooter />
+      </div>
     </LandingMotion>
   )
 }
