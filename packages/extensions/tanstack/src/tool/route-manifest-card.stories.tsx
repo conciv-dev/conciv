@@ -5,7 +5,7 @@ import {RouteManifestCard} from './route-manifest-card.js'
 import {routeManifestDef} from './def.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
-const meta: Meta = {title: 'extension-tanstack/tool/RouteManifestCard'}
+const meta: Meta = {title: 'Extensions/TanStack/tool/RouteManifestCard'}
 export default meta
 type Story = StoryObj
 

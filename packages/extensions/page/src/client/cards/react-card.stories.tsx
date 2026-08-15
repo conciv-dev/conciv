@@ -4,7 +4,7 @@ import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ReactCard} from './react-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
-const meta: Meta = {title: 'extension-page/client/cards/ReactCard'}
+const meta: Meta = {title: 'Extensions/Page/tool/ReactCard'}
 export default meta
 type Story = StoryObj
 

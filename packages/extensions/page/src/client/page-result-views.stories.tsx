@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
 import {A11yNodeList, PageHtmlBlock, PageValueChip} from './page-result-views.js'
 
-const meta: Meta = {title: 'extension-page/client/PageResultViews'}
+const meta: Meta = {title: 'Extensions/Page/tool/PageResultViews'}
 export default meta
 type Story = StoryObj
 

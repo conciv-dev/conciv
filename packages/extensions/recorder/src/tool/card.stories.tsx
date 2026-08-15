@@ -3,7 +3,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {RecordingToolCard} from './card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
-const meta: Meta = {title: 'extension-recorder/tool/RecordingToolCard'}
+const meta: Meta = {title: 'Extensions/Recorder/tool/RecordingToolCard'}
 export default meta
 type Story = StoryObj
 
