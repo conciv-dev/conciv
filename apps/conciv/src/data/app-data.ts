@@ -11,6 +11,6 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   const utils = makeQueryUtils(rpc)
   return {
     utils,
-    invalidateSessions: () => void queryClient.invalidateQueries({queryKey: utils.sessions.key()}),
+    invalidateSessions: () => void queryClient.invalidateQueries({queryKey: utils.sessions.list.key()}),
   }
 }
