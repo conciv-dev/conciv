@@ -9,7 +9,12 @@ import {
 } from './config.js'
 import type {EffectMount} from './effects/effect.js'
 import {antennaStyle, effectHostStyle, eyesStyle, headStyle, rootStyle} from './layer-styles.js'
-import {type ActivityController, type ActivityRest, createActivityController} from './parts/activity.js'
+import {
+  type ActivityController,
+  type ActivityRecovery,
+  type ActivityRest,
+  createActivityController,
+} from './parts/activity.js'
 import {createFollowController, type FollowController, wrapForLean} from './parts/follow.js'
 import {createPoseController, type PoseController} from './parts/pose.js'
 import {type MascotSkin, robotSkin} from './skin.js'
@@ -106,8 +111,13 @@ function applyWork(registration: Registration, previous: MascotConfig, next: Mas
   registration.activity.trackTip()
 }
 
+function recoveryFor(previous: MascotConfig, next: MascotConfig): ActivityRecovery {
+  if (previous.state === next.state) return {pose: true, antennaScale: true}
+  return {pose: false, antennaScale: next.state === 'awake'}
+}
+
 function endWork(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
-  registration.activity.stop()
+  registration.activity.stop(recoveryFor(previous, next))
   applyPose(registration, previous, next)
   const wanted = followTarget(next)
   if (anyFollowChannel(wanted)) registration.follow.arm(wanted)
@@ -175,6 +185,7 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
   }
 
   const unmountEffect = (id: string) => {
+    if (destroyed) return
     effectMounts.delete(id)
     registration?.activity.unmountEffect(id)
   }

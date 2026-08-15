@@ -10,6 +10,8 @@ export type MascotSkin = {
   originFractions: SkinFraction
   tipFractions: SkinFraction
   awakeEyeRestScaleY: number
+  awakeHeadYPercent: number
+  awakeAntennaRotationDeg: number
   referenceAntennaPx: number
 }
 
@@ -25,5 +27,7 @@ export const robotSkin: MascotSkin = {
   originFractions: ROBOT_ORIGIN_FRACTIONS,
   tipFractions: {x: 0.5, y: 0.15625},
   awakeEyeRestScaleY: 1.06,
+  awakeHeadYPercent: -2,
+  awakeAntennaRotationDeg: -4,
   referenceAntennaPx: 44,
 }

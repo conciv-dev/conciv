@@ -1,11 +1,5 @@
 import gsap from 'gsap'
-import {
-  AWAKE_ANTENNA_ROTATION_DEG,
-  AWAKE_HEAD_Y_PERCENT,
-  type MascotState,
-  REST_EYE_SCALE_Y,
-  REST_HEAD_Y_PERCENT,
-} from '../config.js'
+import {type MascotState, REST_EYE_SCALE_Y, REST_HEAD_Y_PERCENT} from '../config.js'
 import type {MascotSkin} from '../skin.js'
 
 export type PoseParts = {head: HTMLElement; eyes: HTMLElement; antenna: HTMLElement}
@@ -25,6 +19,8 @@ const ANTENNA_POSED_PROPERTIES = 'rotation'
 export function createPoseController(parts: PoseParts, skin: MascotSkin): PoseController {
   const {head, eyes, antenna} = parts
   const awakeEyeScaleY = skin.awakeEyeRestScaleY
+  const awakeHeadY = skin.awakeHeadYPercent
+  const awakeAntennaRotation = skin.awakeAntennaRotationDeg
   let timeline: gsap.core.Timeline | undefined
   let current: MascotState = 'rest'
 
@@ -50,9 +46,9 @@ export function createPoseController(parts: PoseParts, skin: MascotSkin): PoseCo
   }
 
   const setAwakePose = () => {
-    gsap.set(head, {yPercent: AWAKE_HEAD_Y_PERCENT, rotation: 0, scaleX: 1, scaleY: 1})
+    gsap.set(head, {yPercent: awakeHeadY, rotation: 0, scaleX: 1, scaleY: 1})
     gsap.set(eyes, {scaleX: 1, scaleY: awakeEyeScaleY})
-    gsap.set(antenna, {rotation: AWAKE_ANTENNA_ROTATION_DEG})
+    gsap.set(antenna, {rotation: awakeAntennaRotation})
   }
 
   const playAwake = () =>
@@ -64,7 +60,7 @@ export function createPoseController(parts: PoseParts, skin: MascotSkin): PoseCo
       .to(eyes, {scaleY: 1.28, scaleX: 1.12, duration: 0.14, ease: 'expo.out'}, '<')
       .to(antenna, {rotation: -11, duration: 0.2, ease: 'expo.out'}, '<0.04')
       .to(head, {
-        yPercent: AWAKE_HEAD_Y_PERCENT,
+        yPercent: awakeHeadY,
         scaleX: 1,
         scaleY: 1,
         rotation: 0,
@@ -72,7 +68,7 @@ export function createPoseController(parts: PoseParts, skin: MascotSkin): PoseCo
         ease: 'power3.out',
       })
       .to(eyes, {scaleY: awakeEyeScaleY, scaleX: 1, duration: 0.22, ease: 'power2.out'}, '<')
-      .to(antenna, {rotation: AWAKE_ANTENNA_ROTATION_DEG, duration: 0.34, ease: 'power2.out'}, '<')
+      .to(antenna, {rotation: awakeAntennaRotation, duration: 0.34, ease: 'power2.out'}, '<')
 
   const playRest = () =>
     gsap
@@ -99,7 +95,7 @@ export function createPoseController(parts: PoseParts, skin: MascotSkin): PoseCo
 
   const eyeRestScaleY = () => (current === 'awake' ? awakeEyeScaleY : REST_EYE_SCALE_Y)
 
-  const headRestYPercent = () => (current === 'awake' ? AWAKE_HEAD_Y_PERCENT : REST_HEAD_Y_PERCENT)
+  const headRestYPercent = () => (current === 'awake' ? awakeHeadY : REST_HEAD_Y_PERCENT)
 
   const dispose = () => {
     killTimeline()

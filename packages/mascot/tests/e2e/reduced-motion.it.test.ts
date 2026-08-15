@@ -17,7 +17,12 @@ test('reduced motion lands poses instantly and starts no gaze or emitter', async
     }
     window.service.update({state: 'awake', working: true, follow: true})
     await harness.wait(700)
-    return {instant, listeners: window.pointerMoveListenerCount, emitters: harness.emitters().length}
+    return {
+      instant,
+      listeners: window.pointerMoveListenerCount,
+      emitters: harness.emitters().length,
+      tweens: harness.globalTweenCount(),
+    }
   })
 
   expectNear('reduced motion lands the head pose instantly', result.instant.headY, -2, 0.001)
@@ -25,4 +30,5 @@ test('reduced motion lands poses instantly and starts no gaze or emitter', async
   expectNear('reduced motion lands the antenna pose instantly', result.instant.antennaRotation, -4, 0.001)
   expect(result.listeners, 'reduced motion attaches no pointermove listener').toBe(0)
   expect(result.emitters, 'reduced motion emits no binary effect').toBe(0)
+  expect(result.tweens, 'reduced motion leaves no tween running, not even a tip tracker').toBe(0)
 })

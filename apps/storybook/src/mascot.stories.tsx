@@ -4,7 +4,6 @@ import {
   binaryEffect,
   createMascot,
   robotLayers,
-  robotSkin,
   type MascotConfig,
   type MascotFollow,
   type MascotState,
@@ -70,7 +69,7 @@ function MascotStage(props: StageProps): JSX.Element {
   onMount(() => {
     if (stage === undefined || head === undefined || eyes === undefined || antenna === undefined) return
     service.registerParts({stage, head, eyes, antenna})
-    service.mountEffect('binary', binaryEffect(antenna, robotSkin))
+    service.mountEffect('binary', binaryEffect)
   })
 
   createEffect(() => service.update(config()))
@@ -135,7 +134,9 @@ hands them back to the pose value with a short recovery when work stops.
 **Effects** — the core mounts nothing on its own. \`mountEffect(id, mount)\` registers an effect and activity
 drives it on every working edge, so two mounted effects mean two live emitters; \`unmountEffect(id)\` drains it.
 An effect renders into the host bound to its id through \`getEffectHostProps(id)\`, falling back to the stage.
-\`binaryEffect(antenna, skin)\` is the one effect shipped so far and is what this story mounts: five binary
+A mount receives one \`EffectContext\` (\`{host, stage, antenna, skin}\`) from the core, and an effect that wants
+to ride the antenna tip exposes an optional \`anchor(tip)\`; anchored effects simply omit it.
+\`binaryEffect\` is the one effect shipped so far and is what this story mounts: five binary
 digits rise out of the antenna tip in two lanes, stay anchored to the tip as the antenna leans, and drain back
 into it when work stops.
 

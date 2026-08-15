@@ -74,5 +74,3 @@ export const EXIT_DURATION_S = 0.5
 
 export const REST_EYE_SCALE_Y = 1
 export const REST_HEAD_Y_PERCENT = 0
-export const AWAKE_HEAD_Y_PERCENT = -2
-export const AWAKE_ANTENNA_ROTATION_DEG = -4

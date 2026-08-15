@@ -1,6 +1,6 @@
 import type {FollowChannels, MascotConfig, MascotFollow, MascotState} from './core/config.js'
 import {binaryEffect} from './core/effects/binary.js'
-import type {EffectHandle, EffectMount} from './core/effects/effect.js'
+import type {EffectContext, EffectHandle, EffectMount} from './core/effects/effect.js'
 import {
   createMascot,
   type MascotConnect,
@@ -14,6 +14,7 @@ import {type MascotSkin, robotSkin} from './core/skin.js'
 export {robotLayers} from './layers.gen.js'
 export {binaryEffect, createMascot, robotSkin}
 export type {
+  EffectContext,
   EffectHandle,
   EffectMount,
   FollowChannels,
@@ -49,7 +50,7 @@ function stageFor(layers: RigLayers): HTMLElement {
 export function createFabRobotRig(layers: RigLayers): FabRobotRig {
   const service = createMascot(RIG_CONFIGS.closed)
   service.registerParts({stage: stageFor(layers), head: layers.head, eyes: layers.eyes, antenna: layers.antenna})
-  service.mountEffect('binary', binaryEffect(layers.antenna, robotSkin))
+  service.mountEffect('binary', binaryEffect)
   const apply = (state: RigState) => service.update(RIG_CONFIGS[state])
   return {apply, destroy: service.destroy}
 }

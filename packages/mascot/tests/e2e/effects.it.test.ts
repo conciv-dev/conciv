@@ -26,8 +26,7 @@ test('two mounted effects run two emitters and both drain on the working falling
   await buildBareService(page, {state: 'rest', working: false, follow: false})
   const result = await page.evaluate(async () => {
     const harness = window.mascotHarness
-    const {antenna} = window.parts
-    const mount = harness.mascot.binaryEffect(antenna, harness.mascot.robotSkin)
+    const mount = harness.mascot.binaryEffect
     window.service.mountEffect('left', mount)
     window.service.mountEffect('right', mount)
     const idle = harness.emitters().length
@@ -64,7 +63,7 @@ test('each keyed effect mounts into its own bound host', async ({page}) => {
     connected.getHeadProps().ref(parts.head)
     connected.getEyesProps().ref(parts.eyes)
     connected.getAntennaProps().ref(parts.antenna)
-    const mount = harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin)
+    const mount = harness.mascot.binaryEffect
     service.mountEffect('left', mount)
     service.mountEffect('right', mount)
     service.update({state: 'rest', working: true, follow: false})
@@ -98,7 +97,7 @@ test('binding an effect host after the structural refs never re-registers the ri
     connected.getHeadProps().ref(parts.head)
     connected.getEyesProps().ref(parts.eyes)
     connected.getAntennaProps().ref(parts.antenna)
-    service.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin))
+    service.mountEffect('binary', harness.mascot.binaryEffect)
     await harness.wait(700)
     const wrapperBefore = harness.requireLeanWrapper()
     const timelineBefore = harness.repeatingTimeline()
@@ -129,7 +128,7 @@ test('unmounting one effect drains it and leaves the other running', async ({pag
   await buildBareService(page, {state: 'rest', working: true, follow: false})
   const result = await page.evaluate(async () => {
     const harness = window.mascotHarness
-    const mount = harness.mascot.binaryEffect(window.parts.antenna, harness.mascot.robotSkin)
+    const mount = harness.mascot.binaryEffect
     window.service.mountEffect('left', mount)
     window.service.mountEffect('right', mount)
     await harness.wait(700)
@@ -141,6 +140,32 @@ test('unmounting one effect drains it and leaves the other running', async ({pag
 
   expect(result.both, 'both effects run while working').toBe(2)
   expect(result.remaining, 'unmounting one effect leaves the other running').toBe(1)
+})
+
+test('destroying while an unmounted effect is still draining removes it', async ({page}) => {
+  const result = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    const service = harness.mascot.createMascot({state: 'rest', working: true, follow: false})
+    const parts = harness.buildStage()
+    service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
+    service.mountEffect('binary', harness.mascot.binaryEffect)
+    await harness.wait(700)
+    const mounted = harness.emitters().length
+    service.unmountEffect('binary')
+    await harness.wait(120)
+    const draining = harness.emitters().length
+    service.destroy()
+    const immediate = harness.emitters().length
+    await harness.wait(900)
+    const later = harness.emitters().length
+    parts.root.remove()
+    return {mounted, draining, immediate, later}
+  })
+
+  expect(result.mounted, 'the effect was live before unmounting').toBe(1)
+  expect(result.draining, 'unmounting drains rather than hard-cutting the effect').toBe(1)
+  expect(result.immediate, 'destroy removes the draining effect immediately').toBe(0)
+  expect(result.later, 'no draining effect resurrects after destroy').toBe(0)
 })
 
 test('a custom skin drives the layer art and the emitter scale reference', async ({page}) => {
@@ -156,7 +181,7 @@ test('a custom skin drives the layer art and the emitter scale reference', async
       const parts = harness.buildStage(antennaPx)
       const headBackground = service.connect().getHeadProps().style['background-image']
       service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
-      service.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, skin))
+      service.mountEffect('binary', harness.mascot.binaryEffect)
       await harness.wait(700)
       const geometry = harness.emitterGeometry(harness.requireEmitter())
       service.destroy()
@@ -168,7 +193,7 @@ test('a custom skin drives the layer art and the emitter scale reference', async
   const factor = FAB_ANTENNA_PX / CUSTOM_REFERENCE_ANTENNA_PX
 
   expect(result.headBackground, 'connect() reads the head layer art from the skin').toBe(`url('${CUSTOM_LAYER_IMAGE}')`)
-  expectNear('the skin reference antenna scales the digit font', result.geometry.fontSizePx, 9 * factor, 0.05)
+  expectNear('the effect reads the skin off the core-supplied context', result.geometry.fontSizePx, 9 * factor, 0.05)
   expectNear('the skin reference antenna scales the leading lane', result.geometry.leadingLeft, -1 * factor, 0.05)
   expectNear('the skin reference antenna scales the digit top', result.geometry.top, -12 * factor, 0.05)
 })

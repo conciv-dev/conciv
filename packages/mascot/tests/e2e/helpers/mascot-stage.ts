@@ -88,7 +88,7 @@ function buildStage(
       window.service = harness.mascot.createMascot(initial)
       window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
       if (!binary) return harness.stageCenter(parts.root)
-      window.service.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin))
+      window.service.mountEffect('binary', harness.mascot.binaryEffect)
       return harness.stageCenter(parts.root)
     },
     [config, withBinary, stageSizePx, layerInsetPx] as const,

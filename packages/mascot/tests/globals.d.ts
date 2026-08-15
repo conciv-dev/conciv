@@ -27,6 +27,7 @@ type MascotHarness = {
   property: (element: Element | null, name: string) => number
   stageCenter: (root: HTMLElement) => StagePoint
   globalTweenCount: () => number
+  activeWritersOf: (element: HTMLElement) => number
   boxOf: (element: HTMLElement) => Anchor
   anchorOf: (element: HTMLElement) => Anchor
   repeatingTimeline: () => object | undefined

@@ -39,7 +39,7 @@ test('connect() hands back stable refs and rebinding never duplicates the rig', 
     first.getHeadProps().ref(parts.head)
     first.getEyesProps().ref(parts.eyes)
     first.getAntennaProps().ref(parts.antenna)
-    service.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin))
+    service.mountEffect('binary', harness.mascot.binaryEffect)
     service.update({state: 'rest', working: true, follow: false})
     await harness.wait(900)
     const emitterBefore = harness.requireEmitter()
@@ -112,7 +112,7 @@ test('update() before registerParts stores the config and replays it on registra
     let threw = false
     try {
       service.update({state: 'awake', working: true, follow: false})
-      service.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin))
+      service.mountEffect('binary', harness.mascot.binaryEffect)
     } catch {
       threw = true
     }
@@ -215,7 +215,7 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
     const parts = harness.buildStage()
     const effectHost = makeEffectHost(parts.root)
     bind(bound, parts, effectHost)
-    mounted.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin))
+    mounted.mountEffect('binary', harness.mascot.binaryEffect)
     await harness.wait(700)
     const emitter = harness.emitters()[0]
     const hosted = {

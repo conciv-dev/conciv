@@ -15,12 +15,9 @@ import {
   ENTER_EASE,
 } from '../config.js'
 import type {EmitterAnchor} from '../path.js'
-import type {MascotSkin} from '../skin.js'
 import {antennaTipAnchor} from '../tip-anchor.js'
 import {enterFromTip, exitIntoTip} from '../tip-transition.js'
-import type {EffectHandle, EffectMount} from './effect.js'
-
-export type BinaryEmitter = EffectHandle
+import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
 const DIGIT_INDEXES = Array.from({length: BINARY_EMITTER_DIGIT_COUNT}, (_, index) => index)
 
@@ -72,20 +69,20 @@ function createRiseTimeline(digits: HTMLElement[], factor: number): gsap.core.Ti
 const returnToFull = (element: HTMLElement): gsap.core.Tween =>
   gsap.to(element, {scale: 1, opacity: 1, duration: ENTER_DURATION_S, ease: ENTER_EASE})
 
-export function createBinaryEmitter(
-  stage: HTMLElement,
-  antenna: HTMLElement,
-  tip: EmitterAnchor,
-  referenceAntennaPx: number,
-): BinaryEmitter {
-  const factor = antennaScaleFactor(antenna, referenceAntennaPx)
+function createBinaryEmitter(context: EffectContext, tip: EmitterAnchor): EffectHandle {
+  const {host, antenna, skin} = context
+  const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
   const element = createShell(tip, factor)
   const digits = DIGIT_INDEXES.map((index) => createDigit(factor, index))
   element.append(...digits)
-  stage.append(element)
+  host.append(element)
   const timeline = createRiseTimeline(digits, factor)
   let enter: gsap.core.Tween | undefined
   let exit: gsap.core.Tween | undefined
+
+  const anchor = (next: EmitterAnchor) => {
+    gsap.set(element, {left: next.x, top: next.y, autoRound: false})
+  }
 
   const remove = () => {
     exit?.kill()
@@ -112,10 +109,8 @@ export function createBinaryEmitter(
     })
   }
 
-  return {element, start, stop, remove}
+  return {start, stop, remove, anchor}
 }
 
-export const binaryEffect =
-  (antenna: HTMLElement, skin: MascotSkin): EffectMount =>
-  (host) =>
-    createBinaryEmitter(host, antenna, antennaTipAnchor(host, antenna, skin), skin.referenceAntennaPx)
+export const binaryEffect: EffectMount = (context) =>
+  createBinaryEmitter(context, antennaTipAnchor(context.host, context.antenna, context.skin))
