@@ -10,7 +10,6 @@ import {
 const AMPLE: EmitterRoom = {rise: 54, bend: 0}
 const LEFT_SQUEEZED: EmitterRoom = {rise: 16, bend: 53.2}
 const RIGHT_SQUEEZED: EmitterRoom = {rise: 16, bend: -53.2}
-const TIE: EmitterRoom = {rise: 16, bend: 53.2}
 
 const VERTICAL_AMPLE: EmitterPoint[] = [
   {x: 0, y: 0},
@@ -62,14 +61,6 @@ describe('curveControlPoints', () => {
       {x: 0, y: -7.2},
       {x: -23.94, y: -14.4},
       {x: -53.2, y: -16},
-    ])
-  })
-  it('a tie in side room bends the arc right, matching the measured bend sign', () => {
-    expectPoints('arc, tie', curveControlPoints('arc', TIE, 0), [
-      {x: 0, y: 0},
-      {x: 0, y: -7.2},
-      {x: 23.94, y: -14.4},
-      {x: 53.2, y: -16},
     ])
   })
   it('hook climbs the antenna axis, turns the corner, then runs sideways', () => {

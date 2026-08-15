@@ -12,7 +12,7 @@ import {
 
 const PRODUCT_FAB_ANTENNA_PX = 44
 
-const DEFAULT_HEADROOM_PX = 192
+const DEFAULT_HEADROOM_RATIO = 1.6
 
 const LAYER_STYLE: JSX.CSSProperties = {
   position: 'absolute',
@@ -32,11 +32,11 @@ const stageStyle = (sizePx: number): JSX.CSSProperties => ({
   'block-size': `${sizePx}px`,
 })
 
-const frameStyle = (headroomPx: number): JSX.CSSProperties => ({
+const frameStyle = (sizePx: number, headroomRatio: number): JSX.CSSProperties => ({
   display: 'flex',
   'flex-direction': 'column',
   'align-items': 'center',
-  'padding-block-start': `${headroomPx}px`,
+  'padding-block-start': `${Math.round(sizePx * headroomRatio)}px`,
   'padding-block-end': '24px',
 })
 
@@ -53,7 +53,7 @@ const FOLLOW_MODES: Record<FollowMode, MascotFollow> = {
 
 type StageProps = {state: MascotState; working: boolean; follow: FollowMode; stageSizePx: number; curve: CurveStyle}
 
-type PlaygroundProps = StageProps & {poseApply: PoseApply; headroomPx: number}
+type PlaygroundProps = StageProps & {poseApply: PoseApply; headroomRatio: number}
 
 function MascotStage(props: StageProps): JSX.Element {
   const config = (): MascotConfig => ({
@@ -94,10 +94,10 @@ function MascotStage(props: StageProps): JSX.Element {
 
 function MascotPlayground(props: PlaygroundProps): JSX.Element {
   const registrationKey = () =>
-    `${props.stageSizePx}|${props.headroomPx}|${props.poseApply === 'set' ? props.state : 'animate'}`
+    `${props.stageSizePx}|${props.headroomRatio}|${props.poseApply === 'set' ? props.state : 'animate'}`
 
   return (
-    <div style={frameStyle(props.headroomPx)}>
+    <div style={frameStyle(props.stageSizePx, props.headroomRatio)}>
       <Show keyed when={registrationKey()}>
         <MascotStage
           state={props.state}
@@ -160,10 +160,12 @@ coordinates once per emitter start, not live on scroll or resize, and the whole 
 antenna factor as the rest of the emitter.
 
 **Headroom** — a curve only bends when the room says it must, so with space above the robot every style
-degrades to the plain vertical rise. Drag \`headroomPx\` down with \`working\` on to squeeze the emitter against
-the top of the frame and watch the curves appear, \`auto\` flip from straight to bent, and the bend follow
-whichever side has more room. The measurement happens when the emitter starts, so changing the headroom
-re-registers the stage rather than bending a curve that is already in flight.
+degrades to the plain vertical rise. Drag \`headroomRatio\` down with \`working\` on to squeeze the emitter
+against the top of the frame and watch the curves appear, \`auto\` flip from straight to bent, and the bend
+follow whichever side has more room. It is a multiple of the stage size rather than a pixel count, so a 320px
+robot keeps the same proportional headroom a 44px one gets and the straight rise never leaves the frame. The
+measurement happens when the emitter starts, so changing the headroom re-registers the stage rather than
+bending a curve that is already in flight.
 
 **Skin** — every art-coupled value (layer images, transform origins, the antenna origin and tip fractions, the
 awake eye scale, the emitter's reference antenna size) lives in one \`MascotSkin\`, defaulting to
@@ -200,7 +202,7 @@ const meta: Meta<PlaygroundProps> = {
     stageSizePx: 120,
     poseApply: 'animate',
     curve: 'straight',
-    headroomPx: DEFAULT_HEADROOM_PX,
+    headroomRatio: DEFAULT_HEADROOM_RATIO,
   },
   argTypes: {
     state: {control: 'inline-radio', options: ['rest', 'awake'], description: 'Resting expression'},
@@ -222,9 +224,9 @@ const meta: Meta<PlaygroundProps> = {
       options: ['straight', 'arc', 'hook', 'fan', 'auto'],
       description: 'The path the emitter digits ride out of the antenna tip',
     },
-    headroomPx: {
-      control: {type: 'range', min: 0, max: 320, step: 8},
-      description: 'Space above the robot; shrink it to squeeze the emitter and watch the curves bend',
+    headroomRatio: {
+      control: {type: 'range', min: 0, max: 2.4, step: 0.1},
+      description: 'Space above the robot as a multiple of the stage size; shrink it to squeeze the emitter',
     },
     poseApply: {
       control: 'inline-radio',
@@ -245,7 +247,7 @@ export const Playground: Story = {
       stageSizePx={args.stageSizePx}
       poseApply={args.poseApply}
       curve={args.curve}
-      headroomPx={args.headroomPx}
+      headroomRatio={args.headroomRatio}
     />
   ),
 }

@@ -20,6 +20,7 @@ import {
   type EmitterAnchor,
   emitterCurvePoints,
   type EmitterPoint,
+  type EmitterRoom,
   measureEmitterRoom,
   resolveCurveStyle,
   stageViewportBounds,
@@ -44,20 +45,31 @@ function antennaScaleFactor(antenna: HTMLElement, referenceAntennaPx: number): n
   return size / referenceAntennaPx
 }
 
-function createDigit(factor: number, index: number): HTMLElement {
+const laneOffset = (index: number): number =>
+  isLeadingLane(index) ? BINARY_EMITTER_LANE_OFFSET_PX : -BINARY_EMITTER_LANE_OFFSET_PX
+
+function digitGlyph(index: number): HTMLElement {
   const digit = document.createElement('span')
-  const lane = isLeadingLane(index) ? BINARY_EMITTER_LANE_OFFSET_PX : -BINARY_EMITTER_LANE_OFFSET_PX
-  const left = (BINARY_EMITTER_DIGIT_LEFT_PX + lane) * factor
-  const top = BINARY_EMITTER_DIGIT_TOP_PX * factor
   digit.textContent = isLeadingLane(index) ? '1' : '0'
+  return digit
+}
+
+function createDigit(factor: number, index: number): HTMLElement {
+  const digit = digitGlyph(index)
+  const left = (BINARY_EMITTER_DIGIT_LEFT_PX + laneOffset(index)) * factor
+  const top = BINARY_EMITTER_DIGIT_TOP_PX * factor
   digit.style.cssText = `position:absolute;left:${left}px;top:${top}px`
   return digit
 }
 
 function createRider(factor: number, index: number): HTMLElement {
   const rider = document.createElement('span')
-  rider.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0'
-  rider.append(createDigit(factor, index))
+  const left = BINARY_EMITTER_DIGIT_LEFT_PX * factor
+  const top = BINARY_EMITTER_DIGIT_TOP_PX * factor
+  rider.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:0;height:0`
+  const digit = digitGlyph(index)
+  digit.style.cssText = `position:absolute;left:${laneOffset(index) * factor}px;top:0`
+  rider.append(digit)
   return rider
 }
 
@@ -116,7 +128,7 @@ function createCurveTimeline(riders: Rider[]): gsap.core.Timeline {
   return timeline
 }
 
-function measuredRoom(context: EffectContext, factor: number) {
+function measuredRoom(context: EffectContext, factor: number): EmitterRoom {
   const {stage, antenna, skin} = context
   const anchor = antennaTipAnchor(stage, antenna, skin)
   return measureEmitterRoom({x: anchor.x / factor, y: anchor.y / factor}, stageViewportBounds(stage, factor))
@@ -126,7 +138,7 @@ function planRiders(context: EffectContext, factor: number, curve: CurveStyle, e
   const room = measuredRoom(context, factor)
   const style = resolveCurveStyle(curve, room)
   if (style === 'straight') return []
-  return elements.flatMap((element, index) => ({element, path: emitterCurvePoints(style, room, index, factor)}))
+  return elements.map((element, index) => ({element, path: emitterCurvePoints(style, room, index, factor)}))
 }
 
 const returnToFull = (element: HTMLElement): gsap.core.Tween =>
@@ -144,11 +156,16 @@ function createBinaryEmitter(context: EffectContext, curve: CurveStyle): EffectH
   let enter: gsap.core.Tween | undefined
   let exit: gsap.core.Tween | undefined
 
+  const straightAfterCurve = (): gsap.core.Timeline => {
+    gsap.set(elements, {x: 0, rotation: 0})
+    return createRiseTimeline(elements, factor)
+  }
+
   const rebuildCurve = () => {
     if (!curved) return
     timeline?.kill()
     const riders = planRiders(context, factor, curve, elements)
-    timeline = riders.length === 0 ? createRiseTimeline(elements, factor) : createCurveTimeline(riders)
+    timeline = riders.length === 0 ? straightAfterCurve() : createCurveTimeline(riders)
   }
 
   const anchor = (next: EmitterAnchor) => {

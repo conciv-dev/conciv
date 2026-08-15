@@ -11,6 +11,9 @@ describe('measureEmitterRoom', () => {
   it('squeezed top-right bends left', () => {
     expect(measureEmitterRoom({x: 230, y: 28}, {top: 0, left: 0, right: 260})).toEqual({rise: 16, bend: -53.2})
   })
+  it('a tie in side room bends right', () => {
+    expect(measureEmitterRoom({x: 130, y: 28}, {top: 0, left: 0, right: 260})).toEqual({rise: 16, bend: 53.2})
+  })
   it('trivial squeeze stays straight', () => {
     expect(measureEmitterRoom({x: 130, y: 58}, {top: 0, left: 0, right: 260})).toEqual({rise: 46, bend: 0})
   })
