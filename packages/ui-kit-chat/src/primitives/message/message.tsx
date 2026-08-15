@@ -179,27 +179,48 @@ type IfConditions = {
   assistant?: boolean
   system?: boolean
   hasContent?: boolean
+  hasText?: boolean
   last?: boolean
   lastOrHover?: boolean
   hasAttachments?: boolean
 }
 
-function matchesIf(conditions: IfConditions, message: ReturnType<typeof useMessage>, hovering: string | null): boolean {
+type IfKey = keyof IfConditions
+
+type MessageState = ReturnType<typeof useMessage>
+
+type Turn = ReturnType<MessageState['message']>
+
+type IfPredicate = (turn: Turn, message: MessageState, hovering: string | null) => boolean
+
+const IF_PREDICATES: Record<IfKey, IfPredicate> = {
+  user: (turn) => turn.role === 'user',
+  assistant: (turn) => turn.role === 'assistant',
+  system: (turn) => turn.role === 'system',
+  hasContent: (turn) => turn.parts.length > 0,
+  hasText: (turn) => turn.parts.some((part) => part.type === 'text' && part.content.trim() !== ''),
+  last: (_turn, message) => message.isLast(),
+  lastOrHover: (turn, message, hovering) => message.isLast() || hovering === turn.key,
+  hasAttachments: (turn) => turn.parts.some((part) => part.type === 'image' || part.type === 'document'),
+}
+
+const IF_KEYS: readonly IfKey[] = [
+  'user',
+  'assistant',
+  'system',
+  'hasContent',
+  'hasText',
+  'last',
+  'lastOrHover',
+  'hasAttachments',
+]
+
+function matchesIf(conditions: IfConditions, message: MessageState, hovering: string | null): boolean {
   const turn = message.message()
-  const checks: boolean[] = []
-  if (conditions.user !== undefined) checks.push((turn.role === 'user') === conditions.user)
-  if (conditions.assistant !== undefined) checks.push((turn.role === 'assistant') === conditions.assistant)
-  if (conditions.system !== undefined) checks.push((turn.role === 'system') === conditions.system)
-  if (conditions.hasContent !== undefined) checks.push(turn.parts.length > 0 === conditions.hasContent)
-  if (conditions.last !== undefined) checks.push(message.isLast() === conditions.last)
-  if (conditions.lastOrHover !== undefined) {
-    checks.push((message.isLast() || hovering === turn.key) === conditions.lastOrHover)
-  }
-  if (conditions.hasAttachments !== undefined) {
-    const has = turn.parts.some((part) => part.type === 'image' || part.type === 'document')
-    checks.push(has === conditions.hasAttachments)
-  }
-  return checks.every(Boolean)
+  return IF_KEYS.every((key) => {
+    const expected = conditions[key]
+    return expected === undefined || IF_PREDICATES[key](turn, message, hovering) === expected
+  })
 }
 
 function If(props: ParentProps<IfConditions>): JSX.Element {
@@ -210,6 +231,7 @@ function If(props: ParentProps<IfConditions>): JSX.Element {
     'assistant',
     'system',
     'hasContent',
+    'hasText',
     'last',
     'lastOrHover',
     'hasAttachments',
