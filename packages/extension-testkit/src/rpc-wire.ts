@@ -1,5 +1,6 @@
 import type {Page} from 'playwright'
 import {z} from 'zod'
+import {ChatContentPartSchema} from '@conciv/protocol/chat-types'
 import {rpcObserverFor, type RpcTransport} from './rpc-observer.js'
 
 export type {RpcTransport}
@@ -14,9 +15,12 @@ const CHAT_SUBSCRIBE: readonly string[] = ['chat', 'subscribe']
 const SESSIONS_LIST: readonly string[] = ['sessions', 'list']
 const SESSIONS_RESOLVE: readonly string[] = ['sessions', 'resolve']
 
-const ChatSendInputSchema = z.object({content: z.string()})
+const ChatSendInputSchema = z.object({
+  text: z.string().optional(),
+  content: z.union([z.string(), z.array(ChatContentPartSchema)]).optional(),
+})
 
-export type ChatSendFrame = {transport: RpcTransport; content: string}
+export type ChatSendFrame = {transport: RpcTransport} & z.infer<typeof ChatSendInputSchema>
 
 export type ChatReconnectFrames = {stop: RpcTransport; send: RpcTransport; subscribe: RpcTransport}
 
@@ -38,7 +42,7 @@ export function watchRpcWire(page: Page): RpcWireWatch {
       const since = observer.mark()
       return observer
         .completed({path: CHAT_SEND, since, timeout: WIRE_TIMEOUT_MS})
-        .then((call) => ({transport: call.transport, content: ChatSendInputSchema.parse(call.input).content}))
+        .then((call) => ({transport: call.transport, ...ChatSendInputSchema.parse(call.input)}))
     },
     chatReconnect: async () => {
       const since = observer.mark()

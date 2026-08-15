@@ -19,6 +19,6 @@ function panelSessionIdOf(href: string): string {
 
 export async function panelSessionId(kit: EmbedKit): Promise<string> {
   const persisted = await kit.rpc.navigation.get()
-  const entries = persisted?.entries ?? []
-  return entries.map((entry) => panelSessionIdOf(entry.href)).find((sessionId) => sessionId !== '') ?? ''
+  const active = persisted?.entries[persisted.index]
+  return active ? panelSessionIdOf(active.href) : ''
 }
