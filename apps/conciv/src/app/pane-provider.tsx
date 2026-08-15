@@ -2,7 +2,9 @@ import {type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {useRouter} from '@tanstack/solid-router'
 import {useAppData, useGrabProvider, useRpc} from './context.js'
-import {PaneContext, makeGrabStore, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
+import {makeGrabStaging} from '../pane/grab-staging.js'
+import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 
 export function PaneProvider(props: {
   sessionId: string
@@ -30,7 +32,7 @@ export function PaneProvider(props: {
     setLockedFor: () => () => {},
     slideClass: () => '',
     resetSlide: () => {},
-    grabStore: makeGrabStore(),
+    grabStaging: makeGrabStaging({ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input))}),
     grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => {

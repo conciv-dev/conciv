@@ -22,15 +22,15 @@ describe('row schemas', () => {
     expect(() => MarkerRowSchema.parse({id: 'm1', sessionId: 'conciv_1', afterTurn: 2, kind: 'weird'})).toThrow()
   })
 
-  it('drafts are explicit about selection and grabs', () => {
+  it('drafts are explicit about selection and default their attachments', () => {
     const draft = DraftRowSchema.parse({
       sessionId: 'conciv_1',
       text: 'hi',
       selectionStart: 2,
       selectionEnd: 2,
-      grabs: ['<div/>'],
       updatedAt: 5,
     })
-    expect(draft.grabs).toEqual(['<div/>'])
+    expect(draft.selectionEnd).toBe(2)
+    expect(draft.attachments).toEqual([])
   })
 })

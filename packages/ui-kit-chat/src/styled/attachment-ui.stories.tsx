@@ -35,18 +35,18 @@ function Frame(): JSX.Element {
       value={{
         attachments,
         attachmentAdapter: () => undefined,
-        addAttachment: async () => {},
+        addAttachment: async () => null,
+        hasAttachment: () => false,
+        replaceAttachment: async () => null,
         removeAttachment: async (id) => {
           setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
         },
         sendingAttachments: () => false,
-        snapshotDraft: () => ({draft: '', attachments: [], quote: null, grabs: []}),
+        snapshotDraft: () => ({draft: '', attachments: [], quote: null}),
         restoreDraft: () => {},
         clearDraft: () => {},
         quote: () => null,
         setQuote: () => {},
-        grabs: () => [],
-        setGrabs: () => {},
         editing: () => false,
         setEditing: () => {},
         dictating: () => false,

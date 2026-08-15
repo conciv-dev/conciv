@@ -1,6 +1,7 @@
 import {render} from 'solid-js/web'
 import {RouterProvider, createBrowserHistory} from '@tanstack/solid-router'
 import {makeBrowserRpcClient} from '@conciv/contract'
+import pageExtension from '@conciv/extension-page/client'
 import {parseConcivSettings} from './data/settings.js'
 import {createConcivRouter} from './router.js'
 
@@ -14,6 +15,7 @@ function start(): void {
     history: createBrowserHistory(),
     environment: {rootNode: document, document},
     settings,
+    extensions: [pageExtension],
     apiBase: () => apiBase,
   })
   const root = document.getElementById('app')

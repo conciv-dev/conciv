@@ -1,16 +1,21 @@
 import type {DomPreview} from '@conciv/grab'
+import {correctFallbackMetrics, isStyledElement, type StyledElement, type TextRun} from './fallback-metrics.js'
 
-export function captureElement(el: Element): Promise<DomPreview> {
+function nextFrame(): Promise<void> {
   return new Promise((resolve) => {
-    requestAnimationFrame(() => resolve(captureSync(el)))
+    requestAnimationFrame(() => resolve())
   })
 }
 
-function captureSync(el: Element): DomPreview {
+export async function captureElement(el: Element): Promise<DomPreview> {
+  await nextFrame()
   const rect = el.getBoundingClientRect()
-  const clone = el.cloneNode(true) as HTMLElement
+  const clone = el.cloneNode(true)
   const rules: string[] = []
-  inlineComputedStyles(el, clone, rules)
+  const runs: TextRun[] = []
+  if (!isStyledElement(clone)) return {kind: 'dom', html: '', width: rect.width, height: rect.height}
+  inlineComputedStyles(el, clone, rules, runs)
+  await correctFallbackMetrics(runs)
   neutralizeLayout(clone)
 
   clone.removeAttribute('id')
@@ -22,31 +27,39 @@ function captureSync(el: Element): DomPreview {
     node.appendChild(style)
   }
   node.appendChild(clone)
-  return {kind: 'dom', node, width: rect.width, height: rect.height}
+  return {kind: 'dom', html: node.outerHTML, width: rect.width, height: rect.height}
 }
 
 const SKIP_PROPS = new Set(['cursor', 'pointer-events', 'user-select', '-webkit-user-select'])
 
-function inlineComputedStyles(src: Element, dst: HTMLElement, rules: string[]): void {
-  const cs = getComputedStyle(src)
+function isTextRun(node: Element): boolean {
+  return node.children.length === 0 && (node.textContent ?? '').trim() !== ''
+}
+
+function computedCssText(cs: CSSStyleDeclaration): string {
   let cssText = ''
   for (const prop of cs) {
     if (SKIP_PROPS.has(prop) || prop.startsWith('--')) continue
     cssText += `${prop}:${cs.getPropertyValue(prop)};`
   }
-  dst.style.cssText = cssText
+  return cssText
+}
+
+function inlineComputedStyles(src: Element, dst: StyledElement, rules: string[], runs: TextRun[]): void {
+  dst.style.cssText = computedCssText(getComputedStyle(src))
   capturePseudo(src, dst, rules)
+  if (isStyledElement(src) && isTextRun(src)) runs.push({source: src, clone: dst})
   const sk = src.children
   const dk = dst.children
   for (let i = 0; i < sk.length; i++) {
     const childSrc = sk[i]
     const childDst = dk[i]
-    if (childSrc && childDst) inlineComputedStyles(childSrc, childDst as HTMLElement, rules)
+    if (childSrc && childDst && isStyledElement(childDst)) inlineComputedStyles(childSrc, childDst, rules, runs)
   }
 }
 
 let pseudoSeq = 0
-function capturePseudo(src: Element, dst: HTMLElement, rules: string[]): void {
+function capturePseudo(src: Element, dst: StyledElement, rules: string[]): void {
   for (const pseudo of ['::before', '::after']) {
     const pcs = getComputedStyle(src, pseudo)
     const content = pcs.content
@@ -59,7 +72,7 @@ function capturePseudo(src: Element, dst: HTMLElement, rules: string[]): void {
   }
 }
 
-function neutralizeLayout(root: HTMLElement): void {
+function neutralizeLayout(root: StyledElement): void {
   root.style.position = 'static'
   root.style.margin = '0'
   root.style.top = 'auto'

@@ -22,6 +22,10 @@
     ".": {
       "types": "./dist/grab.d.ts",
       "import": "./dist/grab.js"
+    },
+    "./grab-attachment": {
+      "types": "./dist/grab-attachment.d.ts",
+      "import": "./dist/grab-attachment.js"
     }
   },
   "publishConfig": {
@@ -34,6 +38,9 @@
     "test": "vitest run --passWithNoTests",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",

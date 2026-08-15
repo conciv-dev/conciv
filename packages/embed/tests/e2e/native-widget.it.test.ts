@@ -126,9 +126,9 @@ test.describe('native widget bridge', () => {
   }) => {
     test.setTimeout(120_000)
     const {page, bridge, observer} = await openNative(fixturePage)
-    const stagedForModel = observer.completed({
+    const persistedGrab = observer.completed({
       path: ['drafts', 'set'],
-      input: /\[view\][\s\S]*PaymentCardCell/,
+      input: /application\/vnd\.conciv\.grab\+json/,
       timeout: 30_000,
     })
     const picked = Promise.withResolvers<PageToNativeMessage>()
@@ -148,7 +148,7 @@ test.describe('native widget bridge', () => {
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
     await expect(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
     await expect(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
-    expect(JSON.stringify((await stagedForModel).input)).toContain('PaymentCardCell')
+    expect(JSON.stringify((await persistedGrab).input)).toContain('Grabbed element')
   })
 
   test('ignores a grabResult whose requestId does not match the pending pick', async ({page: fixturePage}) => {

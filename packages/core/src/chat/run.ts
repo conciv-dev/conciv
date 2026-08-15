@@ -451,15 +451,6 @@ export async function expandUserParts(content: UserContent, expanders: Attachmen
   return expanded
 }
 
-async function composeUserContent(db: ConcivDb, sessionId: string, content: UserContent): Promise<UserContent> {
-  const rows = await db.select({grabs: drafts.grabs}).from(drafts).where(eq(drafts.sessionId, sessionId))
-  const grabs = rows[0]?.grabs ?? []
-  if (grabs.length === 0) return content
-  const prefix = grabs.join('\n')
-  if (typeof content === 'string') return content ? `${prefix}\n${content}` : prefix
-  return [{type: 'text', content: `${prefix}\n`}, ...content]
-}
-
 export type Send = (sessionId: string, runId: string, content: UserContent) => Promise<string>
 
 const RUN_ID_TAKEN_ERROR_NAME = 'RunIdTakenError'
@@ -477,8 +468,7 @@ export function isRunIdTakenError(error: unknown): error is Error {
 async function prepareLaunchContent(deps: ChatDeps, sessionId: string, content: UserContent): Promise<UserContent> {
   deps.onRunStart?.(sessionId)
   await ensureRow(deps.db, sessionId, deps.harness.id, deps.cwd)
-  const userContent = await composeUserContent(deps.db, sessionId, content)
-  return expandUserParts(userContent, deps.attachmentExpanders)
+  return expandUserParts(content, deps.attachmentExpanders)
 }
 
 async function settleLiveRuns(deps: ChatDeps, sessionId: string): Promise<void> {

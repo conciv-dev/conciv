@@ -41,7 +41,7 @@ export type AttachmentAdapter = {
 
 let fallbackId = 0
 
-function attachmentId(): string {
+export function attachmentId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   fallbackId += 1
   return `attachment-${fallbackId}`
