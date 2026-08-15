@@ -8,7 +8,9 @@ function hostileMarkup(marker: string): string {
 }
 
 test('the snapshot frame renders the markup in its own document', async () => {
-  render(() => <GrabSnapshotFrame html="<p>Payroll Deposit clone</p>" width={200} height={40} scale={1} />)
+  render(() => (
+    <GrabSnapshotFrame html="<p>Payroll Deposit clone</p>" width={200} height={40} class="block max-w-full" />
+  ))
 
   await expect.element(page.getByTitle('Grabbed element snapshot')).toBeVisible()
 })
@@ -17,7 +19,7 @@ test('inline handlers in captured markup never run inside the widget', async () 
   render(() => (
     <>
       <iframe title="Unsandboxed control" srcdoc={hostileMarkup('control escaped')} />
-      <GrabSnapshotFrame html={hostileMarkup('snapshot escaped')} width={200} height={40} scale={1} />
+      <GrabSnapshotFrame html={hostileMarkup('snapshot escaped')} width={200} height={40} class="block max-w-full" />
     </>
   ))
 

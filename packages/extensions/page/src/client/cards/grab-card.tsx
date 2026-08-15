@@ -12,11 +12,13 @@ type GrabPreview = NonNullable<GrabPayload['preview']>
 
 const CARD =
   'text-[0.6875rem] font-pw-mono p-3 border border-pw-line rounded-pw-md bg-pw-fill flex flex-col gap-2.5 items-start relative'
-const PREVIEW_SLOT = 'relative max-w-full max-h-[13.75rem] overflow-hidden'
+const PREVIEW_SLOT = 'relative max-w-full'
 const OPEN_BUTTON = 'absolute inset-0 cursor-pointer'
 const SOURCE_LINE = 'text-pw-text-2 flex gap-1.5 [word-break:break-all] items-center'
 const AGENT_TEXT = 'text-pw-text-2 font-pw-mono text-xs whitespace-pre-wrap [word-break:break-all] m-0'
-const SNAPSHOT_IMAGE = 'block w-auto h-auto max-w-full'
+const CARD_SNAPSHOT = 'block w-auto h-auto max-w-full max-h-[40cqh]'
+
+const DIALOG_SNAPSHOT = 'block w-auto h-auto max-w-full max-h-[70vh]'
 
 const SNAPSHOT_LABEL = 'Grabbed element snapshot'
 
@@ -50,7 +52,7 @@ function imagePreview(preview: GrabPreview): Extract<GrabPreview, {kind: 'image'
   return preview.kind === 'image' ? preview : null
 }
 
-function Preview(props: {preview: GrabPreview; scale: number}): JSX.Element {
+function Preview(props: {preview: GrabPreview; class: string}): JSX.Element {
   return (
     <Show
       when={domPreview(props.preview)}
@@ -58,17 +60,17 @@ function Preview(props: {preview: GrabPreview; scale: number}): JSX.Element {
         <Show when={imagePreview(props.preview)}>
           {(image) => (
             <img
-              class={SNAPSHOT_IMAGE}
+              class={props.class}
               src={image().dataUrl}
-              width={image().width * props.scale}
-              height={image().height * props.scale}
+              width={image().width}
+              height={image().height}
               alt={SNAPSHOT_LABEL}
             />
           )}
         </Show>
       }
     >
-      {(dom) => <GrabSnapshotFrame html={dom().html} width={dom().width} height={dom().height} scale={props.scale} />}
+      {(dom) => <GrabSnapshotFrame html={dom().html} width={dom().width} height={dom().height} class={props.class} />}
     </Show>
   )
 }
@@ -82,7 +84,7 @@ function GrabBody(props: {payload: GrabPayload; remove?: JSX.Element}): JSX.Elem
       <Show when={props.payload.preview} fallback={<pre class={AGENT_TEXT}>{props.payload.text}</pre>}>
         {(preview) => (
           <div class={PREVIEW_SLOT}>
-            <Preview preview={preview()} scale={1} />
+            <Preview preview={preview()} class={CARD_SNAPSHOT} />
             <Button
               variant="plain"
               size="none"
@@ -124,7 +126,7 @@ function GrabBody(props: {payload: GrabPayload; remove?: JSX.Element}): JSX.Elem
             when={showAgentText() ? null : props.payload.preview}
             fallback={<pre class={AGENT_TEXT}>{props.payload.text}</pre>}
           >
-            {(preview) => <Preview preview={preview()} scale={2} />}
+            {(preview) => <Preview preview={preview()} class={DIALOG_SNAPSHOT} />}
           </Show>
         </Show>
       </Dialog>
