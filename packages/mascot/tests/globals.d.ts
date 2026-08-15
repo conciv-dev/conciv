@@ -1,5 +1,5 @@
 import type * as MascotModule from '../src/rig.js'
-import type {StagePlacement, StageParts, StagePoint} from './e2e/helpers/mascot-stage.js'
+import type {DigitPlacement, StagePlacement, StageParts, StagePoint} from './e2e/helpers/mascot-stage.js'
 
 type Summary = {min: number; max: number; last: number}
 
@@ -20,6 +20,7 @@ type MascotHarness = {
   requireLeanWrapper: () => HTMLElement
   requireDigit: (emitter: HTMLElement, index: number) => HTMLElement
   emitterGeometry: (emitter: HTMLElement) => EmitterGeometry
+  curvedDigitPlacement: (emitter: HTMLElement, index: number) => DigitPlacement
   countingEffect: MascotModule.EffectMount
   countingEffectTotals: () => EffectTotals
   wait: (milliseconds: number) => Promise<void>

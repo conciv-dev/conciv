@@ -241,12 +241,35 @@ const HARNESS_SCRIPT = `
 
   const anchorOf = (element) => ({left: parseFloat(element.style.left), top: parseFloat(element.style.top)})
 
+  const requireFlatDigit = (emitter, index) => {
+    const digit = requireDigit(emitter, index)
+    if (digit.firstElementChild === null) return digit
+    throw new Error(
+      'emitterGeometry reads the straight emitter placement, but digit ' + index +
+        ' is a curve rider: read curvedDigitPlacement instead',
+    )
+  }
+
   const emitterGeometry = (emitter) => ({
     fontSizePx: parseFloat(emitter.style.fontSize),
-    leadingLeft: parseFloat(requireDigit(emitter, 0).style.left),
-    trailingLeft: parseFloat(requireDigit(emitter, 1).style.left),
-    top: parseFloat(requireDigit(emitter, 0).style.top),
+    leadingLeft: parseFloat(requireFlatDigit(emitter, 0).style.left),
+    trailingLeft: parseFloat(requireFlatDigit(emitter, 1).style.left),
+    top: parseFloat(requireFlatDigit(emitter, 0).style.top),
   })
+
+  const curvedDigitPlacement = (emitter, index) => {
+    const rider = requireDigit(emitter, index)
+    const glyph = rider.firstElementChild
+    if (!(glyph instanceof HTMLElement)) {
+      throw new Error('the digit at index ' + index + ' is not a curve rider')
+    }
+    return {
+      riderLeft: rider.style.left,
+      riderTop: rider.style.top,
+      glyphLeft: glyph.style.left,
+      glyphTop: glyph.style.top,
+    }
+  }
 
   const repeatingTimeline = () =>
     gsap.globalTimeline.getChildren(false, false, true).find((child) => child.repeat() === -1)
@@ -262,6 +285,7 @@ const HARNESS_SCRIPT = `
     requireLeanWrapper,
     requireDigit,
     emitterGeometry,
+    curvedDigitPlacement,
     countingEffect,
     countingEffectTotals,
     wait,

@@ -3,6 +3,7 @@ import type {CurveStyle, MascotConfig} from '../../src/rig.js'
 import {expectNear} from './helpers/near.js'
 import {
   buildCurvedService,
+  type DigitPlacement,
   installManualClock,
   openMascotPage,
   PRODUCT_FAB_ANTENNA_PX,
@@ -23,6 +24,8 @@ const AT_BOTTOM_EDGE: StagePlacement = {left: 618, top: 620}
 
 const LARGE_STAGE_PX = 320
 
+const TRIPLE_ANTENNA_PX = PRODUCT_FAB_ANTENNA_PX * 3
+
 const TRAVEL_SAMPLE_S = 2.05
 
 const FAN_SAMPLE_S = 4.4
@@ -30,6 +33,8 @@ const FAN_SAMPLE_S = 4.4
 const FAN_LANE_RATIOS = [1, 1.4, 1.8, 2.2, 2.6]
 
 const LAUNCH_DRIFT_FRACTION = 0.05
+
+const BACKTRACK_FRACTION = 0.0005
 
 const LANDING_PX = 15
 
@@ -83,7 +88,10 @@ function expectBend(label: string, values: number[], direction: number): void {
   )
   const underway = projected.findIndex((value) => value > allowedDrift)
   const travelling = projected.slice(underway)
-  const backtracks = travelling.filter((value, index) => index > 0 && value - (travelling[index - 1] ?? 0) < -0.01)
+  const allowedBacktrack = landing * BACKTRACK_FRACTION
+  const backtracks = travelling.filter(
+    (value, index) => index > 0 && value - (travelling[index - 1] ?? 0) < -allowedBacktrack,
+  )
   expect(backtracks.length, `${label}: samples that reverse the bend once under way`).toBe(0)
 }
 
@@ -178,7 +186,7 @@ test('restarting into a room that no longer bends returns the digits to the ante
     LANDING_PX,
   )
 
-  const horizontal = await page.evaluate(
+  const frames = await page.evaluate(
     ([roomy, seconds]) => {
       const harness = window.mascotHarness
       window.parts.root.style.top = `${roomy}px`
@@ -186,12 +194,44 @@ test('restarting into a room that no longer bends returns the digits to the ante
       window.service.update({state: 'rest', working: true, follow: false})
       harness.advanceBy(0)
       const digit = harness.requireDigit(harness.requireEmitter(), 0)
-      return harness.stepFrames(() => harness.property(digit, 'x'), seconds)
+      return harness.stepFrames(() => [harness.property(digit, 'x'), harness.property(digit, 'rotation')], seconds)
     },
     [AT_BOTTOM_EDGE.top, TRAVEL_SAMPLE_S] as const,
   )
+  const sideways = frames.map((frame) => Math.abs(frame[0] ?? 0))
+  const tilt = frames.map((frame) => Math.abs(frame[1] ?? 0))
 
-  expect(Math.max(...horizontal.map(Math.abs)), 'sideways travel left over from the squeezed curve').toBeLessThan(0.001)
+  expect(Math.max(...sideways), 'sideways travel left over from the squeezed curve').toBeLessThan(0.001)
+  expect(Math.max(...tilt), 'tangent tilt left over from the squeezed curve').toBeLessThan(0.001)
+})
+
+const readPlacement = (page: Page, index: number): Promise<DigitPlacement> =>
+  page.evaluate(
+    (digit) => window.mascotHarness.curvedDigitPlacement(window.mascotHarness.requireEmitter(), digit),
+    index,
+  )
+
+test('a curve rider carries the centering offset so its glyph tilts in place', async ({page}) => {
+  await openStage(page, 'arc', AT_LEFT_EDGE)
+  const leading = await readPlacement(page, 0)
+  const trailing = await readPlacement(page, 1)
+
+  expect(leading.riderLeft, 'the rider sits on the emitter centering offset').toBe('-4px')
+  expect(leading.riderTop, 'the rider sits on the emitter centering offset').toBe('-12px')
+  expect(trailing.riderLeft, 'both lanes share one rider anchor').toBe('-4px')
+  expect(trailing.riderTop, 'both lanes share one rider anchor').toBe('-12px')
+  expect(leading.glyphLeft, 'the leading glyph carries only its lane offset').toBe('3px')
+  expect(trailing.glyphLeft, 'the trailing glyph carries only its lane offset').toBe('-3px')
+  expect(leading.glyphTop, 'the glyph adds no vertical offset inside the rider').toBe('0px')
+})
+
+test('the rider centering and the lane inside it both scale with the antenna', async ({page}) => {
+  await openStage(page, 'arc', AT_LEFT_EDGE, TRIPLE_ANTENNA_PX)
+  const leading = await readPlacement(page, 0)
+
+  expect(leading.riderLeft, 'a tripled antenna triples the rider centering').toBe('-12px')
+  expect(leading.riderTop, 'a tripled antenna triples the rider centering').toBe('-36px')
+  expect(leading.glyphLeft, 'a tripled antenna triples the lane offset').toBe('9px')
 })
 
 test.describe('reduced motion', () => {

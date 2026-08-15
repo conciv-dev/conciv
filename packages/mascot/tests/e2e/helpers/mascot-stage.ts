@@ -100,6 +100,8 @@ function buildStage(
 
 export type StagePlacement = {left: number; top: number}
 
+export type DigitPlacement = {riderLeft: string; riderTop: string; glyphLeft: string; glyphTop: string}
+
 export function buildCurvedService(
   page: Page,
   config: MascotConfig,
