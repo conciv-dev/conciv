@@ -9,6 +9,7 @@ describe('parseConcivSettings', () => {
       defaultOpen: false,
       launcher: 'mascot',
       transport: 'auto',
+      theme: {accent: undefined, hue: undefined},
     }
     expect(parseConcivSettings('')).toEqual(expected)
     expect(parseConcivSettings('{nope')).toEqual(expected)
@@ -46,5 +47,37 @@ describe('parseConcivSettings', () => {
       'Mod+k',
       'Mod+j',
     ])
+  })
+
+  describe('theme', () => {
+    it('parses a valid accent and hue', () => {
+      expect(parseConcivSettings('{"theme": {"accent": "oklch(0.7 0.19 32)", "hue": 30}}').theme).toEqual({
+        accent: 'oklch(0.7 0.19 32)',
+        hue: 30,
+      })
+    })
+
+    it('accepts hex accents in 3, 6, and 8 digit form', () => {
+      expect(parseConcivSettings('{"theme": {"accent": "#f0a"}}').theme?.accent).toBe('#f0a')
+      expect(parseConcivSettings('{"theme": {"accent": "#ff00aa"}}').theme?.accent).toBe('#ff00aa')
+      expect(parseConcivSettings('{"theme": {"accent": "#ff00aacc"}}').theme?.accent).toBe('#ff00aacc')
+    })
+
+    it('rejects an injection-like accent string and falls back to undefined', () => {
+      expect(parseConcivSettings('{"theme": {"accent": "red; background: url(x)"}}').theme?.accent).toBeUndefined()
+      expect(parseConcivSettings('{"theme": {"accent": "javascript:alert(1)"}}').theme?.accent).toBeUndefined()
+    })
+
+    it('rejects an out-of-range hue and falls back to undefined while keeping a valid accent', () => {
+      expect(parseConcivSettings('{"theme": {"accent": "#ff0000", "hue": 720}}').theme).toEqual({
+        accent: '#ff0000',
+        hue: undefined,
+      })
+      expect(parseConcivSettings('{"theme": {"hue": -10}}').theme?.hue).toBeUndefined()
+    })
+
+    it('defaults theme to an empty object when absent', () => {
+      expect(parseConcivSettings('{}').theme).toEqual({accent: undefined, hue: undefined})
+    })
   })
 })

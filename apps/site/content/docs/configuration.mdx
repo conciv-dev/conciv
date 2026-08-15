@@ -85,6 +85,19 @@ conciv({widget: {modal: false}}) // quick terminal only
 `bottom-right` (default), and the button is also draggable. See the
 [Quick Terminal](/docs/usage/quick-terminal) guide for the drop-down layout.
 
+### Theme
+
+Set `widget.theme` to match the widget's accent color to your host page's palette.
+
+```ts
+conciv({widget: {theme: {accent: 'oklch(0.7 0.19 32)', hue: 30}}})
+```
+
+`accent` accepts a hex, `rgb()`/`rgba()`, `hsl()`/`hsla()`, `oklch()`, `oklab()`, or `color()` CSS
+color value; anything else is ignored and the default magenta accent is kept. `hue` (0-360) shifts
+the neutral surface colors — background, text, borders — to match; set it alongside `accent` when
+your palette isn't magenta, or the neutrals stay on the default hue.
+
 ### Override the binary
 
 ```ts

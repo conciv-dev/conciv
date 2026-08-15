@@ -377,4 +377,31 @@ test.describe('embed settings', () => {
     expect(await page.getByRole('button', {name: 'Open conciv chat'}).count()).toBe(0)
     await disabledHost.close()
   })
+
+  test('theme.accent and theme.hue set the shadow host CSS vars and repaint the accent-colored send button', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000)
+    const themedHost = await serveHost(() =>
+      hostPage({
+        apiBase: kit.base,
+        widget: '{"quickTerminal":false,"theme":{"accent":"oklch(0.7 0.19 32)","hue":30}}',
+      }),
+    )
+    observedPage(page)
+    await page.goto(themedHost.base, {waitUntil: 'domcontentloaded'})
+    const shadowHost = page.locator('[data-conciv-root]')
+    await expect(shadowHost).toBeAttached()
+    await expect
+      .poll(() => shadowHost.evaluate((el) => el.style.getPropertyValue('--pw-accent')))
+      .toBe('oklch(0.7 0.19 32)')
+    expect(await shadowHost.evaluate((el) => el.style.getPropertyValue('--pw-hue'))).toBe('30')
+
+    await openPanel(page)
+    const send = page.getByRole('button', {name: 'Send message'})
+    await expect(send).toBeVisible()
+    const background = await send.evaluate((el) => getComputedStyle(el).backgroundColor)
+    expect(background).not.toBe('rgb(255, 64, 224)')
+    await themedHost.close()
+  })
 })

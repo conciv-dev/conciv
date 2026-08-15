@@ -4,12 +4,15 @@ import type {TriggerPosition} from '@conciv/protocol/config-types'
 
 export type Launcher = 'native' | 'mascot' | false
 
+export type ThemeSettings = {accent?: string; hue?: number}
+
 export type ConcivSettings = {
   modal: {enabled: boolean; position: TriggerPosition}
   quickTerminal: {enabled: boolean; hotkeys: string[]}
   defaultOpen: boolean
   launcher: Launcher
   transport: RpcTransportPreference
+  theme: ThemeSettings
 }
 
 const DEFAULT_HOTKEYS = ['Mod+`']
@@ -46,6 +49,20 @@ function transportOf(transport: unknown): RpcTransportPreference {
   return TransportSchema.parse(transport)
 }
 
+const CSS_ACCENT_PATTERN =
+  /^(?:#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|(?:rgb|rgba|hsl|hsla|oklch|oklab|color)\([0-9a-z%.,/ -]+\))$/i
+
+const AccentSchema = z.string().regex(CSS_ACCENT_PATTERN).optional().catch(undefined)
+const HueSchema = z.number().finite().min(0).max(360).optional().catch(undefined)
+
+function themeOf(theme: unknown): ThemeSettings {
+  if (!isRecord(theme)) return {accent: undefined, hue: undefined}
+  return {
+    accent: AccentSchema.parse(theme.accent),
+    hue: HueSchema.parse(theme.hue),
+  }
+}
+
 function configOf(raw: string): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(raw || '{}')
@@ -65,5 +82,6 @@ export function parseConcivSettings(raw: string): ConcivSettings {
     defaultOpen: cfg.defaultOpen === true,
     launcher: launcherOf(cfg.launcher),
     transport: transportOf(cfg.transport),
+    theme: themeOf(cfg.theme),
   }
 }

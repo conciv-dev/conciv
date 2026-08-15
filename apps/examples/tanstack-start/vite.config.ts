@@ -21,7 +21,7 @@ export default defineConfig(async () => {
       viteReact(),
       conciv({
         port: 4599,
-        widget: {quickTerminal: {hotkey: 'Alt+k'}},
+        widget: {quickTerminal: {hotkey: 'Alt+k'}, theme: {accent: 'oklch(0.7 0.19 32)', hue: 30}},
         extensions: {
           ios: {
             projectRoot: fileURLToPath(new URL('../../../native/swift/ConcivDemo', import.meta.url)),

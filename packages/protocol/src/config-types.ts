@@ -8,10 +8,18 @@ export interface QuickTerminalConfig {
   hotkey?: string | string[]
 }
 
+export interface ThemeConfig {
+  accent?: string
+
+  hue?: number
+}
+
 export interface WidgetConfig {
   modal?: boolean | ModalConfig
 
   quickTerminal?: boolean | QuickTerminalConfig
+
+  theme?: ThemeConfig
 }
 
 export interface ConcivSettingsInit extends WidgetConfig {

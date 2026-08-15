@@ -43,6 +43,11 @@ function connectPath(settings: {defaultOpen: boolean}): string {
   return settings.defaultOpen ? '/panel/connect?open=true' : '/panel/connect'
 }
 
+function applyTheme(host: HTMLElement, theme: ConcivSettings['theme']): void {
+  if (theme.accent) host.style.setProperty('--pw-accent', theme.accent)
+  if (theme.hue !== undefined) host.style.setProperty('--pw-hue', String(theme.hue))
+}
+
 function makeDisconnect(getApiBase: () => string | undefined): () => void {
   return () => {
     const base = getApiBase()
@@ -217,10 +222,9 @@ function bootConnect(config: BootConnectConfig): BootResult {
   return {dispose: () => runDisposers(disposers)}
 }
 
-async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
+async function boot(root: ShadowRoot, init: ConcivInit, settings: ConcivSettings): Promise<BootResult> {
   const supplied = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
   const extensions = [pageExtension, ...supplied]
-  const settings = parseConcivSettings(init.settings ? JSON.stringify(init.settings) : metaContent('pw-widget'))
   const grabProvider = init.grabProvider
   const apiBase = init.apiBase ?? resolveApiBase()
   if (apiBase) return bootNormal({root, extensions, settings, apiBase, grabProvider})
@@ -242,10 +246,12 @@ export function mountImpl(
   inner.setAttribute('data-conciv-root', '')
   el.appendChild(inner)
   const {host, root} = createShadowRoot(inner)
+  const settings = parseConcivSettings(init.settings ? JSON.stringify(init.settings) : metaContent('pw-widget'))
+  applyTheme(host, settings.theme)
   let disposed = false
   let disposeBoot: (() => void) | undefined
   let rebindBoot: ((apiBase: string) => void) | undefined
-  const ready = boot(root, init).then((result) => {
+  const ready = boot(root, init, settings).then((result) => {
     if (disposed) {
       result.dispose()
       return
