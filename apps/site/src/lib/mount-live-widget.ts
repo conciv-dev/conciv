@@ -23,7 +23,10 @@ export async function mountLiveWidget(opts: {widgetOpen: boolean; tryParam: bool
     import('@conciv/extension-try-it/client'),
   ])
   if (document.querySelector('[data-conciv-root]')) return
-  embed.mountConciv([terminal.default, tryItModule.tryIt({token})])
+  const root = document.createElement('div')
+  root.setAttribute('data-conciv-script-root', '')
+  document.body.appendChild(root)
+  await embed.createConciv({extensions: [terminal.default, tryItModule.tryIt({token})]}).mount(root)
   window.dispatchEvent(new Event('conciv:widget-mounted'))
 
   let hasBeenOpen = false

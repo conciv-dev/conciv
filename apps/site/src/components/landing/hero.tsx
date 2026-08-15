@@ -1,5 +1,5 @@
 import {Suspense, lazy} from 'react'
-import {ClientOnly} from '@tanstack/react-router'
+import {ClientOnly, Link} from '@tanstack/react-router'
 import {Badge} from '@/components/ui/badge'
 import {useIsMobile} from '@/lib/use-is-mobile'
 import {TryLiveButton} from './try-live-button'
@@ -28,7 +28,14 @@ export function Hero() {
           <b className="font-semibold text-foreground">run your tests</b>, without ever leaving the thing you're
           building.
         </p>
-        {!isMobile && (
+        {isMobile ? (
+          <p className="text-[13.5px] text-muted-foreground">
+            The live try-it flow needs a terminal, so it's desktop-only.{' '}
+            <Link to="/docs/$" params={{_splat: 'quick-start'}} className="font-semibold text-primary hover:underline">
+              Read the quick start →
+            </Link>
+          </p>
+        ) : (
           <>
             <InstallChip />
             <TryLiveButton />

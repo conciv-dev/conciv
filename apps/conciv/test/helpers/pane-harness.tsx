@@ -66,6 +66,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     connectMode: false,
     connectionGeneration: () => 0,
     apiBase: () => options.base,
+    notifyInteractive: () => {},
   }
   const pane: PaneContextValue = {
     sessionId: () => options.sessionId,

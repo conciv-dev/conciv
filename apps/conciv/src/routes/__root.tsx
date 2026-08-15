@@ -20,6 +20,7 @@ import {
   useAppData,
   useConnected,
   useLayers,
+  useNotifyInteractive,
   useSettings,
   useSuppressed,
   type AppContextValue,
@@ -113,6 +114,7 @@ function RootComponent() {
     grabProvider: app.grabProvider,
     connectionGeneration: app.connectionGeneration,
     apiBase: app.apiBase,
+    notifyInteractive: app.notifyInteractive,
   }
 
   createEffect(() => {
@@ -157,6 +159,7 @@ function RootChrome(props: {
   const layers = useLayers()
   const suppressed = useSuppressed()
   const connected = useConnected()
+  const notifyInteractive = useNotifyInteractive()
   const router = useRouter()
   const matchRoute = useMatchRoute()
   const panelMatch = matchRoute({to: '/panel/$sessionId', fuzzy: true})
@@ -270,6 +273,7 @@ function RootChrome(props: {
     makeEventListener(window, 'conciv:open-panel', openFromHost)
     makeEventListener(window, 'conciv:close-panel', closeFromHost)
     makeEventListener(window, 'conciv:toggle-panel', toggleFromHost)
+    notifyInteractive()
   })
 
   const onKeyDown = (event: KeyboardEvent) => {

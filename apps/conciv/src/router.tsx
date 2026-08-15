@@ -33,6 +33,7 @@ export type ConcivRouterContext = {
   apiBase: () => string
   connectionGeneration: () => number
   disposeInstances: () => void
+  notifyInteractive: () => void
 }
 
 export type ConcivRouterConfig = {
@@ -48,6 +49,7 @@ export type ConcivRouterConfig = {
   grabProvider?: GrabProvider
   apiBase?: () => string
   connectionGeneration?: () => number
+  notifyInteractive?: () => void
 }
 
 function disposeExtensionInstances(instances: ExtensionInstance[]): void {
@@ -123,6 +125,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       apiBase,
       connectionGeneration: config.connectionGeneration ?? (() => 0),
       disposeInstances,
+      notifyInteractive: config.notifyInteractive ?? (() => {}),
     },
   })
 }
