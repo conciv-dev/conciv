@@ -84,21 +84,32 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
     teardown = undefined
     rebindImpl = undefined
     state = 'unmounted'
+    if (panelCommandsPromise) {
+      void panelCommandsPromise.then((bus) => bus.client.dispose()).catch(() => {})
+      panelCommandsPromise = null
+    }
+  }
+
+  function emitPanelCommand(pick: (events: PanelCommandsBus['events']) => PanelCommandName): void {
+    if (typeof window === 'undefined') return
+    void panelCommands()
+      .then((bus) => bus.client.emit(pick(bus.events), undefined))
+      .catch((error: unknown) => {
+        panelCommandsPromise = null
+        console.error('[conciv] panel command failed', error)
+      })
   }
 
   function open(): void {
-    if (typeof window === 'undefined') return
-    void panelCommands().then((bus) => bus.client.emit(bus.events.open, undefined))
+    emitPanelCommand((events) => events.open)
   }
 
   function close(): void {
-    if (typeof window === 'undefined') return
-    void panelCommands().then((bus) => bus.client.emit(bus.events.close, undefined))
+    emitPanelCommand((events) => events.close)
   }
 
   function toggle(): void {
-    if (typeof window === 'undefined') return
-    void panelCommands().then((bus) => bus.client.emit(bus.events.toggle, undefined))
+    emitPanelCommand((events) => events.toggle)
   }
 
   async function rebind(apiBase: string): Promise<void> {
@@ -115,5 +126,10 @@ export function mountConciv(extensions: AnyExtension[]): Promise<void> {
   const el = document.createElement('div')
   el.setAttribute('data-conciv-script-root', '')
   document.body.appendChild(el)
-  return createConciv({extensions}).mount(el)
+  return createConciv({extensions})
+    .mount(el)
+    .catch((error: unknown) => {
+      el.remove()
+      throw error
+    })
 }
