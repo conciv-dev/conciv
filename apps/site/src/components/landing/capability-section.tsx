@@ -1,4 +1,4 @@
-import screenshots from '../../../public/screenshots/index.json'
+import screenshots from '../../data/screenshots-index.json'
 import {Card} from '@/components/ui/card'
 
 type ScreenshotEntry = (typeof screenshots)[number]

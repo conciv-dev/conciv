@@ -1,5 +1,5 @@
 import type {ReactNode} from 'react'
-import screenshots from '../../../public/screenshots/index.json'
+import screenshots from '../../data/screenshots-index.json'
 import {InstallCommand} from './install-command'
 import {FrameworkTabs} from './framework-tabs'
 import {FRAMEWORK_SNIPPETS} from './framework-snippets'

@@ -1,0 +1,58 @@
+[
+  {
+    "file": "grab-element.webp",
+    "source": "a14-grab-crosshair-highlight.png",
+    "crop": [768, 240, 3072, 1920],
+    "width": 1160,
+    "height": 726,
+    "alt": "conciv widget panel with a crosshair highlight on the host page's Submit button, teal outline and an on-page locator tooltip reading LocalSubscribe$1.button"
+  },
+  {
+    "file": "edit-live.webp",
+    "source": "a23-edit-live-restyled.png",
+    "crop": [560, 150, 3280, 2050],
+    "width": 1160,
+    "height": 726,
+    "alt": "Restyled bright-purple hero heading live on the host page next to the conciv panel's setStyle tool card and the confirmation text: live-only, ephemeral, no source touched, reverts on reload"
+  },
+  {
+    "file": "test-run.webp",
+    "source": "a29-test-run-card.png",
+    "crop": [1040, 600, 2800, 1752],
+    "width": 1160,
+    "height": 726,
+    "alt": "conciv panel showing a test-run card: 4 passed, per-test rows for lib/nav.test.ts and lib/cn.test.ts, and the summary 4 passed, 0 failed, 0 skipped. All green."
+  },
+  {
+    "file": "permission.webp",
+    "source": "a32-permission-card.png",
+    "crop": [1200, 520, 2640, 1652],
+    "width": 1160,
+    "height": 726,
+    "alt": "conciv panel mid-approval: a bash tool card for deleting a scratch file above a Run this action? prompt with Deny and Allow buttons"
+  },
+  {
+    "file": "whiteboard.webp",
+    "source": "a41-whiteboard-diagram.png",
+    "crop": [0, 0, 3000, 1876],
+    "width": 1160,
+    "height": 726,
+    "alt": "Agent-drawn Excalidraw flowchart on the shared whiteboard canvas: four labeled boxes, Your App, conciv Widget, Agent (me), Your Source Files, connected in a loop, with the host page's hero heading bleeding through the semi-transparent canvas"
+  },
+  {
+    "file": "any-running-app.webp",
+    "source": "e06-hero-framing-1440.png",
+    "crop": [0, 560, 4320, 1852],
+    "width": 2360,
+    "height": 1012,
+    "alt": "conciv widget panel open beside the vite.dev site hero (The Build Tool for the Web, Get Started / View on GitHub) with a real chat turn answering what does this page cover?"
+  },
+  {
+    "file": "fab-closed.webp",
+    "source": "a01-fab-closed-form.png",
+    "crop": [3480, 2130, 360, 270],
+    "width": 800,
+    "height": 600,
+    "alt": "conciv's closed-state floating action button, a small robot-mascot avatar, docked bottom-right over the host page just past the live-state debug panel's edge"
+  }
+]
