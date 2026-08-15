@@ -2,8 +2,10 @@ import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
 import {EventType} from '@tanstack/ai'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {coreControl} from './helpers/core-control.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 
 const core: {rpc: RpcClient | null} = {rpc: null}
+const faults = trackedFaults()
 
 function statusOf(value: unknown): number | null {
   if (typeof value !== 'object' || value === null || !('status' in value)) return null
@@ -33,7 +35,7 @@ afterAll(async () => {
 describe('gated rpc requests against a real core', () => {
   it('holds the subscribe request until release, then streams the real snapshot', async () => {
     const {sessionId} = await rpc().sessions.create()
-    const gate = await coreControl.installFault({kind: 'gate', path: ['chat', 'subscribe']})
+    const gate = await faults.install({kind: 'gate', path: ['chat', 'subscribe']})
     const arrived = {value: false}
     const subscription = rpc()
       .chat.subscribe({sessionId})
@@ -57,7 +59,7 @@ describe('gated rpc requests against a real core', () => {
 
   it('keeps a cross-origin injected failure an rpc rejection rather than a transport error', async () => {
     const {sessionId} = await rpc().sessions.create()
-    const fault = await coreControl.installFault({kind: 'fail', path: ['sessions', 'rename'], status: 500})
+    const fault = await faults.install({kind: 'fail', path: ['sessions', 'rename'], status: 500})
 
     const rejection = await rpc()
       .sessions.rename({sessionId, title: 'renamed by the fault test'})
