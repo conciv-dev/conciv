@@ -3,19 +3,23 @@ import {antennaTipAnchor} from '../tip-anchor.js'
 import {antennaScaleFactor, createTimelineEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
-const STEAM_COLOR = 'rgba(148, 158, 178, 0.55)'
+const STEAM_CORE_COLOR = 'rgba(148, 158, 178, 0.55)'
+
+const STEAM_EDGE_COLOR = 'rgba(148, 158, 178, 0)'
+
+const STEAM_CORE_STOP = '46%'
+
+const STEAM_EDGE_STOP = '100%'
 
 const PUFF_COUNT = 4
 
 const PUFF_INDEXES = Array.from({length: PUFF_COUNT}, (_, index) => index)
 
-const PUFF_LEFT_PX = -6
+const PUFF_LEFT_PX = -9
 
-const PUFF_TOP_PX = -10
+const PUFF_TOP_PX = -13
 
-const PUFF_SIZE_PX = 13
-
-const PUFF_BLUR_PX = 2
+const PUFF_SIZE_PX = 19
 
 const PUFF_INITIAL_OPACITY_BASE = 0.55
 
@@ -45,8 +49,9 @@ function createPuff(factor: number, index: number): HTMLElement {
   const puff = document.createElement('span')
   puff.style.cssText =
     `position:absolute;left:${PUFF_LEFT_PX * factor}px;top:${PUFF_TOP_PX * factor}px;` +
-    `width:${PUFF_SIZE_PX * factor}px;height:${PUFF_SIZE_PX * factor}px;border-radius:50%;` +
-    `background:${STEAM_COLOR};filter:blur(${PUFF_BLUR_PX * factor}px);` +
+    `width:${PUFF_SIZE_PX * factor}px;height:${PUFF_SIZE_PX * factor}px;` +
+    `background:radial-gradient(circle closest-side,${STEAM_CORE_COLOR} ${STEAM_CORE_STOP},` +
+    `${STEAM_EDGE_COLOR} ${STEAM_EDGE_STOP});` +
     `opacity:${PUFF_INITIAL_OPACITY_BASE - index * PUFF_INITIAL_OPACITY_STEP}`
   return puff
 }
@@ -76,8 +81,7 @@ function createSteamEffect(context: EffectContext): EffectHandle {
   const puffs = PUFF_INDEXES.map((index) => createPuff(factor, index))
   element.append(...puffs)
   host.append(element)
-  const timeline = createPuffTimeline(puffs, factor)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createPuffTimeline(puffs, factor))
 }
 
 export const steamEffect: EffectMount = (context) => createSteamEffect(context)

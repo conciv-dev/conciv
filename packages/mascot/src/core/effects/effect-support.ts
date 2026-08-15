@@ -42,7 +42,9 @@ export function sparkCanvasGeometry(factor: number): CanvasGeometry {
   }
 }
 
-export function createSparkCanvas(tip: EmitterAnchor, geometry: CanvasGeometry): HTMLCanvasElement {
+export type SparkCanvas = {canvas: HTMLCanvasElement; context: CanvasRenderingContext2D | null}
+
+export function createSparkCanvas(tip: EmitterAnchor, geometry: CanvasGeometry): SparkCanvas {
   const canvas = document.createElement('canvas')
   canvas.setAttribute('aria-hidden', 'true')
   canvas.style.cssText =
@@ -53,17 +55,15 @@ export function createSparkCanvas(tip: EmitterAnchor, geometry: CanvasGeometry):
   canvas.height = geometry.height * ratio
   const context = canvas.getContext('2d')
   context?.scale(ratio, ratio)
-  return canvas
+  return {canvas, context}
 }
 
+const MILLISECONDS_PER_SECOND = 1000
+
 export function runFrameLoop(step: (now: number) => void): () => void {
-  let handle = 0
-  const frame = (now: number) => {
-    step(now)
-    handle = requestAnimationFrame(frame)
-  }
-  handle = requestAnimationFrame(frame)
-  return () => cancelAnimationFrame(handle)
+  const tick = (time: number) => step(time * MILLISECONDS_PER_SECOND)
+  gsap.ticker.add(tick)
+  return () => gsap.ticker.remove(tick)
 }
 
 export function createTipShell(tip: EmitterAnchor, style: string): HTMLElement {
@@ -83,10 +83,12 @@ const returnToFull = (element: HTMLElement): gsap.core.Tween =>
   gsap.to(element, {scale: 1, opacity: 1, duration: ENTER_DURATION_S, ease: ENTER_EASE})
 
 export type TipEmitter = {
+  host: HTMLElement
   element: HTMLElement
   origin: EmitterAnchor
   onStart: () => void
-  onStop: () => void
+  onPauseEmission: () => void
+  onRest: () => void
   onRemove: () => void
 }
 
@@ -98,7 +100,7 @@ function placedTipOf(element: HTMLElement, origin: EmitterAnchor): EmitterAnchor
 }
 
 export function createTipEmitter(emitter: TipEmitter): EffectHandle {
-  const {element, origin, onStart, onStop, onRemove} = emitter
+  const {host, element, origin, onStart, onPauseEmission, onRest, onRemove} = emitter
   const placed = placedTipOf(element, origin)
   gsap.set(element, {x: 0, y: 0})
   const shiftX = gsap.quickSetter(element, 'x', 'px')
@@ -111,11 +113,21 @@ export function createTipEmitter(emitter: TipEmitter): EffectHandle {
     shiftY(next.y - placed.y)
   }
 
-  const remove = () => {
+  const killTweens = () => {
     exit?.kill()
     exit = undefined
     enter?.kill()
     enter = undefined
+  }
+
+  const rest = () => {
+    killTweens()
+    onRest()
+    element.remove()
+  }
+
+  const remove = () => {
+    killTweens()
     onRemove()
     element.remove()
   }
@@ -123,34 +135,49 @@ export function createTipEmitter(emitter: TipEmitter): EffectHandle {
   const start = () => {
     exit?.kill()
     exit = undefined
+    if (!element.isConnected) host.append(element)
     onStart()
     enter = enter === undefined ? enterFromTip(element) : returnToFull(element)
   }
 
-  const stop = (onRemoved: () => void) => {
+  const stop = (onRested: () => void) => {
     if (exit !== undefined) return
     enter?.kill()
-    onStop()
+    onPauseEmission()
     exit = exitIntoTip(element, () => {
       exit = undefined
-      remove()
-      onRemoved()
+      rest()
+      onRested()
     })
   }
 
-  return {start, stop, remove, anchor}
+  return {start, stop, rest, remove, anchor}
 }
 
 export const TIP_ORIGIN: EmitterAnchor = {x: 0, y: 0}
 
 export const noEmitterWork = (): void => undefined
 
-export function createTimelineEmitter(element: HTMLElement, timeline: gsap.core.Timeline): EffectHandle {
+export function createTimelineEmitter(
+  host: HTMLElement,
+  element: HTMLElement,
+  buildTimeline: () => gsap.core.Timeline,
+): EffectHandle {
+  let timeline: gsap.core.Timeline | undefined
+  const clearTimeline = () => {
+    timeline?.kill()
+    timeline = undefined
+  }
+
   return createTipEmitter({
+    host,
     element,
     origin: TIP_ORIGIN,
-    onStart: noEmitterWork,
-    onStop: noEmitterWork,
-    onRemove: () => timeline.kill(),
+    onStart: () => {
+      timeline = timeline ?? buildTimeline()
+    },
+    onPauseEmission: noEmitterWork,
+    onRest: clearTimeline,
+    onRemove: clearTimeline,
   })
 }

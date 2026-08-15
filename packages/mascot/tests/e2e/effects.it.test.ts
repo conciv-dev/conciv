@@ -217,7 +217,8 @@ test('restarting an effect during its staged exit leaves it drainable on the nex
   expect(result.restarted.live, 'the restarted effect is live again').toBe(1)
   expect(result.drained.stops, 'the second falling edge really asks the restarted handle to stop').toBe(2)
   expect(result.drained.live, 'the second falling edge drains the restarted effect').toBe(0)
-  expect(result.drained.removes, 'the restarted handle is removed exactly once').toBe(1)
+  expect(result.drained.rests, 'the completed drain rests the still-mounted handle exactly once').toBe(1)
+  expect(result.drained.removes, 'a still-mounted handle is never removed by its own drain').toBe(0)
 })
 
 test('a custom skin drives the layer art and the emitter scale reference', async ({page}) => {

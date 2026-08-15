@@ -99,8 +99,7 @@ function createSpeechBubbleEffect(context: EffectContext): EffectHandle {
   const tail = createTail(factor)
   element.append(box, tail)
   host.append(element)
-  const timeline = createDotTimeline(dots)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createDotTimeline(dots))
 }
 
 export const speechBubbleEffect: EffectMount = (context) => createSpeechBubbleEffect(context)

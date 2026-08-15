@@ -75,8 +75,7 @@ function createSignalRingsEffect(context: EffectContext): EffectHandle {
   const rings = RING_INDEXES.map((index) => createRing(factor, index))
   element.append(...rings)
   host.append(element)
-  const timeline = createPulseTimeline(rings)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createPulseTimeline(rings))
 }
 
 export const signalRingsEffect: EffectMount = (context) => createSignalRingsEffect(context)

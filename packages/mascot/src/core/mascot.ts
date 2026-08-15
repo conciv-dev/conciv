@@ -53,6 +53,7 @@ type Registration = {
   pose: PoseController
   follow: FollowController
   activity: ActivityController
+  visibility: IntersectionObserver | undefined
 }
 
 type Slots = {
@@ -121,6 +122,12 @@ function endWork(registration: Registration, previous: MascotConfig, next: Masco
   if (anyFollowChannel(wanted)) registration.follow.arm(wanted)
 }
 
+function applyVisibility(registration: Registration, config: MascotConfig, visible: boolean): void {
+  registration.activity.setVisible(visible)
+  if (!visible) return registration.follow.disarm(false)
+  registration.follow.arm(followTarget(config))
+}
+
 function applyTransition(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
   if (previous.working && !next.working) return endWork(registration, previous, next)
   applyPose(registration, previous, next)
@@ -132,18 +139,32 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
   const slots: Slots = {root: undefined, head: undefined, eyes: undefined, antenna: undefined}
   const effectMounts = new Map<string, EffectMount>()
   const effectHosts = new Map<string, HTMLElement>()
-  const effectHostRefs = new Map<string, MascotPartRef>()
+  const effectHostProps = new Map<string, MascotPartProps>()
   let config = initial
   let registration: Registration | undefined
   let destroyed = false
 
   const teardown = () => {
     if (registration === undefined) return
+    registration.visibility?.disconnect()
     registration.activity.dispose()
     registration.follow.dispose()
     registration.pose.dispose()
     registration.leanWrapper?.replaceWith(registration.parts.antenna)
     registration = undefined
+  }
+
+  const receiveVisibility = (entries: IntersectionObserverEntry[]) => {
+    const latest = entries[entries.length - 1]
+    if (latest === undefined || registration === undefined || destroyed) return
+    applyVisibility(registration, config, latest.isIntersecting)
+  }
+
+  const watchVisibility = (stage: HTMLElement): IntersectionObserver | undefined => {
+    if (typeof IntersectionObserver !== 'function') return undefined
+    const observer = new IntersectionObserver(receiveVisibility)
+    observer.observe(stage)
+    return observer
   }
 
   const setup = (parts: MascotParts) => {
@@ -154,7 +175,7 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
       {stage: parts.stage, head: parts.head, antenna: parts.antenna, eyes: parts.eyes},
       skin,
     )
-    registration = {parts, leanWrapper, pose, follow, activity}
+    registration = {parts, leanWrapper, pose, follow, activity, visibility: watchVisibility(parts.stage)}
     pose.set(config.state)
     effectMounts.forEach((mount, id) => activity.mountEffect(id, mount, effectHosts.get(id)))
     if (config.working) startWorking(registration)
@@ -185,6 +206,7 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
   const unmountEffect = (id: string) => {
     if (destroyed) return
     effectMounts.delete(id)
+    effectHostProps.delete(id)
     registration?.activity.unmountEffect(id)
   }
 
@@ -213,25 +235,38 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
     registration?.activity.setEffectHost(id, element ?? undefined)
   }
 
-  const effectHostRef = (id: string): MascotPartRef => {
-    const existing = effectHostRefs.get(id)
+  const effectHostPropsFor = (id: string): MascotPartProps => {
+    const existing = effectHostProps.get(id)
     if (existing !== undefined) return existing
-    const ref: MascotPartRef = (element) => bindEffectHost(id, element)
-    effectHostRefs.set(id, ref)
-    return ref
+    const props: MascotPartProps = {
+      style: effectHostStyle(),
+      ref: (element) => bindEffectHost(id, element),
+    }
+    effectHostProps.set(id, props)
+    return props
   }
 
-  const connect = (): MascotConnect => ({
-    getRootProps: () => ({style: rootStyle(), ref: rootRef}),
-    getHeadProps: () => ({style: headStyle(skin), ref: headRef}),
-    getEyesProps: () => ({style: eyesStyle(skin), ref: eyesRef}),
-    getAntennaProps: () => ({style: antennaStyle(skin), ref: antennaRef}),
-    getEffectHostProps: (id) => ({style: effectHostStyle(), ref: effectHostRef(id)}),
-  })
+  const rootProps: MascotPartProps = {style: rootStyle(), ref: rootRef}
+  const headProps: MascotPartProps = {style: headStyle(skin), ref: headRef}
+  const eyesProps: MascotPartProps = {style: eyesStyle(skin), ref: eyesRef}
+  const antennaProps: MascotPartProps = {style: antennaStyle(skin), ref: antennaRef}
+
+  const connected: MascotConnect = {
+    getRootProps: () => rootProps,
+    getHeadProps: () => headProps,
+    getEyesProps: () => eyesProps,
+    getAntennaProps: () => antennaProps,
+    getEffectHostProps: effectHostPropsFor,
+  }
+
+  const connect = (): MascotConnect => connected
 
   const destroy = () => {
     teardown()
     destroyed = true
+    effectMounts.clear()
+    effectHosts.clear()
+    effectHostProps.clear()
   }
 
   return {update, registerParts, mountEffect, unmountEffect, connect, destroy}

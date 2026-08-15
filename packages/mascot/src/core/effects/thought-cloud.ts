@@ -103,8 +103,7 @@ function createThoughtCloudEmitter(context: EffectContext): EffectHandle {
   const {cloud, dots} = createCloud(factor)
   element.append(trailDot1, trailDot2, cloud)
   host.append(element)
-  const timeline = createFloatTimeline(cloud, dots, factor)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createFloatTimeline(cloud, dots, factor))
 }
 
 export const thoughtCloudEffect: EffectMount = (context) => createThoughtCloudEmitter(context)

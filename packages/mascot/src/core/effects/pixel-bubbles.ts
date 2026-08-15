@@ -68,8 +68,7 @@ function createPixelBubblesEmitter(context: EffectContext): EffectHandle {
   const squares = SQUARE_INDEXES.map((index) => createSquare(factor, index))
   element.append(...squares)
   host.append(element)
-  const timeline = createDriftTimeline(squares, factor)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createDriftTimeline(squares, factor))
 }
 
 export const pixelBubblesEffect: EffectMount = (context) => createPixelBubblesEmitter(context)

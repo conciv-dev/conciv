@@ -52,8 +52,7 @@ function createNotesEmitter(context: EffectContext): EffectHandle {
   const notes = NOTE_GLYPHS.map((glyph) => createNote(factor, glyph))
   element.append(...notes)
   host.append(element)
-  const timeline = createRiseTimeline(notes, factor)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createRiseTimeline(notes, factor))
 }
 
 export const notesEffect: EffectMount = (context) => createNotesEmitter(context)

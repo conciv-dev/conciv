@@ -10,7 +10,8 @@ export type EffectContext = {
 
 export type EffectHandle = {
   start: () => void
-  stop: (onRemoved: () => void) => void
+  stop: (onRested: () => void) => void
+  rest: () => void
   remove: () => void
   anchor?: (tip: EmitterAnchor) => void
 }

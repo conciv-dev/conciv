@@ -9,12 +9,15 @@ type LayoutReads = {computedStyle: number; offset: number; rect: number}
 
 type EmitterGeometry = {fontSizePx: number; leadingLeft: number; trailingLeft: number; top: number}
 
-type EffectTotals = {starts: number; stops: number; removes: number; live: number}
+type EffectTotals = {starts: number; stops: number; removes: number; rests: number; live: number}
+
+type ScrollStageParts = StageParts & {scroller: HTMLElement}
 
 type MascotHarness = {
   mascot: typeof MascotModule
   buildStage: (sizePx?: number, layerInsetPx?: number, placement?: StagePlacement) => StageParts
   buildBareStage: (sizePx?: number) => HTMLElement
+  buildScrollStage: (sizePx?: number) => ScrollStageParts
   applyStyle: (element: HTMLElement, style: Record<string, string>) => HTMLElement
   leanWrappers: () => HTMLElement[]
   emitters: () => HTMLElement[]
@@ -23,6 +26,8 @@ type MascotHarness = {
   requireDigit: (emitter: HTMLElement, index: number) => HTMLElement
   requireCanvas: (host: HTMLElement) => HTMLCanvasElement
   canvasSignature: (canvas: HTMLCanvasElement) => number
+  canvasInk: (canvas: HTMLCanvasElement) => number
+  tickerListenerCount: () => number
   pendingFrameCount: () => number
   settleFrames: () => Promise<number>
   loadEffect: (name: string, exportName: string) => Promise<MascotModule.EffectMount>

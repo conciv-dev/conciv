@@ -50,8 +50,7 @@ function createSignalBarsEmitter(context: EffectContext): EffectHandle {
   const bars = BAR_INDEXES.map((index) => createBar(factor, index))
   element.append(...bars)
   host.append(element)
-  const timeline = createPulseTimeline(bars)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createPulseTimeline(bars))
 }
 
 export const signalBarsEffect: EffectMount = (context) => createSignalBarsEmitter(context)

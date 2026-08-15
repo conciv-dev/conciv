@@ -141,26 +141,41 @@ function createBinaryEmitter(context: EffectContext, curve: CurveStyle): EffectH
   const elements = DIGIT_INDEXES.map((index) => (curved ? createRider(factor, index) : createDigit(factor, index)))
   element.append(...elements)
   host.append(element)
-  let timeline: gsap.core.Timeline | undefined = curved ? undefined : createRiseTimeline(elements, factor)
+  let timeline: gsap.core.Timeline | undefined
 
-  const straightAfterCurve = (): gsap.core.Timeline => {
+  const buildStraight = (): gsap.core.Timeline => {
     gsap.set(elements, {x: 0, rotation: 0})
     return createRiseTimeline(elements, factor)
   }
 
-  const rebuildCurve = () => {
-    if (!curved) return
-    timeline?.kill()
+  const buildCurve = (): gsap.core.Timeline => {
     const riders = planRiders(context, factor, curve, elements)
-    timeline = riders.length === 0 ? straightAfterCurve() : createCurveTimeline(riders)
+    if (riders.length === 0) return buildStraight()
+    return createCurveTimeline(riders)
+  }
+
+  const clearTimeline = () => {
+    timeline?.kill()
+    timeline = undefined
+  }
+
+  const startTimeline = () => {
+    if (!curved) {
+      timeline = timeline ?? buildStraight()
+      return
+    }
+    clearTimeline()
+    timeline = buildCurve()
   }
 
   return createTipEmitter({
+    host,
     element,
     origin: TIP_ORIGIN,
-    onStart: rebuildCurve,
-    onStop: noEmitterWork,
-    onRemove: () => timeline?.kill(),
+    onStart: startTimeline,
+    onPauseEmission: noEmitterWork,
+    onRest: clearTimeline,
+    onRemove: clearTimeline,
   })
 }
 

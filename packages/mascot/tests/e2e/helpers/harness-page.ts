@@ -107,6 +107,29 @@ const HARNESS_SCRIPT = `
     return {root, head, eyes, antenna}
   }
 
+  const SCROLL_VIEWPORT_PX = 240
+
+  const SCROLL_RUNWAY_PX = 1400
+
+  const buildScrollStage = (sizePx = DEFAULT_STAGE_SIZE_PX) => {
+    const scroller = document.createElement('div')
+    scroller.style.cssText =
+      'position:absolute;left:40px;top:40px;width:320px;height:' + SCROLL_VIEWPORT_PX + 'px;overflow:auto'
+    const runway = document.createElement('div')
+    runway.style.cssText = 'position:relative;height:' + SCROLL_RUNWAY_PX + 'px'
+    const root = document.createElement('div')
+    root.style.cssText =
+      'position:absolute;left:0;top:0;display:block;width:' + sizePx + 'px;height:' + sizePx + 'px'
+    const head = makeLayer(mascot.robotLayers.head, 0)
+    const eyes = makeLayer(mascot.robotLayers.eyes, 0)
+    const antenna = makeLayer(mascot.robotLayers.antenna, 0)
+    root.append(head, eyes, antenna)
+    runway.append(root)
+    scroller.append(runway)
+    document.body.append(scroller)
+    return {scroller, root, head, eyes, antenna}
+  }
+
   const buildBareStage = (sizePx = DEFAULT_STAGE_SIZE_PX) => {
     const root = document.createElement('div')
     root.style.cssText = stageStyle(sizePx, DEFAULT_PLACEMENT)
@@ -156,6 +179,17 @@ const HARNESS_SCRIPT = `
     return data.reduce((total, value, index) => total + value * ((index % 7) + 1), 0)
   }
 
+  const canvasInk = (canvas) => {
+    const context = canvas.getContext('2d')
+    if (context === null) throw new Error('the canvas effect has no 2d context')
+    const {data} = context.getImageData(0, 0, canvas.width, canvas.height)
+    let total = 0
+    for (let index = 3; index < data.length; index += 4) total += data[index]
+    return total
+  }
+
+  const tickerListenerCount = () => gsap.ticker._listeners.length
+
   const requireDigit = (emitter, index) => {
     const digit = emitter.children[index]
     if (!(digit instanceof HTMLElement)) throw new Error('the emitter has no digit at index ' + index)
@@ -195,9 +229,15 @@ const HARNESS_SCRIPT = `
     const element = document.createElement('span')
     element.setAttribute('aria-hidden', 'true')
     context.host.append(element)
-    const run = {starts: 0, stops: 0, removes: 0, element}
+    const run = {starts: 0, stops: 0, removes: 0, rests: 0, element}
     effectRuns.push(run)
     let exit
+    const rest = () => {
+      run.rests += 1
+      exit?.kill()
+      exit = undefined
+      element.remove()
+    }
     const remove = () => {
       run.removes += 1
       exit?.kill()
@@ -208,6 +248,7 @@ const HARNESS_SCRIPT = `
       run.starts += 1
       exit?.kill()
       exit = undefined
+      context.host.append(element)
       gsap.set(element, {opacity: 1})
     }
     const stop = (onRemoved) => {
@@ -218,12 +259,12 @@ const HARNESS_SCRIPT = `
         duration: 0.5,
         onComplete: () => {
           exit = undefined
-          remove()
+          rest()
           onRemoved()
         },
       })
     }
-    return {start, stop, remove}
+    return {start, stop, remove, rest}
   }
 
   const countingEffectTotals = () =>
@@ -232,9 +273,10 @@ const HARNESS_SCRIPT = `
         starts: total.starts + run.starts,
         stops: total.stops + run.stops,
         removes: total.removes + run.removes,
+        rests: total.rests + run.rests,
         live: total.live + (run.element.isConnected ? 1 : 0),
       }),
-      {starts: 0, stops: 0, removes: 0, live: 0},
+      {starts: 0, stops: 0, removes: 0, rests: 0, live: 0},
     )
 
   const MANUAL_STEP_S = 1 / 60
@@ -363,6 +405,7 @@ const HARNESS_SCRIPT = `
     mascot,
     buildStage,
     buildBareStage,
+    buildScrollStage,
     applyStyle,
     leanWrappers,
     emitters,
@@ -371,6 +414,8 @@ const HARNESS_SCRIPT = `
     requireDigit,
     requireCanvas,
     canvasSignature,
+    canvasInk,
+    tickerListenerCount,
     pendingFrameCount,
     settleFrames,
     loadEffect,

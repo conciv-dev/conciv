@@ -76,8 +76,7 @@ function createHeartEmitter(context: EffectContext): EffectHandle {
   const heart = createHeart(factor)
   element.append(heart)
   host.append(element)
-  const timeline = createPulseTimeline(heart)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createPulseTimeline(heart))
 }
 
 export const heartEffect: EffectMount = (context) => createHeartEmitter(context)

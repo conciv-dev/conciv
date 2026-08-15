@@ -61,8 +61,7 @@ function createTickRingEmitter(context: EffectContext): EffectHandle {
   const ticks = TICK_INDEXES.map((index) => createTick(factor, index))
   element.append(...ticks)
   host.append(element)
-  const timeline = createTickTimeline(ticks)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createTickTimeline(ticks))
 }
 
 export const tickRingEffect: EffectMount = (context) => createTickRingEmitter(context)

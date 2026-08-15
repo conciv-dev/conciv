@@ -61,8 +61,7 @@ function createSatelliteEmitter(context: EffectContext): EffectHandle {
   const orbit = createOrbit(factor)
   element.append(createRing(factor), orbit)
   host.append(element)
-  const timeline = createOrbitTimeline(orbit)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createOrbitTimeline(orbit))
 }
 
 export const satelliteEffect: EffectMount = (context) => createSatelliteEmitter(context)

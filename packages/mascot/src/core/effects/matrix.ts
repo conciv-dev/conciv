@@ -64,8 +64,7 @@ function createMatrixEmitter(context: EffectContext): EffectHandle {
   const glyphs = GLYPH_INDEXES.map((index) => createGlyph(factor, index))
   element.append(...glyphs)
   host.append(element)
-  const timeline = createDripTimeline(glyphs, factor)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createDripTimeline(glyphs, factor))
 }
 
 export const matrixEffect: EffectMount = (context) => createMatrixEmitter(context)

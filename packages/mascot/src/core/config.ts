@@ -16,8 +16,10 @@ export const sameFollowChannels = (left: FollowChannels, right: FollowChannels):
 
 export const anyFollowChannel = (channels: FollowChannels): boolean => channels.eyes || channels.antenna
 
-export const reduceMotion = (): boolean =>
-  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+const REDUCED_MOTION_QUERY =
+  typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : undefined
+
+export const reduceMotion = (): boolean => REDUCED_MOTION_QUERY?.matches === true
 
 export const GAZE_FALLOFF_PX = 220
 export const GAZE_EYE_RANGE_PX = 3

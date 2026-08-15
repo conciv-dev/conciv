@@ -23,13 +23,19 @@ const SPARK_FLICKER_STAGGER_S = 0.06
 
 const SPARK_FLICKER_OPACITY_FROM = 0.15
 
-const SPARK_GLOW_SIZE_PX = 14
+const SPARK_GLOW_CORE_COLOR = 'rgba(255, 210, 63, 1)'
 
-const SPARK_GLOW_LEFT_PX = -7
+const SPARK_GLOW_EDGE_COLOR = 'rgba(255, 210, 63, 0)'
 
-const SPARK_GLOW_TOP_PX = -9
+const SPARK_GLOW_CORE_STOP = '32%'
 
-const SPARK_GLOW_BLUR_PX = 3
+const SPARK_GLOW_EDGE_STOP = '100%'
+
+const SPARK_GLOW_SIZE_PX = 22
+
+const SPARK_GLOW_LEFT_PX = -11
+
+const SPARK_GLOW_TOP_PX = -13
 
 const SPARK_GLOW_SCALE_FROM = 0.7
 
@@ -48,8 +54,9 @@ function createGlow(factor: number): HTMLElement {
   const size = SPARK_GLOW_SIZE_PX * factor
   glow.style.cssText =
     `position:absolute;left:${SPARK_GLOW_LEFT_PX * factor}px;top:${SPARK_GLOW_TOP_PX * factor}px;` +
-    `width:${size}px;height:${size}px;border-radius:50%;background:${SPARK_COLOR};` +
-    `filter:blur(${SPARK_GLOW_BLUR_PX * factor}px);opacity:0.5`
+    `width:${size}px;height:${size}px;` +
+    `background:radial-gradient(circle closest-side,${SPARK_GLOW_CORE_COLOR} ${SPARK_GLOW_CORE_STOP},` +
+    `${SPARK_GLOW_EDGE_COLOR} ${SPARK_GLOW_EDGE_STOP});opacity:0.5`
   return glow
 }
 
@@ -101,8 +108,7 @@ function createSparkEmitter(context: EffectContext): EffectHandle {
   const segments = SEGMENT_INDEXES.map((index) => createSegment(factor, index))
   element.append(glow, ...segments)
   host.append(element)
-  const timeline = createSparkTimeline(glow, segments)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createSparkTimeline(glow, segments))
 }
 
 export const sparkEffect: EffectMount = (context) => createSparkEmitter(context)

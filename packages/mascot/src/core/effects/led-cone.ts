@@ -68,8 +68,7 @@ function createLedConeEmitter(context: EffectContext): EffectHandle {
   const led = createLed(factor)
   element.append(cone, led)
   host.append(element)
-  const timeline = createPulseTimeline(led, cone)
-  return createTimelineEmitter(element, timeline)
+  return createTimelineEmitter(host, element, () => createPulseTimeline(led, cone))
 }
 
 export const ledConeEffect: EffectMount = (context) => createLedConeEmitter(context)

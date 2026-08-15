@@ -284,6 +284,32 @@ test('restarting work during the staged exit reuses the draining emitter', async
   expect(result.emitters, 'restart during exit leaves exactly one emitter').toBe(1)
 })
 
+test('a completed drain rests the effect and the next work turn reuses the same emitter node', async ({page}) => {
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.9)
+    const first = harness.requireEmitter()
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.9)
+    const drained = harness.emitters().length
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.9)
+    return {
+      drained,
+      sameNode: harness.emitters()[0] === first,
+      emitters: harness.emitters().length,
+      opacity: harness.property(first, 'opacity'),
+    }
+  })
+
+  expect(result.drained, 'the completed drain leaves no emitter in the stage').toBe(0)
+  expect(result.sameNode, 'the next work turn reuses the rested emitter node').toBe(true)
+  expect(result.emitters, 'the reused emitter is the only one in the stage').toBe(1)
+  expectNear('the reused emitter re-enters at full opacity', result.opacity, 1, 0.001)
+})
+
 test('destroying during the staged exit tears everything down and nothing resurrects', async ({page}) => {
   await buildService(page, {state: 'rest', working: true, follow: false})
   const result = await page.evaluate(() => {

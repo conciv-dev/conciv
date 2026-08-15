@@ -35,6 +35,7 @@ export type ActivityRecovery = {pose: boolean; antennaScale: boolean}
 export type ActivityController = {
   start: (rest: ActivityRest) => void
   setRest: (rest: ActivityRest) => void
+  setVisible: (visible: boolean) => void
   stop: (recovery: ActivityRecovery) => void
   mountEffect: (id: string, mount: EffectMount, host: HTMLElement | undefined) => void
   unmountEffect: (id: string) => void
@@ -127,8 +128,9 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   let session: WorkSession | undefined
   let recoveryTweens: gsap.core.Tween[] = []
   let resting: ActivityRest = {eyeScaleY: NEUTRAL_SCALE, headYPercent: 0}
+  let visible = true
 
-  const isWorking = () => session !== undefined
+  const isRunning = () => session !== undefined && visible
 
   const killTimeline = () => {
     session?.timeline.kill()
@@ -177,8 +179,15 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     draining.add(handle)
     handle.stop(() => {
       draining.delete(handle)
-      if (entry.handle === handle) entry.handle = undefined
+      if (entry.handle !== handle) handle.remove()
     })
+  }
+
+  const parkEntry = (entry: EffectEntry) => {
+    const handle = entry.handle
+    if (handle === undefined) return
+    draining.delete(handle)
+    handle.rest()
   }
 
   const stopEntry = (entry: EffectEntry) => {
@@ -215,8 +224,31 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     killTimeline()
     killRecoveryTweens()
     const layout = measureAntennaLayout(antenna, skin)
-    session = {...buildWorkTimeline(parts, rest, anchorEffects), layout}
+    const started = {...buildWorkTimeline(parts, rest, anchorEffects), layout}
+    session = started
+    if (!visible) return started.timeline.pause()
     effects.forEach(startEntry)
+  }
+
+  const suspend = (current: WorkSession) => {
+    current.timeline.pause()
+    effects.forEach(parkEntry)
+    draining.forEach((handle) => handle.remove())
+    draining.clear()
+  }
+
+  const resume = (current: WorkSession) => {
+    current.timeline.play()
+    effects.forEach(startEntry)
+  }
+
+  const setVisible = (next: boolean) => {
+    if (visible === next) return
+    visible = next
+    const current = session
+    if (current === undefined) return
+    if (next) return resume(current)
+    suspend(current)
   }
 
   const recover = (recovery: ActivityRecovery) => {
@@ -255,7 +287,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     if (existing !== undefined) removeEntry(existing)
     const entry: EffectEntry = {mount, host, handle: undefined, hostOrigin: undefined}
     effects.set(id, entry)
-    if (isWorking()) startEntry(entry)
+    if (isRunning()) startEntry(entry)
   }
 
   const unmountEffect = (id: string) => {
@@ -271,7 +303,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     detachAndDrain(entry)
     entry.host = host
     entry.hostOrigin = undefined
-    if (isWorking()) startEntry(entry)
+    if (isRunning()) startEntry(entry)
   }
 
   const dispose = () => {
@@ -283,5 +315,5 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     draining.clear()
   }
 
-  return {start, setRest, stop, mountEffect, unmountEffect, setEffectHost, dispose}
+  return {start, setRest, setVisible, stop, mountEffect, unmountEffect, setEffectHost, dispose}
 }
