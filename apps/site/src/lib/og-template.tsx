@@ -21,8 +21,8 @@ export function buildOgTree(props: OgTreeProps): ReactElement {
         display: 'flex',
         position: 'relative',
         color: INK,
-        'font-family': 'Bricolage Grotesque',
-        'background-color': PAPER,
+        fontFamily: 'Bricolage Grotesque',
+        backgroundColor: PAPER,
       }}
     >
       <div
@@ -31,10 +31,10 @@ export function buildOgTree(props: OgTreeProps): ReactElement {
           left: 64,
           top: 56,
           display: 'flex',
-          'font-size': 32,
-          'font-weight': 700,
+          fontSize: 32,
+          fontWeight: 700,
           color: ACCENT,
-          'letter-spacing': '-1px',
+          letterSpacing: '-1px',
         }}
       >
         conciv
@@ -47,19 +47,19 @@ export function buildOgTree(props: OgTreeProps): ReactElement {
           top: 180,
           bottom: 64,
           display: 'flex',
-          'flex-direction': 'column',
-          'justify-content': 'center',
+          flexDirection: 'column',
+          justifyContent: 'center',
         }}
       >
         <div
           style={{
             display: 'flex',
-            'font-size': 56,
-            'font-weight': 700,
-            'line-height': 1.08,
-            'letter-spacing': '-1.5px',
-            'margin-bottom': 20,
-            'max-width': 1000,
+            fontSize: 56,
+            fontWeight: 700,
+            lineHeight: 1.08,
+            letterSpacing: '-1.5px',
+            marginBottom: 20,
+            maxWidth: 1000,
           }}
         >
           {props.title}
@@ -67,11 +67,11 @@ export function buildOgTree(props: OgTreeProps): ReactElement {
         <div
           style={{
             display: 'flex',
-            'font-size': 28,
-            'font-weight': 400,
-            'line-height': 1.35,
+            fontSize: 28,
+            fontWeight: 400,
+            lineHeight: 1.35,
             color: MUTED,
-            'max-width': 980,
+            maxWidth: 980,
           }}
         >
           {props.description}
@@ -84,7 +84,7 @@ export function buildOgTree(props: OgTreeProps): ReactElement {
           right: 0,
           bottom: 0,
           height: 12,
-          'background-color': ACCENT,
+          backgroundColor: ACCENT,
         }}
       />
     </div>
