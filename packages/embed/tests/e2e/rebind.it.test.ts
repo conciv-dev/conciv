@@ -1,11 +1,12 @@
 import {expect, test, type Page} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {handleHostPage, serveHost} from '../helpers/host.js'
+import {handleHostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {watchNavigationWire} from '@conciv/extension-testkit/navigation-wire'
 import {setNavigation} from './helpers/navigation.js'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
-import {mountHandle, rebindHandle} from './helpers/handle.js'
+import {mountHandle, openHostWithHandle, rebindHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
 
 const ASSISTANT_TEXT = 'Rebound reply'
@@ -118,11 +119,7 @@ test.describe('handle.rebind remounts extension surfaces on the new core', () =>
 
   test('rebuilds the global surface and the open extension view against the new base', async ({page}) => {
     test.setTimeout(240_000)
-    const pageErrors: string[] = []
-    page.on('pageerror', (error) => pageErrors.push(String(error)))
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-
-    await mountHandle(page, proxyC.base)
+    const pageErrors = await openHostWithHandle(page, host.base, proxyC.base)
     await openPanelTabs(page)
 
     const surfaceProbe = page.getByRole('status', {name: 'surface mount api base'})

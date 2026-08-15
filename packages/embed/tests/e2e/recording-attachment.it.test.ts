@@ -4,7 +4,8 @@ import {makeExtRpcClient} from '@conciv/extension'
 import {until} from '@conciv/harness-testkit/until'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {hostPage, serveHost} from '../helpers/host.js'
+import {hostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {openPanel} from './helpers/panel.js'
 
 let kit: EmbedKit

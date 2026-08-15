@@ -1,8 +1,10 @@
 import {expect, test, type Page} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {hostPage, serveHost} from '../helpers/host.js'
+import {hostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {watchNavigationWire} from '@conciv/extension-testkit/navigation-wire'
-import {currentHref, freezeClock, setNavigation, untilNavigationHref} from './helpers/navigation.js'
+import {currentHref} from '@conciv/extension-testkit/navigation-state'
+import {freezeClock, setNavigation, untilNavigationHref} from './helpers/navigation.js'
 import {openPanel, sendMessage} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'

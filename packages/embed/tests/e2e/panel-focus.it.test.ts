@@ -2,8 +2,10 @@ import {expect, test, type Locator, type Page} from '@playwright/test'
 import {gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
-import {currentHref, setNavigation, untilNavigationHref} from './helpers/navigation.js'
-import {hostPage, serveHost} from '../helpers/host.js'
+import {currentHref} from '@conciv/extension-testkit/navigation-state'
+import {setNavigation, untilNavigationHref} from './helpers/navigation.js'
+import {hostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 
 const suite = setupWidgetSuite()
 

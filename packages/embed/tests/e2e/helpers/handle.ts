@@ -10,6 +10,14 @@ export async function mountHandle(page: Page, apiBase: string): Promise<void> {
   }, apiBase)
 }
 
+export async function openHostWithHandle(page: Page, hostBase: string, apiBase: string): Promise<string[]> {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(String(error)))
+  await page.goto(hostBase, {waitUntil: 'domcontentloaded'})
+  await mountHandle(page, apiBase)
+  return pageErrors
+}
+
 export async function remountHandle(page: Page): Promise<void> {
   await page.evaluate(() => void window.concivTestHandle.mount(window.concivTestElement))
 }

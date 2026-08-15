@@ -88,7 +88,7 @@ export async function startProbeServer(): Promise<ProbeServer> {
       try {
         await served.close()
       } catch (error) {
-        console.error('[embed-testkit] probe server close failed:', error)
+        console.error('[extension-testkit] probe server close failed:', error)
       }
     },
     slowEntered: slow.entered,

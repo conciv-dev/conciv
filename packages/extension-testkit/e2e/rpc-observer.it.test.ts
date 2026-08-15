@@ -1,6 +1,6 @@
 import {expect, test, type Page} from '@playwright/test'
 import {encodeResponseMessage, MessageType} from '@orpc/standard-server-peer'
-import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
+import {observeRpc, type RpcObserver} from '../src/rpc-observer.js'
 import {setupWsProbeSuite} from './helpers/probe-suite.js'
 import {startProbeServer, type ProbeServer} from './helpers/probe-server.js'
 

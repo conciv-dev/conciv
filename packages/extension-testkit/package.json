@@ -21,9 +21,11 @@
     "./widget-suite": "./src/widget-suite.ts",
     "./test-host": "./src/test-host-config.ts",
     "./page-plane": "./src/page-plane.ts",
+    "./listen-local": "./src/listen-local.ts",
+    "./serve-host": "./src/serve-host.ts",
+    "./navigation-state": "./src/navigation-state.ts",
     "./navigation-wire": "./src/navigation-wire.ts",
     "./rpc-frames": "./src/rpc-frames.ts",
-    "./rpc-observer": "./src/rpc-observer.ts",
     "./rpc-counts": "./src/rpc-counts.ts",
     "./rpc-wire": "./src/rpc-wire.ts",
     "./rpc-fault": "./src/rpc-fault.ts"
@@ -32,7 +34,7 @@
     "build": "vite build -c vite.test-host.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vite build -c vite.ws-probe.config.ts && vitest run && playwright test"
   },
   "dependencies": {
     "@conciv/browser-fixture": "workspace:*",

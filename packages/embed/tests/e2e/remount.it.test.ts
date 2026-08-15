@@ -1,8 +1,9 @@
 import {expect, test} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {handleHostPage, serveHost} from '../helpers/host.js'
+import {handleHostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {setNavigation} from './helpers/navigation.js'
-import {mountHandle, remountHandle, unmountHandle} from './helpers/handle.js'
+import {mountHandle, openHostWithHandle, remountHandle, unmountHandle} from './helpers/handle.js'
 import {chatBox, openChatPanel, sendChatMessage} from './helpers/chat.js'
 
 const ASSISTANT_TEXT = 'Remounted reply'
@@ -32,11 +33,7 @@ test.afterEach(async () => {
 test.describe('handle unmount and remount keeps delivering turns', () => {
   test('renders the second assistant reply after a full unmount and remount', async ({page}) => {
     test.setTimeout(240_000)
-    const pageErrors: string[] = []
-    page.on('pageerror', (error) => pageErrors.push(String(error)))
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-
-    await mountHandle(page, kit.base)
+    const pageErrors = await openHostWithHandle(page, host.base, kit.base)
     await openChatPanel(page)
 
     await sendChatMessage(page, USER_TEXT)
@@ -60,11 +57,7 @@ test.describe('handle unmount and remount keeps delivering turns', () => {
 
   test('renders the second assistant reply after a fresh handle replaces the unmounted one', async ({page}) => {
     test.setTimeout(240_000)
-    const pageErrors: string[] = []
-    page.on('pageerror', (error) => pageErrors.push(String(error)))
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-
-    await mountHandle(page, kit.base)
+    const pageErrors = await openHostWithHandle(page, host.base, kit.base)
     await openChatPanel(page)
 
     await sendChatMessage(page, USER_TEXT)

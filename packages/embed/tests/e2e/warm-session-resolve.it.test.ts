@@ -2,7 +2,8 @@ import {expect, test, type Page} from '@playwright/test'
 import {gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {setupWidgetSuite} from './helpers/suite.js'
-import {hostPage, serveHost} from '../helpers/host.js'
+import {hostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 
 const suite = setupWidgetSuite()
 

@@ -2,7 +2,8 @@ import {expect, test, type Page} from '@playwright/test'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {handleHostPage, hostPage, serveHost} from '../helpers/host.js'
+import {handleHostPage, hostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {openPagePlaneHost} from './helpers/page-plane-host.js'
 
 const HOST_BODY = `

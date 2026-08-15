@@ -1,6 +1,7 @@
 import {expect, test, type Page} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {hostPage, serveHost} from '../helpers/host.js'
+import {hostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {openPagePlaneHost} from './helpers/page-plane-host.js'
 
 let kit: EmbedKit

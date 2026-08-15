@@ -1,8 +1,8 @@
 import {expect, test, type Page} from '@playwright/test'
 import {setupWsProbeSuite} from './helpers/probe-suite.js'
 import {startProbeServer, type ProbeServer} from './helpers/probe-server.js'
-import {watchNavigationWire, type HeldNavigationWrite} from '@conciv/extension-testkit/navigation-wire'
-import {currentHref, navigationStamp} from './helpers/navigation.js'
+import {watchNavigationWire, type HeldNavigationWrite} from '../src/navigation-wire.js'
+import {currentHref, navigationStamp} from '../src/navigation-state.js'
 
 const suite = setupWsProbeSuite()
 
