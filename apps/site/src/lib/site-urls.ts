@@ -1,6 +1,6 @@
 export const SITE = 'https://conciv.dev'
 
-export const DEFAULT_TITLE = 'conciv: Conceive it. An AI dev agent inside your running app'
+export const DEFAULT_TITLE = 'conciv: Conceive it. Claude Code, living inside your running app'
 export const DEFAULT_DESCRIPTION =
   'conciv is a dev-only AI agent embedded in your running app. Grab any element, chat, and let it drive the page and run your tests, without leaving what you are building.'
 

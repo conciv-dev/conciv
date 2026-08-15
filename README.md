@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://conciv.dev">
-  <img src="./.github/assets/hero.png" alt="conciv: an AI dev agent that lives inside your running app" width="860">
+  <img src="./.github/assets/hero.png" alt="conciv: Claude Code, living inside your running app" width="860">
 </a>
 
 <h1>✦&nbsp; conciv</h1>
@@ -9,7 +9,7 @@
 <p>
   <em>Conceive it.</em>
   <br>
-  <strong>An AI dev agent that lives inside your running app.</strong>
+  <strong>Claude Code, living inside your running app.</strong>
   <br>
   Add one plugin. Then chat, let it drive the page, and run your tests,
   <br>
