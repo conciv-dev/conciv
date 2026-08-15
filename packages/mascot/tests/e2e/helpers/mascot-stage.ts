@@ -4,7 +4,7 @@ import {dirname, join, normalize} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {expect, type Page, type Route} from '@playwright/test'
 import type {CurveStyle, MascotConfig} from '../../../src/rig.js'
-import {frameCountingScript, harnessPage} from './harness-page.js'
+import {frameCountingScript, harnessPage, layoutCountingScript} from './harness-page.js'
 
 export type StagePoint = {x: number; y: number}
 
@@ -71,6 +71,7 @@ async function handleRoute(route: Route): Promise<void> {
 export async function openMascotPage(page: Page): Promise<void> {
   await access(RIG_BUNDLE)
   await page.addInitScript(frameCountingScript())
+  await page.addInitScript(layoutCountingScript())
   await page.route(`${MASCOT_BASE}**`, handleRoute)
   await page.goto(MASCOT_BASE, {waitUntil: 'domcontentloaded'})
   await expect(page.locator('html[data-harness="ready"]')).toBeAttached()

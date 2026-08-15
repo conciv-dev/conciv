@@ -1,7 +1,35 @@
+import gsap from 'gsap'
 import type {EmitterAnchor} from './path.js'
 import type {MascotSkin} from './skin.js'
 
-function layoutOffsetToRoot(element: HTMLElement): EmitterAnchor {
+export type LayerTransform = {
+  translateX: number
+  translateY: number
+  rotationDeg: number
+  scaleX: number
+  scaleY: number
+}
+
+export type AntennaLayout = {
+  base: EmitterAnchor
+  width: number
+  height: number
+  originX: number
+  originY: number
+  tipX: number
+  tipY: number
+}
+
+const DEGREES_TO_RADIANS = Math.PI / 180
+
+const PERCENT = 100
+
+const numeric = (value: string | number): number => (typeof value === 'number' ? value : Number.parseFloat(value))
+
+export const gsapNumber = (element: HTMLElement, property: string): number =>
+  numeric(gsap.getProperty(element, property))
+
+export function hostOriginInRoot(element: HTMLElement): EmitterAnchor {
   let x = 0
   let y = 0
   let node: HTMLElement | null = element
@@ -15,30 +43,60 @@ function layoutOffsetToRoot(element: HTMLElement): EmitterAnchor {
 }
 
 function layoutOffsetWithin(element: HTMLElement, host: HTMLElement): EmitterAnchor {
-  const target = layoutOffsetToRoot(element)
-  const origin = layoutOffsetToRoot(host)
+  const target = hostOriginInRoot(element)
+  const origin = hostOriginInRoot(host)
   return {x: target.x - origin.x, y: target.y - origin.y}
 }
 
-function localMatrix(element: HTMLElement): DOMMatrixReadOnly {
-  const {transform} = getComputedStyle(element)
-  if (transform === '' || transform === 'none') return new DOMMatrixReadOnly()
-  return new DOMMatrixReadOnly(transform)
+export function readLayerTransform(element: HTMLElement, width: number, height: number): LayerTransform {
+  return {
+    translateX: gsapNumber(element, 'x') + (gsapNumber(element, 'xPercent') * width) / PERCENT,
+    translateY: gsapNumber(element, 'y') + (gsapNumber(element, 'yPercent') * height) / PERCENT,
+    rotationDeg: gsapNumber(element, 'rotation'),
+    scaleX: gsapNumber(element, 'scaleX'),
+    scaleY: gsapNumber(element, 'scaleY'),
+  }
 }
 
-export function antennaTipInRoot(antenna: HTMLElement, skin: MascotSkin): EmitterAnchor {
-  const base = layoutOffsetToRoot(antenna)
+export function measureAntennaLayout(antenna: HTMLElement, skin: MascotSkin): AntennaLayout {
+  const base = hostOriginInRoot(antenna)
   const width = antenna.offsetWidth
   const height = antenna.offsetHeight
   const originX = width * skin.originFractions.x
   const originY = height * skin.originFractions.y
-  const local = new DOMPoint(width * skin.tipFractions.x - originX, height * skin.tipFractions.y - originY)
-  const moved = localMatrix(antenna).transformPoint(local)
-  return {x: base.x + originX + moved.x, y: base.y + originY + moved.y}
+  return {
+    base,
+    width,
+    height,
+    originX,
+    originY,
+    tipX: width * skin.tipFractions.x - originX,
+    tipY: height * skin.tipFractions.y - originY,
+  }
+}
+
+export function antennaTipFromLayout(layout: AntennaLayout, transform: LayerTransform): EmitterAnchor {
+  const scaledX = layout.tipX * transform.scaleX
+  const scaledY = layout.tipY * transform.scaleY
+  const radians = transform.rotationDeg * DEGREES_TO_RADIANS
+  const cos = Math.cos(radians)
+  const sin = Math.sin(radians)
+  return {
+    x: layout.base.x + layout.originX + scaledX * cos - scaledY * sin + transform.translateX,
+    y: layout.base.y + layout.originY + scaledX * sin + scaledY * cos + transform.translateY,
+  }
+}
+
+export function antennaTipOf(antenna: HTMLElement, layout: AntennaLayout): EmitterAnchor {
+  return antennaTipFromLayout(layout, readLayerTransform(antenna, layout.width, layout.height))
+}
+
+export function antennaTipInRoot(antenna: HTMLElement, skin: MascotSkin): EmitterAnchor {
+  return antennaTipOf(antenna, measureAntennaLayout(antenna, skin))
 }
 
 export function tipWithinHost(tip: EmitterAnchor, host: HTMLElement): EmitterAnchor {
-  const origin = layoutOffsetToRoot(host)
+  const origin = hostOriginInRoot(host)
   return {x: tip.x - origin.x, y: tip.y - origin.y}
 }
 

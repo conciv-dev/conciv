@@ -23,7 +23,7 @@ test('the legacy closed state tracks the pointer with a saturating, mirrored fal
   expectNear('saturated lean = +10deg', right.lean, 10, 0.1)
   expectNear('mirrored eyes x = -3px', left.eyesX, -3, 0.05)
   expectNear('mirrored lean = -10deg', left.lean, -10, 0.1)
-  expectNear('half-distance falloff ratio ~ 0.5', ratio, 0.5, 0.05)
+  expectNear('110px of the 220px falloff is exactly half reach, with no self-feeding', ratio, 0.5, 0.005)
 })
 
 test('the legacy open state lands its pose and disarms the gaze listener', async ({page}) => {
@@ -145,7 +145,7 @@ test('follow arms, disarms and settles without leaking pointermove listeners', a
 
   expectNear('gaze saturates at 3px beyond the falloff', saturated.eyesX, 3, 0.05)
   expectNear('lean saturates at 10deg beyond the falloff', saturated.lean, 10, 0.1)
-  expectNear('half-distance falloff ratio ~ 0.5', ratio, 0.5, 0.05)
+  expectNear('110px of the 220px falloff is exactly half reach, with no self-feeding', ratio, 0.5, 0.005)
   expect(cycles.armed, 'listener count never exceeds one while armed').toEqual([1, 1, 1, 1, 1])
   expect(cycles.disarmed, 'listener count returns to zero while disarmed').toEqual([0, 0, 0, 0, 0])
   expect(

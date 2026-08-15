@@ -90,13 +90,25 @@ export type TipEmitter = {
   onRemove: () => void
 }
 
+function placedTipOf(element: HTMLElement, origin: EmitterAnchor): EmitterAnchor {
+  return {
+    x: Number.parseFloat(element.style.left) + origin.x,
+    y: Number.parseFloat(element.style.top) + origin.y,
+  }
+}
+
 export function createTipEmitter(emitter: TipEmitter): EffectHandle {
   const {element, origin, onStart, onStop, onRemove} = emitter
+  const placed = placedTipOf(element, origin)
+  gsap.set(element, {x: 0, y: 0})
+  const shiftX = gsap.quickSetter(element, 'x', 'px')
+  const shiftY = gsap.quickSetter(element, 'y', 'px')
   let enter: gsap.core.Tween | undefined
   let exit: gsap.core.Tween | undefined
 
   const anchor = (next: EmitterAnchor) => {
-    gsap.set(element, {left: next.x - origin.x, top: next.y - origin.y, autoRound: false})
+    shiftX(next.x - placed.x)
+    shiftY(next.y - placed.y)
   }
 
   const remove = () => {

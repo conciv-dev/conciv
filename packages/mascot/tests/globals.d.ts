@@ -5,6 +5,8 @@ type Summary = {min: number; max: number; last: number}
 
 type Anchor = {left: number; top: number}
 
+type LayoutReads = {computedStyle: number; offset: number; rect: number}
+
 type EmitterGeometry = {fontSizePx: number; leadingLeft: number; trailingLeft: number; top: number}
 
 type EffectTotals = {starts: number; stops: number; removes: number; live: number}
@@ -56,5 +58,6 @@ declare global {
     service: MascotModule.MascotService
     readonly pointerMoveListenerCount: number
     readonly pendingFrameLoopCount: number
+    readonly layoutReads: LayoutReads
   }
 }

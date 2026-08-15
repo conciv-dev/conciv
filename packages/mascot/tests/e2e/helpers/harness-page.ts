@@ -19,6 +19,36 @@ const FRAME_COUNTING_SCRIPT = `
 
 export const frameCountingScript = (): string => FRAME_COUNTING_SCRIPT
 
+const LAYOUT_COUNTING_SCRIPT = `
+  const OFFSET_PROPERTIES = ['offsetLeft', 'offsetTop', 'offsetWidth', 'offsetHeight', 'offsetParent']
+  const layoutReads = {computedStyle: 0, offset: 0, rect: 0}
+  const readComputedStyle = window.getComputedStyle.bind(window)
+  window.getComputedStyle = (element, pseudoElement) => {
+    layoutReads.computedStyle += 1
+    return readComputedStyle(element, pseudoElement)
+  }
+  const readRect = Element.prototype.getBoundingClientRect
+  Element.prototype.getBoundingClientRect = function () {
+    layoutReads.rect += 1
+    return readRect.call(this)
+  }
+  OFFSET_PROPERTIES.forEach((name) => {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, name)
+    const read = descriptor.get
+    Object.defineProperty(HTMLElement.prototype, name, {
+      configurable: true,
+      enumerable: descriptor.enumerable,
+      get() {
+        layoutReads.offset += 1
+        return read.call(this)
+      },
+    })
+  })
+  Object.defineProperty(window, 'layoutReads', {get: () => ({...layoutReads})})
+`
+
+export const layoutCountingScript = (): string => LAYOUT_COUNTING_SCRIPT
+
 const HARNESS_SCRIPT = `
   import gsap from 'gsap'
   import * as mascot from '/rig.js'
@@ -272,7 +302,7 @@ const HARNESS_SCRIPT = `
     return predicate()
   }
 
-  const property = (element, name) => Number(gsap.getProperty(element, name))
+  const property = (element, name) => Number.parseFloat(gsap.getProperty(element, name))
 
   const stageCenter = (root) => {
     const bounds = root.getBoundingClientRect()
@@ -286,9 +316,15 @@ const HARNESS_SCRIPT = `
   const activeWritersOfProperty = (element, property) =>
     gsap.getTweensOf(element).filter((tween) => tween.isActive() && Object.hasOwn(tween.vars, property)).length
 
-  const boxOf = (element) => ({left: element.offsetLeft, top: element.offsetTop})
+  const boxOf = (element) => ({
+    left: element.offsetLeft + property(element, 'x'),
+    top: element.offsetTop + property(element, 'y'),
+  })
 
-  const anchorOf = (element) => ({left: parseFloat(element.style.left), top: parseFloat(element.style.top)})
+  const anchorOf = (element) => ({
+    left: parseFloat(element.style.left) + property(element, 'x'),
+    top: parseFloat(element.style.top) + property(element, 'y'),
+  })
 
   const requireFlatDigit = (emitter, index) => {
     const digit = requireDigit(emitter, index)

@@ -24,7 +24,7 @@ import {
 import type {EffectHandle, EffectMount} from '../effects/effect.js'
 import type {EmitterAnchor} from '../path.js'
 import type {MascotSkin} from '../skin.js'
-import {antennaTipInRoot, tipWithinHost} from '../tip-anchor.js'
+import {type AntennaLayout, antennaTipOf, hostOriginInRoot, measureAntennaLayout} from '../tip-anchor.js'
 
 export type ActivityParts = {stage: HTMLElement; head: HTMLElement; antenna: HTMLElement; eyes: HTMLElement}
 
@@ -42,7 +42,12 @@ export type ActivityController = {
   dispose: () => void
 }
 
-type EffectEntry = {mount: EffectMount; host: HTMLElement | undefined; handle: EffectHandle | undefined}
+type EffectEntry = {
+  mount: EffectMount
+  host: HTMLElement | undefined
+  handle: EffectHandle | undefined
+  hostOrigin: EmitterAnchor | undefined
+}
 
 type WorkTimeline = {
   timeline: gsap.core.Timeline
@@ -50,6 +55,8 @@ type WorkTimeline = {
   bobDown: gsap.core.Tween
   bobReturn: gsap.core.Tween
 }
+
+type WorkSession = WorkTimeline & {layout: AntennaLayout}
 
 const NEUTRAL_SCALE = 1
 
@@ -117,15 +124,15 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   const {stage, head, antenna, eyes} = parts
   const effects = new Map<string, EffectEntry>()
   const draining = new Set<EffectHandle>()
-  let work: WorkTimeline | undefined
+  let session: WorkSession | undefined
   let recoveryTweens: gsap.core.Tween[] = []
   let resting: ActivityRest = {eyeScaleY: NEUTRAL_SCALE, headYPercent: 0}
 
-  const isWorking = () => work !== undefined
+  const isWorking = () => session !== undefined
 
   const killTimeline = () => {
-    work?.timeline.kill()
-    work = undefined
+    session?.timeline.kill()
+    session = undefined
   }
 
   const killRecoveryTweens = () => {
@@ -134,19 +141,31 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   }
 
   const anchorEntryTo = (entry: EffectEntry, tip: EmitterAnchor) => {
-    if (entry.handle?.anchor === undefined) return
-    entry.handle.anchor(tipWithinHost(tip, entry.host ?? stage))
+    const origin = entry.hostOrigin
+    if (origin === undefined) return
+    entry.handle?.anchor?.({x: tip.x - origin.x, y: tip.y - origin.y})
   }
 
   const anchorEffects = () => {
-    const tip = antennaTipInRoot(antenna, skin)
-    effects.forEach((entry) => anchorEntryTo(entry, tip))
+    const layout = session?.layout
+    if (layout === undefined) return
+    let tip: EmitterAnchor | undefined
+    effects.forEach((entry) => {
+      if (entry.handle?.anchor === undefined) return
+      tip = tip ?? antennaTipOf(antenna, layout)
+      anchorEntryTo(entry, tip)
+    })
   }
 
-  const anchorEntry = (entry: EffectEntry) => anchorEntryTo(entry, antennaTipInRoot(antenna, skin))
+  const anchorEntry = (entry: EffectEntry) => {
+    const layout = session?.layout
+    if (layout === undefined) return
+    anchorEntryTo(entry, antennaTipOf(antenna, layout))
+  }
 
   const startEntry = (entry: EffectEntry) => {
     const host = entry.host ?? stage
+    entry.hostOrigin = hostOriginInRoot(host)
     entry.handle = entry.handle ?? entry.mount({host, stage, antenna, skin})
     draining.delete(entry.handle)
     anchorEntry(entry)
@@ -184,10 +203,10 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
 
   const setRest = (rest: ActivityRest) => {
     resting = rest
-    if (work === undefined) return
-    retarget(work.blinkReturn, 'scaleY', rest.eyeScaleY)
-    retarget(work.bobReturn, 'yPercent', rest.headYPercent)
-    rebase(work.bobDown, 'yPercent', rest.headYPercent)
+    if (session === undefined) return
+    retarget(session.blinkReturn, 'scaleY', rest.eyeScaleY)
+    retarget(session.bobReturn, 'yPercent', rest.headYPercent)
+    rebase(session.bobDown, 'yPercent', rest.headYPercent)
   }
 
   const start = (rest: ActivityRest) => {
@@ -195,7 +214,8 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     resting = rest
     killTimeline()
     killRecoveryTweens()
-    work = buildWorkTimeline(parts, rest, anchorEffects)
+    const layout = measureAntennaLayout(antenna, skin)
+    session = {...buildWorkTimeline(parts, rest, anchorEffects), layout}
     effects.forEach(startEntry)
   }
 
@@ -223,7 +243,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   }
 
   const stop = (recovery: ActivityRecovery) => {
-    if (work === undefined) return
+    if (session === undefined) return
     killTimeline()
     killRecoveryTweens()
     recover(recovery)
@@ -233,7 +253,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   const mountEffect = (id: string, mount: EffectMount, host: HTMLElement | undefined) => {
     const existing = effects.get(id)
     if (existing !== undefined) removeEntry(existing)
-    const entry: EffectEntry = {mount, host, handle: undefined}
+    const entry: EffectEntry = {mount, host, handle: undefined, hostOrigin: undefined}
     effects.set(id, entry)
     if (isWorking()) startEntry(entry)
   }
@@ -250,6 +270,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     if (entry === undefined || entry.host === host) return
     detachAndDrain(entry)
     entry.host = host
+    entry.hostOrigin = undefined
     if (isWorking()) startEntry(entry)
   }
 

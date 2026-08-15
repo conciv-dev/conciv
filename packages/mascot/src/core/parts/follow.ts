@@ -15,7 +15,7 @@ import {
   sameFollowChannels,
 } from '../config.js'
 import type {MascotSkin} from '../skin.js'
-import {antennaOriginOffset} from '../tip-anchor.js'
+import {antennaOriginOffset, gsapNumber} from '../tip-anchor.js'
 
 export type FollowParts = {eyes: HTMLElement; leanWrapper: HTMLElement | undefined}
 
@@ -24,6 +24,12 @@ export type FollowController = {
   disarm: (animated: boolean) => void
   dispose: () => void
 }
+
+type GazeOrigin = {centerX: number; centerY: number; width: number; height: number; scaleX: number; scaleY: number}
+
+type GazePoint = {clientX: number; clientY: number}
+
+type GazeTracker = {handle: (event: PointerEvent) => void; cancel: () => void}
 
 type FollowDrivers = {
   moveEyesX: ((value: number) => void) | undefined
@@ -48,7 +54,11 @@ export function wrapForLean(antenna: HTMLElement, skin: MascotSkin): HTMLElement
   wrapper.style.cssText = LEAN_WRAPPER_STYLE
   parent.insertBefore(wrapper, antenna)
   wrapper.append(antenna)
-  gsap.set(wrapper, {transformOrigin: leanOrigin(antenna, wrapper, skin)})
+  gsap.set(wrapper, {transformOrigin: skin.transformOrigins.antenna})
+  requestAnimationFrame(() => {
+    if (!wrapper.isConnected) return
+    gsap.set(wrapper, {transformOrigin: leanOrigin(antenna, wrapper, skin)})
+  })
   return wrapper
 }
 
@@ -74,31 +84,78 @@ function createDrivers(
   return {...drivers, leanTo, tweens: [...drivers.tweens, leanTo.tween]}
 }
 
-function createPointerMove(eyes: HTMLElement, drivers: FollowDrivers): (event: PointerEvent) => void {
-  return (event) => {
-    const bounds = eyes.getBoundingClientRect()
-    if (bounds.width === 0 || bounds.height === 0) return
-    const offsetX = event.clientX - (bounds.left + bounds.width / 2)
-    const offsetY = event.clientY - (bounds.top + bounds.height / 2)
-    const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY)
-    const reach = Math.min(1, distance / GAZE_FALLOFF_PX)
-    const angle = Math.atan2(offsetY, offsetX)
-    drivers.moveEyesX?.(Math.cos(angle) * reach * GAZE_EYE_RANGE_PX)
-    drivers.moveEyesY?.(Math.sin(angle) * reach * GAZE_EYE_RANGE_PX)
-    drivers.leanTo?.(Math.cos(angle) * reach * GAZE_ANTENNA_LEAN_DEG)
+function measureGazeOrigin(eyes: HTMLElement): GazeOrigin {
+  const bounds = eyes.getBoundingClientRect()
+  const scaleX = gsapNumber(eyes, 'scaleX')
+  const scaleY = gsapNumber(eyes, 'scaleY')
+  return {
+    centerX: bounds.left + bounds.width / 2 - gsapNumber(eyes, 'x'),
+    centerY: bounds.top + bounds.height / 2 - gsapNumber(eyes, 'y'),
+    width: bounds.width / scaleX,
+    height: bounds.height / scaleY,
+    scaleX,
+    scaleY,
   }
+}
+
+const originHolds = (eyes: HTMLElement, origin: GazeOrigin): boolean =>
+  origin.scaleX === gsapNumber(eyes, 'scaleX') && origin.scaleY === gsapNumber(eyes, 'scaleY')
+
+function aimAt(drivers: FollowDrivers, origin: GazeOrigin, point: GazePoint): void {
+  const offsetX = point.clientX - origin.centerX
+  const offsetY = point.clientY - origin.centerY
+  const distance = Math.sqrt(offsetX * offsetX + offsetY * offsetY)
+  const reach = Math.min(1, distance / GAZE_FALLOFF_PX)
+  const angle = Math.atan2(offsetY, offsetX)
+  drivers.moveEyesX?.(Math.cos(angle) * reach * GAZE_EYE_RANGE_PX)
+  drivers.moveEyesY?.(Math.sin(angle) * reach * GAZE_EYE_RANGE_PX)
+  drivers.leanTo?.(Math.cos(angle) * reach * GAZE_ANTENNA_LEAN_DEG)
+}
+
+function createGazeTracker(eyes: HTMLElement, drivers: FollowDrivers): GazeTracker {
+  let origin: GazeOrigin | undefined
+  let pending: GazePoint | undefined
+
+  const restingOrigin = (): GazeOrigin => {
+    const held = origin
+    if (held !== undefined && originHolds(eyes, held)) return held
+    origin = measureGazeOrigin(eyes)
+    return origin
+  }
+
+  const flush = () => {
+    const point = pending
+    pending = undefined
+    if (point === undefined) return
+    const measured = restingOrigin()
+    if (measured.width === 0 || measured.height === 0) return
+    aimAt(drivers, measured, point)
+  }
+
+  const handle = (event: PointerEvent) => {
+    const scheduled = pending !== undefined
+    pending = {clientX: event.clientX, clientY: event.clientY}
+    if (!scheduled) gsap.ticker.add(flush, true)
+  }
+
+  const cancel = () => {
+    pending = undefined
+  }
+
+  return {handle, cancel}
 }
 
 export function createFollowController(parts: FollowParts): FollowController {
   const {eyes, leanWrapper} = parts
-  let pointerMove: ((event: PointerEvent) => void) | undefined
+  let tracker: GazeTracker | undefined
   let ownedTweens: gsap.core.Tween[] = []
   let armedChannels: FollowChannels = NO_FOLLOW_CHANNELS
 
   const detach = () => {
-    if (pointerMove === undefined) return
-    window.removeEventListener('pointermove', pointerMove)
-    pointerMove = undefined
+    if (tracker === undefined) return
+    window.removeEventListener('pointermove', tracker.handle)
+    tracker.cancel()
+    tracker = undefined
   }
 
   const killOwnedTweens = () => {
@@ -120,8 +177,8 @@ export function createFollowController(parts: FollowParts): FollowController {
   const bindPointerMove = (channels: FollowChannels) => {
     const drivers = createDrivers(eyes, leanWrapper, channels)
     ownedTweens.push(...drivers.tweens)
-    pointerMove = createPointerMove(eyes, drivers)
-    window.addEventListener('pointermove', pointerMove)
+    tracker = createGazeTracker(eyes, drivers)
+    window.addEventListener('pointermove', tracker.handle, {passive: true})
   }
 
   const applyChannels = (channels: FollowChannels, animated: boolean) => {
