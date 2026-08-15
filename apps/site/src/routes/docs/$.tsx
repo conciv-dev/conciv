@@ -13,6 +13,7 @@ import {
 } from 'fumadocs-ui/layouts/docs/page'
 import {baseOptions} from '@/lib/layout.shared'
 import {gitConfig} from '@/lib/shared'
+import {buildDocsHead} from '@/lib/docs-head'
 import {useFumadocsLoader} from 'fumadocs-core/source/client'
 import {Suspense} from 'react'
 import {useMDXComponents} from '@/components/mdx'
@@ -25,6 +26,7 @@ export const Route = createFileRoute('/docs/$')({
     await clientLoader.preload(data.path)
     return data
   },
+  head: ({loaderData, params}) => buildDocsHead({splat: params._splat, page: loaderData}),
 })
 
 const serverLoader = createServerFn({
@@ -39,6 +41,8 @@ const serverLoader = createServerFn({
       path: page.path,
       markdownUrl: slugsToMarkdownPath(page.slugs).url,
       pageTree: await source.serializePageTree(source.getPageTree()),
+      title: page.data.title,
+      description: page.data.description,
     }
   })
 
@@ -58,7 +62,7 @@ const clientLoader = browserCollections.docs.createClientLoader({
       <DocsPage toc={toc}>
         <DocsTitle>{frontmatter.title}</DocsTitle>
         <DocsDescription>{frontmatter.description}</DocsDescription>
-        <div className="flex flex-row gap-2 items-center border-b -mt-4 pb-6">
+        <div class="flex flex-row gap-2 items-center border-b -mt-4 pb-6">
           <MarkdownCopyButton markdownUrl={markdownUrl} />
           <ViewOptionsPopover
             markdownUrl={markdownUrl}
