@@ -164,6 +164,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     driver.dispose,
     reachabilityRoot.dispose,
     closeConnection,
+    interactive.notify,
   ]
   return {dispose: () => runDisposers(disposers), rebind, interactive: interactive.promise}
 }
@@ -225,6 +226,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     driver.dispose,
     reachabilityRoot.dispose,
     deferred.close,
+    interactive.notify,
   ]
   return {dispose: () => runDisposers(disposers), interactive: interactive.promise}
 }

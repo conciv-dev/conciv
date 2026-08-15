@@ -9,7 +9,6 @@ type CommandMap = {
 function createManualScheduler(): {scheduler: EventBusScheduler; tick: () => void; intervalCount: () => number} {
   const callbacks = new Map<number, () => void>()
   let nextId = 0
-  let cleared = 0
   return {
     scheduler: {
       setInterval: (callback) => {
@@ -21,13 +20,12 @@ function createManualScheduler(): {scheduler: EventBusScheduler; tick: () => voi
       clearInterval: (id) => {
         if (typeof id !== 'number') return
         callbacks.delete(id)
-        cleared += 1
       },
     },
     tick: () => {
       for (const callback of callbacks.values()) callback()
     },
-    intervalCount: () => callbacks.size - cleared,
+    intervalCount: () => callbacks.size,
   }
 }
 

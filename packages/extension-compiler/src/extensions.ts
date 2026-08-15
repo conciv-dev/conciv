@@ -42,7 +42,7 @@ export function extensionsModuleSource(
     `const builtinEntries = [${builtinNames.map((n, i) => `{extension: ${n}, source: 'builtin:${i}'}`).join(', ')}]`,
     `const picked = dedupeExtensions([...builtinEntries, ...folderEntries])`,
     `for (const d of picked.dropped) console.warn('conciv extension dropped:', d.source, d.reason)`,
-    `void mountConciv(picked.extensions)`,
+    `mountConciv(picked.extensions).catch((error) => console.error('[conciv] widget failed to start', error))`,
     '',
   ].join('\n')
 }
