@@ -5,17 +5,23 @@ export type LiveSessions = {
   setRunning: (sessionId: string, running: boolean) => void
 }
 
-function withoutOne(ids: readonly string[], sessionId: string): readonly string[] {
-  const index = ids.indexOf(sessionId)
-  if (index < 0) return ids
-  return [...ids.slice(0, index), ...ids.slice(index + 1)]
+type RunCounts = ReadonlyMap<string, number>
+
+function withDelta(counts: RunCounts, sessionId: string, delta: number): RunCounts {
+  const next = new Map(counts)
+  const count = (counts.get(sessionId) ?? 0) + delta
+  if (count <= 0) {
+    next.delete(sessionId)
+    return next
+  }
+  next.set(sessionId, count)
+  return next
 }
 
 export function makeLiveSessions(): LiveSessions {
-  const [ids, setIds] = createSignal<readonly string[]>([])
+  const [counts, setCounts] = createSignal<RunCounts>(new Map())
   return {
-    anyRunning: () => ids().length > 0,
-    setRunning: (sessionId, running) =>
-      setIds((prev) => (running ? [...prev, sessionId] : withoutOne(prev, sessionId))),
+    anyRunning: () => counts().size > 0,
+    setRunning: (sessionId, running) => setCounts((prev) => withDelta(prev, sessionId, running ? 1 : -1)),
   }
 }

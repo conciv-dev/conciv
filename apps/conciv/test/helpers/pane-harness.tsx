@@ -11,8 +11,8 @@ import {
   makePendingAttachmentQueue,
   type PaneContextValue,
 } from '../../src/app/pane-context.js'
-import {makeAppData} from '../../src/data/app-data.js'
 import {makeLiveSessions} from '../../src/app/live-sessions.js'
+import {makeAppData} from '../../src/data/app-data.js'
 import {parseConcivSettings} from '../../src/data/settings.js'
 import {makeLayerStack} from '../../src/shell/dialogs.js'
 import {NoticeContextProvider, NoticeSurface} from '../../src/shell/notice-context.js'
