@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {measureEmitterRoom} from '../src/core/path.js'
+import {measureEmitterRoom} from '../../src/core/path.js'
 
 describe('measureEmitterRoom', () => {
   it('full rise, no bend, ample headroom', () => {

@@ -209,5 +209,5 @@ Found during the final fix wave's real-page evidence run: the widget FAB never f
 
 ### Post-review additions (owner decisions, 2026-08-15)
 
-- Harness runs in CI: `verify:behavior` wired into the package `test` script + CI Chromium provisioning (separate small task on this branch).
+- Behavior checks run in CI: converted to a standard `/test` suite under `packages/mascot/tests/e2e` and wired into the package `test` script (separate small task on this branch).
 - Phase-1 visual breakpoint: one core-driven storybook story (state/working/follow controls + docs) lands on this branch; owner verifies visually before merge. HARD rule going forward: every UI phase ends with a human visual-verification breakpoint.

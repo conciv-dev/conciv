@@ -1,19 +1,19 @@
-<meta charset="utf-8" />
-<title>@conciv/mascot behavior harness</title>
-<style>
-  html,
-  body {
-    margin: 0;
-    height: 100%;
-    background: #101014;
-  }
-</style>
-<script type="importmap">
-  {"imports": {"gsap": "/gsap/index.js"}}
-</script>
-<script type="module">
+const HARNESS_SCRIPT = `
   import gsap from 'gsap'
   import * as mascot from '/rig.js'
+
+  let pointerMoveListeners = 0
+  const addListener = window.addEventListener.bind(window)
+  const removeListener = window.removeEventListener.bind(window)
+  window.addEventListener = (type, listener, options) => {
+    if (type === 'pointermove') pointerMoveListeners += 1
+    addListener(type, listener, options)
+  }
+  window.removeEventListener = (type, listener, options) => {
+    if (type === 'pointermove') pointerMoveListeners -= 1
+    removeListener(type, listener, options)
+  }
+  Object.defineProperty(window, 'pointerMoveListenerCount', {get: () => pointerMoveListeners})
 
   const LAYER_STYLE =
     'position:absolute;inset:0;background-repeat:no-repeat;background-position:center;' +
@@ -23,7 +23,7 @@
 
   const makeLayer = (image) => {
     const layer = document.createElement('div')
-    layer.style.cssText = `${LAYER_STYLE};background-image:url('${image}')`
+    layer.style.cssText = LAYER_STYLE + ";background-image:url('" + image + "')"
     return layer
   }
 
@@ -61,6 +61,12 @@
   const leanWrappers = () => hiddenSpans().filter(isLeanWrapper)
 
   const emitters = () => hiddenSpans().filter(isEmitter)
+
+  const requireEmitter = () => {
+    const emitter = emitters()[0]
+    if (emitter === undefined) throw new Error('no binary emitter is mounted')
+    return emitter
+  }
 
   const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
 
@@ -118,12 +124,12 @@
 
   window.mascotHarness = {
     mascot,
-    gsap,
     buildStage,
     buildBareStage,
     applyStyle,
     leanWrappers,
     emitters,
+    requireEmitter,
     wait,
     nextFrame,
     sampleFrames,
@@ -138,4 +144,14 @@
     repeatingTimeline,
   }
   document.documentElement.dataset.harness = 'ready'
-</script>
+`
+
+export const harnessPage = (): string =>
+  `<!doctype html><html><head>
+    <meta charset="utf-8" />
+    <title>@conciv/mascot behavior harness</title>
+    <style>html,body{margin:0;height:100%;background:#101014}</style>
+    <script type="importmap">{"imports":{"gsap":"/gsap/index.js"}}</script>
+  </head><body>
+    <script type="module">${HARNESS_SCRIPT}</script>
+  </body></html>`
