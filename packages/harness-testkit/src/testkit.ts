@@ -11,6 +11,7 @@ export {
 } from './create-testkit.js'
 export {createTestHarness, type TestHarness} from './create-test-harness.js'
 export {createFakeHarness, type FakeHarness} from './create-fake-harness.js'
+export type {ScriptedRun, ScriptedTurn, ScriptedTurnToolCall} from './scripted-run.js'
 export {harnessAvailable} from './harness-available.js'
 export {
   makeApprovingCallTool,

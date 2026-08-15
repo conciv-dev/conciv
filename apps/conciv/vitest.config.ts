@@ -3,6 +3,7 @@ import {defineConfig} from 'vitest/config'
 import {BaseSequencer, type TestSpecification} from 'vitest/node'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {makeFakeCoreRouter} from './test/helpers/fake-core-router.js'
+import {coreCommands} from './test/commands/core-control.js'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
 import {browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
@@ -63,6 +64,7 @@ export default defineConfig({
             headless: true,
             provider: playwright({}),
             instances: [{browser: 'chromium'}],
+            commands: coreCommands,
           },
         },
       },
