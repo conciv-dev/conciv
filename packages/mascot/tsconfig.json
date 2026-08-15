@@ -10,5 +10,13 @@
     "jsxImportSource": "solid-js",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "vitest.config.ts", "playwright.config.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "tsdown.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
 }

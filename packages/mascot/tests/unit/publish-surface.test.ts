@@ -111,7 +111,7 @@ test('the binary effect subpath also carries its curve configuration', async () 
 })
 
 test('every published entry declares its types next to its module', () => {
-  for (const subpath of ['.', ...effectSubpaths]) {
+  for (const subpath of ['.', './solid', ...effectSubpaths]) {
     expect(readFileSync(exportedTypesFile(subpath), 'utf8').length).toBeGreaterThan(0)
   }
 })
@@ -152,4 +152,12 @@ test('the core and effect entries pull in no framework runtime', () => {
     .filter((file) => FRAMEWORK_PATTERN.test(readFileSync(file, 'utf8')))
     .map(packageRelative)
   expect(framework).toEqual([])
+})
+
+test('the solid entry is the one place the framework is imported', () => {
+  const framework = moduleGraph(exportedImportFile('./solid'))
+    .filter((file) => FRAMEWORK_PATTERN.test(readFileSync(file, 'utf8')))
+    .map(packageRelative)
+  expect(framework).not.toEqual([])
+  expect(builtEntries()).not.toContain(exportedImportFile('./solid'))
 })

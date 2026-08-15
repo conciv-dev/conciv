@@ -26,6 +26,10 @@
       "types": "./dist/rig.d.ts",
       "import": "./dist/rig.js"
     },
+    "./solid": {
+      "types": "./dist/solid/index.d.ts",
+      "import": "./dist/solid/index.js"
+    },
     "./effects/binary": {
       "types": "./dist/core/effects/binary.d.ts",
       "import": "./dist/core/effects/binary.js"
@@ -108,11 +112,24 @@
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
+    "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^26.1.0",
+    "@vitest/browser-playwright": "4.1.10",
     "solid-js": "^1.9.13",
     "storybook": "^10.5.0",
     "storybook-solidjs-vite": "^10.6.0",
     "tsdown": "^0.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": ">=1.8"
+  },
+  "peerDependenciesMeta": {
+    "solid-js": {
+      "optional": true
+    }
   }
 }

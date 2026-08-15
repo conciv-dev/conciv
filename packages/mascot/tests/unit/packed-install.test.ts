@@ -6,7 +6,13 @@ import {dirname, join, resolve} from 'node:path'
 import {afterAll, expect, test} from 'vitest'
 
 const packageRoot = resolve(import.meta.dirname, '../..')
-const consumerRoot = mkdtempSync(join(tmpdir(), 'conciv-mascot-packed-'))
+const consumerRoots: string[] = []
+
+function makeConsumerRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), 'conciv-mascot-packed-'))
+  consumerRoots.push(root)
+  return root
+}
 
 const EFFECT_MOUNTS: Record<string, string> = {
   binary: 'binaryEffect',
@@ -67,6 +73,25 @@ process.stdout.write(
 )
 `
 
+const SOLID_PROBE = `import {existsSync} from 'node:fs'
+import {fileURLToPath} from 'node:url'
+
+const resolved = ['@conciv/mascot/solid', 'solid-js', 'solid-js/web'].map((name) =>
+  existsSync(fileURLToPath(import.meta.resolve(name))),
+)
+
+const installedFrameworks = ['solid-js', 'react', 'react-dom'].filter((name) => {
+  try {
+    import.meta.resolve(name)
+    return true
+  } catch {
+    return false
+  }
+})
+
+process.stdout.write(JSON.stringify({resolved, frameworks: installedFrameworks}))
+`
+
 function expectedMounts(): Record<string, string[]> {
   const binaryMounts = ['binaryEffect', 'configureBinaryEffect']
   return Object.fromEntries(
@@ -74,8 +99,8 @@ function expectedMounts(): Record<string, string[]> {
   )
 }
 
-function packTarball(): string {
-  const output = execFileSync('pnpm', ['pack', '--pack-destination', consumerRoot], {
+function packTarball(destination: string): string {
+  const output = execFileSync('pnpm', ['pack', '--pack-destination', destination], {
     cwd: packageRoot,
     encoding: 'utf8',
   })
@@ -84,25 +109,34 @@ function packTarball(): string {
   return tarball
 }
 
-function installPackedMascot(): void {
+function linkDependency(consumerRoot: string, name: string): void {
+  const source = dirname(createRequire(join(packageRoot, 'package.json')).resolve(`${name}/package.json`))
+  const target = join(consumerRoot, 'node_modules', name)
+  mkdirSync(dirname(target), {recursive: true})
+  symlinkSync(source, target, 'dir')
+}
+
+function installPackedMascot(consumerRoot: string, frameworks: string[]): void {
   const target = join(consumerRoot, 'node_modules/@conciv/mascot')
   mkdirSync(target, {recursive: true})
-  execFileSync('tar', ['-xzf', packTarball(), '-C', target, '--strip-components=1'])
-  const gsapRoot = dirname(createRequire(join(packageRoot, 'package.json')).resolve('gsap/package.json'))
-  symlinkSync(gsapRoot, join(consumerRoot, 'node_modules/gsap'), 'dir')
+  execFileSync('tar', ['-xzf', packTarball(consumerRoot), '-C', target, '--strip-components=1'])
+  linkDependency(consumerRoot, 'gsap')
+  for (const framework of frameworks) linkDependency(consumerRoot, framework)
+}
+
+function probeInstall(frameworks: string[], probe: string): unknown {
+  const consumerRoot = makeConsumerRoot()
+  installPackedMascot(consumerRoot, frameworks)
+  writeFileSync(join(consumerRoot, 'probe.mjs'), probe)
+  return JSON.parse(execFileSync(process.execPath, ['probe.mjs'], {cwd: consumerRoot, encoding: 'utf8'}))
 }
 
 afterAll(() => {
-  rmSync(consumerRoot, {recursive: true, force: true})
+  for (const root of consumerRoots) rmSync(root, {recursive: true, force: true})
 })
 
 test('a packed install with no framework present resolves and runs the core and effect subpaths', () => {
-  installPackedMascot()
-  writeFileSync(join(consumerRoot, 'probe.mjs'), PROBE)
-  const probed: unknown = JSON.parse(
-    execFileSync(process.execPath, ['probe.mjs'], {cwd: consumerRoot, encoding: 'utf8'}),
-  )
-  expect(probed).toEqual({
+  expect(probeInstall([], PROBE)).toEqual({
     createFabRobotRig: 'function',
     createMascot: 'function',
     binaryEffect: 'function',
@@ -110,5 +144,12 @@ test('a packed install with no framework present resolves and runs the core and 
     layers: ['antenna', 'eyes', 'head'],
     frameworks: [],
     mounted: expectedMounts(),
+  })
+}, 60_000)
+
+test('a packed install with only solid present resolves the solid wrapper subpath', () => {
+  expect(probeInstall(['solid-js'], SOLID_PROBE)).toEqual({
+    resolved: [true, true, true],
+    frameworks: ['solid-js'],
   })
 }, 60_000)

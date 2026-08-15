@@ -1,9 +1,11 @@
 import {defineConfig} from 'tsdown'
+import solidPlugin from 'vite-plugin-solid'
 
 export default defineConfig({
   entry: [
     'src/rig.ts',
     'src/core/index.ts',
+    'src/solid/index.ts',
     'src/core/effects/binary.ts',
     'src/core/effects/matrix.ts',
     'src/core/effects/thought-cloud.ts',
@@ -25,4 +27,6 @@ export default defineConfig({
   fixedExtension: false,
   unbundle: true,
   dts: true,
+  plugins: [solidPlugin()],
+  external: ['solid-js', /^solid-js\//],
 })
