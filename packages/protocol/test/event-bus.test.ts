@@ -99,6 +99,35 @@ describe('createEventBusClient / createEventBusHost', () => {
     expect(received).toEqual([])
   })
 
+  it('restarts the handshake with a fresh retry budget when emit is called again after failure', () => {
+    const target = new EventTarget()
+    const {scheduler, tick} = createManualScheduler()
+    const client = createEventBusClient<CommandMap>({
+      channel: 'test-channel',
+      target: () => target,
+      scheduler,
+      maxRetries: 2,
+    })
+
+    client.emit('open', undefined)
+    tick()
+    tick()
+    expect(client.getState()).toBe('failed')
+
+    client.emit('close', undefined)
+    expect(client.getState()).toBe('connecting')
+
+    const received: unknown[] = []
+    const host = createEventBusHost<CommandMap>({channel: 'test-channel', target: () => target})
+    host.on('close', (payload) => received.push(payload))
+    host.ready()
+    expect(received).toEqual([])
+
+    tick()
+    expect(received).toEqual([null])
+    expect(client.getState()).toBe('ready')
+  })
+
   it('passes an emit straight through once the client is already connected', () => {
     const target = new EventTarget()
     const {scheduler} = createManualScheduler()

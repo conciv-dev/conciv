@@ -17,21 +17,16 @@ export type EventBusScheduler = {
   clearInterval: (id: unknown) => void
 }
 
+function isTimerHandle(id: unknown): id is Parameters<typeof clearInterval>[0] {
+  return id !== null
+}
+
 function defaultScheduler(): EventBusScheduler {
-  const timers = new Map<number, ReturnType<typeof setInterval>>()
-  let nextId = 0
   return {
-    setInterval: (callback, ms) => {
-      const id = nextId
-      nextId += 1
-      timers.set(id, setInterval(callback, ms))
-      return id
-    },
+    setInterval: (callback, ms) => setInterval(callback, ms),
     clearInterval: (id) => {
-      if (typeof id !== 'number') return
-      const timer = timers.get(id)
-      if (timer !== undefined) clearInterval(timer)
-      timers.delete(id)
+      if (!isTimerHandle(id)) return
+      clearInterval(id)
     },
   }
 }
@@ -125,7 +120,12 @@ export function createEventBusClient<TEventMap extends Record<string, unknown>>(
       dispatch(name, payload)
       return
     }
-    if (state === 'failed') return
+    if (state === 'failed') {
+      retryCount = 0
+      queue.push({name, payload})
+      startHandshake()
+      return
+    }
     queue.push({name, payload})
     if (state === 'idle') startHandshake()
   }
