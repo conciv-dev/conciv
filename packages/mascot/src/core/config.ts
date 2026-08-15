@@ -72,6 +72,12 @@ export const BLINK_OPEN_DURATION_S = 0.18
 export const BLINK_OPEN_EASE = 'power2.out'
 export const BLINK_BEATS = [1.15, 1.22] as const
 
+export const WORK_CYCLE_S = Math.max(
+  HEAD_BOB_BEATS[1] + HEAD_BOB_DURATION_S,
+  THROB_BEATS[3] + THROB_RETURN_DURATION_S,
+  BLINK_BEATS[1] + BLINK_OPEN_DURATION_S,
+)
+
 export const BINARY_EMITTER_DIGIT_COUNT = 5
 export const BINARY_EMITTER_LANE_OFFSET_PX = 3
 export const BINARY_EMITTER_FONT_SIZE_PX = 9

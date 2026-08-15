@@ -21,6 +21,7 @@ import {
   THROB_RISE_EASE,
   THROB_SCALE_X,
   THROB_SCALE_Y,
+  WORK_CYCLE_S,
 } from '../config.js'
 import type {EffectHandle, EffectMount} from '../effects/effect.js'
 import type {EmitterAnchor} from '../path.js'
@@ -55,15 +56,25 @@ type BobTweens = {down: gsap.core.Tween; back: gsap.core.Tween}
 
 type RecoveryStep = {wanted: boolean; make: () => gsap.core.Tween}
 
-type WorkTimeline = {
+type WorkPieces = {
   timeline: gsap.core.Timeline
   blinkReturn: gsap.core.Tween | undefined
   bob: BobTweens | undefined
 }
 
-type WorkSession = WorkTimeline & {layout: AntennaLayout | undefined; channels: ActivityChannels}
+type WorkSession = WorkPieces & {layout: AntennaLayout | undefined; channels: ActivityChannels}
 
 const NEUTRAL_SCALE = 1
+
+const CYCLE_PACER = {}
+
+const FULL_RECOVERY: ActivityRecovery = {pose: true, antennaScale: true}
+
+const droppedChannels = (previous: ActivityChannels | undefined, next: ActivityChannels): ActivityChannels => ({
+  bob: previous?.bob === true && !next.bob,
+  throb: previous?.throb === true && !next.throb,
+  blink: previous?.blink === true && !next.blink,
+})
 
 const throbIn = (): gsap.TweenVars => ({
   scaleY: THROB_SCALE_Y,
@@ -123,18 +134,19 @@ function addBlink(timeline: gsap.core.Timeline, eyes: HTMLElement, blinkReturn: 
     .add(blinkReturn, BLINK_BEATS[1])
 }
 
-function buildWorkTimeline(
+function buildWorkPieces(
   parts: ActivityParts,
   rest: ActivityRest,
   channels: ActivityChannels,
   onUpdate: () => void,
-): WorkTimeline {
+): WorkPieces {
   const bob = channels.bob ? buildBob(parts, rest) : undefined
   const blinkReturn = channels.blink ? buildBlinkReturn(parts.eyes, rest) : undefined
   const timeline = gsap.timeline({repeat: -1, onUpdate})
   addBob(timeline, bob)
   addThrob(timeline, parts.antenna, channels.throb)
   addBlink(timeline, parts.eyes, blinkReturn)
+  timeline.to(CYCLE_PACER, {duration: WORK_CYCLE_S}, 0)
   return {timeline, blinkReturn, bob}
 }
 
@@ -162,7 +174,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
 
   const isRunning = () => session !== undefined && visible
 
-  const killTimeline = () => {
+  const killSession = () => {
     session?.timeline.kill()
     session = undefined
   }
@@ -303,16 +315,19 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
 
   const start = (rest: ActivityRest, channels: ActivityChannels) => {
     if (reduceMotion()) return
+    const dropped = droppedChannels(session?.channels, channels)
     resting = rest
-    killTimeline()
+    killSession()
     killRecoveryTweens()
+    recover(FULL_RECOVERY, dropped)
     const started: WorkSession = {
-      ...buildWorkTimeline(parts, rest, channels, anchorEffects),
+      ...buildWorkPieces(parts, rest, channels, anchorEffects),
       layout: undefined,
       channels,
     }
     session = started
     if (!visible) return started.timeline.pause()
+    started.timeline.play()
     restartEntries()
   }
 
@@ -367,7 +382,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   const stop = (recovery: ActivityRecovery) => {
     const current = session
     if (current === undefined) return
-    killTimeline()
+    killSession()
     killRecoveryTweens()
     recover(recovery, current.channels)
     effects.forEach(stopEntry)
@@ -400,7 +415,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   const dispose = () => {
     window.removeEventListener('resize', scheduleRemeasure)
     cancelRemeasure()
-    killTimeline()
+    killSession()
     killRecoveryTweens()
     effects.forEach(removeEntry)
     effects.clear()

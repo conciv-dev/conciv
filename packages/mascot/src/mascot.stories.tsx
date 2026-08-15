@@ -151,8 +151,12 @@ hands them back to the pose value with a short recovery when work stops.
 **Activity channels** — \`activity\` picks which of the three overlay pieces run: \`{bob, throb, blink}\`, each
 defaulting to on, so omitting the field keeps the shipped overlay. Turning one off leaves its channel entirely
 alone — the timeline never builds that piece, and the falling edge skips the recovery it would have needed, so
-a run with \`throb: false\` never writes an antenna scale at all. Flip the three controls with \`working\` on to
-isolate one piece, and note that changing them rebuilds the work timeline rather than muting a running one.
+a run with \`throb: false\` never writes an antenna scale at all. The cycle length does not depend on which
+pieces are in it: a pacer pins every timeline to the full work cycle, so switching the bob and the throb off
+leaves the blink on exactly the cadence it had with all three running. Flipping a channel off mid-work rebuilds
+the timeline and hands the dropped channel back to its pose value with the same short recovery the falling edge
+uses, so a piece can never freeze where the rebuild caught it. Flip the three controls with \`working\` on to
+isolate one piece.
 
 **Effects** — the core mounts nothing on its own. \`mountEffect(id, mount)\` registers an effect and activity
 drives it on every working edge, so two mounted effects mean two live emitters; \`unmountEffect(id)\` drains it.
