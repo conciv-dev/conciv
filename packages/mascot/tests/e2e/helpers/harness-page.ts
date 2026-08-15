@@ -396,6 +396,39 @@ const HARNESS_SCRIPT = `
     }
   }
 
+  let mountWatch
+
+  const watchEmitterMounts = () => {
+    mountWatch?.observer.disconnect()
+    const watch = {mounts: 0, observer: undefined}
+    const tally = (records) =>
+      records.forEach((record) =>
+        Array.from(record.addedNodes).forEach((node) => {
+          if (node instanceof HTMLElement && isEmitter(node)) watch.mounts += 1
+        }),
+      )
+    watch.observer = new MutationObserver(tally)
+    watch.observer.observe(document.body, {childList: true, subtree: true})
+    watch.tally = tally
+    mountWatch = watch
+  }
+
+  const emitterMounts = () => {
+    if (mountWatch === undefined) throw new Error('call watchEmitterMounts() before reading emitterMounts()')
+    mountWatch.tally(mountWatch.observer.takeRecords())
+    return mountWatch.mounts
+  }
+
+  const SETTLE_FRAME_LIMIT = 20
+
+  const settleUntil = async (predicate, frames = SETTLE_FRAME_LIMIT) => {
+    for (let frame = 0; frame < frames; frame += 1) {
+      if (predicate()) return true
+      await settleFrames()
+    }
+    return predicate()
+  }
+
   const emitterFlight = (parts, seconds) => {
     const emitter = requireEmitter()
     const digit = requireDigit(emitter, 0)
@@ -465,6 +498,9 @@ const HARNESS_SCRIPT = `
     loadEffect,
     emitterGeometry,
     emitterFlight,
+    watchEmitterMounts,
+    emitterMounts,
+    settleUntil,
     curvedDigitPlacement,
     countingEffect,
     countingEffectTotals,

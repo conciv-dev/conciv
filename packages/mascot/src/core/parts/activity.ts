@@ -127,6 +127,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   const draining = new Set<EffectHandle>()
   let session: WorkSession | undefined
   let recoveryTweens: gsap.core.Tween[] = []
+  let resizeTick: gsap.Callback | undefined
   let resting: ActivityRest = {eyeScaleY: NEUTRAL_SCALE, headYPercent: 0}
   let visible = true
 
@@ -244,13 +245,24 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   }
 
   const remeasure = () => {
+    resizeTick = undefined
     forgetLayout()
     effects.forEach(removeEntry)
     if (!isRunning()) return
     effects.forEach(startEntry)
   }
 
-  window.addEventListener('resize', remeasure, {passive: true})
+  const scheduleRemeasure = () => {
+    if (resizeTick !== undefined) return
+    resizeTick = gsap.ticker.add(remeasure, true)
+  }
+
+  const cancelRemeasure = () => {
+    if (resizeTick !== undefined) gsap.ticker.remove(resizeTick)
+    resizeTick = undefined
+  }
+
+  window.addEventListener('resize', scheduleRemeasure, {passive: true})
 
   const setRest = (rest: ActivityRest) => {
     resting = rest
@@ -348,7 +360,8 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   }
 
   const dispose = () => {
-    window.removeEventListener('resize', remeasure)
+    window.removeEventListener('resize', scheduleRemeasure)
+    cancelRemeasure()
     killTimeline()
     killRecoveryTweens()
     effects.forEach(removeEntry)

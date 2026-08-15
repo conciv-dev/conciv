@@ -34,6 +34,8 @@ const RISE_STEP_TOLERANCE_PX = 0.05
 
 const RESIZE_BURST_WIDTHS = [1200, 900, 1500, 1100]
 
+const RESIZE_BURST_COUNT = 6
+
 test.beforeEach(async ({page}) => {
   await openMascotPage(page)
 })
@@ -208,6 +210,7 @@ test('a viewport resize rebuilds the emitter so later digits launch from the rea
     window.service.update({state: 'rest', working: true, follow: false})
     harness.advanceBy(0.5)
     harness.watchResize()
+    harness.watchEmitterMounts()
     return harness.emitterFlight(window.parts, riseSeconds)
   }, RISE_SAMPLE_S)
   await page.setViewportSize({width: 1600, height: 800})
@@ -215,6 +218,8 @@ test('a viewport resize rebuilds the emitter so later digits launch from the rea
     async ([settleSeconds, riseSeconds]) => {
       const harness = window.mascotHarness
       await harness.awaitResize()
+      const rebuilt = await harness.settleUntil(() => harness.emitterMounts() >= 1)
+      if (!rebuilt) throw new Error('the resize never rebuilt the emitter')
       harness.advanceBy(settleSeconds)
       return harness.emitterFlight(window.parts, riseSeconds)
     },
@@ -413,9 +418,17 @@ test('a burst of resizes rebuilds the emitter without leaking emitters or tweens
     return {emitters: harness.emitters().length, tweens: harness.globalTweenCount()}
   })
   for (const width of RESIZE_BURST_WIDTHS) {
-    await page.evaluate(() => window.mascotHarness.watchResize())
+    await page.evaluate(() => {
+      window.mascotHarness.watchResize()
+      window.mascotHarness.watchEmitterMounts()
+    })
     await page.setViewportSize({width, height: 800})
-    await page.evaluate(() => window.mascotHarness.awaitResize())
+    await page.evaluate(async () => {
+      const harness = window.mascotHarness
+      await harness.awaitResize()
+      const rebuilt = await harness.settleUntil(() => harness.emitterMounts() >= 1)
+      if (!rebuilt) throw new Error('a burst resize never rebuilt the emitter')
+    })
   }
   const after = await page.evaluate((settleSeconds) => {
     const harness = window.mascotHarness
@@ -426,9 +439,30 @@ test('a burst of resizes rebuilds the emitter without leaking emitters or tweens
       digits: harness.requireEmitter().childElementCount,
     }
   }, RELAUNCH_SETTLE_S)
+  const coalesced = await page.evaluate(async (bursts) => {
+    const harness = window.mascotHarness
+    const before = harness.requireEmitter()
+    harness.watchEmitterMounts()
+    for (let event = 0; event < bursts; event += 1) window.dispatchEvent(new Event('resize'))
+    const rebuiltSynchronously = harness.requireEmitter() !== before
+    const rebuilt = await harness.settleUntil(() => harness.emitterMounts() >= 1)
+    if (!rebuilt) throw new Error('the coalesced burst never rebuilt the emitter')
+    await harness.settleFrames()
+    await harness.settleFrames()
+    return {
+      rebuiltSynchronously,
+      mounts: harness.emitterMounts(),
+      replaced: harness.requireEmitter() !== before,
+      emitters: harness.emitters().length,
+    }
+  }, RESIZE_BURST_COUNT)
 
   expect(settled.emitters, 'the working stage really carries one emitter before the burst').toBe(1)
   expect(after.emitters, 'a burst of resizes leaves exactly one emitter').toBe(1)
   expect(after.digits, 'the rebuilt emitter is fully built').toBe(5)
   expect(after.tweens, 'a burst of resizes accumulates no runaway tweens').toBeLessThanOrEqual(settled.tweens)
+  expect(coalesced.mounts, `${RESIZE_BURST_COUNT} resize events in one frame rebuild the emitter once`).toBe(1)
+  expect(coalesced.rebuiltSynchronously, 'no resize event rebuilds the emitter inside the event itself').toBe(false)
+  expect(coalesced.replaced, 'the coalesced rebuild really replaced the emitter node').toBe(true)
+  expect(coalesced.emitters, 'the coalesced rebuild leaves exactly one emitter').toBe(1)
 })

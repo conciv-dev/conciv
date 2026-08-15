@@ -43,6 +43,9 @@ type MascotHarness = {
   loadEffect: (name: string, exportName: string) => Promise<MascotModule.EffectMount>
   emitterGeometry: (emitter: HTMLElement) => EmitterGeometry
   emitterFlight: (parts: StageParts, seconds: number) => EmitterFlight
+  watchEmitterMounts: () => void
+  emitterMounts: () => number
+  settleUntil: (predicate: () => boolean, frames?: number) => Promise<boolean>
   curvedDigitPlacement: (emitter: HTMLElement, index: number) => DigitPlacement
   countingEffect: MascotModule.EffectMount
   countingEffectTotals: () => EffectTotals
