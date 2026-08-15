@@ -2,13 +2,25 @@ import {createServer, request as httpRequest, type IncomingMessage, type Server}
 import type {Duplex} from 'node:stream'
 import {listenLocal} from './listen-local.js'
 
+const AWAIT_REQUEST_TIMEOUT_MS = 4000
+
+export type AwaitRequestOptions = {since?: number; timeout?: number}
+
 export type ProxyCore = {
   base: string
   port: number
-  requestCount: () => number
+  requestCount: (pathname?: string) => number
   wsConnectionCount: () => number
+  mark: () => number
+  awaitRequest: (pathname: string, options?: AwaitRequestOptions) => Promise<void>
+  fail: (pathname: string) => void
+  repair: () => void
   close: () => Promise<void>
 }
+
+type Completion = {pathname: string; at: number}
+
+type Waiter = {pathname: string; since: number; deliver: () => void}
 
 function handshakeResponse(upstream: IncomingMessage): string {
   const statusLine = `HTTP/1.1 ${upstream.statusCode ?? 101} ${upstream.statusMessage ?? 'Switching Protocols'}`
@@ -21,11 +33,33 @@ function handshakeResponse(upstream: IncomingMessage): string {
 
 export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean} = {}): Promise<ProxyCore> {
   const target = new URL(targetBase)
-  let count = 0
+  const seen: string[] = []
+  const refused = new Set<string>()
   let upgrades = 0
   const piped = new Set<Duplex>()
+  const completions: Completion[] = []
+  const waiters = new Set<Waiter>()
+  const sequence = {next: 0}
+
+  const settle = (pathname: string): void => {
+    const at = (sequence.next += 1)
+    completions.push({pathname, at})
+    for (const waiter of waiters) {
+      if (waiter.pathname !== pathname || at <= waiter.since) continue
+      waiters.delete(waiter)
+      waiter.deliver()
+    }
+  }
+
   const server: Server = createServer((req, res) => {
-    count += 1
+    const pathname = new URL(req.url ?? '/', target).pathname
+    seen.push(pathname)
+    res.on('finish', () => settle(pathname))
+    if (refused.has(pathname)) {
+      res.writeHead(500, {'content-type': 'text/plain'})
+      res.end('the proxied core refused the call')
+      return
+    }
     const proxyReq = httpRequest(
       {
         hostname: target.hostname,
@@ -78,8 +112,38 @@ export async function proxyTo(targetBase: string, opts: {blockUpgrades?: boolean
   return {
     base,
     port,
-    requestCount: () => count,
+    requestCount: (pathname) =>
+      pathname === undefined ? seen.length : seen.filter((entry) => entry === pathname).length,
     wsConnectionCount: () => upgrades,
+    mark: () => sequence.next,
+    awaitRequest: (pathname, options = {}) => {
+      const since = options.since ?? sequence.next
+      if (completions.some((entry) => entry.pathname === pathname && entry.at > since)) return Promise.resolve()
+      const timeoutMs = options.timeout ?? AWAIT_REQUEST_TIMEOUT_MS
+      return new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          waiters.delete(waiter)
+          reject(
+            new Error(
+              `no proxied request to ${pathname} completed within ${timeoutMs}ms (completed paths: ${completions.map((entry) => entry.pathname).join(', ')})`,
+            ),
+          )
+        }, timeoutMs)
+        const waiter: Waiter = {
+          pathname,
+          since,
+          deliver: () => {
+            clearTimeout(timer)
+            resolve()
+          },
+        }
+        waiters.add(waiter)
+      })
+    },
+    fail: (pathname) => {
+      refused.add(pathname)
+    },
+    repair: () => refused.clear(),
     close: async () => {
       for (const socket of piped) socket.destroy()
       piped.clear()

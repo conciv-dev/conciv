@@ -1,12 +1,24 @@
 import './helpers/utilities.css'
-import {afterEach, expect, test} from 'vitest'
+import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
+import {coreControl} from './helpers/core-control.js'
+import {coreRpc, createSession} from './helpers/core-session.js'
 import {createShellHarness} from './helpers/shell-harness.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 import {expectRetryRecovers} from './helpers/retry-recovery.js'
 
-const PANEL_SESSION = 'conciv_1'
-const harness = createShellHarness(PANEL_SESSION)
-const mountShell = harness.mountShell
+const core = {base: ''}
+const harness = createShellHarness(() => core.base)
+const faults = trackedFaults()
+
+beforeAll(async () => {
+  const booted = await coreControl.bootCore({id: 'reachability-flows', allowedOrigins: [window.location.origin]})
+  core.base = booted.base
+}, 60_000)
+
+afterAll(async () => {
+  await coreControl.closeCore()
+}, 30_000)
 
 afterEach(harness.dispose)
 
@@ -16,13 +28,20 @@ const genericBoundary = () => page.getByText('Something went wrong!')
 const engineUnreachableNotice = () => page.getByText('conciv lost connection to the engine.')
 const serverError = () => page.getByText('Internal Server Error')
 
+async function openSessionPanel(): Promise<void> {
+  const sessionId = await createSession(coreRpc(core.base))
+  harness.mountShell(`/panel/${sessionId}?open=true`)
+  await expect.element(editor(), {timeout: 8000}).toBeVisible()
+}
+
 test('a dead engine at boot shows our error screen, not the generic boundary, and Retry recovers it', async () => {
-  mountShell('/panel/latest?open=true', {networkFail: true})
+  const outage = await faults.install({kind: 'abort'})
+  harness.mountShell('/panel/latest?open=true')
 
   await expect.element(errorScreen(), {timeout: 8000}).toBeVisible()
   await expect.element(genericBoundary()).not.toBeInTheDocument()
 
-  harness.core()?.setNetworkFail(false)
+  await coreControl.releaseFault(outage)
   await page
     .getByRole('alert')
     .filter({hasText: /couldn.t reach the engine/})
@@ -30,40 +49,42 @@ test('a dead engine at boot shows our error screen, not the generic boundary, an
     .click()
 
   await expect.element(editor(), {timeout: 8000}).toBeVisible()
-})
+}, 30_000)
 
 test('a server error while resolving /panel/latest shows the actual error, not the unreachable message', async () => {
-  mountShell('/panel/latest?open=true', {resolveRejects: true})
+  const refused = await faults.install({kind: 'fail', path: ['sessions', 'resolve'], status: 500})
+  harness.mountShell('/panel/latest?open=true')
 
   await expect.element(serverError(), {timeout: 8000}).toBeVisible()
   await expect.element(errorScreen()).not.toBeInTheDocument()
   await expect.element(genericBoundary()).not.toBeInTheDocument()
 
-  await expectRetryRecovers(() => harness.core()?.setResolveRejects(false), editor, serverError)
-})
+  await expectRetryRecovers(() => coreControl.releaseFault(refused), editor, serverError)
+}, 30_000)
 
 test('a healthy engine resolves /panel/latest straight to the warm session', async () => {
-  mountShell('/panel/latest?open=true')
+  harness.mountShell('/panel/latest?open=true')
 
   await expect.element(editor(), {timeout: 8000}).toBeVisible()
   await expect.element(errorScreen()).not.toBeInTheDocument()
-})
+}, 30_000)
 
 test('a sustained outage raises exactly one standing notice, and it clears once the engine returns', async () => {
-  mountShell(`/panel/${PANEL_SESSION}?open=true`)
-  await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  await openSessionPanel()
 
-  harness.core()?.setNetworkFail(true)
+  const outage = await faults.install({kind: 'abort'})
+  await editor().fill('rename the widget package')
+
   await expect.element(engineUnreachableNotice(), {timeout: 8000}).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Retry'})).toBeVisible()
 
-  harness.core()?.setNetworkFail(false)
+  await coreControl.releaseFault(outage)
   await expect.element(engineUnreachableNotice(), {timeout: 8000}).not.toBeInTheDocument()
-})
+}, 30_000)
 
 test('a 500 from an otherwise healthy engine never raises the unreachable notice', async () => {
-  mountShell(`/panel/${PANEL_SESSION}?open=true`, {rejectSend: true})
-  await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  const refused = await faults.install({kind: 'fail', path: ['chat', 'send'], status: 500})
+  await openSessionPanel()
 
   await editor().fill('rename the widget package')
   await userEvent.keyboard('{Enter}')
@@ -72,25 +93,31 @@ test('a 500 from an otherwise healthy engine never raises the unreachable notice
     .element(page.getByRole('region', {name: /Notifications/}))
     .toHaveTextContent(/Internal Server Error|could not be sent/)
   await expect.element(engineUnreachableNotice()).not.toBeInTheDocument()
-})
+
+  await coreControl.releaseFault(refused)
+}, 30_000)
 
 test('a failing engine-info probe on an otherwise healthy connection never raises the unreachable notice', async () => {
-  mountShell(`/panel/${PANEL_SESSION}?open=true`, {rejectEngineProbe: true})
+  const refused = await faults.install({kind: 'fail', path: ['meta', 'engine'], status: 500})
+  const since = await coreControl.rpcMark()
+  await openSessionPanel()
 
-  await expect.element(editor(), {timeout: 8000}).toBeVisible()
-  await harness.core()?.idle()
+  expect(await coreControl.awaitRpcCall(['meta', 'engine'], since)).toBe(500)
   await expect.element(engineUnreachableNotice()).not.toBeInTheDocument()
-})
+
+  await coreControl.releaseFault(refused)
+}, 30_000)
 
 test('the composer disables sending with a distinct message once the engine is unreachable', async () => {
-  mountShell(`/panel/${PANEL_SESSION}?open=true`)
-  await expect.element(editor(), {timeout: 8000}).toBeVisible()
-  await editor().fill('rename the widget package')
+  await openSessionPanel()
 
-  harness.core()?.setNetworkFail(true)
+  const outage = await faults.install({kind: 'abort'})
+  await editor().fill('rename the widget package')
 
   await expect
     .element(page.getByRole('button', {name: 'conciv lost connection to the engine'}), {timeout: 8000})
     .toBeVisible()
   await expect.element(page.getByRole('button', {name: 'conciv lost connection to the engine'})).toBeDisabled()
-})
+
+  await coreControl.releaseFault(outage)
+}, 30_000)
