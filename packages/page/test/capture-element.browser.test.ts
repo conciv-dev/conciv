@@ -65,3 +65,24 @@ describe('captureElement', () => {
     expect(clone instanceof HTMLElement ? clone.style.margin : '').toBe('0px')
   })
 })
+
+describe('captureElement with svg', () => {
+  it('keeps the markup of a grabbed svg element', async () => {
+    const host = document.createElement('div')
+    host.innerHTML = `
+      <svg width="60" height="30" viewBox="0 0 60 30" style="color:rgb(0, 0, 255)">
+        <rect x="0" y="0" width="60" height="30" fill="currentColor"></rect>
+        <text x="4" y="20">logo</text>
+      </svg>
+    `
+    document.body.appendChild(host)
+    const svg = host.querySelector('svg')
+    if (!svg) throw new Error('fixture missing')
+
+    const preview = await captureElement(svg)
+
+    expect(preview.html).toContain('<svg')
+    expect(preview.html).toContain('logo')
+    expect(preview.width).toBeGreaterThan(0)
+  })
+})

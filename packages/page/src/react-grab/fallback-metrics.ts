@@ -19,7 +19,17 @@ const EPSILON_PX = 0.5
 
 const PROBE_STEP_PX = 1
 
-export type TextRun = {source: HTMLElement; clone: HTMLElement}
+export type StyledElement = HTMLElement | SVGElement
+
+export function isStyledElement(node: Node): node is StyledElement {
+  return node instanceof HTMLElement || node instanceof SVGElement
+}
+
+export type TextRun = {source: StyledElement; clone: StyledElement}
+
+type Candidate = {run: TextRun; base: number; css: string; steppedCss: string; text: string}
+
+type Probe = {live: HTMLElement; fallback: HTMLElement; stepped: HTMLElement}
 
 type Measurer = {doc: Document; close: () => void}
 
@@ -50,14 +60,11 @@ function measurementCss(styles: CSSStyleDeclaration, letterSpacing: number): str
   return `position:absolute;top:0;left:0;white-space:nowrap;visibility:hidden;${declarations};letter-spacing:${letterSpacing}px`
 }
 
-function measure(doc: Document, css: string, text: string): number {
+function probeSpan(doc: Document, css: string, text: string): HTMLElement {
   const span = doc.createElement('span')
   span.style.cssText = css
   span.textContent = text
-  doc.body.appendChild(span)
-  const width = span.getBoundingClientRect().width
-  span.remove()
-  return width
+  return span
 }
 
 async function openMeasurer(): Promise<Measurer | null> {
@@ -78,33 +85,63 @@ async function openMeasurer(): Promise<Measurer | null> {
   return {doc, close: () => frame.remove()}
 }
 
-function correctionFor(measurer: Measurer, run: TextRun, text: string): number | null {
-  const styles = getComputedStyle(run.source)
-  if (!familiesOf(styles.fontFamily).some((family) => webfontFamilies().has(family))) return null
-  const base = letterSpacingOf(styles)
-  const css = measurementCss(styles, base)
-  const live = measure(document, css, text)
-  const fallback = measure(measurer.doc, css, text)
-  if (Math.abs(live - fallback) < EPSILON_PX) return null
-  const stepped = measure(measurer.doc, measurementCss(styles, base + PROBE_STEP_PX), text)
-  const slots = (stepped - fallback) / PROBE_STEP_PX
-  if (slots <= 0) return null
-  return base + (live - fallback) / slots
+function candidatesOf(runs: readonly TextRun[]): Candidate[] {
+  const webfonts = webfontFamilies()
+  return runs.flatMap((run) => {
+    const text = run.source.textContent ?? ''
+    if (text.trim() === '') return []
+    const styles = getComputedStyle(run.source)
+    if (!familiesOf(styles.fontFamily).some((family) => webfonts.has(family))) return []
+    const base = letterSpacingOf(styles)
+    return [
+      {
+        run,
+        base,
+        text,
+        css: measurementCss(styles, base),
+        steppedCss: measurementCss(styles, base + PROBE_STEP_PX),
+      },
+    ]
+  })
 }
 
 export async function correctFallbackMetrics(runs: readonly TextRun[]): Promise<void> {
   if (runs.length === 0 || document.fonts.size === 0) return
+  const candidates = candidatesOf(runs)
+  if (candidates.length === 0) return
   const measurer = await openMeasurer()
   if (!measurer) return
+  const hostHolder = document.createElement('div')
+  hostHolder.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;overflow:hidden'
+  const frameHolder = measurer.doc.createElement('div')
+  const probes: Probe[] = candidates.map((candidate) => ({
+    live: probeSpan(document, candidate.css, candidate.text),
+    fallback: probeSpan(measurer.doc, candidate.css, candidate.text),
+    stepped: probeSpan(measurer.doc, candidate.steppedCss, candidate.text),
+  }))
+  for (const probe of probes) {
+    hostHolder.appendChild(probe.live)
+    frameHolder.appendChild(probe.fallback)
+    frameHolder.appendChild(probe.stepped)
+  }
+  document.body.appendChild(hostHolder)
+  measurer.doc.body.appendChild(frameHolder)
   try {
-    for (const run of runs) {
-      const text = run.source.textContent ?? ''
-      if (text.trim() === '') continue
-      const corrected = correctionFor(measurer, run, text)
-      if (corrected === null) continue
-      run.clone.style.letterSpacing = `${corrected}px`
-    }
+    const widths = probes.map((probe) => ({
+      live: probe.live.getBoundingClientRect().width,
+      fallback: probe.fallback.getBoundingClientRect().width,
+      stepped: probe.stepped.getBoundingClientRect().width,
+    }))
+    candidates.forEach((candidate, index) => {
+      const measured = widths[index]
+      if (!measured) return
+      if (Math.abs(measured.live - measured.fallback) < EPSILON_PX) return
+      const slots = (measured.stepped - measured.fallback) / PROBE_STEP_PX
+      if (slots <= 0) return
+      candidate.run.clone.style.letterSpacing = `${candidate.base + (measured.live - measured.fallback) / slots}px`
+    })
   } finally {
+    hostHolder.remove()
     measurer.close()
   }
 }

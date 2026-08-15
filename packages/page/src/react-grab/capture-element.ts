@@ -1,5 +1,5 @@
 import type {DomPreview} from '@conciv/grab'
-import {correctFallbackMetrics, type TextRun} from './fallback-metrics.js'
+import {correctFallbackMetrics, isStyledElement, type StyledElement, type TextRun} from './fallback-metrics.js'
 
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => {
@@ -13,7 +13,7 @@ export async function captureElement(el: Element): Promise<DomPreview> {
   const clone = el.cloneNode(true)
   const rules: string[] = []
   const runs: TextRun[] = []
-  if (!(clone instanceof HTMLElement)) return {kind: 'dom', html: '', width: rect.width, height: rect.height}
+  if (!isStyledElement(clone)) return {kind: 'dom', html: '', width: rect.width, height: rect.height}
   inlineComputedStyles(el, clone, rules, runs)
   await correctFallbackMetrics(runs)
   neutralizeLayout(clone)
@@ -36,27 +36,30 @@ function isTextRun(node: Element): boolean {
   return node.children.length === 0 && (node.textContent ?? '').trim() !== ''
 }
 
-function inlineComputedStyles(src: Element, dst: HTMLElement, rules: string[], runs: TextRun[]): void {
-  const cs = getComputedStyle(src)
+function computedCssText(cs: CSSStyleDeclaration): string {
   let cssText = ''
   for (const prop of cs) {
     if (SKIP_PROPS.has(prop) || prop.startsWith('--')) continue
     cssText += `${prop}:${cs.getPropertyValue(prop)};`
   }
-  dst.style.cssText = cssText
+  return cssText
+}
+
+function inlineComputedStyles(src: Element, dst: StyledElement, rules: string[], runs: TextRun[]): void {
+  dst.style.cssText = computedCssText(getComputedStyle(src))
   capturePseudo(src, dst, rules)
-  if (src instanceof HTMLElement && isTextRun(src)) runs.push({source: src, clone: dst})
+  if (isStyledElement(src) && isTextRun(src)) runs.push({source: src, clone: dst})
   const sk = src.children
   const dk = dst.children
   for (let i = 0; i < sk.length; i++) {
     const childSrc = sk[i]
     const childDst = dk[i]
-    if (childSrc && childDst) inlineComputedStyles(childSrc, childDst as HTMLElement, rules, runs)
+    if (childSrc && childDst && isStyledElement(childDst)) inlineComputedStyles(childSrc, childDst, rules, runs)
   }
 }
 
 let pseudoSeq = 0
-function capturePseudo(src: Element, dst: HTMLElement, rules: string[]): void {
+function capturePseudo(src: Element, dst: StyledElement, rules: string[]): void {
   for (const pseudo of ['::before', '::after']) {
     const pcs = getComputedStyle(src, pseudo)
     const content = pcs.content
@@ -69,7 +72,7 @@ function capturePseudo(src: Element, dst: HTMLElement, rules: string[]): void {
   }
 }
 
-function neutralizeLayout(root: HTMLElement): void {
+function neutralizeLayout(root: StyledElement): void {
   root.style.position = 'static'
   root.style.margin = '0'
   root.style.top = 'auto'

@@ -29,7 +29,7 @@ function toGrab(element: Element): Grab {
   const box = element.getBoundingClientRect()
   const parts = sourceOf(element)
   const clone = element.cloneNode(true)
-  const html = clone instanceof HTMLElement ? clone.outerHTML : ''
+  const html = clone instanceof Element ? clone.outerHTML : ''
   return {
     text: element.textContent ?? '',
     preview: {kind: 'dom', html, width: box.width, height: box.height},
