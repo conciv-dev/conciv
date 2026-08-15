@@ -201,7 +201,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   }
 
   trackSessionActivity({
-    sessionId,
     working,
     invalidateSessions: appData.invalidateSessions,
     onStart: () => announce('conciv is thinking…'),

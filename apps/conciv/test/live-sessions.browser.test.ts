@@ -1,12 +1,8 @@
-import {createComputed, createRoot} from 'solid-js'
+import {createComputed, createRoot, createSignal, type Accessor} from 'solid-js'
 import {describe, expect, it} from 'vitest'
-import {makeLiveSessions} from '../src/app/live-sessions.js'
+import {makeLiveSessions, type LiveSessions} from '../src/app/live-sessions.js'
 
-function trackAnyRunning(): {
-  live: ReturnType<typeof makeLiveSessions>
-  notifications: () => number
-  dispose: () => void
-} {
+function trackAnyRunning(): {live: LiveSessions; notifications: () => number; dispose: () => void} {
   return createRoot((dispose) => {
     const live = makeLiveSessions()
     let runs = 0
@@ -18,46 +14,86 @@ function trackAnyRunning(): {
   })
 }
 
+function makeChat(): {working: Accessor<boolean>; setWorking: (value: boolean) => void} {
+  const [working, setWorking] = createSignal(false)
+  return {working, setWorking: (value) => setWorking(value)}
+}
+
+function mountPane(live: LiveSessions, working: Accessor<boolean>): () => void {
+  return createRoot((dispose) => {
+    live.register(working)
+    return dispose
+  })
+}
+
 describe('makeLiveSessions', () => {
-  it('stopping a session it never saw notifies nobody', () => {
+  it('a pane whose chat never works never wakes the launcher', () => {
     const {live, notifications, dispose} = trackAnyRunning()
+    const chat = makeChat()
 
     expect(notifications()).toBe(1)
-    live.setRunning('never-started', false)
+    const closePane = mountPane(live, chat.working)
 
-    expect(notifications(), 'an unknown stop leaves the counts untouched').toBe(1)
+    expect(notifications(), 'registering an idle pane leaves the launcher asleep').toBe(1)
     expect(live.anyRunning()).toBe(false)
+    closePane()
     dispose()
   })
 
-  it('still notifies on the real start and the real stop', () => {
+  it('notifies on the real start and the real settle of a registered pane', () => {
     const {live, notifications, dispose} = trackAnyRunning()
+    const chat = makeChat()
+    const closePane = mountPane(live, chat.working)
 
-    live.setRunning('session-a', true)
+    chat.setWorking(true)
 
     expect(notifications(), 'a start notifies').toBe(2)
     expect(live.anyRunning()).toBe(true)
 
-    live.setRunning('session-a', false)
+    chat.setWorking(false)
 
-    expect(notifications(), 'the matching stop notifies').toBe(3)
+    expect(notifications(), 'the matching settle notifies').toBe(3)
     expect(live.anyRunning()).toBe(false)
+    closePane()
     dispose()
   })
 
-  it('keeps a session running until every one of its runs has stopped', () => {
+  it('keeps the launcher busy until every pane watching the same session has settled', () => {
     const {live, notifications, dispose} = trackAnyRunning()
+    const firstPane = makeChat()
+    const secondPane = makeChat()
+    const closeFirst = mountPane(live, firstPane.working)
+    const closeSecond = mountPane(live, secondPane.working)
 
-    live.setRunning('session-a', true)
-    live.setRunning('session-a', true)
-    live.setRunning('session-a', false)
+    firstPane.setWorking(true)
+    secondPane.setWorking(true)
 
-    expect(live.anyRunning(), 'two runs and one stop leave the session live').toBe(true)
+    expect(live.anyRunning()).toBe(true)
 
-    live.setRunning('session-a', false)
+    firstPane.setWorking(false)
 
-    expect(live.anyRunning(), 'the last stop drains the session').toBe(false)
-    expect(notifications(), 'the middle start and stop never flip the boolean, so nobody wakes').toBe(3)
+    expect(live.anyRunning(), 'the second pane still holds the same session live').toBe(true)
+
+    secondPane.setWorking(false)
+
+    expect(live.anyRunning(), 'the last pane settling drains the session').toBe(false)
+    expect(notifications(), 'only the two real edges wake the launcher').toBe(3)
+    closeFirst()
+    closeSecond()
+    dispose()
+  })
+
+  it('a closed pane stops holding the launcher busy', () => {
+    const {live, dispose} = trackAnyRunning()
+    const chat = makeChat()
+    const closePane = mountPane(live, chat.working)
+    chat.setWorking(true)
+
+    expect(live.anyRunning()).toBe(true)
+
+    closePane()
+
+    expect(live.anyRunning(), 'an unmounted pane no longer counts as running').toBe(false)
     dispose()
   })
 })
