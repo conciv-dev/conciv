@@ -77,12 +77,12 @@ test('adding and closing a pane never re-resolves the warm session', async () =>
   const addMark = await coreControl.rpcMark()
   await page.getByRole('button', {name: 'Split pane (Mod+D)'}).click()
   await expect.element(closePane().nth(1), {timeout: 8000}).toBeVisible()
-  await coreControl.awaitRpcCall(LIST_PATH, addMark)
+  expect(await coreControl.awaitRpcCall(LIST_PATH, addMark)).toBe(200)
 
   const closeMark = await coreControl.rpcMark()
   await closePane().nth(1).click()
   await expect.element(closePane().nth(1)).not.toBeInTheDocument()
-  await coreControl.awaitRpcCall(LIST_PATH, closeMark)
+  expect(await coreControl.awaitRpcCall(LIST_PATH, closeMark)).toBe(200)
   await rpc.sessions.list()
 
   expect((await coreControl.rpcCallCount(RESOLVE_PATH)) - resolvesAfterWarmUp).toBe(1)
