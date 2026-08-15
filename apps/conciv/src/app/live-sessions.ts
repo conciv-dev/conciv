@@ -8,8 +8,10 @@ export type LiveSessions = {
 type RunCounts = ReadonlyMap<string, number>
 
 function withDelta(counts: RunCounts, sessionId: string, delta: number): RunCounts {
+  const running = counts.get(sessionId)
+  if (running === undefined && delta < 0) return counts
   const next = new Map(counts)
-  const count = (counts.get(sessionId) ?? 0) + delta
+  const count = (running ?? 0) + delta
   if (count <= 0) {
     next.delete(sessionId)
     return next
