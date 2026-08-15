@@ -1,6 +1,6 @@
-# conciv.dev landing redesign — design spec (v3, after Codex spec + plan reviews)
+# conciv.dev landing redesign — design spec (v4, component-registry pass)
 
-Date: 2026-08-15. Owner: Omri. Status: approved direction ("terminal-first / Zed-structured", palette "dark product windows on paper"). v2 folds in the 36 findings of the Codex spec review (`gpt-5.6-sol`, read-only, this worktree).
+Date: 2026-08-16. Owner: Omri. Status: approved direction ("terminal-first / Zed-structured", palette "dark product windows on paper"). v2 folds in the 36 findings of the Codex spec review (`gpt-5.6-sol`, read-only, this worktree). v3 dropped the `Reveal` whileInView primitive (SSR bakes `opacity:0` into the HTML, invisible until JS/IntersectionObserver runs — bad for crawlers, no-JS, LCP; static page instead). v4 requires every UI element to come from a component registry (21st.dev, smoothui.dev, kokonutui.com, shadcn) adapted to `--od-*` tokens, hand-written code reserved for page layout containers and copy — see the Components section for the source mapping, including the components evaluated and rejected as a bad fit for this design system.
 
 ## Goal
 
@@ -88,6 +88,30 @@ Rewritten: `hero.tsx` (HeroCopy), `how-it-works.tsx`, `landing-page.tsx`, `site-
 Kept: `spark-mark.tsx`, `try-live-button.tsx`, `framework-tabs.tsx` + snippets, `copy-button.tsx` (fix: await + catch + aria-live), `demo/*`, `lazy-motion.tsx`, `theme-toggle.tsx`, live star count.
 Deleted: see visual system list, each after `fallow dead-code --trace`.
 Dependencies (approved by Omri): add `@fontsource-variable/newsreader`, `@fontsource-variable/jetbrains-mono`; remove `lenis`. Keep `gsap`/`@gsap/react`. Nothing else without asking.
+
+### Component registry mapping (v4)
+
+Every UI element is sourced from a registry (21st.dev, smoothui.dev, kokonutui.com, shadcn) and adapted to `--od-*` tokens; hand-written code is reserved for page layout containers and copy. Some cited registry IDs turned out to be a poor structural or rule fit for this design system (wrong semantic shape, or they reintroduce effects the spec explicitly bans) — those are recorded as rejected, with the concrete reason, rather than force-fit.
+
+Adopted:
+
+- **Framework tabs indicator** (`framework-tabs.tsx`) — smoothui `animated-tabs` (`https://smoothui.dev/r/animated-tabs.json`): brought back an interaction-triggered `layoutId` underline bar on tab switch. This is the one explicit exception to the "no animated tab pill" motion rule — allowed here only, because the indicator only ever moves in response to a click, never on mount/scroll.
+- **Step 3 terminal block** (`how-it-works.tsx`) — 21st Code Block (`21st get 1099`, manuarora700): kept the filename-bar-plus-copy-button layout, dropped `react-syntax-highlighter` — a single `pnpm dev` line has nothing to highlight, and shipping a syntax highlighter client-side for zero visual benefit isn't an "obviously-necessary" dependency.
+- **ProductFrame chrome bar** (`product-frame.tsx`) — 21st Safari mockup (`21st get 4117`, ruixen.ui/safari-01): adopted its centered-url-bar proportions (`px-4 py-2`, symmetric dot/url/spacer layout). Rejected its colored red/yellow/green traffic-light dots — that would add a new red surface, banned by the palette rule — kept neutral `--od-line` dots and dropped `next/image` (not our stack).
+- **Capability figures** (`capability-section.tsx`) — shadcn `Card` (already installed): wraps each screenshot, stripped back to a plain 1px `--od-line` border with no ring/shadow/radius override, per the "border-and-caption figure, no chrome" tile rule.
+- **Buttons**: standardized on shadcn `Button` (`ui/button.tsx`) as the one button system — it's already what every CTA/link (`TryLiveButton`, demo controls, alert dialog actions) uses; smoothui `smooth-button` was evaluated and not adopted (see rejected list) so nothing had to migrate.
+
+Rejected (fetched, evaluated against the accepted spec/motion rules, not adopted):
+
+- **Header** — smoothui `header-6` is a centered hero section ("Less is more" / "Explore components →"), not a nav bar; the registry ID doesn't map to what was asked for. It also uses `initial={{opacity:0}}` mount-fade, the exact SSR-invisible-content bug v3→v4 just removed via `Reveal`. Evaluated 21st "Navbar 1" (`21st get 2046`) as a fallback candidate too: floating white pill, black CTA button, `initial`/`animate` opacity-fade-in on every link — fights the flat hairline/paper palette and the no-entrance-animation rule. Kept the existing hand-tuned `site-nav.tsx` (56px, `border-b`, mono labels), restyled the vertical rhythm/gutters only.
+- **Theme toggle** — kokonutui `switch-button` (`https://kokonutui.com/r/switch-button.json`): gradient background, layered box-shadows, a hover shine-sweep transform, and a 360° icon rotation on hover — five separate violations of "no gradients / no glow / interaction feedback is ≤150ms opacity or color only, no transform." Kept the existing minimal Sun/Moon icon toggle, which is already the un-gradiented, un-animated version of the same idea.
+- **Install command tabs** — 21st "Script Copy Button" (`21st get 1095`, dillionverma): its package-manager switcher is three `<Button>` elements with `onClick`, not real tabs — no `role="tablist"`, no roving `Home`/`End`/arrow-key navigation, which the spec explicitly requires ("Radix Tabs … keyboard arrows"). It also ships `shiki`'s client-side `codeToHtml` to syntax-highlight a plain one-line shell command. Kept the existing `radix-ui` `Tabs`-based `install-command.tsx` (already accessible, already correct) rather than downgrade it.
+- **Ledger/stats** — smoothui `stats-1` (`https://smoothui.dev/r/stats-1.json`): a 4-card stat grid with spring scale-pop-in on scroll, gradient hover glow, rounded cards — wrong shape (spec calls for a "compact mono ledger," three text rows, not stat cards) and reintroduces both the entrance-animation and gradient/glow bans. Kept the existing `open-source-strip.tsx` ledger rows.
+- **Star count display** — smoothui `github-stars-animation` (`https://smoothui.dev/r/github-stars-animation.json`) and `number-flow` (`https://smoothui.dev/r/number-flow.json`): the former does its own client-side GitHub API fetch plus a stack of stargazer avatars, which duplicates the existing `useStarCount`/`star-count-store` data path and directly contradicts "No avatars, no invented numbers"; the latter is a plus/minus quantity-stepper input control (cart-style), not a passive count display — neither matches "a live star count next to a GitHub link." Kept `useStarCount`, exported for reuse (already done pre-v4).
+- **Footer** — smoothui `footer-4` (`https://smoothui.dev/r/footer-4.json`): a single-row minimal footer (logo | 3 links | 3 social icons) that has no room for the spec's Product/Community/Install column structure — adopting it would delete approved required content, not adapt it. It also carries the same opacity-fade-on-mount pattern. Kept the existing 4-column footer, removed only its decorative shader iframe (done pre-v4).
+- **Steps (01/02/03)** — 21st Steps (`21st get 6087`, anubra266) is `@ark-ui/react`'s `Steps` primitive: a linear progress wizard with current/complete/incomplete states, which doesn't exist as a concept on this page (all three steps are always visible, there's no step progression to track), and it would add a new dependency (`@ark-ui/react`) to represent nothing. Kept the mono red 56px numeral treatment the spec already calls for exactly.
+
+New dependencies from this pass: **none** — every adopted component drew only on packages already in `apps/site/package.json` (`radix-ui`, `motion`, `lucide-react`, shadcn `Card`/`Button`).
 
 ## Responsive
 
