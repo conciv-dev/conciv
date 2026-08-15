@@ -1,6 +1,7 @@
 import {expect, test} from '@playwright/test'
+import {z} from 'zod'
 import {makeExtRpcClient} from '@conciv/extension'
-import {observeRpc} from '@conciv/extension-testkit/rpc-observer'
+import {until} from '@conciv/harness-testkit/until'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage, serveHost} from '../helpers/host.js'
@@ -25,25 +26,35 @@ test.afterAll(async () => {
   await kit.cleanup()
 })
 
+const ClickEventSchema = z.object({
+  type: z.literal(3),
+  data: z.looseObject({source: z.literal(2), type: z.literal(2)}),
+})
+
+const AppendedEventsSchema = z.object({events: z.array(z.unknown())})
+
 test.describe('recording attachment end to end in the real widget', () => {
   test('composes the card chip, sends log text to the model, renders the durable transcript card', async ({page}) => {
     test.setTimeout(480_000)
-    const observer = observeRpc(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
 
     await openPanel(page)
-    const flushPath = ['ext', 'recorder', 'flush']
-    const firstFlush = observer.completed({path: flushPath, timeout: 30_000})
-    await page.getByRole('tab', {name: 'Recorder'}).click()
-    await firstFlush
-
-    const interactionFlush = observer.completed({path: flushPath, since: observer.mark(), timeout: 30_000})
-    await page.getByRole('button', {name: 'Embed fixture'}).click()
-    await page.getByRole('button', {name: 'Embed fixture'}).click()
-
     const recorderRpc = makeExtRpcClient<RecorderRouter>(kit.base, 'recorder')
-    await interactionFlush
-    expect((await recorderRpc.window({})).events.length).toBeGreaterThanOrEqual(2)
+    const clicksAppendedSince = async (cursor: number): Promise<number> => {
+      const appended = AppendedEventsSchema.parse(await recorderRpc.events({cursor}))
+      return appended.events.filter((event) => ClickEventSchema.safeParse(event).success).length
+    }
+
+    await page.getByRole('tab', {name: 'Recorder'}).click()
+    await until(async () => (await recorderRpc.window({})).cursor > 0, {hangGuardMs: 30_000, intervalMs: 100})
+    const captureBaseline = (await recorderRpc.window({})).cursor
+
+    await page.getByRole('button', {name: 'Embed fixture'}).click()
+    await page.getByRole('button', {name: 'Embed fixture'}).click()
+    await until(async () => (await clicksAppendedSince(captureBaseline)) >= 2, {
+      hangGuardMs: 30_000,
+      intervalMs: 100,
+    })
 
     const send = page.getByRole('button', {name: 'Send to agent'})
     await send.waitFor({state: 'visible', timeout: 15_000})
