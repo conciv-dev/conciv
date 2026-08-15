@@ -4,12 +4,14 @@ import {page} from 'vitest/browser'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
 import {createShellHarness} from './helpers/shell-harness.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 import {expectRetryRecovers} from './helpers/retry-recovery.js'
 
 const RESOLVE_PATH = ['sessions', 'resolve']
 
 const core = {base: ''}
 const harness = createShellHarness(() => core.base)
+const faults = trackedFaults()
 
 beforeAll(async () => {
   const booted = await coreControl.bootCore({id: 'quick-add-pane', allowedOrigins: [window.location.origin]})
@@ -27,7 +29,7 @@ const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'
 const closePane = () => page.getByRole('button', {name: 'Close pane'})
 
 test('a quick terminal pane that fails to start shows a retry action', async () => {
-  const refused = await coreControl.installFault({kind: 'fail', path: RESOLVE_PATH, status: 500})
+  const refused = await faults.install({kind: 'fail', path: RESOLVE_PATH, status: 500})
   harness.mountShell('/quick')
 
   await expect.element(startFailure(), {timeout: 8000}).toBeVisible()
@@ -37,7 +39,7 @@ test('a quick terminal pane that fails to start shows a retry action', async () 
 }, 30_000)
 
 test('retrying a failed quick terminal pane against a healthy engine starts it', async () => {
-  const refused = await coreControl.installFault({kind: 'fail', path: RESOLVE_PATH, status: 500})
+  const refused = await faults.install({kind: 'fail', path: RESOLVE_PATH, status: 500})
   harness.mountShell('/quick')
   await expect.element(startFailure(), {timeout: 8000}).toBeVisible()
 
@@ -49,7 +51,7 @@ test('rapid double-trigger creates exactly one pane', async () => {
   harness.mountShell(`/quick?panes=${sessionId}&focus=0`)
   await expect.element(editor(), {timeout: 8000}).toBeVisible()
 
-  const held = await coreControl.installFault({kind: 'gate', path: RESOLVE_PATH})
+  const held = await faults.install({kind: 'gate', path: RESOLVE_PATH})
   const splitButton = page.getByRole('button', {name: 'Split pane (Mod+D)'})
   const firstClick = splitButton.click()
   const secondClick = splitButton.click()

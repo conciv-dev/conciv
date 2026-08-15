@@ -6,12 +6,14 @@ import {ChatPane} from '../src/pane/chat-pane.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, openTranscriptStream, runTurn, seedDraft, sendTurn} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 
 const SEND_PATH = ['chat', 'send']
 const SUBSCRIBE_PATH = ['chat', 'subscribe']
 
 const core = {base: ''}
-const active: {pane: PaneMount | null; faults: string[]} = {pane: null, faults: []}
+const active: {pane: PaneMount | null} = {pane: null}
+const faults = trackedFaults()
 
 beforeAll(async () => {
   const booted = await coreControl.bootCore({id: 'chat-pane', allowedOrigins: [window.location.origin]})
@@ -23,17 +25,10 @@ afterAll(async () => {
 }, 30_000)
 
 afterEach(async () => {
-  for (const fault of active.faults.splice(0)) await coreControl.releaseFault(fault)
   await coreControl.releaseTurn()
   active.pane?.dispose()
   active.pane = null
 })
-
-async function installFault(spec: Parameters<typeof coreControl.installFault>[0]): Promise<string> {
-  const handle = await coreControl.installFault(spec)
-  active.faults.push(handle)
-  return handle
-}
 
 async function newSession(): Promise<{rpc: RpcClient; sessionId: string}> {
   const rpc = coreRpc(core.base)
@@ -82,7 +77,7 @@ test('restores the server-side draft text and staged grabs when the pane mounts'
 
 test('a rejected send keeps the draft in the composer and tells the user why', async () => {
   const {sessionId} = await newSession()
-  await installFault({kind: 'fail', path: SEND_PATH, status: 500})
+  await faults.install({kind: 'fail', path: SEND_PATH, status: 500})
   mountChatPane(sessionId)
 
   await expect.element(input()).toBeVisible()
@@ -102,7 +97,7 @@ test('sending drops the staged grab card at once, while the turn is still stream
 })
 
 test('a send the server refuses puts the staged grab card back', async () => {
-  await installFault({kind: 'fail', path: SEND_PATH, status: 500})
+  await faults.install({kind: 'fail', path: SEND_PATH, status: 500})
   await sendWithStagedGrab()
 
   await expect.element(notifications()).toHaveTextContent(/Internal Server Error|could not be sent/)
@@ -111,7 +106,7 @@ test('a send the server refuses puts the staged grab card back', async () => {
 })
 
 test('a send that throws at the transport puts the staged grab card back', async () => {
-  await installFault({kind: 'abort', path: SEND_PATH})
+  await faults.install({kind: 'abort', path: SEND_PATH})
   await sendWithStagedGrab()
 
   await expect.element(notifications()).toHaveTextContent(/could not be sent|fetch/)
@@ -162,7 +157,7 @@ test('the refresh affordance re-subscribes and shows the transcript the server r
   await expect.element(page.getByText('How can I help you today?')).toBeVisible()
 
   const stream = await openTranscriptStream(rpc, sessionId)
-  const gate = await installFault({kind: 'gate', path: SUBSCRIBE_PATH})
+  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
   await page.getByRole('button', {name: 'Refresh the conversation'}).click()
 
   await coreControl.scriptTurn({toolCalls: [], text: 'the refreshed transcript'})
@@ -189,7 +184,7 @@ test('the refresh affordance is disabled while the run streams', async () => {
 
 test('the initial load shows a conversation skeleton until the snapshot arrives', async () => {
   const {sessionId} = await newSession()
-  const gate = await installFault({kind: 'gate', path: SUBSCRIBE_PATH})
+  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
   mountChatPane(sessionId)
 
   await expect.element(skeleton()).toBeVisible()
@@ -286,7 +281,7 @@ test('a new-session divider does not flash before the transcript snapshot hydrat
   const {rpc, sessionId} = await newSession()
   await coreControl.scriptTurn({toolCalls: [], text: 'starting a fresh session'})
   await runTurn(rpc, sessionId, 'restart with a clean slate')
-  const gate = await installFault({kind: 'gate', path: SUBSCRIBE_PATH})
+  const gate = await faults.install({kind: 'gate', path: SUBSCRIBE_PATH})
   const mount = mountChatPane(sessionId)
 
   await expect.element(skeleton()).toBeVisible()

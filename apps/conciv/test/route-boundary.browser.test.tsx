@@ -4,11 +4,13 @@ import {page} from 'vitest/browser'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
 import {createShellHarness} from './helpers/shell-harness.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 
 const WHILE_HELD = {timeout: 700}
 
 const core = {base: ''}
 const harness = createShellHarness(() => core.base)
+const faults = trackedFaults()
 
 beforeAll(async () => {
   const booted = await coreControl.bootCore({id: 'route-boundary', allowedOrigins: [window.location.origin]})
@@ -31,7 +33,7 @@ async function openPanel(): Promise<void> {
 }
 
 test('the pane paints its composer while the element captures query is still in flight', async () => {
-  const held = await coreControl.installFault({kind: 'gate', path: ['captures', 'list']})
+  const held = await faults.install({kind: 'gate', path: ['captures', 'list']})
   await openPanel()
 
   await expect.element(editor(), WHILE_HELD).toBeVisible()
@@ -41,7 +43,7 @@ test('the pane paints its composer while the element captures query is still in 
 }, 30_000)
 
 test('the shell keeps its launcher while the session list query is still in flight', async () => {
-  const held = await coreControl.installFault({kind: 'gate', path: ['sessions', 'list']})
+  const held = await faults.install({kind: 'gate', path: ['sessions', 'list']})
   harness.mountShell('/')
 
   await expect.element(launcher(), WHILE_HELD).toBeVisible()
@@ -58,7 +60,7 @@ test('a pane whose queries all answer immediately never shows the route pending 
 }, 30_000)
 
 test('a slow beforeLoad reveals the route pending loader, then hands off to the pane', async () => {
-  const held = await coreControl.installFault({kind: 'gate', path: ['sessions', 'resolve']})
+  const held = await faults.install({kind: 'gate', path: ['sessions', 'resolve']})
   harness.mountShell('/panel/latest?open=true')
 
   await expect.element(routePending()).toBeVisible()

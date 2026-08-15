@@ -4,11 +4,13 @@ import {page} from 'vitest/browser'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
 import {createShellHarness} from './helpers/shell-harness.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 
 const SETTLED = {timeout: 1500}
 
 const core = {base: ''}
 const harness = createShellHarness(() => core.base)
+const faults = trackedFaults()
 
 beforeAll(async () => {
   const booted = await coreControl.bootCore({id: 'panel-focus-stability', allowedOrigins: [window.location.origin]})
@@ -30,7 +32,7 @@ async function openPanel(): Promise<void> {
 
 async function expectFocusSurvives(path: string[]): Promise<void> {
   const since = await coreControl.rpcMark()
-  const held = await coreControl.installFault({kind: 'gate', path})
+  const held = await faults.install({kind: 'gate', path})
   await openPanel()
   await vi.waitUntil(async () => (await coreControl.faultPending(held)) > 0, {timeout: 5000, interval: 20})
 

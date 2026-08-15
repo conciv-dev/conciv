@@ -17,7 +17,7 @@ export type ScriptedRun = {
 
 type QueuedToolCall = {id: string; name: string; input: unknown; result: unknown}
 
-type QueuedTurn = {toolCalls: QueuedToolCall[]; text?: string}
+type QueuedTurn = {toolCalls: QueuedToolCall[]; text?: string; blocking: boolean}
 
 const THREAD = {threadId: 'scripted', runId: 'scripted'} as const
 
@@ -41,7 +41,7 @@ function resultChunk(toolCallId: string, result: unknown): StreamChunk {
 function* turnChunks(turn: QueuedTurn): Generator<StreamChunk> {
   for (const call of turn.toolCalls) {
     yield* requestChunks(call)
-    yield resultChunk(call.id, call.result)
+    if (!turn.blocking) yield resultChunk(call.id, call.result)
   }
 }
 
@@ -59,7 +59,6 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const gate = {held: false, waiting: new Set<() => void>()}
   const turns = {count: 0}
   const toolCalls = {count: 0}
-  const queuedToolCalls: Array<{id: string; name: string; input: unknown; blocking: boolean}> = []
   const queuedTurns: QueuedTurn[] = []
   const queuedCustomEvents: Array<{name: string; value: unknown}> = []
   const queuedErrors: string[] = []
@@ -75,7 +74,8 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const scriptToolCall = (name: string, input: unknown, toolOpts: {blocking?: boolean} = {}) => {
     toolCalls.count += 1
     const toolCallId = `tc-${toolCalls.count}`
-    queuedToolCalls.push({id: toolCallId, name, input, blocking: toolOpts.blocking ?? true})
+    const blocking = toolOpts.blocking ?? true
+    queuedTurns.push({toolCalls: [{id: toolCallId, name, input, result: {ok: true}}], blocking})
     return toolCallId
   }
   const scriptTurn = (turn: ScriptedTurn) => {
@@ -83,7 +83,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
       toolCalls.count += 1
       return {id: `tc-${toolCalls.count}`, name: call.name, input: call.input, result: call.result ?? {ok: true}}
     })
-    queuedTurns.push({toolCalls: calls, text: turn.text})
+    queuedTurns.push({toolCalls: calls, text: turn.text, blocking: false})
     return calls.map((call) => call.id)
   }
   const scriptCustomEvent = (name: string, value: unknown) => {
@@ -99,14 +99,9 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     yield sessionIdChunk(deps)
     const scriptedTurn = queuedTurns.shift()
     if (scriptedTurn) yield* turnChunks(scriptedTurn)
-    const toolCall = scriptedTurn ? undefined : queuedToolCalls.shift()
-    if (toolCall) {
-      yield* requestChunks(toolCall)
-      if (toolCall.blocking) {
-        yield {type: EventType.RUN_FINISHED, ...THREAD, finishReason: 'tool_calls'}
-        return
-      }
-      yield resultChunk(toolCall.id, {ok: true})
+    if (scriptedTurn?.blocking) {
+      yield {type: EventType.RUN_FINISHED, ...THREAD, finishReason: 'tool_calls'}
+      return
     }
     yield* customEventChunks(queuedCustomEvents.splice(0))
     yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: scriptedTurn?.text ?? defaultText}

@@ -4,10 +4,12 @@ import {page, userEvent} from 'vitest/browser'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
 import {createShellHarness} from './helpers/shell-harness.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 import {expectRetryRecovers} from './helpers/retry-recovery.js'
 
 const core = {base: ''}
 const harness = createShellHarness(() => core.base)
+const faults = trackedFaults()
 
 beforeAll(async () => {
   const booted = await coreControl.bootCore({id: 'reachability-flows', allowedOrigins: [window.location.origin]})
@@ -33,7 +35,7 @@ async function openSessionPanel(): Promise<void> {
 }
 
 test('a dead engine at boot shows our error screen, not the generic boundary, and Retry recovers it', async () => {
-  const outage = await coreControl.installFault({kind: 'abort'})
+  const outage = await faults.install({kind: 'abort'})
   harness.mountShell('/panel/latest?open=true')
 
   await expect.element(errorScreen(), {timeout: 8000}).toBeVisible()
@@ -50,7 +52,7 @@ test('a dead engine at boot shows our error screen, not the generic boundary, an
 }, 30_000)
 
 test('a server error while resolving /panel/latest shows the actual error, not the unreachable message', async () => {
-  const refused = await coreControl.installFault({kind: 'fail', path: ['sessions', 'resolve'], status: 500})
+  const refused = await faults.install({kind: 'fail', path: ['sessions', 'resolve'], status: 500})
   harness.mountShell('/panel/latest?open=true')
 
   await expect.element(serverError(), {timeout: 8000}).toBeVisible()
@@ -70,7 +72,7 @@ test('a healthy engine resolves /panel/latest straight to the warm session', asy
 test('a sustained outage raises exactly one standing notice, and it clears once the engine returns', async () => {
   await openSessionPanel()
 
-  const outage = await coreControl.installFault({kind: 'abort'})
+  const outage = await faults.install({kind: 'abort'})
   await editor().fill('rename the widget package')
 
   await expect.element(engineUnreachableNotice(), {timeout: 8000}).toBeVisible()
@@ -81,7 +83,7 @@ test('a sustained outage raises exactly one standing notice, and it clears once 
 }, 30_000)
 
 test('a 500 from an otherwise healthy engine never raises the unreachable notice', async () => {
-  const refused = await coreControl.installFault({kind: 'fail', path: ['chat', 'send'], status: 500})
+  const refused = await faults.install({kind: 'fail', path: ['chat', 'send'], status: 500})
   await openSessionPanel()
 
   await editor().fill('rename the widget package')
@@ -96,7 +98,7 @@ test('a 500 from an otherwise healthy engine never raises the unreachable notice
 }, 30_000)
 
 test('a failing engine-info probe on an otherwise healthy connection never raises the unreachable notice', async () => {
-  const refused = await coreControl.installFault({kind: 'fail', path: ['meta', 'engine'], status: 500})
+  const refused = await faults.install({kind: 'fail', path: ['meta', 'engine'], status: 500})
   const since = await coreControl.rpcMark()
   await openSessionPanel()
 
@@ -109,7 +111,7 @@ test('a failing engine-info probe on an otherwise healthy connection never raise
 test('the composer disables sending with a distinct message once the engine is unreachable', async () => {
   await openSessionPanel()
 
-  const outage = await coreControl.installFault({kind: 'abort'})
+  const outage = await faults.install({kind: 'abort'})
   await editor().fill('rename the widget package')
 
   await expect

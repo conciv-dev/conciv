@@ -83,6 +83,23 @@ describe('makeScriptedRun', () => {
     expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
   })
 
+  it('streams a queued tool call and a queued turn in the order they were scripted', async () => {
+    const scripted = makeScriptedRun()
+    scripted.scriptToolCall('first_tool', {a: 1})
+    scripted.scriptTurn({toolCalls: [{name: 'second_tool', input: {b: 2}}], text: 'turn ran'})
+    const drainTurn = async (): Promise<StreamChunk[]> => {
+      const chunks: StreamChunk[] = []
+      for await (const chunk of scripted.chatStream(deps())) chunks.push(chunk)
+      return chunks
+    }
+    const first = await drainTurn()
+    const second = await drainTurn()
+    const startsIn = (chunks: StreamChunk[]): string[] =>
+      chunks.flatMap((chunk) => (chunk.type === EventType.TOOL_CALL_START ? [chunk.toolCallName] : []))
+    expect(startsIn(first)).toEqual(['first_tool'])
+    expect(startsIn(second)).toEqual(['second_tool'])
+  })
+
   it('holds the turn open until release()', async () => {
     const scripted = makeScriptedRun()
     scripted.hold()

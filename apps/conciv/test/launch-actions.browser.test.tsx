@@ -6,12 +6,14 @@ import {ComposerActions} from '../src/composer/actions.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
 import {mountPane, type PaneMount} from './helpers/pane-harness.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 
 const CONNECT_COMMAND_PATH = ['ext', 'terminal', 'connectCommand']
 const LAUNCH_PATH = ['ext', 'terminal', 'launch']
 
 const core = {base: ''}
 const mounted: {pane: PaneMount | null} = {pane: null}
+const faults = trackedFaults()
 
 const grabApi: GrabApi = {
   pick: async () => null,
@@ -109,7 +111,7 @@ test('copy command asks the terminal extension for the command', async () => {
 })
 
 test('a launch failure is surfaced instead of swallowed', async () => {
-  const fault = await coreControl.installFault({kind: 'fail', path: LAUNCH_PATH, status: 500})
+  const fault = await faults.install({kind: 'fail', path: LAUNCH_PATH, status: 500})
   await mountActions()
 
   await openMenu()

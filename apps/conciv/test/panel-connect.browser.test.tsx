@@ -5,6 +5,7 @@ import {defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/
 import {Show, type JSX} from 'solid-js'
 import {coreControl} from './helpers/core-control.js'
 import {createShellHarness} from './helpers/shell-harness.js'
+import {trackedFaults} from './helpers/tracked-faults.js'
 import {expectRetryRecovers} from './helpers/retry-recovery.js'
 
 const FOUND_API_BASE = 'http://found.test'
@@ -13,6 +14,7 @@ const RESOLVE_PATH = ['sessions', 'resolve']
 
 const core = {base: ''}
 const harness = createShellHarness(() => core.base)
+const faults = trackedFaults()
 
 beforeAll(async () => {
   const booted = await coreControl.bootCore({id: 'panel-connect', allowedOrigins: [window.location.origin]})
@@ -55,7 +57,7 @@ const serverError = () => page.getByText('Internal Server Error')
 const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
 test('a bind that fails with a transport failure shows the connect failure screen, and retrying against a healthy engine hands off to the panel', async () => {
-  const unreachable = await coreControl.installFault({kind: 'abort', path: RESOLVE_PATH})
+  const unreachable = await faults.install({kind: 'abort', path: RESOLVE_PATH})
   mountShell()
 
   await simulateFound().click()
@@ -67,7 +69,7 @@ test('a bind that fails with a transport failure shows the connect failure scree
 }, 30_000)
 
 test('a bind that fails with a server error shows the actual error, not the workspace-unreachable message', async () => {
-  const refused = await coreControl.installFault({kind: 'fail', path: RESOLVE_PATH, status: 500})
+  const refused = await faults.install({kind: 'fail', path: RESOLVE_PATH, status: 500})
   mountShell()
 
   await expect.element(simulateFound(), {timeout: 8000}).toBeVisible()
