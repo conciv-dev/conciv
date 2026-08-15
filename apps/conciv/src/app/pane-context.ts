@@ -1,30 +1,6 @@
-import {createContext, createSignal, useContext, type Accessor} from 'solid-js'
-import type {Grab, GrabProvider} from '@conciv/grab'
-
-export type StagedGrab = Grab | {text: string}
-
-export type PaneGrabStore = {
-  grabs: Accessor<StagedGrab[]>
-  stage: (grab: Grab) => void
-  stageTexts: (texts: string[]) => void
-  stageAll: (grabs: StagedGrab[]) => void
-  replace: (grab: StagedGrab, next: StagedGrab) => void
-  remove: (grab: StagedGrab) => void
-  clear: () => void
-}
-
-export function makeGrabStore(): PaneGrabStore {
-  const [grabs, setGrabs] = createSignal<StagedGrab[]>([])
-  return {
-    grabs,
-    stage: (grab) => setGrabs((prev) => [...prev, grab]),
-    stageTexts: (texts) => setGrabs(texts.map((text) => ({text}))),
-    stageAll: (staged) => setGrabs((prev) => [...prev, ...staged.filter((grab) => !prev.includes(grab))]),
-    replace: (grab, next) => setGrabs((prev) => prev.map((entry) => (entry === grab ? next : entry))),
-    remove: (grab) => setGrabs((prev) => prev.filter((entry) => entry !== grab)),
-    clear: () => setGrabs([]),
-  }
-}
+import {createContext, useContext, type Accessor} from 'solid-js'
+import type {GrabProvider} from '@conciv/grab'
+import type {GrabStaging} from '../pane/grab-staging.js'
 
 export type PendingAttachmentQueue = {
   enqueue: (file: File) => void
@@ -38,7 +14,7 @@ export type PaneContextValue = {
   setLockedFor: (id: string) => (locked: boolean) => void
   slideClass: Accessor<string>
   resetSlide: () => void
-  grabStore: PaneGrabStore
+  grabStaging: GrabStaging
   grabProvider: GrabProvider | undefined
   attachments: PendingAttachmentQueue
   newSession: () => void

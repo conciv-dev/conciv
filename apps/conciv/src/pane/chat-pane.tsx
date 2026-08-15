@@ -37,15 +37,12 @@ import {collectToolRenderers} from '@conciv/extension'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments} from './pane-attachments.js'
-import {resolveGrabSource} from './grab-source-resolve.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
-import {usePane, type StagedGrab} from '../app/pane-context.js'
+import {usePane} from '../app/pane-context.js'
 import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
-import {GrabReference} from './grab-reference.js'
-import {GrabStrip} from './grab-strip.js'
 import {CompactSpinner, ConversationSkeleton, Divider, ThinkingBubble} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
@@ -96,10 +93,6 @@ function activeCallTitle(
   return title
 }
 
-function grabTexts(grabs: ReadonlyArray<StagedGrab>): string[] {
-  return grabs.map((grab) => grab.text)
-}
-
 type ComposerApi = {
   addAttachment: (file: File) => Promise<string | null>
 }
@@ -108,12 +101,18 @@ function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Eleme
   const pane = usePane()
   const context = useComposerContext()
   onMount(() => {
-    const restored = context.grabs()
-    if (restored.length > 0) pane.grabStore.stageTexts(restored)
+    pane.grabStaging.connect({
+      attachments: context.attachments,
+      addAttachment: context.addAttachment,
+      replaceAttachment: context.replaceAttachment,
+      removeAttachment: context.removeAttachment,
+      hasAttachment: context.hasAttachment,
+    })
     props.onReady({addAttachment: context.addAttachment})
     for (const file of pane.attachments.drain()) void context.addAttachment(file)
   })
-  createEffect(() => context.setGrabs(grabTexts(pane.grabStore.grabs())))
+  onCleanup(() => pane.grabStaging.disconnect())
+  createEffect(() => pane.grabStaging.reconcile(context.attachments()))
   return <></>
 }
 
@@ -167,7 +166,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     appData,
     reachability,
     notices,
-    grabStore: pane.grabStore,
     refetchMarkers: () => markers.refetch(),
   })
 
@@ -240,17 +238,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
     <AttachmentByMime cards={attachments().cards} removable={slotProps.removable} />
   )
-  const groundGrab = async (grab: Grab): Promise<void> => {
-    const grounded = await resolveGrabSource(grab, (input) => rpc.page.symbolicate(input))
-    if (!grounded) return
-    pane.grabStore.replace(grab, grounded)
-  }
   const stageGrab = (grab: Grab) => {
-    pane.grabStore.stage(grab)
+    pane.grabStaging.stage(grab)
     focusInput()
-    void groundGrab(grab)
   }
-  const paneGrab = makePaneGrabApi(pane.grabStore, pane.grabProvider)
+  const paneGrab = makePaneGrabApi(pane.grabStaging, pane.grabProvider)
 
   const dividersAt = (count: number): MarkerRow[] => (markers.data ?? []).filter((row) => row.afterTurn === count)
   const dividersInRange = (start: number, end: number): MarkerRow[] =>
@@ -333,13 +325,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                       <ExtensionSurface name="status" instances={instances} />
                       <ExtensionSurface name="footer" instances={instances} />
                     </div>
-                    <Show when={pane.grabStore.grabs().length > 0}>
-                      <GrabStrip class="flex flex-col">
-                        <For each={pane.grabStore.grabs()}>
-                          {(grab) => <GrabReference grab={grab} onRemove={() => pane.grabStore.remove(grab)} />}
-                        </For>
-                      </GrabStrip>
-                    </Show>
                     <Suspense>
                       <Show when={draftStorage()}>
                         {(storage) => (

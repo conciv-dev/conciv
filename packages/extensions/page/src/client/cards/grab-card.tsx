@@ -12,7 +12,7 @@ type GrabPreview = NonNullable<GrabPayload['preview']>
 
 const CARD =
   'text-[0.6875rem] font-pw-mono p-3 border border-pw-line rounded-pw-md bg-pw-fill flex flex-col gap-2.5 items-start relative'
-const PREVIEW_SLOT = 'relative max-w-full'
+const PREVIEW_SLOT = 'relative max-w-full max-h-[13.75rem] overflow-hidden'
 const OPEN_BUTTON = 'absolute inset-0 cursor-pointer'
 const SOURCE_LINE = 'text-pw-text-2 flex gap-1.5 [word-break:break-all] items-center'
 const AGENT_TEXT = 'text-pw-text-2 font-pw-mono text-xs whitespace-pre-wrap [word-break:break-all] m-0'

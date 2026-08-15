@@ -6,18 +6,23 @@ import '../../src/lib/api-base.js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {AppContext, type AppContextValue} from '../../src/app/context.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../../src/app/reachability.js'
-import {
-  PaneContext,
-  makeGrabStore,
-  makePendingAttachmentQueue,
-  type PaneContextValue,
-} from '../../src/app/pane-context.js'
+import type {AnyExtension} from '@conciv/extension'
+import type {Grab, GrabProvider} from '@conciv/grab'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../../src/app/pane-context.js'
+import {createInstances} from '../../src/extension/create-instances.js'
+import {makeGrabStaging} from '../../src/pane/grab-staging.js'
 import {makeAppData, type AppData} from '../../src/data/app-data.js'
 import {parseConcivSettings} from '../../src/data/settings.js'
 import {makeLayerStack} from '../../src/shell/dialogs.js'
 import {NoticeContextProvider, NoticeSurface} from '../../src/shell/notice-context.js'
 
-export type PaneMountOptions = {base: string; sessionId: string}
+export type PaneMountOptions = {
+  base: string
+  sessionId: string
+  grabProvider?: GrabProvider
+  extensions?: AnyExtension[]
+  ground?: (grab: Grab) => Promise<Grab | null>
+}
 
 export type PaneMount = {
   dispose: () => void
@@ -53,7 +58,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     layers: makeLayerStack(),
     suppressed: () => undefined,
     fabPosition: () => 'bottom-right',
-    instances: [],
+    instances: createInstances(options.extensions ?? []),
     connected: () => true,
     arrivedFromConnect: () => false,
     connectBind: async () => '',
@@ -68,8 +73,8 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     setLockedFor: () => () => {},
     slideClass: () => '',
     resetSlide: () => {},
-    grabStore: makeGrabStore(),
-    grabProvider: undefined,
+    grabStaging: makeGrabStaging({ground: options.ground ?? (async () => null)}),
+    grabProvider: options.grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => {},
   }

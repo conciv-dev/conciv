@@ -1,7 +1,7 @@
 import {EventType} from '@tanstack/ai'
-import {makeRpcClient, type RpcClient} from '@conciv/contract'
+import {makeRpcClient, type PersistedAttachment, type RpcClient} from '@conciv/contract'
 
-export type SeededDraft = {text?: string; grabs?: string[]}
+export type SeededDraft = {text?: string; grabs?: string[]; attachments?: PersistedAttachment[]}
 
 export type TranscriptStream = {awaitTurnEnd: () => Promise<void>; close: () => void}
 
@@ -22,6 +22,7 @@ export async function seedDraft(rpc: RpcClient, sessionId: string, draft: Seeded
     selectionStart: text.length,
     selectionEnd: text.length,
     grabs: draft.grabs ?? [],
+    attachments: draft.attachments ?? [],
   })
 }
 
