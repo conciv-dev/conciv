@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
@@ -9,6 +7,9 @@
 @import 'shadcn/tailwind.css';
 
 @import '@fontsource-variable/geist';
+@import '@fontsource-variable/newsreader';
+@import '@fontsource-variable/newsreader/wght-italic.css';
+@import '@fontsource-variable/jetbrains-mono';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -31,8 +32,8 @@ html > body[data-scroll-locked] {
   --od-accent: oklch(0.6 0.207 27);
   --od-accent-soft: oklch(0.6 0.207 27 / 0.12);
   --od-pass: oklch(0.62 0.16 150);
-  --od-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
-  --od-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --od-display: 'Newsreader Variable', serif;
+  --od-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
   --background: var(--od-paper);
   --foreground: var(--od-ink);
   --card: var(--od-panel);
@@ -120,9 +121,51 @@ html > body[data-scroll-locked] {
   font-feature-settings: 'liga' 0;
 }
 
-/* landing-specific surfaces */
-.od-page {
-  background: radial-gradient(120% 80% at 88% -10%, var(--od-accent-soft), transparent 55%), var(--od-paper);
+.od-h1 {
+  font-family: var(--od-display);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  font-size: clamp(44px, 5.4vw, 68px);
+}
+
+.od-h2 {
+  font-family: var(--od-display);
+  font-style: normal;
+  font-weight: 400;
+  font-size: clamp(30px, 3.2vw, 40px);
+}
+
+.od-eyebrow {
+  font-family: var(--od-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 11.5px;
+  color: var(--od-accent);
+}
+
+/* Zed-style hairline column rules for the 1180px container */
+.od-container {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+@media (min-width: 768px) {
+  .od-container {
+    border-inline: 1px solid var(--od-line);
+  }
+}
+
+.od-rule {
+  border-top: 1px solid var(--od-line);
+}
+
+/* dark-mode keyline + matte so a product screenshot still reads as an object */
+.dark .od-screenshot {
+  border: 1px solid var(--od-line);
+  padding: 4px;
+  background: var(--od-panel);
+  border-radius: 10px;
 }
 
 /* footer: fixed warm-charcoal bookend, both themes */
