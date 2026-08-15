@@ -4,7 +4,8 @@ import type {EngineStaleness} from '@conciv/contract'
 import type {HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
-import type {RpcObserver} from '@conciv/extension-testkit/rpc-observer'
+import type {RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
+import type {RpcWireWatch} from '@conciv/extension-testkit/rpc-wire'
 
 export type BootCoreInput = {
   id: string
@@ -27,6 +28,7 @@ export type FaultSpec =
 type Fault = {
   pending: () => number
   awaitCaptured: (count: number) => Promise<void>
+  answered: () => Promise<void>
   release: () => Promise<void>
   dispose: () => Promise<void>
 }
@@ -41,7 +43,8 @@ type FileState = {
   faults: Map<string, Fault>
   handles: {count: number}
   terminal: TerminalState
-  observer: RpcObserver | null
+  calls: RpcCallCursor | null
+  wire: RpcWireWatch | null
 }
 
 const FRESH: EngineStaleness = {
@@ -71,7 +74,8 @@ function stateOf(ctx: BrowserCommandContext): FileState {
     faults: new Map(),
     handles: {count: 0},
     terminal: {launches: 0, succeeds: true},
-    observer: null,
+    calls: null,
+    wire: null,
   }
   files.set(key, created)
   return created
@@ -83,10 +87,16 @@ function kitOf(ctx: BrowserCommandContext): CoreKit {
   return kit
 }
 
-function observerOf(ctx: BrowserCommandContext): RpcObserver {
-  const observer = stateOf(ctx).observer
-  if (!observer) throw new Error('no core is booted for this test file; call bootCore first')
-  return observer
+function wireOf(ctx: BrowserCommandContext): RpcWireWatch {
+  const wire = stateOf(ctx).wire
+  if (!wire) throw new Error('no core is booted for this test file; call bootCore first')
+  return wire
+}
+
+function callsOf(ctx: BrowserCommandContext): RpcCallCursor {
+  const calls = stateOf(ctx).calls
+  if (!calls) throw new Error('no core is booted for this test file; call bootCore first')
+  return calls
 }
 
 function faultOf(ctx: BrowserCommandContext, handle: string): Fault {
@@ -103,7 +113,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     state.terminal.launches += 1
     return Promise.resolve(state.terminal.succeeds)
   }
-  const {bootCoreKit, createTerminalExtension, observeRpc} = await testkitOf(ctx)
+  const {bootCoreKit, createTerminalExtension, rpcCallCursor, watchRpcWire} = await testkitOf(ctx)
   const kit = await bootCoreKit({
     id: input.id,
     text: input.text,
@@ -126,7 +136,8 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
       : {}),
   })
   state.kit = kit
-  state.observer = observeRpc(ctx.page)
+  state.calls = rpcCallCursor(ctx.page)
+  state.wire = watchRpcWire(ctx.page)
   return {base: kit.base, wsBase: kit.wsBase, bootMs: Date.now() - startedAt}
 }
 
@@ -137,8 +148,8 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   state.staleness.value = FRESH
   state.terminal.launches = 0
   state.terminal.succeeds = true
-  state.observer?.dispose()
-  state.observer = null
+  state.calls = null
+  state.wire = null
   const kit = state.kit
   state.kit = null
   if (!kit) return
@@ -170,24 +181,20 @@ const setTerminalLaunch: BrowserCommand<[boolean]> = (ctx, succeeds): void => {
 
 const terminalLaunches: BrowserCommand<[]> = (ctx): number => stateOf(ctx).terminal.launches
 
-const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => observerOf(ctx).completedCount({path})
+const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => callsOf(ctx).completedSince(path)
 
-const rpcMark: BrowserCommand<[]> = (ctx): number => observerOf(ctx).mark()
-
-const awaitRpcCall: BrowserCommand<[string[], number, unknown?]> = async (
-  ctx,
-  path,
-  since,
-  input,
-): Promise<number | null> => {
-  const record = await observerOf(ctx).completed({
-    path,
-    since,
-    timeout: AWAIT_RPC_TIMEOUT_MS,
-    ...(input === undefined ? {} : {input}),
-  })
-  return record.status
+const rpcMark: BrowserCommand<[]> = async (ctx): Promise<number> => {
+  const {rpcCallMark} = await testkitOf(ctx)
+  return rpcCallMark(ctx.page)
 }
+
+const awaitFaultAnswered: BrowserCommand<[string]> = (ctx, handle): Promise<void> => faultOf(ctx, handle).answered()
+
+const awaitWarmSessionResolved: BrowserCommand<[number]> = (ctx, since): Promise<number | null> =>
+  wireOf(ctx).sessionsResolvedSince(since)
+
+const awaitSessionsListed: BrowserCommand<[number]> = (ctx, since): Promise<number | null> =>
+  wireOf(ctx).sessionsListedSince(since)
 
 const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<string> => {
   const state = stateOf(ctx)
@@ -204,6 +211,7 @@ const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<str
       : await failRpcCalls(ctx.page, {path: spec.path, ...(spec.status ? {status: spec.status} : {})})
   state.faults.set(handle, {
     pending: () => 0,
+    answered: injector.answered,
     awaitCaptured: async () => {
       throw new Error(`the fault "${handle}" is a ${spec.kind} fault, which never captures pending requests`)
     },
@@ -254,7 +262,9 @@ export const coreCommands = {
   terminalLaunches,
   rpcCallCount,
   rpcMark,
-  awaitRpcCall,
+  awaitFaultAnswered,
+  awaitWarmSessionResolved,
+  awaitSessionsListed,
   installFault,
   releaseFault,
   faultPending,

@@ -1,6 +1,7 @@
 import {expect, test} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {hostPage, reserveDeadPort, serveHost} from '../helpers/host.js'
+import {hostPage, reserveDeadPort} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {proxyTo, type ProxyCore} from '../helpers/proxy.js'
 
 const ASSISTANT_TEXT = 'Recovered from a dead boot'

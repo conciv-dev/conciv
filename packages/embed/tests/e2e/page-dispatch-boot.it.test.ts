@@ -2,7 +2,8 @@ import {expect, test, type Page} from '@playwright/test'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
-import {handleHostPage, serveHost} from '../helpers/host.js'
+import {handleHostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 
 const HOST_BODY = `
   <div id="probe">page-bus-ok</div>

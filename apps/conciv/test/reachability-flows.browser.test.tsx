@@ -99,10 +99,9 @@ test('a 500 from an otherwise healthy engine never raises the unreachable notice
 
 test('a failing engine-info probe on an otherwise healthy connection never raises the unreachable notice', async () => {
   const refused = await faults.install({kind: 'fail', path: ['meta', 'engine'], status: 500})
-  const since = await coreControl.rpcMark()
   await openSessionPanel()
 
-  expect(await coreControl.awaitRpcCall(['meta', 'engine'], since)).toBe(500)
+  await coreControl.awaitFaultAnswered(refused)
   await expect.element(engineUnreachableNotice()).not.toBeInTheDocument()
 
   await coreControl.releaseFault(refused)

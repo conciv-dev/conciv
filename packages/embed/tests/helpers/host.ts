@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createServer, type Server} from 'node:http'
+import {listenLocal} from '@conciv/extension-testkit/listen-local'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -29,14 +30,6 @@ export function hostPage(opts: {apiBase: string; widget?: string; body?: string;
   </body></html>`
 }
 
-export function wsProbeHostPage(body?: string): string {
-  const probeBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-ws-probe.global.js'), 'utf8')
-  return `<!doctype html><html><head></head><body>
-    ${body ?? '<div id="probe">page-bus-ok</div>'}
-    <script>${probeBundle}</script>
-  </body></html>`
-}
-
 export function handleHostPage(body?: string): string {
   const handleBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-handle.global.js'), 'utf8')
   return `<!doctype html><html><head></head><body>
@@ -45,52 +38,9 @@ export function handleHostPage(body?: string): string {
   </body></html>`
 }
 
-export async function listenLocal(
-  server: Server,
-  port = 0,
-): Promise<{base: string; port: number; close: () => Promise<void>}> {
-  await new Promise<void>((resolve, reject) => {
-    const onError = (error: Error): void => reject(error)
-    server.once('error', onError)
-    server.listen(port, '127.0.0.1', () => {
-      server.removeListener('error', onError)
-      resolve()
-    })
-  })
-  const address = server.address()
-  const boundPort = typeof address === 'object' && address !== null ? address.port : 0
-  return {
-    base: `http://127.0.0.1:${boundPort}`,
-    port: boundPort,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        server.closeAllConnections?.()
-        server.close((error) => (error ? reject(error) : resolve()))
-      }),
-  }
-}
-
 export async function reserveDeadPort(): Promise<{base: string; port: number}> {
   const probe: Server = createServer()
   const {port} = await listenLocal(probe)
   await new Promise<void>((resolve) => probe.close(() => resolve()))
   return {base: `http://127.0.0.1:${port}`, port}
-}
-
-export async function serveHost(html: (url: URL) => string): Promise<{base: string; close: () => Promise<void>}> {
-  const server: Server = createServer((req, res) => {
-    res.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
-    res.end(html(new URL(req.url ?? '/', 'http://127.0.0.1')))
-  })
-  const {base, close} = await listenLocal(server)
-  return {
-    base,
-    close: async () => {
-      try {
-        await close()
-      } catch (error) {
-        console.error('[embed-testkit] host close failed:', error)
-      }
-    },
-  }
 }
