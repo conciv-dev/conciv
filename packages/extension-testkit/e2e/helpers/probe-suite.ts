@@ -31,11 +31,10 @@ export function setupWsProbeSuite(): ProbeSuite {
   })
 
   test.afterAll(async () => {
-    await host.close()
     try {
+      await host.close()
+    } finally {
       await kit.cleanup()
-    } catch (error) {
-      console.error('[extension-testkit] probe kit cleanup failed:', error)
     }
   })
 

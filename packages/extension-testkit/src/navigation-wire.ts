@@ -24,6 +24,10 @@ type Hold = {
   queue: (() => Promise<void>)[]
 }
 
+function escapeRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function isNavigationWriteUrl(url: URL): boolean {
   return url.pathname.endsWith('/rpc/navigation/set')
 }
@@ -155,7 +159,7 @@ export function watchNavigationWire(page: Page): NavigationWireWatch {
       return observer
         .completed({
           path: NAVIGATION_SET,
-          input: new RegExp(hrefFragment),
+          input: new RegExp(escapeRegExp(hrefFragment)),
           since,
           timeout: NAVIGATION_TIMEOUT_MS,
         })

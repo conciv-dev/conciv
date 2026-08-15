@@ -1,5 +1,5 @@
 import {expect, test, type Page} from '@playwright/test'
-import {gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
+import {gateRpcCalls, type RpcGate} from '@conciv/extension-testkit/rpc-fault'
 import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {hostPage} from '../helpers/host.js'
@@ -26,8 +26,12 @@ function launcher(page: Page) {
   return page.getByRole('button', {name: LAUNCHER_NAME})
 }
 
-async function stallSessionRpcs(page: Page): Promise<void> {
-  for (const path of [SESSIONS_LIST, SESSIONS_RESOLVE]) await gateRpcCalls(page, {path})
+type StalledSessionRpcs = {list: RpcGate; resolve: RpcGate}
+
+async function stallSessionRpcs(page: Page): Promise<StalledSessionRpcs> {
+  const list = await gateRpcCalls(page, {path: SESSIONS_LIST})
+  const resolve = await gateRpcCalls(page, {path: SESSIONS_RESOLVE})
+  return {list, resolve}
 }
 
 test.describe('first panel open does not re-run session resolution at click time', () => {
@@ -45,9 +49,15 @@ test.describe('first panel open does not re-run session resolution at click time
     await expect(launcher(page)).toBeVisible({timeout: 15_000})
     await wire.sessionsBootTraffic()
 
-    await stallSessionRpcs(page)
-    await launcher(page).click()
+    const stalled = await stallSessionRpcs(page)
+    try {
+      await launcher(page).click()
 
-    await expect(composer(page)).toBeVisible({timeout: 5_000})
+      await expect(composer(page)).toBeVisible({timeout: 5_000})
+      expect(stalled.resolve.pending()).toBe(0)
+    } finally {
+      await stalled.list.dispose()
+      await stalled.resolve.dispose()
+    }
   })
 })
