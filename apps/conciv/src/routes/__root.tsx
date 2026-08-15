@@ -14,6 +14,16 @@ import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
+import {
+  CLOSE_PANEL_EVENT,
+  CONNECTION_CHANGED_EVENT,
+  createEventBusHost,
+  OPEN_PANEL_EVENT,
+  PANEL_COMMAND_CHANNEL,
+  PANEL_TOGGLED_EVENT,
+  TOGGLE_PANEL_EVENT,
+  type PanelCommandEventMap,
+} from '@conciv/protocol/event-bus'
 import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
@@ -119,7 +129,7 @@ function RootComponent() {
 
   createEffect(() => {
     const isConnected = app.connected()
-    window.dispatchEvent(new CustomEvent('conciv:connection-changed', {detail: {connected: isConnected}}))
+    window.dispatchEvent(new CustomEvent(CONNECTION_CHANGED_EVENT, {detail: {connected: isConnected}}))
   })
 
   const reachability = makeEngineReachability()
@@ -197,7 +207,7 @@ function RootChrome(props: {
   const reportPanelState = () => {
     const open = panelOpen()
     window.dispatchEvent(
-      new CustomEvent('conciv:panel-toggled', {
+      new CustomEvent(PANEL_TOGGLED_EVENT, {
         detail: {open, connected: connected(), mascotRect: open ? null : mascotRect()},
       }),
     )
@@ -262,19 +272,20 @@ function RootChrome(props: {
     onCleanup(() => cancelAnimationFrame(frame))
   })
 
+  const panelCommandHost = createEventBusHost<PanelCommandEventMap>({channel: PANEL_COMMAND_CHANNEL})
+
   onMount(() => {
     if (settings.defaultOpen && closedMatch()) void openPanel()
-    const openFromHost = () => void openPanel()
-    const closeFromHost = () => {
-      if (panelOpen()) closePanel()
-    }
-    const toggleFromHost = () => togglePanel()
     makeEventListener(window, 'resize', reportPanelState)
-    makeEventListener(window, 'conciv:open-panel', openFromHost)
-    makeEventListener(window, 'conciv:close-panel', closeFromHost)
-    makeEventListener(window, 'conciv:toggle-panel', toggleFromHost)
+    panelCommandHost.on(OPEN_PANEL_EVENT, () => void openPanel())
+    panelCommandHost.on(CLOSE_PANEL_EVENT, () => {
+      if (panelOpen()) closePanel()
+    })
+    panelCommandHost.on(TOGGLE_PANEL_EVENT, () => togglePanel())
+    panelCommandHost.ready()
     notifyInteractive()
   })
+  onCleanup(() => panelCommandHost.dispose())
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return

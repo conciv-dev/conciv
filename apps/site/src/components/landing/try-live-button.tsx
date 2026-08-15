@@ -1,48 +1,31 @@
 import {useSyncExternalStore} from 'react'
 import {Button} from '@/components/ui/button'
+import {
+  CONNECTION_CHANGED_EVENT,
+  createEventBusClient,
+  OPEN_PANEL_EVENT,
+  PANEL_COMMAND_CHANNEL,
+  type EventBusClientState,
+  type PanelCommandEventMap,
+  type WidgetConnectionChangedDetail,
+} from '@conciv/protocol/event-bus'
 import {tryButtonLabel} from '@/lib/try-state'
 
 declare global {
   interface WindowEventMap {
-    'conciv:connection-changed': CustomEvent<{connected: boolean}>
+    [CONNECTION_CHANGED_EVENT]: CustomEvent<WidgetConnectionChangedDetail>
   }
 }
 
 let connected = false
-let mounted = false
-let pendingOpen = false
-const pendingListeners = new Set<() => void>()
-
-function notifyPending(): void {
-  for (const listener of pendingListeners) listener()
-}
 
 function subscribeConnection(onChange: () => void): () => void {
-  const handler = (event: WindowEventMap['conciv:connection-changed']) => {
+  const handler = (event: WindowEventMap[typeof CONNECTION_CHANGED_EVENT]) => {
     connected = event.detail.connected
     onChange()
   }
-  window.addEventListener('conciv:connection-changed', handler)
-  return () => window.removeEventListener('conciv:connection-changed', handler)
-}
-
-function subscribeMounted(onChange: () => void): () => void {
-  const handler = () => {
-    mounted = true
-    if (pendingOpen) {
-      pendingOpen = false
-      window.dispatchEvent(new Event('conciv:open-panel'))
-      notifyPending()
-    }
-    onChange()
-  }
-  window.addEventListener('conciv:widget-mounted', handler)
-  return () => window.removeEventListener('conciv:widget-mounted', handler)
-}
-
-function subscribePending(onChange: () => void): () => void {
-  pendingListeners.add(onChange)
-  return () => pendingListeners.delete(onChange)
+  window.addEventListener(CONNECTION_CHANGED_EVENT, handler)
+  return () => window.removeEventListener(CONNECTION_CHANGED_EVENT, handler)
 }
 
 function useConcivConnected(): boolean {
@@ -53,39 +36,25 @@ function useConcivConnected(): boolean {
   )
 }
 
-function useWidgetMounted(): boolean {
-  return useSyncExternalStore(
-    subscribeMounted,
-    () => mounted,
-    () => false,
-  )
-}
+const panelCommands = createEventBusClient<PanelCommandEventMap>({
+  channel: PANEL_COMMAND_CHANNEL,
+  reconnectEveryMs: 500,
+  maxRetries: 60,
+})
 
-function usePendingOpen(): boolean {
-  return useSyncExternalStore(
-    subscribePending,
-    () => pendingOpen,
-    () => false,
-  )
+function useBusState(): EventBusClientState {
+  return useSyncExternalStore(panelCommands.subscribe, panelCommands.getState, () => 'idle')
 }
 
 export function TryLiveButton() {
   const isConnected = useConcivConnected()
-  const isMounted = useWidgetMounted()
-  const isPending = usePendingOpen()
-  const open = () => {
-    if (isMounted) {
-      window.dispatchEvent(new Event('conciv:open-panel'))
-      return
-    }
-    pendingOpen = true
-    notifyPending()
-  }
+  const busState = useBusState()
+  const open = () => panelCommands.emit(OPEN_PANEL_EVENT, undefined)
   return (
     <div className="mt-6">
-      <Button variant="default" onClick={open} aria-busy={isPending}>
+      <Button variant="default" onClick={open} aria-busy={busState === 'connecting'}>
         <span className="size-1.5 rounded-full bg-primary-foreground" aria-hidden />
-        {tryButtonLabel({connected: isConnected, pending: isPending})}
+        {tryButtonLabel({connected: isConnected, pending: busState === 'connecting'})}
       </Button>
     </div>
   )

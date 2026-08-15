@@ -11,7 +11,7 @@ async function startWidget(): Promise<void> {
   ])
   const picked = dedupeExtensions(entries)
   for (const drop of picked.dropped) console.warn('conciv extension dropped:', drop.source, drop.reason)
-  mountConciv(picked.extensions)
+  await mountConciv(picked.extensions)
 }
 
 if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'production') {

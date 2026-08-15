@@ -1,6 +1,7 @@
 import type {AnyExtension} from '@conciv/extension'
 import type {GrabProvider} from '@conciv/grab'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
+import type {EventBusClient, PanelCommandEventMap} from '@conciv/protocol/event-bus'
 
 export type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
@@ -24,9 +25,11 @@ export type ConcivHandle = {
 
 type MountState = 'unmounted' | 'mounting' | 'mounted'
 
-function dispatch(name: string, detail?: Record<string, unknown>): void {
-  if (typeof window === 'undefined') return
-  window.dispatchEvent(new CustomEvent(name, {detail}))
+type PanelCommandName = keyof PanelCommandEventMap & string
+
+type PanelCommandsBus = {
+  client: EventBusClient<PanelCommandEventMap>
+  events: {open: PanelCommandName; close: PanelCommandName; toggle: PanelCommandName}
 }
 
 export function createConciv(init: ConcivInit = {}): ConcivHandle {
@@ -34,6 +37,20 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
   let abort: AbortController | undefined
   let teardown: (() => void) | undefined
   let rebindImpl: ((apiBase: string) => Promise<void>) | undefined
+  let panelCommandsPromise: Promise<PanelCommandsBus> | null = null
+
+  function panelCommands(): Promise<PanelCommandsBus> {
+    if (panelCommandsPromise) return panelCommandsPromise
+    panelCommandsPromise = import('@conciv/protocol/event-bus').then((eventBus) => ({
+      client: eventBus.createEventBusClient<PanelCommandEventMap>({
+        channel: eventBus.PANEL_COMMAND_CHANNEL,
+        reconnectEveryMs: 500,
+        maxRetries: 60,
+      }),
+      events: {open: eventBus.OPEN_PANEL_EVENT, close: eventBus.CLOSE_PANEL_EVENT, toggle: eventBus.TOGGLE_PANEL_EVENT},
+    }))
+    return panelCommandsPromise
+  }
 
   async function mount(el: HTMLElement): Promise<void> {
     if (typeof document === 'undefined') return
@@ -70,15 +87,18 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
   }
 
   function open(): void {
-    dispatch('conciv:open-panel')
+    if (typeof window === 'undefined') return
+    void panelCommands().then((bus) => bus.client.emit(bus.events.open, undefined))
   }
 
   function close(): void {
-    dispatch('conciv:close-panel')
+    if (typeof window === 'undefined') return
+    void panelCommands().then((bus) => bus.client.emit(bus.events.close, undefined))
   }
 
   function toggle(): void {
-    dispatch('conciv:toggle-panel')
+    if (typeof window === 'undefined') return
+    void panelCommands().then((bus) => bus.client.emit(bus.events.toggle, undefined))
   }
 
   async function rebind(apiBase: string): Promise<void> {
@@ -89,13 +109,11 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
   return {mount, unmount, open, close, toggle, rebind}
 }
 
-export function mountConciv(extensions: AnyExtension[]): void {
-  if (typeof document === 'undefined') return
-  if (document.querySelector('[data-conciv-script-root]')) return
+export function mountConciv(extensions: AnyExtension[]): Promise<void> {
+  if (typeof document === 'undefined') return Promise.resolve()
+  if (document.querySelector('[data-conciv-script-root]')) return Promise.resolve()
   const el = document.createElement('div')
   el.setAttribute('data-conciv-script-root', '')
   document.body.appendChild(el)
-  void createConciv({extensions})
-    .mount(el)
-    .catch(() => undefined)
+  return createConciv({extensions}).mount(el)
 }

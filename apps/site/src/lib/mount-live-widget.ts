@@ -1,5 +1,12 @@
+import {PANEL_TOGGLED_EVENT, type WidgetPanelToggledDetail} from '@conciv/protocol/event-bus'
 import {dismissTry, getTrySession} from './try-session.functions'
 import {shouldAutoOpen, shouldDismissOnClose} from './try-state'
+
+declare global {
+  interface WindowEventMap {
+    [PANEL_TOGGLED_EVENT]: CustomEvent<WidgetPanelToggledDetail>
+  }
+}
 
 function ensureWidgetMeta(defaultOpen: boolean): void {
   if (document.querySelector('meta[name="pw-widget"]')) return
@@ -23,15 +30,11 @@ export async function mountLiveWidget(opts: {widgetOpen: boolean; tryParam: bool
     import('@conciv/extension-try-it/client'),
   ])
   if (document.querySelector('[data-conciv-root]')) return
-  const root = document.createElement('div')
-  root.setAttribute('data-conciv-script-root', '')
-  document.body.appendChild(root)
-  await embed.createConciv({extensions: [terminal.default, tryItModule.tryIt({token})]}).mount(root)
-  window.dispatchEvent(new Event('conciv:widget-mounted'))
+  await embed.mountConciv([terminal.default, tryItModule.tryIt({token})])
 
   let hasBeenOpen = false
-  window.addEventListener('conciv:panel-toggled', (event) => {
-    const detail = (event as CustomEvent<{open: boolean; connected: boolean}>).detail
+  window.addEventListener(PANEL_TOGGLED_EVENT, (event) => {
+    const detail = event.detail
     if (!detail) return
     if (detail.open) {
       hasBeenOpen = true
