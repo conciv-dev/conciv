@@ -1,7 +1,7 @@
 import {expect, test, type Page} from '@playwright/test'
-import {observeRpc} from '@conciv/extension-testkit/rpc-observer'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage, serveHost} from '../helpers/host.js'
+import {openPagePlaneHost} from './helpers/page-plane-host.js'
 
 let kit: EmbedKit
 let host: {base: string; close: () => Promise<void>}
@@ -22,15 +22,7 @@ test.afterAll(async () => {
   await kit.cleanup()
 })
 
-async function openHostPage(page: Page): Promise<Page> {
-  const observer = observeRpc(page)
-  const subscribed = observer.completed({path: ['page', 'queries'], timeout: 30_000})
-  await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-  await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 30_000})
-  await subscribed
-  observer.dispose()
-  return page
-}
+const openHostPage = (page: Page): Promise<Page> => openPagePlaneHost(page, host.base)
 
 test.describe('startPagePlane executes registry page tools in the browser', () => {
   test('round-trips page.text through rpc.page.queries to the DOM dispatcher', async ({page}) => {

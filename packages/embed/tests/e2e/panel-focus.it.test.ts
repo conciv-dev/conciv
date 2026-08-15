@@ -1,4 +1,5 @@
 import {expect, test, type Locator, type Page} from '@playwright/test'
+import {gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {setupWidgetSuite} from './helpers/suite.js'
 import {openPanel} from './helpers/panel.js'
 import {currentHref, setNavigation, untilNavigationHref} from './helpers/navigation.js'
@@ -8,6 +9,7 @@ const suite = setupWidgetSuite()
 
 const COMPOSER_NAME = 'Message the conciv agent'
 const SESSION_PILL_NAME = 'Session: New session'
+const SESSIONS_LIST = ['sessions', 'list'] as const
 
 function composer(page: Page) {
   return page.getByRole('textbox', {name: COMPOSER_NAME})
@@ -23,23 +25,6 @@ async function ensurePanelClosed(page: Page): Promise<void> {
   await expect(minimize.or(opener)).toBeVisible({timeout: 30_000})
   if (await minimize.isVisible()) await minimize.click()
   await expect(opener).toBeVisible({timeout: 30_000})
-}
-
-async function holdFirstSessionList(page: Page): Promise<() => void> {
-  let release = (): void => {}
-  const held = new Promise<void>((resolve) => {
-    release = () => resolve()
-  })
-  let seen = 0
-  await page.route(
-    (url) => url.pathname.endsWith('/rpc/sessions/list'),
-    async (route) => {
-      seen += 1
-      if (seen === 1) await held
-      await route.continue()
-    },
-  )
-  return release
 }
 
 type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hostButton: Locator}
@@ -89,12 +74,14 @@ test.describe('panel open focuses the composer', () => {
       hostPage({apiBase: suite.kit().base, widget: '{"quickTerminal":false,"transport":"fetch"}'}),
     )
     dedicatedHosts.push(host)
-    const releaseSessionList = await holdFirstSessionList(page)
+    const sessionListGate = await gateRpcCalls(page, {path: SESSIONS_LIST})
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     try {
+      await sessionListGate.awaitCaptured(1)
       await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 15_000})
+      expect(sessionListGate.pending()).toBeGreaterThan(0)
     } finally {
-      releaseSessionList()
+      await sessionListGate.dispose()
     }
     await openPanel(page)
     await expect(sessionPill(page)).toBeVisible({timeout: 30_000})
