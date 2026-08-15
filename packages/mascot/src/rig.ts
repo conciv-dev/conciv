@@ -5,11 +5,13 @@ import {createMascot} from './core/index.js'
 export type {BinaryEffectConfig} from './core/effects/binary.js'
 export {binaryEffect, configureBinaryEffect} from './core/effects/binary.js'
 export type {
+  ActivityChannels,
   CurveStyle,
   EffectContext,
   EffectHandle,
   EffectMount,
   FollowChannels,
+  MascotActivity,
   MascotConfig,
   MascotConnect,
   MascotFollow,

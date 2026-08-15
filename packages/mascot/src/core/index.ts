@@ -1,5 +1,12 @@
 export {robotLayers} from '../layers.gen.js'
-export type {FollowChannels, MascotConfig, MascotFollow, MascotState} from './config.js'
+export type {
+  ActivityChannels,
+  FollowChannels,
+  MascotActivity,
+  MascotConfig,
+  MascotFollow,
+  MascotState,
+} from './config.js'
 export type {EffectContext, EffectHandle, EffectMount} from './effects/effect.js'
 export {
   createMascot,

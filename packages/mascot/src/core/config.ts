@@ -4,7 +4,16 @@ export type FollowChannels = {eyes: boolean; antenna: boolean}
 
 export type MascotFollow = boolean | FollowChannels
 
-export type MascotConfig = {state: MascotState; working: boolean; follow: MascotFollow}
+export type ActivityChannels = {bob: boolean; throb: boolean; blink: boolean}
+
+export type MascotActivity = Partial<ActivityChannels>
+
+export type MascotConfig = {
+  state: MascotState
+  working: boolean
+  follow: MascotFollow
+  activity?: MascotActivity
+}
 
 export const NO_FOLLOW_CHANNELS: FollowChannels = {eyes: false, antenna: false}
 
@@ -15,6 +24,15 @@ export const sameFollowChannels = (left: FollowChannels, right: FollowChannels):
   left.eyes === right.eyes && left.antenna === right.antenna
 
 export const anyFollowChannel = (channels: FollowChannels): boolean => channels.eyes || channels.antenna
+
+export const activityChannels = (activity: MascotActivity | undefined): ActivityChannels => ({
+  bob: activity?.bob ?? true,
+  throb: activity?.throb ?? true,
+  blink: activity?.blink ?? true,
+})
+
+export const sameActivityChannels = (left: ActivityChannels, right: ActivityChannels): boolean =>
+  left.bob === right.bob && left.throb === right.throb && left.blink === right.blink
 
 const REDUCED_MOTION_QUERY =
   typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : undefined

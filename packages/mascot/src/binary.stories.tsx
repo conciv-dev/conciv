@@ -55,6 +55,9 @@ type StageProps = {
   follow: FollowMode
   stageSizePx: number
   curve: CurveStyle
+  bob: boolean
+  throb: boolean
+  blink: boolean
 }
 
 function MascotStage(props: StageProps): JSX.Element {
@@ -62,6 +65,7 @@ function MascotStage(props: StageProps): JSX.Element {
     state: props.state,
     working: props.working,
     follow: FOLLOW_MODES[props.follow],
+    activity: {bob: props.bob, throb: props.throb, blink: props.blink},
   })
   const service = createMascot(untrack(config))
   let stage: HTMLDivElement | undefined
@@ -106,6 +110,9 @@ function MascotPlayground(props: StageProps): JSX.Element {
           follow={props.follow}
           stageSizePx={props.stageSizePx}
           curve={props.curve}
+          bob={props.bob}
+          throb={props.throb}
+          blink={props.blink}
         />
       </Show>
     </div>
@@ -121,7 +128,9 @@ bent path: **arc** eases the
 digits into the open side, **hook** climbs the axis then turns a corner, **fan** spreads every digit into its
 own lane, and **auto** measures the room above the antenna tip and picks straight or bent accordingly. Changing
 **curve** here re-mounts the effect, matching how the Core Playground story remounts on a curve change: an
-effect's rider paths are fixed at mount, not live.
+effect's rider paths are fixed at mount, not live. **bob**, **throb** and **blink** switch off the matching
+piece of the activity overlay, which is the quickest way to watch the digits launch from a tip that never moves:
+turn **throb** and **bob** off and the tip holds still while the digits keep rising out of it.
 `
 
 const meta: Meta<StageProps> = {
@@ -134,6 +143,9 @@ const meta: Meta<StageProps> = {
     follow: 'both',
     stageSizePx: 120,
     curve: 'straight',
+    bob: true,
+    throb: true,
+    blink: true,
   },
   argTypes: {
     state: {control: 'inline-radio', options: ['rest', 'awake'], description: 'Resting expression'},
@@ -152,6 +164,9 @@ const meta: Meta<StageProps> = {
       options: ['straight', 'arc', 'hook', 'fan', 'auto'],
       description: 'The path the digits ride out of the antenna tip',
     },
+    bob: {control: 'boolean', description: 'activity.bob: the head, antenna and eyes rise and fall together'},
+    throb: {control: 'boolean', description: 'activity.throb: the antenna stretches on the work beat'},
+    blink: {control: 'boolean', description: 'activity.blink: the eyes close and open once a cycle'},
   },
 }
 export default meta
@@ -165,6 +180,9 @@ export const Playground: Story = {
       follow={args.follow}
       stageSizePx={args.stageSizePx}
       curve={args.curve}
+      bob={args.bob}
+      throb={args.throb}
+      blink={args.blink}
     />
   ),
 }

@@ -51,7 +51,16 @@ const FOLLOW_MODES: Record<FollowMode, MascotFollow> = {
   none: false,
 }
 
-type StageProps = {state: MascotState; working: boolean; follow: FollowMode; stageSizePx: number; curve: CurveStyle}
+type StageProps = {
+  state: MascotState
+  working: boolean
+  follow: FollowMode
+  stageSizePx: number
+  curve: CurveStyle
+  bob: boolean
+  throb: boolean
+  blink: boolean
+}
 
 type PlaygroundProps = StageProps & {poseApply: PoseApply; headroomRatio: number}
 
@@ -60,6 +69,7 @@ function MascotStage(props: StageProps): JSX.Element {
     state: props.state,
     working: props.working,
     follow: FOLLOW_MODES[props.follow],
+    activity: {bob: props.bob, throb: props.throb, blink: props.blink},
   })
   const service = createMascot(untrack(config))
   let stage: HTMLDivElement | undefined
@@ -105,6 +115,9 @@ function MascotPlayground(props: PlaygroundProps): JSX.Element {
           follow={props.follow}
           stageSizePx={props.stageSizePx}
           curve={props.curve}
+          bob={props.bob}
+          throb={props.throb}
+          blink={props.blink}
         />
       </Show>
     </div>
@@ -134,6 +147,12 @@ animates between rest and awake. Follow moves the eyes and leans the antenna tow
 everything that happens while work is in flight: the head bob, the antenna throb, the eye blink, and every
 mounted effect. Head \`yPercent\` and eye \`scaleY\` are handoff channels: activity owns them while working and
 hands them back to the pose value with a short recovery when work stops.
+
+**Activity channels** — \`activity\` picks which of the three overlay pieces run: \`{bob, throb, blink}\`, each
+defaulting to on, so omitting the field keeps the shipped overlay. Turning one off leaves its channel entirely
+alone — the timeline never builds that piece, and the falling edge skips the recovery it would have needed, so
+a run with \`throb: false\` never writes an antenna scale at all. Flip the three controls with \`working\` on to
+isolate one piece, and note that changing them rebuilds the work timeline rather than muting a running one.
 
 **Effects** — the core mounts nothing on its own. \`mountEffect(id, mount)\` registers an effect and activity
 drives it on every working edge, so two mounted effects mean two live emitters; \`unmountEffect(id)\` drains it.
@@ -203,6 +222,9 @@ const meta: Meta<PlaygroundProps> = {
     poseApply: 'animate',
     curve: 'straight',
     headroomRatio: DEFAULT_HEADROOM_RATIO,
+    bob: true,
+    throb: true,
+    blink: true,
   },
   argTypes: {
     state: {control: 'inline-radio', options: ['rest', 'awake'], description: 'Resting expression'},
@@ -233,6 +255,9 @@ const meta: Meta<PlaygroundProps> = {
       options: ['animate', 'set'],
       description: 'Apply a state change through update() (animated) or through registration (instant)',
     },
+    bob: {control: 'boolean', description: 'activity.bob: the head, antenna and eyes rise and fall together'},
+    throb: {control: 'boolean', description: 'activity.throb: the antenna stretches on the work beat'},
+    blink: {control: 'boolean', description: 'activity.blink: the eyes close and open once a cycle'},
   },
 }
 export default meta
@@ -248,6 +273,9 @@ export const Playground: Story = {
       poseApply={args.poseApply}
       curve={args.curve}
       headroomRatio={args.headroomRatio}
+      bob={args.bob}
+      throb={args.throb}
+      blink={args.blink}
     />
   ),
 }

@@ -1,5 +1,6 @@
 import gsap from 'gsap'
 import {
+  type ActivityChannels,
   BLINK_BEATS,
   BLINK_CLOSE_DURATION_S,
   BLINK_CLOSE_EASE,
@@ -33,7 +34,7 @@ export type ActivityRest = {eyeScaleY: number; headYPercent: number}
 export type ActivityRecovery = {pose: boolean; antennaScale: boolean}
 
 export type ActivityController = {
-  start: (rest: ActivityRest) => void
+  start: (rest: ActivityRest, channels: ActivityChannels) => void
   setRest: (rest: ActivityRest) => void
   setVisible: (visible: boolean) => void
   stop: (recovery: ActivityRecovery) => void
@@ -50,14 +51,17 @@ type EffectEntry = {
   hostOrigin: EmitterAnchor | undefined
 }
 
+type BobTweens = {down: gsap.core.Tween; back: gsap.core.Tween}
+
+type RecoveryStep = {wanted: boolean; make: () => gsap.core.Tween}
+
 type WorkTimeline = {
   timeline: gsap.core.Timeline
-  blinkReturn: gsap.core.Tween
-  bobDown: gsap.core.Tween
-  bobReturn: gsap.core.Tween
+  blinkReturn: gsap.core.Tween | undefined
+  bob: BobTweens | undefined
 }
 
-type WorkSession = WorkTimeline & {layout: AntennaLayout | undefined}
+type WorkSession = WorkTimeline & {layout: AntennaLayout | undefined; channels: ActivityChannels}
 
 const NEUTRAL_SCALE = 1
 
@@ -75,15 +79,9 @@ const throbOut = (): gsap.TweenVars => ({
   ease: THROB_RETURN_EASE,
 })
 
-function buildWorkTimeline(parts: ActivityParts, rest: ActivityRest, onUpdate: () => void): WorkTimeline {
-  const {head, antenna, eyes} = parts
-  const bobbed = [head, antenna, eyes]
-  const blinkReturn = gsap.to(eyes, {
-    scaleY: rest.eyeScaleY,
-    duration: BLINK_OPEN_DURATION_S,
-    ease: BLINK_OPEN_EASE,
-  })
-  const bobDown = gsap.fromTo(
+function buildBob(parts: ActivityParts, rest: ActivityRest): BobTweens {
+  const bobbed = [parts.head, parts.antenna, parts.eyes]
+  const down = gsap.fromTo(
     bobbed,
     {yPercent: rest.headYPercent},
     {
@@ -93,30 +91,61 @@ function buildWorkTimeline(parts: ActivityParts, rest: ActivityRest, onUpdate: (
       immediateRender: false,
     },
   )
-  const bobReturn = gsap.to(bobbed, {
+  const back = gsap.to(bobbed, {
     yPercent: rest.headYPercent,
     duration: HEAD_BOB_DURATION_S,
     ease: HEAD_BOB_EASE,
   })
-  const timeline = gsap
-    .timeline({repeat: -1, onUpdate})
-    .add(bobDown, HEAD_BOB_BEATS[0])
-    .add(bobReturn, HEAD_BOB_BEATS[1])
+  return {down, back}
+}
+
+const buildBlinkReturn = (eyes: HTMLElement, rest: ActivityRest): gsap.core.Tween =>
+  gsap.to(eyes, {scaleY: rest.eyeScaleY, duration: BLINK_OPEN_DURATION_S, ease: BLINK_OPEN_EASE})
+
+function addBob(timeline: gsap.core.Timeline, bob: BobTweens | undefined): void {
+  if (bob === undefined) return
+  timeline.add(bob.down, HEAD_BOB_BEATS[0]).add(bob.back, HEAD_BOB_BEATS[1])
+}
+
+function addThrob(timeline: gsap.core.Timeline, antenna: HTMLElement, wanted: boolean): void {
+  if (!wanted) return
+  timeline
     .to(antenna, throbIn(), THROB_BEATS[0])
     .to(antenna, throbOut(), THROB_BEATS[1])
     .to(antenna, throbIn(), THROB_BEATS[2])
     .to(antenna, throbOut(), THROB_BEATS[3])
-    .to(eyes, {scaleY: BLINK_CLOSE_SCALE_Y, duration: BLINK_CLOSE_DURATION_S, ease: BLINK_CLOSE_EASE}, BLINK_BEATS[0])
-    .add(blinkReturn, BLINK_BEATS[1])
-  return {timeline, blinkReturn, bobDown, bobReturn}
 }
 
-function retarget(tween: gsap.core.Tween, property: string, value: number): void {
+function addBlink(timeline: gsap.core.Timeline, eyes: HTMLElement, blinkReturn: gsap.core.Tween | undefined): void {
+  if (blinkReturn === undefined) return
+  timeline
+    .to(eyes, {scaleY: BLINK_CLOSE_SCALE_Y, duration: BLINK_CLOSE_DURATION_S, ease: BLINK_CLOSE_EASE}, BLINK_BEATS[0])
+    .add(blinkReturn, BLINK_BEATS[1])
+}
+
+function buildWorkTimeline(
+  parts: ActivityParts,
+  rest: ActivityRest,
+  channels: ActivityChannels,
+  onUpdate: () => void,
+): WorkTimeline {
+  const bob = channels.bob ? buildBob(parts, rest) : undefined
+  const blinkReturn = channels.blink ? buildBlinkReturn(parts.eyes, rest) : undefined
+  const timeline = gsap.timeline({repeat: -1, onUpdate})
+  addBob(timeline, bob)
+  addThrob(timeline, parts.antenna, channels.throb)
+  addBlink(timeline, parts.eyes, blinkReturn)
+  return {timeline, blinkReturn, bob}
+}
+
+function retarget(tween: gsap.core.Tween | undefined, property: string, value: number): void {
+  if (tween === undefined) return
   tween.vars[property] = value
   tween.invalidate()
 }
 
-function rebase(tween: gsap.core.Tween, property: string, value: number): void {
+function rebase(tween: gsap.core.Tween | undefined, property: string, value: number): void {
+  if (tween === undefined) return
   tween.vars.startAt = {...tween.vars.startAt, [property]: value}
   tween.invalidate()
 }
@@ -268,16 +297,20 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     resting = rest
     if (session === undefined) return
     retarget(session.blinkReturn, 'scaleY', rest.eyeScaleY)
-    retarget(session.bobReturn, 'yPercent', rest.headYPercent)
-    rebase(session.bobDown, 'yPercent', rest.headYPercent)
+    retarget(session.bob?.back, 'yPercent', rest.headYPercent)
+    rebase(session.bob?.down, 'yPercent', rest.headYPercent)
   }
 
-  const start = (rest: ActivityRest) => {
+  const start = (rest: ActivityRest, channels: ActivityChannels) => {
     if (reduceMotion()) return
     resting = rest
     killTimeline()
     killRecoveryTweens()
-    const started: WorkSession = {...buildWorkTimeline(parts, rest, anchorEffects), layout: undefined}
+    const started: WorkSession = {
+      ...buildWorkTimeline(parts, rest, channels, anchorEffects),
+      layout: undefined,
+      channels,
+    }
     session = started
     if (!visible) return started.timeline.pause()
     restartEntries()
@@ -304,34 +337,39 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     suspend(current)
   }
 
-  const recover = (recovery: ActivityRecovery) => {
-    recoveryTweens = []
-    if (recovery.antennaScale) {
-      recoveryTweens.push(
-        gsap.to(antenna, {
-          scaleX: NEUTRAL_SCALE,
-          scaleY: NEUTRAL_SCALE,
-          duration: RECOVERY_DURATION_S,
-          ease: RECOVERY_EASE,
-        }),
-      )
-    }
-    if (!recovery.pose) return
-    recoveryTweens.push(
-      gsap.to(eyes, {scaleY: resting.eyeScaleY, duration: RECOVERY_DURATION_S, ease: RECOVERY_EASE}),
-      gsap.to([head, antenna, eyes], {
-        yPercent: resting.headYPercent,
-        duration: RECOVERY_DURATION_S,
-        ease: RECOVERY_EASE,
-      }),
-    )
+  const recoverAntennaScale = (): gsap.core.Tween =>
+    gsap.to(antenna, {
+      scaleX: NEUTRAL_SCALE,
+      scaleY: NEUTRAL_SCALE,
+      duration: RECOVERY_DURATION_S,
+      ease: RECOVERY_EASE,
+    })
+
+  const recoverEyeScale = (): gsap.core.Tween =>
+    gsap.to(eyes, {scaleY: resting.eyeScaleY, duration: RECOVERY_DURATION_S, ease: RECOVERY_EASE})
+
+  const recoverBobHeight = (): gsap.core.Tween =>
+    gsap.to([head, antenna, eyes], {
+      yPercent: resting.headYPercent,
+      duration: RECOVERY_DURATION_S,
+      ease: RECOVERY_EASE,
+    })
+
+  const recover = (recovery: ActivityRecovery, channels: ActivityChannels) => {
+    const steps: RecoveryStep[] = [
+      {wanted: recovery.antennaScale && channels.throb, make: recoverAntennaScale},
+      {wanted: recovery.pose && channels.blink, make: recoverEyeScale},
+      {wanted: recovery.pose && channels.bob, make: recoverBobHeight},
+    ]
+    recoveryTweens = steps.filter((step) => step.wanted).map((step) => step.make())
   }
 
   const stop = (recovery: ActivityRecovery) => {
-    if (session === undefined) return
+    const current = session
+    if (current === undefined) return
     killTimeline()
     killRecoveryTweens()
-    recover(recovery)
+    recover(recovery, current.channels)
     effects.forEach(stopEntry)
   }
 

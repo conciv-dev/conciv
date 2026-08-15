@@ -1,10 +1,12 @@
 import {
+  activityChannels,
   anyFollowChannel,
   type FollowChannels,
   followChannels,
   type MascotConfig,
   NO_FOLLOW_CHANNELS,
   reduceMotion,
+  sameActivityChannels,
   sameFollowChannels,
 } from './config.js'
 import type {EffectMount} from './effects/effect.js'
@@ -99,13 +101,16 @@ function applyFollow(registration: Registration, previous: MascotConfig, next: M
   registration.follow.disarm(!next.working)
 }
 
-function startWorking(registration: Registration): void {
+function startWorking(registration: Registration, config: MascotConfig): void {
   registration.follow.disarm(false)
-  registration.activity.start(poseRest(registration))
+  registration.activity.start(poseRest(registration), activityChannels(config.activity))
 }
 
+const sameActivity = (previous: MascotConfig, next: MascotConfig): boolean =>
+  sameActivityChannels(activityChannels(previous.activity), activityChannels(next.activity))
+
 function applyWork(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
-  if (!previous.working) return startWorking(registration)
+  if (!previous.working || !sameActivity(previous, next)) return startWorking(registration, next)
   if (previous.state === next.state) return
   registration.activity.setRest(poseRest(registration))
 }
@@ -178,7 +183,7 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
     registration = {parts, leanWrapper, pose, follow, activity, visibility: watchVisibility(parts.stage)}
     pose.set(config.state)
     effectMounts.forEach((mount, id) => activity.mountEffect(id, mount, effectHosts.get(id)))
-    if (config.working) startWorking(registration)
+    if (config.working) startWorking(registration, config)
     follow.arm(followTarget(config))
   }
 
