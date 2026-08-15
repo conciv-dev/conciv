@@ -30,7 +30,7 @@ export function TryLiveButton() {
   const isConnected = useConcivConnected()
   const open = () => window.dispatchEvent(new Event('conciv:open-panel'))
   return (
-    <div className="mt-6">
+    <div className="hidden md:inline-flex">
       <Button variant="outline" onClick={open}>
         <span className="size-1.5 rounded-full bg-primary" aria-hidden />
         {isConnected ? 'Open agent panel' : 'Try it live: connect your agent'}

@@ -15,10 +15,8 @@ const COMMANDS: Record<InstallCli, string> = {
 
 const STORAGE_KEY = 'conciv.pm'
 
-const INSTALL_CLI_SET: Set<string> = new Set(INSTALL_CLIS)
-
 function isInstallCli(value: string): value is InstallCli {
-  return INSTALL_CLI_SET.has(value)
+  return INSTALL_CLIS.some((cli) => cli === value)
 }
 
 function usePersistedInstallCli(): [InstallCli, (value: string) => void] {
@@ -53,16 +51,14 @@ function CommandLine({command}: {command: string}) {
   )
 }
 
-export function InstallCommand({compact = false}: {compact?: boolean}) {
+export function InstallCommand() {
   const [installCli, selectInstallCli] = usePersistedInstallCli()
-
-  if (compact) return <CommandLine command={COMMANDS[installCli]} />
 
   return (
     <TabsPrimitive.Root value={installCli} onValueChange={selectInstallCli}>
       <TabsPrimitive.List
         aria-label="Package manager"
-        className="mb-2 inline-flex gap-0.5 rounded-md border bg-card p-[3px]"
+        className="mb-2 hidden gap-0.5 rounded-md border bg-card p-[3px] md:inline-flex"
       >
         {INSTALL_CLIS.map((cli) => (
           <TabsPrimitive.Trigger

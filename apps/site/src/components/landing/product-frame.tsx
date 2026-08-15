@@ -1,11 +1,11 @@
 import {ClientOnly} from '@tanstack/react-router'
 import {Suspense, lazy} from 'react'
 import {useIsMobile} from '@/lib/use-is-mobile'
-import {HERO_HEADLINE} from './hero'
 
 const Demo = lazy(() => import('./demo/demo').then((module) => ({default: module.Demo})))
 
-const HERO_DEMO_ALT = `${HERO_HEADLINE} A screenshot of the conciv chat panel beside a running app, mid-edit on a picked element.`
+const HERO_DEMO_ALT =
+  'conciv chat panel open beside a running app: an element is picked and the agent is editing it live.'
 
 export function ProductFrame() {
   const isMobile = useIsMobile()

@@ -1,11 +1,9 @@
-import {useIsMobile} from '@/lib/use-is-mobile'
 import {InstallCommand} from './install-command'
 import {TryLiveButton} from './try-live-button'
 
 export const HERO_HEADLINE = "Your coding agent, inside the app it's building."
 
 export function HeroCopy() {
-  const isMobile = useIsMobile()
   return (
     <div className="mx-auto max-w-[720px] px-8 pb-10 pt-10 text-center md:pt-[72px]">
       <p className="od-eyebrow mb-5">Beta · Open source · MIT · dev-only</p>
@@ -15,8 +13,8 @@ export function HeroCopy() {
         the change to source, and runs your tests — without you leaving the page.
       </p>
       <div className="flex flex-wrap items-center justify-center gap-4">
-        <InstallCommand compact={Boolean(isMobile)} />
-        {!isMobile && <TryLiveButton />}
+        <InstallCommand />
+        <TryLiveButton />
       </div>
     </div>
   )
