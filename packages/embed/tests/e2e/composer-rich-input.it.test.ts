@@ -2,7 +2,7 @@ import {expect, test, type Page} from '@playwright/test'
 import recorderServer from '@conciv/extension-recorder'
 import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {setupWidgetSuite} from './helpers/suite.js'
-import {openPanel} from './helpers/panel.js'
+import {openPanelOnNewSession} from './helpers/panel.js'
 import {untilPanelDraft} from './helpers/drafts.js'
 
 const ASSISTANT_TEXT = 'Rich input reply'
@@ -19,14 +19,15 @@ const suite = setupWidgetSuite({
 const composer = (page: Page) => page.getByRole('textbox', {name: 'Message the conciv agent'})
 const panel = (page: Page) => page.getByRole('dialog', {name: 'conciv chat agent'})
 
-const waitForDraftWrite = (fragment: string) => untilPanelDraft(suite.kit(), (draft) => draft.text.includes(fragment))
+const waitForDraftWrite = (sessionId: string, fragment: string) =>
+  untilPanelDraft(suite.kit(), sessionId, (draft) => draft.text.includes(fragment))
 
-async function openComposer(page: Page): Promise<void> {
-  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-  await openPanel(page)
+async function openComposer(page: Page): Promise<string> {
+  const sessionId = await openPanelOnNewSession(page, suite)
   const input = composer(page)
   await input.click()
   await expect(input).toHaveText('')
+  return sessionId
 }
 
 async function pickSuggestion(page: Page, listName: string, optionName: string): Promise<void> {
@@ -151,13 +152,13 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
 
   test('a reload restores the draft as plain directive text with the caret at the end', async ({page}) => {
     test.setTimeout(180_000)
-    await openComposer(page)
+    const sessionId = await openComposer(page)
     const input = composer(page)
 
     await input.pressSequentially('ship ')
     await input.pressSequentially('/config')
     await pickSuggestion(page, 'Commands', '/config')
-    await waitForDraftWrite('ship /config')
+    await waitForDraftWrite(sessionId, 'ship /config')
 
     await page.reload({waitUntil: 'domcontentloaded'})
     const restored = composer(page)
@@ -169,14 +170,14 @@ test.describe('the rich composer input in the live widget shadow DOM', () => {
 
   test('a reload restores the caret where the draft left it, not at the end', async ({page}) => {
     test.setTimeout(90_000)
-    await openComposer(page)
+    const sessionId = await openComposer(page)
     const input = composer(page)
 
     await input.pressSequentially('hello world')
     for (let step = 0; step < 6; step += 1) await page.keyboard.press('ArrowLeft')
     await input.pressSequentially('X')
     await expect(input).toHaveText('helloX world')
-    await waitForDraftWrite('helloX world')
+    await waitForDraftWrite(sessionId, 'helloX world')
 
     await page.reload({waitUntil: 'domcontentloaded'})
     const restored = composer(page)
