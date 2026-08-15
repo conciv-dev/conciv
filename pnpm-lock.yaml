@@ -2106,6 +2106,9 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
+      '@conciv/grab':
+        specifier: workspace:^
+        version: link:../../grab
       '@conciv/page':
         specifier: workspace:^
         version: link:../../page
