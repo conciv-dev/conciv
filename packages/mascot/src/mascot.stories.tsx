@@ -1,13 +1,6 @@
 import {createEffect, onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {
-  binaryEffect,
-  createMascot,
-  robotLayers,
-  type MascotConfig,
-  type MascotFollow,
-  type MascotState,
-} from '@conciv/mascot'
+import {binaryEffect, createMascot, robotLayers, type MascotConfig, type MascotFollow, type MascotState} from './rig.js'
 
 const PRODUCT_FAB_ANTENNA_PX = 44
 
@@ -135,7 +128,7 @@ hands them back to the pose value with a short recovery when work stops.
 drives it on every working edge, so two mounted effects mean two live emitters; \`unmountEffect(id)\` drains it.
 An effect renders into the host bound to its id through \`getEffectHostProps(id)\`, falling back to the stage.
 A mount receives one \`EffectContext\` (\`{host, stage, antenna, skin}\`) from the core, and an effect that wants
-to ride the antenna tip exposes an optional \`anchor(tip)\`; anchored effects simply omit it.
+to ride the antenna tip exposes an optional \`anchor(tip)\`; un-anchored effects simply omit it.
 \`binaryEffect\` is the one effect shipped so far and is what this story mounts: five binary
 digits rise out of the antenna tip in two lanes, stay anchored to the tip as the antenna leans, and drain back
 into it when work stops.

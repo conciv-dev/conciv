@@ -42,6 +42,9 @@
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
     "@types/node": "^26.1.0",
+    "solid-js": "^1.9.13",
+    "storybook": "^10.5.0",
+    "storybook-solidjs-vite": "^10.6.0",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3"
   }
