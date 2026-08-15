@@ -11,6 +11,8 @@ const BASE64_BYTES_PER_CHARACTER = 3 / 4
 
 export const MAX_PAYLOAD_BYTES = Math.floor(MAX_PERSISTED_BASE64_CHARACTERS * BASE64_BYTES_PER_CHARACTER)
 
+const IMAGE_DATA_URL_PREFIX = 'data:image/'
+
 const ElementSourceSchema = z.object({
   componentName: z.string().nullable(),
   filePath: z.string(),
@@ -21,7 +23,12 @@ const ElementRectSchema = z.object({x: z.number(), y: z.number(), width: z.numbe
 
 const GrabPreviewSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('dom'), html: z.string(), width: z.number(), height: z.number()}),
-  z.object({kind: z.literal('image'), dataUrl: z.string(), width: z.number(), height: z.number()}),
+  z.object({
+    kind: z.literal('image'),
+    dataUrl: z.string().startsWith(IMAGE_DATA_URL_PREFIX),
+    width: z.number(),
+    height: z.number(),
+  }),
 ])
 
 const GrabPayloadSchema = z.object({
@@ -69,6 +76,11 @@ function shrunkToBudget(payload: GrabPayload): GrabPayload {
   return truncatedTo(payload, codePoints, low)
 }
 
+export function imagePreviewBudget(grab: Grab, preview: Extract<GrabPreview, {kind: 'image'}>): number {
+  const envelope = payloadOf(grab, {...preview, dataUrl: ''})
+  return Math.max(0, MAX_PAYLOAD_BYTES - payloadBytes(envelope))
+}
+
 export function grabToPayload(grab: Grab): GrabPayload {
   const full = payloadOf(grab, grab.preview)
   if (withinBudget(full)) return full
@@ -84,6 +96,7 @@ export function grabToFile(grab: Grab): File {
 }
 
 export function parseGrabPayload(raw: string): GrabPayload | null {
+  if (new TextEncoder().encode(raw).length > MAX_PAYLOAD_BYTES) return null
   try {
     const parsed = GrabPayloadSchema.safeParse(JSON.parse(raw))
     return parsed.success ? parsed.data : null

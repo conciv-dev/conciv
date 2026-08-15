@@ -1,6 +1,14 @@
 import {describe, expect, it} from 'vitest'
-import {GRAB_FILE_NAME, GRAB_MIME, grabToFile, parseGrabPayload} from '../src/grab-attachment.js'
-import type {Grab} from '../src/grab.js'
+import {
+  GRAB_FILE_NAME,
+  GRAB_MIME,
+  grabToFile,
+  grabToPayload,
+  imagePreviewBudget,
+  MAX_PAYLOAD_BYTES,
+  parseGrabPayload,
+} from '../src/grab-attachment.js'
+import type {Grab, GrabPreview} from '../src/grab.js'
 
 const GRAB: Grab = {
   text: '<h1 class="title">Start simple</h1> at src/routes/index.tsx:12:9',
@@ -60,5 +68,57 @@ describe('grab attachment payload', () => {
   it('returns null for a body that is not a grab payload', () => {
     expect(parseGrabPayload('{"nope":true}')).toBeNull()
     expect(parseGrabPayload('not json at all')).toBeNull()
+  })
+
+  it('refuses an image preview whose source is not a data url', () => {
+    const forged = JSON.stringify({
+      text: GRAB.text,
+      source: null,
+      rect: null,
+      preview: {kind: 'image', dataUrl: 'https://tracker.test/pixel.png', width: 1, height: 1},
+    })
+
+    expect(parseGrabPayload(forged)).toBeNull()
+  })
+
+  it('refuses an image preview that smuggles a script scheme', () => {
+    const forged = JSON.stringify({
+      text: GRAB.text,
+      source: null,
+      rect: null,
+      preview: {kind: 'image', dataUrl: 'javascript:alert(1)', width: 1, height: 1},
+    })
+
+    expect(parseGrabPayload(forged)).toBeNull()
+  })
+
+  it('refuses a body larger than the payload budget before parsing it', () => {
+    const oversized = JSON.stringify({
+      text: 'x'.repeat(MAX_PAYLOAD_BYTES + 1),
+      source: null,
+      rect: null,
+      preview: null,
+    })
+
+    expect(oversized.length).toBeGreaterThan(MAX_PAYLOAD_BYTES)
+    expect(parseGrabPayload(oversized)).toBeNull()
+  })
+
+  it('reserves the non-image payload overhead when budgeting an image preview', () => {
+    const preview: Extract<GrabPreview, {kind: 'image'}> = {kind: 'image', dataUrl: '', width: 40, height: 20}
+    const wordy: Grab = {...GRAB, text: 'x'.repeat(50_000), preview}
+
+    expect(imagePreviewBudget(wordy, preview)).toBeLessThanOrEqual(MAX_PAYLOAD_BYTES - 50_000)
+  })
+
+  it('keeps an image preview that was fitted to the reserved budget', () => {
+    const preview: Extract<GrabPreview, {kind: 'image'}> = {kind: 'image', dataUrl: '', width: 40, height: 20}
+    const wordy: Grab = {...GRAB, text: 'x'.repeat(50_000), preview}
+    const budget = imagePreviewBudget(wordy, preview)
+    const fitted: Grab = {...wordy, preview: {...preview, dataUrl: 'd'.repeat(budget)}}
+    const wholeBudget: Grab = {...wordy, preview: {...preview, dataUrl: 'd'.repeat(MAX_PAYLOAD_BYTES)}}
+
+    expect(grabToPayload(fitted).preview?.kind).toBe('image')
+    expect(grabToPayload(wholeBudget).preview).toBeNull()
   })
 })
