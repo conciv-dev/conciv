@@ -114,7 +114,12 @@ test('leaving work for a new pose hands every shared channel to the pose transit
       antennaScaleX: harness.property(antenna, 'scaleX'),
       antennaScaleY: harness.property(antenna, 'scaleY'),
     })
-    const writers = (): [number, number] => [harness.activeWritersOf(head), harness.activeWritersOf(eyes)]
+    const writers = (): [number, number, number, number] => [
+      harness.activeWritersOf(head),
+      harness.activeWritersOfProperty(eyes, 'scaleY'),
+      harness.activeWritersOfProperty(eyes, 'scaleX'),
+      harness.activeWritersOfProperty(eyes, 'yPercent'),
+    ]
     window.service.update({state: 'rest', working: true, follow: false})
     harness.advanceBy(1.3)
     window.service.update({state: 'awake', working: false, follow: false})
@@ -134,7 +139,9 @@ test('leaving work for a new pose hands every shared channel to the pose transit
       rest: landed(),
       writers: {
         head: harness.summarize(handoff.map((entry) => entry[0])),
-        eyes: harness.summarize(handoff.map((entry) => entry[1])),
+        eyesScaleY: harness.summarize(handoff.map((entry) => entry[1])),
+        eyesScaleX: harness.summarize(handoff.map((entry) => entry[2])),
+        eyesYPercent: harness.summarize(handoff.map((entry) => entry[3])),
       },
       anticipationHeadY,
       stretchHeadY,
@@ -155,7 +162,9 @@ test('leaving work for a new pose hands every shared channel to the pose transit
   expectNear('work to rest restores the antenna scaleX', result.rest.antennaScaleX, 1, 0.001)
   expectNear('work to rest restores the antenna scaleY', result.rest.antennaScaleY, 1, 0.001)
   expect(result.writers.head.max, 'exactly one animation writes the head across the handoff').toBe(1)
-  expect(result.writers.eyes.max, 'exactly one animation writes the eyes across the handoff').toBe(1)
+  expect(result.writers.eyesScaleY.max, 'exactly one animation writes the eyes scaleY across the handoff').toBe(1)
+  expect(result.writers.eyesScaleX.max, 'exactly one animation writes the eyes scaleX across the handoff').toBe(1)
+  expect(result.writers.eyesYPercent.max, 'exactly one animation writes the eyes yPercent across the handoff').toBe(1)
   expect(result.anticipationHeadY, 'only the awake anticipation drives the head positive').toBeGreaterThan(3)
   expect(result.stretchHeadY, 'only the awake stretch drives the head past the -5 bob floor').toBeLessThan(-6)
   expect(result.restHead, 'no recovery tween fights the rest pose on the head').toBeLessThanOrEqual(1)

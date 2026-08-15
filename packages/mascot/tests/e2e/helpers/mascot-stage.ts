@@ -14,7 +14,9 @@ const helperDirectory = dirname(fileURLToPath(import.meta.url))
 const packageDirectory = join(helperDirectory, '..', '..', '..')
 const gsapDirectory = dirname(createRequire(import.meta.url).resolve('gsap/package.json'))
 
-const RIG_BUNDLE = join(packageDirectory, 'dist', 'rig.js')
+const DIST_DIRECTORY = join(packageDirectory, 'dist')
+
+const RIG_BUNDLE = join(DIST_DIRECTORY, 'rig.js')
 
 const MASCOT_BASE = 'http://mascot.test/'
 
@@ -31,10 +33,22 @@ function gsapAsset(pathname: string): string | undefined {
   return relative.startsWith('..') ? undefined : join(gsapDirectory, relative)
 }
 
-function assetFor(pathname: string): string | undefined {
-  if (pathname === '/rig.js') return RIG_BUNDLE
-  return gsapAsset(pathname)
+function distAsset(pathname: string): string | undefined {
+  const relative = normalize(pathname.slice(1))
+  return relative.startsWith('..') ? undefined : join(DIST_DIRECTORY, relative)
 }
+
+function assetFor(pathname: string): string | undefined {
+  const gsap = gsapAsset(pathname)
+  if (gsap !== undefined) return gsap
+  return distAsset(pathname)
+}
+
+const isReadable = (path: string): Promise<boolean> =>
+  access(path).then(
+    () => true,
+    () => false,
+  )
 
 const isHarnessDocument = (pathname: string): boolean => pathname === '/' || pathname === '/index.html'
 
@@ -50,6 +64,7 @@ async function handleRoute(route: Route): Promise<void> {
   }
   const asset = assetFor(pathname)
   if (asset === undefined) return route.fulfill({status: 404, body: ''})
+  if (!(await isReadable(asset))) return route.fulfill({status: 404, body: ''})
   return fulfillFile(route, asset)
 }
 

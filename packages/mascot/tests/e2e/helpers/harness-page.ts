@@ -237,6 +237,9 @@ const HARNESS_SCRIPT = `
 
   const activeWritersOf = (element) => gsap.getTweensOf(element).filter((tween) => tween.isActive()).length
 
+  const activeWritersOfProperty = (element, property) =>
+    gsap.getTweensOf(element).filter((tween) => tween.isActive() && Object.hasOwn(tween.vars, property)).length
+
   const boxOf = (element) => ({left: element.offsetLeft, top: element.offsetTop})
 
   const anchorOf = (element) => ({left: parseFloat(element.style.left), top: parseFloat(element.style.top)})
@@ -302,6 +305,7 @@ const HARNESS_SCRIPT = `
     stageCenter,
     globalTweenCount,
     activeWritersOf,
+    activeWritersOfProperty,
     boxOf,
     anchorOf,
     repeatingTimeline,

@@ -134,6 +134,88 @@ test('the work timeline bobs the head and leaves every other pose channel untouc
   expectNear('the head bob returns to the rest yPercent', result.head.max, 0, 0.05)
 })
 
+test('the work bob carries the head, the antenna and the eyes as one unit', async ({page}) => {
+  await installManualClock(page)
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    const {head, eyes, antenna} = window.parts
+    const readLayers = (): [number, number, number] => [
+      harness.property(head, 'yPercent'),
+      harness.property(antenna, 'yPercent'),
+      harness.property(eyes, 'yPercent'),
+    ]
+    const drift = (values: [number, number, number][], headRest: number) =>
+      harness.summarize(
+        values.map(([headY, antennaY, eyesY]) =>
+          Math.max(Math.abs(antennaY - headY + headRest), Math.abs(eyesY - headY + headRest)),
+        ),
+      )
+    const peaks = (values: [number, number, number][]) => ({
+      head: harness.summarize(values.map((entry) => entry[0])),
+      antenna: harness.summarize(values.map((entry) => entry[1])),
+      eyes: harness.summarize(values.map((entry) => entry[2])),
+    })
+    window.service.update({state: 'rest', working: true, follow: false})
+    const restValues = harness.stepFrames<[number, number, number]>(readLayers, 2.4)
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.5)
+    window.service.update({state: 'awake', working: false, follow: false})
+    harness.advanceBy(0.9)
+    window.service.update({state: 'awake', working: true, follow: false})
+    const awakeValues = harness.stepFrames<[number, number, number]>(readLayers, 2.4)
+    return {
+      rest: peaks(restValues),
+      restDrift: drift(restValues, 0),
+      awake: peaks(awakeValues),
+      awakeDrift: drift(awakeValues, -2),
+    }
+  })
+
+  expectNear('the rest head still bobs down to yPercent -5', result.rest.head.min, -5, 0.05)
+  expectNear('the antenna bobs to the same yPercent as the rest head', result.rest.antenna.min, -5, 0.05)
+  expectNear('the eyes bob to the same yPercent as the rest head', result.rest.eyes.min, -5, 0.05)
+  expectNear('the antenna returns to its rest yPercent 0', result.rest.antenna.max, 0, 0.05)
+  expectNear('the eyes return to their rest yPercent 0', result.rest.eyes.max, 0, 0.05)
+  expect(result.restDrift.max, 'the rest bob never separates the antenna or eyes from the head').toBeLessThan(0.001)
+  expect(result.awake.head.min, 'the awake head really bobs').toBeLessThan(-4)
+  expectNear('the awake antenna bobs by the same 3 percent the awake head travels', result.awake.antenna.min, -3, 0.05)
+  expectNear('the awake eyes bob by the same 3 percent the awake head travels', result.awake.eyes.min, -3, 0.05)
+  expect(result.awakeDrift.max, 'the awake bob never separates the antenna or eyes from the head').toBeLessThan(0.001)
+})
+
+test('stopping work returns the antenna and the eyes to their rest yPercent', async ({page}) => {
+  await installManualClock(page)
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    const {eyes, antenna} = window.parts
+    const readLayers = () => ({
+      antenna: harness.property(antenna, 'yPercent'),
+      eyes: harness.property(eyes, 'yPercent'),
+    })
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.7)
+    const bobbed = readLayers()
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.25)
+    const held = readLayers()
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.7)
+    window.service.update({state: 'awake', working: false, follow: false})
+    harness.advanceBy(0.45)
+    const posed = readLayers()
+    return {bobbed, held, posed}
+  })
+
+  expect(result.bobbed.antenna, 'the antenna really left its rest yPercent while working').toBeLessThan(-1)
+  expect(result.bobbed.eyes, 'the eyes really left their rest yPercent while working').toBeLessThan(-1)
+  expectNear('same-state recovery returns the antenna to yPercent 0', result.held.antenna, 0, 0.001)
+  expectNear('same-state recovery returns the eyes to yPercent 0', result.held.eyes, 0, 0.001)
+  expectNear('a pose change still returns the antenna to yPercent 0', result.posed.antenna, 0, 0.001)
+  expectNear('a pose change still returns the eyes to yPercent 0', result.posed.eyes, 0, 0.001)
+})
+
 test('stopping work returns the head to the pose yPercent of the current state', async ({page}) => {
   await installManualClock(page)
   await buildService(page, {state: 'rest', working: false, follow: false})
