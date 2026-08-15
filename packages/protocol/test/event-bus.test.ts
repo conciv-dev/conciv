@@ -1,5 +1,11 @@
 import {describe, expect, it} from 'vitest'
-import {createEventBusClient, createEventBusHost, type EventBusScheduler} from '../src/event-bus.js'
+import {
+  createEventBus,
+  createEventBusClient,
+  GLOBAL_EVENT,
+  type EventBusEnvelope,
+  type EventBusScheduler,
+} from '../src/event-bus.js'
 
 type CommandMap = {
   open: undefined
@@ -29,40 +35,40 @@ function createManualScheduler(): {scheduler: EventBusScheduler; tick: () => voi
   }
 }
 
-describe('createEventBusClient / createEventBusHost', () => {
+describe('createEventBusClient / createEventBus', () => {
   it('queues emits made before the handshake completes and flushes them in order once acked', () => {
     const target = new EventTarget()
     const {scheduler, tick} = createManualScheduler()
     const received: unknown[] = []
-    const host = createEventBusHost<CommandMap>({channel: 'test-channel', target: () => target})
-    host.on('open', (payload) => received.push(['open', payload]))
-    host.on('close', (payload) => received.push(['close', payload]))
+    const bus = createEventBus({target: () => target})
+    const listener = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
+    listener.on('open', (event) => received.push([event.type, event.pluginId]))
+    listener.on('close', (event) => received.push([event.type, event.pluginId]))
 
-    const client = createEventBusClient<CommandMap>({channel: 'test-channel', target: () => target, scheduler})
+    const client = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
     client.emit('open', undefined)
     client.emit('close', undefined)
     expect(received).toEqual([])
     expect(client.getState()).toBe('connecting')
 
-    host.ready()
+    bus.start()
     expect(received).toEqual([])
 
     tick()
     expect(received).toEqual([
-      ['open', null],
-      ['close', null],
+      ['panel:open', 'panel'],
+      ['panel:close', 'panel'],
     ])
     expect(client.getState()).toBe('ready')
   })
 
-  it('stops retrying once the host acks the connection', () => {
+  it('stops retrying once the bus acks the connection', () => {
     const target = new EventTarget()
     const {scheduler, tick, intervalCount} = createManualScheduler()
-    const host = createEventBusHost<CommandMap>({channel: 'test-channel', target: () => target})
-    host.on('open', () => {})
-    host.ready()
+    const bus = createEventBus({target: () => target})
+    bus.start()
 
-    const client = createEventBusClient<CommandMap>({channel: 'test-channel', target: () => target, scheduler})
+    const client = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
     client.emit('open', undefined)
     expect(client.getState()).toBe('ready')
     expect(intervalCount()).toBe(0)
@@ -75,7 +81,7 @@ describe('createEventBusClient / createEventBusHost', () => {
     const target = new EventTarget()
     const {scheduler, tick} = createManualScheduler()
     const client = createEventBusClient<CommandMap>({
-      channel: 'test-channel',
+      pluginId: 'panel',
       target: () => target,
       scheduler,
       maxRetries: 2,
@@ -91,9 +97,10 @@ describe('createEventBusClient / createEventBusHost', () => {
     expect(client.getState()).toBe('failed')
 
     const received: unknown[] = []
-    const host = createEventBusHost<CommandMap>({channel: 'test-channel', target: () => target})
-    host.on('open', (payload) => received.push(payload))
-    host.ready()
+    const bus = createEventBus({target: () => target})
+    const listener = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
+    listener.on('open', (event) => received.push(event))
+    bus.start()
     expect(received).toEqual([])
   })
 
@@ -101,7 +108,7 @@ describe('createEventBusClient / createEventBusHost', () => {
     const target = new EventTarget()
     const {scheduler, tick} = createManualScheduler()
     const client = createEventBusClient<CommandMap>({
-      channel: 'test-channel',
+      pluginId: 'panel',
       target: () => target,
       scheduler,
       maxRetries: 2,
@@ -116,13 +123,14 @@ describe('createEventBusClient / createEventBusHost', () => {
     expect(client.getState()).toBe('connecting')
 
     const received: unknown[] = []
-    const host = createEventBusHost<CommandMap>({channel: 'test-channel', target: () => target})
-    host.on('close', (payload) => received.push(payload))
-    host.ready()
+    const bus = createEventBus({target: () => target})
+    const listener = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
+    listener.on('close', (event) => received.push(event.type))
+    bus.start()
     expect(received).toEqual([])
 
     tick()
-    expect(received).toEqual([null])
+    expect(received).toEqual(['panel:close'])
     expect(client.getState()).toBe('ready')
   })
 
@@ -130,15 +138,79 @@ describe('createEventBusClient / createEventBusHost', () => {
     const target = new EventTarget()
     const {scheduler} = createManualScheduler()
     const received: unknown[] = []
-    const host = createEventBusHost<CommandMap>({channel: 'test-channel', target: () => target})
-    host.on('open', (payload) => received.push(payload))
-    host.ready()
+    const bus = createEventBus({target: () => target})
+    const listener = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
+    listener.on('open', (event) => received.push(event.payload))
+    bus.start()
 
-    const client = createEventBusClient<CommandMap>({channel: 'test-channel', target: () => target, scheduler})
+    const client = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
     client.emit('open', undefined)
     expect(client.getState()).toBe('ready')
 
     client.emit('open', undefined)
-    expect(received).toEqual([null, null])
+    expect(received).toEqual([undefined, undefined])
+  })
+
+  it('re-dispatches every emit as both the specific envelope event and the global event', () => {
+    const target = new EventTarget()
+    const {scheduler} = createManualScheduler()
+    const specific: EventBusEnvelope[] = []
+    const global: EventBusEnvelope[] = []
+    const bus = createEventBus({target: () => target})
+    bus.start()
+    target.addEventListener('panel:open', (event) => {
+      if (event instanceof CustomEvent) specific.push(event.detail)
+    })
+    target.addEventListener(GLOBAL_EVENT, (event) => {
+      if (event instanceof CustomEvent) global.push(event.detail)
+    })
+
+    const client = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
+    client.emit('open', undefined)
+
+    expect(specific).toEqual([{type: 'panel:open', payload: undefined, pluginId: 'panel'}])
+    expect(global).toEqual([{type: 'panel:open', payload: undefined, pluginId: 'panel'}])
+  })
+
+  it('filters onAll down to the listening client own pluginId', () => {
+    const target = new EventTarget()
+    const {scheduler} = createManualScheduler()
+    const seen: string[] = []
+    const bus = createEventBus({target: () => target})
+    bus.start()
+
+    const listener = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
+    listener.onAll((event) => seen.push(event.type))
+
+    const panelClient = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
+    const otherClient = createEventBusClient<CommandMap>({pluginId: 'other', target: () => target, scheduler})
+    otherClient.emit('open', undefined)
+    panelClient.emit('close', undefined)
+
+    expect(seen).toEqual(['panel:close'])
+  })
+
+  it('stops delivering to a listener that unsubscribed and to every listener once the bus stops', () => {
+    const target = new EventTarget()
+    const {scheduler} = createManualScheduler()
+    const seen: string[] = []
+    const bus = createEventBus({target: () => target})
+    bus.start()
+
+    const listener = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
+    const unsubscribe = listener.on('open', (event) => seen.push(event.type))
+
+    const client = createEventBusClient<CommandMap>({pluginId: 'panel', target: () => target, scheduler})
+    client.emit('open', undefined)
+    expect(seen).toEqual(['panel:open'])
+
+    unsubscribe()
+    client.emit('open', undefined)
+    expect(seen).toEqual(['panel:open'])
+
+    listener.on('close', (event) => seen.push(event.type))
+    bus.stop()
+    client.emit('close', undefined)
+    expect(seen).toEqual(['panel:open'])
   })
 })

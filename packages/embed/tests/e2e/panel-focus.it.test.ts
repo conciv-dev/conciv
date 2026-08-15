@@ -69,7 +69,13 @@ async function openPanelOverFocusedHostButton(page: Page): Promise<HostedPanel> 
   const hostButton = page.getByRole('button', {name: 'Host action'})
   await hostButton.click()
   await expect(hostButton).toBeFocused()
-  await page.evaluate(() => window.dispatchEvent(new Event('conciv:open-panel')))
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new CustomEvent('conciv-dispatch-event', {
+        detail: {type: 'panel:open', payload: undefined, pluginId: 'panel'},
+      }),
+    ),
+  )
   await expect(composer(page)).toBeVisible({timeout: 30_000})
   return {host, page, hostButton}
 }

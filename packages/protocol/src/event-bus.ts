@@ -4,6 +4,11 @@ declare global {
   var __CONCIV_EVENT_BUS_TARGET__: EventTarget | undefined
 }
 
+export const DISPATCH_EVENT = 'conciv-dispatch-event'
+export const CONNECT_EVENT = 'conciv-connect'
+export const CONNECT_SUCCESS_EVENT = 'conciv-connect-success'
+export const GLOBAL_EVENT = 'conciv-global'
+
 function sharedEventTarget(): EventTarget {
   if (typeof window !== 'undefined') return window
   if (globalThis.__CONCIV_EVENT_BUS_TARGET__ === undefined) globalThis.__CONCIV_EVENT_BUS_TARGET__ = new EventTarget()
@@ -31,10 +36,72 @@ function defaultScheduler(): EventBusScheduler {
   }
 }
 
+export type EventBusEnvelope<TPayload = unknown> = {
+  type: string
+  payload: TPayload
+  pluginId: string
+}
+
+function customEventDetail<TDetail>(event: Event): TDetail | null {
+  if (!(event instanceof CustomEvent)) return null
+  const detail: TDetail | null | undefined = event.detail
+  return detail ?? null
+}
+
+function readEnvelope(event: Event): EventBusEnvelope | null {
+  const detail = customEventDetail<unknown>(event)
+  if (typeof detail !== 'object' || detail === null) return null
+  if (!('type' in detail) || !('payload' in detail) || !('pluginId' in detail)) return null
+  const {type, payload, pluginId} = detail
+  if (typeof type !== 'string' || typeof pluginId !== 'string') return null
+  return {type, payload, pluginId}
+}
+
+export type EventBusOptions = {
+  target?: EventBusTarget
+}
+
+export type EventBus = {
+  start: () => void
+  stop: () => void
+}
+
+export function createEventBus(options: EventBusOptions = {}): EventBus {
+  const target = options.target ?? sharedEventTarget
+  let started = false
+
+  function redispatch(event: Event): void {
+    const envelope = readEnvelope(event)
+    if (!envelope) return
+    target().dispatchEvent(new CustomEvent(envelope.type, {detail: envelope}))
+    target().dispatchEvent(new CustomEvent(GLOBAL_EVENT, {detail: envelope}))
+  }
+
+  function acknowledgeConnect(): void {
+    target().dispatchEvent(new CustomEvent(CONNECT_SUCCESS_EVENT))
+  }
+
+  function start(): void {
+    if (started) return
+    started = true
+    target().addEventListener(DISPATCH_EVENT, redispatch)
+    target().addEventListener(CONNECT_EVENT, acknowledgeConnect)
+  }
+
+  function stop(): void {
+    if (!started) return
+    started = false
+    target().removeEventListener(DISPATCH_EVENT, redispatch)
+    target().removeEventListener(CONNECT_EVENT, acknowledgeConnect)
+  }
+
+  return {start, stop}
+}
+
 export type EventBusClientState = 'idle' | 'connecting' | 'ready' | 'failed'
 
 export type EventBusClientOptions = {
-  channel: string
+  pluginId: string
   target?: EventBusTarget
   scheduler?: EventBusScheduler
   reconnectEveryMs?: number
@@ -43,12 +110,15 @@ export type EventBusClientOptions = {
 
 export type EventBusClient<TEventMap extends Record<string, unknown>> = {
   emit: <TName extends keyof TEventMap & string>(name: TName, payload: TEventMap[TName]) => void
+  on: <TName extends keyof TEventMap & string>(
+    name: TName,
+    handler: (event: EventBusEnvelope<TEventMap[TName]>) => void,
+  ) => () => void
+  onAll: (handler: (event: EventBusEnvelope) => void) => () => void
   getState: () => EventBusClientState
   subscribe: (listener: () => void) => () => void
   dispose: () => void
 }
-
-type QueuedEvent = {name: string; payload: unknown}
 
 export function createEventBusClient<TEventMap extends Record<string, unknown>>(
   options: EventBusClientOptions,
@@ -57,27 +127,37 @@ export function createEventBusClient<TEventMap extends Record<string, unknown>>(
   const scheduler = options.scheduler ?? defaultScheduler()
   const reconnectEveryMs = options.reconnectEveryMs ?? 300
   const maxRetries = options.maxRetries ?? 5
-  const connectEventName = `${options.channel}:connect`
-  const connectSuccessEventName = `${options.channel}:connect-success`
+  const pluginId = options.pluginId
 
   let state: EventBusClientState = 'idle'
-  let queue: QueuedEvent[] = []
+  let queue: EventBusEnvelope[] = []
   let retryCount = 0
   let intervalId: unknown = null
   const listeners = new Set<() => void>()
+
+  function eventName(name: string): string {
+    return `${pluginId}:${name}`
+  }
+
+  function envelopeFor<TName extends keyof TEventMap & string>(
+    name: TName,
+    payload: TEventMap[TName],
+  ): EventBusEnvelope<TEventMap[TName]> {
+    return {type: eventName(name), payload, pluginId}
+  }
 
   function notify(): void {
     for (const listener of listeners) listener()
   }
 
-  function dispatch(name: string, payload: unknown): void {
-    target().dispatchEvent(new CustomEvent(name, {detail: payload}))
+  function sendToBus(envelope: EventBusEnvelope): void {
+    target().dispatchEvent(new CustomEvent(DISPATCH_EVENT, {detail: envelope}))
   }
 
   function flushQueue(): void {
     const pending = queue
     queue = []
-    for (const event of pending) dispatch(event.name, event.payload)
+    for (const envelope of pending) sendToBus(envelope)
   }
 
   function stopConnectLoop(): void {
@@ -87,7 +167,7 @@ export function createEventBusClient<TEventMap extends Record<string, unknown>>(
   }
 
   function onConnectSuccess(): void {
-    target().removeEventListener(connectSuccessEventName, onConnectSuccess)
+    target().removeEventListener(CONNECT_SUCCESS_EVENT, onConnectSuccess)
     stopConnectLoop()
     state = 'ready'
     flushQueue()
@@ -96,7 +176,7 @@ export function createEventBusClient<TEventMap extends Record<string, unknown>>(
 
   function attemptConnect(): void {
     if (retryCount >= maxRetries) {
-      target().removeEventListener(connectSuccessEventName, onConnectSuccess)
+      target().removeEventListener(CONNECT_SUCCESS_EVENT, onConnectSuccess)
       stopConnectLoop()
       state = 'failed'
       queue = []
@@ -104,30 +184,55 @@ export function createEventBusClient<TEventMap extends Record<string, unknown>>(
       return
     }
     retryCount += 1
-    target().dispatchEvent(new CustomEvent(connectEventName))
+    target().dispatchEvent(new CustomEvent(CONNECT_EVENT))
   }
 
   function startHandshake(): void {
     state = 'connecting'
-    target().addEventListener(connectSuccessEventName, onConnectSuccess)
+    target().addEventListener(CONNECT_SUCCESS_EVENT, onConnectSuccess)
     attemptConnect()
     if (state === 'connecting') intervalId = scheduler.setInterval(attemptConnect, reconnectEveryMs)
     notify()
   }
 
   function emit<TName extends keyof TEventMap & string>(name: TName, payload: TEventMap[TName]): void {
+    const envelope = envelopeFor(name, payload)
     if (state === 'ready') {
-      dispatch(name, payload)
+      sendToBus(envelope)
       return
     }
     if (state === 'failed') {
       retryCount = 0
-      queue.push({name, payload})
+      queue.push(envelope)
       startHandshake()
       return
     }
-    queue.push({name, payload})
+    queue.push(envelope)
     if (state === 'idle') startHandshake()
+  }
+
+  function on<TName extends keyof TEventMap & string>(
+    name: TName,
+    handler: (event: EventBusEnvelope<TEventMap[TName]>) => void,
+  ): () => void {
+    const fullName = eventName(name)
+    const listener = (event: Event) => {
+      const envelope = customEventDetail<EventBusEnvelope<TEventMap[TName]>>(event)
+      if (!envelope) return
+      handler(envelope)
+    }
+    target().addEventListener(fullName, listener)
+    return () => target().removeEventListener(fullName, listener)
+  }
+
+  function onAll(handler: (event: EventBusEnvelope) => void): () => void {
+    const listener = (event: Event) => {
+      const envelope = readEnvelope(event)
+      if (!envelope || envelope.pluginId !== pluginId) return
+      handler(envelope)
+    }
+    target().addEventListener(GLOBAL_EVENT, listener)
+    return () => target().removeEventListener(GLOBAL_EVENT, listener)
   }
 
   function getState(): EventBusClientState {
@@ -141,69 +246,20 @@ export function createEventBusClient<TEventMap extends Record<string, unknown>>(
 
   function dispose(): void {
     stopConnectLoop()
-    target().removeEventListener(connectSuccessEventName, onConnectSuccess)
+    target().removeEventListener(CONNECT_SUCCESS_EVENT, onConnectSuccess)
     listeners.clear()
     queue = []
   }
 
-  return {emit, getState, subscribe, dispose}
+  return {emit, on, onAll, getState, subscribe, dispose}
 }
 
-export type EventBusHostOptions = {
-  channel: string
-  target?: EventBusTarget
-}
-
-export type EventBusHost<TEventMap extends Record<string, unknown>> = {
-  on: <TName extends keyof TEventMap & string>(name: TName, handler: (payload: TEventMap[TName]) => void) => void
-  ready: () => void
-  dispose: () => void
-}
-
-type RegisteredListener = {name: string; listener: (event: Event) => void}
-
-export function createEventBusHost<TEventMap extends Record<string, unknown>>(
-  options: EventBusHostOptions,
-): EventBusHost<TEventMap> {
-  const target = options.target ?? sharedEventTarget
-  const connectEventName = `${options.channel}:connect`
-  const connectSuccessEventName = `${options.channel}:connect-success`
-  const registered: RegisteredListener[] = []
-  let connectListener: (() => void) | null = null
-
-  function on<TName extends keyof TEventMap & string>(name: TName, handler: (payload: TEventMap[TName]) => void): void {
-    const listener = (event: Event) => handler((event as CustomEvent<TEventMap[TName]>).detail)
-    registered.push({name, listener})
-    target().addEventListener(name, listener)
-  }
-
-  function ready(): void {
-    if (connectListener) return
-    connectListener = () => target().dispatchEvent(new CustomEvent(connectSuccessEventName))
-    target().addEventListener(connectEventName, connectListener)
-  }
-
-  function dispose(): void {
-    for (const entry of registered) target().removeEventListener(entry.name, entry.listener)
-    registered.length = 0
-    if (connectListener) {
-      target().removeEventListener(connectEventName, connectListener)
-      connectListener = null
-    }
-  }
-
-  return {on, ready, dispose}
-}
-
-export const PANEL_COMMAND_CHANNEL = 'conciv:panel-commands'
-export const OPEN_PANEL_EVENT = 'conciv:open-panel'
-export const CLOSE_PANEL_EVENT = 'conciv:close-panel'
-export const TOGGLE_PANEL_EVENT = 'conciv:toggle-panel'
+export const PANEL_PLUGIN_ID = 'panel'
 
 export type PanelCommandEventMap = {
-  [OPEN_PANEL_EVENT]: undefined
-  [CLOSE_PANEL_EVENT]: undefined
-  [TOGGLE_PANEL_EVENT]: undefined
+  open: undefined
+  close: undefined
+  toggle: undefined
 }
 
 export const CONNECTION_CHANGED_EVENT = 'conciv:connection-changed'

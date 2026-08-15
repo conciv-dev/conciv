@@ -27,28 +27,22 @@ type MountState = 'unmounted' | 'mounting' | 'mounted'
 
 type PanelCommandName = keyof PanelCommandEventMap & string
 
-type PanelCommandsBus = {
-  client: EventBusClient<PanelCommandEventMap>
-  events: {open: PanelCommandName; close: PanelCommandName; toggle: PanelCommandName}
-}
-
 export function createConciv(init: ConcivInit = {}): ConcivHandle {
   let state: MountState = 'unmounted'
   let abort: AbortController | undefined
   let teardown: (() => void) | undefined
   let rebindImpl: ((apiBase: string) => Promise<void>) | undefined
-  let panelCommandsPromise: Promise<PanelCommandsBus> | null = null
+  let panelCommandsPromise: Promise<EventBusClient<PanelCommandEventMap>> | null = null
 
-  function panelCommands(): Promise<PanelCommandsBus> {
+  function panelCommands(): Promise<EventBusClient<PanelCommandEventMap>> {
     if (panelCommandsPromise) return panelCommandsPromise
-    panelCommandsPromise = import('@conciv/protocol/event-bus').then((eventBus) => ({
-      client: eventBus.createEventBusClient<PanelCommandEventMap>({
-        channel: eventBus.PANEL_COMMAND_CHANNEL,
+    panelCommandsPromise = import('@conciv/protocol/event-bus').then((eventBus) =>
+      eventBus.createEventBusClient<PanelCommandEventMap>({
+        pluginId: eventBus.PANEL_PLUGIN_ID,
         reconnectEveryMs: 500,
         maxRetries: 60,
       }),
-      events: {open: eventBus.OPEN_PANEL_EVENT, close: eventBus.CLOSE_PANEL_EVENT, toggle: eventBus.TOGGLE_PANEL_EVENT},
-    }))
+    )
     return panelCommandsPromise
   }
 
@@ -85,15 +79,15 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
     rebindImpl = undefined
     state = 'unmounted'
     if (panelCommandsPromise) {
-      void panelCommandsPromise.then((bus) => bus.client.dispose()).catch(() => {})
+      void panelCommandsPromise.then((client) => client.dispose()).catch(() => {})
       panelCommandsPromise = null
     }
   }
 
-  function emitPanelCommand(pick: (events: PanelCommandsBus['events']) => PanelCommandName): void {
+  function emitPanelCommand(name: PanelCommandName): void {
     if (typeof window === 'undefined') return
     void panelCommands()
-      .then((bus) => bus.client.emit(pick(bus.events), undefined))
+      .then((client) => client.emit(name, undefined))
       .catch((error: unknown) => {
         panelCommandsPromise = null
         console.error('[conciv] panel command failed', error)
@@ -101,15 +95,15 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
   }
 
   function open(): void {
-    emitPanelCommand((events) => events.open)
+    emitPanelCommand('open')
   }
 
   function close(): void {
-    emitPanelCommand((events) => events.close)
+    emitPanelCommand('close')
   }
 
   function toggle(): void {
-    emitPanelCommand((events) => events.toggle)
+    emitPanelCommand('toggle')
   }
 
   async function rebind(apiBase: string): Promise<void> {

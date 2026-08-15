@@ -15,13 +15,11 @@ import {createHotkey} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {
-  CLOSE_PANEL_EVENT,
   CONNECTION_CHANGED_EVENT,
-  createEventBusHost,
-  OPEN_PANEL_EVENT,
-  PANEL_COMMAND_CHANNEL,
+  createEventBus,
+  createEventBusClient,
+  PANEL_PLUGIN_ID,
   PANEL_TOGGLED_EVENT,
-  TOGGLE_PANEL_EVENT,
   type PanelCommandEventMap,
 } from '@conciv/protocol/event-bus'
 import type {ConcivRouterContext} from '../router.js'
@@ -272,20 +270,27 @@ function RootChrome(props: {
     onCleanup(() => cancelAnimationFrame(frame))
   })
 
-  const panelCommandHost = createEventBusHost<PanelCommandEventMap>({channel: PANEL_COMMAND_CHANNEL})
+  const eventBus = createEventBus()
+  const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID})
 
   onMount(() => {
     if (settings.defaultOpen && closedMatch()) void openPanel()
     makeEventListener(window, 'resize', reportPanelState)
-    panelCommandHost.on(OPEN_PANEL_EVENT, () => void openPanel())
-    panelCommandHost.on(CLOSE_PANEL_EVENT, () => {
-      if (panelOpen()) closePanel()
-    })
-    panelCommandHost.on(TOGGLE_PANEL_EVENT, () => togglePanel())
-    panelCommandHost.ready()
+    const unsubscribes = [
+      panelCommands.on('open', () => void openPanel()),
+      panelCommands.on('close', () => {
+        if (panelOpen()) closePanel()
+      }),
+      panelCommands.on('toggle', () => togglePanel()),
+    ]
+    eventBus.start()
     notifyInteractive()
+    onCleanup(() => {
+      for (const unsubscribe of unsubscribes) unsubscribe()
+      eventBus.stop()
+      panelCommands.dispose()
+    })
   })
-  onCleanup(() => panelCommandHost.dispose())
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return

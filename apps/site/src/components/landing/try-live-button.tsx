@@ -3,8 +3,7 @@ import {Button} from '@/components/ui/button'
 import {
   CONNECTION_CHANGED_EVENT,
   createEventBusClient,
-  OPEN_PANEL_EVENT,
-  PANEL_COMMAND_CHANNEL,
+  PANEL_PLUGIN_ID,
   type EventBusClientState,
   type PanelCommandEventMap,
   type WidgetConnectionChangedDetail,
@@ -37,7 +36,7 @@ function useConcivConnected(): boolean {
 }
 
 const panelCommands = createEventBusClient<PanelCommandEventMap>({
-  channel: PANEL_COMMAND_CHANNEL,
+  pluginId: PANEL_PLUGIN_ID,
   reconnectEveryMs: 500,
   maxRetries: 60,
 })
@@ -49,7 +48,7 @@ function useBusState(): EventBusClientState {
 export function TryLiveButton() {
   const isConnected = useConcivConnected()
   const busState = useBusState()
-  const open = () => panelCommands.emit(OPEN_PANEL_EVENT, undefined)
+  const open = () => panelCommands.emit('open', undefined)
   return (
     <div className="mt-6">
       <Button variant="default" onClick={open} aria-busy={busState === 'connecting'}>

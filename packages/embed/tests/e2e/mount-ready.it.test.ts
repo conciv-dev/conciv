@@ -29,7 +29,11 @@ test.describe('mount() readiness contract', () => {
       document.body.appendChild(el)
       const handle = window.ConcivHandle.makeHandle(base)
       await handle.mount(el)
-      window.dispatchEvent(new Event('conciv:open-panel'))
+      window.dispatchEvent(
+        new CustomEvent('conciv-dispatch-event', {
+          detail: {type: 'panel:open', payload: undefined, pluginId: 'panel'},
+        }),
+      )
     }, kit.base)
     await expect(chatBox(page)).toBeVisible({timeout: 10_000})
   })
