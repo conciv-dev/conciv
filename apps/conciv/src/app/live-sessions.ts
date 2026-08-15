@@ -5,8 +5,10 @@ export type LiveSessions = {
   setRunning: (sessionId: string, running: boolean) => void
 }
 
-function withoutSession(ids: readonly string[], sessionId: string): readonly string[] {
-  return ids.filter((id) => id !== sessionId)
+function withoutOne(ids: readonly string[], sessionId: string): readonly string[] {
+  const index = ids.indexOf(sessionId)
+  if (index < 0) return ids
+  return [...ids.slice(0, index), ...ids.slice(index + 1)]
 }
 
 export function makeLiveSessions(): LiveSessions {
@@ -14,6 +16,6 @@ export function makeLiveSessions(): LiveSessions {
   return {
     anyRunning: () => ids().length > 0,
     setRunning: (sessionId, running) =>
-      setIds((prev) => (running ? [...withoutSession(prev, sessionId), sessionId] : withoutSession(prev, sessionId))),
+      setIds((prev) => (running ? [...prev, sessionId] : withoutOne(prev, sessionId))),
   }
 }

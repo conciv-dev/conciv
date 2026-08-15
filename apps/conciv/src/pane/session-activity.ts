@@ -11,9 +11,12 @@ export type SessionActivityDeps = {
 
 export function trackSessionActivity(deps: SessionActivityDeps): void {
   const liveSessions = useLiveSessions()
+  let holding = false
+
   createEffect<boolean>((was) => {
     const now = deps.working()
     if (now === was) return was
+    holding = now
     liveSessions.setRunning(deps.sessionId, now)
     if (now) deps.onStart()
     if (!now) deps.onSettle()
@@ -21,8 +24,9 @@ export function trackSessionActivity(deps: SessionActivityDeps): void {
   }, false)
 
   onCleanup(() => {
-    const live = deps.working()
+    if (!holding) return
+    holding = false
     liveSessions.setRunning(deps.sessionId, false)
-    if (live) deps.invalidateSessions()
+    deps.invalidateSessions()
   })
 }
