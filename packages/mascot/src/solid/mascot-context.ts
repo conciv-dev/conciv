@@ -4,11 +4,13 @@ import type {CurveStyle} from '../core/path.js'
 
 export type MascotPartName = 'head' | 'eyes' | 'antenna'
 
+export type FollowSource = {follow?: boolean}
+
 export type MascotContextValue = {
   service: MascotService
   partProps: (part: MascotPartName) => MascotPartProps
   effectHostProps: (id: string) => MascotPartProps
-  claimPart: (part: MascotPartName) => void
+  claimPart: (part: MascotPartName, source?: FollowSource) => void
   claimEffect: () => void
   curve: () => CurveStyle | undefined
 }

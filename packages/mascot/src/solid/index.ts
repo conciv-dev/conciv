@@ -6,7 +6,7 @@ import {MascotRoot} from './mascot-root.js'
 
 export type {MascotContextValue, MascotPartName} from './mascot-context.js'
 export {useMascotContext} from './mascot-context.js'
-export type {MascotBinaryProps, MascotLayerProps, MascotProps} from './mascot-props.js'
+export type {MascotBinaryProps, MascotFollowPartProps, MascotLayerProps, MascotProps} from './mascot-props.js'
 export type {
   ActivityChannels,
   CurveStyle,

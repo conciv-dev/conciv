@@ -30,7 +30,9 @@ export type MascotParts = {
 
 export type MascotPartRef = (element: HTMLElement | null) => void
 
-export type MascotPartProps = {style: Record<string, string>; ref: MascotPartRef}
+export type MascotPartRelease = (element: HTMLElement) => void
+
+export type MascotPartProps = {style: Record<string, string>; ref: MascotPartRef; release: MascotPartRelease}
 
 export type MascotConnect = {
   getRootProps: () => MascotPartProps
@@ -59,10 +61,10 @@ type Registration = {
 }
 
 type Slots = {
-  root: HTMLElement | undefined
-  head: HTMLElement | undefined
-  eyes: HTMLElement | undefined
-  antenna: HTMLElement | undefined
+  root: HTMLElement[]
+  head: HTMLElement[]
+  eyes: HTMLElement[]
+  antenna: HTMLElement[]
 }
 
 function followTarget(config: MascotConfig): FollowChannels {
@@ -76,8 +78,13 @@ function samePartsAs(registration: Registration, parts: MascotParts): boolean {
   return current.eyes === parts.eyes && current.antenna === parts.antenna
 }
 
+const boundElement = (candidates: HTMLElement[]): HTMLElement | undefined => candidates[candidates.length - 1]
+
 function readyParts(slots: Slots): MascotParts | undefined {
-  const {root, head, eyes, antenna} = slots
+  const root = boundElement(slots.root)
+  const head = boundElement(slots.head)
+  const eyes = boundElement(slots.eyes)
+  const antenna = boundElement(slots.antenna)
   if (root === undefined || head === undefined) return undefined
   if (eyes === undefined || antenna === undefined) return undefined
   return {stage: root, head, eyes, antenna}
@@ -141,7 +148,7 @@ function applyTransition(registration: Registration, previous: MascotConfig, nex
 }
 
 export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin): MascotService {
-  const slots: Slots = {root: undefined, head: undefined, eyes: undefined, antenna: undefined}
+  const slots: Slots = {root: [], head: [], eyes: [], antenna: []}
   const effectMounts = new Map<string, EffectMount>()
   const effectHosts = new Map<string, HTMLElement>()
   const effectHostProps = new Map<string, MascotPartProps>()
@@ -225,19 +232,29 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
   const slotRef =
     (slot: keyof Slots): MascotPartRef =>
     (element) => {
-      slots[slot] = element ?? undefined
+      if (element === null) slots[slot] = []
+      if (element !== null) slots[slot] = [...slots[slot].filter((bound) => bound !== element), element]
       syncSlots()
     }
 
-  const rootRef = slotRef('root')
-  const headRef = slotRef('head')
-  const eyesRef = slotRef('eyes')
-  const antennaRef = slotRef('antenna')
+  const slotRelease =
+    (slot: keyof Slots): MascotPartRelease =>
+    (element) => {
+      const remaining = slots[slot].filter((bound) => bound !== element)
+      if (remaining.length === slots[slot].length) return
+      slots[slot] = remaining
+      syncSlots()
+    }
 
   const bindEffectHost = (id: string, element: HTMLElement | null) => {
     if (element === null) effectHosts.delete(id)
     if (element !== null) effectHosts.set(id, element)
     registration?.activity.setEffectHost(id, element ?? undefined)
+  }
+
+  const releaseEffectHost = (id: string, element: HTMLElement) => {
+    if (effectHosts.get(id) !== element) return
+    bindEffectHost(id, null)
   }
 
   const effectHostPropsFor = (id: string): MascotPartProps => {
@@ -246,15 +263,22 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
     const props: MascotPartProps = {
       style: effectHostStyle(),
       ref: (element) => bindEffectHost(id, element),
+      release: (element) => releaseEffectHost(id, element),
     }
     effectHostProps.set(id, props)
     return props
   }
 
-  const rootProps: MascotPartProps = {style: rootStyle(), ref: rootRef}
-  const headProps: MascotPartProps = {style: headStyle(skin), ref: headRef}
-  const eyesProps: MascotPartProps = {style: eyesStyle(skin), ref: eyesRef}
-  const antennaProps: MascotPartProps = {style: antennaStyle(skin), ref: antennaRef}
+  const partProps = (slot: keyof Slots, style: Record<string, string>): MascotPartProps => ({
+    style,
+    ref: slotRef(slot),
+    release: slotRelease(slot),
+  })
+
+  const rootProps = partProps('root', rootStyle())
+  const headProps = partProps('head', headStyle(skin))
+  const eyesProps = partProps('eyes', eyesStyle(skin))
+  const antennaProps = partProps('antenna', antennaStyle(skin))
 
   const connected: MascotConnect = {
     getRootProps: () => rootProps,

@@ -17,6 +17,7 @@ export type {
   MascotFollow,
   MascotPartProps,
   MascotPartRef,
+  MascotPartRelease,
   MascotParts,
   MascotService,
   MascotSkin,

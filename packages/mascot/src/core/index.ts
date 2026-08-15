@@ -13,6 +13,7 @@ export {
   type MascotConnect,
   type MascotPartProps,
   type MascotPartRef,
+  type MascotPartRelease,
   type MascotParts,
   type MascotService,
 } from './mascot.js'

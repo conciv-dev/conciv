@@ -1,10 +1,11 @@
-import type {JSX} from 'solid-js'
+import {type JSX, splitProps} from 'solid-js'
 import {useMascotContext} from './mascot-context.js'
 import {MascotLayer} from './mascot-layer.js'
-import type {MascotLayerProps} from './mascot-props.js'
+import type {MascotFollowPartProps} from './mascot-props.js'
 
-export function MascotEyes(props: MascotLayerProps): JSX.Element {
+export function MascotEyes(props: MascotFollowPartProps): JSX.Element {
   const context = useMascotContext()
-  context.claimPart('eyes')
-  return <MascotLayer layer="eyes" {...props} />
+  const [local, rest] = splitProps(props, ['follow'])
+  context.claimPart('eyes', local)
+  return <MascotLayer layer="eyes" {...rest} />
 }

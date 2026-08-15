@@ -390,7 +390,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
 
   const mountEffect = (id: string, mount: EffectMount, host: HTMLElement | undefined) => {
     const existing = effects.get(id)
-    if (existing !== undefined) removeEntry(existing)
+    if (existing !== undefined) detachAndDrain(existing)
     const entry: EffectEntry = {mount, host, handle: undefined, hostOrigin: undefined}
     effects.set(id, entry)
     if (isRunning()) restartEntry(entry)

@@ -1,11 +1,10 @@
 import {createEffect, createUniqueId, type JSX, onCleanup, onMount, splitProps} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import type {EffectMount} from '../core/effects/effect.js'
 import {useMascotContext} from './mascot-context.js'
 import {composeRefs, type MascotLayerProps, mergeStyle} from './mascot-props.js'
 
 export type MascotEffectProps = MascotLayerProps & {mount: () => EffectMount}
-
-const EFFECT_DEPTH: Record<string, string> = {'z-index': '3'}
 
 export function MascotEffect(props: MascotEffectProps): JSX.Element {
   const context = useMascotContext()
@@ -17,15 +16,16 @@ export function MascotEffect(props: MascotEffectProps): JSX.Element {
   createEffect(() => context.service.mountEffect(id, local.mount()))
   onCleanup(() => {
     context.service.unmountEffect(id)
-    host.ref(null)
+    if (element !== undefined) host.release(element)
   })
   return (
-    <div
-      data-scope="mascot"
-      data-part="effect"
+    <Dynamic
+      component="div"
       aria-hidden="true"
       {...rest}
-      style={mergeStyle({...EFFECT_DEPTH, ...host.style}, local.style)}
+      data-scope="mascot"
+      data-part="effect"
+      style={mergeStyle(host.style, local.style)}
       ref={composeRefs((node) => {
         element = node
       }, local.ref)}

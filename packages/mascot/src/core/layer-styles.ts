@@ -12,14 +12,17 @@ const LAYER_STYLE: Record<string, string> = {
   'will-change': 'transform',
 }
 
-const layerStyle = (image: string): Record<string, string> =>
-  Object.freeze({...LAYER_STYLE, 'background-image': `url('${image}')`})
+const LAYER_DEPTH = {head: '0', antenna: '1', eyes: '2', effect: '3'} as const
+
+const layerStyle = (image: string, depth: string): Record<string, string> =>
+  Object.freeze({...LAYER_STYLE, 'z-index': depth, 'background-image': `url('${image}')`})
 
 const ROOT_STYLE: Record<string, string> = Object.freeze({position: 'relative', display: 'block'})
 
 const EFFECT_HOST_STYLE: Record<string, string> = Object.freeze({
   position: 'absolute',
   inset: '0',
+  'z-index': LAYER_DEPTH.effect,
   'pointer-events': 'none',
 })
 
@@ -29,9 +32,9 @@ function stylesFor(skin: MascotSkin): LayerStyles {
   const existing = skinStyles.get(skin)
   if (existing !== undefined) return existing
   const styles: LayerStyles = {
-    head: layerStyle(skin.layers.head),
-    eyes: layerStyle(skin.layers.eyes),
-    antenna: layerStyle(skin.layers.antenna),
+    head: layerStyle(skin.layers.head, LAYER_DEPTH.head),
+    eyes: layerStyle(skin.layers.eyes, LAYER_DEPTH.eyes),
+    antenna: layerStyle(skin.layers.antenna, LAYER_DEPTH.antenna),
   }
   skinStyles.set(skin, styles)
   return styles

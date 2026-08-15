@@ -75,9 +75,15 @@ process.stdout.write(
 
 const SOLID_PROBE = `import {existsSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
+import {Mascot} from '@conciv/mascot/solid'
+import {createComponent, renderToString} from 'solid-js/web'
 
-const resolved = ['@conciv/mascot/solid', 'solid-js', 'solid-js/web'].map((name) =>
-  existsSync(fileURLToPath(import.meta.resolve(name))),
+const sourceEntry = new URL('./node_modules/@conciv/mascot/dist/solid/index.jsx', import.meta.url)
+
+const markup = renderToString(() => createComponent(Mascot, {}))
+
+const rendered = ['root', 'head', 'antenna', 'eyes', 'effect'].filter((part) =>
+  markup.includes('data-part="' + part + '"'),
 )
 
 const installedFrameworks = ['solid-js', 'react', 'react-dom'].filter((name) => {
@@ -89,7 +95,15 @@ const installedFrameworks = ['solid-js', 'react', 'react-dom'].filter((name) => 
   }
 })
 
-process.stdout.write(JSON.stringify({resolved, frameworks: installedFrameworks}))
+process.stdout.write(
+  JSON.stringify({
+    Mascot: typeof Mascot,
+    parts: Object.keys(Mascot).toSorted(),
+    rendered,
+    sourceEntry: existsSync(fileURLToPath(sourceEntry)),
+    frameworks: installedFrameworks,
+  }),
+)
 `
 
 function expectedMounts(): Record<string, string[]> {
@@ -147,9 +161,12 @@ test('a packed install with no framework present resolves and runs the core and 
   })
 }, 60_000)
 
-test('a packed install with only solid present resolves the solid wrapper subpath', () => {
+test('a packed install with only solid present imports and renders the solid wrapper subpath', () => {
   expect(probeInstall(['solid-js'], SOLID_PROBE)).toEqual({
-    resolved: [true, true, true],
+    Mascot: 'function',
+    parts: ['Antenna', 'Binary', 'Eyes', 'Head'],
+    rendered: ['root', 'head', 'antenna', 'eyes', 'effect'],
+    sourceEntry: true,
     frameworks: ['solid-js'],
   })
 }, 60_000)
