@@ -8,6 +8,7 @@ import {trackedFaults} from './helpers/tracked-faults.js'
 import {expectRetryRecovers} from './helpers/retry-recovery.js'
 
 const RESOLVE_PATH = ['sessions', 'resolve']
+const LIST_PATH = ['sessions', 'list']
 
 const core = {base: ''}
 const harness = createShellHarness(() => core.base)
@@ -62,4 +63,27 @@ test('rapid double-trigger creates exactly one pane', async () => {
 
   await expect.element(closePane().nth(1), {timeout: 8000}).toBeVisible()
   await expect.element(closePane().nth(2)).not.toBeInTheDocument()
+}, 30_000)
+
+test('adding and closing a pane never re-resolves the warm session', async () => {
+  const rpc = coreRpc(core.base)
+  const sessionId = await createSession(rpc)
+  const mountMark = await coreControl.rpcMark()
+  harness.mountShell(`/quick?panes=${sessionId}&focus=0`)
+  await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  await coreControl.awaitRpcCall(RESOLVE_PATH, mountMark)
+  const resolvesAfterWarmUp = await coreControl.rpcCallCount(RESOLVE_PATH)
+
+  const addMark = await coreControl.rpcMark()
+  await page.getByRole('button', {name: 'Split pane (Mod+D)'}).click()
+  await expect.element(closePane().nth(1), {timeout: 8000}).toBeVisible()
+  expect(await coreControl.awaitRpcCall(LIST_PATH, addMark)).toBe(200)
+
+  const closeMark = await coreControl.rpcMark()
+  await closePane().nth(1).click()
+  await expect.element(closePane().nth(1)).not.toBeInTheDocument()
+  expect(await coreControl.awaitRpcCall(LIST_PATH, closeMark)).toBe(200)
+  await rpc.sessions.list()
+
+  expect((await coreControl.rpcCallCount(RESOLVE_PATH)) - resolvesAfterWarmUp).toBe(1)
 }, 30_000)
