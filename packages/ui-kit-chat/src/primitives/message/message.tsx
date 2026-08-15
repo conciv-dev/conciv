@@ -198,7 +198,8 @@ const IF_PREDICATES: Record<IfKey, IfPredicate> = {
   assistant: (turn) => turn.role === 'assistant',
   system: (turn) => turn.role === 'system',
   hasContent: (turn) => turn.parts.length > 0,
-  hasText: (turn) => turn.parts.some((part) => part.type === 'text' && part.content.trim() !== ''),
+  hasText: (turn) =>
+    turn.parts.some((part) => part.type === 'text' && part.content.trim() !== '' && !partIsModelOnly(part)),
   last: (_turn, message) => message.isLast(),
   lastOrHover: (turn, message, hovering) => message.isLast() || hovering === turn.key,
   hasAttachments: (turn) => turn.parts.some((part) => part.type === 'image' || part.type === 'document'),
