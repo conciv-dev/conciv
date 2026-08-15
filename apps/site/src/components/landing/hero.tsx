@@ -20,7 +20,7 @@ export function Hero() {
         </Badge>
         <p className="mb-3 font-mono text-[13px] font-semibold uppercase tracking-[0.3em] text-primary">Conceive it.</p>
         <h1 className="od-display mb-5 text-[clamp(40px,5.2vw,62px)] font-bold leading-[1.02] tracking-[-0.03em]">
-          An AI dev agent that lives inside your <span className="od-underline">running app</span>.
+          Claude Code, living inside your <span className="od-underline">running app</span>.
         </h1>
         <p className="mb-8 max-w-[30ch] text-[18px] text-muted-foreground">
           Add one plugin. Then <b className="font-semibold text-foreground">chat</b>, let it{' '}
