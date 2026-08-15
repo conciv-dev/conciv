@@ -28,11 +28,12 @@ test.describe('a send that carries an attachment', () => {
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
 
-    await page.locator('input[type=file]').setInputFiles({
-      name: GRAB_FILE_NAME,
-      mimeType: GRAB_MIME,
-      buffer: Buffer.from(GRAB_JSON),
-    })
+    const addAttachment = page.getByRole('button', {name: 'Add attachment'})
+    await expect(addAttachment).toBeEnabled({timeout: 30_000})
+    const opened = page.waitForEvent('filechooser', {timeout: 30_000})
+    await addAttachment.click()
+    const chooser = await opened
+    await chooser.setFiles({name: GRAB_FILE_NAME, mimeType: GRAB_MIME, buffer: Buffer.from(GRAB_JSON)})
     await expect(page.getByRole('button', {name: 'Open grabbed element'})).toBeVisible({timeout: 30_000})
 
     await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(MESSAGE_TEXT)
