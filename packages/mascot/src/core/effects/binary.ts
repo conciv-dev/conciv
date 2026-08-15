@@ -12,12 +12,9 @@ import {
   BINARY_EMITTER_RISE_PX,
   BINARY_EMITTER_STAGGER_S,
   BINARY_EMITTER_TANGENT_OFFSET_DEG,
-  ENTER_DURATION_S,
-  ENTER_EASE,
 } from '../config.js'
 import {
   type CurveStyle,
-  type EmitterAnchor,
   emitterCurvePoints,
   type EmitterPoint,
   type EmitterRoom,
@@ -26,7 +23,14 @@ import {
   stageViewportBounds,
 } from '../path.js'
 import {antennaTipAnchor} from '../tip-anchor.js'
-import {enterFromTip, exitIntoTip} from '../tip-transition.js'
+import {
+  antennaScaleFactor,
+  createTipEmitter,
+  createTipShell,
+  noEmitterWork,
+  TIP_ORIGIN,
+  WILL_CHANGE_STYLE,
+} from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
 export type BinaryEffectConfig = {curve: CurveStyle}
@@ -38,12 +42,6 @@ const DEFAULT_BINARY_CURVE: CurveStyle = 'straight'
 const DIGIT_INDEXES = Array.from({length: BINARY_EMITTER_DIGIT_COUNT}, (_, index) => index)
 
 const isLeadingLane = (index: number): boolean => index % 2 === 0
-
-function antennaScaleFactor(antenna: HTMLElement, referenceAntennaPx: number): number {
-  const size = Math.min(antenna.offsetWidth, antenna.offsetHeight)
-  if (size <= 0) return 1
-  return size / referenceAntennaPx
-}
 
 const laneOffset = (index: number): number =>
   isLeadingLane(index) ? BINARY_EMITTER_LANE_OFFSET_PX : -BINARY_EMITTER_LANE_OFFSET_PX
@@ -73,16 +71,10 @@ function createRider(factor: number, index: number): HTMLElement {
   return rider
 }
 
-function createShell(tip: EmitterAnchor, factor: number): HTMLElement {
-  const element = document.createElement('span')
-  element.setAttribute('aria-hidden', 'true')
-  element.style.cssText =
-    `position:absolute;left:${tip.x}px;top:${tip.y}px;width:0;height:0;pointer-events:none;` +
-    `color:${BINARY_EMITTER_COLOR};font-family:${BINARY_EMITTER_FONT_FAMILY};` +
-    `font-size:${BINARY_EMITTER_FONT_SIZE_PX * factor}px;` +
-    `font-weight:${BINARY_EMITTER_FONT_WEIGHT};line-height:1;will-change:transform,opacity`
-  return element
-}
+const digitShellStyle = (factor: number): string =>
+  `color:${BINARY_EMITTER_COLOR};font-family:${BINARY_EMITTER_FONT_FAMILY};` +
+  `font-size:${BINARY_EMITTER_FONT_SIZE_PX * factor}px;` +
+  `font-weight:${BINARY_EMITTER_FONT_WEIGHT};line-height:1;${WILL_CHANGE_STYLE}`
 
 function createRiseTimeline(digits: HTMLElement[], factor: number): gsap.core.Timeline {
   gsap.set(digits, {opacity: 0})
@@ -141,20 +133,15 @@ function planRiders(context: EffectContext, factor: number, curve: CurveStyle, e
   return elements.map((element, index) => ({element, path: emitterCurvePoints(style, room, index, factor)}))
 }
 
-const returnToFull = (element: HTMLElement): gsap.core.Tween =>
-  gsap.to(element, {scale: 1, opacity: 1, duration: ENTER_DURATION_S, ease: ENTER_EASE})
-
 function createBinaryEmitter(context: EffectContext, curve: CurveStyle): EffectHandle {
   const {host, antenna, skin} = context
   const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
-  const element = createShell(antennaTipAnchor(host, antenna, skin), factor)
+  const element = createTipShell(antennaTipAnchor(host, antenna, skin), digitShellStyle(factor))
   const curved = curve !== 'straight'
   const elements = DIGIT_INDEXES.map((index) => (curved ? createRider(factor, index) : createDigit(factor, index)))
   element.append(...elements)
   host.append(element)
   let timeline: gsap.core.Timeline | undefined = curved ? undefined : createRiseTimeline(elements, factor)
-  let enter: gsap.core.Tween | undefined
-  let exit: gsap.core.Tween | undefined
 
   const straightAfterCurve = (): gsap.core.Timeline => {
     gsap.set(elements, {x: 0, rotation: 0})
@@ -168,37 +155,13 @@ function createBinaryEmitter(context: EffectContext, curve: CurveStyle): EffectH
     timeline = riders.length === 0 ? straightAfterCurve() : createCurveTimeline(riders)
   }
 
-  const anchor = (next: EmitterAnchor) => {
-    gsap.set(element, {left: next.x, top: next.y, autoRound: false})
-  }
-
-  const remove = () => {
-    exit?.kill()
-    exit = undefined
-    enter?.kill()
-    enter = undefined
-    timeline?.kill()
-    element.remove()
-  }
-
-  const start = () => {
-    exit?.kill()
-    exit = undefined
-    rebuildCurve()
-    enter = enter === undefined ? enterFromTip(element) : returnToFull(element)
-  }
-
-  const stop = (onRemoved: () => void) => {
-    if (exit !== undefined) return
-    enter?.kill()
-    exit = exitIntoTip(element, () => {
-      exit = undefined
-      remove()
-      onRemoved()
-    })
-  }
-
-  return {start, stop, remove, anchor}
+  return createTipEmitter({
+    element,
+    origin: TIP_ORIGIN,
+    onStart: rebuildCurve,
+    onStop: noEmitterWork,
+    onRemove: () => timeline?.kill(),
+  })
 }
 
 export const binaryEffect: EffectMount = (context) => createBinaryEmitter(context, DEFAULT_BINARY_CURVE)

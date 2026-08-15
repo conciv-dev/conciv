@@ -19,12 +19,76 @@
   ],
   "type": "module",
   "sideEffects": [
-    "./dist/rig.js"
+    "./dist/core/path.js"
   ],
   "exports": {
     ".": {
       "types": "./dist/rig.d.ts",
       "import": "./dist/rig.js"
+    },
+    "./effects/binary": {
+      "types": "./dist/core/effects/binary.d.ts",
+      "import": "./dist/core/effects/binary.js"
+    },
+    "./effects/matrix": {
+      "types": "./dist/core/effects/matrix.d.ts",
+      "import": "./dist/core/effects/matrix.js"
+    },
+    "./effects/thought-cloud": {
+      "types": "./dist/core/effects/thought-cloud.d.ts",
+      "import": "./dist/core/effects/thought-cloud.js"
+    },
+    "./effects/pixel-bubbles": {
+      "types": "./dist/core/effects/pixel-bubbles.d.ts",
+      "import": "./dist/core/effects/pixel-bubbles.js"
+    },
+    "./effects/signal-rings": {
+      "types": "./dist/core/effects/signal-rings.d.ts",
+      "import": "./dist/core/effects/signal-rings.js"
+    },
+    "./effects/speech-bubble": {
+      "types": "./dist/core/effects/speech-bubble.d.ts",
+      "import": "./dist/core/effects/speech-bubble.js"
+    },
+    "./effects/steam": {
+      "types": "./dist/core/effects/steam.d.ts",
+      "import": "./dist/core/effects/steam.js"
+    },
+    "./effects/spark": {
+      "types": "./dist/core/effects/spark.d.ts",
+      "import": "./dist/core/effects/spark.js"
+    },
+    "./effects/spark-burst": {
+      "types": "./dist/core/effects/spark-burst.d.ts",
+      "import": "./dist/core/effects/spark-burst.js"
+    },
+    "./effects/spark-fountain": {
+      "types": "./dist/core/effects/spark-fountain.d.ts",
+      "import": "./dist/core/effects/spark-fountain.js"
+    },
+    "./effects/satellite": {
+      "types": "./dist/core/effects/satellite.d.ts",
+      "import": "./dist/core/effects/satellite.js"
+    },
+    "./effects/led-cone": {
+      "types": "./dist/core/effects/led-cone.d.ts",
+      "import": "./dist/core/effects/led-cone.js"
+    },
+    "./effects/tick-ring": {
+      "types": "./dist/core/effects/tick-ring.d.ts",
+      "import": "./dist/core/effects/tick-ring.js"
+    },
+    "./effects/signal-bars": {
+      "types": "./dist/core/effects/signal-bars.d.ts",
+      "import": "./dist/core/effects/signal-bars.js"
+    },
+    "./effects/heart": {
+      "types": "./dist/core/effects/heart.d.ts",
+      "import": "./dist/core/effects/heart.js"
+    },
+    "./effects/notes": {
+      "types": "./dist/core/effects/notes.d.ts",
+      "import": "./dist/core/effects/notes.js"
     }
   },
   "publishConfig": {
