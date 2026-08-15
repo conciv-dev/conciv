@@ -159,23 +159,33 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     entry.handle.start()
   }
 
-  const stopEntry = (entry: EffectEntry) => {
-    entry.handle?.stop(() => {
-      entry.handle = undefined
+  const beginDrain = (entry: EffectEntry, handle: EffectHandle) => {
+    if (draining.has(handle)) return
+    draining.add(handle)
+    handle.stop(() => {
+      draining.delete(handle)
+      if (entry.handle === handle) entry.handle = undefined
     })
+  }
+
+  const stopEntry = (entry: EffectEntry) => {
+    if (entry.handle === undefined) return
+    beginDrain(entry, entry.handle)
   }
 
   const detachAndDrain = (entry: EffectEntry) => {
     const handle = entry.handle
     entry.handle = undefined
     if (handle === undefined) return
-    draining.add(handle)
-    handle.stop(() => draining.delete(handle))
+    beginDrain(entry, handle)
   }
 
   const removeEntry = (entry: EffectEntry) => {
-    entry.handle?.remove()
+    const handle = entry.handle
     entry.handle = undefined
+    if (handle === undefined) return
+    draining.delete(handle)
+    handle.remove()
   }
 
   const setRest = (rest: ActivityRest) => {
