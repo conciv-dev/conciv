@@ -1,4 +1,4 @@
-import {createSignal, type Accessor} from 'solid-js'
+import {createMemo, createSignal, type Accessor} from 'solid-js'
 
 export type LiveSessions = {
   anyRunning: Accessor<boolean>
@@ -22,8 +22,9 @@ function withDelta(counts: RunCounts, sessionId: string, delta: number): RunCoun
 
 export function makeLiveSessions(): LiveSessions {
   const [counts, setCounts] = createSignal<RunCounts>(new Map())
+  const anyRunning = createMemo(() => counts().size > 0)
   return {
-    anyRunning: () => counts().size > 0,
+    anyRunning,
     setRunning: (sessionId, running) => setCounts((prev) => withDelta(prev, sessionId, running ? 1 : -1)),
   }
 }

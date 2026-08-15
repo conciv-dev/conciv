@@ -57,7 +57,7 @@ describe('makeLiveSessions', () => {
     live.setRunning('session-a', false)
 
     expect(live.anyRunning(), 'the last stop drains the session').toBe(false)
-    expect(notifications()).toBe(5)
+    expect(notifications(), 'the middle start and stop never flip the boolean, so nobody wakes').toBe(3)
     dispose()
   })
 })
