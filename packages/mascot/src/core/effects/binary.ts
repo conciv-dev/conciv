@@ -11,28 +11,25 @@ import {
   BINARY_EMITTER_RISE_DURATION_S,
   BINARY_EMITTER_RISE_PX,
   BINARY_EMITTER_STAGGER_S,
-  EMITTER_REFERENCE_ANTENNA_PX,
   ENTER_DURATION_S,
   ENTER_EASE,
 } from '../config.js'
 import type {EmitterAnchor} from '../path.js'
+import type {MascotSkin} from '../skin.js'
+import {antennaTipAnchor} from '../tip-anchor.js'
 import {enterFromTip, exitIntoTip} from '../tip-transition.js'
+import type {EffectHandle, EffectMount} from './effect.js'
 
-export type BinaryEmitter = {
-  element: HTMLElement
-  start: () => void
-  stop: (onRemoved: () => void) => void
-  remove: () => void
-}
+export type BinaryEmitter = EffectHandle
 
 const DIGIT_INDEXES = Array.from({length: BINARY_EMITTER_DIGIT_COUNT}, (_, index) => index)
 
 const isLeadingLane = (index: number): boolean => index % 2 === 0
 
-function antennaScaleFactor(antenna: HTMLElement): number {
+function antennaScaleFactor(antenna: HTMLElement, referenceAntennaPx: number): number {
   const size = Math.min(antenna.offsetWidth, antenna.offsetHeight)
   if (size <= 0) return 1
-  return size / EMITTER_REFERENCE_ANTENNA_PX
+  return size / referenceAntennaPx
 }
 
 function createDigit(factor: number, index: number): HTMLElement {
@@ -75,8 +72,13 @@ function createRiseTimeline(digits: HTMLElement[], factor: number): gsap.core.Ti
 const returnToFull = (element: HTMLElement): gsap.core.Tween =>
   gsap.to(element, {scale: 1, opacity: 1, duration: ENTER_DURATION_S, ease: ENTER_EASE})
 
-export function createBinaryEmitter(stage: HTMLElement, antenna: HTMLElement, tip: EmitterAnchor): BinaryEmitter {
-  const factor = antennaScaleFactor(antenna)
+export function createBinaryEmitter(
+  stage: HTMLElement,
+  antenna: HTMLElement,
+  tip: EmitterAnchor,
+  referenceAntennaPx: number,
+): BinaryEmitter {
+  const factor = antennaScaleFactor(antenna, referenceAntennaPx)
   const element = createShell(tip, factor)
   const digits = DIGIT_INDEXES.map((index) => createDigit(factor, index))
   element.append(...digits)
@@ -112,3 +114,8 @@ export function createBinaryEmitter(stage: HTMLElement, antenna: HTMLElement, ti
 
   return {element, start, stop, remove}
 }
+
+export const binaryEffect =
+  (antenna: HTMLElement, skin: MascotSkin): EffectMount =>
+  (host) =>
+    createBinaryEmitter(host, antenna, antennaTipAnchor(host, antenna, skin), skin.referenceAntennaPx)

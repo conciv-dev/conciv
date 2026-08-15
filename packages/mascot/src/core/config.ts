@@ -1,14 +1,23 @@
 export type MascotState = 'rest' | 'awake'
 
-export type MascotConfig = {state: MascotState; working: boolean; follow: boolean}
+export type FollowChannels = {eyes: boolean; antenna: boolean}
+
+export type MascotFollow = boolean | FollowChannels
+
+export type MascotConfig = {state: MascotState; working: boolean; follow: MascotFollow}
+
+export const NO_FOLLOW_CHANNELS: FollowChannels = {eyes: false, antenna: false}
+
+export const followChannels = (follow: MascotFollow): FollowChannels =>
+  typeof follow === 'boolean' ? {eyes: follow, antenna: follow} : follow
+
+export const sameFollowChannels = (left: FollowChannels, right: FollowChannels): boolean =>
+  left.eyes === right.eyes && left.antenna === right.antenna
+
+export const anyFollowChannel = (channels: FollowChannels): boolean => channels.eyes || channels.antenna
 
 export const reduceMotion = (): boolean =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-
-export const ANTENNA_ORIGIN_FRACTION_X = 0.5
-export const ANTENNA_ORIGIN_FRACTION_Y = 0.328
-
-export const ANTENNA_TRANSFORM_ORIGIN = `${ANTENNA_ORIGIN_FRACTION_X * 100}% ${ANTENNA_ORIGIN_FRACTION_Y * 100}%`
 
 export const GAZE_FALLOFF_PX = 220
 export const GAZE_EYE_RANGE_PX = 3
@@ -28,6 +37,11 @@ export const THROB_RISE_EASE = 'power2.out'
 export const THROB_RETURN_DURATION_S = 0.55
 export const THROB_RETURN_EASE = 'elastic.out(1,0.5)'
 
+export const HEAD_BOB_Y_PERCENT = -5
+export const HEAD_BOB_DURATION_S = 1
+export const HEAD_BOB_EASE = 'sine.inOut'
+export const HEAD_BOB_BEATS = [0, 1] as const
+
 export const RECOVERY_DURATION_S = 0.2
 export const RECOVERY_EASE = 'power2.out'
 
@@ -37,8 +51,6 @@ export const BLINK_CLOSE_EASE = 'power2.in'
 export const BLINK_OPEN_DURATION_S = 0.18
 export const BLINK_OPEN_EASE = 'power2.out'
 export const BLINK_BEATS = [1.15, 1.22] as const
-
-export const EMITTER_REFERENCE_ANTENNA_PX = 44
 
 export const BINARY_EMITTER_DIGIT_COUNT = 5
 export const BINARY_EMITTER_LANE_OFFSET_PX = 3
@@ -52,8 +64,6 @@ export const BINARY_EMITTER_COLOR = 'var(--pw-accent, #e0218a)'
 export const BINARY_EMITTER_DIGIT_LEFT_PX = -4
 export const BINARY_EMITTER_DIGIT_TOP_PX = -12
 
-export const TIP_FRACTION_X = 0.5
-export const TIP_FRACTION_Y = 0.15625
 export const TIP_SCALE = 0.2
 export const TIP_TRACK_DURATION_S = 0.45
 
@@ -63,4 +73,6 @@ export const EXIT_EASE = 'power2.in'
 export const EXIT_DURATION_S = 0.5
 
 export const REST_EYE_SCALE_Y = 1
-export const AWAKE_EYE_REST_SCALE_Y = 1.06
+export const REST_HEAD_Y_PERCENT = 0
+export const AWAKE_HEAD_Y_PERCENT = -2
+export const AWAKE_ANTENNA_ROTATION_DEG = -4

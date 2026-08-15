@@ -73,24 +73,37 @@ export function buildLegacyRig(page: Page): Promise<StagePoint> {
   })
 }
 
-export function buildService(
+function buildStage(
   page: Page,
   config: MascotConfig,
+  withBinary: boolean,
   stageSizePx?: number,
   layerInsetPx?: number,
 ): Promise<StagePoint> {
   return page.evaluate(
-    ([initial, sizePx, insetPx]) => {
+    ([initial, binary, sizePx, insetPx]) => {
       const harness = window.mascotHarness
       const parts = harness.buildStage(sizePx, insetPx)
       window.parts = parts
       window.service = harness.mascot.createMascot(initial)
       window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
+      if (!binary) return harness.stageCenter(parts.root)
+      window.service.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin))
       return harness.stageCenter(parts.root)
     },
-    [config, stageSizePx, layerInsetPx] as const,
+    [config, withBinary, stageSizePx, layerInsetPx] as const,
   )
 }
+
+export const buildService = (
+  page: Page,
+  config: MascotConfig,
+  stageSizePx?: number,
+  layerInsetPx?: number,
+): Promise<StagePoint> => buildStage(page, config, true, stageSizePx, layerInsetPx)
+
+export const buildBareService = (page: Page, config: MascotConfig): Promise<StagePoint> =>
+  buildStage(page, config, false)
 
 export type Gaze = {eyesX: number; eyesY: number; lean: number}
 

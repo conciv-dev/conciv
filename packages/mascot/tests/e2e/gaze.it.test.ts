@@ -46,6 +46,64 @@ test('the legacy open state lands its pose and disarms the gaze listener', async
   expect(pose.listeners, 'open disarms the gaze listener').toBe(0)
 })
 
+test('follow {eyes} tracks the pointer with the eyes while the antenna stays still', async ({page}) => {
+  const center = await buildService(page, {state: 'rest', working: false, follow: {eyes: true, antenna: false}})
+  await page.mouse.move(center.x + 400, center.y)
+  await settle(page, 1400)
+  const tracking = await readGaze(page)
+  const listeners = await page.evaluate(() => window.pointerMoveListenerCount)
+
+  expectNear('the eyes channel saturates at 3px', tracking.eyesX, 3, 0.05)
+  expectNear('the antenna channel stays still', tracking.lean, 0, 0.001)
+  expect(listeners, 'one listener drives the armed channel').toBe(1)
+})
+
+test('follow {antenna} leans the antenna while the eyes stay still', async ({page}) => {
+  const center = await buildService(page, {state: 'rest', working: false, follow: {eyes: false, antenna: true}})
+  await page.mouse.move(center.x + 400, center.y)
+  await settle(page, 1400)
+  const tracking = await readGaze(page)
+  const disarmed = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    window.service.update({state: 'rest', working: false, follow: {eyes: false, antenna: false}})
+    await harness.wait(900)
+    return {
+      lean: harness.property(window.parts.antenna.parentElement, 'rotation'),
+      listeners: window.pointerMoveListenerCount,
+    }
+  })
+
+  expectNear('the antenna channel saturates at 10deg', tracking.lean, 10, 0.1)
+  expect(
+    Math.abs(tracking.eyesX) <= 0.001 && Math.abs(tracking.eyesY) <= 0.001,
+    `the eyes channel stays still -> ${JSON.stringify(tracking)}`,
+  ).toBe(true)
+  expectNear('dropping every channel settles the lean to zero', disarmed.lean, 0, 0.001)
+  expect(disarmed.listeners, 'dropping every channel detaches the listener').toBe(0)
+})
+
+test('narrowing follow to one channel returns the dropped channel to zero', async ({page}) => {
+  const center = await buildService(page, {state: 'rest', working: false, follow: true})
+  await page.mouse.move(center.x + 400, center.y)
+  await settle(page, 1400)
+  const both = await readGaze(page)
+  const narrowed = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    window.service.update({state: 'rest', working: false, follow: {eyes: true, antenna: false}})
+    await harness.wait(900)
+    return {
+      eyesX: harness.property(window.parts.eyes, 'x'),
+      lean: harness.property(window.parts.antenna.parentElement, 'rotation'),
+      listeners: window.pointerMoveListenerCount,
+    }
+  })
+
+  expectNear('both channels tracked before narrowing', both.lean, 10, 0.1)
+  expectNear('the dropped antenna channel returns to zero', narrowed.lean, 0, 0.001)
+  expectNear('the kept eyes channel holds its tracking', narrowed.eyesX, 3, 0.05)
+  expect(narrowed.listeners, 'narrowing keeps exactly one listener').toBe(1)
+})
+
 test('follow arms, disarms and settles without leaking pointermove listeners', async ({page}) => {
   const center = await buildService(page, {state: 'rest', working: false, follow: true})
   await page.mouse.move(center.x + 400, center.y)

@@ -1,6 +1,14 @@
 import {createEffect, onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {createMascot, robotLayers, type MascotConfig, type MascotState} from '@conciv/mascot'
+import {
+  binaryEffect,
+  createMascot,
+  robotLayers,
+  robotSkin,
+  type MascotConfig,
+  type MascotFollow,
+  type MascotState,
+} from '@conciv/mascot'
 
 const PRODUCT_FAB_ANTENNA_PX = 44
 
@@ -34,12 +42,25 @@ const frameStyle = (sizePx: number): JSX.CSSProperties => ({
 
 type PoseApply = 'animate' | 'set'
 
-type StageProps = {state: MascotState; working: boolean; follow: boolean; stageSizePx: number}
+type FollowMode = 'both' | 'eyes' | 'antenna' | 'none'
+
+const FOLLOW_MODES: Record<FollowMode, MascotFollow> = {
+  both: true,
+  eyes: {eyes: true, antenna: false},
+  antenna: {eyes: false, antenna: true},
+  none: false,
+}
+
+type StageProps = {state: MascotState; working: boolean; follow: FollowMode; stageSizePx: number}
 
 type PlaygroundProps = StageProps & {poseApply: PoseApply}
 
 function MascotStage(props: StageProps): JSX.Element {
-  const config = (): MascotConfig => ({state: props.state, working: props.working, follow: props.follow})
+  const config = (): MascotConfig => ({
+    state: props.state,
+    working: props.working,
+    follow: FOLLOW_MODES[props.follow],
+  })
   const service = createMascot(untrack(config))
   let stage: HTMLDivElement | undefined
   let head: HTMLDivElement | undefined
@@ -49,6 +70,7 @@ function MascotStage(props: StageProps): JSX.Element {
   onMount(() => {
     if (stage === undefined || head === undefined || eyes === undefined || antenna === undefined) return
     service.registerParts({stage, head, eyes, antenna})
+    service.mountEffect('binary', binaryEffect(antenna, robotSkin))
   })
 
   createEffect(() => service.update(config()))
@@ -91,23 +113,35 @@ const COMPONENT_DOCS = `
 drives it directly: no wrapper component sits in between. Move the pointer near the robot to see the gaze,
 and flip the controls to see every cell of the state x working matrix.
 
-**Service** — \`createMascot(config)\` returns \`{update, registerParts, connect, destroy}\`.
-\`registerParts({stage, head, eyes, antenna, effectHost?})\` attaches the core to the elements you rendered,
-and calling it again with the same nodes is a no-op. \`update(config)\` diffs the next config against the
-current one and runs only the transitions that changed. \`connect()\` is the wrapper-facing surface: per-part
-\`{style, ref}\` getters a Solid or React wrapper spreads onto its own elements, used from phase 2 onward.
+**Service** — \`createMascot(config, skin?)\` returns
+\`{update, registerParts, mountEffect, unmountEffect, connect, destroy}\`.
+\`registerParts({stage, head, eyes, antenna})\` attaches the core to the elements you rendered, and calling it
+again with the same nodes is a no-op. \`update(config)\` diffs the next config against the current one and runs
+only the transitions that changed. \`connect()\` is the wrapper-facing surface: per-part \`{style, ref}\` getters
+a Solid or React wrapper spreads onto its own elements, plus \`getEffectHostProps(id)\` for a keyed effect host.
 \`destroy()\` disposes every controller and is terminal.
 
 **Config** — \`state\` is the resting expression, \`'rest'\` or \`'awake'\`. \`working\` turns the activity
-overlay on. \`follow\` asks for pointer tracking; it is armed only while \`follow && !working\`, because work
-owns the antenna.
+overlay on. \`follow\` asks for pointer tracking, either as one boolean or per channel
+(\`{eyes, antenna}\`); a channel is armed only while it is asked for and \`!working\`, because work owns the
+antenna. Flip the follow control here to watch one channel track while the other stays still.
 
 **Controllers** — three independent controllers share the same elements. Pose owns the resting expression and
 animates between rest and awake. Follow moves the eyes and leans the antenna toward the pointer. Activity owns
-everything that happens while work is in flight: the antenna throb, the eye blink, and the running effect.
+everything that happens while work is in flight: the head bob, the antenna throb, the eye blink, and every
+mounted effect. Head \`yPercent\` and eye \`scaleY\` are handoff channels: activity owns them while working and
+hands them back to the pose value with a short recovery when work stops.
 
-**Binary emitter** — the one effect shipped in phase 1. Five binary digits rise out of the antenna tip in two
-lanes, stay anchored to the tip as the antenna leans, and drain back into it when work stops.
+**Effects** — the core mounts nothing on its own. \`mountEffect(id, mount)\` registers an effect and activity
+drives it on every working edge, so two mounted effects mean two live emitters; \`unmountEffect(id)\` drains it.
+An effect renders into the host bound to its id through \`getEffectHostProps(id)\`, falling back to the stage.
+\`binaryEffect(antenna, skin)\` is the one effect shipped so far and is what this story mounts: five binary
+digits rise out of the antenna tip in two lanes, stay anchored to the tip as the antenna leans, and drain back
+into it when work stops.
+
+**Skin** — every art-coupled value (layer images, transform origins, the antenna origin and tip fractions, the
+awake eye scale, the emitter's reference antenna size) lives in one \`MascotSkin\`, defaulting to
+\`robotSkin\`. Motion timing and eases are behavior, not art, so they stay in the core.
 
 **Stage size** — the emitter is scale-relative. Every emitter distance (digit size, the two lane offsets, the
 digit placement, the rise) is the approved value multiplied by \`min(antennaWidth, antennaHeight) / 44\`. The
@@ -133,11 +167,18 @@ const meta: Meta<PlaygroundProps> = {
   title: 'mascot/Core',
   tags: ['autodocs'],
   parameters: {docs: {description: {component: COMPONENT_DOCS}}},
-  args: {state: 'rest', working: false, follow: true, stageSizePx: 120, poseApply: 'animate'},
+  args: {state: 'rest', working: false, follow: 'both', stageSizePx: 120, poseApply: 'animate'},
   argTypes: {
     state: {control: 'inline-radio', options: ['rest', 'awake'], description: 'Resting expression'},
-    working: {control: 'boolean', description: 'Activity overlay: antenna throb, eye blink, binary emitter'},
-    follow: {control: 'boolean', description: 'Pointer tracking, armed only while not working'},
+    working: {
+      control: 'boolean',
+      description: 'Activity overlay: head bob, antenna throb, eye blink, mounted effects',
+    },
+    follow: {
+      control: 'inline-radio',
+      options: ['both', 'eyes', 'antenna', 'none'],
+      description: 'Which pointer-tracking channels are armed; armed only while not working',
+    },
     stageSizePx: {
       control: {type: 'range', min: PRODUCT_FAB_ANTENNA_PX, max: 320, step: 4},
       description: 'Stage box size; the layers fill it, so the emitter scales with it (44px = the widget FAB)',

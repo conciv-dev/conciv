@@ -1,5 +1,12 @@
 import gsap from 'gsap'
-import {ANTENNA_TRANSFORM_ORIGIN, AWAKE_EYE_REST_SCALE_Y, type MascotState, REST_EYE_SCALE_Y} from '../config.js'
+import {
+  AWAKE_ANTENNA_ROTATION_DEG,
+  AWAKE_HEAD_Y_PERCENT,
+  type MascotState,
+  REST_EYE_SCALE_Y,
+  REST_HEAD_Y_PERCENT,
+} from '../config.js'
+import type {MascotSkin} from '../skin.js'
 
 export type PoseParts = {head: HTMLElement; eyes: HTMLElement; antenna: HTMLElement}
 
@@ -7,27 +14,23 @@ export type PoseController = {
   set: (state: MascotState) => void
   animateTo: (state: MascotState) => void
   eyeRestScaleY: () => number
+  headRestYPercent: () => number
   dispose: () => void
 }
 
-const HEAD_ORIGIN = '50% 80%'
-const EYES_ORIGIN = '49.6% 58.6%'
-
-const HEAD_POSED_PROPERTIES = 'yPercent,rotation,scaleX,scaleY'
+const HEAD_POSED_PROPERTIES = 'rotation,scaleX,scaleY'
 const EYES_POSED_PROPERTIES = 'scaleX'
 const ANTENNA_POSED_PROPERTIES = 'rotation'
 
-const AWAKE_HEAD_Y_PERCENT = -2
-const AWAKE_ANTENNA_ROTATION_DEG = -4
-
-export function createPoseController(parts: PoseParts): PoseController {
+export function createPoseController(parts: PoseParts, skin: MascotSkin): PoseController {
   const {head, eyes, antenna} = parts
+  const awakeEyeScaleY = skin.awakeEyeRestScaleY
   let timeline: gsap.core.Timeline | undefined
   let current: MascotState = 'rest'
 
-  gsap.set(head, {transformOrigin: HEAD_ORIGIN})
-  gsap.set(eyes, {transformOrigin: EYES_ORIGIN})
-  gsap.set(antenna, {transformOrigin: ANTENNA_TRANSFORM_ORIGIN})
+  gsap.set(head, {transformOrigin: skin.transformOrigins.head})
+  gsap.set(eyes, {transformOrigin: skin.transformOrigins.eyes})
+  gsap.set(antenna, {transformOrigin: skin.transformOrigins.antenna})
 
   const killTimeline = () => {
     timeline?.kill()
@@ -41,14 +44,14 @@ export function createPoseController(parts: PoseParts): PoseController {
   }
 
   const setRestPose = () => {
-    gsap.set(head, {yPercent: 0, rotation: 0, scaleX: 1, scaleY: 1})
+    gsap.set(head, {yPercent: REST_HEAD_Y_PERCENT, rotation: 0, scaleX: 1, scaleY: 1})
     gsap.set(eyes, {scaleX: 1, scaleY: REST_EYE_SCALE_Y})
     gsap.set(antenna, {rotation: 0, scaleX: 1, scaleY: 1})
   }
 
   const setAwakePose = () => {
     gsap.set(head, {yPercent: AWAKE_HEAD_Y_PERCENT, rotation: 0, scaleX: 1, scaleY: 1})
-    gsap.set(eyes, {scaleX: 1, scaleY: AWAKE_EYE_REST_SCALE_Y})
+    gsap.set(eyes, {scaleX: 1, scaleY: awakeEyeScaleY})
     gsap.set(antenna, {rotation: AWAKE_ANTENNA_ROTATION_DEG})
   }
 
@@ -68,14 +71,14 @@ export function createPoseController(parts: PoseParts): PoseController {
         duration: 0.26,
         ease: 'power3.out',
       })
-      .to(eyes, {scaleY: AWAKE_EYE_REST_SCALE_Y, scaleX: 1, duration: 0.22, ease: 'power2.out'}, '<')
+      .to(eyes, {scaleY: awakeEyeScaleY, scaleX: 1, duration: 0.22, ease: 'power2.out'}, '<')
       .to(antenna, {rotation: AWAKE_ANTENNA_ROTATION_DEG, duration: 0.34, ease: 'power2.out'}, '<')
 
   const playRest = () =>
     gsap
       .timeline()
       .to(head, {yPercent: 4, scaleY: 0.95, duration: 0.07, ease: 'power2.in'})
-      .to(head, {yPercent: 0, scaleX: 1, scaleY: 1, rotation: 0, duration: 0.2, ease: 'power3.out'})
+      .to(head, {yPercent: REST_HEAD_Y_PERCENT, scaleX: 1, scaleY: 1, rotation: 0, duration: 0.2, ease: 'power3.out'})
       .to(eyes, {scaleX: 1, scaleY: REST_EYE_SCALE_Y, duration: 0.16, ease: 'power2.out'}, '<')
       .to(antenna, {rotation: 0, scaleX: 1, scaleY: 1, duration: 0.22, ease: 'power2.out'}, '<')
 
@@ -94,7 +97,9 @@ export function createPoseController(parts: PoseParts): PoseController {
     timeline = state === 'awake' ? playAwake() : playRest()
   }
 
-  const eyeRestScaleY = () => (current === 'awake' ? AWAKE_EYE_REST_SCALE_Y : REST_EYE_SCALE_Y)
+  const eyeRestScaleY = () => (current === 'awake' ? awakeEyeScaleY : REST_EYE_SCALE_Y)
+
+  const headRestYPercent = () => (current === 'awake' ? AWAKE_HEAD_Y_PERCENT : REST_HEAD_Y_PERCENT)
 
   const dispose = () => {
     killTimeline()
@@ -103,5 +108,5 @@ export function createPoseController(parts: PoseParts): PoseController {
     current = 'rest'
   }
 
-  return {set, animateTo, eyeRestScaleY, dispose}
+  return {set, animateTo, eyeRestScaleY, headRestYPercent, dispose}
 }

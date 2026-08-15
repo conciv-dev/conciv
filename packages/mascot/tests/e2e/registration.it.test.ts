@@ -5,8 +5,6 @@ import {buildService, openMascotPage, restTip, type StageParts} from './helpers/
 
 type RequiredSlot = 'getRootProps' | 'getHeadProps' | 'getEyesProps' | 'getAntennaProps'
 
-type ConnectSlot = RequiredSlot | 'getEffectHostProps'
-
 type TeardownReading = {
   slot: RequiredSlot
   armed: {wrappers: number; listeners: number}
@@ -25,15 +23,13 @@ test('connect() hands back stable refs and rebinding never duplicates the rig', 
     const service = harness.mascot.createMascot({state: 'rest', working: false, follow: false})
     const first = service.connect()
     const second = service.connect()
-    const names: ConnectSlot[] = [
-      'getRootProps',
-      'getHeadProps',
-      'getEyesProps',
-      'getAntennaProps',
-      'getEffectHostProps',
-    ]
-    const sameGetterTwice = names.every((name) => first[name]().ref === first[name]().ref)
-    const sameAcrossConnectCalls = names.every((name) => first[name]().ref === second[name]().ref)
+    const names: RequiredSlot[] = ['getRootProps', 'getHeadProps', 'getEyesProps', 'getAntennaProps']
+    const sameGetterTwice =
+      names.every((name) => first[name]().ref === first[name]().ref) &&
+      first.getEffectHostProps('binary').ref === first.getEffectHostProps('binary').ref
+    const sameAcrossConnectCalls =
+      names.every((name) => first[name]().ref === second[name]().ref) &&
+      first.getEffectHostProps('binary').ref === second.getEffectHostProps('binary').ref
     const parts = harness.buildStage()
     harness.applyStyle(parts.root, first.getRootProps().style)
     harness.applyStyle(parts.head, first.getHeadProps().style)
@@ -43,6 +39,7 @@ test('connect() hands back stable refs and rebinding never duplicates the rig', 
     first.getHeadProps().ref(parts.head)
     first.getEyesProps().ref(parts.eyes)
     first.getAntennaProps().ref(parts.antenna)
+    service.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin))
     service.update({state: 'rest', working: true, follow: false})
     await harness.wait(900)
     const emitterBefore = harness.requireEmitter()
@@ -115,6 +112,7 @@ test('update() before registerParts stores the config and replays it on registra
     let threw = false
     try {
       service.update({state: 'awake', working: true, follow: false})
+      service.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin))
     } catch {
       threw = true
     }
@@ -126,8 +124,8 @@ test('update() before registerParts stores the config and replays it on registra
     return {threw, beforeRegister, headY, eyesScaleY, emitters: harness.emitters().length}
   })
 
-  expect(result.threw, 'update before registerParts does not throw').toBe(false)
-  expect(result.beforeRegister, 'update before registerParts starts nothing').toBe(0)
+  expect(result.threw, 'update and mountEffect before registerParts do not throw').toBe(false)
+  expect(result.beforeRegister, 'update and mountEffect before registerParts start nothing').toBe(0)
   expectNear('stored state applies on registration', result.headY, -2, 0.001)
   expectNear('stored eye pose applies on registration', result.eyesScaleY, 1.06, 0.001)
   expect(result.emitters, 'stored working flag applies on registration').toBe(1)
@@ -169,7 +167,7 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
     const harness = window.mascotHarness
     const bind = (connected: MascotConnect, parts: StageParts, effectHost: HTMLElement) => {
       connected.getRootProps().ref(parts.root)
-      connected.getEffectHostProps().ref(effectHost)
+      connected.getEffectHostProps('binary').ref(effectHost)
       connected.getHeadProps().ref(parts.head)
       connected.getEyesProps().ref(parts.eyes)
       connected.getAntennaProps().ref(parts.antenna)
@@ -202,7 +200,7 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
     const service = harness.mascot.createMascot({state: 'rest', working: true, follow: true})
     const connected = service.connect()
     const host = harness.buildBareStage()
-    connected.getEffectHostProps().ref(host)
+    connected.getEffectHostProps('binary').ref(host)
     await harness.wait(200)
     const effectHostAlone = {
       wrappers: harness.leanWrappers().length,
@@ -217,6 +215,7 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
     const parts = harness.buildStage()
     const effectHost = makeEffectHost(parts.root)
     bind(bound, parts, effectHost)
+    mounted.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin))
     await harness.wait(700)
     const emitter = harness.emitters()[0]
     const hosted = {

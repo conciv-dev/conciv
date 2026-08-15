@@ -1,15 +1,24 @@
-import {type MascotConfig, reduceMotion} from './config.js'
+import {
+  anyFollowChannel,
+  type FollowChannels,
+  followChannels,
+  type MascotConfig,
+  NO_FOLLOW_CHANNELS,
+  reduceMotion,
+  sameFollowChannels,
+} from './config.js'
+import type {EffectMount} from './effects/effect.js'
 import {antennaStyle, effectHostStyle, eyesStyle, headStyle, rootStyle} from './layer-styles.js'
-import {type ActivityController, createActivityController} from './parts/activity.js'
+import {type ActivityController, type ActivityRest, createActivityController} from './parts/activity.js'
 import {createFollowController, type FollowController, wrapForLean} from './parts/follow.js'
 import {createPoseController, type PoseController} from './parts/pose.js'
+import {type MascotSkin, robotSkin} from './skin.js'
 
 export type MascotParts = {
   stage: HTMLElement
   head: HTMLElement
   eyes: HTMLElement
   antenna: HTMLElement
-  effectHost?: HTMLElement
 }
 
 export type MascotPartRef = (element: HTMLElement | null) => void
@@ -21,12 +30,14 @@ export type MascotConnect = {
   getHeadProps: () => MascotPartProps
   getEyesProps: () => MascotPartProps
   getAntennaProps: () => MascotPartProps
-  getEffectHostProps: () => MascotPartProps
+  getEffectHostProps: (id: string) => MascotPartProps
 }
 
 export type MascotService = {
   update: (config: MascotConfig) => void
   registerParts: (parts: MascotParts) => void
+  mountEffect: (id: string, mount: EffectMount) => void
+  unmountEffect: (id: string) => void
   connect: () => MascotConnect
   destroy: () => void
 }
@@ -41,36 +52,33 @@ type Registration = {
 
 type Slots = {
   root: HTMLElement | undefined
-  effectHost: HTMLElement | undefined
   head: HTMLElement | undefined
   eyes: HTMLElement | undefined
   antenna: HTMLElement | undefined
 }
 
-const followTarget = (config: MascotConfig): boolean => config.follow && !config.working && !reduceMotion()
-
-function sameLayersAs(current: MascotParts, parts: MascotParts): boolean {
-  if (current.head !== parts.head) return false
-  return current.eyes === parts.eyes && current.antenna === parts.antenna
+function followTarget(config: MascotConfig): FollowChannels {
+  if (config.working || reduceMotion()) return NO_FOLLOW_CHANNELS
+  return followChannels(config.follow)
 }
 
 function samePartsAs(registration: Registration, parts: MascotParts): boolean {
   const current = registration.parts
-  if (current.stage !== parts.stage || current.effectHost !== parts.effectHost) return false
-  return sameLayersAs(current, parts)
-}
-
-function layersOf(slots: Slots, stage: HTMLElement): MascotParts | undefined {
-  const {head, eyes, antenna, effectHost} = slots
-  if (head === undefined || eyes === undefined) return undefined
-  if (antenna === undefined) return undefined
-  return {stage, head, eyes, antenna, effectHost}
+  if (current.stage !== parts.stage || current.head !== parts.head) return false
+  return current.eyes === parts.eyes && current.antenna === parts.antenna
 }
 
 function readyParts(slots: Slots): MascotParts | undefined {
-  if (slots.root === undefined) return undefined
-  return layersOf(slots, slots.root)
+  const {root, head, eyes, antenna} = slots
+  if (root === undefined || head === undefined) return undefined
+  if (eyes === undefined || antenna === undefined) return undefined
+  return {stage: root, head, eyes, antenna}
 }
+
+const poseRest = (registration: Registration): ActivityRest => ({
+  eyeScaleY: registration.pose.eyeRestScaleY(),
+  headYPercent: registration.pose.headRestYPercent(),
+})
 
 function applyPose(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
   if (previous.state === next.state) return
@@ -80,28 +88,29 @@ function applyPose(registration: Registration, previous: MascotConfig, next: Mas
 
 function applyFollow(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
   const wanted = followTarget(next)
-  if (wanted === followTarget(previous)) return
-  if (wanted) return registration.follow.arm()
+  if (sameFollowChannels(wanted, followTarget(previous))) return
+  if (anyFollowChannel(wanted)) return registration.follow.arm(wanted)
   registration.follow.disarm(!next.working)
 }
 
 function startWorking(registration: Registration): void {
   registration.follow.disarm(false)
-  registration.activity.start(registration.pose.eyeRestScaleY())
+  registration.activity.start(poseRest(registration))
   registration.activity.trackTip()
 }
 
 function applyWork(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
   if (!previous.working) return startWorking(registration)
   if (previous.state === next.state) return
-  registration.activity.setEyeRest(registration.pose.eyeRestScaleY())
+  registration.activity.setRest(poseRest(registration))
   registration.activity.trackTip()
 }
 
 function endWork(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
   registration.activity.stop()
   applyPose(registration, previous, next)
-  if (followTarget(next)) registration.follow.arm()
+  const wanted = followTarget(next)
+  if (anyFollowChannel(wanted)) registration.follow.arm(wanted)
 }
 
 function applyTransition(registration: Registration, previous: MascotConfig, next: MascotConfig): void {
@@ -111,8 +120,11 @@ function applyTransition(registration: Registration, previous: MascotConfig, nex
   applyFollow(registration, previous, next)
 }
 
-export function createMascot(initial: MascotConfig): MascotService {
-  const slots: Slots = {root: undefined, effectHost: undefined, head: undefined, eyes: undefined, antenna: undefined}
+export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin): MascotService {
+  const slots: Slots = {root: undefined, head: undefined, eyes: undefined, antenna: undefined}
+  const effectMounts = new Map<string, EffectMount>()
+  const effectHosts = new Map<string, HTMLElement>()
+  const effectHostRefs = new Map<string, MascotPartRef>()
   let config = initial
   let registration: Registration | undefined
   let destroyed = false
@@ -127,18 +139,18 @@ export function createMascot(initial: MascotConfig): MascotService {
   }
 
   const setup = (parts: MascotParts) => {
-    const leanWrapper = wrapForLean(parts.antenna)
-    const pose = createPoseController(parts)
+    const leanWrapper = wrapForLean(parts.antenna, skin)
+    const pose = createPoseController(parts, skin)
     const follow = createFollowController({eyes: parts.eyes, leanWrapper})
-    const activity = createActivityController({
-      stage: parts.effectHost ?? parts.stage,
-      antenna: parts.antenna,
-      eyes: parts.eyes,
-    })
+    const activity = createActivityController(
+      {stage: parts.stage, head: parts.head, antenna: parts.antenna, eyes: parts.eyes},
+      skin,
+    )
     registration = {parts, leanWrapper, pose, follow, activity}
     pose.set(config.state)
-    if (config.working) activity.start(pose.eyeRestScaleY())
-    if (followTarget(config)) follow.arm()
+    effectMounts.forEach((mount, id) => activity.mountEffect(id, mount, effectHosts.get(id)))
+    if (config.working) startWorking(registration)
+    follow.arm(followTarget(config))
   }
 
   const registerParts = (parts: MascotParts) => {
@@ -154,6 +166,17 @@ export function createMascot(initial: MascotConfig): MascotService {
     config = next
     if (registration === undefined) return
     applyTransition(registration, previous, next)
+  }
+
+  const mountEffect = (id: string, mount: EffectMount) => {
+    if (destroyed) return
+    effectMounts.set(id, mount)
+    registration?.activity.mountEffect(id, mount, effectHosts.get(id))
+  }
+
+  const unmountEffect = (id: string) => {
+    effectMounts.delete(id)
+    registration?.activity.unmountEffect(id)
   }
 
   const syncSlots = () => {
@@ -174,14 +197,27 @@ export function createMascot(initial: MascotConfig): MascotService {
   const headRef = slotRef('head')
   const eyesRef = slotRef('eyes')
   const antennaRef = slotRef('antenna')
-  const effectHostRef = slotRef('effectHost')
+
+  const bindEffectHost = (id: string, element: HTMLElement | null) => {
+    if (element === null) effectHosts.delete(id)
+    if (element !== null) effectHosts.set(id, element)
+    registration?.activity.setEffectHost(id, element ?? undefined)
+  }
+
+  const effectHostRef = (id: string): MascotPartRef => {
+    const existing = effectHostRefs.get(id)
+    if (existing !== undefined) return existing
+    const ref: MascotPartRef = (element) => bindEffectHost(id, element)
+    effectHostRefs.set(id, ref)
+    return ref
+  }
 
   const connect = (): MascotConnect => ({
     getRootProps: () => ({style: rootStyle(), ref: rootRef}),
-    getHeadProps: () => ({style: headStyle(), ref: headRef}),
-    getEyesProps: () => ({style: eyesStyle(), ref: eyesRef}),
-    getAntennaProps: () => ({style: antennaStyle(), ref: antennaRef}),
-    getEffectHostProps: () => ({style: effectHostStyle(), ref: effectHostRef}),
+    getHeadProps: () => ({style: headStyle(skin), ref: headRef}),
+    getEyesProps: () => ({style: eyesStyle(skin), ref: eyesRef}),
+    getAntennaProps: () => ({style: antennaStyle(skin), ref: antennaRef}),
+    getEffectHostProps: (id) => ({style: effectHostStyle(), ref: effectHostRef(id)}),
   })
 
   const destroy = () => {
@@ -189,5 +225,5 @@ export function createMascot(initial: MascotConfig): MascotService {
     destroyed = true
   }
 
-  return {update, registerParts, connect, destroy}
+  return {update, registerParts, mountEffect, unmountEffect, connect, destroy}
 }

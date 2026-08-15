@@ -6,6 +6,10 @@ import {
   BLINK_CLOSE_SCALE_Y,
   BLINK_OPEN_DURATION_S,
   BLINK_OPEN_EASE,
+  HEAD_BOB_BEATS,
+  HEAD_BOB_DURATION_S,
+  HEAD_BOB_EASE,
+  HEAD_BOB_Y_PERCENT,
   RECOVERY_DURATION_S,
   RECOVERY_EASE,
   reduceMotion,
@@ -18,18 +22,28 @@ import {
   THROB_SCALE_Y,
   TIP_TRACK_DURATION_S,
 } from '../config.js'
-import {createBinaryEmitter, type BinaryEmitter} from '../effects/binary.js'
+import type {EffectHandle, EffectMount} from '../effects/effect.js'
+import type {MascotSkin} from '../skin.js'
 import {antennaTipAnchor} from '../tip-anchor.js'
 
-export type ActivityParts = {stage: HTMLElement; antenna: HTMLElement; eyes: HTMLElement}
+export type ActivityParts = {stage: HTMLElement; head: HTMLElement; antenna: HTMLElement; eyes: HTMLElement}
+
+export type ActivityRest = {eyeScaleY: number; headYPercent: number}
 
 export type ActivityController = {
-  start: (eyeRestScaleY: number) => void
-  setEyeRest: (eyeRestScaleY: number) => void
+  start: (rest: ActivityRest) => void
+  setRest: (rest: ActivityRest) => void
   trackTip: () => void
   stop: () => void
+  mountEffect: (id: string, mount: EffectMount, host: HTMLElement | undefined) => void
+  unmountEffect: (id: string) => void
+  setEffectHost: (id: string, host: HTMLElement | undefined) => void
   dispose: () => void
 }
+
+type EffectEntry = {mount: EffectMount; host: HTMLElement | undefined; handle: EffectHandle | undefined}
+
+type WorkTimeline = {timeline: gsap.core.Timeline; blinkReturn: gsap.core.Tween; bobReturn: gsap.core.Tween}
 
 const NEUTRAL_SCALE = 1
 
@@ -47,32 +61,45 @@ const throbOut = (): gsap.TweenVars => ({
   ease: THROB_RETURN_EASE,
 })
 
-type WorkTimeline = {timeline: gsap.core.Timeline; blinkReturn: gsap.core.Tween}
-
-function buildWorkTimeline(antenna: HTMLElement, eyes: HTMLElement, eyeRestScaleY: number): WorkTimeline {
+function buildWorkTimeline(parts: ActivityParts, rest: ActivityRest): WorkTimeline {
+  const {head, antenna, eyes} = parts
   const blinkReturn = gsap.to(eyes, {
-    scaleY: eyeRestScaleY,
+    scaleY: rest.eyeScaleY,
     duration: BLINK_OPEN_DURATION_S,
     ease: BLINK_OPEN_EASE,
   })
+  const bobReturn = gsap.to(head, {
+    yPercent: rest.headYPercent,
+    duration: HEAD_BOB_DURATION_S,
+    ease: HEAD_BOB_EASE,
+  })
   const timeline = gsap
     .timeline({repeat: -1})
+    .to(head, {yPercent: HEAD_BOB_Y_PERCENT, duration: HEAD_BOB_DURATION_S, ease: HEAD_BOB_EASE}, HEAD_BOB_BEATS[0])
+    .add(bobReturn, HEAD_BOB_BEATS[1])
     .to(antenna, throbIn(), THROB_BEATS[0])
     .to(antenna, throbOut(), THROB_BEATS[1])
     .to(antenna, throbIn(), THROB_BEATS[2])
     .to(antenna, throbOut(), THROB_BEATS[3])
     .to(eyes, {scaleY: BLINK_CLOSE_SCALE_Y, duration: BLINK_CLOSE_DURATION_S, ease: BLINK_CLOSE_EASE}, BLINK_BEATS[0])
     .add(blinkReturn, BLINK_BEATS[1])
-  return {timeline, blinkReturn}
+  return {timeline, blinkReturn, bobReturn}
 }
 
-export function createActivityController(parts: ActivityParts): ActivityController {
-  const {stage, antenna, eyes} = parts
+function retarget(tween: gsap.core.Tween, property: string, value: number): void {
+  tween.vars[property] = value
+  tween.invalidate()
+}
+
+export function createActivityController(parts: ActivityParts, skin: MascotSkin): ActivityController {
+  const {stage, head, antenna, eyes} = parts
+  const effects = new Map<string, EffectEntry>()
   let work: WorkTimeline | undefined
-  let emitter: BinaryEmitter | undefined
   let recoveryTweens: gsap.core.Tween[] = []
   let tipTracker: gsap.core.Tween | undefined
-  let restingEyeScaleY = NEUTRAL_SCALE
+  let resting: ActivityRest = {eyeScaleY: NEUTRAL_SCALE, headYPercent: 0}
+
+  const isWorking = () => work !== undefined
 
   const killTimeline = () => {
     work?.timeline.kill()
@@ -89,37 +116,52 @@ export function createActivityController(parts: ActivityParts): ActivityControll
     tipTracker = undefined
   }
 
-  const anchorEmitter = () => {
-    if (emitter === undefined) return
-    const tip = antennaTipAnchor(stage, antenna)
-    gsap.set(emitter.element, {left: tip.x, top: tip.y, autoRound: false})
+  const anchorEntry = (entry: EffectEntry) => {
+    if (entry.handle === undefined) return
+    const host = entry.host ?? stage
+    const tip = antennaTipAnchor(host, antenna, skin)
+    gsap.set(entry.handle.element, {left: tip.x, top: tip.y, autoRound: false})
   }
+
+  const anchorEffects = () => effects.forEach(anchorEntry)
 
   const trackTip = () => {
-    if (emitter === undefined) return
+    if (effects.size === 0) return
     killTipTracker()
-    tipTracker = gsap.to({}, {duration: TIP_TRACK_DURATION_S, onUpdate: anchorEmitter, onComplete: anchorEmitter})
+    tipTracker = gsap.to({}, {duration: TIP_TRACK_DURATION_S, onUpdate: anchorEffects, onComplete: anchorEffects})
   }
 
-  const startEmitter = () => {
-    if (emitter === undefined) emitter = createBinaryEmitter(stage, antenna, antennaTipAnchor(stage, antenna))
-    emitter.start()
+  const startEntry = (entry: EffectEntry) => {
+    entry.handle = entry.handle ?? entry.mount(entry.host ?? stage)
+    anchorEntry(entry)
+    entry.handle.start()
   }
 
-  const setEyeRest = (eyeRestScaleY: number) => {
-    restingEyeScaleY = eyeRestScaleY
+  const stopEntry = (entry: EffectEntry) => {
+    entry.handle?.stop(() => {
+      entry.handle = undefined
+    })
+  }
+
+  const removeEntry = (entry: EffectEntry) => {
+    entry.handle?.remove()
+    entry.handle = undefined
+  }
+
+  const setRest = (rest: ActivityRest) => {
+    resting = rest
     if (work === undefined) return
-    work.blinkReturn.vars.scaleY = eyeRestScaleY
-    work.blinkReturn.invalidate()
+    retarget(work.blinkReturn, 'scaleY', rest.eyeScaleY)
+    retarget(work.bobReturn, 'yPercent', rest.headYPercent)
   }
 
-  const start = (eyeRestScaleY: number) => {
+  const start = (rest: ActivityRest) => {
     if (reduceMotion()) return
-    restingEyeScaleY = eyeRestScaleY
+    resting = rest
     killTimeline()
     killRecoveryTweens()
-    work = buildWorkTimeline(antenna, eyes, eyeRestScaleY)
-    startEmitter()
+    work = buildWorkTimeline(parts, rest)
+    effects.forEach(startEntry)
   }
 
   const recover = () => {
@@ -130,30 +172,50 @@ export function createActivityController(parts: ActivityParts): ActivityControll
         duration: RECOVERY_DURATION_S,
         ease: RECOVERY_EASE,
       }),
-      gsap.to(eyes, {scaleY: restingEyeScaleY, duration: RECOVERY_DURATION_S, ease: RECOVERY_EASE}),
+      gsap.to(eyes, {scaleY: resting.eyeScaleY, duration: RECOVERY_DURATION_S, ease: RECOVERY_EASE}),
+      gsap.to(head, {yPercent: resting.headYPercent, duration: RECOVERY_DURATION_S, ease: RECOVERY_EASE}),
     ]
   }
 
-  const clearEmitter = () => {
-    emitter = undefined
-  }
-
   const stop = () => {
-    if (work === undefined && emitter === undefined) return
+    if (work === undefined) return
     killTimeline()
     killRecoveryTweens()
     killTipTracker()
     recover()
-    emitter?.stop(clearEmitter)
+    effects.forEach(stopEntry)
+  }
+
+  const mountEffect = (id: string, mount: EffectMount, host: HTMLElement | undefined) => {
+    const existing = effects.get(id)
+    if (existing !== undefined) removeEntry(existing)
+    const entry: EffectEntry = {mount, host, handle: undefined}
+    effects.set(id, entry)
+    if (isWorking()) startEntry(entry)
+  }
+
+  const unmountEffect = (id: string) => {
+    const entry = effects.get(id)
+    if (entry === undefined) return
+    effects.delete(id)
+    stopEntry(entry)
+  }
+
+  const setEffectHost = (id: string, host: HTMLElement | undefined) => {
+    const entry = effects.get(id)
+    if (entry === undefined || entry.host === host) return
+    entry.host = host
+    removeEntry(entry)
+    if (isWorking()) startEntry(entry)
   }
 
   const dispose = () => {
     killTimeline()
     killRecoveryTweens()
     killTipTracker()
-    emitter?.remove()
-    emitter = undefined
+    effects.forEach(removeEntry)
+    effects.clear()
   }
 
-  return {start, setEyeRest, trackTip, stop, dispose}
+  return {start, setRest, trackTip, stop, mountEffect, unmountEffect, setEffectHost, dispose}
 }

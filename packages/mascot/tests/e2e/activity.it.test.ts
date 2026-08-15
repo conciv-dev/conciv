@@ -11,7 +11,6 @@ test('the legacy work state stages the emitter, throbs and drains without leakin
   const enter = await page.evaluate(async () => {
     const harness = window.mascotHarness
     window.rig.apply('work')
-    await harness.nextFrame()
     const emitter = harness.requireEmitter()
     const scales = await harness.sampleFrames(() => harness.property(emitter, 'scale'), 500)
     return {
@@ -72,7 +71,6 @@ test('entering work anchors on the leaned tip and tracks the pose back to rest',
     await harness.wait(900)
     const leaned = harness.property(window.parts.antenna, 'rotation')
     window.rig.apply('work')
-    await harness.nextFrame()
     const emitter = harness.requireEmitter()
     const entry = harness.anchorOf(emitter)
     await harness.wait(1200)
@@ -96,14 +94,13 @@ test('entering work anchors on the leaned tip and tracks the pose back to rest',
   expectNear('the anchor tracks the settling pose to the rest tip y', result.settled.top, tip.y, 0.05)
 })
 
-test('the work timeline drives the antenna alone and never touches head or eye offsets', async ({page}) => {
+test('the work timeline bobs the head and leaves every other pose channel untouched', async ({page}) => {
   await buildService(page, {state: 'rest', working: false, follow: false})
   const result = await page.evaluate(async () => {
     const harness = window.mascotHarness
     const {head, eyes, antenna} = window.parts
     const drift = () =>
       Math.max(
-        Math.abs(harness.property(head, 'yPercent')),
         Math.abs(harness.property(head, 'rotation')),
         Math.abs(harness.property(head, 'scaleX') - 1),
         Math.abs(harness.property(head, 'scaleY') - 1),
@@ -111,16 +108,47 @@ test('the work timeline drives the antenna alone and never touches head or eye o
         Math.abs(harness.property(eyes, 'y')),
       )
     window.service.update({state: 'rest', working: true, follow: false})
-    const values = await harness.sampleFrames<[number, number]>(
-      () => [drift(), harness.property(antenna, 'scaleY')],
+    const values = await harness.sampleFrames<[number, number, number]>(
+      () => [drift(), harness.property(antenna, 'scaleY'), harness.property(head, 'yPercent')],
       2400,
     )
     return {
       drift: harness.summarize(values.map((entry) => entry[0])),
       antenna: harness.summarize(values.map((entry) => entry[1])),
+      head: harness.summarize(values.map((entry) => entry[2])),
     }
   })
 
-  expect(result.drift.max, 'activity leaves head transform and eyes offset untouched').toBe(0)
+  expect(result.drift.max, 'activity leaves head rotation and scale and the eyes offset untouched').toBe(0)
   expectNear('the sampled window really was throbbing', result.antenna.max, 1.3, 0.01)
+  expectNear('the head bobs down to yPercent -5', result.head.min, -5, 0.05)
+  expectNear('the head bob returns to the rest yPercent', result.head.max, 0, 0.05)
+})
+
+test('stopping work returns the head to the pose yPercent of the current state', async ({page}) => {
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    const settleHead = async () => {
+      await harness.wait(1200)
+      return harness.property(window.parts.head, 'yPercent')
+    }
+    window.service.update({state: 'rest', working: true, follow: false})
+    await harness.wait(1300)
+    const bobbed = harness.property(window.parts.head, 'yPercent')
+    window.service.update({state: 'rest', working: false, follow: false})
+    const rest = await settleHead()
+    window.service.update({state: 'awake', working: false, follow: false})
+    await harness.wait(900)
+    window.service.update({state: 'awake', working: true, follow: false})
+    const awakeValues = await harness.sampleFrames(() => harness.property(window.parts.head, 'yPercent'), 2400)
+    window.service.update({state: 'awake', working: false, follow: false})
+    const awake = await settleHead()
+    return {bobbed, rest, awakeBob: harness.summarize(awakeValues), awake}
+  })
+
+  expect(result.bobbed, 'the head really left its rest yPercent while working').toBeLessThan(-1)
+  expectNear('rest recovery returns the head to yPercent 0', result.rest, 0, 0.001)
+  expect(result.awakeBob.min, 'the awake head bobs too').toBeLessThan(-4)
+  expectNear('awake recovery returns the head to yPercent -2', result.awake, -2, 0.001)
 })

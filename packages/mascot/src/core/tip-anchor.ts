@@ -1,5 +1,5 @@
-import {ANTENNA_ORIGIN_FRACTION_X, ANTENNA_ORIGIN_FRACTION_Y, TIP_FRACTION_X, TIP_FRACTION_Y} from './config.js'
 import type {EmitterAnchor} from './path.js'
+import type {MascotSkin} from './skin.js'
 
 function layoutOffsetToRoot(element: HTMLElement): EmitterAnchor {
   let x = 0
@@ -28,21 +28,21 @@ function localMatrix(element: HTMLElement): DOMMatrixReadOnly {
   return new DOMMatrixReadOnly([Math.cos(angle), Math.sin(angle), -Math.sin(angle), Math.cos(angle), 0, 0])
 }
 
-export function antennaTipAnchor(host: HTMLElement, antenna: HTMLElement): EmitterAnchor {
+export function antennaTipAnchor(host: HTMLElement, antenna: HTMLElement, skin: MascotSkin): EmitterAnchor {
   const base = layoutOffsetWithin(antenna, host)
   const width = antenna.offsetWidth
   const height = antenna.offsetHeight
-  const originX = width * ANTENNA_ORIGIN_FRACTION_X
-  const originY = height * ANTENNA_ORIGIN_FRACTION_Y
-  const local = new DOMPoint(width * TIP_FRACTION_X - originX, height * TIP_FRACTION_Y - originY)
+  const originX = width * skin.originFractions.x
+  const originY = height * skin.originFractions.y
+  const local = new DOMPoint(width * skin.tipFractions.x - originX, height * skin.tipFractions.y - originY)
   const moved = localMatrix(antenna).transformPoint(local)
   return {x: base.x + originX + moved.x, y: base.y + originY + moved.y}
 }
 
-export function antennaOriginOffset(antenna: HTMLElement, wrapper: HTMLElement): EmitterAnchor {
+export function antennaOriginOffset(antenna: HTMLElement, wrapper: HTMLElement, skin: MascotSkin): EmitterAnchor {
   const base = layoutOffsetWithin(antenna, wrapper)
   return {
-    x: base.x + antenna.offsetWidth * ANTENNA_ORIGIN_FRACTION_X,
-    y: base.y + antenna.offsetHeight * ANTENNA_ORIGIN_FRACTION_Y,
+    x: base.x + antenna.offsetWidth * skin.originFractions.x,
+    y: base.y + antenna.offsetHeight * skin.originFractions.y,
   }
 }

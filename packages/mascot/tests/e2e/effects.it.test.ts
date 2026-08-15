@@ -1,0 +1,174 @@
+import {expect, test} from '@playwright/test'
+import {expectNear} from './helpers/near.js'
+import {buildBareService, openMascotPage} from './helpers/mascot-stage.js'
+
+const CUSTOM_LAYER_IMAGE = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='
+
+const CUSTOM_REFERENCE_ANTENNA_PX = 88
+
+const FAB_ANTENNA_PX = 44
+
+test.beforeEach(async ({page}) => {
+  await openMascotPage(page)
+})
+
+test('a working core with no effect mounted emits nothing', async ({page}) => {
+  await buildBareService(page, {state: 'rest', working: true, follow: false})
+  const emitters = await page.evaluate(async () => {
+    await window.mascotHarness.wait(700)
+    return window.mascotHarness.emitters().length
+  })
+
+  expect(emitters, 'core mounts no effect of its own').toBe(0)
+})
+
+test('two mounted effects run two emitters and both drain on the working falling edge', async ({page}) => {
+  await buildBareService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    const {antenna} = window.parts
+    const mount = harness.mascot.binaryEffect(antenna, harness.mascot.robotSkin)
+    window.service.mountEffect('left', mount)
+    window.service.mountEffect('right', mount)
+    const idle = harness.emitters().length
+    window.service.update({state: 'rest', working: true, follow: false})
+    await harness.wait(900)
+    const working = harness.emitters().length
+    const opacities = harness.emitters().map((emitter) => harness.property(emitter, 'opacity'))
+    window.service.update({state: 'rest', working: false, follow: false})
+    await harness.wait(900)
+    return {idle, working, opacities, drained: harness.emitters().length}
+  })
+
+  expect(result.idle, 'mounting an effect while idle starts nothing').toBe(0)
+  expect(result.working, 'two mounted effects run two emitters').toBe(2)
+  expect(
+    result.opacities.every((opacity) => opacity > 0.99),
+    `both emitters reach full opacity -> ${JSON.stringify(result.opacities)}`,
+  ).toBe(true)
+  expect(result.drained, 'the falling edge drains both emitters').toBe(0)
+})
+
+test('each keyed effect mounts into its own bound host', async ({page}) => {
+  const result = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    const service = harness.mascot.createMascot({state: 'rest', working: false, follow: false})
+    const connected = service.connect()
+    const parts = harness.buildStage()
+    const left = document.createElement('div')
+    const right = document.createElement('div')
+    parts.root.append(left, right)
+    connected.getEffectHostProps('left').ref(left)
+    connected.getEffectHostProps('right').ref(right)
+    connected.getRootProps().ref(parts.root)
+    connected.getHeadProps().ref(parts.head)
+    connected.getEyesProps().ref(parts.eyes)
+    connected.getAntennaProps().ref(parts.antenna)
+    const mount = harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin)
+    service.mountEffect('left', mount)
+    service.mountEffect('right', mount)
+    service.update({state: 'rest', working: true, follow: false})
+    await harness.wait(700)
+    const reading = {
+      stableRef: connected.getEffectHostProps('left').ref === connected.getEffectHostProps('left').ref,
+      distinctRefs: connected.getEffectHostProps('left').ref !== connected.getEffectHostProps('right').ref,
+      leftHosted: left.childElementCount,
+      rightHosted: right.childElementCount,
+      emitters: harness.emitters().length,
+    }
+    service.destroy()
+    parts.root.remove()
+    return reading
+  })
+
+  expect(result.stableRef, 'the same effect-host id hands back the same ref').toBe(true)
+  expect(result.distinctRefs, 'different effect-host ids hand back different refs').toBe(true)
+  expect(result.emitters, 'both keyed effects are live').toBe(2)
+  expect(result.leftHosted, 'the left effect mounts into the left host').toBe(1)
+  expect(result.rightHosted, 'the right effect mounts into the right host').toBe(1)
+})
+
+test('binding an effect host after the structural refs never re-registers the rig', async ({page}) => {
+  const result = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    const service = harness.mascot.createMascot({state: 'rest', working: true, follow: true})
+    const connected = service.connect()
+    const parts = harness.buildStage()
+    connected.getRootProps().ref(parts.root)
+    connected.getHeadProps().ref(parts.head)
+    connected.getEyesProps().ref(parts.eyes)
+    connected.getAntennaProps().ref(parts.antenna)
+    service.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, harness.mascot.robotSkin))
+    await harness.wait(700)
+    const wrapperBefore = harness.requireLeanWrapper()
+    const timelineBefore = harness.repeatingTimeline()
+    const host = document.createElement('div')
+    parts.root.append(host)
+    connected.getEffectHostProps('binary').ref(host)
+    await harness.wait(700)
+    const reading = {
+      sameWrapper: harness.requireLeanWrapper() === wrapperBefore,
+      sameTimeline: harness.repeatingTimeline() === timelineBefore,
+      wrappers: harness.leanWrappers().length,
+      emitters: harness.emitters().length,
+      hosted: host.childElementCount,
+    }
+    service.destroy()
+    parts.root.remove()
+    return reading
+  })
+
+  expect(result.sameWrapper, 'a late effect host keeps the same lean wrapper').toBe(true)
+  expect(result.sameTimeline, 'a late effect host keeps the running work timeline').toBe(true)
+  expect(result.wrappers, 'a late effect host leaves exactly one lean wrapper').toBe(1)
+  expect(result.emitters, 'a late effect host leaves exactly one emitter').toBe(1)
+  expect(result.hosted, 'the effect re-homes into the late host').toBe(1)
+})
+
+test('unmounting one effect drains it and leaves the other running', async ({page}) => {
+  await buildBareService(page, {state: 'rest', working: true, follow: false})
+  const result = await page.evaluate(async () => {
+    const harness = window.mascotHarness
+    const mount = harness.mascot.binaryEffect(window.parts.antenna, harness.mascot.robotSkin)
+    window.service.mountEffect('left', mount)
+    window.service.mountEffect('right', mount)
+    await harness.wait(700)
+    const both = harness.emitters().length
+    window.service.unmountEffect('left')
+    await harness.wait(700)
+    return {both, remaining: harness.emitters().length}
+  })
+
+  expect(result.both, 'both effects run while working').toBe(2)
+  expect(result.remaining, 'unmounting one effect leaves the other running').toBe(1)
+})
+
+test('a custom skin drives the layer art and the emitter scale reference', async ({page}) => {
+  const result = await page.evaluate(
+    async ([image, referenceAntennaPx, antennaPx]) => {
+      const harness = window.mascotHarness
+      const skin = {
+        ...harness.mascot.robotSkin,
+        layers: {head: image, eyes: image, antenna: image},
+        referenceAntennaPx,
+      }
+      const service = harness.mascot.createMascot({state: 'rest', working: true, follow: false}, skin)
+      const parts = harness.buildStage(antennaPx)
+      const headBackground = service.connect().getHeadProps().style['background-image']
+      service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
+      service.mountEffect('binary', harness.mascot.binaryEffect(parts.antenna, skin))
+      await harness.wait(700)
+      const geometry = harness.emitterGeometry(harness.requireEmitter())
+      service.destroy()
+      parts.root.remove()
+      return {headBackground, geometry}
+    },
+    [CUSTOM_LAYER_IMAGE, CUSTOM_REFERENCE_ANTENNA_PX, FAB_ANTENNA_PX] as const,
+  )
+  const factor = FAB_ANTENNA_PX / CUSTOM_REFERENCE_ANTENNA_PX
+
+  expect(result.headBackground, 'connect() reads the head layer art from the skin').toBe(`url('${CUSTOM_LAYER_IMAGE}')`)
+  expectNear('the skin reference antenna scales the digit font', result.geometry.fontSizePx, 9 * factor, 0.05)
+  expectNear('the skin reference antenna scales the leading lane', result.geometry.leadingLeft, -1 * factor, 0.05)
+  expectNear('the skin reference antenna scales the digit top', result.geometry.top, -12 * factor, 0.05)
+})
