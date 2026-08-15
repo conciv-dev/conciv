@@ -21,6 +21,7 @@ import {trackedFaults} from './helpers/tracked-faults.js'
 
 const SEND_PATH = ['chat', 'send']
 const SUBSCRIBE_PATH = ['chat', 'subscribe']
+const DRAFTS_SET_PATH = ['drafts', 'set']
 
 const core = {base: ''}
 const active: {pane: PaneMount | null} = {pane: null}
@@ -98,6 +99,21 @@ test('restores the server-side draft text and staged grabs when the pane mounts'
   mountChatPane(sessionId, grabOptions(HERO_GRAB))
 
   await expect.element(input()).toHaveTextContent('kept across the reload')
+  await expect.element(snapshot()).toBeVisible()
+  await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
+})
+
+test('a staged grab keeps its snapshot and source label across a panel reload', async () => {
+  const {sessionId} = await newSession()
+  const since = await coreControl.rpcMark()
+  const first = mountChatPane(sessionId, grabOptions(HERO_GRAB))
+  await stageGrabThroughComposer()
+
+  expect(await coreControl.awaitRpcCall(DRAFTS_SET_PATH, since)).toBe(200)
+  first.dispose()
+
+  mountChatPane(sessionId, {extensions: [pageExtension]})
+
   await expect.element(snapshot()).toBeVisible()
   await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
 })
