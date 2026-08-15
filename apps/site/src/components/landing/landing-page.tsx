@@ -3,7 +3,8 @@ import {HeroCopy} from './hero'
 import {ProductFrame} from './product-frame'
 import {LandingMotion} from './lazy-motion'
 import {BundlerBand} from './bundler-band'
-import {FeaturesSection} from './features-section'
+import {PrinciplesStrip} from './principles-strip'
+import {CapabilitySection} from './capability-section'
 import {HowItWorks} from './how-it-works'
 import {SiteFooter} from './site-footer'
 import {Reveal} from './reveal'
@@ -19,9 +20,11 @@ export function LandingPage() {
           </Reveal>
           <ProductFrame />
           <div className="od-rule" />
+          <PrinciplesStrip />
+          <div className="od-rule" />
           <BundlerBand />
           <div className="od-rule" />
-          <FeaturesSection />
+          <CapabilitySection />
           <div className="od-rule" />
           <Reveal>
             <HowItWorks />
