@@ -1,26 +1,18 @@
-import {onMount, onCleanup, createEffect} from 'solid-js'
-import {createFabRobotRig, type FabRobotRig} from '@conciv/mascot'
+import type {JSX} from 'solid-js'
+import {Mascot} from '@conciv/mascot/solid'
 
-export function FabRobot(props: {open: () => boolean; working: () => boolean}) {
-  let headEl: HTMLSpanElement | undefined
-  let eyesEl: HTMLSpanElement | undefined
-  let antEl: HTMLSpanElement | undefined
-  let rig: FabRobotRig | undefined
-
-  onMount(() => {
-    if (!headEl || !eyesEl || !antEl) return
-    rig = createFabRobotRig({head: headEl, eyes: eyesEl, antenna: antEl})
-    createEffect(() => {
-      rig?.apply(props.working() ? 'work' : props.open() ? 'open' : 'closed')
-    })
-  })
-  onCleanup(() => rig?.destroy())
-
+export function FabRobot(props: {open: () => boolean; working: () => boolean}): JSX.Element {
   return (
-    <span class="pw-fab-rig" aria-hidden="true">
-      <span class="pw-rig-layer pw-rig-head" ref={(el) => (headEl = el)} />
-      <span class="pw-rig-layer pw-rig-antenna" ref={(el) => (antEl = el)} />
-      <span class="pw-rig-layer pw-rig-eyes" ref={(el) => (eyesEl = el)} />
-    </span>
+    <Mascot
+      class="pw-fab-rig"
+      state={props.open() && !props.working() ? 'awake' : 'rest'}
+      working={props.working()}
+      follow={!props.open()}
+    >
+      <Mascot.Head />
+      <Mascot.Antenna />
+      <Mascot.Eyes class="pw-rig-eyes" />
+      <Mascot.Binary />
+    </Mascot>
   )
 }
