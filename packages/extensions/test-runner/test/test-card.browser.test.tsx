@@ -102,5 +102,14 @@ describe('TestCard (real browser)', () => {
     await expect.element(page.getByText('broken')).toBeVisible()
     await expect.element(page.getByText('1 passed', {exact: true})).toBeVisible()
     await expect.element(page.getByText('1 failed', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('status')).toHaveTextContent('Test run finished: 1 passed, 1 failed')
+  })
+
+  it('shows finished rows and a ticking count while the run is still in flight', async () => {
+    mountCard({result: undefined}, makeCtx([]))
+
+    await expect.element(page.getByText('works')).toBeVisible()
+    await expect.element(page.getByText('broken')).toBeVisible()
+    await expect.element(page.getByRole('status')).toHaveTextContent('Test run in progress: 1 passed, 1 failed')
   })
 })

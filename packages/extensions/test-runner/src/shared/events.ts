@@ -70,6 +70,14 @@ export const TestEventSchema = z.discriminatedUnion('type', [
 ])
 export type TestEvent = z.infer<typeof TestEventSchema>
 
+export function countStates(tests: ReadonlyArray<TestRow>): Omit<Summary, 'durationMs'> {
+  return {
+    passed: tests.filter((test) => test.state === 'pass').length,
+    failed: tests.filter((test) => test.state === 'fail').length,
+    skipped: tests.filter((test) => test.state === 'skip').length,
+  }
+}
+
 export type TestCaseLike = {
   name: string
   module: {moduleId: string}

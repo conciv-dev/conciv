@@ -54,13 +54,24 @@ const snapshotEvent: TestEvent = {
   watching: false,
 }
 
+const RUN_EVENT_GAP_MS = 120
+const RUN_END_DELAY_MS = 2500
+
+function runEventDelay(event: TestEvent, index: number): number {
+  return event.type === 'run-end' ? RUN_END_DELAY_MS : index * RUN_EVENT_GAP_MS
+}
+
 const fixtureManager: TestRunnerManager = {
   list: async () => ({files: []}),
   run: async () => cannedStatus,
   status: () => cannedStatus,
   subscribeRaw: (cb) => {
-    for (const event of STREAM_EVENTS.slice(1)) cb(event)
-    return () => {}
+    const timers = STREAM_EVENTS.slice(1).map((event, index) =>
+      setTimeout(() => cb(event), runEventDelay(event, index)),
+    )
+    return () => {
+      for (const timer of timers) clearTimeout(timer)
+    }
   },
   emitSnapshot: () => snapshotEvent,
   openUiServer: async () => ({available: false}),

@@ -3,7 +3,14 @@ import {pathToFileURL} from 'node:url'
 import {join, relative} from 'node:path'
 import {writeSync} from 'node:fs'
 import {z} from 'zod'
-import {parseFailure, type Summary, type TestError, type TestRow, type TestCaseLike} from '../../shared/events.js'
+import {
+  countStates,
+  parseFailure,
+  type Summary,
+  type TestError,
+  type TestRow,
+  type TestCaseLike,
+} from '../../shared/events.js'
 import {type ChildMessage} from '../../runner/child-protocol.js'
 
 type TestModuleLike = {
@@ -69,12 +76,9 @@ async function loadVitest(cwd: string, reporter: object): Promise<VitestLike> {
 function collect(vitest: VitestLike): {summary: Summary; failures: TestError[]; tests: TestRow[]} {
   const cases = vitest.state.getTestModules().flatMap((mod) => [...mod.children.allTests()])
   const tests = cases.map(toRow)
-  const passed = tests.filter((t) => t.state === 'pass').length
-  const failed = tests.filter((t) => t.state === 'fail').length
-  const skipped = tests.filter((t) => t.state === 'skip').length
   const durationMs = vitest.state.getTestModules().reduce((sum, mod) => sum + mod.diagnostic().duration, 0)
   const failures = tests.map((t) => t.error).filter((e): e is TestError => e !== undefined)
-  return {summary: {passed, failed, skipped, durationMs}, failures, tests}
+  return {summary: {...countStates(tests), durationMs}, failures, tests}
 }
 
 function makeReporter(getVitest: () => VitestLike): object {
