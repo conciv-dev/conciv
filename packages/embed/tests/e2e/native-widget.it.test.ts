@@ -5,6 +5,7 @@ import type {DraftRow} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
+import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {captureNativePosts, installNativeStub, type NativeBridge} from './helpers/native-bridge.js'
 import {untilPanelDraft} from './helpers/drafts.js'
 
@@ -44,9 +45,11 @@ function grabPayloadOf(draft: DraftRow): GrabPayload | null {
 }
 
 let kit: CoreKit
+let sessionId: string
 
 test.beforeAll(async () => {
   kit = await bootCoreKit({id: 'fake-native', text: 'Hello from conciv', nativePageDir: nativeDistDir})
+  sessionId = (await kit.rpc.sessions.create()).sessionId
 })
 
 test.afterAll(async () => {
@@ -119,7 +122,9 @@ test.describe('native widget bridge', () => {
   })
 
   test('opens the panel on native open and is idempotent, and closes on native close', async ({page: fixturePage}) => {
+    const wire = watchRpcWire(fixturePage)
     const {page} = await openNative(fixturePage)
+    await wire.sessionsBootTraffic()
     await callNative(page, 'open', {v: 1, seq: 1})
     await callNative(page, 'open', {v: 1, seq: 2})
     await expect(composerBox(page)).toHaveCount(1, {timeout: 30_000})
@@ -132,7 +137,9 @@ test.describe('native widget bridge', () => {
     page: fixturePage,
   }) => {
     test.setTimeout(120_000)
+    const wire = watchRpcWire(fixturePage)
     const {page, bridge} = await openNative(fixturePage)
+    await wire.sessionsBootTraffic()
     const picked = Promise.withResolvers<PageToNativeMessage>()
     bridge.notify = (message) => {
       if (message.type === 'grab.pick') picked.resolve(message)
@@ -150,7 +157,7 @@ test.describe('native widget bridge', () => {
     await callNative(page, 'grabResult', {v: 1, seq: 3, requestId: pick?.requestId, grab: NEUTRAL_GRAB})
     await expect(panel(page).getByText('PaymentCardCell')).toBeVisible({timeout: 30_000})
     await expect(grabPreview(page)).toHaveAttribute('src', IMAGE_DATA_URL)
-    await untilPanelDraft(kit, (draft) => {
+    await untilPanelDraft(kit, sessionId, (draft) => {
       const payload = grabPayloadOf(draft)
       return payload !== null && payload.text.includes('[view]') && payload.text.includes('PaymentCardCell')
     })
