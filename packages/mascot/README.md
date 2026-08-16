@@ -86,7 +86,9 @@ Each effect is its own subpath entry, so an app bundles only the one it mounts:
 `speech-bubble`, `steam`, `spark`, `spark-burst`, `spark-fountain`, `satellite`, `led-cone`,
 `tick-ring`, `signal-bars`, `heart`, `notes`.
 
-Travelling effects (binary) ride a `curve`: `'straight' | 'arc' | 'hook' | 'fan' | 'auto'`. The rest
+Travelling effects (binary) ride a `curve`: `'straight' | 'arc' | 'hook' | 'fan' | 'auto'`, defaulting
+to `'auto'`, which measures the room between the antenna tip and the viewport at every emitter start
+and rises straight when there is headroom or arcs toward the open side when the tip is squeezed. The rest
 are anchored to the tip and ignore it. Every effect enters staged out of the antenna tip and drains
 back into it when work stops.
 

@@ -40,9 +40,10 @@ tween's `onComplete`.
 A straight emitter's digits are flat spans carrying the centering offset and the lane in one
 `left`. A curved emitter wraps each digit in a rider that carries the centering, leaving the glyph
 inside it holding only its lane offset, so `autoRotate` tilts the glyph in place instead of swinging
-it around the path point. `emitterGeometry` reads the flat shape and THROWS on a rider rather than
-quietly reporting one anchor for both lanes; `curvedDigitPlacement(emitter, index)` reads the rider
-and its glyph separately.
+it around the path point. `emitterGeometry` reports the rendered offset of each lane whichever shape
+is mounted, adding the rider anchor to the glyph offset inside it, so the approved geometry reads the
+same under the default `auto` curve as under an explicit `straight` one; `curvedDigitPlacement(emitter,
+index)` reads the rider and its glyph separately.
 
 The manual clock never interferes with Playwright's own waiting: the `data-harness` ready gate and every DOM
 assertion are DOM-state waits, and `page.mouse` dispatches real events regardless of who owns GSAP's ticker.

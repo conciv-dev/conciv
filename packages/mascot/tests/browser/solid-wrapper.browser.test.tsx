@@ -247,7 +247,7 @@ it('flies the digits along curve riders when the effect child asks for a curve',
   ))
   const straight = renderMascot(() => (
     <Mascot working>
-      <Mascot.Binary />
+      <Mascot.Binary curve="straight" />
     </Mascot>
   ))
   const curvedEmitter = emittersIn(curved.container)[0]

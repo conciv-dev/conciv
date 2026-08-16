@@ -5,14 +5,12 @@ import {useMascotContext} from './mascot-context.js'
 import {EffectHost} from './mascot-effect.js'
 import type {MascotBinaryProps} from './mascot-props.js'
 
-const DEFAULT_CURVE: CurveStyle = 'straight'
-
 export type BinaryEffectHostProps = MascotBinaryProps & {fallback?: boolean}
 
 export function BinaryEffectHost(props: BinaryEffectHostProps): JSX.Element {
   const context = useMascotContext()
   const [local, rest] = splitProps(props, ['curve'])
-  const curve = (): CurveStyle => local.curve ?? context.curve() ?? DEFAULT_CURVE
+  const curve = (): CurveStyle | undefined => local.curve ?? context.curve()
   return <EffectHost {...rest} mount={() => configureBinaryEffect({curve: curve()})} />
 }
 

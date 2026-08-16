@@ -2,6 +2,7 @@ import {expect, test} from '@playwright/test'
 import {collectLaunches, launchFrames, medianStep, risePerFrame} from './helpers/launches.js'
 import {
   buildService,
+  buildStraightService,
   expectedEmitterGeometry,
   installManualClock,
   openIdleService,
@@ -206,7 +207,7 @@ test('a viewport resize rebuilds the emitter so later digits launch from the rea
 }) => {
   await page.setViewportSize({width: 1000, height: 800})
   await installManualClock(page)
-  await buildService(page, {state: 'rest', working: false, follow: false})
+  await buildStraightService(page, {state: 'rest', working: false, follow: false})
   const before = await page.evaluate((riseSeconds) => {
     const harness = window.mascotHarness
     harness.applyStyle(window.parts.root, {width: '20vw', height: '20vw'})
@@ -258,7 +259,7 @@ test('a stage the consumer grows in css rebuilds the emitter at the new antenna 
 }) => {
   await page.setViewportSize({width: 1600, height: 800})
   await installManualClock(page)
-  await buildService(page, {state: 'rest', working: false, follow: false})
+  await buildStraightService(page, {state: 'rest', working: false, follow: false})
   const before = await page.evaluate(
     ({narrowPx, riseSeconds}) => {
       const harness = window.mascotHarness

@@ -85,62 +85,62 @@ export const settle = (page: Page, milliseconds: number): Promise<void> =>
 export const installManualClock = (page: Page): Promise<void> =>
   page.evaluate(() => window.mascotHarness.installManualClock())
 
-function buildStage(
-  page: Page,
-  config: MascotConfig,
-  withBinary: boolean,
-  stageSizePx?: number,
-  layerInsetPx?: number,
-): Promise<StagePoint> {
-  return page.evaluate(
-    ({initial, binary, sizePx, insetPx}) => {
-      const harness = window.mascotHarness
-      const parts = harness.buildStage(sizePx, insetPx)
-      window.parts = parts
-      window.service = harness.mascot.createMascot(initial)
-      window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
-      if (!binary) return harness.stageCenter(parts.root)
-      window.service.mountEffect('binary', harness.mascot.binaryEffect)
-      return harness.stageCenter(parts.root)
-    },
-    {initial: config, binary: withBinary, sizePx: stageSizePx, insetPx: layerInsetPx},
-  )
-}
-
 export type StagePlacement = {left: number; top: number}
 
 export type DigitPlacement = {riderLeft: string; riderTop: string; glyphLeft: string; glyphTop: string}
 
-export function buildCurvedService(
+type StageSetup = {
+  config: MascotConfig
+  binary: boolean
+  curve?: CurveStyle
+  placement?: StagePlacement
+  stageSizePx?: number
+  layerInsetPx?: number
+}
+
+function buildStage(page: Page, setup: StageSetup): Promise<StagePoint> {
+  return page.evaluate((options) => {
+    const harness = window.mascotHarness
+    const parts = harness.buildStage(options.stageSizePx, options.layerInsetPx, options.placement)
+    window.parts = parts
+    window.service = harness.mascot.createMascot(options.config)
+    window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
+    if (!options.binary) return harness.stageCenter(parts.root)
+    const style = options.curve
+    const mount =
+      style === undefined ? harness.mascot.binaryEffect : harness.mascot.configureBinaryEffect({curve: style})
+    window.service.mountEffect('binary', mount)
+    return harness.stageCenter(parts.root)
+  }, setup)
+}
+
+export const buildCurvedService = (
   page: Page,
   config: MascotConfig,
   curve: CurveStyle,
   placement: StagePlacement,
   stageSizePx: number,
-): Promise<StagePoint> {
-  return page.evaluate(
-    ({initial, style, spot, sizePx}) => {
-      const harness = window.mascotHarness
-      const parts = harness.buildStage(sizePx, 0, spot)
-      window.parts = parts
-      window.service = harness.mascot.createMascot(initial)
-      window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
-      window.service.mountEffect('binary', harness.mascot.configureBinaryEffect({curve: style}))
-      return harness.stageCenter(parts.root)
-    },
-    {initial: config, style: curve, spot: placement, sizePx: stageSizePx},
-  )
-}
+): Promise<StagePoint> => buildStage(page, {config, binary: true, curve, placement, stageSizePx, layerInsetPx: 0})
+
+export const buildPlacedService = (
+  page: Page,
+  config: MascotConfig,
+  placement: StagePlacement,
+  stageSizePx: number,
+): Promise<StagePoint> => buildStage(page, {config, binary: true, placement, stageSizePx, layerInsetPx: 0})
 
 export const buildService = (
   page: Page,
   config: MascotConfig,
   stageSizePx?: number,
   layerInsetPx?: number,
-): Promise<StagePoint> => buildStage(page, config, true, stageSizePx, layerInsetPx)
+): Promise<StagePoint> => buildStage(page, {config, binary: true, stageSizePx, layerInsetPx})
+
+export const buildStraightService = (page: Page, config: MascotConfig): Promise<StagePoint> =>
+  buildStage(page, {config, binary: true, curve: 'straight'})
 
 export const buildBareService = (page: Page, config: MascotConfig): Promise<StagePoint> =>
-  buildStage(page, config, false)
+  buildStage(page, {config, binary: false})
 
 export async function openIdleService(page: Page): Promise<void> {
   await installManualClock(page)

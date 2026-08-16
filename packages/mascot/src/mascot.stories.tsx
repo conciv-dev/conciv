@@ -172,12 +172,12 @@ the bare default mount, and \`configureBinaryEffect({curve})\` returns an \`Effe
 configuration you picked. \`mountEffect(id, mount)\` takes either one, so \`mountEffect\`'s signature never grows
 a config argument and every future effect follows the same two-export shape.
 
-**Curve**: \`curve\` picks the path the digits ride out of the tip. \`straight\` is the default and the shipped
-FAB behavior: a plain vertical rise, unchanged. \`arc\` leaves the tip along the antenna axis and eases into the
-open side, \`hook\` climbs the axis, turns a corner and runs sideways, and \`fan\` gives every digit its own lane
-so the five spread apart. \`auto\` measures instead of guessing: the gap between the antenna tip and the
-viewport decides, so a robot with room above rises straight and a robot squeezed against the top bends toward
-whichever side has more room. Every curved digit tilts with its tangent, and every curve leaves the tip
+**Curve**: \`curve\` picks the path the digits ride out of the tip. \`auto\` is the default: it measures
+instead of guessing, so the gap between the antenna tip and the viewport decides, and a robot with room above
+rises straight while a robot squeezed against the top bends toward whichever side has more room. \`straight\`
+pins the plain vertical rise, \`arc\` leaves the tip along the antenna axis and eases into the open side,
+\`hook\` climbs the axis, turns a corner and runs sideways, and \`fan\` gives every digit its own lane so the
+five spread apart. Every curved digit tilts with its tangent, and every curve leaves the tip
 vertically, so the launch looks the same whichever style is running. The room is measured in stage-local
 coordinates once per emitter start, not live on scroll or resize, and the whole curve scales with the same
 antenna factor as the rest of the emitter.
@@ -224,7 +224,7 @@ const meta: Meta<PlaygroundProps> = {
     follow: 'both',
     stageSizePx: 120,
     poseApply: 'animate',
-    curve: 'straight',
+    curve: 'auto',
     headroomRatio: DEFAULT_HEADROOM_RATIO,
     bob: true,
     throb: true,

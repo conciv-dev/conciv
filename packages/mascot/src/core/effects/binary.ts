@@ -34,7 +34,7 @@ import {
 } from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
-export type BinaryEffectConfig = {curve: CurveStyle}
+export type BinaryEffectConfig = {curve?: CurveStyle}
 
 type Rider = {element: HTMLElement; path: EmitterPoint[]}
 
@@ -49,7 +49,7 @@ type CurvePath = {
 
 type CurveFlight = {element: HTMLElement; motionPath: CurvePath}
 
-const DEFAULT_BINARY_CURVE: CurveStyle = 'straight'
+const DEFAULT_BINARY_CURVE: CurveStyle = 'auto'
 
 const DIGIT_INDEXES = Array.from({length: BINARY_EMITTER_DIGIT_COUNT}, (_, index) => index)
 
@@ -237,4 +237,4 @@ export const binaryEffect: EffectMount = (context) => createBinaryEmitter(contex
 export const configureBinaryEffect =
   (config: BinaryEffectConfig): EffectMount =>
   (context) =>
-    createBinaryEmitter(context, config.curve)
+    createBinaryEmitter(context, config.curve ?? DEFAULT_BINARY_CURVE)

@@ -3,6 +3,7 @@ import type {CurveStyle, MascotConfig} from '../../src/core/index.js'
 import {expectNear} from './helpers/near.js'
 import {
   buildCurvedService,
+  buildPlacedService,
   type DigitPlacement,
   installManualClock,
   openMascotPage,
@@ -162,6 +163,33 @@ test('auto bends right on a tie in side room at the top edge', async ({page}) =>
   const {horizontal} = await trackLeadingDigit(page)
 
   expectBend('auto at the top edge', horizontal, 1)
+})
+
+const openDefaultStage = async (page: Page, placement: StagePlacement): Promise<void> => {
+  await openMascotPage(page)
+  await installManualClock(page)
+  await buildPlacedService(page, WORKING, placement, PRODUCT_FAB_ANTENNA_PX)
+}
+
+test('the default curve rises straight when the room above is ample', async ({page}) => {
+  await openDefaultStage(page, AT_BOTTOM_EDGE)
+  const {horizontal} = await trackLeadingDigit(page)
+
+  expect(Math.max(...horizontal.map(Math.abs)), 'the largest sideways excursion under ample room').toBeLessThan(0.001)
+})
+
+test('the default curve bends into the room on the right at the left viewport edge', async ({page}) => {
+  await openDefaultStage(page, AT_LEFT_EDGE)
+  const {horizontal} = await trackLeadingDigit(page)
+
+  expectBend('the default curve at the left edge', horizontal, 1)
+})
+
+test('the default curve bends into the room on the left at the right viewport edge', async ({page}) => {
+  await openDefaultStage(page, AT_RIGHT_EDGE)
+  const {horizontal} = await trackLeadingDigit(page)
+
+  expectBend('the default curve at the right edge', horizontal, -1)
 })
 
 test('every digit leaves the tip along the antenna axis and only then tilts with its tangent', async ({page}) => {

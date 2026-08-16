@@ -122,11 +122,12 @@ function MascotPlayground(props: StageProps): JSX.Element {
 const COMPONENT_DOCS = `
 \`binaryEffect\` mounts five binary digits (alternating \`1\`/\`0\`) that rise out of the antenna tip in two
 staggered lanes, each staggered 0.42s behind the last on a 2.2s cycle, fading in then out as they climb — the
-shipped FAB effect, unchanged at \`curve: 'straight'\`. Toggle **working** on to see it mount; it stays anchored
-to the antenna tip as the robot leans. \`configureBinaryEffect({curve})\` swaps the straight vertical rise for a
-bent path: **arc** eases the
-digits into the open side, **hook** climbs the axis then turns a corner, **fan** spreads every digit into its
-own lane, and **auto** measures the room above the antenna tip and picks straight or bent accordingly. Changing
+shipped FAB effect, riding the default \`curve: 'auto'\`, which measures the room above the antenna tip and
+picks a straight rise or a bend away from the viewport edge accordingly. Toggle **working** on to see it mount;
+it stays anchored to the antenna tip as the robot leans. \`configureBinaryEffect({curve})\` pins one path
+instead: **straight** always rises vertically, **arc** eases the
+digits into the open side, **hook** climbs the axis then turns a corner, and **fan** spreads every digit into
+its own lane. Changing
 **curve** here re-mounts the effect, matching how the Core Playground story remounts on a curve change: an
 effect's rider paths are fixed at mount, not live. **bob**, **throb** and **blink** switch off the matching
 piece of the activity overlay, which is the quickest way to watch the digits launch from a tip that never moves:
@@ -142,7 +143,7 @@ const meta: Meta<StageProps> = {
     working: true,
     follow: 'both',
     stageSizePx: 120,
-    curve: 'straight',
+    curve: 'auto',
     bob: true,
     throb: true,
     blink: true,

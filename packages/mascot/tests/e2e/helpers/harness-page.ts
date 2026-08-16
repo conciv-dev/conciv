@@ -456,20 +456,23 @@ const HARNESS_SCRIPT = `
     }
   }
 
-  const requireFlatDigit = (emitter, index) => {
+  const digitOffset = (emitter, index) => {
     const digit = requireParticle(emitter, index)
-    if (digit.firstElementChild === null) return digit
-    throw new Error(
-      'emitterGeometry reads the straight emitter placement, but digit ' + index +
-        ' is a curve rider: read curvedDigitPlacement instead',
-    )
+    const glyph = digit.firstElementChild
+    if (!(glyph instanceof HTMLElement)) {
+      return {left: parseFloat(digit.style.left), top: parseFloat(digit.style.top)}
+    }
+    return {
+      left: parseFloat(digit.style.left) + parseFloat(glyph.style.left),
+      top: parseFloat(digit.style.top) + parseFloat(glyph.style.top),
+    }
   }
 
   const emitterGeometry = (emitter) => ({
     fontSizePx: parseFloat(emitter.style.fontSize),
-    leadingLeft: parseFloat(requireFlatDigit(emitter, 0).style.left),
-    trailingLeft: parseFloat(requireFlatDigit(emitter, 1).style.left),
-    top: parseFloat(requireFlatDigit(emitter, 0).style.top),
+    leadingLeft: digitOffset(emitter, 0).left,
+    trailingLeft: digitOffset(emitter, 1).left,
+    top: digitOffset(emitter, 0).top,
   })
 
   const curvedDigitPlacement = (emitter, index) => {
