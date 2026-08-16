@@ -1,30 +1,25 @@
-import ClickSpark from '@/components/ClickSpark'
 import {SiteNav} from './site-nav'
-import {Hero} from './hero'
-import {LandingMotion} from './lazy-motion'
-import {BundlerBand} from './bundler-band'
-import {FeaturesSection} from './features-section'
+import {HeroCopy} from './hero'
+import {ProductFrame} from './product-frame'
+import {PrinciplesStrip} from './principles-strip'
+import {CapabilitySection} from './capability-section'
 import {HowItWorks} from './how-it-works'
+import {OpenSourceStrip} from './open-source-strip'
 import {SiteFooter} from './site-footer'
-import {SmoothScroll} from './smooth-scroll'
 
 export function LandingPage() {
   return (
-    <LandingMotion>
-      <SmoothScroll>
-        <div className="od-page min-h-screen">
-          <SiteNav />
-          <main>
-            <ClickSpark sparkColor="var(--od-accent)" sparkRadius={18} sparkCount={6} duration={420}>
-              <Hero />
-            </ClickSpark>
-            <BundlerBand />
-            <FeaturesSection />
-            <HowItWorks />
-          </main>
-          <SiteFooter />
-        </div>
-      </SmoothScroll>
-    </LandingMotion>
+    <div className="min-h-dvh">
+      <SiteNav />
+      <main>
+        <HeroCopy />
+        <ProductFrame />
+        <PrinciplesStrip />
+        <CapabilitySection />
+        <HowItWorks />
+        <OpenSourceStrip />
+      </main>
+      <SiteFooter />
+    </div>
   )
 }

@@ -12,7 +12,7 @@ export function MessageRow({message}: {message: Message}) {
         <div className="max-w-[88%] rounded-2xl rounded-tr-sm bg-primary px-3 py-1.5 text-[13px] text-primary-foreground">
           <span className="font-sans">{message.text}</span>
           {message.grabbedHtml ? (
-            <span className="mt-1 block font-mono text-[11px] opacity-80">{message.grabbedHtml}</span>
+            <span className="mt-1 block font-mono text-[13px] leading-5 opacity-80">{message.grabbedHtml}</span>
           ) : null}
         </div>
       </div>
@@ -21,7 +21,7 @@ export function MessageRow({message}: {message: Message}) {
 
   if (message.kind === 'think') {
     return (
-      <div className="od-msg font-mono text-[12.5px] text-muted-foreground/80">
+      <div className="od-msg font-mono text-[13px] leading-5 text-muted-foreground/80">
         <SparkMark /> {message.text}
       </div>
     )
@@ -33,7 +33,7 @@ export function MessageRow({message}: {message: Message}) {
 
   if (message.kind === 'tool') {
     return (
-      <div className="od-msg flex items-start gap-2 font-mono text-[12.5px]">
+      <div className="od-msg flex items-start gap-2 font-mono text-[13px] leading-5">
         <Badge variant="secondary" className="shrink-0 bg-accent font-semibold text-accent-foreground">
           {message.label}
         </Badge>
@@ -47,7 +47,9 @@ export function MessageRow({message}: {message: Message}) {
 
   return (
     <div
-      className={cn('od-msg flex items-center gap-2 rounded-lg px-2.5 py-1.5 font-mono text-[12.5px] font-medium')}
+      className={cn(
+        'od-msg flex items-center gap-2 rounded-lg px-2.5 py-1.5 font-mono text-[13px] leading-5 font-medium',
+      )}
       style={{background: 'color-mix(in oklch, var(--od-pass) 14%, transparent)', color: 'var(--od-pass)'}}
     >
       <span className="font-semibold">{'✓'}</span>

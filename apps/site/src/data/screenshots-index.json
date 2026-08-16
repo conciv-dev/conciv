@@ -1,0 +1,66 @@
+[
+  {
+    "file": "grab-element.webp",
+    "source": "r14-grab-crosshair-highlight.png",
+    "crop": [804, 360, 3036, 1900],
+    "width": 1160,
+    "height": 726,
+    "alt": "conciv widget panel with a red accent open beside the host page's form, a teal crosshair highlight ringing the Submit button and a locator tooltip below it reading LocalSubscribe$1.button"
+  },
+  {
+    "file": "edit-live.webp",
+    "source": "r23-edit-live-restyled.png",
+    "crop": [341, 180, 3499, 2190],
+    "width": 1160,
+    "height": 726,
+    "alt": "Host page heading restyled to bright purple next to the conciv panel showing the request, an Edited the page tool card with a setstyle action, and the reply: hero h1 now #a020f0, inline style only, reload wipes it"
+  },
+  {
+    "file": "test-run.webp",
+    "source": "r29-test-run-card.png",
+    "crop": [804, 360, 3036, 1900],
+    "width": 1160,
+    "height": 726,
+    "alt": "conciv panel showing a Ran the tests card with action run and 4 passed badges, per-test rows for lib/cn.test.ts and lib/nav.test.ts, and the summary 4 pass, 0 fail. All green."
+  },
+  {
+    "file": "permission.webp",
+    "source": "r32-permission-card.png",
+    "crop": [804, 360, 3036, 1900],
+    "width": 1160,
+    "height": 726,
+    "alt": "conciv panel mid-approval: a bash tool card named Remove scratch file above a Run this action? prompt with Deny and a red Allow button"
+  },
+  {
+    "file": "whiteboard.webp",
+    "source": "r41-whiteboard-diagram.png",
+    "crop": [200, 0, 3640, 2278],
+    "width": 1160,
+    "height": 726,
+    "alt": "Agent-drawn flowchart on the shared whiteboard canvas over the host page, four labeled boxes, Your App, conciv Widget, Agent (me), Your Source Files, connected by arrows in a loop, with the conciv chat panel listing the confirmed box coordinates"
+  },
+  {
+    "file": "any-running-app.webp",
+    "source": "e06r-hero-framing-1440.png",
+    "crop": [0, 578, 4320, 1852],
+    "width": 2360,
+    "height": 1012,
+    "alt": "conciv panel open on the vite.dev site next to the hero, The Build Tool for the Web with Get Started and View on GitHub, answering the question what is this page selling"
+  },
+  {
+    "file": "fab-closed.webp",
+    "source": "r01-fab-closed-form.png",
+    "crop": [3480, 2136, 360, 270],
+    "width": 800,
+    "height": 600,
+    "alt": "conciv's closed floating action button, a round robot-mascot avatar with pink eyes, docked in the bottom-right corner of the host page"
+  },
+  {
+    "file": "hero-demo.webp",
+    "source": "site demo capture (ProductFrame body at 1120×700, DPR 2)",
+    "crop": null,
+    "width": 2240,
+    "height": 1400,
+    "alt": "conciv live demo: a dark sample app with a Get started button on the left, the conciv chat panel on the right inviting you to grab an element and say what to change."
+  }
+]

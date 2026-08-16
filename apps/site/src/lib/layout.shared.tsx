@@ -1,10 +1,10 @@
 import type {BaseLayoutProps} from 'fumadocs-ui/layouts/shared'
-import {appName} from './shared'
+import {BrandMark} from '@/components/brand-mark'
 
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: appName,
+      title: <BrandMark />,
     },
   }
 }

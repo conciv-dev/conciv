@@ -1,6 +1,6 @@
 import {starsResponseSchema} from './star-count'
 
-let stars: number | null = null
+let refreshed: number | null = null
 let started = false
 const listeners = new Set<() => void>()
 
@@ -14,12 +14,18 @@ async function parseStarsResponse(response: Response): Promise<number | null> {
   return result.success ? result.data.stars : null
 }
 
-async function loadStarCount(): Promise<void> {
+async function fetchRefreshedStarCount(): Promise<number | null> {
   try {
-    stars = await parseStarsResponse(await fetch('/api/stars'))
+    return await parseStarsResponse(await fetch('/api/stars'))
   } catch {
-    stars = null
+    return null
   }
+}
+
+async function refreshStarCount(): Promise<void> {
+  const stars = await fetchRefreshedStarCount()
+  if (stars === null) return
+  refreshed = stars
   notify()
 }
 
@@ -27,15 +33,15 @@ export function subscribeStarCount(onChange: () => void): () => void {
   listeners.add(onChange)
   if (!started) {
     started = true
-    void loadStarCount()
+    void refreshStarCount()
   }
   return () => listeners.delete(onChange)
 }
 
-export function getStarCountSnapshot(): number | null {
-  return stars
+export function getRefreshedStarCount(): number | null {
+  return refreshed
 }
 
-export function getServerStarCountSnapshot(): number | null {
+export function getServerRefreshedStarCount(): number | null {
   return null
 }

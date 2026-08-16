@@ -50,11 +50,9 @@ export function TryLiveButton() {
   const busState = useBusState()
   const open = () => panelCommands.emit('open', undefined)
   return (
-    <div className="mt-6">
-      <Button variant="default" onClick={open} aria-busy={busState === 'connecting'}>
-        <span className="size-1.5 rounded-full bg-primary-foreground" aria-hidden />
-        {tryButtonLabel({connected: isConnected, pending: busState === 'connecting'})}
-      </Button>
-    </div>
+    <Button variant="outline" size="lg" onClick={open} aria-busy={busState === 'connecting'} className="max-md:hidden">
+      <span className="size-1.5 rounded-full bg-primary" aria-hidden />
+      {tryButtonLabel({connected: isConnected, pending: busState === 'connecting'})}
+    </Button>
   )
 }

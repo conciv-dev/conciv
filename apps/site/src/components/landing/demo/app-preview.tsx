@@ -4,14 +4,16 @@ import {cn} from '@/lib/utils'
 export function AppPreview({picking, onPick}: {picking: boolean; onPick: (id: string) => void}) {
   return (
     <div className={cn('od-preview relative flex min-h-[15rem] flex-col p-[18px] sm:min-h-0', picking && 'od-picking')}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">your live app</div>
+      <div className="font-mono text-[13px] leading-5 uppercase tracking-[0.1em] text-muted-foreground">
+        your live app
+      </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <Pickable id="heading" picking={picking} onPick={onPick}>
           <span className="od-display block text-xl">Welcome back</span>
         </Pickable>
         <Pickable id="sub" picking={picking} onPick={onPick}>
-          <span className="block text-[12.5px] text-muted-foreground">Sign in to continue</span>
+          <span className="block text-[13px] leading-5 text-muted-foreground">Sign in to continue</span>
         </Pickable>
         <Pickable id="cta" picking={picking} onPick={onPick}>
           <button type="button" className="od-cta" tabIndex={-1}>
@@ -22,7 +24,7 @@ export function AppPreview({picking, onPick}: {picking: boolean; onPick: (id: st
 
       {picking ? (
         <div className="pointer-events-none absolute inset-x-0 top-3.5 flex justify-center">
-          <Badge className="bg-primary text-primary-foreground shadow-lg">Picking… click an element</Badge>
+          <Badge className="bg-primary text-primary-foreground shadow-sm">Picking… click an element</Badge>
         </div>
       ) : null}
     </div>

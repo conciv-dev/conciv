@@ -3,7 +3,9 @@ import * as React from 'react'
 import appCss from '@/styles/app.css?url'
 import {RootProvider} from 'fumadocs-ui/provider/tanstack'
 import {LiveWidgetMount} from '@/components/live-widget-mount'
+import {SiteMotion} from '@/components/site-motion'
 import {rootSearchSchema} from '@/lib/search-schemas'
+import {getStarCount} from '@/lib/star-count.functions'
 import {canonicalHeadTags, DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE} from '@/lib/site-urls'
 import {seo} from '@/lib/seo'
 import {buildRootJsonLd} from '@/lib/structured-data'
@@ -16,6 +18,8 @@ export const Route = createRootRoute({
   beforeLoad: ({matches}) => ({
     widgetHomeDefault: matches.some((match) => match.routeId === '/'),
   }),
+  loader: () => getStarCount(),
+  staleTime: Infinity,
   head: ({matches}) => {
     const canonical = canonicalHeadTags(matches)
 
@@ -50,7 +54,9 @@ function RootComponent() {
       </head>
       <body className="flex flex-col min-h-screen">
         <RootProvider>
-          <Outlet />
+          <SiteMotion>
+            <Outlet />
+          </SiteMotion>
         </RootProvider>
         <LiveWidgetMount />
         <Scripts />

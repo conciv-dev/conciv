@@ -5,6 +5,7 @@ import {runConnect} from '@conciv/try'
 import type {Engine} from '@conciv/core/start'
 import type {Page, Locator} from 'playwright/test'
 import {createSiteTest} from './site-fixture.js'
+import {waitForLandingHydration} from './landing-page.js'
 
 const SITE_PORT = 8787
 const INSPECTOR_PORT = 9787
@@ -37,7 +38,8 @@ test.describe('widget-native live connect on the built site', () => {
   test('opens the panel for a click that lands before the widget bundle has mounted', async ({browser}) => {
     const page = await browser.newPage()
     await page.goto(`${ORIGIN}/?widget=false`, {waitUntil: 'domcontentloaded'})
-    await page.getByRole('button', {name: /Try it live/i}).click()
+    await waitForLandingHydration(page)
+    await page.getByRole('button', {name: 'Try it live', exact: true}).click()
     await expectLocator(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 20_000})
 
     await page.close()
@@ -101,7 +103,7 @@ test.describe('widget-native live connect on the built site', () => {
     const panel = await openLandingOnConnectSteps(page)
     await dismissAndReload(page, panel)
 
-    await page.getByRole('button', {name: /Try it live/i}).click()
+    await page.getByRole('button', {name: 'Try it live', exact: true}).click()
     await expectLocator(panel).toBeVisible({timeout: 20_000})
 
     await page.close()

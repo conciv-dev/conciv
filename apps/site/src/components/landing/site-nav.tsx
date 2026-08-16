@@ -1,33 +1,53 @@
 import {Link} from '@tanstack/react-router'
-import {SparkMark} from './spark-mark'
-import {ThemeToggle} from './theme-toggle'
-import {useSmoothAnchor} from './smooth-scroll'
-import {GitHubStarLink} from './github-star-link'
+import {SiteHeader} from '@/components/ui/site-header'
+import {ThemeSwitch} from '@/components/ui/theme-switch'
+import {BrandMark} from '@/components/brand-mark'
+import {GitHubStarsButton} from '@/components/github-stars-button'
+
+const NAV_LINK_CLASS =
+  'od-hit od-ui inline-flex h-8 items-center rounded-lg px-3 transition-colors hover:text-foreground'
+const NAV_INACTIVE_PROPS = {className: 'text-muted-foreground'}
+const NAV_ACTIVE_PROPS = {className: 'text-foreground'}
 
 export function SiteNav() {
-  const smoothAnchor = useSmoothAnchor()
-
   return (
-    <nav className="mx-auto flex max-w-[1180px] items-center gap-7 px-8 py-[22px]">
-      <div className="od-display mr-auto flex items-center gap-2 text-[19px] font-bold">
-        <SparkMark className="text-primary" /> conciv
+    <div className="od-page">
+      <div className="od-col">
+        <SiteHeader
+          className="px-3"
+          brand={
+            <Link to="/" aria-label="conciv home">
+              <BrandMark />
+            </Link>
+          }
+          links={[
+            {
+              label: 'How it works',
+              node: (
+                <a href="#how" className={`${NAV_LINK_CLASS} text-muted-foreground`}>
+                  How it works
+                </a>
+              ),
+            },
+            {
+              label: 'Docs',
+              node: (
+                <Link
+                  to="/docs/$"
+                  params={{_splat: ''}}
+                  className={NAV_LINK_CLASS}
+                  activeProps={NAV_ACTIVE_PROPS}
+                  inactiveProps={NAV_INACTIVE_PROPS}
+                >
+                  Docs
+                </Link>
+              ),
+            },
+          ]}
+          actions={<GitHubStarsButton />}
+          mobileActions={<ThemeSwitch />}
+        />
       </div>
-      <a
-        href="#how"
-        onClick={smoothAnchor('#how')}
-        className="whitespace-nowrap text-sm font-medium text-muted-foreground transition-colors hover:text-foreground max-sm:hidden"
-      >
-        How it works
-      </a>
-      <Link
-        to="/docs/$"
-        params={{_splat: ''}}
-        className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        Docs
-      </Link>
-      <GitHubStarLink />
-      <ThemeToggle />
-    </nav>
+    </div>
   )
 }

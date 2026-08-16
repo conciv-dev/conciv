@@ -2,6 +2,9 @@ import {defineConfig} from 'vitest/config'
 import {ciReporters} from '@conciv/vitest-config'
 
 export default defineConfig({
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
     environment: 'node',
     include: ['test/**/*.it.test.ts'],

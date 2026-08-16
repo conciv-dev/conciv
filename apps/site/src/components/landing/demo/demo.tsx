@@ -1,4 +1,4 @@
-import {useRef, useState} from 'react'
+import {useCallback, useRef, useState} from 'react'
 import {useGSAP} from '@gsap/react'
 import gsap from 'gsap'
 import {Check, RotateCcw} from 'lucide-react'
@@ -48,7 +48,7 @@ const cleanHtml = (el: HTMLElement | null, fallback: string) => {
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-export function Demo() {
+export function Demo({onReady}: {onReady?: () => void}) {
   const [state, dispatch] = useDemo()
   const [input, setInput] = useState('')
   const [pendingText, setPendingText] = useState<string | null>(null)
@@ -61,6 +61,18 @@ export function Demo() {
   const ghostRef = useRef<HTMLDivElement>(null)
 
   const active = useRef<{id: string; scenario: Scenario} | null>(null)
+
+  const attachScope = useCallback(
+    (node: HTMLDivElement) => {
+      scope.current = node
+      const frame = requestAnimationFrame(() => onReady?.())
+      return () => {
+        cancelAnimationFrame(frame)
+        scope.current = null
+      }
+    },
+    [onReady],
+  )
 
   const grabbedEl = (id: string) =>
     scope.current?.querySelector(`[data-pickable="${id}"]`)?.firstElementChild as HTMLElement | null
@@ -197,45 +209,45 @@ export function Demo() {
   const selectedModel = MODELS.find((option) => option.id === model.selected)
 
   return (
-    <div className="relative min-w-0" ref={scope}>
-      <div
-        className="pointer-events-none absolute -inset-3 -z-10 rounded-[28px] opacity-60 blur-2xl"
-        style={{background: 'radial-gradient(60% 60% at 70% 20%, var(--od-accent-soft), transparent)'}}
-      />
-      <Card className="gap-0 overflow-hidden p-0 shadow-xl">
+    <div className="relative flex h-full min-w-0 flex-col" ref={attachScope}>
+      <Card className="h-full gap-0 overflow-hidden rounded-none border-0 p-0 shadow-none ring-0">
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
           <SparkMark className="text-base text-primary" />
-          <span className="text-[13.5px] font-semibold">conciv</span>
-          <Badge className="bg-accent font-mono text-[10px] uppercase tracking-wide text-accent-foreground">
+          <span className="text-[14px] leading-5 font-semibold">conciv</span>
+          <Badge className="bg-accent font-mono text-[13px] leading-5 uppercase tracking-wide text-accent-foreground">
             in your app
           </Badge>
           <Select value={model.selected} onValueChange={model.choose}>
             <SelectTrigger
               size="sm"
               aria-label="Pick the local model"
-              className="max-sm:hidden h-6 gap-1 rounded-md px-2 py-0 font-mono text-[10px] text-muted-foreground [&_svg:not([class*='size-'])]:size-3"
+              className="max-sm:hidden h-6 gap-1 rounded-md px-2 py-0 font-mono text-[13px] leading-5 text-muted-foreground [&_svg:not([class*='size-'])]:size-3"
             >
               <SelectValue>{MODELS.find((option) => option.id === model.selected)?.label}</SelectValue>
             </SelectTrigger>
-            <SelectContent className="p-1 font-mono text-[11px]">
+            <SelectContent className="p-1 font-mono text-[13px] leading-5">
               {MODELS.map((option) => (
-                <SelectItem key={option.id} value={option.id} className="py-1.5 pl-2.5 font-mono text-[11px]">
+                <SelectItem key={option.id} value={option.id} className="py-1.5 pl-2.5 font-mono text-[13px] leading-5">
                   {option.label} <span className="text-muted-foreground">({option.size})</span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           {model.status === 'loading' && (
-            <Badge className="bg-primary/10 font-mono text-[10px] tracking-wide text-primary">{model.percent}%</Badge>
+            <Badge className="bg-primary/10 font-mono text-[13px] leading-5 tracking-wide text-primary">
+              {model.percent}%
+            </Badge>
           )}
           {model.status === 'ready' && (
-            <Badge className="gap-1 bg-primary/10 font-mono text-[10px] tracking-wide text-primary">
+            <Badge className="gap-1 bg-primary/10 font-mono text-[13px] leading-5 tracking-wide text-primary">
               {model.device}
               <Check className="size-3" />
             </Badge>
           )}
           {model.status === 'error' && (
-            <Badge className="bg-destructive/10 font-mono text-[10px] tracking-wide text-destructive">offline</Badge>
+            <Badge className="bg-destructive/10 font-mono text-[13px] leading-5 tracking-wide text-destructive">
+              offline
+            </Badge>
           )}
           {state.done ? (
             <Button
@@ -244,18 +256,21 @@ export function Demo() {
               size="sm"
               onClick={onRestart}
               aria-label="Restart demo"
-              className="ml-auto h-7 gap-1.5 px-2 font-mono text-[12px] text-muted-foreground hover:text-foreground"
+              className="ml-auto h-7 gap-1.5 px-2 font-mono text-[13px] leading-5 text-muted-foreground hover:text-foreground"
             >
               <RotateCcw className="size-3.5" />
               <span className="max-sm:hidden">Restart demo</span>
             </Button>
           ) : (
-            <span className="ml-auto whitespace-nowrap font-mono text-[12px] text-muted-foreground">live demo</span>
+            <span className="ml-auto whitespace-nowrap font-mono text-[13px] leading-5 text-muted-foreground">
+              live demo
+            </span>
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:h-[460px] sm:grid-cols-2">
-          <div className="flex min-h-[19rem] flex-col border-b sm:min-h-0 sm:border-b-0 sm:border-r">
+        <div className="grid flex-1 grid-cols-1 overflow-hidden sm:grid-cols-[1fr_420px]">
+          <AppPreview picking={state.picking} onPick={onPick} />
+          <div className="flex min-h-[19rem] flex-col border-t sm:min-h-0 sm:border-t-0 sm:border-l">
             <Transcript
               messages={state.messages}
               hint={state.messages.length === 1 && !state.grabbed && !state.picking}
@@ -272,7 +287,6 @@ export function Demo() {
               grabRef={grabRef}
             />
           </div>
-          <AppPreview picking={state.picking} onPick={onPick} />
         </div>
       </Card>
 
