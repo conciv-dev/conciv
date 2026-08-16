@@ -1,6 +1,6 @@
 import {createServer, request as httpRequest, type IncomingMessage, type Server} from 'node:http'
 import type {Duplex} from 'node:stream'
-import {listenLocal} from './host.js'
+import {listenLocal} from '@conciv/extension-testkit/listen-local'
 
 export type ProxyCore = {
   base: string

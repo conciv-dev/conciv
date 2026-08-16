@@ -3,7 +3,7 @@ import {expect as expectLocator} from 'playwright/test'
 import type {Browser, Page} from 'playwright'
 import {test as browserTest} from '@conciv/browser-fixture'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
-import {httpRpcRequestUrls, observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
+import {httpRpcRequestUrls, rpcCallCursor, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import {serveStandaloneApp} from './helpers/static-app.js'
 import {proxyTo, type ProxyCore} from './helpers/proxy.js'
 
@@ -47,14 +47,14 @@ function pageUrl(appBase: string, coreBase: string, transport: 'websocket' | 'fe
   return `${appBase}/?core=${encodeURIComponent(coreBase)}&settings=${settings}`
 }
 
-type Tab = {page: Page; observer: RpcObserver; httpRpcUrls: string[]; disposeHttpRpc: () => void}
+type Tab = {page: Page; calls: RpcCallCursor; httpRpcUrls: string[]; disposeHttpRpc: () => void}
 
 async function openTab(browser: Browser, url: string): Promise<Tab> {
   const page = await browser.newPage()
   const http = httpRpcRequestUrls(page)
-  const observer = observeRpc(page)
+  const calls = rpcCallCursor(page)
   await page.goto(url, {waitUntil: 'domcontentloaded'})
-  return {page, observer, httpRpcUrls: http.urls, disposeHttpRpc: http.dispose}
+  return {page, calls, httpRpcUrls: http.urls, disposeHttpRpc: http.dispose}
 }
 
 async function completeTurn(page: Page): Promise<void> {
@@ -72,10 +72,9 @@ test.describe('the standalone entry threads settings.transport into the browser 
       const tab = await openTab(browser, pageUrl(app.base, openCore.base, 'fetch'))
       try {
         await completeTurn(tab.page)
-        expect(tab.observer.socketCount()).toBe(0)
+        expect(tab.calls.socketsSince()).toBe(0)
         expect(tab.httpRpcUrls.length).toBeGreaterThan(0)
       } finally {
-        tab.observer.dispose()
         tab.disposeHttpRpc()
         await tab.page.close()
       }
@@ -89,10 +88,9 @@ test.describe('the standalone entry threads settings.transport into the browser 
       const tab = await openTab(browser, pageUrl(app.base, openCore.base, 'websocket'))
       try {
         await completeTurn(tab.page)
-        expect(tab.observer.socketCount()).toBe(1)
+        expect(tab.calls.socketsSince()).toBe(1)
         expect(tab.httpRpcUrls).toEqual([])
       } finally {
-        tab.observer.dispose()
         tab.disposeHttpRpc()
         await tab.page.close()
       }

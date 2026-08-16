@@ -1,6 +1,6 @@
 import {createServer} from 'node:http'
 import {describe, expect, it} from 'vitest'
-import {listenLocal} from '../helpers/host.js'
+import {listenLocal} from '../src/listen-local.js'
 
 describe('listenLocal', () => {
   it('rejects instead of hanging when the requested port is already bound', async () => {

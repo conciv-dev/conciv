@@ -1,7 +1,8 @@
 import './helpers/utilities.css'
 import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import type {RpcClient} from '@conciv/contract'
+import type {DraftRow, RpcClient} from '@conciv/contract'
+import {until} from '@conciv/harness-testkit/until'
 import pageExtension from '@conciv/extension-page/client'
 import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
@@ -21,7 +22,6 @@ import {trackedFaults} from './helpers/tracked-faults.js'
 
 const SEND_PATH = ['chat', 'send']
 const SUBSCRIBE_PATH = ['chat', 'subscribe']
-const DRAFTS_SET_PATH = ['drafts', 'set']
 
 const core = {base: ''}
 const active: {pane: PaneMount | null} = {pane: null}
@@ -41,6 +41,11 @@ afterEach(async () => {
   active.pane?.dispose()
   active.pane = null
 })
+
+async function draftAttachments(sessionId: string): Promise<DraftRow['attachments']> {
+  const draft = await coreRpc(core.base).drafts.get({sessionId})
+  return draft?.attachments ?? []
+}
 
 async function newSession(): Promise<{rpc: RpcClient; sessionId: string}> {
   const rpc = coreRpc(core.base)
@@ -108,13 +113,11 @@ test('restores the server-side draft text and staged grabs when the pane mounts'
 
 test('a staged grab keeps its snapshot and source label across a panel reload', async () => {
   const {sessionId} = await newSession()
-  const since = await coreControl.rpcMark()
   const first = mountChatPane(sessionId, grabOptions(HERO_GRAB))
   await stageGrabThroughComposer()
 
-  expect(await coreControl.awaitRpcCall(DRAFTS_SET_PATH, since, {sessionId})).toBe(200)
-  const persisted = await coreRpc(core.base).drafts.get({sessionId})
-  expect(persisted?.attachments.map((attachment) => attachment.contentType)).toEqual([GRAB_MIME])
+  await until(async () => (await draftAttachments(sessionId)).length > 0, {hangGuardMs: 30_000, intervalMs: 100})
+  expect((await draftAttachments(sessionId)).map((attachment) => attachment.contentType)).toEqual([GRAB_MIME])
   first.dispose()
 
   mountChatPane(sessionId, {extensions: [pageExtension]})

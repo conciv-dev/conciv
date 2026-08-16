@@ -14,12 +14,21 @@ import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
+import {
+  CONNECTION_CHANGED_EVENT,
+  createEventBus,
+  createEventBusClient,
+  PANEL_PLUGIN_ID,
+  PANEL_TOGGLED_EVENT,
+  type PanelCommandEventMap,
+} from '@conciv/protocol/event-bus'
 import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
   useAppData,
   useConnected,
   useLayers,
+  useNotifyInteractive,
   useSettings,
   useSuppressed,
   type AppContextValue,
@@ -113,11 +122,12 @@ function RootComponent() {
     grabProvider: app.grabProvider,
     connectionGeneration: app.connectionGeneration,
     apiBase: app.apiBase,
+    notifyInteractive: app.notifyInteractive,
   }
 
   createEffect(() => {
     const isConnected = app.connected()
-    window.dispatchEvent(new CustomEvent('conciv:connection-changed', {detail: {connected: isConnected}}))
+    window.dispatchEvent(new CustomEvent(CONNECTION_CHANGED_EVENT, {detail: {connected: isConnected}}))
   })
 
   const reachability = makeEngineReachability()
@@ -157,6 +167,7 @@ function RootChrome(props: {
   const layers = useLayers()
   const suppressed = useSuppressed()
   const connected = useConnected()
+  const notifyInteractive = useNotifyInteractive()
   const router = useRouter()
   const matchRoute = useMatchRoute()
   const panelMatch = matchRoute({to: '/panel/$sessionId', fuzzy: true})
@@ -194,7 +205,7 @@ function RootChrome(props: {
   const reportPanelState = () => {
     const open = panelOpen()
     window.dispatchEvent(
-      new CustomEvent('conciv:panel-toggled', {
+      new CustomEvent(PANEL_TOGGLED_EVENT, {
         detail: {open, connected: connected(), mascotRect: open ? null : mascotRect()},
       }),
     )
@@ -259,17 +270,26 @@ function RootChrome(props: {
     onCleanup(() => cancelAnimationFrame(frame))
   })
 
+  const eventBus = createEventBus()
+  const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID})
+
   onMount(() => {
     if (settings.defaultOpen && closedMatch()) void openPanel()
-    const openFromHost = () => void openPanel()
-    const closeFromHost = () => {
-      if (panelOpen()) closePanel()
-    }
-    const toggleFromHost = () => togglePanel()
     makeEventListener(window, 'resize', reportPanelState)
-    makeEventListener(window, 'conciv:open-panel', openFromHost)
-    makeEventListener(window, 'conciv:close-panel', closeFromHost)
-    makeEventListener(window, 'conciv:toggle-panel', toggleFromHost)
+    const unsubscribes = [
+      panelCommands.on('open', () => void openPanel()),
+      panelCommands.on('close', () => {
+        if (panelOpen()) closePanel()
+      }),
+      panelCommands.on('toggle', () => togglePanel()),
+    ]
+    eventBus.start()
+    notifyInteractive()
+    onCleanup(() => {
+      for (const unsubscribe of unsubscribes) unsubscribe()
+      eventBus.stop()
+      panelCommands.dispose()
+    })
   })
 
   const onKeyDown = (event: KeyboardEvent) => {

@@ -92,6 +92,10 @@
     "./state-types": {
       "types": "./dist/state-types.d.ts",
       "import": "./dist/state-types.js"
+    },
+    "./event-bus": {
+      "types": "./dist/event-bus.d.ts",
+      "import": "./dist/event-bus.js"
     }
   },
   "publishConfig": {

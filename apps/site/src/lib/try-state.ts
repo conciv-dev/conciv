@@ -10,3 +10,9 @@ export function shouldAutoOpen(opts: {
 export function shouldDismissOnClose(opts: {hasBeenOpen: boolean; connected: boolean}): boolean {
   return opts.hasBeenOpen && !opts.connected
 }
+
+export function tryButtonLabel(opts: {connected: boolean; pending: boolean}): string {
+  if (opts.connected) return 'Open agent panel'
+  if (opts.pending) return 'Opening…'
+  return 'Try it live'
+}

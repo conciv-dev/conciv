@@ -1,6 +1,5 @@
 import {expect, test, type BrowserContext, type Page} from '@playwright/test'
-import {observeRpc, type RpcObserver} from '@conciv/extension-testkit/rpc-observer'
-import {setNavigation} from './helpers/navigation.js'
+import {httpRpcRequestUrls, rpcCallCursor, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import {setupProxiedEmbedSuite} from './helpers/proxied-suite.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
@@ -9,23 +8,15 @@ const MOUNT_TIMEOUT_MS = 20_000
 
 const suite = setupProxiedEmbedSuite({text: ASSISTANT_TEXT})
 
-test.beforeEach(async () => {
-  expect(await setNavigation(suite.kit(), [{href: '/'}])).toBe(true)
-})
-
-type Tab = {page: Page; observer: RpcObserver; httpRpcUrls: string[]}
+type Tab = {page: Page; calls: RpcCallCursor; httpRpcUrls: string[]}
 
 async function openTab(context: BrowserContext): Promise<Tab> {
   const page = await context.newPage()
-  const httpRpcUrls: string[] = []
-  page.on('request', (request) => {
-    const pathname = new URL(request.url()).pathname
-    if (pathname.startsWith('/rpc/') || pathname === '/rpc') httpRpcUrls.push(request.url())
-  })
-  const observer = observeRpc(page)
+  const {urls} = httpRpcRequestUrls(page)
+  const calls = rpcCallCursor(page)
   await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
   await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
-  return {page, observer, httpRpcUrls}
+  return {page, calls, httpRpcUrls: urls}
 }
 
 async function openPanel(page: Page): Promise<void> {
@@ -47,18 +38,14 @@ test.describe('six widget tabs sharing one browserContext connection pool (the p
   }) => {
     test.setTimeout(180_000)
     const tabs: Tab[] = []
-    try {
-      for (let index = 0; index < SHARED_CONTEXT_TAB_COUNT; index += 1) tabs.push(await openTab(context))
+    for (let index = 0; index < SHARED_CONTEXT_TAB_COUNT; index += 1) tabs.push(await openTab(context))
 
-      const lastTab = tabs[SHARED_CONTEXT_TAB_COUNT - 1]
-      if (!lastTab) throw new Error('expected six tabs')
-      await openPanel(lastTab.page)
-      await sendTurn(lastTab.page, 'hi there', 1)
+    const lastTab = tabs[SHARED_CONTEXT_TAB_COUNT - 1]
+    if (!lastTab) throw new Error('expected six tabs')
+    await openPanel(lastTab.page)
+    await sendTurn(lastTab.page, 'hi there', 1)
 
-      for (const tab of tabs) expect(tab.observer.socketCount()).toBe(1)
-      for (const tab of tabs) expect(tab.httpRpcUrls).toEqual([])
-    } finally {
-      for (const tab of tabs) tab.observer.dispose()
-    }
+    for (const tab of tabs) expect(tab.calls.socketsSince()).toBe(1)
+    for (const tab of tabs) expect(tab.httpRpcUrls).toEqual([])
   })
 })

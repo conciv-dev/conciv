@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test'
-import {failRpcCalls} from '@conciv/extension-testkit/rpc-fault'
+import {failRpcCalls} from '../src/rpc-fault.js'
 import {setupWsProbeSuite} from './helpers/probe-suite.js'
 
 const suite = setupWsProbeSuite()

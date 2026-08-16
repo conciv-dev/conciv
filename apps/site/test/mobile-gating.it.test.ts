@@ -41,6 +41,8 @@ test.describe('landing gates the dev-only demo behind a non-mobile pointer', () 
     await expectLocator(page.getByRole('tablist', {name: 'Package manager'}).first()).toBeHidden()
     await expectLocator(page.getByRole('button', {name: 'Try it live', exact: true})).toBeHidden()
     await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(0)
+    await expectLocator(page.getByText('desktop-only')).toBeVisible()
+    await expectLocator(page.getByRole('link', {name: 'Read the quick start →'})).toBeVisible()
     expect(requested.filter((url) => /model\.worker|\/demo[\w-]*\.js/.test(url))).toEqual([])
 
     await page.close()

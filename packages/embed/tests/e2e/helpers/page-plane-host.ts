@@ -1,15 +1,12 @@
 import type {Page} from '@playwright/test'
-import {observeRpc} from '@conciv/extension-testkit/rpc-observer'
+import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
+
+const PAGE_DRIVER_TIMEOUT_MS = 30_000
 
 export async function openPagePlaneHost(page: Page, base: string): Promise<Page> {
-  const observer = observeRpc(page)
-  try {
-    const subscribed = observer.completed({path: ['page', 'queries'], timeout: 30_000})
+  await awaitPagePlaneSubscribed(page, async () => {
     await page.goto(base, {waitUntil: 'domcontentloaded'})
-    await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 30_000})
-    await subscribed
-    return page
-  } finally {
-    observer.dispose()
-  }
+    await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: PAGE_DRIVER_TIMEOUT_MS})
+  })
+  return page
 }

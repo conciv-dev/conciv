@@ -18,7 +18,7 @@ describe('embed native bundle', () => {
   })
 
   it('bundles the conciv app graph into the native entry', () => {
-    expect(nativeBundle.includes('conciv:open-panel')).toBe(true)
+    expect(nativeBundle.includes('conciv chat agent')).toBe(true)
   })
 
   it('leaves no runtime import external in the self-contained native bundle', () => {

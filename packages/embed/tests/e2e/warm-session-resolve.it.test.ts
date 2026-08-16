@@ -1,7 +1,9 @@
 import {expect, test, type Page} from '@playwright/test'
-import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
+import {gateRpcCalls, type RpcGate} from '@conciv/extension-testkit/rpc-fault'
+import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
 import {setupWidgetSuite} from './helpers/suite.js'
-import {hostPage, serveHost} from '../helpers/host.js'
+import {hostPage} from '../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 
 const suite = setupWidgetSuite()
 
@@ -24,14 +26,12 @@ function launcher(page: Page) {
   return page.getByRole('button', {name: LAUNCHER_NAME})
 }
 
-async function stallRpcFromNow(page: Page, paths: readonly (readonly string[])[]): Promise<void> {
-  for (const path of paths) {
-    const suffix = `/rpc/${path.join('/')}`
-    await page.route(
-      (url) => url.pathname.endsWith(suffix),
-      () => new Promise<never>(() => {}),
-    )
-  }
+type StalledSessionRpcs = {list: RpcGate; resolve: RpcGate}
+
+async function stallSessionRpcs(page: Page): Promise<StalledSessionRpcs> {
+  const list = await gateRpcCalls(page, {path: SESSIONS_LIST})
+  const resolve = await gateRpcCalls(page, {path: SESSIONS_RESOLVE})
+  return {list, resolve}
 }
 
 test.describe('first panel open does not re-run session resolution at click time', () => {
@@ -44,16 +44,20 @@ test.describe('first panel open does not re-run session resolution at click time
       hostPage({apiBase: suite.kit().base, widget: '{"quickTerminal":false,"transport":"fetch"}'}),
     )
     dedicatedHosts.push(host)
-    const observer = rpcObserverFor(page)
-
+    const wire = watchRpcWire(page)
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await expect(launcher(page)).toBeVisible({timeout: 15_000})
-    await observer.completed({path: SESSIONS_LIST, timeout: 5_000})
-    await observer.completed({path: SESSIONS_RESOLVE, timeout: 1_500}).catch(() => {})
+    await wire.sessionsBootTraffic()
 
-    await stallRpcFromNow(page, [SESSIONS_LIST, SESSIONS_RESOLVE])
-    await launcher(page).click()
+    const stalled = await stallSessionRpcs(page)
+    try {
+      await launcher(page).click()
 
-    await expect(composer(page)).toBeVisible({timeout: 5_000})
+      await expect(composer(page)).toBeVisible({timeout: 5_000})
+      expect(stalled.resolve.pending()).toBe(0)
+    } finally {
+      await stalled.list.dispose()
+      await stalled.resolve.dispose()
+    }
   })
 })

@@ -1,6 +1,7 @@
 import {test} from '@playwright/test'
 import {bootEmbedKit, type EmbedKit} from '../../helpers/boot.js'
-import {hostPage, serveHost} from '../../helpers/host.js'
+import {hostPage} from '../../helpers/host.js'
+import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {proxyTo, type ProxyCore} from '../../helpers/proxy.js'
 
 export type ProxiedEmbedSuite = {
@@ -20,13 +21,13 @@ export function setupProxiedEmbedSuite(
   let core: ProxyCore
   let host: {base: string; close: () => Promise<void>}
 
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     kit = await bootEmbedKit({text: opts.text})
     core = await proxyTo(kit.base, opts.proxy)
     host = await serveHost(() => hostPage({apiBase: core.base, widget: opts.widget ?? '{"quickTerminal":false}'}))
   })
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     await host.close()
     await core.close()
     await kit.cleanup()

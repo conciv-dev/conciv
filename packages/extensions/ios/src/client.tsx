@@ -1,5 +1,6 @@
 import {createSignal, Show, type JSX} from 'solid-js'
 import {defineExtension} from '@conciv/extension'
+import {createEventBusClient, PANEL_PLUGIN_ID, type PanelCommandEventMap} from '@conciv/protocol/event-bus'
 import type {ElementRect, GrabActions, GrabProvider} from '@conciv/grab'
 import {createBridgeClient, type BridgeClient, type BridgeTransport} from './shared/bridge-client.js'
 import type {GrabMode} from './shared/bridge.js'
@@ -41,6 +42,12 @@ let bridge: BridgeClient | null = null
 function dispatch(name: string, detail?: Record<string, unknown>): void {
   window.dispatchEvent(new CustomEvent(name, {detail}))
 }
+
+const panelCommands = createEventBusClient<PanelCommandEventMap>({
+  pluginId: PANEL_PLUGIN_ID,
+  reconnectEveryMs: 500,
+  maxRetries: 60,
+})
 
 function makeClientId(): string {
   const random = globalThis.crypto?.randomUUID?.()
@@ -94,8 +101,8 @@ function ensureBridge(): BridgeClient | null {
     },
     clientId: makeClientId(),
     boundApiBase: nativePageBase(window.location),
-    ensureOpen: () => dispatch('conciv:open-panel'),
-    ensureClose: () => dispatch('conciv:close-panel'),
+    ensureOpen: () => panelCommands.emit('open', undefined),
+    ensureClose: () => panelCommands.emit('close', undefined),
     onRebind: (apiBase) => dispatch('conciv:rebind', {apiBase}),
     onIncompatible: (info) => setIncompatible(info),
     onGrabbableChanged: (value) => setGrabbable(value),
@@ -115,13 +122,13 @@ export function makeNativeGrabProvider(): GrabProvider {
     if (!engine) return null
     const token = ++requestSeq
     activeRequest = token
-    dispatch('conciv:close-panel')
+    panelCommands.emit('close', undefined)
     try {
       return await engine.pick(mode)
     } finally {
       if (activeRequest === token) {
         activeRequest = 0
-        dispatch('conciv:open-panel')
+        panelCommands.emit('open', undefined)
       }
     }
   }

@@ -33,7 +33,15 @@ declare global {
   }
 }
 
-type BootResult = {dispose: () => void; rebind?: (apiBase: string) => void}
+type BootResult = {dispose: () => void; rebind?: (apiBase: string) => void; interactive: Promise<void>}
+
+function createInteractiveSignal(): {promise: Promise<void>; notify: () => void} {
+  let notify = () => {}
+  const promise = new Promise<void>((resolve) => {
+    notify = resolve
+  })
+  return {promise, notify}
+}
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
@@ -97,6 +105,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const restore: {apply: (href: string) => void} = {apply: () => {}}
   const storage = makeNavigationStorage(rpc, (href) => restore.apply(href))
   const hostRouter = window.__TSR_ROUTER__
+  const interactive = createInteractiveSignal()
   const router = createConcivRouter({
     rpc,
     history: createWebStorageHistory({storage}),
@@ -109,6 +118,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     grabProvider: config.grabProvider,
     apiBase,
     connectionGeneration,
+    notifyInteractive: interactive.notify,
   })
   window.__TSR_ROUTER__ = hostRouter
   const driver = makeDomPageDriver({tools: mountedClientTools(router), effects: mountedClientEffects(router)})
@@ -154,8 +164,9 @@ function bootNormal(config: BootNormalConfig): BootResult {
     driver.dispose,
     reachabilityRoot.dispose,
     closeConnection,
+    interactive.notify,
   ]
-  return {dispose: () => runDisposers(disposers), rebind}
+  return {dispose: () => runDisposers(disposers), rebind, interactive: interactive.promise}
 }
 
 type BootConnectConfig = {
@@ -185,6 +196,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     }).dispose
   }
   const hostRouter = window.__TSR_ROUTER__
+  const interactive = createInteractiveSignal()
   const router = createConcivRouter({
     rpc: deferred.rpc,
     history: createMemoryHistory({initialEntries: [connectPath(config.settings)]}),
@@ -197,6 +209,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
     disconnect: makeDisconnect(() => boundApiBase),
     grabProvider: config.grabProvider,
     apiBase,
+    notifyInteractive: interactive.notify,
   })
   window.__TSR_ROUTER__ = hostRouter
   const driver = makeDomPageDriver({tools: mountedClientTools(router), effects: mountedClientEffects(router)})
@@ -213,8 +226,9 @@ function bootConnect(config: BootConnectConfig): BootResult {
     driver.dispose,
     reachabilityRoot.dispose,
     deferred.close,
+    interactive.notify,
   ]
-  return {dispose: () => runDisposers(disposers)}
+  return {dispose: () => runDisposers(disposers), interactive: interactive.promise}
 }
 
 async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
@@ -252,6 +266,7 @@ export function mountImpl(
     }
     disposeBoot = result.dispose
     rebindBoot = result.rebind
+    return result.interactive
   })
   const rebind = async (apiBase: string): Promise<void> => {
     await ready
