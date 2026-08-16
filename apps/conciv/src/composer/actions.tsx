@@ -1,6 +1,6 @@
 import {Show, createSignal, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
-import {TooltipIconButton} from '@conciv/ui-kit-system'
+import {ComposerActions as Action} from '@conciv/ui-kit-chat'
 import Crosshair from 'lucide-solid/icons/crosshair'
 import FoldVertical from 'lucide-solid/icons/fold-vertical'
 import SquarePen from 'lucide-solid/icons/square-pen'
@@ -96,34 +96,51 @@ export function ComposerActions(props: {
 
   return (
     <>
-      <TooltipIconButton
-        tooltip={grabDisabled() ? 'Nothing on this screen to select' : 'Select an element from the page'}
-        class={busyClass(picking())}
-        disabled={grabDisabled()}
-        onClick={() => void pick()}
-      >
-        <Crosshair class="size-5 block" />
-      </TooltipIconButton>
-      <TooltipIconButton tooltip="Start a new session" class={ACT} onClick={() => props.onNewSession()}>
-        <SquarePen class="size-5 block" />
-      </TooltipIconButton>
-      <TooltipIconButton
-        tooltip="Compress the conversation"
-        class={busyClass(props.compacting)}
-        onClick={() => props.onCompact()}
-      >
-        <FoldVertical class="size-5 block" />
-      </TooltipIconButton>
+      <Action.Root id="conciv.grab" priority={40} disabled={grabDisabled}>
+        <Action.Button
+          visible="always"
+          tooltip={grabDisabled() ? 'Nothing on this screen to select' : 'Select an element from the page'}
+          busy={picking()}
+          class={busyClass(picking())}
+          onClick={() => void pick()}
+        >
+          <Crosshair class="size-5 block" />
+        </Action.Button>
+      </Action.Root>
+      <Action.Root id="conciv.new-session" priority={30}>
+        <Action.Button tooltip="Start a new session" class={ACT} onClick={() => props.onNewSession()}>
+          <SquarePen class="size-5 block" />
+        </Action.Button>
+        <Action.DropdownItem value="new" label="Start a new session" onSelect={() => props.onNewSession()}>
+          <SquarePen class="size-4 block" aria-hidden="true" />
+        </Action.DropdownItem>
+      </Action.Root>
+      <Action.Root id="conciv.compact" priority={20} disabled={() => props.compacting}>
+        <Action.Button
+          tooltip="Compress the conversation"
+          class={busyClass(props.compacting)}
+          onClick={() => props.onCompact()}
+        >
+          <FoldVertical class="size-5 block" />
+        </Action.Button>
+        <Action.DropdownItem value="compact" label="Compress the conversation" onSelect={() => props.onCompact()}>
+          <FoldVertical class="size-4 block" aria-hidden="true" />
+        </Action.DropdownItem>
+      </Action.Root>
       <Show when={meta.data === undefined || meta.data.harness.canLaunch}>
-        <LaunchMenu
-          harnessName={harnessName()}
-          class={busyClass(openExternal.isPending || copyConnect.isPending || meta.isPending)}
-          pending={meta.isPending}
-          failed={meta.isError}
-          onOpen={() => openExternal.mutate()}
-          onCopy={() => copyConnect.mutate()}
-          onRetry={() => void meta.refetch()}
-        />
+        <Action.Root id="conciv.launch" priority={10}>
+          <Action.Inline>
+            <LaunchMenu
+              harnessName={harnessName()}
+              class={busyClass(openExternal.isPending || copyConnect.isPending || meta.isPending)}
+              pending={meta.isPending}
+              failed={meta.isError}
+              onOpen={() => openExternal.mutate()}
+              onCopy={() => copyConnect.mutate()}
+              onRetry={() => void meta.refetch()}
+            />
+          </Action.Inline>
+        </Action.Root>
       </Show>
     </>
   )

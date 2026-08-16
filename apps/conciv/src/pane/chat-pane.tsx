@@ -340,6 +340,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                             initialSelection={storage().restoredSelection}
                             busy={compacting() ? <CompactSpinner /> : undefined}
                             triggers={triggerSources}
+                            trailingExtras={<SessionModelSelector sessionId={sessionId} />}
                           >
                             <Suspense fallback={<ComposerActionsPending />}>
                               <ComposerActions
@@ -350,7 +351,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                                 onStageGrab={stageGrab}
                               />
                               <ExtensionSurface name="composer" instances={instances} />
-                              <SessionModelSelector sessionId={sessionId} />
                               <ComposerWiring
                                 onReady={(api) => {
                                   composerApi.current = api

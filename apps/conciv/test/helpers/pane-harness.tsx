@@ -22,6 +22,8 @@ export type PaneMountOptions = {
   grabProvider?: GrabProvider
   extensions?: AnyExtension[]
   ground?: (grab: Grab) => Promise<Grab | null>
+  width?: number
+  onNewSession?: () => void
 }
 
 export type PaneMount = {
@@ -31,7 +33,10 @@ export type PaneMount = {
   data: AppData
   queryClient: QueryClient
   refetch: () => Promise<void>
+  setWidth: (pixels: number) => void
 }
+
+const DEFAULT_PANE_WIDTH_PX = 400
 
 function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
   return (
@@ -49,6 +54,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   const instances = createInstances(options.extensions ?? [])
   const data = makeAppData(rpc, queryClient)
   const [announced, setAnnounced] = createSignal<string[]>([])
+  const [width, setWidth] = createSignal(options.width ?? DEFAULT_PANE_WIDTH_PX)
   const app: AppContextValue = {
     rpc,
     settings: parseConcivSettings(''),
@@ -78,7 +84,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     grabStaging: makeGrabStaging({ground: options.ground ?? (async () => null)}),
     grabProvider: options.grabProvider,
     attachments: makePendingAttachmentQueue(),
-    newSession: () => {},
+    newSession: () => options.onNewSession?.(),
   }
   const reachabilityRoot = createRoot((disposeReachability) => ({
     reachability: makeEngineReachability(),
@@ -91,7 +97,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
           <NoticeContextProvider>
             <PaneContext.Provider value={pane}>
               <HostApiProvider rpc={rpc} apiBase={() => ''} toast={(message) => app.announce(message)}>
-                <div class="flex flex-col h-150 w-100">
+                <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
                   {view(pane)}
                   <NoticeSurface />
                 </div>
@@ -116,5 +122,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     data,
     queryClient,
     refetch: () => queryClient.invalidateQueries({queryKey: data.utils.meta.engine.key()}),
+    setWidth,
   }
 }

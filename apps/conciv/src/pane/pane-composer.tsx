@@ -1,11 +1,19 @@
-import {Show, type Component, type JSX} from 'solid-js'
+import {createSignal, Show, Suspense, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import ArrowUp from 'lucide-solid/icons/arrow-up'
 import Clock from 'lucide-solid/icons/clock'
+import Ellipsis from 'lucide-solid/icons/ellipsis'
 import Paperclip from 'lucide-solid/icons/paperclip'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import Square from 'lucide-solid/icons/square'
-import {ComposerPrimitive, QueueItem, AttachmentUI, useComposer, type AttachmentAdapter} from '@conciv/ui-kit-chat'
+import {
+  ComposerActionsHost,
+  ComposerPrimitive,
+  QueueItem,
+  AttachmentUI,
+  useComposer,
+  type AttachmentAdapter,
+} from '@conciv/ui-kit-chat'
 import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
 import {useEngineReachability} from '../app/reachability.js'
@@ -22,6 +30,7 @@ export type PaneComposerProps = {
   placeholder: string
   inputLabel: string
   children?: JSX.Element
+  trailingExtras?: JSX.Element
   busy?: JSX.Element
   triggers?: ComposerTriggerSources
   onInputReady?: (handle: ComposerInputHandle) => void
@@ -83,6 +92,11 @@ function TrailingControls(): JSX.Element {
 }
 
 export function PaneComposer(props: PaneComposerProps): JSX.Element {
+  const [inputHandle, setInputHandle] = createSignal<ComposerInputHandle>()
+  const receiveInputHandle = (handle: ComposerInputHandle): void => {
+    setInputHandle(handle)
+    props.onInputReady?.(handle)
+  }
   return (
     <ComposerPrimitive.Root
       attachmentAdapter={props.attachmentAdapter}
@@ -120,23 +134,31 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           inputLabel={props.inputLabel}
           addAttachmentOnPaste={props.attachmentAdapter !== undefined}
           triggers={props.triggers}
-          onReady={props.onInputReady}
+          onReady={receiveInputHandle}
           onSelectionChange={props.onSelectionChange}
           initialSelection={props.initialSelection}
         />
-        <div class="pt-0.5 flex gap-1 items-center">
-          <Show when={props.attachmentAdapter}>
-            <ComposerPrimitive.AddAttachment class={GHOST}>
-              <Paperclip size={16} aria-hidden="true" />
-            </ComposerPrimitive.AddAttachment>
-          </Show>
-          {props.children}
-          <div class="ml-auto flex gap-1 items-center">
-            <Show when={props.busy} fallback={<TrailingControls />}>
-              {props.busy}
+        <ComposerActionsHost
+          triggerContent={<Ellipsis class="size-5 block" aria-hidden="true" />}
+          onOverflowDismissed={() => inputHandle()?.focus()}
+          leading={
+            <Show when={props.attachmentAdapter}>
+              <ComposerPrimitive.AddAttachment class={GHOST}>
+                <Paperclip size={16} aria-hidden="true" />
+              </ComposerPrimitive.AddAttachment>
             </Show>
-          </div>
-        </div>
+          }
+          trailing={
+            <>
+              <Suspense fallback={<span class="size-8.5 shrink-0" />}>{props.trailingExtras}</Suspense>
+              <Show when={props.busy} fallback={<TrailingControls />}>
+                {props.busy}
+              </Show>
+            </>
+          }
+        >
+          {props.children}
+        </ComposerActionsHost>
       </div>
     </ComposerPrimitive.Root>
   )
