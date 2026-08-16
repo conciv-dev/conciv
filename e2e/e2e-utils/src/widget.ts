@@ -8,16 +8,25 @@ export type PageFailures = {
 }
 
 const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+const OUTDATED_OPTIMIZE_DEP = 'Outdated Optimize Dep'
+
+function redactUrl(url: string): string {
+  const parsed = URL.parse(url)
+  if (parsed === null) return '<unparsable url>'
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return parsed.protocol
+  return `${parsed.origin}${parsed.pathname}`
+}
 
 function describeConsoleMessage(message: ConsoleMessage): string {
   const {url} = message.location()
-  return url === '' ? message.text() : `${message.text()} [${url}]`
+  return url === '' ? message.text() : `${message.text()} [${redactUrl(url)}]`
 }
 
 function isThirdPartyRequest(url: string): boolean {
-  const {protocol, hostname} = new URL(url)
-  if (protocol !== 'http:' && protocol !== 'https:') return false
-  return !LOOPBACK_HOSTS.includes(hostname)
+  const parsed = URL.parse(url)
+  if (parsed === null) return false
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+  return !LOOPBACK_HOSTS.includes(parsed.hostname)
 }
 
 export function collectFailures(page: Page): PageFailures {
@@ -27,13 +36,17 @@ export function collectFailures(page: Page): PageFailures {
     if (message.type() === 'error') failures.consoleErrors.push(describeConsoleMessage(message))
   })
   page.on('request', (request) => {
-    if (isThirdPartyRequest(request.url())) failures.thirdPartyRequests.push(request.url())
+    if (isThirdPartyRequest(request.url())) failures.thirdPartyRequests.push(redactUrl(request.url()))
   })
   page.on('requestfailed', (request) => {
-    failures.requestFailures.push(`${request.url()}: ${request.failure()?.errorText ?? 'unknown'}`)
+    failures.requestFailures.push(`${redactUrl(request.url())}: ${request.failure()?.errorText ?? 'unknown'}`)
   })
   page.on('response', (response) => {
-    if (response.status() >= 400) failures.requestFailures.push(`${response.url()}: HTTP ${response.status()}`)
+    if (response.status() < 400) return
+    const reason = response.statusText()
+    if (response.status() === 504 && reason.includes(OUTDATED_OPTIMIZE_DEP)) return
+    const described = reason === '' ? '' : ` ${reason}`
+    failures.requestFailures.push(`${redactUrl(response.url())}: HTTP ${response.status()}${described}`)
   })
   return failures
 }

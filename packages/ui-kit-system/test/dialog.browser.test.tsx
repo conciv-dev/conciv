@@ -51,10 +51,14 @@ async function waitForOutsideDismissToArm(): Promise<void> {
 
 function starveFrames(delay: number): void {
   const original = window.requestAnimationFrame
+  const pending: number[] = []
   window.requestAnimationFrame = (callback) =>
-    original(() => window.setTimeout(() => callback(performance.now()), delay))
+    original(() => {
+      pending.push(window.setTimeout(() => callback(performance.now()), delay))
+    })
   frameRestorers.push(() => {
     window.requestAnimationFrame = original
+    for (const timer of pending.splice(0)) window.clearTimeout(timer)
   })
 }
 
