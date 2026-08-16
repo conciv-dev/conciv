@@ -6,7 +6,7 @@ import {codeToKeyedTokens} from '@shikijs/magic-move/core'
 import {cleanSnippet, FRAMEWORK_SNIPPETS} from '../src/components/landing/framework-snippets.ts'
 import {INSTALL_COMMANDS} from '../src/lib/package-installer-store.ts'
 
-const THEMES = {light: 'github-light', dark: 'github-dark'} as const
+const THEMES = {light: 'github-light-high-contrast', dark: 'github-dark'} as const
 
 const highlighter = await createHighlighter({themes: Object.values(THEMES), langs: ['ts', 'js', 'swift', 'sh']})
 

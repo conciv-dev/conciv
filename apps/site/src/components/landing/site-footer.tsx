@@ -62,7 +62,7 @@ export function SiteFooter() {
           </div>
           <div className="od-inset od-mono od-caption flex justify-between border-t py-4 text-muted-foreground">
             <span>MIT © conciv</span>
-            <span className="text-primary">beta</span>
+            <span className="text-accent-text">beta</span>
           </div>
         </div>
       </div>

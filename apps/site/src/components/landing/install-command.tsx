@@ -25,13 +25,13 @@ export function InstallCommand({action, className}: {action?: ReactNode; classNa
   const step = Math.max(0, INSTALL_COMMAND_STEP_IDS.indexOf(active.id))
 
   return (
-    <div className={cn('inline-flex max-w-full flex-col items-start gap-2', className)}>
-      <PackageInstallerTabs
-        commands={INSTALL_COMMANDS}
-        value={installer}
-        onValueChange={selectPackageInstaller}
-        className="max-md:hidden"
-      />
+    <PackageInstallerTabs
+      commands={INSTALL_COMMANDS}
+      value={installer}
+      onValueChange={selectPackageInstaller}
+      className={cn('inline-flex max-w-full flex-col items-start gap-2', className)}
+      listClassName="max-md:hidden"
+    >
       <div className="flex max-w-full flex-wrap items-center gap-2">
         <PackageInstallerCommand command={active.command} widestCommand={WIDEST_COMMAND}>
           <ShikiMagicMovePrecompiled
@@ -42,6 +42,6 @@ export function InstallCommand({action, className}: {action?: ReactNode; classNa
         </PackageInstallerCommand>
         {action}
       </div>
-    </div>
+    </PackageInstallerTabs>
   )
 }

@@ -60,7 +60,7 @@ export function MediaFrame({
             />
             <span
               aria-hidden
-              className="od-caption absolute inset-x-0 bottom-0 z-10 flex h-8 translate-y-full items-center gap-2 border-t border-primary/40 bg-background/95 px-3 text-primary transition-transform duration-[160ms] ease-[var(--od-ease-out)] group-focus-visible/media:translate-y-0 motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/media:translate-y-0"
+              className="od-caption absolute inset-x-0 bottom-0 z-10 flex h-8 translate-y-full items-center gap-2 border-t border-primary/40 bg-background/95 px-3 text-accent-text transition-transform duration-[160ms] ease-[var(--od-ease-out)] group-focus-visible/media:translate-y-0 motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/media:translate-y-0"
             >
               <Maximize2 className="size-4" aria-hidden />
               View full size

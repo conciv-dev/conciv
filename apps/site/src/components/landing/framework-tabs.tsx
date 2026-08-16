@@ -225,7 +225,7 @@ function tokenStyle(token: SnippetToken): CSSProperties {
 function HoverBody({hover}: {hover: SnippetHover}) {
   return (
     <>
-      <code className="block overflow-x-auto whitespace-pre">
+      <code className="block break-words whitespace-pre-wrap">
         {hover.tokens.map((line, lineIndex) => (
           <span key={lineIndex} className="block">
             {line.map((token, tokenIndex) => (
@@ -246,7 +246,7 @@ function CompletionList({completion}: {completion: SnippetCompletion}) {
     <ul className="flex flex-col gap-1">
       {completion.items.map((name) => (
         <li key={name} className="rounded px-2 py-1 first:bg-accent">
-          <span className="font-semibold text-primary">{completion.target}</span>
+          <span className="font-semibold text-accent-text">{completion.target}</span>
           <span className="text-muted-foreground">{name.slice(completion.target.length)}</span>
         </li>
       ))}

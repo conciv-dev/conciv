@@ -1,3 +1,4 @@
+import {Tabs as TabsPrimitive} from 'radix-ui'
 import type {ReactNode} from 'react'
 import {AnimatedTabs} from '@/components/ui/animated-tabs'
 import {CopyButton} from '@/components/ui/copy-button'
@@ -10,11 +11,15 @@ export function PackageInstallerTabs({
   value,
   onValueChange,
   className,
+  listClassName,
+  children,
 }: {
   commands: PackageCommand[]
   value: string
   onValueChange: (value: string) => void
   className?: string
+  listClassName?: string
+  children?: ReactNode
 }) {
   return (
     <AnimatedTabs
@@ -22,7 +27,7 @@ export function PackageInstallerTabs({
       value={value}
       onValueChange={onValueChange}
       className={className}
-      listClassName="h-8"
+      listClassName={cn('h-8', listClassName)}
       tabs={commands.map((command) => ({
         id: command.id,
         label: command.label,
@@ -36,7 +41,14 @@ export function PackageInstallerTabs({
           />
         ),
       }))}
-    />
+    >
+      <TabsPrimitive.Content
+        value={value}
+        className="max-w-full rounded-lg focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+      >
+        {children}
+      </TabsPrimitive.Content>
+    </AnimatedTabs>
   )
 }
 
@@ -61,7 +73,7 @@ export function PackageInstallerCommand({
           <span style={{width: `${widestCommand.length}ch`}} />
         </span>
         <span className="absolute inset-0 flex items-center gap-2 px-4">
-          <span className="text-primary">$</span>
+          <span className="text-accent-text">$</span>
           {children ?? command}
         </span>
       </pre>

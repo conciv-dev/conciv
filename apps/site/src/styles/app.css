@@ -13,6 +13,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@theme {
+  --color-fd-muted-foreground: hsl(0 0% 40%);
+}
+
 html {
   scrollbar-gutter: stable;
 }
@@ -34,6 +38,7 @@ html > body[data-scroll-locked] {
   --od-line: oklch(0.9 0.008 75);
   --od-panel: oklch(0.995 0.004 75);
   --od-accent: oklch(0.58 0.207 27);
+  --od-accent-text: var(--od-accent);
   --od-accent-soft: oklch(0.58 0.207 27 / 0.12);
   --od-accent-ink: oklch(0.99 0 0);
   --od-pass: oklch(0.62 0.16 150);
@@ -70,6 +75,7 @@ html > body[data-scroll-locked] {
   --od-line: oklch(0.31 0.01 65);
   --od-panel: oklch(0.23 0.009 65);
   --od-accent: oklch(0.7 0.19 32);
+  --od-accent-text: var(--od-accent);
   --od-accent-soft: oklch(0.7 0.19 32 / 0.16);
   --od-accent-ink: var(--od-paper);
   --od-pass: oklch(0.74 0.16 152);
@@ -170,7 +176,7 @@ html > body[data-scroll-locked] {
   letter-spacing: 0.16em;
   font-size: 13px;
   line-height: 20px;
-  color: var(--od-accent);
+  color: var(--od-accent-text);
 }
 
 .od-page {
@@ -407,6 +413,7 @@ html > body[data-scroll-locked] {
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-text: var(--od-accent-text);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);

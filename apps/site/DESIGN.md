@@ -9,6 +9,7 @@ colors:
   line: oklch(0.9 0.008 75)
   panel: oklch(0.995 0.004 75)
   accent: oklch(0.58 0.207 27)
+  accent-text: var(--od-accent)
   accent-soft: oklch(0.58 0.207 27 / 0.12)
   accent-ink: oklch(0.99 0 0)
   pass: oklch(0.62 0.16 150)
@@ -94,6 +95,7 @@ the background inside a 1px `line` border; in dark mode they take a 1px `line` k
 | line        | oklch(0.9 0.008 75)         | oklch(0.31 0.01 65)       |
 | panel       | oklch(0.995 0.004 75)       | oklch(0.23 0.009 65)      |
 | accent      | oklch(0.58 0.207 27)        | oklch(0.7 0.19 32)        |
+| accent-text | var(--od-accent)            | var(--od-accent)          |
 | accent-soft | oklch(0.58 0.207 27 / 0.12) | oklch(0.7 0.19 32 / 0.16) |
 | accent-ink  | oklch(0.99 0 0)             | var(--od-paper)           |
 | star        | oklch(0.78 0.16 85)         | oklch(0.84 0.15 88)       |
@@ -123,6 +125,35 @@ luminance formula against the OKLCH token values (`scratchpad/contrast.mjs`), 20
 
 Do not raise the light accent back to 0.60 without re-running the measurement: the first three rows
 all drop below 4.5 together.
+
+### accent vs accent-text
+
+`accent` colours fills, marks and affordances (primary button, spark mark, tab indicator, ring,
+caret, dots). `accent-text` colours accent set as type on paper or panel: the eyebrow, the `$`
+prompt, step numerals, the footer `beta`, the media-frame label, the completion target
+(`.od-eyebrow`, Tailwind `text-accent-text`). Today both resolve to the same value, so the page
+reads exactly as before. The split exists so the brand accent `oklch(0.7 0.19 32)` can come back
+for light-mode fills without failing AA on type. Measured 2026-08-16 (light theme):
+
+| Candidate                       | white on it | it on paper | it on panel | Verdict for text            |
+| ------------------------------- | ----------- | ----------- | ----------- | --------------------------- |
+| accent 0.58 (active)            | 4.63        | 4.56        | 4.67        | pass                        |
+| accent 0.60 (previous)          | 4.27        | 4.21        | 4.31        | fail                        |
+| brand oklch(0.7 0.19 32)        | 2.82        | 2.78        | 2.85        | fail, also below 3:1 for UI |
+| accent-text oklch(0.55 0.19 32) | 5.19        | 5.12        | 5.24        | pass                        |
+
+To switch to the brand variant flip two light tokens in `app.css`: `--od-accent: oklch(0.7 0.19 32)`
+and `--od-accent-text: oklch(0.55 0.19 32)`. The primary button (fill plus `accent-ink` text) then
+fails at 2.82 and must fill with `--od-accent-text` instead. In dark the accent already is the brand
+value and passes on paper (6.40), so nothing changes there. Active today: 0.58 for both tokens.
+
+## Code colour
+
+Shiki light theme is `github-light-high-contrast` (landing snippets in `scripts/highlight-snippets.ts`,
+docs in `source.config.ts`); `github-light` failed AA for keywords (4.09), comments (4.30) and
+parameters (3.12) on the docs code-block background and for parameters on `panel`. Dark stays
+`github-dark`. The docs `--color-fd-muted-foreground` is overridden to `hsl(0 0% 40%)`: fumadocs'
+neutral default measures 4.35 on its own background.
 
 ## Hallmark exceptions (Zed DNA, owner-approved)
 
