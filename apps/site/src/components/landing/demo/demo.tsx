@@ -1,4 +1,4 @@
-import {useRef, useState} from 'react'
+import {useCallback, useRef, useState} from 'react'
 import {useGSAP} from '@gsap/react'
 import gsap from 'gsap'
 import {Check, RotateCcw} from 'lucide-react'
@@ -48,7 +48,7 @@ const cleanHtml = (el: HTMLElement | null, fallback: string) => {
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-export function Demo() {
+export function Demo({onReady}: {onReady?: () => void}) {
   const [state, dispatch] = useDemo()
   const [input, setInput] = useState('')
   const [pendingText, setPendingText] = useState<string | null>(null)
@@ -61,6 +61,18 @@ export function Demo() {
   const ghostRef = useRef<HTMLDivElement>(null)
 
   const active = useRef<{id: string; scenario: Scenario} | null>(null)
+
+  const attachScope = useCallback(
+    (node: HTMLDivElement) => {
+      scope.current = node
+      const frame = requestAnimationFrame(() => onReady?.())
+      return () => {
+        cancelAnimationFrame(frame)
+        scope.current = null
+      }
+    },
+    [onReady],
+  )
 
   const grabbedEl = (id: string) =>
     scope.current?.querySelector(`[data-pickable="${id}"]`)?.firstElementChild as HTMLElement | null
@@ -197,7 +209,7 @@ export function Demo() {
   const selectedModel = MODELS.find((option) => option.id === model.selected)
 
   return (
-    <div className="relative flex h-full min-w-0 flex-col" ref={scope}>
+    <div className="relative flex h-full min-w-0 flex-col" ref={attachScope}>
       <Card className="h-full gap-0 overflow-hidden rounded-none border-0 p-0 shadow-none ring-0">
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
           <SparkMark className="text-base text-primary" />

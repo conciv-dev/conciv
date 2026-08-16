@@ -44,19 +44,20 @@ export function HowItWorks() {
               title="Open your app"
               body="The spark appears bottom-right. Click it, or press Mod+` for the quick terminal."
             >
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_200px]">
+              <div className="grid grid-cols-1 items-stretch gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
                 <CodeBlock filename="terminal" copyText={DEV_COMMAND} copyLabel="Copy command" className="h-full">
                   <pre className="od-mono overflow-x-auto px-4 py-3 text-[13px] leading-6">
                     <span className="text-primary">$</span> {DEV_COMMAND}
                   </pre>
                 </CodeBlock>
-                <figure>
+                <figure className="h-full">
                   <MediaFrame
                     src={`/screenshots/${fabClosed.file}`}
                     width={fabClosed.width}
                     height={fabClosed.height}
                     alt={fabClosed.alt}
                     title="The spark"
+                    fill
                   />
                 </figure>
               </div>

@@ -10,10 +10,8 @@ const poster = findScreenshot('hero-demo.webp')
 
 export function ProductFrame() {
   const isMobile = useIsMobile()
-  const [demoMounted, setDemoMounted] = useState(false)
-  const attachDemo = useCallback((node: HTMLDivElement | null) => {
-    if (node) setDemoMounted(true)
-  }, [])
+  const [demoReady, setDemoReady] = useState(false)
+  const onDemoReady = useCallback(() => setDemoReady(true), [])
 
   return (
     <section className="od-ruled">
@@ -28,14 +26,17 @@ export function ProductFrame() {
                 alt={poster.alt}
                 fetchPriority="high"
                 decoding="async"
-                aria-hidden={demoMounted}
+                aria-hidden={demoReady}
                 className="absolute inset-0 size-full object-cover"
               />
               {isMobile === false && (
                 <ClientOnly>
                   <Suspense fallback={null}>
-                    <div ref={attachDemo} className="animate-in fade-in absolute inset-0 duration-500 fill-mode-both">
-                      <Demo />
+                    <div
+                      data-ready={demoReady ? '' : undefined}
+                      className="absolute inset-0 opacity-0 transition-opacity duration-500 ease-[var(--od-ease-out)] motion-reduce:transition-none data-[ready]:opacity-100"
+                    >
+                      <Demo onReady={onDemoReady} />
                     </div>
                   </Suspense>
                 </ClientOnly>

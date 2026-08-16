@@ -3,12 +3,22 @@ import {useState, type ReactNode} from 'react'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {cn} from '@/lib/utils'
 
+const FILL_CLASSES = {
+  mat: 'h-[calc(100%+0.75rem)]',
+  frame: 'h-full',
+  button: 'h-full',
+  image: 'size-full object-cover',
+}
+
+const NO_FILL_CLASSES = {mat: '', frame: '', button: '', image: ''}
+
 export function MediaFrame({
   src,
   width,
   height,
   alt,
   title,
+  fill = false,
   className,
   children,
 }: {
@@ -17,19 +27,29 @@ export function MediaFrame({
   height: number
   alt: string
   title: string
+  fill?: boolean
   className?: string
   children?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  const fillClass = fill ? FILL_CLASSES : NO_FILL_CLASSES
   return (
     <>
-      <div className={cn('-m-1.5 border border-dashed p-1.5', className)}>
-        <div className="relative rounded-[2px] border transition-colors duration-[160ms] ease-[var(--od-ease-out)] hover:border-primary/60 focus-within:border-primary/60">
+      <div className={cn('-m-1.5 border border-dashed p-1.5', fillClass.mat, className)}>
+        <div
+          className={cn(
+            'relative rounded-[2px] border transition-colors duration-[160ms] ease-[var(--od-ease-out)] hover:border-primary/60 focus-within:border-primary/60',
+            fillClass.frame,
+          )}
+        >
           <button
             type="button"
             onClick={() => setOpen(true)}
             aria-label={`View ${title} at full size`}
-            className="group/media relative block w-full cursor-zoom-in overflow-clip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className={cn(
+              'group/media relative block w-full cursor-zoom-in overflow-clip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+              fillClass.button,
+            )}
           >
             <img
               src={src}
@@ -38,7 +58,7 @@ export function MediaFrame({
               alt={alt}
               loading="lazy"
               decoding="async"
-              className="block w-full"
+              className={cn('block w-full', fillClass.image)}
             />
             <span
               aria-hidden
