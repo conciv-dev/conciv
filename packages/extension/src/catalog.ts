@@ -3,7 +3,11 @@ import {TOKENS} from '@conciv/ui-kit-system/tokens'
 const SLOTS = [
   {name: 'header', description: 'Above the message list (panel header region).'},
   {name: 'footer', description: 'Below the composer (panel footer region).'},
-  {name: 'composer', description: 'Inside the input toolbar: add buttons or actions.'},
+  {
+    name: 'composer',
+    description:
+      'Inside the input toolbar: declare actions with ComposerActions.Root/Button/DropdownItem from @conciv/ui-kit-chat so they collapse into the shared overflow menu when the row runs out of room.',
+  },
   {name: 'empty', description: 'The empty chat state (greeting + starters) shown before any messages.'},
   {name: 'status', description: 'A status line region.'},
   {name: 'widget', description: 'A free-form panel widget region.'},
@@ -101,6 +105,7 @@ export default defineExtension({
 })
 `,
   'composer-action': (name) => `import {defineExtension} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
 
 const extension = defineExtension({name: '${name}', Component})
 
@@ -111,9 +116,21 @@ function Component() {
   const insert = extension.useContext((context) => context.insert)
   if (slot() !== 'composer') return null
   return (
-    <button type="button" onClick={() => insert('…')}>
-      Do thing
-    </button>
+    <ComposerActions.Root id="${name}.do" priority={10}>
+      <ComposerActions.Button tooltip="Do thing" onClick={() => insert('…')}>
+        <svg
+          viewBox="0 0 24 24"
+          class="size-5 block"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      </ComposerActions.Button>
+      <ComposerActions.DropdownItem value="do" label="Do thing" onSelect={() => insert('…')} />
+    </ComposerActions.Root>
   )
 }
 `,
@@ -155,6 +172,7 @@ function Component() {
 `,
   full: (name) => `import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
 
 const ${name}Do = defineTool({
   name: '${name}_do',
@@ -180,9 +198,21 @@ function Component() {
   if (slot() === 'status') return <span>${name} ready</span>
   if (slot() === 'composer')
     return (
-      <button type="button" onClick={() => insert('hello from ${name}')}>
-        ${name}
-      </button>
+      <ComposerActions.Root id="${name}.hello" priority={10}>
+        <ComposerActions.Button tooltip="Say hello" onClick={() => insert('hello from ${name}')}>
+          <svg
+            viewBox="0 0 24 24"
+            class="size-5 block"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+          </svg>
+        </ComposerActions.Button>
+        <ComposerActions.DropdownItem value="hello" label="Say hello" onSelect={() => insert('hello from ${name}')} />
+      </ComposerActions.Root>
     )
   return null
 }

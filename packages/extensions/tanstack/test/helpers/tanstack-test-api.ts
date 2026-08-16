@@ -44,6 +44,14 @@ export async function waitForWidget(page: Page): Promise<void> {
   )
 }
 
+export async function widenPanel(page: Page, steps: number): Promise<void> {
+  const separator = page
+    .getByRole('dialog', {name: 'conciv chat agent'})
+    .getByRole('separator', {name: 'Resize chat width'})
+  await separator.focus()
+  for (let step = 0; step < steps; step += 1) await page.keyboard.press('ArrowLeft')
+}
+
 export async function gotoAbout(page: Page): Promise<void> {
   await page.getByRole('link', {name: 'About'}).click()
   await expectLocator(page.getByRole('heading', {name: 'About this app'})).toBeVisible()

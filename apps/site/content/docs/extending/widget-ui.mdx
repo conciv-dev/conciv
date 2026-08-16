@@ -19,17 +19,31 @@ nothing for slots you do not care about.
 ```tsx title="conciv/extensions/deploy.tsx"
 import {Show} from 'solid-js'
 import {defineExtension} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
 
 const deploy = defineExtension({name: 'deploy', tools: [deployRun]})
 
 function DeployButton() {
   const slot = deploy.useSlot()
   const context = deploy.useContext()
+  const send = () => context.insert('deploy this branch to staging')
   return (
     <Show when={slot() === 'composer'}>
-      <button type="button" onClick={() => context.insert('deploy this branch to staging')}>
-        Deploy
-      </button>
+      <ComposerActions.Root id="deploy.staging" priority={10}>
+        <ComposerActions.Button tooltip="Deploy to staging" onClick={send}>
+          <svg
+            viewBox="0 0 24 24"
+            class="size-5 block"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+          </svg>
+        </ComposerActions.Button>
+        <ComposerActions.DropdownItem value="staging" label="Deploy to staging" onSelect={send} />
+      </ComposerActions.Root>
     </Show>
   )
 }
@@ -40,12 +54,57 @@ export default Object.assign(deploy, {Component: DeployButton})
 Slots: `header`, `footer`, `composer`, `empty` (the blank-thread state), `status`, and `widget`
 (a free-floating layer).
 
+## Composer actions
+
+The composer toolbar is shared: the built-in actions, every extension, and the send button all live
+in one row, so it runs out of room on a narrow panel. Declare each action once as a
+`ComposerActions.Root` from `@conciv/ui-kit-chat` and the composer places it for you — the `Button`
+renders in the row while it fits, and the `DropdownItem` renders in the shared overflow menu once it
+does not. Only one of the two shows at a time.
+
+<TypeTable
+  type={{
+    'Root.id': {
+      type: 'string',
+      description: 'Namespaced action id, e.g. "deploy.staging". Last root registered with an id wins.',
+    },
+    'Root.priority': {
+      type: 'number',
+      description: 'Higher stays inline longer. Built-ins run 40 (grab) down to 10 (launch); pick below them.',
+    },
+    'Root.disabled': {
+      type: '() => boolean',
+      description:
+        'One accessor disables both the inline button and the menu item. There is no per-child disabled prop.',
+    },
+    'Button.tooltip': {type: 'string', description: 'The accessible name of the icon button.'},
+    'Button.visible': {
+      type: "'auto' | 'always'",
+      description:
+        '"always" pins the button inline at any width; spend it only on an action the user cannot work without.',
+    },
+    'Button.busy': {type: 'boolean', description: 'Marks the action in progress without disabling it.'},
+    DropdownItem: {
+      type: '{value, label, onSelect, children?}',
+      description: 'The overflow-menu row for the same action; children is an optional leading icon.',
+    },
+    Inline: {
+      type: '{children}',
+      description:
+        'Escape hatch for a control that is already its own trigger (a menu, a status chip). Counts toward the fit budget, has no menu form.',
+    },
+  }}
+/>
+
+A raw `<button>` in the composer slot never collapses, so it pushes the send button off a narrow
+panel. Write the `Root` pair instead.
+
 ## `useContext`
 
 `useContext()` returns the host context: everything the widget gives your component. Pass a
 selector to subscribe to one slice.
 
-Composer actions, always available:
+Host actions, always available:
 
 <TypeTable
   type={{

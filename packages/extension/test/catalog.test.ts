@@ -38,6 +38,23 @@ describe('extension catalog (new contract projection)', () => {
     expect(src).toContain('useSlot')
   })
 
+  it('describes the composer slot through the ComposerActions primitives', () => {
+    const composer = buildCatalog().slots.find((slot) => slot.name === 'composer')
+    expect(composer?.description).toContain('ComposerActions')
+    expect(composer?.description).toContain('@conciv/ui-kit-chat')
+  })
+
+  it('scaffolds composer buttons through the ComposerActions primitives, never a raw button', () => {
+    for (const kind of ['composer-action', 'full'] as ScaffoldKind[]) {
+      const src = scaffold(kind, {name: 'demo'})
+      expect(src).toContain("import {ComposerActions} from '@conciv/ui-kit-chat'")
+      expect(src).toContain('<ComposerActions.Root')
+      expect(src).toContain('<ComposerActions.Button')
+      expect(src).toContain('<ComposerActions.DropdownItem')
+      expect(src).not.toContain('<button')
+    }
+  })
+
   it('never emits the internal __ properties in a scaffold', () => {
     for (const kind of ['theme', 'composer-action', 'tool', 'tool-renderer', 'component', 'full'] as ScaffoldKind[]) {
       const src = scaffold(kind, {name: 'demo'})

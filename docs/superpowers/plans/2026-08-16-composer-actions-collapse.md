@@ -46,10 +46,12 @@ The overflow trigger permanently occupies one slot (visibility-hidden placeholde
 ### Task 1: Fit arithmetic (pure function)
 
 **Files:**
+
 - Create: `packages/ui-kit-chat/src/primitives/composer/composer-actions-fit.ts`
 - Test: `packages/ui-kit-chat/test/composer-actions-fit.test.ts` (node project)
 
 **Interfaces:**
+
 - Produces: `computeVisibleAutoCount(input: FitInput): number`, `type FitInput`, constants `ACTION_SLOT_PX`, `REGION_GAP_PX`, `FIT_HYSTERESIS_PX`. Task 2 consumes all of these.
 
 The implementation and test bodies were already written and verified green on this branch's earlier revision (commit `7b550c1b`, since reset out of `packages/extension`) — recreate them VERBATIM at the new paths, only the test's import path changes:
@@ -155,11 +157,13 @@ export function computeVisibleAutoCount(input: FitInput): number {
 ### Task 2: `ComposerActions` primitives + host coordinator
 
 **Files:**
+
 - Create: `packages/ui-kit-chat/src/primitives/composer/composer-actions.tsx`
 - Modify: `packages/ui-kit-chat/src/index.tsx` (export `ComposerActions` and `ComposerActionsHost` alongside the existing `ComposerPrimitive` exports)
 - Test: `packages/ui-kit-chat/test/composer-actions.browser.test.tsx` (component-level, in-package browser project)
 
 **Interfaces:**
+
 - Consumes: Task 1's `computeVisibleAutoCount` + constants; `Menu`, `TooltipIconButton`, `TooltipIconButtonSlot` from `@conciv/ui-kit-system`; `createResizeObserver` from `@solid-primitives/resize-observer` (existing dep).
 - Produces (from `@conciv/ui-kit-chat`):
   - `ComposerActions.Root(props: {id: string; priority?: number; disabled?: () => boolean; children: JSX.Element})` — `disabled` is THE single reactive source; both renderings consume it. No per-child disabled props.
@@ -233,7 +237,13 @@ const visibleAutoCount = createMemo<number | null>(
 <Show when={anyCollapsed()} fallback={<span aria-hidden="true" class="size-8.5 shrink-0 invisible" />}>
   <TooltipIconButtonSlot tooltip="More composer actions" class={TRIGGER_CLASS}>
     {(buttonProps) => (
-      <Menu.Trigger asChild={(triggerProps) => <button {...buttonProps()} {...triggerProps()}>{props.triggerContent}</button>} />
+      <Menu.Trigger
+        asChild={(triggerProps) => (
+          <button {...buttonProps()} {...triggerProps()}>
+            {props.triggerContent}
+          </button>
+        )}
+      />
     )}
   </TooltipIconButtonSlot>
 </Show>
@@ -283,9 +293,11 @@ const visibleAutoCount = createMemo<number | null>(
 ### Task 2b: Storybook coverage
 
 **Files:**
+
 - Create: `packages/ui-kit-chat/src/primitives/composer/composer-actions.stories.tsx` (`apps/storybook` already globs `packages/ui-kit-chat/src/**/*.stories.*` — zero config)
 
 **Stories (rich, following `packages/ui-kit-system/src/menu.stories.tsx` conventions):**
+
 - `AllInline` — wide fixed-width host, five mixed roots.
 - `Collapsed` — narrow host, pinned + overflow trigger visible.
 - `PinnedOnly` — `visible="always"` alongside collapsing autos.
@@ -304,11 +316,13 @@ const visibleAutoCount = createMemo<number | null>(
 ### Task 3: Wire the coordinator into `PaneComposer`, migrate built-ins
 
 **Files:**
+
 - Modify: `apps/conciv/src/pane/pane-composer.tsx`, `apps/conciv/src/composer/actions.tsx`, `apps/conciv/src/pane/chat-pane.tsx`
 - Modify: `apps/conciv/test/helpers/pane-harness.tsx` (width control)
 - Test: `apps/conciv/test/composer-overflow.browser.test.tsx` (new — app-level wiring: built-ins + extension surface through the real pane)
 
 **Interfaces:**
+
 - Consumes: `ComposerActionsHost`, `ComposerActions` from `@conciv/ui-kit-chat` (import alias `ComposerActions as Action` in `actions.tsx` — the app component of the same name keeps its export).
 - Produces: toolbar row contract — leading = attachment button; managed = built-ins + `ExtensionSurface name="composer"`; trailing = `trailingExtras` (model selector, own `Suspense` with slot-sized fallback) + refresh + send/cancel; trigger named `'More composer actions'`. Harness API: `mountPane(options & {width?: number})` returning `setWidth(px: number)` (reactive style width; `w-100` hardcode becomes the 400px default).
 
@@ -381,7 +395,7 @@ const visibleAutoCount = createMemo<number | null>(
 
 Grab keeps ACT/busyClass styling and is NOT disabled while picking (`busy` only).
 
-**pane-harness.tsx**: `w-100` → `style={{width: \`${width()}px\`}}`, signal default 400; `mountPane` accepts `width?`, returns `setWidth`. Verify with the fit constants that 400px keeps every built-in inline (≈342px used) so neighbor suites keep their inline locators; raise the default if the real trailing cluster measures wider, and say so in the commit.
+**pane-harness.tsx**: `w-100` → `style={{width: \`${width()}px\`}}`, signal default 400; `mountPane`accepts`width?`, returns `setWidth`. Verify with the fit constants that 400px keeps every built-in inline (≈342px used) so neighbor suites keep their inline locators; raise the default if the real trailing cluster measures wider, and say so in the commit.
 
 **App-level tests** (`composer-overflow.browser.test.tsx`) — wiring-focused (primitives' own behavior is covered in-package by Task 2):
 
@@ -402,6 +416,7 @@ Grab keeps ACT/busyClass styling and is NOT disabled while picking (`busy` only)
 ### Task 4: Launch menu flattening (multi-item root)
 
 **Files:**
+
 - Modify: `apps/conciv/src/composer/launch-menu.tsx`, `apps/conciv/src/composer/actions.tsx`
 - Test: extend `apps/conciv/test/launch-menu.browser.test.tsx`
 
@@ -445,6 +460,7 @@ Grab keeps ACT/busyClass styling and is NOT disabled while picking (`busy` only)
 ### Task 5: Migrate extension clients, scaffolds, authoring docs
 
 **Files:**
+
 - Modify: `packages/extensions/whiteboard/src/client.tsx`, `packages/extensions/tanstack/src/client.tsx` (both add `import {ComposerActions} from '@conciv/ui-kit-chat'` — check each package.json declares `@conciv/ui-kit-chat`; add the workspace dep if absent, it's an internal workspace ref, not a new third-party dep)
 - Modify (TEMPLATE STRINGS ONLY — no runtime code in this package): `packages/extension/src/catalog.ts` (`composer-action` + `full` templates now emit `import {ComposerActions} from '@conciv/ui-kit-chat'` examples; composer slot description names the primitives), `packages/extension/test/catalog.test.ts` (assertions match new verbatim strings)
 - Modify: `packages/harness/plugins/claude/skills/conciv-extensions/SKILL.md`, `apps/site/content/docs/extending/widget-ui.mdx`
@@ -484,6 +500,7 @@ Tanstack: same transform. No authoring surface anywhere still demonstrates a raw
 ### Task 6: Extension-testkit host support + fixture
 
 **Files:**
+
 - Modify: `packages/extension-testkit/src/host/host-runtime.tsx` (wrap the composer-slot mount in `ComposerActionsHost` — testkit already depends on `@conciv/ui-kit-chat` — inside a width-controllable container with a labeled width control), `packages/extension-testkit/fixtures/ping/client.tsx` (fixture gains a `ComposerActions` root: Button + two DropdownItems)
 - Test: new `packages/extension-testkit/test/composer-actions.it.test.ts` following the existing `test/*.it.test.ts` + `fixtureHost` pattern (NOT `e2e/` — that holds websocket/RPC probes)
 
@@ -497,6 +514,7 @@ Tanstack: same transform. No authoring surface anywhere still demonstrates a raw
 ### Task 7: Extract refresh from the composer
 
 **Files:**
+
 - Modify (delete): `packages/ui-kit-chat/src/primitives/composer/composer.tsx` (`Refresh` + export), `composer-handlers.tsx` (`onRefresh`), refresh-specific tests in `packages/ui-kit-chat/test/composer-completion.browser.test.tsx` (deleted, not rewired)
 - Modify: `apps/conciv/src/app/pane-context.ts`, `apps/conciv/src/app/pane-provider.tsx`, `apps/conciv/src/routes/panel.$sessionId.tsx` (context value + header button), `apps/conciv/src/pane/chat-pane.tsx` (register handle, drop `onRefresh`), `apps/conciv/src/pane/pane-composer.tsx` (delete `TrailingControls`, trailing keeps only `ComposerSendControl`), `apps/conciv/src/routes/quick.tsx` (LIFT `PaneProvider` to wrap the whole `data-pw-qt-pane` div — the session bar sits outside it and `usePane()` would throw; button goes in that bar), `apps/conciv/src/routes/pip.$sessionId.tsx` (slim `flex justify-end px-2 pt-1` row above `ChatPane`)
 - Modify: `apps/conciv/test/helpers/pane-harness.tsx` (THIRD `PaneContextValue` construction site — gains the signal pair; harness view renders `<RefreshButton />` alongside `ChatPane`)
@@ -504,6 +522,7 @@ Tanstack: same transform. No authoring surface anywhere still demonstrates a raw
 - Test: `apps/conciv/test/chat-pane.browser.test.tsx` (two refresh tests rewired against the harness-mounted `RefreshButton`), `apps/conciv/test/quick-refresh.browser.test.tsx` (quick per-pane presence + disabled-while-streaming) + pip presence in the pip suite if one exists (else cover pip mounting in quick-refresh file via its route scaffolding)
 
 **Interfaces:**
+
 - `type RefreshHandle = {run: () => void; busy: () => boolean}` in `pane-context.ts`; `PaneContextValue` gains `refresh: Accessor<RefreshHandle | null>`, `registerRefresh: (handle: RefreshHandle | null) => void`. ALL THREE construction sites get `const [refreshHandle, setRefreshHandle] = createSignal<RefreshHandle | null>(null)`.
 - `chat-pane.tsx` registers in the component body: `pane.registerRefresh({run: () => chat.refresh(), busy: () => chatBusy(chat)})` + `onCleanup(() => pane.registerRefresh(null))` (`chatBusy` exported from `@conciv/ui-kit-chat`).
 - `refresh-button.tsx`:
@@ -546,6 +565,7 @@ Placements: panel header right cluster before the close button (`CLOSE` class); 
 ### Task 8: Full gates + changeset
 
 **Files:**
+
 - Create: `.changeset/composer-actions-collapse.md`
 
 - [ ] **Step 1: Changeset**

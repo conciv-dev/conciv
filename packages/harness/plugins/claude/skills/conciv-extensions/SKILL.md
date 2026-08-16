@@ -33,6 +33,8 @@ export default defineExtension({name: 'acme'})
 The widget renders your `Component` once per slot. Branch on `extension.useSlot()` (an accessor) and read host state/actions with `extension.useContext(select?)`. Slots: `header`, `footer`, `composer`, `empty`, `status`, `widget`.
 
 ```tsx
+import {ComposerActions} from '@conciv/ui-kit-chat'
+
 const extension = defineExtension({name: 'acme', Component})
 export default extension
 
@@ -41,9 +43,21 @@ function Component() {
   const insert = extension.useContext((context) => context.insert)
   if (slot() === 'composer')
     return (
-      <button type="button" onClick={() => insert('hi')}>
-        Do thing
-      </button>
+      <ComposerActions.Root id="acme.do" priority={10}>
+        <ComposerActions.Button tooltip="Do thing" onClick={() => insert('hi')}>
+          <svg
+            viewBox="0 0 24 24"
+            class="size-5 block"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+          </svg>
+        </ComposerActions.Button>
+        <ComposerActions.DropdownItem value="do" label="Do thing" onSelect={() => insert('hi')} />
+      </ComposerActions.Root>
     )
   if (slot() === 'empty') return <div>Welcome! Ask me anything.</div>
   return null
@@ -51,6 +65,29 @@ function Component() {
 ```
 
 `useContext()` exposes host actions (`insert`, `notify`, `setBusy`, `newSession`, `compact`, `addDivider`), host state (`harnessId`, `client`, `grab`, `currentSlot`), and whatever your `.client()` factory returned under `value`.
+
+## Composer actions: `ComposerActions`, not a raw button
+
+The composer toolbar is shared by the built-in actions and every extension, so it runs out of room.
+Declare each action as a `ComposerActions.Root` from `@conciv/ui-kit-chat` and the composer decides
+where it goes: the `Button` renders in the row while it fits, and the `DropdownItem` renders in the
+shared overflow menu once it does not. Write both; the host shows exactly one at a time.
+
+- `Root({id, priority?, disabled?})` — `id` is namespaced (`'acme.do'`), and the last root
+  registered with an id wins. `priority` orders the row and the menu: higher stays inline longer,
+  built-ins run 40 (grab) down to 10 (launch), so pick something below them. `disabled` is an
+  accessor, and it disables both renderings at once — there is no per-child disabled prop.
+- `Button({tooltip, onClick, visible?, busy?, class?, variant?})` — an icon button; `tooltip` is its
+  accessible name. `visible="always"` pins it inline at any width, so spend it only on an action the
+  user cannot work without. `busy` marks it in progress without disabling it.
+- `DropdownItem({value, label, onSelect, children?})` — the menu row for the same action; `children`
+  is an optional leading icon.
+- `Inline({children})` — the escape hatch for a control that is already its own trigger (a menu, a
+  status chip). It renders inline while it fits and counts toward the fit budget, but it has no menu
+  form, so pair it with `DropdownItem`s when the action must survive a narrow composer.
+
+A raw `<button>` in the composer slot is a bug: it never collapses, so it pushes the send button off
+a narrow panel.
 
 ## Theme: a declarative field
 

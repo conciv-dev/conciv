@@ -16,8 +16,8 @@ business living in the composer.
 
 - Only a small number of action buttons visible inline in the composer; the rest live in a single
   overflow dropdown menu.
-- Extension authors keep authoring plain JSX: they declare *what* to show; the host decides *when
-  and how* (inline vs dropdown).
+- Extension authors keep authoring plain JSX: they declare _what_ to show; the host decides _when
+  and how_ (inline vs dropdown).
 - Automatic collapse driven by measured container width, regardless of per-button config, so the
   composer works at every panel size.
 - Refresh removed from the composer contract entirely; standalone session-scoped `RefreshButton`
@@ -78,7 +78,7 @@ function MyExtensionButton() {
 ### 2. Host coordinator (invisible to extensions)
 
 **Ownership requirement:** the coordinator context AND the shared Ark `Menu.Root` must be
-*logical Solid ancestors* (owner-tree, not merely DOM ancestors) of everything that renders
+_logical Solid ancestors_ (owner-tree, not merely DOM ancestors) of everything that renders
 `ComposerActions.*` — the built-in actions and `<ExtensionSurface name="composer">`. Concretely:
 `PaneComposer` hosts `ComposerActionsProvider` + `Menu.Root` above `props.children`. Solid
 `Portal` preserves context, so extension `Menu.Item`s portaled into the shared `Menu.Content`

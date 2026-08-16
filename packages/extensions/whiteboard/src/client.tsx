@@ -2,7 +2,7 @@ import {Show, createRoot, createSignal, type JSX} from 'solid-js'
 import MessageSquarePlus from 'lucide-solid/icons/message-square-plus'
 import Presentation from 'lucide-solid/icons/presentation'
 import {defineExtension, getExtensionApi} from '@conciv/extension'
-import {TooltipIconButton} from '@conciv/ui-kit-system'
+import {ComposerActions} from '@conciv/ui-kit-chat'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
 import {WhiteboardSurface} from './client/overlay.js'
 import type {CommentPick, SurfaceState} from './client/surface-types.js'
@@ -26,12 +26,22 @@ function Component(): JSX.Element {
   }
   return (
     <Show when={slot === 'composer'}>
-      <TooltipIconButton tooltip="Open the whiteboard canvas" class="size-9.5" onClick={() => toggle()}>
-        <Presentation />
-      </TooltipIconButton>
-      <TooltipIconButton tooltip="Comment on an element" class="size-9.5" onClick={() => void pickComment()}>
-        <MessageSquarePlus />
-      </TooltipIconButton>
+      <ComposerActions.Root id="whiteboard.canvas" priority={20}>
+        <ComposerActions.Button tooltip="Open the whiteboard canvas" onClick={() => toggle()}>
+          <Presentation class="size-5 block" aria-hidden="true" />
+        </ComposerActions.Button>
+        <ComposerActions.DropdownItem value="open" label="Open the whiteboard canvas" onSelect={() => toggle()}>
+          <Presentation class="size-4 block" aria-hidden="true" />
+        </ComposerActions.DropdownItem>
+      </ComposerActions.Root>
+      <ComposerActions.Root id="whiteboard.comment" priority={19}>
+        <ComposerActions.Button tooltip="Comment on an element" onClick={() => void pickComment()}>
+          <MessageSquarePlus class="size-5 block" aria-hidden="true" />
+        </ComposerActions.Button>
+        <ComposerActions.DropdownItem value="comment" label="Comment on an element" onSelect={() => void pickComment()}>
+          <MessageSquarePlus class="size-4 block" aria-hidden="true" />
+        </ComposerActions.DropdownItem>
+      </ComposerActions.Root>
     </Show>
   )
 }
