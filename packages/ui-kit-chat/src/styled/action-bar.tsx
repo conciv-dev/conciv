@@ -5,12 +5,13 @@ import Download from 'lucide-solid/icons/download'
 import MoreHorizontal from 'lucide-solid/icons/ellipsis'
 import Pencil from 'lucide-solid/icons/pencil'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
-import {Swap, TooltipIconButton} from '@conciv/ui-kit-system'
+import {Swap, TooltipIconButton, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {ActionBar, useCopied, useExportMarkdown} from '../primitives/action-bar/action-bar.js'
 import {ActionBarMore} from '../primitives/action-bar-more/action-bar-more.js'
 import {FOCUS, HIGHLIGHT} from './classes.js'
 
 const ICON = 16
+const MORE_LABEL = 'More message actions'
 
 const TRIGGER = `inline-flex items-center justify-center size-9 rounded-[var(--chat-radius-md)] [background:transparent] [color:var(--chat-text-2)] cursor-pointer [transition:background_140ms_var(--chat-ease),color_140ms_var(--chat-ease)] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)] data-[state=open]:[background:var(--chat-fill-strong)] ${FOCUS}`
 const MENU =
@@ -66,9 +67,17 @@ export function AssistantActionBar(): JSX.Element {
         )}
       />
       <ActionBarMore.Root>
-        <ActionBarMore.Trigger class={TRIGGER} aria-label="More">
-          <MoreHorizontal size={ICON} />
-        </ActionBarMore.Trigger>
+        <TooltipIconButtonSlot tooltip={MORE_LABEL}>
+          {(buttonProps) => (
+            <ActionBarMore.Trigger
+              asChild={(triggerProps) => (
+                <button {...buttonProps()} {...triggerProps()} class={TRIGGER}>
+                  <MoreHorizontal size={ICON} />
+                </button>
+              )}
+            />
+          )}
+        </TooltipIconButtonSlot>
         <ActionBarMore.Content class={MENU}>
           <ExportMarkdownItem />
         </ActionBarMore.Content>

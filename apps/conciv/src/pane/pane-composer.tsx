@@ -52,6 +52,8 @@ const QUEUE_ACTION =
 
 const ENGINE_UNREACHABLE_LABEL = 'conciv lost connection to the engine'
 const ATTACHMENT_LABEL = 'Add an attachment'
+const SEND_LABEL = 'Send message'
+const STOP_LABEL = 'Stop generating'
 const MAX_INLINE_AUTO_ACTIONS = 0
 
 function ComposerSendControl(): JSX.Element {
@@ -61,18 +63,25 @@ function ComposerSendControl(): JSX.Element {
     <Show
       when={composer.canCancel()}
       fallback={
-        <ComposerPrimitive.Send
-          class={SEND}
-          disabled={!reachability.online()}
-          aria-label={reachability.online() ? 'Send message' : ENGINE_UNREACHABLE_LABEL}
+        <TooltipIconButtonSlot
+          tooltip={reachability.online() ? SEND_LABEL : ENGINE_UNREACHABLE_LABEL}
+          wrapperClass="shrink-0"
         >
-          <ArrowUp size={18} aria-hidden="true" />
-        </ComposerPrimitive.Send>
+          {(buttonProps) => (
+            <ComposerPrimitive.Send {...buttonProps()} class={SEND} disabled={!reachability.online()}>
+              <ArrowUp size={18} aria-hidden="true" />
+            </ComposerPrimitive.Send>
+          )}
+        </TooltipIconButtonSlot>
       }
     >
-      <ComposerPrimitive.Cancel class={CANCEL} aria-label="Stop generating">
-        <Square size={14} fill="currentColor" aria-hidden="true" />
-      </ComposerPrimitive.Cancel>
+      <TooltipIconButtonSlot tooltip={STOP_LABEL} wrapperClass="shrink-0">
+        {(buttonProps) => (
+          <ComposerPrimitive.Cancel {...buttonProps()} class={CANCEL}>
+            <Square size={14} fill="currentColor" aria-hidden="true" />
+          </ComposerPrimitive.Cancel>
+        )}
+      </TooltipIconButtonSlot>
     </Show>
   )
 }

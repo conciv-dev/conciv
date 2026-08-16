@@ -90,10 +90,7 @@ function CommentRow(props: {comment: Comment}): JSX.Element {
             <Menu
               label="Comment actions"
               trigger={
-                <span
-                  class="text-pw-text-3 rounded-pw-sm inline-flex size-6 [outline:none] focus-ring items-center justify-center data-[state=open]:bg-pw-fill"
-                  aria-label="Comment actions"
-                >
+                <span class="text-pw-text-3 rounded-pw-sm inline-flex size-6 [outline:none] focus-ring items-center justify-center data-[state=open]:bg-pw-fill">
                   ⋯
                 </span>
               }

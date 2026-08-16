@@ -124,7 +124,7 @@ export function Inbox(): JSX.Element {
           <Menu
             label="Filter comments"
             trigger={
-              <span class={`${ICON_BTN} text-[0.8125rem] px-2 gap-1.5 w-auto`} aria-label="Filter comments">
+              <span class={`${ICON_BTN} text-[0.8125rem] px-2 gap-1.5 w-auto`}>
                 <ListFilter size={15} />
               </span>
             }

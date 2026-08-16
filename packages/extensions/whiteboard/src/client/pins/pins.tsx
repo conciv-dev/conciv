@@ -1,5 +1,6 @@
 import {For, Show, createEffect, createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {Tooltip} from '@conciv/ui-kit-system'
 import {sceneToScreen, screenToScene} from '../../canvas/coords.js'
 import {useComments, type Comment} from '../model/comments.js'
 import {DragPrompt} from './drag-prompt.js'
@@ -28,6 +29,9 @@ const AnchorLine = z.object({source: z.object({line: z.number().nullable().optio
 const basename = (path: string): string => path.split('/').pop() ?? path
 const authorLabel = (kind: string | undefined): string =>
   kind === 'ai' ? 'AI' : kind === 'human' ? 'Human' : 'Unknown'
+
+const pinLabel = (comment: Comment | undefined, status: CommentStatus, unread: boolean): string =>
+  `${authorLabel(comment?.authorKind)} comment, ${status}${unread ? ', unread' : ''}`
 
 type Drag = {cid: string; x: number; y: number}
 type Prompt = {cid: string; x: number; y: number; origin: {x: number; y: number}}
@@ -107,63 +111,68 @@ export function PinsLayer(): JSX.Element {
                         />
                       </svg>
                     </Show>
-                    <button
-                      type="button"
-                      ref={(element) => model.registerPin(pin.cid, element)}
-                      aria-label={`${authorLabel(comment()?.authorKind)} comment, ${status()}${model.isUnread(pin.cid) ? ', unread' : ''}`}
-                      class={`${PIN}  ${STATUS_FILL[status()]}`}
-                      classList={{'[transition:transform_200ms_var(--pw-ease-expo)]': drag()?.cid !== pin.cid}}
-                      style={{
-                        left: 0,
-                        top: 0,
-                        transform: `translate(calc(${pos().x}px - 50%), calc(${pos().y}px - 50%))`,
-                      }}
-                      onPointerDown={(event) => {
-                        event.preventDefault()
-                        const down = screenToScene(view(), event.clientX, event.clientY)
-                        start = {grabDX: pin.x - down.x, grabDY: pin.y - down.y, ox: pin.x, oy: pin.y}
-                        event.currentTarget.setPointerCapture(event.pointerId)
-                      }}
-                      onPointerMove={(event) => {
-                        if (!start) return
-                        model.closeThread()
-                        const scene = screenToScene(view(), event.clientX, event.clientY)
-                        setDrag({cid: pin.cid, x: scene.x + start.grabDX, y: scene.y + start.grabDY})
-                      }}
-                      onPointerUp={() => {
-                        const began = start
-                        const dragged = drag()
-                        start = null
-                        if (!began) return
-                        const moved =
-                          dragged !== null &&
-                          dragged.cid === pin.cid &&
-                          (Math.abs(dragged.x - began.ox) > DRAG_THRESHOLD ||
-                            Math.abs(dragged.y - began.oy) > DRAG_THRESHOLD)
-                        if (!dragged || !moved) {
-                          setDrag(null)
-                          return model.openThread(pin.cid)
-                        }
-                        if (comment()?.kind === 'source-linked') {
-                          setDrag(null)
-                          return void setPrompt({
-                            cid: pin.cid,
-                            x: dragged.x,
-                            y: dragged.y,
-                            origin: {x: began.ox, y: began.oy},
-                          })
-                        }
-                        model.movePin(pin.cid, {x: dragged.x, y: dragged.y})
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') model.openThread(pin.cid)
-                        if (event.key === 'Escape') event.currentTarget.blur()
-                      }}
-                    >
-                      <Show when={model.isUnread(pin.cid)}>
-                        <span class={UNREAD_DOT} aria-hidden="true" />
-                      </Show>
-                    </button>
+                    <Tooltip.Root positioning={{placement: 'top', gutter: 8}}>
+                      <Tooltip.Trigger
+                        type="button"
+                        ref={(element: HTMLButtonElement) => model.registerPin(pin.cid, element)}
+                        aria-label={pinLabel(comment(), status(), model.isUnread(pin.cid))}
+                        class={`${PIN}  ${STATUS_FILL[status()]}`}
+                        classList={{'[transition:transform_200ms_var(--pw-ease-expo)]': drag()?.cid !== pin.cid}}
+                        style={{
+                          left: 0,
+                          top: 0,
+                          transform: `translate(calc(${pos().x}px - 50%), calc(${pos().y}px - 50%))`,
+                        }}
+                        onPointerDown={(event) => {
+                          event.preventDefault()
+                          const down = screenToScene(view(), event.clientX, event.clientY)
+                          start = {grabDX: pin.x - down.x, grabDY: pin.y - down.y, ox: pin.x, oy: pin.y}
+                          event.currentTarget.setPointerCapture(event.pointerId)
+                        }}
+                        onPointerMove={(event) => {
+                          if (!start) return
+                          model.closeThread()
+                          const scene = screenToScene(view(), event.clientX, event.clientY)
+                          setDrag({cid: pin.cid, x: scene.x + start.grabDX, y: scene.y + start.grabDY})
+                        }}
+                        onPointerUp={() => {
+                          const began = start
+                          const dragged = drag()
+                          start = null
+                          if (!began) return
+                          const moved =
+                            dragged !== null &&
+                            dragged.cid === pin.cid &&
+                            (Math.abs(dragged.x - began.ox) > DRAG_THRESHOLD ||
+                              Math.abs(dragged.y - began.oy) > DRAG_THRESHOLD)
+                          if (!dragged || !moved) {
+                            setDrag(null)
+                            return model.openThread(pin.cid)
+                          }
+                          if (comment()?.kind === 'source-linked') {
+                            setDrag(null)
+                            return void setPrompt({
+                              cid: pin.cid,
+                              x: dragged.x,
+                              y: dragged.y,
+                              origin: {x: began.ox, y: began.oy},
+                            })
+                          }
+                          model.movePin(pin.cid, {x: dragged.x, y: dragged.y})
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') model.openThread(pin.cid)
+                          if (event.key === 'Escape') event.currentTarget.blur()
+                        }}
+                      >
+                        <Show when={model.isUnread(pin.cid)}>
+                          <span class={UNREAD_DOT} aria-hidden="true" />
+                        </Show>
+                      </Tooltip.Trigger>
+                      <Tooltip.Positioner>
+                        <Tooltip.Content>{pinLabel(comment(), status(), model.isUnread(pin.cid))}</Tooltip.Content>
+                      </Tooltip.Positioner>
+                    </Tooltip.Root>
                     <Show when={anchorLabel(comment())}>
                       {(label) => (
                         <span

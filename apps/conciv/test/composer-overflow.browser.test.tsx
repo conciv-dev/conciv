@@ -36,6 +36,7 @@ const newSessionButton = () => page.getByRole('button', {name: 'Start a new sess
 const compactButton = () => page.getByRole('button', {name: 'Compress the conversation'})
 const trigger = () => page.getByRole('button', {name: 'More composer actions'})
 const attachButton = () => page.getByRole('button', {name: 'Add an attachment'})
+const sendButton = () => page.getByRole('button', {name: 'Send message'})
 const newSessionItem = () => page.getByRole('menuitem', {name: 'Start a new session'})
 const compactItem = () => page.getByRole('menuitem', {name: 'Compress the conversation'})
 
@@ -87,6 +88,16 @@ test('the attachment button carries the same tooltip-backed name as the rest of 
   await userEvent.hover(attachButton())
 
   await expect.element(page.getByRole('tooltip')).toHaveTextContent('Add an attachment')
+})
+
+test('the send button carries the same tooltip-backed name as the rest of the row', async () => {
+  await mountComposer(WIDE_PX)
+
+  await expect.element(sendButton()).toBeVisible()
+
+  await userEvent.hover(sendButton())
+
+  await expect.element(page.getByRole('tooltip')).toHaveTextContent('Send message')
 })
 
 test('a narrow composer still keeps the pinned grab action inline beside the overflow trigger', async () => {

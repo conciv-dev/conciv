@@ -44,11 +44,12 @@ export type TooltipIconButtonSlotProps = {
   side?: TooltipIconButtonSide
   variant?: TooltipIconButtonVariant
   class?: string
+  wrapperClass?: string
   children: (buttonProps: () => JSX.ButtonHTMLAttributes<HTMLButtonElement>) => JSX.Element
 }
 
 export function TooltipIconButtonSlot(props: TooltipIconButtonSlotProps): JSX.Element {
-  const [local] = splitProps(props, ['tooltip', 'side', 'variant', 'class', 'children'])
+  const [local] = splitProps(props, ['tooltip', 'side', 'variant', 'class', 'wrapperClass', 'children'])
   const buttonProps = (describedBy: string | undefined): JSX.ButtonHTMLAttributes<HTMLButtonElement> => ({
     type: 'button',
     class: iconButtonClass(local.variant, local.class),
@@ -63,7 +64,7 @@ export function TooltipIconButtonSlot(props: TooltipIconButtonSlotProps): JSX.El
             asChild={(triggerProps) => (
               <span
                 {...triggerProps()}
-                class="inline-flex"
+                class={`inline-flex  ${local.wrapperClass ?? ''}`}
                 onFocusIn={(event) => event.target.matches(':focus-visible') && api().setOpen(true)}
                 onFocusOut={() => api().setOpen(false)}
               >
