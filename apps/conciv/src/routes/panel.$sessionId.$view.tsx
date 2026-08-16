@@ -1,4 +1,4 @@
-import {createFileRoute, useBlocker, useRouter} from '@tanstack/solid-router'
+import {createFileRoute, redirect, useBlocker, useRouter} from '@tanstack/solid-router'
 import {Show, Suspense, createMemo, type JSX} from 'solid-js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedView} from '@conciv/extension/client'
@@ -8,7 +8,13 @@ import {collectViews} from '../extension/extension-views.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {appendDraft} from '../pane/draft-storage.js'
 
-export const Route = createFileRoute('/panel/$sessionId/$view')({component: PanelView})
+export const Route = createFileRoute('/panel/$sessionId/$view')({
+  beforeLoad: ({context, params}) => {
+    if (collectViews(context.instances).some((view) => view.id === params.view)) return
+    throw redirect({to: '/panel/$sessionId', params: {sessionId: params.sessionId}, replace: true})
+  },
+  component: PanelView,
+})
 
 function PanelView(): JSX.Element {
   const params = Route.useParams()

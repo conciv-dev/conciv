@@ -8,12 +8,14 @@ import type {ConcivSettings} from '../data/settings.js'
 import type {ConcivEnvironment} from '../router.js'
 import type {LayerStack} from '../shell/dialogs.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
+import type {LiveSessions} from './live-sessions.js'
 
 export type AppContextValue = {
   rpc: RpcClient
   settings: ConcivSettings
   environment: ConcivEnvironment
   data: AppData
+  liveSessions: LiveSessions
   queryClient: QueryClient
   announce: (message: string, assertive?: boolean) => void
   layers: LayerStack
@@ -49,6 +51,10 @@ export function useSettings(): ConcivSettings {
 
 export function useAppData(): AppData {
   return useAppScope('useAppData', (app) => app.data)
+}
+
+export function useLiveSessions(): LiveSessions {
+  return useAppScope('useLiveSessions', (app) => app.liveSessions)
 }
 
 export function useAppQueryClient(): QueryClient {

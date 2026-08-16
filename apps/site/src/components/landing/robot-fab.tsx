@@ -1,58 +1,30 @@
-import {createFabRobotRig, robotLayers, type FabRobotRig} from '@conciv/mascot'
-import {useRef, useState, type CSSProperties} from 'react'
+import {Mascot, type MascotState} from '@conciv/mascot/react'
+import {useState} from 'react'
 
-const LAYER: CSSProperties = {
-  position: 'absolute',
-  inset: 6,
-  backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'center',
-  backgroundSize: 'contain',
-  imageRendering: 'pixelated',
-  willChange: 'transform',
-}
+type RobotMood = {state: MascotState; working: boolean; follow: boolean}
 
-type LayerKey = 'head' | 'eyes' | 'antenna'
+const moodOf = (hovered: boolean, working: boolean): RobotMood => ({
+  state: hovered && !working ? 'awake' : 'rest',
+  working,
+  follow: !hovered && !working,
+})
 
-export function RobotFab({onActivate, label}: {onActivate?: () => void; label?: string} = {}) {
-  const layers = useRef<Partial<Record<LayerKey, HTMLElement>>>({})
-  const rig = useRef<FabRobotRig | null>(null)
+const labelFor = (working: boolean): string => (working ? 'Stop the robot thinking' : 'Make the robot think')
+
+export function RobotFab() {
+  const [hovered, setHovered] = useState(false)
   const [working, setWorking] = useState(false)
-
-  const attach = (key: LayerKey) => (el: HTMLSpanElement | null) => {
-    layers.current[key] = el ?? undefined
-    const {head, eyes, antenna} = layers.current
-    if (el && head && eyes && antenna && !rig.current) {
-      rig.current = createFabRobotRig({head, eyes, antenna})
-      return
-    }
-    if (!el) {
-      rig.current?.destroy()
-      rig.current = null
-    }
-  }
-
-  const enter = () => rig.current?.apply(working ? 'work' : 'open')
-  const leave = () => rig.current?.apply(working ? 'work' : 'closed')
-
-  const toggle = () => {
-    if (onActivate) return onActivate()
-    const next = !working
-    setWorking(next)
-    rig.current?.apply(next ? 'work' : 'open')
-  }
 
   return (
     <button
       type="button"
-      onMouseEnter={enter}
-      onMouseLeave={leave}
-      onClick={toggle}
-      aria-label={label ?? (working ? 'Stop the robot thinking' : 'Make the robot think')}
-      className="relative size-14 cursor-pointer rounded-full border bg-card shadow-[0_10px_24px_-12px_oklch(0.23_0.012_65/0.5)] transition-shadow hover:shadow-[0_12px_28px_-12px_oklch(0.23_0.012_65/0.65)]"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => setWorking((current) => !current)}
+      aria-label={labelFor(working)}
+      className="grid size-14 cursor-pointer place-items-center rounded-full border bg-card shadow-[0_10px_24px_-12px_oklch(0.23_0.012_65/0.5)] transition-shadow hover:shadow-[0_12px_28px_-12px_oklch(0.23_0.012_65/0.65)]"
     >
-      <span aria-hidden style={{...LAYER, backgroundImage: `url('${robotLayers.head}')`}} ref={attach('head')} />
-      <span aria-hidden style={{...LAYER, backgroundImage: `url('${robotLayers.antenna}')`}} ref={attach('antenna')} />
-      <span aria-hidden style={{...LAYER, backgroundImage: `url('${robotLayers.eyes}')`}} ref={attach('eyes')} />
+      <Mascot className="size-11" {...moodOf(hovered, working)} />
     </button>
   )
 }

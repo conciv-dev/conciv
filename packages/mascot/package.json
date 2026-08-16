@@ -1,7 +1,7 @@
 {
   "name": "@conciv/mascot",
   "version": "0.0.19",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv robot mascot: the rigged layer assets and a framework-free GSAP rig (createFabRobotRig) shared by the widget FAB and the site.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv robot mascot: a framework-free GSAP mascot service, Solid and React compound components, and sixteen antenna-tip effects.",
   "keywords": [
     "conciv",
     "mascot"
@@ -18,20 +18,96 @@
     "dist"
   ],
   "type": "module",
+  "sideEffects": [
+    "./dist/core/path.js"
+  ],
   "exports": {
     ".": {
-      "types": "./dist/rig.d.ts",
-      "import": "./dist/rig.js"
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./solid": {
+      "types": "./dist/solid/index.d.ts",
+      "solid": "./dist/solid/index.jsx",
+      "import": "./dist/solid/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    },
+    "./effects/binary": {
+      "types": "./dist/core/effects/binary.d.ts",
+      "import": "./dist/core/effects/binary.js"
+    },
+    "./effects/matrix": {
+      "types": "./dist/core/effects/matrix.d.ts",
+      "import": "./dist/core/effects/matrix.js"
+    },
+    "./effects/thought-cloud": {
+      "types": "./dist/core/effects/thought-cloud.d.ts",
+      "import": "./dist/core/effects/thought-cloud.js"
+    },
+    "./effects/pixel-bubbles": {
+      "types": "./dist/core/effects/pixel-bubbles.d.ts",
+      "import": "./dist/core/effects/pixel-bubbles.js"
+    },
+    "./effects/signal-rings": {
+      "types": "./dist/core/effects/signal-rings.d.ts",
+      "import": "./dist/core/effects/signal-rings.js"
+    },
+    "./effects/speech-bubble": {
+      "types": "./dist/core/effects/speech-bubble.d.ts",
+      "import": "./dist/core/effects/speech-bubble.js"
+    },
+    "./effects/steam": {
+      "types": "./dist/core/effects/steam.d.ts",
+      "import": "./dist/core/effects/steam.js"
+    },
+    "./effects/spark": {
+      "types": "./dist/core/effects/spark.d.ts",
+      "import": "./dist/core/effects/spark.js"
+    },
+    "./effects/spark-burst": {
+      "types": "./dist/core/effects/spark-burst.d.ts",
+      "import": "./dist/core/effects/spark-burst.js"
+    },
+    "./effects/spark-fountain": {
+      "types": "./dist/core/effects/spark-fountain.d.ts",
+      "import": "./dist/core/effects/spark-fountain.js"
+    },
+    "./effects/satellite": {
+      "types": "./dist/core/effects/satellite.d.ts",
+      "import": "./dist/core/effects/satellite.js"
+    },
+    "./effects/led-cone": {
+      "types": "./dist/core/effects/led-cone.d.ts",
+      "import": "./dist/core/effects/led-cone.js"
+    },
+    "./effects/tick-ring": {
+      "types": "./dist/core/effects/tick-ring.d.ts",
+      "import": "./dist/core/effects/tick-ring.js"
+    },
+    "./effects/signal-bars": {
+      "types": "./dist/core/effects/signal-bars.d.ts",
+      "import": "./dist/core/effects/signal-bars.js"
+    },
+    "./effects/heart": {
+      "types": "./dist/core/effects/heart.d.ts",
+      "import": "./dist/core/effects/heart.js"
+    },
+    "./effects/notes": {
+      "types": "./dist/core/effects/notes.d.ts",
+      "import": "./dist/core/effects/notes.js"
     }
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsdown && tsdown --config tsdown.solid-source.config.ts && tsdown --config tsdown.react.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.react.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --passWithNoTests && playwright test",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -40,7 +116,37 @@
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
+    "@playwright/test": "^1.61.1",
+    "@solidjs/testing-library": "^0.8.10",
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitest/browser-playwright": "4.1.10",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "solid-js": "^1.9.13",
+    "storybook": "^10.5.0",
+    "storybook-solidjs-vite": "^10.6.0",
     "tsdown": "^0.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "solid-js": ">=1.8"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
   }
 }

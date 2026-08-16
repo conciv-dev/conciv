@@ -43,6 +43,7 @@ export function ShellFab(props: {
       data-pw-suppressed={props.suppressed()}
       style={props.fab.dragStyle()}
       aria-label={fabLabel(props.open())}
+      aria-busy={props.working()}
       aria-expanded={props.open()}
       aria-controls="pw-chat-panel"
       onPointerDown={(event) => props.fab.onPointerDown(event)}

@@ -6,7 +6,19 @@
     "rootDir": ".",
     "noEmit": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": []
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "tsdown.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "tsdown.react.config.ts"
+  ],
+  "exclude": ["src/react/**", "tests/browser/react-wrapper.browser.test.tsx"]
 }
