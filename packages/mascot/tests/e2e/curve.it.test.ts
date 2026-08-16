@@ -1,5 +1,5 @@
 import {expect, test, type Page} from '@playwright/test'
-import type {CurveStyle, MascotConfig} from '../../src/rig.js'
+import type {CurveStyle, MascotConfig} from '../../src/core/index.js'
 import {expectNear} from './helpers/near.js'
 import {
   buildCurvedService,

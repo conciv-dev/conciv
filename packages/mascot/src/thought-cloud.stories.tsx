@@ -1,7 +1,7 @@
 import {createEffect, onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {thoughtCloudEffect} from './core/effects/thought-cloud.js'
-import {createMascot, robotLayers, type MascotConfig, type MascotFollow, type MascotState} from './rig.js'
+import {createMascot, robotLayers, type MascotConfig, type MascotFollow, type MascotState} from './core/index.js'
 
 const PRODUCT_FAB_ANTENNA_PX = 44
 

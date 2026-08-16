@@ -1,4 +1,5 @@
-import type * as MascotModule from '../src/rig.js'
+import type * as BinaryModule from '../src/core/effects/binary.js'
+import type * as MascotModule from '../src/core/index.js'
 import type {DigitPlacement, StagePlacement, StageParts, StagePoint} from './e2e/helpers/mascot-stage.js'
 
 type Summary = {min: number; max: number; last: number}
@@ -24,7 +25,7 @@ type EffectTotals = {starts: number; stops: number; removes: number; rests: numb
 type ScrollStageParts = StageParts & {scroller: HTMLElement}
 
 type MascotHarness = {
-  mascot: typeof MascotModule
+  mascot: typeof MascotModule & typeof BinaryModule
   buildStage: (sizePx?: number, layerInsetPx?: number, placement?: StagePlacement) => StageParts
   buildBareStage: (sizePx?: number) => HTMLElement
   buildScrollStage: (sizePx?: number) => ScrollStageParts
@@ -80,7 +81,6 @@ declare global {
   interface Window {
     mascotHarness: MascotHarness
     parts: StageParts
-    rig: MascotModule.FabRobotRig
     service: MascotModule.MascotService
     readonly pointerMoveListenerCount: number
     readonly pendingFrameLoopCount: number

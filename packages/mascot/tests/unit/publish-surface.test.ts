@@ -78,7 +78,7 @@ function usesMotionPath(file: string): boolean {
 }
 
 function builtEntries(): string[] {
-  return ['.', ...effectSubpaths].map(exportedImportFile).concat(coreIndexFile)
+  return ['.', ...effectSubpaths].map(exportedImportFile)
 }
 
 const isEffectModule = (file: string): boolean => file.startsWith(effectsDirectory)
@@ -87,19 +87,13 @@ function packageRelative(file: string): string {
   return `./${relative(packageRoot, file)}`
 }
 
-test('the compat entry keeps the rig surface both consumers import', async () => {
-  const compat: unknown = await import(exportedImportFile('.'))
-  expect(typeof field(compat, 'createFabRobotRig')).toBe('function')
-  expect(typeof field(compat, 'robotLayers')).toBe('object')
-  expect(typeof field(compat, 'createMascot')).toBe('function')
-  expect(typeof field(compat, 'binaryEffect')).toBe('function')
-})
-
-test('the core index entry builds the framework-free service', async () => {
+test('the package entry is the framework-free core service and nothing else', async () => {
+  expect(exportedImportFile('.')).toBe(coreIndexFile)
   const core: unknown = await import(coreIndexFile)
   expect(typeof field(core, 'createMascot')).toBe('function')
   expect(typeof field(core, 'robotSkin')).toBe('object')
   expect(typeof field(core, 'robotLayers')).toBe('object')
+  expect(field(core, 'binaryEffect')).toBeUndefined()
 })
 
 test.each(Object.entries(EFFECT_MOUNTS))('the %s effect ships as its own subpath entry', async (name, mount) => {
@@ -130,13 +124,13 @@ test('every emitted module that registers a gsap plugin is named by sideEffects'
 
 test('every entry that animates along a motion path carries the plugin registration', () => {
   const animating = builtEntries().filter((entry) => moduleGraph(entry).some(usesMotionPath))
-  expect(animating).toEqual([exportedImportFile('.'), exportedImportFile('./effects/binary')])
+  expect(animating).toEqual([exportedImportFile('./effects/binary')])
   for (const entry of animating) {
     expect(moduleGraph(entry).filter(registersMotionPathPlugin)).not.toEqual([])
   }
 })
 
-test('the internal core index entry pulls in no effect module at all', () => {
+test('the package entry pulls in no effect module at all', () => {
   expect(moduleGraph(coreIndexFile).filter(isEffectModule).map(packageRelative)).toEqual([])
 })
 

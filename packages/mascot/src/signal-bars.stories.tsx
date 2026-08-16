@@ -1,7 +1,7 @@
 import {createEffect, onCleanup, onMount, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {signalBarsEffect} from './core/effects/signal-bars.js'
-import {createMascot, robotLayers, type MascotConfig, type MascotState} from './rig.js'
+import {createMascot, robotLayers, type MascotConfig, type MascotState} from './core/index.js'
 
 const STAGE_SIZE_PX = 120
 

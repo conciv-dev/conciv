@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test'
-import type {MascotConnect} from '../../src/rig.js'
+import type {MascotConnect} from '../../src/core/index.js'
 import {expectNear} from './helpers/near.js'
 import {
   buildService,

@@ -1,7 +1,6 @@
 import {expect, test} from '@playwright/test'
 import {collectLaunches, launchFrames, medianStep, risePerFrame} from './helpers/launches.js'
 import {
-  buildLegacyRig,
   buildService,
   expectedEmitterGeometry,
   installManualClock,
@@ -44,12 +43,12 @@ test.beforeEach(async ({page}) => {
   await openMascotPage(page)
 })
 
-test('the legacy work state stages the emitter, throbs and drains without leaking tweens', async ({page}) => {
+test('entering the working state stages the emitter, throbs and drains without leaking tweens', async ({page}) => {
   await installManualClock(page)
-  await buildLegacyRig(page)
+  await buildService(page, {state: 'rest', working: false, follow: true})
   const enter = await page.evaluate(() => {
     const harness = window.mascotHarness
-    window.rig.apply('work')
+    window.service.update({state: 'rest', working: true, follow: false})
     const emitter = harness.requireEmitter()
     harness.advanceBy(0)
     const startScale = harness.property(emitter, 'scale')
@@ -73,7 +72,7 @@ test('the legacy work state stages the emitter, throbs and drains without leakin
   })
   const exit = await page.evaluate(() => {
     const harness = window.mascotHarness
-    window.rig.apply('closed')
+    window.service.update({state: 'rest', working: false, follow: true})
     const emitter = harness.requireEmitter()
     const values = harness.stepFrames(() => harness.property(emitter, 'opacity'), 0.4)
     harness.advanceBy(0.7)
@@ -82,12 +81,12 @@ test('the legacy work state stages the emitter, throbs and drains without leakin
   const flap = await page.evaluate(() => {
     const harness = window.mascotHarness
     for (let cycle = 0; cycle < 5; cycle += 1) {
-      window.rig.apply('work')
+      window.service.update({state: 'rest', working: true, follow: false})
       harness.advanceBy(0.14)
-      window.rig.apply('closed')
+      window.service.update({state: 'rest', working: false, follow: true})
       harness.advanceBy(0.14)
     }
-    window.rig.apply('work')
+    window.service.update({state: 'rest', working: true, follow: false})
     harness.advanceBy(1.5)
     return {emitters: harness.emitters().length, tweens: harness.globalTweenCount()}
   })
@@ -114,15 +113,15 @@ test('entering work launches the first digit from the leaned tip and every later
   page,
 }) => {
   await installManualClock(page)
-  await buildLegacyRig(page)
+  await buildService(page, {state: 'rest', working: false, follow: true})
   const result = await page.evaluate(
     ([sampleStart, sampleSeconds]) => {
       const harness = window.mascotHarness
       const {antenna, root} = window.parts
-      window.rig.apply('open')
+      window.service.update({state: 'awake', working: false, follow: false})
       harness.advanceBy(0.9)
       const leaned = harness.property(antenna, 'rotation')
-      window.rig.apply('work')
+      window.service.update({state: 'rest', working: true, follow: false})
       const emitter = harness.requireEmitter()
       const entry = harness.particleFlightOf(emitter, 0)
       harness.advanceBy(sampleStart)

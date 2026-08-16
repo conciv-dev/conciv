@@ -3,7 +3,6 @@ import solidPlugin from 'vite-plugin-solid'
 
 export default defineConfig({
   entry: [
-    'src/rig.ts',
     'src/core/index.ts',
     'src/core/style-merge.ts',
     'src/solid/index.ts',

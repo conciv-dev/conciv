@@ -1,6 +1,6 @@
 import {expect, test} from '@playwright/test'
 import {expectNear} from './helpers/near.js'
-import {buildLegacyRig, buildService, openMascotPage, readGaze, settle} from './helpers/mascot-stage.js'
+import {buildService, openMascotPage, readGaze, settle} from './helpers/mascot-stage.js'
 
 const INSET_STAGE_PX = 56
 
@@ -16,8 +16,8 @@ test.beforeEach(async ({page}) => {
   await openMascotPage(page)
 })
 
-test('the legacy closed state tracks the pointer with a saturating, mirrored falloff', async ({page}) => {
-  const center = await buildLegacyRig(page)
+test('the resting follow state tracks the pointer with a saturating, mirrored falloff', async ({page}) => {
+  const center = await buildService(page, {state: 'rest', working: false, follow: true})
   await page.mouse.move(center.x + 400, center.y)
   await settle(page, 1400)
   const right = await readGaze(page)
@@ -36,11 +36,11 @@ test('the legacy closed state tracks the pointer with a saturating, mirrored fal
   expectNear('110px of the 220px falloff is exactly half reach, with no self-feeding', ratio, 0.5, 0.005)
 })
 
-test('the legacy open state lands its pose and disarms the gaze listener', async ({page}) => {
-  await buildLegacyRig(page)
+test('the awake state lands its pose and disarms the gaze listener', async ({page}) => {
+  await buildService(page, {state: 'rest', working: false, follow: true})
   const pose = await page.evaluate(async () => {
     const harness = window.mascotHarness
-    window.rig.apply('open')
+    window.service.update({state: 'awake', working: false, follow: false})
     await harness.wait(1200)
     return {
       headY: harness.property(window.parts.head, 'yPercent'),
@@ -50,10 +50,10 @@ test('the legacy open state lands its pose and disarms the gaze listener', async
     }
   })
 
-  expectNear('open head yPercent = -2', pose.headY, -2, 0.01)
-  expectNear('open eyes scaleY = 1.06', pose.eyesScaleY, 1.06, 0.01)
-  expectNear('open antenna rotation = -4deg', pose.antennaRotation, -4, 0.01)
-  expect(pose.listeners, 'open disarms the gaze listener').toBe(0)
+  expectNear('awake head yPercent = -2', pose.headY, -2, 0.01)
+  expectNear('awake eyes scaleY = 1.06', pose.eyesScaleY, 1.06, 0.01)
+  expectNear('awake antenna rotation = -4deg', pose.antennaRotation, -4, 0.01)
+  expect(pose.listeners, 'awake without follow disarms the gaze listener').toBe(0)
 })
 
 test('follow {eyes} tracks the pointer with the eyes while the antenna stays still', async ({page}) => {

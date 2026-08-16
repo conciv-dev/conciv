@@ -33,7 +33,7 @@ const EFFECT_MOUNTS: Record<string, string> = {
   notes: 'notesEffect',
 }
 
-const PROBE = `import {createFabRobotRig, createMascot, robotLayers} from '@conciv/mascot'
+const PROBE = `import {createMascot, robotLayers} from '@conciv/mascot'
 import {binaryEffect, configureBinaryEffect} from '@conciv/mascot/effects/binary'
 
 const effectNames = ${JSON.stringify(Object.keys(EFFECT_MOUNTS))}
@@ -62,7 +62,6 @@ const installedFrameworks = ['solid-js', 'react', 'react-dom'].filter((name) => 
 
 process.stdout.write(
   JSON.stringify({
-    createFabRobotRig: typeof createFabRobotRig,
     createMascot: typeof createMascot,
     binaryEffect: typeof binaryEffect,
     configureBinaryEffect: typeof configureBinaryEffect,
@@ -180,7 +179,6 @@ afterAll(() => {
 
 test('a packed install with no framework present resolves and runs the core and effect subpaths', () => {
   expect(probeInstall([], PROBE)).toEqual({
-    createFabRobotRig: 'function',
     createMascot: 'function',
     binaryEffect: 'function',
     configureBinaryEffect: 'function',

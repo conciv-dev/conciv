@@ -3,7 +3,7 @@ import {createRequire} from 'node:module'
 import {dirname, join, normalize} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {expect, type Page, type Route} from '@playwright/test'
-import type {CurveStyle, MascotConfig} from '../../../src/rig.js'
+import type {CurveStyle, MascotConfig} from '../../../src/core/index.js'
 import {frameCountingScript, harnessPage, layoutCountingScript} from './harness-page.js'
 
 export type StagePoint = {x: number; y: number}
@@ -16,7 +16,7 @@ const gsapDirectory = dirname(createRequire(import.meta.url).resolve('gsap/packa
 
 const DIST_DIRECTORY = join(packageDirectory, 'dist')
 
-const RIG_BUNDLE = join(DIST_DIRECTORY, 'rig.js')
+const CORE_BUNDLE = join(DIST_DIRECTORY, 'core/index.js')
 
 const MASCOT_BASE = 'http://mascot.test/'
 
@@ -71,7 +71,7 @@ async function handleRoute(route: Route): Promise<void> {
 export type MascotPageOptions = {countLayoutReads: boolean}
 
 export async function openMascotPage(page: Page, options?: MascotPageOptions): Promise<void> {
-  await access(RIG_BUNDLE)
+  await access(CORE_BUNDLE)
   await page.addInitScript(frameCountingScript())
   if (options?.countLayoutReads === true) await page.addInitScript(layoutCountingScript())
   await page.route(`${MASCOT_BASE}**`, handleRoute)
@@ -84,16 +84,6 @@ export const settle = (page: Page, milliseconds: number): Promise<void> =>
 
 export const installManualClock = (page: Page): Promise<void> =>
   page.evaluate(() => window.mascotHarness.installManualClock())
-
-export function buildLegacyRig(page: Page): Promise<StagePoint> {
-  return page.evaluate(() => {
-    const harness = window.mascotHarness
-    const parts = harness.buildStage()
-    window.parts = parts
-    window.rig = harness.mascot.createFabRobotRig(parts)
-    return harness.stageCenter(parts.root)
-  })
-}
 
 function buildStage(
   page: Page,

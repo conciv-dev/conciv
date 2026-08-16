@@ -1,14 +1,14 @@
 import {createEffect, onCleanup, onMount, Show, untrack, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
+import {configureBinaryEffect} from './core/effects/binary.js'
 import {
-  configureBinaryEffect,
   createMascot,
   robotLayers,
   type CurveStyle,
   type MascotConfig,
   type MascotFollow,
   type MascotState,
-} from './rig.js'
+} from './core/index.js'
 
 const PRODUCT_FAB_ANTENNA_PX = 44
 

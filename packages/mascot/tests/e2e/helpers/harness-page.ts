@@ -51,7 +51,8 @@ export const layoutCountingScript = (): string => LAYOUT_COUNTING_SCRIPT
 
 const HARNESS_SCRIPT = `
   import gsap from 'gsap'
-  import * as mascot from '/rig.js'
+  import * as mascot from '/core/index.js'
+  import {binaryEffect, configureBinaryEffect} from '/core/effects/binary.js'
 
   let pointerMoveListeners = 0
   const addListener = window.addEventListener.bind(window)
@@ -489,7 +490,7 @@ const HARNESS_SCRIPT = `
     gsap.globalTimeline.getChildren(false, false, true).find((child) => child.repeat() === -1)
 
   window.mascotHarness = {
-    mascot,
+    mascot: {...mascot, binaryEffect, configureBinaryEffect},
     buildStage,
     buildBareStage,
     buildScrollStage,
