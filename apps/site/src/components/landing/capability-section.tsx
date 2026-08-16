@@ -41,6 +41,12 @@ const ROW_C: Figure = {
   body: 'A local clone of vite.dev with one Vite plugin line. Nothing else changed.',
 }
 
+const ROW_A_GRID =
+  'grid grid-cols-1 divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0 md:[&>*:last-child]:border-r md:[&>*:last-child]:border-r-transparent'
+
+const ROW_B_GRID =
+  'grid grid-cols-1 divide-y border-t lg:grid-cols-3 lg:divide-x lg:divide-y-0 lg:[&>*:last-child]:border-r lg:[&>*:last-child]:border-r-transparent'
+
 function CapabilityFigure({figure, className}: {figure: Figure; className?: string}) {
   const screenshot = findScreenshot(figure.file)
   return (
@@ -68,12 +74,12 @@ export function CapabilitySection() {
           <div className="od-inset py-16">
             <h2 className="od-h2">What it does on the page.</h2>
           </div>
-          <div className="grid grid-cols-1 divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
+          <div className={ROW_A_GRID}>
             {ROW_A.map((figure) => (
               <CapabilityFigure key={figure.file} figure={figure} />
             ))}
           </div>
-          <div className="grid grid-cols-1 divide-y border-t lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+          <div className={ROW_B_GRID}>
             {ROW_B.map((figure) => (
               <CapabilityFigure key={figure.file} figure={figure} />
             ))}

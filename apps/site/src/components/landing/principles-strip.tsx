@@ -20,7 +20,7 @@ export function PrinciplesStrip() {
     <section className="od-ruled">
       <div className="od-page">
         <div className="od-col">
-          <ul className="grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <ul className="grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:[&>*:last-child]:border-r sm:[&>*:last-child]:border-r-transparent">
             {PRINCIPLES.map((principle) => (
               <li key={principle.title} className="od-inset flex flex-col gap-2 py-6">
                 <h3 className="od-h3">{principle.title}</h3>

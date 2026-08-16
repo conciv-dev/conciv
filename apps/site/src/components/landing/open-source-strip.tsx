@@ -13,7 +13,7 @@ export function OpenSourceStrip() {
   return (
     <section className="od-ruled">
       <div className="od-page">
-        <div className="od-col grid grid-cols-1 divide-y md:grid-cols-2 md:divide-x md:divide-y-0">
+        <div className="od-col grid grid-cols-1 divide-y md:grid-cols-2 md:divide-x md:divide-y-0 md:[&>*:last-child]:border-r md:[&>*:last-child]:border-r-transparent">
           <div className="od-inset py-16">
             <p className="od-eyebrow">Open source</p>
             <h2 className="od-h2 mt-2 max-w-[400px]">Open source, on your machine.</h2>
@@ -31,7 +31,7 @@ export function OpenSourceStrip() {
             </div>
           </div>
           <div className="od-inset py-16">
-            <Table className="od-mono text-[13px]">
+            <Table className="od-mono od-caption">
               <TableBody>
                 <TableRow className="hover:bg-transparent">
                   <TableCell className="px-0 text-muted-foreground">stars</TableCell>
