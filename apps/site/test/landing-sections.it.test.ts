@@ -21,9 +21,11 @@ test.describe('landing sections', () => {
   test('renders the headline, six capability figures, three steps and the ledger without errors', async ({browser}) => {
     const page = await browser.newPage()
     const errors: string[] = []
-    page.on('pageerror', (error) => errors.push(error.message))
+    page.on('pageerror', (error) => errors.push(`pageerror: ${error.stack ?? error.message}`))
     page.on('console', (message) => {
-      if (message.type() === 'error') errors.push(message.text())
+      if (message.type() !== 'error') return
+      const {url, lineNumber} = message.location()
+      errors.push(`console.error: ${message.text()} (${url}:${lineNumber})`)
     })
     await page.goto(LANDING, {waitUntil: 'domcontentloaded'})
 
@@ -53,7 +55,7 @@ test.describe('landing sections', () => {
 
     await expectLocator(page.getByRole('cell', {name: 'MIT'})).toBeVisible()
 
-    expect(errors).toEqual([])
+    expect(errors, `console errors and page errors:\n${errors.join('\n')}`).toEqual([])
     await page.close()
   }, 60_000)
 
