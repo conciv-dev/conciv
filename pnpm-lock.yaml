@@ -1945,6 +1945,9 @@ importers:
         specifier: ^0.127.0
         version: 0.127.0
     devDependencies:
+      '@conciv/ui-kit-chat':
+        specifier: workspace:*
+        version: link:../ui-kit-chat
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config

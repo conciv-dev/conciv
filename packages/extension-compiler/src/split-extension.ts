@@ -24,6 +24,8 @@ const TERMINATOR_NAMES = new Set(
   Object.values(STRIPPED_TERMINATOR).flatMap((terminatorOf) => Object.values(terminatorOf)),
 )
 
+const NODE_STRIPPED_PROPERTIES = new Set(['Component', 'Surface', 'views'])
+
 function isDeclarationPackage(source: string): boolean {
   return source === DECLARATION_PACKAGE || source.startsWith(`${DECLARATION_PACKAGE}/`)
 }
@@ -55,6 +57,52 @@ function declarationKindOf(node: t.Node, path: NodePath, seen: Set<t.Node>): Dec
   return null
 }
 
+function propertyKeyName(node: t.Node): string | null {
+  if (!t.isObjectProperty(node) || node.computed) return null
+  if (t.isIdentifier(node.key)) return node.key.name
+  return t.isStringLiteral(node.key) ? node.key.value : null
+}
+
+function isClientOnlyProperty(node: t.Node): boolean {
+  const key = propertyKeyName(node)
+  return key !== null && NODE_STRIPPED_PROPERTIES.has(key)
+}
+
+function extensionConfigPath(path: NodePath<t.CallExpression>): NodePath<t.ObjectExpression> | null {
+  const callee = path.node.callee
+  if (!t.isIdentifier(callee)) return null
+  if (declarationKindOfBinding(callee.name, path, new Set()) !== 'extension') return null
+  const [config] = path.get('arguments')
+  return config && config.isObjectExpression() ? config : null
+}
+
+function stripClientOnlyProperties(path: NodePath<t.CallExpression>): void {
+  const config = extensionConfigPath(path)
+  if (config === null) return
+  for (const property of config.get('properties')) {
+    if (isClientOnlyProperty(property.node)) property.remove()
+  }
+}
+
+function terminatorName(callee: t.Node): string | null {
+  if (!t.isMemberExpression(callee) || !t.isIdentifier(callee.property)) return null
+  return TERMINATOR_NAMES.has(callee.property.name) ? callee.property.name : null
+}
+
+function terminatorObject(callee: t.Node): t.Expression | null {
+  if (!t.isMemberExpression(callee) || !t.isExpression(callee.object)) return null
+  return callee.object
+}
+
+function collapseTerminator(path: NodePath<t.CallExpression>, stripped: Record<DeclarationKind, string>): void {
+  const name = terminatorName(path.node.callee)
+  const object = terminatorObject(path.node.callee)
+  if (name === null || object === null) return
+  const kind = declarationKindOf(object, path, new Set())
+  if (kind === null || stripped[kind] !== name) return
+  path.replaceWith(object)
+}
+
 export function splitExtension(code: string, id: string, env: SplitEnv): {code: string; map: string | null} | null {
   if (!CONTRACT_MARKER.test(code)) return null
   const ast = parseSync(code, {
@@ -69,13 +117,8 @@ export function splitExtension(code: string, id: string, env: SplitEnv): {code: 
   const strippedTerminator = STRIPPED_TERMINATOR[env]
   traverse(ast, {
     CallExpression(path) {
-      const callee = path.node.callee
-      if (!t.isMemberExpression(callee)) return
-      if (!t.isIdentifier(callee.property) || !TERMINATOR_NAMES.has(callee.property.name)) return
-      if (!t.isExpression(callee.object)) return
-      const kind = declarationKindOf(callee.object, path, new Set())
-      if (kind === null || strippedTerminator[kind] !== callee.property.name) return
-      path.replaceWith(callee.object)
+      if (env === 'node') stripClientOnlyProperties(path)
+      collapseTerminator(path, strippedTerminator)
     },
   })
   deadCodeElimination(ast, referenced)

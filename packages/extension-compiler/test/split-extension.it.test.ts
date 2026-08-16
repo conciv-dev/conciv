@@ -16,6 +16,30 @@ export default defineExtension({name: 'canvas', tools: [draw]})
   .client(() => ({selection: CLIENT_BODY}))
   .server(() => ({systemPrompt: SERVER_BODY}))`
 
+const SURFACE_SOURCE = `import {defineExtension} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
+
+const extension = defineExtension({
+  name: 'surface',
+  Component,
+  Surface,
+  views: [{id: 'panel', label: 'Panel', render: Panel}],
+})
+
+export default extension
+
+function Component() {
+  return <ComposerActions.Root id="surface.a" />
+}
+
+function Surface() {
+  return <ComposerActions.Button tooltip="b" />
+}
+
+function Panel() {
+  return <ComposerActions.DropdownItem value="c" label="c" />
+}`
+
 describe('splitExtension', () => {
   it('browser: collapses .server(), keeps .client()/.render(), drops node-only imports', async () => {
     const out = splitExtension(SOURCE, ID, 'browser')
@@ -47,6 +71,40 @@ describe('splitExtension', () => {
     const out = splitExtension(`export const x = api.server(() => 1)`, ID, 'browser')
     expect(out).toBeNull()
   })
+
+  it('node: drops Component/Surface/views and the client-only imports they hold alive', async () => {
+    const out = splitExtension(SURFACE_SOURCE, ID, 'node')
+    expect(out).not.toBeNull()
+    const code = out!.code
+    expect(code).not.toContain('Component')
+    expect(code).not.toContain('Surface')
+    expect(code).not.toContain('views')
+    expect(code).not.toContain('Panel')
+    expect(code).not.toContain('@conciv/ui-kit-chat')
+    expect(code).toContain("name: 'surface'")
+  })
+
+  it('browser: keeps Component/Surface/views intact', async () => {
+    const out = splitExtension(SURFACE_SOURCE, ID, 'browser')
+    expect(out).not.toBeNull()
+    const code = out!.code
+    expect(code).toContain('Component')
+    expect(code).toContain('Surface')
+    expect(code).toContain('views')
+    expect(code).toContain('@conciv/ui-kit-chat')
+  })
+
+  it.each(['composer-action', 'full'] as const)(
+    'node: the %s scaffold keeps no client-only package import',
+    async (kind) => {
+      const source = scaffold(kind, {name: 'demo'})
+      expect(source).toContain('@conciv/ui-kit-chat')
+      const node = splitExtension(source, ID, 'node')
+      expect(node).not.toBeNull()
+      expect(node!.code).not.toContain('@conciv/ui-kit-chat')
+      expect(splitExtension(source, ID, 'browser')!.code).toContain('@conciv/ui-kit-chat')
+    },
+  )
 
   it('round-trips a scaffolded full extension through both sides', async () => {
     const source = scaffold('full', {name: 'demo'})
