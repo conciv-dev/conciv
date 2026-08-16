@@ -191,7 +191,7 @@ test('a packed install with no framework present resolves and runs the core and 
 test('a packed install with only solid present imports and renders the solid wrapper subpath', () => {
   expect(probeInstall(['solid-js'], SOLID_PROBE)).toEqual({
     Mascot: 'function',
-    parts: ['Antenna', 'Binary', 'Eyes', 'Head'],
+    parts: ['Antenna', 'Binary', 'Effect', 'Eyes', 'Head'],
     rendered: ['root', 'head', 'antenna', 'eyes', 'effect'],
     sourceEntry: true,
     frameworks: ['solid-js'],
@@ -201,7 +201,7 @@ test('a packed install with only solid present imports and renders the solid wra
 test('a packed install with only react present imports and renders the react wrapper subpath', () => {
   expect(probeInstall(['react', 'react-dom'], REACT_PROBE)).toEqual({
     Mascot: 'function',
-    parts: ['Antenna', 'Binary', 'Eyes', 'Head'],
+    parts: ['Antenna', 'Binary', 'Effect', 'Eyes', 'Head'],
     rendered: ['root', 'head', 'antenna', 'eyes', 'effect'],
     frameworks: ['react', 'react-dom'],
   })

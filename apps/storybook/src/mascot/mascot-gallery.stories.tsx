@@ -26,93 +26,115 @@ import {speechBubbleEffect} from '@conciv/mascot/effects/speech-bubble'
 import {steamEffect} from '@conciv/mascot/effects/steam'
 import {thoughtCloudEffect} from '@conciv/mascot/effects/thought-cloud'
 import {tickRingEffect} from '@conciv/mascot/effects/tick-ring'
+import {Mascot} from '@conciv/mascot/solid'
 
-type EffectEntry = {name: string; summary: string; mount: (curve: CurveStyle) => EffectMount}
+type EffectEntry =
+  | {summary: string; travels: true; mount: (curve: CurveStyle) => EffectMount}
+  | {summary: string; travels: false; mount: () => EffectMount}
 
-const BINARY_EFFECT: EffectEntry = {
-  name: 'binary',
-  summary: 'Five binary digits rise out of the antenna tip in two lanes and drain back into it.',
-  mount: (curve) => configureBinaryEffect({curve}),
-}
+const EFFECT_NAMES = [
+  'binary',
+  'matrix',
+  'thought-cloud',
+  'pixel-bubbles',
+  'signal-rings',
+  'speech-bubble',
+  'steam',
+  'spark',
+  'spark-burst',
+  'spark-fountain',
+  'satellite',
+  'led-cone',
+  'tick-ring',
+  'signal-bars',
+  'heart',
+  'notes',
+] as const
 
-const EFFECTS: EffectEntry[] = [
-  BINARY_EFFECT,
-  {
-    name: 'matrix',
+type EffectName = (typeof EFFECT_NAMES)[number]
+
+const EFFECTS: Record<EffectName, EffectEntry> = {
+  binary: {
+    summary: 'Five binary digits rise out of the antenna tip in two lanes and drain back into it.',
+    travels: true,
+    mount: (curve) => configureBinaryEffect({curve}),
+  },
+  matrix: {
     summary: 'Six monospace glyphs drip down out of the tip in a staggered falling column.',
+    travels: false,
     mount: () => matrixEffect,
   },
-  {
-    name: 'thought-cloud',
+  'thought-cloud': {
     summary: 'A comic thought bubble floats above the tip while three ink dots pulse.',
+    travels: false,
     mount: () => thoughtCloudEffect,
   },
-  {
-    name: 'pixel-bubbles',
+  'pixel-bubbles': {
     summary: 'Six pixel squares float up and drift apart in alternating lanes.',
+    travels: false,
     mount: () => pixelBubblesEffect,
   },
-  {
-    name: 'signal-rings',
+  'signal-rings': {
     summary: 'Three concentric rings pulse outward from the tip and fade.',
+    travels: false,
     mount: () => signalRingsEffect,
   },
-  {
-    name: 'speech-bubble',
+  'speech-bubble': {
     summary: 'A comic speech bubble whose three dots flash in sequence, like a typing indicator.',
+    travels: false,
     mount: () => speechBubbleEffect,
   },
-  {
-    name: 'steam',
+  steam: {
     summary: 'Four blurred puffs rise from the tip, drift into lanes, scale up and fade.',
+    travels: false,
     mount: () => steamEffect,
   },
-  {
-    name: 'spark',
+  spark: {
     summary: 'Five spark chips flicker above the tip over a soft pulsing glow.',
+    travels: false,
     mount: () => sparkEffect,
   },
-  {
-    name: 'spark-burst',
+  'spark-burst': {
     summary: 'A canvas draws ten radial strokes that ease outward and fade, on a loop.',
+    travels: false,
     mount: () => sparkBurstEffect,
   },
-  {
-    name: 'spark-fountain',
+  'spark-fountain': {
     summary: 'A canvas sprays gravity-arced sparks into a narrow upward cone.',
+    travels: false,
     mount: () => sparkFountainEffect,
   },
-  {
-    name: 'satellite',
+  satellite: {
     summary: 'A dashed orbit ring with a single accent dot circling the tip.',
+    travels: false,
     mount: () => satelliteEffect,
   },
-  {
-    name: 'led-cone',
+  'led-cone': {
     summary: 'An LED dot and its light cone pulse together on a shared beat.',
+    travels: false,
     mount: () => ledConeEffect,
   },
-  {
-    name: 'tick-ring',
+  'tick-ring': {
     summary: 'A ring of twelve ticks lights up one at a time, clockwise.',
+    travels: false,
     mount: () => tickRingEffect,
   },
-  {
-    name: 'signal-bars',
+  'signal-bars': {
     summary: 'Four bars step through a rising bar chart on a staggered beat.',
+    travels: false,
     mount: () => signalBarsEffect,
   },
-  {
-    name: 'heart',
+  heart: {
     summary: 'A pixel heart pulses its scale on a yoyo loop.',
+    travels: false,
     mount: () => heartEffect,
   },
-  {
-    name: 'notes',
+  notes: {
     summary: 'Three music glyphs launch from the tip and drift apart as they rise.',
+    travels: false,
     mount: () => notesEffect,
   },
-]
+}
 
 const PARTS = [
   {name: 'stage', summary: 'The positioned box the layers fill; every emitter measures against it.'},
@@ -131,9 +153,7 @@ const WRAPPERS = [
   {subpath: '@conciv/mascot/react', summary: 'The React mirror of the same compound component and slots.'},
 ]
 
-const effectSubpath = (name: string): string => `@conciv/mascot/effects/${name}`
-
-const effectEntry = (name: string): EffectEntry => EFFECTS.find((entry) => entry.name === name) ?? BINARY_EFFECT
+const effectSubpath = (name: EffectName): string => `@conciv/mascot/effects/${name}`
 
 const effectCountLabel = (count: number): string => {
   const plural = new Intl.PluralRules('en').select(count) === 'one' ? 'effect' : 'effects'
@@ -234,7 +254,10 @@ function GalleryStage(props: GalleryProps): JSX.Element {
     service.registerParts({stage, head, eyes, antenna})
   })
 
-  createEffect(() => service.mountEffect(EFFECT_HOST_ID, effectEntry(props.effect).mount(props.curve)))
+  createEffect(() => {
+    const entry = EFFECTS[props.effect]
+    service.mountEffect(EFFECT_HOST_ID, entry.travels ? entry.mount(props.curve) : entry.mount())
+  })
 
   createEffect(() => service.update(config()))
 
@@ -268,7 +291,32 @@ function GalleryFigure(props: GalleryProps): JSX.Element {
       </Show>
       <figcaption style={captionStyle}>
         <span style={subpathStyle}>{effectSubpath(props.effect)}</span>
-        <span>{effectEntry(props.effect).summary}</span>
+        <span>{EFFECTS[props.effect].summary}</span>
+      </figcaption>
+    </figure>
+  )
+}
+
+const COMPOUND_STAGE_SIZE_PX = 120
+
+const COMPOUND_LABEL = 'conciv robot mascot running the notes effect from the solid compound component'
+
+const COMPOUND_USAGE = '<Mascot> + <Mascot.Effect>'
+
+function CompoundFigure(): JSX.Element {
+  return (
+    <figure style={figureStyle(COMPOUND_STAGE_SIZE_PX)}>
+      <span role="img" aria-label={COMPOUND_LABEL}>
+        <Mascot working style={stageStyle(COMPOUND_STAGE_SIZE_PX)}>
+          <Mascot.Effect mount={() => notesEffect} />
+        </Mascot>
+      </span>
+      <figcaption style={captionStyle}>
+        <span style={subpathStyle}>{COMPOUND_USAGE}</span>
+        <span>
+          The compound component renders the three layers itself; the effect child replaces the default binary with
+          whichever effect subpath it mounts.
+        </span>
       </figcaption>
     </figure>
   )
@@ -281,7 +329,7 @@ function MascotIndex(): JSX.Element {
         <h1 style={titleStyle}>conciv mascot</h1>
         <p style={summaryStyle}>
           A rigged pixel robot: three layers a host renders, three controllers that drive them, and{' '}
-          <strong>{effectCountLabel(EFFECTS.length)}</strong> that ride the antenna tip while work is in flight.
+          <strong>{effectCountLabel(EFFECT_NAMES.length)}</strong> that ride the antenna tip while work is in flight.
         </p>
       </div>
       <section style={sectionStyle}>
@@ -301,11 +349,11 @@ function MascotIndex(): JSX.Element {
         <h2 style={headingStyle}>Effects</h2>
         <p style={summaryStyle}>Each effect is its own subpath entry, so a consumer bundles only the one it mounts.</p>
         <dl style={listStyle}>
-          <For each={EFFECTS}>
-            {(effect) => (
+          <For each={EFFECT_NAMES}>
+            {(name) => (
               <div style={rowStyle}>
-                <dt style={{...termStyle, ...subpathStyle}}>{effectSubpath(effect.name)}</dt>
-                <dd style={summaryStyle}>{effect.summary}</dd>
+                <dt style={{...termStyle, ...subpathStyle}}>{effectSubpath(name)}</dt>
+                <dd style={summaryStyle}>{EFFECTS[name].summary}</dd>
               </div>
             )}
           </For>
@@ -332,7 +380,7 @@ type GalleryProps = {
   state: MascotState
   working: boolean
   follow: 'both' | 'eyes' | 'antenna' | 'none'
-  effect: string
+  effect: EffectName
   curve: CurveStyle
   stageSizePx: number
   bob: boolean
@@ -350,6 +398,9 @@ runs the activity overlay, \`follow\` arms pointer tracking per channel, \`bob\`
 three overlay pieces, \`effect\` swaps which of the sixteen effects is mounted (switching drains the outgoing one
 and starts the incoming one), \`curve\` picks the path travelling digits ride out of the antenna tip, and
 \`stageSizePx\` resizes the stage — the emitter is scale-relative, so the whole effect grows with the robot.
+
+**Compound** — the same robot from \`@conciv/mascot/solid\`: \`<Mascot>\` renders its own three layers, and the
+\`<Mascot.Effect>\` child mounts an effect subpath in place of the default binary.
 
 **Index** — the map of the package: the parts a host renders, all sixteen effect subpaths, and the three
 entries (core, Solid, React). Each per-effect story under **mascot/Effects** is the deep dive for one of them.
@@ -384,7 +435,7 @@ const meta: Meta<GalleryProps> = {
     },
     effect: {
       control: 'select',
-      options: EFFECTS.map((entry) => entry.name),
+      options: EFFECT_NAMES,
       description: 'Which published effect subpath is mounted on the keyed effect host',
     },
     curve: {
@@ -425,13 +476,27 @@ export const Playground: Story = {
   },
 }
 
+export const Compound: Story = {
+  parameters: {controls: {disable: true}},
+  render: (): JSX.Element => <CompoundFigure />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(await canvas.findByRole('img', {name: COMPOUND_LABEL})).toBeVisible()
+    expect(canvasElement.querySelectorAll('[data-scope="mascot"][data-part="effect"]')).toHaveLength(1)
+    for (const part of ['head', 'antenna', 'eyes']) {
+      expect(canvasElement.querySelectorAll(`[data-scope="mascot"][data-part="${part}"]`)).toHaveLength(1)
+    }
+    await expect(await canvas.findByText(COMPOUND_USAGE)).toBeVisible()
+  },
+}
+
 export const Index: Story = {
   parameters: {controls: {disable: true}},
   render: (): JSX.Element => <MascotIndex />,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     for (const part of PARTS) await expect(await canvas.findByText(part.name)).toBeVisible()
-    for (const effect of EFFECTS) await expect(await canvas.findByText(effectSubpath(effect.name))).toBeVisible()
+    for (const name of EFFECT_NAMES) await expect(await canvas.findByText(effectSubpath(name))).toBeVisible()
     for (const wrapper of WRAPPERS) await expect(await canvas.findByText(wrapper.subpath)).toBeVisible()
     await expect(await canvas.findByText('16 effects')).toBeVisible()
   },

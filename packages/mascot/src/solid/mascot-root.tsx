@@ -49,7 +49,7 @@ export function MascotRoot(props: MascotProps): JSX.Element {
           <MascotLayer layer="eyes" />
         </Show>
         <Show when={host.slots.effects === 0}>
-          <BinaryEffectHost curve={local.curve} />
+          <BinaryEffectHost curve={local.curve} fallback />
         </Show>
       </Dynamic>
     </MascotProvider>

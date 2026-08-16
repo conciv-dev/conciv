@@ -4,7 +4,6 @@ import type {CurveStyle} from '../core/path.js'
 import {useMascotContext} from './mascot-context.js'
 import {MascotEffect} from './mascot-effect.js'
 import type {MascotBinaryProps} from './mascot-props.js'
-import {useIsomorphicLayoutEffect} from './use-layout-effect.js'
 
 const DEFAULT_CURVE: CurveStyle = 'straight'
 
@@ -18,7 +17,5 @@ export function BinaryEffectHost({curve, ...rest}: BinaryEffectHostProps): React
 }
 
 export function MascotBinary(props: MascotBinaryProps): ReactElement {
-  const {claimEffect} = useMascotContext()
-  useIsomorphicLayoutEffect(() => claimEffect(), [claimEffect])
   return <BinaryEffectHost {...props} />
 }

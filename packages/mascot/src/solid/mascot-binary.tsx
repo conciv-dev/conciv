@@ -7,7 +7,9 @@ import type {MascotBinaryProps} from './mascot-props.js'
 
 const DEFAULT_CURVE: CurveStyle = 'straight'
 
-export function BinaryEffectHost(props: MascotBinaryProps): JSX.Element {
+export type BinaryEffectHostProps = MascotBinaryProps & {fallback?: boolean}
+
+export function BinaryEffectHost(props: BinaryEffectHostProps): JSX.Element {
   const context = useMascotContext()
   const [local, rest] = splitProps(props, ['curve'])
   const curve = (): CurveStyle => local.curve ?? context.curve() ?? DEFAULT_CURVE
@@ -15,7 +17,5 @@ export function BinaryEffectHost(props: MascotBinaryProps): JSX.Element {
 }
 
 export function MascotBinary(props: MascotBinaryProps): JSX.Element {
-  const context = useMascotContext()
-  context.claimEffect()
   return <BinaryEffectHost {...props} />
 }

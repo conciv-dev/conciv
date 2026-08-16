@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client'
 import {page} from 'vitest/browser'
 import {expect, it, onTestFinished, vi} from 'vitest'
 import gsap from 'gsap'
+import {notesEffect} from '../../src/core/effects/notes.js'
 import {Mascot} from '../../src/react/index.js'
 import {
   DRAIN_TIMEOUT,
@@ -303,6 +304,16 @@ it('mounts one emitter per effect child instead of the default one', () => {
     </Mascot>,
   )
   expect(emittersIn(container)).toHaveLength(2)
+})
+
+it('stands the default binary down when an effect child mounts another effect', () => {
+  const {container} = renderMascot(
+    <Mascot working>
+      <Mascot.Effect mount={() => notesEffect} />
+    </Mascot>,
+  )
+  expect(partsIn(container, 'effect')).toHaveLength(1)
+  expect(emittersIn(container)).toHaveLength(0)
 })
 
 it('flies the digits along curve riders when the effect child asks for a curve', () => {

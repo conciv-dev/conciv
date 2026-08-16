@@ -7,12 +7,17 @@ import {useIsomorphicLayoutEffect} from './use-layout-effect.js'
 export type MascotEffectProps = MascotLayerProps & {mount: () => EffectMount; fallback?: boolean}
 
 export function MascotEffect({mount, fallback, style, ref, ...rest}: MascotEffectProps): ReactElement {
-  const {service, effectHostProps, effectCount} = useMascotContext()
+  const {service, effectHostProps, effectCount, claimEffect} = useMascotContext()
   const id = useId()
   const element = useRef<HTMLSpanElement | null>(null)
   const setElement = useMemo(() => composeRefs(element, ref), [ref])
 
   const standsDown = () => fallback === true && effectCount() > 0
+
+  useIsomorphicLayoutEffect(() => {
+    if (fallback === true) return
+    return claimEffect()
+  }, [claimEffect, fallback])
 
   useIsomorphicLayoutEffect(() => {
     const node = element.current
