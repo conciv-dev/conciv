@@ -8,6 +8,6 @@ export default defineConfig({
   unbundle: true,
   dts: true,
   clean: false,
-  tsconfig: 'tsconfig.react.json',
+  tsconfig: 'src/react/tsconfig.json',
   external: ['react', /^react\//, /^react-dom/, /^\.\.\//],
 })

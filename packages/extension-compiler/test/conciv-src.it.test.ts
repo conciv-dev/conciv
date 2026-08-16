@@ -45,12 +45,28 @@ describe('concivSrcEntry', () => {
     expect(concivSrcEntry(fixture('scoped/dist/solid/index.jsx'))).toBe(fixture('scoped/src/solid/index.ts'))
   })
 
-  it('keeps a react dist entry on dist even though a ts source sibling exists', () => {
-    expect(concivSrcEntry(fixture('scoped/dist/react/index.js'))).toBeNull()
+  it('keeps a react-jsx subtree on dist even though a ts source sibling exists, regardless of folder name', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/wrapper/index.js'))).toBeNull()
   })
 
-  it('keeps a react dist entry on dist even though a tsx source sibling exists', () => {
-    expect(concivSrcEntry(fixture('scoped/dist/react/mascot-root.js'))).toBeNull()
+  it('keeps a react-jsx subtree on dist even though a tsx source sibling exists, regardless of folder name', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/wrapper/mascot-root.js'))).toBeNull()
+  })
+
+  it('remaps the package root to src even when a sibling subtree carries its own react-jsx tsconfig', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/index.js'))).toBe(fixture('scoped/src/index.tsx'))
+  })
+
+  it('keeps a dist entry on dist when its own tsconfig sets an explicit non-solid jsxImportSource', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/explicit-react/index.js'))).toBeNull()
+  })
+
+  it('remaps a dist entry with no tsconfig of its own and no jsx anywhere in the chain (ts-only package)', () => {
+    expect(concivSrcEntry(fixture('plain/dist/index.js'))).toBe(fixture('plain/src/index.ts'))
+  })
+
+  it('remaps a dist entry whose own tsconfig is empty and inherits jsxImportSource solid-js via extends', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/inherited/index.js'))).toBe(fixture('scoped/src/inherited/index.tsx'))
   })
 
   it('returns null when no source sibling exists', () => {
