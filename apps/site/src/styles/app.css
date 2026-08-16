@@ -32,6 +32,8 @@ html > body[data-scroll-locked] {
   --od-accent: oklch(0.6 0.207 27);
   --od-accent-soft: oklch(0.6 0.207 27 / 0.12);
   --od-pass: oklch(0.62 0.16 150);
+  --od-star: oklch(0.78 0.16 85);
+  --od-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --od-display: 'Newsreader Variable', serif;
   --od-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
   --background: var(--od-paper);
@@ -77,6 +79,7 @@ html > body[data-scroll-locked] {
   --od-accent: oklch(0.7 0.19 32);
   --od-accent-soft: oklch(0.7 0.19 32 / 0.16);
   --od-pass: oklch(0.74 0.16 152);
+  --od-star: oklch(0.84 0.15 88);
   --background: var(--od-paper);
   --foreground: var(--od-ink);
   --card: var(--od-panel);

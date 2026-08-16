@@ -1,97 +1,78 @@
 import {Star} from 'lucide-react'
-import {AnimatePresence, m, useReducedMotion, useSpring} from 'motion/react'
+import {useReducedMotion, useSpring} from 'motion/react'
 import {useEffect, useState} from 'react'
 import {cn} from '@/lib/utils'
 
-const SPRING = {damping: 30, stiffness: 100}
-const FILL_SPRING = {type: 'spring', stiffness: 260, damping: 18} as const
-const STAR_SPRING = {type: 'spring', bounce: 0.35, duration: 0.45} as const
+const COUNT_SPRING = {damping: 30, stiffness: 100}
+const BUMP_DELAY_MS = 100
 
-function useAnimatedCount(target: number | null, shouldReduceMotion: boolean | null): number {
-  const countSpring = useSpring(0, SPRING)
+function useAnimatedCount(starCount: number | null, hovered: boolean, shouldReduceMotion: boolean | null): number {
+  const countSpring = useSpring(0, COUNT_SPRING)
   const [displayCount, setDisplayCount] = useState(0)
 
   useEffect(() => countSpring.on('change', (value) => setDisplayCount(Math.round(value))), [countSpring])
 
   useEffect(() => {
-    if (target === null) return
+    if (starCount === null) return
     if (shouldReduceMotion) {
-      setDisplayCount(target)
-      countSpring.jump(target)
+      setDisplayCount(starCount)
+      countSpring.jump(starCount)
       return
     }
-    countSpring.set(target)
-  }, [countSpring, shouldReduceMotion, target])
+    countSpring.set(starCount)
+  }, [countSpring, shouldReduceMotion, starCount])
+
+  useEffect(() => {
+    if (starCount === null || shouldReduceMotion) return
+    if (!hovered) {
+      countSpring.jump(starCount)
+      return
+    }
+    const timer = setTimeout(() => countSpring.set(starCount + 1), BUMP_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [countSpring, hovered, shouldReduceMotion, starCount])
 
   return displayCount
 }
 
-const springOr = <T,>(shouldReduceMotion: boolean | null, spring: T) => (shouldReduceMotion ? {duration: 0} : spring)
+const STAR_MOTION =
+  'transition-transform duration-150 ease-[var(--od-ease-out)] group-hover:-rotate-12 group-hover:scale-110 group-hover:duration-[280ms] group-focus-visible:-rotate-12 group-focus-visible:scale-110 group-focus-visible:duration-[280ms] motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-hover:scale-100 motion-reduce:group-focus-visible:rotate-0 motion-reduce:group-focus-visible:scale-100'
 
-function bumpedCount(starCount: number | null, hovered: boolean): number | null {
-  if (starCount === null) return null
-  return hovered ? starCount + 1 : starCount
-}
+const FILL_MOTION =
+  'absolute inset-0 inline-flex text-[var(--od-star)] [clip-path:inset(100%_0_0_0)] transition-[clip-path] duration-150 ease-[var(--od-ease-out)] group-hover:[clip-path:inset(0_0_0_0)] group-hover:duration-[280ms] group-focus-visible:[clip-path:inset(0_0_0_0)] group-focus-visible:duration-[280ms] motion-reduce:transition-none'
 
-function StarIcon({hovered, shouldReduceMotion}: {hovered: boolean; shouldReduceMotion: boolean | null}) {
-  const filled = hovered ? 'inset(0% 0 0 0)' : 'inset(100% 0 0 0)'
+function StarIcon() {
   return (
-    <m.span
-      aria-hidden
-      className="relative inline-flex"
-      animate={{scale: hovered ? 1.08 : 1}}
-      transition={springOr(shouldReduceMotion, STAR_SPRING)}
-    >
+    <span aria-hidden className={cn('relative inline-flex', STAR_MOTION)}>
       <Star className="size-4" />
-      <m.span
-        className="absolute inset-0 inline-flex text-[oklch(0.8_0.16_85)]"
-        initial={false}
-        animate={{clipPath: filled}}
-        transition={springOr(shouldReduceMotion, FILL_SPRING)}
-      >
+      <span className={FILL_MOTION}>
         <Star className="size-4 fill-current" />
-      </m.span>
-    </m.span>
+      </span>
+    </span>
   )
 }
 
-function PlusOne({visible}: {visible: boolean}) {
-  return (
-    <AnimatePresence>
-      {visible && (
-        <m.span
-          aria-hidden
-          className="absolute -top-3 right-0 text-[oklch(0.72_0.16_85)]"
-          initial={{opacity: 0, y: 4}}
-          animate={{opacity: 1, y: -6}}
-          exit={{opacity: 0, y: -12}}
-          transition={{duration: 0.35, ease: 'easeOut'}}
-        >
-          +1
-        </m.span>
-      )}
-    </AnimatePresence>
-  )
-}
+const PLUS_ONE_MOTION =
+  'pointer-events-none absolute -top-3 right-0 text-[var(--od-star)] opacity-0 translate-y-1 transition-[opacity,transform] duration-150 ease-[var(--od-ease-out)] group-hover:-translate-y-2 group-hover:opacity-100 group-hover:delay-100 group-hover:duration-500 group-focus-visible:-translate-y-2 group-focus-visible:opacity-100 group-focus-visible:delay-100 group-focus-visible:duration-500 motion-reduce:hidden'
 
 function StarCount({
   starCount,
   displayCount,
   formatCount,
-  showPlusOne,
   className,
 }: {
-  starCount: number
+  starCount: number | null
   displayCount: number
   formatCount: (count: number) => string
-  showPlusOne: boolean
   className?: string
 }) {
   return (
     <span className={cn('relative inline-flex min-w-[2.5ch] justify-end tabular-nums', className)}>
-      <span aria-hidden>{formatCount(displayCount)}</span>
-      <span className="sr-only">{starCount} stars on GitHub</span>
-      <PlusOne visible={showPlusOne} />
+      <span aria-hidden>{starCount === null ? '' : formatCount(displayCount)}</span>
+      {starCount !== null && <span className="sr-only">{starCount} stars on GitHub</span>}
+      <span aria-hidden className={PLUS_ONE_MOTION}>
+        +1
+      </span>
     </span>
   )
 }
@@ -110,20 +91,17 @@ export function GitHubStars({
   countClassName?: string
 }) {
   const shouldReduceMotion = useReducedMotion()
-  const displayCount = useAnimatedCount(bumpedCount(starCount, hovered), shouldReduceMotion)
+  const displayCount = useAnimatedCount(starCount, hovered, shouldReduceMotion)
 
   return (
     <span className={cn('inline-flex items-center gap-1.5', className)}>
-      <StarIcon hovered={hovered} shouldReduceMotion={shouldReduceMotion} />
-      {starCount !== null && (
-        <StarCount
-          starCount={starCount}
-          displayCount={displayCount}
-          formatCount={formatCount}
-          showPlusOne={hovered && shouldReduceMotion !== true}
-          className={countClassName}
-        />
-      )}
+      <StarIcon />
+      <StarCount
+        starCount={starCount}
+        displayCount={displayCount}
+        formatCount={formatCount}
+        className={countClassName}
+      />
     </span>
   )
 }
