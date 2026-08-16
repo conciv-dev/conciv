@@ -176,11 +176,13 @@ html > body[data-scroll-locked] {
 .od-page {
   --od-gutter: 0px;
   --od-inset: 16px;
+  --od-page-rule: 0px;
+  --od-col-rule: 0px;
   position: relative;
   margin-inline: auto;
   width: 100%;
   max-width: calc(1120px + 2 * var(--od-gutter));
-  padding-inline: var(--od-gutter);
+  padding-inline: calc(var(--od-gutter) - var(--od-page-rule));
 }
 
 .od-col {
@@ -188,7 +190,7 @@ html > body[data-scroll-locked] {
 }
 
 .od-inset {
-  padding-inline: var(--od-inset);
+  padding-inline: calc(var(--od-inset) - var(--od-col-rule));
 }
 
 @media (pointer: coarse) {
@@ -214,6 +216,7 @@ html > body[data-scroll-locked] {
 @media (min-width: 768px) {
   .od-page {
     --od-inset: 32px;
+    --od-col-rule: 1px;
   }
   .od-col {
     border-inline: 1px solid var(--od-line);
@@ -224,6 +227,7 @@ html > body[data-scroll-locked] {
   .od-page {
     --od-gutter: 112px;
     --od-inset: 48px;
+    --od-page-rule: 1px;
     border-inline: 1px solid var(--od-line);
   }
 }
@@ -247,11 +251,11 @@ html > body[data-scroll-locked] {
 }
 .od-ruled > .od-page::before,
 .od-ruled > .od-page > .od-col::before {
-  left: -4px;
+  left: -3px;
 }
 .od-ruled > .od-page::after,
 .od-ruled > .od-page > .od-col::after {
-  right: -4px;
+  right: -3px;
 }
 @media (min-width: 1360px) {
   .od-ruled > .od-page::before,
