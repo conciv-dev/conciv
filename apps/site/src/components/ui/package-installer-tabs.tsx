@@ -32,7 +32,7 @@ export function PackageInstallerTabs({
             alt=""
             width={14}
             height={14}
-            className="size-3.5 opacity-60 grayscale transition-[filter,opacity] group-data-[state=active]:opacity-100 group-data-[state=active]:grayscale-0"
+            className="size-4 opacity-60 grayscale transition-[filter,opacity] group-data-[state=active]:opacity-100 group-data-[state=active]:grayscale-0"
           />
         ),
       }))}

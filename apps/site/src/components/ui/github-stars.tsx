@@ -94,7 +94,7 @@ export function GitHubStars({
   const displayCount = useAnimatedCount(starCount, hovered, shouldReduceMotion)
 
   return (
-    <span className={cn('inline-flex items-center gap-1.5', className)}>
+    <span className={cn('inline-flex items-center gap-2', className)}>
       <StarIcon />
       <StarCount
         starCount={starCount}

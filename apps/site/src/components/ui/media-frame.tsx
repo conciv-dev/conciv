@@ -24,7 +24,7 @@ export function MediaFrame({
   return (
     <>
       <div className={cn('-m-1.5 border border-dashed p-1.5', className)}>
-        <div className="group/media relative overflow-clip rounded-xs border transition-colors duration-[160ms] ease-[var(--od-ease-out)] hover:border-primary/60 focus-within:border-primary/60">
+        <div className="group/media relative overflow-clip rounded-[2px] border transition-colors duration-[160ms] ease-[var(--od-ease-out)] hover:border-primary/60 focus-within:border-primary/60">
           <button
             type="button"
             onClick={() => setOpen(true)}
@@ -47,7 +47,7 @@ export function MediaFrame({
               onClick={() => setOpen(true)}
               className="flex h-8 w-full items-center gap-2 px-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
-              <Maximize2 className="size-3.5" aria-hidden />
+              <Maximize2 className="size-4" aria-hidden />
               View full size
             </button>
           </div>

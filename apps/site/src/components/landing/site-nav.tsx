@@ -5,14 +5,14 @@ import {BrandMark} from '@/components/brand-mark'
 import {GitHubStarsButton} from './github-stars-button'
 
 const NAV_LINK_CLASS =
-  'od-ui inline-flex h-8 items-center rounded-lg px-2.5 text-muted-foreground transition-colors hover:text-foreground'
+  'od-ui inline-flex h-8 items-center rounded-lg px-3 text-muted-foreground transition-colors hover:text-foreground'
 
 export function SiteNav() {
   return (
     <div className="od-page">
       <div className="od-col">
         <SiteHeader
-          className="px-4"
+          className="px-3"
           brand={
             <Link to="/" aria-label="conciv home">
               <BrandMark />

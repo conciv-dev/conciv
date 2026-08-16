@@ -22,7 +22,7 @@ export function AppPreview({picking, onPick}: {picking: boolean; onPick: (id: st
 
       {picking ? (
         <div className="pointer-events-none absolute inset-x-0 top-3.5 flex justify-center">
-          <Badge className="bg-primary text-primary-foreground shadow-lg">Picking… click an element</Badge>
+          <Badge className="bg-primary text-primary-foreground shadow-sm">Picking… click an element</Badge>
         </div>
       ) : null}
     </div>

@@ -217,18 +217,16 @@ function HoverBody({hover}: {hover: SnippetHover}) {
   return (
     <>
       <code className="block overflow-x-auto whitespace-pre" dangerouslySetInnerHTML={{__html: hover.html}} />
-      {hover.docs && (
-        <p className="mt-1.5 border-t border-dashed pt-1.5 font-sans text-muted-foreground">{hover.docs}</p>
-      )}
+      {hover.docs && <p className="mt-2 border-t border-dashed pt-2 font-sans text-muted-foreground">{hover.docs}</p>}
     </>
   )
 }
 
 function CompletionList({completion}: {completion: SnippetCompletion}) {
   return (
-    <ul className="flex flex-col gap-0.5">
+    <ul className="flex flex-col gap-1">
       {completion.items.map((name) => (
-        <li key={name} className="rounded px-1.5 py-0.5 first:bg-accent">
+        <li key={name} className="rounded px-2 py-1 first:bg-accent">
           <span className="font-semibold text-primary">{completion.target}</span>
           <span className="text-muted-foreground">{name.slice(completion.target.length)}</span>
         </li>

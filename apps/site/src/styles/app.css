@@ -17,6 +17,11 @@ html {
   scrollbar-gutter: stable;
 }
 
+html,
+body {
+  overflow-x: clip;
+}
+
 html > body[data-scroll-locked] {
   margin-right: 0 !important;
   --removed-body-scroll-bar-size: 0px !important;
@@ -28,11 +33,13 @@ html > body[data-scroll-locked] {
   --od-muted: oklch(0.52 0.014 65);
   --od-line: oklch(0.9 0.008 75);
   --od-panel: oklch(0.995 0.004 75);
-  --od-accent: oklch(0.6 0.207 27);
-  --od-accent-soft: oklch(0.6 0.207 27 / 0.12);
+  --od-accent: oklch(0.58 0.207 27);
+  --od-accent-soft: oklch(0.58 0.207 27 / 0.12);
+  --od-accent-ink: oklch(0.99 0 0);
   --od-pass: oklch(0.62 0.16 150);
   --od-star: oklch(0.78 0.16 85);
   --od-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --od-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --od-display: 'Newsreader Variable', serif;
   --od-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
   --background: var(--od-paper);
@@ -42,7 +49,7 @@ html > body[data-scroll-locked] {
   --popover: var(--od-panel);
   --popover-foreground: var(--od-ink);
   --primary: var(--od-accent);
-  --primary-foreground: oklch(0.99 0 0);
+  --primary-foreground: var(--od-accent-ink);
   --secondary: oklch(0.965 0.008 70);
   --secondary-foreground: var(--od-ink);
   --muted: oklch(0.965 0.008 70);
@@ -53,20 +60,7 @@ html > body[data-scroll-locked] {
   --border: var(--od-line);
   --input: var(--od-line);
   --ring: var(--od-accent);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
@@ -77,6 +71,7 @@ html > body[data-scroll-locked] {
   --od-panel: oklch(0.23 0.009 65);
   --od-accent: oklch(0.7 0.19 32);
   --od-accent-soft: oklch(0.7 0.19 32 / 0.16);
+  --od-accent-ink: var(--od-paper);
   --od-pass: oklch(0.74 0.16 152);
   --od-star: oklch(0.84 0.15 88);
   --background: var(--od-paper);
@@ -86,7 +81,7 @@ html > body[data-scroll-locked] {
   --popover: var(--od-panel);
   --popover-foreground: var(--od-ink);
   --primary: var(--od-accent);
-  --primary-foreground: oklch(0.99 0 0);
+  --primary-foreground: var(--od-accent-ink);
   --secondary: oklch(0.26 0.008 65);
   --secondary-foreground: var(--od-ink);
   --muted: oklch(0.26 0.008 65);
@@ -97,19 +92,6 @@ html > body[data-scroll-locked] {
   --border: var(--od-line);
   --input: var(--od-line);
   --ring: var(--od-accent);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
 .od-display {
@@ -124,6 +106,8 @@ html > body[data-scroll-locked] {
 }
 
 .od-h1 {
+  overflow-wrap: anywhere;
+  min-width: 0;
   font-family: var(--od-display);
   font-style: italic;
   font-weight: 400;
@@ -134,6 +118,8 @@ html > body[data-scroll-locked] {
 }
 
 .od-h2 {
+  overflow-wrap: anywhere;
+  min-width: 0;
   font-family: var(--od-display);
   font-style: normal;
   font-weight: 400;
@@ -144,6 +130,8 @@ html > body[data-scroll-locked] {
 }
 
 .od-h3 {
+  overflow-wrap: anywhere;
+  min-width: 0;
   font-family: var(--od-display);
   font-style: normal;
   font-weight: 400;
@@ -300,7 +288,7 @@ html > body[data-scroll-locked] {
 }
 .od-snippet .od-hover-anchor {
   position: absolute;
-  border-bottom: 1px dotted oklch(0.52 0.014 65 / 0.5);
+  border-bottom: 1px dotted color-mix(in oklch, var(--od-muted) 50%, transparent);
   cursor: default;
 }
 .od-snippet .od-caret {
@@ -345,7 +333,7 @@ html > body[data-scroll-locked] {
   pointer-events: none;
 }
 .od-grab-pill-pulse::after {
-  animation: od-pill-pulse 1.9s ease-in-out infinite;
+  animation: od-pill-pulse 1.9s var(--od-ease-in-out) infinite;
 }
 @keyframes od-pill-pulse {
   50% {
@@ -395,19 +383,6 @@ html > body[data-scroll-locked] {
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
