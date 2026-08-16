@@ -47,11 +47,13 @@ every host hook.
 ## Your first extension, trimmed for brevity
 
 Two real, current example extensions ship in this repo's Vite example app. Read both before writing
-your own — the real file additionally draws an inline SVG icon on the button, trimmed below:
+your own — the real file additionally defines the inline SVG `RocketIcon` the button renders, trimmed
+below:
 
-```tsx title="apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx:1-46 (trimmed)"
+```tsx title="apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx:1-53 (trimmed)"
 import {z} from 'zod'
 import {defineExtension, defineTool, getExtensionApi} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
 
 const DEPLOY_NAME = 'deploy'
 
@@ -76,9 +78,14 @@ function DeploySurface() {
   const notify = host.useToast()
   if (slot === 'composer')
     return (
-      <button type="button" aria-label="Deploy" onClick={() => notify('Deploy requested')}>
-        Deploy
-      </button>
+      <ComposerActions.Root id="deploy.run" priority={10}>
+        <ComposerActions.Button tooltip="Deploy" onClick={() => notify('Deploy requested')}>
+          <RocketIcon />
+        </ComposerActions.Button>
+        <ComposerActions.DropdownItem value="run" label="Deploy" onSelect={() => notify('Deploy requested')}>
+          <RocketIcon />
+        </ComposerActions.DropdownItem>
+      </ComposerActions.Root>
     )
   if (slot === 'status') return <span>env: staging</span>
   return null
@@ -86,8 +93,11 @@ function DeploySurface() {
 ```
 
 The real file's `deployRun` has no `approval: 'ask'` — it's added above because `mutating: true` tools
-should ask by default (see the red flags below); the real button also draws an SVG rocket icon instead
-of the text "Deploy". Drop the file (or your own version of it) into `conciv/extensions/` at your
+should ask by default (see the red flags below); the `RocketIcon` component the quote references is
+declared in the real file between `DEPLOY_NAME` and `deployRun`. The composer slot never renders a raw
+`<button>`: a `ComposerActions.Root` declares the action once, the `Button` shows it inline while the
+row has room, and the `DropdownItem` is what the shared overflow menu shows once it does not. Drop the
+file (or your own version of it) into `conciv/extensions/` at your
 project root — create
 the directory if it does not exist. No registration, no config: conciv discovers every file there.
 Restart your dev server (`.server(...)` code and top-level `systemPrompt` load at boot; `Component`

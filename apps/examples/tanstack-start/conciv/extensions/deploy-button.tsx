@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import {defineExtension, defineTool, getExtensionApi} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
 
 const DEPLOY_NAME = 'deploy'
 
@@ -38,9 +39,14 @@ function DeploySurface() {
   const notify = host.useToast()
   if (slot === 'composer')
     return (
-      <button type="button" aria-label="Deploy" title="Deploy" onClick={() => notify('Deploy requested')}>
-        <RocketIcon />
-      </button>
+      <ComposerActions.Root id="deploy.run" priority={10}>
+        <ComposerActions.Button tooltip="Deploy" onClick={() => notify('Deploy requested')}>
+          <RocketIcon />
+        </ComposerActions.Button>
+        <ComposerActions.DropdownItem value="run" label="Deploy" onSelect={() => notify('Deploy requested')}>
+          <RocketIcon />
+        </ComposerActions.DropdownItem>
+      </ComposerActions.Root>
     )
   if (slot === 'status') return <span>env: staging</span>
   return null
