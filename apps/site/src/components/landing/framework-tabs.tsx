@@ -262,11 +262,16 @@ function AnchorContent({anchor, completion}: {anchor: Anchor; completion: Snippe
 
 function AnchorCard({anchor, completion}: {anchor: Anchor; completion: SnippetCompletion | null}) {
   const isCaret = anchor.caret === true
+  const [open, setOpen] = useState(false)
   return (
-    <HoverCard openDelay={700} closeDelay={250}>
+    <HoverCard open={open} onOpenChange={setOpen} openDelay={700} closeDelay={250}>
       <HoverCardTrigger asChild>
         <span
           className="od-hover-anchor"
+          tabIndex={0}
+          role="button"
+          aria-label={anchor.hover ? `Type of ${anchor.hover.target}` : 'Completions'}
+          onFocus={() => setOpen(true)}
           style={{left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.height}}
         >
           {isCaret && <span className="od-caret" />}
