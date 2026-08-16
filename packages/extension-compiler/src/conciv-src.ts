@@ -29,10 +29,11 @@ const isConcivName = (name: string) => name.startsWith('@conciv/')
 
 export function concivSrcEntry(resolvedPath: string): string | null {
   if (resolvedPath.includes('node_modules')) return null
-  if (!resolvedPath.endsWith('.js')) return null
+  const extension = ['.jsx', '.js'].find((candidate) => resolvedPath.endsWith(candidate))
+  if (extension === undefined) return null
   const marker = resolvedPath.lastIndexOf('/dist/')
   if (marker === -1) return null
-  const stem = resolvedPath.slice(marker + '/dist/'.length, -'.js'.length)
+  const stem = resolvedPath.slice(marker + '/dist/'.length, -extension.length)
   const srcStem = `${resolvedPath.slice(0, marker)}/src/${stem}`
   return [`${srcStem}.tsx`, `${srcStem}.ts`].find((candidate) => existsSync(candidate)) ?? null
 }

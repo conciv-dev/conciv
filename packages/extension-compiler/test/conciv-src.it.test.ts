@@ -41,6 +41,10 @@ describe('concivSrcEntry', () => {
     expect(concivSrcEntry(fixture('scoped/dist/tokens.js'))).toBe(fixture('scoped/src/tokens.ts'))
   })
 
+  it('maps a jsx dist entry to its ts source sibling', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/solid/index.jsx'))).toBe(fixture('scoped/src/solid/index.ts'))
+  })
+
   it('returns null when no source sibling exists', () => {
     expect(concivSrcEntry(fixture('scoped/dist/nope.js'))).toBeNull()
   })
