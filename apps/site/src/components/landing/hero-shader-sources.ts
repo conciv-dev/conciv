@@ -13,6 +13,11 @@ uniform vec2 u_resolution;
 uniform vec3 u_color;
 uniform float u_alpha;
 #define TAU 6.28318530718
+mat2 rotate(float angle) {
+  float s = sin(angle);
+  float c = cos(angle);
+  return mat2(c, -s, s, c);
+}
 float isoline(float value) {
   float f = fract(value);
   float distance = min(f, 1.0 - f);
