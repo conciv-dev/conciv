@@ -11,6 +11,7 @@ const LAYERING = '.fixed{position:fixed}.inset-0{inset:0}'
 
 const styleDisposers: (() => void)[] = []
 const hosts: HTMLElement[] = []
+const frameRestorers: (() => void)[] = []
 
 function mount(dismissable: boolean): void {
   const style = document.createElement('style')
@@ -39,7 +40,30 @@ const closeRequests = (): string[] =>
     .elements()
     .map((item) => item.textContent ?? '')
 
+const nextFrame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()))
+const nextTask = (): Promise<void> => new Promise((resolve) => setTimeout(resolve))
+
+async function waitForOutsideDismissToArm(): Promise<void> {
+  await nextFrame()
+  await nextFrame()
+  await nextTask()
+}
+
+function starveFrames(delay: number): void {
+  const original = window.requestAnimationFrame
+  const pending: number[] = []
+  window.requestAnimationFrame = (callback) =>
+    original(() => {
+      pending.push(window.setTimeout(() => callback(performance.now()), delay))
+    })
+  frameRestorers.push(() => {
+    window.requestAnimationFrame = original
+    for (const timer of pending.splice(0)) window.clearTimeout(timer)
+  })
+}
+
 async function clickBehindTheDialog(): Promise<void> {
+  await waitForOutsideDismissToArm()
   const content = page.getByRole('dialog').element()
   const positioner = content.parentElement
   if (!(positioner instanceof HTMLElement)) throw new Error('the dialog rendered no layer behind it')
@@ -52,6 +76,7 @@ async function clickBehindTheDialog(): Promise<void> {
 }
 
 afterEach(() => {
+  for (const restore of frameRestorers.splice(0)) restore()
   for (const dispose of styleDisposers.splice(0)) dispose()
   for (const host of hosts.splice(0)) host.remove()
   cleanupMounts()
@@ -67,6 +92,16 @@ it('lets escape close a dismissable dialog', async () => {
 })
 
 it('lets a click behind the dialog close a dismissable dialog', async () => {
+  mount(true)
+  await expect.element(page.getByText('a body of text')).toBeVisible()
+
+  await clickBehindTheDialog()
+  await expect.element(page.getByText('asked to close, open false')).toBeVisible()
+  expect(closeRequests()).toEqual(['asked to close, open false'])
+})
+
+it('still closes on a click behind it when the browser starves the arming frames', async () => {
+  starveFrames(150)
   mount(true)
   await expect.element(page.getByText('a body of text')).toBeVisible()
 
