@@ -1,8 +1,8 @@
-import {type JSX} from 'solid-js'
+import {createSignal, type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {useRouter} from '@tanstack/solid-router'
 import {useAppData, useGrabProvider, useRpc} from './context.js'
-import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue, type RefreshHandle} from './pane-context.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 
@@ -25,6 +25,8 @@ export function PaneProvider(props: {
     void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
   }
 
+  const [refreshHandle, setRefreshHandle] = createSignal<RefreshHandle | null>(null)
+
   const value: PaneContextValue = {
     sessionId: () => props.sessionId,
     running,
@@ -42,6 +44,8 @@ export function PaneProvider(props: {
       }
       void openNewSession()
     },
+    refresh: refreshHandle,
+    registerRefresh: (handle) => setRefreshHandle(handle),
   }
 
   return <PaneContext.Provider value={value}>{props.children}</PaneContext.Provider>

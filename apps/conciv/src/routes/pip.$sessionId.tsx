@@ -5,9 +5,12 @@ import {Portal} from 'solid-js/web'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
+import {RefreshButton} from '../shell/refresh-button.js'
 import {openPipWindow, type PipWindow} from '../shell/pip.js'
 import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
+
+const PIP_ACTION = 'text-pw-text-2 leading-none size-8 hover:text-pw-text hover:bg-pw-fill-strong'
 
 export const Route = createFileRoute('/pip/$sessionId')({component: PipSession})
 
@@ -43,6 +46,9 @@ function PipSession(): JSX.Element {
                       <NoticeSurface />
                       <EngineStaleNotice />
                       <EngineUnreachableNotice />
+                      <div class="flex justify-end px-2 pt-1">
+                        <RefreshButton class={PIP_ACTION} />
+                      </div>
                       <ChatPane sessionId={sessionId} />
                     </div>
                   </PaneProvider>

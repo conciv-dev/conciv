@@ -7,6 +7,7 @@ import pageExtension from '@conciv/extension-page/client'
 import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
 import type {Grab} from '@conciv/grab'
 import {ChatPane} from '../src/pane/chat-pane.js'
+import {RefreshButton} from '../src/shell/refresh-button.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, openTranscriptStream, runTurn, seedDraft, sendTurn} from './helpers/core-session.js'
 import {
@@ -60,7 +61,12 @@ function mountChatPane(
   sessionId: string,
   options: Pick<PaneMountOptions, 'grabProvider' | 'extensions'> = {},
 ): PaneMount {
-  const mount = mountPane({base: core.base, sessionId, ...options}, () => <ChatPane sessionId={sessionId} />)
+  const mount = mountPane({base: core.base, sessionId, ...options}, () => (
+    <>
+      <ChatPane sessionId={sessionId} />
+      <RefreshButton />
+    </>
+  ))
   active.pane = mount
   return mount
 }

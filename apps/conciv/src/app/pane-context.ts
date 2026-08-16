@@ -7,6 +7,11 @@ export type PendingAttachmentQueue = {
   drain: () => File[]
 }
 
+export type RefreshHandle = {
+  run: () => void
+  busy: () => boolean
+}
+
 export type PaneContextValue = {
   sessionId: Accessor<string>
   running: Accessor<boolean>
@@ -18,6 +23,8 @@ export type PaneContextValue = {
   grabProvider: GrabProvider | undefined
   attachments: PendingAttachmentQueue
   newSession: () => void
+  refresh: Accessor<RefreshHandle | null>
+  registerRefresh: (handle: RefreshHandle | null) => void
 }
 
 export function makePendingAttachmentQueue(): PendingAttachmentQueue {

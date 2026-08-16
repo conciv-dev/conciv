@@ -1,6 +1,5 @@
 import {
   createEffect,
-  createMemo,
   createSignal,
   For,
   onMount,
@@ -16,7 +15,6 @@ import type {MultimodalContent} from '@tanstack/ai-client'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
-import {chatBusy} from '../../store/chat-busy.js'
 import {readComposerDraft} from '../../behaviors/composer-draft-storage.js'
 import {useComposerDraftPersistence} from '../../behaviors/use-composer-draft.js'
 import {Primitive} from '../util/primitive.js'
@@ -573,15 +571,6 @@ function QuoteDismiss(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.E
   )
 }
 
-const Refresh = createActionButton('Refresh', () => {
-  const chat = useChatContext()
-  const handlers = useComposerHandlers()
-  const state = createMemo<ActionButtonState | null>(() =>
-    handlers.onRefresh ? {run: () => handlers.onRefresh?.(), disabled: chatBusy(chat)} : null,
-  )
-  return state
-})
-
 const Dictate = createActionButton('Dictate', () => {
   const context = useComposerContext()
   const handlers = useComposerHandlers()
@@ -636,7 +625,6 @@ export const Composer = Object.assign(Root, {
   AddAttachment,
   Attachments,
   AttachmentDropzone,
-  Refresh,
   If,
   Quote,
   QuoteDismiss,

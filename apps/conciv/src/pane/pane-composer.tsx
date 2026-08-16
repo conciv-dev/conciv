@@ -4,7 +4,6 @@ import ArrowUp from 'lucide-solid/icons/arrow-up'
 import Clock from 'lucide-solid/icons/clock'
 import Ellipsis from 'lucide-solid/icons/ellipsis'
 import Paperclip from 'lucide-solid/icons/paperclip'
-import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import Square from 'lucide-solid/icons/square'
 import {
   ComposerActionsHost,
@@ -14,7 +13,6 @@ import {
   useComposer,
   type AttachmentAdapter,
 } from '@conciv/ui-kit-chat'
-import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
 import {useEngineReachability} from '../app/reachability.js'
 import {
@@ -73,21 +71,6 @@ function ComposerSendControl(): JSX.Element {
         <Square size={14} fill="currentColor" aria-hidden="true" />
       </ComposerPrimitive.Cancel>
     </Show>
-  )
-}
-
-function TrailingControls(): JSX.Element {
-  return (
-    <>
-      <TooltipIconButtonSlot tooltip="Refresh the conversation" class={GHOST}>
-        {(buttonProps) => (
-          <ComposerPrimitive.Refresh {...buttonProps()}>
-            <RefreshCw size={16} aria-hidden="true" />
-          </ComposerPrimitive.Refresh>
-        )}
-      </TooltipIconButtonSlot>
-      <ComposerSendControl />
-    </>
   )
 }
 
@@ -151,7 +134,7 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           trailing={
             <>
               <Suspense fallback={<span class="size-8.5 shrink-0" />}>{props.trailingExtras}</Suspense>
-              <Show when={props.busy} fallback={<TrailingControls />}>
+              <Show when={props.busy} fallback={<ComposerSendControl />}>
                 {props.busy}
               </Show>
             </>

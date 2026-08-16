@@ -1,11 +1,11 @@
 import 'virtual:uno.css'
-import {createSignal, Show, untrack, type Accessor, type JSX, type ParentProps} from 'solid-js'
+import {createSignal, untrack, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import {page} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import type {WebStorage} from '@conciv/storage-history'
 import {ChatProvider} from '../src/store/chat-context.js'
-import {createTextChunks, storyConnection, type StoryConnectionOptions} from '../src/store/story-connection.js'
+import {storyConnection, type StoryConnectionOptions} from '../src/store/story-connection.js'
 import {Composer as ComposerPrimitive} from '../src/primitives/composer/composer.js'
 import {ComposerHandlersProvider, type ComposerHandlers} from '../src/primitives/composer/composer-handlers.js'
 import {Error as ErrorPrimitive} from '../src/primitives/error/error.js'
@@ -34,15 +34,12 @@ function ChatHost(props: ParentProps<{connection?: StoryConnectionOptions; handl
   )
 }
 
-function ComposerHarness(props: {storage?: WebStorage; showRefresh?: boolean}): JSX.Element {
+function ComposerHarness(props: {storage?: WebStorage}): JSX.Element {
   return (
     <ComposerPrimitive.Root draftStorage={props.storage} draftKey={DRAFT_KEY}>
       <ComposerPrimitive.Input aria-label="Message" />
       <ComposerPrimitive.Quote />
       <ComposerPrimitive.Send>Send</ComposerPrimitive.Send>
-      <Show when={props.showRefresh}>
-        <ComposerPrimitive.Refresh>Refresh</ComposerPrimitive.Refresh>
-      </Show>
       <ErrorPrimitive.Root>
         <ErrorPrimitive.Message />
       </ErrorPrimitive.Root>
@@ -118,36 +115,4 @@ it('restores the draft when the chat run reports an error', async () => {
 
   await expect.element(page.getByText('the run never started')).toBeVisible()
   await expect.element(page.getByRole('textbox', {name: 'Message'})).toHaveValue('a message the run refuses')
-})
-
-it('runs the refresh handler when the refresh button is pressed', async () => {
-  const [refreshed, setRefreshed] = createSignal(0)
-  const handlers: ComposerHandlers = {onRefresh: () => setRefreshed(refreshed() + 1)}
-  mountView(() => (
-    <ChatHost handlers={handlers}>
-      <ComposerHarness showRefresh />
-      <p>refreshed: {refreshed()}</p>
-    </ChatHost>
-  ))
-
-  await page.getByRole('button', {name: 'Refresh'}).click()
-
-  await expect.element(page.getByText('refreshed: 1')).toBeVisible()
-})
-
-it('disables the refresh button while the session run streams', async () => {
-  const handlers: ComposerHandlers = {onRefresh: () => {}}
-  mountView(() => (
-    <ChatHost
-      connection={{chunks: createTextChunks('a slow reply'), chunkDelay: 400, runsUntilStopped: true}}
-      handlers={handlers}
-    >
-      <ComposerHarness showRefresh />
-    </ChatHost>
-  ))
-
-  await page.getByRole('textbox', {name: 'Message'}).fill('start a run')
-  await page.getByRole('button', {name: 'Send'}).click()
-
-  await expect.element(page.getByRole('button', {name: 'Refresh'})).toBeDisabled()
 })

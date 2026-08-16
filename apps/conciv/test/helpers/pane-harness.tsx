@@ -8,7 +8,12 @@ import {AppContext, type AppContextValue} from '../../src/app/context.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../../src/app/reachability.js'
 import type {AnyExtension} from '@conciv/extension'
 import type {Grab, GrabProvider} from '@conciv/grab'
-import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../../src/app/pane-context.js'
+import {
+  PaneContext,
+  makePendingAttachmentQueue,
+  type PaneContextValue,
+  type RefreshHandle,
+} from '../../src/app/pane-context.js'
 import {createInstances} from '../../src/extension/create-instances.js'
 import {makeGrabStaging} from '../../src/pane/grab-staging.js'
 import {makeAppData, type AppData} from '../../src/data/app-data.js'
@@ -74,6 +79,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     apiBase: () => options.base,
     notifyInteractive: () => {},
   }
+  const [refreshHandle, setRefreshHandle] = createSignal<RefreshHandle | null>(null)
   const pane: PaneContextValue = {
     sessionId: () => options.sessionId,
     running: () => false,
@@ -85,6 +91,8 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     grabProvider: options.grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => options.onNewSession?.(),
+    refresh: refreshHandle,
+    registerRefresh: (handle) => setRefreshHandle(handle),
   }
   const reachabilityRoot = createRoot((disposeReachability) => ({
     reachability: makeEngineReachability(),
