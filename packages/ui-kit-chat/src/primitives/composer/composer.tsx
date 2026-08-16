@@ -433,11 +433,11 @@ function Send(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
   const [local, rest] = splitProps(props, ['disabled'])
   return (
     <button
-      type="submit"
       disabled={
         local.disabled || context.sendingAttachments() || (!composer.canSend() && context.attachments().length === 0)
       }
       {...rest}
+      type="submit"
     />
   )
 }

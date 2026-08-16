@@ -1,5 +1,11 @@
 # Composer actions collapse & session refresh extraction
 
+> **Superseded by implementation.** This is a point-in-time planning doc; the shipped API diverges
+> from what's described below. The shipped surface is `Action`/`ActionButton`/`ActionMenuItem`/`Inline`
+> plus `Leading`/`Trailing`/`Trigger` slots from `@conciv/ui-kit-chat` — no ids, actions register with
+> the host via context (not JSX tokens), and refresh lives on `PaneContext.chat` rather than a
+> `RefreshHandle`. Source of truth: `packages/ui-kit-chat/src/primitives/composer/composer-actions.tsx`.
+
 Date: 2026-08-16
 Status: revised after codex (gpt-5.6-sol) adversarial review
 

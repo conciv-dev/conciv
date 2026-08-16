@@ -47,7 +47,7 @@ export function LaunchMenu(props: {
                 <Match when={local.failed === true}>
                   <Menu.Item value="retry" onSelect={() => local.onRetry?.()}>
                     <RotateCw class="size-4 block" aria-hidden="true" />
-                    {optionsUnavailable(local.harnessName)} — {RETRY_LABEL}
+                    {optionsUnavailable(local.harnessName)}: {RETRY_LABEL}
                   </Menu.Item>
                 </Match>
                 <Match when={true}>
@@ -79,7 +79,7 @@ export function LaunchMenu(props: {
         }
       >
         <Action.ActionMenuItem
-          label={`${optionsUnavailable(local.harnessName)} — ${RETRY_LABEL}`}
+          label={`${optionsUnavailable(local.harnessName)}: ${RETRY_LABEL}`}
           onSelect={() => local.onRetry?.()}
         >
           <RotateCw class="size-4 block" aria-hidden="true" />

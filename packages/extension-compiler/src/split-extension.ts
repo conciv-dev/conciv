@@ -58,7 +58,8 @@ function declarationKindOf(node: t.Node, path: NodePath, seen: Set<t.Node>): Dec
 }
 
 function propertyKeyName(node: t.Node): string | null {
-  if (!t.isObjectProperty(node) || node.computed) return null
+  if (!t.isObjectProperty(node) && !t.isObjectMethod(node)) return null
+  if (node.computed) return null
   if (t.isIdentifier(node.key)) return node.key.name
   return t.isStringLiteral(node.key) ? node.key.value : null
 }
@@ -76,8 +77,26 @@ function extensionConfigPath(path: NodePath<t.CallExpression>): NodePath<t.Objec
   return config && config.isObjectExpression() ? config : null
 }
 
+function isObjectAssignCallee(callee: t.Node): boolean {
+  return (
+    t.isMemberExpression(callee) &&
+    t.isIdentifier(callee.object) &&
+    callee.object.name === 'Object' &&
+    t.isIdentifier(callee.property) &&
+    callee.property.name === 'assign'
+  )
+}
+
+function objectAssignConfigPath(path: NodePath<t.CallExpression>): NodePath<t.ObjectExpression> | null {
+  if (!isObjectAssignCallee(path.node.callee)) return null
+  const [target, config] = path.get('arguments')
+  if (!target || !config || !config.isObjectExpression()) return null
+  if (declarationKindOf(target.node, path, new Set()) !== 'extension') return null
+  return config
+}
+
 function stripClientOnlyProperties(path: NodePath<t.CallExpression>): void {
-  const config = extensionConfigPath(path)
+  const config = extensionConfigPath(path) ?? objectAssignConfigPath(path)
   if (config === null) return
   for (const property of config.get('properties')) {
     if (isClientOnlyProperty(property.node)) property.remove()

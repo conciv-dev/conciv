@@ -1,5 +1,11 @@
 # Composer Actions Collapse & Refresh Extraction Implementation Plan
 
+> **Superseded by implementation.** This is a point-in-time planning doc; the shipped API diverges
+> from what's described below. The shipped surface is `Action`/`ActionButton`/`ActionMenuItem`/`Inline`
+> plus `Leading`/`Trailing`/`Trigger` slots from `@conciv/ui-kit-chat` — no ids, actions register with
+> the host via context (not JSX tokens), and refresh lives on `PaneContext.chat` rather than a
+> `RefreshHandle`. Source of truth: `packages/ui-kit-chat/src/primitives/composer/composer-actions.tsx`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the saturated composer button row with compound `ComposerActions.*` primitives whose host coordinator collapses lower-priority actions into one shared overflow menu by measured width, and extract the session refresh affordance out of the composer into per-surface chrome.

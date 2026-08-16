@@ -191,6 +191,56 @@ it('keeps a paired action out of the fit until one of its children claims inline
   })
 })
 
+it('keeps a paired action inline while any of its two inline claims is still live', () => {
+  createRoot((dispose) => {
+    const coordinator = createActionsCoordinator({widths: widthsOf(WIDE_ROW_PX)})
+    const paired = coordinator.registerPaired({priority: () => 30, pinned: () => false, disabled: () => false})
+    paired.registerMenuEntry(menuEntry('paired item'))
+
+    const disposeFirstClaim = createRoot((disposeInner) => {
+      paired.claimInline()
+      return disposeInner
+    })
+    const disposeSecondClaim = createRoot((disposeInner) => {
+      paired.claimInline()
+      return disposeInner
+    })
+
+    expect(paired.isInline()).toBe(true)
+
+    disposeFirstClaim()
+
+    expect(paired.isInline()).toBe(true)
+    expect(coordinator.menuActions()).toEqual([])
+
+    disposeSecondClaim()
+
+    expect(paired.isInline()).toBe(false)
+    expect(coordinator.menuActions().map((action) => action.menuContent().map((item) => item.key))).toEqual([
+      ['paired item'],
+    ])
+    dispose()
+  })
+})
+
+it('lets the later slot registration override an earlier one for the same slot', () => {
+  createRoot((dispose) => {
+    const coordinator = createActionsCoordinator({widths: widthsOf(WIDE_ROW_PX)})
+    coordinator.registerSlot({slot: 'trigger', render: () => 'first trigger'})
+    const disposeSecond = createRoot((disposeInner) => {
+      coordinator.registerSlot({slot: 'trigger', render: () => 'second trigger'})
+      return disposeInner
+    })
+
+    expect(coordinator.slotRender('trigger')?.()).toBe('second trigger')
+
+    disposeSecond()
+
+    expect(coordinator.slotRender('trigger')?.()).toBe('first trigger')
+    dispose()
+  })
+})
+
 it('renders a registered slot through the coordinator and forgets it when its owner disposes', () => {
   createRoot((dispose) => {
     const coordinator = createActionsCoordinator({widths: widthsOf(WIDE_ROW_PX)})

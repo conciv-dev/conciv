@@ -29,21 +29,18 @@ function DeployButton() {
   const send = () => context.insert('deploy this branch to staging')
   return (
     <Show when={slot() === 'composer'}>
-      <ComposerActions.Root id="deploy.staging" priority={10}>
-        <ComposerActions.Button tooltip="Deploy to staging" onClick={send}>
-          <svg
-            viewBox="0 0 24 24"
-            class="size-5 block"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="9" />
-          </svg>
-        </ComposerActions.Button>
-        <ComposerActions.DropdownItem value="staging" label="Deploy to staging" onSelect={send} />
-      </ComposerActions.Root>
+      <ComposerActions.ActionButton priority={10} visible="always" tooltip="Deploy to staging" onClick={send}>
+        <svg
+          viewBox="0 0 24 24"
+          class="size-5 block"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      </ComposerActions.ActionButton>
     </Show>
   )
 }
@@ -57,49 +54,46 @@ Slots: `header`, `footer`, `composer`, `empty` (the blank-thread state), `status
 ## Composer actions
 
 The composer toolbar is shared: the built-in actions, every extension, and the send button all live
-in one row, so it runs out of room on a narrow panel. Declare each action once as a
-`ComposerActions.Root` from `@conciv/ui-kit-chat` and the composer places it for you — the `Button`
-renders in the row while the composer allows it, and the `DropdownItem` renders in the shared
-overflow menu otherwise. Only one of the two shows at a time. The conciv composer keeps the row
-short: it holds back every `visible="auto"` button, so plan on your action living in the overflow
-menu and give it a `DropdownItem`. `visible="always"` is what keeps a button in the row itself.
+in one row, so it runs out of room on a narrow panel. Declare each action once with
+`ComposerActions.ActionButton` from `@conciv/ui-kit-chat` and the composer places it for you: it
+renders inline while it fits, and once it doesn't, the host builds a menu item from that same
+registration — same tooltip, icon, and `onClick` — in the shared overflow menu. There is no separate
+menu-item JSX to author. The conciv composer keeps the row short: it holds back every `visible="auto"`
+button (the default), so plan on your action living in the overflow menu unless you pass
+`visible="always"`.
 
 <TypeTable
   type={{
-    'Root.id': {
-      type: 'string',
-      description: 'Namespaced action id, e.g. "deploy.staging". Last root registered with an id wins.',
-    },
-    'Root.priority': {
+    'ActionButton.priority': {
       type: 'number',
       description: 'Higher sorts first, inline and in the menu. Built-ins run 40 (grab) down to 10 (launch).',
     },
-    'Root.disabled': {
-      type: '() => boolean',
-      description:
-        'One accessor disables both the inline button and the menu item. There is no per-child disabled prop.',
+    'ActionButton.tooltip': {
+      type: 'string',
+      description: 'The accessible name inline, and the menu-item label once collapsed.',
     },
-    'Button.tooltip': {type: 'string', description: 'The accessible name of the icon button.'},
-    'Button.visible': {
+    'ActionButton.visible': {
       type: "'auto' | 'always'",
       description:
-        '"always" pins the button inline at any width; "auto" leaves it to the composer, which today keeps it in the menu.',
+        '"always" pins the button inline at any width; "auto" (default) leaves it to the composer, which in conciv today always keeps it in the menu.',
     },
-    'Button.busy': {type: 'boolean', description: 'Marks the action in progress without disabling it.'},
-    DropdownItem: {
-      type: '{value, label, onSelect, children?}',
-      description: 'The overflow-menu row for the same action; children is an optional leading icon.',
-    },
+    'ActionButton.disabled': {type: '() => boolean', description: 'Disables both the inline button and the menu item.'},
+    'ActionButton.busy': {type: 'boolean', description: 'Marks the action in progress without disabling it.'},
     Inline: {
-      type: '{children}',
+      type: '{priority?, visible?, children}',
       description:
-        'Escape hatch for a control that is already its own trigger (a menu, a status chip). Counts toward the fit budget, has no menu form.',
+        'Escape hatch for a control that is already its own trigger (a menu, a status chip). Counts toward the fit budget, has no menu form: hidden entirely once collapsed.',
+    },
+    'Action + ActionMenuItem': {
+      type: '{priority?, visible?, disabled?, children} + {label, onSelect, children?}',
+      description:
+        'The divergent case: wrap an ActionButton (or Inline) together with explicit ActionMenuItem children when the inline and collapsed representations must differ.',
     },
   }}
 />
 
 A raw `<button>` in the composer slot never collapses, so it pushes the send button off a narrow
-panel. Write the `Root` pair instead.
+panel. Use `ComposerActions.ActionButton` instead.
 
 ## `useContext`
 

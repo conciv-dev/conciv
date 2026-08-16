@@ -1,3 +1,4 @@
+import {createSignal} from 'solid-js'
 import {onlineManager} from '@tanstack/query-core'
 import {render} from '@solidjs/testing-library'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
@@ -9,11 +10,13 @@ import {createConcivRouter, disposeConcivRouter} from '../../src/router.js'
 
 export type ShellHarness = {
   mountShell: (entry: string, extensions?: AnyExtension[]) => void
+  bumpConnectionGeneration: () => void
   dispose: () => void
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
   const mounted: {router: ReturnType<typeof createConcivRouter> | null} = {router: null}
+  const [connectionGeneration, setConnectionGeneration] = createSignal(0)
 
   const mountShell = (entry: string, extensions: AnyExtension[] = []): void => {
     const apiBase = base()
@@ -24,10 +27,15 @@ export function createShellHarness(base: () => string): ShellHarness {
       environment: {rootNode: document, document},
       settings: parseConcivSettings(''),
       apiBase: () => apiBase,
+      connectionGeneration,
       extensions,
     })
     mounted.router = router
     render(() => <RouterProvider router={router} />)
+  }
+
+  const bumpConnectionGeneration = (): void => {
+    setConnectionGeneration((current) => current + 1)
   }
 
   const dispose = (): void => {
@@ -38,5 +46,5 @@ export function createShellHarness(base: () => string): ShellHarness {
     delete window.__CONCIV_API_BASE__
   }
 
-  return {mountShell, dispose}
+  return {mountShell, bumpConnectionGeneration, dispose}
 }

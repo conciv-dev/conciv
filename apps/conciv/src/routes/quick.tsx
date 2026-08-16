@@ -7,7 +7,7 @@ import ChevronUp from 'lucide-solid/icons/chevron-up'
 import Columns2 from 'lucide-solid/icons/columns-2'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import X from 'lucide-solid/icons/x'
-import {useAppData, useRpc, useSuppressed} from '../app/context.js'
+import {useAppData, useConnectionGeneration, useRpc, useSuppressed} from '../app/context.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
@@ -97,6 +97,7 @@ function QuickLayer(): JSX.Element {
   const rpc = useRpc()
   const suppressed = useSuppressed()
   const router = useRouter()
+  const generation = useConnectionGeneration()
   const search = Route.useSearch()
   const paneIds = () => quickPaneIds(search())
   const focusedIndex = () => Math.min(search().focus, Math.max(0, paneIds().length - 1))
@@ -262,8 +263,8 @@ function QuickLayer(): JSX.Element {
                           <X size={14} aria-hidden="true" />
                         </TooltipIconButton>
                       </div>
-                      <Show when={id} keyed>
-                        {(sessionId) => <ChatPane sessionId={sessionId} />}
+                      <Show when={{sessionId: id, generation: generation()}} keyed>
+                        {(paneKey) => <ChatPane sessionId={paneKey.sessionId} />}
                       </Show>
                     </div>
                   </PaneProvider>

@@ -78,14 +78,14 @@ function DeploySurface() {
   const notify = host.useToast()
   if (slot === 'composer')
     return (
-      <ComposerActions.Root id="deploy.run" priority={10}>
-        <ComposerActions.Button tooltip="Deploy" onClick={() => notify('Deploy requested')}>
-          <RocketIcon />
-        </ComposerActions.Button>
-        <ComposerActions.DropdownItem value="run" label="Deploy" onSelect={() => notify('Deploy requested')}>
-          <RocketIcon />
-        </ComposerActions.DropdownItem>
-      </ComposerActions.Root>
+      <ComposerActions.ActionButton
+        priority={10}
+        visible="always"
+        tooltip="Deploy"
+        onClick={() => notify('Deploy requested')}
+      >
+        <RocketIcon />
+      </ComposerActions.ActionButton>
     )
   if (slot === 'status') return <span>env: staging</span>
   return null
@@ -95,9 +95,10 @@ function DeploySurface() {
 The real file's `deployRun` has no `approval: 'ask'` — it's added above because `mutating: true` tools
 should ask by default (see the red flags below); the `RocketIcon` component the quote references is
 declared in the real file between `DEPLOY_NAME` and `deployRun`. The composer slot never renders a raw
-`<button>`: a `ComposerActions.Root` declares the action once, the `DropdownItem` is what the shared
-overflow menu shows, and the `Button` only reaches the row itself with `visible="always"` — conciv's
-composer keeps every `visible="auto"` button in the menu, so always ship a `DropdownItem`. Drop the
+`<button>`: a `ComposerActions.ActionButton` declares the action once, and the host renders it inline
+or — from that same registration, no extra JSX — as a menu item once the row runs out of room.
+conciv's own composer sets `maxInlineAuto={0}`, so every `visible="auto"` button (the default) always
+lands in the menu there; `visible="always"` is what reaches the row. Drop the
 file (or your own version of it) into `conciv/extensions/` at your
 project root — create
 the directory if it does not exist. No registration, no config: conciv discovers every file there.

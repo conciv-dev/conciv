@@ -1,13 +1,7 @@
 import {test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {CONCIV_TANSTACK_CLIENT_LABEL} from '../src/client-sentinel.js'
-import {
-  gotoAbout,
-  useTanstackTestApi,
-  waitForAboutQuery,
-  waitForWidget,
-  widenPanel,
-} from './helpers/tanstack-test-api.js'
+import {gotoAbout, useTanstackTestApi, waitForAboutQuery, waitForWidget} from './helpers/tanstack-test-api.js'
 
 const get = useTanstackTestApi()
 
@@ -25,12 +19,11 @@ test('real TanStack host app and the conciv widget both boot in a real browser',
   await waitForAboutQuery(api.page)
 })
 
-test('the tanstack client surface mounts a composer chip once the composer row has room for it', async () => {
+test('the tanstack client surface mounts a pinned composer chip that is always visible in the row', async () => {
   const {api} = get()
 
   await waitForWidget(api.page)
   await api.page.getByRole('button', {name: 'Open conciv chat'}).click()
-  await widenPanel(api.page, 20)
 
   const chip = api.page
     .getByRole('dialog', {name: 'conciv chat agent'})

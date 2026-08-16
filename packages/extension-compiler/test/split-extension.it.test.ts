@@ -40,6 +40,32 @@ function Panel() {
   return <ComposerActions.ActionMenuItem label="c" />
 }`
 
+const METHOD_SURFACE_SOURCE = `import {defineExtension} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
+
+const extension = defineExtension({
+  name: 'method-surface',
+  Component() {
+    return <ComposerActions.Action priority={10} />
+  },
+  Surface() {
+    return <ComposerActions.ActionButton tooltip="b" />
+  },
+})
+
+export default extension`
+
+const ASSIGN_SOURCE = `import {defineExtension} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
+
+const deploy = defineExtension({name: 'deploy'})
+
+function DeployButton() {
+  return <ComposerActions.Action priority={10} />
+}
+
+export default Object.assign(deploy, {Component: DeployButton})`
+
 describe('splitExtension', () => {
   it('browser: collapses .server(), keeps .client()/.render(), drops node-only imports', async () => {
     const out = splitExtension(SOURCE, ID, 'browser')
@@ -91,6 +117,44 @@ describe('splitExtension', () => {
     expect(code).toContain('Component')
     expect(code).toContain('Surface')
     expect(code).toContain('views')
+    expect(code).toContain('@conciv/ui-kit-chat')
+  })
+
+  it('node: drops an object-method Component/Surface and the client-only imports they hold alive', async () => {
+    const out = splitExtension(METHOD_SURFACE_SOURCE, ID, 'node')
+    expect(out).not.toBeNull()
+    const code = out!.code
+    expect(code).not.toContain('Component')
+    expect(code).not.toContain('Surface')
+    expect(code).not.toContain('@conciv/ui-kit-chat')
+    expect(code).toContain("name: 'method-surface'")
+  })
+
+  it('browser: keeps an object-method Component/Surface intact', async () => {
+    const out = splitExtension(METHOD_SURFACE_SOURCE, ID, 'browser')
+    expect(out).not.toBeNull()
+    const code = out!.code
+    expect(code).toContain('Component')
+    expect(code).toContain('Surface')
+    expect(code).toContain('@conciv/ui-kit-chat')
+  })
+
+  it('node: strips Component from the Object.assign(extension, {Component}) form and its client-only imports', async () => {
+    const out = splitExtension(ASSIGN_SOURCE, ID, 'node')
+    expect(out).not.toBeNull()
+    const code = out!.code
+    expect(code).not.toContain('DeployButton')
+    expect(code).not.toContain('Component')
+    expect(code).not.toContain('@conciv/ui-kit-chat')
+    expect(code).toContain("name: 'deploy'")
+  })
+
+  it('browser: keeps Component from the Object.assign(extension, {Component}) form intact', async () => {
+    const out = splitExtension(ASSIGN_SOURCE, ID, 'browser')
+    expect(out).not.toBeNull()
+    const code = out!.code
+    expect(code).toContain('DeployButton')
+    expect(code).toContain('Component')
     expect(code).toContain('@conciv/ui-kit-chat')
   })
 

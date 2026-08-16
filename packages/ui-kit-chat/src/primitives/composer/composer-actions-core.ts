@@ -141,10 +141,14 @@ export function createActionsCoordinator(options: ActionsCoordinatorOptions): Ac
         claimInline: () => {
           setRegistry((current) => ({...current, inlineClaims: [...current.inlineClaims, key]}))
           onCleanup(() =>
-            setRegistry((current) => ({
-              ...current,
-              inlineClaims: current.inlineClaims.filter((claimed) => claimed !== key),
-            })),
+            setRegistry((current) => {
+              const index = current.inlineClaims.indexOf(key)
+              if (index === -1) return current
+              return {
+                ...current,
+                inlineClaims: [...current.inlineClaims.slice(0, index), ...current.inlineClaims.slice(index + 1)],
+              }
+            }),
           )
         },
         registerMenuEntry: (entry) => {
@@ -167,7 +171,7 @@ export function createActionsCoordinator(options: ActionsCoordinatorOptions): Ac
         })),
       )
     },
-    slotRender: (slot) => registry().slots.find((registration) => registration.slot === slot)?.render,
+    slotRender: (slot) => registry().slots.findLast((registration) => registration.slot === slot)?.render,
     isInline: (key) => inlineKeys().has(key),
     menuActions,
     anyCollapsed: () => menuActions().length > 0,
