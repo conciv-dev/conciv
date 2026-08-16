@@ -78,7 +78,7 @@ function FrameworkSelect({
     <Select value={active.id} onValueChange={select}>
       <SelectTrigger
         aria-label="Framework"
-        className="mb-2 h-11 w-full gap-2 rounded-[10px] border bg-card px-4 font-mono text-[13px] font-semibold sm:hidden"
+        className="mb-2 h-11 w-full gap-2 rounded-[10px] border bg-card px-4 font-mono text-[13px] font-semibold lg:hidden"
       >
         <span className="flex items-center gap-2">
           <img src={active.icon} alt="" className="size-[15px]" />
@@ -151,7 +151,7 @@ export function FrameworkTabs({snippets}: {snippets: FrameworkSnippet[]}) {
         label="Frameworks"
         value={active.id}
         onValueChange={setActiveId}
-        listClassName="mb-2 max-sm:hidden"
+        listClassName="mb-2 max-lg:hidden"
         tabs={snippets.map(frameworkTab)}
       >
         <FrameworkPanel active={active} />

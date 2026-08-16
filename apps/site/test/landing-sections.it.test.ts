@@ -9,7 +9,8 @@ const SITE_PORT = 8795
 const INSPECTOR_PORT = 9795
 const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
 const LANDING = `${ORIGIN}/?widget=false`
-const VIEWPORT_WIDTHS = [320, 375, 414, 768, 1024, 1280, 1440]
+const VIEWPORT_WIDTHS = [320, 360, 375, 390, 414, 768, 834, 1024, 1280, 1366, 1440, 1512, 1920]
+const FRAMEWORK_TABS_MIN_WIDTH = 1024
 const DESKTOP = {width: 1440, height: 900}
 const POSTER = `img[alt="${findScreenshot('hero-demo.webp').alt}"]`
 
@@ -56,26 +57,65 @@ test.describe('landing sections', () => {
     await page.close()
   }, 60_000)
 
-  test('never overflows the viewport horizontally from 320 to 1440', async ({browser}) => {
-    const page = await browser.newPage()
+  test('never overflows the viewport or renders a scrollbar in a tab strip, 320 to 1920, both themes', async ({
+    browser,
+  }) => {
+    const page = await browser.newPage({viewport: DESKTOP})
     await page.goto(LANDING, {waitUntil: 'domcontentloaded'})
 
     const root = page.locator('html')
     const headline = page.getByRole('heading', {level: 1})
     await expectLocator(headline).toBeVisible({timeout: 20_000})
+    await waitForLandingHydration(page)
 
-    for (const width of VIEWPORT_WIDTHS) {
-      await page.setViewportSize({width, height: 900})
-      await expectLocator(headline).toBeVisible()
-      for (const heading of await page.getByRole('heading', {level: 2}).all()) {
-        await expectLocator(heading).toBeVisible()
+    for (const theme of ['light', 'dark']) {
+      if (theme === 'dark') {
+        await page.setViewportSize(DESKTOP)
+        await page.getByRole('button', {name: 'Toggle theme'}).click()
+        await expectLocator(root).toHaveClass(/dark/)
       }
-      const clientWidth = await root.evaluate((element) => element.clientWidth)
-      await expectLocator(root).toHaveJSProperty('scrollWidth', clientWidth)
+      for (const width of VIEWPORT_WIDTHS) {
+        await page.setViewportSize({width, height: 900})
+        await expectLocator(headline).toBeVisible()
+        for (const heading of await page.getByRole('heading', {level: 2}).all()) {
+          await expectLocator(heading).toBeVisible()
+        }
+        await expectLocator(page.getByRole('navigation', {name: 'Footer'})).toBeVisible()
+
+        const tile = page.getByRole('button', {name: /^View .+ at full size$/}).first()
+        await tile.hover()
+        await tile.click()
+        await expectLocator(page.getByRole('dialog')).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expectLocator(page.getByRole('dialog')).toBeHidden()
+
+        const clientWidth = await root.evaluate((element) => element.clientWidth)
+        await expectLocator(root).toHaveJSProperty('scrollWidth', clientWidth)
+
+        const frameworkTabs = page.getByRole('tablist', {name: 'Frameworks'})
+        const frameworkSelect = page.getByRole('combobox', {name: 'Framework'})
+        const [shown, hidden] =
+          width < FRAMEWORK_TABS_MIN_WIDTH ? [frameworkSelect, frameworkTabs] : [frameworkTabs, frameworkSelect]
+        await expectLocator(shown).toBeVisible()
+        await expectLocator(hidden).toBeHidden()
+
+        for (const tabList of await page.getByRole('tablist').all()) {
+          const overflow = await tabList.evaluate((element) => {
+            const style = getComputedStyle(element)
+            const scrolls = (value: string) => value === 'auto' || value === 'scroll'
+            return {
+              spillsX: element.scrollWidth > element.clientWidth,
+              scrollbarX: scrolls(style.overflowX) && element.scrollWidth > element.clientWidth,
+              scrollbarY: scrolls(style.overflowY) && element.scrollHeight > element.clientHeight,
+            }
+          })
+          expect(overflow, `${theme} ${width}`).toEqual({spillsX: false, scrollbarX: false, scrollbarY: false})
+        }
+      }
     }
 
     await page.close()
-  }, 90_000)
+  }, 240_000)
 })
 
 test.describe('hero shader motion', () => {

@@ -69,7 +69,7 @@ export function AnimatedTabs({
     <TabsPrimitive.Root value={value} onValueChange={onValueChange} className={className}>
       <TabsPrimitive.List
         aria-label={label}
-        className={cn('relative inline-flex w-fit max-w-full overflow-x-auto', LIST_STYLES[variant], listClassName)}
+        className={cn('relative inline-flex w-fit max-w-full', LIST_STYLES[variant], listClassName)}
       >
         {tabs.map((tab) => (
           <TabsPrimitive.Trigger
