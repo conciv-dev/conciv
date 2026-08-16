@@ -53,7 +53,13 @@ function whenReady(site: ChildProcess): Promise<void> {
   })
 }
 
-export async function startWranglerDev(options: {port: number; inspectorPort: number}): Promise<WranglerDev> {
+export type WranglerDevOptions = {port: number; inspectorPort: number; vars?: Record<string, string>}
+
+function varArguments(vars: Record<string, string>): string[] {
+  return Object.entries(vars).flatMap(([name, value]) => ['--var', `${name}:${value}`])
+}
+
+export async function startWranglerDev(options: WranglerDevOptions): Promise<WranglerDev> {
   const persistDirectory = await mkdtemp(join(tmpdir(), 'conciv-site-e2e-'))
   const site = spawn(
     'pnpm',
@@ -67,6 +73,7 @@ export async function startWranglerDev(options: {port: number; inspectorPort: nu
       String(options.inspectorPort),
       '--persist-to',
       persistDirectory,
+      ...varArguments(options.vars ?? {}),
     ],
     {cwd: SITE_ROOT, detached: true},
   )

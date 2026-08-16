@@ -1,7 +1,6 @@
 import {Star} from 'lucide-react'
 import {m, useReducedMotion, useSpring, useTransform} from 'motion/react'
 import {useEffect} from 'react'
-import {CountSkeleton} from '@/components/ui/count-skeleton'
 import {cn} from '@/lib/utils'
 
 const HOVER_SPRING = {stiffness: 260, damping: 26, mass: 1}
@@ -38,45 +37,30 @@ function StarIcon({hovered}: {hovered: boolean}) {
   )
 }
 
-function StarCount({
-  starCount,
-  pending,
-  formatCount,
-  className,
-}: {
-  starCount: number | null
-  pending: boolean
-  formatCount: (count: number) => string
-  className?: string
-}) {
+function StarCount({starCount, formatCount}: {starCount: number; formatCount: (count: number) => string}) {
   return (
-    <span className={cn('relative inline-flex min-w-[2.5ch] justify-end tabular-nums', className)}>
-      {pending && <CountSkeleton />}
-      {starCount !== null && <span aria-hidden>{formatCount(starCount)}</span>}
-      {starCount !== null && <span className="sr-only">{starCount} stars on GitHub</span>}
+    <span className="tabular-nums">
+      <span aria-hidden>{formatCount(starCount)}</span>
+      <span className="sr-only">{starCount} stars on GitHub</span>
     </span>
   )
 }
 
 export function GitHubStars({
   starCount,
-  pending = false,
   formatCount,
   hovered = false,
   className,
-  countClassName,
 }: {
   starCount: number | null
-  pending?: boolean
   formatCount: (count: number) => string
   hovered?: boolean
   className?: string
-  countClassName?: string
 }) {
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
       <StarIcon hovered={hovered} />
-      <StarCount starCount={starCount} pending={pending} formatCount={formatCount} className={countClassName} />
+      {starCount !== null && <StarCount starCount={starCount} formatCount={formatCount} />}
     </span>
   )
 }

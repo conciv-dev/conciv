@@ -51,7 +51,6 @@ test.describe('landing sections', () => {
     const footerLinks = page.getByRole('navigation', {name: 'Footer'}).getByRole('listitem')
     await expectLocator(footerLinks).toHaveCount(7)
 
-    await expectLocator(page.getByRole('cell', {name: 'stars'})).toBeVisible()
     await expectLocator(page.getByRole('cell', {name: 'MIT'})).toBeVisible()
 
     expect(errors).toEqual([])
@@ -120,23 +119,37 @@ test.describe('landing sections', () => {
 })
 
 test.describe('github star count', () => {
-  test('renders the count /api/stars reports in the nav button, or a bare button when it is unavailable', async ({
+  test('paints the count server-side, keeps the button rect through hydration and shows the ledger row', async ({
     browser,
   }) => {
     const page = await browser.newPage({viewport: DESKTOP})
     const response = await page.request.get(`${ORIGIN}/api/stars`)
     const {stars} = starsResponseSchema.parse(await response.json())
+
+    const staticPage = await browser.newPage({viewport: DESKTOP, javaScriptEnabled: false})
+    await staticPage.goto(LANDING, {waitUntil: 'domcontentloaded'})
+    const staticButton = staticPage.getByRole('link', {name: 'conciv on GitHub'}).first()
+    await expectLocator(staticButton).toBeVisible({timeout: 20_000})
+    if (stars !== null) await expectLocator(staticButton).toContainText(`${stars} stars on GitHub`)
+    await staticPage.evaluate(() => document.fonts.ready)
+    const paintedText = await staticButton.innerText()
+    const paintedRect = await staticButton.boundingBox()
+    await staticPage.close()
+
     await page.goto(LANDING, {waitUntil: 'domcontentloaded'})
     await waitForLandingHydration(page)
-
     const button = page.getByRole('link', {name: 'conciv on GitHub'}).first()
     await expectLocator(button).toBeVisible({timeout: 20_000})
     if (stars === null) {
-      await expectLocator(button).toHaveText('GitHub')
+      await expectLocator(button).toHaveText(paintedText)
     } else {
       await expectLocator(button).toContainText(`${stars} stars on GitHub`)
       await expectLocator(button.getByText(formatStarCount(stars), {exact: true})).toBeVisible()
+      await expectLocator(page.getByRole('cell', {name: 'stars'})).toBeVisible()
+      await expectLocator(page.getByRole('cell', {name: formatStarCount(stars), exact: true})).toBeVisible()
     }
+    await page.evaluate(() => document.fonts.ready)
+    expect(await button.boundingBox()).toEqual(paintedRect)
 
     await page.close()
   }, 60_000)

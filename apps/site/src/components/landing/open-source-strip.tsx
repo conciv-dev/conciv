@@ -1,14 +1,13 @@
 import {Link} from '@tanstack/react-router'
 import {ChevronRight} from 'lucide-react'
 import {Button} from '@/components/ui/button'
-import {CountSkeleton} from '@/components/ui/count-skeleton'
 import {Table, TableBody, TableCell, TableRow} from '@/components/ui/table'
 import {repoUrl} from '@/lib/shared'
 import {formatStarCount} from '@/lib/star-count'
 import {useStarCount} from '@/lib/use-star-count'
 
 export function OpenSourceStrip() {
-  const {stars, settled} = useStarCount()
+  const stars = useStarCount()
 
   return (
     <section className="od-ruled">
@@ -33,15 +32,12 @@ export function OpenSourceStrip() {
           <div className="od-inset py-16">
             <Table className="od-mono od-caption">
               <TableBody>
-                <TableRow className="hover:bg-transparent">
-                  <TableCell className="px-0 text-muted-foreground">stars</TableCell>
-                  <TableCell className="px-0 text-right tabular-nums">
-                    <span className="inline-block min-w-[3ch]">
-                      {!settled && <CountSkeleton />}
-                      {stars !== null && formatStarCount(stars)}
-                    </span>
-                  </TableCell>
-                </TableRow>
+                {stars !== null && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell className="px-0 text-muted-foreground">stars</TableCell>
+                    <TableCell className="px-0 text-right tabular-nums">{formatStarCount(stars)}</TableCell>
+                  </TableRow>
+                )}
                 <TableRow className="hover:bg-transparent">
                   <TableCell className="px-0 text-muted-foreground">license</TableCell>
                   <TableCell className="px-0 text-right">MIT</TableCell>
