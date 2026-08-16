@@ -4,7 +4,7 @@ import type {Pickable} from './demo-data'
 
 export function GrabReference({pickable, onUngrab}: {pickable: Pickable; onUngrab: () => void}) {
   return (
-    <div className="relative mb-2.5 flex flex-col items-start gap-2.5 rounded-lg border border-l-[3px] border-l-primary bg-secondary p-3.5 font-mono text-[11px]">
+    <div className="relative mb-2.5 flex flex-col items-start gap-2.5 rounded-lg border border-l-[3px] border-l-primary bg-secondary p-3.5 font-mono text-[13px] leading-5">
       <Button
         type="button"
         variant="ghost"

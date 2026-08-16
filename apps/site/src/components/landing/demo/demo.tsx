@@ -213,37 +213,41 @@ export function Demo({onReady}: {onReady?: () => void}) {
       <Card className="h-full gap-0 overflow-hidden rounded-none border-0 p-0 shadow-none ring-0">
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
           <SparkMark className="text-base text-primary" />
-          <span className="text-[13.5px] font-semibold">conciv</span>
-          <Badge className="bg-accent font-mono text-[10px] uppercase tracking-wide text-accent-foreground">
+          <span className="text-[14px] leading-5 font-semibold">conciv</span>
+          <Badge className="bg-accent font-mono text-[13px] leading-5 uppercase tracking-wide text-accent-foreground">
             in your app
           </Badge>
           <Select value={model.selected} onValueChange={model.choose}>
             <SelectTrigger
               size="sm"
               aria-label="Pick the local model"
-              className="max-sm:hidden h-6 gap-1 rounded-md px-2 py-0 font-mono text-[10px] text-muted-foreground [&_svg:not([class*='size-'])]:size-3"
+              className="max-sm:hidden h-6 gap-1 rounded-md px-2 py-0 font-mono text-[13px] leading-5 text-muted-foreground [&_svg:not([class*='size-'])]:size-3"
             >
               <SelectValue>{MODELS.find((option) => option.id === model.selected)?.label}</SelectValue>
             </SelectTrigger>
-            <SelectContent className="p-1 font-mono text-[11px]">
+            <SelectContent className="p-1 font-mono text-[13px] leading-5">
               {MODELS.map((option) => (
-                <SelectItem key={option.id} value={option.id} className="py-1.5 pl-2.5 font-mono text-[11px]">
+                <SelectItem key={option.id} value={option.id} className="py-1.5 pl-2.5 font-mono text-[13px] leading-5">
                   {option.label} <span className="text-muted-foreground">({option.size})</span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           {model.status === 'loading' && (
-            <Badge className="bg-primary/10 font-mono text-[10px] tracking-wide text-primary">{model.percent}%</Badge>
+            <Badge className="bg-primary/10 font-mono text-[13px] leading-5 tracking-wide text-primary">
+              {model.percent}%
+            </Badge>
           )}
           {model.status === 'ready' && (
-            <Badge className="gap-1 bg-primary/10 font-mono text-[10px] tracking-wide text-primary">
+            <Badge className="gap-1 bg-primary/10 font-mono text-[13px] leading-5 tracking-wide text-primary">
               {model.device}
               <Check className="size-3" />
             </Badge>
           )}
           {model.status === 'error' && (
-            <Badge className="bg-destructive/10 font-mono text-[10px] tracking-wide text-destructive">offline</Badge>
+            <Badge className="bg-destructive/10 font-mono text-[13px] leading-5 tracking-wide text-destructive">
+              offline
+            </Badge>
           )}
           {state.done ? (
             <Button
@@ -252,13 +256,15 @@ export function Demo({onReady}: {onReady?: () => void}) {
               size="sm"
               onClick={onRestart}
               aria-label="Restart demo"
-              className="ml-auto h-7 gap-1.5 px-2 font-mono text-[12px] text-muted-foreground hover:text-foreground"
+              className="ml-auto h-7 gap-1.5 px-2 font-mono text-[13px] leading-5 text-muted-foreground hover:text-foreground"
             >
               <RotateCcw className="size-3.5" />
               <span className="max-sm:hidden">Restart demo</span>
             </Button>
           ) : (
-            <span className="ml-auto whitespace-nowrap font-mono text-[12px] text-muted-foreground">live demo</span>
+            <span className="ml-auto whitespace-nowrap font-mono text-[13px] leading-5 text-muted-foreground">
+              live demo
+            </span>
           )}
         </div>
 

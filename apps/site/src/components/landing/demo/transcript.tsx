@@ -19,7 +19,7 @@ export function Transcript({
           <MessageRow key={i} message={message} />
         ))}
         {hint && (
-          <div className="font-mono text-[12px] text-muted-foreground/60">
+          <div className="font-mono text-[13px] leading-5 text-muted-foreground/60">
             try: grab the <span className="text-primary/70">Get started</span> button →
           </div>
         )}

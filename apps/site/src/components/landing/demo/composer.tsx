@@ -43,7 +43,7 @@ export function Composer({
             if (e.key === 'Enter') onSend()
           }}
           placeholder="tell conciv what to change…"
-          className="h-7 border-0 bg-transparent px-0 text-[14.5px] caret-primary shadow-none focus-visible:ring-0 dark:bg-transparent"
+          className="h-7 border-0 bg-transparent px-0 text-[14px] leading-5 caret-primary shadow-none focus-visible:ring-0 dark:bg-transparent"
         />
         <div className="flex items-center gap-2">
           <Button
