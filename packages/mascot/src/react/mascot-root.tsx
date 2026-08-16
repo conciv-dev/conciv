@@ -36,7 +36,7 @@ export function MascotRoot(props: MascotProps): ReactElement {
         {parts.head === undefined ? <MascotLayer layer="head" fallback /> : null}
         {parts.antenna === undefined ? <MascotLayer layer="antenna" fallback /> : null}
         {parts.eyes === undefined ? <MascotLayer layer="eyes" fallback /> : null}
-        {effects.size === 0 ? <BinaryEffectHost curve={curve} fallback /> : null}
+        {effects === 0 ? <BinaryEffectHost curve={curve} fallback /> : null}
       </span>
     </MascotProvider>
   )

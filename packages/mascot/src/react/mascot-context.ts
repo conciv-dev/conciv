@@ -1,8 +1,9 @@
 import {createContext, useContext} from 'react'
 import type {MascotPartProps, MascotService} from '../core/mascot.js'
 import type {CurveStyle} from '../core/path.js'
+import type {MascotPartName} from '../core/slot-contract.js'
 
-export type MascotPartName = 'head' | 'eyes' | 'antenna'
+export type {MascotPartName}
 
 export type ClaimToken = object
 
@@ -10,7 +11,7 @@ export type PartClaim = {token: ClaimToken; follow: boolean | undefined}
 
 export type MascotClaims = {
   parts: Record<MascotPartName, PartClaim | undefined>
-  effects: ReadonlySet<ClaimToken>
+  effects: number
 }
 
 export type MascotContextValue = {
@@ -18,7 +19,7 @@ export type MascotContextValue = {
   partProps: (part: MascotPartName) => MascotPartProps
   effectHostProps: (id: string) => MascotPartProps
   claimPart: (part: MascotPartName, token: ClaimToken, follow: boolean | undefined) => () => void
-  claimEffect: (token: ClaimToken) => () => void
+  claimEffect: () => () => void
   claimOf: (part: MascotPartName) => PartClaim | undefined
   effectCount: () => number
   curve: () => CurveStyle | undefined

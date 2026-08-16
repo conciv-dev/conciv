@@ -5,7 +5,6 @@ export default defineConfig({
   entry: [
     'src/rig.ts',
     'src/core/index.ts',
-    'src/core/stage-sheet.ts',
     'src/core/style-merge.ts',
     'src/solid/index.ts',
     'src/core/effects/binary.ts',

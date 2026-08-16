@@ -2,6 +2,7 @@ import {useMemo, useRef, useState, useSyncExternalStore} from 'react'
 import {activityChannels, followChannels, type FollowChannels} from '../core/config.js'
 import {createMascot, type MascotConnect, type MascotPartProps} from '../core/mascot.js'
 import {robotSkin} from '../core/skin.js'
+import {partAlreadyProvided} from '../core/slot-contract.js'
 import type {ClaimToken, MascotClaims, MascotContextValue, MascotPartName, PartClaim} from './mascot-context.js'
 import type {MascotProps} from './mascot-props.js'
 import {useIsomorphicLayoutEffect} from './use-layout-effect.js'
@@ -12,21 +13,12 @@ type ClaimStore = {
   subscribe: (listener: () => void) => () => void
   claims: () => MascotClaims
   claimPart: (part: MascotPartName, token: ClaimToken, follow: boolean | undefined) => () => void
-  claimEffect: (token: ClaimToken) => () => void
+  claimEffect: () => () => void
 }
-
-const PART_COMPONENTS: Record<MascotPartName, string> = {
-  head: '<Mascot.Head>',
-  eyes: '<Mascot.Eyes>',
-  antenna: '<Mascot.Antenna>',
-}
-
-const alreadyProvided = (part: MascotPartName): Error =>
-  new Error(`mascot part '${part}' is already provided; render exactly one ${PART_COMPONENTS[part]}`)
 
 const NO_CLAIMS: MascotClaims = {
   parts: {head: undefined, eyes: undefined, antenna: undefined},
-  effects: new Set(),
+  effects: 0,
 }
 
 function createClaimStore(): ClaimStore {
@@ -41,7 +33,7 @@ function createClaimStore(): ClaimStore {
   const withPart = (part: MascotPartName, claim: PartClaim | undefined) =>
     publish({parts: {...claims.parts, [part]: claim}, effects: claims.effects})
 
-  const withEffects = (effects: ReadonlySet<ClaimToken>) => publish({parts: claims.parts, effects})
+  const withEffects = (effects: number) => publish({parts: claims.parts, effects})
 
   const releasePart = (part: MascotPartName, token: ClaimToken) => {
     if (claims.parts[part]?.token !== token) return
@@ -50,21 +42,14 @@ function createClaimStore(): ClaimStore {
 
   const claimPart = (part: MascotPartName, token: ClaimToken, follow: boolean | undefined) => {
     const current = claims.parts[part]
-    if (current !== undefined && current.token !== token) throw alreadyProvided(part)
+    if (current !== undefined && current.token !== token) throw partAlreadyProvided(part)
     withPart(part, {token, follow})
     return () => releasePart(part, token)
   }
 
-  const releaseEffect = (token: ClaimToken) => {
-    if (!claims.effects.has(token)) return
-    const remaining = new Set(claims.effects)
-    remaining.delete(token)
-    withEffects(remaining)
-  }
-
-  const claimEffect = (token: ClaimToken) => {
-    withEffects(new Set(claims.effects).add(token))
-    return () => releaseEffect(token)
+  const claimEffect = () => {
+    withEffects(claims.effects + 1)
+    return () => withEffects(claims.effects - 1)
   }
 
   const subscribe = (listener: () => void) => {
@@ -119,7 +104,7 @@ export function useMascotHost(props: MascotProps): MascotHost {
       claimPart: store.claimPart,
       claimEffect: store.claimEffect,
       claimOf: (part) => store.claims().parts[part],
-      effectCount: () => store.claims().effects.size,
+      effectCount: () => store.claims().effects,
       curve: () => curve.current,
     }),
     [service, connect, store, curve],

@@ -185,6 +185,37 @@ it('swaps a keyed part child without ever double-claiming its slot', () => {
   expect(leanWrappersIn(mounted.container)).toHaveLength(1)
 })
 
+it('swaps a part child rendered through a conditional without ever double-claiming its slot', () => {
+  const eyesFor = (which: string) => (
+    <Mascot>{which === 'first' ? <Mascot.Eyes id="first-eyes" /> : <Mascot.Eyes id="second-eyes" />}</Mascot>
+  )
+  const mounted = renderMascot(eyesFor('first'))
+  expect(partsIn(mounted.container, 'eyes').map((eyes) => eyes.id)).toEqual(['first-eyes'])
+  mounted.update(eyesFor('second'))
+  expect(mounted.errors).toEqual([])
+  expect(partsIn(mounted.container, 'eyes').map((eyes) => eyes.id)).toEqual(['second-eyes'])
+  expect(leanWrappersIn(mounted.container)).toHaveLength(1)
+})
+
+it('claims a slot from inside a fragment and a list, then restores the default', () => {
+  const withEyes = (present: boolean) => (
+    <Mascot>
+      <>
+        <Mascot.Head />
+        {present ? [<Mascot.Eyes key="listed" id="listed-eyes" />] : []}
+      </>
+    </Mascot>
+  )
+  const mounted = renderMascot(withEyes(true))
+  expect(partsIn(mounted.container, 'eyes').map((eyes) => eyes.id)).toEqual(['listed-eyes'])
+  expect(partsIn(mounted.container, 'head')).toHaveLength(1)
+  mounted.update(withEyes(false))
+  const restored = partsIn(mounted.container, 'eyes')
+  expect(restored).toHaveLength(1)
+  expect(restored[0]?.id).toBe('')
+  expect(leanWrappersIn(mounted.container)).toHaveLength(1)
+})
+
 it('replaces the default eyes layer with the eyes child', () => {
   const {container} = renderMascot(
     <Mascot>

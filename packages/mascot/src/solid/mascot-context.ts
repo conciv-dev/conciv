@@ -1,8 +1,9 @@
 import {createContext, useContext} from 'solid-js'
 import type {MascotPartProps, MascotService} from '../core/mascot.js'
 import type {CurveStyle} from '../core/path.js'
+import type {MascotPartName} from '../core/slot-contract.js'
 
-export type MascotPartName = 'head' | 'eyes' | 'antenna'
+export type {MascotPartName}
 
 export type FollowSource = {follow?: boolean}
 
