@@ -30,7 +30,7 @@ describe('vitest adapter against a real fixture app (IT)', () => {
   it('runs all tests and returns a summary with the one real failure', async () => {
     const mgr = requireMgr()
     const result = await mgr.run({})
-    expect(result.summary.passed).toBe(1)
+    expect(result.summary.passed).toBe(3)
     expect(result.summary.failed).toBe(1)
     expect(result.failures).toHaveLength(1)
     const [failure] = result.failures

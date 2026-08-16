@@ -14,29 +14,35 @@ const FILE = '/proj/app/math.test.ts'
 const STREAM_EVENTS: TestEvent[] = [
   {type: 'snapshot', files: [], summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0}, watching: false},
   {type: 'run-start', runId: 'run-1', files: [FILE]},
-  {type: 'test', file: FILE, name: 'works', state: 'pass', durationMs: 1},
+  {type: 'test', id: 't-works', file: FILE, name: 'works', state: 'pass', durationMs: 1},
   {
     type: 'test',
+    id: 't-broken',
     file: FILE,
     name: 'broken',
     state: 'fail',
     durationMs: 1,
     error: {file: FILE, name: 'broken', message: 'boom', stack: 'boom', line: 3},
   },
+  {type: 'test', id: 't-shared-first', file: FILE, name: 'shares a title', state: 'pass', durationMs: 1},
+  {type: 'test', id: 't-shared-second', file: FILE, name: 'shares a title', state: 'pass', durationMs: 1},
   {
     type: 'run-end',
     runId: 'run-1',
-    summary: {passed: 1, failed: 1, skipped: 0, durationMs: 2},
+    summary: {passed: 3, failed: 1, skipped: 0, durationMs: 4},
     failures: [{file: FILE, name: 'broken', message: 'boom', stack: 'boom', line: 3}],
     tests: [
-      {file: FILE, name: 'works', state: 'pass', durationMs: 1},
+      {id: 't-works', file: FILE, name: 'works', state: 'pass', durationMs: 1},
       {
+        id: 't-broken',
         file: FILE,
         name: 'broken',
         state: 'fail',
         durationMs: 1,
         error: {file: FILE, name: 'broken', message: 'boom', stack: 'boom', line: 3},
       },
+      {id: 't-shared-first', file: FILE, name: 'shares a title', state: 'pass', durationMs: 1},
+      {id: 't-shared-second', file: FILE, name: 'shares a title', state: 'pass', durationMs: 1},
     ],
   },
 ]

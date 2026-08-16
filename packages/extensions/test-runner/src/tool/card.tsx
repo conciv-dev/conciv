@@ -31,7 +31,7 @@ import {
 } from '../shared/events.js'
 
 type RowState = TestState | 'running'
-type Row = {name: string; state: RowState; error?: TestError}
+type Row = {id: string; name: string; state: RowState; error?: TestError}
 type FileGroup = {file: string; tests: Row[]}
 type RunView = {groups: FileGroup[]; summary: Summary; running: boolean}
 type LiveRun = {tests: TestRowResult[]; finalSummary: Summary | null; running: boolean}
@@ -98,19 +98,20 @@ function groupByFile(tests: ReadonlyArray<Row & {file: string}>): FileGroup[] {
   const order: string[] = []
   const byFile = new Map<string, Row[]>()
   for (const test of tests) {
+    const row = {id: test.id, name: test.name, state: test.state, error: test.error}
     const rows = byFile.get(test.file)
     if (rows) {
-      rows.push({name: test.name, state: test.state, error: test.error})
+      rows.push(row)
       continue
     }
     order.push(test.file)
-    byFile.set(test.file, [{name: test.name, state: test.state, error: test.error}])
+    byFile.set(test.file, [row])
   }
   return order.map((file) => ({file, tests: byFile.get(file) ?? []}))
 }
 
 function upsertTest(tests: ReadonlyArray<TestRowResult>, row: TestRowResult): TestRowResult[] {
-  const index = tests.findIndex((test) => test.file === row.file && test.name === row.name)
+  const index = tests.findIndex((test) => test.id === row.id)
   if (index < 0) return [...tests, row]
   return tests.with(index, row)
 }
@@ -231,6 +232,7 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
       }
       if (event.type === 'test') {
         const row = {
+          id: event.id,
           file: event.file,
           name: event.name,
           state: event.state,
@@ -265,7 +267,7 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
             >
               <For each={group.tests}>
                 {(test) => {
-                  const key = `${group.file}::${test.name}`
+                  const key = test.id
                   return (
                     <Show
                       when={test.error}

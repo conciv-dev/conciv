@@ -53,6 +53,7 @@ function toState(s: string): 'pass' | 'fail' | 'skip' {
 
 function toRow(tc: TestCaseWithDiagnostic): TestRow {
   return {
+    id: tc.id,
     file: tc.module.moduleId,
     name: tc.name,
     state: toState(tc.result().state),

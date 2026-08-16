@@ -28,6 +28,7 @@ export const FileStateSchema = z.object({
 export type FileState = z.infer<typeof FileStateSchema>
 
 export const TestRowSchema = z.object({
+  id: z.string(),
   file: z.string(),
   name: z.string(),
   state: TestStateSchema,
@@ -51,14 +52,7 @@ export const TestEventSchema = z.discriminatedUnion('type', [
     watching: z.boolean(),
   }),
   z.object({type: z.literal('run-start'), runId: z.string(), files: z.array(z.string())}),
-  z.object({
-    type: z.literal('test'),
-    file: z.string(),
-    name: z.string(),
-    state: TestStateSchema,
-    durationMs: z.number(),
-    error: TestErrorSchema.optional(),
-  }),
+  TestRowSchema.extend({type: z.literal('test')}),
   z.object({type: z.literal('file-end'), file: z.string(), ok: z.boolean(), durationMs: z.number()}),
   z.object({
     type: z.literal('run-end'),
@@ -79,6 +73,7 @@ export function countStates(tests: ReadonlyArray<TestRow>): Omit<Summary, 'durat
 }
 
 export type TestCaseLike = {
+  id: string
   name: string
   module: {moduleId: string}
   result: () => {

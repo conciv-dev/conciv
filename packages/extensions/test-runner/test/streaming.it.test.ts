@@ -18,9 +18,11 @@ describe('the test-runner rpc stream over a real vitest run (IT)', () => {
       const client = makeExtRpcClient<TestRunnerRouter>(served.base, 'test-runner')
       const stream = await client.stream(undefined, {signal: abort.signal})
       const progress = {runResolved: false, testsWhileRunning: 0}
+      const sharedTitleIds: string[] = []
       const collecting = (async () => {
         for await (const event of stream) {
           if (event.type === 'test' && !progress.runResolved) progress.testsWhileRunning += 1
+          if (event.type === 'test' && event.name === 'shares a title') sharedTitleIds.push(event.id)
           if (event.type === 'run-end') return
         }
       })()
@@ -29,6 +31,8 @@ describe('the test-runner rpc stream over a real vitest run (IT)', () => {
       })
       await collecting
       expect(progress.testsWhileRunning).toBeGreaterThan(0)
+      expect(sharedTitleIds).toHaveLength(2)
+      expect(new Set(sharedTitleIds).size).toBe(2)
     } finally {
       abort.abort()
       await manager.stop()

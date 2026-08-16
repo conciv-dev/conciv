@@ -12,8 +12,8 @@ const RESULT = {
   summary: {passed: 1, failed: 1, skipped: 0, durationMs: 5},
   failures: [FAILURE],
   tests: [
-    {file: FILE, name: 'subtracts', state: 'pass', durationMs: 1},
-    {file: FILE, name: 'adds', state: 'fail', durationMs: 1, error: FAILURE},
+    {id: 'r-subtracts', file: FILE, name: 'subtracts', state: 'pass', durationMs: 1},
+    {id: 'r-adds', file: FILE, name: 'adds', state: 'fail', durationMs: 1, error: FAILURE},
   ],
 }
 
@@ -100,9 +100,9 @@ describe('TestCard (real browser)', () => {
 
     await expect.element(page.getByText('works')).toBeVisible()
     await expect.element(page.getByText('broken')).toBeVisible()
-    await expect.element(page.getByText('1 passed', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('3 passed', {exact: true})).toBeVisible()
     await expect.element(page.getByText('1 failed', {exact: true})).toBeVisible()
-    await expect.element(page.getByRole('status')).toHaveTextContent('Test run finished: 1 passed, 1 failed')
+    await expect.element(page.getByRole('status')).toHaveTextContent('Test run finished: 3 passed, 1 failed')
   })
 
   it('shows finished rows and a ticking count while the run is still in flight', async () => {
@@ -110,6 +110,13 @@ describe('TestCard (real browser)', () => {
 
     await expect.element(page.getByText('works')).toBeVisible()
     await expect.element(page.getByText('broken')).toBeVisible()
-    await expect.element(page.getByRole('status')).toHaveTextContent('Test run in progress: 1 passed, 1 failed')
+    await expect.element(page.getByRole('status')).toHaveTextContent('Test run in progress: 3 passed, 1 failed')
+  })
+
+  it('keeps two streamed tests that share a title as separate live rows', async () => {
+    mountCard({result: undefined}, makeCtx([]))
+
+    await expect.element(page.getByRole('status')).toHaveTextContent('Test run in progress: 3 passed, 1 failed')
+    expect(page.getByText('shares a title').elements()).toHaveLength(2)
   })
 })

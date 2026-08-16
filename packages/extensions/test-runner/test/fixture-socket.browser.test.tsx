@@ -25,8 +25,8 @@ describe('the test-runner vite fixture serves rpc over a real websocket upgrade'
       headers: {'content-type': 'application/json'},
       body: JSON.stringify({json: {}}),
     }).then((response) => response.json())
-    expect(overSocket.summary).toEqual({passed: 1, failed: 1, skipped: 0, durationMs: 2})
-    expect(JSON.stringify(overFetch)).toContain('"passed":1')
+    expect(overSocket.summary).toEqual({passed: 3, failed: 1, skipped: 0, durationMs: 4})
+    expect(JSON.stringify(overFetch)).toContain('"passed":3')
     socket.close()
   })
 
