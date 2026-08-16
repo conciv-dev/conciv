@@ -1,4 +1,5 @@
 import {
+  batch,
   createContext,
   createEffect,
   createMemo,
@@ -14,7 +15,7 @@ import {
 } from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {Portal} from 'solid-js/web'
-import {createResizeObserver} from '@solid-primitives/resize-observer'
+import {makeResizeObserver} from '@solid-primitives/resize-observer'
 import {Menu, TooltipIconButton, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {keyBy, orderBy} from 'es-toolkit'
 import {ACTION_SLOT_PX, computeVisibleAutoCount, FIT_HYSTERESIS_PX, REGION_GAP_PX} from './composer-actions-fit.js'
@@ -78,9 +79,21 @@ export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Elemen
   const [menuOpen, setMenuOpen] = createSignal(false)
   const warnedIds = new Set<string>()
 
-  createResizeObserver(rowElement, ({width}) => setRowWidth(width))
-  createResizeObserver(leadingElement, ({width}) => setLeadingWidth(width))
-  createResizeObserver(trailingElement, ({width}) => setTrailingWidth(width))
+  const applyMeasuredEntry = (entry: ResizeObserverEntry): void =>
+    untrack(() => {
+      if (entry.target === rowElement()) setRowWidth(entry.contentRect.width)
+      if (entry.target === leadingElement()) setLeadingWidth(entry.contentRect.width)
+      if (entry.target === trailingElement()) setTrailingWidth(entry.contentRect.width)
+    })
+
+  const {observe} = makeResizeObserver((entries) => batch(() => entries.forEach(applyMeasuredEntry)))
+
+  createEffect(() => {
+    for (const element of [rowElement(), leadingElement(), trailingElement()]) {
+      if (element === undefined) continue
+      observe(element)
+    }
+  })
 
   const indexOfKey = (key: string): number => registrations.findIndex((entry) => entry.key === key)
 
