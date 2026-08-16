@@ -1,10 +1,13 @@
-import {createSignal, onCleanup, type JSX} from 'solid-js'
+import {createSignal, type JSX} from 'solid-js'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {readStorage, writeStorage} from '@conciv/ui-kit-system'
 
 const MARGIN = 20
-const SNAP_MS = 280
-const SNAP_EASE = 'var(--pw-ease-expo)'
+const SETTLE_MS = 280
+const FALLBACK_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
+const DRAG_THRESHOLD = 6
+const RESTING_EPSILON = 0.5
 const ALL: TriggerPosition[] = ['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right']
 
 function anchorOf(position: TriggerPosition, vw: number, vh: number): {x: number; y: number} {
@@ -13,16 +16,10 @@ function anchorOf(position: TriggerPosition, vw: number, vh: number): {x: number
   return {x, y}
 }
 
-function presetCenter(
-  position: TriggerPosition,
-  vw: number,
-  vh: number,
-  halfW: number,
-  halfH: number,
-): {x: number; y: number} {
-  const x = position.endsWith('left') ? MARGIN + halfW : vw - MARGIN - halfW
-  const y = position.startsWith('top') ? MARGIN + halfH : position.startsWith('middle') ? vh / 2 : vh - MARGIN - halfH
-  return {x, y}
+function restingCenter(element: HTMLElement): {x: number; y: number; halfWidth: number; halfHeight: number} {
+  const halfWidth = element.offsetWidth / 2
+  const halfHeight = element.offsetHeight / 2
+  return {x: element.offsetLeft + halfWidth, y: element.offsetTop + halfHeight, halfWidth, halfHeight}
 }
 
 function nearestPreset(x: number, y: number, vw: number, vh: number): TriggerPosition {
@@ -39,6 +36,20 @@ function nearestPreset(x: number, y: number, vw: number, vh: number): TriggerPos
   return best
 }
 
+function clampToViewport(
+  x: number,
+  y: number,
+  halfWidth: number,
+  halfHeight: number,
+  vw: number,
+  vh: number,
+): {x: number; y: number} {
+  return {
+    x: Math.min(Math.max(x, halfWidth), Math.max(halfWidth, vw - halfWidth)),
+    y: Math.min(Math.max(y, halfHeight), Math.max(halfHeight, vh - halfHeight)),
+  }
+}
+
 function reduceMotion(): boolean {
   try {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -47,9 +58,22 @@ function reduceMotion(): boolean {
   }
 }
 
+function settleEasing(element: HTMLElement): string {
+  const token = getComputedStyle(element).getPropertyValue('--pw-ease-expo').trim()
+  return token === '' ? FALLBACK_EASE : token
+}
+
 function parsePosition(raw: string): TriggerPosition | undefined {
   return ALL.find((preset) => preset === raw)
 }
+
+type Grip = {element: HTMLElement; halfWidth: number; halfHeight: number; restX: number; restY: number}
+
+type DragMachine =
+  | {phase: 'idle'}
+  | {phase: 'pressing'; grip: Grip; startX: number; startY: number}
+  | {phase: 'dragging'; grip: Grip; centerX: number; centerY: number; offsetX: number; offsetY: number}
+  | {phase: 'settling'}
 
 export type DraggablePosition = {
   position: () => TriggerPosition
@@ -63,83 +87,107 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
   const [position, setPosition] = createSignal<TriggerPosition>(
     readStorage(opts.storageKey, parsePosition, opts.initial),
   )
-
-  const [point, setPoint] = createSignal<{x: number; y: number} | null>(null)
-  const [snapTarget, setSnapTarget] = createSignal<{x: number; y: number} | null>(null)
-  const [snapping, setSnapping] = createSignal(false)
+  const [machine, setMachine] = createSignal<DragMachine>({phase: 'idle'})
   let suppressClick = false
-  let cleanup: (() => void) | undefined
-  let snapTimer: ReturnType<typeof setTimeout> | undefined
+  let inFlight: Animation | undefined
+
+  const dragStateAt = (grip: Grip, clientX: number, clientY: number): DragMachine => {
+    const center = clampToViewport(
+      clientX,
+      clientY,
+      grip.halfWidth,
+      grip.halfHeight,
+      window.innerWidth,
+      window.innerHeight,
+    )
+    return {
+      phase: 'dragging',
+      grip,
+      centerX: center.x,
+      centerY: center.y,
+      offsetX: center.x - grip.restX,
+      offsetY: center.y - grip.restY,
+    }
+  }
 
   const onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0) return
     if (!(event.currentTarget instanceof HTMLElement)) return
-    const rect = event.currentTarget.getBoundingClientRect()
-    const halfW = rect.width / 2
-    const halfH = rect.height / 2
-    const startX = event.clientX
-    const startY = event.clientY
-    let moved = false
-    const move = (ev: PointerEvent) => {
-      if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 6) moved = true
-      if (moved) setPoint({x: ev.clientX, y: ev.clientY})
-    }
-    const up = (ev: PointerEvent) => {
-      cleanup?.()
-      cleanup = undefined
-      if (!moved) {
-        setPoint(null)
-        return
-      }
-      suppressClick = true
-      const vw = window.innerWidth
-      const vh = window.innerHeight
-      const next = nearestPreset(ev.clientX, ev.clientY, vw, vh)
-      const commit = () => {
-        setPosition(next)
-        writeStorage(opts.storageKey, next)
-        setPoint(null)
-        setSnapTarget(null)
-        setSnapping(false)
-      }
-
-      if (reduceMotion()) {
-        commit()
-        return
-      }
-
-      setSnapping(true)
-      setSnapTarget(presetCenter(next, vw, vh, halfW, halfH))
-      snapTimer = setTimeout(commit, SNAP_MS)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-    cleanup = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
+    inFlight?.cancel()
+    inFlight = undefined
+    setMachine({phase: 'idle'})
+    const rest = restingCenter(event.currentTarget)
+    setMachine({
+      phase: 'pressing',
+      grip: {
+        element: event.currentTarget,
+        halfWidth: rest.halfWidth,
+        halfHeight: rest.halfHeight,
+        restX: rest.x,
+        restY: rest.y,
+      },
+      startX: event.clientX,
+      startY: event.clientY,
+    })
   }
 
-  onCleanup(() => {
-    cleanup?.()
-    if (snapTimer) clearTimeout(snapTimer)
+  makeEventListener(window, 'pointermove', (event: PointerEvent) => {
+    const current = machine()
+    if (current.phase === 'idle' || current.phase === 'settling') return
+    if (current.phase === 'dragging') {
+      setMachine(dragStateAt(current.grip, event.clientX, event.clientY))
+      return
+    }
+    const travelled = Math.abs(event.clientX - current.startX) + Math.abs(event.clientY - current.startY)
+    if (travelled <= DRAG_THRESHOLD) return
+    setMachine(dragStateAt(current.grip, event.clientX, event.clientY))
+  })
+
+  const releaseTo = (grip: Grip, centerX: number, centerY: number) => {
+    const next = nearestPreset(centerX, centerY, window.innerWidth, window.innerHeight)
+    setMachine({phase: 'settling'})
+    setPosition(next)
+    writeStorage(opts.storageKey, next)
+    const rest = restingCenter(grip.element)
+    const residualX = centerX - rest.x
+    const residualY = centerY - rest.y
+    if (Math.hypot(residualX, residualY) < RESTING_EPSILON || reduceMotion()) {
+      setMachine({phase: 'idle'})
+      return
+    }
+    const settle = grip.element.animate(
+      [{transform: `translate(${residualX}px, ${residualY}px)`}, {transform: 'none'}],
+      {duration: SETTLE_MS, easing: settleEasing(grip.element)},
+    )
+    inFlight = settle
+    const returnToIdle = () => {
+      if (inFlight !== settle) return
+      inFlight = undefined
+      setMachine({phase: 'idle'})
+    }
+    settle.finished.then(returnToIdle, returnToIdle)
+  }
+
+  makeEventListener(window, 'pointerup', () => {
+    const current = machine()
+    if (current.phase === 'idle' || current.phase === 'settling') return
+    if (current.phase === 'pressing') {
+      setMachine({phase: 'idle'})
+      return
+    }
+    suppressClick = true
+    releaseTo(current.grip, current.centerX, current.centerY)
+  })
+
+  makeEventListener(window, 'pointercancel', () => {
+    const current = machine()
+    if (current.phase === 'pressing' || current.phase === 'dragging') setMachine({phase: 'idle'})
   })
 
   const dragStyle = (): JSX.CSSProperties => {
-    const current = point()
-    if (!current) return {}
-    const target = snapTarget()
-    const dx = target ? target.x - current.x : 0
-    const dy = target ? target.y - current.y : 0
-    return {
-      position: 'fixed',
-      left: `${current.x}px`,
-      top: `${current.y}px`,
-      right: 'auto',
-      bottom: 'auto',
-      transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`,
-      transition: snapping() ? `transform ${SNAP_MS}ms ${SNAP_EASE}` : 'none',
-    }
+    const current = machine()
+    if (current.phase !== 'dragging') return {}
+    return {transform: `translate(${current.offsetX}px, ${current.offsetY}px)`}
   }
 
   const consumeClick = (): boolean => {
@@ -150,5 +198,11 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
     return false
   }
 
-  return {position, dragging: () => point() !== null, dragStyle, onPointerDown, consumeClick}
+  return {
+    position,
+    dragging: () => machine().phase === 'dragging' || machine().phase === 'settling',
+    dragStyle,
+    onPointerDown,
+    consumeClick,
+  }
 }
