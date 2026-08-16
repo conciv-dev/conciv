@@ -13,11 +13,6 @@ uniform vec2 u_resolution;
 uniform vec3 u_color;
 uniform float u_alpha;
 #define TAU 6.28318530718
-mat2 rotate(float angle) {
-  float s = sin(angle);
-  float c = cos(angle);
-  return mat2(c, -s, s, c);
-}
 float isoline(float value) {
   float f = fract(value);
   float distance = min(f, 1.0 - f);
@@ -38,9 +33,7 @@ void main() {
   vec2 uv = (gl_FragCoord.xy - u_resolution * 0.5) / u_resolution.y;
   vec2 c = cardioidPoint(2.85);
   c += 0.012 * normalize(c - vec2(-0.25, 0.0));
-  float zoom = 1.0 + 0.04 * sin(u_time * TAU / 40.0);
-  vec2 pivot = vec2(0.22, 0.08);
-  vec2 z = (rotate(u_time * TAU / 360.0) * (uv - pivot) * zoom + pivot) * 1.25;
+  vec2 z = (uv + vec2(0.008, 0.0)) * 1.25;
   float smoothIteration = -1.0;
   for (int i = 0; i < ITERATIONS; i++) {
     z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
@@ -58,7 +51,9 @@ void main() {
   float weight = smoothstep(9.0, 22.0, smoothIteration);
   vec2 headline = (uv - vec2(0.0, 0.06)) / vec2(0.62, 0.36);
   float quiet = mix(0.2, 1.0, smoothstep(0.7, 1.5, length(headline)));
-  float coverage = isoline(level) * weight * quiet;
+  float wave = 0.5 + 0.5 * sin(smoothIteration * 0.7 - u_time * TAU / 30.0);
+  float glow = mix(0.45, 1.0, wave);
+  float coverage = isoline(level) * weight * quiet * glow;
   float alpha = coverage * u_alpha;
   gl_FragColor = vec4(u_color * alpha, alpha);
 }
