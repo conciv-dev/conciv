@@ -38,17 +38,16 @@ type RawTsconfig = {
   extends: unknown
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 function parseTsconfig(path: string): RawTsconfig | null {
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
-    if (typeof parsed !== 'object' || parsed === null) return null
-    const record = parsed as Record<string, unknown>
-    const rawCompilerOptions = record.compilerOptions
-    const compilerOptions =
-      typeof rawCompilerOptions === 'object' && rawCompilerOptions !== null
-        ? (rawCompilerOptions as Record<string, unknown>)
-        : {}
-    return {jsx: compilerOptions.jsx, jsxImportSource: compilerOptions.jsxImportSource, extends: record.extends}
+    if (!isRecord(parsed)) return null
+    const compilerOptions = isRecord(parsed.compilerOptions) ? parsed.compilerOptions : {}
+    return {jsx: compilerOptions.jsx, jsxImportSource: compilerOptions.jsxImportSource, extends: parsed.extends}
   } catch {
     return null
   }
