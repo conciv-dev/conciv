@@ -55,12 +55,15 @@ export function PackageInstallerCommand({
 }) {
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      <pre
-        style={{minWidth: `calc(${widestCommand.length + 2}ch + 2rem)`}}
-        className="od-mono od-snippet flex h-9 min-w-0 items-center gap-2 overflow-x-auto rounded-lg border bg-card px-4 text-[13px] leading-5"
-      >
-        <span className="text-primary">$</span>
-        {children ?? command}
+      <pre className="od-mono od-snippet relative flex h-9 items-center rounded-lg border bg-card px-4 text-[13px] leading-5">
+        <span aria-hidden className="invisible flex items-center gap-2">
+          <span>$</span>
+          <span style={{width: `${widestCommand.length}ch`}} />
+        </span>
+        <span className="absolute inset-0 flex items-center gap-2 px-4">
+          <span className="text-primary">$</span>
+          {children ?? command}
+        </span>
       </pre>
       <CopyButton text={command} label={copyLabel} />
     </div>

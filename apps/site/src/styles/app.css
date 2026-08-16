@@ -289,7 +289,8 @@ html > body[data-scroll-locked] {
   --smm-delay-container: 0;
 }
 .od-snippet pre.shiki,
-.od-snippet pre.shiki code {
+.od-snippet pre.shiki code,
+.od-snippet .shiki-magic-move-container {
   margin: 0;
   padding: 0;
   border: 0;
