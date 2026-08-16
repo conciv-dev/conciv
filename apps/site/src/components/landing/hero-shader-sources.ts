@@ -47,12 +47,12 @@ void main() {
     gl_FragColor = vec4(0.0);
     return;
   }
-  float level = log2(smoothIteration + 1.0) * 2.5 - u_time / 45.0;
+  float level = log2(smoothIteration + 1.0) * 2.5 - u_time / 20.0;
   float weight = smoothstep(9.0, 22.0, smoothIteration);
   vec2 headline = (uv - vec2(0.0, 0.06)) / vec2(0.62, 0.36);
   float quiet = mix(0.2, 1.0, smoothstep(0.7, 1.5, length(headline)));
-  float wave = 0.5 + 0.5 * sin(smoothIteration * 0.7 - u_time * TAU / 30.0);
-  float glow = mix(0.45, 1.0, wave);
+  float wave = 0.5 + 0.5 * sin(smoothIteration * 1.1 - u_time * TAU / 10.0);
+  float glow = mix(0.3, 1.0, wave);
   float coverage = isoline(level) * weight * quiet * glow;
   float alpha = coverage * u_alpha;
   gl_FragColor = vec4(u_color * alpha, alpha);
