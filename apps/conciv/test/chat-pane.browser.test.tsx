@@ -1,11 +1,23 @@
 import './helpers/utilities.css'
 import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
-import type {RpcClient} from '@conciv/contract'
+import type {DraftRow, RpcClient} from '@conciv/contract'
+import {until} from '@conciv/harness-testkit/until'
+import pageExtension from '@conciv/extension-page/client'
+import {GRAB_FILE_NAME, GRAB_MIME} from '@conciv/grab/grab-attachment'
+import type {Grab} from '@conciv/grab'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, openTranscriptStream, runTurn, seedDraft, sendTurn} from './helpers/core-session.js'
-import {mountPane, type PaneMount} from './helpers/pane-harness.js'
+import {
+  grabProviderFor,
+  HERO_GRAB,
+  HERO_LABEL,
+  persistedGrab,
+  PRICING_GRAB,
+  PRICING_LABEL,
+} from './helpers/grab-fixtures.js'
+import {mountPane, type PaneMount, type PaneMountOptions} from './helpers/pane-harness.js'
 import {trackedFaults} from './helpers/tracked-faults.js'
 
 const SEND_PATH = ['chat', 'send']
@@ -30,28 +42,48 @@ afterEach(async () => {
   active.pane = null
 })
 
+async function draftAttachments(sessionId: string): Promise<DraftRow['attachments']> {
+  const draft = await coreRpc(core.base).drafts.get({sessionId})
+  return draft?.attachments ?? []
+}
+
 async function newSession(): Promise<{rpc: RpcClient; sessionId: string}> {
   const rpc = coreRpc(core.base)
   return {rpc, sessionId: await createSession(rpc)}
 }
 
-function mountChatPane(sessionId: string): PaneMount {
-  const mount = mountPane({base: core.base, sessionId}, () => <ChatPane sessionId={sessionId} />)
+function grabOptions(...grabs: Grab[]): Pick<PaneMountOptions, 'grabProvider' | 'extensions'> {
+  return {grabProvider: grabProviderFor(...grabs), extensions: [pageExtension]}
+}
+
+function mountChatPane(
+  sessionId: string,
+  options: Pick<PaneMountOptions, 'grabProvider' | 'extensions'> = {},
+): PaneMount {
+  const mount = mountPane({base: core.base, sessionId, ...options}, () => <ChatPane sessionId={sessionId} />)
   active.pane = mount
   return mount
 }
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-const removeGrab = () => page.getByRole('button', {name: 'Remove grabbed element'})
+const removeGrab = () => page.getByRole('button', {name: `Remove ${GRAB_FILE_NAME}`})
+const grabButton = () => page.getByRole('button', {name: 'Select an element from the page'})
+const snapshot = () => page.getByTitle('Grabbed element snapshot')
 const notifications = () => page.getByRole('region', {name: /Notifications/})
 const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
 const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
 
+async function stageGrabThroughComposer(): Promise<void> {
+  await expect.element(input()).toBeVisible()
+  await userEvent.click(grabButton())
+  await expect.element(snapshot()).toBeVisible()
+  await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
+}
+
 async function sendWithStagedGrab(): Promise<void> {
-  const {rpc, sessionId} = await newSession()
-  await seedDraft(rpc, sessionId, {grabs: ['the grabbed hero section']})
-  mountChatPane(sessionId)
-  await expect.element(removeGrab()).toBeVisible()
+  const {sessionId} = await newSession()
+  mountChatPane(sessionId, grabOptions(HERO_GRAB))
+  await stageGrabThroughComposer()
   await input().fill('explain the section I grabbed')
   await userEvent.keyboard('{Enter}')
 }
@@ -67,12 +99,31 @@ async function startStreamingRun(): Promise<void> {
 
 test('restores the server-side draft text and staged grabs when the pane mounts', async () => {
   const {rpc, sessionId} = await newSession()
-  await seedDraft(rpc, sessionId, {text: 'kept across the reload', grabs: ['a grabbed heading']})
+  await seedDraft(rpc, sessionId, {
+    text: 'kept across the reload',
+    attachments: [persistedGrab('grab-1', HERO_GRAB)],
+  })
 
-  mountChatPane(sessionId)
+  mountChatPane(sessionId, grabOptions(HERO_GRAB))
 
   await expect.element(input()).toHaveTextContent('kept across the reload')
-  await expect.element(page.getByText('a grabbed heading')).toBeVisible()
+  await expect.element(snapshot()).toBeVisible()
+  await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
+})
+
+test('a staged grab keeps its snapshot and source label across a panel reload', async () => {
+  const {sessionId} = await newSession()
+  const first = mountChatPane(sessionId, grabOptions(HERO_GRAB))
+  await stageGrabThroughComposer()
+
+  await until(async () => (await draftAttachments(sessionId)).length > 0, {hangGuardMs: 30_000, intervalMs: 100})
+  expect((await draftAttachments(sessionId)).map((attachment) => attachment.contentType)).toEqual([GRAB_MIME])
+  first.dispose()
+
+  mountChatPane(sessionId, {extensions: [pageExtension]})
+
+  await expect.element(snapshot()).toBeVisible()
+  await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
 })
 
 test('a rejected send keeps the draft in the composer and tells the user why', async () => {
@@ -102,7 +153,7 @@ test('a send the server refuses puts the staged grab card back', async () => {
 
   await expect.element(notifications()).toHaveTextContent(/Internal Server Error|could not be sent/)
   await expect.element(removeGrab()).toBeVisible()
-  await expect.element(page.getByText('the grabbed hero section', {exact: true})).toBeVisible()
+  await expect.element(page.getByText(HERO_LABEL).last()).toBeVisible()
 })
 
 test('a send that throws at the transport puts the staged grab card back', async () => {
@@ -111,32 +162,33 @@ test('a send that throws at the transport puts the staged grab card back', async
 
   await expect.element(notifications()).toHaveTextContent(/could not be sent|fetch/)
   await expect.element(removeGrab()).toBeVisible()
-  await expect.element(page.getByText('the grabbed hero section', {exact: true})).toBeVisible()
+  await expect.element(page.getByText(HERO_LABEL).last()).toBeVisible()
 })
 
 test('a queued second send cannot cross-restore the grabs of the turn that failed', async () => {
   const {rpc, sessionId} = await newSession()
-  await seedDraft(rpc, sessionId, {grabs: ['the grabbed hero section']})
+  await seedDraft(rpc, sessionId, {attachments: [persistedGrab('grab-1', HERO_GRAB)]})
   await coreControl.holdTurn()
-  const mount = mountChatPane(sessionId)
+  mountChatPane(sessionId, grabOptions(PRICING_GRAB))
 
-  await expect.element(page.getByText('the grabbed hero section', {exact: true})).toBeVisible()
+  await expect.element(page.getByText(HERO_LABEL)).toBeVisible()
   await input().fill('turn A')
   await userEvent.keyboard('{Enter}')
   await expect.element(stopButton()).toBeVisible()
 
-  mount.pane.grabStore.stageAll([{text: 'the grabbed pricing table'}])
-  await expect.element(page.getByText('the grabbed pricing table', {exact: true})).toBeVisible()
+  await userEvent.click(grabButton())
+  await expect.element(page.getByText(PRICING_LABEL)).toBeVisible()
   await input().fill('turn B')
   await userEvent.keyboard('{Enter}')
   await expect.element(page.getByRole('button', {name: 'Remove from queue'})).toBeVisible()
-  await expect.element(page.getByText('the grabbed pricing table', {exact: true})).not.toBeInTheDocument()
+  await expect.element(page.getByText(PRICING_LABEL)).not.toBeInTheDocument()
 
   await coreControl.scriptError('turn A failed')
   await coreControl.releaseTurn()
 
-  await expect.element(page.getByText('the grabbed hero section', {exact: true})).toBeVisible()
-  await expect.element(page.getByText('the grabbed pricing table', {exact: true})).not.toBeInTheDocument()
+  await expect.element(removeGrab()).toBeVisible()
+  await expect.element(page.getByText(HERO_LABEL).last()).toBeVisible()
+  await expect.element(page.getByText(PRICING_LABEL)).not.toBeInTheDocument()
 })
 
 test('sending announces thinking and then the reply through the live region', async () => {

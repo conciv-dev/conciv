@@ -5,6 +5,7 @@ import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {AttachmentUI} from './attachment-ui.js'
 import {FOCUS} from './classes.js'
 import {
+  attachmentId,
   fileToDataSource,
   type Attachment as AttachmentState,
   type AttachmentAdapter,
@@ -46,13 +47,11 @@ export function AttachmentByMime(props: {cards: readonly AttachmentCardSlot[]; r
   )
 }
 
-let documentId = 0
-
 export function createDocumentAttachmentAdapter(mime: string): AttachmentAdapter {
   return {
     accept: mime,
     add: async ({file}) => ({
-      id: `document-${(documentId += 1)}`,
+      id: `document-${attachmentId()}`,
       type: 'document',
       name: file.name,
       contentType: mime,

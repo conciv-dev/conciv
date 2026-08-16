@@ -3,7 +3,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {CanvasOpCard} from './card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResultParts} from '../story.fixtures.js'
 
-const meta: Meta = {title: 'extension-whiteboard/tool/canvas/CanvasOpCard'}
+const meta: Meta = {title: 'Extensions/Whiteboard/tool/canvas/CanvasOpCard'}
 export default meta
 type Story = StoryObj
 

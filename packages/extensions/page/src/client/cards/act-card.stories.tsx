@@ -5,7 +5,7 @@ import {ELEMENT_CAPTURE_FIXTURE_CSS, ELEMENT_CAPTURE_FIXTURE_FULL} from '@conciv
 import {ActCard} from './act-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
-const meta: Meta = {title: 'extension-page/client/cards/ActCard'}
+const meta: Meta = {title: 'Extensions/Page/tool/ActCard'}
 export default meta
 type Story = StoryObj
 

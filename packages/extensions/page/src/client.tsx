@@ -3,8 +3,16 @@ import {PAGE_SESSION_GROUP_KEY, type GroupEntry} from '@conciv/ui-kit-chat'
 import {PAGE_EXTENSION_NAME} from './shared/defs.js'
 import {PAGE_CLIENT_TOOLS} from './client/bodies.js'
 import {SessionCard} from './client/cards/session-card.js'
+import {GrabCard} from './client/cards/grab-card.js'
+import {grabAttachment} from './shared/grab-attachment.js'
 
-export const page = defineExtension({name: PAGE_EXTENSION_NAME, tools: PAGE_CLIENT_TOOLS}).client(() => ({value: {}}))
+grabAttachment.card(GrabCard)
+
+export const page = defineExtension({
+  name: PAGE_EXTENSION_NAME,
+  tools: PAGE_CLIENT_TOOLS,
+  attachments: [grabAttachment],
+}).client(() => ({value: {}}))
 
 export default page
 

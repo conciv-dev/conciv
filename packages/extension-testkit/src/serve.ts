@@ -45,7 +45,7 @@ export async function serveDir(dir: string, config: {apiBase: string; session: s
         res.end('not found')
       })
   })
-  const port = await listenLocal(server)
+  const {port} = await listenLocal(server)
   return {
     origin: `http://127.0.0.1:${port}`,
     close: () => new Promise((resolve) => server.close(() => resolve())),

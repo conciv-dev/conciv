@@ -1,12 +1,14 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {Attachment, AttachmentAdapter} from '../attachment/attachment-adapter.js'
 
-export type ComposerDraft = {draft: string; attachments: Attachment[]; quote: string | null; grabs: string[]}
+export type ComposerDraft = {draft: string; attachments: Attachment[]; quote: string | null}
 
 export type ComposerContextValue = {
   attachments: Accessor<Attachment[]>
   attachmentAdapter: Accessor<AttachmentAdapter | undefined>
-  addAttachment: (file: File) => Promise<void>
+  addAttachment: (file: File) => Promise<string | null>
+  hasAttachment: (id: string) => boolean
+  replaceAttachment: (id: string, file: File) => Promise<string | null>
   removeAttachment: (id: string) => Promise<void>
   sendingAttachments: Accessor<boolean>
   snapshotDraft: () => ComposerDraft
@@ -14,8 +16,6 @@ export type ComposerContextValue = {
   clearDraft: () => void
   quote: Accessor<string | null>
   setQuote: (value: string | null) => void
-  grabs: Accessor<string[]>
-  setGrabs: (values: string[]) => void
   editing: Accessor<boolean>
   setEditing: (value: boolean) => void
   dictating: Accessor<boolean>

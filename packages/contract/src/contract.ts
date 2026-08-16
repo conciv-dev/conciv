@@ -27,7 +27,7 @@ import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
 
 const SessionIdInput = z.object({sessionId: z.string()})
-const ChatSendInput = SessionIdInput.extend({
+export const ChatSendInput = SessionIdInput.extend({
   runId: z.string().min(1),
   text: z.string().min(1).optional(),
   content: z.union([z.string().min(1), z.array(ChatContentPartSchema).min(1).max(16)]).optional(),

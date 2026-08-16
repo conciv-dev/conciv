@@ -45,7 +45,7 @@ export async function serveStaticDir(dir: string): Promise<ServedDir> {
     res.writeHead(200, {'content-type': MIME[path.extname(file)] ?? 'application/octet-stream'})
     res.end(fs.readFileSync(file))
   })
-  const port = await listenLocal(server)
+  const {port} = await listenLocal(server)
   return {
     base: `http://127.0.0.1:${port}`,
     close: closeStaticServer(server, GRACEFUL_STATIC_CLOSE_MS),

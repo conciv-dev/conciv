@@ -1,6 +1,9 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
+import {makeExtRpcClient} from '@conciv/extension'
+import {until} from '@conciv/harness-testkit/until'
+import {rpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
+import type {RecorderRouter} from '../src/server.js'
 import {useRecorderTestApi} from './helpers/test-api.js'
 import {addMarker} from './helpers/fixtures.js'
 
@@ -8,11 +11,13 @@ const api = useRecorderTestApi()
 
 const FLUSH_PATH = ['ext', 'recorder', 'flush']
 
+const FullSnapshotSchema = z.object({type: z.literal(2), data: z.looseObject({node: z.unknown()})})
+
 describe('lazy capture lifecycle (real browser)', () => {
   it('flushes nothing while idle, captures while a recording is live, and goes quiet after stop', async () => {
     const page = api().page
-    const observer = rpcObserverFor(page)
-    const flushCount = (): number => observer.startedCount({path: FLUSH_PATH})
+    const calls = rpcCallCursor(page)
+    const flushCount = (): number => calls.startedSince(FLUSH_PATH)
 
     await addMarker(page)
     await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})
@@ -22,9 +27,16 @@ describe('lazy capture lifecycle (real browser)', () => {
     expect(flushCount()).toBe(0)
     expect(idlePull).not.toContain('click')
 
-    const firstFlush = observer.completed({path: FLUSH_PATH, since: observer.mark(), timeout: 20_000})
+    const recorderRpc = makeExtRpcClient<RecorderRouter>(api().apiBase, 'recorder')
+    const captureBaseline = (await recorderRpc.window({})).cursor
     const started = z.object({captureId: z.string()}).parse(await api().callTool('recording_start', {}))
-    await firstFlush
+    await until(
+      async () => {
+        const appended = await recorderRpc.events({cursor: captureBaseline})
+        return appended.events.some((event) => FullSnapshotSchema.safeParse(event).success)
+      },
+      {hangGuardMs: 20_000, intervalMs: 100},
+    )
     await addMarker(page)
     const stopped = JSON.stringify(await api().callTool('recording_stop', {captureId: started.captureId, keyframes: 0}))
     expect(stopped).toContain('click')

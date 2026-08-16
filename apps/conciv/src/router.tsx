@@ -10,6 +10,7 @@ import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
 import type {ExtensionInstance} from './extension/extension-slots.js'
+import {createInstances} from './extension/create-instances.js'
 import highlight from './extensions/highlight.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
@@ -32,6 +33,7 @@ export type ConcivRouterContext = {
   apiBase: () => string
   connectionGeneration: () => number
   disposeInstances: () => void
+  notifyInteractive: () => void
 }
 
 export type ConcivRouterConfig = {
@@ -47,25 +49,7 @@ export type ConcivRouterConfig = {
   grabProvider?: GrabProvider
   apiBase?: () => string
   connectionGeneration?: () => number
-}
-
-function createInstances(extensions: AnyExtension[]): ExtensionInstance[] {
-  return extensions.flatMap((extension) => {
-    try {
-      const result = extension.__client?.()
-      return [
-        {
-          extension,
-          clientValue: result?.value ?? {},
-          effects: result?.effects ?? [],
-          dispose: result?.dispose ?? (() => {}),
-        },
-      ]
-    } catch (error) {
-      console.error(`[conciv] extension "${extension.name}" failed to mount`, error)
-      return []
-    }
-  })
+  notifyInteractive?: () => void
 }
 
 function disposeExtensionInstances(instances: ExtensionInstance[]): void {
@@ -141,6 +125,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       apiBase,
       connectionGeneration: config.connectionGeneration ?? (() => 0),
       disposeInstances,
+      notifyInteractive: config.notifyInteractive ?? (() => {}),
     },
   })
 }

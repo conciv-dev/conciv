@@ -5,7 +5,7 @@ import {NavigateCard} from './navigate-card.js'
 import {navigateDef} from './def.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
-const meta: Meta = {title: 'extension-tanstack/tool/NavigateCard'}
+const meta: Meta = {title: 'Extensions/TanStack/tool/NavigateCard'}
 export default meta
 type Story = StoryObj
 

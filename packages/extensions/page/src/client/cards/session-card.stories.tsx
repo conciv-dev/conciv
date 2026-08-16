@@ -32,7 +32,7 @@ function splitOf(parameters: Record<string, unknown>): number[] {
 }
 
 const meta: Meta = {
-  title: 'extension-page/client/cards/SessionCard',
+  title: 'Extensions/Page/tool/SessionCard',
   decorators: [
     (Story, context) => {
       const [size, setSize] = createSignal(splitOf(context.parameters))

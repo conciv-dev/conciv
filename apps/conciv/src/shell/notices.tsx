@@ -57,7 +57,7 @@ export function createNoticeStore(): NoticeStore {
 
   function Toaster(): JSX.Element {
     return (
-      <ToastGroup toaster={toaster} class="p-2.5 empty:hidden" style={{position: 'static'}}>
+      <ToastGroup toaster={toaster} class="p-2.5 empty:p-0" style={{position: 'static'}}>
         {(toast) => (
           <Toast.Root
             class={`${NOTICE} ${toneClass(toast().type)}`}

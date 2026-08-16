@@ -13,7 +13,7 @@ import {
   storyResult,
 } from './story.fixtures.js'
 
-const meta: Meta = {title: 'extension-test-runner/tool/TestCard'}
+const meta: Meta = {title: 'Extensions/Test Runner/tool/TestCard'}
 export default meta
 type Story = StoryObj
 

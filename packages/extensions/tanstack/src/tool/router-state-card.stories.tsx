@@ -12,7 +12,7 @@ import {
   storyResult,
 } from './story.fixtures.js'
 
-const meta: Meta = {title: 'extension-tanstack/tool/RouterStateCard'}
+const meta: Meta = {title: 'Extensions/TanStack/tool/RouterStateCard'}
 export default meta
 type Story = StoryObj
 

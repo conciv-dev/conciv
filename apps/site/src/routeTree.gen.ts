@@ -9,14 +9,28 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as OgDotpngRouteImport } from './routes/og[.]png'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as LlmsFullDottxtRouteImport } from './routes/llms-full[.]txt'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PairTokenRouteImport } from './routes/pair.$token'
+import { Route as OgChar123Char125DotpngRouteImport } from './routes/og/{$}[.]png'
 import { Route as DocsChar123Char125DotmdRouteImport } from './routes/docs/{$}[.]md'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
+import { Route as ApiStarsRouteImport } from './routes/api/stars'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OgDotpngRoute = OgDotpngRouteImport.update({
+  id: '/og.png',
+  path: '/og.png',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
   id: '/llms.txt',
   path: '/llms.txt',
@@ -37,6 +51,11 @@ const PairTokenRoute = PairTokenRouteImport.update({
   path: '/pair/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OgChar123Char125DotpngRoute = OgChar123Char125DotpngRouteImport.update({
+  id: '/og/{$}.png',
+  path: '/og/{$}.png',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsChar123Char125DotmdRoute = DocsChar123Char125DotmdRouteImport.update({
   id: '/docs/{$}.md',
   path: '/docs/{$}.md',
@@ -45,6 +64,11 @@ const DocsChar123Char125DotmdRoute = DocsChar123Char125DotmdRouteImport.update({
 const DocsSplatRoute = DocsSplatRouteImport.update({
   id: '/docs/$',
   path: '/docs/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStarsRoute = ApiStarsRouteImport.update({
+  id: '/api/stars',
+  path: '/api/stars',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSearchRoute = ApiSearchRouteImport.update({
@@ -57,18 +81,26 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/llms-full.txt': typeof LlmsFullDottxtRoute
   '/llms.txt': typeof LlmsDottxtRoute
+  '/og.png': typeof OgDotpngRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/stars': typeof ApiStarsRoute
   '/docs/$': typeof DocsSplatRoute
   '/docs/{$}.md': typeof DocsChar123Char125DotmdRoute
+  '/og/{$}.png': typeof OgChar123Char125DotpngRoute
   '/pair/$token': typeof PairTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/llms-full.txt': typeof LlmsFullDottxtRoute
   '/llms.txt': typeof LlmsDottxtRoute
+  '/og.png': typeof OgDotpngRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/stars': typeof ApiStarsRoute
   '/docs/$': typeof DocsSplatRoute
   '/docs/{$}.md': typeof DocsChar123Char125DotmdRoute
+  '/og/{$}.png': typeof OgChar123Char125DotpngRoute
   '/pair/$token': typeof PairTokenRoute
 }
 export interface FileRoutesById {
@@ -76,9 +108,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/llms-full.txt': typeof LlmsFullDottxtRoute
   '/llms.txt': typeof LlmsDottxtRoute
+  '/og.png': typeof OgDotpngRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/stars': typeof ApiStarsRoute
   '/docs/$': typeof DocsSplatRoute
   '/docs/{$}.md': typeof DocsChar123Char125DotmdRoute
+  '/og/{$}.png': typeof OgChar123Char125DotpngRoute
   '/pair/$token': typeof PairTokenRoute
 }
 export interface FileRouteTypes {
@@ -87,27 +123,39 @@ export interface FileRouteTypes {
     | '/'
     | '/llms-full.txt'
     | '/llms.txt'
+    | '/og.png'
+    | '/sitemap.xml'
     | '/api/search'
+    | '/api/stars'
     | '/docs/$'
     | '/docs/{$}.md'
+    | '/og/{$}.png'
     | '/pair/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/llms-full.txt'
     | '/llms.txt'
+    | '/og.png'
+    | '/sitemap.xml'
     | '/api/search'
+    | '/api/stars'
     | '/docs/$'
     | '/docs/{$}.md'
+    | '/og/{$}.png'
     | '/pair/$token'
   id:
     | '__root__'
     | '/'
     | '/llms-full.txt'
     | '/llms.txt'
+    | '/og.png'
+    | '/sitemap.xml'
     | '/api/search'
+    | '/api/stars'
     | '/docs/$'
     | '/docs/{$}.md'
+    | '/og/{$}.png'
     | '/pair/$token'
   fileRoutesById: FileRoutesById
 }
@@ -115,14 +163,32 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LlmsFullDottxtRoute: typeof LlmsFullDottxtRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
+  OgDotpngRoute: typeof OgDotpngRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiSearchRoute: typeof ApiSearchRoute
+  ApiStarsRoute: typeof ApiStarsRoute
   DocsSplatRoute: typeof DocsSplatRoute
   DocsChar123Char125DotmdRoute: typeof DocsChar123Char125DotmdRoute
+  OgChar123Char125DotpngRoute: typeof OgChar123Char125DotpngRoute
   PairTokenRoute: typeof PairTokenRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/og.png': {
+      id: '/og.png'
+      path: '/og.png'
+      fullPath: '/og.png'
+      preLoaderRoute: typeof OgDotpngRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/llms.txt': {
       id: '/llms.txt'
       path: '/llms.txt'
@@ -151,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PairTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/og/{$}.png': {
+      id: '/og/{$}.png'
+      path: '/og/{$}.png'
+      fullPath: '/og/{$}.png'
+      preLoaderRoute: typeof OgChar123Char125DotpngRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs/{$}.md': {
       id: '/docs/{$}.md'
       path: '/docs/{$}.md'
@@ -163,6 +236,13 @@ declare module '@tanstack/react-router' {
       path: '/docs/$'
       fullPath: '/docs/$'
       preLoaderRoute: typeof DocsSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stars': {
+      id: '/api/stars'
+      path: '/api/stars'
+      fullPath: '/api/stars'
+      preLoaderRoute: typeof ApiStarsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/search': {
@@ -179,9 +259,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LlmsFullDottxtRoute: LlmsFullDottxtRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
+  OgDotpngRoute: OgDotpngRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiSearchRoute: ApiSearchRoute,
+  ApiStarsRoute: ApiStarsRoute,
   DocsSplatRoute: DocsSplatRoute,
   DocsChar123Char125DotmdRoute: DocsChar123Char125DotmdRoute,
+  OgChar123Char125DotpngRoute: OgChar123Char125DotpngRoute,
   PairTokenRoute: PairTokenRoute,
 }
 export const routeTree = rootRouteImport

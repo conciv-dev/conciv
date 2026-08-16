@@ -5,6 +5,7 @@ import {makeDomPageDriver, type PageDriver} from './page-driver.js'
 
 export {makeDomPageDriver, type PageDriver} from './page-driver.js'
 export {grabApi} from './grab-api.js'
+export {fitImagePreview} from './grab-fit.js'
 export {picking, cancelPick} from './react-grab/picking.js'
 export {getReactGrabAdapter, type ReactGrabAdapter} from './react-grab/adapter.js'
 export {describe, locate, installReactBridge, rootFibers} from './react-bridge.js'

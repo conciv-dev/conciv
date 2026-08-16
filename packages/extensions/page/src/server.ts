@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {defineExtension, type AnyToolBuilder, type ServerPageCaller} from '@conciv/extension'
 import {RawFrameSchema, type RawFrame, type SourceLoc} from '@conciv/protocol/page-types'
 import {locateDef, PAGE_EXTENSION_NAME, PAGE_TOOL_DEFS} from './shared/defs.js'
+import {grabAttachment} from './server/grab-attachment.js'
 
 export type PageServerContext = {
   page: ServerPageCaller
@@ -20,7 +21,11 @@ const locateServer = locateDef.server(async (input, ctx: PageServerContext) => {
 
 const declarations: AnyToolBuilder[] = PAGE_TOOL_DEFS.map((def) => (def === locateDef ? locateServer : def.client()))
 
-export const page = defineExtension({name: PAGE_EXTENSION_NAME, tools: declarations}).server((server) => ({
+export const page = defineExtension({
+  name: PAGE_EXTENSION_NAME,
+  tools: declarations,
+  attachments: [grabAttachment],
+}).server((server) => ({
   context: {page: server.page, symbolicate: server.symbolicate},
 }))
 

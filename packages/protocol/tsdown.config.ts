@@ -20,6 +20,7 @@ export default defineConfig({
     'src/tool-view-types.ts',
     'src/connect-ports.ts',
     'src/state-types.ts',
+    'src/event-bus.ts',
   ],
   format: 'esm',
   noExternal: [/^@tanstack\/ai(\/|$)/],

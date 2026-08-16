@@ -1,0 +1,30 @@
+import {expect, test} from '@playwright/test'
+import {failRpcCalls} from '../src/rpc-fault.js'
+import {setupWsProbeSuite} from './helpers/probe-suite.js'
+
+const suite = setupWsProbeSuite()
+
+test.describe('rpc fault injection reaches calls that ride the websocket', () => {
+  test('fails only the targeted procedure and lets it recover after repair', async ({page}) => {
+    const models = await failRpcCalls(page, {path: ['meta', 'models'], websocket: true})
+    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+    await page.evaluate((wsUrl) => window.__CONCIV_WS_PROBE__.connect(wsUrl), suite.socketUrl())
+
+    const failed = await page.evaluate(async () => {
+      try {
+        await window.__CONCIV_WS_PROBE__.call(['meta', 'models'], undefined)
+        return 'answered'
+      } catch (error) {
+        return `failed: ${error instanceof Error ? error.message : String(error)}`
+      }
+    })
+    expect(failed).toContain('failed:')
+
+    const untouched = await page.evaluate(() => window.__CONCIV_WS_PROBE__.call(['meta', 'tools'], undefined))
+    expect(JSON.stringify(untouched)).toContain('tools')
+
+    models.repair()
+    const repaired = await page.evaluate(() => window.__CONCIV_WS_PROBE__.call(['meta', 'models'], undefined))
+    expect(JSON.stringify(repaired)).toContain('models')
+  })
+})

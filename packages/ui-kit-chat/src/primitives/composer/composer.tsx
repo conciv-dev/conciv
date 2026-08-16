@@ -43,7 +43,6 @@ type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {
 type ComposerState = {
   attachments: Attachment[]
   quote: string | null
-  grabs: string[]
   editing: boolean
   dictating: boolean
   sendingAttachments: boolean
@@ -175,7 +174,7 @@ function pastedFiles(event: ClipboardEvent): File[] {
 async function addPastedFiles(
   event: ClipboardEvent,
   enabled: boolean | undefined,
-  add: (file: File) => Promise<void>,
+  add: (file: File) => Promise<unknown>,
 ): Promise<void> {
   if (!enabled) return
   await Promise.allSettled(pastedFiles(event).map((file) => add(file)))
@@ -188,7 +187,6 @@ function Root(props: FormProps): JSX.Element {
   const [state, setState] = createStore<ComposerState>({
     attachments: [],
     quote: null,
-    grabs: [],
     editing: false,
     dictating: false,
     sendingAttachments: false,
@@ -206,11 +204,44 @@ function Root(props: FormProps): JSX.Element {
       return current.toSpliced(index, 1, attachment)
     })
   }
-  const addAttachment = async (file: File) => {
+  const addAttachment = async (file: File): Promise<string | null> => {
     const adapter = requireAttachmentAdapter(attachmentAdapter())
     assertAcceptedFile(file, adapter)
     const id = await addAdapterAttachment(adapter, file, upsertAttachment)
     if (id) removedIds.delete(id)
+    return id ?? null
+  }
+  const hasAttachment = (id: string): boolean => attachments().some((entry) => entry.id === id)
+  const replaceAttachment = async (id: string, file: File): Promise<string | null> => {
+    if (!hasAttachment(id)) return null
+    const adapter = requireAttachmentAdapter(attachmentAdapter())
+    assertAcceptedFile(file, adapter)
+    const staged: PendingAttachment[] = []
+    const collect = (attachment: PendingAttachment): void => {
+      const index = staged.findIndex((entry) => entry.id === attachment.id)
+      if (index < 0) staged.push(attachment)
+      if (index >= 0) staged.splice(index, 1, attachment)
+    }
+    const added = await addAdapterAttachment(adapter, file, collect).catch(async (error: unknown) => {
+      const orphan = staged.at(-1)
+      if (orphan) await removeAdapterAttachment(adapter, orphan).catch(() => {})
+      throw error
+    })
+    const replacement = staged.find((entry) => entry.id === added)
+    if (!added || !replacement) return null
+    const displaced = attachments().find((entry) => entry.id === id)
+    if (!displaced) {
+      await removeAdapterAttachment(adapter, replacement).catch(() => {})
+      return null
+    }
+    setState('attachments', (current) => {
+      const position = current.findIndex((entry) => entry.id === id)
+      if (position < 0) return current
+      return current.toSpliced(position, 1, replacement)
+    })
+    removedIds.add(id)
+    await removeAdapterAttachment(adapter, displaced).catch(() => {})
+    return added
   }
   const removeAttachment = async (id: string) => {
     const attachment = requireAttachment(attachments(), id)
@@ -227,27 +258,26 @@ function Root(props: FormProps): JSX.Element {
     draft: chat.view.draft,
     attachments: [...state.attachments],
     quote: state.quote,
-    grabs: [...state.grabs],
   })
   const restoreDraft = (original: ComposerDraft) => {
     setState('attachments', (current) => {
       const currentIds = new Set(current.map((value) => value.id))
       return [...current, ...original.attachments.filter((value) => !currentIds.has(value.id))]
     })
-    if (chat.view.draft !== '' || state.quote !== null || state.grabs.length > 0) return
+    if (chat.view.draft !== '' || state.quote !== null) return
     chat.setView('draft', original.draft)
-    setState({quote: original.quote, grabs: original.grabs})
+    setState({quote: original.quote})
   }
   const clearDraft = () => {
     chat.setView('draft', '')
-    setState({attachments: [], quote: null, grabs: []})
+    setState({attachments: [], quote: null})
   }
   onMount(() => {
     const storage = local.draftStorage
     const restored = storage ? readComposerDraft(storage, draftKey()) : null
     if (!restored) return
     chat.setView('draft', restored.draft)
-    setState({attachments: restored.attachments, quote: restored.quote, grabs: restored.grabs})
+    setState({attachments: restored.attachments, quote: restored.quote})
   })
   useComposerDraftPersistence({storage: () => local.draftStorage, key: draftKey, draft: snapshotDraft})
   const markSendFailed = (error: unknown) => {
@@ -294,6 +324,8 @@ function Root(props: FormProps): JSX.Element {
         attachments,
         attachmentAdapter,
         addAttachment,
+        hasAttachment,
+        replaceAttachment,
         removeAttachment,
         sendingAttachments: () => state.sendingAttachments,
         snapshotDraft,
@@ -301,8 +333,6 @@ function Root(props: FormProps): JSX.Element {
         clearDraft,
         quote: () => state.quote,
         setQuote: (value) => setState('quote', value),
-        grabs: () => state.grabs,
-        setGrabs: (values) => setState('grabs', values),
         editing: () => state.editing,
         setEditing: (value) => setState('editing', value),
         dictating: () => state.dictating,

@@ -7,16 +7,21 @@ import {HostApiProvider} from '@conciv/extension/host'
 import {AppContext} from '../../src/app/context.js'
 import {makeAppContextValue} from './app-context-value.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../../src/app/reachability.js'
-import {
-  PaneContext,
-  makeGrabStore,
-  makePendingAttachmentQueue,
-  type PaneContextValue,
-} from '../../src/app/pane-context.js'
+import type {AnyExtension} from '@conciv/extension'
+import type {Grab, GrabProvider} from '@conciv/grab'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../../src/app/pane-context.js'
+import {createInstances} from '../../src/extension/create-instances.js'
+import {makeGrabStaging} from '../../src/pane/grab-staging.js'
 import {type AppData} from '../../src/data/app-data.js'
 import {NoticeContextProvider, NoticeSurface} from '../../src/shell/notice-context.js'
 
-export type PaneMountOptions = {base: string; sessionId: string}
+export type PaneMountOptions = {
+  base: string
+  sessionId: string
+  grabProvider?: GrabProvider
+  extensions?: AnyExtension[]
+  ground?: (grab: Grab) => Promise<Grab | null>
+}
 
 export type PaneMount = {
   dispose: () => void
@@ -38,10 +43,12 @@ function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
 export function mountPane(options: PaneMountOptions, view: (pane: PaneContextValue) => JSX.Element): PaneMount {
   window.__CONCIV_API_BASE__ = options.base
   browserRpcConnection(options.base, 'fetch')
+  const instances = createInstances(options.extensions ?? [])
   const [announced, setAnnounced] = createSignal<string[]>([])
   const app = makeAppContextValue({
     base: options.base,
     announce: (message) => setAnnounced((entries) => [...entries, message]),
+    instances,
   })
   const {rpc, data, queryClient} = app
   const pane: PaneContextValue = {
@@ -51,8 +58,8 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     setLockedFor: () => () => {},
     slideClass: () => '',
     resetSlide: () => {},
-    grabStore: makeGrabStore(),
-    grabProvider: undefined,
+    grabStaging: makeGrabStaging({ground: options.ground ?? (async () => null)}),
+    grabProvider: options.grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => {},
   }
@@ -82,6 +89,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   return {
     dispose: () => {
       mounted.unmount()
+      for (const instance of instances) instance.dispose()
       reachabilityRoot.dispose()
       closeBrowserRpcConnection(options.base)
       delete window.__CONCIV_API_BASE__

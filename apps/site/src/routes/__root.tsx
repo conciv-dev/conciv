@@ -4,11 +4,10 @@ import appCss from '@/styles/app.css?url'
 import {RootProvider} from 'fumadocs-ui/provider/tanstack'
 import {LiveWidgetMount} from '@/components/live-widget-mount'
 import {rootSearchSchema} from '@/lib/search-schemas'
+import {canonicalHeadTags, DEFAULT_DESCRIPTION, DEFAULT_TITLE, SITE} from '@/lib/site-urls'
+import {seo} from '@/lib/seo'
+import {buildRootJsonLd} from '@/lib/structured-data'
 
-const SITE = 'https://conciv.dev'
-const TITLE = 'conciv: Conceive it. An AI dev agent inside your running app'
-const DESCRIPTION =
-  'conciv is a dev-only AI agent embedded in your running app. Grab any element, chat, and let it drive the page and run your tests, without leaving what you are building.'
 const OG_IMAGE = `${SITE}/og.png`
 
 export const Route = createRootRoute({
@@ -17,36 +16,29 @@ export const Route = createRootRoute({
   beforeLoad: ({matches}) => ({
     widgetHomeDefault: matches.some((match) => match.routeId === '/'),
   }),
-  head: () => ({
-    meta: [
-      {charSet: 'utf-8'},
-      {name: 'viewport', content: 'width=device-width, initial-scale=1'},
-      {title: TITLE},
-      {name: 'description', content: DESCRIPTION},
-      {name: 'theme-color', content: '#e0432a'},
+  head: ({matches}) => {
+    const canonical = canonicalHeadTags(matches)
 
-      {property: 'og:type', content: 'website'},
-      {property: 'og:site_name', content: 'conciv'},
-      {property: 'og:title', content: TITLE},
-      {property: 'og:description', content: DESCRIPTION},
-      {property: 'og:url', content: SITE},
-      {property: 'og:image', content: OG_IMAGE},
-      {property: 'og:image:width', content: '1200'},
-      {property: 'og:image:height', content: '630'},
-      {property: 'og:locale', content: 'en_US'},
-
-      {name: 'twitter:card', content: 'summary_large_image'},
-      {name: 'twitter:title', content: TITLE},
-      {name: 'twitter:description', content: DESCRIPTION},
-      {name: 'twitter:image', content: OG_IMAGE},
-    ],
-    links: [
-      {rel: 'stylesheet', href: appCss},
-      {rel: 'canonical', href: `${SITE}/`},
-      {rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml'},
-      {rel: 'apple-touch-icon', href: '/favicon.svg'},
-    ],
-  }),
+    return {
+      meta: [
+        {charSet: 'utf-8'},
+        {name: 'viewport', content: 'width=device-width, initial-scale=1'},
+        {name: 'theme-color', content: '#e0432a'},
+        ...seo({title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, image: OG_IMAGE}),
+        {property: 'og:image:width', content: '1200'},
+        {property: 'og:image:height', content: '630'},
+        {property: 'og:locale', content: 'en_US'},
+        ...canonical.meta,
+      ],
+      links: [
+        {rel: 'stylesheet', href: appCss},
+        {rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml'},
+        {rel: 'apple-touch-icon', href: '/favicon.svg'},
+        ...canonical.links,
+      ],
+      scripts: [{type: 'application/ld+json', children: JSON.stringify(buildRootJsonLd())}],
+    }
+  },
   component: RootComponent,
 })
 

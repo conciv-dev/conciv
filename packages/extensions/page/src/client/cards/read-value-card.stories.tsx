@@ -4,7 +4,7 @@ import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {ReadValueCard} from './read-value-card.js'
 import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
 
-const meta: Meta = {title: 'extension-page/client/cards/ReadValueCard'}
+const meta: Meta = {title: 'Extensions/Page/tool/ReadValueCard'}
 export default meta
 type Story = StoryObj
 

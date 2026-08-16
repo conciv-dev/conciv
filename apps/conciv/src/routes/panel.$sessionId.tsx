@@ -8,7 +8,9 @@ import {For, Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useDisconnect, useGrabProvider, useInstances, useRpc} from '../app/context.js'
-import {PaneContext, makeGrabStore, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
+import {makeGrabStaging} from '../pane/grab-staging.js'
+import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextTracker} from '../pane/context-tracker.js'
@@ -83,7 +85,9 @@ function PanelSession(): JSX.Element {
     announce('Started a new session')
   }
 
-  const grabStore = makeGrabStore()
+  const grabStaging = makeGrabStaging({
+    ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),
+  })
 
   useBlocker({
     shouldBlockFn: ({current, next}) =>
@@ -97,7 +101,7 @@ function PanelSession(): JSX.Element {
     setLockedFor,
     slideClass,
     resetSlide: () => setSlideDir(null),
-    grabStore,
+    grabStaging,
     grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => void newSession(),

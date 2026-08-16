@@ -14,6 +14,9 @@
   "observability": {
     "enabled": true,
   },
+  "assets": {
+    "binding": "ASSETS",
+  },
   "env": {
     "preview": {
       "name": "conciv-site-preview",

@@ -1,11 +1,20 @@
 import './helpers/utilities.css'
 import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
+import pageExtension from '@conciv/extension-page/client'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession, seedDraft} from './helpers/core-session.js'
+import {persistedGrab, tallGrab} from './helpers/grab-fixtures.js'
 import {createShellHarness} from './helpers/shell-harness.js'
 
-const STAGED = ['the grabbed hero section', 'the grabbed price row', 'the grabbed footer', 'the grabbed nav']
+const STAGED = [
+  persistedGrab('grab-1', tallGrab('Hero', 900)),
+  persistedGrab('grab-2', tallGrab('Pricing', 900)),
+  persistedGrab('grab-3', tallGrab('Footer', 900)),
+  persistedGrab('grab-4', tallGrab('Nav', 900)),
+]
+
+const FULLY_IN_VIEWPORT = {ratio: 0.99}
 
 const core = {base: ''}
 const harness = createShellHarness(() => core.base)
@@ -24,8 +33,8 @@ afterEach(harness.dispose)
 async function openPanel(): Promise<void> {
   const rpc = coreRpc(core.base)
   const sessionId = await createSession(rpc)
-  await seedDraft(rpc, sessionId, {grabs: STAGED})
-  harness.mountShell(`/panel/${sessionId}?open=true`)
+  await seedDraft(rpc, sessionId, {attachments: STAGED})
+  harness.mountShell(`/panel/${sessionId}?open=true`, [pageExtension])
 }
 
 const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -34,7 +43,8 @@ test('the composer stays reachable when the viewport clamps the panel below its 
   await page.viewport(1000, 400)
   await openPanel()
 
-  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
+  await expect.element(page.getByText('Hero at src/routes/Hero.tsx:1')).toBeVisible()
+  await expect.element(input()).toBeInViewport(FULLY_IN_VIEWPORT)
 
   await input().click()
   await input().fill('still typeable at the smallest panel')
@@ -43,31 +53,13 @@ test('the composer stays reachable when the viewport clamps the panel below its 
   await expect.element(page.getByText('still typeable at the smallest panel')).toBeVisible()
 }, 30_000)
 
-test('the grabs strip resizes through the shared separator handle', async () => {
+test('staged grab cards never push the composer out of the viewport as they pile up', async () => {
   await page.viewport(1000, 900)
   await openPanel()
 
-  const handle = page.getByRole('separator', {name: 'Resize grabs height'})
-  await expect.element(handle).toBeVisible()
-  await expect.element(handle).toHaveAttribute('aria-valuenow', '288')
-  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
-  await expect.element(page.getByText('the grabbed nav')).toBeVisible()
-}, 30_000)
+  await expect.element(page.getByText('Hero at src/routes/Hero.tsx:1')).toBeVisible()
+  await expect.element(page.getByText('Nav at src/routes/Nav.tsx:1')).toBeVisible()
 
-test('the staged grabs come back into the flow once the panel has room again', async () => {
-  await page.viewport(1000, 400)
-  await openPanel()
-
-  await expect.element(input()).toBeVisible()
-
-  await page.viewport(1000, 900)
-
-  await expect.element(page.getByText('the grabbed hero section')).toBeVisible()
-  await expect.element(page.getByText('the grabbed nav')).toBeVisible()
-  await page.getByRole('button', {name: 'Remove grabbed element'}).last().click()
-  await expect.element(page.getByText('the grabbed nav')).not.toBeInTheDocument()
-  await input().click()
-  await input().fill('room to breathe')
-  await page.getByRole('button', {name: 'Send message'}).click()
-  await expect.element(page.getByText('room to breathe')).toBeVisible()
+  await expect.element(input()).toBeInViewport(FULLY_IN_VIEWPORT)
+  await expect.element(page.getByRole('button', {name: 'Send message'})).toBeInViewport(FULLY_IN_VIEWPORT)
 }, 30_000)

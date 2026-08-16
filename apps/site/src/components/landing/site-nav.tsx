@@ -2,6 +2,7 @@ import {Link} from '@tanstack/react-router'
 import {SparkMark} from './spark-mark'
 import {ThemeToggle} from './theme-toggle'
 import {useSmoothAnchor} from './smooth-scroll'
+import {GitHubStarLink} from './github-star-link'
 
 export function SiteNav() {
   const smoothAnchor = useSmoothAnchor()
@@ -25,12 +26,7 @@ export function SiteNav() {
       >
         Docs
       </Link>
-      <a
-        href="https://github.com/conciv-dev/conciv"
-        className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        GitHub
-      </a>
+      <GitHubStarLink />
       <ThemeToggle />
     </nav>
   )

@@ -28,9 +28,11 @@ function toElementSource(parts: SourceParts): ElementSource {
 function toGrab(element: Element): Grab {
   const box = element.getBoundingClientRect()
   const parts = sourceOf(element)
+  const clone = element.cloneNode(true)
+  const html = clone instanceof Element ? clone.outerHTML : ''
   return {
     text: element.textContent ?? '',
-    preview: {kind: 'dom', node: element.cloneNode(true) as HTMLElement, width: box.width, height: box.height},
+    preview: {kind: 'dom', html, width: box.width, height: box.height},
     source: parts ? toElementSource(parts) : null,
     rect: {x: box.x, y: box.y, width: box.width, height: box.height},
   }
