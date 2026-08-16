@@ -4,7 +4,7 @@ import type {HeroShaderVariant} from './hero-shader-sources'
 
 const HeroShader = lazy(() => import('./hero-shader').then((module) => ({default: module.HeroShader})))
 
-const HERO_SHADER_VARIANT: HeroShaderVariant = 'julia'
+const HERO_SHADER_VARIANT: HeroShaderVariant = 'morph'
 
 export function HeroBackdrop() {
   return (

@@ -1,8 +1,8 @@
 import {useCallback} from 'react'
 import {HERO_SHADER_FRAGMENTS, HERO_SHADER_VERTEX, type HeroShaderVariant} from './hero-shader-sources'
 
-const MAX_PIXEL_RATIO = 1
-const FRAME_INTERVAL_MS = 1000 / 24
+const MAX_PIXEL_RATIO = 2
+const FRAME_INTERVAL_MS = 1000 / 12
 
 type Rgb = [number, number, number]
 
@@ -80,7 +80,7 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
 
   const quad = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, quad)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
   gl.useProgram(program)
   const positionLocation = gl.getAttribLocation(program, 'a_position')
   gl.enableVertexAttribArray(positionLocation)
@@ -92,7 +92,8 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
   gl.clearColor(0, 0, 0, 0)
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
-  const startedAt = performance.now()
+  let startedAt = performance.now()
+  let pausedAt = 0
   let lastFrameAt = 0
   let frameHandle = 0
   let animatedFrames = 0
@@ -100,21 +101,32 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
   let color = readCurrentColor(canvas)
   let alpha = readLineAlpha(canvas)
 
+  const shouldAnimate = () => inView && document.visibilityState === 'visible' && !reducedMotion.matches
+
+  const syncClock = (now: number) => {
+    if (!shouldAnimate()) {
+      if (pausedAt === 0) pausedAt = now
+      return
+    }
+    if (pausedAt === 0) return
+    startedAt += now - pausedAt
+    pausedAt = 0
+  }
+
   const draw = (now: number) => {
     gl.viewport(0, 0, canvas.width, canvas.height)
+    gl.uniform2f(resolutionLocation, canvas.width, canvas.height)
     gl.clear(gl.COLOR_BUFFER_BIT)
     gl.uniform1f(timeLocation, reducedMotion.matches ? 0 : (now - startedAt) / 1000)
-    gl.uniform2f(resolutionLocation, canvas.width, canvas.height)
     gl.uniform3f(colorLocation, color[0], color[1], color[2])
     gl.uniform1f(alphaLocation, alpha)
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
     canvas.dataset.ready = ''
   }
 
-  const shouldAnimate = () => inView && document.visibilityState === 'visible' && !reducedMotion.matches
-
   const frame = (now: number) => {
     frameHandle = 0
+    syncClock(now)
     if (!shouldAnimate()) return
     if (now - lastFrameAt >= FRAME_INTERVAL_MS) {
       lastFrameAt = now
@@ -126,6 +138,7 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
   }
 
   const schedule = () => {
+    syncClock(performance.now())
     if (frameHandle === 0 && shouldAnimate()) frameHandle = requestAnimationFrame(frame)
   }
 
@@ -133,8 +146,12 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
     const parent = canvas.parentElement
     if (!parent) return
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO)
-    canvas.width = Math.round(parent.clientWidth * ratio)
-    canvas.height = Math.round(parent.clientHeight * ratio)
+    const width = Math.round(parent.clientWidth * ratio)
+    const height = Math.round(parent.clientHeight * ratio)
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width
+      canvas.height = height
+    }
     draw(performance.now())
     schedule()
   }
