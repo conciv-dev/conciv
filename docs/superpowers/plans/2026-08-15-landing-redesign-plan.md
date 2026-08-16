@@ -45,21 +45,25 @@ annotated product stories plus an evidence strip. The mock is `scratchpad/capabi
 the owner has it; the shipped grid stays 2 / 3 / 1 until he calls it.
 
 ## Task 0 — Environment (done)
+
 - `pnpm install --frozen-lockfile` in the worktree. Do NOT run a separate build gate; `turbo run test` builds. For the dev server: `pnpm --filter=site dev` serves `http://localhost:3001` (from `apps/site/package.json`); if the port is taken use `--port <free>` and note it. Site tests: unit = `pnpm exec turbo run test --filter=site`; browser ITs = `pnpm exec turbo run test:e2e --filter=site --concurrency=1` (the fixture `test/site-fixture.ts` starts Wrangler over the built site).
 - Read AGENTS.md, the spec, `apps/site/src/styles/app.css`, `apps/site/src/components/landing/*`, `apps/site/src/lib/use-media-query.ts`, `use-is-mobile.ts`, `apps/site/test/*`, `apps/site/vitest*.config.ts`, `apps/site/vite.config.ts`.
 
 ## Task 1 — Type + tokens (done)
+
 - `pnpm --filter=site add @fontsource-variable/newsreader @fontsource-variable/jetbrains-mono`; import both in `app.css`; delete the Google Fonts `@import`, the Bricolage `@import`, `public/fonts/BricolageGrotesque-*.ttf`, `public/fonts/LICENSE-Bricolage-Grotesque.txt`; grep the whole `apps/site` for `Bricolage` and fix every reference.
 - `--od-display: 'Newsreader Variable', serif`; `--od-mono: 'JetBrains Mono Variable', ui-monospace, monospace`. Add the classes the design needs (`.od-h1`, `.od-h2`, `.od-eyebrow`, container column rules, `.od-screenshot` dark-mode keyline/matte) in `app.css`, following how the file already defines utilities. Remove the gradient surface at `app.css` ~123-130 if it exists only for the old landing (grep users first).
 - Commit `feat(site): serif display + self-hosted mono, drop Bricolage`.
 
 ## Task 2 — Reveal + hydration-safe media query (done; the `Reveal` primitive was removed again in `39ef9c4a`, since SSR shipped it as `opacity: 0`)
+
 - `reveal.tsx`: `m.div` `whileInView` fade-up 12px/400ms/ease-out `once`; `useReducedMotion` → static. Uses `LandingMotion` from `lazy-motion.tsx`.
 - Extend `use-media-query.ts` / `use-is-mobile.ts` to a tri-state (`undefined` until the client knows, then boolean) without breaking existing callers (docs pages may use it — grep). Server snapshot must be `undefined`.
 - `landing-page.tsx` stays wired to the OLD sections for now (typecheck must stay green); only add the container with column rules and drop `SmoothScroll`/`ClickSpark` wrappers.
 - Commit `feat(site): reveal primitive, tri-state media query, landing container rules`.
 
 ## Task 3 — Hero: `install-command.tsx`, `hero.tsx` (HeroCopy), `product-frame.tsx` (done)
+
 - `install-command.tsx` per spec §1. Tabs: use `radix-ui` `Tabs` primitives directly (as `framework-tabs.tsx` already does) — no shadcn generator, no network. SSR npm; `useEffect` reads `localStorage['conciv.pm']`; copy `await navigator.clipboard.writeText` in try/catch; `aria-live="polite"` region; `compact` prop (mobile: no tabs, command + copy button stay).
 - `copy-button.tsx`: fix to await + catch + live region (it is also used by `framework-tabs.tsx`); or replace both usages with one implementation — one good way, not two.
 - `hero.tsx` → HeroCopy: eyebrow, `export const HERO_HEADLINE`, h1, sub, action row (`InstallCommand`, `TryLiveButton`), mobile gating per spec using the tri-state hook.
@@ -70,19 +74,22 @@ the owner has it; the shipped grid stays 2 / 3 / 1 until he calls it.
 - **Orchestrator review checkpoint 1.**
 
 ## Task 4 — Principles strip + Capability section (done)
+
 - `principles-strip.tsx` per spec §2 (copy verbatim).
 - `capability-section.tsx` per spec §3: `import screenshots from '../../../public/screenshots/index.json'` (resolveJsonModule is on) — figures take `width/height/alt` from it; captions from the spec table (edit-live caption = "Try it live first" as in spec v3). Rows A/B/C responsive classes; `.od-screenshot`.
 - Wire into `landing-page.tsx`, drop `FeaturesSection`; then `pnpm exec fallow dead-code --trace apps/site/src/components/landing/features-section.tsx:FeaturesSection` and, for each `ui/*-icon.tsx` it used, `--trace <file>:default`; delete only what traces dead.
 - Commit `feat(site): principles strip and image-led capability section`.
 
 ## Task 5 — How it works + Open source ledger + nav/footer (done)
-- `how-it-works.tsx` per spec §4. `framework-tabs.tsx`: strip the animated pill, the magic-move transition, and the gradient edge fades (spec motion rule) — tab switch is instant; snippet data untouched; keep `soon`/alpha labels. Step 3 mono block + `fab-closed.webp` figure; hotkey copy per spec (product default `Mod+\``; the site's own `Alt+k` override in `vite.config.ts` is irrelevant to the copy).
+
+- `how-it-works.tsx` per spec §4. `framework-tabs.tsx`: strip the animated pill, the magic-move transition, and the gradient edge fades (spec motion rule) — tab switch is instant; snippet data untouched; keep `soon`/alpha labels. Step 3 mono block + `fab-closed.webp` figure; hotkey copy per spec (product default `Mod+\``; the site's own `Alt+k`override in`vite.config.ts` is irrelevant to the copy).
 - Wire in; then trace + delete `bundler-band.tsx` and `LogoLoop.tsx`.
 - `github-star-link.tsx`: export a `StarCount` (count-only presentation) or `useStarCount`; `open-source-strip.tsx` per spec §5 uses it.
 - `site-nav.tsx`, `site-footer.tsx`: hairline rules, mono labels; remove the footer's animated iframe/gradient surface (spec: footer static, no gradients) — check what that iframe is for first and report if it is product-relevant.
 - Commit `feat(site): how-it-works as numbered doc, open-source ledger, static nav/footer`.
 
 ## Task 6 — Delete the rest, deps, asset cleanup (done)
+
 - Trace (`fallow dead-code --trace <file>:<export>`) then delete: `ClickSpark.tsx`, `SplitText.tsx`, `VariableProximity.tsx`, `Magnet.tsx`, `AnimatedContent.tsx`, `smooth-scroll.tsx`, `install-chip.tsx`, `robot-fab.tsx` (if unused).
 - `pnpm exec fallow dead-code --trace-dependency lenis` → if unused, remove from `apps/site/package.json` and `pnpm install` (lockfile updates). Keep `gsap`, `@gsap/react`.
 - Legacy PNGs in `public/screenshots/`: grep each filename across `apps/site` and `content/`; delete only unreferenced ones; list kept/deleted in the report.
@@ -91,11 +98,13 @@ the owner has it; the shipped grid stays 2 / 3 / 1 until he calls it.
 - **Orchestrator review checkpoint 2.**
 
 ## Task 7 — Visual evidence + `hero-demo.webp` (in progress, agent 3)
+
 - Dev server up; Playwright with your OWN Chromium (never the user's browser; never `networkidle`): capture the ProductFrame element at 1440 CSS px, DPR 2, demo settled (wait on a UI signal) → `public/screenshots/hero-demo.webp` 1440×900 q82; add its `index.json` entry (source: "site demo capture", crop null).
 - Full-page captures 1440×900 and 390×844, light + dark, reduced-motion off, DPR 2, zero console/page errors → scratchpad `landing-evidence/`; list paths in the report.
 - Commit `feat(site): mobile hero screenshot`.
 
 ## Task 8 — Tests (in progress, agent 3)
+
 - `test/mobile-gating.it.test.ts`: new contract (tabs + Try live absent; command + copy button present; `hero-demo.webp` `img` rendered; demo chunk / `model.worker` never requested — assert via `page.on('request')` collected list) and `browser.newPage()` instead of `newContext()`.
 - `test/landing-install-command.it.test.ts`: `page.context().grantPermissions(['clipboard-read','clipboard-write'])`; tab switch updates command; arrow keys move tabs; copy → clipboard has command + live region "Copied"; persists across reload (assert settled value); failure path (override `navigator.clipboard.writeText` to reject via `page.addInitScript`) shows failure text.
 - `test/landing-sections.it.test.ts`: h1 = `HERO_HEADLINE`; 6 capability figures with non-empty alt and intrinsic width/height; three how-it-works numerals; ledger renders the star count; zero page errors.
@@ -103,10 +112,12 @@ the owner has it; the shipped grid stays 2 / 3 / 1 until he calls it.
 - Commit `test(site): landing ITs — install command, sections, mobile gating`.
 
 ## Task 9 — Gates + `21st review` + PR (in progress, agent 3)
+
 - Run every gate in spec "Gates before PR"; paste last lines of each output in the report. `21st review apps/site/src/components/landing`: apply only safe fixes, list the rest.
 - `pnpm exec conciv-publish check-changesets --require-coverage --base origin/main` — report the outcome (expected: not required; site is private).
 - Push; open PR `feat(site): landing redesign — Zed-structured, product-led` with summary, spec + plan links, before/after (before = `scratchpad/landing-full.png` provided by the orchestrator), test list, gate outputs, follow-ups (Rollup/esbuild snippets, light captures).
 - **Orchestrator review checkpoint 3**, then hand to Omri.
 
 ## Rules the implementer must not break
+
 Functions not classes; zero comments; no `any`/`as`/non-null; es-toolkit for collection transforms; kebab-case files; `useEffect` only for the two hydration reads (localStorage pm; media query subscription); no new deps beyond the two fonts; no `git stash`; commit with pathspec; absolute paths; never run npm-builtin-named scripts bare (`pnpm run <script>`); never open the user's browser; kill only own dev server by LISTEN pid; fallow gate before every commit.

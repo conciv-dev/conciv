@@ -11,7 +11,7 @@ const DEV_COMMAND = 'pnpm dev'
 function StepRow({number, title, body, children}: {number: string; title: string; body: string; children: ReactNode}) {
   return (
     <li className="od-inset grid grid-cols-1 gap-4 border-t py-12 md:grid-cols-[96px_minmax(0,1fr)] md:gap-8">
-      <span className="od-mono text-[26px] leading-8 tabular-nums text-primary">{number}</span>
+      <span className="od-h2 tabular-nums text-primary">{number}</span>
       <div className="min-w-0">
         <h3 className="od-h3">{title}</h3>
         <p className="od-body mt-2 max-w-[512px] text-muted-foreground">{body}</p>

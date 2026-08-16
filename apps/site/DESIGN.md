@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: conciv.dev
-description: Design language for the conciv marketing site — a ruled, paper-and-ink developer-tool page where product screenshots carry the argument.
+description: Design language for the conciv marketing site: a ruled, paper-and-ink developer-tool page where product screenshots carry the argument.
 colors:
   paper: oklch(0.985 0.006 75)
   ink: oklch(0.23 0.012 65)
@@ -23,7 +23,7 @@ typography:
   h1:
     fontFamily: Newsreader Variable
     fontSize: clamp(34px, 3.4vw, 48px)
-    lineHeight: 1.16
+    lineHeight: 1.2
     fontWeight: 400
     fontStyle: italic
     letterSpacing: -0.02em
@@ -86,18 +86,18 @@ the background inside a 1px `line` border; in dark mode they take a 1px `line` k
 
 ## Themes
 
-| Token       | Light                      | Dark                      |
-| ----------- | -------------------------- | ------------------------- |
-| paper       | oklch(0.985 0.006 75)      | oklch(0.19 0.008 65)      |
-| ink         | oklch(0.23 0.012 65)       | oklch(0.94 0.006 75)      |
-| muted       | oklch(0.52 0.014 65)       | oklch(0.68 0.012 70)      |
-| line        | oklch(0.9 0.008 75)        | oklch(0.31 0.01 65)       |
-| panel       | oklch(0.995 0.004 75)      | oklch(0.23 0.009 65)      |
-| accent      | oklch(0.58 0.207 27)       | oklch(0.7 0.19 32)        |
-| accent-soft | oklch(0.58 0.207 27 / 0.12)| oklch(0.7 0.19 32 / 0.16) |
-| accent-ink  | oklch(0.99 0 0)            | var(--od-paper)           |
-| star        | oklch(0.78 0.16 85)        | oklch(0.84 0.15 88)       |
-| pass        | oklch(0.62 0.16 150)       | oklch(0.74 0.16 152)      |
+| Token       | Light                       | Dark                      |
+| ----------- | --------------------------- | ------------------------- |
+| paper       | oklch(0.985 0.006 75)       | oklch(0.19 0.008 65)      |
+| ink         | oklch(0.23 0.012 65)        | oklch(0.94 0.006 75)      |
+| muted       | oklch(0.52 0.014 65)        | oklch(0.68 0.012 70)      |
+| line        | oklch(0.9 0.008 75)         | oklch(0.31 0.01 65)       |
+| panel       | oklch(0.995 0.004 75)       | oklch(0.23 0.009 65)      |
+| accent      | oklch(0.58 0.207 27)        | oklch(0.7 0.19 32)        |
+| accent-soft | oklch(0.58 0.207 27 / 0.12) | oklch(0.7 0.19 32 / 0.16) |
+| accent-ink  | oklch(0.99 0 0)             | var(--od-paper)           |
+| star        | oklch(0.78 0.16 85)         | oklch(0.84 0.15 88)       |
+| pass        | oklch(0.62 0.16 150)        | oklch(0.74 0.16 152)      |
 
 The light accent sits at lightness 0.58 rather than 0.60. At 0.60 white text on an accent fill
 measures 4.25:1 and fails AA; 0.58 is the highest lightness that clears 4.5:1 on all three of the
@@ -110,16 +110,16 @@ Every accent fill takes `accent-ink` as its text colour, never a literal white a
 with `primary` gets the right foreground without a local override. Measured with the sRGB relative
 luminance formula against the OKLCH token values (`scratchpad/contrast.mjs`), 2026-08-16:
 
-| Pair                                  | Ratio | Needs | Verdict |
-| ------------------------------------- | ----- | ----- | ------- |
-| accent-ink on accent, light           | 4.62  | 4.5   | pass    |
-| accent text on paper, light           | 4.55  | 4.5   | pass    |
-| accent text on panel, light           | 4.68  | 4.5   | pass    |
-| accent-ink (paper) on accent, dark    | 6.38  | 4.5   | pass    |
-| accent text on paper, dark            | 6.38  | 4.5   | pass    |
-| accent text on panel, dark            | 5.84  | 4.5   | pass    |
-| muted on paper, light / dark          | 5.29 / 6.40 | 4.5 | pass  |
-| ink on paper, light / dark            | 16.19 / 15.49 | 4.5 | pass |
+| Pair                               | Ratio         | Needs | Verdict |
+| ---------------------------------- | ------------- | ----- | ------- |
+| accent-ink on accent, light        | 4.62          | 4.5   | pass    |
+| accent text on paper, light        | 4.55          | 4.5   | pass    |
+| accent text on panel, light        | 4.68          | 4.5   | pass    |
+| accent-ink (paper) on accent, dark | 6.38          | 4.5   | pass    |
+| accent text on paper, dark         | 6.38          | 4.5   | pass    |
+| accent text on panel, dark         | 5.84          | 4.5   | pass    |
+| muted on paper, light / dark       | 5.29 / 6.40   | 4.5   | pass    |
+| ink on paper, light / dark         | 16.19 / 15.49 | 4.5   | pass    |
 
 Do not raise the light accent back to 0.60 without re-running the measurement: the first three rows
 all drop below 4.5 together.
@@ -182,14 +182,14 @@ get a 44px target without any control growing on a mouse.
 
 ## Typography
 
-Six sizes carry the page — 13 (caption, mono, eyebrow), 14 (nav links, buttons, tabs), 16 (body,
+Six sizes carry the page: 13 (caption, mono, eyebrow), 14 (nav links, buttons, tabs), 16 (body,
 hero sub), 17 (h3, serif), 26 (h2, serif), 48 (h1, serif italic). Add a seventh only by changing
 this document. `display` is italic at `h1` and upright at `h2`/`h3`. Serif appears in exactly four
 places and nowhere else: `h1`, `h2`, `h3`, and the how-it-works step numerals (a plain
 `span` set at `h2` size, since the step's title carries the heading). `h3` stays serif at 17px even though a review flagged it as diluting the
 display register: zed.dev's own feature-tile `h3` is serif at 16.8px, and that is the register we are
 translating. `mono` is for commands, code,
-eyebrows, ledger values, and step numerals — never for body prose. Headings use `text-wrap: balance`,
+eyebrows and ledger values, never for body prose. Headings use `text-wrap: balance`,
 paragraphs `text-wrap: pretty`. Numbers are `tabular-nums`.
 
 ## Brand
