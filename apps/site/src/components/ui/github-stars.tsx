@@ -58,18 +58,21 @@ const PLUS_ONE_MOTION =
 
 function StarCount({
   starCount,
+  pending,
   displayCount,
   formatCount,
   className,
 }: {
   starCount: number | null
+  pending: boolean
   displayCount: number
   formatCount: (count: number) => string
   className?: string
 }) {
   return (
     <span className={cn('relative inline-flex min-w-[2.5ch] justify-end tabular-nums', className)}>
-      {starCount === null ? <CountSkeleton /> : <span aria-hidden>{formatCount(displayCount)}</span>}
+      {pending && <CountSkeleton />}
+      {starCount !== null && <span aria-hidden>{formatCount(displayCount)}</span>}
       {starCount !== null && <span className="sr-only">{starCount} stars on GitHub</span>}
       <span aria-hidden className={PLUS_ONE_MOTION}>
         +1
@@ -80,12 +83,14 @@ function StarCount({
 
 export function GitHubStars({
   starCount,
+  pending = false,
   formatCount,
   hovered = false,
   className,
   countClassName,
 }: {
   starCount: number | null
+  pending?: boolean
   formatCount: (count: number) => string
   hovered?: boolean
   className?: string
@@ -99,6 +104,7 @@ export function GitHubStars({
       <StarIcon />
       <StarCount
         starCount={starCount}
+        pending={pending}
         displayCount={displayCount}
         formatCount={formatCount}
         className={countClassName}

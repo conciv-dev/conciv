@@ -8,7 +8,7 @@ import {useStarCount} from '@/lib/use-star-count'
 import {cn} from '@/lib/utils'
 
 export function GitHubStarsButton({className}: {className?: string}) {
-  const stars = useStarCount()
+  const {stars, settled} = useStarCount()
   const [hovered, setHovered] = useState(false)
   return (
     <Button asChild variant="outline" className={cn('od-ui gap-2', className)}>
@@ -25,6 +25,7 @@ export function GitHubStarsButton({className}: {className?: string}) {
         GitHub
         <GitHubStars
           starCount={stars}
+          pending={!settled}
           formatCount={formatStarCount}
           hovered={hovered}
           className="text-muted-foreground"

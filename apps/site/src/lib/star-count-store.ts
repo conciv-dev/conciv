@@ -1,6 +1,9 @@
 import {starsResponseSchema} from './star-count'
 
-let stars: number | null = null
+export type StarCountState = {stars: number | null; settled: boolean}
+
+const PENDING: StarCountState = {stars: null, settled: false}
+let state: StarCountState = PENDING
 let started = false
 const listeners = new Set<() => void>()
 
@@ -16,9 +19,9 @@ async function parseStarsResponse(response: Response): Promise<number | null> {
 
 async function loadStarCount(): Promise<void> {
   try {
-    stars = await parseStarsResponse(await fetch('/api/stars'))
+    state = {stars: await parseStarsResponse(await fetch('/api/stars')), settled: true}
   } catch {
-    stars = null
+    state = {stars: null, settled: true}
   }
   notify()
 }
@@ -32,10 +35,10 @@ export function subscribeStarCount(onChange: () => void): () => void {
   return () => listeners.delete(onChange)
 }
 
-export function getStarCountSnapshot(): number | null {
-  return stars
+export function getStarCountSnapshot(): StarCountState {
+  return state
 }
 
-export function getServerStarCountSnapshot(): number | null {
-  return null
+export function getServerStarCountSnapshot(): StarCountState {
+  return PENDING
 }

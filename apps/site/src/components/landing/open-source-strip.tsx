@@ -8,7 +8,7 @@ import {formatStarCount} from '@/lib/star-count'
 import {useStarCount} from '@/lib/use-star-count'
 
 export function OpenSourceStrip() {
-  const stars = useStarCount()
+  const {stars, settled} = useStarCount()
 
   return (
     <section className="od-ruled">
@@ -37,7 +37,8 @@ export function OpenSourceStrip() {
                   <TableCell className="px-0 text-muted-foreground">stars</TableCell>
                   <TableCell className="px-0 text-right tabular-nums">
                     <span className="inline-block min-w-[3ch]">
-                      {stars === null ? <CountSkeleton /> : formatStarCount(stars)}
+                      {!settled && <CountSkeleton />}
+                      {stars !== null && formatStarCount(stars)}
                     </span>
                   </TableCell>
                 </TableRow>

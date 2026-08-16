@@ -1,6 +1,11 @@
 import {useSyncExternalStore} from 'react'
-import {getServerStarCountSnapshot, getStarCountSnapshot, subscribeStarCount} from './star-count-store'
+import {
+  getServerStarCountSnapshot,
+  getStarCountSnapshot,
+  subscribeStarCount,
+  type StarCountState,
+} from './star-count-store'
 
-export function useStarCount(): number | null {
+export function useStarCount(): StarCountState {
   return useSyncExternalStore(subscribeStarCount, getStarCountSnapshot, getServerStarCountSnapshot)
 }
