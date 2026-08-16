@@ -1,8 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": ".react.tsbuildinfo",
     "rootDir": ".",
     "noEmit": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable"],

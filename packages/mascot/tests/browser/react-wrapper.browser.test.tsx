@@ -185,10 +185,10 @@ it('swaps a keyed part child without ever double-claiming its slot', () => {
   expect(leanWrappersIn(mounted.container)).toHaveLength(1)
 })
 
-it('swaps a part child rendered through a conditional without ever double-claiming its slot', () => {
-  const eyesFor = (which: string) => (
-    <Mascot>{which === 'first' ? <Mascot.Eyes id="first-eyes" /> : <Mascot.Eyes id="second-eyes" />}</Mascot>
-  )
+it('swaps a part child between two components without ever double-claiming its slot', () => {
+  const FirstEyes = () => <Mascot.Eyes id="first-eyes" />
+  const SecondEyes = () => <Mascot.Eyes id="second-eyes" />
+  const eyesFor = (which: string) => <Mascot>{which === 'first' ? <FirstEyes /> : <SecondEyes />}</Mascot>
   const mounted = renderMascot(eyesFor('first'))
   expect(partsIn(mounted.container, 'eyes').map((eyes) => eyes.id)).toEqual(['first-eyes'])
   mounted.update(eyesFor('second'))
