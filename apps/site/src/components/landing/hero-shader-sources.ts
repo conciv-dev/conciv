@@ -56,8 +56,8 @@ void main() {
   }
   float level = log2(smoothIteration + 1.0) * 2.5 - u_time / 45.0;
   float weight = smoothstep(9.0, 22.0, smoothIteration);
-  vec2 headline = (uv - vec2(0.0, 0.06)) / vec2(0.5, 0.3);
-  float quiet = mix(0.3, 1.0, smoothstep(0.7, 1.4, length(headline)));
+  vec2 headline = (uv - vec2(0.0, 0.06)) / vec2(0.62, 0.36);
+  float quiet = mix(0.2, 1.0, smoothstep(0.7, 1.5, length(headline)));
   float coverage = isoline(level) * weight * quiet;
   float alpha = coverage * u_alpha;
   gl_FragColor = vec4(u_color * alpha, alpha);

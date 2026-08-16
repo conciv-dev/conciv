@@ -24,7 +24,7 @@ export function MediaFrame({
   return (
     <>
       <div className={cn('-m-1.5 border border-dashed p-1.5', className)}>
-        <div className="group/media relative overflow-clip rounded-xs border transition-colors duration-100 hover:border-primary/60 focus-within:border-primary/60">
+        <div className="group/media relative overflow-clip rounded-xs border transition-colors duration-[160ms] ease-[var(--od-ease-out)] hover:border-primary/60 focus-within:border-primary/60">
           <button
             type="button"
             onClick={() => setOpen(true)}
@@ -41,7 +41,7 @@ export function MediaFrame({
               className="block w-full"
             />
           </button>
-          <div className="od-caption absolute inset-x-0 bottom-0 z-10 flex translate-y-full items-center border-t border-primary/40 bg-background/95 text-primary transition-transform duration-100 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/media:translate-y-0 group-focus-within/media:translate-y-0 motion-reduce:transition-none">
+          <div className="od-caption absolute inset-x-0 bottom-0 z-10 flex translate-y-full items-center border-t border-primary/40 bg-background/95 text-primary transition-transform duration-[160ms] ease-[var(--od-ease-out)] group-hover/media:translate-y-0 group-focus-within/media:translate-y-0 motion-reduce:transition-none">
             <button
               type="button"
               onClick={() => setOpen(true)}

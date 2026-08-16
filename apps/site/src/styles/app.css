@@ -22,7 +22,6 @@ html > body[data-scroll-locked] {
   --removed-body-scroll-bar-size: 0px !important;
 }
 
-/* --- conciv landing tokens --- */
 :root {
   --od-paper: oklch(0.985 0.006 75);
   --od-ink: oklch(0.23 0.012 65);
@@ -124,7 +123,6 @@ html > body[data-scroll-locked] {
   font-feature-settings: 'liga' 0;
 }
 
-/* type scale: 13 / 14 / 16 / 17 / 26 / 48 (six sizes, measured against zed.dev, mapped to our faces) */
 .od-h1 {
   font-family: var(--od-display);
   font-style: italic;
@@ -162,6 +160,11 @@ html > body[data-scroll-locked] {
   text-wrap: pretty;
 }
 
+.od-lede {
+  max-width: 60ch;
+  text-wrap: balance;
+}
+
 .od-ui {
   font-size: 14px;
   line-height: 20px;
@@ -182,8 +185,6 @@ html > body[data-scroll-locked] {
   color: var(--od-accent);
 }
 
-/* one ruled grid, nav to footer: 1120px column inside 112px gutter columns (zed's device).
-   every band is a full-width .od-ruled block (top rule) wrapping an .od-page (gutter rules) wrapping an .od-col (column rules) */
 .od-page {
   --od-gutter: 0px;
   --od-inset: 16px;
@@ -225,7 +226,6 @@ html > body[data-scroll-locked] {
   }
 }
 
-/* band separator: a full-width rule with 7px rotated node markers where it crosses a vertical rule */
 .od-ruled {
   border-top: 1px solid var(--od-line);
 }
@@ -260,12 +260,13 @@ html > body[data-scroll-locked] {
   }
 }
 
-/* hero backdrop: paper on the server; a client-mounted shader canvas draws hairlines in the accent colour and fades in */
 .od-hero-backdrop {
+  --od-hero-line-alpha: 0.1;
   color: var(--od-accent);
   mix-blend-mode: multiply;
 }
 .dark .od-hero-backdrop {
+  --od-hero-line-alpha: 0.16;
   mix-blend-mode: screen;
 }
 @media (max-width: 767px) {
@@ -274,7 +275,6 @@ html > body[data-scroll-locked] {
   }
 }
 
-/* shiki dual theme + twoslash popups (landing snippets) */
 .od-snippet .shiki,
 .od-snippet .shiki-magic-move-container {
   background-color: transparent !important;
@@ -335,7 +335,6 @@ html > body[data-scroll-locked] {
 .od-grab-pill {
   position: relative;
 }
-/* idle pulse animates opacity only, so it runs on the compositor and throttles offscreen */
 .od-grab-pill::after {
   content: '';
   position: absolute;
@@ -359,7 +358,6 @@ html > body[data-scroll-locked] {
   }
 }
 
-/* the sample app's "Get started" button, shared by the preview + the grabbed-reference render */
 .od-cta,
 .od-grab-render .cta {
   display: inline-flex;

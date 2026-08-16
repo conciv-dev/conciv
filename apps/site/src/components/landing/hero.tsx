@@ -13,7 +13,7 @@ export function HeroCopy() {
           <div className="od-inset relative flex flex-col items-center py-16 text-center md:py-22">
             <p className="od-eyebrow">Beta · Open source</p>
             <h1 className="od-h1 mt-4 max-w-[720px]">{HERO_HEADLINE}</h1>
-            <p className="od-body mt-4 max-w-[512px] text-balance text-muted-foreground">
+            <p className="od-body od-lede mt-4 text-muted-foreground">
               Claude Code or Codex, inside your running app: it sees the page, edits live, writes to source.
             </p>
             <InstallCommand className="mt-8" action={<TryLiveButton />} />

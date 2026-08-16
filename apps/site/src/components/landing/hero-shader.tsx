@@ -1,7 +1,6 @@
 import {useCallback} from 'react'
 import {HERO_SHADER_FRAGMENTS, HERO_SHADER_VERTEX, type HeroShaderVariant} from './hero-shader-sources'
 
-const LINE_ALPHA = 0.18
 const MAX_PIXEL_RATIO = 1
 const FRAME_INTERVAL_MS = 1000 / 24
 
@@ -17,6 +16,11 @@ function readCurrentColor(element: HTMLElement): Rgb {
   context.fillRect(0, 0, 1, 1)
   const [red = 0, green = 0, blue = 0] = context.getImageData(0, 0, 1, 1).data
   return [red / 255, green / 255, blue / 255]
+}
+
+function readLineAlpha(element: HTMLElement): number {
+  const value = Number.parseFloat(getComputedStyle(element).getPropertyValue('--od-hero-line-alpha'))
+  return Number.isFinite(value) ? value : 0.15
 }
 
 function compileShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader | null {
@@ -85,7 +89,6 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
   const resolutionLocation = gl.getUniformLocation(program, 'u_resolution')
   const colorLocation = gl.getUniformLocation(program, 'u_color')
   const alphaLocation = gl.getUniformLocation(program, 'u_alpha')
-  gl.uniform1f(alphaLocation, LINE_ALPHA)
   gl.clearColor(0, 0, 0, 0)
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -94,6 +97,7 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
   let frameHandle = 0
   let inView = true
   let color = readCurrentColor(canvas)
+  let alpha = readLineAlpha(canvas)
 
   const draw = (now: number) => {
     gl.viewport(0, 0, canvas.width, canvas.height)
@@ -101,6 +105,7 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
     gl.uniform1f(timeLocation, reducedMotion.matches ? 0 : (now - startedAt) / 1000)
     gl.uniform2f(resolutionLocation, canvas.width, canvas.height)
     gl.uniform3f(colorLocation, color[0], color[1], color[2])
+    gl.uniform1f(alphaLocation, alpha)
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
     canvas.dataset.ready = ''
   }
@@ -133,6 +138,7 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
 
   const recolor = () => {
     color = readCurrentColor(canvas)
+    alpha = readLineAlpha(canvas)
     draw(performance.now())
     schedule()
   }

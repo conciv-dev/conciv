@@ -7,7 +7,7 @@ export type AnimatedTab = {id: string; label: string; icon?: ReactNode; badge?: 
 
 type Variant = 'underline' | 'pill' | 'segment'
 
-const SPRING = {bounce: 0.05, duration: 0.25, type: 'spring'} as const
+const INDICATOR_TRANSITION = {duration: 0.2, ease: [0.23, 1, 0.32, 1]} as const
 
 const LIST_STYLES: Record<Variant, string> = {
   underline: 'gap-1 border-b border-border',
@@ -34,8 +34,7 @@ function TabIndicator({variant, layoutId}: {variant: Variant; layoutId: string})
       className={cn('absolute', INDICATOR_STYLES[variant])}
       layout
       layoutId={layoutId}
-      style={{originY: '0px'}}
-      transition={shouldReduceMotion ? {duration: 0} : SPRING}
+      transition={shouldReduceMotion ? {duration: 0} : INDICATOR_TRANSITION}
     />
   )
 }
