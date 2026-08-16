@@ -2,36 +2,20 @@ import {createSignal, For, type JSX, Match, Show, Switch} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {render} from '@solidjs/testing-library'
 import {page} from 'vitest/browser'
-import {expect, it, onTestFinished, vi} from 'vitest'
+import {expect, it, vi} from 'vitest'
 import gsap from 'gsap'
 import {Mascot} from '../../src/solid/index.js'
-
-const DIGITS = ['0', '1']
-
-const partsIn = (container: HTMLElement, part: string): HTMLElement[] => [
-  ...container.querySelectorAll<HTMLElement>(`[data-scope="mascot"][data-part="${part}"]`),
-]
-
-const hiddenSpansIn = (container: HTMLElement): HTMLElement[] => [
-  ...container.querySelectorAll<HTMLElement>('span[aria-hidden="true"]'),
-]
-
-const isDigit = (child: Element): boolean => DIGITS.includes(child.textContent ?? '')
-
-const isEmitter = (element: HTMLElement): boolean =>
-  element.childElementCount === 5 && [...element.children].every(isDigit)
-
-const emittersIn = (container: HTMLElement): HTMLElement[] => hiddenSpansIn(container).filter(isEmitter)
-
-const leanWrappersIn = (container: HTMLElement): HTMLElement[] =>
-  hiddenSpansIn(container).filter(
-    (element) => element.childElementCount === 1 && element.firstElementChild?.getAttribute('data-part') === 'antenna',
-  )
-
-const ridersIn = (emitter: HTMLElement): Element[] =>
-  [...emitter.children].filter((digit) => digit.firstElementChild !== null)
-
-const liveTweenCount = (): number => gsap.globalTimeline.getChildren(true, true, true).length
+import {
+  DRAIN_TIMEOUT,
+  emittersIn,
+  leanWrappersIn,
+  liveTweenCount,
+  partOf,
+  partsIn,
+  ridersIn,
+  rootOf,
+  styleRule,
+} from './mascot-dom.js'
 
 const renderMascot = (view: () => JSX.Element): {container: HTMLElement; unmount: () => void} => {
   const mounted = render(view)
@@ -49,20 +33,6 @@ const shadowStageOf = (host: HTMLElement): HTMLElement => {
   return root
 }
 
-const rootOf = (container: HTMLElement): HTMLElement => {
-  const root = partsIn(container, 'root')[0]
-  if (root === undefined) throw new Error('the mascot root did not render')
-  return root
-}
-
-const partOf = (container: HTMLElement, part: string): HTMLElement => {
-  const element = partsIn(container, part)[0]
-  if (element === undefined) throw new Error(`the mascot ${part} did not render`)
-  return element
-}
-
-const DRAIN_TIMEOUT = {timeout: 3_000, interval: 30}
-
 const SIZING_CLASS = 'tall-mascot'
 
 const FADED_CLASS = 'faded-mascot'
@@ -70,13 +40,6 @@ const FADED_CLASS = 'faded-mascot'
 const DATA_URL_STYLE = "background-image:url('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=');opacity:0.4"
 
 const IMPORTANT_STYLE = 'opacity:0.3 !important'
-
-const styleRule = (rule: string): void => {
-  const sheet = document.createElement('style')
-  sheet.textContent = rule
-  document.head.append(sheet)
-  onTestFinished(() => sheet.remove())
-}
 
 it('renders one head, one antenna and one eyes layer on a stage with a real size', () => {
   const {container} = renderMascot(() => <Mascot />)

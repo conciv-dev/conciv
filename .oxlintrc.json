@@ -143,6 +143,15 @@
       }
     },
     {
+      "files": ["packages/mascot/src/react/**", "packages/mascot/tests/browser/react-*.browser.test.tsx"],
+      "rules": {
+        "solid/reactivity": "off",
+        "solid/no-destructure": "off",
+        "solid/no-react-specific-props": "off",
+        "solid/style-prop": "off"
+      }
+    },
+    {
       "files": [
         "packages/extensions/terminal/src/server/**",
         "packages/extensions/terminal/test/**",

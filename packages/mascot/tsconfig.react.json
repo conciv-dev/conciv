@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": ".react.tsbuildinfo",
+    "rootDir": ".",
+    "noEmit": true,
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node"]
+  },
+  "include": ["src/react/**/*.ts", "src/react/**/*.tsx", "tests/browser/react-wrapper.browser.test.tsx"]
+}

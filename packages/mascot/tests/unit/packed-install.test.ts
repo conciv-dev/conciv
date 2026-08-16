@@ -106,6 +106,35 @@ process.stdout.write(
 )
 `
 
+const REACT_PROBE = `import {Mascot} from '@conciv/mascot/react'
+import {createElement} from 'react'
+import {renderToString} from 'react-dom/server'
+
+const markup = renderToString(createElement(Mascot, null))
+
+const rendered = ['root', 'head', 'antenna', 'eyes', 'effect'].filter((part) =>
+  markup.includes('data-part="' + part + '"'),
+)
+
+const installedFrameworks = ['solid-js', 'react', 'react-dom'].filter((name) => {
+  try {
+    import.meta.resolve(name)
+    return true
+  } catch {
+    return false
+  }
+})
+
+process.stdout.write(
+  JSON.stringify({
+    Mascot: typeof Mascot,
+    parts: Object.keys(Mascot).toSorted(),
+    rendered,
+    frameworks: installedFrameworks,
+  }),
+)
+`
+
 function expectedMounts(): Record<string, string[]> {
   const binaryMounts = ['binaryEffect', 'configureBinaryEffect']
   return Object.fromEntries(
@@ -168,5 +197,14 @@ test('a packed install with only solid present imports and renders the solid wra
     rendered: ['root', 'head', 'antenna', 'eyes', 'effect'],
     sourceEntry: true,
     frameworks: ['solid-js'],
+  })
+}, 60_000)
+
+test('a packed install with only react present imports and renders the react wrapper subpath', () => {
+  expect(probeInstall(['react', 'react-dom'], REACT_PROBE)).toEqual({
+    Mascot: 'function',
+    parts: ['Antenna', 'Binary', 'Eyes', 'Head'],
+    rendered: ['root', 'head', 'antenna', 'eyes', 'effect'],
+    frameworks: ['react', 'react-dom'],
   })
 }, 60_000)

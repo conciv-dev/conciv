@@ -11,6 +11,8 @@ const effectSupportFile = join(distRoot, 'core/effects/effect-support.js')
 const effectSubpaths = Object.keys(EFFECT_MOUNTS).map((name) => `./effects/${name}`)
 const IMPORT_PATTERN = /(?:from|import)\s*["'](\.[^"']*)["']/g
 const FRAMEWORK_PATTERN = /(?:from|import)\s*["'](?:solid-js|react|react-dom)(?:\/[^"']*)?["']/
+const SOLID_PATTERN = /(?:from|import)\s*["']solid-js(?:\/[^"']*)?["']/
+const REACT_PATTERN = /(?:from|import)\s*["']react(?:-dom)?(?:\/[^"']*)?["']/
 
 function readManifest(): unknown {
   return JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
@@ -111,7 +113,7 @@ test('the binary effect subpath also carries its curve configuration', async () 
 })
 
 test('every published entry declares its types next to its module', () => {
-  for (const subpath of ['.', './solid', ...effectSubpaths]) {
+  for (const subpath of ['.', './solid', './react', ...effectSubpaths]) {
     expect(readFileSync(exportedTypesFile(subpath), 'utf8').length).toBeGreaterThan(0)
   }
 })
@@ -154,10 +156,17 @@ test('the core and effect entries pull in no framework runtime', () => {
   expect(framework).toEqual([])
 })
 
-test('the solid entry is the one place the framework is imported', () => {
-  const framework = moduleGraph(exportedImportFile('./solid'))
+test.each(['./solid', './react'])('the %s entry is a place the framework is imported', (subpath) => {
+  const framework = moduleGraph(exportedImportFile(subpath))
     .filter((file) => FRAMEWORK_PATTERN.test(readFileSync(file, 'utf8')))
     .map(packageRelative)
   expect(framework).not.toEqual([])
-  expect(builtEntries()).not.toContain(exportedImportFile('./solid'))
+  expect(builtEntries()).not.toContain(exportedImportFile(subpath))
+})
+
+test('neither wrapper entry reaches the other framework', () => {
+  const solidGraph = moduleGraph(exportedImportFile('./solid'))
+  const reactGraph = moduleGraph(exportedImportFile('./react'))
+  expect(solidGraph.filter((file) => REACT_PATTERN.test(readFileSync(file, 'utf8')))).toEqual([])
+  expect(reactGraph.filter((file) => SOLID_PATTERN.test(readFileSync(file, 'utf8')))).toEqual([])
 })

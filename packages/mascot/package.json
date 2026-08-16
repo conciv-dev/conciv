@@ -31,6 +31,10 @@
       "solid": "./dist/solid/index.jsx",
       "import": "./dist/solid/index.js"
     },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    },
     "./effects/binary": {
       "types": "./dist/core/effects/binary.d.ts",
       "import": "./dist/core/effects/binary.js"
@@ -100,8 +104,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsdown --config tsdown.solid-source.config.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsdown && tsdown --config tsdown.solid-source.config.ts && tsdown --config tsdown.react.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.react.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests && playwright test",
     "publint": "publint",
@@ -115,7 +119,11 @@
     "@playwright/test": "^1.61.1",
     "@solidjs/testing-library": "^0.8.10",
     "@types/node": "^26.1.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
     "@vitest/browser-playwright": "4.1.10",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "solid-js": "^1.9.13",
     "storybook": "^10.5.0",
     "storybook-solidjs-vite": "^10.6.0",
@@ -126,9 +134,17 @@
     "vitest": "^4.1.8"
   },
   "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
     "solid-js": ">=1.8"
   },
   "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
     "solid-js": {
       "optional": true
     }

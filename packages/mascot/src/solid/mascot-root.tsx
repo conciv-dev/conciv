@@ -4,7 +4,7 @@ import {BinaryEffectHost} from './mascot-binary.js'
 import {MascotProvider} from './mascot-context.js'
 import {MascotLayer} from './mascot-layer.js'
 import {composeRefs, type MascotProps, mergeStyle} from './mascot-props.js'
-import {installStageSize} from './mascot-stage-sheet.js'
+import {installStageSize} from '../core/stage-sheet.js'
 import {createMascotHost} from './use-mascot.js'
 
 export function MascotRoot(props: MascotProps): JSX.Element {

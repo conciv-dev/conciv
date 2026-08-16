@@ -2,6 +2,7 @@ import type {JSX} from 'solid-js'
 import type {MascotActivity, MascotFollow, MascotState} from '../core/config.js'
 import type {CurveStyle} from '../core/path.js'
 import type {MascotSkin} from '../core/skin.js'
+import {isGeometryProperty} from '../core/style-merge.js'
 
 export type MascotLayerProps = JSX.HTMLAttributes<HTMLSpanElement>
 
@@ -23,20 +24,6 @@ type ConsumerStyle = JSX.CSSProperties | string | undefined
 type ForwardedRef = HTMLSpanElement | ((element: HTMLSpanElement) => void) | undefined
 
 type Declaration = {property: string; value: string}
-
-const LAYER_GEOMETRY_PROPERTIES = [
-  'position',
-  'top',
-  'right',
-  'bottom',
-  'left',
-  'background',
-  'background-image',
-  'background-repeat',
-  'background-size',
-]
-
-const LAYER_GEOMETRY_PREFIXES = ['inset', 'background-position']
 
 export function composeRefs(
   capture: (element: HTMLSpanElement) => void,
@@ -103,12 +90,8 @@ function styleDeclarations(style: ConsumerStyle): Declaration[] {
   return objectDeclarations(style)
 }
 
-const isGeometry = (property: string): boolean =>
-  LAYER_GEOMETRY_PROPERTIES.includes(property) ||
-  LAYER_GEOMETRY_PREFIXES.some((prefix) => property === prefix || property.startsWith(`${prefix}-`))
-
 const allowed = (declarations: Declaration[], blockGeometry: boolean): Declaration[] =>
-  blockGeometry ? declarations.filter((declaration) => !isGeometry(declaration.property)) : declarations
+  blockGeometry ? declarations.filter((declaration) => !isGeometryProperty(declaration.property)) : declarations
 
 const cssText = (declarations: Declaration[]): string =>
   declarations.map(({property, value}) => `${property}:${value}`).join(';')

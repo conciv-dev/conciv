@@ -25,7 +25,23 @@ export default defineConfig({
         test: {
           ...ciTestSolidBrowser(),
           name: 'mascot-browser',
-          include: ['tests/browser/**/*.browser.test.tsx'],
+          include: ['tests/browser/solid-*.browser.test.tsx'],
+          fileParallelism: false,
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({}),
+            instances: [{browser: 'chromium'}],
+          },
+        },
+      },
+      {
+        extends: true,
+        esbuild: {jsx: 'automatic', jsxImportSource: 'react'},
+        test: {
+          ...ciTest(),
+          name: 'mascot-react-browser',
+          include: ['tests/browser/react-*.browser.test.tsx'],
           fileParallelism: false,
           browser: {
             enabled: true,
