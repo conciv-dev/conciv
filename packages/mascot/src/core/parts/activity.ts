@@ -62,7 +62,7 @@ type WorkPieces = {
   bob: BobTweens | undefined
 }
 
-type WorkSession = WorkPieces & {layout: AntennaLayout | undefined; channels: ActivityChannels}
+type WorkSession = WorkPieces & {channels: ActivityChannels}
 
 const NEUTRAL_SCALE = 1
 
@@ -162,13 +162,22 @@ function rebase(tween: gsap.core.Tween | undefined, property: string, value: num
   tween.invalidate()
 }
 
+const sameAntennaBox = (baked: AntennaLayout, measured: AntennaLayout): boolean =>
+  baked.width === measured.width && baked.height === measured.height
+
+const sameAntennaOrigin = (baked: AntennaLayout, measured: AntennaLayout): boolean =>
+  baked.base.x === measured.base.x && baked.base.y === measured.base.y
+
+const sameAntennaGeometry = (baked: AntennaLayout, measured: AntennaLayout): boolean =>
+  sameAntennaBox(baked, measured) && sameAntennaOrigin(baked, measured)
+
 export function createActivityController(parts: ActivityParts, skin: MascotSkin): ActivityController {
   const {stage, head, antenna, eyes} = parts
   const effects = new Map<string, EffectEntry>()
   const draining = new Set<EffectHandle>()
   let session: WorkSession | undefined
   let recoveryTweens: gsap.core.Tween[] = []
-  let resizeTick: gsap.Callback | undefined
+  let layout: AntennaLayout | undefined
   let resting: ActivityRest = {eyeScaleY: NEUTRAL_SCALE, headYPercent: 0}
   let visible = true
 
@@ -184,11 +193,13 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     recoveryTweens = []
   }
 
-  const sessionTip = (current: WorkSession): EmitterAnchor => {
-    const layout = current.layout ?? measureAntennaLayout(antenna, skin)
-    current.layout = layout
-    return antennaTipOf(antenna, layout)
+  const antennaLayout = (): AntennaLayout => {
+    const measured = layout ?? measureAntennaLayout(antenna, skin)
+    layout = measured
+    return measured
   }
+
+  const antennaTip = (): EmitterAnchor => antennaTipOf(antenna, antennaLayout())
 
   const tipWithinHostOf = (entry: EffectEntry, tip: EmitterAnchor): EmitterAnchor => {
     const origin = entry.hostOrigin ?? hostOriginInRoot(entry.host ?? stage)
@@ -197,26 +208,24 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   }
 
   const anchorEffects = () => {
-    const current = session
-    if (current === undefined) return
+    if (session === undefined) return
     let tip: EmitterAnchor | undefined
     effects.forEach((entry) => {
       const anchor = entry.handle?.anchor
       if (anchor === undefined) return
-      tip = tip ?? sessionTip(current)
+      tip = tip ?? antennaTip()
       anchor(tipWithinHostOf(entry, tip))
     })
   }
 
   const anchorEntry = (entry: EffectEntry) => {
-    const current = session
     const anchor = entry.handle?.anchor
-    if (current === undefined || anchor === undefined) return
-    anchor(tipWithinHostOf(entry, sessionTip(current)))
+    if (session === undefined || anchor === undefined) return
+    anchor(tipWithinHostOf(entry, antennaTip()))
   }
 
-  const forgetLayout = () => {
-    if (session !== undefined) session.layout = undefined
+  const bakeLayout = () => {
+    layout = measureAntennaLayout(antenna, skin)
     effects.forEach((entry) => {
       entry.hostOrigin = undefined
     })
@@ -276,34 +285,29 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   }
 
   const restartEntry = (entry: EffectEntry) => {
-    forgetLayout()
+    bakeLayout()
     startEntry(entry)
   }
 
   const restartEntries = () => {
-    forgetLayout()
+    bakeLayout()
     effects.forEach(startEntry)
   }
 
   const remeasure = () => {
-    resizeTick = undefined
-    forgetLayout()
     effects.forEach(removeEntry)
     if (!isRunning()) return
-    effects.forEach(startEntry)
+    restartEntries()
   }
 
-  const scheduleRemeasure = () => {
-    if (resizeTick !== undefined) return
-    resizeTick = gsap.ticker.add(remeasure, true)
+  const receiveResize = () => {
+    const baked = layout
+    if (baked !== undefined && sameAntennaGeometry(baked, measureAntennaLayout(antenna, skin))) return
+    remeasure()
   }
 
-  const cancelRemeasure = () => {
-    if (resizeTick !== undefined) gsap.ticker.remove(resizeTick)
-    resizeTick = undefined
-  }
-
-  window.addEventListener('resize', scheduleRemeasure, {passive: true})
+  const boxes = new ResizeObserver(receiveResize)
+  boxes.observe(antenna)
 
   const setRest = (rest: ActivityRest) => {
     resting = rest
@@ -320,11 +324,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     killSession()
     killRecoveryTweens()
     recover(FULL_RECOVERY, dropped)
-    const started: WorkSession = {
-      ...buildWorkPieces(parts, rest, channels, anchorEffects),
-      layout: undefined,
-      channels,
-    }
+    const started: WorkSession = {...buildWorkPieces(parts, rest, channels, anchorEffects), channels}
     session = started
     if (!visible) return started.timeline.pause()
     started.timeline.play()
@@ -413,8 +413,7 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
   }
 
   const dispose = () => {
-    window.removeEventListener('resize', scheduleRemeasure)
-    cancelRemeasure()
+    boxes.disconnect()
     killSession()
     killRecoveryTweens()
     effects.forEach(removeEntry)

@@ -34,7 +34,11 @@ const RISE_STEP_TOLERANCE_PX = 0.05
 
 const RESIZE_BURST_WIDTHS = [1200, 900, 1500, 1100]
 
-const RESIZE_BURST_COUNT = 6
+const RESIZE_BURST_SIZES_PX = [180, 240, 200, 260, 220, 280]
+
+const STAGE_NARROW_PX = 200
+
+const STAGE_WIDE_PX = 320
 
 test.beforeEach(async ({page}) => {
   await openMascotPage(page)
@@ -250,6 +254,51 @@ test('a viewport resize rebuilds the emitter so later digits launch from the rea
   )
 })
 
+test('a stage the consumer grows in css rebuilds the emitter at the new antenna scale with no window resize', async ({
+  page,
+}) => {
+  await page.setViewportSize({width: 1600, height: 800})
+  await installManualClock(page)
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const before = await page.evaluate(
+    ([narrowPx, riseSeconds]) => {
+      const harness = window.mascotHarness
+      harness.applyStyle(window.parts.root, {width: `${narrowPx}px`, height: `${narrowPx}px`})
+      window.service.update({state: 'rest', working: true, follow: false})
+      harness.advanceBy(0.5)
+      harness.watchEmitterMounts()
+      return harness.emitterFlight(window.parts, riseSeconds)
+    },
+    [STAGE_NARROW_PX, RISE_SAMPLE_S] as const,
+  )
+  const after = await page.evaluate(
+    async ([widePx, settleSeconds, riseSeconds]) => {
+      const harness = window.mascotHarness
+      harness.applyStyle(window.parts.root, {width: `${widePx}px`, height: `${widePx}px`})
+      const rebuilt = await harness.settleUntil(() => harness.emitterMounts() >= 1)
+      if (!rebuilt) throw new Error('the css stage growth never rebuilt the emitter')
+      harness.advanceBy(settleSeconds)
+      return harness.emitterFlight(window.parts, riseSeconds)
+    },
+    [STAGE_WIDE_PX, RELAUNCH_SETTLE_S, RISE_SAMPLE_S] as const,
+  )
+  const narrow = expectedEmitterGeometry(before.antennaPx)
+  const widened = expectedEmitterGeometry(after.antennaPx)
+
+  expect(after.antennaPx, 'the css growth really grew the antenna box').toBeGreaterThan(before.antennaPx + 50)
+  expectNear('the narrow stage sized its digits to its own antenna', before.fontSizePx, narrow.fontSizePx, 0.5)
+  expectNear('digits launch on the antenna axis of the grown stage', after.launchLeft, after.stageWidth * 0.5, 0.5)
+  expectNear('the grown stage re-sizes its digits to the grown antenna', after.fontSizePx, widened.fontSizePx, 0.5)
+  expectNear('the grown stage re-scales the digit lane offset', after.leadingLeft, widened.leadingLeft, 0.5)
+  expectNear('the grown stage re-scales the digit placement', after.top, widened.top, 0.5)
+  expectNear(
+    'the grown stage rises at the grown antenna scale',
+    medianStep(after.rise),
+    risePerFrame(after.antennaPx),
+    RISE_STEP_TOLERANCE_PX,
+  )
+})
+
 test('the work timeline bobs the head and leaves every other pose channel untouched', async ({page}) => {
   await openIdleService(page)
   const result = await page.evaluate(() => {
@@ -439,11 +488,11 @@ test('a burst of resizes rebuilds the emitter without leaking emitters or tweens
       digits: harness.requireEmitter().childElementCount,
     }
   }, RELAUNCH_SETTLE_S)
-  const coalesced = await page.evaluate(async (bursts) => {
+  const coalesced = await page.evaluate(async (sizes) => {
     const harness = window.mascotHarness
     const before = harness.requireEmitter()
     harness.watchEmitterMounts()
-    for (let event = 0; event < bursts; event += 1) window.dispatchEvent(new Event('resize'))
+    sizes.forEach((size) => harness.applyStyle(window.parts.root, {width: `${size}px`, height: `${size}px`}))
     const rebuiltSynchronously = harness.requireEmitter() !== before
     const rebuilt = await harness.settleUntil(() => harness.emitterMounts() >= 1)
     if (!rebuilt) throw new Error('the coalesced burst never rebuilt the emitter')
@@ -455,14 +504,16 @@ test('a burst of resizes rebuilds the emitter without leaking emitters or tweens
       replaced: harness.requireEmitter() !== before,
       emitters: harness.emitters().length,
     }
-  }, RESIZE_BURST_COUNT)
+  }, RESIZE_BURST_SIZES_PX)
 
   expect(settled.emitters, 'the working stage really carries one emitter before the burst').toBe(1)
   expect(after.emitters, 'a burst of resizes leaves exactly one emitter').toBe(1)
   expect(after.digits, 'the rebuilt emitter is fully built').toBe(5)
   expect(after.tweens, 'a burst of resizes accumulates no runaway tweens').toBeLessThanOrEqual(settled.tweens)
-  expect(coalesced.mounts, `${RESIZE_BURST_COUNT} resize events in one frame rebuild the emitter once`).toBe(1)
-  expect(coalesced.rebuiltSynchronously, 'no resize event rebuilds the emitter inside the event itself').toBe(false)
+  expect(coalesced.mounts, `${RESIZE_BURST_SIZES_PX.length} stage resizes in one frame rebuild the emitter once`).toBe(
+    1,
+  )
+  expect(coalesced.rebuiltSynchronously, 'no stage resize rebuilds the emitter inside the mutation itself').toBe(false)
   expect(coalesced.replaced, 'the coalesced rebuild really replaced the emitter node').toBe(true)
   expect(coalesced.emitters, 'the coalesced rebuild leaves exactly one emitter').toBe(1)
 })
