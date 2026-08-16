@@ -89,20 +89,25 @@ node resolve Ark context correctly. Items that register before the content mount
 into a reactive store on mount, unregisters on cleanup. Duplicate id: dev warning, last wins.
 `Root` outside a coordinator renders nothing.
 
-**Fit algorithm (deterministic, no oscillation):**
+**Fit algorithm (pure arithmetic, no DOM measurement of candidates):**
 
-- One `ResizeObserver` on the stable outer toolbar row only (reuse `useSizeHandle`).
-- Candidate button widths are measured once per registration-set change and cached (buttons are
-  uniform `TooltipIconButton` geometry; cache invalidates on register/unregister, not on resize).
-- Budget = row width − widths of non-collapsible occupants (attachment control, model selector,
-  send/cancel at its widest state, gaps) − ALWAYS-reserved overflow-trigger width. Reserving the
-  trigger unconditionally removes the circular collapse condition (trigger appearing forces
-  another collapse).
-- Fill: pinned (`visible="always"`) buttons first, then `auto` buttons in priority-desc order
-  while they fit; the rest collapse. Below a hard minimum budget all `auto` buttons collapse.
-- Hysteresis margin on the threshold so drag-resizing across a boundary cannot flap.
-- Reads batched before writes; visibility changes never feed back into the observed element's
-  height/width measurement path.
+- Action buttons are uniform `TooltipIconButton` geometry, so per-slot width is a design-token
+  CONSTANT (`SLOT` = button width + gap) — candidate widths are never read from the DOM.
+- Two passive `ResizeObserver`s (reuse `useSizeHandle`): one on the stable outer toolbar row, one
+  on the trailing non-collapsible cluster (attachment control, model selector, send/cancel —
+  model selector is the only variable-width occupant). Observers report already-computed
+  geometry; no forced layout reads.
+- `visibleAutoCount = floor((rowWidth − trailingWidth − reservedTriggerWidth − pinnedCount·SLOT) / SLOT)`
+  — one subtraction and a division per resize event.
+- The overflow-trigger width is ALWAYS reserved, removing the circular collapse condition
+  (trigger appearing forces another collapse).
+- Fill: pinned (`visible="always"`) buttons always inline, then the top `visibleAutoCount` `auto`
+  buttons in priority-desc order; the rest collapse. Below a hard minimum budget all `auto`
+  buttons collapse.
+- Hysteresis margin on the count boundary so drag-resizing across a threshold cannot flap
+  (visual stability; the arithmetic itself is negligible).
+- Visibility changes never alter the observed row/cluster widths (buttons collapse into the
+  portaled menu, the reserved trigger slot is constant), so no observer feedback loop exists.
 - Overflow trigger button: accessible name "More composer actions", rendered only when ≥1 item is
   collapsed (space stays reserved regardless). Menu ordering: priority desc, then registration
   order.
