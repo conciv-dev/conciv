@@ -128,19 +128,15 @@ export function ComposerActions(props: {
         </Action.DropdownItem>
       </Action.Root>
       <Show when={meta.data === undefined || meta.data.harness.canLaunch}>
-        <Action.Root id="conciv.launch" priority={10}>
-          <Action.Inline>
-            <LaunchMenu
-              harnessName={harnessName()}
-              class={busyClass(openExternal.isPending || copyConnect.isPending || meta.isPending)}
-              pending={meta.isPending}
-              failed={meta.isError}
-              onOpen={() => openExternal.mutate()}
-              onCopy={() => copyConnect.mutate()}
-              onRetry={() => void meta.refetch()}
-            />
-          </Action.Inline>
-        </Action.Root>
+        <LaunchMenu
+          harnessName={harnessName()}
+          class={busyClass(openExternal.isPending || copyConnect.isPending || meta.isPending)}
+          pending={meta.isPending}
+          failed={meta.isError}
+          onOpen={() => openExternal.mutate()}
+          onCopy={() => copyConnect.mutate()}
+          onRetry={() => void meta.refetch()}
+        />
       </Show>
     </>
   )
