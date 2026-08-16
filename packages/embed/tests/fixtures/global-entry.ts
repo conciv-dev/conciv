@@ -12,4 +12,4 @@ function mounted(search: string): AnyExtension[] {
   return available.filter((extension) => names.includes(extension.name))
 }
 
-mountConciv(mounted(window.location.search))
+void mountConciv(mounted(window.location.search))

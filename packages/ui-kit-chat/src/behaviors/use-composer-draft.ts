@@ -13,15 +13,26 @@ export type ComposerDraftPersistenceOptions = {
   draft: () => ComposerDraft
 }
 
+function isCleared(draft: ComposerDraft): boolean {
+  return draft.draft === '' && draft.attachments.length === 0 && draft.quote === null
+}
+
 export function useComposerDraftPersistence(options: ComposerDraftPersistenceOptions): void {
   const writer = new AsyncDebouncer(
     (storage: WebStorage, key: string, draft: ComposerDraft) => writeComposerDraft(storage, key, draft),
     {wait: DRAFT_WRITE_DELAY_MS},
   )
-  createEffect(() => {
+  createEffect<ComposerDraft | undefined>((previous) => {
+    const draft = options.draft()
     const storage = options.storage()
-    if (!storage) return
-    void writer.maybeExecute(storage, options.key(), options.draft())
+    if (!storage) return previous
+    if (!isCleared(draft)) {
+      void writer.maybeExecute(storage, options.key(), draft)
+      return draft
+    }
+    writer.cancel()
+    if (previous && !isCleared(previous)) void writeComposerDraft(storage, options.key(), draft)
+    return draft
   })
   makeEventListener(window, 'pagehide', () => void writer.flush())
 }
