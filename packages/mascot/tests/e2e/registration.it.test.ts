@@ -170,7 +170,7 @@ test('a partial connect() part set stays inert until the last required ref lands
   expect(result.listeners, 'completing the set arms exactly one listener').toBe(1)
 })
 
-test('nulling any required ref tears the rig down and the effectHost owns the emitter', async ({page}) => {
+test('releasing any required part tears the rig down and the effectHost owns the emitter', async ({page}) => {
   const result = await page.evaluate(async () => {
     const harness = window.mascotHarness
     const bind = (connected: MascotConnect, parts: StageParts, effectHost: HTMLElement) => {
@@ -186,6 +186,12 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
       root.append(effectHost)
       return effectHost
     }
+    const slotElements = (parts: StageParts): Record<RequiredSlot, HTMLElement> => ({
+      getRootProps: parts.root,
+      getHeadProps: parts.head,
+      getEyesProps: parts.eyes,
+      getAntennaProps: parts.antenna,
+    })
     const slots: RequiredSlot[] = ['getRootProps', 'getHeadProps', 'getEyesProps', 'getAntennaProps']
     const torndown: TeardownReading[] = []
     for (const slot of slots) {
@@ -194,7 +200,7 @@ test('nulling any required ref tears the rig down and the effectHost owns the em
       const parts = harness.buildStage()
       bind(connected, parts, makeEffectHost(parts.root))
       const armed = {wrappers: harness.leanWrappers().length, listeners: window.pointerMoveListenerCount}
-      connected[slot]().ref(null)
+      connected[slot]().release(slotElements(parts)[slot])
       torndown.push({
         slot,
         armed,

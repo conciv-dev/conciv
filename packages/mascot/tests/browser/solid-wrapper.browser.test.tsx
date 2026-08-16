@@ -103,13 +103,22 @@ it('lets a consumer style size the stage instead of the default', () => {
 it('keeps the geometry of a layer when a consumer style tries to take it over', () => {
   const {container} = renderMascot(() => (
     <Mascot>
-      <Mascot.Eyes style={{position: 'static', 'background-image': 'none', opacity: 0.5}} />
+      <Mascot.Eyes
+        style={{
+          position: 'static',
+          'background-image': 'none',
+          background: 'none',
+          'background-color': 'rgb(10, 20, 30)',
+          opacity: 0.5,
+        }}
+      />
     </Mascot>
   ))
   const eyes = partOf(container, 'eyes')
   const applied = getComputedStyle(eyes)
   expect(applied.position).toBe('absolute')
   expect(applied.backgroundImage.startsWith('url(')).toBe(true)
+  expect(applied.backgroundColor).toBe('rgb(10, 20, 30)')
   expect(applied.opacity).toBe('0.5')
 })
 

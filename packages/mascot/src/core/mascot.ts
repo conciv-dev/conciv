@@ -28,7 +28,7 @@ export type MascotParts = {
   antenna: HTMLElement
 }
 
-export type MascotPartRef = (element: HTMLElement | null) => void
+export type MascotPartRef = (element: HTMLElement) => void
 
 export type MascotPartRelease = (element: HTMLElement) => void
 
@@ -227,7 +227,7 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
   const slotRef =
     (slot: keyof Slots): MascotPartRef =>
     (element) => {
-      slots[slot] = element ?? undefined
+      slots[slot] = element
       syncSlots()
     }
 
@@ -239,15 +239,15 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
       syncSlots()
     }
 
-  const bindEffectHost = (id: string, element: HTMLElement | null) => {
-    if (element === null) effectHosts.delete(id)
-    if (element !== null) effectHosts.set(id, element)
-    registration?.activity.setEffectHost(id, element ?? undefined)
+  const bindEffectHost = (id: string, element: HTMLElement) => {
+    effectHosts.set(id, element)
+    registration?.activity.setEffectHost(id, element)
   }
 
   const releaseEffectHost = (id: string, element: HTMLElement) => {
     if (effectHosts.get(id) !== element) return
-    bindEffectHost(id, null)
+    effectHosts.delete(id)
+    registration?.activity.setEffectHost(id, undefined)
   }
 
   const effectHostPropsFor = (id: string): MascotPartProps => {

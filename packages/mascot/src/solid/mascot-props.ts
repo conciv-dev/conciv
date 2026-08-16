@@ -24,7 +24,19 @@ type ForwardedRef = HTMLDivElement | ((element: HTMLDivElement) => void) | undef
 
 type Declaration = {property: string; value: string}
 
-const LAYER_GEOMETRY_PREFIXES = ['position', 'inset', 'top', 'right', 'bottom', 'left', 'background']
+const LAYER_GEOMETRY_PROPERTIES = [
+  'position',
+  'top',
+  'right',
+  'bottom',
+  'left',
+  'background',
+  'background-image',
+  'background-repeat',
+  'background-size',
+]
+
+const LAYER_GEOMETRY_PREFIXES = ['inset', 'background-position']
 
 export function composeRefs(
   capture: (element: HTMLDivElement) => void,
@@ -92,6 +104,7 @@ function styleDeclarations(style: ConsumerStyle): Declaration[] {
 }
 
 const isGeometry = (property: string): boolean =>
+  LAYER_GEOMETRY_PROPERTIES.includes(property) ||
   LAYER_GEOMETRY_PREFIXES.some((prefix) => property === prefix || property.startsWith(`${prefix}-`))
 
 const allowed = (declarations: Declaration[], blockGeometry: boolean): Declaration[] =>
