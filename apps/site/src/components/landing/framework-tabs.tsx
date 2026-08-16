@@ -244,7 +244,7 @@ function AnchorContent({anchor, completion}: {anchor: Anchor; completion: Snippe
 function AnchorCard({anchor, completion}: {anchor: Anchor; completion: SnippetCompletion | null}) {
   const isCaret = anchor.caret === true
   return (
-    <HoverCard openDelay={150} closeDelay={250}>
+    <HoverCard openDelay={700} closeDelay={250}>
       <HoverCardTrigger asChild>
         <span
           className="od-hover-anchor"

@@ -77,7 +77,7 @@ export function AnimatedTabs({
             value={tab.id}
             disabled={tab.disabled}
             className={cn(
-              'group relative z-10 flex cursor-pointer items-center justify-center gap-2 px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors',
+              'od-hit group relative z-10 flex cursor-pointer items-center justify-center gap-2 px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors',
               'text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none',
               'data-[state=active]:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground',
               TAB_STYLES[variant],

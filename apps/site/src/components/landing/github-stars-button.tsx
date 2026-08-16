@@ -13,7 +13,7 @@ export function GitHubStarsButton({className}: {className?: string}) {
   return (
     <Button asChild variant="outline" className={cn('od-ui gap-2', className)}>
       <a
-        className="group"
+        className="od-hit group"
         href={repoUrl}
         aria-label="conciv on GitHub"
         onPointerEnter={() => setHovered(true)}

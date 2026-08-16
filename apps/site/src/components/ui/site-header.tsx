@@ -37,7 +37,7 @@ export function SiteHeader({
 
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" size="icon" aria-label="Open menu" className="md:hidden">
+            <Button variant="outline" size="icon" aria-label="Open menu" className="od-hit md:hidden">
               <Menu aria-hidden />
             </Button>
           </SheetTrigger>

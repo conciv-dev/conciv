@@ -5,7 +5,9 @@ import {BrandMark} from '@/components/brand-mark'
 import {GitHubStarsButton} from './github-stars-button'
 
 const NAV_LINK_CLASS =
-  'od-ui inline-flex h-8 items-center rounded-lg px-3 text-muted-foreground transition-colors hover:text-foreground'
+  'od-hit od-ui inline-flex h-8 items-center rounded-lg px-3 transition-colors hover:text-foreground'
+const NAV_INACTIVE_PROPS = {className: 'text-muted-foreground'}
+const NAV_ACTIVE_PROPS = {className: 'text-foreground'}
 
 export function SiteNav() {
   return (
@@ -22,7 +24,7 @@ export function SiteNav() {
             {
               label: 'How it works',
               node: (
-                <a href="#how" className={NAV_LINK_CLASS}>
+                <a href="#how" className={`${NAV_LINK_CLASS} text-muted-foreground`}>
                   How it works
                 </a>
               ),
@@ -30,7 +32,13 @@ export function SiteNav() {
             {
               label: 'Docs',
               node: (
-                <Link to="/docs/$" params={{_splat: ''}} className={NAV_LINK_CLASS}>
+                <Link
+                  to="/docs/$"
+                  params={{_splat: ''}}
+                  className={NAV_LINK_CLASS}
+                  activeProps={NAV_ACTIVE_PROPS}
+                  inactiveProps={NAV_INACTIVE_PROPS}
+                >
                   Docs
                 </Link>
               ),

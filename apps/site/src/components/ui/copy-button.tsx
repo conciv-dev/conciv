@@ -59,7 +59,7 @@ export function CopyButton({text, label = 'Copy', className}: {text: string; lab
         aria-label={ARIA_LABEL[state] ?? label}
         onClick={() => void copy()}
         className={cn(
-          'relative grid size-9 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-lg border bg-background text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+          'od-hit relative grid size-9 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-lg border bg-background text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
           className,
         )}
       >

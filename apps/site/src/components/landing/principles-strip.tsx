@@ -1,19 +1,17 @@
-import {Card, CardDescription, CardHeader, CardTitle} from '@/components/ui/card'
-
 type Principle = {title: string; body: string}
 
 const PRINCIPLES: Principle[] = [
   {
     title: 'One integration',
-    body: 'Add the plugin to your Vite, Next.js, webpack, or Rspack dev build. Dev-only.',
+    body: 'One plugin line in your dev build. Dev-only.',
   },
   {
     title: 'The real DOM',
-    body: 'Point at any element. The agent gets the live node, its source, and its state.',
+    body: 'The live node, its source line, and its state.',
   },
   {
     title: 'Your machine',
-    body: 'Code and prompts never leave your machine. Bring your own Claude Code or Codex CLI.',
+    body: 'Your own Claude Code or Codex CLI, locally.',
   },
 ]
 
@@ -21,18 +19,15 @@ export function PrinciplesStrip() {
   return (
     <section className="od-ruled">
       <div className="od-page">
-        <div className="od-col grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          {PRINCIPLES.map((principle) => (
-            <Card
-              key={principle.title}
-              className="od-inset gap-0 rounded-none bg-transparent py-6 shadow-none ring-0 [--card-spacing:0px]"
-            >
-              <CardHeader className="gap-2 px-0">
-                <CardTitle className="od-h3">{principle.title}</CardTitle>
-                <CardDescription className="od-caption">{principle.body}</CardDescription>
-              </CardHeader>
-            </Card>
-          ))}
+        <div className="od-col">
+          <ul className="grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            {PRINCIPLES.map((principle) => (
+              <li key={principle.title} className="od-inset flex flex-col gap-2 py-6">
+                <h3 className="od-h3">{principle.title}</h3>
+                <p className="od-caption text-muted-foreground">{principle.body}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>

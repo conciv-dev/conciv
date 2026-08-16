@@ -1,5 +1,4 @@
 import {findScreenshot} from '@/lib/screenshots'
-import {Card, CardDescription, CardHeader, CardTitle} from '@/components/ui/card'
 import {MediaFrame} from '@/components/ui/media-frame'
 import {cn} from '@/lib/utils'
 
@@ -45,28 +44,19 @@ const ROW_C: Figure = {
 function CapabilityFigure({figure, className}: {figure: Figure; className?: string}) {
   const screenshot = findScreenshot(figure.file)
   return (
-    <Card
-      className={cn(
-        'od-inset gap-4 rounded-none bg-transparent py-8 shadow-none ring-0 [--card-spacing:0px]',
-        className,
-      )}
-    >
-      <figure className="flex flex-col gap-4">
-        <MediaFrame
-          src={`/screenshots/${screenshot.file}`}
-          width={screenshot.width}
-          height={screenshot.height}
-          alt={screenshot.alt}
-          title={figure.title}
-        />
-        <figcaption>
-          <CardHeader className="gap-1 px-0">
-            <CardTitle className="od-h3">{figure.title}</CardTitle>
-            <CardDescription className="od-caption">{figure.body}</CardDescription>
-          </CardHeader>
-        </figcaption>
-      </figure>
-    </Card>
+    <figure className={cn('od-inset flex flex-col gap-4 py-8', className)}>
+      <MediaFrame
+        src={`/screenshots/${screenshot.file}`}
+        width={screenshot.width}
+        height={screenshot.height}
+        alt={screenshot.alt}
+        title={figure.title}
+      />
+      <figcaption className="flex flex-col gap-1">
+        <h3 className="od-h3">{figure.title}</h3>
+        <p className="od-caption text-muted-foreground">{figure.body}</p>
+      </figcaption>
+    </figure>
   )
 }
 

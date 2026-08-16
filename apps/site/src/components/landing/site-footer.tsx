@@ -2,47 +2,39 @@ import {Link} from '@tanstack/react-router'
 import {BrandMark} from '@/components/brand-mark'
 import {repoUrl} from '@/lib/shared'
 
-type FooterLink = {label: string; href?: string; splat?: string}
+type FooterLink = {label: string; href?: string; splat?: string; exact?: boolean}
 
-const COLUMNS: {title: string; links: FooterLink[]}[] = [
-  {
-    title: 'Product',
-    links: [
-      {label: 'Docs', splat: ''},
-      {label: 'Quick start', splat: 'quick-start'},
-      {label: 'Configuration', splat: 'configuration'},
-      {label: 'Troubleshooting', splat: 'troubleshooting'},
-    ],
-  },
-  {
-    title: 'Community',
-    links: [
-      {label: 'GitHub', href: repoUrl},
-      {label: 'Issues', href: `${repoUrl}/issues`},
-      {label: 'Releases', href: `${repoUrl}/releases`},
-    ],
-  },
-  {
-    title: 'Install',
-    links: [
-      {label: 'npm: @conciv/it', href: 'https://www.npmjs.com/package/@conciv/it'},
-      {label: 'Example app', href: `${repoUrl}/tree/main/apps/examples/tanstack-start`},
-    ],
-  },
+const LINKS: FooterLink[] = [
+  {label: 'Docs', splat: '', exact: true},
+  {label: 'Quick start', splat: 'quick-start'},
+  {label: 'Configuration', splat: 'configuration'},
+  {label: 'GitHub', href: repoUrl},
+  {label: 'Issues', href: `${repoUrl}/issues`},
+  {label: 'Releases', href: `${repoUrl}/releases`},
+  {label: 'npm', href: 'https://www.npmjs.com/package/@conciv/it'},
 ]
 
-const LINK_CLASS = 'od-ui text-muted-foreground transition-colors hover:text-primary'
+const LINK_CLASS = 'od-hit od-ui whitespace-nowrap transition-colors duration-[160ms] hover:text-foreground'
+const INACTIVE_PROPS = {className: 'text-muted-foreground'}
+const ACTIVE_PROPS = {className: 'text-foreground'}
 
 function FooterAnchor({link}: {link: FooterLink}) {
   if (link.splat !== undefined) {
     return (
-      <Link to="/docs/$" params={{_splat: link.splat}} className={LINK_CLASS}>
+      <Link
+        to="/docs/$"
+        params={{_splat: link.splat}}
+        className={LINK_CLASS}
+        activeProps={ACTIVE_PROPS}
+        inactiveProps={INACTIVE_PROPS}
+        activeOptions={link.exact === true ? {exact: true} : undefined}
+      >
         {link.label}
       </Link>
     )
   }
   return (
-    <a href={link.href} className={LINK_CLASS}>
+    <a href={link.href} className={`${LINK_CLASS} text-muted-foreground`}>
       {link.label}
     </a>
   )
@@ -53,29 +45,20 @@ export function SiteFooter() {
     <footer className="od-ruled">
       <div className="od-page">
         <div className="od-col">
-          <div className="od-inset grid grid-cols-1 gap-12 py-16 lg:grid-cols-12">
-            <div className="lg:col-span-5">
-              <Link to="/" aria-label="conciv home">
-                <BrandMark />
-              </Link>
-              <p className="od-caption mt-4 max-w-[36ch] text-muted-foreground">
-                MIT-licensed. Runs with your local dev server.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:col-span-7">
-              {COLUMNS.map((column) => (
-                <div key={column.title}>
-                  <h4 className="od-caption mb-4 font-semibold uppercase tracking-wide">{column.title}</h4>
-                  <ul className="space-y-3">
-                    {column.links.map((link) => (
-                      <li key={link.label}>
-                        <FooterAnchor link={link} />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
+          <div className="od-inset flex flex-wrap items-center gap-x-8 gap-y-4 py-8">
+            <Link to="/" aria-label="conciv home">
+              <BrandMark />
+            </Link>
+            <p className="od-caption text-muted-foreground">MIT-licensed. Runs with your local dev server.</p>
+            <nav aria-label="Footer" className="ml-auto">
+              <ul className="flex flex-wrap gap-x-6 gap-y-2">
+                {LINKS.map((link) => (
+                  <li key={link.label}>
+                    <FooterAnchor link={link} />
+                  </li>
+                ))}
+              </ul>
+            </nav>
           </div>
           <div className="od-inset od-mono od-caption flex justify-between border-t py-4 text-muted-foreground">
             <span>MIT © conciv</span>

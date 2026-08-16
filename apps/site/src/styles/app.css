@@ -191,6 +191,20 @@ html > body[data-scroll-locked] {
   padding-inline: var(--od-inset);
 }
 
+@media (pointer: coarse) {
+  .od-hit {
+    position: relative;
+  }
+  .od-hit::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    translate: -50% -50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+  }
+}
+
 @media (min-width: 640px) {
   .od-page {
     --od-inset: 24px;

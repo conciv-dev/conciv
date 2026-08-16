@@ -26,7 +26,11 @@ export function ThemeSwitch({
       variant="outline"
       aria-label="Toggle theme"
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-      className={cn('rounded-lg transition-colors duration-[160ms] ease-[var(--od-ease-out)]', SIZES[size], className)}
+      className={cn(
+        'od-hit rounded-lg transition-colors duration-[160ms] ease-[var(--od-ease-out)]',
+        SIZES[size],
+        className,
+      )}
     >
       <span className="flex items-center gap-2">
         <Sun aria-hidden className="size-4 text-primary dark:text-muted-foreground" />

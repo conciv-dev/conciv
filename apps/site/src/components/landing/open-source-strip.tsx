@@ -17,12 +17,12 @@ export function OpenSourceStrip() {
             <p className="od-eyebrow">Open source</p>
             <h2 className="od-h2 mt-2 max-w-[400px]">Open source, on your machine.</h2>
             <div className="mt-8 flex flex-wrap gap-2">
-              <Button asChild variant="outline">
+              <Button asChild variant="outline" className="od-hit">
                 <a href={repoUrl}>
                   Star on GitHub <ChevronRight data-icon="inline-end" />
                 </a>
               </Button>
-              <Button asChild variant="outline">
+              <Button asChild variant="outline" className="od-hit">
                 <Link to="/docs/$" params={{_splat: ''}}>
                   Read the docs <ChevronRight data-icon="inline-end" />
                 </Link>

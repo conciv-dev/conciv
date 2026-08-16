@@ -24,12 +24,12 @@ export function MediaFrame({
   return (
     <>
       <div className={cn('-m-1.5 border border-dashed p-1.5', className)}>
-        <div className="group/media relative overflow-clip rounded-[2px] border transition-colors duration-[160ms] ease-[var(--od-ease-out)] hover:border-primary/60 focus-within:border-primary/60">
+        <div className="relative rounded-[2px] border transition-colors duration-[160ms] ease-[var(--od-ease-out)] hover:border-primary/60 focus-within:border-primary/60">
           <button
             type="button"
             onClick={() => setOpen(true)}
             aria-label={`View ${title} at full size`}
-            className="block w-full cursor-zoom-in focus-visible:outline-none"
+            className="group/media relative block w-full cursor-zoom-in overflow-clip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           >
             <img
               src={src}
@@ -40,17 +40,14 @@ export function MediaFrame({
               decoding="async"
               className="block w-full"
             />
-          </button>
-          <div className="od-caption absolute inset-x-0 bottom-0 z-10 flex translate-y-full items-center border-t border-primary/40 bg-background/95 text-primary transition-transform duration-[160ms] ease-[var(--od-ease-out)] group-hover/media:translate-y-0 group-focus-within/media:translate-y-0 motion-reduce:transition-none">
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              className="flex h-8 w-full items-center gap-2 px-3 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            <span
+              aria-hidden
+              className="od-caption absolute inset-x-0 bottom-0 z-10 flex h-8 translate-y-full items-center gap-2 border-t border-primary/40 bg-background/95 px-3 text-primary transition-transform duration-[160ms] ease-[var(--od-ease-out)] group-focus-visible/media:translate-y-0 motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:group-hover/media:translate-y-0"
             >
               <Maximize2 className="size-4" aria-hidden />
               View full size
-            </button>
-          </div>
+            </span>
+          </button>
         </div>
       </div>
       {children}
