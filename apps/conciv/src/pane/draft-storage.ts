@@ -78,6 +78,7 @@ export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promi
     storage: {
       getItem: () => cache,
       setItem: (_key, value) => {
+        const stored = cache === null ? null : parseDraft(cache)
         cache = value
         const parsed = parseDraft(value)
         if (!parsed) return
@@ -86,7 +87,7 @@ export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promi
           return
         }
         write.cancel()
-        persist(parsed)
+        if (stored && !isCleared(stored)) persist(parsed)
       },
     },
     noteSelection: (offsets) => {

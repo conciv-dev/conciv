@@ -5,6 +5,7 @@ import {chatBox, openChatPanel} from './helpers/chat.js'
 import {setupProxiedEmbedSuite} from './helpers/proxied-suite.js'
 
 const ASSISTANT_TEXT = 'Reprobed reply'
+const TYPED_WHILE_UNREACHABLE = 'typed while the engine refuses every call'
 const MOUNT_TIMEOUT_MS = 30_000
 
 const suite = setupProxiedEmbedSuite({text: ASSISTANT_TEXT, proxy: {blockUpgrades: true}})
@@ -26,6 +27,7 @@ test.describe('a manual Retry after upgrades unblock re-probes the transport fro
 
     const hold = await holdRpcCalls(page)
     hold.hold()
+    await composer.fill(TYPED_WHILE_UNREACHABLE)
 
     const retryButton = page.getByRole('button', {name: 'Retry'})
     await expect(retryButton).toBeVisible({timeout: MOUNT_TIMEOUT_MS})

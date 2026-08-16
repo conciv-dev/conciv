@@ -22,16 +22,17 @@ export function useComposerDraftPersistence(options: ComposerDraftPersistenceOpt
     (storage: WebStorage, key: string, draft: ComposerDraft) => writeComposerDraft(storage, key, draft),
     {wait: DRAFT_WRITE_DELAY_MS},
   )
-  createEffect(() => {
-    const storage = options.storage()
-    if (!storage) return
+  createEffect<ComposerDraft | undefined>((previous) => {
     const draft = options.draft()
+    const storage = options.storage()
+    if (!storage) return previous
     if (!isCleared(draft)) {
       void writer.maybeExecute(storage, options.key(), draft)
-      return
+      return draft
     }
     writer.cancel()
-    void writeComposerDraft(storage, options.key(), draft)
+    if (previous && !isCleared(previous)) void writeComposerDraft(storage, options.key(), draft)
+    return draft
   })
   makeEventListener(window, 'pagehide', () => void writer.flush())
 }
