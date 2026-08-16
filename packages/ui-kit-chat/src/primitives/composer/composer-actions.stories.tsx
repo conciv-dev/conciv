@@ -61,12 +61,16 @@ function ActionsFrame(props: {
           : {width: `${props.width}px`}
       }
     >
-      <ComposerActionsHost
-        triggerContent={<Ellipsis class="size-5 block" aria-hidden="true" />}
-        maxInlineAuto={props.maxInlineAuto}
-        leading={<SlotPlaceholder />}
-        trailing={<SlotPlaceholder />}
-      >
+      <ComposerActionsHost maxInlineAuto={props.maxInlineAuto}>
+        <ComposerActions.Trigger>
+          <Ellipsis class="size-5 block" aria-hidden="true" />
+        </ComposerActions.Trigger>
+        <ComposerActions.Leading>
+          <SlotPlaceholder />
+        </ComposerActions.Leading>
+        <ComposerActions.Trailing>
+          <SlotPlaceholder />
+        </ComposerActions.Trailing>
         {props.children}
       </ComposerActionsHost>
     </div>

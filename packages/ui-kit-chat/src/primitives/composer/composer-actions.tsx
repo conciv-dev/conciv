@@ -1,15 +1,16 @@
 import {
   batch,
   createContext,
-  createSignal,
   createUniqueId,
   For,
   onCleanup,
   Show,
   splitProps,
+  untrack,
   useContext,
   type JSX,
 } from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {makeResizeObserver} from '@solid-primitives/resize-observer'
 import {Menu, TooltipIconButton, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {
@@ -17,7 +18,9 @@ import {
   type ActionMenuEntry,
   type ActionsCoordinator,
   type ActionSource,
+  type RegionWidths,
   type RegisteredAction,
+  type SlotName,
 } from './composer-actions-core.js'
 
 type ActionPairing = {
@@ -50,91 +53,98 @@ function usePlacement(source: ActionSource): () => boolean {
 }
 
 export type ComposerActionsHostProps = {
-  leading?: JSX.Element
-  trailing: JSX.Element
-  triggerContent: JSX.Element
   maxInlineAuto?: number
   onOverflowDismissed?: () => void
   children: JSX.Element
 }
 
 export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Element {
-  const [local] = splitProps(props, [
-    'leading',
-    'trailing',
-    'triggerContent',
-    'maxInlineAuto',
-    'onOverflowDismissed',
-    'children',
-  ])
-  const coordinator = createActionsCoordinator({
-    maxInlineAuto: () => local.maxInlineAuto,
-    onOverflowDismissed: () => local.onOverflowDismissed?.(),
-  })
+  const [local] = splitProps(props, ['maxInlineAuto', 'onOverflowDismissed', 'children'])
+  const [widths, setWidths] = createStore<RegionWidths>({row: 0, leading: 0, trailing: 0})
   let rowElement: Element | undefined
   let leadingElement: Element | undefined
   let trailingElement: Element | undefined
   const applyEntry = (entry: ResizeObserverEntry): void => {
-    if (entry.target === rowElement) coordinator.setRowWidth(entry.contentRect.width)
-    if (entry.target === leadingElement) coordinator.setLeadingWidth(entry.contentRect.width)
-    if (entry.target === trailingElement) coordinator.setTrailingWidth(entry.contentRect.width)
+    if (entry.target === rowElement) setWidths('row', entry.contentRect.width)
+    if (entry.target === leadingElement) setWidths('leading', entry.contentRect.width)
+    if (entry.target === trailingElement) setWidths('trailing', entry.contentRect.width)
   }
   const {observe} = makeResizeObserver((entries) => batch(() => entries.forEach(applyEntry)))
+  const coordinator = createActionsCoordinator({widths, maxInlineAuto: () => local.maxInlineAuto})
 
   return (
     <CoordinatorContext.Provider value={coordinator}>
-      <Menu.Root open={coordinator.menuOpen()} onOpenChange={(details) => coordinator.setMenuOpen(details.open)}>
+      <div
+        ref={(element) => {
+          rowElement = element
+          observe(element)
+        }}
+        class="pt-0.5 flex gap-1 items-center"
+      >
         <div
           ref={(element) => {
-            rowElement = element
+            leadingElement = element
             observe(element)
           }}
-          class="pt-0.5 flex gap-1 items-center"
+          class={REGION_CLASS}
         >
-          <div
-            ref={(element) => {
-              leadingElement = element
-              observe(element)
-            }}
-            class={REGION_CLASS}
-          >
-            {local.leading}
-          </div>
-          {local.children}
-          <Show
-            when={coordinator.anyCollapsed()}
-            fallback={<span aria-hidden="true" class={`${ACTION_CLASS} shrink-0 invisible`} />}
-          >
+          {coordinator.slotRender('leading')?.()}
+        </div>
+        {local.children}
+        <Show
+          when={coordinator.anyCollapsed()}
+          fallback={<span aria-hidden="true" class={`${ACTION_CLASS} shrink-0 invisible`} />}
+        >
+          <Menu.Root>
             <TooltipIconButtonSlot tooltip={TRIGGER_TOOLTIP} class={TRIGGER_CLASS}>
               {(buttonProps) => (
                 <Menu.Trigger
                   asChild={(triggerProps) => (
                     <button {...buttonProps()} {...triggerProps()}>
-                      {local.triggerContent}
+                      {coordinator.slotRender('trigger')?.()}
                     </button>
                   )}
                 />
               )}
             </TooltipIconButtonSlot>
-          </Show>
-          <div
-            ref={(element) => {
-              trailingElement = element
-              observe(element)
-            }}
-            class={`ml-auto ${REGION_CLASS}`}
-          >
-            {local.trailing}
-          </div>
+            <Menu.Positioner>
+              <Menu.Content aria-label={TRIGGER_TOOLTIP}>
+                <For each={coordinator.menuActions()}>{(action) => <OverflowGroup action={action} />}</For>
+              </Menu.Content>
+            </Menu.Positioner>
+            <Menu.Context>
+              {(api) => (
+                <Show when={api().open}>
+                  <OverflowDismissal
+                    collapsed={coordinator.anyCollapsed}
+                    onDismissed={() => local.onOverflowDismissed?.()}
+                  />
+                </Show>
+              )}
+            </Menu.Context>
+          </Menu.Root>
+        </Show>
+        <div
+          ref={(element) => {
+            trailingElement = element
+            observe(element)
+          }}
+          class={`ml-auto ${REGION_CLASS}`}
+        >
+          {coordinator.slotRender('trailing')?.()}
         </div>
-        <Menu.Positioner>
-          <Menu.Content aria-label={TRIGGER_TOOLTIP}>
-            <For each={coordinator.menuActions()}>{(action) => <OverflowGroup action={action} />}</For>
-          </Menu.Content>
-        </Menu.Positioner>
-      </Menu.Root>
+      </div>
     </CoordinatorContext.Provider>
   )
+}
+
+function OverflowDismissal(props: {collapsed: () => boolean; onDismissed: () => void}): JSX.Element {
+  const [local] = splitProps(props, ['collapsed', 'onDismissed'])
+  onCleanup(() => {
+    if (untrack(local.collapsed)) return
+    local.onDismissed()
+  })
+  return null
 }
 
 function OverflowGroup(props: {action: RegisteredAction}): JSX.Element {
@@ -151,6 +161,22 @@ function OverflowGroup(props: {action: RegisteredAction}): JSX.Element {
   )
 }
 
+export type ComposerActionsSlotProps = {children: JSX.Element}
+
+function createSlot(slot: SlotName) {
+  return function ComposerActionsSlot(props: ComposerActionsSlotProps): JSX.Element {
+    const coordinator = useContext(CoordinatorContext)
+    if (coordinator === undefined) return null
+    const [local] = splitProps(props, ['children'])
+    coordinator.registerSlot({slot, render: () => local.children})
+    return null
+  }
+}
+
+const Leading = createSlot('leading')
+const Trailing = createSlot('trailing')
+const Trigger = createSlot('trigger')
+
 export type ComposerActionsActionProps = {
   priority?: number
   visible?: 'auto' | 'always'
@@ -162,27 +188,17 @@ function Action(props: ComposerActionsActionProps): JSX.Element {
   const coordinator = useContext(CoordinatorContext)
   if (coordinator === undefined) return null
   const [local] = splitProps(props, ['priority', 'visible', 'disabled', 'children'])
-  const [inlineClaimed, setInlineClaimed] = createSignal(false)
-  const [menuEntries, setMenuEntries] = createSignal<ActionMenuEntry[]>([])
   const disabled = (): boolean => local.disabled?.() === true
-  const key = coordinator.register({
+  const paired = coordinator.registerPaired({
     priority: () => local.priority ?? 0,
     pinned: () => local.visible === 'always',
     disabled,
-    inlineContent: inlineClaimed,
-    menuContent: menuEntries,
   })
   const pairing: ActionPairing = {
     disabled,
-    inline: () => coordinator.isInline(key),
-    claimInline: () => {
-      setInlineClaimed(true)
-      onCleanup(() => setInlineClaimed(false))
-    },
-    registerMenuEntry: (entry) => {
-      setMenuEntries((current) => [...current, entry])
-      onCleanup(() => setMenuEntries((current) => current.filter((existing) => existing.key !== entry.key)))
-    },
+    inline: paired.isInline,
+    claimInline: paired.claimInline,
+    registerMenuEntry: paired.registerMenuEntry,
   }
   return <PairingContext.Provider value={pairing}>{local.children}</PairingContext.Provider>
 }
@@ -276,4 +292,4 @@ function Inline(props: ComposerActionsInlineProps): JSX.Element {
   return <Show when={inline()}>{local.children}</Show>
 }
 
-export const ComposerActions = {Action, ActionButton, ActionMenuItem, Inline}
+export const ComposerActions = {Action, ActionButton, ActionMenuItem, Inline, Leading, Trailing, Trigger}

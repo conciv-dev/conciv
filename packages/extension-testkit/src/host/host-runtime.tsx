@@ -8,6 +8,7 @@ import {MountedExtension, MountedSurface} from '@conciv/extension/client'
 import {
   AttachmentByMime,
   AttachmentProvider,
+  ComposerActions,
   ComposerActionsHost,
   createDocumentAttachmentAdapter,
 } from '@conciv/ui-kit-chat'
@@ -74,10 +75,13 @@ function MountedComposerSlot(props: {extension: AnyExtension; clientValue: objec
         />
       </label>
       <div style={{width: `${width()}px`}}>
-        <ComposerActionsHost
-          triggerContent={<span aria-hidden="true" class="size-5 block" />}
-          trailing={<span aria-hidden="true" class="shrink-0 size-8.5 block" />}
-        >
+        <ComposerActionsHost>
+          <ComposerActions.Trigger>
+            <span aria-hidden="true" class="size-5 block" />
+          </ComposerActions.Trigger>
+          <ComposerActions.Trailing>
+            <span aria-hidden="true" class="shrink-0 size-8.5 block" />
+          </ComposerActions.Trailing>
           <MountedExtension extension={local.extension} clientValue={local.clientValue} slot="composer" />
         </ComposerActionsHost>
       </div>

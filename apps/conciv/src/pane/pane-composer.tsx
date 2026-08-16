@@ -1,4 +1,4 @@
-import {createSignal, Show, Suspense, type Component, type JSX} from 'solid-js'
+import {Show, Suspense, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import ArrowUp from 'lucide-solid/icons/arrow-up'
 import Clock from 'lucide-solid/icons/clock'
@@ -6,6 +6,7 @@ import Ellipsis from 'lucide-solid/icons/ellipsis'
 import Paperclip from 'lucide-solid/icons/paperclip'
 import Square from 'lucide-solid/icons/square'
 import {
+  ComposerActions,
   ComposerActionsHost,
   ComposerPrimitive,
   QueueItem,
@@ -87,9 +88,9 @@ function ComposerSendControl(): JSX.Element {
 }
 
 export function PaneComposer(props: PaneComposerProps): JSX.Element {
-  const [inputHandle, setInputHandle] = createSignal<ComposerInputHandle>()
+  let inputHandle: ComposerInputHandle | undefined
   const receiveInputHandle = (handle: ComposerInputHandle): void => {
-    setInputHandle(handle)
+    inputHandle = handle
     props.onInputReady?.(handle)
   }
   return (
@@ -133,11 +134,11 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           onSelectionChange={props.onSelectionChange}
           initialSelection={props.initialSelection}
         />
-        <ComposerActionsHost
-          triggerContent={<Ellipsis class="size-5 block" aria-hidden="true" />}
-          maxInlineAuto={MAX_INLINE_AUTO_ACTIONS}
-          onOverflowDismissed={() => inputHandle()?.focus()}
-          leading={
+        <ComposerActionsHost maxInlineAuto={MAX_INLINE_AUTO_ACTIONS} onOverflowDismissed={() => inputHandle?.focus()}>
+          <ComposerActions.Trigger>
+            <Ellipsis class="size-5 block" aria-hidden="true" />
+          </ComposerActions.Trigger>
+          <ComposerActions.Leading>
             <Show when={props.attachmentAdapter}>
               <TooltipIconButtonSlot tooltip={ATTACHMENT_LABEL}>
                 {(buttonProps) => (
@@ -147,16 +148,13 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
                 )}
               </TooltipIconButtonSlot>
             </Show>
-          }
-          trailing={
-            <>
-              <Suspense fallback={<span class="size-8.5 shrink-0" />}>{props.trailingExtras}</Suspense>
-              <Show when={props.busy} fallback={<ComposerSendControl />}>
-                {props.busy}
-              </Show>
-            </>
-          }
-        >
+          </ComposerActions.Leading>
+          <ComposerActions.Trailing>
+            <Suspense fallback={<span class="size-8.5 shrink-0" />}>{props.trailingExtras}</Suspense>
+            <Show when={props.busy} fallback={<ComposerSendControl />}>
+              {props.busy}
+            </Show>
+          </ComposerActions.Trailing>
           {props.children}
         </ComposerActionsHost>
       </div>

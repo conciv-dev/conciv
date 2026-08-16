@@ -21,7 +21,13 @@ function mountMenu(state: {pending?: boolean; failed?: boolean} = {}): MenuMount
         <For each={made()}>{(choice) => <li>chose {choice}</li>}</For>
       </ul>
       <div style={{width: `${width()}px`}}>
-        <ComposerActionsHost triggerContent={<span aria-hidden="true">…</span>} trailing={<span />}>
+        <ComposerActionsHost>
+          <ComposerActions.Trigger>
+            <span aria-hidden="true">…</span>
+          </ComposerActions.Trigger>
+          <ComposerActions.Trailing>
+            <span />
+          </ComposerActions.Trailing>
           <ComposerActions.ActionButton priority={20} tooltip="Earlier action" onClick={() => choose('earlier')}>
             <span aria-hidden="true" />
           </ComposerActions.ActionButton>

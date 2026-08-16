@@ -3,7 +3,7 @@ import {afterAll, afterEach, beforeAll, expect, test} from 'vitest'
 import {page} from 'vitest/browser'
 import type {GrabApi} from '@conciv/grab'
 import {HostApiProvider} from '@conciv/extension/host'
-import {ComposerActionsHost} from '@conciv/ui-kit-chat'
+import {ComposerActions as ComposerActionsPrimitive, ComposerActionsHost} from '@conciv/ui-kit-chat'
 import {ComposerActions} from '../src/composer/actions.js'
 import {coreControl} from './helpers/core-control.js'
 import {coreRpc, createSession} from './helpers/core-session.js'
@@ -53,7 +53,10 @@ async function mountActions(): Promise<void> {
   const sessionId = await createSession(coreRpc(core.base))
   mounted.pane = mountPane({base: core.base, sessionId}, () => (
     <HostApiProvider grab={grabApi} toast={() => {}}>
-      <ComposerActionsHost triggerContent={<span aria-hidden="true" class="size-5 block" />} trailing={<></>}>
+      <ComposerActionsHost>
+        <ComposerActionsPrimitive.Trigger>
+          <span aria-hidden="true" class="size-5 block" />
+        </ComposerActionsPrimitive.Trigger>
         <ComposerActions
           sessionId={sessionId}
           compacting={false}

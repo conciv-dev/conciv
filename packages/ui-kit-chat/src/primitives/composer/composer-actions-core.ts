@@ -1,4 +1,4 @@
-import {batch, createEffect, createMemo, createSignal, createUniqueId, onCleanup, untrack, type JSX} from 'solid-js'
+import {createMemo, createSignal, createUniqueId, onCleanup, type JSX} from 'solid-js'
 import {orderBy} from 'es-toolkit'
 import {ACTION_SLOT_PX, computeVisibleAutoCount, FIT_HYSTERESIS_PX, REGION_GAP_PX} from './composer-actions-fit.js'
 
@@ -19,42 +19,67 @@ export type ActionSource = {
 
 export type RegisteredAction = ActionSource & {key: string}
 
+export type SlotName = 'leading' | 'trailing' | 'trigger'
+
+export type SlotRender = () => JSX.Element
+
+export type SlotRegistration = {slot: SlotName; render: SlotRender}
+
+type MenuRegistration = {key: string; entry: ActionMenuEntry}
+
+type Registry = {
+  actions: RegisteredAction[]
+  slots: SlotRegistration[]
+  inlineClaims: string[]
+  menuEntries: MenuRegistration[]
+}
+
+export type PairedSource = Omit<ActionSource, 'inlineContent' | 'menuContent'>
+
+export type PairedRegistration = {
+  isInline: () => boolean
+  claimInline: () => void
+  registerMenuEntry: (entry: ActionMenuEntry) => void
+}
+
+export type RegionWidths = {
+  row: number
+  leading: number
+  trailing: number
+}
+
 export type ActionsCoordinatorOptions = {
+  widths: RegionWidths
   maxInlineAuto?: () => number | undefined
-  onOverflowDismissed?: () => void
 }
 
 export type ActionsCoordinator = {
   register: (source: ActionSource) => string
+  registerPaired: (source: PairedSource) => PairedRegistration
+  registerSlot: (registration: SlotRegistration) => void
+  slotRender: (slot: SlotName) => SlotRender | undefined
   isInline: (key: string) => boolean
   menuActions: () => RegisteredAction[]
   anyCollapsed: () => boolean
-  menuOpen: () => boolean
-  setMenuOpen: (open: boolean) => void
-  setRowWidth: (width: number) => void
-  setLeadingWidth: (width: number) => void
-  setTrailingWidth: (width: number) => void
 }
 
-export function createActionsCoordinator(options: ActionsCoordinatorOptions): ActionsCoordinator {
-  const [actions, setActions] = createSignal<RegisteredAction[]>([])
-  const [rowWidth, setRowWidth] = createSignal(0)
-  const [leadingWidth, setLeadingWidth] = createSignal(0)
-  const [trailingWidth, setTrailingWidth] = createSignal(0)
-  const [menuRequested, setMenuRequested] = createSignal(false)
+const EMPTY_REGISTRY: Registry = {actions: [], slots: [], inlineClaims: [], menuEntries: []}
 
-  const sortedActions = createMemo(() => orderBy(actions(), [(entry) => entry.priority()], ['desc']))
-  const fitParticipants = createMemo(() => sortedActions().filter((entry) => entry.inlineContent()))
-  const pinnedActions = createMemo(() => fitParticipants().filter((entry) => entry.pinned()))
-  const autoActions = createMemo(() => fitParticipants().filter((entry) => !entry.pinned()))
+export function createActionsCoordinator(options: ActionsCoordinatorOptions): ActionsCoordinator {
+  const [registry, setRegistry] = createSignal<Registry>(EMPTY_REGISTRY)
+
+  const sortedActions = createMemo(() => orderBy(registry().actions, [(action) => action.priority()], ['desc']))
+  const fitParticipants = createMemo(() => sortedActions().filter((action) => action.inlineContent()))
+  const pinnedActions = createMemo(() => fitParticipants().filter((action) => action.pinned()))
+  const autoActions = createMemo(() => fitParticipants().filter((action) => !action.pinned()))
 
   const fittedAutoCount = createMemo<number | null>((previous) => {
-    const measuredRowWidth = rowWidth()
+    const measuredRowWidth = options.widths.row
     if (measuredRowWidth === 0) return previous
     return computeVisibleAutoCount({
       rowWidth: measuredRowWidth,
-      leadingWidth: leadingWidth(),
-      trailingWidth: trailingWidth(),
+      leadingWidth: options.widths.leading,
+      trailingWidth: options.widths.trailing,
       slotWidth: ACTION_SLOT_PX,
       regionGapPx: REGION_GAP_PX,
       pinnedCount: pinnedActions().length,
@@ -73,41 +98,78 @@ export function createActionsCoordinator(options: ActionsCoordinatorOptions): Ac
   const inlineKeys = createMemo(
     () =>
       new Set([
-        ...pinnedActions().map((entry) => entry.key),
+        ...pinnedActions().map((action) => action.key),
         ...autoActions()
           .slice(0, inlineAutoCount())
-          .map((entry) => entry.key),
+          .map((action) => action.key),
       ]),
   )
 
   const menuActions = createMemo(() =>
-    sortedActions().filter((entry) => entry.menuContent().length > 0 && !inlineKeys().has(entry.key)),
+    sortedActions().filter((action) => action.menuContent().length > 0 && !inlineKeys().has(action.key)),
   )
-  const anyCollapsed = createMemo(() => menuActions().length > 0)
 
-  createEffect(() => {
-    if (anyCollapsed()) return
-    if (!untrack(menuRequested)) return
-    batch(() => {
-      setMenuRequested(false)
-      options.onOverflowDismissed?.()
-    })
-  })
+  const addAction = (action: RegisteredAction): void => {
+    setRegistry((current) => ({...current, actions: [...current.actions, action]}))
+    onCleanup(() =>
+      setRegistry((current) => ({
+        ...current,
+        actions: current.actions.filter((existing) => existing.key !== action.key),
+      })),
+    )
+  }
 
   return {
     register: (source) => {
       const key = createUniqueId()
-      setActions((current) => [...current, {...source, key}])
-      onCleanup(() => setActions((current) => current.filter((entry) => entry.key !== key)))
+      addAction({...source, key})
       return key
     },
+    registerPaired: (source) => {
+      const key = createUniqueId()
+      addAction({
+        ...source,
+        key,
+        inlineContent: () => registry().inlineClaims.includes(key),
+        menuContent: () =>
+          registry()
+            .menuEntries.filter((registration) => registration.key === key)
+            .map((registration) => registration.entry),
+      })
+      return {
+        isInline: () => inlineKeys().has(key),
+        claimInline: () => {
+          setRegistry((current) => ({...current, inlineClaims: [...current.inlineClaims, key]}))
+          onCleanup(() =>
+            setRegistry((current) => ({
+              ...current,
+              inlineClaims: current.inlineClaims.filter((claimed) => claimed !== key),
+            })),
+          )
+        },
+        registerMenuEntry: (entry) => {
+          setRegistry((current) => ({...current, menuEntries: [...current.menuEntries, {key, entry}]}))
+          onCleanup(() =>
+            setRegistry((current) => ({
+              ...current,
+              menuEntries: current.menuEntries.filter((registration) => registration.entry.key !== entry.key),
+            })),
+          )
+        },
+      }
+    },
+    registerSlot: (registration) => {
+      setRegistry((current) => ({...current, slots: [...current.slots, registration]}))
+      onCleanup(() =>
+        setRegistry((current) => ({
+          ...current,
+          slots: current.slots.filter((existing) => existing !== registration),
+        })),
+      )
+    },
+    slotRender: (slot) => registry().slots.find((registration) => registration.slot === slot)?.render,
     isInline: (key) => inlineKeys().has(key),
     menuActions,
-    anyCollapsed,
-    menuOpen: () => menuRequested() && anyCollapsed(),
-    setMenuOpen: setMenuRequested,
-    setRowWidth,
-    setLeadingWidth,
-    setTrailingWidth,
+    anyCollapsed: () => menuActions().length > 0,
   }
 }

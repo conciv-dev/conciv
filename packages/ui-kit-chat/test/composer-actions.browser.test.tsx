@@ -39,13 +39,12 @@ function Fixture(props: {
   ])
   return (
     <div style={{width: `${local.width}px`}}>
-      <ComposerActionsHost
-        triggerContent={<Glyph />}
-        maxInlineAuto={local.maxInlineAuto}
-        leading={local.leading}
-        trailing={local.trailing ?? <Slots count={1} />}
-        onOverflowDismissed={local.onOverflowDismissed}
-      >
+      <ComposerActionsHost maxInlineAuto={local.maxInlineAuto} onOverflowDismissed={local.onOverflowDismissed}>
+        <ComposerActions.Trigger>
+          <Glyph />
+        </ComposerActions.Trigger>
+        <ComposerActions.Leading>{local.leading}</ComposerActions.Leading>
+        <ComposerActions.Trailing>{local.trailing ?? <Slots count={1} />}</ComposerActions.Trailing>
         {local.children}
       </ComposerActionsHost>
     </div>
