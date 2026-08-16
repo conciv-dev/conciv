@@ -1,4 +1,5 @@
 import {expect, type Page} from '@playwright/test'
+import type {WidgetSuite} from './suite.js'
 
 const PANEL_TIMEOUT_MS = 30_000
 
@@ -15,4 +16,12 @@ export async function openChatPanel(page: Page): Promise<void> {
 export async function sendChatMessage(page: Page, text: string): Promise<void> {
   await chatBox(page).fill(text)
   await page.getByRole('button', {name: 'Send message'}).click()
+}
+
+export async function sendHeldTurn(page: Page, suite: WidgetSuite): Promise<void> {
+  suite.kit().harness.script.hold()
+  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+  await openChatPanel(page)
+  await sendChatMessage(page, 'hold this turn open')
+  await expect(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
 }

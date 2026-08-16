@@ -1,5 +1,5 @@
 import {expect, test, type Page} from '@playwright/test'
-import {openChatPanel, sendChatMessage} from './helpers/chat.js'
+import {openChatPanel, sendHeldTurn} from './helpers/chat.js'
 import {setupWidgetSuite} from './helpers/suite.js'
 
 const suite = setupWidgetSuite()
@@ -41,11 +41,7 @@ test('an idle launcher never matches the busy eye-glow selector', async ({page})
 })
 
 test('a streaming run puts the busy overlay ahead of the stage so the eye-glow selector matches', async ({page}) => {
-  suite.kit().harness.script.hold()
-  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-  await openChatPanel(page)
-  await sendChatMessage(page, 'hold this turn open')
-  await expect(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+  await sendHeldTurn(page, suite)
 
   await expect(glowingEyes(page)).toBeAttached({timeout: IMMEDIATE_MS})
 })
@@ -69,11 +65,7 @@ test('opening the panel with nothing running wakes the robot and drops the gaze'
 })
 
 test('opening the panel during a run keeps the working pose instead of waking the robot', async ({page}) => {
-  suite.kit().harness.script.hold()
-  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
-  await openChatPanel(page)
-  await sendChatMessage(page, 'hold this turn open')
-  await expect(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+  await sendHeldTurn(page, suite)
 
   await expect(emitter(page)).toHaveCount(1)
 })

@@ -11,7 +11,7 @@ Rendering the robot takes one element:
 ```tsx
 import {Mascot} from '@conciv/mascot/solid'
 
-;<Mascot state="rest" working={busy()} follow />
+const Robot = () => <Mascot state="rest" working={busy()} follow />
 ```
 
 `<Mascot>` renders its own head, antenna and eyes layers on a 44px stage and mounts the binary
@@ -22,12 +22,14 @@ unmount, in any child order:
 import {Mascot} from '@conciv/mascot/solid'
 import {steamEffect} from '@conciv/mascot/effects/steam'
 
-;<Mascot class="size-16" working={busy()} follow>
-  <Mascot.Head />
-  <Mascot.Antenna follow={false} />
-  <Mascot.Eyes class="glow" />
-  <Mascot.Effect mount={() => steamEffect} />
-</Mascot>
+const SteamingRobot = () => (
+  <Mascot class="size-16" working={busy()} follow>
+    <Mascot.Head />
+    <Mascot.Antenna follow={false} />
+    <Mascot.Eyes class="glow" />
+    <Mascot.Effect mount={() => steamEffect} />
+  </Mascot>
+)
 ```
 
 `<Mascot.Effect>` mounts any effect subpath in place of the default binary; two effect children mean
