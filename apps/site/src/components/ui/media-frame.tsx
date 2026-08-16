@@ -1,6 +1,6 @@
 import {Maximize2} from 'lucide-react'
-import {useState, type ReactNode} from 'react'
-import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
+import type {ReactNode} from 'react'
+import {Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger} from '@/components/ui/dialog'
 import {cn} from '@/lib/utils'
 
 const FILL_CLASSES = {
@@ -31,10 +31,9 @@ export function MediaFrame({
   className?: string
   children?: ReactNode
 }) {
-  const [open, setOpen] = useState(false)
   const fillClass = fill ? FILL_CLASSES : NO_FILL_CLASSES
   return (
-    <>
+    <Dialog>
       <div className={cn('-m-1.5 border border-dashed p-1.5', fillClass.mat, className)}>
         <div
           className={cn(
@@ -42,9 +41,8 @@ export function MediaFrame({
             fillClass.frame,
           )}
         >
-          <button
+          <DialogTrigger
             type="button"
-            onClick={() => setOpen(true)}
             aria-label={`View ${title} at full size`}
             className={cn(
               'group/media relative block w-full cursor-zoom-in overflow-clip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
@@ -67,23 +65,21 @@ export function MediaFrame({
               <Maximize2 className="size-4" aria-hidden />
               View full size
             </span>
-          </button>
+          </DialogTrigger>
         </div>
       </div>
       {children}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[min(1400px,calc(100%-2rem))] gap-2 p-2 pt-12 sm:max-w-[min(1400px,calc(100%-2rem))]">
-          <DialogTitle className="sr-only">{title}</DialogTitle>
-          <DialogDescription className="sr-only">{alt}</DialogDescription>
-          <img
-            src={src}
-            width={width}
-            height={height}
-            alt={alt}
-            className="block max-h-[85dvh] w-full rounded-lg object-contain"
-          />
-        </DialogContent>
-      </Dialog>
-    </>
+      <DialogContent className="max-w-[min(1400px,calc(100%-2rem))] gap-2 p-2 pt-12 sm:max-w-[min(1400px,calc(100%-2rem))]">
+        <DialogTitle className="sr-only">{title}</DialogTitle>
+        <DialogDescription className="sr-only">{alt}</DialogDescription>
+        <img
+          src={src}
+          width={width}
+          height={height}
+          alt={alt}
+          className="block max-h-[85dvh] w-full rounded-lg object-contain"
+        />
+      </DialogContent>
+    </Dialog>
   )
 }

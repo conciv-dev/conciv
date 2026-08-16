@@ -95,6 +95,7 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
   const startedAt = performance.now()
   let lastFrameAt = 0
   let frameHandle = 0
+  let animatedFrames = 0
   let inView = true
   let color = readCurrentColor(canvas)
   let alpha = readLineAlpha(canvas)
@@ -118,6 +119,8 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
     if (now - lastFrameAt >= FRAME_INTERVAL_MS) {
       lastFrameAt = now
       draw(now)
+      animatedFrames += 1
+      canvas.dataset.frames = String(animatedFrames)
     }
     frameHandle = requestAnimationFrame(frame)
   }
@@ -155,6 +158,7 @@ function startHeroShader(canvas: HTMLCanvasElement, variant: HeroShaderVariant):
   document.addEventListener('visibilitychange', schedule)
   reducedMotion.addEventListener('change', recolor)
 
+  canvas.dataset.frames = String(animatedFrames)
   resize()
 
   return () => {

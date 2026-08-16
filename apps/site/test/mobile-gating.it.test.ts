@@ -19,7 +19,7 @@ test.describe('landing gates the dev-only demo behind a non-mobile pointer', () 
     await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(1, {timeout: 20_000})
     await expectLocator(page.getByRole('tablist', {name: 'Package manager'}).first()).toBeVisible()
     await expectLocator(page.getByRole('button', {name: 'Copy install command'}).first()).toBeVisible()
-    await expectLocator(page.getByRole('button', {name: /Try it live/i})).toBeVisible()
+    await expectLocator(page.getByRole('button', {name: 'Try it live', exact: true})).toBeVisible()
 
     await page.close()
   }, 60_000)
@@ -35,9 +35,11 @@ test.describe('landing gates the dev-only demo behind a non-mobile pointer', () 
     await expectLocator(page.getByRole('button', {name: 'Copy install command'}).first()).toBeVisible({
       timeout: 20_000,
     })
-    await expectLocator(page.getByRole('img', {name: /conciv live demo/i})).toBeVisible()
+    const poster = page.getByRole('img', {name: /conciv live demo/i})
+    await expectLocator(poster).toBeVisible()
+    await expectLocator(poster).toHaveAttribute('aria-hidden', 'false')
     await expectLocator(page.getByRole('tablist', {name: 'Package manager'}).first()).toBeHidden()
-    await expectLocator(page.getByRole('button', {name: /Try it live/i})).toBeHidden()
+    await expectLocator(page.getByRole('button', {name: 'Try it live', exact: true})).toBeHidden()
     await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(0)
     expect(requested.filter((url) => /model\.worker|\/demo[\w-]*\.js/.test(url))).toEqual([])
 
@@ -83,7 +85,7 @@ test.describe('the live widget mounts site-wide and the root widget param decide
     const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
     await expectLocator(panel).toBeVisible({timeout: 20_000})
 
-    await page.getByRole('navigation').getByRole('link', {name: 'Docs', exact: true}).click()
+    await page.getByRole('navigation', {name: 'Main'}).getByRole('link', {name: 'Docs', exact: true}).click()
 
     await expectLocator(page).toHaveURL(/\/docs\/?$/)
     await expectLocator(panel).toBeVisible()
@@ -101,7 +103,7 @@ test.describe('the live widget mounts site-wide and the root widget param decide
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
     await expectLocator(panel).toBeHidden()
 
-    await page.getByRole('navigation').getByRole('link', {name: 'Docs', exact: true}).click()
+    await page.getByRole('navigation', {name: 'Main'}).getByRole('link', {name: 'Docs', exact: true}).click()
     await expectLocator(page).toHaveURL(/\/docs\/?$/)
     await expectLocator(panel).toBeHidden()
 

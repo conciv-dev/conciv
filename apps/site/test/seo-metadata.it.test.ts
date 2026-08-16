@@ -62,7 +62,7 @@ describe('per-page canonical, og:url, and title metadata', () => {
 
   it.each([['/'], ['/docs/quick-start']])('renders a server-side GitHub star link anchor on %s', async (path) => {
     const {html} = await fetchHtml(path)
-    expect(html).toContain('<a href="https://github.com/conciv-dev/conciv"')
+    expect(html).toMatch(/<a[^>]*href="https:\/\/github\.com\/conciv-dev\/conciv"/)
   })
 })
 
