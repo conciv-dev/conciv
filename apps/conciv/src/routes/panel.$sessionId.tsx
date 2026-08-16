@@ -4,16 +4,20 @@ import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import Unplug from 'lucide-solid/icons/unplug'
-import {For, Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
+import {For, Show, Suspense, createMemo, createSignal, untrack, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {isSessionId} from '@conciv/protocol/chat-types'
-import {useAnnounce, useAppData, useDisconnect, useGrabProvider, useInstances, useRpc} from '../app/context.js'
+import {useChatSession} from '@conciv/client'
 import {
-  PaneContext,
-  makePendingAttachmentQueue,
-  type PaneContextValue,
-  type RefreshHandle,
-} from '../app/pane-context.js'
+  useAnnounce,
+  useAppData,
+  useConnectionGeneration,
+  useDisconnect,
+  useGrabProvider,
+  useInstances,
+  useRpc,
+} from '../app/context.js'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
 import {RefreshButton} from '../shell/refresh-button.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
@@ -38,6 +42,16 @@ export const Route = createFileRoute('/panel/$sessionId')({
 
 function PanelSession(): JSX.Element {
   const params = Route.useParams()
+  const generation = useConnectionGeneration()
+  const keyed = () => ({sessionId: params().sessionId, generation: generation()})
+  return (
+    <Show when={keyed()} keyed>
+      {(value) => <PanelSessionPane sessionId={value.sessionId} />}
+    </Show>
+  )
+}
+
+function PanelSessionPane(props: {sessionId: string}): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
   const announce = useAnnounce()
@@ -50,7 +64,7 @@ function PanelSession(): JSX.Element {
   const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
 
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
-  const row = () => (sessions.data ?? []).find((session) => session.id === params().sessionId)
+  const row = () => (sessions.data ?? []).find((session) => session.id === props.sessionId)
   const usage = () => row()?.usage ?? null
   const running = () => row()?.running ?? false
 
@@ -74,11 +88,11 @@ function PanelSession(): JSX.Element {
     const view = views().find((candidate) => candidate.id === next)
     announce(view ? view.label : 'Chat')
     if (next === 'chat')
-      void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}, replace: true})
+      void router.navigate({to: '/panel/$sessionId', params: {sessionId: props.sessionId}, replace: true})
     else
       void router.navigate({
         to: '/panel/$sessionId/$view',
-        params: {sessionId: params().sessionId, view: next},
+        params: {sessionId: props.sessionId, view: next},
         replace: true,
       })
   }
@@ -100,10 +114,10 @@ function PanelSession(): JSX.Element {
       running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
   })
 
-  const [refreshHandle, setRefreshHandle] = createSignal<RefreshHandle | null>(null)
+  const chat = useChatSession({rpc, sessionId: untrack(() => props.sessionId)})
 
   const paneValue: PaneContextValue = {
-    sessionId: () => params().sessionId,
+    sessionId: () => props.sessionId,
     running,
     viewLocked,
     setLockedFor,
@@ -113,8 +127,7 @@ function PanelSession(): JSX.Element {
     grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => void newSession(),
-    refresh: refreshHandle,
-    registerRefresh: (handle) => setRefreshHandle(handle),
+    chat,
   }
 
   return (
@@ -123,7 +136,7 @@ function PanelSession(): JSX.Element {
         <TooltipIconButton
           tooltip="Pop out to a window"
           class={CLOSE}
-          onClick={() => void router.navigate({to: '/pip/$sessionId', params: {sessionId: params().sessionId}})}
+          onClick={() => void router.navigate({to: '/pip/$sessionId', params: {sessionId: props.sessionId}})}
         >
           <PictureInPicture2 class="size-5 block" aria-hidden="true" />
         </TooltipIconButton>
@@ -131,7 +144,7 @@ function PanelSession(): JSX.Element {
         <Suspense fallback={<SessionPillPending variant="pill" />}>
           <SessionSelector
             variant="pill"
-            activeId={() => params().sessionId}
+            activeId={() => props.sessionId}
             onActivate={activate}
             onNewSession={() => void newSession()}
           />
@@ -140,7 +153,9 @@ function PanelSession(): JSX.Element {
           <ContextTracker usage={usage()} />
         </Suspense>
         <span class="flex-1" />
-        <RefreshButton class={CLOSE} />
+        <Show when={activeView() === 'chat'}>
+          <RefreshButton class={CLOSE} />
+        </Show>
         <Show when={connectMode && disconnect}>
           <TooltipIconButton tooltip="Disconnect this machine" class={CLOSE} onClick={() => disconnect?.()}>
             <Unplug class="size-[1em] block" aria-hidden="true" />

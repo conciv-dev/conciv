@@ -12,7 +12,6 @@ import {
   type JSX,
 } from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
-import {useChatSession} from '@conciv/client'
 import {
   AttachmentByMime,
   ChatProvider,
@@ -20,7 +19,6 @@ import {
   NowLine,
   Thread,
   ToolProvider,
-  chatBusy,
   pairResults,
   useComposerContext,
   type PageSessionConfig,
@@ -127,10 +125,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const sessionId = untrack(() => props.sessionId)
-  const chat = useChatSession({rpc, sessionId})
-
-  pane.registerRefresh({run: () => chat.refresh(), busy: () => chatBusy(chat)})
-  onCleanup(() => pane.registerRefresh(null))
+  const chat = pane.chat
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'

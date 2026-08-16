@@ -1,8 +1,9 @@
-import {createSignal, type JSX} from 'solid-js'
+import {untrack, type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {useRouter} from '@tanstack/solid-router'
+import {useChatSession} from '@conciv/client'
 import {useAppData, useGrabProvider, useRpc} from './context.js'
-import {PaneContext, makePendingAttachmentQueue, type PaneContextValue, type RefreshHandle} from './pane-context.js'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 
@@ -25,7 +26,7 @@ export function PaneProvider(props: {
     void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
   }
 
-  const [refreshHandle, setRefreshHandle] = createSignal<RefreshHandle | null>(null)
+  const chat = useChatSession({rpc, sessionId: untrack(() => props.sessionId)})
 
   const value: PaneContextValue = {
     sessionId: () => props.sessionId,
@@ -44,8 +45,7 @@ export function PaneProvider(props: {
       }
       void openNewSession()
     },
-    refresh: refreshHandle,
-    registerRefresh: (handle) => setRefreshHandle(handle),
+    chat,
   }
 
   return <PaneContext.Provider value={value}>{props.children}</PaneContext.Provider>

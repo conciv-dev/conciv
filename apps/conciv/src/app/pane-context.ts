@@ -1,15 +1,11 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
+import type {ChatSession} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {GrabStaging} from '../pane/grab-staging.js'
 
 export type PendingAttachmentQueue = {
   enqueue: (file: File) => void
   drain: () => File[]
-}
-
-export type RefreshHandle = {
-  run: () => void
-  busy: () => boolean
 }
 
 export type PaneContextValue = {
@@ -23,8 +19,7 @@ export type PaneContextValue = {
   grabProvider: GrabProvider | undefined
   attachments: PendingAttachmentQueue
   newSession: () => void
-  refresh: Accessor<RefreshHandle | null>
-  registerRefresh: (handle: RefreshHandle | null) => void
+  chat: ChatSession
 }
 
 export function makePendingAttachmentQueue(): PendingAttachmentQueue {

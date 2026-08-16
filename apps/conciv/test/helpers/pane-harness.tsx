@@ -9,12 +9,8 @@ import {makeAppContextValue} from './app-context-value.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../../src/app/reachability.js'
 import type {AnyExtension} from '@conciv/extension'
 import type {Grab, GrabProvider} from '@conciv/grab'
-import {
-  PaneContext,
-  makePendingAttachmentQueue,
-  type PaneContextValue,
-  type RefreshHandle,
-} from '../../src/app/pane-context.js'
+import {useChatSession} from '@conciv/client'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../../src/app/pane-context.js'
 import {createInstances} from '../../src/extension/create-instances.js'
 import {makeGrabStaging} from '../../src/pane/grab-staging.js'
 import {type AppData} from '../../src/data/app-data.js'
@@ -62,7 +58,10 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     instances,
   })
   const {rpc, data, queryClient} = app
-  const [refreshHandle, setRefreshHandle] = createSignal<RefreshHandle | null>(null)
+  const chatRoot = createRoot((disposeChat) => ({
+    chat: useChatSession({rpc, sessionId: options.sessionId}),
+    dispose: disposeChat,
+  }))
   const pane: PaneContextValue = {
     sessionId: () => options.sessionId,
     running: () => false,
@@ -74,8 +73,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     grabProvider: options.grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => options.onNewSession?.(),
-    refresh: refreshHandle,
-    registerRefresh: (handle) => setRefreshHandle(handle),
+    chat: chatRoot.chat,
   }
   const reachabilityRoot = createRoot((disposeReachability) => ({
     reachability: makeEngineReachability(),
@@ -104,6 +102,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     dispose: () => {
       mounted.unmount()
       for (const instance of instances) instance.dispose()
+      chatRoot.dispose()
       reachabilityRoot.dispose()
       closeBrowserRpcConnection(options.base)
       delete window.__CONCIV_API_BASE__
