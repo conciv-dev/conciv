@@ -13,10 +13,10 @@ uniform vec2 u_resolution;
 uniform vec3 u_color;
 uniform float u_alpha;
 #define TAU 6.28318530718
-float isoline(float value) {
+float isoline(float value, float widen) {
   float f = fract(value);
   float distance = min(f, 1.0 - f);
-  float width = fwidth(value);
+  float width = fwidth(value) * widen;
   return 1.0 - smoothstep(0.0, width * 1.5, distance - width * 0.25);
 }
 `
@@ -33,7 +33,8 @@ void main() {
   vec2 uv = (gl_FragCoord.xy - u_resolution * 0.5) / u_resolution.y;
   vec2 c = cardioidPoint(2.85);
   c += 0.012 * normalize(c - vec2(-0.25, 0.0));
-  vec2 z = (uv + vec2(0.008, 0.0)) * 1.25;
+  float breathing = 1.0 + 0.025 * sin(u_time * TAU / 20.0);
+  vec2 z = (uv * breathing + vec2(0.008, 0.0)) * 1.25;
   float smoothIteration = -1.0;
   for (int i = 0; i < ITERATIONS; i++) {
     z = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y) + c;
@@ -47,14 +48,17 @@ void main() {
     gl_FragColor = vec4(0.0);
     return;
   }
-  float level = log2(smoothIteration + 1.0) * 2.5 - u_time / 20.0;
+  float depth = log2(smoothIteration + 1.0);
+  float level = depth * 2.5 - u_time / 20.0;
   float weight = smoothstep(9.0, 22.0, smoothIteration);
   vec2 headline = (uv - vec2(0.0, 0.06)) / vec2(0.62, 0.36);
   float quiet = mix(0.2, 1.0, smoothstep(0.7, 1.5, length(headline)));
-  float wave = 0.5 + 0.5 * sin(smoothIteration * 1.1 - u_time * TAU / 10.0);
-  float glow = mix(0.3, 1.0, wave);
-  float coverage = isoline(level) * weight * quiet * glow;
-  float alpha = coverage * u_alpha;
+  float span = (depth - 4.3) / 2.8;
+  float sweep = fract(u_time / 10.0) * 1.4 - 0.2;
+  float pulse = exp(-pow((span - sweep) / 0.1, 2.0));
+  float glow = mix(0.45, 3.0, pulse);
+  float coverage = isoline(level, mix(1.0, 1.6, pulse)) * weight * quiet;
+  float alpha = min(coverage * u_alpha * glow, 1.0);
   gl_FragColor = vec4(u_color * alpha, alpha);
 }
 `
@@ -89,7 +93,7 @@ void main() {
   float pixel = scale / u_resolution.y;
   float outline = 1.0 - smoothstep(pixel * 0.3, pixel * 1.3, distanceEstimate);
   float level = log2(smoothIteration + 1.0) * 1.5 - u_time / 96.0;
-  float outer = isoline(level) * step(level, 6.0 - u_time / 96.0) * 0.6;
+  float outer = isoline(level, 1.0) * step(level, 6.0 - u_time / 96.0) * 0.6;
   float coverage = clamp(outline + outer, 0.0, 1.0);
   float alpha = coverage * u_alpha;
   gl_FragColor = vec4(u_color * alpha, alpha);
