@@ -1,15 +1,39 @@
-import {expect, type Page} from '@playwright/test'
+import {expect, type ConsoleMessage, type Page} from '@playwright/test'
 
-export type PageFailures = {pageErrors: string[]; consoleErrors: string[]; requestFailures: string[]}
+export type PageFailures = {
+  pageErrors: string[]
+  consoleErrors: string[]
+  requestFailures: string[]
+  thirdPartyRequests: string[]
+}
+
+const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+
+function describeConsoleMessage(message: ConsoleMessage): string {
+  const {url} = message.location()
+  return url === '' ? message.text() : `${message.text()} [${url}]`
+}
+
+function isThirdPartyRequest(url: string): boolean {
+  const {protocol, hostname} = new URL(url)
+  if (protocol !== 'http:' && protocol !== 'https:') return false
+  return !LOOPBACK_HOSTS.includes(hostname)
+}
 
 export function collectFailures(page: Page): PageFailures {
-  const failures: PageFailures = {pageErrors: [], consoleErrors: [], requestFailures: []}
+  const failures: PageFailures = {pageErrors: [], consoleErrors: [], requestFailures: [], thirdPartyRequests: []}
   page.on('pageerror', (error) => failures.pageErrors.push(String(error)))
   page.on('console', (message) => {
-    if (message.type() === 'error') failures.consoleErrors.push(message.text())
+    if (message.type() === 'error') failures.consoleErrors.push(describeConsoleMessage(message))
+  })
+  page.on('request', (request) => {
+    if (isThirdPartyRequest(request.url())) failures.thirdPartyRequests.push(request.url())
   })
   page.on('requestfailed', (request) => {
     failures.requestFailures.push(`${request.url()}: ${request.failure()?.errorText ?? 'unknown'}`)
+  })
+  page.on('response', (response) => {
+    if (response.status() >= 400) failures.requestFailures.push(`${response.url()}: HTTP ${response.status()}`)
   })
   return failures
 }
@@ -19,6 +43,7 @@ function describeFailures(failures: PageFailures): string {
     ...failures.pageErrors.map((entry) => `pageerror: ${entry}`),
     ...failures.consoleErrors.map((entry) => `console: ${entry}`),
     ...failures.requestFailures.map((entry) => `request: ${entry}`),
+    ...failures.thirdPartyRequests.map((entry) => `third-party request: ${entry}`),
   ].join('\n')
 }
 
@@ -33,6 +58,14 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
   await launcher.click()
   await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
   const transientOptimizerReload = /Failed to fetch dynamically imported module|504 \(Outdated Optimize Dep\)/
-  expect(failures.pageErrors.filter((entry) => !transientOptimizerReload.test(entry))).toEqual([])
-  expect(failures.consoleErrors.filter((entry) => !transientOptimizerReload.test(entry))).toEqual([])
+  const detail = describeFailures(failures)
+  expect(failures.thirdPartyRequests, detail).toEqual([])
+  expect(
+    failures.pageErrors.filter((entry) => !transientOptimizerReload.test(entry)),
+    detail,
+  ).toEqual([])
+  expect(
+    failures.consoleErrors.filter((entry) => !transientOptimizerReload.test(entry)),
+    detail,
+  ).toEqual([])
 }
