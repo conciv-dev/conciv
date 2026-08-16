@@ -34,6 +34,7 @@ export function concivSrcEntry(resolvedPath: string): string | null {
   const marker = resolvedPath.lastIndexOf('/dist/')
   if (marker === -1) return null
   const stem = resolvedPath.slice(marker + '/dist/'.length, -extension.length)
+  if (stem.startsWith('react/')) return null
   const srcStem = `${resolvedPath.slice(0, marker)}/src/${stem}`
   return [`${srcStem}.tsx`, `${srcStem}.ts`].find((candidate) => existsSync(candidate)) ?? null
 }

@@ -45,6 +45,14 @@ describe('concivSrcEntry', () => {
     expect(concivSrcEntry(fixture('scoped/dist/solid/index.jsx'))).toBe(fixture('scoped/src/solid/index.ts'))
   })
 
+  it('keeps a react dist entry on dist even though a ts source sibling exists', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/react/index.js'))).toBeNull()
+  })
+
+  it('keeps a react dist entry on dist even though a tsx source sibling exists', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/react/mascot-root.js'))).toBeNull()
+  })
+
   it('returns null when no source sibling exists', () => {
     expect(concivSrcEntry(fixture('scoped/dist/nope.js'))).toBeNull()
   })
