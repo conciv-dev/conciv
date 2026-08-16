@@ -11,18 +11,14 @@ import {SiteFooter} from './site-footer'
 export function LandingPage() {
   return (
     <LandingMotion>
-      <div className="min-h-screen">
+      <div className="min-h-dvh">
         <SiteNav />
-        <main className="od-container">
+        <main>
           <HeroCopy />
           <ProductFrame />
-          <div className="od-rule" />
           <PrinciplesStrip />
-          <div className="od-rule" />
           <CapabilitySection />
-          <div className="od-rule" />
           <HowItWorks />
-          <div className="od-rule" />
           <OpenSourceStrip />
         </main>
         <SiteFooter />

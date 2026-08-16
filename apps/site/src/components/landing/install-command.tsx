@@ -1,80 +1,47 @@
-import {Tabs as TabsPrimitive} from 'radix-ui'
-import {useEffect, useState} from 'react'
-import {CopyButton} from './copy-button'
+import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
+import {useReducedMotion} from 'motion/react'
+import type {ReactNode} from 'react'
+import '@shikijs/magic-move/style.css'
+import {PackageInstallerCommand, PackageInstallerTabs} from '@/components/ui/package-installer-tabs'
+import {
+  INSTALL_COMMANDS,
+  installCommandFor,
+  selectPackageInstaller,
+  usePackageInstaller,
+} from '@/lib/package-installer-store'
+import {cn} from '@/lib/utils'
+import {INSTALL_COMMAND_STEP_IDS, INSTALL_COMMAND_STEPS} from './framework-snippets.gen'
+import {magicMoveOptions} from './magic-move-options'
 
-type InstallCli = 'npm' | 'pnpm' | 'bun' | 'yarn'
+const WIDEST_COMMAND = INSTALL_COMMANDS.reduce(
+  (widest, entry) => (entry.command.length > widest.length ? entry.command : widest),
+  '',
+)
 
-const INSTALL_CLIS: InstallCli[] = ['npm', 'pnpm', 'bun', 'yarn']
+export function InstallCommand({action, className}: {action?: ReactNode; className?: string}) {
+  const installer = usePackageInstaller()
+  const active = installCommandFor(installer)
+  const shouldReduceMotion = useReducedMotion()
+  const step = Math.max(0, INSTALL_COMMAND_STEP_IDS.indexOf(active.id))
 
-const COMMANDS: Record<InstallCli, string> = {
-  npm: 'npm i -D @conciv/it',
-  pnpm: 'pnpm add -D @conciv/it',
-  bun: 'bun add -d @conciv/it',
-  yarn: 'yarn add -D @conciv/it',
-}
-
-const STORAGE_KEY = 'conciv.pm'
-
-function isInstallCli(value: string): value is InstallCli {
-  return INSTALL_CLIS.some((cli) => cli === value)
-}
-
-function usePersistedInstallCli(): [InstallCli, (value: string) => void] {
-  const [installCli, setInstallCli] = useState<InstallCli>('npm')
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY)
-    if (stored && isInstallCli(stored)) setInstallCli(stored)
-  }, [])
-
-  const selectInstallCli = (value: string) => {
-    if (!isInstallCli(value)) return
-    setInstallCli(value)
-    window.localStorage.setItem(STORAGE_KEY, value)
-  }
-
-  return [installCli, selectInstallCli]
-}
-
-function CommandLine({command}: {command: string}) {
   return (
-    <div className="inline-flex items-center gap-2.5 rounded-lg border bg-secondary py-2 pl-3.5 pr-2 font-mono text-[13px]">
-      <span className="text-primary">$</span>
-      <span>{command}</span>
-      <span className="ml-1">
-        <CopyButton.Root text={command}>
-          <CopyButton.Trigger label="Copy install command" />
-          <CopyButton.Feedback />
-        </CopyButton.Root>
-      </span>
+    <div className={cn('inline-flex max-w-full flex-col items-start gap-2', className)}>
+      <PackageInstallerTabs
+        commands={INSTALL_COMMANDS}
+        value={installer}
+        onValueChange={selectPackageInstaller}
+        className="max-md:hidden"
+      />
+      <div className="flex max-w-full flex-wrap items-center gap-2">
+        <PackageInstallerCommand command={active.command} widestCommand={WIDEST_COMMAND}>
+          <ShikiMagicMovePrecompiled
+            steps={INSTALL_COMMAND_STEPS}
+            step={step}
+            options={magicMoveOptions(shouldReduceMotion)}
+          />
+        </PackageInstallerCommand>
+        {action}
+      </div>
     </div>
-  )
-}
-
-export function InstallCommand() {
-  const [installCli, selectInstallCli] = usePersistedInstallCli()
-
-  return (
-    <TabsPrimitive.Root value={installCli} onValueChange={selectInstallCli}>
-      <TabsPrimitive.List
-        aria-label="Package manager"
-        className="mb-2 hidden gap-0.5 rounded-md border bg-card p-[3px] md:inline-flex"
-      >
-        {INSTALL_CLIS.map((cli) => (
-          <TabsPrimitive.Trigger
-            key={cli}
-            value={cli}
-            className="rounded-[5px] px-2.5 py-1 font-mono text-[12px] text-muted-foreground transition-colors duration-150 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground"
-          >
-            {cli}
-          </TabsPrimitive.Trigger>
-        ))}
-      </TabsPrimitive.List>
-      {INSTALL_CLIS.map((cli) => (
-        <TabsPrimitive.Content key={cli} value={cli}>
-          <CommandLine command={COMMANDS[cli]} />
-        </TabsPrimitive.Content>
-      ))}
-    </TabsPrimitive.Root>
   )
 }

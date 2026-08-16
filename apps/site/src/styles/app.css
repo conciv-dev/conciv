@@ -121,56 +121,154 @@ html > body[data-scroll-locked] {
   font-feature-settings: 'liga' 0;
 }
 
+/* type scale: 13 / 14 / 16 / 17 / 26 / 48 (six sizes, measured against zed.dev, mapped to our faces) */
 .od-h1 {
   font-family: var(--od-display);
   font-style: italic;
   font-weight: 400;
   letter-spacing: -0.02em;
-  line-height: 1.02;
-  font-size: clamp(44px, 5.4vw, 68px);
+  line-height: 1.2;
+  font-size: clamp(34px, 3.4vw, 48px);
+  text-wrap: balance;
 }
 
 .od-h2 {
   font-family: var(--od-display);
   font-style: normal;
   font-weight: 400;
-  font-size: clamp(30px, 3.2vw, 40px);
+  letter-spacing: -0.015em;
+  line-height: 32px;
+  font-size: 26px;
+  text-wrap: balance;
+}
+
+.od-h3 {
+  font-family: var(--od-display);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 24px;
+  font-size: 17px;
+  text-wrap: balance;
+}
+
+.od-body {
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
+}
+
+.od-ui {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.od-caption {
+  font-size: 13px;
+  line-height: 20px;
+  text-wrap: pretty;
 }
 
 .od-eyebrow {
   font-family: var(--od-mono);
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: 11.5px;
+  letter-spacing: 0.16em;
+  font-size: 13px;
+  line-height: 20px;
   color: var(--od-accent);
 }
 
-/* Zed-style hairline column rules for the 1180px container */
-.od-container {
-  max-width: 1180px;
+/* one ruled grid, nav to footer: 1120px column inside 112px gutter columns (zed's device).
+   every band is a full-width .od-ruled block (top rule) wrapping an .od-page (gutter rules) wrapping an .od-col (column rules) */
+.od-page {
+  --od-gutter: 0px;
+  --od-inset: 16px;
+  position: relative;
   margin-inline: auto;
+  width: 100%;
+  max-width: calc(1120px + 2 * var(--od-gutter));
+  padding-inline: var(--od-gutter);
 }
+
+.od-col {
+  position: relative;
+}
+
+.od-inset {
+  padding-inline: var(--od-inset);
+}
+
+@media (min-width: 640px) {
+  .od-page {
+    --od-inset: 24px;
+  }
+}
+
 @media (min-width: 768px) {
-  .od-container {
+  .od-page {
+    --od-inset: 32px;
+  }
+  .od-col {
     border-inline: 1px solid var(--od-line);
   }
 }
 
-.od-rule {
+@media (min-width: 1360px) {
+  .od-page {
+    --od-gutter: 112px;
+    --od-inset: 48px;
+    border-inline: 1px solid var(--od-line);
+  }
+}
+
+/* band separator: a full-width rule with 7px rotated node markers where it crosses a vertical rule */
+.od-ruled {
   border-top: 1px solid var(--od-line);
 }
-
-/* dark-mode keyline + matte so a product screenshot still reads as an object */
-.dark .od-screenshot {
-  border: 1px solid var(--od-line);
-  padding: 4px;
-  background: var(--od-panel);
-  border-radius: 10px;
+.od-ruled > .od-page::before,
+.od-ruled > .od-page::after,
+.od-ruled > .od-page > .od-col::before,
+.od-ruled > .od-page > .od-col::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  background: var(--od-line);
+  transform: rotate(45deg);
+  pointer-events: none;
+  display: none;
+}
+.od-ruled > .od-page::before,
+.od-ruled > .od-page > .od-col::before {
+  left: -4px;
+}
+.od-ruled > .od-page::after,
+.od-ruled > .od-page > .od-col::after {
+  right: -4px;
+}
+@media (min-width: 1360px) {
+  .od-ruled > .od-page::before,
+  .od-ruled > .od-page::after,
+  .od-ruled > .od-page > .od-col::before,
+  .od-ruled > .od-page > .od-col::after {
+    display: block;
+  }
 }
 
-/* footer: fixed warm-charcoal bookend, both themes */
-.od-footer {
-  background: oklch(0.23 0.012 65);
+/* hero backdrop: paper on the server; a client-mounted shader canvas draws hairlines in the accent colour and fades in */
+.od-hero-backdrop {
+  color: var(--od-accent);
+  mix-blend-mode: multiply;
+}
+.dark .od-hero-backdrop {
+  mix-blend-mode: screen;
+}
+@media (max-width: 767px) {
+  .od-hero-backdrop {
+    display: none;
+  }
 }
 
 /* shiki dual theme + twoslash popups (landing snippets) */
@@ -218,35 +316,6 @@ html > body[data-scroll-locked] {
 }
 .dark .od-popup span {
   color: var(--shiki-dark) !important;
-}
-
-.od-dots::before {
-  content: '';
-  position: absolute;
-  inset: 40px 0 0;
-  background-image: radial-gradient(circle, oklch(0.23 0.012 65 / 0.055) 1px, transparent 1px);
-  background-size: 22px 22px;
-  pointer-events: none;
-  mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
-}
-.dark .od-dots::before {
-  background-image: radial-gradient(circle, oklch(0.94 0.006 75 / 0.06) 1px, transparent 1px);
-}
-
-.od-underline {
-  position: relative;
-  white-space: nowrap;
-}
-.od-underline::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 4px;
-  height: 10px;
-  background: var(--od-accent-soft);
-  z-index: -1;
-  border-radius: 2px;
 }
 
 .od-preview {

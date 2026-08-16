@@ -1,3 +1,5 @@
+import {Card, CardDescription, CardHeader, CardTitle} from '@/components/ui/card'
+
 type Principle = {title: string; body: string}
 
 const PRINCIPLES: Principle[] = [
@@ -17,13 +19,22 @@ const PRINCIPLES: Principle[] = [
 
 export function PrinciplesStrip() {
   return (
-    <section className="grid grid-cols-1 gap-8 px-8 py-16 sm:grid-cols-3">
-      {PRINCIPLES.map((principle) => (
-        <div key={principle.title}>
-          <h3 className="text-[15px] font-semibold">{principle.title}</h3>
-          <p className="mt-1.5 text-[14px] text-muted-foreground">{principle.body}</p>
+    <section className="od-ruled">
+      <div className="od-page">
+        <div className="od-col grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {PRINCIPLES.map((principle) => (
+            <Card
+              key={principle.title}
+              className="od-inset gap-0 rounded-none bg-transparent py-6 shadow-none ring-0 [--card-spacing:0px]"
+            >
+              <CardHeader className="gap-2 px-0">
+                <CardTitle className="od-h3">{principle.title}</CardTitle>
+                <CardDescription className="od-caption">{principle.body}</CardDescription>
+              </CardHeader>
+            </Card>
+          ))}
         </div>
-      ))}
+      </div>
     </section>
   )
 }

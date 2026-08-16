@@ -10,27 +10,38 @@ const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
 const test = createSiteTest({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
 
 test.describe('landing gates the dev-only demo behind a non-mobile pointer', () => {
-  test('mounts the live widget and shows the install + try-it CTAs on desktop', async ({browser}) => {
+  test('mounts the live widget and shows the package tabs, install command and try-it CTA on desktop', async ({
+    browser,
+  }) => {
     const page = await browser.newPage()
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
 
     await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(1, {timeout: 20_000})
-    await expectLocator(page.getByRole('button', {name: 'Copy install command'})).toBeVisible()
+    await expectLocator(page.getByRole('tablist', {name: 'Package manager'}).first()).toBeVisible()
+    await expectLocator(page.getByRole('button', {name: 'Copy install command'}).first()).toBeVisible()
     await expectLocator(page.getByRole('button', {name: /Try it live/i})).toBeVisible()
 
     await page.close()
   }, 60_000)
 
-  test('does not mount the live widget or the CTAs on a mobile device', async ({browser}) => {
-    const context = await browser.newContext(devices['iPhone 13'])
-    const page = await context.newPage()
+  test('renders the demo poster and keeps the install command, but no widget, tabs, try-it CTA or demo chunk on a mobile device', async ({
+    browser,
+  }) => {
+    const page = await browser.newPage(devices['iPhone 13'])
+    const requested: string[] = []
+    page.on('request', (request) => requested.push(request.url()))
     await page.goto(ORIGIN, {waitUntil: 'domcontentloaded'})
 
-    await expectLocator(page.getByRole('button', {name: 'Copy install command'})).toHaveCount(0, {timeout: 20_000})
-    await expectLocator(page.getByRole('button', {name: /Try it live/i})).toHaveCount(0)
+    await expectLocator(page.getByRole('button', {name: 'Copy install command'}).first()).toBeVisible({
+      timeout: 20_000,
+    })
+    await expectLocator(page.getByRole('img', {name: /conciv live demo/i})).toBeVisible()
+    await expectLocator(page.getByRole('tablist', {name: 'Package manager'}).first()).toBeHidden()
+    await expectLocator(page.getByRole('button', {name: /Try it live/i})).toBeHidden()
     await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(0)
+    expect(requested.filter((url) => /model\.worker|\/demo[\w-]*\.js/.test(url))).toEqual([])
 
-    await context.close()
+    await page.close()
   }, 60_000)
 })
 

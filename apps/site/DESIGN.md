@@ -121,6 +121,13 @@ padding, 48px inside cells, 16px between a title and its body.
 Nothing on the page carries a shadow. Product frames and figures are border-only objects: 1px `line`,
 no shadow, no ring. Buttons use the registry component's own inset shadow where it ships one.
 
+Screenshot figures use the mat measured on zed.dev's feature tiles (2026-08-16, 1440×900): cell
+padding 40px 48px; a 1px dashed `line` mat drawn 6px outside the image frame (`-m-1.5 p-1.5`); the
+image frame is a 1px solid `line` border, 2px radius, `overflow: clip`, no shadow, no scale or lift on
+hover; on hover/focus-within an info bar (32px, background 95% paper, top border in the accent) slides
+up from the bottom over 100ms `cubic-bezier(0.4, 0, 0.2, 1)` and the frame border tints toward the
+accent; reduced motion drops the slide. Ours adds a lightbox (shadcn Dialog) on click; Zed links out.
+
 ## Components
 
 Every visible element is sourced from a component registry (21st.dev, smoothui.dev, kokonutui.com,

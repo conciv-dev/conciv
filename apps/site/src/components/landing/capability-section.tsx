@@ -1,7 +1,7 @@
-import screenshots from '../../data/screenshots-index.json'
-import {Card} from '@/components/ui/card'
-
-type ScreenshotEntry = (typeof screenshots)[number]
+import {findScreenshot} from '@/lib/screenshots'
+import {Card, CardDescription, CardHeader, CardTitle} from '@/components/ui/card'
+import {MediaFrame} from '@/components/ui/media-frame'
+import {cn} from '@/lib/utils'
 
 type Figure = {file: string; title: string; body: string}
 
@@ -42,52 +42,57 @@ const ROW_C: Figure = {
   body: 'Mounted on a local clone of vite.dev with one Vite plugin line. Nothing about the host changed.',
 }
 
-function findScreenshot(file: string): ScreenshotEntry {
-  const entry = screenshots.find((item) => item.file === file)
-  if (!entry) throw new Error(`Missing screenshot manifest entry for ${file}`)
-  return entry
-}
-
-function CapabilityFigure({figure}: {figure: Figure}) {
+function CapabilityFigure({figure, className}: {figure: Figure; className?: string}) {
   const screenshot = findScreenshot(figure.file)
   return (
-    <figure>
-      <Card className="gap-0 rounded-[10px] border-(--od-line) bg-transparent p-0 shadow-none ring-0">
-        <img
+    <Card
+      className={cn(
+        'od-inset gap-4 rounded-none bg-transparent py-8 shadow-none ring-0 [--card-spacing:0px]',
+        className,
+      )}
+    >
+      <figure className="flex flex-col gap-4">
+        <MediaFrame
           src={`/screenshots/${screenshot.file}`}
           width={screenshot.width}
           height={screenshot.height}
           alt={screenshot.alt}
-          loading="lazy"
-          decoding="async"
-          className="od-screenshot w-full rounded-[10px]"
+          title={figure.title}
         />
-      </Card>
-      <figcaption className="mt-3">
-        <p className="text-[15px] font-semibold">{figure.title}</p>
-        <p className="mt-1 text-[14px] text-muted-foreground">{figure.body}</p>
-      </figcaption>
-    </figure>
+        <figcaption>
+          <CardHeader className="gap-1 px-0">
+            <CardTitle className="od-h3">{figure.title}</CardTitle>
+            <CardDescription className="od-caption">{figure.body}</CardDescription>
+          </CardHeader>
+        </figcaption>
+      </figure>
+    </Card>
   )
 }
 
 export function CapabilitySection() {
   return (
-    <section className="px-8 py-16">
-      <p className="od-eyebrow mb-3">On the page</p>
-      <h2 className="od-h2 mb-10">The page becomes the agent's context.</h2>
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-        {ROW_A.map((figure) => (
-          <CapabilityFigure key={figure.file} figure={figure} />
-        ))}
-      </div>
-      <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-        {ROW_B.map((figure) => (
-          <CapabilityFigure key={figure.file} figure={figure} />
-        ))}
-      </div>
-      <div className="mt-8">
-        <CapabilityFigure figure={ROW_C} />
+    <section className="od-ruled">
+      <div className="od-page">
+        <div className="od-col">
+          <div className="od-inset py-16">
+            <p className="od-eyebrow">On the page</p>
+            <h2 className="od-h2 mt-2">The page becomes the agent's context.</h2>
+          </div>
+          <div className="grid grid-cols-1 divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
+            {ROW_A.map((figure) => (
+              <CapabilityFigure key={figure.file} figure={figure} />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 divide-y border-t lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+            {ROW_B.map((figure) => (
+              <CapabilityFigure key={figure.file} figure={figure} />
+            ))}
+          </div>
+          <div className="border-t">
+            <CapabilityFigure figure={ROW_C} />
+          </div>
+        </div>
       </div>
     </section>
   )

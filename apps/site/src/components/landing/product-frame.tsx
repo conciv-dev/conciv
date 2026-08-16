@@ -1,50 +1,52 @@
 import {ClientOnly} from '@tanstack/react-router'
-import {Suspense, lazy} from 'react'
+import {Suspense, lazy, useCallback, useState} from 'react'
+import {BrowserFrame} from '@/components/ui/browser-frame'
 import {useIsMobile} from '@/lib/use-is-mobile'
+import {findScreenshot} from '@/lib/screenshots'
 
 const Demo = lazy(() => import('./demo/demo').then((module) => ({default: module.Demo})))
 
-const HERO_DEMO_ALT =
-  'conciv chat panel open beside a running app: an element is picked and the agent is editing it live.'
+const poster = findScreenshot('hero-demo.webp')
 
 export function ProductFrame() {
   const isMobile = useIsMobile()
+  const [demoMounted, setDemoMounted] = useState(false)
+  const attachDemo = useCallback((node: HTMLDivElement | null) => {
+    if (node) setDemoMounted(true)
+  }, [])
+
   return (
-    <div className="mt-10 px-8">
-      <div className="dark mx-auto max-w-[1180px] overflow-hidden rounded-[10px] border border-(--od-line) bg-(--od-paper) shadow-[0_1px_0_rgba(0,0,0,.04),0_24px_48px_-24px_rgba(0,0,0,.25)]">
-        <div className="flex items-center gap-4 border-b border-(--od-line) px-4 py-2">
-          <span aria-hidden className="flex shrink-0 gap-1.5">
-            <span className="size-2.5 rounded-full bg-(--od-line)" />
-            <span className="size-2.5 rounded-full bg-(--od-line)" />
-            <span className="size-2.5 rounded-full bg-(--od-line)" />
-          </span>
-          <span className="od-mono mx-auto max-w-[220px] flex-1 rounded-md bg-(--od-panel) px-2.5 py-1 text-center text-[11px] text-(--od-muted)">
-            localhost:3000
-          </span>
-          <span aria-hidden className="size-2.5 shrink-0" />
-        </div>
-        <div className="aspect-[16/10]">
-          {isMobile === true && (
-            <img
-              src="/screenshots/hero-demo.webp"
-              width={1440}
-              height={900}
-              alt={HERO_DEMO_ALT}
-              className="size-full object-cover"
-            />
-          )}
-          {isMobile === false && (
-            <ClientOnly>
-              <Suspense fallback={null}>
-                <Demo />
-              </Suspense>
-            </ClientOnly>
-          )}
+    <section className="od-ruled">
+      <div className="od-page">
+        <div className="od-col">
+          <BrowserFrame url="localhost:3000" className="dark">
+            <div className="relative aspect-[8/5]">
+              <img
+                src={`/screenshots/${poster.file}`}
+                width={poster.width}
+                height={poster.height}
+                alt={poster.alt}
+                fetchPriority="high"
+                decoding="async"
+                aria-hidden={demoMounted}
+                className="absolute inset-0 size-full object-cover"
+              />
+              {isMobile === false && (
+                <ClientOnly>
+                  <Suspense fallback={null}>
+                    <div ref={attachDemo} className="animate-in fade-in absolute inset-0 duration-500 fill-mode-both">
+                      <Demo />
+                    </div>
+                  </Suspense>
+                </ClientOnly>
+              )}
+            </div>
+            <p className="od-mono od-caption border-t px-4 py-2 text-muted-foreground">
+              The live demo runs a small local model in your browser. Connect your own agent with "Try it live".
+            </p>
+          </BrowserFrame>
         </div>
       </div>
-      <p className="od-mono mx-auto mt-3 max-w-[1180px] text-[12px] text-muted-foreground">
-        The live demo runs a small local model in your browser. Connect your own agent with "Try it live".
-      </p>
-    </div>
+    </section>
   )
 }

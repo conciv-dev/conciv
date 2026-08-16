@@ -4,10 +4,11 @@ import {createHighlighter} from 'shiki'
 import {createTwoslasher} from 'twoslash'
 import {codeToKeyedTokens} from '@shikijs/magic-move/core'
 import {cleanSnippet, FRAMEWORK_SNIPPETS} from '../src/components/landing/framework-snippets.ts'
+import {INSTALL_COMMANDS} from '../src/lib/package-installer-store.ts'
 
 const THEMES = {light: 'github-light', dark: 'github-dark'} as const
 
-const highlighter = await createHighlighter({themes: Object.values(THEMES), langs: ['ts', 'js', 'swift']})
+const highlighter = await createHighlighter({themes: Object.values(THEMES), langs: ['ts', 'js', 'swift', 'sh']})
 
 const withCode = FRAMEWORK_SNIPPETS.flatMap((snippet) =>
   snippet.code === undefined ? [] : [{...snippet, code: snippet.code}],
@@ -19,6 +20,10 @@ const steps = withCode.map((snippet) =>
     themes: THEMES,
     defaultColor: 'light',
   }),
+)
+
+const installSteps = INSTALL_COMMANDS.map((entry) =>
+  codeToKeyedTokens(highlighter, entry.command, {lang: 'sh', themes: THEMES, defaultColor: 'light'}),
 )
 
 const inlineHighlight = (code: string) =>
@@ -71,6 +76,10 @@ const body = [
   `export const MAGIC_MOVE_STEPS: KeyedTokensInfo[] = ${JSON.stringify(steps)}`,
   '',
   `export const SNIPPET_TWOSLASH: SnippetTwoslash[] = ${JSON.stringify(hoverData)}`,
+  '',
+  `export const INSTALL_COMMAND_STEP_IDS: string[] = ${JSON.stringify(INSTALL_COMMANDS.map((entry) => entry.id))}`,
+  '',
+  `export const INSTALL_COMMAND_STEPS: KeyedTokensInfo[] = ${JSON.stringify(installSteps)}`,
   '',
 ].join('\n')
 
