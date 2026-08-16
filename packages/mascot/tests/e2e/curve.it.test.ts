@@ -57,13 +57,13 @@ const TRACKED_PROPERTIES = ['x', 'y', 'rotation']
 
 async function trackLeadingDigit(page: Page): Promise<DigitTrack> {
   const frames = await page.evaluate(
-    ([names, seconds]) => {
+    ({names, seconds}) => {
       const harness = window.mascotHarness
       harness.advanceBy(0)
       const digit = harness.requireParticle(harness.requireEmitter(), 0)
       return harness.stepFrames(() => names.map((name) => harness.property(digit, name)), seconds)
     },
-    [TRACKED_PROPERTIES, TRAVEL_SAMPLE_S] as const,
+    {names: TRACKED_PROPERTIES, seconds: TRAVEL_SAMPLE_S},
   )
   const column = (index: number): number[] => frames.map((frame) => frame[index] ?? 0)
   return {horizontal: column(0), vertical: column(1), tilt: column(2)}
@@ -187,7 +187,7 @@ test('restarting into a room that no longer bends returns the digits to the ante
   )
 
   const frames = await page.evaluate(
-    ([roomy, seconds]) => {
+    ({roomy, seconds}) => {
       const harness = window.mascotHarness
       window.parts.root.style.top = `${roomy}px`
       window.service.update({state: 'rest', working: false, follow: false})
@@ -196,7 +196,7 @@ test('restarting into a room that no longer bends returns the digits to the ante
       const digit = harness.requireParticle(harness.requireEmitter(), 0)
       return harness.stepFrames(() => [harness.property(digit, 'x'), harness.property(digit, 'rotation')], seconds)
     },
-    [AT_BOTTOM_EDGE.top, TRAVEL_SAMPLE_S] as const,
+    {roomy: AT_BOTTOM_EDGE.top, seconds: TRAVEL_SAMPLE_S},
   )
   const sideways = frames.map((frame) => Math.abs(frame[0] ?? 0))
   const tilt = frames.map((frame) => Math.abs(frame[1] ?? 0))

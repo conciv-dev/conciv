@@ -15,7 +15,7 @@ test('scrolling the stage out of view parks the work timeline and its effect, an
   page,
 }) => {
   const result = await page.evaluate(
-    async ([scrollPx, settleMs, timeoutMs]) => {
+    async ({scrollPx, settleMs, timeoutMs}) => {
       const harness = window.mascotHarness
       const parts = harness.buildScrollStage()
       const service = harness.mascot.createMascot({state: 'rest', working: true, follow: false})
@@ -48,7 +48,7 @@ test('scrolling the stage out of view parks the work timeline and its effect, an
       parts.scroller.remove()
       return {working, parked, hidden, woke, resumed, sameEmitter}
     },
-    [OFF_SCREEN_SCROLL_PX, SETTLE_MS, GATE_TIMEOUT_MS] as const,
+    {scrollPx: OFF_SCREEN_SCROLL_PX, settleMs: SETTLE_MS, timeoutMs: GATE_TIMEOUT_MS},
   )
 
   expect(result.working.bobWriters, 'the visible mascot really runs its work bob').toBe(1)
@@ -65,7 +65,7 @@ test('scrolling the stage out of view parks the work timeline and its effect, an
 
 test('scrolling the stage out of view detaches the gaze listener and scrolling back re-arms it', async ({page}) => {
   const result = await page.evaluate(
-    async ([scrollPx, settleMs, timeoutMs]) => {
+    async ({scrollPx, settleMs, timeoutMs}) => {
       const harness = window.mascotHarness
       const parts = harness.buildScrollStage()
       const service = harness.mascot.createMascot({state: 'rest', working: false, follow: true})
@@ -80,7 +80,7 @@ test('scrolling the stage out of view detaches the gaze listener and scrolling b
       parts.scroller.remove()
       return {armed, detached, rearmed, final: window.pointerMoveListenerCount}
     },
-    [OFF_SCREEN_SCROLL_PX, SETTLE_MS, GATE_TIMEOUT_MS] as const,
+    {scrollPx: OFF_SCREEN_SCROLL_PX, settleMs: SETTLE_MS, timeoutMs: GATE_TIMEOUT_MS},
   )
 
   expect(result.armed, 'the visible mascot arms exactly one gaze listener').toBe(1)

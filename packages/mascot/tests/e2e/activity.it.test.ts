@@ -115,7 +115,7 @@ test('entering work launches the first digit from the leaned tip and every later
   await installManualClock(page)
   await buildService(page, {state: 'rest', working: false, follow: true})
   const result = await page.evaluate(
-    ([sampleStart, sampleSeconds]) => {
+    ({sampleStart, sampleSeconds}) => {
       const harness = window.mascotHarness
       const {antenna, root} = window.parts
       window.service.update({state: 'awake', working: false, follow: false})
@@ -141,7 +141,7 @@ test('entering work launches the first digit from the leaned tip and every later
         stage: {width: root.offsetWidth, height: root.offsetHeight},
       }
     },
-    [LAUNCH_SAMPLE_START_S, LAUNCH_SAMPLE_S] as const,
+    {sampleStart: LAUNCH_SAMPLE_START_S, sampleSeconds: LAUNCH_SAMPLE_S},
   )
   const tip = restTip(result.stage)
   const launches = collectLaunches(result.frames, result.stage)
@@ -168,7 +168,7 @@ test('entering work launches the first digit from the leaned tip and every later
 test('a digit launching mid-throb starts from the stretched tip, not the unstretched one', async ({page}) => {
   await openIdleService(page)
   const result = await page.evaluate(
-    ([launchAt, windowSeconds, digit]) => {
+    ({launchAt, windowSeconds, digit}) => {
       const harness = window.mascotHarness
       const {antenna, root} = window.parts
       window.service.update({state: 'rest', working: true, follow: false})
@@ -184,7 +184,7 @@ test('a digit launching mid-throb starts from the stretched tip, not the unstret
       )
       return {frames, stage: {width: root.offsetWidth, height: root.offsetHeight}}
     },
-    [STRETCHED_LAUNCH_AT_S, STRETCHED_LAUNCH_WINDOW_S, STRETCHED_DIGIT] as const,
+    {launchAt: STRETCHED_LAUNCH_AT_S, windowSeconds: STRETCHED_LAUNCH_WINDOW_S, digit: STRETCHED_DIGIT},
   )
   const tops = result.frames.map((frame) => frame[0])
   const frame = launchFrames(tops)[0] ?? -1
@@ -218,7 +218,7 @@ test('a viewport resize rebuilds the emitter so later digits launch from the rea
   }, RISE_SAMPLE_S)
   await page.setViewportSize({width: 1600, height: 800})
   const after = await page.evaluate(
-    async ([settleSeconds, riseSeconds]) => {
+    async ({settleSeconds, riseSeconds}) => {
       const harness = window.mascotHarness
       await harness.awaitResize()
       const rebuilt = await harness.settleUntil(() => harness.emitterMounts() >= 1)
@@ -226,7 +226,7 @@ test('a viewport resize rebuilds the emitter so later digits launch from the rea
       harness.advanceBy(settleSeconds)
       return harness.emitterFlight(window.parts, riseSeconds)
     },
-    [RELAUNCH_SETTLE_S, RISE_SAMPLE_S] as const,
+    {settleSeconds: RELAUNCH_SETTLE_S, riseSeconds: RISE_SAMPLE_S},
   )
   const narrow = expectedEmitterGeometry(before.antennaPx)
   const widened = expectedEmitterGeometry(after.antennaPx)
@@ -260,7 +260,7 @@ test('a stage the consumer grows in css rebuilds the emitter at the new antenna 
   await installManualClock(page)
   await buildService(page, {state: 'rest', working: false, follow: false})
   const before = await page.evaluate(
-    ([narrowPx, riseSeconds]) => {
+    ({narrowPx, riseSeconds}) => {
       const harness = window.mascotHarness
       harness.applyStyle(window.parts.root, {width: `${narrowPx}px`, height: `${narrowPx}px`})
       window.service.update({state: 'rest', working: true, follow: false})
@@ -268,10 +268,10 @@ test('a stage the consumer grows in css rebuilds the emitter at the new antenna 
       harness.watchEmitterMounts()
       return harness.emitterFlight(window.parts, riseSeconds)
     },
-    [STAGE_NARROW_PX, RISE_SAMPLE_S] as const,
+    {narrowPx: STAGE_NARROW_PX, riseSeconds: RISE_SAMPLE_S},
   )
   const after = await page.evaluate(
-    async ([widePx, settleSeconds, riseSeconds]) => {
+    async ({widePx, settleSeconds, riseSeconds}) => {
       const harness = window.mascotHarness
       harness.applyStyle(window.parts.root, {width: `${widePx}px`, height: `${widePx}px`})
       const rebuilt = await harness.settleUntil(() => harness.emitterMounts() >= 1)
@@ -279,7 +279,7 @@ test('a stage the consumer grows in css rebuilds the emitter at the new antenna 
       harness.advanceBy(settleSeconds)
       return harness.emitterFlight(window.parts, riseSeconds)
     },
-    [STAGE_WIDE_PX, RELAUNCH_SETTLE_S, RISE_SAMPLE_S] as const,
+    {widePx: STAGE_WIDE_PX, settleSeconds: RELAUNCH_SETTLE_S, riseSeconds: RISE_SAMPLE_S},
   )
   const narrow = expectedEmitterGeometry(before.antennaPx)
   const widened = expectedEmitterGeometry(after.antennaPx)

@@ -12,7 +12,12 @@ const LAYER_STYLE: Record<string, string> = {
   'will-change': 'transform',
 }
 
-const LAYER_DEPTH = {head: '0', antenna: '1', eyes: '2', effect: '3'} as const
+const LAYER_DEPTH: {readonly head: string; readonly antenna: string; readonly eyes: string; readonly effect: string} = {
+  head: '0',
+  antenna: '1',
+  eyes: '2',
+  effect: '3',
+}
 
 const layerStyle = (image: string, depth: string): Record<string, string> =>
   Object.freeze({...LAYER_STYLE, 'z-index': depth, 'background-image': `url('${image}')`})

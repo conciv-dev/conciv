@@ -64,7 +64,7 @@ for (const off of CHANNELS) {
     await installManualClock(page)
     await buildService(page, {state: 'rest', working: false, follow: false, activity})
     const sampled = await page.evaluate(
-      ([channels, cycleSeconds, displacedAt, tailSeconds]) => {
+      ({channels, cycleSeconds, displacedAt, tailSeconds}) => {
         const harness = window.mascotHarness
         const {antenna, head, eyes} = window.parts
         const read = (): [number, number, number] => [
@@ -80,7 +80,7 @@ for (const off of CHANNELS) {
         const tail = harness.stepFrames<[number, number, number]>(read, tailSeconds)
         return {cycle, displaced, tail}
       },
-      [activity, CYCLE_S, DISPLACED_PHASE_S, RECOVERY_TAIL_S] as const,
+      {channels: activity, cycleSeconds: CYCLE_S, displacedAt: DISPLACED_PHASE_S, tailSeconds: RECOVERY_TAIL_S},
     )
 
     const everyFrame = [...sampled.cycle, ...sampled.tail]
@@ -118,7 +118,7 @@ for (const off of CHANNELS) {
     await installManualClock(page)
     await buildService(page, {state: 'rest', working: false, follow: false, activity: ALL_CHANNELS})
     const sampled = await page.evaluate(
-      ([dropped, displacedAt, tailSeconds]) => {
+      ({dropped, displacedAt, tailSeconds}) => {
         const harness = window.mascotHarness
         const {antenna, head, eyes} = window.parts
         const read = (): [number, number, number] => [
@@ -134,7 +134,7 @@ for (const off of CHANNELS) {
         const tail = harness.stepFrames<[number, number, number]>(read, tailSeconds)
         return {displaced, tail}
       },
-      [off, DISPLACED_PHASE_S, RECOVERY_TAIL_S] as const,
+      {dropped: off, displacedAt: DISPLACED_PHASE_S, tailSeconds: RECOVERY_TAIL_S},
     )
 
     const check = CHECKS[off]
@@ -180,13 +180,13 @@ test('the blink keeps its cadence when the bob and the throb are off, because th
   await installManualClock(page)
   await buildService(page, {state: 'rest', working: false, follow: false, activity: BLINK_ONLY})
   const eyeScaleY = await page.evaluate(
-    ([channels, seconds]) => {
+    ({channels, seconds}) => {
       const harness = window.mascotHarness
       const {eyes} = window.parts
       window.service.update({state: 'rest', working: true, follow: false, activity: channels})
       return harness.stepFrames<number>(() => harness.property(eyes, 'scaleY'), seconds)
     },
-    [BLINK_ONLY, CADENCE_SAMPLE_S] as const,
+    {channels: BLINK_ONLY, seconds: CADENCE_SAMPLE_S},
   )
 
   const starts = blinkStarts(eyeScaleY).map((frame) => frame / FRAMES_PER_SECOND)
@@ -217,7 +217,7 @@ test('with every activity channel off a mounted stream still launches from the t
   await installManualClock(page)
   await buildService(page, {state: 'rest', working: false, follow: false, activity: NO_CHANNELS})
   const sampled = await page.evaluate(
-    ([channels, count, inFlightSeconds, settleSeconds]) => {
+    ({channels, count, inFlightSeconds, settleSeconds}) => {
       const harness = window.mascotHarness
       const {root} = window.parts
       window.service.update({state: 'rest', working: true, follow: false, activity: channels})
@@ -231,7 +231,12 @@ test('with every activity channel off a mounted stream still launches from the t
       )
       return {frames, stageHeight: root.offsetHeight}
     },
-    [NO_CHANNELS, BINARY_EMITTER_DIGIT_COUNT, IN_FLIGHT_S, POSE_SETTLE_S] as const,
+    {
+      channels: NO_CHANNELS,
+      count: BINARY_EMITTER_DIGIT_COUNT,
+      inFlightSeconds: IN_FLIGHT_S,
+      settleSeconds: POSE_SETTLE_S,
+    },
   )
 
   const columns = Array.from({length: BINARY_EMITTER_DIGIT_COUNT}, (_, digit) =>

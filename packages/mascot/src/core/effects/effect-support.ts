@@ -50,7 +50,8 @@ export function createSparkCanvas(tip: EmitterAnchor, geometry: CanvasGeometry):
   canvas.setAttribute('aria-hidden', 'true')
   canvas.style.cssText =
     `position:absolute;left:${tip.x - geometry.originX}px;top:${tip.y - geometry.originY}px;` +
-    `width:${geometry.width}px;height:${geometry.height}px;pointer-events:none;${WILL_CHANGE_STYLE}`
+    `width:${geometry.width}px;height:${geometry.height}px;pointer-events:none;` +
+    `transform-origin:${geometry.originX}px ${geometry.originY}px;${WILL_CHANGE_STYLE}`
   const ratio = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1
   canvas.width = geometry.width * ratio
   canvas.height = geometry.height * ratio

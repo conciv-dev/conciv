@@ -91,7 +91,7 @@ for (const stream of STREAMS) {
   }) => {
     await openStreamService(page, stream.name, stream.mount)
     const sampled = await page.evaluate(
-      ([count, releaseAt, seconds]) => {
+      ({count, releaseAt, seconds}) => {
         const harness = window.mascotHarness
         const {antenna, root} = window.parts
         window.service.update({state: 'rest', working: true, follow: false})
@@ -112,7 +112,7 @@ for (const stream of STREAMS) {
           stage: {width: root.offsetWidth, height: root.offsetHeight},
         }
       },
-      [stream.particleCount, RELEASE_CROSSING_S, RELEASE_WINDOW_S + stream.durationS] as const,
+      {count: stream.particleCount, releaseAt: RELEASE_CROSSING_S, seconds: RELEASE_WINDOW_S + stream.durationS},
     )
 
     const stage: StageSize = sampled.stage

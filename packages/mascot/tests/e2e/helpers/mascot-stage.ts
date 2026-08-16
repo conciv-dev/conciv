@@ -93,7 +93,7 @@ function buildStage(
   layerInsetPx?: number,
 ): Promise<StagePoint> {
   return page.evaluate(
-    ([initial, binary, sizePx, insetPx]) => {
+    ({initial, binary, sizePx, insetPx}) => {
       const harness = window.mascotHarness
       const parts = harness.buildStage(sizePx, insetPx)
       window.parts = parts
@@ -103,7 +103,7 @@ function buildStage(
       window.service.mountEffect('binary', harness.mascot.binaryEffect)
       return harness.stageCenter(parts.root)
     },
-    [config, withBinary, stageSizePx, layerInsetPx] as const,
+    {initial: config, binary: withBinary, sizePx: stageSizePx, insetPx: layerInsetPx},
   )
 }
 
@@ -119,7 +119,7 @@ export function buildCurvedService(
   stageSizePx: number,
 ): Promise<StagePoint> {
   return page.evaluate(
-    ([initial, style, spot, sizePx]) => {
+    ({initial, style, spot, sizePx}) => {
       const harness = window.mascotHarness
       const parts = harness.buildStage(sizePx, 0, spot)
       window.parts = parts
@@ -128,7 +128,7 @@ export function buildCurvedService(
       window.service.mountEffect('binary', harness.mascot.configureBinaryEffect({curve: style}))
       return harness.stageCenter(parts.root)
     },
-    [config, curve, placement, stageSizePx] as const,
+    {initial: config, style: curve, spot: placement, sizePx: stageSizePx},
   )
 }
 
@@ -150,7 +150,7 @@ export async function openIdleService(page: Page): Promise<void> {
 export async function openStreamService(page: Page, effectName: string, exportName: string): Promise<void> {
   await installManualClock(page)
   await page.evaluate(
-    async ([name, mount]) => {
+    async ({name, mount}) => {
       const harness = window.mascotHarness
       const effect = await harness.loadEffect(name, mount)
       const parts = harness.buildStage()
@@ -159,7 +159,7 @@ export async function openStreamService(page: Page, effectName: string, exportNa
       window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
       window.service.mountEffect(name, effect)
     },
-    [effectName, exportName] as const,
+    {name: effectName, mount: exportName},
   )
 }
 

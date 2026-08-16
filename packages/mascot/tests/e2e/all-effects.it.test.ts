@@ -12,7 +12,7 @@ for (const [name, mount] of Object.entries(EFFECT_MOUNTS)) {
   test(`the ${name} effect drains its nodes, tweens and frame loop on the falling edge`, async ({page}) => {
     await installManualClock(page)
     const result = await page.evaluate(
-      async ([effectName, exportName]) => {
+      async ({effectName, exportName}) => {
         const harness = window.mascotHarness
         const effect = await harness.loadEffect(effectName, exportName)
         const parts = harness.buildStage()
@@ -47,7 +47,7 @@ for (const [name, mount] of Object.entries(EFFECT_MOUNTS)) {
         parts.root.remove()
         return {idle, working: cycled.working, draining: cycled.draining, drained}
       },
-      [name, mount] as const,
+      {effectName: name, exportName: mount},
     )
     const loops = CANVAS_EFFECTS.includes(name) ? 1 : 0
 
@@ -68,7 +68,7 @@ for (const [name, mount] of Object.entries(EFFECT_MOUNTS)) {
 for (const name of CANVAS_EFFECTS) {
   test(`the ${name} effect repaints its canvas while it works`, async ({page}) => {
     const result = await page.evaluate(
-      async ([effectName, exportName, sampleMs]) => {
+      async ({effectName, exportName, sampleMs}) => {
         const harness = window.mascotHarness
         const effect = await harness.loadEffect(effectName, exportName)
         const parts = harness.buildStage()
@@ -82,7 +82,7 @@ for (const name of CANVAS_EFFECTS) {
         parts.root.remove()
         return {unique: new Set(painted).size, samples: painted.length}
       },
-      [name, EFFECT_MOUNTS[name] ?? '', WORK_SAMPLE_MS] as const,
+      {effectName: name, exportName: EFFECT_MOUNTS[name] ?? '', sampleMs: WORK_SAMPLE_MS},
     )
 
     expect(result.samples, `${name} really sampled a full emission cycle`).toBeGreaterThan(10)
@@ -98,7 +98,7 @@ const DRAINED_INK_CEILING = 0.5
 
 test('the spark-fountain effect stops emitting on the falling edge and lets its live sparks finish', async ({page}) => {
   const result = await page.evaluate(
-    async ([steadyStateMs, drainMs]) => {
+    async ({steadyStateMs, drainMs}) => {
       const harness = window.mascotHarness
       const effect = await harness.loadEffect('spark-fountain', 'sparkFountainEffect')
       const parts = harness.buildStage()
@@ -119,7 +119,7 @@ test('the spark-fountain effect stops emitting on the falling edge and lets its 
       parts.root.remove()
       return {working, drainStart, drainEnd}
     },
-    [FOUNTAIN_STEADY_STATE_MS, FOUNTAIN_DRAIN_SAMPLE_MS] as const,
+    {steadyStateMs: FOUNTAIN_STEADY_STATE_MS, drainMs: FOUNTAIN_DRAIN_SAMPLE_MS},
   )
 
   expect(result.working, 'the fountain really painted a steady-state spark population').toBeGreaterThan(0)

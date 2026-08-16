@@ -226,6 +226,7 @@ export function createFollowController(parts: FollowParts): FollowController {
     detach()
     killOwnedTweens()
     armedChannels = NO_FOLLOW_CHANNELS
+    gsap.set(eyes, {x: 0, y: 0})
   }
 
   return {arm, disarm, dispose}

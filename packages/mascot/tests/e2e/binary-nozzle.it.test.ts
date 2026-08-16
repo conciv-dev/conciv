@@ -26,7 +26,7 @@ test('a digit in flight holds its world rise through the throb release while the
 }) => {
   await openIdleService(page)
   const sampled = await page.evaluate(
-    ([releaseAt, windowSeconds, inFlight, launching]) => {
+    ({releaseAt, windowSeconds, inFlight, launching}) => {
       const harness = window.mascotHarness
       const {antenna, root} = window.parts
       window.service.update({state: 'rest', working: true, follow: false})
@@ -50,7 +50,12 @@ test('a digit in flight holds its world rise through the throb release while the
         stage: {width: root.offsetWidth, height: root.offsetHeight},
       }
     },
-    [RELEASE_CROSSING_S, RELEASE_WINDOW_S, IN_FLIGHT_DIGIT, LAUNCHING_DIGIT] as const,
+    {
+      releaseAt: RELEASE_CROSSING_S,
+      windowSeconds: RELEASE_WINDOW_S,
+      inFlight: IN_FLIGHT_DIGIT,
+      launching: LAUNCHING_DIGIT,
+    },
   )
   const steps = stepsBetween(sampled.inFlightTops)
   const nominalStep = risePerFrame(sampled.antennaPx)

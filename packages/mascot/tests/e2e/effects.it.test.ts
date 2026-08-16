@@ -223,7 +223,7 @@ test('restarting an effect during its staged exit leaves it drainable on the nex
 
 test('a custom skin drives the layer art and the emitter scale reference', async ({page}) => {
   const result = await page.evaluate(
-    ([image, referenceAntennaPx, antennaPx]) => {
+    ({image, referenceAntennaPx, antennaPx}) => {
       const harness = window.mascotHarness
       const skin = {
         ...harness.mascot.robotSkin,
@@ -241,7 +241,7 @@ test('a custom skin drives the layer art and the emitter scale reference', async
       parts.root.remove()
       return {headBackground, geometry}
     },
-    [CUSTOM_LAYER_IMAGE, CUSTOM_REFERENCE_ANTENNA_PX, FAB_ANTENNA_PX] as const,
+    {image: CUSTOM_LAYER_IMAGE, referenceAntennaPx: CUSTOM_REFERENCE_ANTENNA_PX, antennaPx: FAB_ANTENNA_PX},
   )
   const factor = FAB_ANTENNA_PX / CUSTOM_REFERENCE_ANTENNA_PX
 

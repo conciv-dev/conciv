@@ -21,7 +21,7 @@ test.beforeEach(async ({page}) => {
 test('a warmed work cycle rides the antenna without reading layout again', async ({page}) => {
   await openIdleService(page)
   const sampled = await page.evaluate(
-    ([warmupSeconds, sampleSeconds]) => {
+    ({warmupSeconds, sampleSeconds}) => {
       const harness = window.mascotHarness
       window.service.update({state: 'rest', working: true, follow: false})
       harness.advanceBy(warmupSeconds)
@@ -43,7 +43,7 @@ test('a warmed work cycle rides the antenna without reading layout again', async
         stage: {width: window.parts.root.offsetWidth, height: window.parts.root.offsetHeight},
       }
     },
-    [WORK_WARMUP_S, WORK_SAMPLE_S] as const,
+    {warmupSeconds: WORK_WARMUP_S, sampleSeconds: WORK_SAMPLE_S},
   )
   const launches = collectLaunches(sampled.frames, sampled.stage)
   const tips = launches.map((launch) => launch.tipY)
