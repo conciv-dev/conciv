@@ -10,12 +10,11 @@ export function HeroCopy() {
       <HeroBackdrop />
       <div className="od-page">
         <div className="od-col">
-          <div className="od-inset relative flex flex-col items-center pt-16 pb-12 text-center md:pt-24">
-            <p className="od-eyebrow">Beta · Open source · MIT · dev-only</p>
+          <div className="od-inset relative flex flex-col items-center py-16 text-center md:py-22">
+            <p className="od-eyebrow">Beta · Open source</p>
             <h1 className="od-h1 mt-4 max-w-[720px]">{HERO_HEADLINE}</h1>
-            <p className="od-body mt-4 max-w-[512px] text-muted-foreground">
-              conciv connects Claude Code or Codex to your running dev app. It sees the real DOM, edits the page live,
-              writes the change to source, and runs your tests — without you leaving the page.
+            <p className="od-body mt-4 max-w-[512px] text-balance text-muted-foreground">
+              Claude Code or Codex, inside your running app: it sees the page, edits live, writes to source.
             </p>
             <InstallCommand className="mt-8" action={<TryLiveButton />} />
           </div>

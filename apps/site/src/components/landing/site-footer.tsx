@@ -59,7 +59,7 @@ export function SiteFooter() {
                 <BrandMark />
               </Link>
               <p className="od-caption mt-4 max-w-[36ch] text-muted-foreground">
-                An AI dev agent that lives inside your running app. Dev-only, open source, harness-agnostic.
+                MIT-licensed. Runs with your local dev server.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:col-span-7">

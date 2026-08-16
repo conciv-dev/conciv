@@ -42,7 +42,7 @@ export function ProductFrame() {
               )}
             </div>
             <p className="od-mono od-caption border-t px-4 py-2 text-muted-foreground">
-              The live demo runs a small local model in your browser. Connect your own agent with "Try it live".
+              Live demo on a small in-browser model. "Try it live" connects your own agent.
             </p>
           </BrowserFrame>
         </div>

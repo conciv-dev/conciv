@@ -10,7 +10,7 @@ const RESET_DELAY_MS = 2000
 const FEEDBACK: Record<CopyState, string> = {
   idle: '',
   copied: 'Copied',
-  failed: 'Copy failed — select the text',
+  failed: 'Copy failed. Select the text',
 }
 
 const ARIA_LABEL: Partial<Record<CopyState, string>> = {

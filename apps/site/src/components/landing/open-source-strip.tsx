@@ -35,7 +35,7 @@ export function OpenSourceStrip() {
                 <TableRow className="hover:bg-transparent">
                   <TableCell className="px-0 text-muted-foreground">stars</TableCell>
                   <TableCell className="px-0 text-right tabular-nums">
-                    {stars === null ? <span aria-hidden>—</span> : formatStarCount(stars)}
+                    <span className="inline-block min-w-[3ch]">{stars === null ? '' : formatStarCount(stars)}</span>
                   </TableCell>
                 </TableRow>
                 <TableRow className="hover:bg-transparent">

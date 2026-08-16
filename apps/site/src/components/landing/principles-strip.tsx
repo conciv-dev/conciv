@@ -5,15 +5,15 @@ type Principle = {title: string; body: string}
 const PRINCIPLES: Principle[] = [
   {
     title: 'One integration',
-    body: 'Add the plugin to your Vite, Next.js, webpack, or Rspack dev build. Dev-only; nothing ships to production.',
+    body: 'Add the plugin to your Vite, Next.js, webpack, or Rspack dev build. Dev-only.',
   },
   {
     title: 'The real DOM',
-    body: 'Point at any element. The agent gets the live node, its source location, and its state.',
+    body: 'Point at any element. The agent gets the live node, its source, and its state.',
   },
   {
     title: 'Your machine',
-    body: 'Your code and prompts never pass through conciv servers. No conciv account or API key — bring your own Claude Code or Codex CLI.',
+    body: 'Code and prompts never leave your machine. Bring your own Claude Code or Codex CLI.',
   },
 ]
 

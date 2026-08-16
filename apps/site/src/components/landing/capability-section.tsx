@@ -9,12 +9,12 @@ const ROW_A: Figure[] = [
   {
     file: 'grab-element.webp',
     title: 'Grab any element',
-    body: 'Crosshair-pick a node; the agent gets the element, its source file:line, and its live state.',
+    body: 'Crosshair-pick a node; the agent gets the element, its source line, and its state.',
   },
   {
     file: 'edit-live.webp',
     title: 'Try it live first',
-    body: 'Style and DOM edits land on the running page, ephemeral, until you ask the agent to write them to source.',
+    body: 'Edits land on the running page first, then in source when you say so.',
   },
 ]
 
@@ -39,7 +39,7 @@ const ROW_B: Figure[] = [
 const ROW_C: Figure = {
   file: 'any-running-app.webp',
   title: 'Any running app',
-  body: 'Mounted on a local clone of vite.dev with one Vite plugin line. Nothing about the host changed.',
+  body: 'A local clone of vite.dev with one Vite plugin line. Nothing else changed.',
 }
 
 function CapabilityFigure({figure, className}: {figure: Figure; className?: string}) {
@@ -76,8 +76,7 @@ export function CapabilitySection() {
       <div className="od-page">
         <div className="od-col">
           <div className="od-inset py-16">
-            <p className="od-eyebrow">On the page</p>
-            <h2 className="od-h2 mt-2">The page becomes the agent's context.</h2>
+            <h2 className="od-h2">What it does on the page.</h2>
           </div>
           <div className="grid grid-cols-1 divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
             {ROW_A.map((figure) => (

@@ -29,8 +29,7 @@ export function HowItWorks() {
       <div className="od-page">
         <div className="od-col">
           <div className="od-inset py-16">
-            <p className="od-eyebrow">How it works</p>
-            <h2 className="od-h2 mt-2">From npm to the spark in three steps.</h2>
+            <h2 className="od-h2">Three steps from install to first edit.</h2>
             <p className="od-body mt-2 text-muted-foreground">No SaaS, no second terminal.</p>
           </div>
           <ol>
