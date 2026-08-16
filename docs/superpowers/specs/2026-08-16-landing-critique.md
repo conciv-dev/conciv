@@ -207,7 +207,8 @@ Agent 3 (Codex punch lists, batch A):
   backdrop moves and theirs is a static dotted texture, which is the owner-approved divergence.
 - `scratchpad/a3-b-full-light.png` (full page, current). Differences left versus Zed across the
   whole page: our lower sections all use the same ruled cadence where Zed varies it, and our
-  capability grid is still six framed tiles rather than two annotated stories.
+  capability grid was still six framed tiles at that capture; it is now two annotated stories plus
+  an evidence strip (variant A).
 
 ## Pixel audit
 
@@ -240,9 +241,15 @@ Section 1, per-section verdicts:
 - Crossfade on mount rather than readiness → fixed (`79c0be85`): the demo calls `onReady`.
 - Three identical principle cells are the card-grid formula → fixed (`a81e935b`): a compact ledger,
   24px padding, 17/24 titles over one-line 13/20 facts.
-- Six image-plus-heading-plus-paragraph capability cards → open: a two-story restructure was mocked
-  (`scratchpad/capability-mock-a.png`) and sent to the owner; the shipped grid stays 2 / 3 / 1 until
-  he calls it.
+- Six image-plus-heading-plus-paragraph capability cards → applied, variant A (Codex review #1:
+  capability restructure). The owner approved `scratchpad/capability-mock-a.png`; the section is
+  now two mirrored 7/5 stories (`grab-element`, `edit-live`), each with a serif h3, a one-line
+  body and three numbered facts verified against the code (react-grab picking, build-time
+  `data-conciv-source`, grab attachment into the composer; `edit-live` page tools, `DiffBlock` on
+  the file-edit card, "keep it → the agent edits the real files" from `usage/page-control.mdx`),
+  followed by a four-up evidence strip (tests, permission gate, whiteboard, vite.dev clone) with
+  equal-height tiles. Captures: `scratchpad/capability-A-light.png`, `capability-A-dark.png`.
+  The unverifiable "its state" phrase was dropped from the grab caption.
 - Identical "View full size" drawers on every tile → fixed (`a81e935b`): one button per tile, the
   label is decorative and hover-gated.
 - Dashed media mats feel component-demo-ish → justified: the 6px dashed mat is measured from Zed's
@@ -301,7 +308,9 @@ Section 4, typography, spacing, alignment:
 - Section headers at 64px versus Zed's tighter bands → justified: 64px is the measured section
   padding; the hero specifically was retuned to 88/88, giving a 500px band against Zed's 502px.
 - Dashed 6px mats break the 1px rule system → justified, documented as a measured Zed exception.
-- Row B images too small to be evidence → open with the capability restructure and the re-shoot lane.
+- Row B images too small to be evidence → partly fixed by the variant-A restructure: the two lead
+  captures now render at ~569px wide inside the 7-column track; the strip tiles stay small
+  (216px) by design as evidence thumbnails with a lightbox. The re-shoot lane still owns cropping.
 
 Section 5, copy:
 

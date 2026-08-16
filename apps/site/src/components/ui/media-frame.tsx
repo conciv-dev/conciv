@@ -20,6 +20,7 @@ export function MediaFrame({
   title,
   fill = false,
   className,
+  imageClassName,
   children,
 }: {
   src: string
@@ -29,6 +30,7 @@ export function MediaFrame({
   title: string
   fill?: boolean
   className?: string
+  imageClassName?: string
   children?: ReactNode
 }) {
   const fillClass = fill ? FILL_CLASSES : NO_FILL_CLASSES
@@ -56,7 +58,7 @@ export function MediaFrame({
               alt={alt}
               loading="lazy"
               decoding="async"
-              className={cn('block w-full', fillClass.image)}
+              className={cn('block w-full', fillClass.image, imageClassName)}
             />
             <span
               aria-hidden

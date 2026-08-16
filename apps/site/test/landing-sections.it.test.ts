@@ -18,7 +18,9 @@ const POSTER = `img[alt="${findScreenshot('hero-demo.webp').alt}"]`
 const test = createSiteTest({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
 
 test.describe('landing sections', () => {
-  test('renders the headline, six capability figures, three steps and the ledger without errors', async ({browser}) => {
+  test('renders the headline, two capability stories, four evidence figures, three steps and the ledger without errors', async ({
+    browser,
+  }) => {
     const page = await browser.newPage()
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(`pageerror: ${error.stack ?? error.message}`))
@@ -30,6 +32,19 @@ test.describe('landing sections', () => {
     await page.goto(LANDING, {waitUntil: 'domcontentloaded'})
 
     await expectLocator(page.getByRole('heading', {level: 1})).toHaveText(HERO_HEADLINE, {timeout: 20_000})
+
+    const capabilities = page.locator('section', {has: page.getByRole('heading', {name: 'What it does on the page.'})})
+    const stories = capabilities.locator('figure').filter({has: page.getByRole('list')})
+    await expectLocator(stories).toHaveCount(2)
+    for (const story of await stories.all()) {
+      const facts = story.getByRole('list').getByRole('listitem')
+      await expectLocator(facts).toHaveCount(3)
+      for (const numeral of ['1', '2', '3']) {
+        await expectLocator(story.getByText(numeral, {exact: true})).toBeVisible()
+      }
+    }
+    await expectLocator(capabilities.locator('figure').filter({hasNot: page.getByRole('list')})).toHaveCount(4)
+    await expectLocator(capabilities.getByRole('heading', {level: 3})).toHaveCount(6)
 
     const figures = page.locator('figure')
     await expectLocator(figures).toHaveCount(7)

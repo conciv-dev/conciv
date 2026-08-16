@@ -2,65 +2,114 @@ import {findScreenshot} from '@/lib/screenshots'
 import {MediaFrame} from '@/components/ui/media-frame'
 import {cn} from '@/lib/utils'
 
-type Figure = {file: string; title: string; body: string}
+type Story = {
+  file: string
+  title: string
+  caption: string
+  facts: [string, string, string]
+  imageSide: 'left' | 'right'
+}
 
-const ROW_A: Figure[] = [
+type Evidence = {file: string; title: string; caption: string; focus?: string}
+
+const STORIES: Story[] = [
   {
     file: 'grab-element.webp',
     title: 'Grab any element',
-    body: 'Crosshair-pick a node; the agent gets the element, its source line, and its state.',
+    caption: 'Pick a node on the live page; the agent gets its markup and source line.',
+    facts: [
+      'Hover to pick, straight over the running DOM',
+      'Source file and line stamped at build time',
+      'Snippet and source ride into the composer',
+    ],
+    imageSide: 'left',
   },
   {
     file: 'edit-live.webp',
     title: 'Try it live first',
-    body: 'Edits land on the running page first, then in source when you say so.',
+    caption: 'Edits land on the running page first, then in source when you say so.',
+    facts: [
+      'Live style and text edits, no reload',
+      'Source edits show a before and after diff',
+      'Keep it, and the agent edits the source',
+    ],
+    imageSide: 'right',
   },
 ]
 
-const ROW_B: Figure[] = [
-  {
-    file: 'test-run.webp',
-    title: 'Runs your tests',
-    body: 'Run Vitest or Playwright locally; results render as cards in the thread.',
-  },
+const EVIDENCE: Evidence[] = [
+  {file: 'test-run.webp', title: 'Runs your tests', caption: 'Vitest or Playwright, results as cards in the thread.'},
   {
     file: 'permission.webp',
     title: 'Asks before risky commands',
-    body: 'Approve or deny shell commands from the chat. Read-only commands just run.',
+    caption: 'Shell commands ask first; read-only ones just run.',
   },
   {
     file: 'whiteboard.webp',
     title: 'Draws with you',
-    body: 'A shared Excalidraw canvas the agent can draw on, with source-anchored comments.',
+    caption: 'A shared Excalidraw canvas with source-anchored comments.',
+  },
+  {
+    file: 'any-running-app.webp',
+    title: 'Any running app',
+    caption: 'A vite.dev clone with one plugin line.',
+    focus: 'object-[82%_center]',
   },
 ]
 
-const ROW_C: Figure = {
-  file: 'any-running-app.webp',
-  title: 'Any running app',
-  body: 'A local clone of vite.dev with one Vite plugin line. Nothing else changed.',
+const STRIP_GRID =
+  'grid grid-cols-1 divide-y border-t lg:grid-cols-4 lg:divide-x lg:divide-y-0 lg:[&>*:last-child]:border-r lg:[&>*:last-child]:border-r-transparent'
+
+function StoryFigure({story}: {story: Story}) {
+  const screenshot = findScreenshot(story.file)
+  const imageRight = story.imageSide === 'right'
+  return (
+    <figure className="od-inset grid grid-cols-1 gap-8 border-t py-12 md:grid-cols-12 md:items-center md:gap-12 md:py-16">
+      <div className={cn('md:col-span-7', imageRight && 'md:order-2')}>
+        <MediaFrame
+          src={`/screenshots/${screenshot.file}`}
+          width={screenshot.width}
+          height={screenshot.height}
+          alt={screenshot.alt}
+          title={story.title}
+        />
+      </div>
+      <figcaption className={cn('flex flex-col md:col-span-5', imageRight && 'md:order-1')}>
+        <h3 className="od-h3">{story.title}</h3>
+        <p className="od-body mt-4">{story.caption}</p>
+        <ol className="mt-6 flex flex-col gap-2 border-t pt-4">
+          {story.facts.map((fact, index) => (
+            <li key={fact} className="od-caption grid grid-cols-[20px_minmax(0,1fr)] gap-x-2 text-muted-foreground">
+              <span className="od-mono tabular-nums text-accent-text" aria-hidden>
+                {index + 1}
+              </span>
+              {fact}
+            </li>
+          ))}
+        </ol>
+      </figcaption>
+    </figure>
+  )
 }
 
-const ROW_A_GRID =
-  'grid grid-cols-1 divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0 md:[&>*:last-child]:border-r md:[&>*:last-child]:border-r-transparent'
-
-const ROW_B_GRID =
-  'grid grid-cols-1 divide-y border-t lg:grid-cols-3 lg:divide-x lg:divide-y-0 lg:[&>*:last-child]:border-r lg:[&>*:last-child]:border-r-transparent'
-
-function CapabilityFigure({figure, className}: {figure: Figure; className?: string}) {
-  const screenshot = findScreenshot(figure.file)
+function EvidenceFigure({evidence}: {evidence: Evidence}) {
+  const screenshot = findScreenshot(evidence.file)
   return (
-    <figure className={cn('od-inset flex flex-col gap-4 py-8', className)}>
-      <MediaFrame
-        src={`/screenshots/${screenshot.file}`}
-        width={screenshot.width}
-        height={screenshot.height}
-        alt={screenshot.alt}
-        title={figure.title}
-      />
+    <figure className="flex flex-col gap-4 px-4 py-8 sm:px-6 md:px-8">
+      <div className="aspect-[1160/726]">
+        <MediaFrame
+          src={`/screenshots/${screenshot.file}`}
+          width={screenshot.width}
+          height={screenshot.height}
+          alt={screenshot.alt}
+          title={evidence.title}
+          fill
+          imageClassName={evidence.focus}
+        />
+      </div>
       <figcaption className="flex flex-col gap-1">
-        <h3 className="od-h3">{figure.title}</h3>
-        <p className="od-caption text-muted-foreground">{figure.body}</p>
+        <h3 className="od-h3">{evidence.title}</h3>
+        <p className="od-caption text-muted-foreground">{evidence.caption}</p>
       </figcaption>
     </figure>
   )
@@ -74,18 +123,13 @@ export function CapabilitySection() {
           <div className="od-inset py-16">
             <h2 className="od-h2">What it does on the page.</h2>
           </div>
-          <div className={ROW_A_GRID}>
-            {ROW_A.map((figure) => (
-              <CapabilityFigure key={figure.file} figure={figure} />
+          {STORIES.map((story) => (
+            <StoryFigure key={story.file} story={story} />
+          ))}
+          <div className={STRIP_GRID}>
+            {EVIDENCE.map((evidence) => (
+              <EvidenceFigure key={evidence.file} evidence={evidence} />
             ))}
-          </div>
-          <div className={ROW_B_GRID}>
-            {ROW_B.map((figure) => (
-              <CapabilityFigure key={figure.file} figure={figure} />
-            ))}
-          </div>
-          <div className="border-t">
-            <CapabilityFigure figure={ROW_C} />
           </div>
         </div>
       </div>
