@@ -32,9 +32,14 @@ test('connect() hands back stable refs and rebinding never duplicates the rig', 
     const first = service.connect()
     const second = service.connect()
     const names: RequiredSlot[] = ['getRootProps', 'getHeadProps', 'getEyesProps', 'getAntennaProps']
+    const effectHostEarlier = first.getEffectHostProps('binary').ref
+    const effectHostLater = first.getEffectHostProps('binary').ref
     const sameGetterTwice =
-      names.every((name) => first[name]().ref === first[name]().ref) &&
-      first.getEffectHostProps('binary').ref === first.getEffectHostProps('binary').ref
+      names.every((name) => {
+        const earlier = first[name]().ref
+        const later = first[name]().ref
+        return earlier === later
+      }) && effectHostEarlier === effectHostLater
     const sameAcrossConnectCalls =
       names.every((name) => first[name]().ref === second[name]().ref) &&
       first.getEffectHostProps('binary').ref === second.getEffectHostProps('binary').ref
