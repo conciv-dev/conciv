@@ -23,16 +23,25 @@ function Slots(props: {count: number}): JSX.Element {
 
 function Fixture(props: {
   width: number
+  maxInlineAuto?: number
   leading?: JSX.Element
   trailing?: JSX.Element
   onOverflowDismissed?: () => void
   children: JSX.Element
 }): JSX.Element {
-  const [local] = splitProps(props, ['width', 'leading', 'trailing', 'onOverflowDismissed', 'children'])
+  const [local] = splitProps(props, [
+    'width',
+    'maxInlineAuto',
+    'leading',
+    'trailing',
+    'onOverflowDismissed',
+    'children',
+  ])
   return (
     <div style={{width: `${local.width}px`}}>
       <ComposerActionsHost
         triggerContent={<Glyph />}
+        maxInlineAuto={local.maxInlineAuto}
         leading={local.leading}
         trailing={local.trailing ?? <Slots count={1} />}
         onOverflowDismissed={local.onOverflowDismissed}
@@ -124,6 +133,42 @@ it('keeps every action inline and hides the overflow trigger when the row is wid
   await expect.element(newSessionButton()).toBeVisible()
   await expect.element(compactButton()).toBeVisible()
   await expect.element(trigger()).not.toBeInTheDocument()
+})
+
+it('keeps every auto action in the overflow menu when the host caps inline auto actions at zero', async () => {
+  const [picks, setPicks] = createSignal<string[]>(['idle'])
+  mountView(() => (
+    <>
+      <StatusRegion picks={picks()} />
+      <Fixture width={WIDE_PX} maxInlineAuto={0}>
+        <StandardRoots onCompactSelect={() => setPicks((current) => [...current, 'compact'])} />
+      </Fixture>
+    </>
+  ))
+
+  await expect.element(grabButton()).toBeVisible()
+  await expect.element(trigger()).toBeVisible()
+  await expect.element(newSessionButton()).not.toBeInTheDocument()
+  await expect.element(compactButton()).not.toBeInTheDocument()
+
+  await userEvent.click(trigger())
+  await expect.element(page.getByRole('menuitem', {name: 'Start a new session'})).toBeVisible()
+  await userEvent.click(compactItem())
+
+  await expect.element(status()).toHaveTextContent('idle compact')
+})
+
+it('shows only as many auto actions inline as the cap allows while the row has room for more', async () => {
+  mountView(() => (
+    <Fixture width={WIDE_PX} maxInlineAuto={1}>
+      <StandardRoots />
+    </Fixture>
+  ))
+
+  await expect.element(grabButton()).toBeVisible()
+  await expect.element(newSessionButton()).toBeVisible()
+  await expect.element(compactButton()).not.toBeInTheDocument()
+  await expect.element(trigger()).toBeVisible()
 })
 
 it('collapses the lowest-priority action into the overflow menu and runs it from there', async () => {

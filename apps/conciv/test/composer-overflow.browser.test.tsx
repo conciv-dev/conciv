@@ -35,6 +35,7 @@ const grabButton = () => page.getByRole('button', {name: 'Select an element from
 const newSessionButton = () => page.getByRole('button', {name: 'Start a new session'})
 const compactButton = () => page.getByRole('button', {name: 'Compress the conversation'})
 const trigger = () => page.getByRole('button', {name: 'More composer actions'})
+const attachButton = () => page.getByRole('button', {name: 'Add an attachment'})
 const newSessionItem = () => page.getByRole('menuitem', {name: 'Start a new session'})
 const compactItem = () => page.getByRole('menuitem', {name: 'Compress the conversation'})
 
@@ -62,42 +63,50 @@ async function mountComposer(width?: number): Promise<PaneMount> {
   return mount
 }
 
-test('a wide composer keeps every built-in action inline and shows no overflow trigger', async () => {
+test('a wide composer keeps only the pinned grab action inline and runs the rest from the overflow menu', async () => {
   await mountComposer(WIDE_PX)
 
   await expect.element(grabButton()).toBeVisible()
-  await expect.element(newSessionButton()).toBeVisible()
-  await expect.element(compactButton()).toBeVisible()
-  await expect.element(trigger()).not.toBeInTheDocument()
-})
-
-test('a narrow composer keeps grab pinned and runs the collapsed new-session action from the menu', async () => {
-  const mount = await mountComposer()
-
-  mount.setWidth(NARROW_PX)
-
-  await expect.element(newSessionButton()).not.toBeInTheDocument()
-  await expect.element(grabButton()).toBeVisible()
   await expect.element(trigger()).toHaveAttribute('aria-haspopup', 'menu')
+  await expect.element(newSessionButton()).not.toBeInTheDocument()
+  await expect.element(compactButton()).not.toBeInTheDocument()
 
   await userEvent.click(trigger())
+  await expect.element(compactItem()).toBeVisible()
   await userEvent.click(newSessionItem())
 
   await expect.element(page.getByText('the pane requested a new session')).toBeVisible()
   await expect.element(newSessionItem()).not.toBeInTheDocument()
 })
 
-test('a session that is already compacting cannot be compacted again from the overflow menu', async () => {
-  const gate = await faults.install({kind: 'gate', path: COMPACT_PATH})
-  const mount = await mountComposer(WIDE_PX)
+test('the attachment button carries the same tooltip-backed name as the rest of the row', async () => {
+  await mountComposer(WIDE_PX)
 
-  await userEvent.click(compactButton())
-  await coreControl.awaitFaultPending(gate, 1)
-  await expect.element(compactButton()).toBeDisabled()
+  await expect.element(attachButton()).toBeVisible()
+
+  await userEvent.hover(attachButton())
+
+  await expect.element(page.getByRole('tooltip')).toHaveTextContent('Add an attachment')
+})
+
+test('a narrow composer still keeps the pinned grab action inline beside the overflow trigger', async () => {
+  const mount = await mountComposer()
 
   mount.setWidth(NARROW_PX)
 
-  await expect.element(compactButton()).not.toBeInTheDocument()
+  await expect.element(grabButton()).toBeVisible()
+  await expect.element(trigger()).toBeVisible()
+  await expect.element(newSessionButton()).not.toBeInTheDocument()
+})
+
+test('a session that is already compacting cannot be compacted again from the overflow menu', async () => {
+  const gate = await faults.install({kind: 'gate', path: COMPACT_PATH})
+  await mountComposer(WIDE_PX)
+
+  await userEvent.click(trigger())
+  await userEvent.click(compactItem())
+  await coreControl.awaitFaultPending(gate, 1)
+
   await userEvent.click(trigger())
   await expect.element(compactItem()).toHaveAttribute('aria-disabled', 'true')
 
@@ -107,18 +116,4 @@ test('a session that is already compacting cannot be compacted again from the ov
   await expect.element(page.getByText('the pane requested a new session')).toBeVisible()
   await expect.element(compactItem()).not.toBeInTheDocument()
   expect(await coreControl.faultPending(gate)).toBe(1)
-})
-
-test('widening the composer closes the overflow menu and returns the caret to the input', async () => {
-  const mount = await mountComposer(NARROW_PX)
-
-  await userEvent.click(trigger())
-  await expect.element(compactItem()).toBeVisible()
-
-  mount.setWidth(WIDE_PX)
-
-  await expect.element(compactButton()).toBeVisible()
-  await expect.element(compactItem()).not.toBeInTheDocument()
-  await expect.element(trigger()).not.toBeInTheDocument()
-  await expect.element(input()).toHaveFocus()
 })

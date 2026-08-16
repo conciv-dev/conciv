@@ -95,8 +95,9 @@ function DeploySurface() {
 The real file's `deployRun` has no `approval: 'ask'` — it's added above because `mutating: true` tools
 should ask by default (see the red flags below); the `RocketIcon` component the quote references is
 declared in the real file between `DEPLOY_NAME` and `deployRun`. The composer slot never renders a raw
-`<button>`: a `ComposerActions.Root` declares the action once, the `Button` shows it inline while the
-row has room, and the `DropdownItem` is what the shared overflow menu shows once it does not. Drop the
+`<button>`: a `ComposerActions.Root` declares the action once, the `DropdownItem` is what the shared
+overflow menu shows, and the `Button` only reaches the row itself with `visible="always"` — conciv's
+composer keeps every `visible="auto"` button in the menu, so always ship a `DropdownItem`. Drop the
 file (or your own version of it) into `conciv/extensions/` at your
 project root — create
 the directory if it does not exist. No registration, no config: conciv discovers every file there.

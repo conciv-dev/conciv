@@ -46,7 +46,12 @@ function SlotPlaceholder(): JSX.Element {
   return <span aria-hidden="true" class="rounded-pw-sm bg-pw-fill shrink-0 size-8.5 block" />
 }
 
-function ActionsFrame(props: {width: number; resizable?: boolean; children: JSX.Element}): JSX.Element {
+function ActionsFrame(props: {
+  width: number
+  maxInlineAuto?: number
+  resizable?: boolean
+  children: JSX.Element
+}): JSX.Element {
   return (
     <div
       class="p-2 border border-pw-line rounded-pw-md bg-pw-panel overflow-hidden"
@@ -58,6 +63,7 @@ function ActionsFrame(props: {width: number; resizable?: boolean; children: JSX.
     >
       <ComposerActionsHost
         triggerContent={<Ellipsis class="size-5 block" aria-hidden="true" />}
+        maxInlineAuto={props.maxInlineAuto}
         leading={<SlotPlaceholder />}
         trailing={<SlotPlaceholder />}
       >
@@ -246,6 +252,48 @@ export const Collapsed: Story = {
     await userEvent.click(canvas.getByRole('menuitem', {name: COMPACT_LABEL}))
     await waitFor(() => expect(canvas.getByText(`Last action: ${COMPACT_LABEL}`)).toBeVisible())
     await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'false'))
+  },
+}
+
+export const CappedDefault: Story = {
+  render: () => {
+    const [last, setLast] = createSignal('')
+    return (
+      <div class="flex flex-col gap-2">
+        <p class="text-[0.75rem] text-pw-text-2">
+          The app default: a wide row still keeps every auto action in the overflow menu, pinned actions aside.
+        </p>
+        <ActionsFrame width={560} maxInlineAuto={0}>
+          <GrabRoot onAction={setLast} />
+          <NewSessionRoot onAction={setLast} />
+          <CompactRoot onAction={setLast} />
+          <CanvasRoot onAction={setLast} />
+          <LaunchRoot onAction={setLast} />
+        </ActionsFrame>
+        <ActionLog value={last()} />
+      </div>
+    )
+  },
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const trigger = await waitFor(() => canvas.getByRole('button', {name: OVERFLOW_LABEL}))
+    await expect(canvas.getByRole('button', {name: GRAB_LABEL})).toBeVisible()
+    await expect(canvas.queryByRole('button', {name: NEW_SESSION_LABEL})).toBeNull()
+    await expect(canvas.queryByRole('button', {name: COMPACT_LABEL})).toBeNull()
+
+    await userEvent.click(trigger)
+    await waitFor(() =>
+      expect(canvas.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+        NEW_SESSION_LABEL,
+        COMPACT_LABEL,
+        CANVAS_LABEL,
+        OPEN_LABEL,
+        COPY_LABEL,
+      ]),
+    )
+
+    await userEvent.click(canvas.getByRole('menuitem', {name: NEW_SESSION_LABEL}))
+    await waitFor(() => expect(canvas.getByText(`Last action: ${NEW_SESSION_LABEL}`)).toBeVisible())
   },
 }
 

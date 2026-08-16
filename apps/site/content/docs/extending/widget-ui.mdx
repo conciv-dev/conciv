@@ -59,8 +59,10 @@ Slots: `header`, `footer`, `composer`, `empty` (the blank-thread state), `status
 The composer toolbar is shared: the built-in actions, every extension, and the send button all live
 in one row, so it runs out of room on a narrow panel. Declare each action once as a
 `ComposerActions.Root` from `@conciv/ui-kit-chat` and the composer places it for you — the `Button`
-renders in the row while it fits, and the `DropdownItem` renders in the shared overflow menu once it
-does not. Only one of the two shows at a time.
+renders in the row while the composer allows it, and the `DropdownItem` renders in the shared
+overflow menu otherwise. Only one of the two shows at a time. The conciv composer keeps the row
+short: it holds back every `visible="auto"` button, so plan on your action living in the overflow
+menu and give it a `DropdownItem`. `visible="always"` is what keeps a button in the row itself.
 
 <TypeTable
   type={{
@@ -70,7 +72,7 @@ does not. Only one of the two shows at a time.
     },
     'Root.priority': {
       type: 'number',
-      description: 'Higher stays inline longer. Built-ins run 40 (grab) down to 10 (launch); pick below them.',
+      description: 'Higher sorts first, inline and in the menu. Built-ins run 40 (grab) down to 10 (launch).',
     },
     'Root.disabled': {
       type: '() => boolean',
@@ -81,7 +83,7 @@ does not. Only one of the two shows at a time.
     'Button.visible': {
       type: "'auto' | 'always'",
       description:
-        '"always" pins the button inline at any width; spend it only on an action the user cannot work without.',
+        '"always" pins the button inline at any width; "auto" leaves it to the composer, which today keeps it in the menu.',
     },
     'Button.busy': {type: 'boolean', description: 'Marks the action in progress without disabling it.'},
     DropdownItem: {

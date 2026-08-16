@@ -62,12 +62,20 @@ export type ComposerActionsHostProps = {
   leading?: JSX.Element
   trailing: JSX.Element
   triggerContent: JSX.Element
+  maxInlineAuto?: number
   onOverflowDismissed?: () => void
   children: JSX.Element
 }
 
 export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Element {
-  const [local] = splitProps(props, ['leading', 'trailing', 'triggerContent', 'onOverflowDismissed', 'children'])
+  const [local] = splitProps(props, [
+    'leading',
+    'trailing',
+    'triggerContent',
+    'maxInlineAuto',
+    'onOverflowDismissed',
+    'children',
+  ])
   const [registrations, setRegistrations] = createStore<Registration[]>([])
   const [groupNodes, setGroupNodes] = createStore<Record<string, HTMLElement | undefined>>({})
   const [rowElement, setRowElement] = createSignal<HTMLElement>()
@@ -127,12 +135,18 @@ export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Elemen
     })
   }, null)
 
+  const inlineAutoCount = createMemo(() => {
+    const fitted = visibleAutoCount() ?? 0
+    const cap = local.maxInlineAuto
+    return cap === undefined ? fitted : Math.min(fitted, cap)
+  })
+
   const inlineKeys = createMemo(
     () =>
       new Set([
         ...pinnedRoots().map((entry) => entry.key),
         ...autoRoots()
-          .slice(0, visibleAutoCount() ?? 0)
+          .slice(0, inlineAutoCount())
           .map((entry) => entry.key),
       ]),
   )

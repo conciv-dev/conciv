@@ -13,6 +13,7 @@ import {
   useComposer,
   type AttachmentAdapter,
 } from '@conciv/ui-kit-chat'
+import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
 import {useEngineReachability} from '../app/reachability.js'
 import {
@@ -50,6 +51,8 @@ const QUEUE_ACTION =
   'shrink-0 px-2 py-1 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-md)] leading-[1.45] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease),transform_100ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] [&:active]:scale-[0.96]'
 
 const ENGINE_UNREACHABLE_LABEL = 'conciv lost connection to the engine'
+const ATTACHMENT_LABEL = 'Add an attachment'
+const MAX_INLINE_AUTO_ACTIONS = 0
 
 function ComposerSendControl(): JSX.Element {
   const composer = useComposer()
@@ -123,12 +126,17 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
         />
         <ComposerActionsHost
           triggerContent={<Ellipsis class="size-5 block" aria-hidden="true" />}
+          maxInlineAuto={MAX_INLINE_AUTO_ACTIONS}
           onOverflowDismissed={() => inputHandle()?.focus()}
           leading={
             <Show when={props.attachmentAdapter}>
-              <ComposerPrimitive.AddAttachment class={GHOST}>
-                <Paperclip size={16} aria-hidden="true" />
-              </ComposerPrimitive.AddAttachment>
+              <TooltipIconButtonSlot tooltip={ATTACHMENT_LABEL}>
+                {(buttonProps) => (
+                  <ComposerPrimitive.AddAttachment {...buttonProps()} class={GHOST}>
+                    <Paperclip size={16} aria-hidden="true" />
+                  </ComposerPrimitive.AddAttachment>
+                )}
+              </TooltipIconButtonSlot>
             </Show>
           }
           trailing={
