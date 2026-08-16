@@ -11,14 +11,18 @@ async function startWidget(): Promise<void> {
   ])
   const picked = dedupeExtensions(entries)
   for (const drop of picked.dropped) console.warn('conciv extension dropped:', drop.source, drop.reason)
-  mountConciv(picked.extensions)
+  await mountConciv(picked.extensions)
 }
 
 if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'production') {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => void startWidget(), {once: true})
+    document.addEventListener(
+      'DOMContentLoaded',
+      () => startWidget().catch((error) => console.error('[conciv] widget failed to start', error)),
+      {once: true},
+    )
   } else {
-    void startWidget()
+    startWidget().catch((error) => console.error('[conciv] widget failed to start', error))
   }
 }
 

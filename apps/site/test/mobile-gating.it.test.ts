@@ -29,6 +29,8 @@ test.describe('landing gates the dev-only demo behind a non-mobile pointer', () 
     await expectLocator(page.getByRole('button', {name: 'Copy install command'})).toHaveCount(0, {timeout: 20_000})
     await expectLocator(page.getByRole('button', {name: /Try it live/i})).toHaveCount(0)
     await expectLocator(page.locator('[data-conciv-root]')).toHaveCount(0)
+    await expectLocator(page.getByText('desktop-only')).toBeVisible()
+    await expectLocator(page.getByRole('link', {name: 'Read the quick start →'})).toBeVisible()
 
     await context.close()
   }, 60_000)

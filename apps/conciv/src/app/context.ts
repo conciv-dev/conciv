@@ -28,6 +28,7 @@ export type AppContextValue = {
   grabProvider?: GrabProvider
   connectionGeneration: () => number
   apiBase: () => string
+  notifyInteractive: () => void
 }
 
 export const AppContext = createContext<AppContextValue>()
@@ -100,4 +101,8 @@ export function useConnectionGeneration(): () => number {
 
 export function useApiBase(): () => string {
   return useAppScope('useApiBase', (app) => app.apiBase)
+}
+
+export function useNotifyInteractive(): () => void {
+  return useAppScope('useNotifyInteractive', (app) => app.notifyInteractive)
 }
