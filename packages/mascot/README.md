@@ -49,7 +49,9 @@ closes over. Solid reads `mount` inside its own tracked scope, so an inline arro
 Root props: `state` (`'rest' | 'awake'`), `working`, `follow` (`boolean` or `{eyes, antenna}`),
 `activity` (`{bob, throb, blink}`), `curve`, `initialSkin`. `follow` on `<Mascot.Eyes>` or
 `<Mascot.Antenna>` opts that one gaze channel out. A consumer `class`, `style` and `ref` all survive
-the merge: the wrapper only keeps the geometry the rig animates.
+the merge, and the two levels differ: the root box is yours to own outright, while a layer keeps the
+geometry the rig animates (`position`, `inset` and the `background` shorthand parts) against a
+consumer style that would take it over.
 
 `solid-js`, `react` and `react-dom` are optional peer dependencies, and each wrapper subpath is the
 only entry that reaches its framework.

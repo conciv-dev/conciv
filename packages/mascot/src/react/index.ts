@@ -5,7 +5,7 @@ import {MascotEyes} from './mascot-eyes.js'
 import {MascotHead} from './mascot-head.js'
 import {MascotRoot} from './mascot-root.js'
 
-export type {ClaimToken, MascotContextValue, MascotPartName, PartClaim} from './mascot-context.js'
+export type {MascotContextValue, MascotPartName} from './mascot-context.js'
 export {useMascotContext} from './mascot-context.js'
 export type {MascotEffectProps} from './mascot-effect.js'
 export type {MascotBinaryProps, MascotFollowPartProps, MascotLayerProps, MascotProps} from './mascot-props.js'

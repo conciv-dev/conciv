@@ -107,7 +107,7 @@ export function useMascotHost(props: MascotProps): MascotHost {
       effectCount: () => store.claims().effects,
       curve: () => curve.current,
     }),
-    [service, connect, store, curve],
+    [service, connect, store],
   )
 
   return {context, claims, rootProps: connect.getRootProps()}

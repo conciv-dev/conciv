@@ -3,7 +3,7 @@ import {createRequire} from 'node:module'
 import {dirname, join, normalize} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {expect, type Page, type Route} from '@playwright/test'
-import type {CurveStyle, MascotConfig} from '../../../src/core/index.js'
+import {robotSkin, type CurveStyle, type MascotConfig} from '../../../src/core/index.js'
 import {frameCountingScript, harnessPage, layoutCountingScript} from './harness-page.js'
 
 export type StagePoint = {x: number; y: number}
@@ -175,9 +175,12 @@ export function readGaze(page: Page): Promise<Gaze> {
 
 export type StageSize = {width: number; height: number}
 
-export const restTip = (stage: StageSize): StagePoint => ({x: stage.width * 0.5, y: stage.height * 0.15625})
+export const restTip = (stage: StageSize): StagePoint => ({
+  x: stage.width * robotSkin.tipFractions.x,
+  y: stage.height * robotSkin.tipFractions.y,
+})
 
-const ANTENNA_ORIGIN_FRACTION_Y = 0.328
+const ANTENNA_ORIGIN_FRACTION_Y = robotSkin.originFractions.y
 
 export function tipUnderTransform(stage: StageSize, scaleY: number, yPercent: number): StagePoint {
   const originY = stage.height * ANTENNA_ORIGIN_FRACTION_Y

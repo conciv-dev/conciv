@@ -4,6 +4,7 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import {dirname, join, resolve} from 'node:path'
 import {afterAll, expect, test} from 'vitest'
+import {EFFECT_MOUNTS} from '../effect-catalog.js'
 
 const packageRoot = resolve(import.meta.dirname, '../..')
 const consumerRoots: string[] = []
@@ -12,25 +13,6 @@ function makeConsumerRoot(): string {
   const root = mkdtempSync(join(tmpdir(), 'conciv-mascot-packed-'))
   consumerRoots.push(root)
   return root
-}
-
-const EFFECT_MOUNTS: Record<string, string> = {
-  binary: 'binaryEffect',
-  matrix: 'matrixEffect',
-  'thought-cloud': 'thoughtCloudEffect',
-  'pixel-bubbles': 'pixelBubblesEffect',
-  'signal-rings': 'signalRingsEffect',
-  'speech-bubble': 'speechBubbleEffect',
-  steam: 'steamEffect',
-  spark: 'sparkEffect',
-  'spark-burst': 'sparkBurstEffect',
-  'spark-fountain': 'sparkFountainEffect',
-  satellite: 'satelliteEffect',
-  'led-cone': 'ledConeEffect',
-  'tick-ring': 'tickRingEffect',
-  'signal-bars': 'signalBarsEffect',
-  heart: 'heartEffect',
-  notes: 'notesEffect',
 }
 
 const PROBE = `import {createMascot, robotLayers} from '@conciv/mascot'
