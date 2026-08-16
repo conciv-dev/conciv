@@ -1,8 +1,9 @@
 import gsap from 'gsap'
 import {ENTER_DURATION_S, ENTER_EASE} from '../config.js'
 import type {EmitterAnchor, EmitterPoint} from '../path.js'
+import {antennaTipAnchor} from '../tip-anchor.js'
 import {enterFromTip, exitIntoTip} from '../tip-transition.js'
-import type {EffectHandle} from './effect.js'
+import type {EffectContext, EffectHandle} from './effect.js'
 
 export const WILL_CHANGE_STYLE = 'will-change:transform,opacity'
 
@@ -218,4 +219,27 @@ export function createNozzleEmitter(emitter: NozzleEmitter): EffectHandle {
   })
 
   return {...tip, anchor: aimNozzle}
+}
+
+export type ParticleNozzle = {
+  context: EffectContext
+  shellStyle?: (factor: number) => string
+  createParticles: (factor: number) => HTMLElement[]
+  buildTimeline: (particles: HTMLElement[], factor: number, nozzle: EmitterPoint) => gsap.core.Timeline
+}
+
+export function createParticleNozzleEmitter(nozzle: ParticleNozzle): EffectHandle {
+  const {host, antenna, skin} = nozzle.context
+  const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
+  const mouth = antennaTipAnchor(host, antenna, skin)
+  const element = createTipShell(mouth, nozzle.shellStyle?.(factor) ?? WILL_CHANGE_STYLE)
+  const particles = nozzle.createParticles(factor)
+  element.append(...particles)
+  host.append(element)
+  return createNozzleEmitter({
+    host,
+    element,
+    mouth,
+    buildTimeline: (aimed) => nozzle.buildTimeline(particles, factor, aimed),
+  })
 }

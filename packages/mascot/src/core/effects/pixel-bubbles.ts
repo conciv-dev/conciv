@@ -1,8 +1,7 @@
 import gsap from 'gsap'
 import type {EmitterPoint} from '../path.js'
-import {antennaTipAnchor} from '../tip-anchor.js'
-import {antennaScaleFactor, createNozzleEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
-import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
+import {createParticleNozzleEmitter} from './effect-support.js'
+import type {EffectMount} from './effect.js'
 
 const PIXEL_BUBBLES_ACCENT_COLOR = '#e0218a'
 
@@ -71,20 +70,9 @@ function createDriftTimeline(squares: HTMLElement[], factor: number, nozzle: Emi
   return timeline
 }
 
-function createPixelBubblesEmitter(context: EffectContext): EffectHandle {
-  const {host, antenna, skin} = context
-  const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
-  const mouth = antennaTipAnchor(host, antenna, skin)
-  const element = createTipShell(mouth, WILL_CHANGE_STYLE)
-  const squares = SQUARE_INDEXES.map((index) => createSquare(factor, index))
-  element.append(...squares)
-  host.append(element)
-  return createNozzleEmitter({
-    host,
-    element,
-    mouth,
-    buildTimeline: (nozzle) => createDriftTimeline(squares, factor, nozzle),
+export const pixelBubblesEffect: EffectMount = (context) =>
+  createParticleNozzleEmitter({
+    context,
+    createParticles: (factor) => SQUARE_INDEXES.map((index) => createSquare(factor, index)),
+    buildTimeline: createDriftTimeline,
   })
-}
-
-export const pixelBubblesEffect: EffectMount = (context) => createPixelBubblesEmitter(context)

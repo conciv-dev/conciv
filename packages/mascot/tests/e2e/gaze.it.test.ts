@@ -1,6 +1,6 @@
-import {expect, test} from '@playwright/test'
+import {expect, test, type Page} from '@playwright/test'
 import {expectNear} from './helpers/near.js'
-import {buildService, openMascotPage, readGaze, settle} from './helpers/mascot-stage.js'
+import {buildService, openMascotPage, readGaze, settle, type StagePoint} from './helpers/mascot-stage.js'
 
 const INSET_STAGE_PX = 56
 
@@ -12,14 +12,27 @@ const POINTER_REACH_PX = 300
 
 const GAZE_SETTLE_MS = 250
 
+const GAZE_TRAVEL_MS = 1400
+
+const SATURATING_REACH_PX = 400
+
+async function openFollowingService(page: Page): Promise<StagePoint> {
+  return buildService(page, {state: 'rest', working: false, follow: true})
+}
+
+async function saturateGaze(page: Page): Promise<StagePoint> {
+  const center = await openFollowingService(page)
+  await page.mouse.move(center.x + SATURATING_REACH_PX, center.y)
+  await settle(page, GAZE_TRAVEL_MS)
+  return center
+}
+
 test.beforeEach(async ({page}) => {
   await openMascotPage(page)
 })
 
 test('the resting follow state tracks the pointer with a saturating, mirrored falloff', async ({page}) => {
-  const center = await buildService(page, {state: 'rest', working: false, follow: true})
-  await page.mouse.move(center.x + 400, center.y)
-  await settle(page, 1400)
+  const center = await saturateGaze(page)
   const right = await readGaze(page)
   await page.mouse.move(center.x - 400, center.y)
   await settle(page, 1400)
@@ -37,7 +50,7 @@ test('the resting follow state tracks the pointer with a saturating, mirrored fa
 })
 
 test('the awake state lands its pose and disarms the gaze listener', async ({page}) => {
-  await buildService(page, {state: 'rest', working: false, follow: true})
+  await openFollowingService(page)
   const pose = await page.evaluate(async () => {
     const harness = window.mascotHarness
     window.service.update({state: 'awake', working: false, follow: false})
@@ -93,9 +106,7 @@ test('follow {antenna} leans the antenna while the eyes stay still', async ({pag
 })
 
 test('narrowing follow to one channel returns the dropped channel to zero', async ({page}) => {
-  const center = await buildService(page, {state: 'rest', working: false, follow: true})
-  await page.mouse.move(center.x + 400, center.y)
-  await settle(page, 1400)
+  await saturateGaze(page)
   const both = await readGaze(page)
   const narrowed = await page.evaluate(async () => {
     const harness = window.mascotHarness
@@ -115,7 +126,7 @@ test('narrowing follow to one channel returns the dropped channel to zero', asyn
 })
 
 test('a pointer move while the eyes have no box leaves the gaze live once the box returns', async ({page}) => {
-  const center = await buildService(page, {state: 'rest', working: false, follow: true})
+  const center = await openFollowingService(page)
   await page.evaluate(() => window.mascotHarness.applyStyle(window.parts.eyes, {display: 'none'}))
   await page.mouse.move(center.x + 400, center.y)
   await settle(page, 300)
@@ -130,7 +141,7 @@ test('a pointer move while the eyes have no box leaves the gaze live once the bo
 })
 
 test('scrolling the page re-measures the eye box instead of aiming at the stale viewport center', async ({page}) => {
-  const center = await buildService(page, {state: 'rest', working: false, follow: true})
+  const center = await openFollowingService(page)
   await page.evaluate(() => {
     const spacer = document.createElement('div')
     spacer.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:4000px'
@@ -156,9 +167,7 @@ test('scrolling the page re-measures the eye box instead of aiming at the stale 
 })
 
 test('follow arms, disarms and settles without leaking pointermove listeners', async ({page}) => {
-  const center = await buildService(page, {state: 'rest', working: false, follow: true})
-  await page.mouse.move(center.x + 400, center.y)
-  await settle(page, 1400)
+  const center = await saturateGaze(page)
   const saturated = await readGaze(page)
   await page.mouse.move(center.x + 110, center.y)
   await settle(page, 1400)

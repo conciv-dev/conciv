@@ -1,8 +1,7 @@
 import gsap from 'gsap'
 import type {EmitterPoint} from '../path.js'
-import {antennaTipAnchor} from '../tip-anchor.js'
-import {antennaScaleFactor, createNozzleEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
-import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
+import {createParticleNozzleEmitter} from './effect-support.js'
+import type {EffectMount} from './effect.js'
 
 export const NOTE_GLYPHS = ['♪', '♫', '♩']
 const NOTE_LEFT_PX = -4
@@ -57,20 +56,9 @@ function createRiseTimeline(notes: HTMLElement[], factor: number, nozzle: Emitte
   return timeline
 }
 
-function createNotesEmitter(context: EffectContext): EffectHandle {
-  const {host, antenna, skin} = context
-  const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
-  const mouth = antennaTipAnchor(host, antenna, skin)
-  const element = createTipShell(mouth, WILL_CHANGE_STYLE)
-  const notes = NOTE_GLYPHS.map((glyph) => createNote(factor, glyph))
-  element.append(...notes)
-  host.append(element)
-  return createNozzleEmitter({
-    host,
-    element,
-    mouth,
-    buildTimeline: (nozzle) => createRiseTimeline(notes, factor, nozzle),
+export const notesEffect: EffectMount = (context) =>
+  createParticleNozzleEmitter({
+    context,
+    createParticles: (factor) => NOTE_GLYPHS.map((glyph) => createNote(factor, glyph)),
+    buildTimeline: createRiseTimeline,
   })
-}
-
-export const notesEffect: EffectMount = (context) => createNotesEmitter(context)

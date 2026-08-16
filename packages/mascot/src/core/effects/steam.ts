@@ -1,8 +1,7 @@
 import gsap from 'gsap'
 import type {EmitterPoint} from '../path.js'
-import {antennaTipAnchor} from '../tip-anchor.js'
-import {antennaScaleFactor, createNozzleEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
-import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
+import {createParticleNozzleEmitter} from './effect-support.js'
+import type {EffectMount} from './effect.js'
 
 const STEAM_CORE_COLOR = 'rgba(148, 158, 178, 0.55)'
 
@@ -86,20 +85,9 @@ function createPuffTimeline(puffs: HTMLElement[], factor: number, nozzle: Emitte
   return timeline
 }
 
-function createSteamEffect(context: EffectContext): EffectHandle {
-  const {host, antenna, skin} = context
-  const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
-  const mouth = antennaTipAnchor(host, antenna, skin)
-  const element = createTipShell(mouth, WILL_CHANGE_STYLE)
-  const puffs = PUFF_INDEXES.map((index) => createPuff(factor, index))
-  element.append(...puffs)
-  host.append(element)
-  return createNozzleEmitter({
-    host,
-    element,
-    mouth,
-    buildTimeline: (nozzle) => createPuffTimeline(puffs, factor, nozzle),
+export const steamEffect: EffectMount = (context) =>
+  createParticleNozzleEmitter({
+    context,
+    createParticles: (factor) => PUFF_INDEXES.map((index) => createPuff(factor, index)),
+    buildTimeline: createPuffTimeline,
   })
-}
-
-export const steamEffect: EffectMount = (context) => createSteamEffect(context)

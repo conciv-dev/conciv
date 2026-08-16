@@ -1,8 +1,7 @@
 import gsap from 'gsap'
 import type {EmitterPoint} from '../path.js'
-import {antennaTipAnchor} from '../tip-anchor.js'
-import {antennaScaleFactor, createNozzleEmitter, createTipShell, WILL_CHANGE_STYLE} from './effect-support.js'
-import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
+import {createParticleNozzleEmitter, WILL_CHANGE_STYLE} from './effect-support.js'
+import type {EffectMount} from './effect.js'
 
 export const MATRIX_GLYPHS = ['0', '1', '7', '4', '9', '2']
 
@@ -68,20 +67,10 @@ function createDripTimeline(glyphs: HTMLElement[], factor: number, nozzle: Emitt
   return timeline
 }
 
-function createMatrixEmitter(context: EffectContext): EffectHandle {
-  const {host, antenna, skin} = context
-  const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
-  const mouth = antennaTipAnchor(host, antenna, skin)
-  const element = createTipShell(mouth, glyphShellStyle(factor))
-  const glyphs = GLYPH_INDEXES.map((index) => createGlyph(factor, index))
-  element.append(...glyphs)
-  host.append(element)
-  return createNozzleEmitter({
-    host,
-    element,
-    mouth,
-    buildTimeline: (nozzle) => createDripTimeline(glyphs, factor, nozzle),
+export const matrixEffect: EffectMount = (context) =>
+  createParticleNozzleEmitter({
+    context,
+    shellStyle: glyphShellStyle,
+    createParticles: (factor) => GLYPH_INDEXES.map((index) => createGlyph(factor, index)),
+    buildTimeline: createDripTimeline,
   })
-}
-
-export const matrixEffect: EffectMount = (context) => createMatrixEmitter(context)
