@@ -12,7 +12,9 @@ export function MascotEffect(props: MascotEffectProps): JSX.Element {
   const host = context.effectHostProps(id)
   const [local, rest] = splitProps(props, ['mount', 'style', 'ref'])
   let element: HTMLDivElement | undefined
-  onMount(() => host.ref(element ?? null))
+  onMount(() => {
+    if (element !== undefined) host.ref(element)
+  })
   createEffect(() => context.service.mountEffect(id, local.mount()))
   onCleanup(() => {
     context.service.unmountEffect(id)

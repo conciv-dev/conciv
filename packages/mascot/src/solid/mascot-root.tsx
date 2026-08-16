@@ -1,9 +1,10 @@
-import {type JSX, Show, splitProps} from 'solid-js'
+import {type JSX, onMount, Show, splitProps} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {BinaryEffectHost} from './mascot-binary.js'
 import {MascotProvider} from './mascot-context.js'
 import {MascotLayer} from './mascot-layer.js'
-import {composeRefs, defaultRootSize, type MascotProps, mergeStyle} from './mascot-props.js'
+import {composeRefs, type MascotProps, mergeStyle} from './mascot-props.js'
+import {installStageSize} from './mascot-stage-sheet.js'
 import {createMascotHost} from './use-mascot.js'
 
 export function MascotRoot(props: MascotProps): JSX.Element {
@@ -19,7 +20,10 @@ export function MascotRoot(props: MascotProps): JSX.Element {
     'ref',
     'children',
   ])
-  const rootStyle = () => ({...defaultRootSize(props.class, local.style), ...host.rootProps.style})
+  let element: HTMLDivElement | undefined
+  onMount(() => {
+    if (element !== undefined) installStageSize(element)
+  })
   return (
     <MascotProvider value={host.context}>
       <Dynamic
@@ -28,17 +32,20 @@ export function MascotRoot(props: MascotProps): JSX.Element {
         {...rest}
         data-scope="mascot"
         data-part="root"
-        style={mergeStyle(rootStyle(), local.style)}
-        ref={composeRefs(host.rootProps.ref, local.ref)}
+        style={mergeStyle(host.rootProps.style, local.style)}
+        ref={composeRefs((node) => {
+          element = node
+          host.rootProps.ref(node)
+        }, local.ref)}
       >
         {local.children}
-        <Show when={host.slots.head === 0}>
+        <Show when={!host.slots.head}>
           <MascotLayer layer="head" />
         </Show>
-        <Show when={host.slots.antenna === 0}>
+        <Show when={!host.slots.antenna}>
           <MascotLayer layer="antenna" />
         </Show>
-        <Show when={host.slots.eyes === 0}>
+        <Show when={!host.slots.eyes}>
           <MascotLayer layer="eyes" />
         </Show>
         <Show when={host.slots.effects === 0}>

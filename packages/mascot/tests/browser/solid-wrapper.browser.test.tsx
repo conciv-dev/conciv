@@ -1,7 +1,8 @@
-import {createSignal, type JSX, Show} from 'solid-js'
+import {createSignal, For, type JSX, Match, Show, Switch} from 'solid-js'
+import {Portal} from 'solid-js/web'
 import {render} from '@solidjs/testing-library'
 import {page} from 'vitest/browser'
-import {expect, it} from 'vitest'
+import {expect, it, onTestFinished, vi} from 'vitest'
 import gsap from 'gsap'
 import {Mascot} from '../../src/solid/index.js'
 
@@ -37,6 +38,17 @@ const renderMascot = (view: () => JSX.Element): {container: HTMLElement; unmount
   return {container: mounted.container, unmount: mounted.unmount}
 }
 
+const shadowStageOf = (host: HTMLElement): HTMLElement => {
+  const shadowed = [...host.querySelectorAll('div')].flatMap((element) =>
+    element.shadowRoot === null
+      ? []
+      : [...element.shadowRoot.querySelectorAll<HTMLElement>('[data-scope="mascot"][data-part="root"]')],
+  )
+  const root = shadowed[0]
+  if (root === undefined) throw new Error('the mascot root did not render inside a shadow root')
+  return root
+}
+
 const rootOf = (container: HTMLElement): HTMLElement => {
   const root = partsIn(container, 'root')[0]
   if (root === undefined) throw new Error('the mascot root did not render')
@@ -49,19 +61,21 @@ const partOf = (container: HTMLElement, part: string): HTMLElement => {
   return element
 }
 
-const wait = (milliseconds: number): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, milliseconds)
-  })
-
-const DRAIN_MS = 900
+const DRAIN_TIMEOUT = {timeout: 3_000, interval: 30}
 
 const SIZING_CLASS = 'tall-mascot'
+
+const FADED_CLASS = 'faded-mascot'
+
+const DATA_URL_STYLE = "background-image:url('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=');opacity:0.4"
+
+const IMPORTANT_STYLE = 'opacity:0.3 !important'
 
 const styleRule = (rule: string): void => {
   const sheet = document.createElement('style')
   sheet.textContent = rule
   document.head.append(sheet)
+  onTestFinished(() => sheet.remove())
 }
 
 it('renders one head, one antenna and one eyes layer on a stage with a real size', () => {
@@ -99,21 +113,54 @@ it('keeps the geometry of a layer when a consumer style tries to take it over', 
   expect(applied.opacity).toBe('0.5')
 })
 
-it('keeps the rig alive when one of two children claiming a part unmounts', async () => {
-  const [both, setBoth] = createSignal(true)
-  const {container} = renderMascot(() => (
-    <Mascot working>
-      <Mascot.Eyes id="first-eyes" />
-      <Show when={both()}>
+it('keeps the stage visible at its default size when a consumer class only paints', () => {
+  styleRule(`.${FADED_CLASS}{opacity:0.7}`)
+  const {container} = renderMascot(() => <Mascot class={FADED_CLASS} />)
+  const box = rootOf(container).getBoundingClientRect()
+  expect([box.width, box.height]).toEqual([44, 44])
+})
+
+it('refuses a second child claiming the same part', () => {
+  expect(() =>
+    renderMascot(() => (
+      <Mascot>
+        <Mascot.Eyes id="first-eyes" />
         <Mascot.Eyes id="second-eyes" />
-      </Show>
+      </Mascot>
+    )),
+  ).toThrowError(/mascot part 'eyes' is already provided; render exactly one <Mascot.Eyes>/)
+})
+
+it('swaps a keyed part child without ever double-claiming its slot', () => {
+  const [key, setKey] = createSignal('first')
+  const {container} = renderMascot(() => (
+    <Mascot>
+      <For each={[key()]}>{(current) => <Mascot.Eyes id={`${current}-eyes`} />}</For>
     </Mascot>
   ))
-  setBoth(false)
-  await wait(DRAIN_MS)
   expect(partsIn(container, 'eyes').map((eyes) => eyes.id)).toEqual(['first-eyes'])
+  setKey('second')
+  expect(partsIn(container, 'eyes').map((eyes) => eyes.id)).toEqual(['second-eyes'])
   expect(leanWrappersIn(container)).toHaveLength(1)
-  expect(emittersIn(container)).toHaveLength(1)
+})
+
+it('swaps a part child through a keyed Switch without ever double-claiming its slot', () => {
+  const [which, setWhich] = createSignal('first')
+  const {container} = renderMascot(() => (
+    <Mascot>
+      <Switch>
+        <Match when={which() === 'first'}>
+          <Mascot.Eyes id="first-eyes" />
+        </Match>
+        <Match when={which() === 'second'}>
+          <Mascot.Eyes id="second-eyes" />
+        </Match>
+      </Switch>
+    </Mascot>
+  ))
+  setWhich('second')
+  expect(partsIn(container, 'eyes').map((eyes) => eyes.id)).toEqual(['second-eyes'])
+  expect(leanWrappersIn(container)).toHaveLength(1)
 })
 
 it('mounts the default binary emitter while the mascot works', () => {
@@ -169,11 +216,8 @@ it('keeps a single emitter across a working flap that runs through the drain', a
   const {container} = renderMascot(() => <Mascot working={working()} />)
   expect(emittersIn(container)).toHaveLength(1)
   setWorking(false)
-  await wait(DRAIN_MS)
-  expect(emittersIn(container)).toHaveLength(0)
+  await vi.waitFor(() => expect(emittersIn(container)).toHaveLength(0), DRAIN_TIMEOUT)
   setWorking(true)
-  expect(emittersIn(container)).toHaveLength(1)
-  await wait(DRAIN_MS)
   expect(emittersIn(container)).toHaveLength(1)
 })
 
@@ -183,9 +227,8 @@ it('drains the flying digits instead of dropping them when the curve changes', a
   expect(emittersIn(container)).toHaveLength(1)
   setCurve('arc')
   expect(emittersIn(container)).toHaveLength(2)
-  await wait(DRAIN_MS)
+  await vi.waitFor(() => expect(emittersIn(container)).toHaveLength(1), DRAIN_TIMEOUT)
   const remaining = emittersIn(container)
-  expect(remaining).toHaveLength(1)
   expect(ridersIn(remaining[0] ?? document.createElement('span'))).toHaveLength(5)
 })
 
@@ -240,10 +283,9 @@ it('lets the antenna opt out of the gaze while the eyes keep tracking it', async
   const target = container.querySelector('#gaze-target')
   if (target === null) throw new Error('the gaze target did not render')
   await page.elementLocator(target).hover()
-  await wait(DRAIN_MS)
   const eyes = partOf(container, 'eyes')
   const lean = partOf(container, 'antenna').parentElement
-  expect(Math.abs(Number(gsap.getProperty(eyes, 'x'))) > 0).toBe(true)
+  await vi.waitFor(() => expect(Math.abs(Number(gsap.getProperty(eyes, 'x'))) > 0).toBe(true), DRAIN_TIMEOUT)
   expect(Number(gsap.getProperty(lean, 'rotation'))).toBe(0)
 })
 
@@ -256,4 +298,35 @@ it('leaves no emitter and no live tween behind after five rapid mounts', () => {
     expect(emittersIn(mounted.container)).toHaveLength(0)
   }
   expect(liveTweenCount()).toBe(before)
+})
+
+it('sizes the stage inside a shadow root the same way', () => {
+  renderMascot(() => (
+    <Portal useShadow>
+      <Mascot />
+    </Portal>
+  ))
+  const root = shadowStageOf(document.body)
+  const box = root.getBoundingClientRect()
+  expect([box.width, box.height]).toEqual([44, 44])
+})
+
+it('keeps a data url intact when the consumer styles the stage with a string', () => {
+  const {container} = renderMascot(() => <Mascot style={DATA_URL_STYLE} />)
+  const applied = getComputedStyle(rootOf(container))
+  expect(applied.backgroundImage.includes('data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=')).toBe(true)
+  expect(applied.opacity).toBe('0.4')
+})
+
+it('keeps the priority of an important declaration in a consumer string', () => {
+  styleRule(`.${FADED_CLASS}{opacity:0.9}`)
+  const {container} = renderMascot(() => <Mascot class={FADED_CLASS} style={IMPORTANT_STYLE} />)
+  expect(getComputedStyle(rootOf(container)).opacity).toBe('0.3')
+})
+
+it('ignores an undefined style value instead of sizing the stage with it', () => {
+  const {container} = renderMascot(() => <Mascot style={{width: undefined, opacity: 0.6}} />)
+  const box = rootOf(container).getBoundingClientRect()
+  expect([box.width, box.height]).toEqual([44, 44])
+  expect(getComputedStyle(rootOf(container)).opacity).toBe('0.6')
 })

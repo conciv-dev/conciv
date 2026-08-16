@@ -6,19 +6,28 @@ import {robotSkin} from '../core/skin.js'
 import type {FollowSource, MascotContextValue, MascotPartName} from './mascot-context.js'
 import type {MascotProps} from './mascot-props.js'
 
-export type MascotSlots = {head: number; eyes: number; antenna: number; effects: number}
+export type MascotSlots = {head: boolean; eyes: boolean; antenna: boolean; effects: number}
 
 export type MascotHost = {context: MascotContextValue; slots: MascotSlots; rootProps: MascotPartProps}
 
+const PART_COMPONENTS: Record<MascotPartName, string> = {
+  head: '<Mascot.Head>',
+  eyes: '<Mascot.Eyes>',
+  antenna: '<Mascot.Antenna>',
+}
+
+const alreadyProvided = (part: MascotPartName): Error =>
+  new Error(`mascot part '${part}' is already provided; render exactly one ${PART_COMPONENTS[part]}`)
+
 export function createMascotHost(props: MascotProps): MascotHost {
-  const [slots, setSlots] = createStore<MascotSlots>({head: 0, eyes: 0, antenna: 0, effects: 0})
+  const [slots, setSlots] = createStore<MascotSlots>({head: false, eyes: false, antenna: false, effects: 0})
   const sources: Record<MascotPartName, FollowSource | undefined> = {
     head: undefined,
     eyes: undefined,
     antenna: undefined,
   }
 
-  const followOf = (part: MascotPartName): boolean | undefined => (slots[part] > 0 ? sources[part]?.follow : undefined)
+  const followOf = (part: MascotPartName): boolean | undefined => (slots[part] ? sources[part]?.follow : undefined)
 
   const follow = (): MascotFollow => {
     const base = followChannels(props.follow ?? true)
@@ -46,16 +55,13 @@ export function createMascotHost(props: MascotProps): MascotHost {
     antenna: connect.getAntennaProps,
   }
 
-  const registerFollowSource = (part: MascotPartName, source: FollowSource | undefined) => {
-    if (source !== undefined) sources[part] = source
-  }
-
   const claimPart = (part: MascotPartName, source?: FollowSource) => {
-    registerFollowSource(part, source)
-    setSlots(part, (claims) => claims + 1)
+    if (untrack(() => slots[part])) throw alreadyProvided(part)
+    sources[part] = source
+    setSlots(part, true)
     onCleanup(() => {
-      setSlots(part, (claims) => claims - 1)
       if (sources[part] === source) sources[part] = undefined
+      setSlots(part, false)
     })
   }
 

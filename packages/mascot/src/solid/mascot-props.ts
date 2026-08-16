@@ -18,22 +18,13 @@ export type MascotProps = MascotLayerProps & {
 
 export type MascotBinaryProps = MascotLayerProps & {curve?: CurveStyle}
 
-export type ConsumerStyle = JSX.CSSProperties | string | undefined
+type ConsumerStyle = JSX.CSSProperties | string | undefined
 
 type ForwardedRef = HTMLDivElement | ((element: HTMLDivElement) => void) | undefined
 
-export const LAYER_GEOMETRY_PROPERTIES = [
-  'position',
-  'inset',
-  'background-image',
-  'background-repeat',
-  'background-position',
-  'background-size',
-]
+type Declaration = {property: string; value: string}
 
-const DEFAULT_ROOT_SIZE: Record<string, string> = {'inline-size': '44px', 'block-size': '44px'}
-
-const ROOT_SIZE_PROPERTIES = ['inline-size', 'block-size', 'width', 'height']
+const LAYER_GEOMETRY_PREFIXES = ['position', 'inset', 'top', 'right', 'bottom', 'left', 'background']
 
 export function composeRefs(
   capture: (element: HTMLDivElement) => void,
@@ -45,33 +36,79 @@ export function composeRefs(
   }
 }
 
-const declarationOf = (declaration: string): [string, string][] => {
-  const separator = declaration.indexOf(':')
-  if (separator === -1) return []
-  return [[declaration.slice(0, separator).trim(), declaration.slice(separator + 1).trim()]]
+const QUOTES = ['"', "'"]
+
+type Scan = {parts: string[]; start: number; depth: number; quote: string}
+
+const nextQuote = (character: string, quote: string): string => {
+  if (quote !== '') return character === quote ? '' : quote
+  return QUOTES.includes(character) ? character : ''
 }
 
-const parseCssText = (text: string): Record<string, string> =>
-  Object.fromEntries(text.split(';').flatMap(declarationOf))
-
-const styleRecord = (style: ConsumerStyle): Record<string, string> => {
-  if (style === undefined) return {}
-  if (typeof style === 'string') return parseCssText(style)
-  return Object.fromEntries(Object.entries(style).map(([property, value]) => [property, String(value)]))
+const nextDepth = (character: string, depth: number): number => {
+  if (character === '(') return depth + 1
+  return character === ')' ? Math.max(0, depth - 1) : depth
 }
 
-const withoutProperties = (style: Record<string, string>, blocked: string[]): Record<string, string> =>
-  Object.fromEntries(Object.entries(style).filter(([property]) => !blocked.includes(property)))
+const cutsHere = (character: string, separator: string, scan: Scan): boolean =>
+  character === separator && scan.depth === 0 && scan.quote === ''
 
-export const mergeStyle = (
+function scanCharacter(text: string, separator: string, scan: Scan, index: number): Scan {
+  const character = text[index] ?? ''
+  const quote = nextQuote(character, scan.quote)
+  const depth = quote === '' ? nextDepth(character, scan.depth) : scan.depth
+  const moved = {...scan, depth, quote}
+  if (!cutsHere(character, separator, moved)) return moved
+  return {...moved, parts: [...scan.parts, text.slice(scan.start, index)], start: index + 1}
+}
+
+function splitTop(text: string, separator: string): string[] {
+  const scanned = [...text].reduce<Scan>((scan, _character, index) => scanCharacter(text, separator, scan, index), {
+    parts: [],
+    start: 0,
+    depth: 0,
+    quote: '',
+  })
+  return [...scanned.parts, text.slice(scanned.start)]
+}
+
+function declarationOf(text: string): Declaration[] {
+  const [property, ...rest] = splitTop(text, ':')
+  if (property === undefined || rest.length === 0) return []
+  const value = rest.join(':').trim()
+  if (value === '') return []
+  return [{property: property.trim(), value}]
+}
+
+const objectDeclarations = (style: JSX.CSSProperties): Declaration[] =>
+  Object.entries(style).flatMap(([property, value]) =>
+    value === undefined || value === null ? [] : [{property, value: String(value)}],
+  )
+
+function styleDeclarations(style: ConsumerStyle): Declaration[] {
+  if (style === undefined) return []
+  if (typeof style === 'string') return splitTop(style, ';').flatMap(declarationOf)
+  return objectDeclarations(style)
+}
+
+const isGeometry = (property: string): boolean =>
+  LAYER_GEOMETRY_PREFIXES.some((prefix) => property === prefix || property.startsWith(`${prefix}-`))
+
+const allowed = (declarations: Declaration[], blockGeometry: boolean): Declaration[] =>
+  blockGeometry ? declarations.filter((declaration) => !isGeometry(declaration.property)) : declarations
+
+const cssText = (declarations: Declaration[]): string =>
+  declarations.map(({property, value}) => `${property}:${value}`).join(';')
+
+export function mergeStyle(
   core: Record<string, string>,
   consumer: ConsumerStyle,
-  blocked: string[] = [],
-): JSX.CSSProperties => ({...core, ...withoutProperties(styleRecord(consumer), blocked)})
-
-export function defaultRootSize(className: string | undefined, style: ConsumerStyle): Record<string, string> {
-  if (className !== undefined) return {}
-  const consumer = styleRecord(style)
-  if (ROOT_SIZE_PROPERTIES.some((property) => consumer[property] !== undefined)) return {}
-  return DEFAULT_ROOT_SIZE
+  blockGeometry = false,
+): JSX.CSSProperties | string {
+  const declarations = allowed(styleDeclarations(consumer), blockGeometry)
+  if (typeof consumer === 'string') {
+    const carried = Object.entries(core).map(([property, value]) => ({property, value}))
+    return cssText([...carried, ...declarations])
+  }
+  return {...core, ...Object.fromEntries(declarations.map(({property, value}) => [property, value]))}
 }

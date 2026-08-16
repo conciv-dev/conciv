@@ -61,10 +61,10 @@ type Registration = {
 }
 
 type Slots = {
-  root: HTMLElement[]
-  head: HTMLElement[]
-  eyes: HTMLElement[]
-  antenna: HTMLElement[]
+  root: HTMLElement | undefined
+  head: HTMLElement | undefined
+  eyes: HTMLElement | undefined
+  antenna: HTMLElement | undefined
 }
 
 function followTarget(config: MascotConfig): FollowChannels {
@@ -78,13 +78,8 @@ function samePartsAs(registration: Registration, parts: MascotParts): boolean {
   return current.eyes === parts.eyes && current.antenna === parts.antenna
 }
 
-const boundElement = (candidates: HTMLElement[]): HTMLElement | undefined => candidates[candidates.length - 1]
-
 function readyParts(slots: Slots): MascotParts | undefined {
-  const root = boundElement(slots.root)
-  const head = boundElement(slots.head)
-  const eyes = boundElement(slots.eyes)
-  const antenna = boundElement(slots.antenna)
+  const {root, head, eyes, antenna} = slots
   if (root === undefined || head === undefined) return undefined
   if (eyes === undefined || antenna === undefined) return undefined
   return {stage: root, head, eyes, antenna}
@@ -148,7 +143,7 @@ function applyTransition(registration: Registration, previous: MascotConfig, nex
 }
 
 export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin): MascotService {
-  const slots: Slots = {root: [], head: [], eyes: [], antenna: []}
+  const slots: Slots = {root: undefined, head: undefined, eyes: undefined, antenna: undefined}
   const effectMounts = new Map<string, EffectMount>()
   const effectHosts = new Map<string, HTMLElement>()
   const effectHostProps = new Map<string, MascotPartProps>()
@@ -232,17 +227,15 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
   const slotRef =
     (slot: keyof Slots): MascotPartRef =>
     (element) => {
-      if (element === null) slots[slot] = []
-      if (element !== null) slots[slot] = [...slots[slot].filter((bound) => bound !== element), element]
+      slots[slot] = element ?? undefined
       syncSlots()
     }
 
   const slotRelease =
     (slot: keyof Slots): MascotPartRelease =>
     (element) => {
-      const remaining = slots[slot].filter((bound) => bound !== element)
-      if (remaining.length === slots[slot].length) return
-      slots[slot] = remaining
+      if (slots[slot] !== element) return
+      slots[slot] = undefined
       syncSlots()
     }
 
