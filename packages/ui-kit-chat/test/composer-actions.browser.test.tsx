@@ -57,60 +57,48 @@ function StatusRegion(props: {picks: string[]}): JSX.Element {
   return <p role="status">{local.picks.join(' ')}</p>
 }
 
-function GrabRoot(): JSX.Element {
+function GrabAction(): JSX.Element {
   return (
-    <ComposerActions.Root id="fixture.grab" priority={40}>
-      <ComposerActions.Button visible="always" tooltip="Select an element" onClick={() => undefined}>
-        <Glyph />
-      </ComposerActions.Button>
-    </ComposerActions.Root>
+    <ComposerActions.ActionButton visible="always" priority={40} tooltip="Select an element" onClick={() => undefined}>
+      <Glyph />
+    </ComposerActions.ActionButton>
   )
 }
 
-function NewSessionRoot(): JSX.Element {
+function NewSessionAction(): JSX.Element {
   return (
-    <ComposerActions.Root id="fixture.new" priority={30}>
-      <ComposerActions.Button tooltip="Start a new session" onClick={() => undefined}>
-        <Glyph />
-      </ComposerActions.Button>
-      <ComposerActions.DropdownItem value="new" label="Start a new session" onSelect={() => undefined} />
-    </ComposerActions.Root>
+    <ComposerActions.ActionButton priority={30} tooltip="Start a new session" onClick={() => undefined}>
+      <Glyph />
+    </ComposerActions.ActionButton>
   )
 }
 
-function CompactRoot(props: {onSelect?: () => void}): JSX.Element {
+function CompactAction(props: {onSelect?: () => void}): JSX.Element {
   const [local] = splitProps(props, ['onSelect'])
   return (
-    <ComposerActions.Root id="fixture.compact" priority={20}>
-      <ComposerActions.Button tooltip="Compress the conversation" onClick={() => undefined}>
-        <Glyph />
-      </ComposerActions.Button>
-      <ComposerActions.DropdownItem
-        value="compact"
-        label="Compress the conversation"
-        onSelect={() => local.onSelect?.()}
-      />
-    </ComposerActions.Root>
+    <ComposerActions.ActionButton priority={20} tooltip="Compress the conversation" onClick={() => local.onSelect?.()}>
+      <Glyph />
+    </ComposerActions.ActionButton>
   )
 }
 
-function StandardRoots(props: {onCompactSelect?: () => void}): JSX.Element {
+function StandardActions(props: {onCompactSelect?: () => void}): JSX.Element {
   const [local] = splitProps(props, ['onCompactSelect'])
   return (
     <>
-      <GrabRoot />
-      <NewSessionRoot />
-      <CompactRoot onSelect={local.onCompactSelect} />
+      <GrabAction />
+      <NewSessionAction />
+      <CompactAction onSelect={local.onCompactSelect} />
     </>
   )
 }
 
-function MenuOnlyRoot(props: {onSelect: () => void}): JSX.Element {
+function MenuOnlyAction(props: {onSelect: () => void}): JSX.Element {
   const [local] = splitProps(props, ['onSelect'])
   return (
-    <ComposerActions.Root id="fixture.menu-only" priority={5}>
-      <ComposerActions.DropdownItem value="only" label="Menu only action" onSelect={() => local.onSelect()} />
-    </ComposerActions.Root>
+    <ComposerActions.Action priority={5}>
+      <ComposerActions.ActionMenuItem label="Menu only action" onSelect={() => local.onSelect()} />
+    </ComposerActions.Action>
   )
 }
 
@@ -125,7 +113,7 @@ const status = () => page.getByRole('status')
 it('keeps every action inline and hides the overflow trigger when the row is wide', async () => {
   mountView(() => (
     <Fixture width={WIDE_PX}>
-      <StandardRoots />
+      <StandardActions />
     </Fixture>
   ))
 
@@ -141,7 +129,7 @@ it('keeps every auto action in the overflow menu when the host caps inline auto 
     <>
       <StatusRegion picks={picks()} />
       <Fixture width={WIDE_PX} maxInlineAuto={0}>
-        <StandardRoots onCompactSelect={() => setPicks((current) => [...current, 'compact'])} />
+        <StandardActions onCompactSelect={() => setPicks((current) => [...current, 'compact'])} />
       </Fixture>
     </>
   ))
@@ -161,7 +149,7 @@ it('keeps every auto action in the overflow menu when the host caps inline auto 
 it('shows only as many auto actions inline as the cap allows while the row has room for more', async () => {
   mountView(() => (
     <Fixture width={WIDE_PX} maxInlineAuto={1}>
-      <StandardRoots />
+      <StandardActions />
     </Fixture>
   ))
 
@@ -177,7 +165,7 @@ it('collapses the lowest-priority action into the overflow menu and runs it from
     <>
       <StatusRegion picks={picks()} />
       <Fixture width={ONE_SLOT_PX}>
-        <StandardRoots onCompactSelect={() => setPicks((current) => [...current, 'compact'])} />
+        <StandardActions onCompactSelect={() => setPicks((current) => [...current, 'compact'])} />
       </Fixture>
     </>
   ))
@@ -199,8 +187,8 @@ it('collapses the lowest-priority action into the overflow menu and runs it from
 it('keeps a pinned action inline while every auto action collapses', async () => {
   mountView(() => (
     <Fixture width={NO_SLOT_PX}>
-      <GrabRoot />
-      <NewSessionRoot />
+      <GrabAction />
+      <NewSessionAction />
     </Fixture>
   ))
 
@@ -220,9 +208,9 @@ it('charges the leading region against the fit budget', async () => {
         </Show>
       }
     >
-      <GrabRoot />
-      <NewSessionRoot />
-      <CompactRoot />
+      <GrabAction />
+      <NewSessionAction />
+      <CompactAction />
     </Fixture>
   ))
 
@@ -235,20 +223,18 @@ it('charges the leading region against the fit budget', async () => {
   await expect.element(trigger()).not.toBeInTheDocument()
 })
 
-it('hides a button-only action when it collapses and keeps the trigger away', async () => {
+it('hides an inline-only action when it collapses and keeps the trigger away', async () => {
   mountView(() => (
     <Fixture width={NO_SLOT_PX}>
-      <GrabRoot />
-      <ComposerActions.Root id="fixture.solo" priority={10}>
-        <ComposerActions.Button tooltip="Solo action" onClick={() => undefined}>
-          <Glyph />
-        </ComposerActions.Button>
-      </ComposerActions.Root>
+      <GrabAction />
+      <ComposerActions.Inline priority={10}>
+        <span role="img" aria-label="Inline only chip" class="size-8.5 block" />
+      </ComposerActions.Inline>
     </Fixture>
   ))
 
   await expect.element(grabButton()).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'Solo action'})).not.toBeInTheDocument()
+  await expect.element(page.getByRole('img', {name: 'Inline only chip'})).not.toBeInTheDocument()
   await expect.element(trigger()).not.toBeInTheDocument()
 })
 
@@ -258,7 +244,7 @@ it('renders an item-only action in the overflow menu even when the row is wide',
     <>
       <StatusRegion picks={picks()} />
       <Fixture width={WIDE_PX}>
-        <MenuOnlyRoot onSelect={() => setPicks((current) => [...current, 'menu-only'])} />
+        <MenuOnlyAction onSelect={() => setPicks((current) => [...current, 'menu-only'])} />
       </Fixture>
     </>
   ))
@@ -273,19 +259,19 @@ it('renders an item-only action in the overflow menu even when the row is wide',
 it('keeps a multi-item action contiguous and ordered by priority in the overflow menu', async () => {
   mountView(() => (
     <Fixture width={NO_SLOT_PX}>
-      <ComposerActions.Root id="fixture.alpha" priority={30}>
-        <ComposerActions.Button tooltip="Alpha" onClick={() => undefined}>
+      <ComposerActions.Action priority={30}>
+        <ComposerActions.ActionButton tooltip="Alpha" onClick={() => undefined}>
           <Glyph />
-        </ComposerActions.Button>
-        <ComposerActions.DropdownItem value="one" label="Alpha one" onSelect={() => undefined} />
-        <ComposerActions.DropdownItem value="two" label="Alpha two" onSelect={() => undefined} />
-      </ComposerActions.Root>
-      <ComposerActions.Root id="fixture.bravo" priority={20}>
-        <ComposerActions.Button tooltip="Bravo" onClick={() => undefined}>
+        </ComposerActions.ActionButton>
+        <ComposerActions.ActionMenuItem label="Alpha one" onSelect={() => undefined} />
+        <ComposerActions.ActionMenuItem label="Alpha two" onSelect={() => undefined} />
+      </ComposerActions.Action>
+      <ComposerActions.Action priority={20}>
+        <ComposerActions.ActionButton tooltip="Bravo" onClick={() => undefined}>
           <Glyph />
-        </ComposerActions.Button>
-        <ComposerActions.DropdownItem value="one" label="Bravo one" onSelect={() => undefined} />
-      </ComposerActions.Root>
+        </ComposerActions.ActionButton>
+        <ComposerActions.ActionMenuItem label="Bravo one" onSelect={() => undefined} />
+      </ComposerActions.Action>
     </Fixture>
   ))
 
@@ -294,26 +280,25 @@ it('keeps a multi-item action contiguous and ordered by priority in the overflow
   await expect.element(overflowMenu()).toHaveTextContent(/Alpha one\s*Alpha two\s*Bravo one/)
 })
 
-it('disables both renderings of a disabled root and keeps its menu item out of reach', async () => {
+it('disables both renderings of a disabled action and keeps its menu item out of reach', async () => {
   const [width, setWidth] = createSignal(WIDE_PX)
   const [picks, setPicks] = createSignal<string[]>(['idle'])
   mountView(() => (
     <>
       <StatusRegion picks={picks()} />
       <Fixture width={width()}>
-        <ComposerActions.Root id="fixture.enabled" priority={20}>
-          <ComposerActions.Button tooltip="Enabled action" onClick={() => undefined}>
-            <Glyph />
-          </ComposerActions.Button>
-          <ComposerActions.DropdownItem value="run" label="Enabled action" onSelect={() => undefined} />
-        </ComposerActions.Root>
-        <ComposerActions.Root id="fixture.disabled" priority={10} disabled={() => true}>
-          <ComposerActions.Button tooltip="Disabled action" onClick={() => undefined}>
-            <Glyph />
-          </ComposerActions.Button>
-          <ComposerActions.DropdownItem value="run" label="Disabled action" onSelect={() => undefined} />
-        </ComposerActions.Root>
-        <MenuOnlyRoot onSelect={() => setPicks((current) => [...current, 'menu-only'])} />
+        <ComposerActions.ActionButton priority={20} tooltip="Enabled action" onClick={() => undefined}>
+          <Glyph />
+        </ComposerActions.ActionButton>
+        <ComposerActions.ActionButton
+          priority={10}
+          tooltip="Disabled action"
+          disabled={() => true}
+          onClick={() => undefined}
+        >
+          <Glyph />
+        </ComposerActions.ActionButton>
+        <MenuOnlyAction onSelect={() => setPicks((current) => [...current, 'menu-only'])} />
       </Fixture>
     </>
   ))
@@ -332,26 +317,6 @@ it('disables both renderings of a disabled root and keeps its menu item out of r
   await expect.element(status()).toHaveTextContent('idle menu-only')
 })
 
-it('renders only the last root registered under a duplicated id', async () => {
-  mountView(() => (
-    <Fixture width={WIDE_PX}>
-      <ComposerActions.Root id="fixture.duplicate" priority={30}>
-        <ComposerActions.Button tooltip="First action" onClick={() => undefined}>
-          <Glyph />
-        </ComposerActions.Button>
-      </ComposerActions.Root>
-      <ComposerActions.Root id="fixture.duplicate" priority={30}>
-        <ComposerActions.Button tooltip="Second action" onClick={() => undefined}>
-          <Glyph />
-        </ComposerActions.Button>
-      </ComposerActions.Root>
-    </Fixture>
-  ))
-
-  await expect.element(page.getByRole('button', {name: 'Second action'})).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'First action'})).not.toBeInTheDocument()
-})
-
 it('closes the overflow menu and hands focus back to the app when the row widens', async () => {
   const [width, setWidth] = createSignal(ONE_SLOT_PX)
   const [picks, setPicks] = createSignal<string[]>(['idle'])
@@ -359,7 +324,7 @@ it('closes the overflow menu and hands focus back to the app when the row widens
     <>
       <StatusRegion picks={picks()} />
       <Fixture width={width()} onOverflowDismissed={() => setPicks((current) => [...current, 'dismissed'])}>
-        <StandardRoots />
+        <StandardActions />
       </Fixture>
     </>
   ))
@@ -395,7 +360,7 @@ it('keeps the overflow menu open when leading and trailing regions resize togeth
           </Show>
         }
       >
-        <StandardRoots />
+        <StandardActions />
       </Fixture>
     </>
   ))
@@ -413,7 +378,7 @@ it('keeps the overflow menu open when leading and trailing regions resize togeth
 it('opens with Enter, highlights with ArrowDown and returns focus to the trigger on Escape', async () => {
   mountView(() => (
     <Fixture width={NO_SLOT_PX}>
-      <StandardRoots />
+      <StandardActions />
     </Fixture>
   ))
 

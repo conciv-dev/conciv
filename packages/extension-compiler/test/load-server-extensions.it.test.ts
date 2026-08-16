@@ -74,9 +74,7 @@ export default extension
 
 function Component() {
   return (
-    <ComposerActions.Root id="client-heavy.do" priority={10}>
-      <ComposerActions.Button tooltip="Do" onClick={() => {}} />
-    </ComposerActions.Root>
+    <ComposerActions.ActionButton priority={10} tooltip="Do" onClick={() => {}} />
   )
 }`
 

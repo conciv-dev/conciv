@@ -91,11 +91,11 @@ export {
 export {
   ComposerActions,
   ComposerActionsHost,
-  type ComposerActionsButtonProps,
-  type ComposerActionsDropdownItemProps,
+  type ComposerActionsActionButtonProps,
+  type ComposerActionsActionMenuItemProps,
+  type ComposerActionsActionProps,
   type ComposerActionsHostProps,
   type ComposerActionsInlineProps,
-  type ComposerActionsRootProps,
 } from './primitives/composer/composer-actions.js'
 export {ActionBar as ActionBarPrimitive, useCopied} from './primitives/action-bar/action-bar.js'
 export {

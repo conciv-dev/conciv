@@ -39,14 +39,9 @@ function DeploySurface() {
   const notify = host.useToast()
   if (slot === 'composer')
     return (
-      <ComposerActions.Root id="deploy.run" priority={10}>
-        <ComposerActions.Button tooltip="Deploy" onClick={() => notify('Deploy requested')}>
-          <RocketIcon />
-        </ComposerActions.Button>
-        <ComposerActions.DropdownItem value="run" label="Deploy" onSelect={() => notify('Deploy requested')}>
-          <RocketIcon />
-        </ComposerActions.DropdownItem>
-      </ComposerActions.Root>
+      <ComposerActions.ActionButton priority={10} tooltip="Deploy" onClick={() => notify('Deploy requested')}>
+        <RocketIcon />
+      </ComposerActions.ActionButton>
     )
   if (slot === 'status') return <span>env: staging</span>
   return null

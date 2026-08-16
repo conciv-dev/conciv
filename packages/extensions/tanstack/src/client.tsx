@@ -27,11 +27,9 @@ function Component(): JSX.Element {
   const slot = getExtensionApi(TANSTACK_NAME).useSlot()
   return (
     <Show when={slot === 'composer'}>
-      <ComposerActions.Root id="tanstack.inspector" priority={10}>
-        <ComposerActions.Inline>
-          <InspectorChip />
-        </ComposerActions.Inline>
-      </ComposerActions.Root>
+      <ComposerActions.Inline priority={10}>
+        <InspectorChip />
+      </ComposerActions.Inline>
     </Show>
   )
 }

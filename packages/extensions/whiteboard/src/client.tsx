@@ -26,22 +26,12 @@ function Component(): JSX.Element {
   }
   return (
     <Show when={slot === 'composer'}>
-      <ComposerActions.Root id="whiteboard.canvas" priority={20}>
-        <ComposerActions.Button tooltip="Open the whiteboard canvas" onClick={() => toggle()}>
-          <Presentation class="size-5 block" aria-hidden="true" />
-        </ComposerActions.Button>
-        <ComposerActions.DropdownItem value="open" label="Open the whiteboard canvas" onSelect={() => toggle()}>
-          <Presentation class="size-4 block" aria-hidden="true" />
-        </ComposerActions.DropdownItem>
-      </ComposerActions.Root>
-      <ComposerActions.Root id="whiteboard.comment" priority={19}>
-        <ComposerActions.Button tooltip="Comment on an element" onClick={() => void pickComment()}>
-          <MessageSquarePlus class="size-5 block" aria-hidden="true" />
-        </ComposerActions.Button>
-        <ComposerActions.DropdownItem value="comment" label="Comment on an element" onSelect={() => void pickComment()}>
-          <MessageSquarePlus class="size-4 block" aria-hidden="true" />
-        </ComposerActions.DropdownItem>
-      </ComposerActions.Root>
+      <ComposerActions.ActionButton priority={20} tooltip="Open the whiteboard canvas" onClick={() => toggle()}>
+        <Presentation class="size-5 block" aria-hidden="true" />
+      </ComposerActions.ActionButton>
+      <ComposerActions.ActionButton priority={19} tooltip="Comment on an element" onClick={() => void pickComment()}>
+        <MessageSquarePlus class="size-5 block" aria-hidden="true" />
+      </ComposerActions.ActionButton>
     </Show>
   )
 }

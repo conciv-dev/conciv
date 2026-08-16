@@ -48,7 +48,7 @@ export function ComposerActions(props: {
   const grab = getHostApi().useGrab()
   const toast = getHostApi().useToast()
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
-  const harnessName = () => meta.data?.harness.name ?? 'the harness'
+  const harnessName = () => (meta.isSuccess ? meta.data.harness.name : 'the harness')
   const terminal = terminalRpc()
 
   const grabDisabled = () => (grab.grabbable ? !grab.grabbable() : false)
@@ -96,37 +96,29 @@ export function ComposerActions(props: {
 
   return (
     <>
-      <Action.Root id="conciv.grab" priority={40} disabled={grabDisabled}>
-        <Action.Button
-          visible="always"
-          tooltip={grabDisabled() ? 'Nothing on this screen to select' : 'Select an element from the page'}
-          busy={picking()}
-          class={busyClass(picking())}
-          onClick={() => void pick()}
-        >
-          <Crosshair class="size-5 block" />
-        </Action.Button>
-      </Action.Root>
-      <Action.Root id="conciv.new-session" priority={30}>
-        <Action.Button tooltip="Start a new session" class={ACT} onClick={() => props.onNewSession()}>
-          <SquarePen class="size-5 block" />
-        </Action.Button>
-        <Action.DropdownItem value="new" label="Start a new session" onSelect={() => props.onNewSession()}>
-          <SquarePen class="size-4 block" aria-hidden="true" />
-        </Action.DropdownItem>
-      </Action.Root>
-      <Action.Root id="conciv.compact" priority={20} disabled={() => props.compacting}>
-        <Action.Button
-          tooltip="Compress the conversation"
-          class={busyClass(props.compacting)}
-          onClick={() => props.onCompact()}
-        >
-          <FoldVertical class="size-5 block" />
-        </Action.Button>
-        <Action.DropdownItem value="compact" label="Compress the conversation" onSelect={() => props.onCompact()}>
-          <FoldVertical class="size-4 block" aria-hidden="true" />
-        </Action.DropdownItem>
-      </Action.Root>
+      <Action.ActionButton
+        priority={40}
+        visible="always"
+        disabled={grabDisabled}
+        tooltip={grabDisabled() ? 'Nothing on this screen to select' : 'Select an element from the page'}
+        busy={picking()}
+        class={busyClass(picking())}
+        onClick={() => void pick()}
+      >
+        <Crosshair class="size-5 block" />
+      </Action.ActionButton>
+      <Action.ActionButton priority={30} tooltip="Start a new session" class={ACT} onClick={() => props.onNewSession()}>
+        <SquarePen class="size-5 block" />
+      </Action.ActionButton>
+      <Action.ActionButton
+        priority={20}
+        disabled={() => props.compacting}
+        tooltip="Compress the conversation"
+        class={busyClass(props.compacting)}
+        onClick={() => props.onCompact()}
+      >
+        <FoldVertical class="size-5 block" />
+      </Action.ActionButton>
       <Show when={meta.data === undefined || meta.data.harness.canLaunch}>
         <LaunchMenu
           harnessName={harnessName()}

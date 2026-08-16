@@ -48,9 +48,7 @@ describe('extension catalog (new contract projection)', () => {
     for (const kind of ['composer-action', 'full'] as ScaffoldKind[]) {
       const src = scaffold(kind, {name: 'demo'})
       expect(src).toContain("import {ComposerActions} from '@conciv/ui-kit-chat'")
-      expect(src).toContain('<ComposerActions.Root')
-      expect(src).toContain('<ComposerActions.Button')
-      expect(src).toContain('<ComposerActions.DropdownItem')
+      expect(src).toContain('<ComposerActions.ActionButton')
       expect(src).not.toContain('<button')
     }
   })

@@ -22,7 +22,7 @@ export function LaunchMenu(props: {
 }): JSX.Element {
   const [local] = splitProps(props, ['harnessName', 'class', 'pending', 'failed', 'onOpen', 'onCopy', 'onRetry'])
   return (
-    <Action.Root id="conciv.launch" priority={10} disabled={() => local.pending === true}>
+    <Action.Action priority={10} disabled={() => local.pending === true}>
       <Action.Inline>
         <Menu.Root>
           <TooltipIconButtonSlot tooltip={`Terminal options for ${local.harnessName}`} class={local.class}>
@@ -69,23 +69,22 @@ export function LaunchMenu(props: {
         when={local.failed === true}
         fallback={
           <>
-            <Action.DropdownItem value="open" label={`Open in ${local.harnessName}`} onSelect={() => local.onOpen()}>
+            <Action.ActionMenuItem label={`Open in ${local.harnessName}`} onSelect={() => local.onOpen()}>
               <SquareTerminal class="size-4 block" aria-hidden="true" />
-            </Action.DropdownItem>
-            <Action.DropdownItem value="copy" label="Copy command" onSelect={() => local.onCopy()}>
+            </Action.ActionMenuItem>
+            <Action.ActionMenuItem label="Copy command" onSelect={() => local.onCopy()}>
               <ClipboardCopy class="size-4 block" aria-hidden="true" />
-            </Action.DropdownItem>
+            </Action.ActionMenuItem>
           </>
         }
       >
-        <Action.DropdownItem
-          value="retry"
+        <Action.ActionMenuItem
           label={`${optionsUnavailable(local.harnessName)} — ${RETRY_LABEL}`}
           onSelect={() => local.onRetry?.()}
         >
           <RotateCw class="size-4 block" aria-hidden="true" />
-        </Action.DropdownItem>
+        </Action.ActionMenuItem>
       </Show>
-    </Action.Root>
+    </Action.Action>
   )
 }

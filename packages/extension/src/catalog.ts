@@ -6,7 +6,7 @@ const SLOTS = [
   {
     name: 'composer',
     description:
-      'Inside the input toolbar: declare actions with ComposerActions.Root/Button/DropdownItem from @conciv/ui-kit-chat so they collapse into the shared overflow menu when the row runs out of room.',
+      'Inside the input toolbar: declare actions with ComposerActions.ActionButton from @conciv/ui-kit-chat so they collapse into the shared overflow menu when the row runs out of room.',
   },
   {name: 'empty', description: 'The empty chat state (greeting + starters) shown before any messages.'},
   {name: 'status', description: 'A status line region.'},
@@ -116,21 +116,18 @@ function Component() {
   const insert = extension.useContext((context) => context.insert)
   if (slot() !== 'composer') return null
   return (
-    <ComposerActions.Root id="${name}.do" priority={10}>
-      <ComposerActions.Button tooltip="Do thing" onClick={() => insert('…')}>
-        <svg
-          viewBox="0 0 24 24"
-          class="size-5 block"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="9" />
-        </svg>
-      </ComposerActions.Button>
-      <ComposerActions.DropdownItem value="do" label="Do thing" onSelect={() => insert('…')} />
-    </ComposerActions.Root>
+    <ComposerActions.ActionButton priority={10} tooltip="Do thing" onClick={() => insert('…')}>
+      <svg
+        viewBox="0 0 24 24"
+        class="size-5 block"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="9" />
+      </svg>
+    </ComposerActions.ActionButton>
   )
 }
 `,
@@ -198,21 +195,18 @@ function Component() {
   if (slot() === 'status') return <span>${name} ready</span>
   if (slot() === 'composer')
     return (
-      <ComposerActions.Root id="${name}.hello" priority={10}>
-        <ComposerActions.Button tooltip="Say hello" onClick={() => insert('hello from ${name}')}>
-          <svg
-            viewBox="0 0 24 24"
-            class="size-5 block"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="9" />
-          </svg>
-        </ComposerActions.Button>
-        <ComposerActions.DropdownItem value="hello" label="Say hello" onSelect={() => insert('hello from ${name}')} />
-      </ComposerActions.Root>
+      <ComposerActions.ActionButton priority={10} tooltip="Say hello" onClick={() => insert('hello from ${name}')}>
+        <svg
+          viewBox="0 0 24 24"
+          class="size-5 block"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      </ComposerActions.ActionButton>
     )
   return null
 }

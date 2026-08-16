@@ -29,15 +29,15 @@ const extension = defineExtension({
 export default extension
 
 function Component() {
-  return <ComposerActions.Root id="surface.a" />
+  return <ComposerActions.Action priority={10} />
 }
 
 function Surface() {
-  return <ComposerActions.Button tooltip="b" />
+  return <ComposerActions.ActionButton tooltip="b" />
 }
 
 function Panel() {
-  return <ComposerActions.DropdownItem value="c" label="c" />
+  return <ComposerActions.ActionMenuItem label="c" />
 }`
 
 describe('splitExtension', () => {

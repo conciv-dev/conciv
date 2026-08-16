@@ -34,21 +34,13 @@ function Component(): JSX.Element {
       <button type="button" aria-label="Roundtrip over rpc" onClick={() => void callPing('again')}>
         Roundtrip over rpc
       </button>
-      <ComposerActions.Root id="ping.composer" priority={10}>
-        <ComposerActions.Button tooltip="Echo from the composer" onClick={() => setComposerAction('button')}>
+      <ComposerActions.Action priority={10}>
+        <ComposerActions.ActionButton tooltip="Echo from the composer" onClick={() => setComposerAction('button')}>
           <span aria-hidden="true" class="size-5 block" />
-        </ComposerActions.Button>
-        <ComposerActions.DropdownItem
-          value="insert"
-          label="Insert an echo"
-          onSelect={() => setComposerAction('insert')}
-        />
-        <ComposerActions.DropdownItem
-          value="clear"
-          label="Clear the echo"
-          onSelect={() => setComposerAction('clear')}
-        />
-      </ComposerActions.Root>
+        </ComposerActions.ActionButton>
+        <ComposerActions.ActionMenuItem label="Insert an echo" onSelect={() => setComposerAction('insert')} />
+        <ComposerActions.ActionMenuItem label="Clear the echo" onSelect={() => setComposerAction('clear')} />
+      </ComposerActions.Action>
       <Show when={composerAction()}>
         <p>Composer action: {composerAction()}</p>
       </Show>

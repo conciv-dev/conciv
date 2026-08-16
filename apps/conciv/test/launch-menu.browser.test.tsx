@@ -22,12 +22,9 @@ function mountMenu(state: {pending?: boolean; failed?: boolean} = {}): MenuMount
       </ul>
       <div style={{width: `${width()}px`}}>
         <ComposerActionsHost triggerContent={<span aria-hidden="true">…</span>} trailing={<span />}>
-          <ComposerActions.Root id="test.earlier" priority={20}>
-            <ComposerActions.Button tooltip="Earlier action" onClick={() => choose('earlier')}>
-              <span aria-hidden="true" />
-            </ComposerActions.Button>
-            <ComposerActions.DropdownItem value="earlier" label="Earlier action" onSelect={() => choose('earlier')} />
-          </ComposerActions.Root>
+          <ComposerActions.ActionButton priority={20} tooltip="Earlier action" onClick={() => choose('earlier')}>
+            <span aria-hidden="true" />
+          </ComposerActions.ActionButton>
           <LaunchMenu
             harnessName="Claude"
             class="size-8"
@@ -37,12 +34,9 @@ function mountMenu(state: {pending?: boolean; failed?: boolean} = {}): MenuMount
             onCopy={() => choose('copy')}
             onRetry={() => choose('retry')}
           />
-          <ComposerActions.Root id="test.later" priority={5}>
-            <ComposerActions.Button tooltip="Later action" onClick={() => choose('later')}>
-              <span aria-hidden="true" />
-            </ComposerActions.Button>
-            <ComposerActions.DropdownItem value="later" label="Later action" onSelect={() => choose('later')} />
-          </ComposerActions.Root>
+          <ComposerActions.ActionButton priority={5} tooltip="Later action" onClick={() => choose('later')}>
+            <span aria-hidden="true" />
+          </ComposerActions.ActionButton>
         </ComposerActionsHost>
       </div>
     </>

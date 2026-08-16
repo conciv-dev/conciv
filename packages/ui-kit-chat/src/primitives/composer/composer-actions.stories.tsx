@@ -27,7 +27,7 @@ const COPY_LABEL = 'Copy command'
 const RETRY_LABEL = 'Launch options unavailable — retry'
 const LAUNCH_LABEL = 'Launch the session in a terminal'
 const OVERFLOW_LABEL = 'More composer actions'
-const DISABLED_TOGGLE = 'Disable both roots'
+const DISABLED_TOGGLE = 'Disable both actions'
 const UNAVAILABLE_TOGGLE = 'Launch options unavailable'
 
 function StoryToggle(props: {label: string; checked: boolean; onChange: (checked: boolean) => void}): JSX.Element {
@@ -83,93 +83,73 @@ function ActionLog(props: {value: string}): JSX.Element {
   )
 }
 
-function GrabRoot(props: {onAction: (label: string) => void; disabled?: () => boolean; busy?: boolean}): JSX.Element {
+function GrabAction(props: {onAction: (label: string) => void; disabled?: () => boolean; busy?: boolean}): JSX.Element {
   return (
-    <ComposerActions.Root id="story.grab" priority={40} disabled={props.disabled}>
-      <ComposerActions.Button
-        visible="always"
-        tooltip={GRAB_LABEL}
-        busy={props.busy}
-        onClick={() => props.onAction(GRAB_LABEL)}
-      >
-        <Crosshair class="size-5 block" aria-hidden="true" />
-      </ComposerActions.Button>
-    </ComposerActions.Root>
+    <ComposerActions.ActionButton
+      priority={40}
+      visible="always"
+      disabled={props.disabled}
+      tooltip={GRAB_LABEL}
+      busy={props.busy}
+      onClick={() => props.onAction(GRAB_LABEL)}
+    >
+      <Crosshair class="size-5 block" aria-hidden="true" />
+    </ComposerActions.ActionButton>
   )
 }
 
-function NewSessionRoot(props: {onAction: (label: string) => void; pinned?: boolean}): JSX.Element {
+function NewSessionAction(props: {onAction: (label: string) => void; pinned?: boolean}): JSX.Element {
   return (
-    <ComposerActions.Root id="story.new-session" priority={30}>
-      <ComposerActions.Button
-        visible={props.pinned === true ? 'always' : 'auto'}
-        tooltip={NEW_SESSION_LABEL}
-        onClick={() => props.onAction(NEW_SESSION_LABEL)}
-      >
-        <SquarePen class="size-5 block" aria-hidden="true" />
-      </ComposerActions.Button>
-      <ComposerActions.DropdownItem
-        value="new"
-        label={NEW_SESSION_LABEL}
-        onSelect={() => props.onAction(NEW_SESSION_LABEL)}
-      >
-        <SquarePen class="size-4 block" aria-hidden="true" />
-      </ComposerActions.DropdownItem>
-    </ComposerActions.Root>
+    <ComposerActions.ActionButton
+      priority={30}
+      visible={props.pinned === true ? 'always' : 'auto'}
+      tooltip={NEW_SESSION_LABEL}
+      onClick={() => props.onAction(NEW_SESSION_LABEL)}
+    >
+      <SquarePen class="size-5 block" aria-hidden="true" />
+    </ComposerActions.ActionButton>
   )
 }
 
-function CompactRoot(props: {onAction: (label: string) => void; disabled?: () => boolean}): JSX.Element {
+function CompactAction(props: {onAction: (label: string) => void; disabled?: () => boolean}): JSX.Element {
   return (
-    <ComposerActions.Root id="story.compact" priority={20} disabled={props.disabled}>
-      <ComposerActions.Button tooltip={COMPACT_LABEL} onClick={() => props.onAction(COMPACT_LABEL)}>
-        <FoldVertical class="size-5 block" aria-hidden="true" />
-      </ComposerActions.Button>
-      <ComposerActions.DropdownItem
-        value="compact"
-        label={COMPACT_LABEL}
-        onSelect={() => props.onAction(COMPACT_LABEL)}
-      >
-        <FoldVertical class="size-4 block" aria-hidden="true" />
-      </ComposerActions.DropdownItem>
-    </ComposerActions.Root>
+    <ComposerActions.ActionButton
+      priority={20}
+      disabled={props.disabled}
+      tooltip={COMPACT_LABEL}
+      onClick={() => props.onAction(COMPACT_LABEL)}
+    >
+      <FoldVertical class="size-5 block" aria-hidden="true" />
+    </ComposerActions.ActionButton>
   )
 }
 
-function CanvasRoot(props: {onAction: (label: string) => void; pinned?: boolean}): JSX.Element {
+function CanvasAction(props: {onAction: (label: string) => void; pinned?: boolean}): JSX.Element {
   return (
-    <ComposerActions.Root id="story.canvas" priority={15}>
-      <ComposerActions.Button
-        visible={props.pinned === true ? 'always' : 'auto'}
-        tooltip={CANVAS_LABEL}
-        onClick={() => props.onAction(CANVAS_LABEL)}
-      >
-        <Presentation class="size-5 block" aria-hidden="true" />
-      </ComposerActions.Button>
-      <ComposerActions.DropdownItem value="open" label={CANVAS_LABEL} onSelect={() => props.onAction(CANVAS_LABEL)}>
-        <Presentation class="size-4 block" aria-hidden="true" />
-      </ComposerActions.DropdownItem>
-    </ComposerActions.Root>
+    <ComposerActions.ActionButton
+      priority={15}
+      visible={props.pinned === true ? 'always' : 'auto'}
+      tooltip={CANVAS_LABEL}
+      onClick={() => props.onAction(CANVAS_LABEL)}
+    >
+      <Presentation class="size-5 block" aria-hidden="true" />
+    </ComposerActions.ActionButton>
   )
 }
 
-function CommentRoot(props: {onAction: (label: string) => void}): JSX.Element {
+function CommentAction(props: {onAction: (label: string) => void}): JSX.Element {
   return (
-    <ComposerActions.Root id="story.comment" priority={5}>
-      <ComposerActions.DropdownItem
-        value="comment"
-        label={COMMENT_LABEL}
-        onSelect={() => props.onAction(COMMENT_LABEL)}
-      >
+    <ComposerActions.Action priority={5}>
+      <ComposerActions.ActionMenuItem label={COMMENT_LABEL} onSelect={() => props.onAction(COMMENT_LABEL)}>
         <MessageSquarePlus class="size-4 block" aria-hidden="true" />
-      </ComposerActions.DropdownItem>
-    </ComposerActions.Root>
+      </ComposerActions.ActionMenuItem>
+    </ComposerActions.Action>
   )
 }
 
-function LaunchRoot(props: {onAction: (label: string) => void; optionsUnavailable?: boolean}): JSX.Element {
+function LaunchAction(props: {onAction: (label: string) => void; optionsUnavailable?: boolean}): JSX.Element {
   return (
-    <ComposerActions.Root id="story.launch" priority={10}>
+    <ComposerActions.Action priority={10}>
       <ComposerActions.Inline>
         <TooltipIconButton tooltip={LAUNCH_LABEL} class="size-8.5" onClick={() => props.onAction(LAUNCH_LABEL)}>
           <SquareTerminal class="size-5 block" aria-hidden="true" />
@@ -179,20 +159,20 @@ function LaunchRoot(props: {onAction: (label: string) => void; optionsUnavailabl
         when={props.optionsUnavailable === true}
         fallback={
           <>
-            <ComposerActions.DropdownItem value="open" label={OPEN_LABEL} onSelect={() => props.onAction(OPEN_LABEL)}>
+            <ComposerActions.ActionMenuItem label={OPEN_LABEL} onSelect={() => props.onAction(OPEN_LABEL)}>
               <SquareTerminal class="size-4 block" aria-hidden="true" />
-            </ComposerActions.DropdownItem>
-            <ComposerActions.DropdownItem value="copy" label={COPY_LABEL} onSelect={() => props.onAction(COPY_LABEL)}>
+            </ComposerActions.ActionMenuItem>
+            <ComposerActions.ActionMenuItem label={COPY_LABEL} onSelect={() => props.onAction(COPY_LABEL)}>
               <ClipboardCopy class="size-4 block" aria-hidden="true" />
-            </ComposerActions.DropdownItem>
+            </ComposerActions.ActionMenuItem>
           </>
         }
       >
-        <ComposerActions.DropdownItem value="retry" label={RETRY_LABEL} onSelect={() => props.onAction(RETRY_LABEL)}>
+        <ComposerActions.ActionMenuItem label={RETRY_LABEL} onSelect={() => props.onAction(RETRY_LABEL)}>
           <RotateCw class="size-4 block" aria-hidden="true" />
-        </ComposerActions.DropdownItem>
+        </ComposerActions.ActionMenuItem>
       </Show>
-    </ComposerActions.Root>
+    </ComposerActions.Action>
   )
 }
 
@@ -202,11 +182,11 @@ export const AllInline: Story = {
     return (
       <div class="flex flex-col gap-2">
         <ActionsFrame width={560}>
-          <GrabRoot onAction={setLast} busy />
-          <NewSessionRoot onAction={setLast} />
-          <CompactRoot onAction={setLast} />
-          <CanvasRoot onAction={setLast} />
-          <LaunchRoot onAction={setLast} />
+          <GrabAction onAction={setLast} busy />
+          <NewSessionAction onAction={setLast} />
+          <CompactAction onAction={setLast} />
+          <CanvasAction onAction={setLast} />
+          <LaunchAction onAction={setLast} />
         </ActionsFrame>
         <ActionLog value={last()} />
       </div>
@@ -220,11 +200,11 @@ export const Collapsed: Story = {
     return (
       <div class="flex flex-col gap-2">
         <ActionsFrame width={180}>
-          <GrabRoot onAction={setLast} />
-          <NewSessionRoot onAction={setLast} />
-          <CompactRoot onAction={setLast} />
-          <CanvasRoot onAction={setLast} />
-          <LaunchRoot onAction={setLast} />
+          <GrabAction onAction={setLast} />
+          <NewSessionAction onAction={setLast} />
+          <CompactAction onAction={setLast} />
+          <CanvasAction onAction={setLast} />
+          <LaunchAction onAction={setLast} />
         </ActionsFrame>
         <ActionLog value={last()} />
       </div>
@@ -264,11 +244,11 @@ export const CappedDefault: Story = {
           The app default: a wide row still keeps every auto action in the overflow menu, pinned actions aside.
         </p>
         <ActionsFrame width={560} maxInlineAuto={0}>
-          <GrabRoot onAction={setLast} />
-          <NewSessionRoot onAction={setLast} />
-          <CompactRoot onAction={setLast} />
-          <CanvasRoot onAction={setLast} />
-          <LaunchRoot onAction={setLast} />
+          <GrabAction onAction={setLast} />
+          <NewSessionAction onAction={setLast} />
+          <CompactAction onAction={setLast} />
+          <CanvasAction onAction={setLast} />
+          <LaunchAction onAction={setLast} />
         </ActionsFrame>
         <ActionLog value={last()} />
       </div>
@@ -303,10 +283,10 @@ export const PinnedOnly: Story = {
     return (
       <div class="flex flex-col gap-2">
         <ActionsFrame width={210}>
-          <GrabRoot onAction={setLast} />
-          <CanvasRoot onAction={setLast} pinned />
-          <NewSessionRoot onAction={setLast} />
-          <CompactRoot onAction={setLast} />
+          <GrabAction onAction={setLast} />
+          <CanvasAction onAction={setLast} pinned />
+          <NewSessionAction onAction={setLast} />
+          <CompactAction onAction={setLast} />
         </ActionsFrame>
         <ActionLog value={last()} />
       </div>
@@ -314,16 +294,16 @@ export const PinnedOnly: Story = {
   },
 }
 
-export const MenuOnlyRoot: Story = {
+export const MenuOnlyAction: Story = {
   render: () => {
     const [last, setLast] = createSignal('')
     return (
       <div class="flex flex-col gap-2">
         <ActionsFrame width={560}>
-          <GrabRoot onAction={setLast} />
-          <NewSessionRoot onAction={setLast} />
-          <CompactRoot onAction={setLast} />
-          <CommentRoot onAction={setLast} />
+          <GrabAction onAction={setLast} />
+          <NewSessionAction onAction={setLast} />
+          <CompactAction onAction={setLast} />
+          <CommentAction onAction={setLast} />
         </ActionsFrame>
         <ActionLog value={last()} />
       </div>
@@ -331,16 +311,16 @@ export const MenuOnlyRoot: Story = {
   },
 }
 
-export const MultiItemRoot: Story = {
+export const PairedMenuItems: Story = {
   render: () => {
     const [last, setLast] = createSignal('')
     const [unavailable, setUnavailable] = createSignal(false)
     return (
       <div class="flex flex-col gap-2">
         <ActionsFrame width={170}>
-          <NewSessionRoot onAction={setLast} />
-          <CompactRoot onAction={setLast} />
-          <LaunchRoot onAction={setLast} optionsUnavailable={unavailable()} />
+          <NewSessionAction onAction={setLast} />
+          <CompactAction onAction={setLast} />
+          <LaunchAction onAction={setLast} optionsUnavailable={unavailable()} />
         </ActionsFrame>
         <StoryToggle label={UNAVAILABLE_TOGGLE} checked={unavailable()} onChange={setUnavailable} />
         <ActionLog value={last()} />
@@ -374,7 +354,7 @@ export const MultiItemRoot: Story = {
 
 const disabledSelectSpy = fn()
 
-export const DisabledRoot: Story = {
+export const DisabledAction: Story = {
   render: () => {
     const [last, setLast] = createSignal('')
     const [disabled, setDisabled] = createSignal(true)
@@ -385,9 +365,9 @@ export const DisabledRoot: Story = {
     return (
       <div class="flex flex-col gap-2">
         <ActionsFrame width={170}>
-          <GrabRoot onAction={record} disabled={disabled} />
-          <NewSessionRoot onAction={record} />
-          <CompactRoot onAction={record} disabled={disabled} />
+          <GrabAction onAction={record} disabled={disabled} />
+          <NewSessionAction onAction={record} />
+          <CompactAction onAction={record} disabled={disabled} />
         </ActionsFrame>
         <StoryToggle label={DISABLED_TOGGLE} checked={disabled()} onChange={setDisabled} />
         <ActionLog value={last()} />
@@ -427,11 +407,11 @@ export const ResizablePlayground: Story = {
       <div class="flex flex-col gap-2">
         <p class="text-[0.75rem] text-pw-text-2">Drag the bottom-right corner to watch actions collapse and expand.</p>
         <ActionsFrame width={420} resizable>
-          <GrabRoot onAction={setLast} />
-          <NewSessionRoot onAction={setLast} />
-          <CompactRoot onAction={setLast} />
-          <CanvasRoot onAction={setLast} />
-          <LaunchRoot onAction={setLast} />
+          <GrabAction onAction={setLast} />
+          <NewSessionAction onAction={setLast} />
+          <CompactAction onAction={setLast} />
+          <CanvasAction onAction={setLast} />
+          <LaunchAction onAction={setLast} />
         </ActionsFrame>
         <ActionLog value={last()} />
       </div>
