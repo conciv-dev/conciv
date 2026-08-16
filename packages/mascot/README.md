@@ -22,12 +22,14 @@ unmount, in any child order:
 import {Mascot} from '@conciv/mascot/solid'
 import {steamEffect} from '@conciv/mascot/effects/steam'
 
+const mountSteam = () => steamEffect
+
 const SteamingRobot = () => (
   <Mascot class="size-16" working={busy()} follow>
     <Mascot.Head />
     <Mascot.Antenna follow={false} />
     <Mascot.Eyes class="glow" />
-    <Mascot.Effect mount={() => steamEffect} />
+    <Mascot.Effect mount={mountSteam} />
   </Mascot>
 )
 ```
@@ -35,8 +37,14 @@ const SteamingRobot = () => (
 `<Mascot.Effect>` mounts any effect subpath in place of the default binary; two effect children mean
 two live emitters. `<Mascot.Binary curve="arc">` is the shorthand for the default one.
 
-`@conciv/mascot/react` is the same compound API for React, with the same props and the same slots.
-Both wrappers are mechanical: all sequencing lives in the core service.
+`@conciv/mascot/react` is the same compound API and the same slots, with React's own conventions:
+`className` instead of `class`, and `style` as a camelCased object rather than Solid's kebab-cased
+one. Both wrappers are mechanical: all sequencing lives in the core service.
+
+In React, `mount` is a dependency: a new function identity remounts the effect, which drains the
+particles in flight and starts them again. That is what you want when the effect really changed, so
+keep `mount` stable otherwise — a module-level constant as above, or `useCallback` over the values it
+closes over. Solid reads `mount` inside its own tracked scope, so an inline arrow there is fine.
 
 Root props: `state` (`'rest' | 'awake'`), `working`, `follow` (`boolean` or `{eyes, antenna}`),
 `activity` (`{bob, throb, blink}`), `curve`, `initialSkin`. `follow` on `<Mascot.Eyes>` or

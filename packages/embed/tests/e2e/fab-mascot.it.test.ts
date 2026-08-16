@@ -64,7 +64,7 @@ test('opening the panel with nothing running wakes the robot and drops the gaze'
   await expect(emitter(page)).toHaveCount(0)
 })
 
-test('opening the panel during a run keeps the working pose instead of waking the robot', async ({page}) => {
+test('the emitter keeps running while the panel is open during a run', async ({page}) => {
   await sendHeldTurn(page, suite)
 
   await expect(emitter(page)).toHaveCount(1)

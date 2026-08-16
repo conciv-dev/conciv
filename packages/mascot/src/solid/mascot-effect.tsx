@@ -4,9 +4,11 @@ import type {EffectMount} from '../core/effects/effect.js'
 import {useMascotContext} from './mascot-context.js'
 import {composeRefs, type MascotLayerProps, mergeStyle} from './mascot-props.js'
 
-export type MascotEffectProps = MascotLayerProps & {mount: () => EffectMount; fallback?: boolean}
+export type MascotEffectProps = MascotLayerProps & {mount: () => EffectMount}
 
-export function MascotEffect(props: MascotEffectProps): JSX.Element {
+type EffectHostProps = MascotEffectProps & {fallback?: boolean}
+
+export function EffectHost(props: EffectHostProps): JSX.Element {
   const context = useMascotContext()
   const id = createUniqueId()
   const host = context.effectHostProps(id)
@@ -35,3 +37,5 @@ export function MascotEffect(props: MascotEffectProps): JSX.Element {
     />
   )
 }
+
+export const MascotEffect: (props: MascotEffectProps) => JSX.Element = EffectHost

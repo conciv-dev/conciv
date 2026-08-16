@@ -4,9 +4,11 @@ import {useMascotContext} from './mascot-context.js'
 import {composeRefs, type MascotLayerProps, mergeStyle} from './mascot-props.js'
 import {useIsomorphicLayoutEffect} from './use-layout-effect.js'
 
-export type MascotEffectProps = MascotLayerProps & {mount: () => EffectMount; fallback?: boolean}
+export type MascotEffectProps = MascotLayerProps & {mount: () => EffectMount}
 
-export function MascotEffect({mount, fallback, style, ref, ...rest}: MascotEffectProps): ReactElement {
+type EffectHostProps = MascotEffectProps & {fallback?: boolean}
+
+export function EffectHost({mount, fallback, style, ref, ...rest}: EffectHostProps): ReactElement {
   const {service, effectHostProps, effectCount, claimEffect} = useMascotContext()
   const id = useId()
   const element = useRef<HTMLSpanElement | null>(null)
@@ -46,3 +48,5 @@ export function MascotEffect({mount, fallback, style, ref, ...rest}: MascotEffec
     />
   )
 }
+
+export const MascotEffect: (props: MascotEffectProps) => ReactElement = EffectHost
