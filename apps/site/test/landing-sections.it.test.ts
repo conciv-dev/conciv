@@ -4,6 +4,7 @@ import {createSiteTest} from './site-fixture.js'
 import {heroCanvas, waitForLandingHydration} from './landing-page.js'
 import {HERO_HEADLINE} from '../src/components/landing/hero.js'
 import {findScreenshot} from '../src/lib/screenshots.js'
+import {formatStarCount, starsResponseSchema} from '../src/lib/star-count.js'
 
 const SITE_PORT = 8795
 const INSPECTOR_PORT = 9795
@@ -116,6 +117,29 @@ test.describe('landing sections', () => {
 
     await page.close()
   }, 240_000)
+})
+
+test.describe('github star count', () => {
+  test('renders the count /api/stars reports in the nav button, or a bare button when it is unavailable', async ({
+    browser,
+  }) => {
+    const page = await browser.newPage({viewport: DESKTOP})
+    const response = await page.request.get(`${ORIGIN}/api/stars`)
+    const {stars} = starsResponseSchema.parse(await response.json())
+    await page.goto(LANDING, {waitUntil: 'domcontentloaded'})
+    await waitForLandingHydration(page)
+
+    const button = page.getByRole('link', {name: 'conciv on GitHub'}).first()
+    await expectLocator(button).toBeVisible({timeout: 20_000})
+    if (stars === null) {
+      await expectLocator(button).toHaveText('GitHub')
+    } else {
+      await expectLocator(button).toContainText(`${stars} stars on GitHub`)
+      await expectLocator(button.getByText(formatStarCount(stars), {exact: true})).toBeVisible()
+    }
+
+    await page.close()
+  }, 60_000)
 })
 
 test.describe('hero shader motion', () => {
