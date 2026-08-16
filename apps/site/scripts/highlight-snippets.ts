@@ -26,11 +26,14 @@ const installSteps = INSTALL_COMMANDS.map((entry) =>
   codeToKeyedTokens(highlighter, entry.command, {lang: 'sh', themes: THEMES, defaultColor: 'light'}),
 )
 
-const inlineHighlight = (code: string) =>
-  highlighter
-    .codeToHtml(code, {lang: 'ts', themes: THEMES, defaultColor: 'light'})
-    .replace(/^<pre[^>]*><code>/, '')
-    .replace(/<\/code><\/pre>$/, '')
+const inlineTokens = (code: string) =>
+  highlighter.codeToTokens(code, {lang: 'ts', themes: THEMES, defaultColor: 'light'}).tokens.map((line) =>
+    line.map((token) => ({
+      content: token.content,
+      color: token.htmlStyle?.color,
+      darkColor: token.htmlStyle?.['--shiki-dark'],
+    })),
+  )
 
 const twoslasher = createTwoslasher()
 
@@ -46,7 +49,7 @@ const hoverData = withCode.flatMap((snippet) => {
       {
         target: node.target,
         occurrence,
-        html: inlineHighlight(node.text),
+        tokens: inlineTokens(node.text),
         docs: node.docs ?? null,
       },
     ]
@@ -67,7 +70,8 @@ const hoverData = withCode.flatMap((snippet) => {
 const body = [
   "import type {KeyedTokensInfo} from '@shikijs/magic-move/types'",
   '',
-  'export type SnippetHover = {target: string; occurrence: number; html: string; docs: string | null}',
+  'export type SnippetToken = {content: string; color?: string; darkColor?: string}',
+  'export type SnippetHover = {target: string; occurrence: number; tokens: SnippetToken[][]; docs: string | null}',
   'export type SnippetCompletion = {target: string; items: string[]}',
   'export type SnippetTwoslash = {id: string; hovers: SnippetHover[]; completion: SnippetCompletion | null}',
   '',

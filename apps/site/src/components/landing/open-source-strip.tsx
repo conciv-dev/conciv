@@ -1,6 +1,7 @@
 import {Link} from '@tanstack/react-router'
 import {ChevronRight} from 'lucide-react'
 import {Button} from '@/components/ui/button'
+import {CountSkeleton} from '@/components/ui/count-skeleton'
 import {Table, TableBody, TableCell, TableRow} from '@/components/ui/table'
 import {repoUrl} from '@/lib/shared'
 import {formatStarCount} from '@/lib/star-count'
@@ -35,7 +36,9 @@ export function OpenSourceStrip() {
                 <TableRow className="hover:bg-transparent">
                   <TableCell className="px-0 text-muted-foreground">stars</TableCell>
                   <TableCell className="px-0 text-right tabular-nums">
-                    <span className="inline-block min-w-[3ch]">{stars === null ? '' : formatStarCount(stars)}</span>
+                    <span className="inline-block min-w-[3ch]">
+                      {stars === null ? <CountSkeleton /> : formatStarCount(stars)}
+                    </span>
                   </TableCell>
                 </TableRow>
                 <TableRow className="hover:bg-transparent">

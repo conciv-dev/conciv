@@ -1,6 +1,7 @@
 import {Star} from 'lucide-react'
 import {useReducedMotion, useSpring} from 'motion/react'
 import {useEffect, useState} from 'react'
+import {CountSkeleton} from '@/components/ui/count-skeleton'
 import {cn} from '@/lib/utils'
 
 const COUNT_SPRING = {damping: 30, stiffness: 100}
@@ -68,7 +69,7 @@ function StarCount({
 }) {
   return (
     <span className={cn('relative inline-flex min-w-[2.5ch] justify-end tabular-nums', className)}>
-      <span aria-hidden>{starCount === null ? '' : formatCount(displayCount)}</span>
+      {starCount === null ? <CountSkeleton /> : <span aria-hidden>{formatCount(displayCount)}</span>}
       {starCount !== null && <span className="sr-only">{starCount} stars on GitHub</span>}
       <span aria-hidden className={PLUS_ONE_MOTION}>
         +1

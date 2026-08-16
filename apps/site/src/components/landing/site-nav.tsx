@@ -2,7 +2,7 @@ import {Link} from '@tanstack/react-router'
 import {SiteHeader} from '@/components/ui/site-header'
 import {ThemeSwitch} from '@/components/ui/theme-switch'
 import {BrandMark} from '@/components/brand-mark'
-import {GitHubStarsButton} from './github-stars-button'
+import {GitHubStarsButton} from '@/components/github-stars-button'
 
 const NAV_LINK_CLASS =
   'od-hit od-ui inline-flex h-8 items-center rounded-lg px-3 transition-colors hover:text-foreground'

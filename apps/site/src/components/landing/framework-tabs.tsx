@@ -1,7 +1,7 @@
 import {useReducedMotion} from 'motion/react'
 import {Tabs as TabsPrimitive} from 'radix-ui'
 import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
-import {useCallback, useRef, useState} from 'react'
+import {useCallback, useRef, useState, type CSSProperties} from 'react'
 import '@shikijs/magic-move/style.css'
 import {AnimatedTabs} from '@/components/ui/animated-tabs'
 import {Badge} from '@/components/ui/badge'
@@ -15,6 +15,7 @@ import {
   SNIPPET_TWOSLASH,
   type SnippetCompletion,
   type SnippetHover,
+  type SnippetToken,
 } from './framework-snippets.gen'
 import {magicMoveOptions} from './magic-move-options'
 
@@ -213,10 +214,28 @@ function Code({active}: {active: FrameworkSnippet}) {
   )
 }
 
+type ShikiTokenStyle = CSSProperties & Record<'--shiki-dark', string>
+
+function tokenStyle(token: SnippetToken): CSSProperties {
+  if (token.color === undefined) return {}
+  const style: ShikiTokenStyle = {color: token.color, '--shiki-dark': token.darkColor ?? token.color}
+  return style
+}
+
 function HoverBody({hover}: {hover: SnippetHover}) {
   return (
     <>
-      <code className="block overflow-x-auto whitespace-pre" dangerouslySetInnerHTML={{__html: hover.html}} />
+      <code className="block overflow-x-auto whitespace-pre">
+        {hover.tokens.map((line, lineIndex) => (
+          <span key={lineIndex} className="block">
+            {line.map((token, tokenIndex) => (
+              <span key={tokenIndex} style={tokenStyle(token)}>
+                {token.content}
+              </span>
+            ))}
+          </span>
+        ))}
+      </code>
       {hover.docs && <p className="mt-2 border-t border-dashed pt-2 font-sans text-muted-foreground">{hover.docs}</p>}
     </>
   )
