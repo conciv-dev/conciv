@@ -4,26 +4,30 @@
 
 **Goal:** Replace the saturated composer button row with compound `ComposerActions.*` primitives whose host coordinator collapses lower-priority actions into one shared overflow menu by measured width, and extract the session refresh affordance out of the composer into per-surface chrome.
 
-**Architecture:** New `ComposerActions` compound components (Root/Button/DropdownItem/Inline) live in `@conciv/extension`. A host-side `ComposerActionsHost` (provider + shared Ark `Menu.Root`) wraps the composer toolbar row as a logical Solid ancestor of both built-in actions and `ExtensionSurface name="composer"`. Overflow-menu ordering is real DOM order: the host renders one group node per registered root sorted by priority, and each `DropdownItem` portals into its own root's group node (never CSS `order`). Fit is pure arithmetic over a constant slot width and passive resize observers. Refresh becomes a `RefreshButton` reading a refresh handle that `ChatPane` registers into `PaneContext`.
+**Architecture:** New `ComposerActions` compound components (Root/Button/DropdownItem/Inline) live in `@conciv/ui-kit-chat` under `src/primitives/composer/` — the package that already owns the composer primitives. EVERY consumer (apps/conciv, extension clients, testkit, scaffold templates, docs) imports them from `@conciv/ui-kit-chat`, the same way extensions import `TooltipIconButton` from `@conciv/ui-kit-system` today. `@conciv/extension` is NOT touched by UI work — it stays a lean contract package (its only edits in this plan are scaffold-template STRINGS in Task 5). A host-side `ComposerActionsHost` (provider + shared Ark `Menu.Root`) wraps the composer toolbar row as a logical Solid ancestor of both built-in actions and `ExtensionSurface name="composer"`. Overflow-menu ordering is real DOM order: the host renders one group node per registered root sorted by priority, and each `DropdownItem` portals into its own root's group node (never CSS `order`). Fit is pure arithmetic over a constant slot width and passive resize observers. Refresh becomes a `RefreshButton` reading a refresh handle that `ChatPane` registers into `PaneContext`.
 
-**Tech Stack:** SolidJS, Ark UI Menu (zag), UnoCSS utility classes, vitest browser (Playwright/Chromium), oxlint/oxfmt.
+**Tech Stack:** SolidJS, Ark UI Menu (zag), UnoCSS utility classes, vitest browser (Playwright/Chromium), storybook (consolidated `apps/storybook`), oxlint/oxfmt.
 
-**Spec:** `docs/superpowers/specs/2026-08-16-composer-actions-collapse-design.md`
+**Spec:** `docs/superpowers/specs/2026-08-16-composer-actions-collapse-design.md` (placement decision supersedes the spec's `@conciv/extension` export-surface line — recorded deviation, user-directed)
 
-**Review inputs folded in:** codex plan review (`/tmp/codex-plan-review.md`) + frontend review — all HIGH/CRITICAL findings addressed inline below.
+**Review inputs folded in:** codex plan review + Fable frontend review — all HIGH/CRITICAL findings addressed inline below.
 
 ## Global Constraints
 
 - Functions only, no classes, no IIFEs, ZERO code comments (lint deletes them) — including in test code.
 - Strict TS: no `any`, no `as` casts, no non-null assertions, `noUncheckedIndexedAccess`.
 - oxfmt: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
-- Solid: `splitProps` (never destructure props), `@solid-primitives` over raw observer glue, no hooks inside JSX attributes, register context state synchronously in component bodies (NOT `onMount`) with `onCleanup` — `Suspense`/lazy boundaries make mount-order assumptions fragile.
-- Widget UI tests: REAL Chromium (vitest browser), never jsdom. Web-first assertions only; no `poll`, no `querySelector`, no rect measurement, no sleeps, no test-ids. Locate by role/name. Assert `aria-disabled`/`toBeDisabled()`, never zag styling hooks like `data-disabled`.
+- Solid: `splitProps` (never destructure props), `@solid-primitives` over raw observer glue, no hooks inside JSX attributes, register context state synchronously in component bodies (NOT `onMount`) with `onCleanup`.
+- NO hand-rolled components: every interactive element composes ui-kit primitives (`TooltipIconButton`/`TooltipIconButtonSlot`, `Menu.*` from `@conciv/ui-kit-system`). Raw elements allowed only for layout scaffolding (measurement wrappers, group nodes, invisible placeholder span).
+- `ComposerActions` imports come from `@conciv/ui-kit-chat` EVERYWHERE. Adoption check at the end of every task that adds a consumer: `grep -rn "ComposerActions" --include="*.tsx" --include="*.ts" apps packages | grep "from '@conciv/extension'"` must return nothing.
+- Widget UI tests: REAL Chromium (vitest browser), never jsdom. Web-first assertions only; no `poll`, no `querySelector`, no rect measurement, no sleeps, no test-ids. Locate by role/name. Assert `aria-disabled`/`toBeDisabled()`, never zag styling hooks.
 - Whiteboard package suite NEVER runs locally: whiteboard gates are typecheck + build + lint only.
 - Package test gates finish with `pnpm turbo run test --filter=<pkg>` (bare filter, NEVER trailing `...`); focused `pnpm vitest run` is for red/green iteration only.
-- New UnoCSS classes need scanner coverage AND an embed rebuild (`pnpm turbo run build --filter=@conciv/embed`).
+- ui-kit-chat vitest projects: node project runs `test/**/*.test.ts`, browser project runs `test/**/*.browser.test.tsx` — name new files accordingly.
+- New UnoCSS classes: `packages/ui-kit-chat/src` is already scanned by the embed uno config — no config change needed; embed rebuild (`pnpm turbo run build --filter=@conciv/embed`) still required before widget ITs.
 - Commit with pathspec; run `pnpm exec fallow audit --format json --quiet --explain --gate-marker agent` before each commit (JSON runtime errors non-blocking). `fallow dead-code --trace` runs BEFORE deleting an export, not after.
-- **Dependency gate:** Task 2 adds `@solid-primitives/resize-observer` to `@conciv/extension` (already used by ui-kit-chat). This dependency addition has been approved by the user for this plan; add exactly this package, nothing else, no version pinning beyond the workspace convention.
+- No new dependencies: `@solid-primitives/resize-observer` is ALREADY a ui-kit-chat dependency.
+- All UI copy sentence-case (`'More composer actions'`).
 
 ## Layout constants (used across tasks)
 
@@ -42,17 +46,24 @@ The overflow trigger permanently occupies one slot (visibility-hidden placeholde
 ### Task 1: Fit arithmetic (pure function)
 
 **Files:**
-- Create: `packages/extension/src/composer-actions-fit.ts`
-- Test: `packages/extension/test/composer-actions-fit.test.ts`
+- Create: `packages/ui-kit-chat/src/primitives/composer/composer-actions-fit.ts`
+- Test: `packages/ui-kit-chat/test/composer-actions-fit.test.ts` (node project)
 
 **Interfaces:**
 - Produces: `computeVisibleAutoCount(input: FitInput): number`, `type FitInput`, constants `ACTION_SLOT_PX`, `REGION_GAP_PX`, `FIT_HYSTERESIS_PX`. Task 2 consumes all of these.
+
+The implementation and test bodies were already written and verified green on this branch's earlier revision (commit `7b550c1b`, since reset out of `packages/extension`) — recreate them VERBATIM at the new paths, only the test's import path changes:
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
-import {ACTION_SLOT_PX, FIT_HYSTERESIS_PX, REGION_GAP_PX, computeVisibleAutoCount} from '../src/composer-actions-fit.js'
+import {
+  ACTION_SLOT_PX,
+  computeVisibleAutoCount,
+  FIT_HYSTERESIS_PX,
+  REGION_GAP_PX,
+} from '../src/primitives/composer/composer-actions-fit.js'
 
 const base = {
   slotWidth: ACTION_SLOT_PX,
@@ -66,7 +77,12 @@ const base = {
 }
 
 const used = (autoSlots: number): number =>
-  base.leadingWidth + base.trailingWidth + 2 * REGION_GAP_PX + ACTION_SLOT_PX + base.pinnedCount * ACTION_SLOT_PX + autoSlots * ACTION_SLOT_PX
+  base.leadingWidth +
+  base.trailingWidth +
+  2 * REGION_GAP_PX +
+  ACTION_SLOT_PX +
+  base.pinnedCount * ACTION_SLOT_PX +
+  autoSlots * ACTION_SLOT_PX
 
 describe('computeVisibleAutoCount', () => {
   it('shows every auto action when the budget covers them', () => {
@@ -96,7 +112,7 @@ describe('computeVisibleAutoCount', () => {
 })
 ```
 
-- [ ] **Step 2: Run to verify failure** — `pnpm vitest run test/composer-actions-fit.test.ts` (cwd `packages/extension`) — FAIL, module not found.
+- [ ] **Step 2: Run to verify failure** — `pnpm vitest run test/composer-actions-fit.test.ts` (cwd `packages/ui-kit-chat`) — FAIL, module not found.
 - [ ] **Step 3: Implement**
 
 ```ts
@@ -118,7 +134,11 @@ export type FitInput = {
 
 export function computeVisibleAutoCount(input: FitInput): number {
   const reserved =
-    input.leadingWidth + input.trailingWidth + 2 * input.regionGapPx + input.slotWidth + input.pinnedCount * input.slotWidth
+    input.leadingWidth +
+    input.trailingWidth +
+    2 * input.regionGapPx +
+    input.slotWidth +
+    input.pinnedCount * input.slotWidth
   const budget = input.rowWidth - reserved
   const fits = Math.max(0, Math.min(input.autoCount, Math.floor(budget / input.slotWidth)))
   if (input.previousCount === null || fits <= input.previousCount) return fits
@@ -127,26 +147,26 @@ export function computeVisibleAutoCount(input: FitInput): number {
 }
 ```
 
-- [ ] **Step 4: Green + package gate** — focused run passes, then `pnpm turbo run test --filter=@conciv/extension`.
-- [ ] **Step 5: Commit** (`feat(extension): composer actions fit arithmetic`, pathspec `packages/extension`).
+- [ ] **Step 4: Green + package gate** — focused run passes, then `pnpm turbo run test --filter=@conciv/ui-kit-chat`.
+- [ ] **Step 5: Commit** (`feat(ui-kit-chat): composer actions fit arithmetic`, pathspec `packages/ui-kit-chat`).
 
 ---
 
 ### Task 2: `ComposerActions` primitives + host coordinator
 
 **Files:**
-- Create: `packages/extension/src/composer-actions.tsx`
-- Modify: `packages/extension/src/index.ts` (export `ComposerActions`), `packages/extension/src/host.ts` (export `ComposerActionsHost`), `packages/extension/package.json` (add `@solid-primitives/resize-observer` — approved, see Global Constraints), `packages/embed/uno.config.ts` + `apps/conciv/uno.config.ts` (add `../extension/src/**/*.{ts,tsx}` — relative to each config — to the scanned globs; without this the new utility classes never reach the built CSS)
+- Create: `packages/ui-kit-chat/src/primitives/composer/composer-actions.tsx`
+- Modify: `packages/ui-kit-chat/src/index.tsx` (export `ComposerActions` and `ComposerActionsHost` alongside the existing `ComposerPrimitive` exports)
+- Test: `packages/ui-kit-chat/test/composer-actions.browser.test.tsx` (component-level, in-package browser project)
 
 **Interfaces:**
-- Consumes: Task 1's `computeVisibleAutoCount` + constants; `Menu`, `TooltipIconButton`, `TooltipIconButtonSlot` from `@conciv/ui-kit-system` (first RUNTIME import of ui-kit-system in this package — manifest dep already present); `createResizeObserver` from `@solid-primitives/resize-observer`.
-- Produces (extension-author surface, from `@conciv/extension`):
-  - `ComposerActions.Root(props: {id: string; priority?: number; disabled?: () => boolean; children: JSX.Element})` — `disabled` is THE single reactive source; both renderings consume it (spec requirement; per-child disabled props do not exist).
-  - `ComposerActions.Button(props: {visible?: 'auto' | 'always'; tooltip: string; onClick: () => void; busy?: boolean; class?: string; variant?: 'ghost' | 'solid'; children: JSX.Element})` — `busy` renders `aria-busy` + progress styling, it does NOT disable.
+- Consumes: Task 1's `computeVisibleAutoCount` + constants; `Menu`, `TooltipIconButton`, `TooltipIconButtonSlot` from `@conciv/ui-kit-system`; `createResizeObserver` from `@solid-primitives/resize-observer` (existing dep).
+- Produces (from `@conciv/ui-kit-chat`):
+  - `ComposerActions.Root(props: {id: string; priority?: number; disabled?: () => boolean; children: JSX.Element})` — `disabled` is THE single reactive source; both renderings consume it. No per-child disabled props.
+  - `ComposerActions.Button(props: {visible?: 'auto' | 'always'; tooltip: string; onClick: () => void; busy?: boolean; class?: string; variant?: 'ghost' | 'solid'; children: JSX.Element})` — `busy` renders `aria-busy` + progress styling, never disables.
   - `ComposerActions.DropdownItem(props: {value: string; label: string; onSelect: () => void; children?: JSX.Element})`
-  - `ComposerActions.Inline(props: {children: JSX.Element})` — renders children only while the root is inline; counts as the root's button for fit purposes (the `asChild` escape for controls that are themselves triggers).
-- Produces (host surface, from `@conciv/extension/host`):
-  - `ComposerActionsHost(props: {leading?: JSX.Element; trailing: JSX.Element; triggerContent: JSX.Element; children: JSX.Element})` — no icon-library dependency in this package; the app passes the ellipsis icon via `triggerContent`.
+  - `ComposerActions.Inline(props: {children: JSX.Element})` — renders children only while the root is inline; counts as the root's button for fit purposes (escape hatch for controls that are themselves triggers, e.g. the launch menu).
+  - `ComposerActionsHost(props: {leading?: JSX.Element; trailing: JSX.Element; triggerContent: JSX.Element; onOverflowDismissed?: () => void; children: JSX.Element})`.
 
 **Implementation contract (settled types — write exactly these):**
 
@@ -182,8 +202,8 @@ type RootState = {
 
 Coordinator rules (inside `ComposerActionsHost`):
 
-- Store: `createStore<Registration[]>([])`. `Root` registers **synchronously in its component body** (`createUniqueId()` key), `onCleanup` unregisters. `priority`/`disabled` changes tracked with a `createEffect` that calls `update` (Solid props are getters; no stale metadata).
-- Duplicate `id`: the LAST registration with that id is the active one — `active(key)` returns false for earlier holders, whose Roots render nothing (inline and menu). Warn unconditionally with `console.warn` once per collision.
+- Store: `createStore<Registration[]>([])`. `Root` registers **synchronously in its component body** (`createUniqueId()` key), `onCleanup` unregisters. `priority`/`disabled` changes tracked with a `createEffect` calling `update` (Solid props are getters; no stale metadata).
+- Duplicate `id`: LAST registration with that id is active — `active(key)` false for earlier holders, whose Roots render nothing anywhere. `console.warn` once per collision, unconditional.
 - Widths: `createResizeObserver` on three refs — outer row, leading wrapper, trailing wrapper. Wrappers carry `class="empty:hidden flex gap-1 items-center"` so an empty region costs nothing.
 - Count memo — hysteresis via the memo's OWN previous value, no extra signal:
 
@@ -206,7 +226,7 @@ const visibleAutoCount = createMemo<number | null>(
 ```
 
 - `inline(key)`: pinned actives with a button always inline; auto actives with a button sorted priority desc then registration order, first `visibleAutoCount()` inline.
-- **Menu ordering is DOM order, never CSS `order`:** inside `Menu.Content` the host renders `<For each={sortedActiveRoots()}>{(entry) => <div data-composer-action-group ref={(el) => setGroupEl(entry.key, el)} />}</For>` sorted priority desc then registration order. Each `DropdownItem` portals into ITS root's group node via `coordinator.groupMount(root.key)`. Visual order = DOM order = zag keyboard order; a root's items stay contiguous. `Menu.Content` keeps its default classes — no `flex` (its base is `hidden data-[state=open]:block`; adding `flex` creates a display conflict).
+- **Menu ordering is DOM order, never CSS `order`:** inside `Menu.Content` the host renders `<For each={sortedActiveRoots()}>{(entry) => <div ref={(el) => setGroupEl(entry.key, el)} />}</For>` sorted priority desc then registration order. Each `DropdownItem` portals into ITS root's group node via `coordinator.groupMount(root.key)`. Visual order = DOM order = zag keyboard order; a root's items stay contiguous. `Menu.Content` keeps its default classes — no `flex` (its base is `hidden data-[state=open]:block`; adding `flex` creates a display conflict).
 - Trigger slot (always occupies one slot):
 
 ```tsx
@@ -219,12 +239,12 @@ const visibleAutoCount = createMemo<number | null>(
 </Show>
 ```
 
-`TRIGGER_CLASS` is defined locally in `composer-actions.tsx` on the `TooltipIconButton` ghost variant sizing (`'size-8.5'`) — `GHOST` from pane-composer is app-private and must not be referenced.
+`TRIGGER_CLASS` is a local constant on the `TooltipIconButton` ghost variant sizing (`'size-8.5'`); `triggerContent` keeps icon choice with the app (no lucide import here — this package's public API stays icon-agnostic like the rest of its primitives).
 
 - `anyCollapsed()` = any active root with `itemCount > 0` not inline.
-- **Menu-open collapse race:** control the menu (`Menu.Root open={menuOpen()} onOpenChange={...}` or `Menu.Context` api). A `createEffect` watching `anyCollapsed()`: on transition to false while open, close the menu and move focus to the trigger's nearest surviving focusable — the first inline action button if one exists, else the composer input (host prop `onOverflowDismissed?: () => void` lets the app focus the input). Without this, expanding while the menu is open strands focus on `<body>`.
+- **Menu-open collapse race:** control the menu (`Menu.Root open={menuOpen()} onOpenChange={...}`). A `createEffect` watching `anyCollapsed()`: on transition to false while open, close the menu and call `props.onOverflowDismissed` (app focuses the composer input); default focus target is the first inline action button.
 - `Button`: sets `hasButton` + pinned via `root.update` synchronously, `onCleanup` resets `hasButton: false`. Renders `<Show when={root.inline()}>` → `TooltipIconButton` with `class`/`variant` passthrough, `aria-busy={props.busy}`, `disabled={root.disabled()}`.
-- `Inline`: same registration behavior as `Button` (`hasButton: true`, never pinned unless later needed), renders children when `root.inline()`.
+- `Inline`: same registration as `Button` (never pinned), renders children when `root.inline()`.
 - `DropdownItem`: `root.update` increments `itemCount` synchronously, `onCleanup` decrements. Renders
 
 ```tsx
@@ -243,10 +263,41 @@ const visibleAutoCount = createMemo<number | null>(
 - Root outside a coordinator: renders nothing.
 - Row JSX: `Menu.Root` wraps `div class="pt-0.5 flex gap-1 items-center"` containing leading wrapper, `{props.children}`, trigger slot, trailing wrapper (`ml-auto` + `empty:hidden`), then `Menu.Positioner > Menu.Content` with the group `For`.
 
-- [ ] **Step 1: Add the dependency** — `@solid-primitives/resize-observer` to `packages/extension/package.json` (match the version ui-kit-chat uses), `pnpm install`.
-- [ ] **Step 2: Write `composer-actions.tsx` per the contract; export `ComposerActions` from `index.ts`, `ComposerActionsHost` from `host.ts`; extend both uno configs.**
-- [ ] **Step 3: Gates** — `pnpm turbo run build --filter=@conciv/extension && pnpm turbo run typecheck --filter=@conciv/extension && pnpm turbo run test --filter=@conciv/extension`, then the bundling guard NOW (not Task 8): `pnpm turbo run build --filter=@conciv/embed` and `pnpm turbo run test --filter=@conciv/embed` (mount-externals test must stay green — the extension contract now carries runtime Ark/tooltip imports).
-- [ ] **Step 4: Commit** (`feat(extension): ComposerActions compound primitives with overflow coordinator`, pathspec `packages/extension packages/embed apps/conciv/uno.config.ts pnpm-lock.yaml`).
+**Component-level browser tests** (`composer-actions.browser.test.tsx`, in-package — mount `ComposerActionsHost` directly with synthetic roots in a width-controlled container, following the package's existing browser-test mounting pattern):
+
+- wide: all buttons inline, no trigger; narrow: low-priority roots collapse, trigger appears with `aria-haspopup`/`aria-expanded`, items fire `onSelect` and the menu closes.
+- pinned root stays inline at any width; button-only root hidden when collapsed; item-only root menu-only; multi-item root's items contiguous in priority order.
+- Root `disabled` accessor disables inline button AND menu item (`aria-disabled`), item not invocable.
+- duplicate id: only last root renders.
+- widening while menu open closes it without stranding focus (assert menu hidden + `onOverflowDismissed` observable effect).
+- keyboard: Enter opens, ArrowDown highlights, Escape closes and returns focus to trigger.
+
+- [ ] **Step 1: Write the failing browser tests.**
+- [ ] **Step 2: Run to verify failure** — `pnpm vitest run test/composer-actions.browser.test.tsx` (cwd `packages/ui-kit-chat`).
+- [ ] **Step 3: Implement `composer-actions.tsx` per the contract; export from `index.tsx`.**
+- [ ] **Step 4: Gates** — focused browser suite green, then `pnpm turbo run typecheck --filter=@conciv/ui-kit-chat && pnpm turbo run build --filter=@conciv/ui-kit-chat && pnpm turbo run test --filter=@conciv/ui-kit-chat`, then the bundling guard: `pnpm turbo run build --filter=@conciv/embed && pnpm turbo run test --filter=@conciv/embed` (mount-externals stays green).
+- [ ] **Step 5: Commit** (`feat(ui-kit-chat): ComposerActions compound primitives with overflow coordinator`, pathspec `packages/ui-kit-chat`).
+
+---
+
+### Task 2b: Storybook coverage
+
+**Files:**
+- Create: `packages/ui-kit-chat/src/primitives/composer/composer-actions.stories.tsx` (`apps/storybook` already globs `packages/ui-kit-chat/src/**/*.stories.*` — zero config)
+
+**Stories (rich, following `packages/ui-kit-system/src/menu.stories.tsx` conventions):**
+- `AllInline` — wide fixed-width host, five mixed roots.
+- `Collapsed` — narrow host, pinned + overflow trigger visible.
+- `PinnedOnly` — `visible="always"` alongside collapsing autos.
+- `MenuOnlyRoot` — item-only root.
+- `MultiItemRoot` — launch-style root with conditional item set.
+- `DisabledRoot` — disabled accessor live-toggled via story control.
+- `ResizablePlayground` — host inside a CSS `resize: horizontal` container for manual dragging.
+- Play functions (storybook vitest) on `Collapsed`, `DisabledRoot`, `MultiItemRoot`: open menu, assert menuitems by role/name, assert `aria-disabled`, select fires.
+
+- [ ] **Step 1: Write stories + play functions.**
+- [ ] **Step 2: Gate** — the storybook test gate for this package's stories (`pnpm turbo run test --filter=conciv-storybook` — confirm the app's real package name from `apps/storybook/package.json`).
+- [ ] **Step 3: Commit** (`feat(ui-kit-chat): ComposerActions stories`, pathspec `packages/ui-kit-chat apps/storybook`).
 
 ---
 
@@ -255,17 +306,18 @@ const visibleAutoCount = createMemo<number | null>(
 **Files:**
 - Modify: `apps/conciv/src/pane/pane-composer.tsx`, `apps/conciv/src/composer/actions.tsx`, `apps/conciv/src/pane/chat-pane.tsx`
 - Modify: `apps/conciv/test/helpers/pane-harness.tsx` (width control)
-- Test: `apps/conciv/test/composer-overflow.browser.test.tsx` (new)
+- Test: `apps/conciv/test/composer-overflow.browser.test.tsx` (new — app-level wiring: built-ins + extension surface through the real pane)
 
 **Interfaces:**
-- Consumes: `ComposerActionsHost` from `@conciv/extension/host`, `ComposerActions` from `@conciv/extension`.
-- Produces: toolbar row contract — leading = attachment button; managed = built-ins + `ExtensionSurface name="composer"`; trailing = `trailingExtras` (model selector, in its own `Suspense`) + refresh + send/cancel; trigger named `'More composer actions'`. Harness API: `mountPane(options & {width?: number})` returning `{setWidth(px: number): void}` alongside its existing returns (drives a reactive style width on the harness wrapper — the `w-100` hardcode becomes the 400px default).
+- Consumes: `ComposerActionsHost`, `ComposerActions` from `@conciv/ui-kit-chat` (import alias `ComposerActions as Action` in `actions.tsx` — the app component of the same name keeps its export).
+- Produces: toolbar row contract — leading = attachment button; managed = built-ins + `ExtensionSurface name="composer"`; trailing = `trailingExtras` (model selector, own `Suspense` with slot-sized fallback) + refresh + send/cancel; trigger named `'More composer actions'`. Harness API: `mountPane(options & {width?: number})` returning `setWidth(px: number)` (reactive style width; `w-100` hardcode becomes the 400px default).
 
-**pane-composer.tsx** — replace the row div; REFRESH STAYS HERE UNTIL TASK 7 (do not delete it in this task):
+**pane-composer.tsx** — REFRESH STAYS UNTIL TASK 7 (`TrailingControls` unchanged in this task):
 
 ```tsx
 <ComposerActionsHost
   triggerContent={<Ellipsis class="size-5 block" aria-hidden="true" />}
+  onOverflowDismissed={() => focusComposerInput()}
   leading={
     <Show when={props.attachmentAdapter}>
       <ComposerPrimitive.AddAttachment class={GHOST}>
@@ -286,15 +338,9 @@ const visibleAutoCount = createMemo<number | null>(
 </ComposerActionsHost>
 ```
 
-`TrailingControls` (refresh + send) is UNCHANGED in this task. `PaneComposerProps` gains `trailingExtras?: JSX.Element`; `chat-pane.tsx` moves `<SessionModelSelector sessionId={sessionId} />` out of children into `trailingExtras`. The slot-sized Suspense fallback keeps the trailing observer from jumping while models load.
+(`focusComposerInput` = whatever handle the composer input adapter already exposes — reuse `onInputReady`'s handle, don't invent focus plumbing.) `PaneComposerProps` gains `trailingExtras?: JSX.Element`; `chat-pane.tsx` moves `<SessionModelSelector sessionId={sessionId} />` into it.
 
-**actions.tsx** — the app component keeps its exported name; the primitives are imported under a non-colliding alias:
-
-```tsx
-import {ComposerActions as Action} from '@conciv/extension'
-```
-
-(`ComposerActions` the app component at line 39 stays exported — chat-pane imports it by that name.)
+**actions.tsx** — built-ins on the primitives (grab pinned, launch coordinator-registered via `Inline` from day one so the fit budget counts it):
 
 ```tsx
 <Action.Root id="conciv.grab" priority={40} disabled={grabDisabled}>
@@ -333,96 +379,33 @@ import {ComposerActions as Action} from '@conciv/extension'
 </Show>
 ```
 
-Grab keeps its ACT/busyClass styling contract and is NOT disabled while picking (`busy` only) — behavior preserved. Launch is coordinator-registered from day one via `Inline` so the fit budget counts it (its dropdown flattening lands in Task 4).
+Grab keeps ACT/busyClass styling and is NOT disabled while picking (`busy` only).
 
-**pane-harness.tsx**: `w-100` becomes `style={{width: \`${width()}px\`}}` with `width` a signal defaulting to 400; `mountPane` accepts `width?` and returns `setWidth`. Before writing tests, verify with the fit constants that at 400px every built-in stays inline (leading 34 + 2 gaps + trigger 38 + grab 38 + 3 autos 114 + trailing ≈ 110 ≈ 342 < 400) so the neighbor suites (launch-menu, launch-actions, model-selector, chat-pane) keep their inline-button locators working; if the real trailing cluster measures wider, raise the harness default so they do, and say so in the commit.
+**pane-harness.tsx**: `w-100` → `style={{width: \`${width()}px\`}}`, signal default 400; `mountPane` accepts `width?`, returns `setWidth`. Verify with the fit constants that 400px keeps every built-in inline (≈342px used) so neighbor suites keep their inline locators; raise the default if the real trailing cluster measures wider, and say so in the commit.
 
-- [ ] **Step 1: Write the failing browser tests** (`composer-overflow.browser.test.tsx`, using the harness + kit helpers exactly as `chat-pane.browser.test.tsx` does):
+**App-level tests** (`composer-overflow.browser.test.tsx`) — wiring-focused (primitives' own behavior is covered in-package by Task 2):
 
-```tsx
-test('wide panel keeps every action inline with no overflow trigger', async () => {
-  await mountPane({width: 720})
-  await expect.element(page.getByRole('button', {name: 'Start a new session'})).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'Compress the conversation'})).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'More composer actions'})).not.toBeInTheDocument()
-})
+- wide: all built-ins inline, no trigger.
+- narrow: grab pinned inline, new-session/compact collapsed into the menu, menu item fires the real action (assert via harness fixture callbacks: `expectNewSessionRequested`).
+- disabled compacting root not invocable from menu (`aria-disabled`, `expectNoCompactRequested`).
+- resize back and forth settles; expanding with menu open closes it.
+- (keyboard lifecycle already covered in-package; don't duplicate here.)
 
-test('narrow panel collapses auto actions and keeps the pinned grab inline', async () => {
-  await mountPane({width: 320})
-  await expect.element(page.getByRole('button', {name: 'Select an element from the page'})).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'Start a new session'})).not.toBeInTheDocument()
-  const trigger = page.getByRole('button', {name: 'More composer actions'})
-  await expect.element(trigger).toHaveAttribute('aria-haspopup', 'menu')
-  await trigger.click()
-  await expect.element(trigger).toHaveAttribute('aria-expanded', 'true')
-  await expect.element(page.getByRole('menuitem', {name: 'Start a new session'})).toBeVisible()
-})
-
-test('an overflow item fires its action and the menu closes', async () => {
-  const pane = await mountPane({width: 320})
-  await page.getByRole('button', {name: 'More composer actions'}).click()
-  await page.getByRole('menuitem', {name: 'Start a new session'}).click()
-  await expect.element(page.getByRole('menu')).not.toBeVisible()
-  await pane.expectNewSessionRequested()
-})
-
-test('keyboard lifecycle on the trigger', async () => {
-  await mountPane({width: 320})
-  const trigger = page.getByRole('button', {name: 'More composer actions'})
-  await trigger.element().focus()
-  await userEvent.keyboard('{Enter}')
-  await expect.element(page.getByRole('menu')).toBeVisible()
-  await userEvent.keyboard('{ArrowDown}')
-  await userEvent.keyboard('{Escape}')
-  await expect.element(page.getByRole('menu')).not.toBeVisible()
-  await expect.element(trigger).toHaveFocus()
-})
-
-test('a disabled root cannot be invoked from the menu', async () => {
-  const pane = await mountPane({width: 320, compacting: true})
-  await page.getByRole('button', {name: 'More composer actions'}).click()
-  const item = page.getByRole('menuitem', {name: 'Compress the conversation'})
-  await expect.element(item).toHaveAttribute('aria-disabled', 'true')
-  await item.click({force: true})
-  await pane.expectNoCompactRequested()
-})
-
-test('expanding while the menu is open closes it without stranding focus', async () => {
-  const pane = await mountPane({width: 320})
-  await page.getByRole('button', {name: 'More composer actions'}).click()
-  await pane.setWidth(720)
-  await expect.element(page.getByRole('menu')).not.toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'Start a new session'})).toBeVisible()
-})
-
-test('repeated resize across the threshold settles without flapping', async () => {
-  const pane = await mountPane({width: 720})
-  for (const width of [320, 720, 320, 720, 320]) pane.setWidth(width)
-  await expect.element(page.getByRole('button', {name: 'More composer actions'})).toBeVisible()
-  pane.setWidth(720)
-  await expect.element(page.getByRole('button', {name: 'Start a new session'})).toBeVisible()
-})
-```
-
-`expectNewSessionRequested` / `expectNoCompactRequested` / `compacting` are harness options wired to the same fixture callbacks the existing suite passes to `ChatPane`/`PaneProvider` — extend the harness options, not app state.
-
+- [ ] **Step 1: Write failing tests** (harness options `compacting`, `expectNewSessionRequested`, `expectNoCompactRequested` wired to fixture callbacks — extend harness options, never app state).
 - [ ] **Step 2: Run to verify failure** — `pnpm vitest run test/composer-overflow.browser.test.tsx` (cwd `apps/conciv`).
-- [ ] **Step 3: Implement pane-composer + actions migration + harness width control per the blocks above.**
-- [ ] **Step 4: Run the new suite AND neighbors** — `pnpm vitest run test/composer-overflow.browser.test.tsx test/chat-pane.browser.test.tsx test/launch-menu.browser.test.tsx test/launch-actions.browser.test.tsx test/model-selector.browser.test.tsx` — PASS (refresh tests still pass: refresh is untouched).
-- [ ] **Step 5: Package gate + commit** — `pnpm turbo run test --filter=@conciv/conciv` (use the app's real package name from `apps/conciv/package.json`), then commit (`feat(conciv): collapse composer actions into overflow menu`, pathspec `apps/conciv`).
+- [ ] **Step 3: Implement pane-composer + actions migration + harness width control.**
+- [ ] **Step 4: Run new suite AND neighbors** — `pnpm vitest run test/composer-overflow.browser.test.tsx test/chat-pane.browser.test.tsx test/launch-menu.browser.test.tsx test/launch-actions.browser.test.tsx test/model-selector.browser.test.tsx` — PASS (refresh untouched, its tests stay green).
+- [ ] **Step 5: Package gate + adoption grep + commit** (`feat(conciv): collapse composer actions into overflow menu`, pathspec `apps/conciv`).
 
 ---
 
 ### Task 4: Launch menu flattening (multi-item root)
 
 **Files:**
-- Modify: `apps/conciv/src/composer/launch-menu.tsx`
+- Modify: `apps/conciv/src/composer/launch-menu.tsx`, `apps/conciv/src/composer/actions.tsx`
 - Test: extend `apps/conciv/test/launch-menu.browser.test.tsx`
 
-**Interfaces:**
-- Consumes: `Action.Inline` + multi-`DropdownItem` from Task 2/3; `LaunchMenu` props signature unchanged.
-
-`LaunchMenu` gains collapsed items as siblings of the `Inline` block inside the Task 3 `Action.Root id="conciv.launch"` (move the `Root` wrapper from `actions.tsx` into `LaunchMenu` itself so the component owns both renderings; `actions.tsx` then renders bare `<LaunchMenu .../>`):
+`LaunchMenu` owns both renderings — the `Action.Root id="conciv.launch"` moves from `actions.tsx` into `LaunchMenu` itself (`actions.tsx` renders bare `<LaunchMenu .../>`):
 
 ```tsx
 <Action.Root id="conciv.launch" priority={10} disabled={() => local.pending === true}>
@@ -451,10 +434,10 @@ test('repeated resize across the threshold settles without flapping', async () =
 </Action.Root>
 ```
 
-- [ ] **Step 1: Failing tests** — narrow pane: `menuitem` named `Open in <harness>` and `Copy command` inside the shared overflow menu, contiguous; failure state shows the retry item instead. Wide pane: existing launch tests unchanged.
+- [ ] **Step 1: Failing tests** — narrow: `Open in <harness>` + `Copy command` menuitems contiguous in the shared menu; failure state shows the retry item instead. Wide: existing launch tests unchanged.
 - [ ] **Step 2: Run to verify failure.**
 - [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** launch + overflow + chat-pane suites — PASS; package gate.
+- [ ] **Step 4: Run launch + overflow + chat-pane suites; package gate.**
 - [ ] **Step 5: Commit** (`feat(conciv): launch menu flattens into composer overflow`, pathspec `apps/conciv`).
 
 ---
@@ -462,11 +445,11 @@ test('repeated resize across the threshold settles without flapping', async () =
 ### Task 5: Migrate extension clients, scaffolds, authoring docs
 
 **Files:**
-- Modify: `packages/extensions/whiteboard/src/client.tsx`, `packages/extensions/tanstack/src/client.tsx`, `packages/extension/src/catalog.ts` (`composer-action` AND `full` templates + the composer slot description), `packages/extension/test/catalog.test.ts`, `packages/harness/plugins/claude/skills/conciv-extensions/SKILL.md`, `apps/site/content/docs/extending/widget-ui.mdx`
+- Modify: `packages/extensions/whiteboard/src/client.tsx`, `packages/extensions/tanstack/src/client.tsx` (both add `import {ComposerActions} from '@conciv/ui-kit-chat'` — check each package.json declares `@conciv/ui-kit-chat`; add the workspace dep if absent, it's an internal workspace ref, not a new third-party dep)
+- Modify (TEMPLATE STRINGS ONLY — no runtime code in this package): `packages/extension/src/catalog.ts` (`composer-action` + `full` templates now emit `import {ComposerActions} from '@conciv/ui-kit-chat'` examples; composer slot description names the primitives), `packages/extension/test/catalog.test.ts` (assertions match new verbatim strings)
+- Modify: `packages/harness/plugins/claude/skills/conciv-extensions/SKILL.md`, `apps/site/content/docs/extending/widget-ui.mdx`
 
-**Interfaces:** no authoring surface anywhere still demonstrates a raw composer button.
-
-Whiteboard `Component` composer branch:
+Whiteboard composer branch:
 
 ```tsx
 <Show when={slot === 'composer'}>
@@ -489,11 +472,11 @@ Whiteboard `Component` composer branch:
 </Show>
 ```
 
-Tanstack client: same transform. Templates/docs rewritten around the same example (scaffold templates must compile under the scaffold test's assertions — update `catalog.test.ts` expectations to the new verbatim template strings).
+Tanstack: same transform. No authoring surface anywhere still demonstrates a raw composer button.
 
 - [ ] **Step 1: Update `catalog.test.ts` expectations (failing)** — `pnpm vitest run test/catalog.test.ts` (cwd `packages/extension`) — FAIL.
 - [ ] **Step 2: Apply all migrations.**
-- [ ] **Step 3: Gates** — `pnpm turbo run test --filter=@conciv/extension`; tanstack package gate (its real name from `package.json`); whiteboard: `pnpm turbo run typecheck --filter=<whiteboard-pkg> && pnpm turbo run build --filter=<whiteboard-pkg> && pnpm turbo run lint --filter=<whiteboard-pkg>` (suite is CI-only — lint IS part of the local gate).
+- [ ] **Step 3: Gates** — `pnpm turbo run test --filter=@conciv/extension`; tanstack package gate; whiteboard typecheck + build + lint ONLY; adoption grep.
 - [ ] **Step 4: Commit** (`feat(extensions): author composer buttons through ComposerActions`, pathspec touched packages + site docs).
 
 ---
@@ -501,14 +484,12 @@ Tanstack client: same transform. Templates/docs rewritten around the same exampl
 ### Task 6: Extension-testkit host support + fixture
 
 **Files:**
-- Modify: `packages/extension-testkit/src/host/host-runtime.tsx` (wrap the composer-slot mount in `ComposerActionsHost` inside a width-controllable container with an accessible width control), `packages/extension-testkit/fixtures/ping/client.tsx` (fixture gains a `ComposerActions` root: Button + two DropdownItems)
-- Test: new `packages/extension-testkit/test/composer-actions.it.test.ts` following the existing `test/*.it.test.ts` + `fixtureHost` pattern (NOT `e2e/` — that directory holds websocket/RPC probes)
+- Modify: `packages/extension-testkit/src/host/host-runtime.tsx` (wrap the composer-slot mount in `ComposerActionsHost` — testkit already depends on `@conciv/ui-kit-chat` — inside a width-controllable container with a labeled width control), `packages/extension-testkit/fixtures/ping/client.tsx` (fixture gains a `ComposerActions` root: Button + two DropdownItems)
+- Test: new `packages/extension-testkit/test/composer-actions.it.test.ts` following the existing `test/*.it.test.ts` + `fixtureHost` pattern (NOT `e2e/` — that holds websocket/RPC probes)
 
-**Interfaces:** testkit hosts render extension `ComposerActions` with a real coordinator + shared menu, width driven through a labeled control on the host page (a range/number input the test sets via `userEvent` — no DOM measurement).
-
-- [ ] **Step 1: Failing test** — wide host: fixture button visible inline; narrow host (set via the width control): button gone, `More composer actions` opens, both fixture items present and fire (assert via the fixture's observable effect, same pattern the ping fixture already uses).
+- [ ] **Step 1: Failing test** — wide host: fixture button inline; narrow (set via the labeled width control with `userEvent`): button gone, `More composer actions` opens, both fixture items present and fire (assert via the fixture's observable effect).
 - [ ] **Step 2: Implement host wrap + width control + fixture root.**
-- [ ] **Step 3: Run** — `pnpm turbo run test --filter=@conciv/extension-testkit` — PASS.
+- [ ] **Step 3: Run** — `pnpm turbo run test --filter=@conciv/extension-testkit`.
 - [ ] **Step 4: Commit** (`feat(extension-testkit): host composer actions coordinator`, pathspec `packages/extension-testkit`).
 
 ---
@@ -516,29 +497,15 @@ Tanstack client: same transform. Templates/docs rewritten around the same exampl
 ### Task 7: Extract refresh from the composer
 
 **Files:**
-- Modify (delete): `packages/ui-kit-chat/src/primitives/composer/composer.tsx` (`Refresh` action button + export), `packages/ui-kit-chat/src/primitives/composer/composer-handlers.tsx` (`onRefresh`), refresh-specific tests in `packages/ui-kit-chat/test/composer-completion.browser.test.tsx` (deleted, not rewired)
-- Modify: `apps/conciv/src/app/pane-context.ts`, `apps/conciv/src/app/pane-provider.tsx`, `apps/conciv/src/routes/panel.$sessionId.tsx` (context value + header button), `apps/conciv/src/pane/chat-pane.tsx` (register handle, drop `onRefresh`), `apps/conciv/src/pane/pane-composer.tsx` (delete `TrailingControls`, trailing keeps only `ComposerSendControl`), `apps/conciv/src/routes/quick.tsx` (LIFT `PaneProvider` to wrap the whole `data-pw-qt-pane` div — the session bar currently sits outside it and `usePane()` would throw; button goes in that bar), `apps/conciv/src/routes/pip.$sessionId.tsx` (slim `flex justify-end px-2 pt-1` row above `ChatPane`)
-- Modify: `apps/conciv/test/helpers/pane-harness.tsx` (THIRD `PaneContextValue` construction site — gains the signal pair; harness view renders `<RefreshButton />` alongside `ChatPane` so the suite has a target)
+- Modify (delete): `packages/ui-kit-chat/src/primitives/composer/composer.tsx` (`Refresh` + export), `composer-handlers.tsx` (`onRefresh`), refresh-specific tests in `packages/ui-kit-chat/test/composer-completion.browser.test.tsx` (deleted, not rewired)
+- Modify: `apps/conciv/src/app/pane-context.ts`, `apps/conciv/src/app/pane-provider.tsx`, `apps/conciv/src/routes/panel.$sessionId.tsx` (context value + header button), `apps/conciv/src/pane/chat-pane.tsx` (register handle, drop `onRefresh`), `apps/conciv/src/pane/pane-composer.tsx` (delete `TrailingControls`, trailing keeps only `ComposerSendControl`), `apps/conciv/src/routes/quick.tsx` (LIFT `PaneProvider` to wrap the whole `data-pw-qt-pane` div — the session bar sits outside it and `usePane()` would throw; button goes in that bar), `apps/conciv/src/routes/pip.$sessionId.tsx` (slim `flex justify-end px-2 pt-1` row above `ChatPane`)
+- Modify: `apps/conciv/test/helpers/pane-harness.tsx` (THIRD `PaneContextValue` construction site — gains the signal pair; harness view renders `<RefreshButton />` alongside `ChatPane`)
 - Create: `apps/conciv/src/shell/refresh-button.tsx`
-- Test: `apps/conciv/test/chat-pane.browser.test.tsx` (two refresh tests rewired against the harness-mounted `RefreshButton`), plus presence tests for the quick per-pane bar and pip chrome in those routes' existing suites (create `apps/conciv/test/quick-refresh.browser.test.tsx` / extend the pip suite if none exists — assert role button `'Refresh the conversation'` renders and is disabled while streaming, using each route's existing test scaffolding)
+- Test: `apps/conciv/test/chat-pane.browser.test.tsx` (two refresh tests rewired against the harness-mounted `RefreshButton`), `apps/conciv/test/quick-refresh.browser.test.tsx` (quick per-pane presence + disabled-while-streaming) + pip presence in the pip suite if one exists (else cover pip mounting in quick-refresh file via its route scaffolding)
 
 **Interfaces:**
-- `type RefreshHandle = {run: () => void; busy: () => boolean}` in `pane-context.ts`.
-- `PaneContextValue` gains `refresh: Accessor<RefreshHandle | null>` and `registerRefresh: (handle: RefreshHandle | null) => void`. ALL THREE construction sites updated (pane-provider.tsx, panel.$sessionId.tsx, pane-harness.tsx), each via:
-
-```tsx
-const [refreshHandle, setRefreshHandle] = createSignal<RefreshHandle | null>(null)
-```
-
-- `chat-pane.tsx` registers in the component body:
-
-```tsx
-pane.registerRefresh({run: () => chat.refresh(), busy: () => chatBusy(chat)})
-onCleanup(() => pane.registerRefresh(null))
-```
-
-(`chatBusy` is exported from `@conciv/ui-kit-chat` — `src/index.tsx:49`.)
-
+- `type RefreshHandle = {run: () => void; busy: () => boolean}` in `pane-context.ts`; `PaneContextValue` gains `refresh: Accessor<RefreshHandle | null>`, `registerRefresh: (handle: RefreshHandle | null) => void`. ALL THREE construction sites get `const [refreshHandle, setRefreshHandle] = createSignal<RefreshHandle | null>(null)`.
+- `chat-pane.tsx` registers in the component body: `pane.registerRefresh({run: () => chat.refresh(), busy: () => chatBusy(chat)})` + `onCleanup(() => pane.registerRefresh(null))` (`chatBusy` exported from `@conciv/ui-kit-chat`).
 - `refresh-button.tsx`:
 
 ```tsx
@@ -569,9 +536,9 @@ export function RefreshButton(props: {class?: string}): JSX.Element {
 Placements: panel header right cluster before the close button (`CLOSE` class); quick per-pane session bar (inside the lifted provider); pip chrome row.
 
 - [ ] **Step 1: Fallow trace BEFORE deleting** — `pnpm exec fallow dead-code --trace 'packages/ui-kit-chat/src/primitives/composer/composer.tsx:Refresh'` — confirm consumers are exactly `PaneComposer` + the ui-kit tests slated for deletion.
-- [ ] **Step 2: Rewire the two refresh tests in `chat-pane.browser.test.tsx` to the harness-mounted `RefreshButton` (same role/name locator; disabled-while-streaming asserted with `toBeDisabled()`), add the quick/pip presence tests — run, FAIL.**
+- [ ] **Step 2: Rewire tests (FAIL first)** — refresh tests target the harness-mounted `RefreshButton` (role button `'Refresh the conversation'`, `toBeDisabled()` while streaming); quick/pip presence tests.
 - [ ] **Step 3: Implement — deletions, context handle, `RefreshButton`, three placements, quick provider lift, harness update.**
-- [ ] **Step 4: Run** — `pnpm turbo run test --filter=@conciv/ui-kit-chat`, then `pnpm vitest run test/chat-pane.browser.test.tsx test/composer-overflow.browser.test.tsx test/quick-refresh.browser.test.tsx` (cwd `apps/conciv`), then the app package gate — PASS.
+- [ ] **Step 4: Run** — `pnpm turbo run test --filter=@conciv/ui-kit-chat`, then `pnpm vitest run test/chat-pane.browser.test.tsx test/composer-overflow.browser.test.tsx test/quick-refresh.browser.test.tsx` (cwd `apps/conciv`), then the app package gate.
 - [ ] **Step 5: Commit** (`feat(conciv): session refresh moves to pane chrome, out of the composer`, pathspec `packages/ui-kit-chat apps/conciv`).
 
 ---
@@ -585,10 +552,10 @@ Placements: panel header right cluster before the close button (`CLOSE` class); 
 
 ```md
 ---
-'@conciv/extension': patch
+'@conciv/ui-kit-chat': patch
 ---
 
-Composer actions collapse into a shared overflow menu; extensions author buttons through ComposerActions.Root/Button/DropdownItem/Inline. Session refresh moved out of the composer into pane chrome.
+Composer actions collapse into a shared overflow menu; extensions author buttons through ComposerActions.Root/Button/DropdownItem/Inline from @conciv/ui-kit-chat. Session refresh moved out of the composer into pane chrome.
 ```
 
 - [ ] **Step 2: Coverage check** — `pnpm exec conciv-publish check-changesets --require-coverage --base origin/main`.
@@ -599,8 +566,7 @@ Composer actions collapse into a shared overflow menu; extensions author buttons
 
 ## Self-Review Notes
 
-- Spec §1 → Tasks 1-2 (`Inline` lands in Task 2, used from Task 3 so launch is fit-counted from the first integration commit). §2 → Task 2-3. §3 → Tasks 3-5. §4 → Task 7. Testing → Tasks 3, 4, 6, 7. Gates → Task 8 (embed/mount-externals guard pulled forward into Task 2).
-- Spec deviations, both intentional and recorded: (a) `RefreshButton` reads `PaneContext` on every surface instead of chat-context + panel-only relay — quick's bar and the panel header both sit above `ChatProvider`; quick's `PaneProvider` is lifted to make that true per-pane. (b) Menu ordering implemented as per-root group nodes in host-rendered DOM order, not portal order + CSS — zag walks DOM order, CSS `order` would desync keyboard from visuals.
-- Root-level `disabled: () => boolean` is the ONLY disabled mechanism (spec requirement restored); `Button.busy` is styling-only.
+- Placement: `@conciv/ui-kit-chat` per user direction (2026-08-16) — supersedes the spec's `@conciv/extension` export-surface line. `packages/extension` sees template-string edits only (Task 5).
+- Spec deviations recorded: (a) `RefreshButton` reads `PaneContext` on every surface — quick's bar and panel header both sit above `ChatProvider`; quick's `PaneProvider` lifted per-pane. (b) Menu ordering = per-root group nodes in host DOM order — zag walks DOM order; CSS `order` desyncs keyboard from visuals. (c) Placement change above.
+- Root-level `disabled: () => boolean` is the ONLY disabled mechanism; `Button.busy` styling-only.
 - Type names consistent: `FitInput`, `Registration`, `Coordinator`, `RootState`, `RefreshHandle`, `ComposerActionsHost`, `ComposerActions.{Root,Button,DropdownItem,Inline}`.
-- Entry file is `packages/extension/src/index.ts` (no `.tsx` rename needed — the file only re-exports).
