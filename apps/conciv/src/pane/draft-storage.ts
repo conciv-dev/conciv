@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {debounce} from '@tanstack/pacer'
+import {Debouncer} from '@tanstack/pacer'
 import type {RpcClient} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
 import type {SelectionOffsets} from './composer-input-adapter.js'
@@ -36,6 +36,10 @@ function parseDraft(raw: string): PersistedDraft | null {
   }
 }
 
+function isCleared(draft: PersistedDraft): boolean {
+  return draft.text === '' && draft.attachments.length === 0
+}
+
 function clampSelection(offsets: SelectionOffsets | null, text: string): SelectionOffsets {
   if (!offsets) return {start: text.length, end: text.length}
   return {start: Math.min(offsets.start, text.length), end: Math.min(offsets.end, text.length)}
@@ -57,28 +61,32 @@ export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promi
   const row = await rpc.drafts.get({sessionId}).catch(() => null)
   let cache = row ? JSON.stringify({text: row.text, quote: null, attachments: row.attachments}) : null
   let selection: SelectionOffsets | null = null
-  const write = debounce(
-    (draft: PersistedDraft) => {
-      const offsets = clampSelection(selection, draft.text)
-      void rpc.drafts
-        .set({
-          sessionId,
-          text: draft.text,
-          selectionStart: offsets.start,
-          selectionEnd: offsets.end,
-          attachments: draft.attachments,
-        })
-        .catch(() => {})
-    },
-    {wait: WRITE_DELAY_MS},
-  )
+  const persist = (draft: PersistedDraft) => {
+    const offsets = clampSelection(selection, draft.text)
+    void rpc.drafts
+      .set({
+        sessionId,
+        text: draft.text,
+        selectionStart: offsets.start,
+        selectionEnd: offsets.end,
+        attachments: draft.attachments,
+      })
+      .catch(() => {})
+  }
+  const write = new Debouncer(persist, {wait: WRITE_DELAY_MS})
   return {
     storage: {
       getItem: () => cache,
       setItem: (_key, value) => {
         cache = value
         const parsed = parseDraft(value)
-        if (parsed) write(parsed)
+        if (!parsed) return
+        if (!isCleared(parsed)) {
+          write.maybeExecute(parsed)
+          return
+        }
+        write.cancel()
+        persist(parsed)
       },
     },
     noteSelection: (offsets) => {
