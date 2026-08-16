@@ -1,0 +1,32 @@
+import {type JSX, onCleanup, onMount, splitProps} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
+import {type MascotPartName, useMascotContext} from './mascot-context.js'
+import {composeRefs, type MascotLayerProps, mergeStyle} from './mascot-props.js'
+
+export type MascotLayerHostProps = MascotLayerProps & {layer: MascotPartName}
+
+export function MascotLayer(props: MascotLayerHostProps): JSX.Element {
+  const context = useMascotContext()
+  const [local, rest] = splitProps(props, ['layer', 'style', 'ref'])
+  const layer = () => context.partProps(local.layer)
+  let element: HTMLSpanElement | undefined
+  onMount(() => {
+    if (element !== undefined) layer().ref(element)
+  })
+  onCleanup(() => {
+    if (element !== undefined) layer().release(element)
+  })
+  return (
+    <Dynamic
+      component="span"
+      aria-hidden="true"
+      {...rest}
+      data-scope="mascot"
+      data-part={local.layer}
+      style={mergeStyle(layer().style, local.style, true)}
+      ref={composeRefs((node) => {
+        element = node
+      }, local.ref)}
+    />
+  )
+}

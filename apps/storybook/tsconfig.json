@@ -10,5 +10,5 @@
     "jsxImportSource": "solid-js",
     "types": ["node"]
   },
-  "include": ["uno.config.ts"]
+  "include": ["uno.config.ts", "src/**/*.ts", "src/**/*.tsx"]
 }

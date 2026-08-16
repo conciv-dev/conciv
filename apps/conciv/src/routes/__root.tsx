@@ -28,11 +28,13 @@ import {
   useAppData,
   useConnected,
   useLayers,
+  useLiveSessions,
   useNotifyInteractive,
   useSettings,
   useSuppressed,
   type AppContextValue,
 } from '../app/context.js'
+import {makeLiveSessions} from '../app/live-sessions.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../app/reachability.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
@@ -103,11 +105,14 @@ function RootComponent() {
     for (const extension of app.extensions) if (extension.theme) applyTheme(extension.theme)
   })
 
+  const liveSessions = makeLiveSessions()
+
   const value: AppContextValue = {
     rpc: app.rpc,
     settings: app.settings,
     environment: app.environment,
     data: app.data,
+    liveSessions,
     queryClient: app.queryClient,
     announce,
     layers,
@@ -167,6 +172,7 @@ function RootChrome(props: {
   const layers = useLayers()
   const suppressed = useSuppressed()
   const connected = useConnected()
+  const liveSessions = useLiveSessions()
   const notifyInteractive = useNotifyInteractive()
   const router = useRouter()
   const matchRoute = useMatchRoute()
@@ -181,7 +187,8 @@ function RootChrome(props: {
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
 
   const sessions = useQuery(() => ({...data.utils.sessions.list.queryOptions(), enabled: connected()}))
-  const working = () => (sessions.data ?? []).some((session) => session.running)
+  const working = () =>
+    liveSessions.anyRunning() || (sessions.isSuccess && sessions.data.some((session) => session.running))
   const latestSessionRow = () => {
     if (!sessions.isSuccess) return undefined
     if (sessions.data.length === 0) return undefined

@@ -7,7 +7,7 @@ import {E2E_DEV_ENDPOINT_DIR} from '@conciv/e2e-utils/dev-endpoint'
 
 export default defineConfig({
   plugins: [
-    solidStart({solid: {exclude: /\/packages\/.*\/dist\//}}),
+    solidStart({solid: {exclude: /\/packages\/.*\/dist\/.*\.js(\?|$)/}}),
     nitro(),
     conciv({devEndpointDir: E2E_DEV_ENDPOINT_DIR}),
   ],

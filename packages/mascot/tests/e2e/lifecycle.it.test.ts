@@ -1,0 +1,333 @@
+import {expect, test} from '@playwright/test'
+import {expectNear} from './helpers/near.js'
+import {buildService, installManualClock, openMascotPage} from './helpers/mascot-stage.js'
+
+test.beforeEach(async ({page}) => {
+  await openMascotPage(page)
+  await installManualClock(page)
+})
+
+test('a state change mid-work keeps the original timeline, emitter and scale', async ({page}) => {
+  await buildService(page, {state: 'rest', working: true, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    harness.advanceBy(2.2)
+    const emitter = harness.requireEmitter()
+    const anchorBefore = harness.particleFlightOf(emitter, 0)
+    const timelineBefore = harness.repeatingTimeline()
+    window.service.update({state: 'awake', working: true, follow: false})
+    const during = harness.stepFrames(() => harness.property(emitter, 'scale'), 0.9)
+    harness.advanceBy(1.4)
+    const anchorAfter = harness.particleFlightOf(emitter, 0)
+    const sameTimeline = harness.repeatingTimeline() === timelineBefore
+    const values = harness.stepFrames<[number, number]>(
+      () => [harness.property(window.parts.antenna, 'scaleY'), harness.property(window.parts.eyes, 'scaleY')],
+      2.4,
+    )
+    return {
+      antenna: harness.summarize(values.map((entry) => entry[0])),
+      eyes: harness.summarize(values.map((entry) => entry[1])),
+      emitterScale: harness.summarize(during),
+      sameTimeline,
+      sameEmitter: harness.emitters()[0] === emitter,
+      emitters: harness.emitters().length,
+      anchorBefore,
+      anchorAfter,
+    }
+  })
+  const anchorShift = Math.abs(result.anchorAfter.left - result.anchorBefore.left)
+
+  expectNear('throb still peaks at 1.3 after the change', result.antenna.max, 1.3, 0.01)
+  expect(result.antenna.min, 'throb still oscillates after the change').toBeLessThan(1.2)
+  expect(result.eyes.min, 'blink still closes the eyes').toBeLessThan(0.5)
+  expectNear('blink returns to the awake 1.06', result.eyes.max, 1.06, 0.01)
+  expect(result.sameTimeline, 'the mid-work change keeps the ORIGINAL work timeline running').toBe(true)
+  expect(result.sameEmitter, 'the mid-work change keeps the same emitter node').toBe(true)
+  expect(result.emitters, 'the mid-work change leaves exactly one emitter').toBe(1)
+  expect(
+    Math.abs(result.emitterScale.min - 1) <= 0.001 && Math.abs(result.emitterScale.max - 1) <= 0.001,
+    `no returnToFull tween fires: emitter scale stays 1 across the change -> ${JSON.stringify(result.emitterScale)}`,
+  ).toBe(true)
+  expect(anchorShift, 'digits launched after the change leave from the leaned antenna tip').toBeGreaterThan(0.5)
+})
+
+test('leaving work for the open pose raises the eyes monotonically to their awake rest', async ({page}) => {
+  await buildService(page, {state: 'rest', working: true, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    harness.advanceTo(2.2)
+    const openedEyes = harness.property(window.parts.eyes, 'scaleY')
+    window.service.update({state: 'awake', working: false, follow: false})
+    const values = harness.stepFrames(() => harness.property(window.parts.eyes, 'scaleY'), 1.1)
+    return {openedEyes, series: harness.summarize(values), reversals: harness.reversals(values, 0.002)}
+  })
+
+  expectNear('the blink is fully open at the beat the pose change starts from', result.openedEyes, 1, 0.001)
+  expectNear('work to open settles at 1.06', result.series.last, 1.06, 0.01)
+  expect(result.series.min, 'work to open never dips below 1.0').toBeGreaterThanOrEqual(0.999)
+  expect(result.reversals, 'work to open rises monotonically').toBeLessThanOrEqual(1)
+})
+
+test('stopping work restores the neutral antenna and the eye rest of the current state', async ({page}) => {
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    const settleReading = () => {
+      harness.advanceBy(0.25)
+      return {
+        antennaScaleX: harness.property(window.parts.antenna, 'scaleX'),
+        antennaScaleY: harness.property(window.parts.antenna, 'scaleY'),
+        eyesScaleY: harness.property(window.parts.eyes, 'scaleY'),
+      }
+    }
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(2.2)
+    window.service.update({state: 'rest', working: false, follow: false})
+    const rest = settleReading()
+    window.service.update({state: 'awake', working: false, follow: false})
+    harness.advanceBy(0.9)
+    window.service.update({state: 'awake', working: true, follow: false})
+    harness.advanceBy(2.2)
+    window.service.update({state: 'awake', working: false, follow: false})
+    const awake = settleReading()
+    return {rest, awake}
+  })
+
+  expectNear('rest recovery antenna scaleX = 1', result.rest.antennaScaleX, 1, 0.001)
+  expectNear('rest recovery antenna scaleY = 1', result.rest.antennaScaleY, 1, 0.001)
+  expectNear('rest recovery eyes scaleY = 1', result.rest.eyesScaleY, 1, 0.001)
+  expectNear('awake recovery antenna scaleX = 1', result.awake.antennaScaleX, 1, 0.001)
+  expectNear('awake recovery antenna scaleY = 1', result.awake.antennaScaleY, 1, 0.001)
+  expectNear('awake recovery eyes scaleY = 1.06', result.awake.eyesScaleY, 1.06, 0.001)
+})
+
+test('leaving work for a new pose hands every shared channel to the pose transition', async ({page}) => {
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    const {head, eyes, antenna} = window.parts
+    const landed = () => ({
+      headY: harness.property(head, 'yPercent'),
+      headRotation: harness.property(head, 'rotation'),
+      eyesScaleY: harness.property(eyes, 'scaleY'),
+      eyesScaleX: harness.property(eyes, 'scaleX'),
+      antennaRotation: harness.property(antenna, 'rotation'),
+      antennaScaleX: harness.property(antenna, 'scaleX'),
+      antennaScaleY: harness.property(antenna, 'scaleY'),
+    })
+    const writers = (): [number, number, number, number] => [
+      harness.activeWritersOf(head),
+      harness.activeWritersOfProperty(eyes, 'scaleY'),
+      harness.activeWritersOfProperty(eyes, 'scaleX'),
+      harness.activeWritersOfProperty(eyes, 'yPercent'),
+    ]
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(1.3)
+    window.service.update({state: 'awake', working: false, follow: false})
+    const anticipationWriters = harness.stepFrames(writers, 0.08)
+    const anticipationHeadY = harness.property(head, 'yPercent')
+    const stretchWriters = harness.stepFrames(writers, 0.2)
+    const stretchHeadY = harness.property(head, 'yPercent')
+    const handoff = [...anticipationWriters, ...stretchWriters]
+    harness.advanceBy(1)
+    const awake = landed()
+    window.service.update({state: 'awake', working: true, follow: false})
+    harness.advanceBy(1.3)
+    window.service.update({state: 'rest', working: false, follow: false})
+    const toRest = harness.stepFrames(() => harness.property(head, 'yPercent'), 1.2)
+    return {
+      awake,
+      rest: landed(),
+      writers: {
+        head: harness.summarize(handoff.map((entry) => entry[0])),
+        eyesScaleY: harness.summarize(handoff.map((entry) => entry[1])),
+        eyesScaleX: harness.summarize(handoff.map((entry) => entry[2])),
+        eyesYPercent: harness.summarize(handoff.map((entry) => entry[3])),
+      },
+      anticipationHeadY,
+      stretchHeadY,
+      restHead: harness.reversals(toRest, 0.02),
+    }
+  })
+
+  expectNear('work to awake lands the head on the awake pose', result.awake.headY, -2, 0.001)
+  expectNear('work to awake lands the head rotation', result.awake.headRotation, 0, 0.001)
+  expectNear('work to awake lands the eyes on the awake rest', result.awake.eyesScaleY, 1.06, 0.001)
+  expectNear('work to awake lands the eyes scaleX', result.awake.eyesScaleX, 1, 0.001)
+  expectNear('work to awake lands the antenna rotation', result.awake.antennaRotation, -4, 0.001)
+  expectNear('work to awake restores the antenna scaleX', result.awake.antennaScaleX, 1, 0.001)
+  expectNear('work to awake restores the antenna scaleY', result.awake.antennaScaleY, 1, 0.001)
+  expectNear('work to rest lands the head on the rest pose', result.rest.headY, 0, 0.001)
+  expectNear('work to rest lands the eyes on the rest scale', result.rest.eyesScaleY, 1, 0.001)
+  expectNear('work to rest lands the antenna rotation', result.rest.antennaRotation, 0, 0.001)
+  expectNear('work to rest restores the antenna scaleX', result.rest.antennaScaleX, 1, 0.001)
+  expectNear('work to rest restores the antenna scaleY', result.rest.antennaScaleY, 1, 0.001)
+  expect(result.writers.head.max, 'exactly one animation writes the head across the handoff').toBe(1)
+  expect(result.writers.eyesScaleY.max, 'exactly one animation writes the eyes scaleY across the handoff').toBe(1)
+  expect(result.writers.eyesScaleX.max, 'exactly one animation writes the eyes scaleX across the handoff').toBe(1)
+  expect(result.writers.eyesYPercent.max, 'exactly one animation writes the eyes yPercent across the handoff').toBe(1)
+  expect(result.anticipationHeadY, 'only the awake anticipation drives the head positive').toBeGreaterThan(3)
+  expect(result.stretchHeadY, 'only the awake stretch drives the head past the -5 bob floor').toBeLessThan(-6)
+  expect(result.restHead, 'no recovery tween fights the rest pose on the head').toBeLessThanOrEqual(1)
+})
+
+test('a state change while working overlaps the pose and the bob, then converges on the bob', async ({page}) => {
+  await buildService(page, {state: 'rest', working: true, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    const {head, eyes, antenna} = window.parts
+    const writers = (): [number, number, number] => [
+      harness.activeWritersOfProperty(head, 'yPercent'),
+      harness.activeWritersOfProperty(antenna, 'yPercent'),
+      harness.activeWritersOfProperty(eyes, 'yPercent'),
+    ]
+    const spread = (values: [number, number, number][]) => ({
+      head: harness.summarize(values.map((entry) => entry[0])),
+      antenna: harness.summarize(values.map((entry) => entry[1])),
+      eyes: harness.summarize(values.map((entry) => entry[2])),
+    })
+    harness.advanceBy(2.2)
+    const beforeChange = writers()
+    window.service.update({state: 'awake', working: true, follow: false})
+    const handoff = harness.stepFrames<[number, number, number]>(writers, 0.7)
+    const settled = harness.stepFrames<[number, number, number]>(writers, 1.7)
+    return {beforeChange, handoff: spread(handoff), settled: spread(settled)}
+  })
+
+  expect(result.beforeChange, 'the bob alone writes yPercent before the change').toEqual([1, 1, 1])
+  expect(result.handoff.head.max, 'the accepted pose-over-bob overlap on the head is two writers').toBe(2)
+  expect(result.handoff.antenna.max, 'the accepted pose-over-bob overlap on the antenna is two writers').toBe(2)
+  expect(result.handoff.eyes.max, 'the accepted pose-over-bob overlap on the eyes is two writers').toBe(2)
+  expect(result.settled.head.max, 'the overlap converges back to the bob alone on the head').toBe(1)
+  expect(result.settled.antenna.max, 'the overlap converges back to the bob alone on the antenna').toBe(1)
+  expect(result.settled.eyes.max, 'the overlap converges back to the bob alone on the eyes').toBe(1)
+})
+
+test('the awake pose lifts the head, the antenna and the eyes as one unit', async ({page}) => {
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    const {head, eyes, antenna} = window.parts
+    const readLayers = (): [number, number, number] => [
+      harness.property(head, 'yPercent'),
+      harness.property(antenna, 'yPercent'),
+      harness.property(eyes, 'yPercent'),
+    ]
+    const spread = (values: [number, number, number][]) =>
+      harness.summarize(
+        values.map(([headY, antennaY, eyesY]) => Math.max(Math.abs(antennaY - headY), Math.abs(eyesY - headY))),
+      )
+    const rest = readLayers()
+    window.service.update({state: 'awake', working: false, follow: false})
+    const transition = harness.stepFrames<[number, number, number]>(readLayers, 0.9)
+    const awake = readLayers()
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.9)
+    return {rest, awake, back: readLayers(), spread: spread(transition)}
+  })
+
+  expectNear('the rest pose parks the head at yPercent 0', result.rest[0], 0, 0.001)
+  expectNear('the rest pose parks the antenna at yPercent 0', result.rest[1], 0, 0.001)
+  expectNear('the rest pose parks the eyes at yPercent 0', result.rest[2], 0, 0.001)
+  expectNear('the awake pose lifts the head to yPercent -2', result.awake[0], -2, 0.001)
+  expectNear('the awake pose lifts the antenna to the head yPercent -2', result.awake[1], -2, 0.001)
+  expectNear('the awake pose lifts the eyes to the head yPercent -2', result.awake[2], -2, 0.001)
+  expect(result.spread.max, 'the awake pose never separates the antenna or eyes from the head').toBeLessThan(0.001)
+  expectNear('the rest pose drops the antenna back to yPercent 0', result.back[1], 0, 0.001)
+  expectNear('the rest pose drops the eyes back to yPercent 0', result.back[2], 0, 0.001)
+})
+
+test('a mid-work state change re-centers the head bob on the new pose value', async ({page}) => {
+  await buildService(page, {state: 'rest', working: true, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    const bobRange = () =>
+      harness.summarize(harness.stepFrames(() => harness.property(window.parts.head, 'yPercent'), 2.4))
+    harness.advanceBy(2.2)
+    const restBob = bobRange()
+    window.service.update({state: 'awake', working: true, follow: false})
+    harness.advanceBy(2.4)
+    const awakeBob = bobRange()
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(2.4)
+    return {restBob, awakeBob, backToRestBob: bobRange()}
+  })
+
+  expectNear('the rest bob rides between 0 and -5', result.restBob.max, 0, 0.05)
+  expectNear('the rest bob reaches -5', result.restBob.min, -5, 0.05)
+  expectNear('the bob re-centers on the awake head value', result.awakeBob.max, -2, 0.05)
+  expectNear('the awake bob still reaches -5', result.awakeBob.min, -5, 0.05)
+  expectNear('the bob re-centers back on the rest head value', result.backToRestBob.max, 0, 0.05)
+})
+
+test('restarting work during the staged exit reuses the draining emitter', async ({page}) => {
+  await buildService(page, {state: 'rest', working: true, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    harness.advanceBy(0.9)
+    const before = harness.requireEmitter()
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.2)
+    const midExitOpacity = harness.property(before, 'opacity')
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.9)
+    return {
+      sameNode: harness.emitters()[0] === before,
+      midExitOpacity,
+      opacity: harness.property(before, 'opacity'),
+      emitters: harness.emitters().length,
+    }
+  })
+
+  expect(result.sameNode, 'restart during exit reuses the emitter node').toBe(true)
+  expectNear('the restart lands 0.2s into the 0.5s staged exit', result.midExitOpacity, 0.936, 0.001)
+  expectNear('restart during exit returns opacity to 1', result.opacity, 1, 0.001)
+  expect(result.emitters, 'restart during exit leaves exactly one emitter').toBe(1)
+})
+
+test('a completed drain rests the effect and the next work turn reuses the same emitter node', async ({page}) => {
+  await buildService(page, {state: 'rest', working: false, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.9)
+    const first = harness.requireEmitter()
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.9)
+    const drained = harness.emitters().length
+    window.service.update({state: 'rest', working: true, follow: false})
+    harness.advanceBy(0.9)
+    return {
+      drained,
+      sameNode: harness.emitters()[0] === first,
+      emitters: harness.emitters().length,
+      opacity: harness.property(first, 'opacity'),
+    }
+  })
+
+  expect(result.drained, 'the completed drain leaves no emitter in the stage').toBe(0)
+  expect(result.sameNode, 'the next work turn reuses the rested emitter node').toBe(true)
+  expect(result.emitters, 'the reused emitter is the only one in the stage').toBe(1)
+  expectNear('the reused emitter re-enters at full opacity', result.opacity, 1, 0.001)
+})
+
+test('destroying during the staged exit tears everything down and nothing resurrects', async ({page}) => {
+  await buildService(page, {state: 'rest', working: true, follow: false})
+  const result = await page.evaluate(() => {
+    const harness = window.mascotHarness
+    harness.advanceBy(0.9)
+    window.service.update({state: 'rest', working: false, follow: false})
+    harness.advanceBy(0.2)
+    const midExit = harness.emitters().length
+    window.service.destroy()
+    const immediate = {emitters: harness.emitters().length, wrappers: harness.leanWrappers().length}
+    harness.advanceBy(0.9)
+    return {midExit, immediate, later: {emitters: harness.emitters().length, wrappers: harness.leanWrappers().length}}
+  })
+
+  expect(result.midExit, 'the destroy really lands inside the exit window').toBe(1)
+  expect(result.immediate.emitters, 'destroy removes every emitter immediately').toBe(0)
+  expect(result.immediate.wrappers, 'destroy removes every lean wrapper immediately').toBe(0)
+  expect(result.later.emitters, 'no emitter resurrects after the exit window').toBe(0)
+  expect(result.later.wrappers, 'no wrapper resurrects after the exit window').toBe(0)
+})

@@ -57,6 +57,7 @@ import {makeToolViewCtx} from './tool-view-ctx.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
+import {trackSessionActivity} from './session-activity.js'
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: pageSessionEntry,
@@ -198,18 +199,17 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     return activeCallTitle(last.parts, catalog, streamTitles())
   }
 
-  createEffect<boolean>((was) => {
-    const now = working()
-    if (now === was) return was
-    appData.invalidateSessions()
-    if (now) announce('conciv is thinking…')
-    if (!now) {
+  trackSessionActivity({
+    working,
+    invalidateSessions: appData.invalidateSessions,
+    onStart: () => announce('conciv is thinking…'),
+    onSettle: () => {
+      appData.invalidateSessions()
       void markers.refetch()
       captures.refresh()
       if (!chat.error()) announce('conciv replied.')
-    }
-    return now
-  }, false)
+    },
+  })
 
   const compacting = messaging.compacting
 
