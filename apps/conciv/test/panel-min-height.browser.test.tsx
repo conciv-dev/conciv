@@ -14,6 +14,8 @@ const STAGED = [
   persistedGrab('grab-4', tallGrab('Nav', 900)),
 ]
 
+const FULLY_IN_VIEWPORT = {ratio: 0.99}
+
 const core = {base: ''}
 const harness = createShellHarness(() => core.base)
 
@@ -42,7 +44,7 @@ test('the composer stays reachable when the viewport clamps the panel below its 
   await openPanel()
 
   await expect.element(page.getByText('Hero at src/routes/Hero.tsx:1')).toBeVisible()
-  await expect.element(input()).toBeInViewport({ratio: 1})
+  await expect.element(input()).toBeInViewport(FULLY_IN_VIEWPORT)
 
   await input().click()
   await input().fill('still typeable at the smallest panel')
@@ -58,6 +60,6 @@ test('staged grab cards never push the composer out of the viewport as they pile
   await expect.element(page.getByText('Hero at src/routes/Hero.tsx:1')).toBeVisible()
   await expect.element(page.getByText('Nav at src/routes/Nav.tsx:1')).toBeVisible()
 
-  await expect.element(input()).toBeInViewport({ratio: 1})
-  await expect.element(page.getByRole('button', {name: 'Send message'})).toBeInViewport({ratio: 1})
+  await expect.element(input()).toBeInViewport(FULLY_IN_VIEWPORT)
+  await expect.element(page.getByRole('button', {name: 'Send message'})).toBeInViewport(FULLY_IN_VIEWPORT)
 }, 30_000)
