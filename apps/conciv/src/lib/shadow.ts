@@ -1,3 +1,4 @@
+import {makeEventListener} from '@solid-primitives/event-listener'
 import styles from '../styles.css?inline'
 import wixMadeforNormal from '@fontsource-variable/wix-madefor-text/files/wix-madefor-text-latin-wght-normal.woff2?inline'
 import wixMadeforItalic from '@fontsource-variable/wix-madefor-text/files/wix-madefor-text-latin-wght-italic.woff2?inline'
@@ -35,7 +36,28 @@ export function registerWind4Properties(doc: Document = document): void {
   doc.head.appendChild(style)
 }
 
-export function createShadowRoot(host: HTMLElement): {host: HTMLElement; root: ShadowRoot} {
+const KEYBOARD_EVENTS = ['keydown', 'keypress', 'keyup'] as const
+
+const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
+
+function isEditableInsideWidget(root: ShadowRoot, target: EventTarget | undefined): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (!root.contains(target)) return false
+  return EDITABLE_TAGS.has(target.tagName) || target.isContentEditable
+}
+
+function keepEditableKeysOffTheHostPage(root: ShadowRoot): () => void {
+  const guard = (event: KeyboardEvent) => {
+    if (!isEditableInsideWidget(root, event.composedPath()[0])) return
+    event.stopPropagation()
+  }
+  const clears = KEYBOARD_EVENTS.map((type) => makeEventListener(document, type, guard))
+  return () => {
+    for (const clear of clears) clear()
+  }
+}
+
+export function createShadowRoot(host: HTMLElement): {host: HTMLElement; root: ShadowRoot; dispose: () => void} {
   registerWind4Properties()
   registerFonts()
   host.style.position = 'fixed'
@@ -46,5 +68,5 @@ export function createShadowRoot(host: HTMLElement): {host: HTMLElement; root: S
   const style = document.createElement('style')
   style.textContent = styles
   root.appendChild(style)
-  return {host, root}
+  return {host, root, dispose: keepEditableKeysOffTheHostPage(root)}
 }

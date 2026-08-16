@@ -255,7 +255,7 @@ export function mountImpl(
   const inner = document.createElement('div')
   inner.setAttribute('data-conciv-root', '')
   el.appendChild(inner)
-  const {host, root} = createShadowRoot(inner)
+  const {host, root, dispose: disposeShadow} = createShadowRoot(inner)
   let disposed = false
   let disposeBoot: (() => void) | undefined
   let rebindBoot: ((apiBase: string) => void) | undefined
@@ -281,6 +281,7 @@ export function mountImpl(
   const teardown = (): void => {
     disposed = true
     window.removeEventListener('conciv:rebind', onRebind)
+    disposeShadow()
     try {
       disposeBoot?.()
     } finally {
