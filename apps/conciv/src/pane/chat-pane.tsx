@@ -125,7 +125,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const sessionId = untrack(() => props.sessionId)
-  const chat = pane.chat
+  const chat = pane.chat()
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'

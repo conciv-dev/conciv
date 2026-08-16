@@ -4,7 +4,7 @@ import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import Unplug from 'lucide-solid/icons/unplug'
-import {For, Show, Suspense, createMemo, createSignal, untrack, type JSX} from 'solid-js'
+import {For, Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {useChatSession} from '@conciv/client'
@@ -43,15 +43,6 @@ export const Route = createFileRoute('/panel/$sessionId')({
 function PanelSession(): JSX.Element {
   const params = Route.useParams()
   const generation = useConnectionGeneration()
-  const keyed = () => ({sessionId: params().sessionId, generation: generation()})
-  return (
-    <Show when={keyed()} keyed>
-      {(value) => <PanelSessionPane sessionId={value.sessionId} />}
-    </Show>
-  )
-}
-
-function PanelSessionPane(props: {sessionId: string}): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
   const announce = useAnnounce()
@@ -64,7 +55,7 @@ function PanelSessionPane(props: {sessionId: string}): JSX.Element {
   const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
 
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
-  const row = () => (sessions.data ?? []).find((session) => session.id === props.sessionId)
+  const row = () => (sessions.data ?? []).find((session) => session.id === params().sessionId)
   const usage = () => row()?.usage ?? null
   const running = () => row()?.running ?? false
 
@@ -88,11 +79,11 @@ function PanelSessionPane(props: {sessionId: string}): JSX.Element {
     const view = views().find((candidate) => candidate.id === next)
     announce(view ? view.label : 'Chat')
     if (next === 'chat')
-      void router.navigate({to: '/panel/$sessionId', params: {sessionId: props.sessionId}, replace: true})
+      void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}, replace: true})
     else
       void router.navigate({
         to: '/panel/$sessionId/$view',
-        params: {sessionId: props.sessionId, view: next},
+        params: {sessionId: params().sessionId, view: next},
         replace: true,
       })
   }
@@ -114,10 +105,11 @@ function PanelSessionPane(props: {sessionId: string}): JSX.Element {
       running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
   })
 
-  const chat = useChatSession({rpc, sessionId: untrack(() => props.sessionId)})
+  const chatKey = createMemo(() => ({sessionId: params().sessionId, generation: generation()}))
+  const chat = createMemo(() => useChatSession({rpc, sessionId: chatKey().sessionId}))
 
   const paneValue: PaneContextValue = {
-    sessionId: () => props.sessionId,
+    sessionId: () => params().sessionId,
     running,
     viewLocked,
     setLockedFor,
@@ -136,7 +128,7 @@ function PanelSessionPane(props: {sessionId: string}): JSX.Element {
         <TooltipIconButton
           tooltip="Pop out to a window"
           class={CLOSE}
-          onClick={() => void router.navigate({to: '/pip/$sessionId', params: {sessionId: props.sessionId}})}
+          onClick={() => void router.navigate({to: '/pip/$sessionId', params: {sessionId: params().sessionId}})}
         >
           <PictureInPicture2 class="size-5 block" aria-hidden="true" />
         </TooltipIconButton>
@@ -144,7 +136,7 @@ function PanelSessionPane(props: {sessionId: string}): JSX.Element {
         <Suspense fallback={<SessionPillPending variant="pill" />}>
           <SessionSelector
             variant="pill"
-            activeId={() => props.sessionId}
+            activeId={() => params().sessionId}
             onActivate={activate}
             onNewSession={() => void newSession()}
           />

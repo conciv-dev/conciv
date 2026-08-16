@@ -10,8 +10,8 @@ export function RefreshButton(props: {class?: string}): JSX.Element {
     <TooltipIconButton
       tooltip="Refresh the conversation"
       class={props.class}
-      disabled={chatBusy(pane.chat)}
-      onClick={() => pane.chat.refresh()}
+      disabled={chatBusy(pane.chat())}
+      onClick={() => pane.chat().refresh()}
     >
       <RefreshCw class="size-[1em] block" aria-hidden="true" />
     </TooltipIconButton>

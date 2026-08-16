@@ -1,4 +1,4 @@
-import {createRoot, createSignal, type JSX} from 'solid-js'
+import {createMemo, createRoot, createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {QueryClientProvider, type QueryClient} from '@tanstack/solid-query'
 import {browserRpcConnection, closeBrowserRpcConnection} from '@conciv/contract'
@@ -58,10 +58,10 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     instances,
   })
   const {rpc, data, queryClient} = app
-  const chatRoot = createRoot((disposeChat) => ({
-    chat: useChatSession({rpc, sessionId: options.sessionId}),
-    dispose: disposeChat,
-  }))
+  const chatRoot = createRoot((disposeChat) => {
+    const chat = createMemo(() => useChatSession({rpc, sessionId: options.sessionId}))
+    return {chat, dispose: disposeChat}
+  })
   const pane: PaneContextValue = {
     sessionId: () => options.sessionId,
     running: () => false,

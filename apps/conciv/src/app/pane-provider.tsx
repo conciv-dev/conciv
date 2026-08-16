@@ -1,4 +1,4 @@
-import {untrack, type JSX} from 'solid-js'
+import {createMemo, type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {useRouter} from '@tanstack/solid-router'
 import {useChatSession} from '@conciv/client'
@@ -26,7 +26,7 @@ export function PaneProvider(props: {
     void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
   }
 
-  const chat = useChatSession({rpc, sessionId: untrack(() => props.sessionId)})
+  const chat = createMemo(() => useChatSession({rpc, sessionId: props.sessionId}))
 
   const value: PaneContextValue = {
     sessionId: () => props.sessionId,

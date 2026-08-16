@@ -19,7 +19,7 @@ export type PaneContextValue = {
   grabProvider: GrabProvider | undefined
   attachments: PendingAttachmentQueue
   newSession: () => void
-  chat: ChatSession
+  chat: Accessor<ChatSession>
 }
 
 export function makePendingAttachmentQueue(): PendingAttachmentQueue {
