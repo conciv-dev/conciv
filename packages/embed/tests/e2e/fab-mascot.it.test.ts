@@ -12,6 +12,15 @@ const glowingEyes = (page: Page) => page.locator('[data-pw-fab] .pw-fab-busy ~ .
 
 const restingEyes = (page: Page) => page.locator('[data-pw-fab] .pw-fab-rig .pw-rig-eyes')
 
+const AWAKE_EYES = /^matrix\(1, 0, 0, 1\.06,/
+
+const TRACKING_EYES = /^matrix\(1, 0, 0, 1, (?!0,)/
+
+const GAZE_TARGET = {x: 12, y: 12}
+
+const emitter = (page: Page) =>
+  page.locator('[data-pw-fab] .pw-fab-rig [data-scope="mascot"][data-part="effect"] > span')
+
 test.afterEach(() => {
   suite.kit().harness.script.release()
 })
@@ -39,4 +48,32 @@ test('a streaming run puts the busy overlay ahead of the stage so the eye-glow s
   await expect(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
 
   await expect(glowingEyes(page)).toBeAttached({timeout: IMMEDIATE_MS})
+})
+
+test('a closed launcher with nothing running rests and tracks the pointer', async ({page}) => {
+  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+  await expect(stage(page)).toBeVisible()
+
+  await expect(restingEyes(page)).not.toHaveCSS('transform', AWAKE_EYES)
+  await expect(emitter(page)).toHaveCount(0)
+  await page.mouse.move(GAZE_TARGET.x, GAZE_TARGET.y)
+  await expect(restingEyes(page)).toHaveCSS('transform', TRACKING_EYES)
+})
+
+test('opening the panel with nothing running wakes the robot and drops the gaze', async ({page}) => {
+  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+  await openChatPanel(page)
+
+  await expect(restingEyes(page)).toHaveCSS('transform', AWAKE_EYES)
+  await expect(emitter(page)).toHaveCount(0)
+})
+
+test('opening the panel during a run keeps the working pose instead of waking the robot', async ({page}) => {
+  suite.kit().harness.script.hold()
+  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+  await openChatPanel(page)
+  await sendChatMessage(page, 'hold this turn open')
+  await expect(page.getByRole('button', {name: 'Stop generating'})).toBeVisible()
+
+  await expect(emitter(page)).toHaveCount(1)
 })

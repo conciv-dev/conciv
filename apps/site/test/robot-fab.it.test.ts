@@ -9,7 +9,7 @@ const LANDING = `${ORIGIN}/?widget=false`
 
 const AWAKE_EYE_SCALE = /^matrix\(1, 0, 0, 1\.06,/
 
-const PRERENDERED_STAGE = /class="size-11"[^>]*data-part="root"/
+const PRERENDERED_ROOT_TAG = /<span[^>]*data-part="root"[^>]*>/
 
 const test = createSiteTest({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
 
@@ -44,7 +44,8 @@ test.describe('the landing robot fab rides the mascot compound api', () => {
     const response = await page.request.get(LANDING)
 
     expect(response.ok()).toBe(true)
-    expect(await response.text()).toMatch(PRERENDERED_STAGE)
+    const rootTag = PRERENDERED_ROOT_TAG.exec(await response.text())?.[0] ?? ''
+    expect(rootTag).toContain('class="size-11"')
 
     await page.close()
   }, 60_000)
