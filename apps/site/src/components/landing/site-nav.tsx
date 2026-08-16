@@ -1,7 +1,7 @@
 import {Link} from '@tanstack/react-router'
 import {SiteHeader} from '@/components/ui/site-header'
 import {ThemeSwitch} from '@/components/ui/theme-switch'
-import {SparkMark} from './spark-mark'
+import {BrandMark} from '@/components/brand-mark'
 import {GitHubStarsButton} from './github-stars-button'
 
 const NAV_LINK_CLASS =
@@ -14,8 +14,8 @@ export function SiteNav() {
         <SiteHeader
           className="px-4"
           brand={
-            <Link to="/" className="od-display inline-flex items-center gap-2 text-[17px] font-semibold">
-              <SparkMark className="text-primary" /> conciv
+            <Link to="/" aria-label="conciv home">
+              <BrandMark />
             </Link>
           }
           links={[

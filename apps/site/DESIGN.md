@@ -102,6 +102,13 @@ this document. `display` is italic at `h1` and upright at `h2`/`h3`. `mono` is f
 eyebrows, ledger values, and step numerals — never for body prose. Headings use `text-wrap: balance`,
 paragraphs `text-wrap: pretty`. Numbers are `tabular-nums`.
 
+## Brand
+
+- Wordmark: `BrandMark` (`src/components/brand-mark.tsx`) = red four-point spark (`SparkMark`, lucide `Sparkle`, `fill-current`, `text-primary`) + "conciv" in the UI sans (Geist Variable) 16px / 700 / tracking -0.02em, `leading-none`, one baseline.
+- Mark size 0.75em (12px at 16px), nudged `translate-y-[0.09em]` so its centre sits on the x-height centre of "conciv" (measured 28.44 vs 28.39 at 1440; keep within +/-0.5px when the font changes).
+- Used in the landing nav, footer, docs layout header (`lib/layout.shared.tsx`) and not-found (via `HomeLayout`); the OG image renders the wordmark text only (satori, no mark).
+- Hover: the whole link is the trigger (`group`); the mark rotates 4deg and scales 1.04 over 200ms `--od-ease-out`; none under reduced motion. Never a spin, wobble or colour change.
+
 ## Layout
 
 One ruled grid governs the nav, every section, and the footer: a 1120px column (`.od-col`) centred

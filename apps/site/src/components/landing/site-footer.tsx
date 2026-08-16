@@ -1,5 +1,5 @@
 import {Link} from '@tanstack/react-router'
-import {SparkMark} from './spark-mark'
+import {BrandMark} from '@/components/brand-mark'
 import {repoUrl} from '@/lib/shared'
 
 type FooterLink = {label: string; href?: string; splat?: string}
@@ -55,8 +55,8 @@ export function SiteFooter() {
         <div className="od-col">
           <div className="od-inset grid grid-cols-1 gap-12 py-16 lg:grid-cols-12">
             <div className="lg:col-span-5">
-              <Link to="/" className="od-display inline-flex items-center gap-2 text-[17px] font-semibold">
-                <SparkMark className="text-primary" /> conciv
+              <Link to="/" aria-label="conciv home">
+                <BrandMark />
               </Link>
               <p className="od-caption mt-4 max-w-[36ch] text-muted-foreground">
                 An AI dev agent that lives inside your running app. Dev-only, open source, harness-agnostic.
