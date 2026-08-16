@@ -20,14 +20,14 @@ export function MascotRoot(props: MascotProps): JSX.Element {
     'ref',
     'children',
   ])
-  let element: HTMLDivElement | undefined
+  let element: HTMLSpanElement | undefined
   onMount(() => {
     if (element !== undefined) installStageSize(element)
   })
   return (
     <MascotProvider value={host.context}>
       <Dynamic
-        component="div"
+        component="span"
         aria-hidden="true"
         {...rest}
         data-scope="mascot"

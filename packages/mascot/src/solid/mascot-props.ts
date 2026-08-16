@@ -3,7 +3,7 @@ import type {MascotActivity, MascotFollow, MascotState} from '../core/config.js'
 import type {CurveStyle} from '../core/path.js'
 import type {MascotSkin} from '../core/skin.js'
 
-export type MascotLayerProps = JSX.HTMLAttributes<HTMLDivElement>
+export type MascotLayerProps = JSX.HTMLAttributes<HTMLSpanElement>
 
 export type MascotFollowPartProps = MascotLayerProps & {follow?: boolean}
 
@@ -20,7 +20,7 @@ export type MascotBinaryProps = MascotLayerProps & {curve?: CurveStyle}
 
 type ConsumerStyle = JSX.CSSProperties | string | undefined
 
-type ForwardedRef = HTMLDivElement | ((element: HTMLDivElement) => void) | undefined
+type ForwardedRef = HTMLSpanElement | ((element: HTMLSpanElement) => void) | undefined
 
 type Declaration = {property: string; value: string}
 
@@ -39,9 +39,9 @@ const LAYER_GEOMETRY_PROPERTIES = [
 const LAYER_GEOMETRY_PREFIXES = ['inset', 'background-position']
 
 export function composeRefs(
-  capture: (element: HTMLDivElement) => void,
+  capture: (element: HTMLSpanElement) => void,
   forwarded: ForwardedRef,
-): (element: HTMLDivElement) => void {
+): (element: HTMLSpanElement) => void {
   return (element) => {
     capture(element)
     if (typeof forwarded === 'function') forwarded(element)

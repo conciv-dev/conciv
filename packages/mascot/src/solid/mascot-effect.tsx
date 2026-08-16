@@ -11,7 +11,7 @@ export function MascotEffect(props: MascotEffectProps): JSX.Element {
   const id = createUniqueId()
   const host = context.effectHostProps(id)
   const [local, rest] = splitProps(props, ['mount', 'style', 'ref'])
-  let element: HTMLDivElement | undefined
+  let element: HTMLSpanElement | undefined
   onMount(() => {
     if (element !== undefined) host.ref(element)
   })
@@ -22,7 +22,7 @@ export function MascotEffect(props: MascotEffectProps): JSX.Element {
   })
   return (
     <Dynamic
-      component="div"
+      component="span"
       aria-hidden="true"
       {...rest}
       data-scope="mascot"

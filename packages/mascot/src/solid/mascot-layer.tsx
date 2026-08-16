@@ -9,7 +9,7 @@ export function MascotLayer(props: MascotLayerHostProps): JSX.Element {
   const context = useMascotContext()
   const [local, rest] = splitProps(props, ['layer', 'style', 'ref'])
   const layer = () => context.partProps(local.layer)
-  let element: HTMLDivElement | undefined
+  let element: HTMLSpanElement | undefined
   onMount(() => {
     if (element !== undefined) layer().ref(element)
   })
@@ -18,7 +18,7 @@ export function MascotLayer(props: MascotLayerHostProps): JSX.Element {
   })
   return (
     <Dynamic
-      component="div"
+      component="span"
       aria-hidden="true"
       {...rest}
       data-scope="mascot"
