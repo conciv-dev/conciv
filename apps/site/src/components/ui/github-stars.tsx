@@ -1,82 +1,59 @@
 import {Star} from 'lucide-react'
-import {useReducedMotion, useSpring} from 'motion/react'
-import {useEffect, useState} from 'react'
+import {m, useReducedMotion, useSpring, useTransform} from 'motion/react'
+import {useEffect} from 'react'
 import {CountSkeleton} from '@/components/ui/count-skeleton'
 import {cn} from '@/lib/utils'
 
-const COUNT_SPRING = {damping: 30, stiffness: 100}
-const BUMP_DELAY_MS = 100
+const HOVER_SPRING = {stiffness: 260, damping: 26, mass: 1}
+const TILT_DEGREES = -8
+const GROW = 0.06
 
-function useAnimatedCount(starCount: number | null, hovered: boolean, shouldReduceMotion: boolean | null): number {
-  const countSpring = useSpring(0, COUNT_SPRING)
-  const [displayCount, setDisplayCount] = useState(0)
-
-  useEffect(() => countSpring.on('change', (value) => setDisplayCount(Math.round(value))), [countSpring])
-
+function useHoverProgress(hovered: boolean, shouldReduceMotion: boolean | null) {
+  const progress = useSpring(0, HOVER_SPRING)
   useEffect(() => {
-    if (starCount === null) return
+    const target = hovered ? 1 : 0
     if (shouldReduceMotion) {
-      setDisplayCount(starCount)
-      countSpring.jump(starCount)
+      progress.jump(target)
       return
     }
-    countSpring.set(starCount)
-  }, [countSpring, shouldReduceMotion, starCount])
-
-  useEffect(() => {
-    if (starCount === null || shouldReduceMotion) return
-    if (!hovered) {
-      countSpring.jump(starCount)
-      return
-    }
-    const timer = setTimeout(() => countSpring.set(starCount + 1), BUMP_DELAY_MS)
-    return () => clearTimeout(timer)
-  }, [countSpring, hovered, shouldReduceMotion, starCount])
-
-  return displayCount
+    progress.set(target)
+  }, [hovered, progress, shouldReduceMotion])
+  return progress
 }
 
-const STAR_MOTION =
-  'transition-transform duration-150 ease-[var(--od-ease-out)] group-hover:-rotate-12 group-hover:scale-110 group-hover:duration-[280ms] group-focus-visible:-rotate-12 group-focus-visible:scale-110 group-focus-visible:duration-[280ms] motion-reduce:transition-none motion-reduce:group-hover:rotate-0 motion-reduce:group-hover:scale-100 motion-reduce:group-focus-visible:rotate-0 motion-reduce:group-focus-visible:scale-100'
-
-const FILL_MOTION =
-  'absolute inset-0 inline-flex text-[var(--od-star)] [clip-path:inset(100%_0_0_0)] transition-[clip-path] duration-150 ease-[var(--od-ease-out)] group-hover:[clip-path:inset(0_0_0_0)] group-hover:duration-[280ms] group-focus-visible:[clip-path:inset(0_0_0_0)] group-focus-visible:duration-[280ms] motion-reduce:transition-none'
-
-function StarIcon() {
+function StarIcon({hovered}: {hovered: boolean}) {
+  const shouldReduceMotion = useReducedMotion()
+  const progress = useHoverProgress(hovered, shouldReduceMotion)
+  const transform = useTransform(progress, (value) =>
+    shouldReduceMotion ? 'none' : `rotate(${TILT_DEGREES * value}deg) scale(${1 + GROW * value})`,
+  )
+  const clipPath = useTransform(progress, (value) => `inset(${(1 - value) * 100}% 0 0 0)`)
   return (
-    <span aria-hidden className={cn('relative inline-flex', STAR_MOTION)}>
+    <m.span aria-hidden className="relative inline-flex" style={{transform}}>
       <Star className="size-4" />
-      <span className={FILL_MOTION}>
+      <m.span className="absolute inset-0 inline-flex text-[var(--od-star)]" style={{clipPath}}>
         <Star className="size-4 fill-current" />
-      </span>
-    </span>
+      </m.span>
+    </m.span>
   )
 }
-
-const PLUS_ONE_MOTION =
-  'pointer-events-none absolute -top-3 right-0 text-[var(--od-star)] opacity-0 translate-y-1 transition-[opacity,transform] duration-150 ease-[var(--od-ease-out)] group-hover:-translate-y-2 group-hover:opacity-100 group-hover:delay-100 group-hover:duration-500 group-focus-visible:-translate-y-2 group-focus-visible:opacity-100 group-focus-visible:delay-100 group-focus-visible:duration-500 motion-reduce:hidden'
 
 function StarCount({
   starCount,
   pending,
-  displayCount,
   formatCount,
   className,
 }: {
   starCount: number | null
   pending: boolean
-  displayCount: number
   formatCount: (count: number) => string
   className?: string
 }) {
   return (
     <span className={cn('relative inline-flex min-w-[2.5ch] justify-end tabular-nums', className)}>
       {pending && <CountSkeleton />}
-      {starCount !== null && <span aria-hidden>{formatCount(displayCount)}</span>}
+      {starCount !== null && <span aria-hidden>{formatCount(starCount)}</span>}
       {starCount !== null && <span className="sr-only">{starCount} stars on GitHub</span>}
-      <span aria-hidden className={PLUS_ONE_MOTION}>
-        +1
-      </span>
     </span>
   )
 }
@@ -96,19 +73,10 @@ export function GitHubStars({
   className?: string
   countClassName?: string
 }) {
-  const shouldReduceMotion = useReducedMotion()
-  const displayCount = useAnimatedCount(starCount, hovered, shouldReduceMotion)
-
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
-      <StarIcon />
-      <StarCount
-        starCount={starCount}
-        pending={pending}
-        displayCount={displayCount}
-        formatCount={formatCount}
-        className={countClassName}
-      />
+      <StarIcon hovered={hovered} />
+      <StarCount starCount={starCount} pending={pending} formatCount={formatCount} className={countClassName} />
     </span>
   )
 }
