@@ -5,16 +5,51 @@ import {createFullScreenTriangle, createShaderProgram, readAlphaToken, readColor
 
 const MAX_PIXEL_RATIO = 2
 
-function sizeLayer(canvas: HTMLCanvasElement, stop: HTMLElement | null): {width: number; height: number} | null {
+type BandSize = {width: number; height: number}
+
+function sizeLayer(canvas: HTMLCanvasElement, stop: HTMLElement | null): BandSize | null {
   const parent = canvas.parentElement
   if (!stop || !parent) return null
-  const regionHeight = Math.max(stop.getBoundingClientRect().top - canvas.getBoundingClientRect().top, 0)
-  canvas.style.height = `${regionHeight}px`
+  const bandHeight = Math.max(stop.getBoundingClientRect().top - canvas.getBoundingClientRect().top, 0)
+  canvas.style.height = `${bandHeight}px`
   const ratio = Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO)
   const width = Math.round(parent.clientWidth * ratio)
-  const height = Math.round(regionHeight * ratio)
+  const height = Math.round(bandHeight * ratio)
   if (width * height === 0) return null
   return {width, height}
+}
+
+function drawBand(gl: WebGLRenderingContext, canvas: HTMLCanvasElement, size: BandSize): void {
+  canvas.width = size.width
+  canvas.height = size.height
+  gl.viewport(0, 0, size.width, size.height)
+  gl.clear(gl.COLOR_BUFFER_BIT)
+  gl.drawArrays(gl.TRIANGLES, 0, 3)
+}
+
+function makeBandRenderer(
+  gl: WebGLRenderingContext,
+  canvas: HTMLCanvasElement,
+  stopAt: RefObject<HTMLElement | null>,
+): () => void {
+  let drawn = ''
+
+  return () => {
+    const size = sizeLayer(canvas, stopAt.current)
+    if (!size) return
+    const wanted = `${size.width}x${size.height}`
+    if (wanted === drawn) return
+    drawn = wanted
+    drawBand(gl, canvas, size)
+  }
+}
+
+function observeBand(canvas: HTMLCanvasElement, stop: HTMLElement | null, onResize: () => void): ResizeObserver {
+  const observer = new ResizeObserver(onResize)
+  for (const element of [canvas.parentElement, stop, stop?.parentElement]) {
+    if (element) observer.observe(element)
+  }
+  return observer
 }
 
 function startPaperGrain(canvas: HTMLCanvasElement, stopAt: RefObject<HTMLElement | null>): () => void {
@@ -35,24 +70,8 @@ function startPaperGrain(canvas: HTMLCanvasElement, stopAt: RefObject<HTMLElemen
   gl.uniform1f(gl.getUniformLocation(program, 'u_alpha'), readAlphaToken(canvas, '--od-paper-grain-alpha'))
   gl.clearColor(0, 0, 0, 0)
 
-  let drawnWidth = 0
-  let drawnHeight = 0
-
-  const render = () => {
-    const size = sizeLayer(canvas, stopAt.current)
-    if (!size) return
-    if (size.width === drawnWidth && size.height === drawnHeight) return
-    drawnWidth = size.width
-    drawnHeight = size.height
-    canvas.width = size.width
-    canvas.height = size.height
-    gl.viewport(0, 0, size.width, size.height)
-    gl.clear(gl.COLOR_BUFFER_BIT)
-    gl.drawArrays(gl.TRIANGLES, 0, 3)
-  }
-
-  const sizeObserver = new ResizeObserver(render)
-  if (canvas.parentElement) sizeObserver.observe(canvas.parentElement)
+  const render = makeBandRenderer(gl, canvas, stopAt)
+  const sizeObserver = observeBand(canvas, stopAt.current, render)
   render()
 
   return () => {

@@ -306,7 +306,8 @@ html > body[data-scroll-locked] {
   position: absolute;
   inset-inline: 0;
   top: 0;
-  z-index: -10;
+  z-index: 20;
+  pointer-events: none;
   color: var(--od-ink);
 }
 @media (max-width: 767px) {

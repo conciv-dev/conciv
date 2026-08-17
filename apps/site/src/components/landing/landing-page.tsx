@@ -19,10 +19,9 @@ export function LandingPage() {
       <SiteNav />
       <main>
         <HeroCopy />
-        <div ref={grainStop} aria-hidden />
         <ProductFrame />
         <PrinciplesStrip />
-        <LandingSpacer />
+        <LandingSpacer ref={grainStop} />
         <CapabilitySection />
         <LandingSpacer />
         <HowItWorks />
