@@ -7,8 +7,18 @@ import Unplug from 'lucide-solid/icons/unplug'
 import {For, Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {isSessionId} from '@conciv/protocol/chat-types'
-import {useAnnounce, useAppData, useDisconnect, useGrabProvider, useInstances, useRpc} from '../app/context.js'
+import {useChatSession} from '@conciv/client'
+import {
+  useAnnounce,
+  useAppData,
+  useConnectionGeneration,
+  useDisconnect,
+  useGrabProvider,
+  useInstances,
+  useRpc,
+} from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
+import {RefreshButton} from '../shell/refresh-button.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
@@ -32,6 +42,7 @@ export const Route = createFileRoute('/panel/$sessionId')({
 
 function PanelSession(): JSX.Element {
   const params = Route.useParams()
+  const generation = useConnectionGeneration()
   const appData = useAppData()
   const rpc = useRpc()
   const announce = useAnnounce()
@@ -94,6 +105,9 @@ function PanelSession(): JSX.Element {
       running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
   })
 
+  const chatKey = createMemo(() => ({sessionId: params().sessionId, generation: generation()}))
+  const chat = createMemo(() => useChatSession({rpc, sessionId: chatKey().sessionId}))
+
   const paneValue: PaneContextValue = {
     sessionId: () => params().sessionId,
     running,
@@ -105,6 +119,7 @@ function PanelSession(): JSX.Element {
     grabProvider,
     attachments: makePendingAttachmentQueue(),
     newSession: () => void newSession(),
+    chat,
   }
 
   return (
@@ -129,20 +144,16 @@ function PanelSession(): JSX.Element {
         <Suspense fallback={<UsagePending />}>
           <ContextTracker usage={usage()} />
         </Suspense>
+        <span class="flex-1" />
+        <Show when={activeView() === 'chat'}>
+          <RefreshButton class={CLOSE} />
+        </Show>
         <Show when={connectMode && disconnect}>
-          <TooltipIconButton
-            tooltip="Disconnect this machine"
-            class={`${CLOSE} ml-auto`}
-            onClick={() => disconnect?.()}
-          >
+          <TooltipIconButton tooltip="Disconnect this machine" class={CLOSE} onClick={() => disconnect?.()}>
             <Unplug class="size-[1em] block" aria-hidden="true" />
           </TooltipIconButton>
         </Show>
-        <TooltipIconButton
-          tooltip="Close chat"
-          class={`${CLOSE}${connectMode && disconnect ? '' : ' ml-auto'}`}
-          onClick={() => panelChrome.close()}
-        >
+        <TooltipIconButton tooltip="Close chat" class={CLOSE} onClick={() => panelChrome.close()}>
           <ChevronDown class="size-[1em] block" aria-hidden="true" />
         </TooltipIconButton>
       </header>

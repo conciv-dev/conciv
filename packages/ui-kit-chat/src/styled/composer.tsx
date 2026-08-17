@@ -4,7 +4,7 @@ import ArrowUp from 'lucide-solid/icons/arrow-up'
 import Clock from 'lucide-solid/icons/clock'
 import Paperclip from 'lucide-solid/icons/paperclip'
 import Square from 'lucide-solid/icons/square'
-import {Swap} from '@conciv/ui-kit-system'
+import {Swap, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {Composer as ComposerPrimitive} from '../primitives/composer/composer.js'
 import {useComposerContext} from '../primitives/composer/composer-context.js'
 import {useComposerHandlers} from '../primitives/composer/composer-handlers.js'
@@ -32,6 +32,9 @@ const SEND = `${BTN} [background:var(--chat-accent)] text-[color:var(--chat-on-a
 const CANCEL = `${BTN} [background:var(--chat-text-3)] [color:var(--chat-on-accent)] [&:hover]:[background:var(--chat-text-2)]`
 const INPUT =
   'block max-h-30 px-2 pb-1 pt-2 [color:var(--chat-text)] text-[length:var(--chat-text-md)] leading-[1.45] placeholder:[color:var(--chat-text-3)]'
+const ATTACHMENT_LABEL = 'Add an attachment'
+const SEND_LABEL = 'Send message'
+const STOP_LABEL = 'Stop generating'
 const QUEUE_ACTION = `${FOCUS} shrink-0 px-2 py-1 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-md)] leading-[1.45] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease),transform_100ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] [&:active]:scale-[0.96]`
 
 function TrailingControls(): JSX.Element {
@@ -42,26 +45,30 @@ function TrailingControls(): JSX.Element {
   const cancel = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
   const sendDisabled = () => context.sendingAttachments() || (!composer.canSend() && context.attachments().length === 0)
   return (
-    <button
-      type={stopping() ? 'button' : 'submit'}
-      class={stopping() ? CANCEL : SEND}
-      aria-label={stopping() ? 'Stop generating' : 'Send message'}
-      disabled={!stopping() && sendDisabled()}
-      onClick={(event) => {
-        if (!stopping()) return
-        event.preventDefault()
-        cancel()
-      }}
-    >
-      <Swap.Root swap={stopping()}>
-        <Swap.Indicator type="on">
-          <Square size={14} fill="currentColor" aria-hidden="true" />
-        </Swap.Indicator>
-        <Swap.Indicator type="off">
-          <ArrowUp size={18} aria-hidden="true" />
-        </Swap.Indicator>
-      </Swap.Root>
-    </button>
+    <TooltipIconButtonSlot tooltip={stopping() ? STOP_LABEL : SEND_LABEL} wrapperClass="shrink-0">
+      {(buttonProps) => (
+        <button
+          {...buttonProps()}
+          type={stopping() ? 'button' : 'submit'}
+          class={stopping() ? CANCEL : SEND}
+          disabled={!stopping() && sendDisabled()}
+          onClick={(event) => {
+            if (!stopping()) return
+            event.preventDefault()
+            cancel()
+          }}
+        >
+          <Swap.Root swap={stopping()}>
+            <Swap.Indicator type="on">
+              <Square size={14} fill="currentColor" aria-hidden="true" />
+            </Swap.Indicator>
+            <Swap.Indicator type="off">
+              <ArrowUp size={18} aria-hidden="true" />
+            </Swap.Indicator>
+          </Swap.Root>
+        </button>
+      )}
+    </TooltipIconButtonSlot>
   )
 }
 
@@ -102,11 +109,16 @@ export function Composer(props: ComposerProps): JSX.Element {
         />
         <div class="pt-0.5 flex gap-1 items-center">
           <Show when={props.attachmentAdapter}>
-            <ComposerPrimitive.AddAttachment
-              class={`${BTN} text-[color:var(--chat-text-2)] bg-transparent hover:bg-[var(--chat-fill-strong)]`}
-            >
-              <Paperclip size={16} aria-hidden="true" />
-            </ComposerPrimitive.AddAttachment>
+            <TooltipIconButtonSlot tooltip={ATTACHMENT_LABEL} wrapperClass="shrink-0">
+              {(buttonProps) => (
+                <ComposerPrimitive.AddAttachment
+                  {...buttonProps()}
+                  class={`${BTN} text-[color:var(--chat-text-2)] bg-transparent hover:bg-[var(--chat-fill-strong)]`}
+                >
+                  <Paperclip size={16} aria-hidden="true" />
+                </ComposerPrimitive.AddAttachment>
+              )}
+            </TooltipIconButtonSlot>
           </Show>
           <Slot>{props.children}</Slot>
           <div class="ml-auto flex gap-1 items-center">

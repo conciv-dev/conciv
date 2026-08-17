@@ -1,6 +1,6 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, waitFor, within} from 'storybook/test'
+import {expect, userEvent, waitFor, within} from 'storybook/test'
 import {NowLine} from './now-line.js'
 
 const meta: Meta = {title: 'ui-kit-chat/styled/NowLine'}
@@ -17,6 +17,9 @@ export const Running: Story = {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByText('Running pnpm test')).toBeVisible())
     await waitFor(() => expect(c.getByRole('button', {name: 'Stop'})).toBeVisible())
+
+    await userEvent.hover(c.getByRole('button', {name: 'Stop'}))
+    await waitFor(() => expect(c.getByRole('tooltip')).toHaveTextContent('Stop'))
   },
 }
 

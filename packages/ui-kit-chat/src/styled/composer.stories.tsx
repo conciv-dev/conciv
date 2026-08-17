@@ -38,6 +38,9 @@ export const Idle: Story = {
     const c = within(canvasElement)
     await expect(c.getByRole('button', {name: 'Send message'})).toBeVisible()
     await expect(c.queryByRole('button', {name: 'Stop generating'})).toBeNull()
+
+    await userEvent.hover(c.getByRole('button', {name: 'Send message'}))
+    await waitFor(() => expect(c.getByRole('tooltip')).toHaveTextContent('Send message'))
   },
 }
 
@@ -46,6 +49,8 @@ export const StreamingAlwaysShowsStopAndQueuesOnEnter: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByRole('button', {name: 'Stop generating'})).toBeVisible())
+    await userEvent.hover(c.getByRole('button', {name: 'Stop generating'}))
+    await waitFor(() => expect(c.getByRole('tooltip')).toHaveTextContent('Stop generating'))
     await userEvent.type(c.getByLabelText('Message'), 'queued follow-up')
     await expect(c.getByRole('button', {name: 'Stop generating'})).toBeVisible()
     await expect(c.queryByRole('button', {name: 'Send message'})).toBeNull()

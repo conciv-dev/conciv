@@ -1,7 +1,7 @@
 import {onCleanup, Show, type JSX} from 'solid-js'
 import FileText from 'lucide-solid/icons/file-text'
 import X from 'lucide-solid/icons/x'
-import {Tooltip} from '@conciv/ui-kit-system'
+import {Tooltip, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {isCompleteAttachment, type AttachmentContentPart} from '../primitives/attachment/attachment-adapter.js'
 import {FOCUS, FOCUS_INSET} from './classes.js'
@@ -9,7 +9,8 @@ import {FOCUS, FOCUS_INSET} from './classes.js'
 const TILE =
   'relative size-14 overflow-hidden rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] cursor-default anim-presence-in'
 
-const REMOVE = `absolute end-0.5 top-0.5 inline-flex items-center justify-center size-6 rounded-[var(--chat-radius-pill)] [background:var(--chat-panel)] [color:var(--chat-text-2)] shadow-[var(--chat-shadow-lg)] cursor-pointer hover:[color:var(--chat-danger)] ${FOCUS}`
+const REMOVE_WRAPPER = 'absolute end-0.5 top-0.5'
+const REMOVE = `inline-flex items-center justify-center size-6 rounded-[var(--chat-radius-pill)] [background:var(--chat-panel)] [color:var(--chat-text-2)] shadow-[var(--chat-shadow-lg)] cursor-pointer hover:[color:var(--chat-danger)] ${FOCUS}`
 
 type AttachmentState = ReturnType<typeof useAttachment>
 type ImagePart = Extract<AttachmentContentPart, {type: 'image'}>
@@ -69,9 +70,13 @@ export function AttachmentUI(props: {removable?: boolean}): JSX.Element {
           </Show>
         </Tooltip.Trigger>
         <Show when={props.removable}>
-          <Attachment.Remove class={REMOVE} aria-label={`Remove ${draft.name}`}>
-            <X size={12} />
-          </Attachment.Remove>
+          <TooltipIconButtonSlot tooltip={`Remove ${draft.name}`} wrapperClass={REMOVE_WRAPPER}>
+            {(buttonProps) => (
+              <Attachment.Remove {...buttonProps()} class={REMOVE}>
+                <X size={12} />
+              </Attachment.Remove>
+            )}
+          </TooltipIconButtonSlot>
         </Show>
       </Attachment.Root>
       <Tooltip.Positioner>

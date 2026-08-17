@@ -4,7 +4,6 @@ import type {MultimodalContent} from '@tanstack/ai-client'
 export type ComposerHandlers = {
   onSend?: (content: string | MultimodalContent) => void | Promise<unknown>
   onSendError?: (error: unknown) => void
-  onRefresh?: () => void
   onCancel?: () => void
   onSteer?: () => void | Promise<unknown>
   onSteerError?: (error: unknown) => void

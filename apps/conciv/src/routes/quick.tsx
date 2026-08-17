@@ -7,10 +7,11 @@ import ChevronUp from 'lucide-solid/icons/chevron-up'
 import Columns2 from 'lucide-solid/icons/columns-2'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import X from 'lucide-solid/icons/x'
-import {useAppData, useRpc, useSuppressed} from '../app/context.js'
+import {useAppData, useConnectionGeneration, useRpc, useSuppressed} from '../app/context.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
+import {RefreshButton} from '../shell/refresh-button.js'
 import {ContextTracker} from '../pane/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {SessionPillPending, UsagePending} from '../shell/pending.js'
@@ -21,7 +22,7 @@ import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../lib/quick-sear
 const CLOSE =
   'bg-transparent [border:none] text-pw-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-[0.5625rem] trans-color-bg hover:text-pw-text hover:bg-pw-fill-strong'
 
-const CLOSE_PANE = 'text-pw-text-3 leading-none ml-auto size-6'
+const PANE_ACTION = 'text-pw-text-3 leading-none size-6'
 
 const ADD_PANE_FAILED_MESSAGE = 'conciv could not start a pane. Check the engine connection and retry.'
 
@@ -96,6 +97,7 @@ function QuickLayer(): JSX.Element {
   const rpc = useRpc()
   const suppressed = useSuppressed()
   const router = useRouter()
+  const generation = useConnectionGeneration()
   const search = Route.useSearch()
   const paneIds = () => quickPaneIds(search())
   const focusedIndex = () => Math.min(search().focus, Math.max(0, paneIds().length - 1))
@@ -227,45 +229,45 @@ function QuickLayer(): JSX.Element {
                       onPointerDown={onGutterDown}
                     />
                   </Show>
-                  <div
-                    data-pw-qt-pane
-                    class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-pw relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-pw-accent before:opacity-90" : 'opacity-[0.62]'}`}
-                    onPointerDown={() => focusPane(index())}
-                    onFocusIn={() => {
-                      if (focusedIndex() !== index()) focusPane(index())
-                    }}
-                  >
-                    <div class="text-xs text-pw-text-3 leading-none font-pw-mono px-3 py-2 border-b border-b-pw-line-soft flex shrink-0 gap-2 items-center">
-                      <Suspense fallback={<SessionPillPending variant="bar" />}>
-                        <SessionSelector
-                          variant="bar"
-                          activeId={() => id}
-                          onActivate={(next) => activatePane(index(), next)}
-                          onNewSession={triggerAddPane}
-                        />
-                      </Suspense>
-                      <Suspense fallback={<UsagePending />}>
-                        <ContextTracker usage={usageOf(id)} />
-                      </Suspense>
-                      <TooltipIconButton
-                        tooltip="Close pane"
-                        class={CLOSE_PANE}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          closePane(index())
-                        }}
-                      >
-                        <X size={14} aria-hidden="true" />
-                      </TooltipIconButton>
+                  <PaneProvider sessionId={id} onNewSession={triggerAddPane}>
+                    <div
+                      data-pw-qt-pane
+                      class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-pw relative ${focusedIndex() === index() ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-pw-accent before:opacity-90" : 'opacity-[0.62]'}`}
+                      onPointerDown={() => focusPane(index())}
+                      onFocusIn={() => {
+                        if (focusedIndex() !== index()) focusPane(index())
+                      }}
+                    >
+                      <div class="text-xs text-pw-text-3 leading-none font-pw-mono px-3 py-2 border-b border-b-pw-line-soft flex shrink-0 gap-2 items-center">
+                        <Suspense fallback={<SessionPillPending variant="bar" />}>
+                          <SessionSelector
+                            variant="bar"
+                            activeId={() => id}
+                            onActivate={(next) => activatePane(index(), next)}
+                            onNewSession={triggerAddPane}
+                          />
+                        </Suspense>
+                        <Suspense fallback={<UsagePending />}>
+                          <ContextTracker usage={usageOf(id)} />
+                        </Suspense>
+                        <span class="flex-1" />
+                        <RefreshButton class={PANE_ACTION} />
+                        <TooltipIconButton
+                          tooltip="Close pane"
+                          class={PANE_ACTION}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            closePane(index())
+                          }}
+                        >
+                          <X size={14} aria-hidden="true" />
+                        </TooltipIconButton>
+                      </div>
+                      <Show when={{sessionId: id, generation: generation()}} keyed>
+                        {(paneKey) => <ChatPane sessionId={paneKey.sessionId} />}
+                      </Show>
                     </div>
-                    <Show when={id} keyed>
-                      {(sessionId) => (
-                        <PaneProvider sessionId={sessionId} onNewSession={triggerAddPane}>
-                          <ChatPane sessionId={sessionId} />
-                        </PaneProvider>
-                      )}
-                    </Show>
-                  </div>
+                  </PaneProvider>
                 </>
               )}
             </For>

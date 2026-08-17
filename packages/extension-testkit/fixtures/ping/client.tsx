@@ -1,5 +1,6 @@
 import {createSignal, onMount, Show, type JSX} from 'solid-js'
 import {defineExtension, getExtensionApi, makeExtRpcClient} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
 import type {PingRouter} from './router.js'
 
 const PING_NAME = 'ping'
@@ -11,6 +12,7 @@ function Component(): JSX.Element {
   const [pinged, setPinged] = createSignal(false)
   const [picked, setPicked] = createSignal<string | null>(null)
   const [pong, setPong] = createSignal<string | null>(null)
+  const [composerAction, setComposerAction] = createSignal<string | null>(null)
   const rpc = (): ReturnType<typeof makeExtRpcClient<PingRouter>> => makeExtRpcClient<PingRouter>(apiBase(), PING_NAME)
   const callPing = async (value: string): Promise<void> => {
     const result = await rpc().ping({value})
@@ -32,6 +34,16 @@ function Component(): JSX.Element {
       <button type="button" aria-label="Roundtrip over rpc" onClick={() => void callPing('again')}>
         Roundtrip over rpc
       </button>
+      <ComposerActions.Action priority={10}>
+        <ComposerActions.ActionButton tooltip="Echo from the composer" onClick={() => setComposerAction('button')}>
+          <span aria-hidden="true" class="size-5 block" />
+        </ComposerActions.ActionButton>
+        <ComposerActions.ActionMenuItem label="Insert an echo" onSelect={() => setComposerAction('insert')} />
+        <ComposerActions.ActionMenuItem label="Clear the echo" onSelect={() => setComposerAction('clear')} />
+      </ComposerActions.Action>
+      <Show when={composerAction()}>
+        <p>Composer action: {composerAction()}</p>
+      </Show>
       <Show when={pinged()}>
         <p>Pinged</p>
       </Show>

@@ -1,6 +1,6 @@
 import {Show, createSignal, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
-import {TooltipIconButton} from '@conciv/ui-kit-system'
+import {ComposerActions as Action} from '@conciv/ui-kit-chat'
 import Crosshair from 'lucide-solid/icons/crosshair'
 import FoldVertical from 'lucide-solid/icons/fold-vertical'
 import SquarePen from 'lucide-solid/icons/square-pen'
@@ -48,7 +48,7 @@ export function ComposerActions(props: {
   const grab = getHostApi().useGrab()
   const toast = getHostApi().useToast()
   const meta = useQuery(() => appData.utils.meta.models.queryOptions())
-  const harnessName = () => meta.data?.harness.name ?? 'the harness'
+  const harnessName = () => (meta.isSuccess ? meta.data.harness.name : 'the harness')
   const terminal = terminalRpc()
 
   const grabDisabled = () => (grab.grabbable ? !grab.grabbable() : false)
@@ -96,24 +96,29 @@ export function ComposerActions(props: {
 
   return (
     <>
-      <TooltipIconButton
+      <Action.ActionButton
+        priority={40}
+        visible="always"
+        disabled={grabDisabled}
         tooltip={grabDisabled() ? 'Nothing on this screen to select' : 'Select an element from the page'}
+        busy={picking()}
         class={busyClass(picking())}
-        disabled={grabDisabled()}
         onClick={() => void pick()}
       >
         <Crosshair class="size-5 block" />
-      </TooltipIconButton>
-      <TooltipIconButton tooltip="Start a new session" class={ACT} onClick={() => props.onNewSession()}>
+      </Action.ActionButton>
+      <Action.ActionButton priority={30} tooltip="Start a new session" class={ACT} onClick={() => props.onNewSession()}>
         <SquarePen class="size-5 block" />
-      </TooltipIconButton>
-      <TooltipIconButton
+      </Action.ActionButton>
+      <Action.ActionButton
+        priority={20}
+        disabled={() => props.compacting}
         tooltip="Compress the conversation"
         class={busyClass(props.compacting)}
         onClick={() => props.onCompact()}
       >
         <FoldVertical class="size-5 block" />
-      </TooltipIconButton>
+      </Action.ActionButton>
       <Show when={meta.data === undefined || meta.data.harness.canLaunch}>
         <LaunchMenu
           harnessName={harnessName()}

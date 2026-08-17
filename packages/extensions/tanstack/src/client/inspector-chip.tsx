@@ -1,7 +1,7 @@
 import type {JSX} from 'solid-js'
-import Waypoints from 'lucide-solid/icons/waypoints'
 import {Tooltip} from '@conciv/ui-kit-system'
 import {CONCIV_TANSTACK_CLIENT_LABEL} from '../client-sentinel.js'
+import {TanStackLogo} from './tanstack-logo.js'
 
 export function InspectorChip(): JSX.Element {
   return (
@@ -14,7 +14,7 @@ export function InspectorChip(): JSX.Element {
             aria-label={CONCIV_TANSTACK_CLIENT_LABEL}
             class="text-pw-text-2 inline-flex shrink-0 size-8.5 items-center justify-center"
           >
-            <Waypoints class="size-5 block" aria-hidden="true" />
+            <TanStackLogo class="size-5 block" aria-hidden="true" />
           </span>
         )}
       />

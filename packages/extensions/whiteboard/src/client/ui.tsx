@@ -57,14 +57,23 @@ export function Menu(props: {
   children: JSX.Element
   onSelect?: (value: string) => void
   closeOnSelect?: boolean
-  label?: string
+  label: string
   class?: string
 }): JSX.Element {
   return (
     <MenuBase.Root closeOnSelect={props.closeOnSelect ?? true} onSelect={(detail) => props.onSelect?.(detail.value)}>
-      <MenuBase.Trigger class="inline-flex" aria-label={props.label}>
-        {props.trigger}
-      </MenuBase.Trigger>
+      <TooltipBase.Root positioning={{placement: 'top', gutter: 6}}>
+        <TooltipBase.Trigger
+          asChild={(tooltipProps) => (
+            <MenuBase.Trigger {...tooltipProps({class: 'inline-flex', 'aria-label': props.label})}>
+              {props.trigger}
+            </MenuBase.Trigger>
+          )}
+        />
+        <TooltipBase.Positioner>
+          <TooltipBase.Content>{props.label}</TooltipBase.Content>
+        </TooltipBase.Positioner>
+      </TooltipBase.Root>
       <MenuBase.Positioner>
         <MenuBase.Content class={props.class}>{props.children}</MenuBase.Content>
       </MenuBase.Positioner>

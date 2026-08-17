@@ -33,6 +33,8 @@ export default defineExtension({name: 'acme'})
 The widget renders your `Component` once per slot. Branch on `extension.useSlot()` (an accessor) and read host state/actions with `extension.useContext(select?)`. Slots: `header`, `footer`, `composer`, `empty`, `status`, `widget`.
 
 ```tsx
+import {ComposerActions} from '@conciv/ui-kit-chat'
+
 const extension = defineExtension({name: 'acme', Component})
 export default extension
 
@@ -41,9 +43,18 @@ function Component() {
   const insert = extension.useContext((context) => context.insert)
   if (slot() === 'composer')
     return (
-      <button type="button" onClick={() => insert('hi')}>
-        Do thing
-      </button>
+      <ComposerActions.ActionButton priority={10} visible="always" tooltip="Do thing" onClick={() => insert('hi')}>
+        <svg
+          viewBox="0 0 24 24"
+          class="size-5 block"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      </ComposerActions.ActionButton>
     )
   if (slot() === 'empty') return <div>Welcome! Ask me anything.</div>
   return null
@@ -51,6 +62,34 @@ function Component() {
 ```
 
 `useContext()` exposes host actions (`insert`, `notify`, `setBusy`, `newSession`, `compact`, `addDivider`), host state (`harnessId`, `client`, `grab`, `currentSlot`), and whatever your `.client()` factory returned under `value`.
+
+## Composer actions: `ComposerActions`, not a raw button
+
+The composer toolbar is shared by the built-in actions and every extension, so it runs out of room.
+Declare each action with `ComposerActions.ActionButton` from `@conciv/ui-kit-chat` and the host
+decides where it goes from the same registration: while it fits it renders inline; once it does not,
+the host renders a menu item built from the same tooltip, icon, and `onClick` in the shared overflow
+menu. No ids, no separate menu-item JSX to author — one component, one registration.
+
+- `ActionButton({priority?, visible?, tooltip, onClick, disabled?, busy?, class?, variant?})` — an
+  icon button. `priority` orders both the row and the menu: higher stays inline longer, built-ins run
+  40 (grab) down to 10 (launch), so pick something below them. `tooltip` is the accessible name
+  inline and the menu-item label once collapsed. `disabled` is an accessor. `busy` marks it in
+  progress without disabling it. **conciv's own composer sets `maxInlineAuto={0}`**, so an
+  `ActionButton` with `visible="auto"` (the default) never sits in the row there — it always renders
+  in the overflow menu; pass `visible="always"` to pin a button inline regardless of width.
+- `Inline({priority?, visible?, children})` — the escape hatch for a control that is already its own
+  trigger (a menu, a status chip). It renders inline while it fits and counts toward the fit budget,
+  but it has no menu form: unusable once collapsed, so reach for it only when the control cannot be
+  represented as a menu item at all.
+- `Action({priority?, visible?, disabled?, children})` + `ActionMenuItem({label, onSelect,
+children?})` — the divergent case, when the inline and collapsed representations genuinely differ
+  (different icon, different label, extra menu-only rows). Wrap an `ActionButton` (or `Inline`)
+  together with one or more explicit `ActionMenuItem` children in an `Action`; the wrapper's
+  `priority`/`visible`/`disabled` govern the pairing as a unit.
+
+A raw `<button>` in the composer slot is a bug: it never collapses, so it pushes the send button off
+a narrow panel.
 
 ## Theme: a declarative field
 

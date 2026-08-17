@@ -39,7 +39,8 @@ test('minimizing the panel mid-run leaves the closed launcher wearing the busy s
 test('switching to a new session mid-run hands the busy state over to the session list', async ({page}) => {
   await sendHeldTurn(page, suite)
 
-  await page.getByRole('button', {name: 'Start a new session'}).click()
+  await page.getByRole('button', {name: 'More composer actions'}).click()
+  await page.getByRole('menuitem', {name: 'Start a new session'}).click()
 
   await expect(stopButton(page)).toHaveCount(0, {timeout: IMMEDIATE_MS})
   await expect(panelLauncher(page)).toHaveAttribute('aria-busy', 'true')

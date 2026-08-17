@@ -1,11 +1,17 @@
-import {createSignal, For, Show, type JSX} from 'solid-js'
+import {createSignal, For, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic, render} from 'solid-js/web'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
 import {collectAttachmentCards, type AnyExtension} from '@conciv/extension'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedExtension, MountedSurface} from '@conciv/extension/client'
-import {AttachmentByMime, AttachmentProvider, createDocumentAttachmentAdapter} from '@conciv/ui-kit-chat'
+import {
+  AttachmentByMime,
+  AttachmentProvider,
+  ComposerActions,
+  ComposerActionsHost,
+  createDocumentAttachmentAdapter,
+} from '@conciv/ui-kit-chat'
 import {Dialog, Popover} from '@conciv/ui-kit-system'
 import {makeHostGrab} from './grab.js'
 import {FixtureElement} from './fixture-element.js'
@@ -40,6 +46,46 @@ function MountedViews(props: {extension: AnyExtension; clientValue: object}): JS
         )}
       </Show>
     </Show>
+  )
+}
+
+const COMPOSER_WIDTH_DEFAULT_PX = 800
+const COMPOSER_WIDTH_MIN_PX = 80
+const COMPOSER_WIDTH_MAX_PX = 1600
+
+function MountedComposerSlot(props: {extension: AnyExtension; clientValue: object}): JSX.Element {
+  const [local] = splitProps(props, ['extension', 'clientValue'])
+  const [width, setWidth] = createSignal(COMPOSER_WIDTH_DEFAULT_PX)
+  const applyWidth = (value: string): void => {
+    const parsed = Number.parseInt(value, 10)
+    if (Number.isNaN(parsed)) return
+    setWidth(Math.min(COMPOSER_WIDTH_MAX_PX, Math.max(COMPOSER_WIDTH_MIN_PX, parsed)))
+  }
+  return (
+    <div>
+      <label>
+        Composer row width
+        <input
+          type="number"
+          min={COMPOSER_WIDTH_MIN_PX}
+          max={COMPOSER_WIDTH_MAX_PX}
+          step={10}
+          value={width()}
+          onInput={(event) => applyWidth(event.currentTarget.value)}
+        />
+      </label>
+      <div style={{width: `${width()}px`}}>
+        <ComposerActionsHost>
+          <ComposerActions.Trigger>
+            <span aria-hidden="true" class="size-5 block" />
+          </ComposerActions.Trigger>
+          <ComposerActions.Trailing>
+            <span aria-hidden="true" class="shrink-0 size-8.5 block" />
+          </ComposerActions.Trailing>
+          <MountedExtension extension={local.extension} clientValue={local.clientValue} slot="composer" />
+        </ComposerActionsHost>
+      </div>
+    </div>
   )
 }
 
@@ -156,7 +202,7 @@ export function startHost(extension: AnyExtension): void {
         viewLock={() => {}}
         viewLeave={() => {}}
       >
-        <MountedExtension extension={extension} clientValue={clientValue} slot="composer" />
+        <MountedComposerSlot extension={extension} clientValue={clientValue} />
         <MountedSurface extension={extension} clientValue={clientValue} />
         <MountedViews extension={extension} clientValue={clientValue} />
         <AttachFixtureForm attach={attachFile} />

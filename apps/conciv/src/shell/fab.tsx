@@ -1,4 +1,5 @@
 import {Show, Suspense, type JSX} from 'solid-js'
+import {Tooltip} from '@conciv/ui-kit-system'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import type {DraggablePosition} from '../lib/draggable-position.js'
 import {FabRobot} from './fab-robot.js'
@@ -22,6 +23,10 @@ function fabClass(position: TriggerPosition, dragging: boolean): string {
   return `${FAB_BASE} ${FAB_POS[position]}${dragging ? ` ${FAB_DRAGGING}` : ''}`
 }
 
+function tooltipPlacement(position: TriggerPosition): 'left' | 'right' {
+  return position.endsWith('-left') ? 'right' : 'left'
+}
+
 function fabLabel(open: boolean): string {
   return open ? 'Minimize conciv chat' : 'Open conciv chat'
 }
@@ -35,28 +40,33 @@ export function ShellFab(props: {
   onToggle: () => void
 }): JSX.Element {
   return (
-    <button
-      type="button"
-      ref={props.ref}
-      class={fabClass(props.fab.position(), props.fab.dragging())}
-      data-pw-fab
-      data-pw-suppressed={props.suppressed()}
-      style={props.fab.dragStyle()}
-      aria-label={fabLabel(props.open())}
-      aria-busy={props.working()}
-      aria-expanded={props.open()}
-      aria-controls="pw-chat-panel"
-      onPointerDown={(event) => props.fab.onPointerDown(event)}
-      onClick={() => {
-        if (!props.fab.consumeClick()) props.onToggle()
-      }}
-    >
-      <Suspense>
-        <Show when={props.working()}>
-          <span class={props.open() ? FAB_BUSY : `${FAB_BUSY} ${FAB_ATTN}`} aria-hidden="true" />
-        </Show>
-      </Suspense>
-      <FabRobot open={props.open} working={props.working} />
-    </button>
+    <Tooltip.Root positioning={{strategy: 'fixed', placement: tooltipPlacement(props.fab.position()), gutter: 8}}>
+      <Tooltip.Trigger
+        type="button"
+        ref={props.ref}
+        class={fabClass(props.fab.position(), props.fab.dragging())}
+        data-pw-fab
+        data-pw-suppressed={props.suppressed()}
+        style={props.fab.dragStyle()}
+        aria-label={fabLabel(props.open())}
+        aria-busy={props.working()}
+        aria-expanded={props.open()}
+        aria-controls="pw-chat-panel"
+        onPointerDown={(event) => props.fab.onPointerDown(event)}
+        onClick={() => {
+          if (!props.fab.consumeClick()) props.onToggle()
+        }}
+      >
+        <Suspense>
+          <Show when={props.working()}>
+            <span class={props.open() ? FAB_BUSY : `${FAB_BUSY} ${FAB_ATTN}`} aria-hidden="true" />
+          </Show>
+        </Suspense>
+        <FabRobot open={props.open} working={props.working} />
+      </Tooltip.Trigger>
+      <Tooltip.Positioner>
+        <Tooltip.Content>{fabLabel(props.open())}</Tooltip.Content>
+      </Tooltip.Positioner>
+    </Tooltip.Root>
   )
 }

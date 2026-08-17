@@ -1,4 +1,5 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
+import type {ChatSession} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {GrabStaging} from '../pane/grab-staging.js'
 
@@ -18,6 +19,7 @@ export type PaneContextValue = {
   grabProvider: GrabProvider | undefined
   attachments: PendingAttachmentQueue
   newSession: () => void
+  chat: Accessor<ChatSession>
 }
 
 export function makePendingAttachmentQueue(): PendingAttachmentQueue {

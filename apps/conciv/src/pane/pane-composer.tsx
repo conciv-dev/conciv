@@ -1,11 +1,19 @@
-import {Show, type Component, type JSX} from 'solid-js'
+import {Show, Suspense, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import ArrowUp from 'lucide-solid/icons/arrow-up'
 import Clock from 'lucide-solid/icons/clock'
+import Ellipsis from 'lucide-solid/icons/ellipsis'
 import Paperclip from 'lucide-solid/icons/paperclip'
-import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import Square from 'lucide-solid/icons/square'
-import {ComposerPrimitive, QueueItem, AttachmentUI, useComposer, type AttachmentAdapter} from '@conciv/ui-kit-chat'
+import {
+  ComposerActions,
+  ComposerActionsHost,
+  ComposerPrimitive,
+  QueueItem,
+  AttachmentUI,
+  useComposer,
+  type AttachmentAdapter,
+} from '@conciv/ui-kit-chat'
 import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import type {WebStorage} from '@conciv/storage-history'
 import {useEngineReachability} from '../app/reachability.js'
@@ -22,6 +30,7 @@ export type PaneComposerProps = {
   placeholder: string
   inputLabel: string
   children?: JSX.Element
+  trailingExtras?: JSX.Element
   busy?: JSX.Element
   triggers?: ComposerTriggerSources
   onInputReady?: (handle: ComposerInputHandle) => void
@@ -43,6 +52,10 @@ const QUEUE_ACTION =
   'shrink-0 px-2 py-1 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-md)] leading-[1.45] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease),transform_100ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] [&:active]:scale-[0.96]'
 
 const ENGINE_UNREACHABLE_LABEL = 'conciv lost connection to the engine'
+const ATTACHMENT_LABEL = 'Add an attachment'
+const SEND_LABEL = 'Send message'
+const STOP_LABEL = 'Stop generating'
+const MAX_INLINE_AUTO_ACTIONS = 0
 
 function ComposerSendControl(): JSX.Element {
   const composer = useComposer()
@@ -51,38 +64,35 @@ function ComposerSendControl(): JSX.Element {
     <Show
       when={composer.canCancel()}
       fallback={
-        <ComposerPrimitive.Send
-          class={SEND}
-          disabled={!reachability.online()}
-          aria-label={reachability.online() ? 'Send message' : ENGINE_UNREACHABLE_LABEL}
+        <TooltipIconButtonSlot
+          tooltip={reachability.online() ? SEND_LABEL : ENGINE_UNREACHABLE_LABEL}
+          wrapperClass="shrink-0"
         >
-          <ArrowUp size={18} aria-hidden="true" />
-        </ComposerPrimitive.Send>
+          {(buttonProps) => (
+            <ComposerPrimitive.Send {...buttonProps()} class={SEND} disabled={!reachability.online()}>
+              <ArrowUp size={18} aria-hidden="true" />
+            </ComposerPrimitive.Send>
+          )}
+        </TooltipIconButtonSlot>
       }
     >
-      <ComposerPrimitive.Cancel class={CANCEL} aria-label="Stop generating">
-        <Square size={14} fill="currentColor" aria-hidden="true" />
-      </ComposerPrimitive.Cancel>
+      <TooltipIconButtonSlot tooltip={STOP_LABEL} wrapperClass="shrink-0">
+        {(buttonProps) => (
+          <ComposerPrimitive.Cancel {...buttonProps()} class={CANCEL}>
+            <Square size={14} fill="currentColor" aria-hidden="true" />
+          </ComposerPrimitive.Cancel>
+        )}
+      </TooltipIconButtonSlot>
     </Show>
   )
 }
 
-function TrailingControls(): JSX.Element {
-  return (
-    <>
-      <TooltipIconButtonSlot tooltip="Refresh the conversation" class={GHOST}>
-        {(buttonProps) => (
-          <ComposerPrimitive.Refresh {...buttonProps()}>
-            <RefreshCw size={16} aria-hidden="true" />
-          </ComposerPrimitive.Refresh>
-        )}
-      </TooltipIconButtonSlot>
-      <ComposerSendControl />
-    </>
-  )
-}
-
 export function PaneComposer(props: PaneComposerProps): JSX.Element {
+  let inputHandle: ComposerInputHandle | undefined
+  const receiveInputHandle = (handle: ComposerInputHandle): void => {
+    inputHandle = handle
+    props.onInputReady?.(handle)
+  }
   return (
     <ComposerPrimitive.Root
       attachmentAdapter={props.attachmentAdapter}
@@ -120,23 +130,33 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           inputLabel={props.inputLabel}
           addAttachmentOnPaste={props.attachmentAdapter !== undefined}
           triggers={props.triggers}
-          onReady={props.onInputReady}
+          onReady={receiveInputHandle}
           onSelectionChange={props.onSelectionChange}
           initialSelection={props.initialSelection}
         />
-        <div class="pt-0.5 flex gap-1 items-center">
-          <Show when={props.attachmentAdapter}>
-            <ComposerPrimitive.AddAttachment class={GHOST}>
-              <Paperclip size={16} aria-hidden="true" />
-            </ComposerPrimitive.AddAttachment>
-          </Show>
-          {props.children}
-          <div class="ml-auto flex gap-1 items-center">
-            <Show when={props.busy} fallback={<TrailingControls />}>
+        <ComposerActionsHost maxInlineAuto={MAX_INLINE_AUTO_ACTIONS} onOverflowDismissed={() => inputHandle?.focus()}>
+          <ComposerActions.Trigger>
+            <Ellipsis class="size-5 block" aria-hidden="true" />
+          </ComposerActions.Trigger>
+          <ComposerActions.Leading>
+            <Show when={props.attachmentAdapter}>
+              <TooltipIconButtonSlot tooltip={ATTACHMENT_LABEL}>
+                {(buttonProps) => (
+                  <ComposerPrimitive.AddAttachment {...buttonProps()} class={GHOST}>
+                    <Paperclip size={16} aria-hidden="true" />
+                  </ComposerPrimitive.AddAttachment>
+                )}
+              </TooltipIconButtonSlot>
+            </Show>
+          </ComposerActions.Leading>
+          <ComposerActions.Trailing>
+            <Suspense fallback={<span class="size-8.5 shrink-0" />}>{props.trailingExtras}</Suspense>
+            <Show when={props.busy} fallback={<ComposerSendControl />}>
               {props.busy}
             </Show>
-          </div>
-        </div>
+          </ComposerActions.Trailing>
+          {props.children}
+        </ComposerActionsHost>
       </div>
     </ComposerPrimitive.Root>
   )

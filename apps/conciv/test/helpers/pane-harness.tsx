@@ -1,4 +1,4 @@
-import {createRoot, createSignal, type JSX} from 'solid-js'
+import {createMemo, createRoot, createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {QueryClientProvider, type QueryClient} from '@tanstack/solid-query'
 import {browserRpcConnection, closeBrowserRpcConnection} from '@conciv/contract'
@@ -9,6 +9,7 @@ import {makeAppContextValue} from './app-context-value.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../../src/app/reachability.js'
 import type {AnyExtension} from '@conciv/extension'
 import type {Grab, GrabProvider} from '@conciv/grab'
+import {useChatSession} from '@conciv/client'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../../src/app/pane-context.js'
 import {createInstances} from '../../src/extension/create-instances.js'
 import {makeGrabStaging} from '../../src/pane/grab-staging.js'
@@ -21,6 +22,8 @@ export type PaneMountOptions = {
   grabProvider?: GrabProvider
   extensions?: AnyExtension[]
   ground?: (grab: Grab) => Promise<Grab | null>
+  width?: number
+  onNewSession?: () => void
 }
 
 export type PaneMount = {
@@ -30,7 +33,10 @@ export type PaneMount = {
   data: AppData
   queryClient: QueryClient
   refetch: () => Promise<void>
+  setWidth: (pixels: number) => void
 }
+
+const DEFAULT_PANE_WIDTH_PX = 400
 
 function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
   return (
@@ -45,12 +51,17 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   browserRpcConnection(options.base, 'fetch')
   const instances = createInstances(options.extensions ?? [])
   const [announced, setAnnounced] = createSignal<string[]>([])
+  const [width, setWidth] = createSignal(options.width ?? DEFAULT_PANE_WIDTH_PX)
   const app = makeAppContextValue({
     base: options.base,
     announce: (message) => setAnnounced((entries) => [...entries, message]),
     instances,
   })
   const {rpc, data, queryClient} = app
+  const chatRoot = createRoot((disposeChat) => {
+    const chat = createMemo(() => useChatSession({rpc, sessionId: options.sessionId}))
+    return {chat, dispose: disposeChat}
+  })
   const pane: PaneContextValue = {
     sessionId: () => options.sessionId,
     running: () => false,
@@ -61,7 +72,8 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     grabStaging: makeGrabStaging({ground: options.ground ?? (async () => null)}),
     grabProvider: options.grabProvider,
     attachments: makePendingAttachmentQueue(),
-    newSession: () => {},
+    newSession: () => options.onNewSession?.(),
+    chat: chatRoot.chat,
   }
   const reachabilityRoot = createRoot((disposeReachability) => ({
     reachability: makeEngineReachability(),
@@ -74,7 +86,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
           <NoticeContextProvider>
             <PaneContext.Provider value={pane}>
               <HostApiProvider rpc={rpc} apiBase={() => ''} toast={(message) => app.announce(message)}>
-                <div class="flex flex-col h-150 w-100">
+                <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
                   {view(pane)}
                   <NoticeSurface />
                 </div>
@@ -90,6 +102,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     dispose: () => {
       mounted.unmount()
       for (const instance of instances) instance.dispose()
+      chatRoot.dispose()
       reachabilityRoot.dispose()
       closeBrowserRpcConnection(options.base)
       delete window.__CONCIV_API_BASE__
@@ -99,5 +112,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     data,
     queryClient,
     refetch: () => queryClient.invalidateQueries({queryKey: data.utils.meta.engine.key()}),
+    setWidth,
   }
 }

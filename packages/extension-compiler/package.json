@@ -67,6 +67,7 @@
     "oxc-parser": "^0.127.0"
   },
   "devDependencies": {
+    "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/babel__core": "^7.20.5",
     "@types/node": "^22.19.21",

@@ -12,7 +12,6 @@ import {
   type JSX,
 } from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
-import {useChatSession} from '@conciv/client'
 import {
   AttachmentByMime,
   ChatProvider,
@@ -126,7 +125,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const sessionId = untrack(() => props.sessionId)
-  const chat = useChatSession({rpc, sessionId})
+  const chat = pane.chat()
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
@@ -267,7 +266,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
             value={{
               onSend: messaging.onSend,
               onSendError: messaging.onSendError,
-              onRefresh: () => chat.refresh(),
               onCancel: () => chat.interruptAndFlush(),
             }}
           >
@@ -340,6 +338,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                             initialSelection={storage().restoredSelection}
                             busy={compacting() ? <CompactSpinner /> : undefined}
                             triggers={triggerSources}
+                            trailingExtras={<SessionModelSelector sessionId={sessionId} />}
                           >
                             <Suspense fallback={<ComposerActionsPending />}>
                               <ComposerActions
@@ -350,7 +349,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                                 onStageGrab={stageGrab}
                               />
                               <ExtensionSurface name="composer" instances={instances} />
-                              <SessionModelSelector sessionId={sessionId} />
                               <ComposerWiring
                                 onReady={(api) => {
                                   composerApi.current = api

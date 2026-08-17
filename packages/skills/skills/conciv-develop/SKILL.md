@@ -47,11 +47,13 @@ every host hook.
 ## Your first extension, trimmed for brevity
 
 Two real, current example extensions ship in this repo's Vite example app. Read both before writing
-your own — the real file additionally draws an inline SVG icon on the button, trimmed below:
+your own — the real file additionally defines the inline SVG `RocketIcon` the button renders, trimmed
+below:
 
-```tsx title="apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx:1-46 (trimmed)"
+```tsx title="apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx:1-53 (trimmed)"
 import {z} from 'zod'
 import {defineExtension, defineTool, getExtensionApi} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
 
 const DEPLOY_NAME = 'deploy'
 
@@ -76,9 +78,14 @@ function DeploySurface() {
   const notify = host.useToast()
   if (slot === 'composer')
     return (
-      <button type="button" aria-label="Deploy" onClick={() => notify('Deploy requested')}>
-        Deploy
-      </button>
+      <ComposerActions.ActionButton
+        priority={10}
+        visible="always"
+        tooltip="Deploy"
+        onClick={() => notify('Deploy requested')}
+      >
+        <RocketIcon />
+      </ComposerActions.ActionButton>
     )
   if (slot === 'status') return <span>env: staging</span>
   return null
@@ -86,8 +93,13 @@ function DeploySurface() {
 ```
 
 The real file's `deployRun` has no `approval: 'ask'` — it's added above because `mutating: true` tools
-should ask by default (see the red flags below); the real button also draws an SVG rocket icon instead
-of the text "Deploy". Drop the file (or your own version of it) into `conciv/extensions/` at your
+should ask by default (see the red flags below); the `RocketIcon` component the quote references is
+declared in the real file between `DEPLOY_NAME` and `deployRun`. The composer slot never renders a raw
+`<button>`: a `ComposerActions.ActionButton` declares the action once, and the host renders it inline
+or — from that same registration, no extra JSX — as a menu item once the row runs out of room.
+conciv's own composer sets `maxInlineAuto={0}`, so every `visible="auto"` button (the default) always
+lands in the menu there; `visible="always"` is what reaches the row. Drop the
+file (or your own version of it) into `conciv/extensions/` at your
 project root — create
 the directory if it does not exist. No registration, no config: conciv discovers every file there.
 Restart your dev server (`.server(...)` code and top-level `systemPrompt` load at boot; `Component`

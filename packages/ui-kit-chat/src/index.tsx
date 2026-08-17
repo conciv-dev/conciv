@@ -88,6 +88,16 @@ export {
   useComposerHandlers,
   type ComposerHandlers,
 } from './primitives/composer/composer-handlers.js'
+export {
+  ComposerActions,
+  ComposerActionsHost,
+  type ComposerActionsActionButtonProps,
+  type ComposerActionsActionMenuItemProps,
+  type ComposerActionsActionProps,
+  type ComposerActionsHostProps,
+  type ComposerActionsInlineProps,
+  type ComposerActionsSlotProps,
+} from './primitives/composer/composer-actions.js'
 export {ActionBar as ActionBarPrimitive, useCopied} from './primitives/action-bar/action-bar.js'
 export {
   ActionHandlersProvider,

@@ -58,6 +58,33 @@ test('a discovered module with no default export is fatal and names the file', a
   await expect(loadServerExtensions(root, [])).rejects.toThrow(/x\.tsx/)
 })
 
+const CLIENT_HEAVY = `import {z} from 'zod'
+import {defineExtension, defineTool} from '@conciv/extension'
+import {ComposerActions} from '@conciv/ui-kit-chat'
+
+const ping = defineTool({
+  name: 'ping',
+  description: 'ping',
+  inputSchema: z.object({message: z.string()}),
+}).server((input) => ({echo: input.message}))
+
+const extension = defineExtension({name: 'client-heavy', Component, tools: [ping]})
+
+export default extension
+
+function Component() {
+  return (
+    <ComposerActions.ActionButton priority={10} tooltip="Do" onClick={() => {}} />
+  )
+}`
+
+test('an extension whose Component imports a client-only package still loads on the server', async () => {
+  const root = fixture({'client-heavy.tsx': CLIENT_HEAVY})
+  const out = await loadServerExtensions(root, [])
+  expect(out.map((extension) => extension.name)).toEqual(['client-heavy'])
+  expect(out[0]?.tools?.map((tool) => tool.name)).toEqual(['ping'])
+})
+
 test('built-in wins over a folder file of the same name', async () => {
   const {defineExtension} = await import('@conciv/extension')
   const builtin = defineExtension({name: 'terminal'})

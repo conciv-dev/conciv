@@ -56,7 +56,11 @@ export const CopyAndExport: Story = {
 
     await waitFor(() => expect(c.getByRole('button', {name: 'Copy'})).toHaveAttribute('data-copied'))
 
-    await userEvent.click(c.getByRole('button', {name: 'More'}))
+    const more = c.getByRole('button', {name: 'More message actions'})
+    await userEvent.hover(more)
+    await waitFor(() => expect(c.getByRole('tooltip')).toHaveTextContent('More message actions'))
+
+    await userEvent.click(more)
     await waitFor(() => expect(c.getByText('Export as Markdown')).toBeVisible())
 
     await expect(c.getByRole('button', {name: 'Refresh'})).toBeInTheDocument()
