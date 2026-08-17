@@ -335,13 +335,14 @@ html > body[data-scroll-locked] {
 }
 
 .od-frame-backdrop {
-  --od-silt-tint: 218, 47, 45;
-  --od-silt-alpha: 0.29;
+  --od-frame-tint: 218, 47, 45;
+  --od-frame-alpha: 0.29;
+  color: rgb(var(--od-frame-tint));
   mix-blend-mode: multiply;
 }
 .dark .od-frame-backdrop {
-  --od-silt-tint: 254, 103, 76;
-  --od-silt-alpha: 0.35;
+  --od-frame-tint: 254, 103, 76;
+  --od-frame-alpha: 0.35;
   mix-blend-mode: screen;
 }
 @media (max-width: 767px) {
@@ -350,8 +351,12 @@ html > body[data-scroll-locked] {
   }
 }
 
+.od-frame-dither {
+  image-rendering: pixelated;
+}
+
 .od-frame-pad {
-  padding-block: var(--od-inset);
+  padding: 0.5rem;
 }
 
 .od-snippet .shiki,

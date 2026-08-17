@@ -19,7 +19,7 @@ export function ProductFrame() {
       <div className="od-page">
         <div className="od-col">
           <FrameBackdrop />
-          <div className="od-inset od-frame-pad relative">
+          <div className="od-frame-pad relative">
             <BrowserFrame url="localhost:3000" className="dark">
               <div className="relative aspect-[8/5]">
                 <img

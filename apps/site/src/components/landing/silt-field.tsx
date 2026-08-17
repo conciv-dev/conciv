@@ -55,8 +55,8 @@ export function SiltField() {
     }
 
     const readSettings = () => {
-      const tint = styles.getPropertyValue('--od-silt-tint').trim()
-      const alphaScale = Number(styles.getPropertyValue('--od-silt-alpha'))
+      const tint = styles.getPropertyValue('--od-frame-tint').trim()
+      const alphaScale = Number(styles.getPropertyValue('--od-frame-alpha'))
       if (!tint) return null
       if (!(alphaScale > 0)) return null
       return {tint, alphaScale}
