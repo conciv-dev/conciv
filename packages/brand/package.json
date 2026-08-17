@@ -1,0 +1,74 @@
+{
+  "name": "@conciv/brand",
+  "version": "0.0.19",
+  "private": true,
+  "description": "Official conciv brand assets: the crimson chat-bubble robot mark, Geist SemiBold outlined wordmark, favicons, social tiles, and Solid/React logo components.",
+  "keywords": [
+    "brand",
+    "conciv",
+    "logo",
+    "react",
+    "solid-js"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/brand"
+  },
+  "files": [
+    "dist",
+    "assets"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    },
+    "./solid": {
+      "types": "./dist/solid/index.d.ts",
+      "import": "./dist/solid.js"
+    },
+    "./logos.json": "./assets/manifest.json",
+    "./assets/*": "./assets/*"
+  },
+  "scripts": {
+    "build": "vite build && tsdown -c tsdown.config.ts && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.react.json --noEmit",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "motion": "^12.42.2"
+  },
+  "devDependencies": {
+    "@conciv/uno-preset": "workspace:*",
+    "@storybook/addon-docs": "^10.5.0",
+    "@types/node": "^22.19.21",
+    "@types/react": "^19.2.0",
+    "react": "^19.2.0",
+    "solid-js": "^1.9.13",
+    "storybook": "^10.5.0",
+    "storybook-solidjs-vite": "^10.6.0",
+    "tsdown": "^0.22.4",
+    "typescript": "^6.0.3",
+    "unocss": "^66.7.2",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12"
+  },
+  "peerDependencies": {
+    "react": ">=16.8",
+    "solid-js": "^1.9.13"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
+  }
+}

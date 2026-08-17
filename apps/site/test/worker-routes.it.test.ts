@@ -1,18 +1,7 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {startWranglerDev, type WranglerDev} from './wrangler-dev'
+import {describe, expect, it} from 'vitest'
+import {serveSite} from './site-fixture.js'
 
-const SITE_PORT = 8792
-const INSPECTOR_PORT = 9792
-const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
-let site: WranglerDev
-
-beforeAll(async () => {
-  site = await startWranglerDev({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
-}, 120_000)
-
-afterAll(async () => {
-  await site?.stop()
-})
+const ORIGIN = serveSite({port: 8792, inspectorPort: 9792})
 
 function servedByWorker(response: Response): boolean {
   return response.headers.get('etag') === null && response.headers.get('cf-cache-status') === null

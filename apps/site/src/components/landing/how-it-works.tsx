@@ -2,7 +2,7 @@ import {useRef, type ReactNode} from 'react'
 import AnimatedContent from '@/components/AnimatedContent'
 import VariableProximity from '@/components/VariableProximity'
 import {RobotFab} from './robot-fab'
-import {SparkMark} from './spark-mark'
+import {ConcivMark} from '@conciv/brand/react'
 import {FrameworkTabs} from './framework-tabs'
 import {FRAMEWORK_SNIPPETS} from './framework-snippets'
 
@@ -57,8 +57,7 @@ export function HowItWorks() {
               radius={72}
               falloff="exponential"
             />{' '}
-            <SparkMark className="text-primary" />
-            <span className="sr-only">conciv</span>{' '}
+            <ConcivMark className="inline-block size-[0.95em] translate-y-[0.12em]" />{' '}
             <VariableProximity
               label="in three steps"
               containerRef={railRef}

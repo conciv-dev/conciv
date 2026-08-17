@@ -1,0 +1,57 @@
+import {Meta, ColorPalette, ColorItem} from '@storybook/addon-docs/blocks'
+
+<Meta title="brand/Guidelines" />
+
+# conciv brand
+
+## Color
+
+<ColorPalette>
+  <ColorItem title="Crimson" subtitle="mark, primary" colors={{crimson: '#D7263D'}} />
+  <ColorItem title="Deep" subtitle="crimson, pressed/dark accents" colors={{deep: '#A4133C'}} />
+  <ColorItem title="Charcoal" subtitle="dark surfaces" colors={{charcoal: '#15161A'}} />
+  <ColorItem title="Cream" subtitle="light surfaces" colors={{cream: '#F3EEE4'}} />
+  <ColorItem title="White" subtitle="mono lockup on dark" colors={{white: '#FFFFFF'}} />
+</ColorPalette>
+
+## Typography
+
+- Wordmark face: **Geist SemiBold**, outlined to paths (OFL license). Ships as SVG path data, no font file dependency.
+- Wordmark fill: `currentColor`, so it inherits the surrounding text color.
+- Mark fill: pinned `#D7263D`. Never inherits, never recolors.
+
+## Mark anatomy
+
+- Rounded-rect chat-bubble head with a tail at bottom-left.
+- Knocked-out `>_` prompt face (cut from the bubble, not drawn on top).
+- Ball antenna on a stem, top-right of the bubble.
+- Two detached ear pills, left and right of the bubble.
+
+## Clear space & minimum size
+
+- Clear space: at least one antenna-height on every side.
+- Minimum size: 24px for the full mark. Below 24px, switch to the `mark-16` cut: a simplified geometry with fused ears, built for favicon-scale rendering.
+- Never scale the standard mark below 16px; use the favicon assets instead (`assets/favicon/`).
+
+## Do / Don't
+
+**Do**
+
+- Use the provided components or asset files.
+- Keep the mark at `#D7263D`.
+- Let the wordmark inherit `currentColor`.
+- Scale proportionally.
+
+**Don't**
+
+- Rebuild the geometry by hand.
+- Recolor the mark.
+- Add a stroke or outline to the bubble.
+- Stretch or skew the lockup.
+
+## Motion
+
+- Hover or focus-visible wakes the mark: cursor blinks (0.6s linear, reversing), antenna does one spring flick (stiffness 320, damping 6).
+- Leaving or blurring stops the blink instantly; the cursor settles solid.
+- `prefers-reduced-motion: reduce` disables all of it, so the mark stays static.
+- Scope: header/nav lockups only, not every mark instance on a page.

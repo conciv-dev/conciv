@@ -1,19 +1,8 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {starsResponseSchema} from '../src/lib/star-count'
-import {startWranglerDev, type WranglerDev} from './wrangler-dev'
+import {serveSite} from './site-fixture.js'
 
-const SITE_PORT = 8793
-const INSPECTOR_PORT = 9793
-const ORIGIN = `http://127.0.0.1:${SITE_PORT}`
-let site: WranglerDev
-
-beforeAll(async () => {
-  site = await startWranglerDev({port: SITE_PORT, inspectorPort: INSPECTOR_PORT})
-}, 120_000)
-
-afterAll(async () => {
-  await site?.stop()
-})
+const ORIGIN = serveSite({port: 8793, inspectorPort: 9793})
 
 function extractTag(html: string, pattern: RegExp): string | undefined {
   return html.match(pattern)?.[1]

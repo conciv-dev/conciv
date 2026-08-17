@@ -2,10 +2,11 @@ export type SeoInput = {
   title: string
   description: string
   image: string
+  twitterImage?: string
   ogType?: 'website' | 'article'
 }
 
-export function seo({title, description, image, ogType = 'website'}: SeoInput) {
+export function seo({title, description, image, twitterImage, ogType = 'website'}: SeoInput) {
   return [
     {title},
     {name: 'description', content: description},
@@ -17,6 +18,6 @@ export function seo({title, description, image, ogType = 'website'}: SeoInput) {
     {name: 'twitter:card', content: 'summary_large_image'},
     {name: 'twitter:title', content: title},
     {name: 'twitter:description', content: description},
-    {name: 'twitter:image', content: image},
+    {name: 'twitter:image', content: twitterImage ?? image},
   ]
 }

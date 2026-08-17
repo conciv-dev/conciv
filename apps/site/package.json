@@ -11,11 +11,11 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "dev": "vite dev --port 3001",
-    "build": "node scripts/copy-widget-bundle.mjs && node scripts/build-source-manifest.mjs && vite build",
+    "dev": "node scripts/copy-brand-assets.mjs && vite dev --port 3001",
+    "build": "node scripts/copy-widget-bundle.mjs && node scripts/copy-brand-assets.mjs && node scripts/build-source-manifest.mjs && vite build",
     "start": "vite preview",
     "preview": "vite preview",
-    "deploy": "vite build && wrangler deploy",
+    "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
     "typecheck": "fumadocs-mdx && tsc --noEmit",
     "lint": "oxlint",
@@ -24,6 +24,7 @@
     "gen:snippets": "node --experimental-strip-types scripts/highlight-snippets.ts"
   },
   "dependencies": {
+    "@conciv/brand": "workspace:*",
     "@conciv/embed": "workspace:*",
     "@conciv/extension-terminal": "workspace:*",
     "@conciv/extension-try-it": "workspace:*",

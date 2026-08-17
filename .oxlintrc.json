@@ -137,7 +137,7 @@
       }
     },
     {
-      "files": ["apps/site/**", "packages/react/**", "packages/preact/**"],
+      "files": ["apps/site/**", "packages/react/**", "packages/preact/**", "packages/brand/src/react/**"],
       "rules": {
         "solid/jsx-no-duplicate-props": "off",
         "solid/jsx-no-undef": "off",

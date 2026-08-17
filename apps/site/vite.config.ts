@@ -34,6 +34,7 @@ export default defineConfig({
     tanstackStart({
       prerender: {
         enabled: true,
+        filter: ({path}) => !path.startsWith('/brand/'),
       },
     }),
     react(),

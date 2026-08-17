@@ -1,0 +1,144 @@
+import {splitProps, onCleanup, type JSX} from 'solid-js'
+import {animate, type AnimationPlaybackControls} from 'motion'
+
+const HEAD =
+  'M12.125 12.72H45.925A6.32 6.32 0 0 1 52.245 19.04V41.74A6.32 6.32 0 0 1 45.925 48.06H24.415L15.025 56.26L15.025 48.06H12.125A6.32 6.32 0 0 1 5.805 41.74V19.04A6.32 6.32 0 0 1 12.125 12.72ZM2.09 24.382H2.09A2.09 2.09 0 0 1 4.18 26.472V34.308A2.09 2.09 0 0 1 2.09 36.398H2.09A2.09 2.09 0 0 1 0 34.308V26.472A2.09 2.09 0 0 1 2.09 24.382ZM55.96 24.382H55.96A2.09 2.09 0 0 1 58.05 26.472V34.308A2.09 2.09 0 0 1 55.96 36.398H55.96A2.09 2.09 0 0 1 53.87 34.308V26.472A2.09 2.09 0 0 1 55.96 24.382ZM15.085 23.43L21.946 30.4L15.085 37.37L17.985 40.27L27.744 30.4L17.985 20.53Z'
+
+const ANTENNA =
+  'M38.84 2.99L41.23 2.99L41.23 14.72L38.84 14.72ZM37.045 2.99A2.99 2.99 0 1 1 43.025 2.99A2.99 2.99 0 1 1 37.045 2.99Z'
+
+const CURSOR = 'M29.535 36.69L29.535 40.27L43.025 40.27L43.025 36.69Z'
+
+const WORD =
+  'M89.159 46.766L89.159 46.766Q84.463 46.766 81 44.741Q77.537 42.716 75.629 39.018Q73.722 35.32 73.722 30.39L73.722 30.39Q73.722 25.46 75.629 21.762Q77.537 18.064 81 16.039Q84.463 14.014 89.159 14.014L89.159 14.014Q95.146 14.014 99.108 17.125Q103.07 20.236 103.774 25.812L103.774 25.812L96.026 26.223Q95.557 23.229 93.708 21.674Q91.859 20.118 89.159 20.118L89.159 20.118Q85.52 20.118 83.524 22.818Q81.528 25.518 81.528 30.39L81.528 30.39Q81.528 35.262 83.524 37.962Q85.52 40.662 89.159 40.662L89.159 40.662Q91.918 40.662 93.766 39.077Q95.615 37.492 96.026 34.147L96.026 34.147L103.774 34.499Q103.128 40.134 99.166 43.45Q95.204 46.766 89.159 46.766ZM121.324 46.766L121.324 46.766Q116.687 46.766 113.195 44.741Q109.702 42.716 107.795 39.048Q105.887 35.379 105.887 30.39L105.887 30.39Q105.887 25.401 107.795 21.732Q109.702 18.064 113.195 16.039Q116.687 14.014 121.324 14.014L121.324 14.014Q125.961 14.014 129.424 16.039Q132.887 18.064 134.795 21.732Q136.702 25.401 136.702 30.39L136.702 30.39Q136.702 35.379 134.795 39.048Q132.887 42.716 129.424 44.741Q125.961 46.766 121.324 46.766ZM121.324 40.662L121.324 40.662Q124.905 40.662 126.9 37.962Q128.896 35.262 128.896 30.39L128.896 30.39Q128.896 25.518 126.9 22.818Q124.905 20.118 121.324 20.118L121.324 20.118Q117.685 20.118 115.689 22.818Q113.694 25.518 113.694 30.39L113.694 30.39Q113.694 35.262 115.689 37.962Q117.685 40.662 121.324 40.662ZM148.735 46.062L141.222 46.062L141.222 14.718L148.031 14.718L148.207 20.06Q149.498 16.831 151.993 15.423Q154.487 14.014 157.598 14.014L157.598 14.014Q162.763 14.014 165.522 17.33Q168.281 20.646 168.281 25.929L168.281 25.929L168.281 46.062L160.768 46.062L160.768 28.336Q160.768 24.344 159.565 22.231Q158.361 20.118 155.309 20.118L155.309 20.118Q152.257 20.118 150.496 22.231Q148.735 24.344 148.735 28.336L148.735 28.336L148.735 46.062ZM188.061 46.766L188.061 46.766Q183.366 46.766 179.903 44.741Q176.44 42.716 174.532 39.018Q172.624 35.32 172.624 30.39L172.624 30.39Q172.624 25.46 174.532 21.762Q176.44 18.064 179.903 16.039Q183.366 14.014 188.061 14.014L188.061 14.014Q194.048 14.014 198.01 17.125Q201.972 20.236 202.677 25.812L202.677 25.812L194.929 26.223Q194.459 23.229 192.61 21.674Q190.761 20.118 188.061 20.118L188.061 20.118Q184.422 20.118 182.427 22.818Q180.431 25.518 180.431 30.39L180.431 30.39Q180.431 35.262 182.427 37.962Q184.422 40.662 188.061 40.662L188.061 40.662Q190.82 40.662 192.669 39.077Q194.518 37.492 194.929 34.147L194.929 34.147L202.677 34.499Q202.031 40.134 198.069 43.45Q194.107 46.766 188.061 46.766ZM214.122 46.062L206.609 46.062L206.609 14.718L214.122 14.718L214.122 46.062ZM214.298 10.551L206.492 10.551L206.492 3.859L214.298 3.859L214.298 10.551ZM238.012 46.062L229.09 46.062L217.644 14.718L225.568 14.718L233.551 38.49L241.533 14.718L249.457 14.718L238.012 46.062Z'
+
+const MARK_COLOR = '#D7263D'
+
+const ANTENNA_ORIGIN = '40.035px 13.5px'
+
+const BLINK_HALF = 0.6
+
+const ANTENNA_WOBBLE = ['translateY(-4.5px) rotate(-14deg)', 'translateY(0px) rotate(0deg)']
+
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function setCursorHidden(cursorPath: SVGPathElement, hidden: boolean) {
+  cursorPath.setAttribute('opacity', hidden ? '1' : '0')
+}
+
+function startBlinking(cursorPath: SVGPathElement) {
+  return animate(0, 1, {
+    duration: BLINK_HALF,
+    ease: 'linear',
+    repeat: Infinity,
+    repeatType: 'reverse',
+    onUpdate: (value) => setCursorHidden(cursorPath, value >= 0.5),
+  })
+}
+
+function flickAntenna(antennaGroup: SVGGElement) {
+  return animate(antennaGroup, {transform: ANTENNA_WOBBLE}, {type: 'spring', stiffness: 320, damping: 6, mass: 1.2})
+}
+
+export type ConcivLockupProps = {
+  class?: string
+  interactive?: boolean
+}
+
+export function ConcivLockup(props: ConcivLockupProps) {
+  const [local] = splitProps(props, ['class', 'interactive'])
+  let cursorElement: SVGPathElement | undefined
+  let antennaElement: SVGGElement | undefined
+  let blinkHandle: AnimationPlaybackControls | null = null
+  let flickHandle: AnimationPlaybackControls | null = null
+  let focusTarget: HTMLElement | null = null
+
+  const wakeCursor = () => {
+    if (!cursorElement || blinkHandle) return
+    blinkHandle = startBlinking(cursorElement)
+  }
+
+  const wakeAntenna = () => {
+    if (!antennaElement || flickHandle) return
+    flickHandle = flickAntenna(antennaElement)
+    flickHandle.finished.then(() => {
+      flickHandle = null
+    })
+  }
+
+  const start = () => {
+    if (prefersReducedMotion() || blinkHandle) return
+    wakeCursor()
+    wakeAntenna()
+  }
+
+  const stop = () => {
+    blinkHandle?.stop()
+    blinkHandle = null
+    if (cursorElement) setCursorHidden(cursorElement, false)
+  }
+
+  const handlePointerEnter: JSX.EventHandler<SVGSVGElement, PointerEvent> = (event) => {
+    if (!local.interactive || event.pointerType === 'touch') return
+    start()
+  }
+
+  const handlePointerLeave = () => {
+    if (local.interactive) stop()
+  }
+
+  const handleFocus = () => {
+    if (focusTarget?.matches(':focus-visible')) start()
+  }
+
+  const bindInteractivity = (node: SVGSVGElement) => {
+    if (!local.interactive) return
+    const link = node.closest('a')
+    if (!link) return
+    focusTarget = link
+    link.addEventListener('focus', handleFocus)
+    link.addEventListener('blur', stop)
+    onCleanup(() => {
+      link.removeEventListener('focus', handleFocus)
+      link.removeEventListener('blur', stop)
+    })
+  }
+
+  onCleanup(() => {
+    blinkHandle?.stop()
+    flickHandle?.stop()
+  })
+
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 249.46 56.26"
+      fill="currentColor"
+      role="img"
+      aria-label="conciv"
+      class={local.class}
+      ref={(node) => bindInteractivity(node)}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+    >
+      <path fill={MARK_COLOR} fill-rule="evenodd" d={`${HEAD}${CURSOR}`} />
+      <path
+        ref={(node) => (cursorElement = node)}
+        fill={MARK_COLOR}
+        stroke={MARK_COLOR}
+        stroke-width="0.5"
+        opacity="0"
+        d={CURSOR}
+      />
+      <g
+        ref={(node) => (antennaElement = node)}
+        style={{'transform-origin': ANTENNA_ORIGIN, 'transform-box': 'view-box'}}
+      >
+        <path fill={MARK_COLOR} d={ANTENNA} />
+      </g>
+      <path d={WORD} />
+    </svg>
+  )
+}

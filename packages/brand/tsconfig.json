@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "rootDir": ".",
+    "noEmit": true,
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "types": ["vite/client", "node"]
+  },
+  "include": [
+    "src/solid/**/*.ts",
+    "src/solid/**/*.tsx",
+    "src/*.stories.tsx",
+    "src/*.mdx",
+    "vite.config.ts",
+    "tsdown.config.ts"
+  ]
+}
