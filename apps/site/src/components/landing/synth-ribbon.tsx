@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useState} from 'react'
+import {watchFrameCanvas} from './frame-canvas'
 import {SYNTH_RIBBON_TIME_STEP, createSynthRibbonPainter} from './synth-ribbon-figure'
 
 const MAX_PIXEL_RATIO = 2
@@ -9,15 +10,13 @@ const STATIC_TIME = 3.4
 function startSynthRibbon(canvas: HTMLCanvasElement): () => void {
   const context = canvas.getContext('2d', {alpha: true})
   if (!context) return () => {}
-  const staysStill = window.matchMedia('(prefers-reduced-motion: reduce)')
   let paint: ((time: number) => void) | null = null
   let built = ''
   let time = STATIC_TIME
   let lastFrameAt = 0
   let frameHandle = 0
-  let onScreen = false
 
-  const shouldDrift = () => paint !== null && onScreen && document.visibilityState === 'visible' && !staysStill.matches
+  const shouldDrift = () => paint !== null && watch.isAwake()
 
   const frame = (now: number) => {
     frameHandle = 0
@@ -66,23 +65,12 @@ function startSynthRibbon(canvas: HTMLCanvasElement): () => void {
     rebuild(figure, ratio)
   }
 
-  const sizeObserver = new ResizeObserver(build)
-  if (canvas.parentElement) sizeObserver.observe(canvas.parentElement)
-  const viewObserver = new IntersectionObserver((entries) => {
-    onScreen = entries.some((entry) => entry.isIntersecting)
-    schedule()
-  })
-  viewObserver.observe(canvas)
-  document.addEventListener('visibilitychange', schedule)
-  staysStill.addEventListener('change', schedule)
+  const watch = watchFrameCanvas(canvas, {onResize: build, onWake: schedule})
   build()
 
   return () => {
     if (frameHandle !== 0) cancelAnimationFrame(frameHandle)
-    sizeObserver.disconnect()
-    viewObserver.disconnect()
-    document.removeEventListener('visibilitychange', schedule)
-    staysStill.removeEventListener('change', schedule)
+    watch.dispose()
   }
 }
 

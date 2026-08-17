@@ -359,6 +359,15 @@ html > body[data-scroll-locked] {
   padding: 0.5rem;
 }
 
+.od-frame-backdrop[data-effect='ferrofluid'] {
+  --od-ferro-accent: rgb(218, 47, 45);
+  --od-ferro-ink: rgb(33, 28, 23);
+}
+.dark .od-frame-backdrop[data-effect='ferrofluid'] {
+  --od-ferro-accent: rgb(254, 103, 76);
+  --od-ferro-ink: rgb(237, 235, 231);
+}
+
 .od-snippet .shiki,
 .od-snippet .shiki-magic-move-container {
   background-color: transparent !important;
