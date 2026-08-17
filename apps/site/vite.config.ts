@@ -46,7 +46,6 @@ export default defineConfig({
   },
   resolve: {
     tsconfigPaths: true,
-    dedupe: ['react', 'react-dom'],
     alias: {
       tslib: 'tslib/tslib.es6.js',
       ...brandAssetsAlias,
