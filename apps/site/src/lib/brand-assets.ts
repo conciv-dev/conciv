@@ -12,9 +12,28 @@ export type LogoFormat = (typeof LOGO_FORMATS)[number]
 
 const LOGO_KINDS: ReadonlyArray<string> = ['mark', 'lockup']
 
+const ASSET_DIRECTORY = '../../../../packages/brand/assets/'
+
+const EMITTED_ASSET_URLS = import.meta.glob<string>('../../../../packages/brand/assets/**/*.{svg,png,ico}', {
+  query: '?url&no-inline',
+  eager: true,
+  import: 'default',
+})
+
+const ASSET_URL_BY_PATH: Record<string, string> = Object.fromEntries(
+  Object.entries(EMITTED_ASSET_URLS).map(([key, url]) => [key.slice(ASSET_DIRECTORY.length), url]),
+)
+
 export function brandAssetUrl(path: string) {
-  return `/brand/${path}`
+  const url = ASSET_URL_BY_PATH[path]
+  if (url) return url
+  throw new Error(`No brand asset emitted for ${path}`)
 }
+
+export const OG_DEFAULT_URL = brandAssetUrl('social/og-default-1200x630.png')
+export const TWITTER_CARD_URL = brandAssetUrl('social/twitter-1200x600.png')
+export const FAVICON_SVG_URL = brandAssetUrl('favicon/favicon.svg')
+export const APPLE_TOUCH_ICON_URL = brandAssetUrl('favicon/apple-touch-icon.png')
 
 function logoFiles(layout: LogoLayout, format: LogoFormat): BrandFile[] {
   return logos.files.filter(

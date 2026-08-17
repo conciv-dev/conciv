@@ -34,17 +34,18 @@ export default defineConfig({
     tanstackStart({
       prerender: {
         enabled: true,
-        filter: ({path}) => !path.startsWith('/brand/'),
+        filter: ({path}) => !path.startsWith('/assets/'),
       },
     }),
     react(),
     conciv({widget: {quickTerminal: {hotkey: ['Alt+k']}}}),
   ],
   ssr: {
-    noExternal: ['gsap', '@gsap/react'],
+    noExternal: ['gsap', '@gsap/react', '@tanstack/react-query'],
   },
   resolve: {
     tsconfigPaths: true,
+    dedupe: ['react', 'react-dom', '@tanstack/react-query'],
     alias: {
       tslib: 'tslib/tslib.es6.js',
     },
