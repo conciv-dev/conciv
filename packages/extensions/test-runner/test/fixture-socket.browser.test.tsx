@@ -25,8 +25,8 @@ describe('the test-runner vite fixture serves rpc over a real websocket upgrade'
       headers: {'content-type': 'application/json'},
       body: JSON.stringify({json: {}}),
     }).then((response) => response.json())
-    expect(overSocket.summary).toEqual({passed: 1, failed: 1, skipped: 0, durationMs: 2})
-    expect(JSON.stringify(overFetch)).toContain('"passed":1')
+    expect(overSocket.summary).toEqual({passed: 3, failed: 1, skipped: 0, durationMs: 4})
+    expect(JSON.stringify(overFetch)).toContain('"passed":3')
     socket.close()
   })
 
@@ -44,5 +44,23 @@ describe('the test-runner vite fixture serves rpc over a real websocket upgrade'
     expect(seen).toContain('test')
     expect(seen.at(-1)).toBe('run-end')
     socket.close()
+  })
+
+  it('delivers each event as it happens instead of one batch at the end of the run', async () => {
+    const {client, socket} = await openFixtureSocket()
+    const abort = new AbortController()
+    const stream = await client.stream({}, {signal: abort.signal})
+    const opened = performance.now()
+    const arrivals: {type: string; at: number}[] = []
+    for await (const event of stream) {
+      arrivals.push({type: event.type, at: performance.now() - opened})
+      if (event.type === 'run-end') break
+    }
+    abort.abort()
+    socket.close()
+    const firstTest = arrivals.find((arrival) => arrival.type === 'test')
+    const runEnd = arrivals.find((arrival) => arrival.type === 'run-end')
+    if (!firstTest || !runEnd) throw new Error(`stream ended without a test and a run-end: ${JSON.stringify(arrivals)}`)
+    expect(runEnd.at - firstTest.at).toBeGreaterThan(1_000)
   })
 })

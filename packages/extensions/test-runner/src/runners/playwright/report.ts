@@ -11,6 +11,7 @@ const ResultSchema = z
 const SpecSchema = z
   .object({
     title: z.string(),
+    id: z.string().optional(),
     file: z.string().optional(),
     tests: z.array(z.object({results: z.array(ResultSchema).optional()}).loose()).optional(),
   })
@@ -44,13 +45,20 @@ function* walkSpecs(suite: Suite, inherited: string): Generator<{file: string; s
   for (const child of suite.suites ?? []) yield* walkSpecs(child, file)
 }
 
-function rowFor(file: string, spec: z.infer<typeof SpecSchema>): TestRow {
+function rowFor(file: string, spec: z.infer<typeof SpecSchema>, position: number): TestRow {
   const result = spec.tests?.[0]?.results?.[0]
   const state = toState(result?.status ?? 'failed')
   const message = result?.error?.message ?? (state === 'fail' ? 'test failed' : '')
   const error: TestError | undefined =
     state === 'fail' ? {file, name: spec.title, message, stack: result?.error?.stack ?? message} : undefined
-  return {file, name: spec.title, state, durationMs: result?.duration ?? 0, error}
+  return {
+    id: spec.id ?? `${file}#${position}`,
+    file,
+    name: spec.title,
+    state,
+    durationMs: result?.duration ?? 0,
+    error,
+  }
 }
 
 export function parsePlaywrightReport(raw: string): TestRow[] {
@@ -64,6 +72,6 @@ export function parsePlaywrightReport(raw: string): TestRow[] {
   }
   const rows: TestRow[] = []
   for (const suite of report.suites ?? [])
-    for (const {file, spec} of walkSpecs(suite, '')) rows.push(rowFor(file, spec))
+    for (const {file, spec} of walkSpecs(suite, '')) rows.push(rowFor(file, spec, rows.length))
   return rows
 }

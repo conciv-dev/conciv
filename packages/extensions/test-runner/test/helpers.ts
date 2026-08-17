@@ -1,11 +1,26 @@
 import {spawn} from 'node:child_process'
 import {createRequire} from 'node:module'
 import {fileURLToPath, pathToFileURL} from 'node:url'
-import type {SpawnRunner} from '../src/runner/driver.js'
+import type {ChildRunnerSpec, SpawnRunner} from '../src/runner/driver.js'
 import type {RunArgs, TestRunnerManager} from '../src/runner/contract.js'
 
 const require = createRequire(import.meta.url)
 const tsxEntry = pathToFileURL(require.resolve('tsx')).href
+
+export const vitestChildTs = new URL('../src/runners/vitest/child.ts', import.meta.url)
+
+export const vitestSpec = {
+  id: 'vitest',
+  capabilities: {watch: false, uiServer: false, filterByName: true, failedOnly: true},
+  childUrl: vitestChildTs,
+  buildRunArgs: (args, cwd) => {
+    const patternArgs = (args.patterns ?? []).flatMap((pattern) => ['--pattern', pattern])
+    const nameArgs = args.testNamePattern ? ['--name', args.testNamePattern] : []
+    const failedArgs = args.failedOnly ? ['--failed'] : []
+    return ['--mode', 'run', '--cwd', cwd, ...patternArgs, ...nameArgs, ...failedArgs]
+  },
+  buildListArgs: (failedOnly, cwd) => ['--mode', 'list', '--cwd', cwd, ...(failedOnly ? ['--failed'] : [])],
+} satisfies ChildRunnerSpec
 
 export function tsxSpawnFor(childTsUrl: URL): SpawnRunner {
   const childTs = fileURLToPath(childTsUrl)

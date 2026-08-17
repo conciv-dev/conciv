@@ -14,29 +14,35 @@ const FILE = '/proj/app/math.test.ts'
 const STREAM_EVENTS: TestEvent[] = [
   {type: 'snapshot', files: [], summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0}, watching: false},
   {type: 'run-start', runId: 'run-1', files: [FILE]},
-  {type: 'test', file: FILE, name: 'works', state: 'pass', durationMs: 1},
+  {type: 'test', id: 't-works', file: FILE, name: 'works', state: 'pass', durationMs: 1},
   {
     type: 'test',
+    id: 't-broken',
     file: FILE,
     name: 'broken',
     state: 'fail',
     durationMs: 1,
     error: {file: FILE, name: 'broken', message: 'boom', stack: 'boom', line: 3},
   },
+  {type: 'test', id: 't-shared-first', file: FILE, name: 'shares a title', state: 'pass', durationMs: 1},
+  {type: 'test', id: 't-shared-second', file: FILE, name: 'shares a title', state: 'pass', durationMs: 1},
   {
     type: 'run-end',
     runId: 'run-1',
-    summary: {passed: 1, failed: 1, skipped: 0, durationMs: 2},
+    summary: {passed: 3, failed: 1, skipped: 0, durationMs: 4},
     failures: [{file: FILE, name: 'broken', message: 'boom', stack: 'boom', line: 3}],
     tests: [
-      {file: FILE, name: 'works', state: 'pass', durationMs: 1},
+      {id: 't-works', file: FILE, name: 'works', state: 'pass', durationMs: 1},
       {
+        id: 't-broken',
         file: FILE,
         name: 'broken',
         state: 'fail',
         durationMs: 1,
         error: {file: FILE, name: 'broken', message: 'boom', stack: 'boom', line: 3},
       },
+      {id: 't-shared-first', file: FILE, name: 'shares a title', state: 'pass', durationMs: 1},
+      {id: 't-shared-second', file: FILE, name: 'shares a title', state: 'pass', durationMs: 1},
     ],
   },
 ]
@@ -54,13 +60,24 @@ const snapshotEvent: TestEvent = {
   watching: false,
 }
 
+const RUN_EVENT_GAP_MS = 120
+const RUN_END_DELAY_MS = 2500
+
+function runEventDelay(event: TestEvent, index: number): number {
+  return event.type === 'run-end' ? RUN_END_DELAY_MS : index * RUN_EVENT_GAP_MS
+}
+
 const fixtureManager: TestRunnerManager = {
   list: async () => ({files: []}),
   run: async () => cannedStatus,
   status: () => cannedStatus,
   subscribeRaw: (cb) => {
-    for (const event of STREAM_EVENTS.slice(1)) cb(event)
-    return () => {}
+    const timers = STREAM_EVENTS.slice(1).map((event, index) =>
+      setTimeout(() => cb(event), runEventDelay(event, index)),
+    )
+    return () => {
+      for (const timer of timers) clearTimeout(timer)
+    }
   },
   emitSnapshot: () => snapshotEvent,
   openUiServer: async () => ({available: false}),

@@ -51,10 +51,10 @@ export const PASSING_RUN: TestRunResult = {
   summary: {passed: 3, failed: 0, skipped: 1, durationMs: 412},
   failures: [],
   tests: [
-    {file: MATH_FILE, name: 'adds two numbers', state: 'pass', durationMs: 2},
-    {file: MATH_FILE, name: 'subtracts two numbers', state: 'pass', durationMs: 1},
-    {file: CART_FILE, name: 'totals an empty cart', state: 'pass', durationMs: 3},
-    {file: CART_FILE, name: 'applies the loyalty discount', state: 'skip', durationMs: 0},
+    {id: 'math-adds', file: MATH_FILE, name: 'adds two numbers', state: 'pass', durationMs: 2},
+    {id: 'math-subtracts', file: MATH_FILE, name: 'subtracts two numbers', state: 'pass', durationMs: 1},
+    {id: 'cart-empty', file: CART_FILE, name: 'totals an empty cart', state: 'pass', durationMs: 3},
+    {id: 'cart-loyalty', file: CART_FILE, name: 'applies the loyalty discount', state: 'skip', durationMs: 0},
   ],
 }
 
@@ -62,9 +62,16 @@ export const FAILING_RUN: TestRunResult = {
   summary: {passed: 2, failed: 1, skipped: 1, durationMs: 638},
   failures: [CART_FAILURE],
   tests: [
-    {file: MATH_FILE, name: 'adds two numbers', state: 'pass', durationMs: 2},
-    {file: MATH_FILE, name: 'subtracts two numbers', state: 'pass', durationMs: 1},
-    {file: CART_FILE, name: 'applies the bulk discount', state: 'fail', durationMs: 4, error: CART_FAILURE},
-    {file: CART_FILE, name: 'applies the loyalty discount', state: 'skip', durationMs: 0},
+    {id: 'math-adds', file: MATH_FILE, name: 'adds two numbers', state: 'pass', durationMs: 2},
+    {id: 'math-subtracts', file: MATH_FILE, name: 'subtracts two numbers', state: 'pass', durationMs: 1},
+    {
+      id: 'cart-bulk',
+      file: CART_FILE,
+      name: 'applies the bulk discount',
+      state: 'fail',
+      durationMs: 4,
+      error: CART_FAILURE,
+    },
+    {id: 'cart-loyalty', file: CART_FILE, name: 'applies the loyalty discount', state: 'skip', durationMs: 0},
   ],
 }

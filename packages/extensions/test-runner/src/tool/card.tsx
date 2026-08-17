@@ -20,20 +20,22 @@ import {getExtensionApi, makeExtRpcClient} from '@conciv/extension'
 import {TEST_RUNNER_NAME} from '../shared/meta.js'
 import type {TestRunnerRouter} from '../server.js'
 import {
+  countStates,
   TestRunResultSchema,
   type TestRunResult,
   type Summary,
   type TestError,
+  type TestRow as TestRowResult,
   type TestState,
   type TestEvent,
 } from '../shared/events.js'
 
 type RowState = TestState | 'running'
-type Row = {name: string; state: RowState; error?: TestError}
+type Row = {id: string; name: string; state: RowState; error?: TestError}
 type FileGroup = {file: string; tests: Row[]}
 type RunView = {groups: FileGroup[]; summary: Summary; running: boolean}
+type LiveRun = {tests: TestRowResult[]; finalSummary: Summary | null; running: boolean}
 
-const EMPTY_SUMMARY: Summary = {passed: 0, failed: 0, skipped: 0, durationMs: 0}
 const COUNT_FORMAT = new Intl.NumberFormat()
 const TEST_PLURAL = new Intl.PluralRules('en')
 
@@ -96,15 +98,29 @@ function groupByFile(tests: ReadonlyArray<Row & {file: string}>): FileGroup[] {
   const order: string[] = []
   const byFile = new Map<string, Row[]>()
   for (const test of tests) {
+    const row = {id: test.id, name: test.name, state: test.state, error: test.error}
     const rows = byFile.get(test.file)
     if (rows) {
-      rows.push({name: test.name, state: test.state, error: test.error})
+      rows.push(row)
       continue
     }
     order.push(test.file)
-    byFile.set(test.file, [{name: test.name, state: test.state, error: test.error}])
+    byFile.set(test.file, [row])
   }
   return order.map((file) => ({file, tests: byFile.get(file) ?? []}))
+}
+
+function upsertTest(tests: ReadonlyArray<TestRowResult>, row: TestRowResult): TestRowResult[] {
+  const index = tests.findIndex((test) => test.id === row.id)
+  if (index < 0) return [...tests, row]
+  return tests.with(index, row)
+}
+
+function liveSummary(tests: ReadonlyArray<TestRowResult>): Summary {
+  return {
+    ...countStates(tests),
+    durationMs: tests.reduce((total, test) => total + test.durationMs, 0),
+  }
 }
 
 function failureCount(group: FileGroup): number {
@@ -187,7 +203,7 @@ function FileHeader(props: {group: FileGroup}): JSX.Element {
 }
 
 export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewCtx}): JSX.Element {
-  const [live, setLive] = createStore<RunView>({groups: [], summary: EMPTY_SUMMARY, running: false})
+  const [live, setLive] = createStore<LiveRun>({tests: [], finalSummary: null, running: false})
   const [disclosure, setDisclosure] = createStore<{closedFiles: string[]; openTest: string | null}>({
     closedFiles: [],
     openTest: null,
@@ -198,39 +214,36 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
     if (!result) return null
     return {groups: groupByFile(result.tests.map((test) => ({...test}))), summary: result.summary, running: false}
   })
-  const view = (): RunView => completed() ?? live
+  const streamed = createMemo<RunView>(() => ({
+    groups: groupByFile(live.tests),
+    summary: live.finalSummary ?? liveSummary(live.tests),
+    running: live.running,
+  }))
+  const view = (): RunView => completed() ?? streamed()
 
   createEffect(() => {
     if (completed()) return
-    const rows = new Map<string, Row & {file: string}>()
     const abort = new AbortController()
-    setLive({groups: [], summary: EMPTY_SUMMARY, running: true})
+    setLive({tests: [], finalSummary: null, running: true})
     const applyLive = (event: TestEvent) => {
-      if (event.type === 'snapshot') {
-        setLive('summary', event.summary)
-        return
-      }
       if (event.type === 'run-start') {
-        rows.clear()
-        setLive({groups: [], summary: EMPTY_SUMMARY, running: true})
+        setLive({tests: [], finalSummary: null, running: true})
         return
       }
       if (event.type === 'test') {
-        rows.set(`${event.file}::${event.name}`, {
+        const row = {
+          id: event.id,
           file: event.file,
           name: event.name,
           state: event.state,
+          durationMs: event.durationMs,
           error: event.error,
-        })
-        setLive('groups', groupByFile([...rows.values()]))
+        }
+        setLive('tests', (tests) => upsertTest(tests, row))
         return
       }
       if (event.type === 'run-end') {
-        setLive({
-          groups: groupByFile(event.tests.map((test) => ({...test}))),
-          summary: event.summary,
-          running: false,
-        })
+        setLive({tests: event.tests, finalSummary: event.summary, running: false})
         abort.abort()
       }
     }
@@ -254,7 +267,7 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
             >
               <For each={group.tests}>
                 {(test) => {
-                  const key = `${group.file}::${test.name}`
+                  const key = test.id
                   return (
                     <Show
                       when={test.error}
