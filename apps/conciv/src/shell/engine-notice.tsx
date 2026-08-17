@@ -21,13 +21,18 @@ export function EngineStaleNotice(): JSX.Element {
   const apiBase = useApiBase()
   const router = useRouter({warn: false})
   const search = router ? useSearch({strict: false}) : undefined
-  const heartbeat = (): boolean => browserRpcTransport(apiBase()) === 'fetch' && search?.()?.open === true
-  const engine = useQuery(() => ({
-    ...appData.utils.meta.engine.queryOptions(),
-    enabled: connected(),
-    networkMode: 'always',
-    refetchInterval: engineProbeRefetchInterval(reachability.online(), heartbeat()),
-  }))
+  const engine = useQuery(() => {
+    const online = reachability.online()
+    const panelOpen = search?.()?.open === true
+    const currentApiBase = apiBase()
+    return {
+      ...appData.utils.meta.engine.queryOptions(),
+      enabled: connected(),
+      networkMode: 'always',
+      refetchInterval: () =>
+        engineProbeRefetchInterval(online, browserRpcTransport(currentApiBase) === 'fetch' && panelOpen),
+    }
+  })
   const standing = {fingerprint: null as string | null}
   const clear = (): void => {
     if (standing.fingerprint === null) return
