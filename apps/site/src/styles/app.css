@@ -297,13 +297,19 @@ html > body[data-scroll-locked] {
 }
 
 .od-hero-backdrop {
-  --od-hero-line-alpha: 0.05;
+  --od-hero-grid-alpha: 0.12;
+  --od-hero-tick-alpha: 0.53;
   color: var(--od-accent);
   mix-blend-mode: multiply;
 }
 .dark .od-hero-backdrop {
-  --od-hero-line-alpha: 0.08;
   mix-blend-mode: screen;
+}
+.od-hero-grid {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
 }
 @media (max-width: 767px) {
   .od-hero-backdrop {

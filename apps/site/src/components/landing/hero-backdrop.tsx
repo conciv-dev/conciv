@@ -1,14 +1,11 @@
 import {ClientOnly} from '@tanstack/react-router'
-import {HeroEngraving} from './hero-engraving'
-import type {HeroEngravingVariant} from './hero-engraving-figures'
+import {HeroGrid, type HeroGridProps} from './hero-grid'
 
-const HERO_ENGRAVING_VARIANT: HeroEngravingVariant = 'rings'
-
-export function HeroBackdrop() {
+export function HeroBackdrop(props: HeroGridProps) {
   return (
     <div aria-hidden className="od-hero-backdrop pointer-events-none absolute inset-0 overflow-hidden">
       <ClientOnly>
-        <HeroEngraving variant={HERO_ENGRAVING_VARIANT} />
+        <HeroGrid {...props} />
       </ClientOnly>
     </div>
   )
