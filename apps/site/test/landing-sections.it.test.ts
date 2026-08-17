@@ -1,7 +1,8 @@
 import {expect} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {createSiteTest} from './site-fixture.js'
-import {heroCanvas, waitForLandingHydration} from './landing-page.js'
+import type {Page} from 'playwright'
+import {heroBackdrop, waitForLandingHydration} from './landing-page.js'
 import {HERO_HEADLINE} from '../src/components/landing/hero.js'
 import {findScreenshot} from '../src/lib/screenshots.js'
 import {formatStarCount, starsResponseSchema} from '../src/lib/star-count.js'
@@ -172,30 +173,42 @@ test.describe('github star count', () => {
   }, 60_000)
 })
 
-test.describe('hero shader motion', () => {
-  test('draws the hero backdrop once and never animates it under reduced motion', async ({browser}) => {
-    const page = await browser.newPage({viewport: DESKTOP, reducedMotion: 'reduce'})
+test.describe('hero backdrop engraving', () => {
+  const STILLNESS_WINDOW_MS = 2000
+  const BACKDROP_STRIP_WIDTH = 300
+
+  async function expectStaticEngraving(page: Page): Promise<void> {
+    const backdrop = heroBackdrop(page)
+    await expectLocator(backdrop).toBeAttached({timeout: 20_000})
+    await expectLocator(backdrop.locator('path')).not.toHaveCount(0)
+
+    const band = await page.locator('section:has(h1)').first().boundingBox()
+    if (!band) throw new Error('hero band has no box')
+    const strip = {x: band.x, y: band.y, width: BACKDROP_STRIP_WIDTH, height: Math.round(band.height)}
+
+    const first = await page.screenshot({clip: strip})
+    await page.waitForTimeout(STILLNESS_WINDOW_MS)
+    const second = await page.screenshot({clip: strip})
+    expect(second.equals(first)).toBe(true)
+  }
+
+  test('renders the engraving and holds it still when motion is allowed', async ({browser}) => {
+    const page = await browser.newPage({viewport: DESKTOP})
     await page.goto(LANDING, {waitUntil: 'domcontentloaded'})
 
-    const canvas = heroCanvas(page)
-    await expectLocator(canvas).toHaveAttribute('data-ready', '', {timeout: 20_000})
-    await expectLocator(canvas).toHaveAttribute('data-frames', '0')
-
-    await expectLocator(page.getByRole('heading', {level: 1})).toHaveText(HERO_HEADLINE)
-    await expectLocator(page.getByRole('heading', {name: 'What it does on the page.'})).toBeVisible()
-
-    await expectLocator(canvas).toHaveAttribute('data-frames', '0')
+    await expectLocator(page.getByRole('heading', {level: 1})).toHaveText(HERO_HEADLINE, {timeout: 20_000})
+    await expectStaticEngraving(page)
 
     await page.close()
   }, 60_000)
 
-  test('animates the hero backdrop when motion is allowed', async ({browser}) => {
-    const page = await browser.newPage({viewport: DESKTOP})
+  test('renders the same still engraving under reduced motion', async ({browser}) => {
+    const page = await browser.newPage({viewport: DESKTOP, reducedMotion: 'reduce'})
     await page.goto(LANDING, {waitUntil: 'domcontentloaded'})
 
-    const canvas = heroCanvas(page)
-    await expectLocator(canvas).toHaveAttribute('data-ready', '', {timeout: 20_000})
-    await expectLocator(canvas).toHaveAttribute('data-frames', /^[1-9]\d*$/)
+    await expectLocator(page.getByRole('heading', {level: 1})).toHaveText(HERO_HEADLINE, {timeout: 20_000})
+    await expectStaticEngraving(page)
+    await expectLocator(page.getByRole('heading', {name: 'What it does on the page.'})).toBeVisible()
 
     await page.close()
   }, 60_000)
