@@ -305,7 +305,7 @@ html > body[data-scroll-locked] {
 .od-paper-grain-band {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: -1;
   pointer-events: none;
 }
 .od-paper-grain-page {
