@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 import mdx from 'fumadocs-mdx/vite'
 import conciv from '@conciv/it/plugin/vite'
 import {sourceAnnotations} from './src/lib/source-annotations'
+import {brandAssetsAlias} from './brand-assets-alias'
 
 const ONNX_RUNTIME_WASM_PREFIX = 'assets/ort-'
 
@@ -48,6 +49,7 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
     alias: {
       tslib: 'tslib/tslib.es6.js',
+      ...brandAssetsAlias,
     },
   },
 })

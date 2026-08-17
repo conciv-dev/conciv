@@ -12,16 +12,20 @@ export type LogoFormat = (typeof LOGO_FORMATS)[number]
 
 const LOGO_KINDS: ReadonlyArray<string> = ['mark', 'lockup']
 
-const ASSET_DIRECTORY = '../../../../packages/brand/assets/'
-
-const EMITTED_ASSET_URLS = import.meta.glob<string>('../../../../packages/brand/assets/**/*.{svg,png,ico}', {
+const EMITTED_ASSET_URLS = import.meta.glob<string>('@brand-assets/**/*.{svg,png,ico}', {
   query: '?url&no-inline',
   eager: true,
   import: 'default',
 })
 
+const EMITTED_ASSET_ENTRIES = Object.entries(EMITTED_ASSET_URLS)
+
 const ASSET_URL_BY_PATH: Record<string, string> = Object.fromEntries(
-  Object.entries(EMITTED_ASSET_URLS).map(([key, url]) => [key.slice(ASSET_DIRECTORY.length), url]),
+  logos.files.flatMap((file) => {
+    const emitted = EMITTED_ASSET_ENTRIES.find(([key]) => key.endsWith(`/${file.path}`))
+    if (!emitted) return []
+    return [[file.path, emitted[1]]]
+  }),
 )
 
 export function brandAssetUrl(path: string) {
