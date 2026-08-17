@@ -245,11 +245,13 @@ html > body[data-scroll-locked] {
 .od-ruled > .od-page::after,
 .od-ruled > .od-page > .od-col::before,
 .od-ruled > .od-page > .od-col::after {
+  --od-node-size: 7px;
+  --od-node-offset: calc((var(--od-node-size) + 1px) / -2);
   content: '';
   position: absolute;
-  top: -4px;
-  width: 7px;
-  height: 7px;
+  top: var(--od-node-offset);
+  width: var(--od-node-size);
+  height: var(--od-node-size);
   background: var(--od-line);
   transform: rotate(45deg);
   pointer-events: none;
@@ -257,11 +259,11 @@ html > body[data-scroll-locked] {
 }
 .od-ruled > .od-page::before,
 .od-ruled > .od-page > .od-col::before {
-  left: -3px;
+  left: var(--od-node-offset);
 }
 .od-ruled > .od-page::after,
 .od-ruled > .od-page > .od-col::after {
-  right: -3px;
+  right: var(--od-node-offset);
 }
 @media (min-width: 1360px) {
   .od-ruled > .od-page::before,
