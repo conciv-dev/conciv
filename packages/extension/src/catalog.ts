@@ -6,7 +6,7 @@ const SLOTS = [
   {
     name: 'composer',
     description:
-      'Inside the input toolbar: declare actions with ComposerActions.ActionButton from @conciv/ui-kit-chat so they collapse into the shared overflow menu when the row runs out of room.',
+      'Inside the input toolbar: declare actions with ComposerActions.ActionButton from @conciv/ui-kit-chat so they collapse into the shared overflow menu when the row runs out of room. That import needs @conciv/ui-kit-chat as a package.json dependency: add it (matching the version range already pinned for @conciv/extension, since @conciv/* releases in lockstep) if the project does not list it yet.',
   },
   {name: 'empty', description: 'The empty chat state (greeting + starters) shown before any messages.'},
   {name: 'status', description: 'A status line region.'},

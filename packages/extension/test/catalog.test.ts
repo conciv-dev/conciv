@@ -44,6 +44,12 @@ describe('extension catalog (new contract projection)', () => {
     expect(composer?.description).toContain('@conciv/ui-kit-chat')
   })
 
+  it('warns the authoring agent that @conciv/ui-kit-chat needs a package.json dependency', () => {
+    const composer = buildCatalog().slots.find((slot) => slot.name === 'composer')
+    expect(composer?.description).toContain('package.json')
+    expect(composer?.description).toMatch(/dependency|dependencies/)
+  })
+
   it('scaffolds composer buttons through the ComposerActions primitives, never a raw button', () => {
     for (const kind of ['composer-action', 'full'] as ScaffoldKind[]) {
       const src = scaffold(kind, {name: 'demo'})

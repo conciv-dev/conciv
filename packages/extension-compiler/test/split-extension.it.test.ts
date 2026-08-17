@@ -4,6 +4,11 @@ import {splitExtension} from '../src/split-extension.js'
 
 const ID = '/proj/conciv/extensions/canvas.tsx'
 
+function splitCode(out: ReturnType<typeof splitExtension>): string {
+  if (out === null) throw new Error('splitExtension returned null')
+  return out.code
+}
+
 const SOURCE = `import {readFileSync} from 'node:fs'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {Card} from './card.js'
@@ -69,8 +74,7 @@ export default Object.assign(deploy, {Component: DeployButton})`
 describe('splitExtension', () => {
   it('browser: collapses .server(), keeps .client()/.render(), drops node-only imports', async () => {
     const out = splitExtension(SOURCE, ID, 'browser')
-    expect(out).not.toBeNull()
-    const code = out!.code
+    const code = splitCode(out)
     expect(code).not.toContain('.server(')
     expect(code).not.toContain('SERVER_BODY')
     expect(code).not.toContain('node:fs')
@@ -82,8 +86,7 @@ describe('splitExtension', () => {
 
   it('node: collapses .client()/.render(), keeps .server(), drops client-only imports', async () => {
     const out = splitExtension(SOURCE, ID, 'node')
-    expect(out).not.toBeNull()
-    const code = out!.code
+    const code = splitCode(out)
     expect(code).not.toContain('.client(')
     expect(code).not.toContain('.render(')
     expect(code).not.toContain('CLIENT_BODY')
@@ -100,8 +103,7 @@ describe('splitExtension', () => {
 
   it('node: drops Component/Surface/views and the client-only imports they hold alive', async () => {
     const out = splitExtension(SURFACE_SOURCE, ID, 'node')
-    expect(out).not.toBeNull()
-    const code = out!.code
+    const code = splitCode(out)
     expect(code).not.toContain('Component')
     expect(code).not.toContain('Surface')
     expect(code).not.toContain('views')
@@ -112,8 +114,7 @@ describe('splitExtension', () => {
 
   it('browser: keeps Component/Surface/views intact', async () => {
     const out = splitExtension(SURFACE_SOURCE, ID, 'browser')
-    expect(out).not.toBeNull()
-    const code = out!.code
+    const code = splitCode(out)
     expect(code).toContain('Component')
     expect(code).toContain('Surface')
     expect(code).toContain('views')
@@ -122,8 +123,7 @@ describe('splitExtension', () => {
 
   it('node: drops an object-method Component/Surface and the client-only imports they hold alive', async () => {
     const out = splitExtension(METHOD_SURFACE_SOURCE, ID, 'node')
-    expect(out).not.toBeNull()
-    const code = out!.code
+    const code = splitCode(out)
     expect(code).not.toContain('Component')
     expect(code).not.toContain('Surface')
     expect(code).not.toContain('@conciv/ui-kit-chat')
@@ -132,8 +132,7 @@ describe('splitExtension', () => {
 
   it('browser: keeps an object-method Component/Surface intact', async () => {
     const out = splitExtension(METHOD_SURFACE_SOURCE, ID, 'browser')
-    expect(out).not.toBeNull()
-    const code = out!.code
+    const code = splitCode(out)
     expect(code).toContain('Component')
     expect(code).toContain('Surface')
     expect(code).toContain('@conciv/ui-kit-chat')
@@ -141,8 +140,7 @@ describe('splitExtension', () => {
 
   it('node: strips Component from the Object.assign(extension, {Component}) form and its client-only imports', async () => {
     const out = splitExtension(ASSIGN_SOURCE, ID, 'node')
-    expect(out).not.toBeNull()
-    const code = out!.code
+    const code = splitCode(out)
     expect(code).not.toContain('DeployButton')
     expect(code).not.toContain('Component')
     expect(code).not.toContain('@conciv/ui-kit-chat')
@@ -151,8 +149,7 @@ describe('splitExtension', () => {
 
   it('browser: keeps Component from the Object.assign(extension, {Component}) form intact', async () => {
     const out = splitExtension(ASSIGN_SOURCE, ID, 'browser')
-    expect(out).not.toBeNull()
-    const code = out!.code
+    const code = splitCode(out)
     expect(code).toContain('DeployButton')
     expect(code).toContain('Component')
     expect(code).toContain('@conciv/ui-kit-chat')
