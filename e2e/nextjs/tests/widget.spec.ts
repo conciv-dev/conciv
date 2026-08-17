@@ -11,7 +11,7 @@ test('the terminal builtin server extension loaded and can hand back a real conn
   const failures = collectFailures(page)
   await page.goto('/', {waitUntil: 'domcontentloaded'})
   await expectWidgetBoots(page, failures)
-  await page.getByRole('button', {name: /Terminal options for/}).click()
+  await page.getByRole('button', {name: 'More composer actions'}).click()
   await page.getByRole('menuitem', {name: 'Copy command'}).click()
   await expect(page.getByText(/--mcp-config/)).toBeVisible()
 })

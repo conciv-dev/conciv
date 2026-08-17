@@ -396,3 +396,37 @@ it('opens with Enter, highlights with ArrowDown and returns focus to the trigger
   await expect.element(overflowMenu()).not.toBeInTheDocument()
   await expect.element(trigger()).toHaveFocus()
 })
+
+function SwappingMenuAction(props: {alternate: boolean}): JSX.Element {
+  const [local] = splitProps(props, ['alternate'])
+  return (
+    <ComposerActions.Action priority={5}>
+      <Show
+        when={local.alternate}
+        fallback={<ComposerActions.ActionMenuItem label="Menu only action" onSelect={() => undefined} />}
+      >
+        <ComposerActions.ActionMenuItem label="Alternate action" onSelect={() => undefined} />
+      </Show>
+    </ComposerActions.Action>
+  )
+}
+
+it('keeps live trailing content mounted when an action swaps its overflow entries', async () => {
+  const [alternate, setAlternate] = createSignal(false)
+  mountView(() => (
+    <Fixture width={WIDE_PX} maxInlineAuto={0} trailing={<input aria-label="Trailing draft" />}>
+      <StandardActions />
+      <SwappingMenuAction alternate={alternate()} />
+    </Fixture>
+  ))
+
+  const draft = () => page.getByRole('textbox', {name: 'Trailing draft'})
+  await userEvent.fill(draft(), 'kept')
+  await expect.element(draft()).toHaveValue('kept')
+
+  setAlternate(true)
+
+  await userEvent.click(trigger())
+  await expect.element(page.getByRole('menuitem', {name: 'Alternate action'})).toBeVisible()
+  await expect.element(draft()).toHaveValue('kept')
+})

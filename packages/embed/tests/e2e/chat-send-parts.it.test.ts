@@ -28,7 +28,7 @@ test.describe('a send that carries an attachment', () => {
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
     await openPanel(page)
 
-    const addAttachment = page.getByRole('button', {name: 'Add attachment'})
+    const addAttachment = page.getByRole('button', {name: 'Add an attachment'})
     await expect(addAttachment).toBeEnabled({timeout: 30_000})
     const opened = page.waitForEvent('filechooser', {timeout: 30_000})
     await addAttachment.click()

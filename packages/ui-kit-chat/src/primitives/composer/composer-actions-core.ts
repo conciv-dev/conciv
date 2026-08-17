@@ -68,6 +68,17 @@ const EMPTY_REGISTRY: Registry = {actions: [], slots: [], inlineClaims: [], menu
 export function createActionsCoordinator(options: ActionsCoordinatorOptions): ActionsCoordinator {
   const [registry, setRegistry] = createSignal<Registry>(EMPTY_REGISTRY)
 
+  const registeredSlotRender = (slot: SlotName): SlotRender | undefined =>
+    registry().slots.findLast((registration) => registration.slot === slot)?.render
+  const leadingRender = createMemo(() => registeredSlotRender('leading'))
+  const trailingRender = createMemo(() => registeredSlotRender('trailing'))
+  const triggerRender = createMemo(() => registeredSlotRender('trigger'))
+  const slotRenders: Record<SlotName, () => SlotRender | undefined> = {
+    leading: leadingRender,
+    trailing: trailingRender,
+    trigger: triggerRender,
+  }
+
   const sortedActions = createMemo(() => orderBy(registry().actions, [(action) => action.priority()], ['desc']))
   const fitParticipants = createMemo(() => sortedActions().filter((action) => action.inlineContent()))
   const pinnedActions = createMemo(() => fitParticipants().filter((action) => action.pinned()))
@@ -171,7 +182,7 @@ export function createActionsCoordinator(options: ActionsCoordinatorOptions): Ac
         })),
       )
     },
-    slotRender: (slot) => registry().slots.findLast((registration) => registration.slot === slot)?.render,
+    slotRender: (slot) => slotRenders[slot](),
     isInline: (key) => inlineKeys().has(key),
     menuActions,
     anyCollapsed: () => menuActions().length > 0,
