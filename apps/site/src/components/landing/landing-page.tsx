@@ -1,4 +1,3 @@
-import {useRef} from 'react'
 import {SiteNav} from './site-nav'
 import {HeroCopy} from './hero'
 import {ProductFrame} from './product-frame'
@@ -11,17 +10,15 @@ import {LandingSpacer} from './landing-spacer'
 import {PaperGrain} from './paper-grain'
 
 export function LandingPage() {
-  const grainStop = useRef<HTMLDivElement>(null)
-
   return (
     <div className="relative isolate min-h-dvh">
-      <PaperGrain stopAt={grainStop} />
+      <PaperGrain />
       <SiteNav />
       <main>
         <HeroCopy />
         <ProductFrame />
         <PrinciplesStrip />
-        <LandingSpacer ref={grainStop} />
+        <LandingSpacer />
         <CapabilitySection />
         <LandingSpacer />
         <HowItWorks />

@@ -302,16 +302,23 @@ html > body[data-scroll-locked] {
     );
 }
 
-.od-paper-grain {
-  position: absolute;
-  inset-inline: 0;
-  top: 0;
+.od-paper-grain-band {
+  position: fixed;
+  inset: 0;
   z-index: 20;
   pointer-events: none;
+}
+.od-paper-grain-page {
+  height: 100%;
+  border-inline-color: transparent;
+}
+.od-paper-grain {
+  position: absolute;
+  inset: 0;
   color: var(--od-ink);
 }
 @media (max-width: 767px) {
-  .od-paper-grain {
+  .od-paper-grain-band {
     display: none;
   }
 }
