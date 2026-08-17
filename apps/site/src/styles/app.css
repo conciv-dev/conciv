@@ -519,3 +519,23 @@ html > body[data-scroll-locked] {
     @apply font-sans;
   }
 }
+
+.od-frame-backdrop[data-effect='synthRibbon'] {
+  mix-blend-mode: normal;
+  background-color: oklch(0.13 0.014 40);
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      color-mix(in oklab, var(--od-accent) 5%, transparent) 0 1px,
+      transparent 1px 50px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--od-accent) 5%, transparent) 0 1px,
+      transparent 1px 50px
+    ),
+    radial-gradient(120% 120% at 50% 50%, oklch(0.2 0.022 40) 0%, oklch(0.13 0.014 40) 55%, oklch(0.09 0.012 40) 100%);
+}
+.dark .od-frame-backdrop[data-effect='synthRibbon'] {
+  mix-blend-mode: normal;
+}
