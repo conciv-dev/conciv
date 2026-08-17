@@ -2,10 +2,11 @@ import {Outlet, createFileRoute} from '@tanstack/solid-router'
 import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
 import {Show, createEffect, createSignal, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
-import {useFabPosition, useLayers, useSuppressed} from '../app/context.js'
+import {useEnvironment, useFabPosition, useLayers, useSuppressed} from '../app/context.js'
 import {makePanelComposerFocus, PanelComposerFocusContext} from '../app/panel-focus.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
+import {hostPageHasFocus} from '../lib/host-focus.js'
 import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
 
@@ -39,6 +40,7 @@ function PanelLayout(): JSX.Element {
   const layers = useLayers()
   const suppressed = useSuppressed()
   const panelChrome = usePanelChrome()
+  const environment = useEnvironment()
   const search = Route.useSearch()
   const position = fabPosition
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
@@ -56,6 +58,7 @@ function PanelLayout(): JSX.Element {
   const keepTrapFromFocusing = (): false => false
   createEffect(() => {
     if (!open()) return
+    if (hostPageHasFocus(environment.rootNode)) return
     composerFocus.handle()?.focus()
   })
 
