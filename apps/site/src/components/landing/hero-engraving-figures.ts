@@ -61,10 +61,10 @@ function roundedPolygonPath(points: Point[], rounding: number): string {
 }
 
 const RINGS_SEED = 20260817
-const RINGS_COUNT = 18
+const RINGS_COUNT = 30
 const RINGS_SIDES = 5
 const RINGS_BASE_RADIUS = 46
-const RINGS_GROWTH = 1.168
+const RINGS_GROWTH = 1.1
 const RINGS_ROTATION_STEP = 0.21
 const RINGS_ROTATION_JITTER = 0.13
 const RINGS_VERTEX_JITTER = 0.04
