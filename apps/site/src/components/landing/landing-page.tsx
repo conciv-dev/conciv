@@ -6,6 +6,7 @@ import {CapabilitySection} from './capability-section'
 import {HowItWorks} from './how-it-works'
 import {OpenSourceStrip} from './open-source-strip'
 import {SiteFooter} from './site-footer'
+import {LandingSpacer} from './landing-spacer'
 
 export function LandingPage() {
   return (
@@ -15,8 +16,11 @@ export function LandingPage() {
         <HeroCopy />
         <ProductFrame />
         <PrinciplesStrip />
+        <LandingSpacer />
         <CapabilitySection />
+        <LandingSpacer />
         <HowItWorks />
+        <LandingSpacer />
         <OpenSourceStrip />
       </main>
       <SiteFooter />

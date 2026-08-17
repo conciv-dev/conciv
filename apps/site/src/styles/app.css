@@ -274,6 +274,28 @@ html > body[data-scroll-locked] {
   }
 }
 
+.od-band-grid {
+  --od-grid-cell: 14px;
+  --od-grid-alpha: 0.05;
+  position: relative;
+}
+.dark .od-band-grid {
+  --od-grid-alpha: 0.045;
+}
+.od-band-grid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--od-ink) calc(var(--od-grid-alpha) * 100%), transparent) 0 1px,
+    transparent 1px
+  );
+  background-size: var(--od-grid-cell) 100%;
+  background-position: 50% 0;
+}
+
 .od-hero-backdrop {
   --od-hero-line-alpha: 0.05;
   color: var(--od-accent);
