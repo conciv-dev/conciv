@@ -45,6 +45,7 @@ html > body[data-scroll-locked] {
   --od-star: oklch(0.78 0.16 85);
   --od-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --od-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --od-measure: 1120px;
   --od-display: 'Newsreader Variable', serif;
   --od-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
   --background: var(--od-paper);
@@ -187,7 +188,7 @@ html > body[data-scroll-locked] {
   position: relative;
   margin-inline: auto;
   width: 100%;
-  max-width: calc(1120px + 2 * var(--od-gutter));
+  max-width: calc(var(--od-measure) + 2 * var(--od-gutter));
   padding-inline: calc(var(--od-gutter) - var(--od-page-rule));
 }
 
@@ -299,11 +300,24 @@ html > body[data-scroll-locked] {
 .od-hero-backdrop {
   --od-hero-grid-alpha: 0.12;
   --od-hero-tick-alpha: 0.53;
+  --od-hero-wash-alpha: 0.02;
   color: var(--od-accent);
   mix-blend-mode: multiply;
 }
 .dark .od-hero-backdrop {
   mix-blend-mode: screen;
+}
+.od-hero-wash {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  translate: -50% 0;
+  width: 100%;
+  max-width: var(--od-measure);
+  background: linear-gradient(
+    color-mix(in oklch, var(--od-accent) calc(var(--od-hero-wash-alpha) * 100%), transparent),
+    color-mix(in oklch, var(--od-accent) calc(var(--od-hero-wash-alpha) * 33%), transparent)
+  );
 }
 .od-hero-grid {
   position: absolute;
