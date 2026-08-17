@@ -19,8 +19,9 @@ export function EngineStaleNotice(): JSX.Element {
   const reachability = useEngineReachability()
   const notices = useNotices()
   const apiBase = useApiBase()
-  const search = useSearch({strict: false})
-  const heartbeat = (): boolean => browserRpcTransport(apiBase()) === 'fetch' && search().open === true
+  const router = useRouter({warn: false})
+  const search = router ? useSearch({strict: false}) : undefined
+  const heartbeat = (): boolean => browserRpcTransport(apiBase()) === 'fetch' && search?.()?.open === true
   const engine = useQuery(() => ({
     ...appData.utils.meta.engine.queryOptions(),
     enabled: connected(),
