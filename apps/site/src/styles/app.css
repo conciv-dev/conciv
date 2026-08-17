@@ -276,25 +276,28 @@ html > body[data-scroll-locked] {
 }
 
 .od-band-grid {
-  --od-grid-cell: 14px;
-  --od-grid-alpha: 0.05;
+  --od-grid-pitch: 5px;
+  --od-grid-alpha: 0.1;
+  --od-spacer-bg: 0.02;
   position: relative;
-}
-.dark .od-band-grid {
-  --od-grid-alpha: 0.045;
+  background-color: color-mix(in oklab, var(--od-ink) calc(var(--od-spacer-bg) * 100%), transparent);
 }
 .od-band-grid::before {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: linear-gradient(
-    to right,
-    color-mix(in oklab, var(--od-ink) calc(var(--od-grid-alpha) * 100%), transparent) 0 1px,
-    transparent 1px
-  );
-  background-size: var(--od-grid-cell) 100%;
-  background-position: 50% 0;
+  background-image:
+    radial-gradient(140px 10px at 12% 45%, color-mix(in oklab, var(--od-ink) 3.5%, transparent), transparent 70%),
+    radial-gradient(220px 12px at 33% 60%, color-mix(in oklab, var(--od-ink) 2.5%, transparent), transparent 75%),
+    radial-gradient(180px 9px at 52% 35%, color-mix(in oklab, var(--od-ink) 3%, transparent), transparent 70%),
+    radial-gradient(260px 12px at 71% 55%, color-mix(in oklab, var(--od-ink) 2.5%, transparent), transparent 75%),
+    radial-gradient(150px 10px at 90% 40%, color-mix(in oklab, var(--od-ink) 3.5%, transparent), transparent 70%),
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in oklab, var(--od-ink) calc(var(--od-grid-alpha) * 100%), transparent) 0 1px,
+      transparent 1px var(--od-grid-pitch)
+    );
 }
 
 .od-hero-backdrop {
