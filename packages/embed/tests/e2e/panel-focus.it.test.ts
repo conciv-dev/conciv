@@ -163,3 +163,30 @@ test.describe('panel close restores focus: host element captured at open wins, F
     await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeFocused({timeout: 10_000})
   })
 })
+
+test.describe('panel restore-on-load never steals focus from the host page', () => {
+  test('reloading with a restored open panel leaves an autofocused host input focused', async ({page}) => {
+    test.setTimeout(180_000)
+    const host = await serveHost(() =>
+      hostPage({
+        apiBase: suite.kit().base,
+        widget: '{"quickTerminal":false}',
+        body: '<input aria-label="Host search" autofocus>',
+      }),
+    )
+    dedicatedHosts.push(host)
+    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await openPanel(page)
+    await until(async () => (await currentHref(suite.kit())).includes('open=true'), {
+      hangGuardMs: 30_000,
+      intervalMs: 100,
+    })
+    expect(await currentHref(suite.kit())).toContain('open=true')
+
+    await page.reload({waitUntil: 'domcontentloaded'})
+    const hostInput = page.getByRole('textbox', {name: 'Host search'})
+    await expect(hostInput).toBeFocused({timeout: 10_000})
+    await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
+    await expect(hostInput).toBeFocused({timeout: 10_000})
+  })
+})

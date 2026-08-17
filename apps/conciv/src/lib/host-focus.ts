@@ -10,3 +10,10 @@ export function hostFocusTarget(widgetContainer: HTMLElement): HTMLElement | nul
   if (active === document.body) return null
   return active
 }
+
+export function hostPageHasFocus(rootNode: Node): boolean {
+  const active = document.activeElement
+  if (active === null || active === document.body || active === document.documentElement) return false
+  if (rootNode instanceof ShadowRoot) return active !== rootNode.host
+  return !rootNode.contains(active)
+}

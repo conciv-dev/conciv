@@ -53,6 +53,10 @@ export function useAppData(): AppData {
   return useAppScope('useAppData', (app) => app.data)
 }
 
+export function useEnvironment(): ConcivEnvironment {
+  return useAppScope('useEnvironment', (app) => app.environment)
+}
+
 export function useLiveSessions(): LiveSessions {
   return useAppScope('useLiveSessions', (app) => app.liveSessions)
 }
