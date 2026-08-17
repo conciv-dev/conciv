@@ -1,4 +1,4 @@
-import {useCallback, useRef} from 'react'
+import {useCallback, useEffect, useRef} from 'react'
 import type {PointerEvent, Ref} from 'react'
 import {animate, useReducedMotion} from 'motion/react'
 import type {AnimationPlaybackControls} from 'motion/react'
@@ -95,6 +95,14 @@ function InteractiveLockup({className}: {className?: string}) {
     blink.current = null
     if (cursor.current) setCursorHidden(cursor.current, false)
   }, [])
+
+  useEffect(
+    () => () => {
+      blink.current?.stop()
+      flick.current?.stop()
+    },
+    [],
+  )
 
   const handlePointerEnter = useCallback(
     (event: PointerEvent<SVGSVGElement>) => {
