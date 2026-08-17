@@ -1,8 +1,8 @@
 import {createEffect, type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
-import {useRouter} from '@tanstack/solid-router'
+import {useRouter, useSearch} from '@tanstack/solid-router'
 import {engineProbeRefetchInterval, voteEngineProbeSettled} from '@conciv/client'
-import {reprobeBrowserRpcConnection} from '@conciv/contract'
+import {browserRpcTransport, reprobeBrowserRpcConnection} from '@conciv/contract'
 import {useApiBase, useAppData, useConnected} from '../app/context.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {useNotices} from './notice-context.js'
@@ -18,11 +18,14 @@ export function EngineStaleNotice(): JSX.Element {
   const connected = useConnected()
   const reachability = useEngineReachability()
   const notices = useNotices()
+  const apiBase = useApiBase()
+  const search = useSearch({strict: false})
+  const heartbeat = (): boolean => browserRpcTransport(apiBase()) === 'fetch' && search().open === true
   const engine = useQuery(() => ({
     ...appData.utils.meta.engine.queryOptions(),
     enabled: connected(),
     networkMode: 'always',
-    refetchInterval: engineProbeRefetchInterval(reachability.online()),
+    refetchInterval: engineProbeRefetchInterval(reachability.online(), heartbeat()),
   }))
   const standing = {fingerprint: null as string | null}
   const clear = (): void => {

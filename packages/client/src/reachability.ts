@@ -83,10 +83,12 @@ export function sustainedEngineOffline(graceMs = ENGINE_OFFLINE_GRACE_MS): Acces
   return sustained
 }
 
-const ENGINE_PROBE_INTERVAL_MS = 2000
+export const ENGINE_PROBE_INTERVAL_MS = 2000
+export const ENGINE_HEARTBEAT_INTERVAL_MS = 30_000
 
-export function engineProbeRefetchInterval(reachable: boolean, intervalMs = ENGINE_PROBE_INTERVAL_MS): number | false {
-  return reachable ? false : intervalMs
+export function engineProbeRefetchInterval(reachable: boolean, heartbeat: boolean): number | false {
+  if (!reachable) return ENGINE_PROBE_INTERVAL_MS
+  return heartbeat ? ENGINE_HEARTBEAT_INTERVAL_MS : false
 }
 
 export function subscribeEngineOnline(listener: () => void): () => void {

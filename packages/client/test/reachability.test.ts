@@ -9,6 +9,8 @@ import {
   resetFakeNativeSockets,
 } from '../../contract/test/helpers/fake-native-socket.js'
 import {
+  ENGINE_HEARTBEAT_INTERVAL_MS,
+  ENGINE_PROBE_INTERVAL_MS,
   engineOnline,
   engineProbeRefetchInterval,
   setupEngineReachability,
@@ -191,12 +193,17 @@ describe('sustainedEngineOffline', () => {
 })
 
 describe('engineProbeRefetchInterval', () => {
-  it('stops polling once reachable', () => {
-    expect(engineProbeRefetchInterval(true)).toBe(false)
+  it('stops polling once reachable with no heartbeat condition', () => {
+    expect(engineProbeRefetchInterval(true, false)).toBe(false)
   })
 
-  it('polls at the given interval while unreachable', () => {
-    expect(engineProbeRefetchInterval(false, 3000)).toBe(3000)
+  it('polls at the heartbeat interval once reachable when the heartbeat condition holds', () => {
+    expect(engineProbeRefetchInterval(true, true)).toBe(ENGINE_HEARTBEAT_INTERVAL_MS)
+  })
+
+  it('polls at the offline probe interval while unreachable regardless of the heartbeat condition', () => {
+    expect(engineProbeRefetchInterval(false, false)).toBe(ENGINE_PROBE_INTERVAL_MS)
+    expect(engineProbeRefetchInterval(false, true)).toBe(ENGINE_PROBE_INTERVAL_MS)
   })
 })
 
