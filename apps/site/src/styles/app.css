@@ -334,6 +334,26 @@ html > body[data-scroll-locked] {
   }
 }
 
+.od-frame-backdrop {
+  --od-silt-tint: 218, 47, 45;
+  --od-silt-alpha: 0.29;
+  mix-blend-mode: multiply;
+}
+.dark .od-frame-backdrop {
+  --od-silt-tint: 254, 103, 76;
+  --od-silt-alpha: 0.35;
+  mix-blend-mode: screen;
+}
+@media (max-width: 767px) {
+  .od-frame-backdrop {
+    display: none;
+  }
+}
+
+.od-frame-pad {
+  padding-block: var(--od-inset);
+}
+
 .od-snippet .shiki,
 .od-snippet .shiki-magic-move-container {
   background-color: transparent !important;
