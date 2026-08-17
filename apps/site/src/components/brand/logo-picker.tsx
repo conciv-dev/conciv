@@ -79,7 +79,7 @@ export function LogoPicker() {
         <OptionGroup legend="Format" options={LOGO_FORMATS} selected={format} onSelect={setFormat} />
         <OptionGroup legend="Tone" options={tones} selected={tone} onSelect={setRequestedTone} />
         <div className="flex flex-wrap gap-2 border-t pt-5">
-          {format === 'svg' && preview ? <CopySvgButton path={preview.path} /> : null}
+          {format === 'svg' && preview ? <CopySvgButton key={preview.path} path={preview.path} /> : null}
           {downloads.map((file) => (
             <DownloadButton
               key={file.path}
