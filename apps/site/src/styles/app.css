@@ -46,6 +46,7 @@ html > body[data-scroll-locked] {
   --od-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --od-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --od-measure: 1120px;
+  --od-paper-grain-alpha: 0.3;
   --od-display: 'Newsreader Variable', serif;
   --od-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
   --background: var(--od-paper);
@@ -81,6 +82,7 @@ html > body[data-scroll-locked] {
   --od-accent-ink: var(--od-paper);
   --od-pass: oklch(0.74 0.16 152);
   --od-star: oklch(0.84 0.15 88);
+  --od-paper-grain-alpha: 0.22;
   --background: var(--od-paper);
   --foreground: var(--od-ink);
   --card: var(--od-panel);
@@ -298,6 +300,19 @@ html > body[data-scroll-locked] {
       color-mix(in oklab, var(--od-ink) calc(var(--od-grid-alpha) * 100%), transparent) 0 1px,
       transparent 1px var(--od-grid-pitch)
     );
+}
+
+.od-paper-grain {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: -10;
+  color: var(--od-ink);
+}
+@media (max-width: 767px) {
+  .od-paper-grain {
+    display: none;
+  }
 }
 
 .od-hero-backdrop {

@@ -1,6 +1,6 @@
 import {FERROFLUID_FRAGMENT, FERROFLUID_VERTEX} from './ferrofluid-source'
 import {FrameEffectCanvas, watchFrameCanvas} from './frame-canvas'
-import {createFullScreenTriangle, createShaderProgram, readColorTriple, readFrameAlpha} from './shader-program'
+import {createFullScreenTriangle, createShaderProgram, readAlphaToken, readColorTriple} from './shader-program'
 
 const MAX_PIXEL_RATIO = 2
 const STATIC_TIME = 8
@@ -60,7 +60,7 @@ function startFerrofluid(canvas: HTMLCanvasElement): () => void {
   const attractorLocation = gl.getUniformLocation(program, 'u_attractor')
   gl.uniform3fv(gl.getUniformLocation(program, 'u_accent'), readStageColor(canvas, '--od-ferro-accent'))
   gl.uniform3fv(gl.getUniformLocation(program, 'u_ink'), readStageColor(canvas, '--od-ferro-ink'))
-  gl.uniform1f(gl.getUniformLocation(program, 'u_alpha'), readFrameAlpha(canvas))
+  gl.uniform1f(gl.getUniformLocation(program, 'u_alpha'), readAlphaToken(canvas, '--od-frame-alpha'))
   gl.clearColor(0, 0, 0, 0)
 
   let startedAt = performance.now()

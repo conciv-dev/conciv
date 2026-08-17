@@ -11,8 +11,8 @@ export function readColorTriple(color: string): Float32Array {
   return Float32Array.from(context.getImageData(0, 0, 1, 1).data.subarray(0, 3), (channel) => channel / 255)
 }
 
-export function readFrameAlpha(element: HTMLElement): number {
-  const alpha = Number(window.getComputedStyle(element).getPropertyValue('--od-frame-alpha'))
+export function readAlphaToken(element: HTMLElement, token: string): number {
+  const alpha = Number(window.getComputedStyle(element).getPropertyValue(token))
   return Number.isFinite(alpha) ? alpha : 0
 }
 

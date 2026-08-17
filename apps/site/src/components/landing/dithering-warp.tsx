@@ -1,6 +1,6 @@
 import {DITHERING_WARP_BLOCK_SIZE, DITHERING_WARP_FRAGMENT, DITHERING_WARP_VERTEX} from './dithering-warp-source'
 import {FrameEffectCanvas, watchFrameCanvas} from './frame-canvas'
-import {createFullScreenTriangle, createShaderProgram, readColorTriple, readFrameAlpha} from './shader-program'
+import {createFullScreenTriangle, createShaderProgram, readAlphaToken, readColorTriple} from './shader-program'
 
 const FRAME_INTERVAL_MS = 1000 / 12
 const TIME_SPEED = 0.08
@@ -35,7 +35,7 @@ function startDitheringWarp(canvas: HTMLCanvasElement): () => void {
   const resolutionLocation = gl.getUniformLocation(program, 'u_resolution')
   const timeLocation = gl.getUniformLocation(program, 'u_time')
   gl.uniform3fv(gl.getUniformLocation(program, 'u_color'), readTint(canvas))
-  gl.uniform1f(gl.getUniformLocation(program, 'u_alpha'), readFrameAlpha(canvas))
+  gl.uniform1f(gl.getUniformLocation(program, 'u_alpha'), readAlphaToken(canvas, '--od-frame-alpha'))
   gl.clearColor(0, 0, 0, 0)
 
   let startedAt = performance.now()
