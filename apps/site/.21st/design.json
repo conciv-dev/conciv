@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "project": {
+    "name": "site",
+    "productType": null,
+    "stack": ["react", "shadcn", "tailwind-v4", "vite"]
+  },
+  "sources": {
+    "tokens": [],
+    "components": ["src/components/ui"],
+    "assets": [],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "unknown",
+    "colors": {},
+    "typography": {},
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {},
+    "density": "unknown"
+  },
+  "components": {
+    "installed": [
+      "alert-dialog",
+      "badge",
+      "button",
+      "card",
+      "hover-card",
+      "input",
+      "message-circle-icon",
+      "mouse-pointer-2-icon",
+      "pen-icon",
+      "plug-connected-icon",
+      "scroll-area",
+      "select",
+      "shield-check",
+      "terminal-icon",
+      "tooltip",
+      "types"
+    ],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [],
+    "avoid": []
+  },
+  "decisions": [],
+  "evidence": [
+    {
+      "fact": "components.installed",
+      "source": "src/components/ui"
+    },
+    {
+      "fact": "project.stack:react",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:shadcn",
+      "source": "components.json"
+    },
+    {
+      "fact": "project.stack:tailwind-v4",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:vite",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-08-15T19:07:07.532Z"
+}

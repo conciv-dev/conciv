@@ -54,3 +54,5 @@ e2e/*/src/routeTree.gen.ts
 .swiftpm/
 *.xcresult
 
+
+.scratch/
