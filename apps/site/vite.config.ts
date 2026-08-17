@@ -41,11 +41,11 @@ export default defineConfig({
     conciv({widget: {quickTerminal: {hotkey: ['Alt+k']}}}),
   ],
   ssr: {
-    noExternal: ['gsap', '@gsap/react', '@tanstack/react-query'],
+    noExternal: ['gsap', '@gsap/react'],
   },
   resolve: {
     tsconfigPaths: true,
-    dedupe: ['react', 'react-dom', '@tanstack/react-query'],
+    dedupe: ['react', 'react-dom'],
     alias: {
       tslib: 'tslib/tslib.es6.js',
     },

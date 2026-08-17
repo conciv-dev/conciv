@@ -62,6 +62,7 @@ export function LogoPicker() {
   const tones = logoTones(layout, format)
   const preview = previewFile(layout, tone)
   const downloads = downloadFiles(layout, format, tone)
+  const description = `${humanLabel(layout)} logo, ${humanLabel(tone)}`
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -85,6 +86,9 @@ export function LogoPicker() {
               key={file.path}
               path={file.path}
               label={format === 'svg' ? 'Download SVG' : `PNG ${file.size}`}
+              accessibleName={
+                format === 'svg' ? `Download ${description}, SVG` : `Download ${description}, PNG ${file.size}`
+              }
             />
           ))}
         </div>

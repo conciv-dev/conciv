@@ -2,17 +2,23 @@ import type {ReactNode} from 'react'
 import {SiteNav} from '@/components/landing/site-nav'
 import {SiteFooter} from '@/components/landing/site-footer'
 import {SmoothScroll} from '@/components/landing/smooth-scroll'
-import {BRAND_COLOURS, faviconIcons, fileLabel, socialAssets} from '@/lib/brand-assets'
+import {BRAND_COLOURS, faviconIcons, fileLabel, socialAssets, type BrandFile} from '@/lib/brand-assets'
 import {BrandBackdrop, BrandImage} from './brand-preview'
 import {DownloadButton} from './brand-actions'
 import {LogoPicker} from './logo-picker'
 
 const USAGE = [
-  {rule: 'The mark stays crimson', detail: `Always ${BRAND_COLOURS.crimson}. Never recolour it.`},
-  {rule: 'The wordmark inherits text colour', detail: 'Use the mono files on coloured or photographic backgrounds.'},
+  {
+    rule: 'Crimson is the primary mark',
+    detail: `${BRAND_COLOURS.crimson} by default. Single-colour cuts are for monochrome contexts only: print, engraving, one-colour UI.`,
+  },
+  {
+    rule: 'The wordmark inherits text colour',
+    detail: 'Its paths are filled with currentColor, so it picks up the surrounding text colour.',
+  },
   {rule: 'Never redraw it', detail: 'No outlines, shadows, stretching, or rebuilt letterforms.'},
   {rule: 'The wordmark ships outlined', detail: 'Geist SemiBold, converted to paths. No font to install.'},
-  {rule: 'Clear space', detail: 'Keep one mark-width of empty space on every side.'},
+  {rule: 'Clear space', detail: 'Keep one antenna-height of empty space on every side.'},
   {rule: 'Below 24px, use the favicon cut', detail: 'The fused-ear mark holds up where the full mark closes in.'},
 ]
 
@@ -34,29 +40,23 @@ function Section({id, title, blurb, children}: {id: string; title: string; blurb
   )
 }
 
-function AssetCard({
-  path,
-  tone,
-  label,
-  detail,
-  previewClassName,
-}: {
-  path: string
-  tone: string
-  label: string
-  detail: string
-  previewClassName: string
-}) {
+function AssetCard({file, previewClassName}: {file: BrandFile; previewClassName: string}) {
+  const label = fileLabel(file.path)
+  const format = file.format.toUpperCase()
   return (
     <div className="flex flex-col gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-      <BrandBackdrop tone={tone} className="h-32 overflow-hidden p-5">
-        <BrandImage path={path} alt={`conciv ${label.toLowerCase()}`} className={previewClassName} />
+      <BrandBackdrop tone={file.tone} className="h-32 overflow-hidden p-5">
+        <BrandImage path={file.path} alt={`conciv ${label.toLowerCase()}`} className={previewClassName} />
       </BrandBackdrop>
       <div className="flex-1">
         <p className="text-[13.5px] font-semibold">{label}</p>
-        <p className="font-mono text-[11.5px] text-muted-foreground">{detail}</p>
+        <p className="font-mono text-[11.5px] text-muted-foreground">{`${format} · ${file.size}`}</p>
       </div>
-      <DownloadButton path={path} label="Download" />
+      <DownloadButton
+        path={file.path}
+        label="Download"
+        accessibleName={`Download ${label.toLowerCase()}, ${format} ${file.size}`}
+      />
     </div>
   )
 }
@@ -65,14 +65,7 @@ function FaviconGrid() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {faviconIcons().map((file) => (
-        <AssetCard
-          key={file.path}
-          path={file.path}
-          tone={file.tone}
-          label={fileLabel(file.path)}
-          detail={`${file.format.toUpperCase()} · ${file.size}`}
-          previewClassName="max-h-16 max-w-16"
-        />
+        <AssetCard key={file.path} file={file} previewClassName="max-h-16 max-w-16" />
       ))}
     </div>
   )
@@ -82,14 +75,7 @@ function SocialGrid() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {socialAssets().map((file) => (
-        <AssetCard
-          key={file.path}
-          path={file.path}
-          tone={file.tone}
-          label={fileLabel(file.path)}
-          detail={`PNG · ${file.size}`}
-          previewClassName="h-20 max-w-full"
-        />
+        <AssetCard key={file.path} file={file} previewClassName="h-20 max-w-full" />
       ))}
     </div>
   )

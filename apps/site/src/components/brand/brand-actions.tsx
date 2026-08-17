@@ -45,10 +45,10 @@ export function CopySvgButton({path}: {path: string}) {
   )
 }
 
-export function DownloadButton({path, label}: {path: string; label: string}) {
+export function DownloadButton({path, label, accessibleName}: {path: string; label: string; accessibleName: string}) {
   return (
     <Button asChild variant="outline" size="sm">
-      <a href={brandAssetUrl(path)} download>
+      <a href={brandAssetUrl(path)} download aria-label={accessibleName}>
         <Download data-icon="inline-start" />
         {label}
       </a>
