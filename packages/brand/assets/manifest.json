@@ -1,0 +1,726 @@
+{
+  "mark": {
+    "variant": "ears-gap-h34",
+    "gap": 0.035,
+    "earHeight": 0.34
+  },
+  "wordmark": {
+    "face": "Geist SemiBold",
+    "outlined": true,
+    "markToCap": {
+      "landscape": 1.35,
+      "stacked": 2.1
+    }
+  },
+  "colours": {
+    "crimson": "#D7263D",
+    "deep": "#A4133C",
+    "charcoal": "#15161A",
+    "cream": "#F3EEE4",
+    "white": "#FFFFFF"
+  },
+  "files": [
+    {
+      "path": "marks/mark.svg",
+      "kind": "mark",
+      "tone": "crimson",
+      "layout": "mark",
+      "size": "64",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-mono.svg",
+      "kind": "mark",
+      "tone": "mono",
+      "layout": "mark",
+      "size": "64",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-charcoal.svg",
+      "kind": "mark",
+      "tone": "charcoal",
+      "layout": "mark",
+      "size": "64",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-cream.svg",
+      "kind": "mark",
+      "tone": "cream",
+      "layout": "mark",
+      "size": "64",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-white.svg",
+      "kind": "mark",
+      "tone": "white",
+      "layout": "mark",
+      "size": "64",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-16.svg",
+      "kind": "mark",
+      "tone": "crimson",
+      "layout": "mark-16",
+      "size": "64",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-16-mono.svg",
+      "kind": "mark",
+      "tone": "mono",
+      "layout": "mark-16",
+      "size": "64",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-crimson-64.png",
+      "kind": "mark",
+      "tone": "crimson",
+      "layout": "mark",
+      "size": "64x64",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-crimson-128.png",
+      "kind": "mark",
+      "tone": "crimson",
+      "layout": "mark",
+      "size": "128x128",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-crimson-256.png",
+      "kind": "mark",
+      "tone": "crimson",
+      "layout": "mark",
+      "size": "256x256",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-crimson-512.png",
+      "kind": "mark",
+      "tone": "crimson",
+      "layout": "mark",
+      "size": "512x512",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-crimson-1024.png",
+      "kind": "mark",
+      "tone": "crimson",
+      "layout": "mark",
+      "size": "1024x1024",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-charcoal-64.png",
+      "kind": "mark",
+      "tone": "charcoal",
+      "layout": "mark",
+      "size": "64x64",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-charcoal-128.png",
+      "kind": "mark",
+      "tone": "charcoal",
+      "layout": "mark",
+      "size": "128x128",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-charcoal-256.png",
+      "kind": "mark",
+      "tone": "charcoal",
+      "layout": "mark",
+      "size": "256x256",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-charcoal-512.png",
+      "kind": "mark",
+      "tone": "charcoal",
+      "layout": "mark",
+      "size": "512x512",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-charcoal-1024.png",
+      "kind": "mark",
+      "tone": "charcoal",
+      "layout": "mark",
+      "size": "1024x1024",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-cream-64.png",
+      "kind": "mark",
+      "tone": "cream",
+      "layout": "mark",
+      "size": "64x64",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-cream-128.png",
+      "kind": "mark",
+      "tone": "cream",
+      "layout": "mark",
+      "size": "128x128",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-cream-256.png",
+      "kind": "mark",
+      "tone": "cream",
+      "layout": "mark",
+      "size": "256x256",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-cream-512.png",
+      "kind": "mark",
+      "tone": "cream",
+      "layout": "mark",
+      "size": "512x512",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-cream-1024.png",
+      "kind": "mark",
+      "tone": "cream",
+      "layout": "mark",
+      "size": "1024x1024",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-white-64.png",
+      "kind": "mark",
+      "tone": "white",
+      "layout": "mark",
+      "size": "64x64",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-white-128.png",
+      "kind": "mark",
+      "tone": "white",
+      "layout": "mark",
+      "size": "128x128",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-white-256.png",
+      "kind": "mark",
+      "tone": "white",
+      "layout": "mark",
+      "size": "256x256",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-white-512.png",
+      "kind": "mark",
+      "tone": "white",
+      "layout": "mark",
+      "size": "512x512",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "marks/mark-white-1024.png",
+      "kind": "mark",
+      "tone": "white",
+      "layout": "mark",
+      "size": "1024x1024",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-crimson-on-light.svg",
+      "kind": "lockup",
+      "tone": "crimson-on-light",
+      "layout": "landscape",
+      "size": "249.46x56.26",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-crimson-on-light.png",
+      "kind": "lockup",
+      "tone": "crimson-on-light",
+      "layout": "landscape",
+      "size": "287x65",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-crimson-on-light@2x.png",
+      "kind": "lockup",
+      "tone": "crimson-on-light",
+      "layout": "landscape",
+      "size": "575x130",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-crimson-on-dark.svg",
+      "kind": "lockup",
+      "tone": "crimson-on-dark",
+      "layout": "landscape",
+      "size": "249.46x56.26",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-crimson-on-dark.png",
+      "kind": "lockup",
+      "tone": "crimson-on-dark",
+      "layout": "landscape",
+      "size": "287x65",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-crimson-on-dark@2x.png",
+      "kind": "lockup",
+      "tone": "crimson-on-dark",
+      "layout": "landscape",
+      "size": "575x130",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-mono-dark.svg",
+      "kind": "lockup",
+      "tone": "mono-dark",
+      "layout": "landscape",
+      "size": "249.46x56.26",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-mono-dark.png",
+      "kind": "lockup",
+      "tone": "mono-dark",
+      "layout": "landscape",
+      "size": "287x65",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-mono-dark@2x.png",
+      "kind": "lockup",
+      "tone": "mono-dark",
+      "layout": "landscape",
+      "size": "575x130",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-mono-light.svg",
+      "kind": "lockup",
+      "tone": "mono-light",
+      "layout": "landscape",
+      "size": "249.46x56.26",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-mono-light.png",
+      "kind": "lockup",
+      "tone": "mono-light",
+      "layout": "landscape",
+      "size": "287x65",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/landscape-mono-light@2x.png",
+      "kind": "lockup",
+      "tone": "mono-light",
+      "layout": "landscape",
+      "size": "575x130",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-crimson-on-light.svg",
+      "kind": "lockup",
+      "tone": "crimson-on-light",
+      "layout": "stacked",
+      "size": "112.97x93.92",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-crimson-on-light.png",
+      "kind": "lockup",
+      "tone": "crimson-on-light",
+      "layout": "stacked",
+      "size": "202x168",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-crimson-on-light@2x.png",
+      "kind": "lockup",
+      "tone": "crimson-on-light",
+      "layout": "stacked",
+      "size": "405x337",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-crimson-on-dark.svg",
+      "kind": "lockup",
+      "tone": "crimson-on-dark",
+      "layout": "stacked",
+      "size": "112.97x93.92",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-crimson-on-dark.png",
+      "kind": "lockup",
+      "tone": "crimson-on-dark",
+      "layout": "stacked",
+      "size": "202x168",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-crimson-on-dark@2x.png",
+      "kind": "lockup",
+      "tone": "crimson-on-dark",
+      "layout": "stacked",
+      "size": "405x337",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-mono-dark.svg",
+      "kind": "lockup",
+      "tone": "mono-dark",
+      "layout": "stacked",
+      "size": "112.97x93.92",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-mono-dark.png",
+      "kind": "lockup",
+      "tone": "mono-dark",
+      "layout": "stacked",
+      "size": "202x168",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-mono-dark@2x.png",
+      "kind": "lockup",
+      "tone": "mono-dark",
+      "layout": "stacked",
+      "size": "405x337",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-mono-light.svg",
+      "kind": "lockup",
+      "tone": "mono-light",
+      "layout": "stacked",
+      "size": "112.97x93.92",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-mono-light.png",
+      "kind": "lockup",
+      "tone": "mono-light",
+      "layout": "stacked",
+      "size": "202x168",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/stacked-mono-light@2x.png",
+      "kind": "lockup",
+      "tone": "mono-light",
+      "layout": "stacked",
+      "size": "405x337",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-crimson-on-light.svg",
+      "kind": "lockup",
+      "tone": "crimson-on-light",
+      "layout": "wordmark",
+      "size": "421.69x102.96",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-crimson-on-light.png",
+      "kind": "lockup",
+      "tone": "crimson-on-light",
+      "layout": "wordmark",
+      "size": "202x49",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-crimson-on-light@2x.png",
+      "kind": "lockup",
+      "tone": "crimson-on-light",
+      "layout": "wordmark",
+      "size": "405x99",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-crimson-on-dark.svg",
+      "kind": "lockup",
+      "tone": "crimson-on-dark",
+      "layout": "wordmark",
+      "size": "421.69x102.96",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-crimson-on-dark.png",
+      "kind": "lockup",
+      "tone": "crimson-on-dark",
+      "layout": "wordmark",
+      "size": "202x49",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-crimson-on-dark@2x.png",
+      "kind": "lockup",
+      "tone": "crimson-on-dark",
+      "layout": "wordmark",
+      "size": "405x99",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-mono-dark.svg",
+      "kind": "lockup",
+      "tone": "mono-dark",
+      "layout": "wordmark",
+      "size": "421.69x102.96",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-mono-dark.png",
+      "kind": "lockup",
+      "tone": "mono-dark",
+      "layout": "wordmark",
+      "size": "202x49",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-mono-dark@2x.png",
+      "kind": "lockup",
+      "tone": "mono-dark",
+      "layout": "wordmark",
+      "size": "405x99",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-mono-light.svg",
+      "kind": "lockup",
+      "tone": "mono-light",
+      "layout": "wordmark",
+      "size": "421.69x102.96",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-mono-light.png",
+      "kind": "lockup",
+      "tone": "mono-light",
+      "layout": "wordmark",
+      "size": "202x49",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "lockups/wordmark-mono-light@2x.png",
+      "kind": "lockup",
+      "tone": "mono-light",
+      "layout": "wordmark",
+      "size": "405x99",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "favicon/favicon.svg",
+      "kind": "favicon",
+      "tone": "crimson",
+      "layout": "mark-16",
+      "size": "64",
+      "format": "svg",
+      "background": "transparent"
+    },
+    {
+      "path": "favicon/favicon-16.png",
+      "kind": "favicon",
+      "tone": "crimson",
+      "layout": "mark-16",
+      "size": "16x16",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "favicon/favicon-32.png",
+      "kind": "favicon",
+      "tone": "crimson",
+      "layout": "mark-16",
+      "size": "32x32",
+      "format": "png",
+      "background": "transparent"
+    },
+    {
+      "path": "favicon/favicon.ico",
+      "kind": "favicon",
+      "tone": "crimson",
+      "layout": "mark-16",
+      "size": "16,32,48",
+      "format": "ico",
+      "background": "transparent"
+    },
+    {
+      "path": "favicon/apple-touch-icon.png",
+      "kind": "favicon",
+      "tone": "cream-on-crimson",
+      "layout": "tile",
+      "size": "180x180",
+      "format": "png",
+      "background": "#D7263D"
+    },
+    {
+      "path": "favicon/icon-192.png",
+      "kind": "favicon",
+      "tone": "cream-on-crimson",
+      "layout": "tile",
+      "size": "192x192",
+      "format": "png",
+      "background": "#D7263D"
+    },
+    {
+      "path": "favicon/icon-512.png",
+      "kind": "favicon",
+      "tone": "cream-on-crimson",
+      "layout": "tile",
+      "size": "512x512",
+      "format": "png",
+      "background": "#D7263D"
+    },
+    {
+      "path": "favicon/maskable-512.png",
+      "kind": "favicon",
+      "tone": "cream-on-crimson",
+      "layout": "maskable",
+      "size": "512x512",
+      "format": "png",
+      "background": "#D7263D"
+    },
+    {
+      "path": "favicon/site.webmanifest",
+      "kind": "favicon",
+      "tone": "crimson",
+      "layout": "manifest",
+      "size": "-",
+      "format": "webmanifest",
+      "background": "#F3EEE4"
+    },
+    {
+      "path": "social/avatar-crimson-500.png",
+      "kind": "social",
+      "tone": "cream-on-crimson",
+      "layout": "tile",
+      "size": "500x500",
+      "format": "png",
+      "background": "#D7263D"
+    },
+    {
+      "path": "social/avatar-charcoal-500.png",
+      "kind": "social",
+      "tone": "crimson-on-charcoal",
+      "layout": "tile",
+      "size": "500x500",
+      "format": "png",
+      "background": "#15161A"
+    },
+    {
+      "path": "social/avatar-400.png",
+      "kind": "social",
+      "tone": "cream-on-crimson",
+      "layout": "tile",
+      "size": "400x400",
+      "format": "png",
+      "background": "#D7263D"
+    },
+    {
+      "path": "social/og-default-1200x630.png",
+      "kind": "social",
+      "tone": "crimson-on-dark",
+      "layout": "landscape",
+      "size": "1200x630",
+      "format": "png",
+      "background": "#15161A"
+    },
+    {
+      "path": "social/twitter-1200x600.png",
+      "kind": "social",
+      "tone": "crimson-on-dark",
+      "layout": "landscape",
+      "size": "1200x600",
+      "format": "png",
+      "background": "#15161A"
+    },
+    {
+      "path": "social/readme-banner-1280x320.png",
+      "kind": "social",
+      "tone": "crimson-on-dark",
+      "layout": "landscape",
+      "size": "1280x320",
+      "format": "png",
+      "background": "#15161A"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import {docsPageUrl, SITE} from './site-urls'
 import {gitConfig} from './shared'
+import {FAVICON_SVG_URL} from './brand-assets'
 
 export const ORGANIZATION_ID = `${SITE}/#organization`
 export const WEBSITE_ID = `${SITE}/#website`
@@ -10,7 +11,7 @@ function buildOrganizationJsonLd() {
     '@id': ORGANIZATION_ID,
     name: 'conciv',
     url: SITE,
-    logo: `${SITE}/favicon.svg`,
+    logo: `${SITE}${FAVICON_SVG_URL}`,
     sameAs: [`https://github.com/${gitConfig.user}/${gitConfig.repo}`],
   }
 }

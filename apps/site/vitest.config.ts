@@ -1,7 +1,11 @@
 import {defineConfig} from 'vitest/config'
 import {ciTest} from '@conciv/vitest-config'
+import {brandAssetsAlias} from './brand-assets-alias'
 
 export default defineConfig({
+  resolve: {
+    alias: brandAssetsAlias,
+  },
   test: {
     ...ciTest(),
     environment: 'node',

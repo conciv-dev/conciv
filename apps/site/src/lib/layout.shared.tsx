@@ -1,10 +1,10 @@
 import type {BaseLayoutProps} from 'fumadocs-ui/layouts/shared'
-import {appName} from './shared'
+import {ConcivLockup} from '@conciv/brand/react'
 
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: appName,
+      title: <ConcivLockup interactive className="h-6 w-auto" />,
     },
   }
 }

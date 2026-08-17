@@ -20,7 +20,7 @@ import {Transcript} from './transcript'
 import {Composer} from './composer'
 import {AppPreview} from './app-preview'
 import {GhostCursor} from './ghost-cursor'
-import {SparkMark} from '../spark-mark'
+import {ConcivLockup} from '@conciv/brand/react'
 import {useDemo} from './use-demo'
 import {useLocalModel} from './use-local-model'
 import {useMeteredConnection} from './use-metered-connection'
@@ -204,8 +204,7 @@ export function Demo() {
       />
       <Card className="gap-0 overflow-hidden p-0 shadow-xl">
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
-          <SparkMark className="text-base text-primary" />
-          <span className="text-[13.5px] font-semibold">conciv</span>
+          <ConcivLockup className="h-[18px] w-auto" />
           <Badge className="bg-accent font-mono text-[10px] uppercase tracking-wide text-accent-foreground">
             in your app
           </Badge>

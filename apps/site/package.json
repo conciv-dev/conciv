@@ -15,7 +15,7 @@
     "build": "node scripts/copy-widget-bundle.mjs && node scripts/build-source-manifest.mjs && vite build",
     "start": "vite preview",
     "preview": "vite preview",
-    "deploy": "vite build && wrangler deploy",
+    "deploy": "pnpm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
     "typecheck": "fumadocs-mdx && tsc --noEmit",
     "lint": "oxlint",
@@ -24,6 +24,7 @@
     "gen:snippets": "node --experimental-strip-types scripts/highlight-snippets.ts"
   },
   "dependencies": {
+    "@conciv/brand": "workspace:*",
     "@conciv/embed": "workspace:*",
     "@conciv/extension-terminal": "workspace:*",
     "@conciv/extension-try-it": "workspace:*",
@@ -34,6 +35,7 @@
     "@gsap/react": "^2.1.2",
     "@huggingface/transformers": "^4.2.0",
     "@shikijs/magic-move": "^4.3.0",
+    "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-router": "1.170.15",
     "@tanstack/react-router-devtools": "1.167.0",
     "@tanstack/react-start": "1.168.25",

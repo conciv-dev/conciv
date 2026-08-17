@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "incremental": false
+  },
+  "include": ["src/solid/**/*.ts", "src/solid/**/*.tsx"]
+}

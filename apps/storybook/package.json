@@ -11,6 +11,7 @@
     "lint": "oxlint"
   },
   "dependencies": {
+    "@conciv/brand": "workspace:*",
     "@conciv/extension-page": "workspace:*",
     "@conciv/mascot": "workspace:*",
     "@conciv/solid-diffs": "workspace:*",

@@ -37,7 +37,9 @@ export function useSmoothAnchor() {
   const lenis = useLenis()
   return (hash: string) => (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (!lenis) return
+    const target = document.getElementById(hash.replace(/^#/, ''))
+    if (!target) return
     event.preventDefault()
-    lenis.scrollTo(hash, {offset: -24})
+    lenis.scrollTo(target, {offset: -24})
   }
 }

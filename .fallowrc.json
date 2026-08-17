@@ -79,6 +79,7 @@
     "remend",
     "unified",
     "unist-util-visit-parents",
+    "@conciv/brand",
     "@conciv/client",
     "@conciv/embed",
     "@conciv/extension-compiler",
@@ -141,6 +142,8 @@
     }
   ],
   "entry": [
+    "packages/brand/src/react/conciv-lockup.tsx",
+    "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
     "packages/extension-testkit/src/host/host-entry.tsx",
     "packages/embed/src/native-entry.ts",

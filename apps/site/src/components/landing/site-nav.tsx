@@ -1,5 +1,5 @@
 import {Link} from '@tanstack/react-router'
-import {SparkMark} from './spark-mark'
+import {ConcivLockup} from '@conciv/brand/react'
 import {ThemeToggle} from './theme-toggle'
 import {useSmoothAnchor} from './smooth-scroll'
 import {GitHubStarLink} from './github-star-link'
@@ -9,16 +9,21 @@ export function SiteNav() {
 
   return (
     <nav className="mx-auto flex max-w-[1180px] items-center gap-7 px-8 py-[22px]">
-      <div className="od-display mr-auto flex items-center gap-2 text-[19px] font-bold">
-        <SparkMark className="text-primary" /> conciv
-      </div>
-      <a
-        href="#how"
+      <Link
+        to="/"
+        aria-label="conciv home"
+        className="mr-auto flex items-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <ConcivLockup interactive className="h-7 w-auto" />
+      </Link>
+      <Link
+        to="/"
+        hash="how"
         onClick={smoothAnchor('#how')}
         className="whitespace-nowrap text-sm font-medium text-muted-foreground transition-colors hover:text-foreground max-sm:hidden"
       >
         How it works
-      </a>
+      </Link>
       <Link
         to="/docs/$"
         params={{_splat: ''}}
