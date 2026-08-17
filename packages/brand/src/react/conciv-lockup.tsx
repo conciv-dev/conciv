@@ -63,8 +63,20 @@ function LockupSvg({className, cursorRef, antennaRef, rootRef, onPointerEnter, o
       onPointerLeave={onPointerLeave}
     >
       <path fill={MARK_COLOR} fillRule="evenodd" d={`${HEAD}${CURSOR}`} />
-      <path ref={cursorRef} fill={MARK_COLOR} stroke={MARK_COLOR} strokeWidth="0.5" opacity="0" d={CURSOR} />
-      <g ref={antennaRef} style={{transformOrigin: ANTENNA_ORIGIN, transformBox: 'view-box'}}>
+      <path
+        ref={cursorRef}
+        data-conciv-part="cursor"
+        fill={MARK_COLOR}
+        stroke={MARK_COLOR}
+        strokeWidth="0.5"
+        opacity="0"
+        d={CURSOR}
+      />
+      <g
+        ref={antennaRef}
+        data-conciv-part="antenna"
+        style={{transformOrigin: ANTENNA_ORIGIN, transformBox: 'view-box'}}
+      >
         <path fill={MARK_COLOR} d={ANTENNA} />
       </g>
       <path d={WORD} />

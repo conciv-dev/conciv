@@ -42,11 +42,6 @@
         "files": ["packages/solid-stick-to-bottom/src/stick-to-bottom.ts"],
         "maxCrap": 100,
         "reason": "Exercised exclusively by packages/solid-stick-to-bottom/src/stick-to-bottom.stories.tsx and packages/ui-kit-chat/src/behaviors/scroll.stories.tsx play functions (Omri's stories-only mandate, #397); *.stories.tsx is in ignorePatterns so fallow's coverage estimate reads these functions as untested even though the story suite drives them directly. CRAP is a coverage proxy here, not a real complexity regression."
-      },
-      {
-        "files": ["packages/brand/src/react/conciv-lockup.tsx", "packages/brand/src/solid/conciv-lockup.tsx"],
-        "maxCrap": 100,
-        "reason": "start() is exercised exclusively by packages/brand/src/motion.stories.tsx's play function (hover); *.stories.tsx is in ignorePatterns so fallow's coverage estimate reads it as untested even though the story suite drives it directly. CRAP is a coverage proxy here, not a real complexity regression."
       }
     ]
   },
@@ -147,7 +142,7 @@
     }
   ],
   "entry": [
-    "packages/brand/src/react/index.ts",
+    "packages/brand/src/react/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
     "packages/extension-testkit/src/host/host-entry.tsx",

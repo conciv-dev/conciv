@@ -3,11 +3,17 @@
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo.react",
-    "rootDir": "src/react",
+    "rootDir": ".",
     "noEmit": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "types": ["node"]
   },
-  "include": ["src/react/**/*.ts", "src/react/**/*.tsx"]
+  "include": [
+    "src/react/**/*.ts",
+    "src/react/**/*.tsx",
+    "tests/browser/lockup-dom.ts",
+    "tests/browser/react-lockup.browser.test.tsx",
+    "tests/browser/react-lockup-reduced-motion.browser.test.tsx"
+  ]
 }

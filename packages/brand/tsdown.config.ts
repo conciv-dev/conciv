@@ -1,7 +1,7 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
-  entry: {react: 'src/react/index.ts'},
+  entry: {react: 'src/react/conciv-lockup.tsx'},
   tsconfig: 'tsconfig.react.json',
   format: 'esm',
   fixedExtension: false,

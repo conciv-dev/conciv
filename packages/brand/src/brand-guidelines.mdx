@@ -17,8 +17,9 @@ import {Meta, ColorPalette, ColorItem} from '@storybook/addon-docs/blocks'
 ## Typography
 
 - Wordmark face: **Geist SemiBold**, outlined to paths (OFL license). Ships as SVG path data, no font file dependency.
-- Wordmark fill: `currentColor`, so it inherits the surrounding text color.
+- Wordmark fill: `currentColor` in the Solid and React lockup components, so it inherits the surrounding text color. Static wordmark SVG assets ship a fixed fill instead; pick the tone that matches the backdrop.
 - Mark fill: pinned `#D7263D`. Never inherits, never recolors.
+- Non-crimson mark tones (mono, charcoal, cream, white) exist only for single-color contexts: print, engraving, monochrome UI chrome. Never restyle the crimson mark ad hoc to get one.
 
 ## Mark anatomy
 
@@ -30,8 +31,9 @@ import {Meta, ColorPalette, ColorItem} from '@storybook/addon-docs/blocks'
 ## Clear space & minimum size
 
 - Clear space: at least one antenna-height on every side.
-- Minimum size: 24px for the full mark. Below 24px, switch to the `mark-16` cut: a simplified geometry with fused ears, built for favicon-scale rendering.
-- Never scale the standard mark below 16px; use the favicon assets instead (`assets/favicon/`).
+- Minimum size: 24px for the standard mark.
+- 16px to 24px: switch to the `mark-16` cut, a simplified geometry with fused ears, built for favicon-scale rendering.
+- Never scale anything below 16px; use the favicon assets instead (`assets/favicon/`).
 
 ## Do / Don't
 
@@ -39,7 +41,7 @@ import {Meta, ColorPalette, ColorItem} from '@storybook/addon-docs/blocks'
 
 - Use the provided components or asset files.
 - Keep the mark at `#D7263D`.
-- Let the wordmark inherit `currentColor`.
+- Let the wordmark inherit `currentColor` when using the Solid or React lockup component.
 - Scale proportionally.
 
 **Don't**

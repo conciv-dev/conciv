@@ -1,6 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {For} from 'solid-js'
-import {ConcivMark} from './solid/index.js'
+import {ConcivMark} from './solid/conciv-lockup.js'
 
 const meta: Meta = {title: 'brand/Usage'}
 export default meta
@@ -12,7 +12,7 @@ const RULES = [
   {ok: false, text: "Don't add an outline or stroke around the bubble."},
   {ok: false, text: "Don't stretch or skew the lockup off its aspect ratio."},
   {ok: false, text: "Don't rebuild the geometry by hand. Use the provided assets or components."},
-  {ok: true, text: 'Let the wordmark inherit currentColor from its surrounding text.'},
+  {ok: true, text: 'Let the wordmark inherit currentColor when using the Solid or React lockup component.'},
 ]
 
 export const Rules: Story = {

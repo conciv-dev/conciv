@@ -1,6 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {ConcivMark} from './solid/index.js'
-import markMono from '../assets/marks/mark-mono.svg'
+import {ConcivMark} from './solid/conciv-lockup.js'
+import markWhite from '../assets/marks/mark-white.svg'
 import markCharcoal from '../assets/marks/mark-charcoal.svg'
 import markCream from '../assets/marks/mark-cream.svg'
 import mark16 from '../assets/marks/mark-16.svg'
@@ -17,7 +17,7 @@ export const Tones: Story = {
         <figcaption class="text-xs">crimson</figcaption>
       </figure>
       <figure class="p-2 rounded flex flex-col gap-2 items-center" style={{background: '#15161A'}}>
-        <img src={markMono} alt="conciv mark, mono" class="h-16 w-16" />
+        <img src={markWhite} alt="conciv mark, mono, white ink" class="h-16 w-16" />
         <figcaption class="text-xs">mono</figcaption>
       </figure>
       <figure class="p-2 rounded flex flex-col gap-2 items-center" style={{background: '#F3EEE4'}}>

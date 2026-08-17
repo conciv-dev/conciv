@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
-        solid: fileURLToPath(new URL('src/solid/index.ts', import.meta.url)),
+        solid: fileURLToPath(new URL('src/solid/conciv-lockup.tsx', import.meta.url)),
       },
       formats: ['es'],
     },

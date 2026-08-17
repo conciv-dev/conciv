@@ -1,6 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent} from 'storybook/test'
-import {ConcivLockup} from './solid/index.js'
+import {ConcivLockup} from './solid/conciv-lockup.js'
 
 const meta: Meta<typeof ConcivLockup> = {title: 'brand/Motion', component: ConcivLockup}
 export default meta
