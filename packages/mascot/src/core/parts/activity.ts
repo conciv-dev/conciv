@@ -81,6 +81,7 @@ const throbIn = (): gsap.TweenVars => ({
   scaleX: THROB_SCALE_X,
   duration: THROB_RISE_DURATION_S,
   ease: THROB_RISE_EASE,
+  force3D: true,
 })
 
 const throbOut = (): gsap.TweenVars => ({
@@ -88,6 +89,7 @@ const throbOut = (): gsap.TweenVars => ({
   scaleX: NEUTRAL_SCALE,
   duration: THROB_RETURN_DURATION_S,
   ease: THROB_RETURN_EASE,
+  force3D: true,
 })
 
 function buildBob(parts: ActivityParts, rest: ActivityRest): BobTweens {
@@ -100,18 +102,20 @@ function buildBob(parts: ActivityParts, rest: ActivityRest): BobTweens {
       duration: HEAD_BOB_DURATION_S,
       ease: HEAD_BOB_EASE,
       immediateRender: false,
+      force3D: true,
     },
   )
   const back = gsap.to(bobbed, {
     yPercent: rest.headYPercent,
     duration: HEAD_BOB_DURATION_S,
     ease: HEAD_BOB_EASE,
+    force3D: true,
   })
   return {down, back}
 }
 
 const buildBlinkReturn = (eyes: HTMLElement, rest: ActivityRest): gsap.core.Tween =>
-  gsap.to(eyes, {scaleY: rest.eyeScaleY, duration: BLINK_OPEN_DURATION_S, ease: BLINK_OPEN_EASE})
+  gsap.to(eyes, {scaleY: rest.eyeScaleY, duration: BLINK_OPEN_DURATION_S, ease: BLINK_OPEN_EASE, force3D: true})
 
 function addBob(timeline: gsap.core.Timeline, bob: BobTweens | undefined): void {
   if (bob === undefined) return
@@ -130,7 +134,11 @@ function addThrob(timeline: gsap.core.Timeline, antenna: HTMLElement, wanted: bo
 function addBlink(timeline: gsap.core.Timeline, eyes: HTMLElement, blinkReturn: gsap.core.Tween | undefined): void {
   if (blinkReturn === undefined) return
   timeline
-    .to(eyes, {scaleY: BLINK_CLOSE_SCALE_Y, duration: BLINK_CLOSE_DURATION_S, ease: BLINK_CLOSE_EASE}, BLINK_BEATS[0])
+    .to(
+      eyes,
+      {scaleY: BLINK_CLOSE_SCALE_Y, duration: BLINK_CLOSE_DURATION_S, ease: BLINK_CLOSE_EASE, force3D: true},
+      BLINK_BEATS[0],
+    )
     .add(blinkReturn, BLINK_BEATS[1])
 }
 
@@ -358,16 +366,23 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
       scaleY: NEUTRAL_SCALE,
       duration: RECOVERY_DURATION_S,
       ease: RECOVERY_EASE,
+      force3D: true,
     })
 
   const recoverEyeScale = (): gsap.core.Tween =>
-    gsap.to(eyes, {scaleY: resting.eyeScaleY, duration: RECOVERY_DURATION_S, ease: RECOVERY_EASE})
+    gsap.to(eyes, {
+      scaleY: resting.eyeScaleY,
+      duration: RECOVERY_DURATION_S,
+      ease: RECOVERY_EASE,
+      force3D: true,
+    })
 
   const recoverBobHeight = (): gsap.core.Tween =>
     gsap.to([head, antenna, eyes], {
       yPercent: resting.headYPercent,
       duration: RECOVERY_DURATION_S,
       ease: RECOVERY_EASE,
+      force3D: true,
     })
 
   const recover = (recovery: ActivityRecovery, channels: ActivityChannels) => {
