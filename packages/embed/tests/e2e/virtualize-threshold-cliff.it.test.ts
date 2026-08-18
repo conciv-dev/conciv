@@ -46,11 +46,7 @@ async function measureSwitch(page: import('@playwright/test').Page, exchanges: n
   await switchToSessionByTitle(page, title)
   await expect(page.getByText(`question number ${exchanges - 1}`).first()).toBeVisible({timeout: 30_000})
 
-  await page.waitForTimeout(500)
-
-  const virtualRowCount = await page.locator('[data-index]').count()
-  const flatRowCount = await page.getByText(/^question number \d+ about the reconciliation logic$/).count()
-  const rowCount = virtualRowCount > 0 ? virtualRowCount : flatRowCount
+  const rowCount = await page.locator('[data-message-id]').count()
   return {rowCount}
 }
 
@@ -65,10 +61,14 @@ test.describe('virtualize threshold cliff', () => {
     const at = await measureSwitch(page, 25)
     console.log('AT THRESHOLD (50 turns, virtual mode) rendered row count', at.rowCount)
 
-    expect(below.rowCount, 'below the threshold every turn is mounted unvirtualized').toBeGreaterThanOrEqual(24)
+    expect(below.rowCount, 'below the threshold every one of the 48 turns is mounted unvirtualized').toBe(48)
     expect(
       at.rowCount,
-      'at/above the threshold the virtualizer bounds the mounted rows regardless of transcript size',
+      'at/above the threshold the virtualizer bounds the mounted rows to a small window',
+    ).toBeLessThanOrEqual(20)
+    expect(
+      at.rowCount,
+      'crossing the threshold must actually shrink the mounted row count versus the flat mode',
     ).toBeLessThan(below.rowCount)
   })
 })
