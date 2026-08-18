@@ -96,7 +96,30 @@ type AnimateConfig = {
   maxStagger: number
 }
 
-type RenderState = {lastRenderCharCount: number; prevContentLength: number}
+type ResolvedWord = {skipAnimation: boolean; delay: number}
+
+type RenderState = {
+  lastRenderCharCount: number
+  prevContentLength: number
+  resolvedWords: Map<number, ResolvedWord>
+}
+
+function resolveWord(
+  partStart: number,
+  prevLen: number,
+  config: AnimateConfig,
+  state: RenderState,
+  counter: {count: number; newIndex: number},
+): ResolvedWord {
+  const cached = state.resolvedWords.get(partStart)
+  if (cached) return cached
+
+  const skipAnimation = prevLen > 0 && partStart < prevLen
+  const delay = skipAnimation ? 0 : Math.min(counter.newIndex++ * config.stagger, config.maxStagger)
+  const resolved: ResolvedWord = {skipAnimation, delay}
+  state.resolvedWords.set(partStart, resolved)
+  return resolved
+}
 
 function processTextNode(
   node: Text,
@@ -127,9 +150,8 @@ function processTextNode(
     counter.count += part.length
     if (WHITESPACE_ONLY_RE.test(part)) return {type: 'text', value: part} as Text
 
-    const skipAnimation = prevLen > 0 && partStart < prevLen
-    const delay = skipAnimation ? 0 : Math.min(counter.newIndex++ * config.stagger, config.maxStagger)
-    return makeSpan(part, config.animation, config.duration, config.easing, skipAnimation, delay)
+    const resolved = resolveWord(partStart, prevLen, config, state, counter)
+    return makeSpan(part, config.animation, config.duration, config.easing, resolved.skipAnimation, resolved.delay)
   })
 
   parent.children.splice(index, 1, ...nodes)
@@ -146,7 +168,7 @@ export function createAnimatePlugin(options?: AnimateOptions): AnimatePlugin {
     stagger: options?.stagger ?? 0,
     maxStagger: options?.maxStagger ?? 120,
   }
-  const state: RenderState = {lastRenderCharCount: 0, prevContentLength: 0}
+  const state: RenderState = {lastRenderCharCount: 0, prevContentLength: 0, resolvedWords: new Map()}
 
   const rehypePlugin: Pluggable = () => (tree: Root) => {
     const counter = {count: 0, newIndex: 0}

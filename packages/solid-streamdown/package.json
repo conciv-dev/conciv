@@ -41,6 +41,7 @@
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints styles.css"
   },
   "dependencies": {
+    "@solid-primitives/immutable": "^1.1.5",
     "marked": "^18.0.5",
     "rehype-harden": "^1.1.8",
     "rehype-raw": "^7.0.0",
@@ -54,9 +55,12 @@
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
+    "@solidjs/testing-library": "^0.8.10",
     "@types/hast": "^3.0.4",
     "@types/node": "^22.19.21",
+    "@vitest/browser-playwright": "4.1.10",
     "@vitest/coverage-v8": "4.1.10",
+    "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
     "storybook": "^10.5.0",
     "storybook-solidjs-vite": "^10.6.0",
