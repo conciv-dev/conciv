@@ -188,3 +188,56 @@ describe('Markdown code fence highlight caching', () => {
     expect(preElement(laterHost).className).toContain('shiki')
   })
 })
+
+function isHighlightRequestForLanguage(message: unknown, language: string): boolean {
+  if (typeof message !== 'object' || message === null) return false
+  if (!('type' in message) || message.type !== 'highlight') return false
+  if (!('lang' in message)) return false
+  return message.lang === language
+}
+
+function countHighlightPosts(language: string): {count: () => number; restore: () => void} {
+  const originalPostMessage = Worker.prototype.postMessage
+  let count = 0
+  Worker.prototype.postMessage = function (
+    message: unknown,
+    _transferOrOptions?: Transferable[] | StructuredSerializeOptions,
+  ): void {
+    if (isHighlightRequestForLanguage(message, language)) count += 1
+    originalPostMessage.call(this, message)
+  }
+  return {
+    count: () => count,
+    restore: () => {
+      Worker.prototype.postMessage = originalPostMessage
+    },
+  }
+}
+
+describe('Markdown streaming highlight coalescing', () => {
+  it('coalesces a burst of streaming snapshots into the in-flight request plus one deferred request, not one request per snapshot', async () => {
+    const language = 'bash'
+    const marker = `coalesce${Math.random().toString(36).slice(2)}`
+    const snapshot = (line: number): string => fence(language, [`echo "${marker}-${line}"`])
+
+    const priming = render(() => <Markdown content={fence(language, [`echo "${marker}-priming"`])} />)
+    await waitForHighlight(priming.container)
+    priming.unmount()
+
+    const tracker = countHighlightPosts(language)
+    try {
+      const [content, setContent] = createSignal(snapshot(0))
+      const host = mountView(() => <Markdown content={content()} streaming />)
+
+      for (let line = 1; line < 6; line += 1) {
+        setContent(snapshot(line))
+      }
+
+      await waitForHighlight(host)
+
+      expect(tracker.count()).toBeLessThanOrEqual(2)
+    } finally {
+      tracker.restore()
+    }
+  })
+})

@@ -1,18 +1,15 @@
-import {createSignal, onCleanup, type JSX} from 'solid-js'
+import {createSignal, type JSX} from 'solid-js'
+import {createStore, produce} from 'solid-js/store'
 import {Streamdown} from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
 import HighlightWorkerConstructor from './highlight-worker.ts?worker&inline'
 
-const MAX_CACHE_ENTRIES = 50
+const MAX_CACHE_ENTRIES = 512
 
-const highlightCache = new Map<string, string>()
+const [highlightStore, setHighlightStore] = createStore<Record<string, string>>({})
+const highlightInsertionOrder: Array<string> = []
 const pendingHighlights = new Set<string>()
-const latestStreamingKeyByLanguage = new Map<string, string>()
-const listeners = new Set<() => void>()
-
-function notifyListeners(): void {
-  listeners.forEach((listener) => listener())
-}
+const [backendReadyTick, bumpBackendReadyTick] = createSignal(0, {equals: false})
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -23,10 +20,18 @@ function cacheKey(language: string, code: string): string {
 }
 
 function rememberHighlight(key: string, html: string): void {
-  highlightCache.set(key, html)
-  if (highlightCache.size <= MAX_CACHE_ENTRIES) return
-  const oldestKey = highlightCache.keys().next().value
-  if (oldestKey !== undefined) highlightCache.delete(oldestKey)
+  const isNewKey = !(key in highlightStore)
+  setHighlightStore(key, html)
+  if (!isNewKey) return
+  highlightInsertionOrder.push(key)
+  if (highlightInsertionOrder.length <= MAX_CACHE_ENTRIES) return
+  const oldestKey = highlightInsertionOrder.shift()
+  if (oldestKey === undefined) return
+  setHighlightStore(
+    produce((store) => {
+      delete store[oldestKey]
+    }),
+  )
 }
 
 type HighlightBackend = {
@@ -41,8 +46,7 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
   let regexLanguages: Set<string> | null = null
   let nextId = 0
   const resultCallbacks = new Map<string, (html: string) => void>()
-  const inFlightStreamingLanguages = new Set<string>()
-  const deferredStreamingByLanguage = new Map<string, DeferredHighlight>()
+  const streamingRequests = new Map<string, DeferredHighlight | null>()
 
   function isSupportedLanguage(language: string): boolean {
     return (regexLanguages?.has(language) ?? false) || (precompiledLanguages?.has(language) ?? false)
@@ -50,19 +54,17 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
 
   function postHighlight(key: string, language: string, code: string, streaming: boolean): void {
     pendingHighlights.add(key)
-    if (streaming) inFlightStreamingLanguages.add(language)
+    if (streaming) streamingRequests.set(language, null)
     const id = String(nextId)
     nextId += 1
     resultCallbacks.set(id, (html) => {
       pendingHighlights.delete(key)
       rememberHighlight(key, html)
-      if (!streaming || latestStreamingKeyByLanguage.get(language) === key) notifyListeners()
       if (!streaming) return
-      inFlightStreamingLanguages.delete(language)
-      const deferred = deferredStreamingByLanguage.get(language)
-      if (deferred === undefined) return
-      deferredStreamingByLanguage.delete(language)
-      if (!highlightCache.has(deferred.key)) postHighlight(deferred.key, language, deferred.code, true)
+      const deferred = streamingRequests.get(language)
+      streamingRequests.delete(language)
+      if (deferred === null || deferred === undefined) return
+      if (!(deferred.key in highlightStore)) postHighlight(deferred.key, language, deferred.code, true)
     })
     worker.postMessage({type: 'highlight', id, code, lang: language})
   }
@@ -72,7 +74,7 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
     if (message.type === 'ready') {
       if (message.core === 'precompiled') precompiledLanguages = new Set(message.languages)
       else regexLanguages = new Set(message.languages)
-      notifyListeners()
+      bumpBackendReadyTick((value) => value + 1)
       return
     }
     const callback = resultCallbacks.get(message.id)
@@ -89,9 +91,8 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
       if (!isSupportedLanguage(language)) return
       if (pendingHighlights.has(key)) return
       if (streaming) {
-        latestStreamingKeyByLanguage.set(language, key)
-        if (inFlightStreamingLanguages.has(language)) {
-          deferredStreamingByLanguage.set(language, {key, code})
+        if (streamingRequests.has(language)) {
+          streamingRequests.set(language, {key, code})
           return
         }
       }
@@ -122,12 +123,6 @@ function ensureBackend(): HighlightBackend | null {
 
 let started = false
 
-function subscribe(onChange: () => void): () => void {
-  listeners.add(onChange)
-  warmHighlighter()
-  return () => listeners.delete(onChange)
-}
-
 export function isHighlighterWarming(): boolean {
   return started
 }
@@ -139,11 +134,12 @@ export function warmHighlighter(): void {
 }
 
 function codeBlock(code: string, lang: string | undefined, streaming: boolean): string {
+  backendReadyTick()
   const requested = (lang ?? '').trim().toLowerCase()
   const active = ensureBackend()
   if (!active || !active.isSupported(requested)) return `<pre><code>${escapeHtml(code)}</code></pre>`
   const key = cacheKey(requested, code)
-  const cached = highlightCache.get(key)
+  const cached = highlightStore[key]
   if (cached !== undefined) return cached
   active.requestHighlight(key, requested, code, streaming)
   return `<pre><code>${escapeHtml(code)}</code></pre>`
@@ -152,12 +148,9 @@ function codeBlock(code: string, lang: string | undefined, streaming: boolean): 
 export type MarkdownProps = {content: string; streaming?: boolean}
 
 export function Markdown(props: MarkdownProps): JSX.Element {
-  const [tick, bumpTick] = createSignal(0, {equals: false})
-  onCleanup(subscribe(() => bumpTick((value) => value + 1)))
-  const highlightCode = (code: string, lang: string | undefined): string => {
-    tick()
-    return codeBlock(code, lang, props.streaming === true)
-  }
+  warmHighlighter()
+  const highlightCode = (code: string, lang: string | undefined): string =>
+    codeBlock(code, lang, props.streaming === true)
   return (
     <Streamdown
       class="prose-pw"
