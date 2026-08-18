@@ -44,9 +44,27 @@ export {
   type PageSessionThinkingPart,
 } from './store/page-session.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
+export {createTurnRollup, sessionTotals, summaryLine, turnRollup, type TurnRollup} from './store/turn-rollup.js'
+export {
+  createSessionStatus,
+  deriveSessionStatus,
+  type SessionStatus,
+  type SessionStatusInput,
+  type SessionStatusKind,
+} from './store/session-status.js'
+export {createTurnClock, foldTurnClock, formatElapsed, type TurnClockState} from './store/turn-clock.js'
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
 export {Activity, type ActivityProps} from './styled/activity.js'
 export {chatBusy} from './store/chat-busy.js'
+export {
+  createApprovalChunk,
+  createReasoningChunks,
+  createTextChunks,
+  createToolCallChunks,
+  storyConnection,
+  type StoryConnectionOptions,
+  type ToolChunkOptions,
+} from './store/story-connection.js'
 
 export {Primitive, type Slottable} from './primitives/util/primitive.js'
 export {
@@ -170,7 +188,6 @@ export {Thread, type ThreadComponents, type ThreadMessagesProps, type ThreadRoot
 export {Composer, type ComposerProps} from './styled/composer.js'
 export {Markdown, type MarkdownProps} from './styled/markdown.js'
 export {Reasoning, ReasoningText, type ReasoningProps} from './styled/reasoning.js'
-export {ChainOfThought, type ChainOfThoughtProps} from './styled/chain-of-thought.js'
 export {Group, type GroupRootProps, type GroupTriggerProps, type GroupContentProps} from './styled/group.js'
 export {AssistantActionBar, UserActionBar} from './styled/action-bar.js'
 export {BranchPicker} from './styled/branch-picker.js'

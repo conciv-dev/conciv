@@ -28,7 +28,7 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 export const Extensions: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <>
         <ExtensionsCard
           part={part('conciv_extensions', {verb: 'catalog'})}
@@ -62,7 +62,7 @@ export const Extensions: Story = {
 export const Open: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <>
         <OpenCard
           part={part('open', {file: 'packages/ui-kit-chat/src/styled/thread.tsx', line: 42})}

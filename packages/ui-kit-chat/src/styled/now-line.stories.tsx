@@ -12,7 +12,7 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 }
 
 export const Running: Story = {
-  render: () => frame('chat-theme-dark', <NowLine title="Running pnpm test" onStop={() => {}} />),
+  render: () => frame('chat-theme-terminal', <NowLine title="Running pnpm test" onStop={() => {}} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByText('Running pnpm test')).toBeVisible())
@@ -24,5 +24,5 @@ export const Running: Story = {
 }
 
 export const NoStop: Story = {
-  render: () => frame('chat-theme-conciv', <NowLine title="Reading widget-shell.tsx" />),
+  render: () => frame('chat-theme-terminal', <NowLine title="Reading widget-shell.tsx" />),
 }

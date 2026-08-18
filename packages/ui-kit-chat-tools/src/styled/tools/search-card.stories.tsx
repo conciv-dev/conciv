@@ -29,7 +29,7 @@ async function codeText(root: HTMLElement): Promise<string> {
 export const Matches: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <SearchCard
         part={part('Grep', {pattern: 'useChat'})}
         result={result('src/a.ts:1:useChat()\nsrc/b.ts:9:useChat(opts)')}
@@ -49,7 +49,7 @@ export const Matches: Story = {
 export const NoMatches: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <SearchCard
         part={part('Grep', {pattern: 'nope'})}
         result={result('')}
@@ -66,7 +66,7 @@ export const NoMatches: Story = {
 export const Globbed: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <SearchCard
         part={part('Glob', {glob: '**/*.tsx'})}
         result={result('src/a.tsx\nsrc/b.tsx')}
@@ -79,7 +79,7 @@ export const Globbed: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <SearchCard
         part={part('Grep', {pattern: 'slow'}, 'input-complete')}
         result={undefined}

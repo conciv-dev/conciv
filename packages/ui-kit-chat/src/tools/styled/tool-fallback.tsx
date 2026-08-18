@@ -9,60 +9,81 @@ import {formatDuration} from '../primitives/tool-util.js'
 import {QUIET_TEXT_CLASS} from '../primitives/tool-presentation.js'
 import {SHIMMER} from '../../styled/shimmer.js'
 import {FOCUS} from '../../styled/classes.js'
+import {TRACE_MICROLABEL} from '../../styled/trace/trace-row.js'
 import {ActionRow, ActionButton} from './action-row.js'
 import {CodeBlock} from './code-block.js'
+import {useEmbeddedCard} from './card-chrome.js'
 
 function FallbackRoot(props: {children: JSX.Element}): JSX.Element {
   const tool = useToolFallback()
+  const embedded = useEmbeddedCard()
   const [userOpen, setUserOpen] = createSignal<boolean>()
   const open = () => userOpen() ?? tool.status() === 'approval'
   return (
-    <Collapsible.Root open={open()} onOpenChange={(details) => setUserOpen(details.open)} class="min-w-0 w-full">
-      {props.children}
-    </Collapsible.Root>
+    <Show when={!embedded()} fallback={props.children}>
+      <Collapsible.Root open={open()} onOpenChange={(details) => setUserOpen(details.open)} class="min-w-0 w-full">
+        {props.children}
+      </Collapsible.Root>
+    </Show>
   )
 }
 
 function Trigger(): JSX.Element {
   const tool = useToolFallback()
+  const embedded = useEmbeddedCard()
   const running = () => tool.status() === 'running'
   return (
-    <Collapsible.Trigger
-      class={`group text-[color:var(--chat-text-2)] hover:text-[color:var(--chat-text)] text-[length:var(--chat-text-md)] py-1.5 flex gap-2 w-fit cursor-pointer [transition:color_120ms_var(--chat-ease)] items-center ${FOCUS}`}
-    >
-      <StatusVisual status={tool.status()} form="icon" />
-      <span class="leading-none text-start inline-block relative">
-        <span>
-          Used tool: <b class="[color:var(--chat-text)]">{tool.name()}</b>
+    <Show when={!embedded()}>
+      <Collapsible.Trigger
+        class={`group text-chat-text-2 hover:text-chat-text text-[length:var(--chat-text-md)] py-1.5 flex gap-2 w-fit cursor-pointer [transition:color_120ms_var(--chat-ease)] items-center ${FOCUS}`}
+      >
+        <StatusVisual status={tool.status()} form="icon" />
+        <span class="leading-none text-start inline-block relative">
+          <span>
+            Used tool: <b class="[color:var(--chat-text)]">{tool.name()}</b>
+          </span>
+          <Show when={running()}>
+            <span aria-hidden="true" class={`pointer-events-none inset-0 absolute ${SHIMMER}`}>
+              Used tool: <b>{tool.name()}</b>
+            </span>
+          </Show>
         </span>
-        <Show when={running()}>
-          <span aria-hidden="true" class={`pointer-events-none inset-0 absolute ${SHIMMER}`}>
-            Used tool: <b>{tool.name()}</b>
-          </span>
+        <Show when={tool.durationMs()}>
+          {(ms) => (
+            <span class="text-chat-text-3 text-[length:var(--chat-text-xs)] tabular-nums">{formatDuration(ms())}</span>
+          )}
         </Show>
-      </span>
-      <Show when={tool.durationMs()}>
-        {(ms) => (
-          <span class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] tabular-nums">
-            {formatDuration(ms())}
-          </span>
-        )}
-      </Show>
-      <ChevronDown
-        size={16}
-        class="text-[color:var(--chat-text-3)] shrink-0 [transition:rotate_150ms_var(--chat-ease)] group-data-[state=open]:rotate-0 group-data-[state=closed]:-rotate-90"
-        aria-hidden="true"
-      />
-    </Collapsible.Trigger>
+        <ChevronDown
+          size={16}
+          class="text-chat-text-3 shrink-0 [transition:rotate_150ms_var(--chat-ease)] group-data-[state=open]:rotate-0 group-data-[state=closed]:-rotate-90"
+          aria-hidden="true"
+        />
+      </Collapsible.Trigger>
+    </Show>
   )
 }
 
+const FALLBACK_BODY = 'text-[length:var(--chat-text-md)] flex flex-col gap-[7px] min-w-0'
+const SECTION = 'min-w-0 flex flex-col gap-[6px]'
+const SECTION_LABEL = `${TRACE_MICROLABEL} text-chat-microlabel m-0`
+
 function Content(props: {children: JSX.Element}): JSX.Element {
+  const embedded = useEmbeddedCard()
   return (
-    <Collapsible.Content>
-      <div class="text-[length:var(--chat-text-md)] pb-2 pl-6 pt-1 flex flex-col gap-2">{props.children}</div>
-    </Collapsible.Content>
+    <Show when={!embedded()} fallback={<div class={FALLBACK_BODY}>{props.children}</div>}>
+      <Collapsible.Content>
+        <div class={`${FALLBACK_BODY} pb-2 pl-6 pt-1`}>{props.children}</div>
+      </Collapsible.Content>
+    </Show>
   )
+}
+
+function jsonShape(text: string): {lang: string; contents: string} {
+  try {
+    return {lang: 'json', contents: JSON.stringify(JSON.parse(text), null, 2)}
+  } catch {
+    return {lang: 'text', contents: text}
+  }
 }
 
 function Args(): JSX.Element {
@@ -71,24 +92,22 @@ function Args(): JSX.Element {
     const text = tool.argsText().trim()
     return text.length > 0 && text !== '{}'
   }
+  const shape = () => jsonShape(tool.argsText())
   return (
     <Show when={hasInput()} fallback={<p class={QUIET_TEXT_CLASS}>no input</p>}>
-      <CodeBlock maxHeight="log" file={{name: 'args.txt', lang: 'text', contents: tool.argsText()}} />
+      <CodeBlock file={{name: `args.${shape().lang}`, lang: shape().lang, contents: shape().contents}} />
     </Show>
   )
 }
 
 function Result(): JSX.Element {
   const tool = useToolFallback()
+  const shape = () => jsonShape(tool.resultText())
   return (
     <Show when={tool.resultText()}>
-      <div>
-        <p class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] font-medium m-0">Result:</p>
-        <CodeBlock
-          class="mt-1"
-          maxHeight="log"
-          file={{name: 'result.txt', lang: 'text', contents: tool.resultText()}}
-        />
+      <div class={SECTION}>
+        <p class={SECTION_LABEL}>Result</p>
+        <CodeBlock file={{name: `result.${shape().lang}`, lang: shape().lang, contents: shape().contents}} />
       </div>
     </Show>
   )
@@ -99,9 +118,9 @@ function ToolError(): JSX.Element {
   return (
     <Show when={tool.error()}>
       {(message) => (
-        <div>
-          <p class="text-[color:var(--chat-text-3)] font-semibold m-0">Error:</p>
-          <p class="text-[color:var(--chat-text-2)] m-0 [overflow-wrap:anywhere]">{message()}</p>
+        <div class={SECTION}>
+          <p class={`${SECTION_LABEL} text-chat-danger`}>Error</p>
+          <p class="text-chat-text-2 m-0 [overflow-wrap:anywhere]">{message()}</p>
         </div>
       )}
     </Show>

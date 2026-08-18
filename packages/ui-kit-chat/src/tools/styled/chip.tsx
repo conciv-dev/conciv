@@ -71,7 +71,7 @@ const chip = cva(
 
 export const CHIP = chip({kind: 'field', tone: 'neutral'})
 
-const FIELD_KEY = 'text-[color:var(--chat-text-3)] m-0'
+const FIELD_KEY = 'text-chat-text-3 m-0'
 const FIELD_VALUE = 'whitespace-nowrap text-ellipsis overflow-hidden [color:var(--chat-text)] m-0'
 const ROW = 'm-0 p-0 flex flex-wrap gap-1.5'
 

@@ -1,9 +1,9 @@
 import {For, Show, type JSX} from 'solid-js'
 import Search from 'lucide-solid/icons/search'
 import {z} from 'zod'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolRowProjection, ToolRowProps} from '@conciv/protocol/tool-view-types'
 import {Markdown} from '@conciv/ui-kit-chat'
-import {Chip, parseResultPayload, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {Chip, countLabel, parseResultPayload, rowMarkOf, ToolCard} from '@conciv/ui-kit-chat/tools'
 
 const CatalogEntry = z.object({call: z.string(), name: z.string(), summary: z.string()})
 const CatalogList = z.object({tools: z.array(CatalogEntry)})
@@ -101,4 +101,19 @@ export function DiscoveredApisCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const discoveredApisTool: ToolCardEntry = {names: ['catalog'], render: DiscoveredApisCard}
+export function discoveredApisRowProjection(source: ToolRowProps): ToolRowProjection {
+  const list = parseList(source.result)
+  const detail = parseDetail(source.result)
+  return {
+    mark: rowMarkOf(source.part, source.result),
+    label: 'apis',
+    target: detail?.call ?? 'the extension catalog',
+    meta: list === null ? undefined : countLabel(list.tools.length, 'tool', 'tools'),
+  }
+}
+
+export const discoveredApisTool: ToolCardEntry = {
+  names: ['catalog'],
+  render: DiscoveredApisCard,
+  row: discoveredApisRowProjection,
+}

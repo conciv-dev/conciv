@@ -11,7 +11,9 @@ const TONES = ['neutral', 'accent', 'success', 'danger'] as const
 
 function frame(child: JSX.Element): JSX.Element {
   return (
-    <div class="chat-theme-dark p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">{child}</div>
+    <div class="chat-theme-terminal p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]">
+      {child}
+    </div>
   )
 }
 

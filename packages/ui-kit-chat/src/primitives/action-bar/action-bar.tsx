@@ -48,8 +48,6 @@ type RootProps = JSX.HTMLAttributes<HTMLDivElement> & {
   autohideFloat?: 'always' | 'single-branch' | 'never'
 }
 
-type FloatStatus = 'hidden' | 'floating' | 'normal'
-
 function Root(props: RootProps): JSX.Element {
   const thread = useThread()
   const message = useMessage()
@@ -65,20 +63,24 @@ function Root(props: RootProps): JSX.Element {
       setInteractionCount((count) => Math.max(0, count - 1))
     }
   }
-  const status = (): FloatStatus => {
-    if (local.hideWhenRunning && thread.isRunning) return 'hidden'
+  const hidden = () => Boolean(local.hideWhenRunning) && thread.isRunning
+  const autohideEnabled = () => {
     const autohide = local.autohide ?? 'never'
-    const autohideEnabled = autohide === 'always' || (autohide === 'not-last' && !message.isLast())
-    const visibleByInteraction = interactionCount() > 0 || chat.view.hovering === message.message().key
-    if (!autohideEnabled) return 'normal'
-    if (!visibleByInteraction) return 'hidden'
-    if (local.autohideFloat === 'always' || local.autohideFloat === 'single-branch') return 'floating'
-    return 'normal'
+    return autohide === 'always' || (autohide === 'not-last' && !message.isLast())
   }
+  const visibleByInteraction = () => interactionCount() > 0 || chat.view.hovering === message.message().key
+  const active = () => !autohideEnabled() || visibleByInteraction()
+  const floating = () =>
+    autohideEnabled() && (local.autohideFloat === 'always' || local.autohideFloat === 'single-branch')
   return (
-    <Show when={status() !== 'hidden'}>
+    <Show when={!hidden()}>
       <ActionBarInteractionProvider value={{acquireInteractionLock}}>
-        <div data-floating={status() === 'floating' ? 'true' : undefined} {...rest} />
+        <div
+          data-floating={floating() ? 'true' : undefined}
+          data-autohide={autohideEnabled() ? 'true' : undefined}
+          data-active={active() ? 'true' : undefined}
+          {...rest}
+        />
       </ActionBarInteractionProvider>
     </Show>
   )

@@ -16,20 +16,17 @@ import {
   AttachmentByMime,
   ChatProvider,
   ComposerHandlersProvider,
-  NowLine,
   Thread,
   ToolProvider,
-  pairResults,
   useComposerContext,
   type PageSessionConfig,
   type Turn,
 } from '@conciv/ui-kit-chat'
 import {pageSessionEntry} from '@conciv/extension-page/client'
 import {PAGE_ACT_TOOL_NAMES, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
-import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
+import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
-import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
 import {collectToolRenderers} from '@conciv/extension'
@@ -42,13 +39,12 @@ import {usePane} from '../app/pane-context.js'
 import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
-import {CompactSpinner, ConversationSkeleton, Divider, ThinkingBubble} from './indicators.js'
+import {CompactSpinner, ConversationSkeleton, Divider, ThinkingSpinner} from './indicators.js'
 import {ComposerActionsPending} from '../shell/pending.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
-import {SessionModelSelector} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage} from './draft-storage.js'
 import {useSessionCaptures} from './session-captures.js'
@@ -64,33 +60,16 @@ const PAGE_SESSION: PageSessionConfig = {
   toolPrefix: PAGE_TOOL_PREFIX,
 }
 
-const ABOVE_COMPOSER = 'flex flex-col min-h-0 shrink max-h-40 overflow-y-auto empty:hidden'
+const ABOVE_COMPOSER =
+  'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden pt-[9px] pe-5 pb-[10px] ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-[11px] leading-[1.4] [&>*+*]:before:content-["·"] [&>*+*]:before:px-[5px] [&>*+*]:before:[color:var(--chat-separator)]'
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
 const RETRY =
-  'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
+  'py-1.5 px-2.5 min-h-8 rounded-pw-sm border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {
     if (event.target === event.currentTarget) reset()
   }
-}
-
-function callSettled(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
-  return result?.state === 'complete' || result?.state === 'error' || part.output !== undefined
-}
-
-function activeCallTitle(
-  parts: ReadonlyArray<MessagePart>,
-  catalog: ToolCatalogView,
-  titleByName: Record<string, string>,
-): string | null {
-  const {byCallId} = pairResults(parts)
-  let title: string | null = null
-  for (const part of parts) {
-    if (part.type !== 'tool-call' || !part.id) continue
-    title = callSettled(part, byCallId.get(part.id)) ? title : nowTitle(part, catalog, titleByName)
-  }
-  return title
 }
 
 type ComposerApi = {
@@ -186,18 +165,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     ...builtinToolCards,
   ]
 
-  const streamTitles = (): Record<string, string> =>
-    Object.fromEntries(
-      tools().flatMap((entry) => (entry.streamTitle ? entry.names.map((name) => [name, entry.streamTitle ?? '']) : [])),
-    )
-  const nowTitleText = (): string | null => {
-    if (!isStreaming()) return null
-    const messages = chat.messages()
-    const last = messages[messages.length - 1]
-    if (!last || last.role !== 'assistant') return null
-    return activeCallTitle(last.parts, catalog, streamTitles())
-  }
-
   trackSessionActivity({
     working,
     invalidateSessions: appData.invalidateSessions,
@@ -242,6 +209,9 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     focusInput()
   }
   const paneGrab = makePaneGrabApi(pane.grabStaging, pane.grabProvider)
+
+  const hasHistory = () => chat.messages().length > 0
+  const composerPlaceholder = () => (hasHistory() ? 'Add an instruction…' : 'Ask a question…')
 
   const dividersAt = (count: number): MarkerRow[] => (markers.data ?? []).filter((row) => row.afterTurn === count)
   const dividersInRange = (start: number, end: number): MarkerRow[] =>
@@ -300,10 +270,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                           <Divider kind="compact" pending />
                         </Show>
                         <Show when={isThinking()}>
-                          <ThinkingBubble />
-                        </Show>
-                        <Show when={nowTitleText()}>
-                          {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
+                          <ThinkingSpinner />
                         </Show>
                         <Show when={messaging.visibleError()}>
                           {(error) => (
@@ -329,7 +296,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                           <PaneComposer
                             draftStorage={storage().storage}
                             draftKey={sessionId}
-                            placeholder="Ask a question…"
+                            placeholder={composerPlaceholder()}
                             inputLabel="Message the conciv agent"
                             attachmentAdapter={attachments().adapter}
                             AttachmentComponent={PaneAttachment}
@@ -338,7 +305,6 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                             initialSelection={storage().restoredSelection}
                             busy={compacting() ? <CompactSpinner /> : undefined}
                             triggers={triggerSources}
-                            trailingExtras={<SessionModelSelector sessionId={sessionId} />}
                           >
                             <Suspense fallback={<ComposerActionsPending />}>
                               <ComposerActions

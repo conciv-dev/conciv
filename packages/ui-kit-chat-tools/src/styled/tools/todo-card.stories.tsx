@@ -26,7 +26,7 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 export const Complete: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <TodoCard part={part()} result={undefined} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
@@ -39,10 +39,10 @@ export const Complete: Story = {
   },
 }
 
-export const Conciv: Story = {
+export const Terminal: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <TodoCard part={part()} result={undefined} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
 }

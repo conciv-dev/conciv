@@ -9,6 +9,7 @@ import {
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
+import {terminalTheme} from '@conciv/ui-kit-chat/theme/themes/terminal'
 import {HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
@@ -40,7 +41,7 @@ import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
-import {makeThemeApplier} from '../lib/theme.js'
+import {applyChatTheme, makeThemeApplier} from '../lib/theme.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
@@ -325,8 +326,8 @@ function RootChrome(props: {
 
   return (
     <div
-      class="chat-theme-conciv"
       ref={(el) => {
+        applyChatTheme(el, terminalTheme)
         rootEl = el
       }}
       onKeyDown={onKeyDown}

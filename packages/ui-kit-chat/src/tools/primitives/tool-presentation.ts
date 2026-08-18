@@ -1,4 +1,5 @@
 import type {FileOptions} from '@conciv/solid-diffs'
+import {codeTheme} from '../../theme/code-theme.js'
 import type {ToolStatus} from './tool-status.js'
 
 export type CardPhase = 'running' | 'done'
@@ -10,18 +11,26 @@ export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 [color:va
 export const DANGER_TEXT_CLASS =
   'text-[length:var(--chat-text-sm)] whitespace-pre-wrap [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'
 
-export const CODE_BLOCK_OPTIONS: FileOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-  disableFileHeader: true,
-  disableLineNumbers: true,
-  overflow: 'wrap',
+export function codeBlockOptions(): FileOptions<undefined> {
+  return {
+    theme: codeTheme(),
+    themeType: 'system',
+    disableFileHeader: true,
+    disableLineNumbers: true,
+    overflow: 'wrap',
+  }
 }
 
-export const CODE_BLOCK_FILE_CHROME_OPTIONS: FileOptions<undefined> = {
-  ...CODE_BLOCK_OPTIONS,
-  disableFileHeader: false,
-  disableLineNumbers: false,
+export function codeLineOptions(): FileOptions<undefined> {
+  return {...codeBlockOptions(), overflow: 'scroll'}
+}
+
+export function codeBlockFileChromeOptions(): FileOptions<undefined> {
+  return {
+    ...codeBlockOptions(),
+    disableFileHeader: false,
+    disableLineNumbers: false,
+  }
 }
 
 export function displayValue(value: unknown): string {

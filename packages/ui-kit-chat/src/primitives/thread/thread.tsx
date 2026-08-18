@@ -47,6 +47,7 @@ type ViewportProps = DivProps & {
   scrollToBottomOnRunStart?: boolean
   scrollToBottomOnInitialize?: boolean
   scrollToBottomOnThreadSwitch?: boolean
+  footer?: JSX.Element
   ref?: HTMLDivElement | ((element: HTMLDivElement) => void)
 }
 
@@ -58,6 +59,7 @@ function Viewport(props: ViewportProps): JSX.Element {
     'scrollToBottomOnRunStart',
     'scrollToBottomOnInitialize',
     'scrollToBottomOnThreadSwitch',
+    'footer',
     'ref',
   ])
   const [element, setElement] = createSignal<HTMLDivElement>()
@@ -89,6 +91,7 @@ function Viewport(props: ViewportProps): JSX.Element {
           ref={assignRef}
           {...rest}
         />
+        {local.footer}
       </ViewportInternalProvider>
     </ViewportProvider>
   )

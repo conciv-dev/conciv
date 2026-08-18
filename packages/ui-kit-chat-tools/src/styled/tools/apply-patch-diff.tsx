@@ -1,14 +1,28 @@
-import {type JSX} from 'solid-js'
+import {For, type JSX} from 'solid-js'
 import FileDiff from 'lucide-solid/icons/file-diff'
-import {type FileDiffOptions} from '@conciv/solid-diffs'
-import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {ApplyPatch, useApplyPatch, type ApplyPatchInfo} from '../../primitives/tools/apply-patch.js'
-import {diffBlockClass, ToolCard} from '@conciv/ui-kit-chat/tools'
-const DIFF_OPTIONS: FileDiffOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-  diffStyle: 'unified',
-  overflow: 'wrap',
+import {SolidPatchDiff, type FileDiffOptions} from '@conciv/solid-diffs'
+import type {ToolCardEntry, ToolCardProps, ToolRowProjection, ToolRowProps} from '@conciv/protocol/tool-view-types'
+import {
+  ApplyPatch,
+  claudeBlockToUnifiedDiff,
+  parseClaudePatchBlocks,
+  patchInfo,
+  patchTextOf,
+  useApplyPatch,
+  type ApplyPatchBlock,
+  type ApplyPatchInfo,
+} from '../../primitives/tools/apply-patch.js'
+import {diffBlockClass, rowMarkOf, TraceOutputBlock, ToolCard} from '@conciv/ui-kit-chat/tools'
+import {codeTheme} from '@conciv/ui-kit-chat/theme/code-theme'
+
+function diffOptions(disableFileHeader = false): FileDiffOptions<undefined> {
+  return {
+    theme: codeTheme(),
+    themeType: 'system',
+    diffStyle: 'unified',
+    overflow: 'wrap',
+    disableFileHeader,
+  }
 }
 
 function Icon(): JSX.Element {
@@ -32,7 +46,7 @@ function counts(info: ApplyPatchInfo): string | undefined {
 function Body(): JSX.Element {
   return (
     <div class="flex flex-col gap-1.5">
-      <ApplyPatch.Diffs class={diffBlockClass('sm')} options={DIFF_OPTIONS} />
+      <ApplyPatch.Diffs class={diffBlockClass('sm')} options={diffOptions()} />
     </div>
   )
 }
@@ -58,4 +72,47 @@ export function ApplyPatchDiff(props: ToolCardProps): JSX.Element {
       <CardBody {...props} />
     </ApplyPatch.Root>
   )
+}
+
+function fileLabelOf(info: ApplyPatchInfo): string {
+  if (info.files.length === 1) return info.files[0] ?? ''
+  if (info.files.length > 1) return `${info.files.length} files`
+  return 'a patch'
+}
+
+const DIFF_DENSITY = '[--diffs-gap-block:2px] [--diffs-line-height:18px]'
+
+function patchBlock(blocks: ApplyPatchBlock[], patchText: string): () => JSX.Element {
+  return () => (
+    <TraceOutputBlock label="Patch" size="tall" text={patchText}>
+      <For each={blocks}>
+        {(block) => (
+          <SolidPatchDiff
+            class={diffBlockClass('xs', DIFF_DENSITY)}
+            options={diffOptions(blocks.length === 1)}
+            patch={claudeBlockToUnifiedDiff(block)}
+          />
+        )}
+      </For>
+    </TraceOutputBlock>
+  )
+}
+
+export function applyPatchRowProjection(source: ToolRowProps): ToolRowProjection {
+  const patchText = patchTextOf(source.part)
+  const info = patchInfo(patchText)
+  const blocks = parseClaudePatchBlocks(patchText)
+  return {
+    mark: rowMarkOf(source.part, source.result),
+    label: 'edit',
+    target: fileLabelOf(info),
+    meta: patchText.length === 0 ? undefined : `+${info.added} −${info.removed}`,
+    block: blocks.length === 0 ? undefined : patchBlock(blocks, patchText),
+  }
+}
+
+export const applyPatchTool: ToolCardEntry = {
+  names: ['apply_patch'],
+  render: ApplyPatchDiff,
+  row: applyPatchRowProjection,
 }

@@ -44,7 +44,7 @@ async function codeText(root: HTMLElement): Promise<string> {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <CodeRunCard
         part={part('input-complete')}
         result={undefined}
@@ -66,7 +66,7 @@ export const Running: Story = {
 export const Success: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
@@ -83,7 +83,7 @@ export const Success: Story = {
 export const Failure: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <CodeRunCard part={part()} result={failResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
@@ -97,10 +97,10 @@ export const Failure: Story = {
   },
 }
 
-export const Conciv: Story = {
+export const Themed: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
 }

@@ -15,7 +15,7 @@ const PREVIEW =
   'max-h-64 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_1.5rem,black_calc(100%-1.5rem),transparent)]'
 
 export function ReasoningText(props: {text: string}): JSX.Element {
-  return <div class="text-[color:var(--chat-text)] leading-[1.45] whitespace-pre-wrap">{props.text}</div>
+  return <div class="text-chat-text leading-[1.45] whitespace-pre-wrap">{props.text}</div>
 }
 
 export function Reasoning(props: ReasoningProps): JSX.Element {
@@ -31,7 +31,7 @@ export function Reasoning(props: ReasoningProps): JSX.Element {
       open={collapse.open()}
       onOpenChange={collapse.setOpen}
       header={
-        <span class={props.streaming ? SHIMMER : 'text-[color:var(--chat-text-2)]'}>
+        <span class={props.streaming ? SHIMMER : 'text-chat-text-2'}>
           {props.streaming ? 'Thinking…' : 'Reasoning'}
         </span>
       }

@@ -1,44 +1,47 @@
 import {splitProps, type JSX} from 'solid-js'
 import {cva} from 'class-variance-authority'
 import {SolidCodeBlock, SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
-import {CODE_BLOCK_OPTIONS, CODE_BLOCK_FILE_CHROME_OPTIONS} from '../primitives/tool-presentation.js'
+import {codeBlockOptions, codeBlockFileChromeOptions, codeLineOptions} from '../primitives/tool-presentation.js'
+import {useEmbeddedCard} from './card-chrome.js'
+import {codeTheme} from '../../theme/code-theme.js'
 
-const BLESSED_DIFF_OPTIONS: FileDiffOptions<undefined> = {
-  theme: {light: 'github-light', dark: 'github-dark'},
-  themeType: 'system',
-  disableFileHeader: true,
-  diffStyle: 'unified',
-  overflow: 'wrap',
+function blessedDiffOptions(): FileDiffOptions<undefined> {
+  return {
+    theme: codeTheme(),
+    themeType: 'system',
+    disableFileHeader: true,
+    diffStyle: 'unified',
+    overflow: 'wrap',
+  }
 }
 
-const codeBlock = cva(
-  'block w-full overflow-auto rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]',
-  {
-    variants: {
-      size: {
-        xs: 'text-[length:var(--chat-text-xs)]',
-        sm: 'text-[length:var(--chat-text-sm)]',
-      },
-      maxHeight: {
-        result: 'max-h-[13.75rem]',
-        log: 'max-h-80',
-      },
-      chrome: {
-        plain: '',
-        file: '',
-      },
+const codeBlock = cva('block w-full min-w-0 overflow-auto [background:transparent] [font-family:var(--chat-mono)]', {
+  variants: {
+    size: {
+      xs: 'text-[11px]',
+      sm: 'text-[12px]',
     },
-    defaultVariants: {size: 'xs', maxHeight: 'result', chrome: 'plain'},
+    maxHeight: {
+      result: 'max-h-[13.75rem]',
+      log: 'max-h-80',
+      none: '',
+    },
+    chrome: {
+      plain: '[--diffs-gap-block:0px] [--diffs-gap-inline:0px]',
+      file: '',
+      line: 'whitespace-nowrap [--diffs-gap-block:0px] [--diffs-gap-inline:0px]',
+    },
   },
-)
+  defaultVariants: {size: 'xs', maxHeight: 'result', chrome: 'plain'},
+})
 
 const diffBlock = cva(
-  'block w-full max-h-80 overflow-auto rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)]',
+  'block w-full min-w-0 max-h-80 overflow-auto [background:transparent] [font-family:var(--chat-mono)]',
   {
     variants: {
       size: {
-        xs: 'text-[length:var(--chat-text-xs)]',
-        sm: 'text-[length:var(--chat-text-sm)]',
+        xs: 'text-[11px]',
+        sm: 'text-[12px]',
       },
     },
     defaultVariants: {size: 'xs'},
@@ -48,15 +51,20 @@ const diffBlock = cva(
 export function CodeBlock(props: {
   file: {name: string; lang?: string; contents: string}
   size?: 'xs' | 'sm'
-  maxHeight?: 'result' | 'log'
-  chrome?: 'plain' | 'file'
+  maxHeight?: 'result' | 'log' | 'none'
+  chrome?: 'plain' | 'file' | 'line'
   class?: string
 }): JSX.Element {
   const [local] = splitProps(props, ['file', 'size', 'maxHeight', 'chrome', 'class'])
-  const chrome = (): 'plain' | 'file' => local.chrome ?? 'plain'
+  const embedded = useEmbeddedCard()
+  const chrome = (): 'plain' | 'file' | 'line' => local.chrome ?? 'plain'
+  const cap = (): 'result' | 'log' | 'none' => (embedded() ? 'none' : (local.maxHeight ?? 'result'))
   const blockClass = (): string =>
-    `${codeBlock({size: local.size ?? 'xs', maxHeight: local.maxHeight ?? 'result', chrome: chrome()})} ${local.class ?? ''}`
-  const options = () => (chrome() === 'file' ? CODE_BLOCK_FILE_CHROME_OPTIONS : CODE_BLOCK_OPTIONS)
+    `${codeBlock({size: local.size ?? 'xs', maxHeight: cap(), chrome: chrome()})} ${local.class ?? ''}`
+  const options = () => {
+    if (chrome() === 'file') return codeBlockFileChromeOptions()
+    return chrome() === 'line' ? codeLineOptions() : codeBlockOptions()
+  }
   return <SolidCodeBlock class={blockClass()} options={options()} file={local.file} />
 }
 
@@ -81,5 +89,5 @@ export function DiffBlock(props: {
     contents: local.file.after,
     lang: local.file.lang,
   })
-  return <SolidFileDiff class={blockClass()} options={BLESSED_DIFF_OPTIONS} oldFile={oldFile()} newFile={newFile()} />
+  return <SolidFileDiff class={blockClass()} options={blessedDiffOptions()} oldFile={oldFile()} newFile={newFile()} />
 }

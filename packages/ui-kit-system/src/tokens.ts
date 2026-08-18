@@ -10,6 +10,7 @@ export const TOKENS = {
   'pw-accent-08': {value: 'color-mix(in oklch, var(--pw-accent) 10%, transparent)', description: 'accent tint 8%'},
   'pw-accent-20': {value: 'color-mix(in oklch, var(--pw-accent) 22%, transparent)', description: 'accent tint 20%'},
   'pw-accent-line': {value: 'color-mix(in oklch, var(--pw-accent) 42%, transparent)', description: 'accent border'},
+  'pw-backdrop': {value: 'oklch(0 0 0 / 0.55)', description: 'dialog backdrop scrim'},
   'pw-panel': {value: 'oklch(0 0 0)', description: 'opaque true-black panel'},
   'pw-panel-sunk': {value: 'oklch(0 0 0)', description: 'deepest field bg'},
   'pw-glass': {value: 'oklch(0 0 0 / 0.97)', description: 'chat panel surface'},
@@ -36,6 +37,10 @@ export const TOKENS = {
   'pw-r-lg': {value: '18px', description: 'radius lg'},
   'pw-r-pill': {value: '999px', description: 'radius pill'},
   'pw-shadow': {value: '0 8px 28px oklch(0.12 0.02 var(--pw-hue) / 0.45)', description: 'elevation'},
+  'pw-shadow-sm': {
+    value: '0 2px 10px oklch(0.12 0.02 var(--pw-hue) / 0.5)',
+    description: 'tight elevation for small controls',
+  },
   'pw-shadow-lg': {value: '0 16px 44px oklch(0.1 0.03 var(--pw-hue) / 0.55)', description: 'elevation lg'},
   'pw-shadow-hover': {value: '0 14px 34px oklch(0.1 0.03 var(--pw-hue) / 0.6)', description: 'elevation hover'},
   'pw-ease': {value: 'cubic-bezier(0.22, 1, 0.36, 1)', description: 'ease-out-quart'},

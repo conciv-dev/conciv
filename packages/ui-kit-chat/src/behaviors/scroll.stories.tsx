@@ -8,7 +8,7 @@ import {Thread} from '../primitives/thread/thread.js'
 import {useThreadViewport, ViewportProvider} from '../primitives/thread/viewport-context.js'
 import {Message} from '../primitives/message/message.js'
 import {useThreadAutoScroll} from './use-thread-auto-scroll.js'
-import {ChainOfThought} from '../styled/chain-of-thought.js'
+import {Trace, type TraceItem} from '../styled/trace/trace.js'
 import {CollapsibleCard} from '../tools/styled/collapsible-card.js'
 
 const meta: Meta = {title: 'ui-kit-chat/behaviors/Scroll'}
@@ -81,15 +81,18 @@ function CollapsePinHarness(): JSX.Element {
       </button>
       <div>atBottom: {String(isAtBottom())}</div>
       <div ref={setViewport} data-thread-viewport class="p-2 border border-pw-line h-32 overflow-y-auto">
-        <ChainOfThought streaming={streaming()}>
-          <Index each={Array.from({length: 6}, (_, index) => index)}>
-            {(step) => (
-              <ChainOfThought.Step icon={<span>*</span>} last={step() === 5}>
-                <div>tool step {step()}</div>
-              </ChainOfThought.Step>
-            )}
-          </Index>
-        </ChainOfThought>
+        <Trace
+          summary="6 tool steps"
+          compactLine="6 tool steps"
+          streaming={streaming()}
+          items={Array.from(
+            {length: 6},
+            (_, index): TraceItem => ({
+              key: `step${index}`,
+              render: () => <div>tool step {index}</div>,
+            }),
+          )}
+        />
         <Index each={Array.from({length: lines()}, (_, index) => index)}>
           {(line) => <div>reply line {line()}</div>}
         </Index>

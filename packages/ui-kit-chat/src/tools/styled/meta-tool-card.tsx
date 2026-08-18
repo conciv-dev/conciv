@@ -14,16 +14,16 @@ import {MirrorRow, NoteRow} from './note-row.js'
 import {CodeBlock} from './code-block.js'
 import {ErrorBlock} from './error-block.js'
 
-const SUMMARY = 'text-[color:var(--chat-text-2)] text-[length:var(--chat-text-sm)] m-0'
-const HINT = 'text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] m-0'
+const SUMMARY = 'text-chat-text-2 text-[length:var(--chat-text-sm)] m-0'
+const HINT = 'text-chat-text-3 text-[length:var(--chat-text-xs)] m-0'
 
 const CATEGORY_ACCENT: Record<string, string> = {
-  read: 'inline-flex text-[color:var(--chat-accent-link)]',
-  act: 'inline-flex text-[color:var(--chat-accent)]',
-  'edit-live': 'inline-flex text-[color:var(--chat-success)]',
-  react: 'inline-flex text-[color:var(--chat-text-hi)]',
+  read: 'inline-flex text-chat-accent-link',
+  act: 'inline-flex text-chat-accent',
+  'edit-live': 'inline-flex text-chat-success',
+  react: 'inline-flex text-chat-text-hi',
 }
-const NEUTRAL_ACCENT = 'inline-flex text-[color:var(--chat-text-3)]'
+const NEUTRAL_ACCENT = 'inline-flex text-chat-text-3'
 
 const InputRecord = z.record(z.string(), z.unknown())
 

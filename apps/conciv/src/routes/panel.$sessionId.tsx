@@ -1,11 +1,23 @@
 import {Outlet, createFileRoute, redirect, useBlocker, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
-import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
-import ChevronDown from 'lucide-solid/icons/chevron-down'
+import {Menu, TooltipIconButton, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
+import {
+  ChatProvider,
+  chatBusy,
+  coalesceTurns,
+  createSessionStatus,
+  createTurnClock,
+  formatElapsed,
+  sessionTotals,
+  turnRollup,
+  type TurnRollup,
+} from '@conciv/ui-kit-chat'
+import X from 'lucide-solid/icons/x'
+import Ellipsis from 'lucide-solid/icons/ellipsis'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
+import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import Unplug from 'lucide-solid/icons/unplug'
-import {For, Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
+import {Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {useChatSession} from '@conciv/client'
 import {
@@ -18,18 +30,36 @@ import {
   useRpc,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
-import {RefreshButton} from '../shell/refresh-button.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
-import {ContextTracker} from '../pane/context-tracker.js'
+import {ContextSummary} from '../pane/context-tracker.js'
+import {QueueStrip} from '../pane/queue-strip.js'
+import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
 import {SessionPillPending, UsagePending, ViewTabsPending} from '../shell/pending.js'
 import {collectViews} from '../extension/extension-views.js'
 
-const HEAD = 'flex items-center gap-2.5 py-3 px-3.5 border-b border-b-pw-line-soft'
-const CLOSE =
-  'bg-transparent [border:none] text-pw-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-[0.5625rem] trans-color-bg hover:text-pw-text hover:bg-pw-fill-strong'
+const RAIL =
+  'flex items-center gap-2.5 pt-[11px] pe-3 pb-[10px] ps-5 [border-block-end:1px_solid_var(--chat-line-soft)]'
+const RAIL_LEFT = 'flex flex-1 flex-col min-w-0 gap-[2px]'
+const RAIL_MICROLABEL =
+  '[font-family:var(--chat-mono)] text-[9.5px] uppercase tracking-[0.14em] [color:var(--chat-microlabel)] whitespace-nowrap'
+const RAIL_SEPARATOR = 'chat-rail-context-full [color:var(--chat-separator)] px-[5px]'
+const RAIL_TITLE =
+  'min-w-0 truncate [font-family:var(--chat-font-display)] text-[14.5px] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
+const GHOST =
+  'bg-transparent border border-transparent text-pw-text-2 cursor-pointer inline-flex items-center justify-center size-7 rounded-[var(--chat-radius-sm)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line-soft)] hover:text-pw-text'
+const RAIL_MENU_CONTENT = 'p-2 flex flex-col gap-1 w-72'
+const RAIL_MENU_CONTENT_STYLE = {
+  background: 'var(--chat-bg)',
+  'border-color': 'var(--chat-line)',
+  'border-radius': 'var(--chat-radius-md)',
+}
+const RAIL_MENU_LABEL =
+  '[font-family:var(--chat-mono)] text-[9.5px] uppercase tracking-[0.1em] [color:var(--chat-microlabel)] px-1 pt-1'
+const RAIL_MENU_ROW =
+  'flex items-center gap-2 px-1 py-1.5 rounded-[var(--chat-radius-sm)] text-[12.5px] [color:var(--chat-text-2)] bg-transparent [border:none] cursor-pointer w-full text-start [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[color:var(--chat-text-hi)] disabled:opacity-40 disabled:cursor-default'
 
 export const Route = createFileRoute('/panel/$sessionId')({
   beforeLoad: async ({context, params}) => {
@@ -108,6 +138,32 @@ function PanelSession(): JSX.Element {
   const chatKey = createMemo(() => ({sessionId: params().sessionId, generation: generation()}))
   const chat = createMemo(() => useChatSession({rpc, sessionId: chatKey().sessionId}))
 
+  const turns = createMemo(() => coalesceTurns(chat().messages()))
+  const latestRollup = createMemo<TurnRollup | undefined>(() => {
+    const turn = turns().at(-1)
+    return turn ? turnRollup(turn) : undefined
+  })
+  const isStreaming = createMemo(() => chatBusy(chat()))
+  const queue = createMemo(() => chat().queue())
+  const sessionStatus = createSessionStatus(() => ({
+    latestRollup: latestRollup(),
+    isStreaming: isStreaming(),
+    queueLength: queue().length,
+  }))
+  // oxlint-disable-next-line solid/reactivity
+  const diff = sessionTotals(() => turns())
+  const clock = createTurnClock(() => turns())
+  const elapsedLabel = () => {
+    const state = clock()
+    return state.elapsedMs === null ? '—' : formatElapsed(state.elapsedMs)
+  }
+  const taskContext = () => (sessionStatus().kind === 'done' ? 'LAST TASK' : 'ACTIVE TASK')
+  const taskTitle = () => row()?.title || 'New session'
+  const statusBarViews = createMemo<StatusBarView[]>(() => [
+    {id: 'chat', label: 'Chat'},
+    ...views().map((view) => ({id: view.id, label: view.label, icon: view.icon})),
+  ])
+
   const paneValue: PaneContextValue = {
     sessionId: () => params().sessionId,
     running,
@@ -124,66 +180,92 @@ function PanelSession(): JSX.Element {
 
   return (
     <PaneContext.Provider value={paneValue}>
-      <header class={HEAD}>
-        <TooltipIconButton
-          tooltip="Pop out to a window"
-          class={CLOSE}
-          onClick={() => void router.navigate({to: '/pip/$sessionId', params: {sessionId: params().sessionId}})}
-        >
-          <PictureInPicture2 class="size-5 block" aria-hidden="true" />
-        </TooltipIconButton>
-        <span class="tracking-[-0.01em] font-semibold">conciv</span>
-        <Suspense fallback={<SessionPillPending variant="pill" />}>
-          <SessionSelector
-            variant="pill"
-            activeId={() => params().sessionId}
-            onActivate={activate}
-            onNewSession={() => void newSession()}
-          />
-        </Suspense>
-        <Suspense fallback={<UsagePending />}>
-          <ContextTracker usage={usage()} />
-        </Suspense>
-        <span class="flex-1" />
-        <Show when={activeView() === 'chat'}>
-          <RefreshButton class={CLOSE} />
-        </Show>
-        <Show when={connectMode && disconnect}>
-          <TooltipIconButton tooltip="Disconnect this machine" class={CLOSE} onClick={() => disconnect?.()}>
-            <Unplug class="size-[1em] block" aria-hidden="true" />
-          </TooltipIconButton>
-        </Show>
-        <TooltipIconButton tooltip="Close chat" class={CLOSE} onClick={() => panelChrome.close()}>
-          <ChevronDown class="size-[1em] block" aria-hidden="true" />
+      <header class={RAIL}>
+        <div class={RAIL_LEFT}>
+          <span class={RAIL_MICROLABEL}>
+            <span class="chat-rail-context-full">
+              CONCIV <span class={RAIL_SEPARATOR}>/</span> {taskContext()}
+            </span>
+            <span class="chat-rail-context-narrow">{sessionStatus().kind === 'done' ? 'LAST' : 'ACTIVE'}</span>
+          </span>
+          <span class={RAIL_TITLE}>{taskTitle()}</span>
+        </div>
+        <Menu.Root>
+          <TooltipIconButtonSlot tooltip="Session options">
+            {(buttonProps) => (
+              <Menu.Trigger
+                asChild={(triggerProps) => (
+                  <button {...buttonProps()} {...triggerProps()} class={GHOST}>
+                    <Ellipsis class="size-4 block" aria-hidden="true" />
+                  </button>
+                )}
+              />
+            )}
+          </TooltipIconButtonSlot>
+          <Menu.Positioner>
+            <Menu.Content class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>
+              <span class={RAIL_MENU_LABEL}>Session</span>
+              <Suspense fallback={<SessionPillPending variant="bar" />}>
+                <SessionSelector
+                  variant="bar"
+                  activeId={() => params().sessionId}
+                  onActivate={activate}
+                  onNewSession={() => void newSession()}
+                />
+              </Suspense>
+              <Menu.Separator />
+              <span class={RAIL_MENU_LABEL}>Context</span>
+              <Suspense fallback={<UsagePending />}>
+                <ContextSummary usage={usage()} />
+              </Suspense>
+              <Menu.Separator />
+              <Show when={activeView() === 'chat'}>
+                <button
+                  type="button"
+                  class={RAIL_MENU_ROW}
+                  disabled={chatBusy(chat())}
+                  onClick={() => chat().refresh()}
+                >
+                  <RefreshCw class="size-4 block shrink-0" aria-hidden="true" />
+                  Refresh the conversation
+                </button>
+              </Show>
+              <button
+                type="button"
+                class={RAIL_MENU_ROW}
+                onClick={() => void router.navigate({to: '/pip/$sessionId', params: {sessionId: params().sessionId}})}
+              >
+                <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
+                Pop out to a window
+              </button>
+              <Show when={connectMode && disconnect}>
+                <button type="button" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>
+                  <Unplug class="size-4 block shrink-0" aria-hidden="true" />
+                  Disconnect this machine
+                </button>
+              </Show>
+            </Menu.Content>
+          </Menu.Positioner>
+        </Menu.Root>
+        <TooltipIconButton tooltip="Close chat" class={GHOST} onClick={() => panelChrome.close()}>
+          <X class="size-3.5 block" strokeWidth={1.75} aria-hidden="true" />
         </TooltipIconButton>
       </header>
-      <Show when={views().length > 0}>
-        <Suspense fallback={<ViewTabsPending />}>
-          <div class="px-2.5 flex gap-2 items-center">
-            <Tabs.Root
-              value={activeView()}
-              onValueChange={(details) => switchView(details.value)}
-              class="flex-1 min-w-0"
-            >
-              <Tabs.List>
-                <Tabs.Trigger value="chat" disabled={leaveGuard()}>
-                  Chat
-                </Tabs.Trigger>
-                <For each={views()}>
-                  {(view) => (
-                    <Tabs.Trigger value={view.id} disabled={leaveGuard()}>
-                      <Show when={view.icon}>{(icon) => <Dynamic component={icon()} class="size-3.5" />}</Show>
-                      {view.label}
-                    </Tabs.Trigger>
-                  )}
-                </For>
-                <Tabs.Indicator />
-              </Tabs.List>
-            </Tabs.Root>
-          </div>
-        </Suspense>
-      </Show>
+      <ChatProvider chat={chat()}>
+        <QueueStrip queue={queue()} />
+      </ChatProvider>
       <Outlet />
+      <Suspense fallback={<ViewTabsPending />}>
+        <StatusBar
+          status={sessionStatus()}
+          elapsedLabel={elapsedLabel()}
+          diff={diff()}
+          views={statusBarViews()}
+          activeView={activeView()}
+          onSelectView={switchView}
+          disabled={leaveGuard()}
+        />
+      </Suspense>
     </PaneContext.Provider>
   )
 }

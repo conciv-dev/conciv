@@ -23,7 +23,7 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 export const Complete: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <ToolLookupCard
         part={part({query: 'select:mcp__tanstack__page_click', max_results: 5})}
         result={result({tools: 1})}

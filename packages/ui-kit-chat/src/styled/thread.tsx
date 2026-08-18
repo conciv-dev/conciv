@@ -2,6 +2,7 @@ import {
   createContext,
   createMemo,
   Index,
+  indexArray,
   Match,
   Show,
   Switch,
@@ -12,16 +13,9 @@ import {
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
-import Brain from 'lucide-solid/icons/brain'
-import FilePen from 'lucide-solid/icons/file-pen'
-import FileText from 'lucide-solid/icons/file-text'
-import List from 'lucide-solid/icons/list'
-import Search from 'lucide-solid/icons/search'
-import Terminal from 'lucide-solid/icons/terminal'
-import Wrench from 'lucide-solid/icons/wrench'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolCardProps, ToolUIComponent, ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {useThread} from '../store/chat-context.js'
+import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
+import {useChatContext, useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
 import {Message} from '../primitives/message/message.js'
@@ -38,21 +32,33 @@ import {
   type Grouping,
   type Turn,
 } from '../store/grouping.js'
+import {summaryLine, turnRollup, type TurnRollup} from '../store/turn-rollup.js'
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {useViewportInternal} from '../primitives/thread/viewport-internal.js'
+import {useThreadViewport} from '../primitives/thread/viewport-context.js'
 import {TurnEstimateProvider} from '../primitives/thread/turn-estimate.js'
 import {createTurnEstimator} from './text-metrics.js'
-import {ASSISTANT_ROOT_CLASS, ASSISTANT_ROOT_SETTLED_CLASS, USER_BUBBLE_CLASS} from './turn-classes.js'
+import {
+  ANSWER_ACTION_ROW_CLASS,
+  ANSWER_CONTENT_CLASS,
+  ANSWER_CONTENT_SETTLED_CLASS,
+  ANSWER_ROW_CLASS,
+  ASSISTANT_ROOT_CLASS,
+  PROMPT_GUTTER_CLASS,
+  PROMPT_ROOT_CLASS,
+  PROMPT_TEXT_CLASS,
+  PROMPT_TIME_CLASS,
+} from './turn-classes.js'
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
+import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 import {Markdown} from './markdown.js'
-import {Reasoning} from './reasoning.js'
 import {ToolFallback} from '../tools/styled/tool-fallback.js'
-import {ToolCallCard} from '../tools/styled/tool-call-card.js'
-import {ChainOfThought} from './chain-of-thought.js'
+import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
+import {Trace, type TraceBranch, type TraceItem} from './trace/trace.js'
+import {TraceRunRow} from './trace/trace-row.js'
+import {TraceBodyFrame} from './trace/output-block.js'
 import {AssistantActionBar} from './action-bar.js'
 import {FOCUS} from './classes.js'
-
-const CHAIN_OF_THOUGHT_GROW = true
 
 export type ThreadComponents = {
   AssistantMessage?: Component
@@ -71,6 +77,21 @@ export type ThreadMessagesProps = {
   groupEntries?: readonly GroupEntry[]
 }
 
+const PLAN_LABEL = 'plan'
+const PLAN_INLINE_LENGTH = 90
+
+const PROMPT_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', hour12: false})
+
+function promptTimeLabel(createdAt: Date | undefined): string | undefined {
+  if (!createdAt) return undefined
+  const date = createdAt instanceof Date ? createdAt : new Date(createdAt)
+  return Number.isNaN(date.getTime()) ? undefined : PROMPT_TIME_FORMAT.format(date)
+}
+
+function firstLine(text: string): string {
+  return (text.split('\n')[0] ?? '').trim()
+}
+
 function asThinking(part: MessagePart | undefined): Extract<MessagePart, {type: 'thinking'}> | null {
   return part?.type === 'thinking' && part.content.trim().length > 0 ? part : null
 }
@@ -80,60 +101,6 @@ function asToolCall(part: MessagePart | undefined): ToolCallPart | null {
 function asText(part: MessagePart | undefined): Extract<MessagePart, {type: 'text'}> | null {
   return part?.type === 'text' && part.content.trim().length > 0 ? part : null
 }
-function isAwaitingApproval(part: MessagePart | undefined, ctx: ToolViewCtx): boolean {
-  const call = asToolCall(part)
-  return (
-    call !== null && call.state === 'approval-requested' && call.approval !== undefined && Boolean(ctx.respondApproval)
-  )
-}
-
-function toolStepIcon(name: string): JSX.Element {
-  const lower = name.toLowerCase()
-  const size = 13
-  if (/search|grep|find|lookup/.test(lower)) return <Search size={size} />
-  if (/write|edit|patch|create|append/.test(lower)) return <FilePen size={size} />
-  if (/read|cat|open|view|fetch|file/.test(lower)) return <FileText size={size} />
-  if (/bash|shell|exec|run|terminal|command/.test(lower)) return <Terminal size={size} />
-  if (/list|glob|dir|tree/.test(lower)) return <List size={size} />
-  return <Wrench size={size} />
-}
-
-function ChainPart(props: {
-  part: MessagePart | undefined
-  entries: ToolCardEntry[]
-  fallback: ToolUIComponent
-  last?: boolean
-  streaming?: boolean
-}): JSX.Element {
-  const message = useMessage()
-
-  const ctx = useToolCtx()
-  return (
-    <Switch>
-      <Match when={asThinking(props.part)}>
-        {(part) => (
-          <ChainOfThought.Step icon={<Brain size={13} />} last={props.last}>
-            <Reasoning text={part().content} streaming={props.streaming} grow={CHAIN_OF_THOUGHT_GROW} />
-          </ChainOfThought.Step>
-        )}
-      </Match>
-      <Match when={asToolCall(props.part)}>
-        {(part) => (
-          <ChainOfThought.Step icon={toolStepIcon(part().name)} last={props.last}>
-            <ToolCallCard
-              part={part()}
-              result={message.pairing().byCallId.get(part().id)}
-              ctx={ctx}
-              durationMs={ctx.durationFor?.(part().id)}
-              tools={() => props.entries}
-              fallback={props.fallback}
-            />
-          </ChainOfThought.Step>
-        )}
-      </Match>
-    </Switch>
-  )
-}
 
 function asGroupNode(node: GroupNode): GroupNodeGroup | null {
   return node.type === 'group' ? node : null
@@ -141,6 +108,16 @@ function asGroupNode(node: GroupNode): GroupNodeGroup | null {
 
 function asPartNode(node: GroupNode): GroupNodePart | null {
   return node.type === 'part' ? node : null
+}
+
+function rollupOfParts(parts: readonly MessagePart[]): TurnRollup {
+  return turnRollup({key: 'segment', role: 'assistant', parts: [...parts], start: 0, end: 0})
+}
+
+function planBody(part: () => Extract<MessagePart, {type: 'thinking'}>): (() => JSX.Element) | undefined {
+  const text = part().content.trim()
+  if (text.split('\n').length < 2 && text.length <= PLAN_INLINE_LENGTH) return undefined
+  return () => <TraceBodyFrame>{text}</TraceBodyFrame>
 }
 
 function AssistantTurn(props: {
@@ -164,30 +141,61 @@ function AssistantTurn(props: {
   const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
   const lastPartIndex = createMemo(() => parts().length - 1)
   const livePart = (index: number) => thread.isRunning && message.isLast() && index === lastPartIndex()
-  const chainAutoOpen = (indices: readonly number[]) => {
-    const last = indices.at(-1)
-    const reasoningStreaming = last !== undefined && livePart(last) && asThinking(parts()[last]) !== null
-    return reasoningStreaming || indices.some((index) => isAwaitingApproval(parts()[index], ctx))
+  const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
+    const segmentParts = createMemo<MessagePart[]>(() =>
+      groupProps.node.indices.flatMap((partIndex) => {
+        const part = groupProps.parts()[partIndex]
+        return part ? [part] : []
+      }),
+    )
+    const segmentRollup = createMemo(() => rollupOfParts(segmentParts()))
+    const segmentActive = () =>
+      groupProps.node.indices.some((partIndex) => livePart(partIndex)) || segmentRollup().awaitingApproval
+    const items = indexArray(
+      () => groupProps.node.indices,
+      (partIndex, position): TraceItem => ({
+        key: `p${position}`,
+        get live() {
+          return livePart(partIndex())
+        },
+        render: (branch: TraceBranch): JSX.Element => (
+          <Switch>
+            <Match when={asThinking(groupProps.parts()[partIndex()])}>
+              {(thinkingPart) => (
+                <TraceRunRow
+                  label={PLAN_LABEL}
+                  text={firstLine(thinkingPart().content)}
+                  last={branch.last}
+                  live={livePart(partIndex())}
+                  body={planBody(thinkingPart)}
+                />
+              )}
+            </Match>
+            <Match when={asToolCall(groupProps.parts()[partIndex()])}>
+              {(callPart) => (
+                <ToolTraceRow
+                  part={callPart()}
+                  result={message.pairing().byCallId.get(callPart().id)}
+                  ctx={ctx}
+                  durationMs={ctx.durationFor?.(callPart().id)}
+                  tools={() => props.entries}
+                  fallback={props.fallback}
+                  last={branch.last}
+                  ring={branch.ring}
+                />
+              )}
+            </Match>
+          </Switch>
+        ),
+      }),
+    )
+    const line = () => summaryLine(segmentRollup())
+    return (
+      <Show when={segmentRollup().toolCalls > 0}>
+        <Trace summary={line()} compactLine={line()} items={items()} streaming={segmentActive()} />
+      </Show>
+    )
   }
-  const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => (
-    <ChainOfThought
-      streaming={groupProps.streaming}
-      autoOpen={chainAutoOpen(groupProps.node.indices)}
-      grow={CHAIN_OF_THOUGHT_GROW}
-    >
-      <Index each={groupProps.node.indices}>
-        {(partIndex, position) => (
-          <ChainPart
-            part={groupProps.parts()[partIndex()]}
-            entries={props.entries}
-            fallback={props.fallback}
-            last={position === groupProps.node.indices.length - 1}
-            streaming={livePart(partIndex())}
-          />
-        )}
-      </Index>
-    </ChainOfThought>
-  )
   const groupEntries = createMemo<GroupEntry[]>(() => {
     const chain: GroupEntry = {key: CHAIN_GROUP_KEY, render: ChainGroup}
     const config = props.pageSession
@@ -202,7 +210,13 @@ function AssistantTurn(props: {
   const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => (
     <Switch>
       <Match when={asText(parts()[leafProps.node.index])}>
-        {(part) => <Markdown content={part().content} streaming={streamingAt(leafProps.node.index)} />}
+        {(part) => (
+          <div class={ANSWER_ROW_CLASS}>
+            <div class={message.isLast() ? ANSWER_CONTENT_CLASS : ANSWER_CONTENT_SETTLED_CLASS}>
+              <Markdown content={part().content} streaming={streamingAt(leafProps.node.index)} />
+            </div>
+          </div>
+        )}
       </Match>
       <Match when={asToolCall(parts()[leafProps.node.index])}>
         {(part) => (
@@ -252,17 +266,33 @@ function AssistantTurn(props: {
     )
   }
   return (
-    <Message.Root data-pw-msg class={message.isLast() ? ASSISTANT_ROOT_CLASS : ASSISTANT_ROOT_SETTLED_CLASS}>
+    <Message.Root data-pw-msg class={ASSISTANT_ROOT_CLASS}>
       <NodeListView nodes={nodes()} streaming={thread.isRunning && message.isLast()} />
       <Message.Error />
-      <AssistantActionBar />
+      <div class={ANSWER_ACTION_ROW_CLASS}>
+        <AssistantActionBar />
+      </div>
     </Message.Root>
   )
 }
 
+function promptTextOf(turn: Turn): string {
+  return turn.parts
+    .filter(
+      (part): part is Extract<MessagePart, {type: 'text'}> =>
+        part.type === 'text' && part.content.trim().length > 0 && !partIsModelOnly(part),
+    )
+    .map((part) => part.content)
+    .join('\n')
+}
+
 function UserTurn(): JSX.Element {
   const config = useContext(ThreadConfigContext)
+  const message = useMessage()
+  const chat = useChatContext()
   const DocumentCard = (): JSX.Element => <AttachmentByMime cards={config.attachmentCards()} />
+  const promptText = createMemo(() => promptTextOf(message.message()))
+  const timeLabel = createMemo(() => promptTimeLabel(chat.messages()[message.message().start]?.createdAt))
   return (
     <>
       <TurnPrefix />
@@ -272,8 +302,12 @@ function UserTurn(): JSX.Element {
         </div>
       </Message.If>
       <Message.If hasText>
-        <Message.Root data-pw-msg class={USER_BUBBLE_CLASS}>
-          <Message.Parts />
+        <Message.Root data-pw-msg class={PROMPT_ROOT_CLASS}>
+          <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
+            ❯
+          </span>
+          <span class={PROMPT_TEXT_CLASS}>{promptText()}</span>
+          <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
         </Message.Root>
       </Message.If>
     </>
@@ -343,23 +377,35 @@ function ThreadRoot(props: ThreadRootProps): JSX.Element {
   )
 }
 
+const LATEST_STRIP =
+  'grid shrink-0 [grid-template-rows:0fr] data-[shown]:[grid-template-rows:1fr] [background:var(--chat-panel)] [transition:grid-template-rows_160ms_var(--chat-ease)] motion-reduce:[transition:none]'
+
+const LATEST_CHIP = `[font-family:var(--chat-mono)] text-[10.5px] uppercase tracking-[0.08em] px-2 rounded-[var(--chat-radius-chip)] inline-flex gap-1 min-h-5.5 cursor-pointer [background:var(--chat-rail-bg)] [border:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-2)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] items-center hover:[border-color:var(--chat-line)] hover:[color:var(--chat-text-hi)] ${FOCUS}`
+
+function LatestStrip(): JSX.Element {
+  const viewport = useThreadViewport()
+  return (
+    <div class={LATEST_STRIP} data-shown={viewport.isAtBottom() ? undefined : ''}>
+      <div class="flex justify-center overflow-hidden pt-[6px]">
+        <ThreadPrimitive.ScrollToBottom class={`${LATEST_CHIP} mb-[6px]`}>
+          <ArrowDown size={11} aria-hidden="true" />
+          Latest
+        </ThreadPrimitive.ScrollToBottom>
+      </div>
+    </div>
+  )
+}
+
 function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void}>): JSX.Element {
   return (
     <ThreadPrimitive.Viewport
       ref={props.ref}
-      class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 relative overflow-y-auto"
+      class="px-5 pt-[13px] pb-4 flex flex-1 flex-col min-h-0 relative overflow-y-auto"
       role="log"
       aria-live="off"
+      footer={<LatestStrip />}
     >
       {props.children}
-      <div class="h-0 pointer-events-none self-center bottom-2 sticky z-10 overflow-visible">
-        <ThreadPrimitive.ScrollToBottom
-          class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer pointer-events-auto [background:var(--chat-glass)] [border:1px_solid_var(--chat-line)] [box-shadow:var(--chat-shadow-sm)] [color:var(--chat-accent-link)] [transition:opacity_120ms_var(--chat-ease),color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] items-center bottom-0 left-1/2 absolute data-[at-bottom]:opacity-0 data-[at-bottom]:invisible -translate-x-1/2 data-[at-bottom]:[transition:opacity_120ms_var(--chat-ease),color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),visibility_0s_linear_120ms] hover:[border-color:var(--chat-accent)] hover:[color:var(--chat-accent-hi)] ${FOCUS}`}
-        >
-          <ArrowDown size={12} aria-hidden="true" />
-          Latest
-        </ThreadPrimitive.ScrollToBottom>
-      </div>
     </ThreadPrimitive.Viewport>
   )
 }
@@ -398,7 +444,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
 }
 
 function ThreadComposer(props: ParentProps): JSX.Element {
-  return <div class="p-2 flex flex-col min-h-0 [border-top:1px_solid_var(--chat-line)]">{props.children}</div>
+  return <div class="flex flex-col min-h-0">{props.children}</div>
 }
 
 export const Thread = Object.assign(ThreadRoot, {

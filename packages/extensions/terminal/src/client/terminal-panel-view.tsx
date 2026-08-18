@@ -11,7 +11,7 @@ import {terminalClient, terminalUrl} from './rpc.js'
 const ESCAPE_KEY = String.fromCharCode(27)
 
 const ERROR_BANNER =
-  'flex items-center justify-between gap-2 m-2.5 py-2.5 px-3 rounded-[10px] text-[0.75rem] bg-pw-fill border border-pw-danger-line text-pw-text'
+  'flex items-center justify-between gap-2 m-2.5 py-2.5 px-3 rounded-pw-md text-[0.75rem] bg-pw-fill border border-pw-danger-line text-pw-text'
 
 function readTerminalTheme(element: Element): TerminalTheme {
   const tokens = getComputedStyle(element)

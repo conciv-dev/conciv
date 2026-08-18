@@ -66,7 +66,7 @@ function frame(theme: string, child: JSX.Element): JSX.Element {
 export const List: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <DiscoveredApisCard part={part()} result={listResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
@@ -81,7 +81,7 @@ export const List: Story = {
 export const Detail: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <DiscoveredApisCard part={part()} result={detailResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
@@ -97,7 +97,7 @@ export const Detail: Story = {
 export const Empty: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <DiscoveredApisCard part={part()} result={emptyListResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
   play: async ({canvasElement}) => {
@@ -111,7 +111,7 @@ export const Empty: Story = {
 export const Unrecognized: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <DiscoveredApisCard
         part={part()}
         result={result({unexpected: true})}
@@ -127,10 +127,10 @@ export const Unrecognized: Story = {
   },
 }
 
-export const Conciv: Story = {
+export const Terminal: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <DiscoveredApisCard part={part()} result={listResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
 }

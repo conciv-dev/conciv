@@ -1,0 +1,187 @@
+/* The "terminal" theme: the widget's one shipped look. Maps the neutral --chat-* vocabulary onto a
+   dark, terminal-flavored palette. Applied on the chat root via the `chat-theme-terminal` class
+   (apps/conciv/src/lib/theme.ts applyChatTheme). Styled components never reference this file's
+   colors directly, only --chat-*.
+
+   ui-kit-system's Ark primitives (menu, dialog, tooltip, popover, toast, select, combobox,
+   hover-card, anchored-listbox) and a handful of app surfaces style off the --pw-* vocabulary
+   directly, not --chat-*, so this theme also remaps the full pw-* surface set here. Every pw-*
+   color/shadow/font/radius that those components reference is remapped below; hue-derived tokens
+   (--pw-accent-08/20/line, --pw-danger-10/14, --pw-success-18, --pw-warn-20, --pw-panel-60,
+   --pw-accent-link, --pw-agent, --pw-read) are color-mix() formulas over the base tokens, so they
+   pick up the new palette automatically and are left alone.
+
+   All of this is set at :host,:root (not inside .chat-theme-terminal) so an extension's accent
+   override tag, appended later at the same :host/:root specificity, still wins by source order
+   over this theme's defaults. Nesting them in the class selector would raise this rule's
+   specificity above :host/:root and defeat that override.
+
+   Radius: pw-r-sm/md/lg are shared by floating chrome (menus, dialogs, popovers, toasts) as well
+   as the wider ui-kit-system surface, not just chat bubbles, so they keep a slightly more open
+   scale than the chat-radius-* tokens (which stay 4px/4px/11px for message chrome) rather than
+   inheriting that flat scale verbatim: 4px/8px/12px, pill unchanged. */
+
+:host,
+:root {
+  --pw-accent: #c9857f;
+  --pw-accent-hi: #dda49e;
+
+  --pw-panel: #17161a;
+  --pw-panel-sunk: #17161a;
+  --pw-glass: rgba(23, 22, 26, 0.97);
+  --pw-fill: rgba(255, 255, 255, 0.05);
+  --pw-fill-soft: rgba(255, 255, 255, 0.03);
+  --pw-fill-strong: rgba(255, 255, 255, 0.1);
+  --pw-sunken: #121115;
+
+  --pw-text: #d8d2ce;
+  --pw-text-hi: #f0ebe8;
+  --pw-text-2: #a29c9c;
+  --pw-text-3: #7d787d;
+  --pw-on-accent: #14100f;
+
+  --pw-line: #272428;
+  --pw-line-2: #322e33;
+  --pw-line-soft: #232025;
+
+  --pw-danger: #d98070;
+  --pw-success: #6fbf8b;
+  --pw-warn: #c9a86a;
+  --pw-dim: #8d8887;
+
+  --pw-r-sm: 4px;
+  --pw-r-md: 8px;
+  --pw-r-lg: 12px;
+  --pw-r-pill: 999px;
+
+  --pw-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  --pw-shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.6);
+  --pw-shadow-hover: 0 16px 44px rgba(0, 0, 0, 0.6);
+
+  --pw-font:
+    'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --pw-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+.chat-theme-terminal {
+  color-scheme: dark;
+
+  --chat-ground: #0a0a0b;
+  --chat-bg: #17161a;
+  --chat-panel: #17161a;
+  --chat-glass: rgba(23, 22, 26, 0.97);
+  --chat-fill: rgba(255, 255, 255, 0.05);
+  --chat-fill-strong: rgba(255, 255, 255, 0.1);
+  --chat-sunken: rgba(0, 0, 0, 0.35);
+
+  --chat-text: #d8d2ce;
+  --chat-text-hi: #f0ebe8;
+  --chat-text-2: #a29c9c;
+  --chat-text-3: #7d787d;
+
+  --chat-prompt: #c9c1c2;
+  --chat-body-settled: #c2bcb9;
+  --chat-action: #b0a9a9;
+  --chat-mono-lift: #9a9391;
+
+  --chat-accent: var(--pw-accent);
+  --chat-accent-hi: var(--pw-accent-hi);
+  --chat-accent-link: var(--pw-accent-hi);
+  --chat-on-accent: #14100f;
+
+  --chat-danger: #d98070;
+  --chat-danger-line: rgba(217, 128, 112, 0.42);
+  --chat-success: #6fbf8b;
+  --chat-warn: #c9a86a;
+  --chat-dim: #8d8887;
+
+  --chat-line: #272428;
+  --chat-line-soft: #232025;
+  --chat-perforation: #322e33;
+
+  --chat-radius-sm: 4px;
+  --chat-radius-md: 4px;
+  --chat-radius-lg: 11px;
+  --chat-radius-chip: 3px;
+  --chat-radius-pill: 999px;
+
+  --chat-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.5);
+  --chat-shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.6);
+
+  --chat-font:
+    'Source Sans 3', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --chat-font-display: 'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --chat-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  --chat-status-running: var(--chat-accent);
+  --chat-status-waiting: var(--chat-warn);
+  --chat-status-failed: var(--chat-danger);
+  --chat-status-done: var(--chat-success);
+  --chat-on-status: #14100f;
+
+  --diffs-addition-color-override: #6fbf8b;
+  --diffs-deletion-color-override: #d98070;
+  --diffs-bg-addition-override: #16241c;
+  --diffs-bg-deletion-override: #2a1a18;
+  --diffs-bg-addition-emphasis-override: rgba(111, 191, 139, 0.24);
+  --diffs-bg-deletion-emphasis-override: rgba(217, 128, 112, 0.24);
+
+  --shiki-foreground: #b9b2b0;
+  --shiki-background: #121115;
+  --shiki-ansi-black: #4a4548;
+  --shiki-ansi-green: #6fbf8b;
+  --shiki-ansi-red: #d98070;
+  --shiki-ansi-blue: #c9a86a;
+  --shiki-ansi-yellow: #c9a86a;
+  --shiki-ansi-magenta: #c9857f;
+  --shiki-ansi-cyan: #8fb4b0;
+  --shiki-ansi-white: #ded8d4;
+  --shiki-ansi-bright-black: #6b666b;
+  --shiki-ansi-bright-green: #8fd6a6;
+  --shiki-ansi-bright-red: #e59a8c;
+  --shiki-ansi-bright-blue: #d8bd8a;
+  --shiki-ansi-bright-yellow: #d8bd8a;
+  --shiki-ansi-bright-magenta: #d89d97;
+  --shiki-ansi-bright-cyan: #a8ccc8;
+  --shiki-ansi-bright-white: #f0ebe8;
+  --shiki-token-keyword: #c9857f;
+  --shiki-token-function: #d8b48a;
+  --shiki-token-string: #8fb48c;
+  --shiki-token-string-expression: #8fb48c;
+  --shiki-token-constant: #cbaa76;
+  --shiki-token-parameter: #b9b2b0;
+  --shiki-token-comment: #8a8482;
+  --shiki-token-punctuation: #8a8588;
+  --shiki-token-link: #c9857f;
+  --shiki-token-inserted: #6fbf8b;
+  --shiki-token-deleted: #d98070;
+  --shiki-token-changed: #c9a86a;
+
+  --chat-glyph: #5f595d;
+  --chat-target: #ded8d4;
+  --chat-code: var(--chat-accent-hi);
+  --chat-summary: #c4beba;
+  --chat-microlabel: #6b666b;
+  --chat-faint: #5f5a5f;
+  --chat-hint: #5c575c;
+  --chat-separator: #454145;
+  --chat-affordance: #928c8c;
+  --chat-queue-bg: #151418;
+
+  --chat-frame-bg: #121115;
+  --chat-frame-line: #262227;
+  --chat-frame-line-error: #4a2b28;
+  --chat-frame-text: #9a9294;
+  --chat-frame-text-error: #d9a099;
+
+  --chat-perm-bg: #1a1712;
+  --chat-perm-line: #4a3d22;
+  --chat-perm-chip-bg: #2a2314;
+  --chat-perm-label: #c9a86a;
+  --chat-perm-path: #d8bd8a;
+
+  --chat-rail-bg: #1b191d;
+  --chat-statusbar-bg: #141317;
+
+  --chat-selection-bg: #453739;
+}

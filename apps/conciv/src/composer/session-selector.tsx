@@ -176,7 +176,7 @@ export function SessionSelector(props: {
           aria-label={`Session: ${triggerLabel()}`}
         >
           <Show when={canRename()} fallback={<Sparkles class="text-pw-accent shrink-0 size-3.25" aria-hidden="true" />}>
-            <span class="rounded-[50%] bg-pw-accent shrink-0 size-1.75" aria-hidden="true" />
+            <span class="rounded-pw-pill bg-pw-accent shrink-0 size-1.75" aria-hidden="true" />
           </Show>
           <span class="min-w-0 truncate group-data-[empty]:text-pw-text-2">{triggerLabel()}</span>
           <ChevronDown
@@ -281,7 +281,10 @@ export function SessionSelector(props: {
                           <Sparkles class="text-pw-accent opacity-80 shrink-0 size-3.25" aria-hidden="true" />
                         </Show>
                         <Show when={s.running}>
-                          <span class="rounded-[50%] bg-pw-success shrink-0 size-1.75 anim-pulse" aria-hidden="true" />
+                          <span
+                            class="rounded-pw-pill bg-pw-success shrink-0 size-1.75 anim-pulse"
+                            aria-hidden="true"
+                          />
                         </Show>
                         <Combobox.ItemIndicator class="text-pw-accent ml-auto hidden data-[state=checked]:inline-flex">
                           <Check class="size-5 block" aria-hidden="true" />

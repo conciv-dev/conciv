@@ -1,7 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import {Dialog as Ark} from '@ark-ui/solid/dialog'
 
-const BACKDROP = 'fixed inset-0 z-[2147483646] bg-[rgba(0,0,0,0.55)]'
+const BACKDROP = 'fixed inset-0 z-[2147483646] [background:var(--pw-backdrop)]'
 const POSITIONER = 'fixed inset-0 z-[2147483647] flex items-start justify-center p-4 overflow-y-auto'
 const CONTENT_BASE =
   'my-auto max-w-[calc(100vw-2rem)] rounded-pw-lg bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg overflow-hidden focus-visible:outline-none data-[state=open]:anim-rise data-[state=closed]:anim-presence-out'

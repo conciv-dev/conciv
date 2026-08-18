@@ -31,7 +31,7 @@ async function codeText(root: HTMLElement): Promise<string> {
 export const Complete: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <ToolFallback
         part={part({city: 'Berlin'})}
         result={result('{"tempC": 18}')}
@@ -53,7 +53,7 @@ export const Complete: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-conciv',
+      'chat-theme-terminal',
       <ToolFallback
         part={part({city: 'Berlin'}, 'input-complete')}
         result={undefined}
@@ -66,7 +66,7 @@ export const Running: Story = {
 export const Errored: Story = {
   render: () =>
     frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <ToolFallback
         part={part({city: 'Atlantis'})}
         result={result('no such city', 'error')}
@@ -89,7 +89,7 @@ export const Approval: Story = {
       approval: {id: 'ap1', needsApproval: true},
     }
     return frame(
-      'chat-theme-dark',
+      'chat-theme-terminal',
       <ToolFallback part={approvalPart} result={undefined} ctx={ctx} addResult={INERT_ADD_RESULT} />,
     )
   },

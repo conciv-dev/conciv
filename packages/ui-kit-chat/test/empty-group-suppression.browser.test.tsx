@@ -1,13 +1,18 @@
 import 'virtual:uno.css'
 import {onMount, type JSX} from 'solid-js'
-import {page} from 'vitest/browser'
+import {page, userEvent} from 'vitest/browser'
 import {expect, it} from 'vitest'
 import {useChat} from '@tanstack/ai-solid'
 import type {MessagePart, UIMessage} from '@tanstack/ai-client'
 import {ChatProvider} from '../src/store/chat-context.js'
 import {PAGE_SESSION_GROUP_KEY, type GroupEntry, type GroupRenderProps} from '../src/store/grouping.js'
 import {pageSessionCallParts, type PageSessionConfig} from '../src/store/page-session.js'
-import {createReasoningChunks, createTextChunks, storyConnection} from '../src/store/story-connection.js'
+import {
+  createReasoningChunks,
+  createTextChunks,
+  createToolCallChunks,
+  storyConnection,
+} from '../src/store/story-connection.js'
 import {Thread} from '../src/styled/thread.js'
 import {mountView} from './mount-view.js'
 import {haltRun, RunSettledIndicator, startRun} from './run-harness.js'
@@ -51,7 +56,7 @@ function staticThread(parts: MessagePart[], pageSession?: PageSessionConfig): ()
 
 async function expectReplyWithoutChain(): Promise<void> {
   await expect.element(page.getByText('All set.'), {timeout: 3000}).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'Chain of Thought'})).not.toBeInTheDocument()
+  await expect.element(page.getByRole('button', {name: /trace/i})).not.toBeInTheDocument()
 }
 
 it('renders no group wrapper for a run of unrenderable data parts without a page session', async () => {
@@ -78,7 +83,7 @@ it('renders no reasoning group for a thinking part with only whitespace content'
   await expectReplyWithoutChain()
 })
 
-it('keeps a chain group for a thinking part that has content', async () => {
+it('renders no trace for a segment that only thought and ran nothing', async () => {
   mountView(
     staticThread([
       {type: 'thinking', content: 'weighing it'},
@@ -86,15 +91,22 @@ it('keeps a chain group for a thinking part that has content', async () => {
     ]),
   )
 
-  const trigger = page.getByRole('button', {name: 'Chain of Thought'})
-  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('aria-expanded', 'false')
-  await expect.element(page.getByText('weighing it')).not.toBeInTheDocument()
+  await expectReplyWithoutChain()
+})
 
-  await trigger.click()
-  const reasoning = page.getByRole('button', {name: 'Reasoning'})
-  await expect.element(reasoning, {timeout: 3000}).toBeVisible()
+it('keeps a chain group for a thinking part once the segment also ran a tool', async () => {
+  mountView(
+    staticThread([
+      {type: 'thinking', content: 'weighing it'},
+      {type: 'tool-call', id: 'c1', name: 'Bash', arguments: '{"command":"ls"}', state: 'complete'},
+      {type: 'text', content: 'All set.'},
+    ]),
+  )
 
-  await reasoning.click()
+  const trigger = page.getByRole('button', {name: /trace/i})
+  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
+  await userEvent.click(trigger)
+  await expect.element(trigger).toHaveAttribute('data-state', 'open')
   await expect.element(page.getByText('weighing it'), {timeout: 3000}).toBeVisible()
 })
 
@@ -129,16 +141,16 @@ it('opens no streaming group for a blank thinking part mid-run', async () => {
 
   await startRun()
   await expect.element(page.getByText('blank run reply'), {timeout: 3000}).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'Working…'})).not.toBeInTheDocument()
+  await expect.element(page.getByRole('button', {name: /trace/i})).not.toBeInTheDocument()
 
   await haltRun()
-  await expect.element(page.getByRole('button', {name: 'Chain of Thought'})).not.toBeInTheDocument()
+  await expect.element(page.getByRole('button', {name: /trace/i})).not.toBeInTheDocument()
 })
 
 function StreamingThinkingThread(): JSX.Element {
   const chat = useChat({
     connection: storyConnection({
-      chunks: [...createReasoningChunks('mapping the repo')],
+      chunks: [...createReasoningChunks('mapping the repo'), ...createToolCallChunks('Bash', {command: 'ls'})],
       chunkDelay: 30,
       runsUntilStopped: true,
     }),
@@ -161,13 +173,14 @@ function StreamingThinkingThread(): JSX.Element {
   )
 }
 
-it('shows the group with its first member and the working label while the run streams', async () => {
+it('shows the group with its first member expanded while the run streams', async () => {
   mountView(() => <StreamingThinkingThread />)
 
   await startRun()
-  await expect.element(page.getByRole('button', {name: 'Working…'}), {timeout: 3000}).toBeVisible()
+  const trigger = page.getByRole('button', {name: /trace/i})
+  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
   await expect.element(page.getByText('mapping the repo'), {timeout: 3000}).toBeVisible()
 
   await haltRun()
-  await expect.element(page.getByRole('button', {name: 'Chain of Thought'}), {timeout: 3000}).toBeVisible()
+  await expect.element(trigger, {timeout: 3000}).toBeVisible()
 })

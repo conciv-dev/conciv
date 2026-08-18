@@ -1,16 +1,13 @@
-import {Show, Suspense, type Component, type JSX} from 'solid-js'
+import {Show, createMemo, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import ArrowUp from 'lucide-solid/icons/arrow-up'
-import Clock from 'lucide-solid/icons/clock'
 import Ellipsis from 'lucide-solid/icons/ellipsis'
-import Paperclip from 'lucide-solid/icons/paperclip'
-import Square from 'lucide-solid/icons/square'
+import Plus from 'lucide-solid/icons/plus'
 import {
   ComposerActions,
   ComposerActionsHost,
   ComposerPrimitive,
-  QueueItem,
   AttachmentUI,
+  useChatContext,
   useComposer,
   type AttachmentAdapter,
 } from '@conciv/ui-kit-chat'
@@ -30,7 +27,6 @@ export type PaneComposerProps = {
   placeholder: string
   inputLabel: string
   children?: JSX.Element
-  trailingExtras?: JSX.Element
   busy?: JSX.Element
   triggers?: ComposerTriggerSources
   onInputReady?: (handle: ComposerInputHandle) => void
@@ -40,16 +36,18 @@ export type PaneComposerProps = {
   AttachmentComponent?: Component<{removable?: boolean}>
 }
 
-const BTN =
-  'size-8.5 rounded-[var(--chat-radius-pill)] [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center [transition:background-color_120ms_var(--chat-ease),transform_120ms_var(--chat-ease)] [&:active:not(:disabled)]:scale-[0.92]'
-const SEND = `${BTN} [background:var(--chat-accent)] text-[color:var(--chat-on-accent)] [&:hover:not(:disabled)]:[background:var(--chat-accent-hi)] disabled:opacity-40 disabled:cursor-default`
-const CANCEL = `${BTN} [background:var(--chat-text-3)] [color:var(--chat-on-accent)]`
-const GHOST = `${BTN} text-[color:var(--chat-text-2)] bg-transparent [&:hover:not(:disabled)]:bg-[var(--chat-fill-strong)] disabled:opacity-40 disabled:cursor-default`
-const INPUT = '[color:var(--chat-text)] text-[length:var(--chat-text-md)]'
-const QUEUE_ROW =
-  'text-[length:var(--chat-text-md)] py-1.5 pl-3 pr-1.5 flex gap-2 [color:var(--chat-text-2)] items-center [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)]'
-const QUEUE_ACTION =
-  'shrink-0 px-2 py-1 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-md)] leading-[1.45] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease),transform_100ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] [&:active]:scale-[0.96]'
+const GHOST =
+  'size-7 rounded-[var(--chat-radius-sm)] [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center text-chat-text-2 bg-transparent [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] [&:hover:not(:disabled)]:[background:var(--chat-fill-strong)] [&:hover:not(:disabled)]:text-chat-text-hi disabled:opacity-40 disabled:cursor-default'
+const INPUT =
+  '[font-family:var(--chat-font)] [color:var(--chat-text-hi)] text-[length:0.8125rem] leading-[1.45] placeholder:[color:var(--chat-text-3)]'
+const GUTTER =
+  'flex-none select-none [font-family:var(--chat-mono)] text-[13px] leading-[1.45] [color:var(--chat-accent)]'
+const TRAILING_BTN =
+  'flex-none inline-flex items-center justify-center gap-[6px] select-none self-center h-[22px] px-2 rounded-[var(--chat-radius-chip)] [border:none] cursor-pointer [font-family:var(--chat-mono)] text-[9.5px] font-bold tracking-[0.12em] uppercase [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] disabled:cursor-default'
+const TRAILING_SEND_ACTIVE = 'bg-chat-accent text-chat-on-accent hover:[background:var(--chat-accent-hi)]'
+const TRAILING_SEND_IDLE = '[background:var(--chat-fill-strong)] text-chat-text-2'
+const TRAILING_STOP = '[background:var(--chat-fill-strong)] text-chat-text-hi hover:[background:var(--chat-fill)]'
+const TRAILING_HINT = '[font-family:var(--chat-mono)] text-[9px] tracking-normal opacity-65'
 
 const ENGINE_UNREACHABLE_LABEL = 'conciv lost connection to the engine'
 const ATTACHMENT_LABEL = 'Add an attachment'
@@ -64,27 +62,32 @@ function ComposerSendControl(): JSX.Element {
     <Show
       when={composer.canCancel()}
       fallback={
-        <TooltipIconButtonSlot
-          tooltip={reachability.online() ? SEND_LABEL : ENGINE_UNREACHABLE_LABEL}
-          wrapperClass="shrink-0"
+        <ComposerPrimitive.Send
+          class={`${TRAILING_BTN} ${composer.isEmpty() ? TRAILING_SEND_IDLE : TRAILING_SEND_ACTIVE}`}
+          disabled={!reachability.online()}
+          aria-label={reachability.online() ? SEND_LABEL : ENGINE_UNREACHABLE_LABEL}
         >
-          {(buttonProps) => (
-            <ComposerPrimitive.Send {...buttonProps()} class={SEND} disabled={!reachability.online()}>
-              <ArrowUp size={18} aria-hidden="true" />
-            </ComposerPrimitive.Send>
-          )}
-        </TooltipIconButtonSlot>
+          Send
+          <span class={TRAILING_HINT} aria-hidden="true">
+            ⏎
+          </span>
+        </ComposerPrimitive.Send>
       }
     >
-      <TooltipIconButtonSlot tooltip={STOP_LABEL} wrapperClass="shrink-0">
-        {(buttonProps) => (
-          <ComposerPrimitive.Cancel {...buttonProps()} class={CANCEL}>
-            <Square size={14} fill="currentColor" aria-hidden="true" />
-          </ComposerPrimitive.Cancel>
-        )}
-      </TooltipIconButtonSlot>
+      <ComposerPrimitive.Cancel class={`${TRAILING_BTN} ${TRAILING_STOP}`} aria-label={STOP_LABEL}>
+        Stop
+        <span class={TRAILING_HINT} aria-hidden="true">
+          ^C
+        </span>
+      </ComposerPrimitive.Cancel>
     </Show>
   )
+}
+
+function composerPlaceholder(running: boolean, queued: boolean, idle: string): string {
+  if (queued) return 'Queue another instruction…'
+  if (running) return 'Add an instruction…'
+  return idle
 }
 
 export function PaneComposer(props: PaneComposerProps): JSX.Element {
@@ -93,28 +96,19 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
     inputHandle = handle
     props.onInputReady?.(handle)
   }
+  const composer = useComposer()
+  const chat = useChatContext()
+  const placeholder = createMemo(() =>
+    composerPlaceholder(composer.canCancel(), chat.queue().length > 0, props.placeholder),
+  )
   return (
     <ComposerPrimitive.Root
       attachmentAdapter={props.attachmentAdapter}
       draftStorage={props.draftStorage}
       draftKey={props.draftKey}
-      class="flex flex-col gap-1.5 relative shrink-0"
+      class="flex flex-col relative shrink-0 [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)]"
     >
-      <div class="rounded-[var(--chat-radius-md)] flex flex-col [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] empty:hidden">
-        <ComposerPrimitive.Queue>
-          {() => (
-            <div class={QUEUE_ROW}>
-              <Clock size={14} class="shrink-0 [color:var(--chat-text-3)]" aria-hidden="true" />
-              <QueueItem.Text class="flex-1 min-w-0 truncate" />
-              <QueueItem.Steer class={`${QUEUE_ACTION} [color:var(--chat-accent)]`}>Steer</QueueItem.Steer>
-              <QueueItem.Remove class={`${QUEUE_ACTION} [color:var(--chat-text-3)] hover:[color:var(--chat-text)]`}>
-                Remove
-              </QueueItem.Remove>
-            </div>
-          )}
-        </ComposerPrimitive.Queue>
-      </div>
-      <div class="flex flex-wrap gap-1 empty:hidden min-h-0 shrink max-h-[25vh] overflow-y-auto">
+      <div class="flex flex-wrap gap-1 px-3 pt-2 empty:hidden min-h-0 shrink max-h-[25vh] overflow-y-auto">
         <ComposerPrimitive.Attachments
           component={() => (
             <Show when={props.AttachmentComponent} fallback={<AttachmentUI removable />}>
@@ -123,10 +117,13 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           )}
         />
       </div>
-      <div class="px-1.5 pb-1.5 pt-1 rounded-[var(--chat-radius-md)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:border-color_120ms_var(--chat-ease)] focus-within:[border-color:var(--chat-accent)]">
+      <div class="flex items-center gap-[10px] min-h-9 pe-2 ps-5">
+        <span class={GUTTER} aria-hidden="true">
+          ❯
+        </span>
         <ComposerInputAdapter
-          placeholder={props.placeholder}
-          editableClass={INPUT}
+          placeholder={placeholder()}
+          editableClass={`${INPUT} flex-1`}
           inputLabel={props.inputLabel}
           addAttachmentOnPaste={props.attachmentAdapter !== undefined}
           triggers={props.triggers}
@@ -136,21 +133,20 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
         />
         <ComposerActionsHost maxInlineAuto={MAX_INLINE_AUTO_ACTIONS} onOverflowDismissed={() => inputHandle?.focus()}>
           <ComposerActions.Trigger>
-            <Ellipsis class="size-5 block" aria-hidden="true" />
+            <Ellipsis class="size-4 block" aria-hidden="true" />
           </ComposerActions.Trigger>
           <ComposerActions.Leading>
             <Show when={props.attachmentAdapter}>
               <TooltipIconButtonSlot tooltip={ATTACHMENT_LABEL}>
                 {(buttonProps) => (
                   <ComposerPrimitive.AddAttachment {...buttonProps()} class={GHOST}>
-                    <Paperclip size={16} aria-hidden="true" />
+                    <Plus size={16} aria-hidden="true" />
                   </ComposerPrimitive.AddAttachment>
                 )}
               </TooltipIconButtonSlot>
             </Show>
           </ComposerActions.Leading>
           <ComposerActions.Trailing>
-            <Suspense fallback={<span class="size-8.5 shrink-0" />}>{props.trailingExtras}</Suspense>
             <Show when={props.busy} fallback={<ComposerSendControl />}>
               {props.busy}
             </Show>

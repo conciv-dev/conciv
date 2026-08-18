@@ -62,23 +62,22 @@ function ApprovalThread(): JSX.Element {
   )
 }
 
-it('keeps the chain open once the run settles so a pending approval on the newest tool call stays visible', async () => {
+it('keeps the trace open once the run settles so a pending approval on the newest tool call stays visible', async () => {
   mountView(() => <ApprovalThread />)
 
   await startRun()
   await waitForRunSettled()
 
-  await expect
-    .element(page.getByRole('button', {name: 'Chain of Thought'}), {timeout: 3000})
-    .toHaveAttribute('aria-expanded', 'true')
-  await expect.element(page.getByText('Run this action?'), {timeout: 3000}).toBeVisible()
-  await expect.element(page.getByRole('button', {name: 'Allow'}), {timeout: 3000}).toBeVisible()
+  const trigger = page.getByRole('button', {name: /trace/i})
+  const permissionBlock = page.getByRole('group', {name: 'Permission request'})
+  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'open')
+  await expect.element(permissionBlock, {timeout: 3000}).toBeVisible()
+  await expect.element(permissionBlock.getByText('rm -rf tmp'), {timeout: 3000}).toBeVisible()
+  await expect.element(page.getByRole('button', {name: 'Approve'}), {timeout: 3000}).toBeVisible()
   await expect.element(page.getByRole('button', {name: 'Deny'})).toBeVisible()
 
-  await page.getByRole('button', {name: 'Chain of Thought'}).click()
+  await trigger.click()
 
-  await expect
-    .element(page.getByRole('button', {name: 'Chain of Thought'}), {timeout: 3000})
-    .toHaveAttribute('aria-expanded', 'false')
-  await expect.element(page.getByText('Run this action?'), {timeout: 3000}).not.toBeVisible()
+  await expect.element(trigger, {timeout: 3000}).toHaveAttribute('data-state', 'closed')
+  await expect.element(permissionBlock, {timeout: 3000}).not.toBeInTheDocument()
 })

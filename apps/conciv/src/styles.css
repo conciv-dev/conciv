@@ -9,11 +9,11 @@
    copy. The ui-kit packages ship JS only, so the widget generates THEIR utilities too by scanning their
    source (see uno.config.ts), so there's no per-package CSS to @import here. */
 @import '@conciv/ui-kit-system/tokens.css';
-/* Neutral chat tokens (--chat-*) + the conciv theme layer that maps them onto the widget's --pw-*.
-   @conciv/ui-kit-chat's styled set references only --chat-*; the shell applies `chat-theme-conciv`
-   on its container so the chat renders in the dark/magenta look. */
+/* Neutral chat tokens (--chat-*) + the terminal theme layer that maps them onto its own palette.
+   @conciv/ui-kit-chat's styled set references only --chat-*; the shell applies `chat-theme-terminal`
+   on its container (apps/conciv/src/lib/theme.ts applyChatTheme) so the chat renders themed. */
 @import '@conciv/ui-kit-chat/theme/tokens.css';
-@import '@conciv/ui-kit-chat/theme/conciv.css';
+@import '@conciv/ui-kit-chat/theme/themes/terminal.css';
 
 /* preview-widget styles, injected into the Shadow DOM root. Mirrors react-grab's
    design language (dark panel, magenta brand accent) so the comment UI reads as
@@ -99,6 +99,30 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Panel session-log chrome: narrow-panel behavior for the header rail and status bar. The panel
+   shell (routes/panel.tsx `data-pw-panel`) sets `container-type: size`, so this queries the panel's
+   own box, not the viewport — the panel can be narrow on a wide page. Pure CSS, no resize observers. */
+.chat-rail-context-narrow {
+  display: none;
+}
+.chat-view-btn-hint {
+  display: inline;
+}
+@container (max-width: 360px) {
+  .chat-rail-context-full {
+    display: none;
+  }
+  .chat-rail-context-narrow {
+    display: inline;
+  }
+  .chat-statusbar-diff {
+    display: none;
+  }
+  .chat-view-btn-label {
+    display: none;
   }
 }
 

@@ -18,6 +18,10 @@ const TodoInput = z.object({
     .optional(),
 })
 
+export function todoItems(part: ToolCallPart): TodoItem[] {
+  return parseInput(TodoInput, part)?.todos ?? []
+}
+
 type TodoContextValue = {
   todos: Accessor<TodoItem[]>
   done: Accessor<number>
@@ -34,7 +38,7 @@ export function useTodo(): TodoContextValue {
 }
 
 function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; children: JSX.Element}): JSX.Element {
-  const todos = createMemo<TodoItem[]>(() => parseInput(TodoInput, props.part)?.todos ?? [])
+  const todos = createMemo<TodoItem[]>(() => todoItems(props.part))
   const done = () => todos().filter((todo) => todo.status === 'completed').length
   const total = () => todos().length
   const status = createMemo(() => toolStatus(props.part, props.result))

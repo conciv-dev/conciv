@@ -7,12 +7,12 @@ import {useToolCallDuration} from '../primitives/tool-duration.js'
 import {StatusVisual} from '../primitives/status-visual.js'
 import {createAutoCollapse} from '../../primitives/util/create-auto-collapse.js'
 import {CollapsibleCard} from './collapsible-card.js'
+import {useEmbeddedCard} from './card-chrome.js'
 
-const TITLE = 'text-[color:var(--chat-text)] flex-1 truncate [overflow-wrap:anywhere]'
-const TITLE_FIXED = 'text-[color:var(--chat-text)] shrink truncate min-w-0 max-w-[60%]'
-const SUBTITLE = 'text-[color:var(--chat-text-3)] flex-1 min-w-0 truncate'
-const METRIC =
-  'text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] shrink-0 [font-family:var(--chat-mono)] tabular-nums'
+const TITLE = 'text-chat-text flex-1 min-w-0 truncate'
+const TITLE_FIXED = 'text-chat-text shrink truncate min-w-0 max-w-[60%]'
+const SUBTITLE = 'text-chat-text-3 flex-1 min-w-0 truncate'
+const METRIC = 'text-chat-text-3 text-[length:var(--chat-text-xs)] shrink-0 [font-family:var(--chat-mono)] tabular-nums'
 
 function HeaderContent(props: {
   Icon: Component | undefined
@@ -26,7 +26,7 @@ function HeaderContent(props: {
     <>
       <Show when={props.Icon}>
         {(Icon) => (
-          <span class="text-[color:var(--chat-text-3)] inline-flex shrink-0 items-center" aria-hidden="true">
+          <span class="text-chat-text-3 inline-flex shrink-0 items-center" aria-hidden="true">
             <Dynamic component={Icon()} />
           </span>
         )}
@@ -66,31 +66,34 @@ export function ToolCard(props: {
   const status = () => props.status ?? toolStatus(props.part, props.result)
   const ambientDuration = useToolCallDuration()
   const duration = () => formatDuration(props.durationMs ?? ambientDuration())
+  const embedded = useEmbeddedCard()
   const collapse = createAutoCollapse({
     streaming: () => props.autoOpen === true || status() === 'approval',
     defaultOpen: props.defaultOpen,
   })
   return (
-    <CollapsibleCard
-      open={collapse.open()}
-      onOpenChange={collapse.setOpen}
-      tooltip={props.titleTooltip}
-      flush={props.flushHeader}
-      class={props.class}
-      header={
-        props.header ?? (
-          <HeaderContent
-            Icon={props.Icon}
-            title={props.title}
-            subtitle={props.subtitle}
-            meta={props.meta}
-            duration={duration()}
-            status={status()}
-          />
-        )
-      }
-    >
-      {props.children}
-    </CollapsibleCard>
+    <Show when={!embedded()} fallback={props.children}>
+      <CollapsibleCard
+        open={collapse.open()}
+        onOpenChange={collapse.setOpen}
+        tooltip={props.titleTooltip}
+        flush={props.flushHeader}
+        class={props.class}
+        header={
+          props.header ?? (
+            <HeaderContent
+              Icon={props.Icon}
+              title={props.title}
+              subtitle={props.subtitle}
+              meta={props.meta}
+              duration={duration()}
+              status={status()}
+            />
+          )
+        }
+      >
+        {props.children}
+      </CollapsibleCard>
+    </Show>
   )
 }

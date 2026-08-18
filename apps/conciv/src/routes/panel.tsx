@@ -21,13 +21,23 @@ const PANEL_POS: Record<TriggerPosition, string> = {
 const PANEL_BASE =
   'fixed flex flex-col text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden [container-type:size]'
 const PANEL_CARD =
-  'bg-pw-glass w-120 max-w-[calc(100vw-2.5rem)] h-140 max-h-[calc(100vh-7.5rem)] border border-pw-line-soft rounded-pw-lg shadow-pw-lg'
-const PANEL_SHEET = 'bg-pw-panel inset-0 w-full h-full rounded-none pad-safe'
+  '[background:var(--chat-bg)] w-125 max-w-[calc(100vw-2.5rem)] h-[min(750px,90vh)] max-h-[calc(100vh-7.5rem)] [border:1px_solid_var(--chat-line)] [border-radius:var(--chat-radius-lg)] shadow-pw-lg'
+const PANEL_SHEET = '[background:var(--chat-bg)] inset-0 w-full h-full rounded-none pad-safe'
+const PANEL_TICK_TOP =
+  'absolute inset-inline-0 top-0 h-1.25 pointer-events-none [background-image:repeating-linear-gradient(90deg,var(--chat-perforation)_0_1px,transparent_1px_12px)]'
+const PANEL_TICK_LEFT =
+  'absolute inset-block-0 left-0 w-1 -z-1 pointer-events-none [background-image:repeating-linear-gradient(180deg,var(--chat-perforation)_0_1px,transparent_1px_12px)]'
 const PANEL_OPEN =
   'pointer-events-auto visible trans-pop-in opacity-100 [transform:none] starting:opacity-0 starting:[transform:translateY(8px)_scale(0.98)]'
 const PANEL_CLOSING = 'pointer-events-none invisible trans-pop-out opacity-0 [transform:translateY(8px)_scale(0.98)]'
 
 const PANEL_MIN_HEIGHT = 400
+const PANEL_DEFAULT_HEIGHT = 750
+const PANEL_DEFAULT_WIDTH = 500
+
+function defaultPanelHeight(): number {
+  return Math.min(PANEL_DEFAULT_HEIGHT, window.innerHeight * 0.9)
+}
 
 const RESIZE = 'absolute z-[3] focus-visible:outline-none focus-visible:bg-pw-accent-20 focus-visible:ring-inset-accent'
 const RESIZE_Y = 'left-0 right-0 h-2 cursor-ns-resize'
@@ -63,7 +73,7 @@ function PanelLayout(): JSX.Element {
   })
 
   const resizeY = createResizable({
-    initial: 560,
+    initial: defaultPanelHeight(),
     min: PANEL_MIN_HEIGHT,
     collapseAt: 140,
     storageKey: 'conciv-modal-height',
@@ -71,7 +81,7 @@ function PanelLayout(): JSX.Element {
     onCollapse: close,
   })
   const resizeX = createResizable({
-    initial: 480,
+    initial: PANEL_DEFAULT_WIDTH,
     min: 448,
     storageKey: 'conciv-modal-width',
     grow: () => (anchoredRight() ? 'left' : 'right'),
@@ -99,6 +109,8 @@ function PanelLayout(): JSX.Element {
               <EngineStaleNotice />
               <EngineUnreachableNotice />
               <Show when={!phone()}>
+                <div class={PANEL_TICK_TOP} aria-hidden="true" />
+                <div class={PANEL_TICK_LEFT} aria-hidden="true" />
                 <div
                   class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
                   role="separator"

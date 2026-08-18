@@ -1,8 +1,8 @@
 import {Show, type JSX} from 'solid-js'
 import Wrench from 'lucide-solid/icons/wrench'
 import {z} from 'zod'
-import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {Chip, QUIET_TEXT_CLASS, ToolCard, parseInput} from '@conciv/ui-kit-chat/tools'
+import type {ToolCardEntry, ToolCardProps, ToolRowProjection, ToolRowProps} from '@conciv/protocol/tool-view-types'
+import {Chip, QUIET_TEXT_CLASS, ToolCard, parseInput, rowMarkOf} from '@conciv/ui-kit-chat/tools'
 const LookupInput = z.object({query: z.string().optional()})
 
 function Icon(): JSX.Element {
@@ -20,4 +20,16 @@ export function ToolLookupCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const toolLookupTool: ToolCardEntry = {names: ['ToolSearch'], render: ToolLookupCard}
+export function toolLookupRowProjection(source: ToolRowProps): ToolRowProjection {
+  return {
+    mark: rowMarkOf(source.part, source.result),
+    label: 'tools',
+    target: parseInput(LookupInput, source.part)?.query ?? 'the tool catalog',
+  }
+}
+
+export const toolLookupTool: ToolCardEntry = {
+  names: ['ToolSearch'],
+  render: ToolLookupCard,
+  row: toolLookupRowProjection,
+}

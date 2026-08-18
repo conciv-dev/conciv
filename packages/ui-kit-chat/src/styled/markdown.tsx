@@ -2,8 +2,7 @@ import {createSignal, onCleanup, type JSX} from 'solid-js'
 import {createHighlighterCore, type HighlighterCore} from 'shiki/core'
 import {createJavaScriptRegexEngine} from 'shiki/engine/javascript'
 import {Streamdown} from '@conciv/solid-streamdown'
-
-const THEMES = {light: 'github-light', dark: 'github-dark'} as const
+import {CODE_THEME_NAME, codeTheme, concivCodeTheme} from '../theme/code-theme.js'
 
 const store: {highlighter: HighlighterCore | null; started: boolean; listeners: Set<() => void>} = {
   highlighter: null,
@@ -21,7 +20,7 @@ function ensureHighlighter(): void {
   if (store.started) return
   store.started = true
   void createHighlighterCore({
-    themes: [() => import('shiki/themes/github-light.mjs'), () => import('shiki/themes/github-dark.mjs')],
+    themes: [concivCodeTheme()],
     langs: [
       () => import('shiki/langs/typescript.mjs'),
       () => import('shiki/langs/tsx.mjs'),
@@ -48,7 +47,8 @@ function codeBlock(code: string, lang: string | undefined, highlighter: Highligh
   if (!highlighter) return `<pre><code>${escapeHtml(code)}</code></pre>`
   const requested = (lang ?? '').trim().toLowerCase()
   const language = highlighter.getLoadedLanguages().includes(requested) ? requested : 'text'
-  return highlighter.codeToHtml(code, {lang: language, themes: THEMES, defaultColor: 'light'})
+  codeTheme()
+  return highlighter.codeToHtml(code, {lang: language, theme: CODE_THEME_NAME})
 }
 
 export type MarkdownProps = {content: string; streaming?: boolean}
@@ -59,7 +59,7 @@ export function Markdown(props: MarkdownProps): JSX.Element {
   const highlightCode = (code: string, lang: string | undefined): string => codeBlock(code, lang, highlighter())
   return (
     <Streamdown
-      class="prose-pw"
+      class={props.streaming ? 'prose-pw chat-caret-live' : 'prose-pw'}
       isAnimating={props.streaming === true}
       caret={props.streaming ? 'block' : false}
       highlightCode={highlightCode}

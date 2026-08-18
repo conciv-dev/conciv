@@ -1,19 +1,14 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import ArrowUp from 'lucide-solid/icons/arrow-up'
-import Clock from 'lucide-solid/icons/clock'
 import Paperclip from 'lucide-solid/icons/paperclip'
-import Square from 'lucide-solid/icons/square'
-import {Swap, TooltipIconButtonSlot} from '@conciv/ui-kit-system'
+import {TooltipIconButtonSlot} from '@conciv/ui-kit-system'
 import {Composer as ComposerPrimitive} from '../primitives/composer/composer.js'
 import {useComposerContext} from '../primitives/composer/composer-context.js'
 import {useComposerHandlers} from '../primitives/composer/composer-handlers.js'
 import {useComposer} from '../store/chat-context.js'
 import type {AttachmentAdapter} from '../primitives/attachment/attachment-adapter.js'
 import {AttachmentUI} from './attachment-ui.js'
-import {QueueItem} from '../primitives/queue-item/queue-item.js'
 import {Slot} from '../primitives/util/slot.js'
-import {FOCUS} from './classes.js'
 
 export type ComposerProps = {
   placeholder?: string
@@ -26,16 +21,21 @@ export type ComposerProps = {
   AttachmentComponent?: Component<{removable?: boolean}>
 }
 
-const BTN =
-  'size-8.5 rounded-[var(--chat-radius-pill)] [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center [transition:background-color_120ms_var(--chat-ease),transform_120ms_var(--chat-ease)] [&:active:not(:disabled)]:scale-[0.92]'
-const SEND = `${BTN} [background:var(--chat-accent)] text-[color:var(--chat-on-accent)] [&:hover:not(:disabled)]:[background:var(--chat-accent-hi)] disabled:opacity-40 disabled:cursor-default`
-const CANCEL = `${BTN} [background:var(--chat-text-3)] [color:var(--chat-on-accent)] [&:hover]:[background:var(--chat-text-2)]`
+const GHOST =
+  'size-7 rounded-[var(--chat-radius-sm)] [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center text-chat-text-2 bg-transparent [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] [&:hover:not(:disabled)]:[background:var(--chat-fill-strong)] [&:hover:not(:disabled)]:text-chat-text-hi disabled:opacity-40 disabled:cursor-default'
 const INPUT =
-  'block max-h-30 px-2 pb-1 pt-2 [color:var(--chat-text)] text-[length:var(--chat-text-md)] leading-[1.45] placeholder:[color:var(--chat-text-3)]'
+  'block max-h-30 [color:var(--chat-text-hi)] text-[length:var(--chat-text-md)] leading-[1.45] placeholder:[color:var(--chat-text-3)]'
+const GUTTER = 'flex-none pt-1.5 select-none [font-family:var(--chat-mono)] text-[13px] [color:var(--chat-accent)]'
 const ATTACHMENT_LABEL = 'Add an attachment'
 const SEND_LABEL = 'Send message'
 const STOP_LABEL = 'Stop generating'
-const QUEUE_ACTION = `${FOCUS} shrink-0 px-2 py-1 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-md)] leading-[1.45] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease),transform_100ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] [&:active]:scale-[0.96]`
+const TRAILING_BTN =
+  'flex-none inline-flex items-center gap-1.5 py-1 px-2.5 rounded-[var(--chat-radius-sm)] [border:none] cursor-pointer [font-family:var(--chat-font)] text-[12.5px] font-medium bg-transparent [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] disabled:opacity-40 disabled:cursor-default'
+const TRAILING_SEND_ACTIVE =
+  'text-chat-on-accent [background:var(--chat-accent)] hover:[background:var(--chat-accent-hi)]'
+const TRAILING_SEND_IDLE = 'text-chat-text-3'
+const TRAILING_STOP = 'text-chat-text-2'
+const TRAILING_HINT = '[font-family:var(--chat-mono)] text-[10px] opacity-70'
 
 function TrailingControls(): JSX.Element {
   const composer = useComposer()
@@ -45,51 +45,47 @@ function TrailingControls(): JSX.Element {
   const cancel = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
   const sendDisabled = () => context.sendingAttachments() || (!composer.canSend() && context.attachments().length === 0)
   return (
-    <TooltipIconButtonSlot tooltip={stopping() ? STOP_LABEL : SEND_LABEL} wrapperClass="shrink-0">
-      {(buttonProps) => (
+    <Show
+      when={stopping()}
+      fallback={
         <button
-          {...buttonProps()}
-          type={stopping() ? 'button' : 'submit'}
-          class={stopping() ? CANCEL : SEND}
-          disabled={!stopping() && sendDisabled()}
-          onClick={(event) => {
-            if (!stopping()) return
-            event.preventDefault()
-            cancel()
-          }}
+          type="submit"
+          class={`${TRAILING_BTN} ${sendDisabled() ? TRAILING_SEND_IDLE : TRAILING_SEND_ACTIVE}`}
+          disabled={sendDisabled()}
+          aria-label={SEND_LABEL}
         >
-          <Swap.Root swap={stopping()}>
-            <Swap.Indicator type="on">
-              <Square size={14} fill="currentColor" aria-hidden="true" />
-            </Swap.Indicator>
-            <Swap.Indicator type="off">
-              <ArrowUp size={18} aria-hidden="true" />
-            </Swap.Indicator>
-          </Swap.Root>
+          Send
+          <span class={TRAILING_HINT} aria-hidden="true">
+            ⏎
+          </span>
         </button>
-      )}
-    </TooltipIconButtonSlot>
+      }
+    >
+      <button
+        type="button"
+        class={`${TRAILING_BTN} ${TRAILING_STOP}`}
+        aria-label={STOP_LABEL}
+        onClick={(event) => {
+          event.preventDefault()
+          cancel()
+        }}
+      >
+        Stop
+        <span class={TRAILING_HINT} aria-hidden="true">
+          ^C
+        </span>
+      </button>
+    </Show>
   )
 }
 
 export function Composer(props: ComposerProps): JSX.Element {
   return (
-    <ComposerPrimitive.Root attachmentAdapter={props.attachmentAdapter} class="flex flex-col gap-1.5 relative">
-      <div class="rounded-[var(--chat-radius-md)] flex flex-col [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] empty:hidden">
-        <ComposerPrimitive.Queue>
-          {() => (
-            <div class="text-[length:var(--chat-text-md)] py-1.5 pl-3 pr-1.5 flex gap-2 [color:var(--chat-text-2)] items-center [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)]">
-              <Clock size={14} class="shrink-0 [color:var(--chat-text-3)]" aria-hidden="true" />
-              <QueueItem.Text class="flex-1 min-w-0 truncate" />
-              <QueueItem.Steer class={`${QUEUE_ACTION} [color:var(--chat-accent)]`}>Steer</QueueItem.Steer>
-              <QueueItem.Remove class={`${QUEUE_ACTION} [color:var(--chat-text-3)] hover:[color:var(--chat-text)]`}>
-                Remove
-              </QueueItem.Remove>
-            </div>
-          )}
-        </ComposerPrimitive.Queue>
-      </div>
-      <div class="flex flex-wrap gap-1 empty:hidden">
+    <ComposerPrimitive.Root
+      attachmentAdapter={props.attachmentAdapter}
+      class="flex flex-col relative [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)]"
+    >
+      <div class="flex flex-wrap gap-1 px-3 pt-2 empty:hidden">
         <ComposerPrimitive.Attachments
           component={() => (
             <Show when={props.AttachmentComponent} fallback={<AttachmentUI removable />}>
@@ -98,33 +94,29 @@ export function Composer(props: ComposerProps): JSX.Element {
           )}
         />
       </div>
-      <div class="px-1.5 pb-1.5 pt-1 rounded-[var(--chat-radius-md)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:border-color_120ms_var(--chat-ease)] focus-within:[border-color:var(--chat-accent)]">
+      <div class="flex items-start gap-2 pt-2.25 pe-3 pb-2.25 ps-5">
+        <span class={GUTTER} aria-hidden="true">
+          ❯
+        </span>
         <ComposerPrimitive.Input
           unstyled
           ref={props.inputRef}
-          placeholder={props.placeholder ?? 'Message…'}
-          class={INPUT}
+          placeholder={props.placeholder ?? 'Ask anything…'}
+          class={`${INPUT} flex-1 pt-1.5`}
           aria-label={props.inputLabel ?? 'Message'}
           addAttachmentOnPaste={props.attachmentAdapter !== undefined}
         />
-        <div class="pt-0.5 flex gap-1 items-center">
-          <Show when={props.attachmentAdapter}>
-            <TooltipIconButtonSlot tooltip={ATTACHMENT_LABEL} wrapperClass="shrink-0">
-              {(buttonProps) => (
-                <ComposerPrimitive.AddAttachment
-                  {...buttonProps()}
-                  class={`${BTN} text-[color:var(--chat-text-2)] bg-transparent hover:bg-[var(--chat-fill-strong)]`}
-                >
-                  <Paperclip size={16} aria-hidden="true" />
-                </ComposerPrimitive.AddAttachment>
-              )}
-            </TooltipIconButtonSlot>
-          </Show>
-          <Slot>{props.children}</Slot>
-          <div class="ml-auto flex gap-1 items-center">
-            <Slot fallback={<TrailingControls />}>{props.busy}</Slot>
-          </div>
-        </div>
+        <Show when={props.attachmentAdapter}>
+          <TooltipIconButtonSlot tooltip={ATTACHMENT_LABEL} wrapperClass="shrink-0">
+            {(buttonProps) => (
+              <ComposerPrimitive.AddAttachment {...buttonProps()} class={GHOST}>
+                <Paperclip size={16} aria-hidden="true" />
+              </ComposerPrimitive.AddAttachment>
+            )}
+          </TooltipIconButtonSlot>
+        </Show>
+        <Slot>{props.children}</Slot>
+        <Slot fallback={<TrailingControls />}>{props.busy}</Slot>
       </div>
     </ComposerPrimitive.Root>
   )

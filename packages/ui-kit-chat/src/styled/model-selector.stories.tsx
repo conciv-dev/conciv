@@ -61,5 +61,5 @@ function build(theme?: string): Story {
 }
 
 export const Neutral: Story = build()
-export const Dark: Story = build('chat-theme-dark')
-export const Conciv: Story = build('chat-theme-conciv')
+export const Dark: Story = build('chat-theme-terminal')
+export const Terminal: Story = build('chat-theme-terminal')

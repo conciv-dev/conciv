@@ -18,7 +18,7 @@ const isStatus = (value: string | undefined): value is CommentStatus =>
   value !== undefined && Object.hasOwn(STATUS_FILL, value)
 
 const PIN =
-  'absolute size-6 rounded-[50%_50%_50%_0] border-2 border-white cursor-grab touch-none pointer-events-auto shadow-[0_1px_4px_rgba(0,0,0,0.3)] focus-ring'
+  'absolute size-6 rounded-[50%_50%_50%_0] border-2 border-pw-text-hi cursor-grab touch-none pointer-events-auto shadow-pw focus-ring'
 const UNREAD_DOT =
   'absolute -top-1 -right-1 size-2.5 rounded-pw-pill bg-pw-accent [box-shadow:0_0_0_2px_var(--pw-panel)]'
 const ANCHOR_TAG =
