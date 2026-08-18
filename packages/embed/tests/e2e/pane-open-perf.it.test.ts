@@ -37,12 +37,26 @@ test.describe('pane-open perf with a large restored transcript', () => {
     await seedTranscript(sessionId, TURN_COUNT)
 
     await page.addInitScript(() => {
-      const withLoaf = window as typeof window & {__loafEntries?: PerformanceEntry[]}
+      const withLoaf = window as typeof window & {
+        __loafEntries?: PerformanceEntry[]
+        __resizeObserverCallbackCount?: number
+      }
       withLoaf.__loafEntries = []
       const observer = new PerformanceObserver((list) => {
         withLoaf.__loafEntries?.push(...list.getEntries())
       })
       observer.observe({type: 'long-animation-frame', buffered: true})
+
+      withLoaf.__resizeObserverCallbackCount = 0
+      const NativeResizeObserver = window.ResizeObserver
+      window.ResizeObserver = class extends NativeResizeObserver {
+        constructor(callback: ResizeObserverCallback) {
+          super((observerEntries, observerInstance) => {
+            withLoaf.__resizeObserverCallbackCount = (withLoaf.__resizeObserverCallbackCount ?? 0) + 1
+            callback(observerEntries, observerInstance)
+          })
+        }
+      }
     })
 
     await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
@@ -56,18 +70,35 @@ test.describe('pane-open perf with a large restored transcript', () => {
     expect(rowCount).toBeGreaterThan(0)
     expect(rowCount).toBeLessThan(TURN_COUNT)
 
-    const entries = await page.evaluate(() => {
-      const withLoaf = window as typeof window & {__loafEntries?: PerformanceEntry[]}
-      return (withLoaf.__loafEntries ?? []).map((entry) => entry.toJSON()) as LoafEntry[]
+    const {entries, resizeObserverCallbackCount} = await page.evaluate(() => {
+      const withLoaf = window as typeof window & {
+        __loafEntries?: PerformanceEntry[]
+        __resizeObserverCallbackCount?: number
+      }
+      return {
+        entries: (withLoaf.__loafEntries ?? []).map((entry) => entry.toJSON()) as LoafEntry[],
+        resizeObserverCallbackCount: withLoaf.__resizeObserverCallbackCount ?? 0,
+      }
     })
 
-    const framesMixingIngestionAndRemeasure = entries.filter(
-      (entry) =>
-        scriptMatches(entry.scripts, /DOMWebSocket\.onmessage|_handleMessage/) &&
-        scriptMatches(entry.scripts, /ResizeObserverCallback/),
+    expect(
+      resizeObserverCallbackCount,
+      'the viewport resize observer never fired, so this scenario never exercised the estimator/virtualizer remeasure path it claims to test',
+    ).toBeGreaterThan(0)
+
+    const websocketAttributedEntries = entries.filter((entry) =>
+      scriptMatches(entry.scripts, /DOMWebSocket\.onmessage|_handleMessage/),
     )
     expect(
-      framesMixingIngestionAndRemeasure,
+      websocketAttributedEntries,
+      'no long-animation-frame entry was attributed to the MESSAGES_SNAPSHOT websocket handler, so this scenario never generated the ingestion load it claims to test',
+    ).not.toHaveLength(0)
+
+    const websocketEntriesMixingRemeasure = websocketAttributedEntries.filter((entry) =>
+      scriptMatches(entry.scripts, /ResizeObserverCallback/),
+    )
+    expect(
+      websocketEntriesMixingRemeasure,
       'the estimator/virtualizer remeasure pass triggered by the viewport resize observer must run in its own frame (rAF-scheduled), never synchronously inside the same long-animation-frame as the MESSAGES_SNAPSHOT websocket handler',
     ).toHaveLength(0)
   })
