@@ -124,10 +124,16 @@ jobs:
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
       # Real-browser vitest tests; playwright is a root devDep. On a cache hit the
       # browser binary is already in place, so only the OS deps (not cached) install.
-      - run: pnpm exec playwright install --with-deps chromium
+      - timeout-minutes: 15
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit != 'true'
-      - run: pnpm exec playwright install-deps chromium
+        shell: bash
+        run: |
+          for attempt in 1 2; do pnpm exec playwright install --with-deps chromium && break; [ "$attempt" = 2 ] && exit 1; echo "retrying playwright install"; sleep 10; done
+      - timeout-minutes: 15
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit == 'true'
+        shell: bash
+        run: |
+          for attempt in 1 2; do pnpm exec playwright install-deps chromium && break; [ "$attempt" = 2 ] && exit 1; echo "retrying playwright install"; sleep 10; done
       - run: pnpm exec conciv-ci-shards run
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
@@ -327,10 +333,16 @@ jobs:
           mode: firewall-free
           firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm exec playwright install --with-deps chromium
+      - timeout-minutes: 15
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-      - run: pnpm exec playwright install-deps chromium
+        shell: bash
+        run: |
+          for attempt in 1 2; do pnpm exec playwright install --with-deps chromium && break; [ "$attempt" = 2 ] && exit 1; echo "retrying playwright install"; sleep 10; done
+      - timeout-minutes: 15
         if: steps.playwright-cache.outputs.cache-hit == 'true'
+        shell: bash
+        run: |
+          for attempt in 1 2; do pnpm exec playwright install-deps chromium && break; [ "$attempt" = 2 ] && exit 1; echo "retrying playwright install"; sleep 10; done
       # Alone on its own runner: nothing else competes for chromium/vite/cpu, so the merged suite's
       # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom. Dependency
       # builds are capped so a cold turbo cache (lockfile change) can't OOM chrome mid-run.
@@ -412,6 +424,7 @@ jobs:
       # extra turbo restore-key falls back to the build job's cache so package builds
       # (embed, plugin, ...) restore instead of rebuilding.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -427,7 +440,18 @@ jobs:
           mode: firewall-free
           firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm exec playwright install --with-deps chromium
+      # On a cache hit the browser binary is already in place, so only the OS deps
+      # (not cached) install.
+      - timeout-minutes: 15
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          for attempt in 1 2; do pnpm exec playwright install --with-deps chromium && break; [ "$attempt" = 2 ] && exit 1; echo "retrying playwright install"; sleep 10; done
+      - timeout-minutes: 15
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        shell: bash
+        run: |
+          for attempt in 1 2; do pnpm exec playwright install-deps chromium && break; [ "$attempt" = 2 ] && exit 1; echo "retrying playwright install"; sleep 10; done
       # Real harness CLIs for the e2e/harnesses turn matrix: unauthenticated turns must
       # surface a visible error (proving spawn + stream + error plumbing), never hang or
       # vanish. pi is a stub harness and never spawns its binary. Only the shard that
