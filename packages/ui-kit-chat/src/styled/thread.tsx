@@ -3,6 +3,7 @@ import {
   createMemo,
   Index,
   Match,
+  onMount,
   Show,
   Switch,
   useContext,
@@ -44,7 +45,7 @@ import {TurnEstimateProvider} from '../primitives/thread/turn-estimate.js'
 import {createTurnEstimator} from './text-metrics.js'
 import {ASSISTANT_ROOT_CLASS, ASSISTANT_ROOT_SETTLED_CLASS, USER_BUBBLE_CLASS} from './turn-classes.js'
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
-import {Markdown} from './markdown.js'
+import {Markdown, warmHighlighter} from './markdown.js'
 import {Reasoning} from './reasoning.js'
 import {ToolFallback} from '../tools/styled/tool-fallback.js'
 import {ToolCallCard} from '../tools/styled/tool-call-card.js'
@@ -334,6 +335,7 @@ function AssistantMessageView(): JSX.Element {
 const MESSAGES_COMPONENTS = {UserMessage: UserTurn, AssistantMessage: AssistantMessageView}
 
 function ThreadRoot(props: ThreadRootProps): JSX.Element {
+  onMount(() => warmHighlighter())
   return (
     <div
       class={`flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)] ${props.class ?? ''}`}

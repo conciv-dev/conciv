@@ -3910,6 +3910,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
+      '@shikijs/langs-precompiled':
+        specifier: 4.2.0
+        version: 4.2.0
       '@solid-primitives/event-listener':
         specifier: ^2.4.6
         version: 2.4.6(solid-js@1.9.14)
@@ -8955,6 +8958,10 @@ packages:
 
   '@shikijs/engine-oniguruma@4.2.0':
     resolution: {integrity: sha512-hTorK1dffPkpbMUk6Z+828PgRo7d07HbnizoP0hNPFjhxMHctj0Px/qoHeGMYafc6ju+u9iMldN4JbVzNQM++g==}
+    engines: {node: '>=20'}
+
+  '@shikijs/langs-precompiled@4.2.0':
+    resolution: {integrity: sha512-GHiSI4L+VvqUGciNEcO5BABDvSjbcmJSd4SRX2YZG7SXtjlVMcESrPPpg6KVkBbJrlbwuRMabgU1Q7fxECydhQ==}
     engines: {node: '>=20'}
 
   '@shikijs/langs@1.29.2':
@@ -21980,6 +21987,11 @@ snapshots:
     dependencies:
       '@shikijs/types': 4.2.0
       '@shikijs/vscode-textmate': 10.0.2
+
+  '@shikijs/langs-precompiled@4.2.0':
+    dependencies:
+      '@shikijs/types': 4.2.0
+      oniguruma-to-es: 4.3.6
 
   '@shikijs/langs@1.29.2':
     dependencies:
