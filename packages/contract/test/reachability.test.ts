@@ -29,6 +29,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 function apiBase(name: string): string {
@@ -74,6 +75,34 @@ describe('subscribeRpcReachability edge discrimination', () => {
     expect(votes).toEqual([false])
     closeBrowserRpcConnection(base)
   })
+
+  it('backs off between reconnect attempts instead of hot-looping the native socket while the engine stays down', async () => {
+    vi.useFakeTimers()
+    try {
+      const base = apiBase('backoff')
+      browserRpcConnection(base, 'websocket')
+      await vi.advanceTimersByTimeAsync(0)
+      const first = await nextSocket()
+      first.fail()
+      await vi.advanceTimersByTimeAsync(0)
+      const second = await nextSocket(1)
+      second.fail()
+
+      let thirdAttemptSeen = false
+      void nextSocket(2).then(() => {
+        thirdAttemptSeen = true
+      })
+      await vi.advanceTimersByTimeAsync(100)
+      expect(thirdAttemptSeen).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(thirdAttemptSeen).toBe(true)
+
+      closeBrowserRpcConnection(base)
+    } finally {
+      vi.useRealTimers()
+    }
+  }, 5000)
 
   it('drops stale votes from a connection reprobe has already replaced', async () => {
     const base = apiBase('stale')

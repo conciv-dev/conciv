@@ -1610,6 +1610,9 @@ importers:
       '@tanstack/ai':
         specifier: 'catalog:'
         version: 0.43.1(@opentelemetry/api@1.9.1)(zod@4.4.3)
+      '@tanstack/pacer':
+        specifier: ^0.21.1
+        version: 0.21.1
       partysocket:
         specifier: ^1.3.0
         version: 1.3.0(react@19.2.7)
