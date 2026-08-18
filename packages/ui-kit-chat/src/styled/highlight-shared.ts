@@ -133,8 +133,10 @@ export function warmupLanguages(highlighter: HighlighterCore): void {
   const warmAt = (index: number): void => {
     const language = languages[index]
     if (language === undefined) return
-    const snippet = WARMUP_SNIPPETS[language] ?? 'const value = 1'
-    highlighter.codeToHtml(snippet, {lang: language, themes: THEMES, defaultColor: 'light'})
+    try {
+      const snippet = WARMUP_SNIPPETS[language] ?? 'const value = 1'
+      highlighter.codeToHtml(snippet, {lang: language, themes: THEMES, defaultColor: 'light'})
+    } catch {}
     scheduleIdle(() => warmAt(index + 1))
   }
   scheduleIdle(() => warmAt(0))

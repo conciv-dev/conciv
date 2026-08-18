@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {createSignal} from 'solid-js'
 import {render} from '@solidjs/testing-library'
-import {describe, expect, it, vi} from 'vitest'
+import {afterEach, describe, expect, it, vi} from 'vitest'
 import {page} from 'vitest/browser'
 import {createHighlighterCore} from 'shiki/core'
 import {createJavaScriptRegexEngine} from 'shiki/engine/javascript'
@@ -25,8 +25,14 @@ describe('Thread eager highlighter warmup', () => {
 })
 
 describe('scheduleIdle', () => {
+  const originalRequestIdleCallback = globalThis.requestIdleCallback
+
+  afterEach(() => {
+    globalThis.requestIdleCallback = originalRequestIdleCallback
+    vi.useRealTimers()
+  })
+
   it('runs the callback through requestIdleCallback when it is available', () => {
-    const originalRequestIdleCallback = globalThis.requestIdleCallback
     let receivedCallback: IdleRequestCallback | undefined
     globalThis.requestIdleCallback = ((callback: IdleRequestCallback) => {
       receivedCallback = callback
@@ -42,12 +48,9 @@ describe('scheduleIdle', () => {
     expect(ran).toBe(false)
     receivedCallback?.({didTimeout: false, timeRemaining: () => 0})
     expect(ran).toBe(true)
-
-    globalThis.requestIdleCallback = originalRequestIdleCallback
   })
 
   it('passes a 500ms timeout so the warmup cannot be starved indefinitely under load', () => {
-    const originalRequestIdleCallback = globalThis.requestIdleCallback
     let receivedOptions: IdleRequestOptions | undefined
     globalThis.requestIdleCallback = ((callback: IdleRequestCallback, options?: IdleRequestOptions) => {
       receivedOptions = options
@@ -58,13 +61,10 @@ describe('scheduleIdle', () => {
     scheduleIdle(() => {})
 
     expect(receivedOptions).toEqual({timeout: 500})
-
-    globalThis.requestIdleCallback = originalRequestIdleCallback
   })
 
   it('falls back to a timer when requestIdleCallback is unavailable', () => {
     vi.useFakeTimers()
-    const originalRequestIdleCallback = globalThis.requestIdleCallback
     // @ts-expect-error simulating an environment without requestIdleCallback
     globalThis.requestIdleCallback = undefined
 
@@ -75,9 +75,6 @@ describe('scheduleIdle', () => {
     expect(ran).toBe(false)
     vi.runAllTimers()
     expect(ran).toBe(true)
-
-    globalThis.requestIdleCallback = originalRequestIdleCallback
-    vi.useRealTimers()
   })
 })
 

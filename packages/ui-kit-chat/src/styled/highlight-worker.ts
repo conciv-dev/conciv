@@ -16,10 +16,15 @@ function resolveHighlighter(requested: string): HighlighterCore | null {
   return null
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 function handleHighlightRequest(message: MainToWorkerMessage): void {
   const highlighter = resolveHighlighter(message.lang)
-  if (!highlighter) return
-  const html = highlighter.codeToHtml(message.code, {lang: message.lang, themes: THEMES, defaultColor: 'light'})
+  const html = highlighter
+    ? highlighter.codeToHtml(message.code, {lang: message.lang, themes: THEMES, defaultColor: 'light'})
+    : `<pre><code>${escapeHtml(message.code)}</code></pre>`
   post({type: 'result', id: message.id, html})
 }
 
