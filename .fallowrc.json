@@ -79,6 +79,7 @@
     "remend",
     "unified",
     "unist-util-visit-parents",
+    "@shikijs/langs-precompiled",
     "@conciv/brand",
     "@conciv/client",
     "@conciv/embed",
