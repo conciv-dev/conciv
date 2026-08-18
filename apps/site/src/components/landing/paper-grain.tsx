@@ -4,21 +4,26 @@ import {PAPER_GRAIN_FRAGMENT, PAPER_GRAIN_VERTEX} from './paper-grain-source'
 import {createFullScreenTriangle, createShaderProgram, readAlphaToken, readColorTriple} from './shader-program'
 
 const MAX_PIXEL_RATIO = 2
+const MAX_DECODED_PIXELS = 12_000_000
 
 type BandSize = {width: number; height: number}
 
-function sizeLayer(host: HTMLElement): BandSize | null {
-  const ratio = Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO)
-  const width = Math.round(host.clientWidth * ratio)
-  const height = Math.round(host.clientHeight * ratio)
+function measureBand(host: HTMLElement): BandSize | null {
+  const width = host.clientWidth
+  const height = host.clientHeight
   if (width * height === 0) return null
   return {width, height}
 }
 
-function rasterizeGrain(host: HTMLElement, size: BandSize, onReady: (objectUrl: string) => void): void {
+function pixelRatioFor(gl: WebGLRenderingContext, band: BandSize): number {
+  const surfaceLimit = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_RENDERBUFFER_SIZE))
+  const longestEdge = Math.max(band.width, band.height)
+  const memoryFit = Math.sqrt(MAX_DECODED_PIXELS / (band.width * band.height))
+  return Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO, surfaceLimit / longestEdge, memoryFit)
+}
+
+function rasterizeGrain(host: HTMLElement, band: BandSize, onReady: (objectUrl: string) => void): void {
   const canvas = document.createElement('canvas')
-  canvas.width = size.width
-  canvas.height = size.height
   const gl = canvas.getContext('webgl', {
     alpha: true,
     antialias: false,
@@ -30,12 +35,16 @@ function rasterizeGrain(host: HTMLElement, size: BandSize, onReady: (objectUrl: 
   const program = createShaderProgram(gl, PAPER_GRAIN_VERTEX, PAPER_GRAIN_FRAGMENT)
   if (!program) return
 
+  const ratio = pixelRatioFor(gl, band)
+  canvas.width = Math.round(band.width * ratio)
+  canvas.height = Math.round(band.height * ratio)
+
   gl.useProgram(program)
   const quad = createFullScreenTriangle(gl, program)
   gl.uniform3fv(gl.getUniformLocation(program, 'u_color'), readColorTriple(window.getComputedStyle(host).color))
   gl.uniform1f(gl.getUniformLocation(program, 'u_alpha'), readAlphaToken(host, '--od-paper-grain-alpha'))
   gl.clearColor(0, 0, 0, 0)
-  gl.viewport(0, 0, size.width, size.height)
+  gl.viewport(0, 0, canvas.width, canvas.height)
   gl.clear(gl.COLOR_BUFFER_BIT)
   gl.drawArrays(gl.TRIANGLES, 0, 3)
 
@@ -59,12 +68,12 @@ function startPaperGrain(host: HTMLImageElement): () => void {
   }
 
   const render = () => {
-    const size = sizeLayer(host)
-    if (!size) return
-    const wanted = `${size.width}x${size.height}`
+    const band = measureBand(host)
+    if (!band) return
+    const wanted = `${band.width}x${band.height}`
     if (wanted === painted) return
     painted = wanted
-    rasterizeGrain(host, size, (nextUrl) => {
+    rasterizeGrain(host, band, (nextUrl) => {
       if (stopped) {
         URL.revokeObjectURL(nextUrl)
         return
@@ -72,6 +81,7 @@ function startPaperGrain(host: HTMLImageElement): () => void {
       release()
       objectUrl = nextUrl
       host.src = nextUrl
+      host.style.visibility = 'visible'
     })
   }
 
@@ -82,8 +92,8 @@ function startPaperGrain(host: HTMLImageElement): () => void {
   return () => {
     stopped = true
     sizeObserver.disconnect()
-    sizeObserver.unobserve(host)
     host.removeAttribute('src')
+    host.style.visibility = 'hidden'
     release()
   }
 }
@@ -101,7 +111,7 @@ export function PaperGrain() {
   return (
     <div aria-hidden className="od-paper-grain-band">
       <div className="od-page od-paper-grain-page">
-        <img alt="" ref={captureHost} className="od-paper-grain" />
+        <img alt="" ref={captureHost} className="od-paper-grain" style={{visibility: 'hidden'}} />
       </div>
     </div>
   )
