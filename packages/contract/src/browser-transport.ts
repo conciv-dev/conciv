@@ -2,6 +2,7 @@ import {DynamicLink, ORPCError, type ClientLink} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink, type LinkWebsocketClientOptions} from '@orpc/client/websocket'
 import {ClientRetryPlugin, type ClientRetryPluginContext} from '@orpc/client/plugins'
+import {AsyncRetryer} from '@tanstack/pacer'
 import ReconnectingWebSocket from 'partysocket/ws'
 
 export type RpcClientContext = ClientRetryPluginContext
@@ -143,7 +144,11 @@ export function disposeSocket(socket: ReconnectingWebSocket): void {
   if (!dispatched && !realCloseStillPending) socket.dispatchEvent(new Event('close'))
 }
 
-function socketDelegate(socket: ReconnectingWebSocket, alive: () => boolean): SocketDelegate {
+function socketDelegate(
+  socket: ReconnectingWebSocket,
+  alive: () => boolean,
+  attempting: () => boolean,
+): SocketDelegate {
   return {
     addEventListener(
       type: string,
@@ -176,7 +181,7 @@ function socketDelegate(socket: ReconnectingWebSocket, alive: () => boolean): So
     get readyState() {
       if (!alive()) return SOCKET_OPEN
       if (socket.readyState === SOCKET_OPEN) return SOCKET_OPEN
-      return socket.shouldReconnect ? SOCKET_CONNECTING : SOCKET_CLOSED
+      return attempting() ? SOCKET_CONNECTING : SOCKET_CLOSED
     },
   }
 }
@@ -194,38 +199,65 @@ function openedWithin(socket: ReconnectingWebSocket, timeoutMs: number): Promise
   })
 }
 
+const RECONNECT_BACKOFF_BASE_MS = 2000
+const RECONNECT_BACKOFF_MAX_MS = 30_000
+
 function reconnectingSocket(apiBase: string): ReconnectingWebSocket {
   return new ReconnectingWebSocket(() => websocketUrl(apiBase), [], {
     minReconnectionDelay: MIN_RECONNECT_DELAY_MS,
     maxReconnectionDelay: MAX_RECONNECT_DELAY_MS,
     minUptime: MIN_UPTIME_MS,
     connectionTimeout: CONNECTION_TIMEOUT_MS,
+    maxRetries: 0,
   })
 }
 
-type SocketReachabilityWiring = {markDeliberate: () => void}
+type SocketReachabilityWiring = {markDeliberate: () => void; attempting: () => boolean}
+
+type SocketConnectionPhase = 'attempting' | 'backing-off' | 'open' | 'disposed'
 
 function wireSocketReachability(
   socket: ReconnectingWebSocket,
   key: string,
   connectionId: symbol,
 ): SocketReachabilityWiring {
-  const state = {deliberate: false, openedSinceLastClose: false}
+  const phase: {current: SocketConnectionPhase} = {current: 'attempting'}
+  const retryer = new AsyncRetryer(
+    async () => {
+      phase.current = 'attempting'
+      socket.reconnect()
+      const opened = await openedWithin(socket, CONNECTION_TIMEOUT_MS)
+      if (!opened) {
+        phase.current = 'backing-off'
+        throw new Error(`conciv rpc websocket reconnect attempt to ${key} failed`)
+      }
+    },
+    {
+      backoff: 'exponential',
+      baseWait: RECONNECT_BACKOFF_BASE_MS,
+      maxWait: RECONNECT_BACKOFF_MAX_MS,
+      maxAttempts: Number.MAX_SAFE_INTEGER,
+      throwOnError: false,
+      enabled: () => phase.current !== 'disposed',
+    },
+  )
   socket.addEventListener('open', () => {
-    state.openedSinceLastClose = true
+    phase.current = 'open'
+    retryer.abort()
     voteReachability(key, connectionId, true)
   })
   socket.addEventListener('close', () => {
-    if (state.deliberate) return
-    if (state.openedSinceLastClose) {
-      state.openedSinceLastClose = false
-      return
-    }
-    voteReachability(key, connectionId, false)
+    if (phase.current === 'disposed') return
+    const wasOpen = phase.current === 'open'
+    phase.current = 'attempting'
+    if (!wasOpen) voteReachability(key, connectionId, false)
+    if (!retryer.store.state.isExecuting) void retryer.execute()
   })
   return {
+    attempting: () => phase.current === 'attempting' || phase.current === 'open',
     markDeliberate: () => {
-      state.deliberate = true
+      phase.current = 'disposed'
+      retryer.abort()
     },
   }
 }
@@ -243,7 +275,7 @@ function probedConnection(key: string): BrowserRpcConnection {
     if (opened) {
       state.transport = 'websocket'
       return new WebsocketRpcLink<RpcClientContext>({
-        websocket: socketDelegate(socket, alive),
+        websocket: socketDelegate(socket, alive, wiring.attempting),
         plugins: [retryPlugin(alive, vote)],
       })
     }
@@ -283,7 +315,7 @@ function pinnedConnection(key: string, transport: RpcTransport): BrowserRpcConne
   const wiring = wireSocketReachability(socket, key, connectionId)
   return {
     link: new WebsocketRpcLink<RpcClientContext>({
-      websocket: socketDelegate(socket, alive),
+      websocket: socketDelegate(socket, alive, wiring.attempting),
       plugins: [retryPlugin(alive, vote)],
     }),
     transport: () => 'websocket',
