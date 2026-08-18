@@ -70,16 +70,34 @@ test.describe('pane-open perf with a large restored transcript', () => {
     expect(rowCount).toBeGreaterThan(0)
     expect(rowCount).toBeLessThan(TURN_COUNT)
 
-    const {entries, resizeObserverCallbackCount} = await page.evaluate(() => {
-      const withLoaf = window as typeof window & {
-        __loafEntries?: PerformanceEntry[]
-        __resizeObserverCallbackCount?: number
-      }
-      return {
-        entries: (withLoaf.__loafEntries ?? []).map((entry) => entry.toJSON()) as LoafEntry[],
-        resizeObserverCallbackCount: withLoaf.__resizeObserverCallbackCount ?? 0,
-      }
+    const readCounters = () =>
+      page.evaluate(() => {
+        const withLoaf = window as typeof window & {
+          __loafEntries?: PerformanceEntry[]
+          __resizeObserverCallbackCount?: number
+        }
+        return {
+          entries: (withLoaf.__loafEntries ?? []).map((entry) => entry.toJSON()) as LoafEntry[],
+          resizeObserverCallbackCount: withLoaf.__resizeObserverCallbackCount ?? 0,
+        }
+      })
+
+    const beforeResize = await readCounters()
+
+    const viewportSizeBeforeResize = page.viewportSize()
+    await page.setViewportSize({
+      width: 420,
+      height: viewportSizeBeforeResize?.height ?? 720,
     })
+
+    await expect
+      .poll(async () => (await readCounters()).resizeObserverCallbackCount, {
+        message:
+          'the viewport resize never made it through the width guard in the thread resize handler, so it never scheduled an estimate refresh',
+      })
+      .toBeGreaterThan(beforeResize.resizeObserverCallbackCount)
+
+    const {entries, resizeObserverCallbackCount} = await readCounters()
 
     expect(
       resizeObserverCallbackCount,
