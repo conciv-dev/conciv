@@ -315,6 +315,8 @@ html > body[data-scroll-locked] {
 .od-paper-grain {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   color: var(--od-ink);
 }
 @media (max-width: 767px) {
