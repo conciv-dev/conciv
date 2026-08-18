@@ -20,9 +20,10 @@ export const motion = {
   'anim-fab-ring':
     'animate-pw-fab-ring animate-duration-[1.6s] animate-ease-pw animate-iteration-count-infinite motion-reduce:animate-none',
   'anim-now': 'animate-fade-in animate-duration-[220ms] animate-ease-pw motion-reduce:animate-none',
-  'anim-collapse-open': 'animate-pw-expand-height animate-duration-[200ms] animate-ease-pw',
+  'anim-collapse-open':
+    'animate-pw-collapse-open animate-duration-[200ms] animate-ease-pw motion-reduce:animate-duration-[0.01ms]',
   'anim-collapse-closed':
-    'animate-pw-collapse-height animate-duration-[200ms] animate-ease-pw animate-fill-mode-forwards',
+    'animate-pw-collapse-close animate-duration-[200ms] animate-ease-pw animate-fill-mode-forwards motion-reduce:animate-duration-[0.01ms]',
 
   'anim-pop': 'animate-pw-fade-in-up animate-duration-[200ms] animate-ease-pw-expo motion-reduce:animate-none',
   'anim-presence-in': 'animate-pw-presence-in animate-duration-[180ms] animate-ease-pw-expo motion-reduce:animate-none',

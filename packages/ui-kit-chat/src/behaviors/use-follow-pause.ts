@@ -14,6 +14,10 @@ export function usePauseFollowOnToggle(
     queueMicrotask(() => {
       const element = animatedElement()
       if (!element) return
+      if (getComputedStyle(element).animationName === 'none') {
+        pauseFollow(FOLLOW_PAUSE_RELEASE_GRACE_MS)
+        return
+      }
       const clearListener = makeEventListener(element, 'animationend', (event) => {
         if (event.target !== element) return
         clearListener()

@@ -5,8 +5,8 @@ export const animation = {
     'pw-fab-ring': '{0%{opacity:0.7;transform:scale(1)}70%,100%{opacity:0;transform:scale(1.5)}}',
     'pw-dot': '{0%,60%,100%{transform:translateY(0);opacity:0.4}30%{transform:translateY(-6px);opacity:1}}',
 
-    'pw-expand-height': '{from{height:var(--collapsed-height,0);opacity:0}to{height:var(--height);opacity:1}}',
-    'pw-collapse-height': '{from{height:var(--height);opacity:1}to{height:var(--collapsed-height,0);opacity:0}}',
+    'pw-collapse-open': '{from{grid-template-rows:0fr}to{grid-template-rows:1fr}}',
+    'pw-collapse-close': '{from{grid-template-rows:1fr}to{grid-template-rows:0fr}}',
 
     'pw-think-shimmer': '{to{background-position:-200% 0}}',
 
