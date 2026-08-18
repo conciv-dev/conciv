@@ -1,5 +1,6 @@
 import 'virtual:uno.css'
 import {createSignal} from 'solid-js'
+import {render} from '@solidjs/testing-library'
 import {describe, expect, it, vi} from 'vitest'
 import {page} from 'vitest/browser'
 import {createHighlighterCore} from 'shiki/core'
@@ -164,5 +165,26 @@ describe('Markdown code fence highlight caching', () => {
 
     setContent(stabilizedWithTrailer)
     await waitForHighlight(host)
+  })
+
+  it('caches a superseded streaming fence result so a later fence with the same code reuses it instead of re-highlighting', async () => {
+    const primingMarker = `readyBeforeSupersede${Math.random().toString(36).slice(2)}`
+    const primingHost = mountView(() => <Markdown content={fence('typescript', [`const ${primingMarker} = 0`])} />)
+    await waitForHighlight(primingHost)
+
+    const markerA = `superseded${Math.random().toString(36).slice(2)}`
+    const markerB = `winning${Math.random().toString(36).slice(2)}`
+    const codeA = `const ${markerA} = 1`
+    const codeB = `const ${markerB} = 2`
+    const content = [fence('typescript', [codeA]), '', fence('typescript', [codeB])].join('\n')
+
+    const rendered = render(() => <Markdown content={content} streaming />)
+    rendered.unmount()
+
+    const detectorHost = mountView(() => <Markdown content={fence('typescript', [codeB])} />)
+    await waitForHighlight(detectorHost)
+
+    const laterHost = mountView(() => <Markdown content={fence('typescript', [codeA])} />)
+    expect(preElement(laterHost).className).toContain('shiki')
   })
 })

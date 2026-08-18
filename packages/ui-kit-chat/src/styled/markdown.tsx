@@ -34,14 +34,37 @@ type HighlightBackend = {
   requestHighlight(key: string, language: string, code: string, streaming: boolean): void
 }
 
+type DeferredHighlight = {key: string; code: string}
+
 function createWorkerBackend(worker: Worker): HighlightBackend {
   let precompiledLanguages: Set<string> | null = null
   let regexLanguages: Set<string> | null = null
   let nextId = 0
   const resultCallbacks = new Map<string, (html: string) => void>()
+  const inFlightStreamingLanguages = new Set<string>()
+  const deferredStreamingByLanguage = new Map<string, DeferredHighlight>()
 
   function isSupportedLanguage(language: string): boolean {
     return (regexLanguages?.has(language) ?? false) || (precompiledLanguages?.has(language) ?? false)
+  }
+
+  function postHighlight(key: string, language: string, code: string, streaming: boolean): void {
+    pendingHighlights.add(key)
+    if (streaming) inFlightStreamingLanguages.add(language)
+    const id = String(nextId)
+    nextId += 1
+    resultCallbacks.set(id, (html) => {
+      pendingHighlights.delete(key)
+      rememberHighlight(key, html)
+      if (!streaming || latestStreamingKeyByLanguage.get(language) === key) notifyListeners()
+      if (!streaming) return
+      inFlightStreamingLanguages.delete(language)
+      const deferred = deferredStreamingByLanguage.get(language)
+      if (deferred === undefined) return
+      deferredStreamingByLanguage.delete(language)
+      if (!highlightCache.has(deferred.key)) postHighlight(deferred.key, language, deferred.code, true)
+    })
+    worker.postMessage({type: 'highlight', id, code, lang: language})
   }
 
   worker.addEventListener('message', (event: MessageEvent<WorkerToMainMessage>) => {
@@ -65,17 +88,14 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
     requestHighlight(key, language, code, streaming) {
       if (!isSupportedLanguage(language)) return
       if (pendingHighlights.has(key)) return
-      pendingHighlights.add(key)
-      if (streaming) latestStreamingKeyByLanguage.set(language, key)
-      const id = String(nextId)
-      nextId += 1
-      resultCallbacks.set(id, (html) => {
-        pendingHighlights.delete(key)
-        if (streaming && latestStreamingKeyByLanguage.get(language) !== key) return
-        rememberHighlight(key, html)
-        notifyListeners()
-      })
-      worker.postMessage({type: 'highlight', id, code, lang: language})
+      if (streaming) {
+        latestStreamingKeyByLanguage.set(language, key)
+        if (inFlightStreamingLanguages.has(language)) {
+          deferredStreamingByLanguage.set(language, {key, code})
+          return
+        }
+      }
+      postHighlight(key, language, code, streaming)
     },
   }
 }
