@@ -128,12 +128,34 @@ jobs:
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do
+            waited=0
+            while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1 && [ "$waited" -lt 240 ]; do
+              echo "waiting for apt lock"
+              sleep 10
+              waited=$((waited + 10))
+            done
+            timeout 300 pnpm exec playwright install --with-deps chromium && break
+            status=$?
+            [ "$attempt" = 3 ] && exit "$status"
+            echo "retrying playwright install"
+          done
       - timeout-minutes: 15
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do
+            waited=0
+            while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1 && [ "$waited" -lt 240 ]; do
+              echo "waiting for apt lock"
+              sleep 10
+              waited=$((waited + 10))
+            done
+            timeout 300 pnpm exec playwright install-deps chromium && break
+            status=$?
+            [ "$attempt" = 3 ] && exit "$status"
+            echo "retrying playwright install"
+          done
       - run: pnpm exec conciv-ci-shards run
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
@@ -337,12 +359,34 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do
+            waited=0
+            while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1 && [ "$waited" -lt 240 ]; do
+              echo "waiting for apt lock"
+              sleep 10
+              waited=$((waited + 10))
+            done
+            timeout 300 pnpm exec playwright install --with-deps chromium && break
+            status=$?
+            [ "$attempt" = 3 ] && exit "$status"
+            echo "retrying playwright install"
+          done
       - timeout-minutes: 15
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do
+            waited=0
+            while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1 && [ "$waited" -lt 240 ]; do
+              echo "waiting for apt lock"
+              sleep 10
+              waited=$((waited + 10))
+            done
+            timeout 300 pnpm exec playwright install-deps chromium && break
+            status=$?
+            [ "$attempt" = 3 ] && exit "$status"
+            echo "retrying playwright install"
+          done
       # Alone on its own runner: nothing else competes for chromium/vite/cpu, so the merged suite's
       # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom. Dependency
       # builds are capped so a cold turbo cache (lockfile change) can't OOM chrome mid-run.
@@ -446,12 +490,34 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install --with-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do
+            waited=0
+            while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1 && [ "$waited" -lt 240 ]; do
+              echo "waiting for apt lock"
+              sleep 10
+              waited=$((waited + 10))
+            done
+            timeout 300 pnpm exec playwright install --with-deps chromium && break
+            status=$?
+            [ "$attempt" = 3 ] && exit "$status"
+            echo "retrying playwright install"
+          done
       - timeout-minutes: 15
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         shell: bash
         run: |
-          for attempt in 1 2 3; do timeout 300 pnpm exec playwright install-deps chromium && break; status=$?; [ "$attempt" = 3 ] && exit "$status"; echo "retrying playwright install"; sleep 10; done
+          for attempt in 1 2 3; do
+            waited=0
+            while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1 && [ "$waited" -lt 240 ]; do
+              echo "waiting for apt lock"
+              sleep 10
+              waited=$((waited + 10))
+            done
+            timeout 300 pnpm exec playwright install-deps chromium && break
+            status=$?
+            [ "$attempt" = 3 ] && exit "$status"
+            echo "retrying playwright install"
+          done
       # Real harness CLIs for the e2e/harnesses turn matrix: unauthenticated turns must
       # surface a visible error (proving spawn + stream + error plumbing), never hang or
       # vanish. pi is a stub harness and never spawns its binary. Only the shard that
