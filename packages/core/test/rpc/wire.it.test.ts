@@ -291,7 +291,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('page queries stream to the rpc subscriber and reply resolves the asker', async () => {
     const {kit} = await bootWire()
     const abort = new AbortController()
-    const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
+    const iterator = await kit.rpc.page.queries({sessionId: ''}, {signal: abort.signal})
     const firstPromise = iterator.next()
     await new Promise((resolve) => setTimeout(resolve, 50))
     const verbResult = kit.rpc.registry.call({name: 'page.snapshot', input: {}})
@@ -311,7 +311,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('registry.call round-trips a page tool through the rpc queries subscriber', async () => {
     const {kit} = await bootWire()
     const abort = new AbortController()
-    const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
+    const iterator = await kit.rpc.page.queries({sessionId: ''}, {signal: abort.signal})
     const answered = (async () => {
       const first = await iterator.next()
       if (first.done) throw new Error('page.queries ended before a query arrived')
@@ -331,7 +331,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('a mutating registry.call lands in page.changes and clearChanges empties it', async () => {
     const {kit} = await bootWire()
     const abort = new AbortController()
-    const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
+    const iterator = await kit.rpc.page.queries({sessionId: ''}, {signal: abort.signal})
     const answered = (async () => {
       const first = await iterator.next()
       if (first.done) throw new Error('page.queries ended before a query arrived')
@@ -362,7 +362,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
   it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
     const {kit} = await bootWire()
     const abort = new AbortController()
-    const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
+    const iterator = await kit.rpc.page.queries({sessionId: ''}, {signal: abort.signal})
     const consumed = iterator.next()
     await new Promise((resolve) => setTimeout(resolve, 50))
     await expect(

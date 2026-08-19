@@ -63,9 +63,9 @@ function evalAnswer(): PageOutcome {
 describe('/api/mcp gate decisions come from the approval declaration, not mutating', () => {
   it('a mutating BUILT-IN with no approval declaration runs without any prompt', async () => {
     const kit = await bootKit()
-    const widget = await connectWidget(kit, evalAnswer)
+    const session = await kit.session()
+    const widget = await connectWidget(kit, session, evalAnswer)
     try {
-      const session = await kit.session()
       const outcome = await callViaSandbox(kit, session, 'page.eval', {code: '1 + 1'})
       expect(outcome.ok).toBe(true)
       expect(widget.seen()).toEqual(['page.eval'])

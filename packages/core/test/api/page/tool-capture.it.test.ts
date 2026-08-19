@@ -45,8 +45,8 @@ describe('an element capture is stored beside the transcript and never reaches t
   async function bootCapturing(): Promise<CapturingKit> {
     const kit = await bootKit({cwd: tmpdir()})
     state.kit = kit
-    state.widget = await connectWidget(kit, answerFor)
     const sessionId = await kit.session()
+    state.widget = await connectWidget(kit, sessionId, answerFor)
     return {kit, sessionId, call: makeCallTool(kit.base, sessionId)}
   }
 

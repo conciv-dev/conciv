@@ -147,7 +147,7 @@ export const contract = {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.output(z.array(PageChangeEntrySchema)),
     clearChanges: oc.output(Ok),
-    queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
+    queries: oc.input(SessionIdInput).output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
     reply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending request'}})
       .input(PageReplySchema)

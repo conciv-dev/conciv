@@ -60,7 +60,7 @@ describe('the CLI reads its commands from the tool declarations', () => {
 
   it('names the attribute of an edit separately from the React component name', async () => {
     const kit = await bootCli(cleanups)
-    const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
+    const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'open'}})
     expect(await runCli(main, ['tools', 'page', 'setattr', '#a', '--attribute', 'data-state', '--value', 'open'])).toBe(
       0,
     )

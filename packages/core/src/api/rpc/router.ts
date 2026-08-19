@@ -4,7 +4,7 @@ import {asc, eq, lt} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
-import {isPageVerbError} from '@conciv/extension'
+import {isPageVerbError, type ToolRequest} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers, navigation, sessionCaptures} from '@conciv/db'
@@ -176,8 +176,10 @@ export function makeRpcRouter(deps: RpcDeps) {
       call: os.registry.call.handler(async ({input, context, errors}) => {
         if (!deps.registry.has(input.name)) throw errors.UNKNOWN_TOOL()
         await approveAskGatedCall(deps, input.name, input.input, context, errors)
+        const sessionId = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim() ?? ''
+        const request: ToolRequest = {sessionId, model: null}
         try {
-          return await deps.registry.call(input.name, input.input)
+          return await deps.registry.call(input.name, input.input, {request})
         } catch (error) {
           throw registryCallError(error, errors)
         }
@@ -193,8 +195,8 @@ export function makeRpcRouter(deps: RpcDeps) {
         deps.page.journal.clear()
         return {ok: true as const}
       }),
-      queries: os.page.queries.handler(async function* ({signal}) {
-        yield* pageQueryStream(deps.page.bus, signal ?? new AbortController().signal)
+      queries: os.page.queries.handler(async function* ({input, signal}) {
+        yield* pageQueryStream(deps.page.bus, input.sessionId, signal ?? new AbortController().signal)
       }),
       reply: os.page.reply.handler(({input, errors}) => {
         if (!deps.page.bus.resolve(input.requestId, input.outcome)) throw errors.UNKNOWN_REQUEST()

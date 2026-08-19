@@ -59,8 +59,8 @@ async function bootScripted(): Promise<{kit: Kit; harness: TestHarness}> {
   return {kit, harness}
 }
 
-async function bootWidget(kit: Kit): Promise<FakeWidget> {
-  const widget = await connectWidget(kit, answerFor)
+async function bootWidget(kit: Kit, sessionId: string): Promise<FakeWidget> {
+  const widget = await connectWidget(kit, sessionId, answerFor)
   cleanups.push(async () => widget.end())
   return widget
 }
@@ -68,8 +68,8 @@ async function bootWidget(kit: Kit): Promise<FakeWidget> {
 describe('a code-mode page-tool part surviving reload after a later turn', () => {
   it('the synthetic page.fill tool-call part is still in the snapshot once a second turn has run', async () => {
     const {kit, harness} = await bootScripted()
-    await bootWidget(kit)
     const sessionId = await kit.session()
+    await bootWidget(kit, sessionId)
 
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callThroughCatalog('page.fill', {selector: '#email', value: 'a@b.c'}),

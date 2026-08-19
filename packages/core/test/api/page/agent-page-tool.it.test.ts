@@ -1,7 +1,8 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {tmpdir} from 'node:os'
-import {makeApprovingCallTool, type Kit} from '@conciv/harness-testkit'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {makeApprovingCallTool, makeRpcClient, type Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 import {connectWidget} from '../../helpers/fake-widget.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../editor/fixtures.js'
@@ -37,21 +38,25 @@ describe('the agent reaches the page through the same implementation the CLI use
     await cleanupChunks()
   })
 
-  async function bootPageKit(annotate: Annotate, answerFor: Parameters<typeof connectWidget>[1]): Promise<Kit> {
+  async function bootPageKit(
+    annotate: Annotate,
+    answerFor: Parameters<typeof connectWidget>[2],
+  ): Promise<{kit: Kit; session: string}> {
     await annotate('stage: booting the app under test')
     const kit = await bootKit({cwd: tmpdir()})
     state.kit = kit
-    await annotate('stage: attaching the fake widget')
-    state.widget = await connectWidget(kit, answerFor)
-    return kit
-  }
-
-  async function agentPageTool(
-    kit: Kit,
-    annotate: Annotate,
-  ): Promise<(input: {verb: string} & Record<string, unknown>) => Promise<unknown>> {
     await annotate('stage: resolving the session')
     const session = await kit.session()
+    await annotate('stage: attaching the fake widget')
+    state.widget = await connectWidget(kit, session, answerFor)
+    return {kit, session}
+  }
+
+  function agentPageTool(
+    kit: Kit,
+    session: string,
+    annotate: Annotate,
+  ): (input: {verb: string} & Record<string, unknown>) => Promise<unknown> {
     const call = makeApprovingCallTool(kit.base, session)
     return async ({verb, ...input}) => {
       await annotate(`stage: the agent page.${verb} call`)
@@ -59,9 +64,14 @@ describe('the agent reaches the page through the same implementation the CLI use
     }
   }
 
+  function sessionScopedRpc(kit: Kit, session: string): ReturnType<typeof makeRpcClient> {
+    return makeRpcClient(kit.base, {headers: {[CONCIV_SESSION_HEADER]: session}})
+  }
+
   it('journals an agent-driven mutation exactly as the CLI path journals it', async ({annotate, signal}) => {
-    const kit = await bootPageKit(annotate, () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
-    const execute = await agentPageTool(kit, annotate)
+    const {kit, session} = await bootPageKit(annotate, () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
+    const execute = agentPageTool(kit, session, annotate)
+    const cliRpc = sessionScopedRpc(kit, session)
 
     await execute({verb: 'fill', selector: '#email', value: 'a@b.c'})
     await annotate('stage: the page.changes rpc call')
@@ -71,19 +81,20 @@ describe('the agent reaches the page through the same implementation the CLI use
     await annotate('stage: the page.clearChanges rpc call')
     await kit.rpc.page.clearChanges(undefined, {signal})
     await annotate('stage: the cli page.fill rpc call')
-    await kit.rpc.registry.call({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}}, {signal})
+    await cliRpc.registry.call({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}}, {signal})
     await annotate('stage: the page.changes rpc call')
     const afterCli = ChangesSchema.parse(await kit.rpc.page.changes(undefined, {signal}))
     expect(afterAgent).toEqual(afterCli)
   }, 30_000)
 
   it('journals one entry per mutation and no more, whichever surface drove it', async ({annotate, signal}) => {
-    const kit = await bootPageKit(annotate, () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
-    const execute = await agentPageTool(kit, annotate)
+    const {kit, session} = await bootPageKit(annotate, () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
+    const execute = agentPageTool(kit, session, annotate)
+    const cliRpc = sessionScopedRpc(kit, session)
 
     await execute({verb: 'fill', selector: '#email', value: 'a@b.c'})
     await annotate('stage: the cli page.setattr rpc call')
-    await kit.rpc.registry.call(
+    await cliRpc.registry.call(
       {name: 'page.setattr', input: {selector: '#a', attribute: 'data-state', value: 'open'}},
       {signal},
     )
@@ -94,8 +105,8 @@ describe('the agent reaches the page through the same implementation the CLI use
   }, 30_000)
 
   it('never journals an agent-driven read', async ({annotate, signal}) => {
-    const kit = await bootPageKit(annotate, () => ({ok: true, result: {text: 'Checkout'}}))
-    const execute = await agentPageTool(kit, annotate)
+    const {kit, session} = await bootPageKit(annotate, () => ({ok: true, result: {text: 'Checkout'}}))
+    const execute = agentPageTool(kit, session, annotate)
     await execute({verb: 'text', selector: 'h1'})
     await annotate('stage: the page.changes rpc call')
     expect(await kit.rpc.page.changes(undefined, {signal})).toEqual([])
@@ -104,15 +115,16 @@ describe('the agent reaches the page through the same implementation the CLI use
   it('symbolicates an agent-driven locate the way the CLI path does', async ({annotate, signal}) => {
     await annotate('stage: writing the source-mapped chunk')
     const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
-    const kit = await bootPageKit(annotate, () => ({
+    const {kit, session} = await bootPageKit(annotate, () => ({
       ok: true,
       result: {component: 'Home', stack: ['Home'], frames: [{fileName: `file://${chunk}`, line: 2, column: 1}]},
     }))
-    const execute = await agentPageTool(kit, annotate)
+    const execute = agentPageTool(kit, session, annotate)
+    const cliRpc = sessionScopedRpc(kit, session)
     const agentResult = SourceSchema.parse(agentPageResult(await execute({verb: 'locate', selector: 'h1'})))
     await annotate('stage: the cli page.locate rpc call')
     const cliResult = SourceSchema.parse(
-      agentPageResult(await kit.rpc.registry.call({name: 'page.locate', input: {selector: 'h1'}}, {signal})),
+      agentPageResult(await cliRpc.registry.call({name: 'page.locate', input: {selector: 'h1'}}, {signal})),
     )
     expect(agentResult.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
     expect(agentResult.source).toEqual(cliResult.source)

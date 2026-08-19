@@ -27,7 +27,7 @@ describe('pump', () => {
         throw new Error('offline')
       })
       const abort = new AbortController()
-      void pump(rpc, fakeDriver(), abort.signal, () => false)
+      void pump(rpc, fakeDriver(), '', abort.signal, () => false)
       await vi.advanceTimersByTimeAsync(0)
       expect(calls).toBe(1)
       await vi.advanceTimersByTimeAsync(1999)
@@ -57,7 +57,7 @@ describe('pump', () => {
           unsubscribed = true
         }
       }
-      void pump(rpc, fakeDriver(), abort.signal, () => false, subscribeOnline)
+      void pump(rpc, fakeDriver(), '', abort.signal, () => false, subscribeOnline)
       await vi.advanceTimersByTimeAsync(0)
       expect(calls).toBe(1)
       await vi.advanceTimersByTimeAsync(100)
@@ -82,7 +82,7 @@ describe('pump', () => {
         throw new Error('transient')
       })
       const abort = new AbortController()
-      void pump(rpc, fakeDriver(), abort.signal, () => true)
+      void pump(rpc, fakeDriver(), '', abort.signal, () => true)
       await vi.advanceTimersByTimeAsync(0)
       expect(calls).toBe(1)
       await vi.advanceTimersByTimeAsync(500)

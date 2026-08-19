@@ -4,7 +4,7 @@ import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage} from '../helpers/host.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {openPagePlaneHost} from './helpers/page-plane-host.js'
-import {openPanel} from './helpers/panel.js'
+import {openPanel, switchToSessionByTitle} from './helpers/panel.js'
 
 const PASSWORD = 'hunter2-must-never-leave-the-page'
 
@@ -19,11 +19,9 @@ const HOST_BODY = `
 
 let kit: EmbedKit
 let host: {base: string; close: () => Promise<void>}
-let sessionId: string
 
 test.beforeAll(async () => {
   kit = await bootEmbedKit()
-  sessionId = await kit.session()
   host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}))
 })
 
@@ -33,6 +31,16 @@ test.afterAll(async () => {
 })
 
 const openHostPage = (page: Page): Promise<Page> => openPagePlaneHost(page, host.base)
+
+async function openSessionPanel(page: Page): Promise<string> {
+  const {sessionId} = await kit.rpc.sessions.create()
+  const title = `capture session ${sessionId.slice(-12)}`
+  await kit.rpc.sessions.rename({sessionId, title})
+  await openHostPage(page)
+  await openPanel(page)
+  await switchToSessionByTitle(page, title)
+  return sessionId
+}
 
 function rowIdentities(stored: SessionCaptures): string[] {
   return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
@@ -47,7 +55,7 @@ async function sendAndSettle(page: Page, message: string): Promise<void> {
 test.describe('a page tool run through the widget stores a frozen picture of the element it touched', () => {
   test('keeps the pre-edit element after the page flips its theme and deletes the node', async ({page}) => {
     test.setTimeout(90_000)
-    await openHostPage(page)
+    const sessionId = await openSessionPanel(page)
     await kit.callTool('page.settext', {selector: '#prose', text: 'rewritten by the agent'}, sessionId)
 
     await page.evaluate(() => {
@@ -73,7 +81,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
 
   test('never lets a password value reach the stored capture or the tool result', async ({page}) => {
     test.setTimeout(90_000)
-    await openHostPage(page)
+    const sessionId = await openSessionPanel(page)
     const result = await kit.callTool('page.fill', {selector: '#secret', value: 'typed by the agent'}, sessionId)
     const stored: SessionCaptures = await kit.rpc.captures.list({sessionId})
     const secretCaptures = stored.captures.filter((row) => row.capture.descriptor.selectorPath.includes('secret'))
@@ -85,7 +93,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
 
   test('hands the harness a result with no capture in it', async ({page}) => {
     test.setTimeout(90_000)
-    await openHostPage(page)
+    const sessionId = await openSessionPanel(page)
     const result = await kit.callTool('page.click', {selector: '#cta'}, sessionId)
     expect(JSON.stringify(result)).not.toContain('cssBundleId')
     expect(JSON.stringify(result)).not.toContain('selectorPath')
@@ -94,7 +102,7 @@ test.describe('a page tool run through the widget stores a frozen picture of the
 
   test('takes no capture for a read verb', async ({page}) => {
     test.setTimeout(90_000)
-    await openHostPage(page)
+    const sessionId = await openSessionPanel(page)
     const before: SessionCaptures = await kit.rpc.captures.list({sessionId})
     await kit.callTool('page.text', {selector: '#cta'}, sessionId)
     const after: SessionCaptures = await kit.rpc.captures.list({sessionId})

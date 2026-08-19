@@ -51,7 +51,7 @@ async function runClientTool(
 ): Promise<unknown> {
   const record = PageToolInputSchema.parse(input ?? {})
   try {
-    const answer = await env.bus.ask({name: tool.name, input: record})
+    const answer = await env.bus.ask(request?.sessionId ?? '', {name: tool.name, input: record})
     await storeCapture(env, request, answer)
     const data = answer.result
     if (tool.mutating) {

@@ -362,29 +362,33 @@ const pressTool = pressDef
 
 const setattrTool = setattrDef
   .client((input, ctx) => {
-    ctx.target(input).setAttribute(input.attribute, input.value)
-    return ok()
+    const el = ctx.target(input)
+    el.setAttribute(input.attribute, input.value)
+    return ok({value: el.getAttribute(input.attribute)})
   })
   .render(EditLiveCard)
 
 const removeattrTool = removeattrDef
   .client((input, ctx) => {
-    ctx.target(input).removeAttribute(input.attribute)
-    return ok()
+    const el = ctx.target(input)
+    el.removeAttribute(input.attribute)
+    return ok({value: el.getAttribute(input.attribute)})
   })
   .render(EditLiveCard)
 
 const addclassTool = addclassDef
   .client((input, ctx) => {
-    ctx.target(input).classList.add(input.class)
-    return ok()
+    const el = ctx.target(input)
+    el.classList.add(input.class)
+    return ok({value: el.classList.contains(input.class)})
   })
   .render(EditLiveCard)
 
 const removeclassTool = removeclassDef
   .client((input, ctx) => {
-    ctx.target(input).classList.remove(input.class)
-    return ok()
+    const el = ctx.target(input)
+    el.classList.remove(input.class)
+    return ok({value: el.classList.contains(input.class)})
   })
   .render(EditLiveCard)
 
@@ -392,29 +396,34 @@ const setstyleTool = setstyleDef
   .client((input, ctx) => {
     const el = ctx.target(input)
     if (!(el instanceof HTMLElement)) badArgs('setstyle target is not an HTMLElement')
+    const view = ctx.document.defaultView
+    if (!view) fail('the target document has no window to read the computed style back from')
     el.style.setProperty(input.prop, input.value)
-    return ok()
+    return ok({value: view.getComputedStyle(el).getPropertyValue(input.prop)})
   })
   .render(EditLiveCard)
 
 const settextTool = settextDef
   .client((input, ctx) => {
-    ctx.target(input).textContent = input.text
-    return ok()
+    const el = ctx.target(input)
+    el.textContent = input.text
+    return ok({value: el.textContent ?? ''})
   })
   .render(EditLiveCard)
 
 const sethtmlTool = sethtmlDef
   .client((input, ctx) => {
-    ctx.target(input).innerHTML = input.html
-    return ok()
+    const el = ctx.target(input)
+    el.innerHTML = input.html
+    return ok({value: el.innerHTML})
   })
   .render(EditLiveCard)
 
 const removeTool = removeDef
   .client((input, ctx) => {
-    ctx.target(input).remove()
-    return ok()
+    const el = ctx.target(input)
+    el.remove()
+    return ok({connected: el.isConnected})
   })
   .render(EditLiveCard)
 

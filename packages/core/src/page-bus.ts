@@ -70,10 +70,10 @@ function makePending<T>(): Pending<T> {
 export type PageAnswer = {result: Record<string, unknown>; capture?: PageCaptureBundle}
 
 export type PageBus = {
-  ask: (query: Omit<PageQuery, 'requestId'>) => Promise<PageAnswer>
+  ask: (sessionId: string, query: Omit<PageQuery, 'requestId'>) => Promise<PageAnswer>
   connected: () => boolean
   resolve: (requestId: string, outcome: PageOutcome) => boolean
-  subscribe: (emit: (frame: unknown) => void) => () => void
+  subscribe: (sessionId: string, emit: (frame: unknown) => void) => () => void
 }
 
 export type CaptureSink = (params: {sessionId: string; toolCallId: string; bundle: PageCaptureBundle}) => Promise<void>
@@ -82,21 +82,24 @@ export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCaptur
 
 export function makePageBus(timeoutMs = 5000): PageBus {
   const pending = makePending<PageOutcome>()
-  const subscribers = new Set<(frame: unknown) => void>()
+  const subscribers = new Map<string, (frame: unknown) => void>()
   const idState = {n: 0}
 
-  function subscribe(emit: (frame: unknown) => void): () => void {
-    subscribers.add(emit)
-    return () => subscribers.delete(emit)
+  function subscribe(sessionId: string, emit: (frame: unknown) => void): () => void {
+    subscribers.set(sessionId, emit)
+    return () => {
+      if (subscribers.get(sessionId) === emit) subscribers.delete(sessionId)
+    }
   }
 
-  async function ask(query: Omit<PageQuery, 'requestId'>): Promise<PageAnswer> {
-    if (subscribers.size === 0) throw pageFailure('no-widget', 'no widget connected')
+  async function ask(sessionId: string, query: Omit<PageQuery, 'requestId'>): Promise<PageAnswer> {
+    const emit = subscribers.get(sessionId)
+    if (emit === undefined) throw pageFailure('no-widget', 'no widget connected')
     idState.n += 1
     const requestId = `pq${idState.n}`
     const declared = query.input['timeout']
     const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
-    for (const emit of subscribers) emit({requestId, ...query})
+    emit({requestId, ...query})
     const outcome = await pending.await(requestId, ms).catch(() => {
       throw pageFailure('timeout', 'page did not reply (no widget connected?)')
     })
@@ -116,11 +119,12 @@ function frameRequestId(frame: unknown): string | null {
 
 export async function* pageQueryStream(
   bus: PageBus,
+  sessionId: string,
   signal: AbortSignal,
 ): AsyncGenerator<{requestId: string; query: unknown}> {
   const queue: unknown[] = []
   const waiter = {wake: () => {}}
-  const unsubscribe = bus.subscribe((frame) => {
+  const unsubscribe = bus.subscribe(sessionId, (frame) => {
     queue.push(frame)
     waiter.wake()
   })
@@ -150,7 +154,8 @@ export async function askPage(
   bus: PageBus,
   name: string,
   input: Record<string, unknown>,
+  sessionId: string,
 ): Promise<Record<string, unknown>> {
-  const answer = await bus.ask({name, input})
+  const answer = await bus.ask(sessionId, {name, input})
   return answer.result
 }

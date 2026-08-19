@@ -89,7 +89,7 @@ async function answerFirst(
 
 export async function answerNextQuery(kit: Kit, outcome: PageOutcome): Promise<{seen: () => SeenQuery | null}> {
   const abort = new AbortController()
-  const queries = await kit.rpc.page.queries(undefined, {signal: abort.signal})
+  const queries = await kit.rpc.page.queries({sessionId: ''}, {signal: abort.signal})
   const state: QueryState = {seen: null}
   void answerFirst(kit, queries, state, outcome, abort).catch(() => {})
   await new Promise((resolve) => setTimeout(resolve, 50))

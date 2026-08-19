@@ -42,8 +42,13 @@ export type PagePlaneRpc = {
   }
 }
 
-async function serveQueries(rpc: PagePlaneRpc, driver: PageDriver, signal: AbortSignal): Promise<void> {
-  const iterator = await rpc.page.queries(undefined, {signal})
+async function serveQueries(
+  rpc: PagePlaneRpc,
+  driver: PageDriver,
+  sessionId: string,
+  signal: AbortSignal,
+): Promise<void> {
+  const iterator = await rpc.page.queries({sessionId}, {signal})
   for await (const item of iterator) {
     const parsed = PageQuerySchema.safeParse(item.query)
     if (!parsed.success) continue
@@ -62,13 +67,14 @@ export function pagePlanePollDelayMs(isOnline: () => boolean): number {
 export async function pump(
   rpc: PagePlaneRpc,
   driver: PageDriver,
+  sessionId: string,
   signal: AbortSignal,
   isOnline: () => boolean,
   subscribeOnline?: (listener: () => void) => () => void,
 ): Promise<void> {
   while (!signal.aborted) {
     try {
-      await serveQueries(rpc, driver, signal)
+      await serveQueries(rpc, driver, sessionId, signal)
     } catch {
       if (signal.aborted) return
     }
@@ -79,6 +85,7 @@ export async function pump(
 export function startPagePlane(opts: {
   rpc: RpcClient
   document: Document
+  sessionId?: string
   driver?: PageDriver
   tools?: readonly ClientToolEntry[]
   isOnline?: () => boolean
@@ -88,6 +95,6 @@ export function startPagePlane(opts: {
 } {
   const driver = opts.driver ?? makeDomPageDriver({tools: opts.tools})
   const abort = new AbortController()
-  void pump(opts.rpc, driver, abort.signal, opts.isOnline ?? (() => true), opts.subscribeOnline)
+  void pump(opts.rpc, driver, opts.sessionId ?? '', abort.signal, opts.isOnline ?? (() => true), opts.subscribeOnline)
   return {dispose: () => abort.abort()}
 }

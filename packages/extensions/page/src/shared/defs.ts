@@ -475,7 +475,7 @@ export const setattrDef = pageTool({
     attribute: AttributeName,
     value: z.string().describe('the attribute value to set'),
   }),
-  output: OkResult,
+  output: z.object({ok: z.literal(true), value: z.string().nullable()}),
 })
 
 export const removeattrDef = pageTool({
@@ -487,7 +487,7 @@ export const removeattrDef = pageTool({
   mutating: true,
   keywords: ['attribute'],
   input: z.object({...ElementTarget, attribute: AttributeName}),
-  output: OkResult,
+  output: z.object({ok: z.literal(true), value: z.string().nullable()}),
 })
 
 export const addclassDef = pageTool({
@@ -499,7 +499,7 @@ export const addclassDef = pageTool({
   mutating: true,
   keywords: ['class'],
   input: z.object({...ElementTarget, class: ClassName}),
-  output: OkResult,
+  output: z.object({ok: z.literal(true), value: z.boolean()}),
 })
 
 export const removeclassDef = pageTool({
@@ -511,7 +511,7 @@ export const removeclassDef = pageTool({
   mutating: true,
   keywords: ['class'],
   input: z.object({...ElementTarget, class: ClassName}),
-  output: OkResult,
+  output: z.object({ok: z.literal(true), value: z.boolean()}),
 })
 
 export const setstyleDef = pageTool({
@@ -527,7 +527,7 @@ export const setstyleDef = pageTool({
     prop: z.string().describe('CSS property name, e.g. color or font-size'),
     value: z.string().describe('the CSS value to set'),
   }),
-  output: OkResult,
+  output: z.object({ok: z.literal(true), value: z.string()}),
 })
 
 export const settextDef = pageTool({
@@ -539,7 +539,7 @@ export const settextDef = pageTool({
   mutating: true,
   keywords: ['text'],
   input: z.object({...ElementTarget, text: z.string().describe('the text to set')}),
-  output: OkResult,
+  output: z.object({ok: z.literal(true), value: z.string()}),
 })
 
 export const sethtmlDef = pageTool({
@@ -551,7 +551,7 @@ export const sethtmlDef = pageTool({
   mutating: true,
   keywords: ['html'],
   input: z.object({...ElementTarget, html: z.string().describe('the HTML fragment to set')}),
-  output: OkResult,
+  output: z.object({ok: z.literal(true), value: z.string()}),
 })
 
 export const removeDef = pageTool({
@@ -563,7 +563,7 @@ export const removeDef = pageTool({
   mutating: true,
   keywords: ['delete'],
   input: target,
-  output: OkResult,
+  output: z.object({ok: z.literal(true), connected: z.boolean()}),
 })
 
 export const insertDef = pageTool({

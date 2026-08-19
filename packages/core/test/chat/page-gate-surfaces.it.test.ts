@@ -27,8 +27,8 @@ function answerFor(name: string): PageOutcome {
   return {ok: true, result: {text: 'page-gate-ok'}}
 }
 
-async function bootWidget(kit: Kit): Promise<FakeWidget> {
-  const widget = await connectWidget(kit, answerFor)
+async function bootWidget(kit: Kit, sessionId: string): Promise<FakeWidget> {
+  const widget = await connectWidget(kit, sessionId, answerFor)
   cleanups.push(async () => widget.end())
   return widget
 }
@@ -66,8 +66,8 @@ function pumpApprovals(kit: Kit, sessionId: string): {ids: () => string[]} {
 describe('the chat surface runs page tools without ever consulting a gate', () => {
   it('a chat turn running page.effect enable completes with zero approval chunks', async () => {
     const {kit, harness} = await bootScripted()
-    const widget = await bootWidget(kit)
     const sessionId = await kit.session()
+    const widget = await bootWidget(kit, sessionId)
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callThroughCatalog('page.effect', {action: 'enable', effect: 'highlight'}),
     })
@@ -80,8 +80,8 @@ describe('the chat surface runs page tools without ever consulting a gate', () =
 
   it('a chat turn running page.text completes the same way', async () => {
     const {kit, harness} = await bootScripted()
-    const widget = await bootWidget(kit)
     const sessionId = await kit.session()
+    const widget = await bootWidget(kit, sessionId)
     harness.script.scriptToolCall('execute_typescript', {
       typescriptCode: callThroughCatalog('page.text', {selector: '#probe'}),
     })
@@ -97,8 +97,8 @@ describe('the code-mode surface (execute_typescript over /api/mcp) runs page too
   it('page.effect enable resolves without ever emitting an approval ask', async () => {
     const kit = await bootKit({cwd: tmpdir()})
     cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
     const sessionId = await kit.session()
+    const widget = await bootWidget(kit, sessionId)
     const approvals = pumpApprovals(kit, sessionId)
     await expect(
       kit.callTool('page.effect', {action: 'enable', effect: 'highlight'}, sessionId),
@@ -110,8 +110,8 @@ describe('the code-mode surface (execute_typescript over /api/mcp) runs page too
   it('page.text resolves without ever emitting an approval ask', async () => {
     const kit = await bootKit({cwd: tmpdir()})
     cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
     const sessionId = await kit.session()
+    const widget = await bootWidget(kit, sessionId)
     const approvals = pumpApprovals(kit, sessionId)
     await expect(kit.callTool('page.text', {selector: '#probe'}, sessionId)).resolves.toMatchObject({
       text: 'page-gate-ok',
@@ -125,7 +125,7 @@ describe('the RPC surface (registry.call) runs page tools ungated and still jour
   it('a headerless mutating page call executes without approval', async () => {
     const kit = await bootKit({cwd: tmpdir()})
     cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
+    const widget = await bootWidget(kit, '')
     await expect(
       kit.rpc.registry.call({name: 'page.effect', input: {action: 'enable', effect: 'highlight'}}),
     ).resolves.toMatchObject({effect: 'highlight', enabled: true})
@@ -135,7 +135,7 @@ describe('the RPC surface (registry.call) runs page tools ungated and still jour
   it('page.fill lands in the journal: mutating stays bookkeeping, not a gate', async () => {
     const kit = await bootKit({cwd: tmpdir()})
     cleanups.push(() => kit.cleanup())
-    const widget = await bootWidget(kit)
+    const widget = await bootWidget(kit, '')
     await expect(
       kit.rpc.registry.call({name: 'page.fill', input: {selector: '#email', value: 'a@b.c'}}),
     ).resolves.toMatchObject({ok: true})

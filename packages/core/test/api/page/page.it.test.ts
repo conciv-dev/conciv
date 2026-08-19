@@ -39,7 +39,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
   it('enriches a locate reply with symbolicated source through the server-wrapped locate tool', async () => {
     const kit = await setup()
     const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
-    state.widget = await connectWidget(kit, () => ({
+    state.widget = await connectWidget(kit, '', () => ({
       ok: true,
       result: {component: 'Home', stack: ['Home'], frames: [{fileName: `file://${chunk}`, line: 2, column: 1}]},
     }))
@@ -50,7 +50,10 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
 
   it('round-trips a page query: SSE push → widget reply → the query resolves', async () => {
     const kit = await setup()
-    state.widget = await connectWidget(kit, () => ({ok: true, result: {pathname: '/checkout', search: '', href: 'x'}}))
+    state.widget = await connectWidget(kit, '', () => ({
+      ok: true,
+      result: {pathname: '/checkout', search: '', href: 'x'},
+    }))
     expect(await callPage(kit, 'page.route')).toEqual({pathname: '/checkout', search: '', href: 'x'})
   })
 
@@ -68,7 +71,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
 
   it('round-trips a fill action and the journal records it', async () => {
     const kit = await setup()
-    state.widget = await connectWidget(kit, () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
+    state.widget = await connectWidget(kit, '', () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
     expect(await callPage(kit, 'page.fill', {selector: '#email', value: 'a@b.c'})).toEqual({ok: true, value: 'a@b.c'})
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
     expect(changes).toMatchObject([{verb: 'page.fill', selector: '#email', args: {value: 'a@b.c'}}])
@@ -82,7 +85,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
 
   it.each(FAILURE_CODES)('turns the browser failure %s into the declared rpc error %s', async (code, rpcCode) => {
     const kit = await setup()
-    state.widget = await connectWidget(kit, () => ({ok: false, error: {code, message: `${code} says no`}}))
+    state.widget = await connectWidget(kit, '', () => ({ok: false, error: {code, message: `${code} says no`}}))
     await expect(callPage(kit, 'page.text', {selector: '#h'})).rejects.toMatchObject({
       code: rpcCode,
       message: `page.text: ${code} says no`,
@@ -91,7 +94,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
 
   it('does not journal a mutation the page refused', async () => {
     const kit = await setup()
-    state.widget = await connectWidget(kit, () => ({
+    state.widget = await connectWidget(kit, '', () => ({
       ok: false,
       error: {code: 'invalid-args', message: 'no element for selector #email'},
     }))
@@ -103,7 +106,7 @@ describe('registry.call page-bus (IT, real server, typed rpc)', () => {
 
   it('does NOT journal a read, and clear empties the journal', async () => {
     const kit = await setup()
-    state.widget = await connectWidget(kit, (name) =>
+    state.widget = await connectWidget(kit, '', (name) =>
       name === 'page.text' ? {ok: true, result: {text: 'hi'}} : {ok: true, result: {ok: true}},
     )
     await callPage(kit, 'page.text', {selector: '#h'})

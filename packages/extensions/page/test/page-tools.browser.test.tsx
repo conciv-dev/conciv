@@ -149,19 +149,30 @@ describe('dom verbs', () => {
     await expect.element(formState()).toHaveTextContent('plan: free')
   })
 
-  it('mutates attributes, classes, styles, text, and structure', async () => {
-    await resultOf('setattr', {selector: '#prose', attribute: 'data-mark', value: 'on'})
+  it('mutates attributes, classes, styles, text, and structure and echoes what the DOM now holds', async () => {
+    expect(await resultOf('setattr', {selector: '#prose', attribute: 'data-mark', value: 'on'})).toEqual({
+      ok: true,
+      value: 'on',
+    })
     expect(document.querySelector('#prose')?.getAttribute('data-mark')).toBe('on')
     expect((await failureOf('setattr', {selector: '#prose', value: 'on'})).code).toBe('invalid-args')
-    await resultOf('removeattr', {selector: '#prose', attribute: 'data-mark'})
+    expect(await resultOf('removeattr', {selector: '#prose', attribute: 'data-mark'})).toEqual({
+      ok: true,
+      value: null,
+    })
     expect(document.querySelector('#prose')?.hasAttribute('data-mark')).toBe(false)
-    await resultOf('addclass', {selector: '#prose', class: 'hot'})
+    expect(await resultOf('addclass', {selector: '#prose', class: 'hot'})).toEqual({ok: true, value: true})
     expect(document.querySelector('#prose')?.classList.contains('hot')).toBe(true)
-    await resultOf('settext', {selector: '#prose', text: 'rewritten'})
+    expect(await resultOf('removeclass', {selector: '#prose', class: 'hot'})).toEqual({ok: true, value: false})
+    expect(document.querySelector('#prose')?.classList.contains('hot')).toBe(false)
+    expect(await resultOf('settext', {selector: '#prose', text: 'rewritten'})).toEqual({
+      ok: true,
+      value: 'rewritten',
+    })
     expect(document.querySelector('#prose')?.textContent).toBe('rewritten')
     await resultOf('insert', {selector: '#prose', html: '<em id="added">x</em>', position: 'after'})
     expect(document.querySelector('#added')).not.toBeNull()
-    await resultOf('remove', {selector: '#added'})
+    expect(await resultOf('remove', {selector: '#added'})).toEqual({ok: true, connected: false})
     expect(document.querySelector('#added')).toBeNull()
   })
 
@@ -295,13 +306,19 @@ describe('act and edit-live verbs', () => {
     landmark.remove()
   })
 
-  it('replaces inner HTML with sethtml', async () => {
-    expect(await resultOf('sethtml', {selector: '#htmlhost', html: '<em id="fresh">new</em>'})).toEqual({ok: true})
+  it('replaces inner HTML with sethtml and echoes the resulting markup', async () => {
+    expect(await resultOf('sethtml', {selector: '#htmlhost', html: '<em id="fresh">new</em>'})).toEqual({
+      ok: true,
+      value: '<em id="fresh">new</em>',
+    })
     expect(document.querySelector('#htmlhost')?.innerHTML).toBe('<em id="fresh">new</em>')
   })
 
-  it('sets one inline style property with setstyle', async () => {
-    expect(await resultOf('setstyle', {selector: '#styled', prop: 'color', value: 'rgb(1, 2, 3)'})).toEqual({ok: true})
+  it('sets one inline style property with setstyle and echoes the computed value, not just an ack', async () => {
+    expect(await resultOf('setstyle', {selector: '#styled', prop: 'color', value: 'rgb(1, 2, 3)'})).toEqual({
+      ok: true,
+      value: 'rgb(1, 2, 3)',
+    })
     const el = document.querySelector('#styled')
     expect(el instanceof HTMLElement ? el.style.getPropertyValue('color') : '').toBe('rgb(1, 2, 3)')
   })

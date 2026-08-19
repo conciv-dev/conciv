@@ -51,6 +51,15 @@ function connectPath(settings: {defaultOpen: boolean}): string {
   return settings.defaultOpen ? '/panel/connect?open=true' : '/panel/connect'
 }
 
+type ResolvedRouteMatch = {params: Record<string, unknown>}
+type SessionAwareRouter = {state: {matches: ResolvedRouteMatch[]}}
+
+function activeSessionId(router: SessionAwareRouter): string {
+  const match = router.state.matches.findLast((entry) => typeof entry.params['sessionId'] === 'string')
+  const sessionId = match?.params['sessionId']
+  return typeof sessionId === 'string' ? sessionId : ''
+}
+
 function makeDisconnect(getApiBase: () => string | undefined): () => void {
   return () => {
     const base = getApiBase()
@@ -129,26 +138,40 @@ function bootNormal(config: BootNormalConfig): BootResult {
   const container = document.createElement('div')
   config.root.appendChild(container)
   const disposeApp = render(() => <RouterProvider router={router} />, container)
+  const session = {id: activeSessionId(router)}
   let plane = startPagePlane({
     rpc,
     document,
     driver,
+    sessionId: session.id,
     isOnline: reachabilityRoot.isOnline,
     subscribeOnline: subscribeEngineOnline,
+  })
+
+  const restartPlane = (): void => {
+    plane.dispose()
+    plane = startPagePlane({
+      rpc,
+      document,
+      driver,
+      sessionId: session.id,
+      isOnline: reachabilityRoot.isOnline,
+      subscribeOnline: subscribeEngineOnline,
+    })
+  }
+
+  const unsubscribeSession = router.subscribe('onResolved', () => {
+    const nextSessionId = activeSessionId(router)
+    if (nextSessionId === session.id) return
+    session.id = nextSessionId
+    restartPlane()
   })
 
   const rebind = (nextApiBase: string): void => {
     rebindClient(nextApiBase)
     storage.dispose()
-    plane.dispose()
     setApiBase(nextApiBase)
-    plane = startPagePlane({
-      rpc,
-      document,
-      driver,
-      isOnline: reachabilityRoot.isOnline,
-      subscribeOnline: subscribeEngineOnline,
-    })
+    restartPlane()
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)
   }
@@ -157,6 +180,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
 
   const disposers = [
     storage.dispose,
+    unsubscribeSession,
     () => plane.dispose(),
     disposeApp,
     () => disposeConcivRouter(router),

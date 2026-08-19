@@ -87,7 +87,7 @@ export type ServerHarness = {
 }
 
 export type ServerPageCaller = {
-  call: (name: string, input: Record<string, unknown>) => Promise<Record<string, unknown>>
+  call: (name: string, input: Record<string, unknown>, sessionId: string) => Promise<Record<string, unknown>>
 }
 
 export type ServerToolCaller = {

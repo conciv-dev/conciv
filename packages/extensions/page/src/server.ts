@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineExtension, type AnyToolBuilder, type ServerPageCaller} from '@conciv/extension'
+import {defineExtension, type AnyToolBuilder, type ServerPageCaller, type ToolRequest} from '@conciv/extension'
 import {RawFrameSchema, type RawFrame, type SourceLoc} from '@conciv/protocol/page-types'
 import {locateDef, PAGE_EXTENSION_NAME, PAGE_TOOL_DEFS} from './shared/defs.js'
 import {grabAttachment} from './server/grab-attachment.js'
@@ -11,8 +11,8 @@ export type PageServerContext = {
 
 const LocateFramesSchema = z.array(RawFrameSchema)
 
-const locateServer = locateDef.server(async (input, ctx: PageServerContext) => {
-  const data = await ctx.page.call(locateDef.name, input)
+const locateServer = locateDef.server(async (input, ctx: PageServerContext, request: ToolRequest) => {
+  const data = await ctx.page.call(locateDef.name, input, request.sessionId)
   if (data.source) return data
   const frames = LocateFramesSchema.safeParse(data.frames)
   if (!frames.success || frames.data.length === 0) return data

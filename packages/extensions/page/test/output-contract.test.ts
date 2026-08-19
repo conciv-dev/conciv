@@ -20,7 +20,9 @@ describe('react tool outputs accept a deliberately null component', () => {
         symbolicate: async () => null,
       },
     })
-    await expect(registry.call('page.locate', {selector: '#anon'})).resolves.toMatchObject({component: null})
+    await expect(
+      registry.call('page.locate', {selector: '#anon'}, {request: {sessionId: 'conciv_test', model: null}}),
+    ).resolves.toMatchObject({component: null})
   })
 
   it('inspect resolves when the composite has no resolvable display name', async () => {

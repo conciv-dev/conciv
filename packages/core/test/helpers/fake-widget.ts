@@ -3,10 +3,14 @@ import type {Kit} from '@conciv/harness-testkit'
 
 export type FakeWidget = {end: () => void; seen: () => string[]}
 
-export async function connectWidget(kit: Kit, answerFor: (name: string) => PageOutcome): Promise<FakeWidget> {
+export async function connectWidget(
+  kit: Kit,
+  sessionId: string,
+  answerFor: (name: string) => PageOutcome,
+): Promise<FakeWidget> {
   const ctrl = new AbortController()
   const seen: string[] = []
-  const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
+  const iterator = await kit.rpc.page.queries({sessionId}, {signal: ctrl.signal})
   void (async () => {
     try {
       for await (const {requestId, query} of iterator) {
