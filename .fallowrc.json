@@ -96,7 +96,8 @@
     "@conciv/ui-kit-tap",
     "bippy",
     "react-grab",
-    "@solidjs/testing-library"
+    "@solidjs/testing-library",
+    "cytoscape"
   ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [

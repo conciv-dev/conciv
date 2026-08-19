@@ -2795,7 +2795,7 @@ importers:
         specifier: ^0.18.1
         version: 0.18.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(immer@11.1.8)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@excalidraw/mermaid-to-excalidraw':
-        specifier: ^2.2.2
+        specifier: 2.2.2
         version: 2.2.2
       '@libsql/client':
         specifier: ^0.17.4
@@ -2821,6 +2821,9 @@ importers:
       '@tanstack/solid-db':
         specifier: ^0.2.28
         version: 0.2.28(solid-js@1.9.14)(typescript@6.0.3)
+      cytoscape:
+        specifier: 3.34.0
+        version: 3.34.0
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)
@@ -3605,7 +3608,7 @@ importers:
   packages/solid-diffs:
     dependencies:
       '@pierre/diffs':
-        specifier: ^1.2.11
+        specifier: 1.2.11
         version: 1.2.11(@shikijs/themes@4.2.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
       '@types/node':
