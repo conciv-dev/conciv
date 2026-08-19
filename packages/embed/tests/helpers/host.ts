@@ -21,6 +21,7 @@ function backdropStyle(backdrop: string | null | undefined): string {
 
 export function hostPage(opts: {apiBase: string; widget?: string; body?: string; backdrop?: string | null}): string {
   return `<!doctype html><html><head>
+    <meta charset="utf-8">
     <meta name="pw-api-base" content="${opts.apiBase}">
     <meta name="pw-widget" content='${opts.widget ?? '{}'}'>
     ${backdropStyle(opts.backdrop)}
@@ -32,7 +33,9 @@ export function hostPage(opts: {apiBase: string; widget?: string; body?: string;
 
 export function handleHostPage(body?: string): string {
   const handleBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-handle.global.js'), 'utf8')
-  return `<!doctype html><html><head></head><body>
+  return `<!doctype html><html><head>
+    <meta charset="utf-8">
+  </head><body>
     ${body ?? '<div id="probe">page-bus-ok</div>'}
     <script>${handleBundle}</script>
   </body></html>`

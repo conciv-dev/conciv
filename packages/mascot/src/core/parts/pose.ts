@@ -16,10 +16,10 @@ const HEAD_POSED_PROPERTIES = 'rotation,scaleX,scaleY'
 const EYES_POSED_PROPERTIES = 'scaleX'
 const ANTENNA_POSED_PROPERTIES = 'rotation'
 
-const AWAKE_ANTICIPATION: gsap.TweenVars = {yPercent: 6, duration: 0.08, ease: 'power2.in'}
-const AWAKE_STRETCH: gsap.TweenVars = {yPercent: -7, duration: 0.2, ease: 'expo.out'}
-const REST_ANTICIPATION: gsap.TweenVars = {yPercent: 4, duration: 0.07, ease: 'power2.in'}
-const REST_SETTLE: gsap.TweenVars = {yPercent: REST_HEAD_Y_PERCENT, duration: 0.2, ease: 'power3.out'}
+const AWAKE_ANTICIPATION: gsap.TweenVars = {yPercent: 6, duration: 0.08, ease: 'power2.in', force3D: true}
+const AWAKE_STRETCH: gsap.TweenVars = {yPercent: -7, duration: 0.2, ease: 'expo.out', force3D: true}
+const REST_ANTICIPATION: gsap.TweenVars = {yPercent: 4, duration: 0.07, ease: 'power2.in', force3D: true}
+const REST_SETTLE: gsap.TweenVars = {yPercent: REST_HEAD_Y_PERCENT, duration: 0.2, ease: 'power3.out', force3D: true}
 
 export function createPoseController(parts: PoseParts, skin: MascotSkin): PoseController {
   const {head, eyes, antenna} = parts

@@ -16,6 +16,11 @@ beforeEach(() => {
   virtualizeThreshold.value = 50
 })
 
+const windowErrors: string[] = []
+window.addEventListener('error', (event) => {
+  windowErrors.push(typeof event.message === 'string' ? event.message : String(event))
+})
+
 function seedMessages(count: number): UIMessage[] {
   const messages: UIMessage[] = []
   for (let index = 0; index < count; index++) {
@@ -95,6 +100,16 @@ it('virtualizes above the threshold: early turns unmount, pinned to the latest t
   await expect.element(page.getByText('answer 59')).toBeVisible()
   await expect.element(page.elementLocator(thread.viewport())).toHaveAttribute('data-at-bottom')
   await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
+})
+
+it('virtualizing above the threshold never trips a ResizeObserver notification loop', async () => {
+  windowErrors.length = 0
+  mountThread(seedMessages(60))
+
+  await expect.element(page.getByText('answer 59')).toBeVisible()
+
+  const loopErrors = windowErrors.filter((message) => message.includes('ResizeObserver loop'))
+  expect(loopErrors).toEqual([])
 })
 
 it('stays flat below the threshold: every turn stays mounted', async () => {

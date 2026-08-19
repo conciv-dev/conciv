@@ -35,7 +35,7 @@ export function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly s
       exclude: rootResolvable,
       include: [],
     },
-    server: {warmup: {clientFiles: [...(opts.warmupFiles ?? [])]}},
+    server: {forwardConsole: false, warmup: {clientFiles: [...(opts.warmupFiles ?? [])]}},
   }
 }
 

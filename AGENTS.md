@@ -43,6 +43,12 @@ README.md; this file is the non-obvious operational rules.
   tools, plugin) always resolve dist: rebuild embed for widget-shell edits, restart the dev server
   for server-side edits. NEW UnoCSS utility classes added in ui-kit src need an embed rebuild to
   appear (css is generated at embed build).
+- Vite 8 auto-enables `server.forwardConsole` when it detects an agent env (`AI_AGENT` checked first,
+  then `CLAUDECODE` etc.); combined with `@tanstack/devtools-vite`'s server-to-browser console pipe,
+  a single page `console.error` round-trips forever as growing `[Server] ...` entries (12+ GB tabs
+  observed). `concivSolidConfig` (extension-compiler) now sets `server.forwardConsole: false`
+  unconditionally for every host wired through the conciv vite plugin, so scrubbing agent env vars
+  before starting a dev server is no longer load-bearing.
 - On large commits the prek hook can abort with a `next-index-*.lock.lock` error (file-lock race).
   Recover by running `pnpm format` manually, then `git commit --no-verify`.
 - Never kill a dev server with `kill $(lsof -ti tcp:PORT)`. That also matches the user's connected

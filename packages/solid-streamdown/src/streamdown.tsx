@@ -1,7 +1,8 @@
-import {createMemo, Index, type JSX, Match, Switch} from 'solid-js'
+import {type Accessor, createMemo, Index, type JSX, Match, Switch} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {createImmutable} from '@solid-primitives/immutable'
 import {unified, type Pluggable} from 'unified'
-import type {Element, ElementContent, Root, RootContent} from 'hast'
+import type {Root, RootContent} from 'hast'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import remarkGfm from 'remark-gfm'
@@ -27,6 +28,9 @@ const rawSchema = {
   },
 }
 const rawPlugins: Pluggable[] = [rehypeRaw, [rehypeSanitize, rawSchema]]
+const defaultLinkPrefixes: string[] = ['*']
+const defaultImagePrefixes: string[] = ['*']
+const hastImmutableOptions = {key: null, merge: true}
 
 export type StreamdownProps = {
   children: string
@@ -42,9 +46,31 @@ export type StreamdownProps = {
   class?: string
 }
 
-function codeText(node: Element | undefined): string {
-  const child = node?.children?.[0]
-  return child && child.type === 'text' ? child.value : ''
+export type HastLikeNode = {
+  type: string
+  value?: string
+  tagName?: string
+  properties: Record<string, unknown>
+  children: HastLikeNode[]
+}
+
+function normalizeHastNode(node: Root | RootContent): HastLikeNode {
+  if (node.type === 'text') return {type: 'text', value: node.value, properties: {}, children: []}
+  if (node.type === 'element') {
+    return {
+      type: 'element',
+      tagName: node.tagName,
+      properties: node.properties,
+      children: node.children.map(normalizeHastNode),
+    }
+  }
+  if (node.type === 'root') return {type: 'root', properties: {}, children: node.children.map(normalizeHastNode)}
+  return {type: node.type, properties: {}, children: []}
+}
+
+function codeText(node: HastLikeNode | undefined): string {
+  const child = node?.children[0]
+  return child && child.type === 'text' ? (child.value ?? '') : ''
 }
 
 function codeLang(className: unknown): string | undefined {
@@ -74,22 +100,18 @@ function findIncompleteCodeFence(markdown: string): boolean {
 }
 
 function HastNode(props: {
-  node: () => Root | ElementContent | RootContent
+  node: () => HastLikeNode
   components: Record<string, (props: any) => JSX.Element>
   highlightCode?: HighlightCode
 }): JSX.Element {
   return (
     <Switch>
-      <Match when={props.node().type === 'text'}>{(props.node() as {value: string}).value}</Match>
+      <Match when={props.node().type === 'text'}>{props.node().value}</Match>
       <Match when={props.node().type === 'element'}>
-        <HastElement
-          node={props.node as () => Element}
-          components={props.components}
-          highlightCode={props.highlightCode}
-        />
+        <HastElement node={props.node} components={props.components} highlightCode={props.highlightCode} />
       </Match>
       <Match when={props.node().type === 'root'}>
-        <Index each={(props.node() as Root).children}>
+        <Index each={props.node().children}>
           {(child) => <HastNode node={child} components={props.components} highlightCode={props.highlightCode} />}
         </Index>
       </Match>
@@ -98,11 +120,14 @@ function HastNode(props: {
 }
 
 function HastElement(props: {
-  node: () => Element
+  node: () => HastLikeNode
   components: Record<string, (props: any) => JSX.Element>
   highlightCode?: HighlightCode
 }): JSX.Element {
-  const component = () => props.components[props.node().tagName] || props.node().tagName
+  const component = () => {
+    const tagName = props.node().tagName ?? 'span'
+    return props.components[tagName] || tagName
+  }
   const isCustom = () => typeof component() === 'function'
 
   const attrs = createMemo(() => {
@@ -129,18 +154,16 @@ function HastElement(props: {
 }
 
 const Pre = (props: {
-  node?: Element
+  node?: HastLikeNode
   children?: JSX.Element
   class?: string
   highlightCode?: HighlightCode
 }): JSX.Element => {
-  const codeNode = createMemo(() =>
-    props.node?.children.find((c: ElementContent): c is Element => c.type === 'element' && c.tagName === 'code'),
-  )
+  const codeNode = createMemo(() => props.node?.children.find((c) => c.type === 'element' && c.tagName === 'code'))
   return (
     <Switch fallback={<pre class={props.class}>{props.children}</pre>}>
       <Match when={props.highlightCode && codeNode()}>
-        {(node) => <div innerHTML={props.highlightCode!(codeText(node()), codeLang(node().properties?.className))} />}
+        {(node) => <div innerHTML={props.highlightCode!(codeText(node()), codeLang(node().properties.className))} />}
       </Match>
     </Switch>
   )
@@ -152,6 +175,45 @@ const Code = (props: {class?: string; children?: JSX.Element}): JSX.Element => (
 
 const STABLE_COMPONENTS = {pre: Pre, code: Code}
 
+export type HastBuildProps = {
+  text: string
+  animate: boolean
+  plugin: AnimatePlugin
+  allowRawHtml: boolean
+  linkPrefixes: string[]
+  imagePrefixes: string[]
+}
+
+export function createHast(props: Accessor<HastBuildProps>): HastLikeNode {
+  const processor = createMemo(() => {
+    const current = props()
+    const hardenPlugin: Pluggable = [
+      harden,
+      {allowedLinkPrefixes: current.linkPrefixes, allowedImagePrefixes: current.imagePrefixes},
+    ]
+    return unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .use(remarkRehype, {allowDangerousHtml: true})
+      .use([
+        ...(current.allowRawHtml ? rawPlugins : []),
+        hardenPlugin,
+        ...(current.animate ? [current.plugin.rehypePlugin] : []),
+      ])
+  })
+
+  const rawHast = createMemo(() => {
+    const p = processor()
+    const current = props()
+
+    current.plugin.setPrevContentLength(current.plugin.getLastRenderCharCount())
+    const parsed = p.runSync(p.parse(current.text)) as Root
+    return normalizeHastNode(parsed)
+  })
+
+  return createImmutable(() => rawHast(), hastImmutableOptions)
+}
+
 function Block(props: {
   text: string
   animate: boolean
@@ -161,30 +223,9 @@ function Block(props: {
   linkPrefixes: string[]
   imagePrefixes: string[]
 }): JSX.Element {
-  const processor = createMemo(() => {
-    const hardenPlugin: Pluggable = [
-      harden,
-      {allowedLinkPrefixes: props.linkPrefixes, allowedImagePrefixes: props.imagePrefixes},
-    ]
-    return unified()
-      .use(remarkParse)
-      .use(remarkGfm)
-      .use(remarkRehype, {allowDangerousHtml: true})
-      .use([
-        ...(props.allowRawHtml ? rawPlugins : []),
-        hardenPlugin,
-        ...(props.animate ? [props.plugin.rehypePlugin] : []),
-      ])
-  })
+  const hast = createHast(() => props)
 
-  const hast = createMemo(() => {
-    const p = processor()
-
-    props.plugin.setPrevContentLength(props.plugin.getLastRenderCharCount())
-    return p.runSync(p.parse(props.text)) as Root
-  })
-
-  return <HastNode node={hast} components={STABLE_COMPONENTS as any} highlightCode={props.highlightCode} />
+  return <HastNode node={() => hast} components={STABLE_COMPONENTS as any} highlightCode={props.highlightCode} />
 }
 
 function normalizeCaret(caret: StreamdownProps['caret']): CaretVariant | undefined {
@@ -233,8 +274,8 @@ export function Streamdown(props: StreamdownProps): JSX.Element {
             plugin={pluginFor(index)}
             allowRawHtml={props.allowRawHtml === true}
             highlightCode={props.highlightCode}
-            linkPrefixes={props.allowedLinkPrefixes ?? ['*']}
-            imagePrefixes={props.allowedImagePrefixes ?? ['*']}
+            linkPrefixes={props.allowedLinkPrefixes ?? defaultLinkPrefixes}
+            imagePrefixes={props.allowedImagePrefixes ?? defaultImagePrefixes}
           />
         )}
       </Index>

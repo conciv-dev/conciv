@@ -4,6 +4,7 @@ import {
   Index,
   indexArray,
   Match,
+  onMount,
   Show,
   Switch,
   useContext,
@@ -51,7 +52,7 @@ import {
 } from './turn-classes.js'
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
-import {Markdown} from './markdown.js'
+import {Markdown, warmHighlighter} from './markdown.js'
 import {ToolFallback} from '../tools/styled/tool-fallback.js'
 import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
 import {Trace, type TraceBranch, type TraceItem} from './trace/trace.js'
@@ -368,6 +369,7 @@ function AssistantMessageView(): JSX.Element {
 const MESSAGES_COMPONENTS = {UserMessage: UserTurn, AssistantMessage: AssistantMessageView}
 
 function ThreadRoot(props: ThreadRootProps): JSX.Element {
+  onMount(() => warmHighlighter())
   return (
     <div
       class={`flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)] ${props.class ?? ''}`}

@@ -231,10 +231,22 @@ function VirtualMessages(props: {
     onCleanup(() => {
       disposed = true
     })
+    let pendingRefreshFrame: number | undefined
+    onCleanup(() => {
+      if (pendingRefreshFrame !== undefined) cancelAnimationFrame(pendingRefreshFrame)
+    })
+    const scheduleEstimateRefresh = (): void => {
+      if (pendingRefreshFrame !== undefined) return
+      pendingRefreshFrame = requestAnimationFrame(() => {
+        pendingRefreshFrame = undefined
+        if (disposed || !estimator) return
+        estimator.reset()
+        virtualizer.remeasure()
+      })
+    }
     void document.fonts.ready.then(() => {
-      if (disposed || !estimator) return
-      estimator.reset()
-      virtualizer.remeasure()
+      if (disposed) return
+      scheduleEstimateRefresh()
     })
     const viewport = props.internal.element()
     if (viewport) {
@@ -243,9 +255,7 @@ function VirtualMessages(props: {
       createResizeObserver(viewport, ({width}) => {
         if (width === lastWidth) return
         lastWidth = width
-        if (!estimator) return
-        estimator.reset()
-        virtualizer.remeasure()
+        scheduleEstimateRefresh()
       })
       const previousAnchoring = viewport.style.overflowAnchor
       viewport.style.overflowAnchor = 'none'
