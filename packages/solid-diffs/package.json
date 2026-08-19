@@ -37,7 +37,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@pierre/diffs": "^1.2.11"
+    "@pierre/diffs": "1.2.11"
   },
   "devDependencies": {
     "@types/node": "^22.19.21",
