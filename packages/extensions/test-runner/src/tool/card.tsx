@@ -13,8 +13,10 @@ import {
   ErrorBlock,
   StatusVisual,
   cardHeader,
+  formatDuration,
   resultText,
 } from '@conciv/ui-kit-chat/tools'
+import {groupBy} from 'es-toolkit'
 import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {getExtensionApi, makeExtRpcClient} from '@conciv/extension'
 import {TEST_RUNNER_NAME} from '../shared/meta.js'
@@ -31,7 +33,7 @@ import {
 } from '../shared/events.js'
 
 type RowState = TestState | 'running'
-type Row = {id: string; name: string; state: RowState; error?: TestError}
+type Row = {id: string; name: string; state: RowState; durationMs: number; error?: TestError}
 type FileGroup = {file: string; tests: Row[]}
 type RunView = {groups: FileGroup[]; summary: Summary; running: boolean}
 type LiveRun = {tests: TestRowResult[]; finalSummary: Summary | null; running: boolean}
@@ -46,7 +48,9 @@ const FILE_NAME =
   'min-w-0 truncate font-semibold [font-family:var(--chat-mono)] text-[length:var(--chat-text-sm)] text-[color:var(--chat-text)]'
 const ROW = 'flex min-w-0 items-center gap-2 py-1'
 const ROW_NAME =
-  'min-w-0 truncate text-[length:var(--chat-text-sm)] [font-family:var(--chat-mono)] text-[color:var(--chat-text-2)]'
+  'min-w-0 flex-1 truncate text-[length:var(--chat-text-sm)] [font-family:var(--chat-mono)] text-[color:var(--chat-text-2)]'
+const ROW_DURATION =
+  'shrink-0 tabular-nums text-[length:var(--chat-text-xs)] [font-family:var(--chat-mono)] text-[color:var(--chat-text-3)]'
 const FAILURE_BODY = 'flex flex-col gap-2 pt-1'
 const SECTIONS = 'flex flex-col gap-0.5'
 
@@ -95,19 +99,17 @@ function summarySentence(summary: Summary, running: boolean): string {
 }
 
 function groupByFile(tests: ReadonlyArray<Row & {file: string}>): FileGroup[] {
-  const order: string[] = []
-  const byFile = new Map<string, Row[]>()
-  for (const test of tests) {
-    const row = {id: test.id, name: test.name, state: test.state, error: test.error}
-    const rows = byFile.get(test.file)
-    if (rows) {
-      rows.push(row)
-      continue
-    }
-    order.push(test.file)
-    byFile.set(test.file, [row])
-  }
-  return order.map((file) => ({file, tests: byFile.get(file) ?? []}))
+  const grouped = groupBy(tests, (test) => test.file)
+  return Object.entries(grouped).map(([file, rows]) => ({
+    file,
+    tests: rows.map((test) => ({
+      id: test.id,
+      name: test.name,
+      state: test.state,
+      durationMs: test.durationMs,
+      error: test.error,
+    })),
+  }))
 }
 
 function upsertTest(tests: ReadonlyArray<TestRowResult>, row: TestRowResult): TestRowResult[] {
@@ -132,12 +134,19 @@ function stackDetail(error: TestError): string | undefined {
   return stack && stack !== error.message.trim() ? stack : undefined
 }
 
-function TestRow(props: {state: RowState; name: string}): JSX.Element {
+function durationLabel(ms: number): string | undefined {
+  if (!Number.isFinite(ms) || ms <= 0) return undefined
+  return ms < 1000 ? `${Math.round(ms)}ms` : (formatDuration(ms) ?? `${Math.round(ms)}ms`)
+}
+
+function TestRow(props: {state: RowState; name: string; durationMs: number}): JSX.Element {
+  const duration = () => durationLabel(props.durationMs)
   return (
     <>
       <StatusDot tone={ROW_TONE[props.state]} pulse={props.state === 'running'} />
       <span class="sr-only">{stateLabel(props.state)}: </span>
       <span class={ROW_NAME}>{props.name}</span>
+      <Show when={duration()}>{(value) => <span class={ROW_DURATION}>{value()}</span>}</Show>
     </>
   )
 }
@@ -273,13 +282,13 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
                       when={test.error}
                       fallback={
                         <div class={ROW}>
-                          <TestRow state={test.state} name={test.name} />
+                          <TestRow state={test.state} name={test.name} durationMs={test.durationMs} />
                         </div>
                       }
                     >
                       {(error) => (
                         <CollapsibleSection
-                          header={<TestRow state={test.state} name={test.name} />}
+                          header={<TestRow state={test.state} name={test.name} durationMs={test.durationMs} />}
                           open={disclosure.openTest === key}
                           onOpenChange={(open) => setDisclosure('openTest', open ? key : null)}
                         >

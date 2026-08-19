@@ -9,7 +9,7 @@ export const MUTATING_BADGE = 'edits page'
 export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 [color:var(--chat-text-3)]'
 
 export const DANGER_TEXT_CLASS =
-  'text-[length:var(--chat-text-sm)] whitespace-pre-wrap [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'
+  'text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)] whitespace-pre-wrap [overflow-wrap:anywhere] [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'
 
 export function codeBlockOptions(): FileOptions<undefined> {
   return {

@@ -41,7 +41,7 @@ import {SessionPillPending, UsagePending, ViewTabsPending} from '../shell/pendin
 import {collectViews} from '../extension/extension-views.js'
 
 const RAIL =
-  'flex items-center gap-2.5 pt-[11px] pe-3 pb-[10px] ps-5 [border-block-end:1px_solid_var(--chat-line-soft)]'
+  'flex h-15 shrink-0 box-border items-center gap-2.5 pe-3 ps-5 [border-block-end:1px_solid_var(--chat-line-soft)]'
 const RAIL_LEFT = 'flex flex-1 flex-col min-w-0 gap-[2px]'
 const RAIL_MICROLABEL =
   '[font-family:var(--chat-mono)] text-[9.5px] uppercase tracking-[0.14em] [color:var(--chat-microlabel)] whitespace-nowrap'

@@ -22,8 +22,8 @@ function safeColor(value: string, fallback: string): string {
 function readSurface(node: Element): Surface {
   const styles = getComputedStyle(node)
   return {
-    base: safeColor(styles.getPropertyValue('--pw-panel'), BASE_FALLBACK),
-    overlay: safeColor(styles.getPropertyValue('--pw-fill'), OVERLAY_FALLBACK),
+    base: safeColor(styles.getPropertyValue('--chat-panel'), BASE_FALLBACK),
+    overlay: safeColor(styles.getPropertyValue('--chat-fill'), OVERLAY_FALLBACK),
   }
 }
 

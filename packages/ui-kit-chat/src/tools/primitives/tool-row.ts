@@ -19,7 +19,7 @@ export function countLabel(count: number, one: string, other: string): string {
   return `${count} ${PLURAL_RULES.select(count) === 'one' ? one : other}`
 }
 
-const MAX_LABEL_LENGTH = 9
+const MAX_LABEL_LENGTH = 12
 const MAX_TARGET_LENGTH = 160
 
 const VERB_ALIASES: Record<string, string> = {
@@ -53,10 +53,22 @@ function labelCandidates(raw: string, tokens: string[]): string[] {
   return [raw, lastTwo, last]
 }
 
+const CAMEL_BOUNDARY = /([a-z0-9])([A-Z])/g
+const ACRONYM_BOUNDARY = /([A-Z]+)([A-Z][a-z])/g
+
+function labelTokens(segment: string): string[] {
+  return segment
+    .replace(ACRONYM_BOUNDARY, '$1_$2')
+    .replace(CAMEL_BOUNDARY, '$1_$2')
+    .toLowerCase()
+    .split(/[_-]/)
+    .filter(Boolean)
+}
+
 export function shortToolLabel(name: string): string {
   const segments = name.split(/__|\./).filter(Boolean)
-  const raw = (segments[segments.length - 1] ?? name).toLowerCase()
-  const tokens = raw.split(/[_-]/).filter(Boolean)
+  const tokens = labelTokens(segments[segments.length - 1] ?? name)
+  const raw = tokens.join('_')
   const alias = VERB_ALIASES[raw] ?? VERB_ALIASES[tokens[0] ?? raw] ?? VERB_ALIASES[tokens[tokens.length - 1] ?? raw]
   if (alias) return alias
   const candidates = labelCandidates(raw, tokens)
@@ -92,20 +104,29 @@ function stringField(input: Record<string, unknown>, key: string): string | unde
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined
 }
 
-export function primaryArgument(part: ToolCallPart): string {
+function argumentRecord(part: ToolCallPart): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(part.arguments || '{}')
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return ''
-    const input = parsed as Record<string, unknown>
-    const preferred = TARGET_KEYS.map((key) => stringField(input, key)).find((value) => value !== undefined)
-    const fallback = Object.values(input).find(
-      (value): value is string => typeof value === 'string' && value.trim().length > 0,
-    )
-    const chosen = preferred ?? fallback
-    return chosen === undefined ? '' : clipTarget(chosen)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return {...parsed}
   } catch {
-    return ''
+    return {}
   }
+}
+
+export function namedArgument(part: ToolCallPart): string | undefined {
+  const input = argumentRecord(part)
+  const named = TARGET_KEYS.map((key) => stringField(input, key)).find((value) => value !== undefined)
+  return named === undefined ? undefined : clipTarget(named)
+}
+
+export function primaryArgument(part: ToolCallPart): string {
+  const named = namedArgument(part)
+  if (named !== undefined) return named
+  const loose = Object.values(argumentRecord(part)).find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  )
+  return loose === undefined ? '' : clipTarget(loose)
 }
 
 export function genericRowProjection(source: ToolRowProps): ToolRowProjection {
@@ -113,5 +134,27 @@ export function genericRowProjection(source: ToolRowProps): ToolRowProjection {
     mark: rowMarkOf(source.part, source.result),
     label: shortToolLabel(source.part.name),
     target: primaryArgument(source.part) || source.part.name,
+  }
+}
+
+export type EmbeddedCardHeader = {
+  title: string
+  meta?: string
+  status?: ToolStatus
+}
+
+function filled(value: string | undefined): string | undefined {
+  const text = value === undefined ? '' : collapseWhitespace(value)
+  return text.length > 0 ? text : undefined
+}
+
+export function headerRowProjection(header: EmbeddedCardHeader, source: ToolRowProps): ToolRowProjection {
+  const title = filled(header.title)
+  if (title === undefined) return genericRowProjection(source)
+  return {
+    mark: header.status === undefined ? rowMarkOf(source.part, source.result) : MARK_OF_STATUS[header.status],
+    label: shortToolLabel(source.part.name),
+    target: namedArgument(source.part) ?? clipTarget(title),
+    meta: filled(header.meta),
   }
 }

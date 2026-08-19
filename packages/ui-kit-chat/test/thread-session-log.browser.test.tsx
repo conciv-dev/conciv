@@ -24,7 +24,7 @@ function baseToolCtx(): ToolViewCtx {
 
 function StreamingThread(): JSX.Element {
   const chat = useChat({
-    connection: storyConnection({chunks: createTextChunks('The fix is a missing await.'), chunkDelay: 30}),
+    connection: storyConnection({chunks: createTextChunks('The fix is a missing await.'), chunkDelay: 400}),
   })
   return (
     <ChatProvider chat={chat}>

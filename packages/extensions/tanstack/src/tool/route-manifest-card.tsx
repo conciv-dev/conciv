@@ -31,10 +31,12 @@ export function RouteManifestCard(props: ToolCardProps): JSX.Element {
             <For each={list()}>
               {(route) => (
                 <CardRow>
-                  <span class="min-w-0 truncate [color:var(--chat-text-2)]">{route.path}</span>
-                  <Chip kind="pill" value={route.kind} />
+                  <span class="text-chat-text-2 flex-1 min-w-0 truncate">{route.path}</span>
+                  <span class="text-[10.5px] text-chat-text-3 tracking-[0.06em] shrink-0 w-14 uppercase">
+                    {route.kind}
+                  </span>
                   <Show when={route.dynamic}>
-                    <Chip kind="pill" value="dynamic" />
+                    <Chip kind="pill" value="dynamic" tone="accent" />
                   </Show>
                 </CardRow>
               )}

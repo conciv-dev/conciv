@@ -18,8 +18,8 @@ function blessedDiffOptions(): FileDiffOptions<undefined> {
 const codeBlock = cva('block w-full min-w-0 overflow-auto [background:transparent] [font-family:var(--chat-mono)]', {
   variants: {
     size: {
-      xs: 'text-[11px]',
-      sm: 'text-[12px]',
+      xs: 'text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)]',
+      sm: 'text-[length:var(--chat-text-sm)]',
     },
     maxHeight: {
       result: 'max-h-[13.75rem]',
@@ -40,8 +40,8 @@ const diffBlock = cva(
   {
     variants: {
       size: {
-        xs: 'text-[11px]',
-        sm: 'text-[12px]',
+        xs: 'text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)]',
+        sm: 'text-[length:var(--chat-text-sm)]',
       },
     },
     defaultVariants: {size: 'xs'},

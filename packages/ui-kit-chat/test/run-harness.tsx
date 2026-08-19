@@ -7,12 +7,17 @@ const RUN_TIMEOUT_MS = 3000
 
 export function RunSettledIndicator(): JSX.Element {
   const thread = useThread()
-  return <span>{thread.isRunning ? 'run live' : 'run settled'}</span>
+  return (
+    <>
+      <span>{thread.isRunning ? 'run live' : 'run settled'}</span>
+      <span>{thread.isEmpty ? 'run pending' : 'run started'}</span>
+    </>
+  )
 }
 
 export async function startRun(): Promise<void> {
   await page.getByRole('button', {name: 'ask'}).click()
-  await expect.element(page.getByText('run live'), {timeout: RUN_TIMEOUT_MS}).toBeVisible()
+  await expect.element(page.getByText('run started'), {timeout: RUN_TIMEOUT_MS}).toBeVisible()
 }
 
 export async function waitForRunSettled(): Promise<void> {

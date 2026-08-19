@@ -1,15 +1,15 @@
-import {createMemo, Show, splitProps, type JSX} from 'solid-js'
+import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {ToolCardEntry, ToolCardProps, ToolRowProjection, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 import {ToolFallback} from './tool-fallback.js'
 import {ToolDurationProvider} from '../primitives/tool-duration.js'
-import {genericRowProjection} from '../primitives/tool-row.js'
+import {genericRowProjection, headerRowProjection, type EmbeddedCardHeader} from '../primitives/tool-row.js'
 import {resultText} from '../primitives/tool-util.js'
 import {MetaToolCard} from './meta-tool-card.js'
 import {PermissionCard} from './permission-card.js'
-import {CardChromeProvider, useEmbeddedCard} from './card-chrome.js'
+import {CardChromeProvider, useEmbeddedCard, type EmbeddedHeaderChannel} from './card-chrome.js'
 import {TraceToolRow} from '../../styled/trace/trace-row.js'
-import {TraceBodyFrame} from '../../styled/trace/output-block.js'
+import {TraceBodyFrame, type TraceOutputTone} from '../../styled/trace/output-block.js'
 import {TracePermissionBlock} from '../../styled/trace/permission-block.js'
 
 export type ToolCallCardProps = Omit<ToolCardProps, 'addResult'> & {
@@ -58,15 +58,26 @@ function hasArguments(part: ToolCallCardProps['part']): boolean {
 export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   const [local] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'last', 'ring'])
   const matched = () => local.tools?.().find((entry) => entry.names.includes(local.part.name))
+  const [cardHeader, setCardHeader] = createSignal<{read: () => EmbeddedCardHeader}>()
+  const publishHeader: EmbeddedHeaderChannel = (read) => {
+    const published = {read}
+    setCardHeader(published)
+    return () => setCardHeader((current) => (current === published ? undefined : current))
+  }
   const projection = createMemo<ToolRowProjection>(() => {
     const rowProps = {part: local.part, result: local.result, ctx: local.ctx}
     const project = matched()?.row
-    return project ? project(rowProps) : genericRowProjection(rowProps)
+    if (project) return project(rowProps)
+    const published = cardHeader()
+    return published ? headerRowProjection(published.read(), rowProps) : genericRowProjection(rowProps)
   })
+  const rowLine = () => `${projection().target} ${projection().meta ?? ''}`
   const asking = () => local.part.approval !== undefined && local.ctx.respondApproval !== undefined
+  const lastRow = () => (local.last ?? false) && !asking()
+  const bodyTone = (): TraceOutputTone => (projection().mark === 'fail' ? 'error' : 'normal')
   const cardBody = (): JSX.Element => (
-    <TraceBodyFrame>
-      <CardChromeProvider value="embedded">
+    <TraceBodyFrame tone={bodyTone()}>
+      <CardChromeProvider value="embedded" headerChannel={publishHeader} rowLine={rowLine}>
         <ToolCallCard
           part={local.part}
           result={local.result}
@@ -82,7 +93,7 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     hasArguments(local.part) || resultText(local.result).length > 0 ? cardBody : undefined
   return (
     <>
-      <TraceToolRow projection={projection()} last={local.last ?? false} ring={local.ring ?? true} body={body()} />
+      <TraceToolRow projection={projection()} last={lastRow()} ring={local.ring ?? true} body={body()} />
       <Show when={asking()}>
         <TracePermissionBlock
           part={local.part}

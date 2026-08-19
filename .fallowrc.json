@@ -29,6 +29,7 @@
     "**/*.stories.tsx",
     "**/*.test-d.ts",
     "**/*.fixtures.ts",
+    "**/*.fixtures.tsx",
     "packages/ui-kit-chat/src/store/story-connection.ts"
   ],
   "duplicates": {

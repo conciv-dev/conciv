@@ -3,12 +3,12 @@ import {cva} from 'class-variance-authority'
 import {Tooltip} from '@conciv/ui-kit-system'
 
 const chip = cva(
-  'inline-flex max-w-full min-w-0 items-center gap-1.25 overflow-hidden text-ellipsis whitespace-nowrap rounded-[var(--chat-radius-pill)] [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)]',
+  'inline-flex max-w-full min-w-0 items-center gap-1.25 overflow-hidden text-ellipsis whitespace-nowrap leading-none rounded-[var(--chat-radius-pill)] [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)]',
   {
     variants: {
       kind: {
-        field: 'py-0.5 px-2.25',
-        pill: 'py-0.5 px-2',
+        field: 'px-2.25 pt-1.25 pb-1',
+        pill: 'px-2 pt-1.25 pb-1',
       },
       tone: {
         neutral: '',

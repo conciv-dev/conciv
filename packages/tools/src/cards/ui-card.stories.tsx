@@ -20,7 +20,7 @@ function unanswered(note: string): ToolResultPart {
   return {type: 'tool-result', toolCallId: 'u1', content: JSON.stringify({answered: false, note}), state: 'complete'}
 }
 function frame(theme: string, child: JSX.Element): JSX.Element {
-  return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
+  return <div class={`${theme} p-4 w-[28rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
 }
 
 export const Choices: Story = {
@@ -38,6 +38,8 @@ export const Choices: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('Ship it or hold?')).toBeVisible()
     await expect(c.getByRole('button', {name: 'ship'})).toBeEnabled()
+    await expect(c.getByText('UI')).toBeVisible()
+    await expect(c.getByText('Rendered choices')).toBeVisible()
   },
 }
 

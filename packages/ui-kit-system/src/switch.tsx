@@ -4,7 +4,7 @@ import {Switch as Ark} from '@ark-ui/solid/switch'
 const ROOT =
   'inline-flex items-center gap-2 cursor-pointer select-none data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed'
 const CONTROL =
-  'relative inline-flex items-center w-8 h-4.5 rounded-pw-pill bg-pw-fill-strong [border:1px_solid_var(--pw-line)] trans-btn data-[state=checked]:bg-pw-accent data-[state=checked]:[border-color:var(--pw-accent)] focus-within:[outline:0.125rem_solid_var(--pw-accent)] focus-within:[outline-offset:0.125rem]'
+  'relative inline-flex items-center w-8 h-4.5 rounded-pw-pill bg-pw-fill-strong [border:1px_solid_var(--pw-line)] trans-btn data-[state=checked]:bg-pw-accent data-[state=checked]:[border-color:var(--pw-accent)] data-[focus-visible]:[outline:0.125rem_solid_var(--pw-accent)] data-[focus-visible]:[outline-offset:0.125rem]'
 const THUMB =
   'size-3.5 rounded-pw-pill bg-pw-text translate-x-0.5 trans-btn data-[state=checked]:translate-x-3.5 data-[state=checked]:bg-pw-on-accent'
 const LABEL = 'text-[0.8125rem] font-pw text-pw-text-2'

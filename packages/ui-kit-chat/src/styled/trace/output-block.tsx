@@ -7,15 +7,16 @@ import {TraceClamp, type TraceClampSize} from './clamp.js'
 export type TraceOutputTone = 'normal' | 'error'
 
 const FRAME =
-  'relative group/output min-w-0 rounded-[var(--chat-radius-sm)] px-2.5 py-[7px] [background:var(--chat-frame-bg)]'
+  'relative group/output min-w-0 rounded-[var(--chat-radius-sm)] px-2.5 py-1.75 [background:var(--chat-frame-bg)]'
 const FRAME_TONE: Record<TraceOutputTone, string> = {
   normal: '[border:1px_solid_var(--chat-frame-line)] text-chat-frame-text',
   error: '[border:1px_solid_var(--chat-frame-line-error)] text-chat-frame-text-error',
 }
-const CONTENT = 'min-w-0 overflow-x-auto whitespace-pre-wrap text-[11px] leading-[1.65] [font-family:var(--chat-mono)]'
+const CONTENT =
+  'min-w-0 overflow-x-auto whitespace-pre-wrap text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)] [font-family:var(--chat-mono)]'
 const ACTIONS =
-  'absolute top-1 end-1 z-1 flex gap-1 opacity-0 [transition:opacity_110ms_var(--chat-ease)] group-hover/output:opacity-100 group-focus-within/output:opacity-100 motion-reduce:[transition:none]'
-const ACTION_BUTTON = `inline-flex items-center justify-center min-h-6 px-[7px] rounded-[var(--chat-radius-chip)] text-[10.5px] font-medium leading-none cursor-pointer [font-family:var(--chat-font)] [background:transparent] [border:1px_solid_transparent] text-chat-dim hover:[background:var(--chat-rail-bg)] hover:[border-color:var(--chat-line)] hover:text-chat-text-hi [transition:color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] ${FOCUS}`
+  'absolute top-1.75 end-2.5 z-1 flex gap-1 items-start opacity-0 pointer-events-none [transition:opacity_110ms_var(--chat-ease)] group-hover/output:opacity-100 group-hover/output:pointer-events-auto group-focus-within/output:opacity-100 group-focus-within/output:pointer-events-auto motion-reduce:[transition:none]'
+const ACTION_BUTTON = `inline-flex items-center justify-center h-[var(--chat-trace-gutter)] px-1.5 rounded-[var(--chat-radius-chip)] text-[length:var(--chat-text-micro)] leading-none cursor-pointer [font-family:var(--chat-mono)] [background:var(--chat-frame-bg)] [border:1px_solid_var(--chat-frame-line)] text-chat-text-3 hover:[background:var(--chat-rail-bg)] hover:[border-color:var(--chat-line)] hover:text-chat-text-hi [transition:color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] ${FOCUS}`
 
 const TONE_NAME: Record<TraceOutputTone, string> = {normal: 'Output', error: 'Error output'}
 
@@ -23,13 +24,14 @@ const BODY_CONTENT = 'min-w-0 flex flex-col gap-1.5 text-[length:var(--chat-text
 
 export function TraceBodyFrame(props: {
   children: JSX.Element
+  tone?: TraceOutputTone
   live?: boolean
   size?: TraceClampSize
   overflowLabel?: (hiddenLines: number) => string
 }): JSX.Element {
-  const [local] = splitProps(props, ['children', 'live', 'size', 'overflowLabel'])
+  const [local] = splitProps(props, ['children', 'tone', 'live', 'size', 'overflowLabel'])
   return (
-    <div class={`${FRAME}  ${FRAME_TONE.normal}`}>
+    <div class={`${FRAME}  ${FRAME_TONE[local.tone ?? 'normal']}`}>
       <TraceClamp live={local.live} size={local.size} overflowLabel={local.overflowLabel}>
         <div class={BODY_CONTENT}>{local.children}</div>
       </TraceClamp>

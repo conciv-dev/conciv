@@ -15,13 +15,24 @@ import {
 import {
   CodeBlock,
   countLabel,
+  DANGER_TEXT_CLASS,
+  formatDuration,
   parseInput,
   QUIET_TEXT_CLASS,
   resultText,
   rowMarkOf,
+  StatusVisual,
+  toolStatus,
   ToolCard,
   TraceOutputBlock,
+  useToolCallDuration,
 } from '@conciv/ui-kit-chat/tools'
+
+const HEADER_ICON_CLASS = 'text-chat-text-3 inline-flex shrink-0 items-center'
+const HEADER_TITLE_CLASS = 'text-chat-text flex-1 min-w-0 truncate'
+const HEADER_PATTERN_CLASS = '[font-family:var(--chat-mono)]'
+const HEADER_METRIC_CLASS =
+  'text-chat-text-3 text-[length:var(--chat-text-xs)] flex-none min-w-0 max-w-[35%] truncate [font-family:var(--chat-mono)] tabular-nums'
 
 function Icon(): JSX.Element {
   return <SearchIcon size={14} />
@@ -33,17 +44,59 @@ function emptyLabel(status: ToolStatus): string {
   return 'no matches'
 }
 
+function emptyClass(status: ToolStatus): string {
+  return status === 'error' ? DANGER_TEXT_CLASS : QUIET_TEXT_CLASS
+}
+
+function plainTitle(verb: string, pattern: string): string {
+  return pattern ? `${verb} "${pattern}"` : `${verb} files`
+}
+
+function SearchTitle(props: {verb: string; pattern: string}): JSX.Element {
+  return (
+    <Show when={props.pattern} fallback={<span class={HEADER_TITLE_CLASS}>{props.verb} files</span>}>
+      {(pattern) => (
+        <span class={HEADER_TITLE_CLASS}>
+          {props.verb} <span class={HEADER_PATTERN_CLASS}>“{pattern()}”</span>
+        </span>
+      )}
+    </Show>
+  )
+}
+
+function SearchHeader(): JSX.Element {
+  const search = useSearch()
+  const status = () => toolStatus(search.part(), search.result())
+  const ambientDuration = useToolCallDuration()
+  const duration = () => formatDuration(ambientDuration())
+  return (
+    <>
+      <span class={HEADER_ICON_CLASS} aria-hidden="true">
+        <Icon />
+      </span>
+      <SearchTitle verb={search.verb()} pattern={search.pattern()} />
+      <Show when={search.meta()}>{(meta) => <span class={HEADER_METRIC_CLASS}>{meta()}</span>}</Show>
+      <Show when={duration()}>{(value) => <span class={HEADER_METRIC_CLASS}>{value()}</span>}</Show>
+      <StatusVisual status={status()} form="dot" />
+    </>
+  )
+}
+
 function Body(): JSX.Element {
   const search = useSearch()
   return (
     <ToolCard
       Icon={Icon}
-      title={search.pattern() ? `${search.verb()} ${search.pattern()}` : `${search.verb()} files`}
+      title={plainTitle(search.verb(), search.pattern())}
+      header={<SearchHeader />}
       part={search.part()}
       result={search.result()}
       meta={search.meta()}
     >
-      <Show when={search.count() > 0} fallback={<p class={QUIET_TEXT_CLASS}>{emptyLabel(search.status())}</p>}>
+      <Show
+        when={search.count() > 0}
+        fallback={<p class={emptyClass(search.status())}>{emptyLabel(search.status())}</p>}
+      >
         <CodeBlock size="xs" maxHeight="result" file={{name: 'results.txt', lang: 'text', contents: search.text()}} />
       </Show>
     </ToolCard>
@@ -62,7 +115,8 @@ const SearchRowInput = z.object({pattern: z.string().optional(), glob: z.string(
 
 function searchTarget(part: ToolRowProps['part']): string {
   const input = parseInput(SearchRowInput, part)
-  return input?.pattern ?? input?.glob ?? 'the workspace'
+  const value = input?.pattern ?? input?.glob
+  return value ? `"${value}"` : 'the workspace'
 }
 
 function matchCount(text: string): number {
@@ -76,11 +130,11 @@ function matchOverflowLabel(groups: SearchFileGroup[]): (hidden: number) => stri
   }
 }
 
-function searchBlock(text: string): () => JSX.Element {
-  const matches = parseSearchMatches(text)
+function searchBlock(text: string, failed: boolean): () => JSX.Element {
+  const matches = failed ? [] : parseSearchMatches(text)
   if (matches.length === 0)
     return () => (
-      <TraceOutputBlock text={text}>
+      <TraceOutputBlock text={text} tone={failed ? 'error' : 'normal'}>
         <CodeBlock size="xs" file={{name: 'results.txt', lang: 'text', contents: text}} />
       </TraceOutputBlock>
     )
@@ -97,6 +151,12 @@ function searchBlock(text: string): () => JSX.Element {
   )
 }
 
+function searchMeta(result: ToolRowProps['result'], failed: boolean, matches: number): string | undefined {
+  if (failed) return 'failed'
+  if (result === undefined) return undefined
+  return countLabel(matches, 'match', 'matches')
+}
+
 export function searchRowProjection(source: ToolRowProps): ToolRowProjection {
   const failed = source.result?.state === 'error'
   const text = resultText(source.result).trim()
@@ -105,8 +165,8 @@ export function searchRowProjection(source: ToolRowProps): ToolRowProjection {
     mark: rowMarkOf(source.part, source.result),
     label: 'search',
     target: searchTarget(source.part),
-    meta: source.result === undefined || failed ? undefined : countLabel(matches, 'match', 'matches'),
-    block: text.length === 0 ? undefined : searchBlock(text),
+    meta: searchMeta(source.result, failed, matches),
+    block: text.length === 0 ? undefined : searchBlock(text, failed),
   }
 }
 

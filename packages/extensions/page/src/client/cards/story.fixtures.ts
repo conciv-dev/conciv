@@ -31,3 +31,7 @@ export function storyResult(
 ): ToolResultPart {
   return {type: 'tool-result', toolCallId, content: JSON.stringify(payload), state}
 }
+
+export function storyErrorResult(message: string, toolCallId = 's1'): ToolResultPart {
+  return {type: 'tool-result', toolCallId, content: JSON.stringify({message}), state: 'error', error: message}
+}

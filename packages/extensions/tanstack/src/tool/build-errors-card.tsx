@@ -1,8 +1,8 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {ErrorBlock, parseResultPayload} from '@conciv/ui-kit-chat/tools'
-import {CardNote, InspectionCard} from './card-shared.js'
+import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
+import {CardNote, ErrorRecord, InspectionCard} from './card-shared.js'
 
 type BuildError = {message: string; where: string | null}
 
@@ -34,12 +34,13 @@ export function BuildErrorsCard(props: ToolCardProps): JSX.Element {
     if (list.length === 0) return 'no errors'
     return `${list.length} ${list.length === 1 ? 'error' : 'errors'}`
   }
+  const failed = () => (errors()?.length ?? 0) > 0
   return (
-    <InspectionCard {...props} summary={summary()}>
+    <InspectionCard {...props} summary={summary()} failed={failed()}>
       <Show when={errors()?.length} fallback={<CardNote>No build errors</CardNote>}>
         <div class="flex flex-col gap-1.5">
           <For each={errors()}>
-            {(error) => <ErrorBlock message={error.where ? `${error.message} · ${error.where}` : error.message} />}
+            {(error) => <ErrorRecord heading={error.where ?? undefined} body={error.message} />}
           </For>
         </div>
       </Show>

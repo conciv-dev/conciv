@@ -1,13 +1,16 @@
 import {For, Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {parseResultPayload} from '@conciv/ui-kit-chat/tools'
+import {Chip, parseResultPayload} from '@conciv/ui-kit-chat/tools'
 import {CardRow, CardRows, InspectionCard} from './card-shared.js'
 
-const MatchSchema = z.object({routeId: z.string(), path: z.string().default('')}).loose()
+const MatchSchema = z.object({routeId: z.string(), path: z.string().default(''), status: z.string().optional()}).loose()
 
 const RouterStateSchema = z
-  .object({location: z.object({pathname: z.string()}).loose(), matches: z.array(MatchSchema)})
+  .object({
+    location: z.object({pathname: z.string(), search: z.string().default(''), hash: z.string().default('')}).loose(),
+    matches: z.array(MatchSchema),
+  })
   .loose()
 
 type RouterState = z.infer<typeof RouterStateSchema>
@@ -22,6 +25,10 @@ function summarize(state: RouterState): string {
   return `${state.location.pathname} · ${count} ${count === 1 ? 'match' : 'matches'}`
 }
 
+function locationLine(location: RouterState['location']): string {
+  return `${location.pathname}${location.search}${location.hash}`
+}
+
 export function RouterStateCard(props: ToolCardProps): JSX.Element {
   const state = () => parseState(props.result)
   const summary = () => {
@@ -33,12 +40,25 @@ export function RouterStateCard(props: ToolCardProps): JSX.Element {
       <Show when={state()}>
         {(value) => (
           <CardRows>
+            <CardRow>
+              <span class="text-chat-text-hi min-w-0 truncate">{locationLine(value().location)}</span>
+            </CardRow>
             <For each={value().matches}>
               {(match) => (
                 <CardRow>
-                  <span class="min-w-0 truncate [color:var(--chat-text-2)]">{match.routeId}</span>
+                  <span class="text-chat-text-2 min-w-0 truncate">{match.routeId}</span>
                   <Show when={match.path}>
-                    <span class="shrink-0 [color:var(--chat-text-3)]">{match.path}</span>
+                    <span class="text-chat-text-3 shrink-0">{match.path}</span>
+                  </Show>
+                  <Show when={match.status}>
+                    {(status) => (
+                      <Chip
+                        kind="pill"
+                        value={status()}
+                        tone={status() === 'error' ? 'danger' : undefined}
+                        class="ml-auto"
+                      />
+                    )}
                   </Show>
                 </CardRow>
               )}

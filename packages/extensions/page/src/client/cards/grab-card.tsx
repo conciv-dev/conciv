@@ -11,11 +11,13 @@ type AttachmentState = ReturnType<typeof useAttachment>
 type GrabPreview = NonNullable<GrabPayload['preview']>
 
 const CARD =
-  'text-[0.6875rem] font-pw-mono p-3 border border-pw-line rounded-pw-md bg-pw-fill flex flex-col gap-2.5 items-start relative'
+  'text-[length:var(--chat-text-xs)] [font-family:var(--chat-mono)] p-3 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] flex flex-col gap-2.5 items-start relative'
 const PREVIEW_SLOT = 'relative max-w-full'
-const OPEN_BUTTON = 'absolute inset-0 cursor-pointer'
-const SOURCE_LINE = 'text-pw-text-2 flex gap-1.5 [word-break:break-all] items-center'
-const AGENT_TEXT = 'text-pw-text-2 font-pw-mono text-xs whitespace-pre-wrap [word-break:break-all] m-0'
+const OPEN_BUTTON =
+  'absolute inset-0 cursor-pointer focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:-0.125rem]'
+const SOURCE_LINE = 'text-chat-text-2 flex gap-1.5 [word-break:break-all] items-center'
+const AGENT_TEXT =
+  'text-chat-text-2 [font-family:var(--chat-mono)] text-xs whitespace-pre-wrap [word-break:break-all] m-0'
 const CARD_SNAPSHOT = 'block w-auto h-auto max-w-full max-h-[40cqh]'
 
 const DIALOG_SNAPSHOT = 'block w-auto h-auto max-w-full max-h-[70vh]'
@@ -79,7 +81,7 @@ function GrabBody(props: {payload: GrabPayload; remove?: JSX.Element}): JSX.Elem
   const [open, setOpen] = createSignal(false)
   const [showAgentText, setShowAgentText] = createSignal(false)
   return (
-    <div class={CARD} data-pw-grab>
+    <div class={CARD} data-chat-grab>
       {props.remove}
       <Show when={props.payload.preview} fallback={<pre class={AGENT_TEXT}>{props.payload.text}</pre>}>
         {(preview) => (
@@ -100,7 +102,7 @@ function GrabBody(props: {payload: GrabPayload; remove?: JSX.Element}): JSX.Elem
           <Show when={sourceLabel(source())}>
             {(label) => (
               <span class={SOURCE_LINE}>
-                <span class="text-pw-accent" aria-hidden="true">
+                <span class="text-chat-accent" aria-hidden="true">
                   ↳
                 </span>{' '}
                 in {label()}

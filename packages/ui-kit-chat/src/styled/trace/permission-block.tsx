@@ -19,7 +19,7 @@ const CHIP =
 const TARGET = 'min-w-0 break-all text-[12px] leading-[1.5] [font-family:var(--chat-mono)] text-chat-target'
 const EXPLANATION = 'min-w-0 text-[12.5px] leading-[1.45] [font-family:var(--chat-font)] text-chat-text-2'
 const ACTIONS = 'flex flex-wrap items-center gap-2'
-const BUTTON_BASE = `inline-flex items-center gap-1.5 min-h-7 px-2.5 rounded-[var(--chat-radius-sm)] text-[12px] font-medium leading-none cursor-pointer [font-family:var(--chat-font)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] ${FOCUS}`
+const BUTTON_BASE = `inline-flex items-baseline gap-1.5 px-2.5 py-2 rounded-[var(--chat-radius-sm)] text-[12px] font-medium leading-none cursor-pointer [font-family:var(--chat-font)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] ${FOCUS}`
 const APPROVE = `${BUTTON_BASE} [background:var(--chat-perm-chip-bg)] [border:1px_solid_var(--chat-perm-line)] text-chat-perm-label hover:[background:var(--chat-perm-bg)] hover:[border-color:var(--chat-warn)]`
 const DENY = `${BUTTON_BASE} [background:transparent] [border:1px_solid_transparent] text-chat-text-2 hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line)]`
 const HINT = 'select-none text-[9px] leading-none [font-family:var(--chat-mono)] opacity-70'
@@ -83,7 +83,7 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number;
   return (
     <>
       <Show when={permission.pending()}>
-        <li class="relative list-none min-w-0 pb-[3px]">
+        <li class="pb-[3px] list-none min-w-0 relative">
           <TraceConnector joint={(local.last ?? false) ? 'corner' : 'line'} />
           <div class={`flex min-w-0 items-start ${TRACE_INDENT}`}>
             <div ref={bindKeys} role="group" aria-label="Permission request" tabindex="0" class={`${FRAME}  ${FOCUS}`}>

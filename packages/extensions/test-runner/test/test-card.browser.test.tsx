@@ -3,6 +3,7 @@ import {render} from '@solidjs/testing-library'
 import {page} from 'vitest/browser'
 import type {ToolCatalogView, ToolViewCtx, ToolCardProps, ToolViewMeta} from '@conciv/protocol/tool-view-types'
 import {HostApiProvider} from '@conciv/extension/host'
+import {CardChromeProvider} from '@conciv/ui-kit-chat/tools'
 import {TestCard} from '../src/tool/card.js'
 
 const FILE = '/proj/app/math.test.ts'
@@ -40,22 +41,48 @@ function makeCtx(sent: string[]): ToolViewCtx {
   }
 }
 
-function mountCard(over: Partial<ToolCardProps>, ctx: ToolViewCtx, onOpenEditor?: (file: string) => void): void {
+function mountCard(
+  over: Partial<ToolCardProps>,
+  ctx: ToolViewCtx,
+  onOpenEditor?: (file: string) => void,
+  embedded = false,
+): void {
+  const part = {
+    type: 'tool-call',
+    id: 't1',
+    name: 'test_runner',
+    arguments: '{"action":"run"}',
+    state: 'input-complete',
+  } as const
+  if (embedded) {
+    render(() => (
+      <HostApiProvider openEditor={(file) => onOpenEditor?.(file)}>
+        <CardChromeProvider value="embedded">
+          <TestCard part={part} result={undefined} ctx={ctx} addResult={() => {}} {...over} />
+        </CardChromeProvider>
+      </HostApiProvider>
+    ))
+    return
+  }
   render(() => (
     <HostApiProvider openEditor={(file) => onOpenEditor?.(file)}>
-      <TestCard
-        part={{type: 'tool-call', id: 't1', name: 'test_runner', arguments: '{}', state: 'input-complete'}}
-        result={undefined}
-        ctx={ctx}
-        addResult={() => {}}
-        {...over}
-      />
+      <TestCard part={part} result={undefined} ctx={ctx} addResult={() => {}} {...over} />
     </HostApiProvider>
   ))
 }
 
 function completedRun(): Partial<ToolCardProps> {
   return {result: {type: 'tool-result', toolCallId: 't1', content: JSON.stringify(RESULT), state: 'complete'}}
+}
+
+const TIMED_RESULT = {
+  summary: {passed: 1, failed: 0, skipped: 0, durationMs: 42},
+  failures: [],
+  tests: [{id: 'timed-1', file: FILE, name: 'runs quickly', state: 'pass', durationMs: 42}],
+}
+
+function timedRun(): Partial<ToolCardProps> {
+  return {result: {type: 'tool-result', toolCallId: 't1', content: JSON.stringify(TIMED_RESULT), state: 'complete'}}
 }
 
 describe('TestCard (real browser)', () => {
@@ -118,5 +145,26 @@ describe('TestCard (real browser)', () => {
 
     await expect.element(page.getByRole('status')).toHaveTextContent('Test run in progress: 3 passed, 1 failed')
     expect(page.getByText('shares a title').elements()).toHaveLength(2)
+  })
+
+  it('shows each test row its own duration', async () => {
+    mountCard(timedRun(), makeCtx([]))
+
+    await expect.element(page.getByText('runs quickly')).toBeVisible()
+    await expect.element(page.getByText('42ms')).toBeVisible()
+  })
+
+  it('renders the input chips when shown as a standalone card', async () => {
+    mountCard(completedRun(), makeCtx([]))
+
+    await expect.element(page.getByText('action')).toBeVisible()
+  })
+
+  it('drops the raw input-chip row when embedded in the trace, keeping the record rows', async () => {
+    mountCard(completedRun(), makeCtx([]), undefined, true)
+
+    await expect.element(page.getByText('subtracts')).toBeVisible()
+    await expect.element(page.getByText('1 passed', {exact: true})).toBeVisible()
+    expect(page.getByText('action').elements()).toHaveLength(0)
   })
 })

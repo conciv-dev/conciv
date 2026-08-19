@@ -59,14 +59,14 @@ it('falls back to a generic projection for a tool that supplies no row', async (
 
   await expect.element(page.getByRole('img', {name: 'succeeded'})).toBeVisible()
   await expect.element(page.getByText('forecast')).toBeVisible()
-  await expect.element(page.getByText('Tel Aviv')).toBeVisible()
+  await expect.element(page.getByText('Tel Aviv', {exact: true})).toBeVisible()
 })
 
 function forecastResult(): ToolResultPart {
   return {type: 'tool-result', toolCallId: 'c1', content: 'clear skies over the bay', state: 'complete'}
 }
 
-it('mounts the generic tool body under the row with shiki highlighting and no extra click', async () => {
+it('mounts the generic tool body under the row as a JSON tree plus shiki result, with no extra click', async () => {
   const container = mountView(() => (
     <ToolTraceRow
       part={call('mcp__weather__forecast', {location: 'Tel Aviv'})}
@@ -78,8 +78,8 @@ it('mounts the generic tool body under the row with shiki highlighting and no ex
   ))
 
   await expect.element(page.getByText('clear skies over the bay')).toBeVisible()
-  await expect.element(page.getByText('"location"')).toBeVisible()
-  expect(container.querySelectorAll('diffs-container').length).toBe(2)
+  await expect.element(page.getByText('location', {exact: true})).toBeVisible()
+  expect(container.querySelectorAll('diffs-container').length).toBe(1)
   await page.screenshot({path: '__screenshots__/tool-trace-row/generic-body-shiki.png'})
 })
 

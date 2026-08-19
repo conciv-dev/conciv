@@ -6,7 +6,7 @@ import {FOCUS_INSET} from '../classes.js'
 import {TraceConnector, TRACE_HOVER_INDENT, TRACE_INDENT, TRACE_LINE} from './connector.js'
 
 export const TRACE_MICROLABEL =
-  'uppercase text-[9.5px] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none'
+  'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none'
 
 const ROW = `${TRACE_LINE} ${TRACE_HOVER_INDENT}`
 const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-[var(--chat-radius-sm)] [background:transparent] [transition:background-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] ${FOCUS_INSET}`
@@ -15,7 +15,7 @@ const LABEL = `${TRACE_MICROLABEL} min-w-[38px] text-chat-microlabel`
 const RUN_LABEL = `${TRACE_MICROLABEL} min-w-[38px] text-chat-accent`
 const TARGET = 'flex-1 min-w-0 truncate text-[12px] leading-none [font-family:var(--chat-mono)] text-chat-target'
 const RUN_TEXT = 'flex-1 min-w-0 truncate text-[12.5px] leading-none [font-family:var(--chat-font)] text-chat-text-2'
-const META = 'flex-none text-[11px] leading-none [font-family:var(--chat-mono)]'
+const META = 'flex-none min-w-0 max-w-[50%] truncate text-[11px] leading-none [font-family:var(--chat-mono)]'
 const BLOCK = `flex flex-col gap-1 min-w-0 pt-[3px] pb-[5px] ${TRACE_INDENT}`
 const ROW_ITEM = 'relative list-none min-w-0 pb-px'
 const FOLD_SLOT = 'flex-none inline-flex w-3 justify-center'

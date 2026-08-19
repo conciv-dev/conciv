@@ -36,12 +36,27 @@ describe('shortToolLabel', () => {
 
   it('keeps two same-suffix tools apart instead of collapsing both to the last word', () => {
     expect(shortToolLabel('page_dom_state')).toBe('dom_state')
-    expect(shortToolLabel('tanstack_router_state')).toBe('state')
+    expect(shortToolLabel('tanstack_router_state')).toBe('router_state')
   })
 
   it('keeps a name that already fits whole', () => {
     expect(shortToolLabel('discovered_apis')).toBe('apis')
     expect(shortToolLabel('forecast')).toBe('forecast')
+  })
+
+  it('splits a camelCase name into words instead of clipping the run-together spelling', () => {
+    expect(shortToolLabel('routerState')).toBe('router_state')
+    expect(shortToolLabel('page__domSnapshot')).toBe('dom_snapshot')
+    expect(shortToolLabel('tanstack.routeManifest')).toBe('manifest')
+  })
+
+  it('resolves a verb alias that only appears as a camelCase word', () => {
+    expect(shortToolLabel('takeScreenshot')).toBe('shot')
+    expect(shortToolLabel('readFile')).toBe('read')
+  })
+
+  it('splits an acronym-prefixed camelCase name on the word boundary', () => {
+    expect(shortToolLabel('DOMSnapshot')).toBe('dom_snapshot')
   })
 })
 

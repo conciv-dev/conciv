@@ -2,8 +2,8 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {INERT_ADD_RESULT, INERT_TOOL_CTX} from '@conciv/ui-kit-chat/tools'
-import {CodeRunCard} from './code-run-card.js'
+import {INERT_ADD_RESULT, INERT_TOOL_CTX, Trace, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import {CodeRunCard, codeRunTool} from './code-run-card.js'
 
 const meta: Meta = {title: 'core/cards/CodeRunCard'}
 export default meta
@@ -103,4 +103,50 @@ export const Themed: Story = {
       'chat-theme-terminal',
       <CodeRunCard part={part()} result={okResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
     ),
+}
+
+function traceGallery(summary: string, callPart: ToolCallPart, callResult: ToolResultPart | undefined): JSX.Element {
+  return (
+    <div class="chat-theme-terminal p-4 w-[28rem] [background:var(--chat-panel)] [font-family:var(--chat-font)]">
+      <Trace
+        summary={summary}
+        compactLine={summary}
+        defaultOpen
+        items={[
+          {
+            key: callPart.id,
+            render: (branch) => (
+              <ToolTraceRow
+                part={callPart}
+                result={callResult}
+                ctx={INERT_TOOL_CTX}
+                tools={() => [codeRunTool]}
+                last={branch.last}
+                ring={branch.ring}
+              />
+            ),
+          },
+        ]}
+      />
+    </div>
+  )
+}
+
+export const EmbeddedSuccess: Story = {
+  render: () => traceGallery('1 exec', part(), okResult),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('exec')).toBeVisible()
+    await expect(c.getByText('ok')).toBeVisible()
+    await waitFor(() => expect(c.getAllByText('external_canvas_draw').length).toBeGreaterThan(0))
+  },
+}
+
+export const EmbeddedFailure: Story = {
+  render: () => traceGallery('1 failed', part(), failResult),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('error')).toBeVisible()
+    await waitFor(() => expect(c.getByText(/SyntaxError/)).toBeVisible())
+  },
 }

@@ -1,8 +1,8 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {INERT_TOOL_CTX, Trace, ToolTraceRow, TraceOutputBlock, type TraceItem} from '@conciv/ui-kit-chat/tools'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {INERT_TOOL_CTX, Trace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from './builtin-tool-cards.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/TraceGallery'}
@@ -270,36 +270,20 @@ export const SearchManyMatches: Story = {
 
 const TAIL_OUTPUT = Array.from({length: 30}, (_, index) => `[build] step ${index + 1} finished`).join('\n')
 
-const tailTool: ToolCardEntry = {
-  names: ['tail'],
-  render: () => <p>tail</p>,
-  row: () => ({
-    mark: 'run',
-    label: 'bash',
-    target: 'pnpm build --watch',
-    block: () => (
-      <TraceOutputBlock text={TAIL_OUTPUT} live>
-        {TAIL_OUTPUT}
-      </TraceOutputBlock>
-    ),
-  }),
+function streamingResult(content: string): ToolResultPart {
+  return {type: 'tool-result', toolCallId: 'g1', content, state: 'streaming'}
 }
 
 export const LiveTailClamp: Story = {
   render: () =>
     gallery('1 bash', [
       {
-        key: 'tail',
-        render: (branch) => (
-          <ToolTraceRow
-            part={call('tail', {command: 'pnpm build --watch'}, 'input-complete')}
-            result={undefined}
-            ctx={INERT_TOOL_CTX}
-            tools={() => [tailTool]}
-            last={branch.last}
-            ring={false}
-          />
+        ...row(
+          call('Bash', {command: 'pnpm build --watch'}, 'input-complete'),
+          streamingResult(JSON.stringify({stdout: TAIL_OUTPUT})),
         ),
+        key: 'tail',
+        live: true,
       },
     ]),
 }
@@ -317,5 +301,48 @@ export const MixedTree: Story = {
         ...row(call('Bash', {command: 'pnpm typecheck'}), result(JSON.stringify({stdout: 'ok', exitCode: 0}))),
         key: 'bash',
       },
+    ]),
+}
+
+function askingCall(command: string): ToolCallPart {
+  return {
+    type: 'tool-call',
+    id: 'g1',
+    name: 'Bash',
+    arguments: JSON.stringify({command}),
+    state: 'approval-requested',
+    approval: {id: 'approval-1', needsApproval: true},
+  }
+}
+
+function askingCtx(): ToolViewCtx {
+  return {...INERT_TOOL_CTX, respondApproval: () => {}}
+}
+
+export const PermissionBlockLast: Story = {
+  render: () =>
+    gallery('2 bash · 1 waiting', [
+      {...row(call('Bash', {command: 'pnpm lint'}), result(JSON.stringify({stdout: 'ok', exitCode: 0}))), key: 'lint'},
+      {
+        key: 'ask',
+        render: (branch) => (
+          <ToolTraceRow
+            part={askingCall('rm -rf apps/conciv/dist')}
+            result={undefined}
+            ctx={askingCtx()}
+            tools={() => builtinToolCards}
+            last={branch.last}
+            ring={branch.ring}
+          />
+        ),
+      },
+    ]),
+}
+
+export const LastRowWithoutBody: Story = {
+  render: () =>
+    gallery('2 bash', [
+      {...row(call('Bash', {command: 'pnpm lint'}), result(JSON.stringify({stdout: 'ok', exitCode: 0}))), key: 'lint'},
+      {...row(call('Bash', {command: 'pnpm clean'}), result(JSON.stringify({exitCode: 0}))), key: 'quiet'},
     ]),
 }

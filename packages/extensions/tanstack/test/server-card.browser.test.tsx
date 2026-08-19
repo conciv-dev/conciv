@@ -79,7 +79,8 @@ describe('BuildErrorsCard (real browser)', () => {
     mountToolCard(BuildErrorsCard, {name: 'tanstack_build_errors', content: BUILD_ERRORS, ctx: catalogCtx})
     await expect.element(page.getByText('1 error')).toBeVisible()
     await page.getByRole('button', {name: doneTitleOf('tanstack_build_errors')}).click()
-    await expect.element(page.getByText("Expected ';' but found '=' · /app/src/routes/about.tsx:12")).toBeVisible()
+    await expect.element(page.getByText('/app/src/routes/about.tsx:12')).toBeVisible()
+    await expect.element(page.getByText("Expected ';' but found '='")).toBeVisible()
   })
 
   it('shows a clean state when there are no build errors', async () => {

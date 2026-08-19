@@ -7,25 +7,36 @@ import {useOptionalThreadViewport} from '../../primitives/thread/viewport-contex
 
 const ANIMATION_DURATION_MS = 200
 
+export type CardVariant = 'card' | 'terminal'
+
 export type CollapsibleCardProps = {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   defaultOpen?: boolean
   tooltip?: string
   flush?: boolean
+  variant?: CardVariant
   class?: string
 }
 
 const CARD =
   'w-full min-w-0 rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] overflow-hidden'
+const CARD_TERMINAL =
+  'w-full min-w-0 rounded-[var(--chat-radius-sm)] [border:1px_solid_var(--chat-frame-line)] [background:var(--chat-frame-bg)] overflow-hidden'
+const CARD_BY_VARIANT: Record<CardVariant, string> = {card: CARD, terminal: CARD_TERMINAL}
 const ROW = 'w-full flex items-center gap-2 px-3 py-2 text-start text-[length:var(--chat-text-md)] text-chat-text-2'
+const ROW_TERMINAL =
+  'w-full flex items-center gap-2 px-3 py-2 text-start text-[length:var(--chat-text-md)] text-chat-frame-text [border-block-end:1px_solid_var(--chat-frame-line)]'
 const ROW_FLUSH =
   'w-full flex items-center gap-1.5 pe-2.5 text-start text-[length:var(--chat-text-md)] text-chat-text-2 [background:var(--chat-fill)]'
 const TRIGGER = `group ${ROW} cursor-pointer select-none [background:transparent] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] focus-visible:[outline:0.125rem_solid_var(--chat-accent)] [outline-offset:-2px]`
+const TRIGGER_TERMINAL = `group ${ROW_TERMINAL} cursor-pointer select-none [background:transparent] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill)] focus-visible:[outline:0.125rem_solid_var(--chat-accent)] [outline-offset:-2px]`
 const TRIGGER_FLUSH = `group ${ROW_FLUSH} cursor-pointer select-none [transition:background_200ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] focus-visible:[outline:0.125rem_solid_var(--chat-accent)] [outline-offset:-2px]`
 const CHEVRON =
   'inline-flex shrink-0 text-chat-text-3 [transition:rotate_150ms_var(--chat-ease)] data-[state=closed]:-rotate-90 data-[state=open]:rotate-0'
 const BODY = 'px-3 pt-0.5 pb-2.5 text-[length:var(--chat-text-md)] text-chat-text-2'
+const BODY_TERMINAL = 'px-3 py-2.5 text-[length:var(--chat-text-md)] text-chat-text-2'
+const BODY_BY_VARIANT: Record<CardVariant, string> = {card: BODY, terminal: BODY_TERMINAL}
 const HEADER_SLOT = 'flex flex-1 gap-2 min-w-0 items-center'
 
 function TriggerBody(props: {header: JSX.Element}): JSX.Element {
@@ -39,16 +50,31 @@ function TriggerBody(props: {header: JSX.Element}): JSX.Element {
   )
 }
 
-function CardFrame(props: {class: string | undefined; ref?: Ref<HTMLDivElement>; children: JSX.Element}): JSX.Element {
+function CardFrame(props: {
+  variant: CardVariant
+  class: string | undefined
+  ref?: Ref<HTMLDivElement>
+  children: JSX.Element
+}): JSX.Element {
   return (
-    <div ref={props.ref} class={`${CARD}  ${props.class ?? ''}`}>
+    <div ref={props.ref} class={`${CARD_BY_VARIANT[props.variant]}  ${props.class ?? ''}`}>
       {props.children}
     </div>
   )
 }
 
-function CardTrigger(props: {tooltip: string | undefined; flush: boolean; header: JSX.Element}): JSX.Element {
-  const triggerClass = () => (props.flush ? TRIGGER_FLUSH : TRIGGER)
+function triggerClassOf(variant: CardVariant, flush: boolean): string {
+  if (variant === 'terminal') return TRIGGER_TERMINAL
+  return flush ? TRIGGER_FLUSH : TRIGGER
+}
+
+function CardTrigger(props: {
+  tooltip: string | undefined
+  flush: boolean
+  variant: CardVariant
+  header: JSX.Element
+}): JSX.Element {
+  const triggerClass = () => triggerClassOf(props.variant, props.flush)
   return (
     <Show
       when={props.tooltip}
@@ -85,11 +111,13 @@ export function CollapsibleCard(
     'defaultOpen',
     'tooltip',
     'flush',
+    'variant',
     'class',
     'header',
     'children',
   ])
   const flush = () => local.flush === true
+  const variant = (): CardVariant => local.variant ?? 'card'
   let cardEl: HTMLDivElement | undefined
   let contentEl: HTMLDivElement | undefined
   const lockScroll = useScrollLock(() => cardEl, ANIMATION_DURATION_MS)
@@ -106,10 +134,10 @@ export function CollapsibleCard(
       defaultOpen={local.defaultOpen}
       onOpenChange={(details) => handleOpenChange(details.open)}
     >
-      <CardFrame class={local.class} ref={(el) => (cardEl = el)}>
-        <CardTrigger tooltip={local.tooltip} flush={flush()} header={local.header} />
+      <CardFrame variant={variant()} class={local.class} ref={(el) => (cardEl = el)}>
+        <CardTrigger tooltip={local.tooltip} flush={flush()} variant={variant()} header={local.header} />
         <Collapsible.Content ref={(el) => (contentEl = el)}>
-          <div class={BODY}>{local.children}</div>
+          <div class={BODY_BY_VARIANT[variant()]}>{local.children}</div>
         </Collapsible.Content>
       </CardFrame>
     </Collapsible.Root>

@@ -1,35 +1,31 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
-import type {ToolViewMeta} from '@conciv/protocol/tool-view-types'
-import {NavigateCard} from './navigate-card.js'
-import {navigateDef} from './def.js'
-import {STORY_FRAME_CLASS, storyAddResult, storyCtx, storyPart, storyResult} from './story.fixtures.js'
+import {storyErrorResult, storyPart, storyResult} from './story.fixtures.js'
+import {traceFrame, traceRow} from './trace.fixtures.js'
 
 const meta: Meta = {title: 'Extensions/TanStack/tool/NavigateCard'}
 export default meta
 type Story = StoryObj
 
-const navigateMeta: ToolViewMeta = {
-  ...navigateDef.meta,
-  summary: navigateDef.meta?.summary ?? '',
-  mutating: navigateDef.meta?.mutating ?? false,
-  mirrors: false,
-}
-
 export const Done: Story = {
-  render: () => (
-    <div class={STORY_FRAME_CLASS}>
-      <NavigateCard
-        part={storyPart('tanstack_navigate', {to: '/form'})}
-        result={storyResult({ok: true, to: '/form'})}
-        ctx={storyCtx({tanstack_navigate: navigateMeta})}
-        addResult={storyAddResult}
-      />
-    </div>
-  ),
+  render: () =>
+    traceFrame('1 navigate', [
+      traceRow(storyPart('tanstack_navigate', {to: '/form'}), storyResult({ok: true, to: '/form'})),
+    ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Navigated')).toBeVisible()
+    await expect(canvas.getByText('nav')).toBeVisible()
     await waitFor(() => expect(canvas.getByText('→ /form')).toBeVisible())
+  },
+}
+
+export const ErrorState: Story = {
+  render: () =>
+    traceFrame('1 navigate', [
+      traceRow(storyPart('tanstack_navigate', {to: '/form'}), storyErrorResult('TanStack router not found on page')),
+    ]),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await waitFor(() => expect(canvas.getByText('TanStack router not found on page')).toBeVisible())
   },
 }

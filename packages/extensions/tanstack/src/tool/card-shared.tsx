@@ -1,7 +1,17 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {Show, splitProps, Switch, Match, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
-import {CardShell, ErrorBlock, cardHeader, parseResultPayload, resultText, toolStatus} from '@conciv/ui-kit-chat/tools'
+import {
+  CardShell,
+  CodeBlock,
+  ErrorBlock,
+  JsonTree,
+  cardHeader,
+  parseResultPayload,
+  resultText,
+  toolStatus,
+  type ToolStatus,
+} from '@conciv/ui-kit-chat/tools'
 
 const ErrorPayloadSchema = z.object({message: z.string()}).loose()
 
@@ -41,12 +51,50 @@ export function CardNote(props: {children: JSX.Element; class?: string}): JSX.El
   )
 }
 
-export function InspectionCard(props: ToolCardProps & {summary: string; children: JSX.Element}): JSX.Element {
-  const [local, card] = splitProps(props, ['summary', 'children'])
+function isTreeable(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
+export function JsonValue(props: {value: unknown; name?: string}): JSX.Element {
+  return (
+    <Switch>
+      <Match when={isTreeable(props.value) && props.value}>{(value) => <JsonTree data={value()} />}</Match>
+      <Match when={!isTreeable(props.value)}>
+        <CodeBlock
+          size="xs"
+          file={{name: props.name ?? 'value.json', lang: 'json', contents: JSON.stringify(props.value, null, 2)}}
+        />
+      </Match>
+    </Switch>
+  )
+}
+
+export function ErrorRecord(props: {heading?: string; body: string}): JSX.Element {
+  return (
+    <div class="px-2.5 py-1.75 border border-chat-frame-line-error rounded-[var(--chat-radius-sm)] bg-chat-frame-bg flex flex-col gap-1 min-w-0">
+      <Show when={props.heading}>
+        {(heading) => (
+          <p class="text-[length:var(--chat-text-xs)] text-chat-text-2 leading-[var(--chat-trace-gutter)] m-0 min-w-0 truncate [font-family:var(--chat-mono)]">
+            {heading()}
+          </p>
+        )}
+      </Show>
+      <p class="text-[length:var(--chat-text-xs)] text-chat-frame-text-error leading-[var(--chat-trace-gutter)] m-0 [font-family:var(--chat-mono)]">
+        {props.body}
+      </p>
+    </div>
+  )
+}
+
+export function InspectionCard(
+  props: ToolCardProps & {summary: string; failed?: boolean; children: JSX.Element},
+): JSX.Element {
+  const [local, card] = splitProps(props, ['summary', 'failed', 'children'])
   const {meta, title} = cardHeader(card)
   const error = () => readError(card.part, card.result)
   const running = () => isRunning(card.part, card.result)
   const subtitle = () => (error() || running() ? undefined : local.summary)
+  const status = (): ToolStatus | undefined => (local.failed === true ? 'error' : undefined)
   return (
     <CardShell
       meta={meta()}
@@ -55,6 +103,7 @@ export function InspectionCard(props: ToolCardProps & {summary: string; children
       part={card.part}
       result={card.result}
       durationMs={card.durationMs}
+      status={status()}
     >
       <Show when={error()}>{(message) => <ErrorBlock message={message()} />}</Show>
       <Show when={!error() && !running()}>{local.children}</Show>

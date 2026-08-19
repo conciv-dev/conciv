@@ -76,6 +76,7 @@
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
+    "@solidjs/testing-library": "^0.8.10",
     "@tanstack/ai-mcp": "catalog:",
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.10",
