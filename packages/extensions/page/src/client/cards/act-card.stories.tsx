@@ -110,6 +110,6 @@ export const Trace: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('fill')).toBeVisible()
     await expect(canvas.getAllByText('#email').length).toBeGreaterThan(0)
-    await expect(canvas.getAllByText('ada@example.com').length).toBeGreaterThan(0)
+    await expect(canvas.getByText(/wait timed out for #done/)).toBeVisible()
   },
 }

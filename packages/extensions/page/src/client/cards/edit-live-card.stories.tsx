@@ -154,7 +154,7 @@ export const Trace: Story = {
     ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('edit')).toBeVisible()
+    await expect(canvas.getByText('setattr')).toBeVisible()
     await expect(canvas.getAllByText('#cta').length).toBeGreaterThan(0)
     await expect(canvas.getByText('exec')).toBeVisible()
   },

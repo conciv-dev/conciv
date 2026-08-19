@@ -190,6 +190,7 @@ export const Trace: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('tree')).toBeVisible()
-    await expect(canvas.getByText('3 nodes')).toBeVisible()
+    await expect(canvas.getByText('#checkout')).toBeVisible()
+    await waitFor(() => expect(canvas.getByText(/nodes:/)).toBeVisible())
   },
 }

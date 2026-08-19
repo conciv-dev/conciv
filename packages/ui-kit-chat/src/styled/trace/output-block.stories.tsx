@@ -58,8 +58,10 @@ export const HoverActions: Story = {
     ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await userEvent.hover(canvas.getByRole('group', {name: 'Output'}))
-    await waitFor(() => expect(canvas.getByRole('button', {name: 'Copy'})).toBeVisible())
+    const copyBtn = canvas.getByRole('button', {name: 'Copy'})
+    await expect(copyBtn).not.toBeVisible()
+    await userEvent.tab()
+    await waitFor(() => expect(copyBtn).toBeVisible())
     await expect(canvas.getByRole('button', {name: 'Open'})).toBeVisible()
   },
 }

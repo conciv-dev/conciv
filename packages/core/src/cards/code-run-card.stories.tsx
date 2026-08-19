@@ -54,9 +54,9 @@ export const Running: Story = {
     ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('run code')).toBeVisible()
-    await waitFor(() => expect(c.getAllByText('external_canvas_draw').length).toBeGreaterThan(0))
-    await expect(c.getAllByText('drawn').length).toBeGreaterThan(0)
+    await expect(c.getByText('exec')).toBeVisible()
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('external_canvas_draw'))
+    await expect(await codeText(canvasElement)).toContain('drawn')
     await expect(c.queryByText('console')).toBeNull()
     await expect(c.queryByText(/SyntaxError/)).toBeNull()
     await expect(c.getByLabelText('running')).toBeInTheDocument()
@@ -138,7 +138,8 @@ export const EmbeddedSuccess: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('exec')).toBeVisible()
     await expect(c.getByText('ok')).toBeVisible()
-    await waitFor(() => expect(c.getAllByText('external_canvas_draw').length).toBeGreaterThan(0))
+    await expect(c.getByText('const drawn = await external_canvas_draw({elements})')).toBeVisible()
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('committed'))
   },
 }
 
@@ -147,6 +148,6 @@ export const EmbeddedFailure: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('error')).toBeVisible()
-    await waitFor(() => expect(c.getByText(/SyntaxError/)).toBeVisible())
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('Unexpected token'))
   },
 }

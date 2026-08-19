@@ -51,7 +51,7 @@ export function AssistantActionBar(): JSX.Element {
   return (
     <ActionBar.Root
       hideWhenRunning
-      autohide="always"
+      autohide="not-last"
       autohideFloat="always"
       role="toolbar"
       aria-label="Message actions"

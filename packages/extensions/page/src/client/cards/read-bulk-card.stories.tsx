@@ -176,8 +176,9 @@ export const Trace: Story = {
     ]),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('snap')).toBeVisible()
+    await expect(canvas.getByText('snapshot')).toBeVisible()
     await expect(canvas.getAllByText('form').length).toBeGreaterThan(0)
-    await expect(canvas.getAllByText('2 nodes').length).toBeGreaterThan(0)
+    await waitFor(() => expect(canvas.getByText('Email')).toBeVisible())
+    await expect(canvas.getByText('Ship it')).toBeVisible()
   },
 }

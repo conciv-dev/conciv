@@ -1,6 +1,6 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, within} from 'storybook/test'
+import {expect, waitFor, within} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {INERT_TOOL_CTX, Trace, ToolTraceRow, type TraceItem} from '@conciv/ui-kit-chat/tools'
@@ -42,6 +42,12 @@ function row(
       />
     ),
   }
+}
+
+async function codeText(root: HTMLElement): Promise<string> {
+  return Array.from(root.querySelectorAll('diffs-container'))
+    .map((host) => host.shadowRoot?.textContent ?? '')
+    .join('\n')
 }
 
 function gallery(summary: string, items: TraceItem[]): JSX.Element {
@@ -126,7 +132,7 @@ export const ExtensionsScaffold: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('tool-renderer weather')).toBeVisible()
-    await expect(c.getByText(/defineExtension/)).toBeVisible()
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('defineExtension'))
   },
 }
 

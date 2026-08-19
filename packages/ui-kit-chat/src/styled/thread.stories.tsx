@@ -83,11 +83,12 @@ function play(theme?: string): Story {
 
       const before = reply.getBoundingClientRect()
 
-      await userEvent.click(c.getByText('Chain of Thought'))
+      await userEvent.click(c.getByText('1 shell'))
       await waitFor(() => expect(c.getByText('shell')).toBeVisible())
-      await userEvent.click(c.getByText('shell'))
+      const shellRow = c.getByText('shell').closest('button')
+      if (!shellRow) throw new Error('shell trace row trigger not found')
 
-      await waitFor(() => expect(c.getByRole('button', {name: /shell/})).toHaveAttribute('data-state', 'open'))
+      await waitFor(() => expect(shellRow).toHaveAttribute('data-state', 'open'))
       const after = reply.getBoundingClientRect()
 
       expect(after.left).toBeCloseTo(before.left, 0)
@@ -159,23 +160,32 @@ function ShiftApp(): JSX.Element {
   )
 }
 
+function assistantMessageOf(node: HTMLElement): HTMLElement {
+  const container = node.closest<HTMLElement>('[data-role="assistant"]')
+  if (!container) throw new Error('assistant message container not found')
+  return container
+}
+
 export const PreviousTurnActionsRevealOnHover: Story = {
   render: () => <ShiftApp />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     const older = await waitFor(() => c.getByText('First reply, older.'))
-    await waitFor(() => c.getByText('Second reply, latest.'))
-
-    await waitFor(async () => {
-      await userEvent.unhover(older)
-      expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(1)
-    })
-
-    await userEvent.hover(older)
-    await waitFor(() => expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(2))
+    const latest = await waitFor(() => c.getByText('Second reply, latest.'))
+    const olderCopy = within(assistantMessageOf(older)).getByRole('button', {name: 'Copy'})
+    const latestCopy = within(assistantMessageOf(latest)).getByRole('button', {name: 'Copy'})
 
     await userEvent.unhover(older)
-    await waitFor(() => expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(1))
+    await waitFor(() => expect(olderCopy).not.toBeVisible())
+    await expect(latestCopy).toBeVisible()
+
+    await userEvent.hover(older)
+    await waitFor(() => expect(olderCopy).toBeVisible())
+    await expect(latestCopy).toBeVisible()
+
+    await userEvent.unhover(older)
+    await waitFor(() => expect(olderCopy).not.toBeVisible())
+    await expect(latestCopy).toBeVisible()
   },
 }
 

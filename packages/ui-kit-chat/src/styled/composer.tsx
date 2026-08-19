@@ -8,7 +8,9 @@ import {useComposerHandlers} from '../primitives/composer/composer-handlers.js'
 import {useComposer} from '../store/chat-context.js'
 import type {AttachmentAdapter} from '../primitives/attachment/attachment-adapter.js'
 import {AttachmentUI} from './attachment-ui.js'
+import {QueueItem} from '../primitives/queue-item/queue-item.js'
 import {Slot} from '../primitives/util/slot.js'
+import {FOCUS} from './classes.js'
 
 export type ComposerProps = {
   placeholder?: string
@@ -36,6 +38,9 @@ const TRAILING_SEND_ACTIVE =
 const TRAILING_SEND_IDLE = 'text-chat-text-3'
 const TRAILING_STOP = 'text-chat-text-2'
 const TRAILING_HINT = '[font-family:var(--chat-mono)] text-[10px] opacity-70'
+const QUEUE_ROW =
+  'flex items-center gap-2 px-3 py-1.5 text-[length:var(--chat-text-sm)] text-chat-text-2 [&:not(:first-child)]:[border-block-start:1px_solid_var(--chat-line-soft)]'
+const QUEUE_ACTION = `${FOCUS} shrink-0 px-1.5 py-0.5 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-xs)] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)]`
 
 function TrailingControls(): JSX.Element {
   const composer = useComposer()
@@ -85,6 +90,19 @@ export function Composer(props: ComposerProps): JSX.Element {
       attachmentAdapter={props.attachmentAdapter}
       class="flex flex-col relative [background:var(--chat-rail-bg)] [border-block-start:1px_solid_var(--chat-line)]"
     >
+      <div class="flex flex-col empty:hidden [border-block-end:1px_solid_var(--chat-line-soft)]">
+        <ComposerPrimitive.Queue>
+          {() => (
+            <div class={QUEUE_ROW}>
+              <QueueItem.Text class="flex-1 min-w-0 truncate" />
+              <QueueItem.Steer class={`${QUEUE_ACTION} [color:var(--chat-accent)]`}>Steer</QueueItem.Steer>
+              <QueueItem.Remove class={`${QUEUE_ACTION} [color:var(--chat-text-3)] hover:[color:var(--chat-text)]`}>
+                Remove
+              </QueueItem.Remove>
+            </div>
+          )}
+        </ComposerPrimitive.Queue>
+      </div>
       <div class="flex flex-wrap gap-1 px-3 pt-2 empty:hidden">
         <ComposerPrimitive.Attachments
           component={() => (

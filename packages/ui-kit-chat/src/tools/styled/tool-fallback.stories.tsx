@@ -39,7 +39,7 @@ export const Complete: Story = {
     await expect(c.getByText('mcp__weather__forecast')).toBeVisible()
     await expect(c.getByText('4.2s')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
-    await waitFor(() => expect(c.getByText(/tempC/)).toBeVisible(), {timeout: 5000})
+    await waitFor(() => expect(c.getAllByText(/tempC/)[0]).toBeVisible(), {timeout: 5000})
     await waitFor(() => expect(c.getByText('Result')).toBeVisible())
   },
 }
@@ -71,7 +71,7 @@ export const Errored: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
-    await waitFor(() => expect(c.getByText('Error:')).toBeVisible())
+    await waitFor(() => expect(c.getByText('Error')).toBeVisible())
     await waitFor(() => expect(c.getAllByText('no such city')[0]).toBeVisible())
   },
 }
