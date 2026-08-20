@@ -74,4 +74,18 @@ describe('createResizable keyboard resizing', () => {
       expect(r.size()).toBe(224)
     })
   })
+
+  it('clamps the initial size to max, so a restored value never exceeds the current cap', () => {
+    createRoot((dispose) => {
+      const resizable = createResizable({
+        initial: 300,
+        min: 100,
+        max: () => 220,
+        storageKey: 'test-resize-initial-max-clamp',
+        grow: () => 'right',
+      })
+      expect(resizable.size()).toBe(220)
+      dispose()
+    })
+  })
 })

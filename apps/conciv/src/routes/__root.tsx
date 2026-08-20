@@ -51,6 +51,8 @@ import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import '../styles.css'
 
+const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope][data-part="content"][data-state="open"]'
+
 export const Route = createRootRouteWithContext<ConcivRouterContext>()({
   validateSearch: (search: Record<string, unknown>): {open?: true} => (search.open === true ? {open: true} : {}),
   search: {middlewares: [retainSearchParams(['open'])]},
@@ -300,9 +302,23 @@ function RootChrome(props: {
     })
   })
 
+  let dismissableLayerOpenAtEscapeCapture = false
+  makeEventListener(
+    window,
+    'keydown',
+    (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      dismissableLayerOpenAtEscapeCapture =
+        layers.anyOpen() || Boolean(rootEl?.querySelector(OPEN_DISMISSABLE_LAYER_SELECTOR))
+    },
+    {capture: true},
+  )
+
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
-    if (layers.anyOpen()) return
+    const dismissableLayerWasOpen = dismissableLayerOpenAtEscapeCapture
+    dismissableLayerOpenAtEscapeCapture = false
+    if (dismissableLayerWasOpen) return
     if (escapeInTerminal(rootEl)) return
     if (panelMatch()) {
       if (!shutterOpen()) return

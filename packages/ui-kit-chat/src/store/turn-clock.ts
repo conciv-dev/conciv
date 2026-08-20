@@ -10,12 +10,13 @@ export function foldTurnClock(
   startedAt: Map<string, number>,
   frozenElapsed: Map<string, number>,
   now: () => number,
+  isStreaming: boolean,
 ): TurnClockState {
   const latest = turns.at(-1)
   if (!latest || latest.parts.length === 0) return {elapsedMs: null, frozen: false}
   const frozen = frozenElapsed.get(latest.key)
   if (frozen !== undefined) return {elapsedMs: frozen, frozen: true}
-  const live = turnRollup(latest).live
+  const live = turnRollup(latest).live || isStreaming
   if (!startedAt.has(latest.key)) {
     if (!live) return {elapsedMs: null, frozen: false}
     startedAt.set(latest.key, now())
@@ -30,10 +31,16 @@ export function foldTurnClock(
   return {elapsedMs: elapsed, frozen: false}
 }
 
-export function createTurnClock(turnsAccessor: Accessor<ReadonlyArray<Turn>>): Accessor<TurnClockState> {
+export function createTurnClock(
+  turnsAccessor: Accessor<ReadonlyArray<Turn>>,
+  isStreamingAccessor: Accessor<boolean>,
+): Accessor<TurnClockState> {
   const startedAt = new Map<string, number>()
   const frozenElapsed = new Map<string, number>()
-  return createPolled(() => foldTurnClock(turnsAccessor(), startedAt, frozenElapsed, Date.now), 1000)
+  return createPolled(
+    () => foldTurnClock(turnsAccessor(), startedAt, frozenElapsed, Date.now, isStreamingAccessor()),
+    1000,
+  )
 }
 
 function pad(value: number): string {

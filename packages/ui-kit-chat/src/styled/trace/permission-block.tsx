@@ -81,43 +81,41 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number;
     })
   }
   return (
-    <>
+    <li class="pb-[3px] list-none min-w-0 relative">
       <Show when={permission.pending()}>
-        <li class="pb-[3px] list-none min-w-0 relative">
-          <TraceConnector joint={(local.last ?? false) ? 'corner' : 'line'} />
-          <div class={`flex min-w-0 items-start ${TRACE_INDENT}`}>
-            <div ref={bindKeys} role="group" aria-label="Permission request" tabindex="0" class={`${FRAME}  ${FOCUS}`}>
-              <div class={HEADER}>
-                <span class={WARN_GLYPH} aria-hidden="true">
-                  ⚠
+        <TraceConnector joint={(local.last ?? false) ? 'corner' : 'line'} />
+        <div class={`flex min-w-0 items-start ${TRACE_INDENT}`}>
+          <div ref={bindKeys} role="group" aria-label="Permission request" tabindex="0" class={`${FRAME}  ${FOCUS}`}>
+            <div class={HEADER}>
+              <span class={WARN_GLYPH} aria-hidden="true">
+                ⚠
+              </span>
+              <span class={HEADER_LABEL}>Permission</span>
+              <Show when={local.expiresAt}>{(expiresAt) => <ExpiryChip expiresAt={expiresAt()} />}</Show>
+            </div>
+            <p class={TARGET}>{local.target}</p>
+            <Show when={local.explanation}>{(explanation) => <p class={EXPLANATION}>{explanation()}</p>}</Show>
+            <div class={ACTIONS}>
+              <Button variant="plain" size="none" class={APPROVE} onClick={approve}>
+                Approve
+                <span class={HINT} aria-hidden="true">
+                  ⌘⏎
                 </span>
-                <span class={HEADER_LABEL}>Permission</span>
-                <Show when={local.expiresAt}>{(expiresAt) => <ExpiryChip expiresAt={expiresAt()} />}</Show>
-              </div>
-              <p class={TARGET}>{local.target}</p>
-              <Show when={local.explanation}>{(explanation) => <p class={EXPLANATION}>{explanation()}</p>}</Show>
-              <div class={ACTIONS}>
-                <Button variant="plain" size="none" class={APPROVE} onClick={approve}>
-                  Approve
-                  <span class={HINT} aria-hidden="true">
-                    ⌘⏎
-                  </span>
-                </Button>
-                <Button variant="plain" size="none" class={DENY} onClick={deny}>
-                  Deny
-                  <span class={HINT} aria-hidden="true">
-                    esc
-                  </span>
-                </Button>
-              </div>
+              </Button>
+              <Button variant="plain" size="none" class={DENY} onClick={deny}>
+                Deny
+                <span class={HINT} aria-hidden="true">
+                  esc
+                </span>
+              </Button>
             </div>
           </div>
-        </li>
+        </div>
       </Show>
       <p role="status" aria-live="polite" class="sr-only">
         {DECISION_MESSAGE[decision()]}
       </p>
-    </>
+    </li>
   )
 }
 

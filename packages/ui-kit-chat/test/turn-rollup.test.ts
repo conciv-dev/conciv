@@ -25,6 +25,36 @@ function bashCall(id: string, state: 'complete' | 'input-streaming' = 'complete'
   return {type: 'tool-call', id, name: 'Bash', arguments: '{}', state}
 }
 
+function editCall(id: string, path: string, oldString: string, newString: string): MessagePart {
+  return {
+    type: 'tool-call',
+    id,
+    name: 'Edit',
+    arguments: JSON.stringify({file_path: path, old_string: oldString, new_string: newString}),
+    state: 'complete',
+  }
+}
+
+function multiEditCall(id: string, path: string, edits: Array<{old_string: string; new_string: string}>): MessagePart {
+  return {
+    type: 'tool-call',
+    id,
+    name: 'MultiEdit',
+    arguments: JSON.stringify({file_path: path, edits}),
+    state: 'complete',
+  }
+}
+
+function writeCall(id: string, path: string, content: string): MessagePart {
+  return {
+    type: 'tool-call',
+    id,
+    name: 'Write',
+    arguments: JSON.stringify({file_path: path, content}),
+    state: 'complete',
+  }
+}
+
 function bashResult(callId: string, exitCode: number): MessagePart {
   return {
     type: 'tool-result',
@@ -45,10 +75,52 @@ describe('turnRollup', () => {
         ]),
       ]),
     )
-    expect(rollup.files.toSorted()).toEqual(['a.ts', 'b.ts'])
+    expect(rollup.files.toSorted()).toEqual(['src/a.ts', 'src/b.ts'])
     expect(rollup.adds).toBe(6)
     expect(rollup.dels).toBe(3)
     expect(rollup.toolCalls).toBe(2)
+  })
+
+  it('counts Edit calls as a file edit contributing adds/dels', () => {
+    const rollup = turnRollup(
+      turn('t1', [editCall('e1', 'src/watcher.ts', 'old line one\nold line two', 'new line one')]),
+    )
+    expect(rollup.files).toEqual(['src/watcher.ts'])
+    expect(rollup.adds).toBe(1)
+    expect(rollup.dels).toBe(2)
+  })
+
+  it('counts MultiEdit calls as a file edit summing across all edits', () => {
+    const rollup = turnRollup(
+      turn('t1', [
+        multiEditCall('m1', 'src/thread.tsx', [
+          {old_string: 'const live = true', new_string: 'const live = turnLive()'},
+          {old_string: 'summaryLine(turn)', new_string: 'summaryLine(segment)\nsummaryLine(extra)'},
+        ]),
+      ]),
+    )
+    expect(rollup.files).toEqual(['src/thread.tsx'])
+    expect(rollup.adds).toBe(3)
+    expect(rollup.dels).toBe(2)
+  })
+
+  it('counts Write calls as a file add with no deletions', () => {
+    const rollup = turnRollup(
+      turn('t1', [writeCall('w1', 'src/new.ts', 'export const zero = 0\nexport const one = 1')]),
+    )
+    expect(rollup.files).toEqual(['src/new.ts'])
+    expect(rollup.adds).toBe(2)
+    expect(rollup.dels).toBe(0)
+  })
+
+  it('keeps distinct full paths that share a basename separate, not deduped', () => {
+    const rollup = turnRollup(
+      turn('t1', [
+        editCall('e1', 'src/a/index.ts', 'old a', 'new a'),
+        editCall('e2', 'src/b/index.ts', 'old b', 'new b'),
+      ]),
+    )
+    expect(rollup.files.toSorted()).toEqual(['src/a/index.ts', 'src/b/index.ts'])
   })
 
   it('counts a bash call with nonzero exit code as failed', () => {
@@ -167,5 +239,18 @@ describe('sessionTotals', () => {
     expect(totals.files).toBe(2)
     expect(totals.adds).toBe(6)
     expect(totals.dels).toBe(3)
+  })
+
+  it('keeps distinct full paths that share a basename separate across turns', () => {
+    const turns = [
+      turn('t1', [applyPatchCall('c1', [{path: 'src/a/index.ts', kind: 'Add'}])]),
+      turn('t2', [applyPatchCall('c2', [{path: 'src/b/index.ts', kind: 'Add'}])]),
+    ]
+    const totals = createRoot((dispose) => {
+      const result = sessionTotals(() => turns)()
+      dispose()
+      return result
+    })
+    expect(totals.files).toBe(2)
   })
 })

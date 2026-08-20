@@ -152,10 +152,11 @@ function PanelSession(): JSX.Element {
   }))
   // oxlint-disable-next-line solid/reactivity
   const diff = sessionTotals(() => turns())
-  const clock = createTurnClock(() => turns())
+  // oxlint-disable-next-line solid/reactivity
+  const clock = createTurnClock(() => turns(), isStreaming)
   const elapsedLabel = () => {
     const state = clock()
-    return state.elapsedMs === null ? '—' : formatElapsed(state.elapsedMs)
+    return state.elapsedMs === null ? '--' : formatElapsed(state.elapsedMs)
   }
   const taskContext = () => (sessionStatus().kind === 'done' ? 'LAST TASK' : 'ACTIVE TASK')
   const taskTitle = () => row()?.title || 'New session'

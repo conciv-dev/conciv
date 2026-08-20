@@ -1,7 +1,7 @@
 import {render} from '@solidjs/testing-library'
 import {describe, expect, it} from 'vitest'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
-import {ContextTracker} from '../src/pane/context-tracker.jsx'
+import {ContextTracker} from '../src/pane/context-tracker.js'
 
 function mount(usage: UsageSnapshot | null): HTMLElement {
   return render(() => <ContextTracker usage={usage} />).container

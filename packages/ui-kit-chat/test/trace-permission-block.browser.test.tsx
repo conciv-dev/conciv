@@ -99,6 +99,21 @@ it('announces the decision the reader just made', async () => {
   await expect.element(page.getByRole('status')).toHaveTextContent('Denied')
 })
 
+it('keeps the announcement status paragraph a child of the list item, both while pending and after it settles', async () => {
+  const decisions: Array<{id: string; approved: boolean}> = []
+  const container = mountView(() => (
+    <TracePermissionBlock part={askingPart()} ctx={ctxRecording(decisions)} target={TARGET} />
+  ))
+
+  await expect.element(page.getByRole('group', {name: 'Permission request'})).toBeVisible()
+  expect(container.querySelector('li > p[role="status"]')).not.toBeNull()
+
+  await page.getByRole('button', {name: 'Deny'}).click()
+
+  await expect.element(page.getByRole('status')).toHaveTextContent('Denied')
+  expect(container.querySelector('li > p[role="status"]')).not.toBeNull()
+})
+
 it('shows the expiry countdown only for a request that carries a deadline', async () => {
   const decisions: Array<{id: string; approved: boolean}> = []
   mountView(() => (

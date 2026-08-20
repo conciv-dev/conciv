@@ -9,6 +9,7 @@ import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {hostPageHasFocus} from '../lib/host-focus.js'
 import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
 import {EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
+import {defaultPanelHeight, panelHeightCap} from './panel-height.js'
 
 const PANEL_POS: Record<TriggerPosition, string> = {
   'top-left': 'top-21 left-5 [transform-origin:top_left]',
@@ -32,11 +33,10 @@ const PANEL_OPEN =
 const PANEL_CLOSING = 'pointer-events-none invisible trans-pop-out opacity-0 [transform:translateY(8px)_scale(0.98)]'
 
 const PANEL_MIN_HEIGHT = 400
-const PANEL_DEFAULT_HEIGHT = 750
 const PANEL_DEFAULT_WIDTH = 500
 
-function defaultPanelHeight(): number {
-  return Math.min(PANEL_DEFAULT_HEIGHT, window.innerHeight * 0.9)
+function rootFontSizePx(): number {
+  return Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
 }
 
 const RESIZE = 'absolute z-[3] focus-visible:outline-none focus-visible:bg-pw-accent-20 focus-visible:ring-inset-accent'
@@ -73,8 +73,9 @@ function PanelLayout(): JSX.Element {
   })
 
   const resizeY = createResizable({
-    initial: defaultPanelHeight(),
+    initial: defaultPanelHeight(window.innerHeight, rootFontSizePx()),
     min: PANEL_MIN_HEIGHT,
+    max: () => panelHeightCap(window.innerHeight, rootFontSizePx()),
     collapseAt: 140,
     storageKey: 'conciv-modal-height',
     grow: () => (anchoredBottom() ? 'up' : 'down'),

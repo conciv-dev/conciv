@@ -10,14 +10,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isTruncatedMarker(value: unknown): boolean {
-  return isRecord(value) && typeof value.preview === 'string'
+  return isRecord(value) && value.__conciv === 'object' && typeof value.preview === 'string'
 }
 
 function preview(value: unknown): string {
   if (value === null) return 'null'
   if (Array.isArray(value)) return `Array(${value.length})`
   if (isRecord(value)) {
-    if (typeof value.preview === 'string') return value.preview
+    if (isTruncatedMarker(value) && typeof value.preview === 'string') return value.preview
     const keys = Object.keys(value)
     return keys.length > 0 ? `{ ${keys.join(', ')} }` : '{}'
   }

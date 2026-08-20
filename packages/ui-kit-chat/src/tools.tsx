@@ -43,6 +43,9 @@ export {
   primaryArgument,
   rowMarkOf,
   shortToolLabel,
+  type ToolRowProps,
+  type ToolRowProjection,
+  type ToolRowMark,
 } from './tools/primitives/tool-row.js'
 export {TraceMark, TraceRing, TraceRunRow, TraceToolRow} from './styled/trace/trace-row.js'
 export {TraceBodyFrame, TraceOutputBlock, type TraceOutputTone} from './styled/trace/output-block.js'

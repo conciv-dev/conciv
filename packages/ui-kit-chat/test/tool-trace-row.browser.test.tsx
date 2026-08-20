@@ -24,28 +24,6 @@ function call(name: string, input: Record<string, unknown>, state: ToolCallPart[
   return {type: 'tool-call', id: 'c1', name, arguments: JSON.stringify(input), input, state}
 }
 
-const projecting: ToolCardEntry = {
-  names: ['page.ship'],
-  render: () => <p>the full card</p>,
-  row: () => ({mark: 'pass', label: 'ship', target: 'the current page', meta: 'staged'}),
-}
-
-it('renders the row projection an entry supplies as the line and mounts its card as the body', async () => {
-  mountView(() => (
-    <ToolTraceRow
-      part={call('page.ship', {note: 'ok'})}
-      result={undefined}
-      ctx={noCtx}
-      tools={() => [projecting]}
-      last
-    />
-  ))
-
-  await expect.element(page.getByText('the current page')).toBeVisible()
-  await expect.element(page.getByText('staged')).toBeVisible()
-  await expect.element(page.getByText('the full card')).toBeVisible()
-})
-
 it('falls back to a generic projection for a tool that supplies no row', async () => {
   mountView(() => (
     <ToolTraceRow
@@ -115,13 +93,7 @@ function bashCall(): ToolCallPart {
 function outputTool(text: string): ToolCardEntry {
   return {
     names: ['Bash'],
-    render: () => <p>the bash card</p>,
-    row: () => ({
-      mark: 'pass',
-      label: 'bash',
-      target: 'grep -rn match src',
-      block: () => <TraceOutputBlock text={text}>{text}</TraceOutputBlock>,
-    }),
+    render: () => <TraceOutputBlock text={text}>{text}</TraceOutputBlock>,
   }
 }
 

@@ -10,15 +10,14 @@ import {serveHost} from '@conciv/extension-testkit/serve-host'
 const suite = setupWidgetSuite()
 
 const COMPOSER_NAME = 'Message the conciv agent'
-const SESSION_PILL_NAME = 'Session: New session'
 const SESSIONS_LIST = ['sessions', 'list'] as const
 
 function composer(page: Page) {
   return page.getByRole('textbox', {name: COMPOSER_NAME})
 }
 
-function sessionPill(page: Page) {
-  return page.getByRole('button', {name: SESSION_PILL_NAME})
+function sessionOptionsButton(page: Page) {
+  return page.getByRole('button', {name: 'Session options'})
 }
 
 async function ensurePanelClosed(page: Page): Promise<void> {
@@ -88,7 +87,7 @@ test.describe('panel open focuses the composer', () => {
       await sessionListGate.dispose()
     }
     await openPanel(page)
-    await expect(sessionPill(page)).toBeVisible({timeout: 30_000})
+    await expect(sessionOptionsButton(page)).toBeVisible({timeout: 30_000})
     await expect(composer(page)).toBeFocused({timeout: 30_000})
     await page.keyboard.type('typed after the session list resolved')
     await expect(composer(page)).toHaveText('typed after the session list resolved')
@@ -161,6 +160,23 @@ test.describe('panel close restores focus: host element captured at open wins, F
     await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeHidden({timeout: 30_000})
     await page.getByRole('button', {name: 'Close chat'}).click()
     await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeFocused({timeout: 10_000})
+  })
+})
+
+test.describe('Escape dismisses the topmost open layer only', () => {
+  test('pressing Escape while the Session options menu is open closes only the menu, not the panel', async ({page}) => {
+    test.setTimeout(90_000)
+    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+    await openPanel(page)
+
+    await sessionOptionsButton(page).click()
+    await expect(page.getByRole('menu')).toBeVisible({timeout: 10_000})
+
+    await page.keyboard.press('Escape')
+
+    await expect(page.getByRole('menu')).toBeHidden({timeout: 10_000})
+    await expect(composer(page)).toBeVisible({timeout: 10_000})
+    await expect(sessionOptionsButton(page)).toBeFocused({timeout: 10_000})
   })
 })
 

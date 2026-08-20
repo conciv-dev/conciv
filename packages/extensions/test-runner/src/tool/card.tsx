@@ -43,14 +43,14 @@ const TEST_PLURAL = new Intl.PluralRules('en')
 
 const SUMMARY_ROW = 'flex flex-wrap items-center gap-1.5'
 const RUN_LABEL =
-  'inline-flex items-center gap-1.25 text-[length:var(--chat-text-xs)] text-[color:var(--chat-text-3)] [font-family:var(--chat-mono)]'
+  'inline-flex items-center gap-1.25 text-[length:var(--chat-text-xs)] text-chat-text-3 [font-family:var(--chat-mono)]'
 const FILE_NAME =
-  'min-w-0 truncate font-semibold [font-family:var(--chat-mono)] text-[length:var(--chat-text-sm)] text-[color:var(--chat-text)]'
+  'min-w-0 truncate font-semibold [font-family:var(--chat-mono)] text-[length:var(--chat-text-sm)] text-chat-text'
 const ROW = 'flex min-w-0 items-center gap-2 py-1'
 const ROW_NAME =
-  'min-w-0 flex-1 truncate text-[length:var(--chat-text-sm)] [font-family:var(--chat-mono)] text-[color:var(--chat-text-2)]'
+  'min-w-0 flex-1 truncate text-[length:var(--chat-text-sm)] [font-family:var(--chat-mono)] text-chat-text-2'
 const ROW_DURATION =
-  'shrink-0 tabular-nums text-[length:var(--chat-text-xs)] [font-family:var(--chat-mono)] text-[color:var(--chat-text-3)]'
+  'shrink-0 tabular-nums text-[length:var(--chat-text-xs)] [font-family:var(--chat-mono)] text-chat-text-3'
 const FAILURE_BODY = 'flex flex-col gap-2 pt-1'
 const SECTIONS = 'flex flex-col gap-0.5'
 

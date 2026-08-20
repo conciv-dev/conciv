@@ -1,7 +1,7 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within} from 'storybook/test'
-import type {ToolRowProjection} from '@conciv/protocol/tool-view-types'
+import type {ToolRowProjection} from '../../tools/primitives/tool-row.js'
 import {Trace, type TraceItem} from './trace.js'
 import {TraceToolRow} from './trace-row.js'
 import {TraceActionRow} from './action-row.js'

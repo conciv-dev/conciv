@@ -93,9 +93,18 @@ function callNative(page: Page, method: NativeMethod, arg: Record<string, unknow
 }
 
 const composerBox = (page: Page) => page.getByRole('textbox', {name: 'Message the conciv agent'})
-const grabButton = (page: Page) => page.getByRole('button', {name: 'Select an element from the page'})
 const panel = (page: Page) => page.getByRole('dialog', {name: 'conciv chat agent'})
 const grabPreview = (page: Page) => panel(page).locator('img')
+
+async function pickElement(page: Page): Promise<void> {
+  const inline = page.getByRole('button', {name: 'Select an element from the page'})
+  if (await inline.isVisible()) {
+    await inline.click()
+    return
+  }
+  await page.getByRole('button', {name: 'More composer actions'}).click()
+  await page.getByRole('menuitem', {name: 'Select an element from the page'}).click()
+}
 
 test.describe('native widget bridge', () => {
   test('installs the native bridge, re-posts readiness, and settles after the first acked call and handshake', async ({
@@ -148,7 +157,7 @@ test.describe('native widget bridge', () => {
     await expect(composerBox(page)).toBeVisible({timeout: 30_000})
 
     await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
-    await grabButton(page).click()
+    await pickElement(page)
     await picked.promise
     const pick = findByType(bridge.posted, 'grab.pick')
     expect(pick?.requestId).toBeTruthy()
@@ -172,7 +181,7 @@ test.describe('native widget bridge', () => {
     await callNative(page, 'open', {v: 1, seq: 1})
     await expect(composerBox(page)).toBeVisible({timeout: 30_000})
     await callNative(page, 'grabCapability', {v: 1, seq: 2, grabbable: true})
-    await grabButton(page).click()
+    await pickElement(page)
     await picked.promise
     expect(countType(bridge.posted, 'grab.pick')).toBe(1)
 

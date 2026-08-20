@@ -29,7 +29,7 @@ async function openPanelTabs(page: Page): Promise<void> {
   const opener = page.getByRole('button', {name: 'Open conciv chat'})
   await expect(opener).toBeVisible({timeout: 30_000})
   await opener.click()
-  await expect(page.getByRole('tab', {name: 'Mount probe'})).toBeVisible({timeout: 30_000})
+  await expect(page.getByRole('button', {name: 'Mount probe'})).toBeVisible({timeout: 30_000})
 }
 
 async function panelSession(): Promise<string | null> {
@@ -119,7 +119,7 @@ test.describe('handle.rebind remounts extension surfaces on the new core', () =>
     const viewProbe = page.getByRole('status', {name: 'view mount api base'})
     await expect(surfaceProbe).toHaveText(proxyC.base, {timeout: 30_000})
 
-    const probeTab = page.getByRole('tab', {name: 'Mount probe'})
+    const probeTab = page.getByRole('button', {name: 'Mount probe'})
     await probeTab.click()
     await expect(viewProbe).toHaveText(proxyC.base, {timeout: 30_000})
 
@@ -129,7 +129,7 @@ test.describe('handle.rebind remounts extension surfaces on the new core', () =>
 
     await expect(surfaceProbe).toHaveText(proxyD.base, {timeout: 15_000})
     await expect(viewProbe).toHaveText(proxyD.base, {timeout: 15_000})
-    await expect(probeTab).toHaveAttribute('aria-selected', 'true', {timeout: 15_000})
+    await expect(probeTab).toHaveAttribute('aria-pressed', 'true', {timeout: 15_000})
     expect(proxyD.trafficCount()).toBeGreaterThan(beforeD)
     expect(pageErrors).toEqual([])
   })

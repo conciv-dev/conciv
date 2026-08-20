@@ -1,6 +1,23 @@
-import type {ToolRowMark, ToolRowProjection, ToolRowProps} from '@conciv/protocol/tool-view-types'
-import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {JSX} from 'solid-js'
 import {toolStatus, type ToolStatus} from './tool-status.js'
+
+export type ToolRowMark = 'pass' | 'warn' | 'fail' | 'run'
+
+export type ToolRowProps = {
+  part: ToolCallPart
+  result: ToolResultPart | undefined
+  ctx: ToolViewCtx
+}
+
+export type ToolRowProjection = {
+  mark: ToolRowMark
+  label: string
+  target: string
+  meta?: string
+  block?: () => JSX.Element
+}
 
 const MARK_OF_STATUS: Record<ToolStatus, ToolRowMark> = {
   running: 'run',
@@ -31,6 +48,7 @@ const VERB_ALIASES: Record<string, string> = {
   read: 'read',
   write: 'write',
   edit: 'edit',
+  patch: 'edit',
   search: 'search',
   grep: 'search',
   find: 'find',
@@ -90,6 +108,19 @@ const TARGET_KEYS = [
   'prompt',
 ]
 
+const PATH_TARGET_KEYS = new Set(['file_path', 'filePath', 'path', 'file'])
+
+function shortPath(path: string): string {
+  const segments = path.split('/').filter(Boolean)
+  const tail = segments.slice(-2).join('/')
+  return segments.length > 2 ? `…/${tail}` : tail || path
+}
+
+function pathTarget(value: string, line: unknown): string {
+  const short = shortPath(value)
+  return typeof line === 'number' ? `${short}:${line}` : short
+}
+
 function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
@@ -116,8 +147,12 @@ function argumentRecord(part: ToolCallPart): Record<string, unknown> {
 
 export function namedArgument(part: ToolCallPart): string | undefined {
   const input = argumentRecord(part)
-  const named = TARGET_KEYS.map((key) => stringField(input, key)).find((value) => value !== undefined)
-  return named === undefined ? undefined : clipTarget(named)
+  const matched = TARGET_KEYS.map((key) => ({key, value: stringField(input, key)})).find(
+    (entry): entry is {key: string; value: string} => entry.value !== undefined,
+  )
+  if (!matched) return undefined
+  const target = PATH_TARGET_KEYS.has(matched.key) ? pathTarget(matched.value, input.line) : matched.value
+  return clipTarget(target)
 }
 
 export function primaryArgument(part: ToolCallPart): string {

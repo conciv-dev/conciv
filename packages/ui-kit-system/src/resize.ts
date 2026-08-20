@@ -26,6 +26,10 @@ export function createResizable(opts: {
   onPointerDown: (e: PointerEvent) => void
   onKeyDown: (e: KeyboardEvent) => void
 } {
+  const bound = (next: number) => {
+    const capped = opts.max === undefined ? next : Math.min(next, opts.max())
+    return Math.max(opts.min, capped)
+  }
   const storageKey = opts.storageKey
   const stored =
     storageKey === undefined
@@ -38,13 +42,9 @@ export function createResizable(opts: {
           },
           opts.initial,
         )
-  const [size, setSize] = createSignal(stored)
+  const [size, setSize] = createSignal(bound(stored))
   const persist = (value: number) => {
     if (storageKey !== undefined) writeStorage(storageKey, value)
-  }
-  const bound = (next: number) => {
-    const capped = opts.max === undefined ? next : Math.min(next, opts.max())
-    return Math.max(opts.min, capped)
   }
   const [resizing, setResizing] = createSignal(false)
   let stopDrag: VoidFunction | undefined

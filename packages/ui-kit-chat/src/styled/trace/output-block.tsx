@@ -89,10 +89,13 @@ export function TraceOutputBlock(props: {
   const settle = (state: CopyState) => setCopyState(state)
   const copy = () => {
     const write = local.writeText ?? writeToClipboard
-    write(local.text ?? '').then(
-      () => settle('copied'),
-      () => settle('failed'),
-    )
+    const text = local.text ?? ''
+    Promise.resolve()
+      .then(() => write(text))
+      .then(
+        () => settle('copied'),
+        () => settle('failed'),
+      )
   }
   return (
     <div class={`${FRAME}  ${FRAME_TONE[tone()]}`} role="group" aria-label={local.label ?? TONE_NAME[tone()]}>

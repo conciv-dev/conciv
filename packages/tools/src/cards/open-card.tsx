@@ -1,7 +1,7 @@
 import type {JSX} from 'solid-js'
 import FileText from 'lucide-solid/icons/file-text'
-import type {ToolCardProps, ToolRowProjection, ToolRowProps} from '@conciv/protocol/tool-view-types'
-import {parseInput, QUIET_TEXT_CLASS, rowMarkOf, toolStatus, ToolCard, type ToolStatus} from '@conciv/ui-kit-chat/tools'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {parseInput, QUIET_TEXT_CLASS, toolStatus, ToolCard, type ToolStatus} from '@conciv/ui-kit-chat/tools'
 import {OpenInput} from '../builtins/open-input.js'
 
 function Icon(): JSX.Element {
@@ -23,15 +23,6 @@ function statusNote(status: ToolStatus): string {
   if (status === 'error') return 'Could not open the file.'
   if (status === 'complete') return 'Opened in your editor.'
   return 'Opening…'
-}
-
-export function openRowProjection(source: ToolRowProps): ToolRowProjection {
-  const input = parseInput(OpenInput, source.part)
-  return {
-    mark: rowMarkOf(source.part, source.result),
-    label: 'open',
-    target: targetOf(input, source.part.name),
-  }
 }
 
 export function OpenCard(props: ToolCardProps): JSX.Element {

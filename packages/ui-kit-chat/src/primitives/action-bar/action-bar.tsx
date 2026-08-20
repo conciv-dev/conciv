@@ -79,6 +79,7 @@ function Root(props: RootProps): JSX.Element {
           data-floating={floating() ? 'true' : undefined}
           data-autohide={autohideEnabled() ? 'true' : undefined}
           data-active={active() ? 'true' : undefined}
+          inert={active() ? undefined : true}
           {...rest}
         />
       </ActionBarInteractionProvider>

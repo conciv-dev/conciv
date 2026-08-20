@@ -1,4 +1,4 @@
-import type {Component, JSX} from 'solid-js'
+import type {Component} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolIconKey, ToolLabel} from './tool-icon-types.js'
 import type {ToolCaptureView} from './element-capture-types.js'
@@ -62,29 +62,9 @@ export type ToolRenderContext<TArgs = unknown> = ToolViewCtx & {
 }
 
 export type ToolUIComponent = Component<ToolCardProps>
-
-export type ToolRowMark = 'pass' | 'warn' | 'fail' | 'run'
-
-export type ToolRowProps = {
-  part: ToolCallPart
-  result: ToolResultPart | undefined
-  ctx: ToolViewCtx
-}
-
-export type ToolRowProjection = {
-  mark: ToolRowMark
-  label: string
-  target: string
-  meta?: string
-  block?: () => JSX.Element
-}
-
-export type ToolRowProjector = (props: ToolRowProps) => ToolRowProjection
-
 export type ToolCardEntry = {
   names: string[]
   render: ToolUIComponent
-  row?: ToolRowProjector
   streamTitle?: string
   display?: 'standalone'
 }

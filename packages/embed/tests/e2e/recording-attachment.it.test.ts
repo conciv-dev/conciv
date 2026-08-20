@@ -46,7 +46,7 @@ test.describe('recording attachment end to end in the real widget', () => {
       return appended.events.filter((event) => ClickEventSchema.safeParse(event).success).length
     }
 
-    await page.getByRole('tab', {name: 'Recorder'}).click()
+    await page.getByRole('button', {name: 'Recorder'}).click()
     await until(async () => (await recorderRpc.window({})).cursor > 0, {hangGuardMs: 30_000, intervalMs: 100})
     const captureBaseline = (await recorderRpc.window({})).cursor
 

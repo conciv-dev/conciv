@@ -51,7 +51,10 @@ async function sendAndRevealThought(page: Page, message: string): Promise<void> 
   await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(message)
   await page.getByRole('button', {name: 'Send message'}).click()
   await expect(page.getByRole('button', {name: 'Stop generating'})).toBeHidden({timeout: 30_000})
-  await page.getByText('Chain of Thought').last().click()
+  await page
+    .getByRole('button', {name: /Show trace$/})
+    .last()
+    .click()
 }
 
 test.describe('embed boots the conciv app against a real core', () => {
@@ -59,8 +62,8 @@ test.describe('embed boots the conciv app against a real core', () => {
     test.setTimeout(240_000)
     await openPage(page)
     await openPanel(page)
-    await page.getByRole('tab', {name: 'Terminal'}).click()
-    await expect(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
+    await page.getByRole('button', {name: 'Terminal'}).click()
+    await expect(page.getByRole('button', {name: 'Terminal'})).toHaveAttribute('aria-pressed', 'true', {
       timeout: 30_000,
     })
     await until(
@@ -74,7 +77,7 @@ test.describe('embed boots the conciv app against a real core', () => {
     await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeHidden({timeout: 30_000})
     await until(async () => !(await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    await expect(page.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
+    await expect(page.getByRole('button', {name: 'Terminal'})).toHaveAttribute('aria-pressed', 'true', {
       timeout: 30_000,
     })
     await until(async () => (await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
@@ -86,13 +89,13 @@ test.describe('embed boots the conciv app against a real core', () => {
     test.setTimeout(180_000)
     const first = await openPage(page)
     await openPanel(first)
-    await first.getByRole('tab', {name: 'Terminal'}).click()
+    await first.getByRole('button', {name: 'Terminal'}).click()
     await until(async () => (await currentHref(kit)).includes('/terminal'), {hangGuardMs: 30_000, intervalMs: 100})
     expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
     await first.close()
     const second = await openPage(await context.newPage())
     await expect(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
-    await expect(second.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
+    await expect(second.getByRole('button', {name: 'Terminal'})).toHaveAttribute('aria-pressed', 'true', {
       timeout: 30_000,
     })
   })
@@ -209,7 +212,7 @@ test.describe('embed boots the conciv app against a real core', () => {
     kit.harness.script.scriptToolCall('catalog', {search: 'weather'}, {blocking: false})
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await sendAndRevealThought(page, 'run some code')
-    await expect(page.getByRole('button', {name: /run code return 1/})).toBeVisible({timeout: 30_000})
+    await expect(page.getByRole('button', {name: /exec return 1/})).toBeVisible({timeout: 30_000})
     await expect(page.getByText('return 1').first()).toBeVisible({timeout: 30_000})
     await sendAndRevealThought(page, 'now check the catalog')
     await expect(page.getByText('Capability catalog').last()).toBeVisible({timeout: 30_000})
@@ -253,7 +256,7 @@ test.describe('embed at a phone viewport', () => {
   test.describe('a narrower phone width', () => {
     test.use({viewport: {width: 320, height: 800}})
 
-    test('keeps the single trailing button and Select model inside the sheet on a narrow phone while a run streams', async ({
+    test('keeps the single trailing button and the model menu reachable inside the sheet on a narrow phone while a run streams', async ({
       page,
     }) => {
       test.setTimeout(180_000)
@@ -262,12 +265,16 @@ test.describe('embed at a phone viewport', () => {
       kit.harness.script.hold()
       const send = page.getByRole('button', {name: 'Send message'})
       const stop = page.getByRole('button', {name: 'Stop generating'})
+      const moreActions = page.getByRole('button', {name: 'More composer actions'})
       await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill('a question that keeps running')
       await send.click()
       await expect(stop).toBeVisible({timeout: 30_000})
       await expect(send).toBeHidden()
-      await expect(page.getByRole('button', {name: 'Select model'})).toBeInViewport({ratio: 1, timeout: 5_000})
+      await expect(moreActions).toBeInViewport({ratio: 1, timeout: 5_000})
       await expect(stop).toBeInViewport({ratio: 1, timeout: 5_000})
+      await moreActions.click()
+      await expect(page.getByRole('menuitem', {name: /^Model: /}).first()).toBeVisible({timeout: 30_000})
+      await page.keyboard.press('Escape')
       kit.harness.script.release()
       await expect(stop).toBeHidden({timeout: 30_000})
       await expect(send).toBeVisible()

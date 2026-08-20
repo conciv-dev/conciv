@@ -4,7 +4,8 @@ import {CardShell, ErrorBlock, JsonTree, cardHeader} from '@conciv/ui-kit-chat/t
 import {ChipRow, ELEMENT_TARGET_KEYS, cardErrorMessage, cardPayload, elementChip, resultChips} from './shared.js'
 
 function payloadHasNestedValue(payload: unknown): boolean {
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return false
+  if (Array.isArray(payload)) return payload.length > 0
+  if (typeof payload !== 'object' || payload === null) return false
   return Object.values(payload as Record<string, unknown>).some((value) => typeof value === 'object' && value !== null)
 }
 

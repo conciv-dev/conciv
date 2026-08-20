@@ -1,14 +1,13 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import Blocks from 'lucide-solid/icons/blocks'
 import type {Catalog, Issue} from '@conciv/extension/catalog'
-import type {ToolCardProps, ToolRowMark, ToolRowProjection, ToolRowProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
   CodeBlock,
   countLabel,
   parseInput,
   parseResultPayload,
   QUIET_TEXT_CLASS,
-  rowMarkOf,
   ToolCard,
 } from '@conciv/ui-kit-chat/tools'
 import {ExtensionsInput} from '../extensions-tool.js'
@@ -20,8 +19,6 @@ const TITLE_BY_VERB: Record<Verb, string> = {
   scaffold: 'Extension scaffold',
   validate: 'Extension check',
 }
-
-const ROW_LABEL_BY_VERB: Record<Verb, string> = {catalog: 'LIST', scaffold: 'EXT', validate: 'EXT'}
 
 const MICROLABEL =
   'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none'
@@ -134,10 +131,6 @@ function ValidateBody(props: {issues: Issue[]}): JSX.Element {
   )
 }
 
-type RowDetail = {target: string; meta: string | undefined; failed?: boolean}
-
-type ExtensionsRowInput = {verb?: Verb; kind?: string; name?: string} | undefined
-
 function catalogMeta(catalog: Catalog | undefined): string | undefined {
   if (!catalog) return undefined
   const apis = catalog.clientSurfaces.length + catalog.serverSurfaces.length
@@ -153,49 +146,16 @@ function validateMeta(validateResult: {ok: boolean; issues: Issue[]} | undefined
   return validateResult.ok ? 'ok' : countLabel(validateResult.issues.length, 'issue', 'issues')
 }
 
-function catalogRowDetail(source: ToolRowProps): RowDetail {
-  return {target: 'extensions', meta: catalogMeta(catalogPayload(source.result))}
-}
-
-function scaffoldRowDetail(source: ToolRowProps, input: {kind?: string; name?: string} | undefined): RowDetail {
-  const target = [input?.kind, input?.name].filter(Boolean).join(' ')
-  return {target: target || 'extensions', meta: undefined}
-}
-
-function validateRowDetail(source: ToolRowProps): RowDetail {
-  const validateResult = validatePayload(source.result)
-  return {
-    target: 'extensions',
-    meta: validateMeta(validateResult),
-    failed: validateResult !== undefined && !validateResult.ok,
-  }
-}
-
-const ROW_DETAIL_BY_VERB: Record<
-  Verb,
-  (source: ToolRowProps, input: {kind?: string; name?: string} | undefined) => RowDetail
-> = {catalog: catalogRowDetail, scaffold: scaffoldRowDetail, validate: validateRowDetail}
-
-const FALLBACK_DETAIL: RowDetail = {target: 'extensions', meta: undefined}
-
-function rowDetailOf(source: ToolRowProps, input: ExtensionsRowInput): RowDetail {
-  const verb = input?.verb
-  return verb ? ROW_DETAIL_BY_VERB[verb](source, input) : FALLBACK_DETAIL
-}
-
-function rowLabelOf(input: ExtensionsRowInput): string {
-  const verb = input?.verb
-  return verb ? ROW_LABEL_BY_VERB[verb] : 'EXT'
-}
-
-function rowMark(source: ToolRowProps, detail: RowDetail): ToolRowMark {
-  return detail.failed === true ? 'fail' : rowMarkOf(source.part, source.result)
-}
-
-export function extensionsRowProjection(source: ToolRowProps): ToolRowProjection {
-  const input = parseInput(ExtensionsInput, source.part)
-  const detail = rowDetailOf(source, input)
-  return {mark: rowMark(source, detail), label: rowLabelOf(input), target: detail.target, meta: detail.meta}
+function metaFor(
+  verb: Verb | undefined,
+  catalog: Catalog | undefined,
+  validateResult: {ok: boolean; issues: Issue[]} | undefined,
+  kind: string | undefined,
+): string | undefined {
+  if (verb === 'catalog') return catalogMeta(catalog)
+  if (verb === 'validate') return validateMeta(validateResult)
+  if (verb === 'scaffold') return kind
+  return undefined
 }
 
 export function ExtensionsCard(props: ToolCardProps): JSX.Element {
@@ -216,6 +176,7 @@ export function ExtensionsCard(props: ToolCardProps): JSX.Element {
       part={props.part}
       result={props.result}
       status={failed() ? 'error' : undefined}
+      meta={metaFor(verb(), catalog(), validateResult(), input()?.kind)}
     >
       <Switch fallback={<p class={QUIET_TEXT_CLASS}>waiting on the tool</p>}>
         <Match when={catalog()}>{(value) => <CatalogBody catalog={value()} />}</Match>

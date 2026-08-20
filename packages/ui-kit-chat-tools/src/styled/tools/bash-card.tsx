@@ -1,16 +1,10 @@
 import {Show, type JSX} from 'solid-js'
 import Terminal from 'lucide-solid/icons/terminal'
-import type {
-  ToolCardEntry,
-  ToolCardProps,
-  ToolRowMark,
-  ToolRowProjection,
-  ToolRowProps,
-} from '@conciv/protocol/tool-view-types'
-import {Bash, parseBashOutput, useBash} from '../../primitives/tools/bash.js'
-import {CodeBlock, TraceOutputBlock, ToolCard, toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {Bash, useBash} from '../../primitives/tools/bash.js'
+import {CodeBlock, ToolCard, TraceOutputBlock} from '@conciv/ui-kit-chat/tools'
 
-const ANSI_INTRODUCER = '\u001b['
+const ANSI_INTRODUCER = '['
 
 function outputLanguage(text: string): string {
   return text.includes(ANSI_INTRODUCER) ? 'ansi' : 'log'
@@ -21,8 +15,18 @@ function Icon(): JSX.Element {
   return <Terminal size={14} class={bash.isError() ? 'text-chat-danger' : undefined} aria-hidden="true" />
 }
 
+function outputText(stdout: string | undefined, stderr: string | undefined): string {
+  return [stdout, stderr].filter(Boolean).join('\n')
+}
+
+function exitMeta(settled: boolean, exitCode: number | undefined): string | undefined {
+  if (!settled || exitCode === undefined) return undefined
+  return `exit ${exitCode}`
+}
+
 function Body(): JSX.Element {
   const bash = useBash()
+  const text = () => outputText(bash.output().stdout, bash.output().stderr)
   return (
     <Show
       when={bash.hasOutput()}
@@ -34,22 +38,15 @@ function Body(): JSX.Element {
         <Show when={bash.command()}>
           {(command) => <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />}
         </Show>
-        <Show when={bash.output().stdout}>
-          {(stdout) => (
-            <CodeBlock
-              size="xs"
-              maxHeight="log"
-              file={{name: 'output.log', lang: outputLanguage(stdout()), contents: stdout()}}
-            />
-          )}
-        </Show>
-        <Show when={bash.output().stderr}>
-          {(stderr) => (
-            <CodeBlock
-              size="xs"
-              maxHeight="log"
-              file={{name: 'stderr.log', lang: outputLanguage(stderr()), contents: stderr()}}
-            />
+        <Show when={text()}>
+          {(value) => (
+            <TraceOutputBlock tone={bash.isError() ? 'error' : 'normal'} text={value()}>
+              <CodeBlock
+                size="xs"
+                maxHeight="none"
+                file={{name: 'output.log', lang: outputLanguage(value()), contents: value()}}
+              />
+            </TraceOutputBlock>
           )}
         </Show>
       </div>
@@ -60,6 +57,7 @@ function Body(): JSX.Element {
 function CardBody(props: ToolCardProps): JSX.Element {
   const bash = useBash()
   const status = () => (bash.isError() ? 'error' : bash.status())
+  const settled = () => bash.status() === 'complete' || bash.status() === 'error'
   return (
     <ToolCard
       Icon={Icon}
@@ -68,6 +66,7 @@ function CardBody(props: ToolCardProps): JSX.Element {
       part={props.part}
       result={props.result}
       status={status()}
+      meta={exitMeta(settled(), bash.output().exitCode)}
     >
       <Body />
     </ToolCard>
@@ -82,59 +81,4 @@ export function BashCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-function firstMeaningfulLine(command: string): string {
-  const line = command
-    .split('\n')
-    .map((candidate) => candidate.trim())
-    .find((candidate) => candidate.length > 0 && !candidate.startsWith('#'))
-  return line ?? command.trim()
-}
-
-function commandOf(part: ToolCardProps['part']): string {
-  try {
-    const value = JSON.parse(part.arguments || '{}').command
-    return typeof value === 'string' && value.trim().length > 0 ? firstMeaningfulLine(value) : part.name
-  } catch {
-    return part.name
-  }
-}
-
-function exitMeta(settled: boolean, exitCode: number | undefined): string | undefined {
-  if (!settled || exitCode === undefined) return undefined
-  return `exit ${exitCode}`
-}
-
-function bashFailed(status: ToolStatus, exitCode: number | undefined): boolean {
-  if (status === 'error') return true
-  return exitCode !== undefined && exitCode !== 0
-}
-
-function bashMark(settled: boolean, failed: boolean): ToolRowMark {
-  if (!settled) return 'run'
-  return failed ? 'fail' : 'pass'
-}
-
-function bashBlock(text: string, failed: boolean, live: boolean): () => JSX.Element {
-  return () => (
-    <TraceOutputBlock tone={failed ? 'error' : 'normal'} text={text} live={live}>
-      <CodeBlock size="xs" maxHeight="none" file={{name: 'output.log', lang: outputLanguage(text), contents: text}} />
-    </TraceOutputBlock>
-  )
-}
-
-export function bashRowProjection(source: ToolRowProps): ToolRowProjection {
-  const status = toolStatus(source.part, source.result)
-  const settled = status === 'complete' || status === 'error'
-  const output = parseBashOutput(source.result)
-  const failed = settled && bashFailed(status, output.exitCode)
-  const text = [output.stdout, output.stderr].filter(Boolean).join('\n')
-  return {
-    mark: bashMark(settled, failed),
-    label: 'bash',
-    target: commandOf(source.part),
-    meta: exitMeta(settled, output.exitCode),
-    block: text ? bashBlock(text, failed, !settled) : undefined,
-  }
-}
-
-export const bashTool: ToolCardEntry = {names: ['Bash'], render: BashCard, row: bashRowProjection}
+export const bashTool: ToolCardEntry = {names: ['Bash'], render: BashCard}

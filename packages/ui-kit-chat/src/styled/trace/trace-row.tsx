@@ -1,7 +1,7 @@
 import {Show, splitProps, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
-import type {ToolRowMark, ToolRowProjection} from '@conciv/protocol/tool-view-types'
+import type {ToolRowMark, ToolRowProjection} from '../../tools/primitives/tool-row.js'
 import {FOCUS_INSET} from '../classes.js'
 import {TraceConnector, TRACE_HOVER_INDENT, TRACE_INDENT, TRACE_LINE} from './connector.js'
 

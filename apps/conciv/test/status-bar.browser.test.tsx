@@ -30,4 +30,11 @@ describe('StatusBar session status derivation', () => {
     await expect.element(page.getByText('DONE', {exact: true})).toBeVisible()
     expect(page.getByText('RUNNING', {exact: true}).elements()).toHaveLength(0)
   })
+
+  it('announces the state chip through a polite live region', async () => {
+    const setStatus = mountDynamic()
+    await expect.element(page.getByRole('status')).toHaveTextContent('RUNNING')
+    setStatus({kind: 'failed', label: 'FAILED'})
+    await expect.element(page.getByRole('status')).toHaveTextContent('FAILED')
+  })
 })

@@ -1,9 +1,14 @@
 import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {ToolCardEntry, ToolCardProps, ToolRowProjection, ToolUIComponent} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 import {ToolFallback} from './tool-fallback.js'
 import {ToolDurationProvider} from '../primitives/tool-duration.js'
-import {genericRowProjection, headerRowProjection, type EmbeddedCardHeader} from '../primitives/tool-row.js'
+import {
+  genericRowProjection,
+  headerRowProjection,
+  type EmbeddedCardHeader,
+  type ToolRowProjection,
+} from '../primitives/tool-row.js'
 import {resultText} from '../primitives/tool-util.js'
 import {MetaToolCard} from './meta-tool-card.js'
 import {PermissionCard} from './permission-card.js'
@@ -57,7 +62,6 @@ function hasArguments(part: ToolCallCardProps['part']): boolean {
 
 export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   const [local] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'last', 'ring'])
-  const matched = () => local.tools?.().find((entry) => entry.names.includes(local.part.name))
   const [cardHeader, setCardHeader] = createSignal<{read: () => EmbeddedCardHeader}>()
   const publishHeader: EmbeddedHeaderChannel = (read) => {
     const published = {read}
@@ -66,8 +70,6 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   }
   const projection = createMemo<ToolRowProjection>(() => {
     const rowProps = {part: local.part, result: local.result, ctx: local.ctx}
-    const project = matched()?.row
-    if (project) return project(rowProps)
     const published = cardHeader()
     return published ? headerRowProjection(published.read(), rowProps) : genericRowProjection(rowProps)
   })

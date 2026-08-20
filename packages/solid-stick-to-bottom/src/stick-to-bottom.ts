@@ -127,8 +127,9 @@ export function createStickToBottom(
   const owner = getOwner()
   let pointerIsDown = false
   let previousHeight: number | undefined
+  let disposeScrollSettle: (() => void) | undefined
 
-  const afterSettle = (task: () => void) => {
+  const afterSettle = (task: () => void) =>
     createRoot((dispose) => {
       makeTimer(
         () => {
@@ -138,7 +139,20 @@ export function createStickToBottom(
         SETTLE_DELAY_MS,
         setTimeout,
       )
+      return dispose
     }, owner ?? undefined)
+
+  const cancelScrollSettle = () => {
+    disposeScrollSettle?.()
+    disposeScrollSettle = undefined
+  }
+
+  const scheduleScrollSettle = (task: () => void) => {
+    cancelScrollSettle()
+    disposeScrollSettle = afterSettle(() => {
+      disposeScrollSettle = undefined
+      task()
+    })
   }
 
   const scrollTop = () => scrollElement()?.scrollTop ?? 0
@@ -203,7 +217,10 @@ export function createStickToBottom(
       })
     }
 
-    if (!scrollOptions.preserveScrollPosition) setState('isAtBottom', true)
+    if (!scrollOptions.preserveScrollPosition) {
+      if (!stuckToBottom()) cancelScrollSettle()
+      setState('isAtBottom', true)
+    }
 
     const waitElapsed = Date.now() + (Number(scrollOptions.wait) || 0)
     const behavior = mergeAnimations(scrollOptions.animation)
@@ -275,7 +292,7 @@ export function createStickToBottom(
 
     setState('isNearBottom', nearBottom())
 
-    afterSettle(() => {
+    scheduleScrollSettle(() => {
       if (motion.resizeDifference || currentScrollTop === ignoreScrollToTop) return
 
       if (isSelecting()) {

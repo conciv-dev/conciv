@@ -1,7 +1,6 @@
-import {Show, type JSX} from 'solid-js'
-import {z} from 'zod'
+import {createMemo, Show, type JSX} from 'solid-js'
 import SearchIcon from 'lucide-solid/icons/search'
-import type {ToolCardEntry, ToolCardProps, ToolRowProjection, ToolRowProps} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {ToolStatus} from '@conciv/ui-kit-chat/tools'
 import {Search, useSearch} from '../../primitives/tools/search.js'
 import {
@@ -10,21 +9,18 @@ import {
   parseSearchMatches,
   searchLineCount,
   SearchMatches,
-  type SearchFileGroup,
 } from './search-matches.js'
 import {
   CodeBlock,
   countLabel,
   DANGER_TEXT_CLASS,
   formatDuration,
-  parseInput,
   QUIET_TEXT_CLASS,
-  resultText,
-  rowMarkOf,
   StatusVisual,
   toolStatus,
   ToolCard,
   TraceOutputBlock,
+  useEmbeddedCard,
   useToolCallDuration,
 } from '@conciv/ui-kit-chat/tools'
 
@@ -82,8 +78,40 @@ function SearchHeader(): JSX.Element {
   )
 }
 
+function matchOverflowLabel(groups: ReturnType<typeof groupSearchMatches>): (hidden: number) => string {
+  return (hidden) => {
+    const summary = hiddenMatchSummary(groups, hidden)
+    return `… ${countLabel(summary.matches, 'more match', 'more matches')} in ${countLabel(summary.files, 'file', 'files')}`
+  }
+}
+
+function EmbeddedResults(props: {text: string; failed: boolean}): JSX.Element {
+  const matches = () => (props.failed ? [] : parseSearchMatches(props.text))
+  const groups = createMemo(() => groupSearchMatches(matches()))
+  return (
+    <Show
+      when={matches().length > 0}
+      fallback={
+        <TraceOutputBlock text={props.text} tone={props.failed ? 'error' : 'normal'}>
+          <CodeBlock size="xs" file={{name: 'results.txt', lang: 'text', contents: props.text}} />
+        </TraceOutputBlock>
+      }
+    >
+      <TraceOutputBlock
+        text={props.text}
+        label="Matches"
+        lines={searchLineCount(groups())}
+        overflowLabel={matchOverflowLabel(groups())}
+      >
+        <SearchMatches groups={groups()} />
+      </TraceOutputBlock>
+    </Show>
+  )
+}
+
 function Body(): JSX.Element {
   const search = useSearch()
+  const embedded = useEmbeddedCard()
   return (
     <ToolCard
       Icon={Icon}
@@ -97,7 +125,18 @@ function Body(): JSX.Element {
         when={search.count() > 0}
         fallback={<p class={emptyClass(search.status())}>{emptyLabel(search.status())}</p>}
       >
-        <CodeBlock size="xs" maxHeight="result" file={{name: 'results.txt', lang: 'text', contents: search.text()}} />
+        <Show
+          when={embedded()}
+          fallback={
+            <CodeBlock
+              size="xs"
+              maxHeight="result"
+              file={{name: 'results.txt', lang: 'text', contents: search.text()}}
+            />
+          }
+        >
+          <EmbeddedResults text={search.text()} failed={search.status() === 'error'} />
+        </Show>
       </Show>
     </ToolCard>
   )
@@ -111,63 +150,4 @@ export function SearchCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-const SearchRowInput = z.object({pattern: z.string().optional(), glob: z.string().optional()})
-
-function searchTarget(part: ToolRowProps['part']): string {
-  const input = parseInput(SearchRowInput, part)
-  const value = input?.pattern ?? input?.glob
-  return value ? `"${value}"` : 'the workspace'
-}
-
-function matchCount(text: string): number {
-  return text.split('\n').filter((line) => line.trim().length > 0).length
-}
-
-function matchOverflowLabel(groups: SearchFileGroup[]): (hidden: number) => string {
-  return (hidden) => {
-    const summary = hiddenMatchSummary(groups, hidden)
-    return `… ${countLabel(summary.matches, 'more match', 'more matches')} in ${countLabel(summary.files, 'file', 'files')}`
-  }
-}
-
-function searchBlock(text: string, failed: boolean): () => JSX.Element {
-  const matches = failed ? [] : parseSearchMatches(text)
-  if (matches.length === 0)
-    return () => (
-      <TraceOutputBlock text={text} tone={failed ? 'error' : 'normal'}>
-        <CodeBlock size="xs" file={{name: 'results.txt', lang: 'text', contents: text}} />
-      </TraceOutputBlock>
-    )
-  const groups = groupSearchMatches(matches)
-  return () => (
-    <TraceOutputBlock
-      text={text}
-      label="Matches"
-      lines={searchLineCount(groups)}
-      overflowLabel={matchOverflowLabel(groups)}
-    >
-      <SearchMatches groups={groups} />
-    </TraceOutputBlock>
-  )
-}
-
-function searchMeta(result: ToolRowProps['result'], failed: boolean, matches: number): string | undefined {
-  if (failed) return 'failed'
-  if (result === undefined) return undefined
-  return countLabel(matches, 'match', 'matches')
-}
-
-export function searchRowProjection(source: ToolRowProps): ToolRowProjection {
-  const failed = source.result?.state === 'error'
-  const text = resultText(source.result).trim()
-  const matches = failed ? 0 : matchCount(text)
-  return {
-    mark: rowMarkOf(source.part, source.result),
-    label: 'search',
-    target: searchTarget(source.part),
-    meta: searchMeta(source.result, failed, matches),
-    block: text.length === 0 ? undefined : searchBlock(text, failed),
-  }
-}
-
-export const searchTool: ToolCardEntry = {names: ['Grep', 'Glob'], render: SearchCard, row: searchRowProjection}
+export const searchTool: ToolCardEntry = {names: ['Grep', 'Glob'], render: SearchCard}

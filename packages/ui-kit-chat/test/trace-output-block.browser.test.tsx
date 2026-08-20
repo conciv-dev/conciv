@@ -54,6 +54,21 @@ it('announces a clipboard refusal instead of pretending the copy worked', async 
   await expect.element(page.getByRole('status')).toHaveTextContent('Could not copy')
 })
 
+it('announces a clipboard refusal when writeText throws synchronously instead of returning a rejected promise', async () => {
+  const throwSync = (): Promise<void> => {
+    throw new Error('navigator.clipboard is unavailable in this context')
+  }
+  mountView(() => (
+    <TraceOutputBlock text={STDOUT} writeText={throwSync}>
+      {STDOUT}
+    </TraceOutputBlock>
+  ))
+
+  await page.getByRole('button', {name: 'Copy'}).click()
+
+  await expect.element(page.getByRole('status')).toHaveTextContent('Could not copy')
+})
+
 it('reaches the block actions with the keyboard', async () => {
   mountView(() => <TraceOutputBlock text={STDOUT}>{STDOUT}</TraceOutputBlock>)
 

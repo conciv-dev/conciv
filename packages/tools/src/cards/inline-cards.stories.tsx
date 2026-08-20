@@ -131,7 +131,8 @@ export const ExtensionsScaffold: Story = {
     ]),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('tool-renderer weather')).toBeVisible()
+    await expect(c.getByText('weather')).toBeVisible()
+    await expect(c.getByText('tool-renderer')).toBeVisible()
     await waitFor(async () => expect(await codeText(canvasElement)).toContain('defineExtension'))
   },
 }

@@ -5,9 +5,9 @@ import CircleCheckBig from 'lucide-solid/icons/circle-check-big'
 import CircleDashed from 'lucide-solid/icons/circle-dashed'
 import ListTodo from 'lucide-solid/icons/list-todo'
 import type {LucideIcon} from 'lucide-solid'
-import type {ToolCardEntry, ToolCardProps, ToolRowProjection, ToolRowProps} from '@conciv/protocol/tool-view-types'
-import {Todo, todoItems, useTodo, type TodoItemStatus} from '../../primitives/tools/todo.js'
-import {QUIET_TEXT_CLASS, rowMarkOf, ToolCard} from '@conciv/ui-kit-chat/tools'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {Todo, useTodo, type TodoItemStatus} from '../../primitives/tools/todo.js'
+import {QUIET_TEXT_CLASS, ToolCard} from '@conciv/ui-kit-chat/tools'
 const STATUS_ICON: Record<TodoItemStatus, LucideIcon> = {
   pending: CircleDashed,
   in_progress: Circle,
@@ -74,16 +74,4 @@ export function TodoCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export function todoRowProjection(source: ToolRowProps): ToolRowProjection {
-  const todos = todoItems(source.part)
-  const active = todos.find((todo) => todo.status === 'in_progress')
-  const done = todos.filter((todo) => todo.status === 'completed').length
-  return {
-    mark: rowMarkOf(source.part, source.result),
-    label: 'plan',
-    target: active ? (active.activeForm ?? active.content) : 'updated the to-do list',
-    meta: todos.length === 0 ? undefined : `${done}/${todos.length}`,
-  }
-}
-
-export const todoTool: ToolCardEntry = {names: ['TodoWrite'], render: TodoCard, row: todoRowProjection}
+export const todoTool: ToolCardEntry = {names: ['TodoWrite'], render: TodoCard}

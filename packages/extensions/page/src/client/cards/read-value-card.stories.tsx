@@ -78,6 +78,26 @@ export const ElementAndValue: Story = {
   },
 }
 
+export const RootArray: Story = {
+  render: () => (
+    <div class={STORY_FRAME_CLASS}>
+      <ReadValueCard
+        part={storyPart('page.text', {selector: '.item'})}
+        result={storyResult(['Ship the trace redesign', 'Write the session log spec'])}
+        ctx={storyCtx({})}
+        addResult={storyAddResult}
+      />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button'))
+    await waitFor(() => expect(canvas.getByRole('tree')).toBeVisible())
+    await expect(canvas.getAllByText(/Ship the trace redesign/)[0]).toBeVisible()
+    await expect(canvas.getAllByText(/Write the session log spec/)[0]).toBeVisible()
+  },
+}
+
 export const RouteObject: Story = {
   render: () => (
     <div class={STORY_FRAME_CLASS}>

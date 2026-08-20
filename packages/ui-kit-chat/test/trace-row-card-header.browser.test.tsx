@@ -122,28 +122,6 @@ it('tracks header changes as the card result streams in', async () => {
   await expect.element(page.getByText('3 passed').first()).toBeVisible()
 })
 
-const projectingTool: ToolCardEntry = {
-  names: ['tanstack_query_cache'],
-  render: headerCard,
-  row: () => ({mark: 'pass', label: 'cache', target: 'the declared projection wins', meta: 'staged'}),
-}
-
-it('keeps an explicit row projector ahead of the card header', async () => {
-  mountView(() => (
-    <ToolTraceRow
-      part={call('tanstack_query_cache', {scope: 'all'})}
-      result={failedResult()}
-      ctx={ctx}
-      tools={() => [projectingTool]}
-      last
-    />
-  ))
-
-  await expect.element(page.getByText('the declared projection wins')).toBeVisible()
-  await expect.element(page.getByRole('img', {name: 'succeeded'})).toBeVisible()
-  expect(page.getByText('Read the query cache').query()).toBeNull()
-})
-
 function commandCard(props: ToolCardProps): JSX.Element {
   return (
     <CardShell meta={undefined} title="Run a command" metaBadge="edits page" part={props.part} result={props.result}>

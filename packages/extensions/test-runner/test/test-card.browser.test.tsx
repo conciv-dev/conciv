@@ -76,9 +76,12 @@ function completedRun(): Partial<ToolCardProps> {
 }
 
 const TIMED_RESULT = {
-  summary: {passed: 1, failed: 0, skipped: 0, durationMs: 42},
+  summary: {passed: 2, failed: 0, skipped: 0, durationMs: 999},
   failures: [],
-  tests: [{id: 'timed-1', file: FILE, name: 'runs quickly', state: 'pass', durationMs: 42}],
+  tests: [
+    {id: 'timed-1', file: FILE, name: 'runs quickly', state: 'pass', durationMs: 42},
+    {id: 'timed-2', file: FILE, name: 'runs slowly', state: 'pass', durationMs: 777},
+  ],
 }
 
 function timedRun(): Partial<ToolCardProps> {
@@ -151,7 +154,9 @@ describe('TestCard (real browser)', () => {
     mountCard(timedRun(), makeCtx([]))
 
     await expect.element(page.getByText('runs quickly')).toBeVisible()
-    await expect.element(page.getByText('42ms')).toBeVisible()
+    await expect.element(page.getByText('42ms', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('runs slowly')).toBeVisible()
+    await expect.element(page.getByText('777ms', {exact: true})).toBeVisible()
   })
 
   it('renders the input chips when shown as a standalone card', async () => {

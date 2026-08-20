@@ -73,6 +73,10 @@ const LOADER_DATA = JSON.stringify({
   deep: {__conciv: 'object', size: 1, preview: '{…}'},
 })
 
+const LOADER_DATA_WITH_ORDINARY_PREVIEW_FIELD = JSON.stringify({
+  article: {title: 'Ship the trace redesign', preview: 'short excerpt', author: 'Omri'},
+})
+
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -200,6 +204,16 @@ describe('LoaderDataCard (real browser)', () => {
 
   it('renders the error message when the verb fails', async () => {
     await expectErrorCard(LoaderDataCard, 'tanstack_loader_data', 'TanStack router not found on page')
+  })
+
+  it('does not suppress JSON details for a loader value whose own preview field is not the truncation marker', async () => {
+    mountToolCard(LoaderDataCard, {
+      name: 'tanstack_loader_data',
+      content: LOADER_DATA_WITH_ORDINARY_PREVIEW_FIELD,
+      ctx: catalogCtx,
+    })
+    await page.getByRole('button', {name: doneTitleOf('tanstack_loader_data')}).click()
+    await expect.element(page.getByText('author', {exact: true})).toBeVisible()
   })
 })
 

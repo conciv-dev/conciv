@@ -1,10 +1,12 @@
 import {createMemo, type Accessor} from 'solid-js'
 import {countBy} from 'es-toolkit'
+import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {Turn} from './grouping.js'
 import {pairResults} from './grouping.js'
 import {toolStatus} from '../tools/primitives/tool-status.js'
 import {countLabel, shortToolLabel} from '../tools/primitives/tool-row.js'
+import {parseInput} from '../tools/primitives/tool-util.js'
 
 export type TurnRollup = {
   files: string[]
@@ -17,13 +19,8 @@ export type TurnRollup = {
   live: boolean
 }
 
-type ApplyPatchInfo = {files: string[]; added: number; removed: number}
+type FileEditInfo = {files: string[]; added: number; removed: number}
 type BashOutput = {stdout?: string; stderr?: string; exitCode?: number}
-
-function basename(path: string): string {
-  const segments = path.split('/').filter(Boolean)
-  return segments[segments.length - 1] ?? path
-}
 
 function patchTextOf(part: ToolCallPart): string {
   try {
@@ -35,19 +32,45 @@ function patchTextOf(part: ToolCallPart): string {
   }
 }
 
-function applyPatchInfo(part: ToolCallPart): ApplyPatchInfo {
+function applyPatchInfo(part: ToolCallPart): FileEditInfo {
   const patchText = patchTextOf(part)
   if (!patchText) return {files: [], added: 0, removed: 0}
   const files = [
     ...new Set(
       [...patchText.matchAll(/^\*\*\*\s+(?:Update|Add|Delete)\s+File:\s+(.+)$/gm)].map((match) =>
-        basename((match[1] ?? '').trim()),
+        (match[1] ?? '').trim(),
       ),
     ),
   ].filter(Boolean)
   const added = patchText.split('\n').filter((line) => line.startsWith('+')).length
   const removed = patchText.split('\n').filter((line) => line.startsWith('-')).length
   return {files, added, removed}
+}
+
+const FileEditInput = z.object({
+  file_path: z.string().optional(),
+  old_string: z.string().optional(),
+  new_string: z.string().optional(),
+  content: z.string().optional(),
+  edits: z.array(z.object({old_string: z.string().optional(), new_string: z.string().optional()})).optional(),
+})
+
+function lineCount(text: string): number {
+  return text ? text.split('\n').length : 0
+}
+
+const FILE_EDIT_TOOL_NAMES = new Set(['Edit', 'MultiEdit', 'Write'])
+
+function fileEditInfo(part: ToolCallPart): FileEditInfo {
+  const input = parseInput(FileEditInput, part)
+  if (!input?.file_path) return {files: [], added: 0, removed: 0}
+  const edits =
+    input.edits && input.edits.length > 0
+      ? input.edits
+      : [{old_string: input.old_string, new_string: input.new_string ?? input.content}]
+  const added = edits.reduce((sum, edit) => sum + lineCount(edit.new_string ?? ''), 0)
+  const removed = edits.reduce((sum, edit) => sum + lineCount(edit.old_string ?? ''), 0)
+  return {files: [input.file_path], added, removed}
 }
 
 function bashOutputOf(result: ToolResultPart | undefined): BashOutput {
@@ -71,9 +94,11 @@ export function turnRollup(turn: Turn): TurnRollup {
   const {byCallId} = pairResults(turn.parts)
   const toolCalls = turn.parts.filter((part): part is ToolCallPart => part.type === 'tool-call')
   const patchInfos = toolCalls.filter((call) => call.name === 'apply_patch').map(applyPatchInfo)
-  const files = [...new Set(patchInfos.flatMap((info) => info.files))]
-  const adds = patchInfos.reduce((sum, info) => sum + info.added, 0)
-  const dels = patchInfos.reduce((sum, info) => sum + info.removed, 0)
+  const editInfos = toolCalls.filter((call) => FILE_EDIT_TOOL_NAMES.has(call.name)).map(fileEditInfo)
+  const editInfoAll = [...patchInfos, ...editInfos]
+  const files = [...new Set(editInfoAll.flatMap((info) => info.files))]
+  const adds = editInfoAll.reduce((sum, info) => sum + info.added, 0)
+  const dels = editInfoAll.reduce((sum, info) => sum + info.removed, 0)
   const failed = toolCalls.filter((call) => isFailedCall(call, byCallId.get(call.id))).length
   const awaitingApproval = toolCalls.some((call) => toolStatus(call, byCallId.get(call.id)) === 'approval')
   const live = toolCalls.some((call) => toolStatus(call, byCallId.get(call.id)) === 'running')
