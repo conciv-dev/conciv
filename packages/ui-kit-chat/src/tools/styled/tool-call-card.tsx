@@ -53,7 +53,7 @@ export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
   )
 }
 
-export type ToolTraceRowProps = ToolCallCardProps & {last?: boolean; ring?: boolean}
+export type ToolTraceRowProps = ToolCallCardProps & {ring?: boolean}
 
 function hasArguments(part: ToolCallCardProps['part']): boolean {
   const text = (part.arguments ?? '').trim()
@@ -61,7 +61,7 @@ function hasArguments(part: ToolCallCardProps['part']): boolean {
 }
 
 export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
-  const [local] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'last', 'ring'])
+  const [local] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'ring'])
   const [cardHeader, setCardHeader] = createSignal<{read: () => EmbeddedCardHeader}>()
   const publishHeader: EmbeddedHeaderChannel = (read) => {
     const published = {read}
@@ -78,7 +78,6 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     local.part.state === 'approval-requested' &&
     local.part.approval !== undefined &&
     local.ctx.respondApproval !== undefined
-  const lastRow = () => (local.last ?? false) && !asking()
   const bodyTone = (): TraceOutputTone => (projection().mark === 'fail' ? 'error' : 'normal')
   const cardBody = (): JSX.Element => (
     <TraceBodyFrame tone={bodyTone()}>
@@ -98,14 +97,13 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     hasArguments(local.part) || resultText(local.result).length > 0 ? cardBody : undefined
   return (
     <>
-      <TraceToolRow projection={projection()} last={lastRow()} ring={local.ring ?? true} body={body()} />
+      <TraceToolRow projection={projection()} ring={local.ring ?? true} body={body()} />
       <Show when={asking()}>
         <TracePermissionBlock
           part={local.part}
           ctx={local.ctx}
           target={projection().target}
           explanation={local.ctx.catalog.meta(local.part.name)?.summary}
-          last={local.last ?? false}
         />
       </Show>
     </>

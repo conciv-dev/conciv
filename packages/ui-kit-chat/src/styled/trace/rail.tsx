@@ -20,13 +20,35 @@ function spineX(gutter: number): number {
   return Math.round(gutter / 2) + 0.5
 }
 
-function spineD(gutter: number, lastAnchor: number): string {
+type RailGeometry = {gutter: number; top: number; anchors: number[]}
+
+type RailPaths = {spine: string; arms: string}
+
+function jointsRail(geometry: RailGeometry): RailPaths | undefined {
+  const {gutter, top, anchors} = geometry
+  const lastAnchor = anchors[anchors.length - 1]
+  if (lastAnchor === undefined) return undefined
   const x = spineX(gutter)
-  return `M ${x} 0 L ${x} ${lastAnchor - CORNER_RADIUS} A ${CORNER_RADIUS} ${CORNER_RADIUS} 0 0 0 ${x + CORNER_RADIUS} ${lastAnchor} L ${gutter} ${lastAnchor}`
+  return {
+    spine: `M ${x} ${top} L ${x} ${lastAnchor - CORNER_RADIUS} A ${CORNER_RADIUS} ${CORNER_RADIUS} 0 0 0 ${x + CORNER_RADIUS} ${lastAnchor} L ${gutter} ${lastAnchor}`,
+    arms: anchors
+      .slice(0, -1)
+      .map((y) => `M ${x} ${y} L ${gutter} ${y}`)
+      .join(' '),
+  }
+}
+
+function rowAnchors(list: HTMLUListElement | undefined, rootTop: number, gutter: number): number[] {
+  if (!list) return []
+  if (list.getBoundingClientRect().height === 0) return []
+  return Array.from(list.querySelectorAll(':scope > li')).map(
+    (row) => row.getBoundingClientRect().top - rootTop + gutter / 2,
+  )
 }
 
 type RailRefs = {
-  ul: HTMLUListElement
+  root: HTMLElement
+  header: HTMLElement
   svg: SVGSVGElement
   spine: SVGPathElement
   arms: SVGPathElement
@@ -35,20 +57,15 @@ type RailRefs = {
   dot: HTMLSpanElement
 }
 
-function readyRefs(
-  ul: HTMLUListElement | undefined,
-  svg: SVGSVGElement | undefined,
-  spine: SVGPathElement | undefined,
-  arms: SVGPathElement | undefined,
-  liveSvg: SVGSVGElement | undefined,
-  liveSpine: SVGPathElement | undefined,
-  dot: HTMLSpanElement | undefined,
-): RailRefs | undefined {
-  if (!ul || !svg || !spine || !arms || !liveSvg || !liveSpine || !dot) return undefined
-  return {ul, svg, spine, arms, liveSvg, liveSpine, dot}
+function readyRefs(parts: Partial<RailRefs>): RailRefs | undefined {
+  const {root, header, svg, spine, arms, liveSvg, liveSpine, dot} = parts
+  if (!root || !header || !svg || !spine || !arms || !liveSvg || !liveSpine || !dot) return undefined
+  return {root, header, svg, spine, arms, liveSvg, liveSpine, dot}
 }
 
 export function TraceRail(props: {
+  root: Accessor<HTMLElement | undefined>
+  header: Accessor<HTMLElement | undefined>
   list: Accessor<HTMLUListElement | undefined>
   liveKey: Accessor<string | undefined>
 }): JSX.Element {
@@ -63,50 +80,52 @@ export function TraceRail(props: {
   let anchors: number[] = []
   let gutterCache = 0
 
+  const refsNow = (): RailRefs | undefined =>
+    readyRefs({root: props.root(), header: props.header(), svg, spine, arms, liveSvg, liveSpine, dot})
+
   const measure = (): void => {
-    const refs = readyRefs(props.list(), svg, spine, arms, liveSvg, liveSpine, dot)
+    const refs = refsNow()
     if (!refs) return
-    const gutter = Number.parseFloat(getComputedStyle(refs.ul).getPropertyValue('--chat-trace-gutter'))
+    const gutter = Number.parseFloat(getComputedStyle(refs.root).getPropertyValue('--chat-trace-gutter'))
     if (!(gutter > 0)) return
-    const ulRect = refs.ul.getBoundingClientRect()
-    if (ulRect.height === 0) return
-    const rows = Array.from(refs.ul.querySelectorAll(':scope > li'))
-    anchors = rows.map((row) => row.getBoundingClientRect().top - ulRect.top + gutter / 2)
+    const rootRect = refs.root.getBoundingClientRect()
+    if (rootRect.height === 0) return
+    const headerTop = refs.header.getBoundingClientRect().top - rootRect.top
+    anchors = [headerTop + gutter / 2, ...rowAnchors(props.list(), rootRect.top, gutter)]
     gutterCache = gutter
-    const lastAnchor = anchors[anchors.length - 1]
-    if (lastAnchor === undefined) return
-    const d = spineD(gutter, lastAnchor)
+    const paths = jointsRail({gutter, top: headerTop, anchors})
+    if (!paths) return
     refs.svg.setAttribute('width', `${gutter}`)
-    refs.svg.setAttribute('height', `${ulRect.height}`)
-    refs.spine.setAttribute('d', d)
-    refs.arms.setAttribute('d', '')
+    refs.svg.setAttribute('height', `${rootRect.height}`)
+    refs.spine.setAttribute('d', paths.spine)
+    refs.arms.setAttribute('d', paths.arms)
     refs.liveSvg.setAttribute('width', `${gutter}`)
-    refs.liveSvg.setAttribute('height', `${ulRect.height}`)
-    refs.liveSpine.setAttribute('d', d)
-    refs.dot.style.setProperty('inset-inline-start', `${spineX(gutterCache) - DOT_RADIUS}px`)
+    refs.liveSvg.setAttribute('height', `${rootRect.height}`)
+    refs.liveSpine.setAttribute('d', paths.spine)
+    refs.dot.style.setProperty('inset-inline-start', `${spineX(gutter) - DOT_RADIUS}px`)
   }
 
   const paint = (): void => {
-    const ul = props.list()
-    if (!ul || !liveSvg || !dot) return
-    const liveRow = ul.querySelector(':scope > li[data-trace-live]')
+    const refs = refsNow()
+    if (!refs) return
+    const list = props.list()
+    const liveRow = list?.getBoundingClientRect().height ? list.querySelector(':scope > li[data-trace-live]') : null
     if (liveRow instanceof HTMLElement) {
-      const ulRect = ul.getBoundingClientRect()
-      const liRect = liveRow.getBoundingClientRect()
-      const y = liRect.top - ulRect.top + gutterCache / 2
-      liveSvg.style.setProperty('--rail-bottom', `${y}px`)
-      liveSvg.style.opacity = '1'
-      dot.style.setProperty('--rail-dot-y', `${y}px`)
-      dot.style.setProperty('--rail-dot-o', '1')
+      const rootTop = refs.root.getBoundingClientRect().top
+      const y = liveRow.getBoundingClientRect().top - rootTop + gutterCache / 2
+      refs.liveSvg.style.setProperty('--rail-bottom', `${y}px`)
+      refs.liveSvg.style.opacity = '1'
+      refs.dot.style.setProperty('--rail-dot-y', `${y}px`)
+      refs.dot.style.setProperty('--rail-dot-o', '1')
       return
     }
     const lastAnchor = anchors[anchors.length - 1]
     if (lastAnchor !== undefined) {
-      liveSvg.style.setProperty('--rail-bottom', `${lastAnchor}px`)
-      dot.style.setProperty('--rail-dot-y', `${lastAnchor}px`)
+      refs.liveSvg.style.setProperty('--rail-bottom', `${lastAnchor}px`)
+      refs.dot.style.setProperty('--rail-dot-y', `${lastAnchor}px`)
     }
-    liveSvg.style.opacity = '0'
-    dot.style.setProperty('--rail-dot-o', '0')
+    refs.liveSvg.style.opacity = '0'
+    refs.dot.style.setProperty('--rail-dot-o', '0')
   }
 
   const scheduleMeasure = (): void => {
@@ -147,6 +166,7 @@ export function TraceRail(props: {
       liveSvg?.style.removeProperty('transition')
       dot?.style.removeProperty('transition')
     })
+    createResizeObserver(() => props.root(), scheduleMeasure)
     createResizeObserver(() => props.list(), scheduleMeasure)
   })
 

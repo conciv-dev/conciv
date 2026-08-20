@@ -27,14 +27,7 @@ export function traceRow(part: ToolCallPart, result: ToolResultPart | undefined)
   return {
     key: part.id,
     render: (branch) => (
-      <ToolTraceRow
-        part={part}
-        result={result}
-        ctx={traceCtx}
-        tools={() => traceTools}
-        last={branch.last}
-        ring={branch.ring}
-      />
+      <ToolTraceRow part={part} result={result} ctx={traceCtx} tools={() => traceTools} ring={branch.ring} />
     ),
   }
 }

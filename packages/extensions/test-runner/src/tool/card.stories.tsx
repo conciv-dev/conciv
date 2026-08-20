@@ -98,7 +98,6 @@ export const EmbeddedFailing: Story = {
         result={storyResult(FAILING_RUN)}
         ctx={storyCtx()}
         tools={() => testRunnerTools}
-        last
         ring={false}
       />,
     ),

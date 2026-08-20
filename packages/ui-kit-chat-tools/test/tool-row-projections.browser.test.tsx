@@ -15,7 +15,7 @@ function result(content: string, state: ToolResultPart['state'] = 'complete'): T
 }
 
 function row(part: ToolCallPart, toolResult?: ToolResultPart) {
-  return <ToolTraceRow part={part} result={toolResult} ctx={INERT_TOOL_CTX} tools={() => builtinToolCards} last />
+  return <ToolTraceRow part={part} result={toolResult} ctx={INERT_TOOL_CTX} tools={() => builtinToolCards} />
 }
 
 const BUILD_LOG = ['[build] step 19 finished', '[build] step 20 finished'].join('\n')

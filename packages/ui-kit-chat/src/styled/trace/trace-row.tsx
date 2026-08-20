@@ -3,10 +3,12 @@ import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
 import type {ToolRowMark, ToolRowProjection} from '../../tools/primitives/tool-row.js'
 import {FOCUS_INSET} from '../classes.js'
-import {TRACE_HOVER_INDENT, TRACE_INDENT, TRACE_LINE} from './connector.js'
 
 export const TRACE_MICROLABEL =
   'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none'
+export const TRACE_LINE = 'relative flex items-center gap-[9px] min-w-0 h-[var(--chat-trace-gutter)]'
+export const TRACE_INDENT = 'ps-[var(--chat-trace-gutter)]'
+export const TRACE_HOVER_INDENT = '-mx-2 px-2 ps-[calc(var(--chat-trace-gutter)+0.5rem)]'
 
 const ROW = `${TRACE_LINE} ${TRACE_HOVER_INDENT}`
 const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-[var(--chat-radius-sm)] [background:transparent] [transition:background-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] ${FOCUS_INSET}`
@@ -77,11 +79,10 @@ function FoldIndicator(): JSX.Element {
 
 export function TraceFoldableRow(props: {
   line: () => JSX.Element
-  last: boolean
   ring?: boolean
   body?: () => JSX.Element
 }): JSX.Element {
-  const [local] = splitProps(props, ['line', 'last', 'ring', 'body'])
+  const [local] = splitProps(props, ['line', 'ring', 'body'])
   return (
     <li class={ROW_ITEM} data-trace-live={local.ring ? '' : undefined}>
       <Show
@@ -113,12 +114,11 @@ export function TraceRunRow(props: {
   label: string
   text: string
   meta?: string
-  last?: boolean
   live?: boolean
   ring?: boolean
   body?: () => JSX.Element
 }): JSX.Element {
-  const [local] = splitProps(props, ['label', 'text', 'meta', 'last', 'live', 'ring', 'body'])
+  const [local] = splitProps(props, ['label', 'text', 'meta', 'live', 'ring', 'body'])
   const line = (): JSX.Element => (
     <>
       <Show
@@ -136,16 +136,15 @@ export function TraceRunRow(props: {
       <Show when={local.meta}>{(meta) => <span class={`${META} text-chat-dim`}>{meta()}</span>}</Show>
     </>
   )
-  return <TraceFoldableRow line={line} last={local.last ?? false} ring={local.ring} body={local.body} />
+  return <TraceFoldableRow line={line} ring={local.ring} body={local.body} />
 }
 
 export function TraceToolRow(props: {
   projection: ToolRowProjection
-  last?: boolean
   ring?: boolean
   body?: () => JSX.Element
 }): JSX.Element {
-  const [local] = splitProps(props, ['projection', 'last', 'ring', 'body'])
+  const [local] = splitProps(props, ['projection', 'ring', 'body'])
   const asRunRow = () => local.projection.mark === 'run' && (local.ring ?? true)
   const body = () => local.projection.block ?? local.body
   const line = (): JSX.Element => (
@@ -166,13 +165,12 @@ export function TraceToolRow(props: {
           label={local.projection.label}
           text={local.projection.target}
           meta={local.projection.meta}
-          last={local.last ?? false}
           ring={local.ring}
           body={body()}
         />
       }
     >
-      <TraceFoldableRow line={line} last={local.last ?? false} ring={local.ring} body={body()} />
+      <TraceFoldableRow line={line} ring={local.ring} body={body()} />
     </Show>
   )
 }

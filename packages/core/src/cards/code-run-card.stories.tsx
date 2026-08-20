@@ -142,7 +142,6 @@ function traceGallery(summary: string, callPart: ToolCallPart, callResult: ToolR
                 result={callResult}
                 ctx={INERT_TOOL_CTX}
                 tools={() => [codeRunTool]}
-                last={branch.last}
                 ring={branch.ring}
               />
             ),

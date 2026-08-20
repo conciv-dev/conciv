@@ -166,7 +166,6 @@ function AssistantTurn(props: {
                 <TraceRunRow
                   label={PLAN_LABEL}
                   text={firstLine(thinkingPart().content)}
-                  last={branch.last}
                   live={livePart(partIndex())}
                   ring={branch.ring}
                   body={planBody(thinkingPart)}
@@ -182,7 +181,6 @@ function AssistantTurn(props: {
                   durationMs={ctx.durationFor?.(callPart().id)}
                   tools={() => props.entries}
                   fallback={props.fallback}
-                  last={branch.last}
                   ring={branch.ring}
                 />
               )}

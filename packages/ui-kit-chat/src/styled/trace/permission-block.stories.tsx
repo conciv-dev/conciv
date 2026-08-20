@@ -49,7 +49,6 @@ export const Asking: Story = {
         ctx={askingCtx()}
         target={COMMAND}
         explanation="Deletes the built widget bundle so the next build starts clean."
-        last
       />,
     ),
   play: async ({canvasElement}) => {
@@ -69,7 +68,6 @@ export const WithExpiry: Story = {
         target={COMMAND}
         explanation="Deletes the built widget bundle so the next build starts clean."
         expiresAt={Date.now() + 120_000}
-        last
       />,
     ),
   play: async ({canvasElement}) => {
@@ -79,7 +77,7 @@ export const WithExpiry: Story = {
 }
 
 export const Answered: Story = {
-  render: () => frame(<TracePermissionBlock part={askingPart()} ctx={askingCtx()} target={COMMAND} last />),
+  render: () => frame(<TracePermissionBlock part={askingPart()} ctx={askingCtx()} target={COMMAND} />),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', {name: /Deny/}))

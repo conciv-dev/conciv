@@ -33,7 +33,7 @@ function toolItem(key: string, projection: ToolRowProjection, live?: boolean): T
   return {
     key,
     ...(live === undefined ? {} : {live}),
-    render: (branch) => <TraceToolRow projection={projection} last={branch.last} ring={branch.ring} />,
+    render: (branch) => <TraceToolRow projection={projection} ring={branch.ring} />,
   }
 }
 
@@ -54,13 +54,8 @@ const allRowKinds: TraceItem[] = [
   }),
   {
     key: 'action',
-    render: (branch) => (
-      <TraceActionRow
-        label="Rerun the suite"
-        hint="⌘⏎"
-        explainer="1 failing test in turn-rollup.test.ts"
-        last={branch.last}
-      />
+    render: () => (
+      <TraceActionRow label="Rerun the suite" hint="⌘⏎" explainer="1 failing test in turn-rollup.test.ts" />
     ),
   },
 ]
