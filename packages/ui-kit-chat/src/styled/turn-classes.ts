@@ -1,4 +1,4 @@
-export const TURN_MEASURE_CLASS = 'w-full max-w-[68ch]'
+export const TURN_MEASURE_CLASS = 'w-full [max-width:max(68ch,86cqi)]'
 
 export const TURN_INDENT_CLASS = 'ps-[var(--chat-trace-gutter)]'
 

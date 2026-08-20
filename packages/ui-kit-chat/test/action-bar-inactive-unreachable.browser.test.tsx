@@ -60,6 +60,7 @@ it('keeps an autohidden, not-last action bar unreachable by Tab until it becomes
   await mountWithTwoAssistantReplies()
 
   await expect.element(page.getByRole('button', {name: 'ask-two'})).toHaveFocus()
+  await expect.element(page.getByRole('button', {name: 'Copy'}).last()).toBeVisible()
 
   await userEvent.tab()
 
