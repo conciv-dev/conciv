@@ -104,6 +104,19 @@ describe('turnRollup', () => {
     expect(rollup.dels).toBe(2)
   })
 
+  it('does not count a terminal newline as an extra changed line', () => {
+    const rollup = turnRollup(
+      turn('t1', [
+        multiEditCall('m1', 'src/lines.ts', [
+          {old_string: 'a\n', new_string: 'a\n'},
+          {old_string: 'a\n\n', new_string: 'a\n\n'},
+        ]),
+      ]),
+    )
+    expect(rollup.adds).toBe(3)
+    expect(rollup.dels).toBe(3)
+  })
+
   it('counts Write calls as a file add with no deletions', () => {
     const rollup = turnRollup(
       turn('t1', [writeCall('w1', 'src/new.ts', 'export const zero = 0\nexport const one = 1')]),

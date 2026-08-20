@@ -1,6 +1,8 @@
 import {expect, type Page} from '@playwright/test'
 import type {WidgetSuite} from './suite.js'
 
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 export async function openPanel(page: Page): Promise<void> {
   const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
   const opener = page.getByRole('button', {name: 'Open conciv chat'})
@@ -13,7 +15,7 @@ export async function switchToSessionByTitle(page: Page, title: string): Promise
   const sessionOptions = page.getByRole('button', {name: 'Session options'})
   await sessionOptions.click()
   await page.getByRole('button', {name: /^Session: /}).click()
-  const option = page.getByRole('option', {name: new RegExp(title)})
+  const option = page.getByRole('option', {name: new RegExp(escapeRegex(title))})
   await expect(option).toBeVisible({timeout: 30_000})
   await option.click()
   const pill = page.getByRole('button', {name: `Session: ${title}`})

@@ -115,6 +115,6 @@ export const Failed: Story = {
     await expect(c.getByText('failed')).toBeVisible()
     await expect(c.getByLabelText('error')).toBeInTheDocument()
     await userEvent.click(c.getByRole('button'))
-    await waitFor(() => expect(c.getByText('the search failed')).toBeVisible())
+    await waitFor(async () => expect(await codeText(canvasElement)).toContain('regex parse error: unclosed group'))
   },
 }

@@ -27,8 +27,8 @@ export function createResizable(opts: {
   onKeyDown: (e: KeyboardEvent) => void
 } {
   const bound = (next: number) => {
-    const capped = opts.max === undefined ? next : Math.min(next, opts.max())
-    return Math.max(opts.min, capped)
+    const floored = Math.max(opts.min, next)
+    return opts.max === undefined ? floored : Math.min(floored, opts.max())
   }
   const storageKey = opts.storageKey
   const stored =

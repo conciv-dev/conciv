@@ -122,7 +122,7 @@ function Body(): JSX.Element {
       meta={search.meta()}
     >
       <Show
-        when={search.count() > 0}
+        when={search.count() > 0 || search.status() === 'error'}
         fallback={<p class={emptyClass(search.status())}>{emptyLabel(search.status())}</p>}
       >
         <Show

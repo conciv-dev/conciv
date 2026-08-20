@@ -88,4 +88,18 @@ describe('createResizable keyboard resizing', () => {
       dispose()
     })
   })
+
+  it('lets a lower max cap win even when it falls below min', () => {
+    createRoot((dispose) => {
+      const resizable = createResizable({
+        initial: 300,
+        min: 400,
+        max: () => 380,
+        storageKey: 'test-resize-max-below-min',
+        grow: () => 'right',
+      })
+      expect(resizable.size()).toBe(380)
+      dispose()
+    })
+  })
 })

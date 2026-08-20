@@ -56,7 +56,9 @@ const FileEditInput = z.object({
 })
 
 function lineCount(text: string): number {
-  return text ? text.split('\n').length : 0
+  if (!text) return 0
+  const trimmed = text.endsWith('\n') ? text.slice(0, -1) : text
+  return trimmed.split('\n').length
 }
 
 const FILE_EDIT_TOOL_NAMES = new Set(['Edit', 'MultiEdit', 'Write'])
