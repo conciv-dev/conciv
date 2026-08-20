@@ -2,6 +2,8 @@
   "$schema": "https://v2-10-3.turborepo.dev/schema.json",
   "globalDependencies": ["pnpm-workspace.yaml", ".oxlintrc.json"],
   "concurrency": "50%",
+  "cacheMaxAge": "7d",
+  "cacheMaxSize": "10GB",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
