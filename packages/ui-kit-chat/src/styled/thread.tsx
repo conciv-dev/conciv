@@ -168,6 +168,7 @@ function AssistantTurn(props: {
                   text={firstLine(thinkingPart().content)}
                   last={branch.last}
                   live={livePart(partIndex())}
+                  ring={branch.ring}
                   body={planBody(thinkingPart)}
                 />
               )}

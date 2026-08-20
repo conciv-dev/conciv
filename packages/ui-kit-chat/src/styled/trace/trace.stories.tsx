@@ -90,6 +90,22 @@ export const OneRingInvariant: Story = {
   },
 }
 
+const midProgressSteps: TraceItem[] = [
+  toolItem('read', {mark: 'pass', label: 'read', target: 'src/store/turn-rollup.ts', meta: '96 lines'}),
+  toolItem('building', {mark: 'run', label: 'run', target: 'building the embed bundle'}, true),
+  toolItem('publish', {mark: 'run', label: 'run', target: 'publishing the release notes'}),
+]
+
+export const LiveAccentMidProgress: Story = {
+  render: () =>
+    frame(<Trace summary="running the release" compactLine="3 steps" items={midProgressSteps} defaultOpen />),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('running')).toBeVisible()
+    await expect(canvas.getByText('publishing the release notes')).toBeVisible()
+  },
+}
+
 export const CollapsedRecord: Story = {
   render: () => frame(<Trace summary={SUMMARY} compactLine={COMPACT} items={allRowKinds} />),
   play: async ({canvasElement}) => {

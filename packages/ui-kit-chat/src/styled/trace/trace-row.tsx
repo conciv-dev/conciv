@@ -79,11 +79,12 @@ function FoldIndicator(): JSX.Element {
 export function TraceFoldableRow(props: {
   line: () => JSX.Element
   last: boolean
+  ring?: boolean
   body?: () => JSX.Element
 }): JSX.Element {
-  const [local] = splitProps(props, ['line', 'last', 'body'])
+  const [local] = splitProps(props, ['line', 'last', 'ring', 'body'])
   return (
-    <li class={ROW_ITEM}>
+    <li class={ROW_ITEM} data-trace-live={local.ring ? '' : undefined}>
       <Show
         when={local.body}
         fallback={
@@ -115,9 +116,10 @@ export function TraceRunRow(props: {
   meta?: string
   last?: boolean
   live?: boolean
+  ring?: boolean
   body?: () => JSX.Element
 }): JSX.Element {
-  const [local] = splitProps(props, ['label', 'text', 'meta', 'last', 'live', 'body'])
+  const [local] = splitProps(props, ['label', 'text', 'meta', 'last', 'live', 'ring', 'body'])
   const line = (): JSX.Element => (
     <>
       <Show
@@ -135,7 +137,7 @@ export function TraceRunRow(props: {
       <Show when={local.meta}>{(meta) => <span class={`${META} text-chat-dim`}>{meta()}</span>}</Show>
     </>
   )
-  return <TraceFoldableRow line={line} last={local.last ?? false} body={local.body} />
+  return <TraceFoldableRow line={line} last={local.last ?? false} ring={local.ring} body={local.body} />
 }
 
 export function TraceToolRow(props: {
@@ -166,11 +168,12 @@ export function TraceToolRow(props: {
           text={local.projection.target}
           meta={local.projection.meta}
           last={local.last ?? false}
+          ring={local.ring}
           body={body()}
         />
       }
     >
-      <TraceFoldableRow line={line} last={local.last ?? false} body={body()} />
+      <TraceFoldableRow line={line} last={local.last ?? false} ring={local.ring} body={body()} />
     </Show>
   )
 }

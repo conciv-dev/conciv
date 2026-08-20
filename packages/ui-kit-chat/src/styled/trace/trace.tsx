@@ -81,7 +81,7 @@ export function Trace(props: {
           <ul ref={setListEl} class={ROWS} aria-label={local.label ?? 'Execution trace'}>
             <For each={local.items}>{(item) => item.render(branchFor(item))}</For>
           </ul>
-          <TraceRail list={listEl} />
+          <TraceRail list={listEl} liveKey={lastLiveKey} />
         </div>
       </Collapsible.Content>
     </Collapsible.Root>
