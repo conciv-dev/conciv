@@ -400,6 +400,62 @@ it('keeps the clerk rail to a header stub while the trace is collapsed', async (
   expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
 })
 
+it('drops the live accent and the rail to the header corner when a live trace is collapsed by click', async () => {
+  const container = await mountedThreeRow(() => 1)
+  const liveSvg = liveRailSvg(container)
+  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '1'})
+
+  await page.getByText('Hide trace').click()
+  await expect.element(page.getByText('Show trace'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})
+  await expect.element(page.elementLocator(railDot(container)), {timeout: 2000}).toHaveStyle({opacity: '0'})
+
+  const path = spinePath(container)
+  const end = path.getPointAtLength(path.getTotalLength())
+
+  expect(armsPath(container).getAttribute('d')).toBe('')
+  expect(Math.abs(end.x - gutterOf(container))).toBeLessThanOrEqual(0.01)
+  expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
+})
+
+it('drops the clerk rail to its header stub when a live trace is collapsed by click', async () => {
+  const container = await mountedClerk(() => 1)
+  const liveSvg = liveRailSvg(container)
+  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '1'})
+
+  await page.getByText('Hide trace').click()
+  await expect.element(page.getByText('Show trace'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})
+
+  const path = spinePath(container)
+  const start = path.getPointAtLength(0)
+  const end = path.getPointAtLength(path.getTotalLength())
+
+  expect(Math.abs(end.x - start.x)).toBeLessThanOrEqual(0.01)
+  expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
+})
+
+it('restores the full rail and re-anchors the live accent when the trace is reopened by click', async () => {
+  const container = await mountedThreeRow(() => 1)
+  const liveSvg = liveRailSvg(container)
+
+  await page.getByText('Hide trace').click()
+  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '0'})
+  const collapsedD = spinePath(container).getAttribute('d') ?? ''
+
+  await page.getByText('Show trace').click()
+  await expect.element(page.getByText('file-2.ts'), {timeout: 2000}).toBeVisible()
+  await expect.element(page.elementLocator(spinePath(container)), {timeout: 2000}).not.toHaveAttribute('d', collapsedD)
+  await expect.element(page.elementLocator(liveSvg), {timeout: 2000}).toHaveStyle({opacity: '1'})
+
+  const path = spinePath(container)
+  const end = path.getPointAtLength(path.getTotalLength())
+
+  expect(armSegments(armsPath(container))).toHaveLength(3)
+  expect(Math.abs(end.y - lastRowAnchor(container))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(railBottomOf(liveSvg) - rowAnchor(container, 1))).toBeLessThanOrEqual(0.5)
+})
+
 it('lands the clerk travelling dot on the live row anchor', async () => {
   const container = await mountedClerk(() => 1)
 

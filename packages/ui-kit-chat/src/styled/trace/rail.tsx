@@ -129,6 +129,7 @@ export function TraceRail(props: {
   list: Accessor<HTMLUListElement | undefined>
   liveKey: Accessor<string | undefined>
   rail: Accessor<RailVariant>
+  open: Accessor<boolean>
 }): JSX.Element {
   let svg: SVGSVGElement | undefined
   let spine: SVGPathElement | undefined
@@ -143,6 +144,8 @@ export function TraceRail(props: {
   const refsNow = (): RailRefs | undefined =>
     readyRefs({root: props.root(), header: props.header(), svg, spine, arms, liveSvg, liveSpine, dot})
 
+  const visibleRows = (): HTMLUListElement | undefined => (props.open() ? props.list() : undefined)
+
   const measure = (): void => {
     const refs = refsNow()
     if (!refs) return
@@ -155,7 +158,7 @@ export function TraceRail(props: {
       gutter,
       top,
       headerAnchor: top + gutter / 2,
-      rowAnchors: rowAnchors(props.list(), rootRect.top, gutter),
+      rowAnchors: rowAnchors(visibleRows(), rootRect.top, gutter),
     }
     const paths = RAILS[props.rail()](geometry)
     stops = railStops(paths.track, [geometry.headerAnchor, ...geometry.rowAnchors])
@@ -172,7 +175,7 @@ export function TraceRail(props: {
   const paint = (): void => {
     const refs = refsNow()
     if (!refs) return
-    const index = liveRowIndex(props.list())
+    const index = liveRowIndex(visibleRows())
     const live = index < 0 ? undefined : stops[index + 1]
     if (live) {
       refs.liveSvg.style.setProperty('--rail-bottom', `${live.y}px`)
@@ -234,6 +237,7 @@ export function TraceRail(props: {
 
   createEffect(() => {
     props.rail()
+    props.open()
     measure()
     paint()
   })

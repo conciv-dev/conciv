@@ -68,6 +68,7 @@ export function Trace(props: {
         list={listEl}
         liveKey={lastLiveKey}
         rail={() => local.rail ?? 'joints'}
+        open={open}
       />
       <div ref={setHeaderEl} class={HEADER_ITEM}>
         <Collapsible.Trigger class={HEADER_ROW}>
