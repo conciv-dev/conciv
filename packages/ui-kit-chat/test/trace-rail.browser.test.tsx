@@ -62,6 +62,16 @@ function liveRailSvg(container: HTMLElement): SVGSVGElement {
   return svg
 }
 
+function railDot(container: HTMLElement): HTMLElement {
+  const dot = container.querySelector('ul ~ span')
+  if (!(dot instanceof HTMLElement)) throw new Error('expected the rail dot')
+  return dot
+}
+
+function dotTranslateY(dot: HTMLElement): number {
+  return new DOMMatrixReadOnly(getComputedStyle(dot).transform).m42
+}
+
 function anchorOf(ul: HTMLUListElement, index: number): number {
   const li = ul.querySelectorAll(':scope > li')[index]
   if (!(li instanceof HTMLElement)) throw new Error(`expected row ${index}`)
@@ -100,6 +110,28 @@ function liveToolItem(key: string, target: string, live: () => boolean): TraceIt
       />
     ),
   }
+}
+
+function runningRingDot(container: HTMLElement): HTMLElement {
+  const ring = container.querySelector('span[role="img"][aria-label="running"] > span')
+  if (!(ring instanceof HTMLElement)) throw new Error('expected the running ring inner dot')
+  return ring
+}
+
+function liveRunTrace(): TraceItem[] {
+  return [
+    {
+      key: 'running',
+      live: true,
+      render: (branch) => (
+        <TraceToolRow
+          projection={{mark: 'run', label: 'bash', target: 'pnpm build'}}
+          last={branch.last}
+          ring={branch.ring}
+        />
+      ),
+    },
+  ]
 }
 
 function threeRowLiveTrace(liveIndex: () => number): TraceItem[] {
@@ -203,4 +235,74 @@ it('starts the live accent hidden with no flash when nothing is live at mount', 
   const liveSvg = liveRailSvg(container)
 
   expect(getComputedStyle(liveSvg).opacity).toBe('0')
+})
+
+it('rides the travelling dot on the live row anchor and shows it', async () => {
+  const container = mountView(() => (
+    <Trace summary="3 tools ran" compactLine="3 tools" items={threeRowLiveTrace(() => 1)} defaultOpen />
+  ))
+  await expect.element(page.getByText('file-1.ts')).toBeVisible()
+
+  const ul = rowsList(container)
+  const dot = railDot(container)
+
+  expect(getComputedStyle(dot).opacity).toBe('1')
+  expect(Math.abs(dotTranslateY(dot) - anchorOf(ul, 1))).toBeLessThanOrEqual(1)
+})
+
+it('keeps the travelling dot hidden when nothing is live', () => {
+  const container = mountView(() => (
+    <Trace summary="3 tools ran" compactLine="3 tools" items={threeRowLiveTrace(() => -1)} defaultOpen />
+  ))
+
+  expect(getComputedStyle(railDot(container)).opacity).toBe('0')
+})
+
+it('mirrors the travelling dot onto the mirrored spine under rtl', async () => {
+  const container = mountView(() => (
+    <Trace summary="3 tools ran" compactLine="3 tools" items={threeRowLiveTrace(() => 1)} defaultOpen />
+  ))
+  await expect.element(page.getByText('file-1.ts')).toBeVisible()
+
+  const scope = rowsList(container).parentElement
+  if (!(scope instanceof HTMLElement)) throw new Error('expected the rail scope')
+  scope.setAttribute('dir', 'rtl')
+
+  const svgRect = railSvg(container).getBoundingClientRect()
+  const ulRect = rowsList(container).getBoundingClientRect()
+  const mirroredSpineX = svgRect.left + (svgRect.width - spinePath(container).getPointAtLength(0).x)
+
+  const dotRect = railDot(container).getBoundingClientRect()
+  const dotCenterX = dotRect.left + dotRect.width / 2
+
+  expect(Math.abs(svgRect.right - ulRect.right)).toBeLessThanOrEqual(0.51)
+  expect(Math.abs(dotCenterX - mirroredSpineX)).toBeLessThanOrEqual(0.51)
+})
+
+it('pulses the rail dot rather than the row ring while a run row is live', async () => {
+  const container = mountView(() => (
+    <Trace summary="1 tool ran" compactLine="1 tool" items={liveRunTrace()} defaultOpen />
+  ))
+  await expect.element(page.getByText('pnpm build')).toBeVisible()
+
+  expect(railDot(container).getAnimations({subtree: true})).toHaveLength(1)
+  expect(runningRingDot(container).getAnimations()).toEqual([])
+})
+
+it('leaves no running animation in the rail once the live row settles away', async () => {
+  const [liveIndex, setLiveIndex] = createSignal(1)
+  const container = mountView(() => (
+    <Trace summary="3 tools ran" compactLine="3 tools" items={threeRowLiveTrace(liveIndex)} defaultOpen />
+  ))
+  await expect.element(page.getByText('file-1.ts')).toBeVisible()
+
+  const dot = railDot(container)
+  const scope = rowsList(container).parentElement
+  if (!(scope instanceof HTMLElement)) throw new Error('expected the rail scope')
+  const settled = Promise.all([waitForTransitionEnd(dot, 'opacity'), waitForTransitionEnd(dot, 'transform')])
+  setLiveIndex(-1)
+  await settled
+
+  expect(getComputedStyle(dot).opacity).toBe('0')
+  expect(scope.getAnimations({subtree: true})).toEqual([])
 })
