@@ -73,6 +73,34 @@ describe('pump', () => {
     }
   })
 
+  it('an online edge aborts a stuck subscription instead of leaving it hung forever', async () => {
+    let calls = 0
+    let wake: (() => void) | undefined
+    const subscribeOnline = (listener: () => void): (() => void) => {
+      wake = listener
+      return () => {}
+    }
+    const rpc: PagePlaneRpc = {
+      page: {
+        queries: (_input, options) => {
+          calls += 1
+          return new Promise((_resolve, reject) => {
+            options?.signal?.addEventListener('abort', () => reject(new Error('subscription aborted')))
+          })
+        },
+        reply: async () => {
+          throw new Error('reply not exercised in this test')
+        },
+      },
+    }
+    const abort = new AbortController()
+    void pump(rpc, fakeDriver(), '', abort.signal, () => true, subscribeOnline)
+    await vi.waitFor(() => expect(calls).toBe(1))
+    wake?.()
+    await vi.waitFor(() => expect(calls).toBe(2))
+    abort.abort()
+  })
+
   it('polls at the fast cadence while online', async () => {
     vi.useFakeTimers()
     try {

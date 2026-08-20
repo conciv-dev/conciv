@@ -1,5 +1,5 @@
 import {expect, test, type Page} from '@playwright/test'
-import {makeCallTool, resolveSession} from '../packed/engine-client.js'
+import {makeCallTool} from '../packed/engine-client.js'
 import {
   DEV_PORT,
   ENGINE_PORT,
@@ -46,6 +46,21 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     if (fixture !== undefined) teardownFixture(fixture)
   })
 
+  const PAGE_QUERIES_SESSION = /"\/page\/queries".*?"sessionId":"([^"]+)"/
+
+  function widgetSessionIdOnBoot(page: Page): Promise<string> {
+    return new Promise((resolve) => {
+      page.on('websocket', (ws) => {
+        if (!ws.url().includes('/rpc-ws')) return
+        ws.on('framesent', (frame) => {
+          if (typeof frame.payload !== 'string') return
+          const sessionId = PAGE_QUERIES_SESSION.exec(frame.payload)?.[1]
+          if (sessionId) resolve(sessionId)
+        })
+      })
+    })
+  }
+
   async function openWidget(page: Page): Promise<void> {
     const launcher = page.getByRole('button', {name: 'Open conciv chat'})
     await launcher.waitFor({state: 'visible', timeout: 60_000})
@@ -59,9 +74,11 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
       .getByRole('status', {name: 'TanStack inspector active'})
   }
 
-  async function gotoAndOpen(page: Page): Promise<void> {
+  async function gotoAndOpen(page: Page): Promise<{sessionId: Promise<string>}> {
+    const sessionId = widgetSessionIdOnBoot(page)
     await page.goto(`http://localhost:${DEV_PORT}/`, {waitUntil: 'domcontentloaded', timeout: 60_000})
     await openWidget(page)
+    return {sessionId}
   }
 
   async function restartFresh(page: Page, webpack: boolean): Promise<void> {
@@ -115,13 +132,13 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     handle = startNext(fixture.appDir, {webpack: false, devPort: DEV_PORT})
     await waitReady(handle, ENGINE_PORT)
 
-    await gotoAndOpen(page)
+    const {sessionId} = await gotoAndOpen(page)
     await expect(chip(page)).toBeVisible()
     expect(pageErrors).toEqual([])
     await expect(page.getByText(/Unhandled Runtime Error|Build Error|Failed to compile/i)).toHaveCount(0)
 
     const apiBase = `http://127.0.0.1:${ENGINE_PORT}`
-    const callTool = makeCallTool(apiBase, await resolveSession(apiBase))
+    const callTool = makeCallTool(apiBase, await sessionId)
     await expect(callTool('tanstack_router_state', {})).rejects.toThrow(/TanStack router not found on page/)
     await expect(chip(page)).toBeVisible()
     expect(pageErrors).toEqual([])

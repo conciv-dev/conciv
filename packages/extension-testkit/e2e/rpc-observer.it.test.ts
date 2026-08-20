@@ -207,7 +207,7 @@ test.describe('the shared rpc observer correlates calls on both transports', () 
     const {observer} = await openProbePage(page)
     const opened = observer.completed({path: ['page', 'queries'], timeout: 15_000})
     const firstQuery = observer.firstEvent({path: ['page', 'queries'], timeout: 15_000})
-    await page.evaluate(() => window.__CONCIV_WS_PROBE__.subscribe(['page', 'queries'], undefined))
+    await page.evaluate(() => window.__CONCIV_WS_PROBE__.subscribe(['page', 'queries'], {sessionId: ''}))
     const call = await opened
     expect(call.streaming).toBe(true)
     await suite

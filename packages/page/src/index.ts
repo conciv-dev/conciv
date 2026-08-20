@@ -73,10 +73,14 @@ export async function pump(
   subscribeOnline?: (listener: () => void) => () => void,
 ): Promise<void> {
   while (!signal.aborted) {
+    const attempt = new AbortController()
+    const unsubscribeAttempt = subscribeOnline?.(() => attempt.abort())
     try {
-      await serveQueries(rpc, driver, sessionId, signal)
+      await serveQueries(rpc, driver, sessionId, AbortSignal.any([signal, attempt.signal]))
     } catch {
       if (signal.aborted) return
+    } finally {
+      unsubscribeAttempt?.()
     }
     await sleep(pagePlanePollDelayMs(isOnline), signal, subscribeOnline)
   }
