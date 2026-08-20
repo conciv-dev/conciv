@@ -3,7 +3,7 @@ import {Collapsible} from '@conciv/ui-kit-system'
 import {createAutoCollapse} from '../../primitives/util/create-auto-collapse.js'
 import {FOCUS_INSET} from '../classes.js'
 import {TRACE_HOVER_INDENT, TRACE_LINE, TRACE_MICROLABEL} from './trace-row.js'
-import {TraceRail} from './rail.js'
+import {TraceRail, type RailVariant} from './rail.js'
 
 export type TraceBranch = {readonly ring: boolean}
 
@@ -23,6 +23,7 @@ export function Trace(props: {
   compactLine: string
   items: TraceItem[]
   label?: string
+  rail?: RailVariant
   streaming?: boolean
   defaultOpen?: boolean
   open?: boolean
@@ -33,6 +34,7 @@ export function Trace(props: {
     'compactLine',
     'items',
     'label',
+    'rail',
     'streaming',
     'defaultOpen',
     'open',
@@ -60,7 +62,13 @@ export function Trace(props: {
       ref={setRootEl}
       class="mt-1 min-w-0 w-full relative"
     >
-      <TraceRail root={rootEl} header={headerEl} list={listEl} liveKey={lastLiveKey} />
+      <TraceRail
+        root={rootEl}
+        header={headerEl}
+        list={listEl}
+        liveKey={lastLiveKey}
+        rail={() => local.rail ?? 'joints'}
+      />
       <div ref={setHeaderEl} class={HEADER_ITEM}>
         <Collapsible.Trigger class={HEADER_ROW}>
           <Show

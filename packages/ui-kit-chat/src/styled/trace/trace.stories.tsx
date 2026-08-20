@@ -101,6 +101,18 @@ export const LiveAccentMidProgress: Story = {
   },
 }
 
+export const RailClerk: Story = {
+  render: () =>
+    frame(
+      <Trace summary="running the release" compactLine="3 steps" items={midProgressSteps} rail="clerk" defaultOpen />,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByLabelText('running')).toBeVisible()
+    await expect(canvas.getByText('publishing the release notes')).toBeVisible()
+  },
+}
+
 export const CollapsedRecord: Story = {
   render: () => frame(<Trace summary={SUMMARY} compactLine={COMPACT} items={allRowKinds} />),
   play: async ({canvasElement}) => {

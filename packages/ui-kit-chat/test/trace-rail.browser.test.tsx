@@ -52,7 +52,7 @@ function liveRailSvg(container: HTMLElement): SVGSVGElement {
 }
 
 function railDot(container: HTMLElement): HTMLElement {
-  const dot = traceRoot(container).querySelector(':scope > span')
+  const dot = traceRoot(container).querySelector(':scope > span > span')
   if (!(dot instanceof HTMLElement)) throw new Error('expected the rail dot')
   return dot
 }
@@ -112,8 +112,14 @@ function lastRowAnchor(container: HTMLElement): number {
   return rowAnchor(container, rowsList(container).querySelectorAll(':scope > li').length - 1)
 }
 
-function dotTranslateY(dot: HTMLElement): number {
-  return new DOMMatrixReadOnly(getComputedStyle(dot).transform).m42
+function dotCenterY(container: HTMLElement): number {
+  const rect = railDot(container).getBoundingClientRect()
+  return rect.top + rect.height / 2 - traceRoot(container).getBoundingClientRect().top
+}
+
+function dotCenterX(container: HTMLElement): number {
+  const rect = railDot(container).getBoundingClientRect()
+  return rect.left + rect.width / 2
 }
 
 function railBottomOf(svg: SVGSVGElement): number {
@@ -176,6 +182,19 @@ async function mountedThreeRow(liveIndex: () => number): Promise<HTMLElement> {
   const container = mountThreeRow(liveIndex)
   await expect.element(page.getByText('file-2.ts')).toBeVisible()
   return container
+}
+
+async function mountedClerk(liveIndex: () => number): Promise<HTMLElement> {
+  const container = mountView(() => (
+    <Trace summary="3 tools ran" compactLine="3 tools" items={threeRowLiveTrace(liveIndex)} rail="clerk" defaultOpen />
+  ))
+  await expect.element(page.getByText('file-2.ts')).toBeVisible()
+  return container
+}
+
+function rowColumnX(container: HTMLElement): number {
+  const path = spinePath(container)
+  return path.getPointAtLength(path.getTotalLength()).x
 }
 
 it('draws the whole rail as one svg with no leftover connector fragments', async () => {
@@ -302,7 +321,7 @@ it('rides the travelling dot on the live row anchor and shows it', async () => {
   const dot = railDot(container)
 
   expect(getComputedStyle(dot).opacity).toBe('1')
-  expect(Math.abs(dotTranslateY(dot) - rowAnchor(container, 1))).toBeLessThanOrEqual(1)
+  expect(Math.abs(dotCenterY(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(1)
 })
 
 it('keeps the travelling dot hidden when nothing is live', () => {
@@ -321,11 +340,8 @@ it('mirrors the travelling dot onto the mirrored spine under rtl', async () => {
   const rootRect = root.getBoundingClientRect()
   const mirroredSpineX = svgRect.left + (svgRect.width - spinePath(container).getPointAtLength(0).x)
 
-  const dotRect = railDot(container).getBoundingClientRect()
-  const dotCenterX = dotRect.left + dotRect.width / 2
-
   expect(Math.abs(svgRect.right - rootRect.right)).toBeLessThanOrEqual(0.51)
-  expect(Math.abs(dotCenterX - mirroredSpineX)).toBeLessThanOrEqual(0.51)
+  expect(Math.abs(dotCenterX(container) - mirroredSpineX)).toBeLessThanOrEqual(0.51)
 })
 
 it('pulses the rail dot rather than the row ring while a run row is live', async () => {
@@ -347,10 +363,59 @@ it('leaves no running animation in the rail once the live row settles away', asy
 
   const dot = railDot(container)
   const root = traceRoot(container)
-  const settled = Promise.all([waitForTransitionEnd(dot, 'opacity'), waitForTransitionEnd(dot, 'transform')])
+  const settled = Promise.all([waitForTransitionEnd(dot, 'opacity'), waitForTransitionEnd(dot, 'offset-distance')])
   setLiveIndex(-1)
   await settled
 
   expect(getComputedStyle(dot).opacity).toBe('0')
   expect(root.getAnimations({subtree: true})).toEqual([])
+})
+
+it('draws the clerk rail as one curving line with no arms', async () => {
+  const container = await mountedClerk(() => -1)
+
+  const path = spinePath(container)
+  const start = path.getPointAtLength(0)
+  const end = path.getPointAtLength(path.getTotalLength())
+
+  expect(armsPath(container).getAttribute('d')).toBe('')
+  expect(path.getAttribute('d')).toMatch(/[CQ]/)
+  expect(Math.abs(start.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(end.y - lastRowAnchor(container))).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(end.x - start.x - (gutterOf(container) / 2 - 1))).toBeLessThanOrEqual(0.01)
+})
+
+it('keeps the clerk rail to a header stub while the trace is collapsed', async () => {
+  const container = mountView(() => (
+    <Trace summary="3 tools ran" compactLine="3 tools" items={threeRowLiveTrace(() => -1)} rail="clerk" />
+  ))
+  await expect.element(page.getByText('Show trace')).toBeVisible()
+
+  const path = spinePath(container)
+  const start = path.getPointAtLength(0)
+  const end = path.getPointAtLength(path.getTotalLength())
+
+  expect(armsPath(container).getAttribute('d')).toBe('')
+  expect(Math.abs(end.x - start.x)).toBeLessThanOrEqual(0.01)
+  expect(Math.abs(end.y - headerAnchor(container))).toBeLessThanOrEqual(0.5)
+})
+
+it('lands the clerk travelling dot on the live row anchor', async () => {
+  const container = await mountedClerk(() => 1)
+
+  expect(getComputedStyle(railDot(container)).opacity).toBe('1')
+  expect(Math.abs(dotCenterY(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(1)
+})
+
+it('mirrors the clerk travelling dot onto the mirrored rail under rtl', async () => {
+  const container = await mountedClerk(() => 1)
+
+  const root = traceRoot(container)
+  root.setAttribute('dir', 'rtl')
+
+  const svgRect = railSvg(container).getBoundingClientRect()
+  const mirroredRowX = svgRect.left + (svgRect.width - rowColumnX(container))
+
+  expect(Math.abs(dotCenterX(container) - mirroredRowX)).toBeLessThanOrEqual(0.51)
+  expect(Math.abs(dotCenterY(container) - rowAnchor(container, 1))).toBeLessThanOrEqual(1)
 })
