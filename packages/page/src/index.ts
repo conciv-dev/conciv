@@ -71,16 +71,17 @@ export async function pump(
   signal: AbortSignal,
   isOnline: () => boolean,
   subscribeOnline?: (listener: () => void) => () => void,
+  subscribeReconnect?: (listener: () => void) => () => void,
 ): Promise<void> {
   while (!signal.aborted) {
     const attempt = new AbortController()
-    const unsubscribeAttempt = subscribeOnline?.(() => attempt.abort())
+    const unsubscribeReconnect = subscribeReconnect?.(() => attempt.abort())
     try {
       await serveQueries(rpc, driver, sessionId, AbortSignal.any([signal, attempt.signal]))
     } catch {
       if (signal.aborted) return
     } finally {
-      unsubscribeAttempt?.()
+      unsubscribeReconnect?.()
     }
     await sleep(pagePlanePollDelayMs(isOnline), signal, subscribeOnline)
   }
@@ -94,11 +95,20 @@ export function startPagePlane(opts: {
   tools?: readonly ClientToolEntry[]
   isOnline?: () => boolean
   subscribeOnline?: (listener: () => void) => () => void
+  subscribeReconnect?: (listener: () => void) => () => void
 }): {
   dispose: () => void
 } {
   const driver = opts.driver ?? makeDomPageDriver({tools: opts.tools})
   const abort = new AbortController()
-  void pump(opts.rpc, driver, opts.sessionId ?? '', abort.signal, opts.isOnline ?? (() => true), opts.subscribeOnline)
+  void pump(
+    opts.rpc,
+    driver,
+    opts.sessionId ?? '',
+    abort.signal,
+    opts.isOnline ?? (() => true),
+    opts.subscribeOnline,
+    opts.subscribeReconnect,
+  )
   return {dispose: () => abort.abort()}
 }

@@ -73,11 +73,11 @@ describe('pump', () => {
     }
   })
 
-  it('an online edge aborts a stuck subscription instead of leaving it hung forever', async () => {
+  it('a raw socket reconnect aborts a stuck subscription instead of leaving it hung forever', async () => {
     let calls = 0
-    let wake: (() => void) | undefined
-    const subscribeOnline = (listener: () => void): (() => void) => {
-      wake = listener
+    let onReconnect: (() => void) | undefined
+    const subscribeReconnect = (listener: () => void): (() => void) => {
+      onReconnect = listener
       return () => {}
     }
     const rpc: PagePlaneRpc = {
@@ -94,10 +94,33 @@ describe('pump', () => {
       },
     }
     const abort = new AbortController()
-    void pump(rpc, fakeDriver(), '', abort.signal, () => true, subscribeOnline)
+    void pump(rpc, fakeDriver(), '', abort.signal, () => true, undefined, subscribeReconnect)
     await vi.waitFor(() => expect(calls).toBe(1))
-    wake?.()
+    onReconnect?.()
     await vi.waitFor(() => expect(calls).toBe(2))
+    abort.abort()
+  })
+
+  it('a reconnect that never fires leaves an otherwise-healthy subscription alone', async () => {
+    let calls = 0
+    const rpc: PagePlaneRpc = {
+      page: {
+        queries: (_input, options) => {
+          calls += 1
+          return new Promise((_resolve, reject) => {
+            options?.signal?.addEventListener('abort', () => reject(new Error('subscription aborted')))
+          })
+        },
+        reply: async () => {
+          throw new Error('reply not exercised in this test')
+        },
+      },
+    }
+    const abort = new AbortController()
+    void pump(rpc, fakeDriver(), '', abort.signal, () => true)
+    await vi.waitFor(() => expect(calls).toBe(1))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(calls).toBe(1)
     abort.abort()
   })
 

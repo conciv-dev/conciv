@@ -1,7 +1,7 @@
 import {createRoot, createSignal} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeBrowserRpcClient} from '@conciv/contract'
+import {makeBrowserRpcClient, subscribeRpcSocketReconnected} from '@conciv/contract'
 import {engineOnline, subscribeEngineOnline} from '@conciv/client'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
@@ -139,25 +139,21 @@ function bootNormal(config: BootNormalConfig): BootResult {
   config.root.appendChild(container)
   const disposeApp = render(() => <RouterProvider router={router} />, container)
   const session = {id: activeSessionId(router)}
-  let plane = startPagePlane({
-    rpc,
-    document,
-    driver,
-    sessionId: session.id,
-    isOnline: reachabilityRoot.isOnline,
-    subscribeOnline: subscribeEngineOnline,
-  })
-
-  const restartPlane = (): void => {
-    plane.dispose()
-    plane = startPagePlane({
+  const startPlaneForCurrentBase = (): ReturnType<typeof startPagePlane> =>
+    startPagePlane({
       rpc,
       document,
       driver,
       sessionId: session.id,
       isOnline: reachabilityRoot.isOnline,
       subscribeOnline: subscribeEngineOnline,
+      subscribeReconnect: (listener) => subscribeRpcSocketReconnected(apiBase(), listener),
     })
+  let plane = startPlaneForCurrentBase()
+
+  const restartPlane = (): void => {
+    plane.dispose()
+    plane = startPlaneForCurrentBase()
   }
 
   const unsubscribeSession = router.subscribe('onResolved', () => {
@@ -217,6 +213,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
       driver,
       isOnline: reachabilityRoot.isOnline,
       subscribeOnline: subscribeEngineOnline,
+      subscribeReconnect: (listener) => subscribeRpcSocketReconnected(nextApiBase, listener),
     }).dispose
   }
   const hostRouter = window.__TSR_ROUTER__

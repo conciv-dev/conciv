@@ -34,8 +34,11 @@ export type BrowserRpcConnection = {
 
 export type ReachabilityListener = (reachable: boolean) => void
 
+export type SocketOpenListener = () => void
+
 type Registry = Map<string, BrowserRpcConnection>
 type ReachabilityRegistry = Map<string, Set<ReachabilityListener>>
+type SocketOpenRegistry = Map<string, Set<SocketOpenListener>>
 type ActiveConnectionRegistry = Map<string, symbol>
 
 declare global {
@@ -43,6 +46,8 @@ declare global {
   var __concivBrowserRpcRegistryV1: Registry | undefined
   // eslint-disable-next-line no-var
   var __concivRpcReachabilityListenersV1: ReachabilityRegistry | undefined
+  // eslint-disable-next-line no-var
+  var __concivRpcSocketOpenListenersV1: SocketOpenRegistry | undefined
   // eslint-disable-next-line no-var
   var __concivRpcReachabilityActiveV1: ActiveConnectionRegistry | undefined
 }
@@ -55,6 +60,11 @@ function registry(): Registry {
 function reachabilityListeners(): ReachabilityRegistry {
   globalThis.__concivRpcReachabilityListenersV1 ??= new Map()
   return globalThis.__concivRpcReachabilityListenersV1
+}
+
+function socketOpenListeners(): SocketOpenRegistry {
+  globalThis.__concivRpcSocketOpenListenersV1 ??= new Map()
+  return globalThis.__concivRpcSocketOpenListenersV1
 }
 
 function activeConnections(): ActiveConnectionRegistry {
@@ -71,6 +81,24 @@ export function subscribeRpcReachability(apiBase: string, listener: Reachability
   return () => {
     forKey.delete(listener)
   }
+}
+
+export function subscribeRpcSocketReconnected(apiBase: string, listener: SocketOpenListener): () => void {
+  const key = normalizeApiBase(apiBase)
+  const listeners = socketOpenListeners()
+  const forKey = listeners.get(key) ?? new Set()
+  forKey.add(listener)
+  listeners.set(key, forKey)
+  return () => {
+    forKey.delete(listener)
+  }
+}
+
+function notifySocketOpen(key: string, connectionId: symbol): void {
+  if (activeConnections().get(key) !== connectionId) return
+  const forKey = socketOpenListeners().get(key)
+  if (!forKey) return
+  for (const listener of forKey) listener()
 }
 
 function voteReachability(key: string, connectionId: symbol, reachable: boolean): void {
@@ -245,6 +273,7 @@ function wireSocketReachability(
     phase.current = 'open'
     retryer.abort()
     voteReachability(key, connectionId, true)
+    notifySocketOpen(key, connectionId)
   })
   socket.addEventListener('close', () => {
     if (phase.current === 'disposed') return

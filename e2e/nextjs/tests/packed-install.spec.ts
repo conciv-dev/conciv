@@ -48,17 +48,26 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
 
   const PAGE_QUERIES_SESSION = /"\/page\/queries".*?"sessionId":"([^"]+)"/
 
-  function widgetSessionIdOnBoot(page: Page): Promise<string> {
-    return new Promise((resolve) => {
-      page.on('websocket', (ws) => {
-        if (!ws.url().includes('/rpc-ws')) return
-        ws.on('framesent', (frame) => {
-          if (typeof frame.payload !== 'string') return
-          const sessionId = PAGE_QUERIES_SESSION.exec(frame.payload)?.[1]
-          if (sessionId) resolve(sessionId)
-        })
+  function widgetSessionId(page: Page): {latest: () => string | undefined} {
+    const state: {sessionId: string | undefined} = {sessionId: undefined}
+    page.on('websocket', (ws) => {
+      if (!ws.url().includes('/rpc-ws')) return
+      ws.on('framesent', (frame) => {
+        if (typeof frame.payload !== 'string') return
+        const sessionId = PAGE_QUERIES_SESSION.exec(frame.payload)?.[1]
+        if (sessionId) state.sessionId = sessionId
       })
     })
+    return {latest: () => state.sessionId}
+  }
+
+  async function errorMessageOf(promise: Promise<unknown>): Promise<string> {
+    return promise.then(
+      () => {
+        throw new Error('expected the tool call to reject')
+      },
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    )
   }
 
   async function openWidget(page: Page): Promise<void> {
@@ -74,11 +83,9 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
       .getByRole('status', {name: 'TanStack inspector active'})
   }
 
-  async function gotoAndOpen(page: Page): Promise<{sessionId: Promise<string>}> {
-    const sessionId = widgetSessionIdOnBoot(page)
+  async function gotoAndOpen(page: Page): Promise<void> {
     await page.goto(`http://localhost:${DEV_PORT}/`, {waitUntil: 'domcontentloaded', timeout: 60_000})
     await openWidget(page)
-    return {sessionId}
   }
 
   async function restartFresh(page: Page, webpack: boolean): Promise<void> {
@@ -129,17 +136,26 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     test.setTimeout(CELL_TIMEOUT)
     const pageErrors: string[] = []
     page.on('pageerror', (error) => pageErrors.push(String(error)))
+    const session = widgetSessionId(page)
     handle = startNext(fixture.appDir, {webpack: false, devPort: DEV_PORT})
     await waitReady(handle, ENGINE_PORT)
 
-    const {sessionId} = await gotoAndOpen(page)
+    await gotoAndOpen(page)
     await expect(chip(page)).toBeVisible()
     expect(pageErrors).toEqual([])
     await expect(page.getByText(/Unhandled Runtime Error|Build Error|Failed to compile/i)).toHaveCount(0)
 
     const apiBase = `http://127.0.0.1:${ENGINE_PORT}`
-    const callTool = makeCallTool(apiBase, await sessionId)
-    await expect(callTool('tanstack_router_state', {})).rejects.toThrow(/TanStack router not found on page/)
+    await expect
+      .poll(
+        () => {
+          const sessionId = session.latest()
+          if (sessionId === undefined) return Promise.resolve('no page-plane subscription observed yet')
+          return errorMessageOf(makeCallTool(apiBase, sessionId)('tanstack_router_state', {}))
+        },
+        {timeout: 30_000, message: 'the widget never reached a settled page-plane subscription'},
+      )
+      .toMatch(/TanStack router not found on page/)
     await expect(chip(page)).toBeVisible()
     expect(pageErrors).toEqual([])
 
