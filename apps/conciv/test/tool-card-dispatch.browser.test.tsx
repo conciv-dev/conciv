@@ -82,6 +82,57 @@ it('a conciv_ui question resolves to the packaged card and hands the picked choi
   expect(answers).toEqual([{toolCallId: 'd1', value: 'ship'}])
 })
 
+it('a conciv_ui "questions" ask (the AskUserQuestion replacement) collects a multi-select answer and hands it back', async () => {
+  const answers: {toolCallId: string; value: UiAnswerValue}[] = []
+
+  mount(() => (
+    <ToolCallCard
+      part={askingPart({
+        kind: 'questions',
+        questions: [
+          {
+            question: 'Which effects need live tuning knobs?',
+            header: 'Effects',
+            multiSelect: true,
+            options: [{label: 'Ferrofluid', description: 'the magnetic blob'}, {label: 'Shader glow'}],
+          },
+        ],
+      })}
+      result={undefined}
+      ctx={{...INERT_TOOL_CTX, addResult: (toolCallId, value) => answers.push({toolCallId, value})}}
+      tools={allTools}
+    />
+  ))
+
+  await browserPage.getByRole('button', {name: /Ferrofluid/}).click()
+  await browserPage.getByRole('button', {name: 'Shader glow'}).click()
+  await browserPage.getByRole('button', {name: 'Submit'}).click()
+
+  expect(answers).toEqual([{toolCallId: 'd1', value: {Effects: ['Ferrofluid', 'Shader glow']}}])
+})
+
+it('a conciv_ui "questions" ask is disabled until every question is answered, and Dismiss reports back the toolCallId', async () => {
+  const dismissed: string[] = []
+
+  mount(() => (
+    <ToolCallCard
+      part={askingPart({
+        kind: 'questions',
+        questions: [{question: 'Ship it or hold?', header: 'Ship', options: [{label: 'ship'}, {label: 'hold'}]}],
+      })}
+      result={undefined}
+      ctx={{...INERT_TOOL_CTX, dismissUi: (toolCallId) => dismissed.push(toolCallId)}}
+      tools={allTools}
+    />
+  ))
+
+  await expect.element(browserPage.getByRole('button', {name: 'Submit'})).toBeDisabled()
+  await browserPage.getByRole('button', {name: 'Dismiss'}).click()
+
+  expect(dismissed).toEqual(['d1'])
+  await expect.element(browserPage.getByRole('button', {name: 'Dismiss'})).toBeDisabled()
+})
+
 it('a conciv_ui question that already carries its result renders answered, with no controls left to press', async () => {
   mount(() => (
     <ToolCallCard

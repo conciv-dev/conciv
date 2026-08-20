@@ -141,10 +141,15 @@ const UNANSWERED: UiAnswer = {
   note: 'The user has not answered yet. Continue without the answer; it may arrive as a later message.',
 }
 
+const DISMISSED: UiAnswer = {answered: false, note: 'user dismissed the question'}
+
+export const UI_DISMISSED: unique symbol = Symbol('conciv-ui-dismissed')
+
 export async function askUi(asks: AskRegistry, sessionId: string): Promise<UiAnswer> {
   const callId = await asks.nextUiCall(sessionId, TOOL_CALL_WAIT_MS)
   if (callId === null) return UNANSWERED
   const value = await asks.waitFor(sessionId, callId, ASK_TIMEOUT_MS)
+  if (value === UI_DISMISSED) return DISMISSED
   const parsed = UiAnswerValueSchema.safeParse(value)
   return parsed.success ? {answered: true, value: parsed.data} : UNANSWERED
 }

@@ -175,6 +175,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     catalog,
     sendMessage: (text) => void chat.sendMessage(text),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
+    dismissUi: (toolCallId) => messaging.uiReply.mutate({toolCallId, dismissed: true}),
     durationFor: (toolCallId) => durations()[toolCallId],
     captureFor: captures.lookup,
   })

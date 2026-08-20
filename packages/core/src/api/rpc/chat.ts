@@ -1,4 +1,5 @@
 import {isRunIdTakenError} from '../../chat/run.js'
+import {UI_DISMISSED} from '../../chat/ask.js'
 import {stopSession} from '../../chat/stop.js'
 import {subscribeSession} from '../../chat/subscribe.js'
 import {os, type RpcDeps} from './mount.js'
@@ -27,7 +28,9 @@ export function chatRouter(deps: RpcDeps) {
       return {ok: true as const}
     }),
     uiReply: os.chat.uiReply.handler(({input, errors}) => {
-      if (!chat.asks.reply(input.sessionId, input.toolCallId, input.value)) throw errors.UNKNOWN_REQUEST()
+      if (input.dismissed !== true && input.value === undefined) throw errors.UNKNOWN_REQUEST()
+      const settled = input.dismissed === true ? UI_DISMISSED : input.value
+      if (!chat.asks.reply(input.sessionId, input.toolCallId, settled)) throw errors.UNKNOWN_REQUEST()
       return {ok: true as const}
     }),
   }

@@ -130,7 +130,13 @@ export const contract = {
     permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
     uiReply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})
-      .input(SessionIdInput.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))
+      .input(
+        SessionIdInput.extend({
+          toolCallId: z.string(),
+          value: UiAnswerValueSchema.optional(),
+          dismissed: z.boolean().optional(),
+        }),
+      )
       .output(Ok),
   },
   registry: {

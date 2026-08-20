@@ -172,6 +172,41 @@ export const AnswersAChoice: Story = {
   },
 }
 
+export const Questions: Story = {
+  render: () => {
+    const [recorded, setRecorded] = createSignal<UiAnswerValue[]>([])
+    return frame(
+      'chat-theme-conciv',
+      <>
+        <UiCard
+          part={part({
+            kind: 'questions',
+            questions: [
+              {
+                question: 'Which effects need live tuning knobs?',
+                header: 'Effects',
+                multiSelect: true,
+                options: [{label: 'Ferrofluid', description: 'the magnetic blob'}, {label: 'Shader glow'}],
+              },
+            ],
+          })}
+          result={undefined}
+          ctx={INERT_TOOL_CTX}
+          addResult={(value) => setRecorded((seen) => [...seen, value])}
+        />
+        <p>host recorded: {JSON.stringify(recorded())}</p>
+      </>,
+    )
+  },
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('Which effects need live tuning knobs?')).toBeVisible()
+    await userEvent.click(c.getByRole('button', {name: /Ferrofluid/}))
+    await userEvent.click(c.getByRole('button', {name: 'Submit'}))
+    await expect(c.getByText('host recorded: [{"Effects":["Ferrofluid"]}]')).toBeVisible()
+  },
+}
+
 export const AwaitingSpec: Story = {
   render: () =>
     frame(

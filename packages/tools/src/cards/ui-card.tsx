@@ -13,6 +13,7 @@ import {
   type UiAnswerValue,
   type UiFormField,
   type UiInput,
+  type UiQuestion,
 } from '@conciv/protocol/ui-types'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
@@ -31,6 +32,7 @@ const LABEL: Record<UiInput['kind'], string> = {
   confirm: 'a confirmation',
   diff: 'a diff',
   form: 'a form',
+  questions: 'a question',
 }
 
 const BODY = 'flex flex-col gap-2.5 py-1'
@@ -76,7 +78,7 @@ function Answered(props: {answer: UiAnswer | null}): JSX.Element {
   const filled = (): [string, string][] => {
     const answer = props.answer
     if (answer?.answered !== true || typeof answer.value === 'string') return []
-    return Object.entries(answer.value)
+    return Object.entries(answer.value).map(([name, value]) => [name, Array.isArray(value) ? value.join(', ') : value])
   }
   const note = (): string => {
     const answer = props.answer
@@ -245,6 +247,129 @@ function Form(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnsw
   )
 }
 
+function selectedFor(answers: Record<string, string | string[]>, header: string): string[] {
+  const value = answers[header]
+  if (Array.isArray(value)) return value
+  return typeof value === 'string' && value.length > 0 ? [value] : []
+}
+
+function toggledSelection(current: string[], label: string): string[] {
+  return current.includes(label) ? current.filter((entry) => entry !== label) : [...current, label]
+}
+
+function QuestionBlock(props: {
+  question: UiQuestion
+  disabled: boolean
+  answers: Record<string, string | string[]>
+  otherText: Record<string, string>
+  onToggle: (header: string, label: string) => void
+  onOtherInput: (header: string, text: string) => void
+}): JSX.Element {
+  const selected = () => selectedFor(props.answers, props.question.header)
+  return (
+    <fieldset class="m-0 p-0 border-0 flex flex-col gap-1.5">
+      <legend class={QUESTION}>{props.question.question}</legend>
+      <ActionRow>
+        <For each={props.question.options}>
+          {(option) => (
+            <Button
+              variant="accent-soft"
+              class={CHOICE}
+              disabled={props.disabled}
+              aria-pressed={selected().includes(option.label)}
+              onClick={() => props.onToggle(props.question.header, option.label)}
+            >
+              {option.label}
+              <Show when={option.description}>{(description) => <span class={SENT}>{description()}</span>}</Show>
+            </Button>
+          )}
+        </For>
+      </ActionRow>
+      <TextField
+        label="Other"
+        disabled={props.disabled}
+        value={props.otherText[props.question.header] ?? ''}
+        onInput={(event) => props.onOtherInput(props.question.header, event.currentTarget.value)}
+      />
+    </fieldset>
+  )
+}
+
+function questionAnswered(
+  question: UiQuestion,
+  answers: Record<string, string | string[]>,
+  otherText: Record<string, string>,
+): boolean {
+  if ((otherText[question.header] ?? '').trim().length > 0) return true
+  return selectedFor(answers, question.header).length > 0
+}
+
+function multiSelectAnswer(picked: string[], free: string): string[] | undefined {
+  const combined = free ? [...picked, free] : picked
+  if (combined.length === 0) return undefined
+  return combined
+}
+
+function singleSelectAnswer(picked: string[], free: string): string | undefined {
+  if (free) return free
+  return picked[0]
+}
+
+function questionAnswerValue(
+  question: UiQuestion,
+  answers: Record<string, string | string[]>,
+  otherText: Record<string, string>,
+): string | string[] | undefined {
+  const picked = selectedFor(answers, question.header)
+  const free = (otherText[question.header] ?? '').trim()
+  if (question.multiSelect) return multiSelectAnswer(picked, free)
+  return singleSelectAnswer(picked, free)
+}
+
+function Questions(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnswerValue) => void}): JSX.Element {
+  const questions = (): UiQuestion[] => props.spec.questions ?? []
+  const [answers, setAnswers] = createStore<Record<string, string | string[]>>({})
+  const [otherText, setOtherText] = createStore<Record<string, string>>({})
+  const toggle = (header: string, label: string) => {
+    const question = questions().find((entry) => entry.header === header)
+    if (question?.multiSelect) {
+      setAnswers(header, toggledSelection(selectedFor(answers, header), label))
+      return
+    }
+    setAnswers(header, [label])
+  }
+  const complete = () => questions().every((question) => questionAnswered(question, answers, otherText))
+  const submit = () => {
+    const value: Record<string, string | string[]> = {}
+    for (const question of questions()) {
+      const answer = questionAnswerValue(question, answers, otherText)
+      if (answer !== undefined) value[question.header] = answer
+    }
+    props.onAnswer(value)
+  }
+  return (
+    <div class="flex flex-col gap-3">
+      <For each={questions()}>
+        {(question) => (
+          <QuestionBlock
+            question={question}
+            disabled={props.disabled}
+            answers={answers}
+            otherText={otherText}
+            onToggle={toggle}
+            onOtherInput={(header, text) => setOtherText(header, text)}
+          />
+        )}
+      </For>
+      <ActionRow>
+        <Button class={ACTION} disabled={props.disabled || !complete()} onClick={submit}>
+          Submit
+        </Button>
+      </ActionRow>
+    </div>
+  )
+}
+
 function Pending(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiAnswerValue) => void}): JSX.Element {
   return (
     <Switch fallback={<Form spec={props.spec} disabled={props.disabled} onAnswer={props.onAnswer} />}>
@@ -256,6 +381,9 @@ function Pending(props: {spec: UiInput; disabled: boolean; onAnswer: (value: UiA
       </Match>
       <Match when={props.spec.kind === 'diff'}>
         <Diff spec={props.spec} disabled={props.disabled} onAnswer={props.onAnswer} />
+      </Match>
+      <Match when={props.spec.kind === 'questions'}>
+        <Questions spec={props.spec} disabled={props.disabled} onAnswer={props.onAnswer} />
       </Match>
     </Switch>
   )
@@ -271,6 +399,10 @@ export function UiCard(props: ToolCardProps): JSX.Element {
     setSent(true)
     props.addResult(value)
   }
+  const dismiss = () => {
+    setSent(true)
+    props.ctx.dismissUi?.(props.part.id)
+  }
   return (
     <ToolCard Icon={Icon} title={title(input()?.kind)} part={props.part} result={props.result} defaultOpen>
       <div class={BODY}>
@@ -278,6 +410,13 @@ export function UiCard(props: ToolCardProps): JSX.Element {
         <Show when={!settled()} fallback={<Answered answer={answer()} />}>
           <Show when={input()} fallback={<p class={SENT}>waiting for the form</p>}>
             {(spec) => <Pending spec={spec()} disabled={sent()} onAnswer={answerWith} />}
+          </Show>
+          <Show when={input()?.kind === 'questions'}>
+            <ActionRow>
+              <Button variant="outline-danger" class={ACTION} disabled={sent()} onClick={dismiss}>
+                Dismiss
+              </Button>
+            </ActionRow>
           </Show>
           <Show when={sent()}>
             <p role="status" class={SENT}>

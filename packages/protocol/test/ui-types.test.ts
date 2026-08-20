@@ -20,9 +20,37 @@ describe('blocking conciv_ui schemas', () => {
     expect(UiInputSchema.safeParse({kind: 'vitest'}).success).toBe(false)
   })
 
-  it('UiAnswerValueSchema is a string or a string record, nothing else', () => {
+  it('UiInputSchema accepts a "questions" payload matching the disabled native AskUserQuestion shape', () => {
+    const parsed = UiInputSchema.parse({
+      kind: 'questions',
+      questions: [
+        {
+          question: 'Which effects need live tuning knobs?',
+          header: 'Effects',
+          multiSelect: true,
+          options: [{label: 'Ferrofluid', description: 'the magnetic blob'}, {label: 'Shader glow'}],
+        },
+      ],
+    })
+    expect(parsed.kind).toBe('questions')
+    expect(parsed.questions?.[0]?.multiSelect).toBe(true)
+    expect(parsed.questions?.[0]?.options).toHaveLength(2)
+  })
+
+  it('a question needs at least one option', () => {
+    const result = UiInputSchema.safeParse({
+      kind: 'questions',
+      questions: [{question: 'pick?', header: 'H', options: []}],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('UiAnswerValueSchema is a string or a record of strings/string-arrays, nothing else', () => {
     expect(UiAnswerValueSchema.parse('yes')).toBe('yes')
     expect(UiAnswerValueSchema.parse({path: '/docs'})).toEqual({path: '/docs'})
+    expect(UiAnswerValueSchema.parse({Effects: ['Ferrofluid', 'Shader glow']})).toEqual({
+      Effects: ['Ferrofluid', 'Shader glow'],
+    })
     expect(UiAnswerValueSchema.safeParse(42).success).toBe(false)
     expect(UiAnswerValueSchema.safeParse({n: 42}).success).toBe(false)
   })

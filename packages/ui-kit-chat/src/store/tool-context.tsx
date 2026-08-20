@@ -9,6 +9,7 @@ export const INERT_TOOL_CTX: ToolViewCtx = {
   sendMessage: () => {},
   catalog: INERT_TOOL_CATALOG,
   addResult: () => {},
+  dismissUi: () => {},
 }
 
 const ToolContext = createContext<ToolViewCtx>(INERT_TOOL_CTX)

@@ -42,8 +42,23 @@ export function aguiApprovalRequestedFor(req: ApprovalRequest): ApprovalRequeste
   }
 }
 
+export const UiQuestionOptionSchema = z.object({
+  label: z.string(),
+  description: z.string().optional(),
+})
+
+export const UiQuestionSchema = z.object({
+  question: z.string(),
+  header: z.string(),
+  multiSelect: z.boolean().optional(),
+  options: z.array(UiQuestionOptionSchema).min(1),
+})
+
+export type UiQuestionOption = z.infer<typeof UiQuestionOptionSchema>
+export type UiQuestion = z.infer<typeof UiQuestionSchema>
+
 export const UiInputSchema = z.object({
-  kind: z.enum(['choices', 'confirm', 'diff', 'form']),
+  kind: z.enum(['choices', 'confirm', 'diff', 'form', 'questions']),
   question: z.string().optional(),
   detail: z.string().optional(),
   options: z.array(z.string()).optional(),
@@ -52,9 +67,13 @@ export const UiInputSchema = z.object({
   after: z.string().optional(),
   title: z.string().optional(),
   fields: z.array(UiFormFieldSchema).optional(),
+  questions: z.array(UiQuestionSchema).optional(),
 })
 
-export const UiAnswerValueSchema = z.union([z.string(), z.record(z.string(), z.string())])
+export const UiAnswerValueSchema = z.union([
+  z.string(),
+  z.record(z.string(), z.union([z.string(), z.array(z.string())])),
+])
 
 export const UiAnswerSchema = z.union([
   z.object({answered: z.literal(true), value: UiAnswerValueSchema}),

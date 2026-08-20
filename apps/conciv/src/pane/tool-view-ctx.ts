@@ -8,6 +8,7 @@ export type ToolViewCtxDeps = {
   catalog: ToolCatalogView
   sendMessage: (text: string) => void
   addResult: ToolViewCtx['addResult']
+  dismissUi: ToolViewCtx['dismissUi']
   durationFor: (toolCallId: string) => number | undefined
   captureFor: (toolCallId: string) => ToolCaptureView | undefined
 }
@@ -19,6 +20,7 @@ export function makeToolViewCtx(deps: ToolViewCtxDeps): ToolViewCtx {
     sendMessage: deps.sendMessage,
     catalog: deps.catalog,
     addResult: deps.addResult,
+    dismissUi: deps.dismissUi,
     respondApproval: (approvalId, approved) => {
       void deps.rpc.chat.permissionDecision({approvalId, approved}).catch(() => {})
     },

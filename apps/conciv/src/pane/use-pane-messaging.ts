@@ -37,8 +37,10 @@ type PaneMessagingDeps = {
   refetchMarkers: () => Promise<unknown>
 }
 
+type UiReplyInput = {toolCallId: string; value: UiAnswerValue} | {toolCallId: string; dismissed: true}
+
 export type PaneMessaging = {
-  uiReply: CreateMutationResult<unknown, Error, {toolCallId: string; value: UiAnswerValue}, unknown>
+  uiReply: CreateMutationResult<unknown, Error, UiReplyInput, unknown>
   compact: CreateMutationResult<unknown, Error, void, unknown>
   compacting: () => boolean
   visibleError: () => Error | undefined
@@ -48,8 +50,12 @@ export type PaneMessaging = {
 
 export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
   const uiReply = useMutation(() => ({
-    mutationFn: (input: {toolCallId: string; value: UiAnswerValue}) =>
-      deps.rpc.chat.uiReply({sessionId: deps.sessionId, toolCallId: input.toolCallId, value: input.value}),
+    mutationFn: (input: UiReplyInput) =>
+      deps.rpc.chat.uiReply({
+        sessionId: deps.sessionId,
+        toolCallId: input.toolCallId,
+        ...('dismissed' in input ? {dismissed: input.dismissed} : {value: input.value}),
+      }),
     onError: () =>
       notifyUnlessOffline(deps.reachability.sustainedOffline(), () =>
         deps.notices.notify('That question is no longer waiting for an answer.'),

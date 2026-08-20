@@ -38,6 +38,11 @@ describe('claudeChatConfig', () => {
     expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({permissionMode: 'default'})
   })
 
+  it('disables the native AskUserQuestion tool (TTY-only; it auto-resolves as declined under our non-TTY adapter)', () => {
+    const config = claudeChatConfig(deps())
+    expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({disallowedTools: ['AskUserQuestion']})
+  })
+
   it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {
     expect(claudeChatConfig(deps()).modelOptions).toEqual({})
     expect(claudeChatConfig(deps({resumeSessionId: 'r-9'})).modelOptions).toEqual({sessionId: 'r-9'})

@@ -34,6 +34,7 @@ export type ToolViewCtx = {
   sendMessage: (text: string) => void
   catalog: ToolCatalogView
   addResult: (toolCallId: string, value: UiAnswerValue) => void
+  dismissUi?: (toolCallId: string) => void
 
   respondApproval?: (approvalId: string, approved: boolean) => void
   durationFor?: (toolCallId: string) => number | undefined
