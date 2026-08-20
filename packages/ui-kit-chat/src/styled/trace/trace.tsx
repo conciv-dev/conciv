@@ -1,9 +1,10 @@
-import {For, Show, splitProps, type JSX} from 'solid-js'
+import {createSignal, For, Show, splitProps, type JSX} from 'solid-js'
 import {Collapsible} from '@conciv/ui-kit-system'
 import {createAutoCollapse} from '../../primitives/util/create-auto-collapse.js'
 import {FOCUS_INSET} from '../classes.js'
 import {TraceConnector, TRACE_HOVER_INDENT, TRACE_LINE} from './connector.js'
 import {TRACE_MICROLABEL} from './trace-row.js'
+import {TraceRail} from './rail.js'
 
 export type TraceBranch = {readonly last: boolean; readonly ring: boolean}
 
@@ -38,6 +39,7 @@ export function Trace(props: {
     'open',
     'onOpenChange',
   ])
+  const [listEl, setListEl] = createSignal<HTMLUListElement>()
   const auto = createAutoCollapse({streaming: () => local.streaming ?? false, defaultOpen: local.defaultOpen})
   const open = () => local.open ?? auto.open()
   const change = (next: boolean) => {
@@ -75,9 +77,12 @@ export function Trace(props: {
         </Collapsible.Trigger>
       </div>
       <Collapsible.Content>
-        <ul class={ROWS} aria-label={local.label ?? 'Execution trace'}>
-          <For each={local.items}>{(item) => item.render(branchFor(item))}</For>
-        </ul>
+        <div class="relative">
+          <ul ref={setListEl} class={ROWS} aria-label={local.label ?? 'Execution trace'}>
+            <For each={local.items}>{(item) => item.render(branchFor(item))}</For>
+          </ul>
+          <TraceRail list={listEl} />
+        </div>
       </Collapsible.Content>
     </Collapsible.Root>
   )

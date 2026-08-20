@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 
-export type TraceJoint = 'junction' | 'line' | 'corner'
+export type TraceJoint = 'junction' | 'corner'
 
 const SPINE_X = '[inset-inline-start:calc(var(--chat-trace-gutter)/2)]'
 const ARM_WIDTH = 'w-[calc(var(--chat-trace-gutter)/2)]'
@@ -17,11 +17,16 @@ export const TRACE_HOVER_INDENT = '-mx-2 px-2 ps-[calc(var(--chat-trace-gutter)+
 
 export function TraceConnector(props: {joint: TraceJoint}): JSX.Element {
   return (
-    <Show when={props.joint !== 'corner'} fallback={<span aria-hidden="true" class={CORNER} />}>
-      <span aria-hidden="true" class={VERTICAL} />
-      <Show when={props.joint === 'junction'}>
-        <span aria-hidden="true" class={ARM} />
-      </Show>
+    <Show
+      when={props.joint === 'corner'}
+      fallback={
+        <>
+          <span aria-hidden="true" class={VERTICAL} />
+          <span aria-hidden="true" class={ARM} />
+        </>
+      }
+    >
+      <span aria-hidden="true" class={CORNER} />
     </Show>
   )
 }

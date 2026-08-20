@@ -7,7 +7,7 @@ import {Button} from '@conciv/ui-kit-system'
 import {Permission, usePermission} from '../../tools/primitives/permission.js'
 import {FOCUS} from '../classes.js'
 import {TRACE_MICROLABEL} from './trace-row.js'
-import {TraceConnector, TRACE_INDENT} from './connector.js'
+import {TRACE_INDENT} from './connector.js'
 
 const FRAME =
   'flex flex-col gap-[7px] flex-1 min-w-0 rounded-[var(--chat-radius-sm)] px-2.75 py-2.25 [background:var(--chat-perm-bg)] [border:1px_solid_var(--chat-perm-line)]'
@@ -83,7 +83,6 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number;
   return (
     <li class="pb-[3px] list-none min-w-0 relative">
       <Show when={permission.pending()}>
-        <TraceConnector joint={(local.last ?? false) ? 'corner' : 'line'} />
         <div class={`flex min-w-0 items-start ${TRACE_INDENT}`}>
           <div ref={bindKeys} role="group" aria-label="Permission request" tabindex="0" class={`${FRAME}  ${FOCUS}`}>
             <div class={HEADER}>

@@ -3,7 +3,7 @@ import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible} from '@conciv/ui-kit-system'
 import type {ToolRowMark, ToolRowProjection} from '../../tools/primitives/tool-row.js'
 import {FOCUS_INSET} from '../classes.js'
-import {TraceConnector, TRACE_HOVER_INDENT, TRACE_INDENT, TRACE_LINE} from './connector.js'
+import {TRACE_HOVER_INDENT, TRACE_INDENT, TRACE_LINE} from './connector.js'
 
 export const TRACE_MICROLABEL =
   'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none'
@@ -84,7 +84,6 @@ export function TraceFoldableRow(props: {
   const [local] = splitProps(props, ['line', 'last', 'body'])
   return (
     <li class={ROW_ITEM}>
-      <TraceConnector joint={local.last ? 'corner' : 'line'} />
       <Show
         when={local.body}
         fallback={
