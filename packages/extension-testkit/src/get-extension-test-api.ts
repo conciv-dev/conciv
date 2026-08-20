@@ -11,6 +11,7 @@ import {
   type RunTypescript,
 } from '@conciv/harness-testkit'
 import {launch, openObservedPage} from './launch.js'
+import {awaitWidgetSessionId} from './page-plane.js'
 import {settleTeardown} from './settle-teardown.js'
 
 export type HostEngine = {apiBase: string; session: string}
@@ -20,6 +21,7 @@ export type ExtensionUnderTest = {
   server: AnyExtension
   host: (engine: HostEngine) => Promise<HostHandle>
   harness?: HarnessAdapter
+  observeWidgetSession?: boolean
 }
 
 export type SecondClient = {page: Page; close: () => Promise<void>}
@@ -45,9 +47,11 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
   const {apiBase, extensionContexts, stop} = await bootExtensionServer(extension.server, {
     harness: extension.harness,
   })
-  const session = await resolveSession(apiBase)
-  const {origin, close} = await extension.host({apiBase, session})
+  const observeWidgetSession = extension.observeWidgetSession ?? false
+  const mintedSession = observeWidgetSession ? '' : await resolveSession(apiBase)
+  const {origin, close} = await extension.host({apiBase, session: mintedSession})
   const {page, context, close: closeBrowser} = await launch(origin)
+  const session = observeWidgetSession ? await awaitWidgetSessionId(page, async () => {}) : mintedSession
   return {
     page,
     callTool: makeCallTool(apiBase, session),

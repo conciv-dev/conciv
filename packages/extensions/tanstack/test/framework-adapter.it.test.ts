@@ -14,7 +14,7 @@ test('adapter.client.detect reports the running framework against the real app',
   const {api} = get()
   await waitForWidget(api.page)
 
-  const info = await tanstackAdapter(api).client.detect()
+  const info = await tanstackAdapter(api).client.detect(api.session)
   expect(info).toEqual({name: 'tanstack-start', version: null, router: 'file-based', dev: true})
 })
 
@@ -24,13 +24,13 @@ test('adapter.client.data surfaces the router loader cache for the real about ro
   await gotoAbout(api.page)
 
   const adapter = tanstackAdapter(api)
-  const entries = await adapter.client.data.entries()
+  const entries = await adapter.client.data.entries(api.session)
   const about = entries.find((entry) => entry.key === '/about')
   expect(about).toBeDefined()
   expect(about?.state).toBe('fresh')
   expect(about?.updatedAt).not.toBeNull()
 
-  const value = await adapter.client.data.get('/about')
+  const value = await adapter.client.data.get(api.session, '/about')
   expect(value).toMatchObject({server: {greeting: 'hello'}})
 })
 
@@ -41,14 +41,14 @@ test('adapter.client.data.invalidate re-runs the real router loader', async () =
 
   const adapter = tanstackAdapter(api)
   const readUpdatedAt = async () => {
-    const entries = await adapter.client.data.entries()
+    const entries = await adapter.client.data.entries(api.session)
     return entries.find((entry) => entry.key === '/about')?.updatedAt ?? null
   }
 
   const before = await readUpdatedAt()
   expect(before).not.toBeNull()
 
-  await adapter.client.data.invalidate('/about')
+  await adapter.client.data.invalidate(api.session, '/about')
   expect(await readUpdatedAt()).toBeGreaterThan(before ?? 0)
 })
 
@@ -60,7 +60,10 @@ test('adapter.queryCache splits the live TanStack Query cache into queries and m
   await waitForAboutQuery(api.page)
 
   const adapter = tanstackAdapter(api)
-  const [queries, mutations] = await Promise.all([adapter.queryCache?.queries(), adapter.queryCache?.mutations()])
+  const [queries, mutations] = await Promise.all([
+    adapter.queryCache?.queries(api.session),
+    adapter.queryCache?.mutations(api.session),
+  ])
   expect(Array.isArray(mutations)).toBe(true)
   const demo = queries?.find((entry) => entry.key === JSON.stringify(['spike', 'demo']))
   expect(demo?.status).toBe('success')
@@ -77,7 +80,7 @@ test('adapter.client.errors.snapshot captures a real runtime error thrown in an 
   expect(String(await crashed)).toContain('boom-from-event-handler')
 
   const adapter = tanstackAdapter(api)
-  const captured = await adapter.client.errors.snapshot()
+  const captured = await adapter.client.errors.snapshot(api.session)
   expect(captured.some((error) => error.kind === 'runtime' && error.message.includes('boom-from-event-handler'))).toBe(
     true,
   )

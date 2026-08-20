@@ -91,7 +91,7 @@ export type ServerPageCaller = {
 }
 
 export type ServerToolCaller = {
-  call: (name: string, input: unknown) => Promise<unknown>
+  call: (name: string, input: unknown, sessionId: string) => Promise<unknown>
 }
 
 export type ServerApi<Config> = {

@@ -355,7 +355,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         sessions: serverSessions,
         harness: serverHarness,
         page: {call: (name, input, sessionId) => askPage(pageBus, name, input, sessionId)},
-        tools: {call: (name, input) => registry.call(name, input)},
+        tools: {call: (name, input, sessionId) => registry.call(name, input, {request: {sessionId, model: null}})},
         symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
         bundler: opts.bridge,
         nativeUrl,

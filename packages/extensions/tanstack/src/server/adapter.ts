@@ -51,10 +51,11 @@ function makeVerbCaller(tools: ServerToolCaller) {
   return async <Out extends z.ZodType>(
     def: {name: string; outputSchema?: Out},
     input: Record<string, unknown>,
+    sessionId: string,
   ): Promise<z.output<Out>> => {
     const output = def.outputSchema
     if (output === undefined) throw new Error(`tanstack verb "${def.name}" declares no output schema`)
-    return output.parse(await tools.call(def.name, input))
+    return output.parse(await tools.call(def.name, input, sessionId))
   }
 }
 
@@ -64,55 +65,59 @@ export function makeTanstackAdapter(deps: TanstackAdapterDeps): FrameworkAdapter
     name: 'tanstack-start',
     capabilities: {queryCache: true, serverFunctions: true, rscPayload: false, isr: false, middleware: false},
     client: {
-      detect: async () => {
+      detect: async (sessionId) => {
         try {
-          return (await call(detectDef, {})).result
+          return (await call(detectDef, {}, sessionId)).result
         } catch {
           return null
         }
       },
       routes: {
-        current: async () => (await call(routerStateDef, {})).result,
-        tree: async () => (await call(routeTreeDef, {})).result,
+        current: async (sessionId) => (await call(routerStateDef, {}, sessionId)).result,
+        tree: async (sessionId) => (await call(routeTreeDef, {}, sessionId)).result,
       },
       navigation: {
-        navigate: async (input) => {
-          await call(navigateDef, {
-            to: input.to,
-            ...(input.params === undefined ? {} : {params: input.params}),
-            ...(input.search === undefined ? {} : {search: input.search}),
-            ...(input.replace === undefined ? {} : {replace: input.replace}),
-          })
+        navigate: async (sessionId, input) => {
+          await call(
+            navigateDef,
+            {
+              to: input.to,
+              ...(input.params === undefined ? {} : {params: input.params}),
+              ...(input.search === undefined ? {} : {search: input.search}),
+              ...(input.replace === undefined ? {} : {replace: input.replace}),
+            },
+            sessionId,
+          )
         },
-        back: async () => {
-          await call(backDef, {})
+        back: async (sessionId) => {
+          await call(backDef, {}, sessionId)
         },
-        refresh: async () => {
-          await call(routerInvalidateDef, {})
+        refresh: async (sessionId) => {
+          await call(routerInvalidateDef, {}, sessionId)
         },
       },
       data: {
-        entries: async () => (await call(dataEntriesDef, {})).result,
-        get: async (key) => (await call(dataGetDef, {routeId: key})).result,
-        invalidate: async (key) => {
-          await call(dataInvalidateDef, {routeId: key})
+        entries: async (sessionId) => (await call(dataEntriesDef, {}, sessionId)).result,
+        get: async (sessionId, key) => (await call(dataGetDef, {routeId: key}, sessionId)).result,
+        invalidate: async (sessionId, key) => {
+          await call(dataInvalidateDef, {routeId: key}, sessionId)
         },
-        refetch: async (key) => {
-          await call(dataRefetchDef, {routeId: key})
+        refetch: async (sessionId, key) => {
+          await call(dataRefetchDef, {routeId: key}, sessionId)
         },
       },
       errors: {
-        snapshot: async () => (await call(errorsSnapshotDef, {})).result,
+        snapshot: async (sessionId) => (await call(errorsSnapshotDef, {}, sessionId)).result,
       },
     },
     queryCache: {
-      queries: async () => (await call(queryCacheDef, {})).result.queries,
-      mutations: async () => (await call(queryCacheDef, {})).result.mutations,
-      invalidate: async (key) => {
-        await call(queryInvalidateDef, {key})
+      queries: async (sessionId) => (await call(queryCacheDef, {}, sessionId)).result.queries,
+      mutations: async (sessionId) => (await call(queryCacheDef, {}, sessionId)).result.mutations,
+      invalidate: async (sessionId, key) => {
+        await call(queryInvalidateDef, {key}, sessionId)
       },
-      refetch: async (key) => {
-        await call(queryRefetchDef, {key})
+      refetch: async (sessionId, key) => {
+        await call(queryRefetchDef, {key}, sessionId)
       },
     },
     serverFunctions: {

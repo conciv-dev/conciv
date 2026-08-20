@@ -16,13 +16,15 @@ test('advertises the surfaces it fakes with fixed capabilities', () => {
   expect(adapter.middleware).toBeUndefined()
 })
 
+const SESSION_ID = 'test-session'
+
 test('detect returns well-formed framework info', async () => {
-  const info = await makeFakeFrameworkAdapter().client.detect()
+  const info = await makeFakeFrameworkAdapter().client.detect(SESSION_ID)
   expect(info).toEqual({name: 'tanstack-start', version: '1.4.2', router: 'file-based', dev: true})
 })
 
 test('router current returns a well-formed location and matches', async () => {
-  const current = await makeFakeFrameworkAdapter().client.routes.current()
+  const current = await makeFakeFrameworkAdapter().client.routes.current(SESSION_ID)
   expect(current.location.pathname).toBe('/posts/42')
   const [, postMatch] = current.matches
   if (!postMatch) throw new Error('expected a route match')
@@ -32,7 +34,7 @@ test('router current returns a well-formed location and matches', async () => {
 })
 
 test('route tree returns a well-formed node graph', async () => {
-  const tree = await makeFakeFrameworkAdapter().client.routes.tree()
+  const tree = await makeFakeFrameworkAdapter().client.routes.tree(SESSION_ID)
   expect(tree.id).toBe('__root__')
   expect(tree.kind).toBe('layout')
   expect(tree.hasLoader).toBe(false)
@@ -41,11 +43,11 @@ test('route tree returns a well-formed node graph', async () => {
 
 test('client data entries and error snapshot are well-formed', async () => {
   const adapter = makeFakeFrameworkAdapter()
-  const [entry] = await adapter.client.data.entries()
+  const [entry] = await adapter.client.data.entries(SESSION_ID)
   if (!entry) throw new Error('expected a cache entry')
   expect(entry.key).toBe('["posts",42]')
   expect(entry.state).toBe('fresh')
-  const [appError] = await adapter.client.errors.snapshot()
+  const [appError] = await adapter.client.errors.snapshot(SESSION_ID)
   if (!appError) throw new Error('expected an app error')
   expect(appError.kind).toBe('build')
 })
@@ -53,10 +55,10 @@ test('client data entries and error snapshot are well-formed', async () => {
 test('query cache surface returns well-formed queries and mutations', async () => {
   const adapter = makeFakeFrameworkAdapter()
   if (!adapter.queryCache) throw new Error('expected a query cache surface')
-  const [query] = await adapter.queryCache.queries()
+  const [query] = await adapter.queryCache.queries(SESSION_ID)
   if (!query) throw new Error('expected a query entry')
   expect(query.state).toBe('fresh')
-  const [mutation] = await adapter.queryCache.mutations()
+  const [mutation] = await adapter.queryCache.mutations(SESSION_ID)
   if (!mutation) throw new Error('expected a mutation entry')
   expect(mutation.state).toBe('fetching')
 })
@@ -99,20 +101,20 @@ test('overrides replace a single method and leave siblings on defaults', async (
       },
     },
   })
-  const current = await adapter.client.routes.current()
+  const current = await adapter.client.routes.current(SESSION_ID)
   expect(current.location.pathname).toBe('/custom')
-  const tree = await adapter.client.routes.tree()
+  const tree = await adapter.client.routes.tree(SESSION_ID)
   expect(tree.id).toBe('__root__')
 })
 
 test('override a mutating method to observe calls', async () => {
   const calls: string[] = []
   const adapter = makeFakeFrameworkAdapter({
-    client: {navigation: {navigate: async (input) => void calls.push(`navigate:${input.to}`)}},
-    queryCache: {invalidate: async (key) => void calls.push(`invalidate:${key}`)},
+    client: {navigation: {navigate: async (_sessionId, input) => void calls.push(`navigate:${input.to}`)}},
+    queryCache: {invalidate: async (_sessionId, key) => void calls.push(`invalidate:${key}`)},
   })
-  await adapter.client.navigation.navigate({to: '/next'})
+  await adapter.client.navigation.navigate(SESSION_ID, {to: '/next'})
   if (!adapter.queryCache) throw new Error('expected a query cache surface')
-  await adapter.queryCache.invalidate('users')
+  await adapter.queryCache.invalidate(SESSION_ID, 'users')
   expect(calls).toEqual(['navigate:/next', 'invalidate:users'])
 })

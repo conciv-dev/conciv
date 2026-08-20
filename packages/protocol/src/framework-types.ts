@@ -151,24 +151,24 @@ export type LogEntry = {
 export type Unsubscribe = () => void
 
 export type FrameworkClientCore = {
-  detect(): Promise<FrameworkInfo | null>
+  detect(sessionId: string): Promise<FrameworkInfo | null>
   routes: {
-    current(): Promise<RouterCurrent>
-    tree(): Promise<RouteNode>
+    current(sessionId: string): Promise<RouterCurrent>
+    tree(sessionId: string): Promise<RouteNode>
   }
   navigation: {
-    navigate(input: NavigateInput): Promise<void>
-    back(): Promise<void>
-    refresh(): Promise<void>
+    navigate(sessionId: string, input: NavigateInput): Promise<void>
+    back(sessionId: string): Promise<void>
+    refresh(sessionId: string): Promise<void>
   }
   data: {
-    entries(): Promise<CacheEntry[]>
-    get(key: string): Promise<unknown>
-    invalidate(key: string): Promise<void>
-    refetch(key: string): Promise<void>
+    entries(sessionId: string): Promise<CacheEntry[]>
+    get(sessionId: string, key: string): Promise<unknown>
+    invalidate(sessionId: string, key: string): Promise<void>
+    refetch(sessionId: string, key: string): Promise<void>
   }
   errors: {
-    snapshot(): Promise<AppError[]>
+    snapshot(sessionId: string): Promise<AppError[]>
   }
 }
 
@@ -188,10 +188,10 @@ export type FrameworkServerCore = {
 }
 
 export type QueryCacheSurface = {
-  queries(): Promise<CacheEntry[]>
-  mutations(): Promise<CacheEntry[]>
-  invalidate(key: string): Promise<void>
-  refetch(key: string): Promise<void>
+  queries(sessionId: string): Promise<CacheEntry[]>
+  mutations(sessionId: string): Promise<CacheEntry[]>
+  invalidate(sessionId: string, key: string): Promise<void>
+  refetch(sessionId: string, key: string): Promise<void>
 }
 
 export type PayloadSurface = {

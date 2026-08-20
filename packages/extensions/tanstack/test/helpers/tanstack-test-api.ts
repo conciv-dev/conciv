@@ -16,6 +16,7 @@ export function useTanstackTestApi(): () => TanstackTestApi {
   beforeAll(async () => {
     ctx.api = await getExtensionTestApi({
       server: tanstackExtension,
+      observeWidgetSession: true,
       host: async ({apiBase, session}) => {
         const served = await serveDir(hostDist, {apiBase, session})
         ctx.origin = served.origin

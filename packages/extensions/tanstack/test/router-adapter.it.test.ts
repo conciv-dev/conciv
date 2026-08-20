@@ -104,7 +104,7 @@ test('navigate threads search through the adapter into the running TanStack Rout
   await waitForWidget(api.page)
 
   const adapter = tanstackAdapter(api)
-  await adapter.client.navigation.navigate({to: '/secret', search: {token: 'nav-applied'}})
+  await adapter.client.navigation.navigate(api.session, {to: '/secret', search: {token: 'nav-applied'}})
 
   await expectLocator(api.page.getByRole('heading', {name: 'Secret page'})).toBeVisible()
   expect(routerStateSchema.parse(await api.callTool('tanstack_router_state', {})).location.search).toContain(

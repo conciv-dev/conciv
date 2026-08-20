@@ -62,7 +62,7 @@ describe('defineFrameworkAdapter (capability flags force gated surfaces at compi
     expect(adapter.name).toBe('astro')
     expect('queryCache' in adapter).toBe(false)
     expect('payload' in adapter).toBe(false)
-    expect((await adapter.client.routes.current()).matches[0]?.params.id).toBe('1')
+    expect((await adapter.client.routes.current('session-1')).matches[0]?.params.id).toBe('1')
     expect((await adapter.server.manifest.routes())[0]?.dynamic).toBe(true)
   })
 
@@ -73,10 +73,10 @@ describe('defineFrameworkAdapter (capability flags force gated surfaces at compi
       server: coreServer(),
       capabilities: {queryCache: true, serverFunctions: true, rscPayload: true, isr: true, middleware: true},
       queryCache: {
-        queries: async () => [],
-        mutations: async () => [],
-        invalidate: async () => {},
-        refetch: async () => {},
+        queries: async (_sessionId: string) => [],
+        mutations: async (_sessionId: string) => [],
+        invalidate: async (_sessionId: string, _key: string) => {},
+        refetch: async (_sessionId: string, _key: string) => {},
       },
       payload: {snapshot: async () => ({kind: 'flight', tree: {}, mismatches: []})},
       serverFunctions: {list: async () => [], traces: async () => []},
@@ -86,7 +86,7 @@ describe('defineFrameworkAdapter (capability flags force gated surfaces at compi
 
     expect(adapter.capabilities.rscPayload).toBe(true)
     expect((await adapter.payload?.snapshot())?.kind).toBe('flight')
-    expect(await adapter.queryCache?.queries()).toEqual([])
+    expect(await adapter.queryCache?.queries('session-1')).toEqual([])
     expect(await adapter.isr?.entries()).toEqual([])
   })
 })
