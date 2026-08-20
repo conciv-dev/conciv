@@ -1,6 +1,6 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
 import Blocks from 'lucide-solid/icons/blocks'
-import type {Catalog, Issue} from '@conciv/extension/catalog'
+import {z} from 'zod'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
   CodeBlock,
@@ -13,6 +13,25 @@ import {
 import {ExtensionsInput} from '../extensions-tool.js'
 
 type Verb = 'catalog' | 'scaffold' | 'validate'
+
+const CatalogTokenSchema = z.looseObject({name: z.string(), default: z.string()})
+const CatalogSlotSchema = z.looseObject({name: z.string(), description: z.string()})
+const CatalogSurfaceSchema = z.looseObject({method: z.string(), description: z.string()})
+const CatalogSchema = z.looseObject({
+  tokens: z.array(CatalogTokenSchema),
+  slots: z.array(CatalogSlotSchema),
+  clientSurfaces: z.array(CatalogSurfaceSchema),
+  serverSurfaces: z.array(CatalogSurfaceSchema),
+})
+type CardCatalog = z.infer<typeof CatalogSchema>
+
+const ScaffoldResultSchema = z.looseObject({code: z.string()})
+
+const IssueSchema = z.object({level: z.enum(['error', 'warn']), message: z.string()})
+type CardIssue = z.infer<typeof IssueSchema>
+
+const ValidateResultSchema = z.looseObject({ok: z.boolean(), issues: z.array(IssueSchema)})
+type CardValidateResult = z.infer<typeof ValidateResultSchema>
 
 const TITLE_BY_VERB: Record<Verb, string> = {
   catalog: 'Extension catalog',
@@ -31,37 +50,25 @@ const ENTRY_DETAIL = 'min-w-0 flex-1 truncate text-chat-dim'
 const ISSUE_ROW = 'flex items-start gap-1.75 leading-[var(--chat-trace-gutter)]'
 const ISSUE_MESSAGE =
   'min-w-0 flex-1 text-[length:var(--chat-text-xs)] [font-family:var(--chat-mono)] text-chat-text-2 [overflow-wrap:anywhere]'
-const ISSUE_TONE: Record<Issue['level'], string> = {error: 'text-chat-danger', warn: 'text-chat-warn'}
+const ISSUE_TONE: Record<CardIssue['level'], string> = {error: 'text-chat-danger', warn: 'text-chat-warn'}
 
 function Icon(): JSX.Element {
   return <Blocks size={14} aria-hidden="true" />
 }
 
-function isCatalog(payload: unknown): payload is Catalog {
-  return typeof payload === 'object' && payload !== null && 'tokens' in payload && 'slots' in payload
-}
-
-function isScaffoldResult(payload: unknown): payload is {code: string} {
-  return typeof payload === 'object' && payload !== null && typeof (payload as {code?: unknown}).code === 'string'
-}
-
-function isValidateResult(payload: unknown): payload is {ok: boolean; issues: Issue[]} {
-  return typeof payload === 'object' && payload !== null && Array.isArray((payload as {issues?: unknown}).issues)
-}
-
-function catalogPayload(result: ToolCardProps['result']): Catalog | undefined {
-  const payload = parseResultPayload(result)
-  return isCatalog(payload) ? payload : undefined
+function catalogPayload(result: ToolCardProps['result']): CardCatalog | undefined {
+  const parsed = CatalogSchema.safeParse(parseResultPayload(result))
+  return parsed.success ? parsed.data : undefined
 }
 
 function scaffoldPayload(result: ToolCardProps['result']): {code: string} | undefined {
-  const payload = parseResultPayload(result)
-  return isScaffoldResult(payload) ? payload : undefined
+  const parsed = ScaffoldResultSchema.safeParse(parseResultPayload(result))
+  return parsed.success ? parsed.data : undefined
 }
 
-function validatePayload(result: ToolCardProps['result']): {ok: boolean; issues: Issue[]} | undefined {
-  const payload = parseResultPayload(result)
-  return isValidateResult(payload) ? payload : undefined
+function validatePayload(result: ToolCardProps['result']): CardValidateResult | undefined {
+  const parsed = ValidateResultSchema.safeParse(parseResultPayload(result))
+  return parsed.success ? parsed.data : undefined
 }
 
 function scaffoldLanguage(kind: string | undefined): string {
@@ -86,7 +93,7 @@ function Section(props: {label: string; children: JSX.Element}): JSX.Element {
   )
 }
 
-function CatalogBody(props: {catalog: Catalog}): JSX.Element {
+function CatalogBody(props: {catalog: CardCatalog}): JSX.Element {
   return (
     <div class="flex flex-col gap-2.5">
       <Section label={`Tokens · ${props.catalog.tokens.length}`}>
@@ -114,7 +121,7 @@ function ScaffoldBody(props: {code: string; kind: string | undefined}): JSX.Elem
   return <CodeBlock size="xs" file={{name: `scaffold.${language()}`, lang: language(), contents: props.code}} />
 }
 
-function ValidateBody(props: {issues: Issue[]}): JSX.Element {
+function ValidateBody(props: {issues: CardIssue[]}): JSX.Element {
   return (
     <Show when={props.issues.length > 0} fallback={<p class={QUIET_TEXT_CLASS}>no issues found</p>}>
       <ul class="m-0 p-0 list-none flex flex-col gap-0.5">
@@ -131,7 +138,7 @@ function ValidateBody(props: {issues: Issue[]}): JSX.Element {
   )
 }
 
-function catalogMeta(catalog: Catalog | undefined): string | undefined {
+function catalogMeta(catalog: CardCatalog | undefined): string | undefined {
   if (!catalog) return undefined
   const apis = catalog.clientSurfaces.length + catalog.serverSurfaces.length
   return [
@@ -141,15 +148,15 @@ function catalogMeta(catalog: Catalog | undefined): string | undefined {
   ].join(' · ')
 }
 
-function validateMeta(validateResult: {ok: boolean; issues: Issue[]} | undefined): string | undefined {
+function validateMeta(validateResult: CardValidateResult | undefined): string | undefined {
   if (!validateResult) return undefined
   return validateResult.ok ? 'ok' : countLabel(validateResult.issues.length, 'issue', 'issues')
 }
 
 function metaFor(
   verb: Verb | undefined,
-  catalog: Catalog | undefined,
-  validateResult: {ok: boolean; issues: Issue[]} | undefined,
+  catalog: CardCatalog | undefined,
+  validateResult: CardValidateResult | undefined,
   kind: string | undefined,
 ): string | undefined {
   if (verb === 'catalog') return catalogMeta(catalog)

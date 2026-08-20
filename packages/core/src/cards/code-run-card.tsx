@@ -1,4 +1,4 @@
-import {Show, type JSX} from 'solid-js'
+import {Match, Show, Switch, type JSX} from 'solid-js'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {
   Chip,
@@ -7,6 +7,7 @@ import {
   ErrorBlock,
   parseInput,
   parseResultPayload,
+  resultText,
   ToolCard,
   toolStatus,
   TraceOutputBlock,
@@ -43,8 +44,15 @@ function errorOf(output: ExecuteResult | null): ExecuteError | undefined {
   return output?.error
 }
 
-function isFailed(output: ExecuteResult | null): boolean {
-  return output?.success === false
+function isFailed(output: ExecuteResult | null, status: ToolStatus): boolean {
+  if (output) return output.success === false
+  return status === 'error'
+}
+
+function transportErrorText(result: ToolCardProps['result']): string {
+  const direct = result?.error
+  if (typeof direct === 'string' && direct.length > 0) return direct
+  return resultText(result)
 }
 
 function hasResult(output: ExecuteResult | null): boolean {
@@ -91,20 +99,34 @@ function runOutputText(output: ExecuteResult | null): string {
   return parts.join('\n')
 }
 
-function EmbeddedOutput(props: {output: ExecuteResult | null}): JSX.Element {
+function EmbeddedOutput(props: {
+  output: ExecuteResult | null
+  failed: boolean
+  result: ToolCardProps['result']
+}): JSX.Element {
   const text = () => runOutputText(props.output)
   return (
-    <Show when={text()}>
-      {(value) => (
-        <TraceOutputBlock tone={isFailed(props.output) ? 'error' : 'normal'} text={value()}>
-          <CodeBlock size="xs" maxHeight="none" file={{name: 'output.log', lang: 'ansi', contents: value()}} />
-        </TraceOutputBlock>
-      )}
-    </Show>
+    <Switch>
+      <Match when={props.output === null && props.failed}>
+        <ErrorBlock label="Error" message={transportErrorText(props.result)} />
+      </Match>
+      <Match when={text()}>
+        {(value) => (
+          <TraceOutputBlock tone={props.failed ? 'error' : 'normal'} text={value()}>
+            <CodeBlock size="xs" maxHeight="none" file={{name: 'output.log', lang: 'ansi', contents: value()}} />
+          </TraceOutputBlock>
+        )}
+      </Match>
+    </Switch>
   )
 }
 
-function FullOutput(props: {output: ExecuteResult | null; code: string}): JSX.Element {
+function FullOutput(props: {
+  output: ExecuteResult | null
+  code: string
+  failed: boolean
+  result: ToolCardProps['result']
+}): JSX.Element {
   return (
     <div class="flex flex-col gap-2 min-w-0">
       <CodeBlock size="xs" file={{name: 'run.ts', lang: 'ts', contents: props.code}} />
@@ -114,7 +136,12 @@ function FullOutput(props: {output: ExecuteResult | null; code: string}): JSX.El
       <Show when={hasResult(props.output)}>
         <Chip kind="pill" value={JSON.stringify(props.output?.result)} />
       </Show>
-      <Show when={errorOf(props.output)}>{(error) => <ErrorBox error={error()} />}</Show>
+      <Switch>
+        <Match when={errorOf(props.output)}>{(error) => <ErrorBox error={error()} />}</Match>
+        <Match when={props.output === null && props.failed}>
+          <ErrorBlock label="Error" message={transportErrorText(props.result)} />
+        </Match>
+      </Switch>
     </div>
   )
 }
@@ -122,8 +149,10 @@ function FullOutput(props: {output: ExecuteResult | null; code: string}): JSX.El
 export function CodeRunCard(props: ToolCardProps): JSX.Element {
   const code = (): string => codeOf(props.part)
   const output = (): ExecuteResult | null => parseOutput(props.result)
-  const statusOverride = (): ToolStatus | undefined => (isFailed(output()) ? 'error' : undefined)
-  const settled = () => isSettledStatus(toolStatus(props.part, props.result))
+  const status = (): ToolStatus => toolStatus(props.part, props.result)
+  const failed = (): boolean => isFailed(output(), status())
+  const statusOverride = (): ToolStatus | undefined => (failed() ? 'error' : undefined)
+  const settled = () => isSettledStatus(status())
   const embedded = useEmbeddedCard()
   return (
     <ToolCard
@@ -133,11 +162,14 @@ export function CodeRunCard(props: ToolCardProps): JSX.Element {
       part={props.part}
       result={props.result}
       status={statusOverride()}
-      meta={codeStatusText(settled(), isFailed(output()))}
-      defaultOpen={toolStatus(props.part, props.result) === 'running'}
+      meta={codeStatusText(settled(), failed())}
+      defaultOpen={status() === 'running'}
     >
-      <Show when={embedded()} fallback={<FullOutput output={output()} code={code()} />}>
-        <EmbeddedOutput output={output()} />
+      <Show
+        when={embedded()}
+        fallback={<FullOutput output={output()} code={code()} failed={failed()} result={props.result} />}
+      >
+        <EmbeddedOutput output={output()} failed={failed()} result={props.result} />
       </Show>
     </ToolCard>
   )

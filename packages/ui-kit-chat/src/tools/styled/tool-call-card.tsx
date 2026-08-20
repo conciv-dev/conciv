@@ -74,7 +74,10 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     return published ? headerRowProjection(published.read(), rowProps) : genericRowProjection(rowProps)
   })
   const rowLine = () => `${projection().target} ${projection().meta ?? ''}`
-  const asking = () => local.part.approval !== undefined && local.ctx.respondApproval !== undefined
+  const asking = () =>
+    local.part.state === 'approval-requested' &&
+    local.part.approval !== undefined &&
+    local.ctx.respondApproval !== undefined
   const lastRow = () => (local.last ?? false) && !asking()
   const bodyTone = (): TraceOutputTone => (projection().mark === 'fail' ? 'error' : 'normal')
   const cardBody = (): JSX.Element => (

@@ -31,6 +31,12 @@ const failResult = result({
   error: {message: "Unexpected token '.'", name: 'SyntaxError', line: 2},
 })
 
+function transportFailResult(message: string): ToolResultPart {
+  return {type: 'tool-result', toolCallId: 'c1', content: '{not json', state: 'error', error: message}
+}
+
+const garbageFailResult = transportFailResult('sandbox process crashed')
+
 function frame(theme: string, child: JSX.Element): JSX.Element {
   return <div class={`${theme} p-4 w-[34rem] [background:var(--chat-bg)] [font-family:var(--chat-font)]`}>{child}</div>
 }
@@ -93,6 +99,21 @@ export const Failure: Story = {
     await expect(c.getByText(/line 2/)).toBeVisible()
     await expect(c.queryByText('["el_9f2"]')).toBeNull()
     await expect(c.queryByText('console')).toBeNull()
+    await expect(c.getByLabelText('error')).toBeInTheDocument()
+  },
+}
+
+export const TransportFailure: Story = {
+  render: () =>
+    frame(
+      'chat-theme-terminal',
+      <CodeRunCard part={part()} result={garbageFailResult} ctx={INERT_TOOL_CTX} addResult={INERT_ADD_RESULT} />,
+    ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await userEvent.click(c.getByRole('button'))
+    await waitFor(() => expect(c.getByText('sandbox process crashed')).toBeVisible())
+    await expect(c.queryByText('["el_9f2"]')).toBeNull()
     await expect(c.getByLabelText('error')).toBeInTheDocument()
   },
 }

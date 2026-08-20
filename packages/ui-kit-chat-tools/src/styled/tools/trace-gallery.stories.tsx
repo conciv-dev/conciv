@@ -205,7 +205,7 @@ export const DiscoveredApis: Story = {
 export const ToolLookup: Story = {
   render: () =>
     gallery('1 lookup', [
-      row(call('tool_lookup', {query: 'canvas'}), result(JSON.stringify({tools: [{name: 'canvas_draw'}]}))),
+      row(call('ToolSearch', {query: 'canvas'}), result(JSON.stringify({tools: [{name: 'canvas_draw'}]}))),
     ]),
 }
 

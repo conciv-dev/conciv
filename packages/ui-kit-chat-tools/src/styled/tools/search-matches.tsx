@@ -55,13 +55,13 @@ export function hiddenMatchSummary(
       return {
         units: state.units + HEADER_UNITS + group.matches.length * MATCH_UNITS,
         matches: state.matches + matchLines,
+        files: state.files + (group.matches.length - matchLines > 0 ? 1 : 0),
       }
     },
-    {units: 0, matches: 0},
+    {units: 0, matches: 0, files: 0},
   )
   const total = groups.reduce((count, group) => count + group.matches.length, 0)
-  const files = groups.filter((group) => group.matches.length > 0).length
-  return {matches: total - seen.matches, files}
+  return {matches: total - seen.matches, files: seen.files}
 }
 
 export function shortenPath(path: string): string {
