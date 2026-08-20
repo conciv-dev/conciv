@@ -252,6 +252,7 @@ function wireSocketReachability(
   const phase: {current: SocketConnectionPhase} = {current: 'attempting'}
   const retryer = new AsyncRetryer(
     async () => {
+      if (phase.current === 'open') return
       phase.current = 'attempting'
       socket.reconnect()
       const opened = await openedWithin(socket, CONNECTION_TIMEOUT_MS)
