@@ -7,7 +7,16 @@ import {EventType, isContentPartArray, type ContentPart, type StreamChunk} from 
 import type {ToolRequest} from '@conciv/extension'
 import type {EngineStaleness} from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
-import {CONCIV_CLAUDE_SESSION_HEADER, CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
+import {
+  CONCIV_CLAUDE_SESSION_HEADER,
+  CONCIV_SESSION_HEADER,
+  isHarnessSessionId,
+  isSessionId,
+  type HarnessSessionId,
+  type SessionId,
+} from '@conciv/protocol/chat-types'
+import type {SessionScope} from '../runtime/scope-types.js'
+import {runWithSession} from '../runtime/session-context.js'
 import {logError} from '../lib/debug.js'
 import {cappedText, RESULT_CAP_CHARS, safeStringify, truncationEnvelope} from '../lib/result-cap.js'
 import {loopbackHostAllowlist} from '../lib/cors.js'
@@ -17,15 +26,18 @@ import {makeCodeMode, type CodeMode} from '../chat/code-mode.js'
 import {CODE_MODE_TOOL_CALL_EVENT, codeModeToolChunks} from '../chat/code-mode-parts.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
 
-export function sessionIdFromHeaders(headers: Headers): string | null {
+export function sessionIdFromHeaders(headers: Headers): SessionId | null {
   const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
   if (!raw) return null
   if (!isSessionId(raw)) throw new HTTPException(400, {message: 'invalid session id (must be ours)'})
   return raw
 }
 
-export function nativeIdFromHeaders(headers: Headers): string | null {
-  return headers.get(CONCIV_CLAUDE_SESSION_HEADER)?.trim() || null
+export function nativeIdFromHeaders(headers: Headers): HarnessSessionId | null {
+  const raw = headers.get(CONCIV_CLAUDE_SESSION_HEADER)?.trim()
+  if (!raw) return null
+  if (!isHarnessSessionId(raw)) throw new HTTPException(400, {message: 'invalid harness session id'})
+  return raw
 }
 
 type TextContent = {type: 'text'; text: string}
@@ -215,21 +227,19 @@ async function runExecute(
 }
 
 type McpDeps = {
-  capabilities: (sessionId: string) => CodeCapability[]
-  askGate: (sessionId: string) => PermissionGate
-  listening: (sessionId: string) => boolean
-  publish: (sessionId: string, chunk: StreamChunk) => void
-  sessionModel: (sessionId: string) => string | null
-  sessionForNativeId: (nativeId: string) => Promise<string | null>
-  noteToolCall: (sessionId: string, toolCallId: string, toolName: string) => void
+  capabilities: (sessionId: SessionId) => CodeCapability[]
+  askGate: (sessionId: SessionId) => PermissionGate
+  listening: (sessionId: SessionId) => boolean
+  resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   staleness: () => EngineStaleness
 }
 
 export type McpVars = {mcp: McpDeps}
 
-async function buildServer(deps: McpDeps, request: ToolRequest): Promise<McpServer> {
-  const gate = deps.askGate(request.sessionId)
-  const codeMode = await makeCodeMode(() => deps.capabilities(request.sessionId), request, gate, {
+async function buildServer(deps: McpDeps, scope: SessionScope): Promise<McpServer> {
+  const request: ToolRequest = {sessionId: scope.id, model: scope.model}
+  const gate = deps.askGate(scope.id)
+  const codeMode = await makeCodeMode(() => deps.capabilities(scope.id), request, gate, {
     listening: deps.listening,
   })
   const server = new McpServer(
@@ -240,22 +250,21 @@ async function buildServer(deps: McpDeps, request: ToolRequest): Promise<McpServ
     logError('[mcp] code mode is unavailable (isolated-vm incompatible or an empty registry); no tools registered')
     return server
   }
-  const publish: PublishChunks = request.sessionId
-    ? (chunks) => chunks.forEach((chunk) => deps.publish(request.sessionId, chunk))
-    : () => {}
-  const declaredCodes = () => declaredCodesOf(deps.capabilities(request.sessionId))
-  const note: NoteToolCall = (toolCallId, toolName) => deps.noteToolCall(request.sessionId, toolCallId, toolName)
+  const publish: PublishChunks = (chunks) => chunks.forEach((chunk) => scope.stream.publish(chunk))
+  const declaredCodes = () => declaredCodesOf(deps.capabilities(scope.id))
+  const note: NoteToolCall = (toolCallId, toolName) => scope.asks.noteToolCall(toolCallId, toolName)
   server.registerTool(
     EXECUTE_TOOL_NAME,
     {description: executeDescription(codeMode.categories), inputSchema: ExecuteInputSchema.shape},
-    async (args) => {
-      try {
-        return await runExecute(codeMode, args.typescriptCode, publish, declaredCodes, note)
-      } catch (error) {
-        logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
-        throw error
-      }
-    },
+    async (args) =>
+      runWithSession(scope, async () => {
+        try {
+          return await runExecute(codeMode, args.typescriptCode, publish, declaredCodes, note)
+        } catch (error) {
+          logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
+          throw error
+        }
+      }),
   )
   return server
 }
@@ -263,17 +272,17 @@ async function buildServer(deps: McpDeps, request: ToolRequest): Promise<McpServ
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   const allowedHosts = loopbackHostAllowlist(c.req.header('host') ?? null)
   if (allowedHosts.length === 0) return c.text('forbidden host', 403)
-  const nativeId = nativeIdFromHeaders(c.req.raw.headers)
-  const nativeOwner = nativeId ? await c.var.mcp.sessionForNativeId(nativeId) : null
-  const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? nativeOwner ?? ''
-  const request: ToolRequest = {sessionId, model: c.var.mcp.sessionModel(sessionId)}
+  const scope = await c.var.mcp.resolveSession(
+    sessionIdFromHeaders(c.req.raw.headers),
+    nativeIdFromHeaders(c.req.raw.headers),
+  )
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
     enableDnsRebindingProtection: true,
     allowedHosts,
   })
-  const server = await buildServer(c.var.mcp, request)
+  const server = await buildServer(c.var.mcp, scope)
   await server.connect(transport)
   return transport.handleRequest(c.req.raw)
 })

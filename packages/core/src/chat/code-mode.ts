@@ -15,6 +15,7 @@ import {approvalRefusal, noListenerRefusal, requiresApproval, type PermissionGat
 import {CODE_MODE_TOOL_CALL_EVENT, CODE_MODE_TOOL_ERROR_EVENT, CODE_MODE_TOOL_RESULT_EVENT} from './code-mode-parts.js'
 import {logError} from '../lib/debug.js'
 import {cappedValue} from '../lib/result-cap.js'
+import type {SessionId} from '@conciv/protocol/chat-types'
 
 const CODE_MODE_TIMEOUT_MS = 150_000
 
@@ -99,7 +100,7 @@ function encodeDeclaredError(error: unknown): Error {
   return new Error(`${code}: ${bare}`)
 }
 
-export type SessionListening = (sessionId: string) => boolean
+export type SessionListening = (sessionId: SessionId) => boolean
 
 async function emittingToolCall(
   name: string,

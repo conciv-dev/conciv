@@ -1,22 +1,34 @@
 import {randomUUID} from 'node:crypto'
 import {and, eq, isNull} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
-import type {NativeSessionRef, SessionRecord, SessionRecordInput} from '@conciv/protocol/chat-types'
-import {isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
+import type {
+  HarnessSessionId,
+  NativeSessionRef,
+  SessionId,
+  SessionRecord,
+  SessionRecordInput,
+} from '@conciv/protocol/chat-types'
+import {
+  HarnessSessionId as HarnessSessionIdSchema,
+  isSessionId,
+  SessionId as SessionIdSchema,
+  SessionRecordSchema,
+} from '@conciv/protocol/chat-types'
 import type {HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {sessions, type ConcivDb} from '@conciv/db'
 import {sameCwd} from '@conciv/harness/cwd'
 
-export type RowScope = {db: ConcivDb; harnessKind: string; cwd: string; mintId?: () => string}
+export type RowScope = {db: ConcivDb; harnessKind: string; cwd: string; mintId?: () => SessionId}
 
-const mintIdOf = (scope: RowScope): (() => string) => scope.mintId ?? (() => `conciv_${randomUUID()}`)
+const mintIdOf = (scope: RowScope): (() => SessionId) =>
+  scope.mintId ?? (() => SessionIdSchema.parse(`conciv_${randomUUID()}`))
 
-export async function rowById(db: ConcivDb, id: string): Promise<SessionRecord | null> {
+export async function rowById(db: ConcivDb, id: SessionId): Promise<SessionRecord | null> {
   const rows = await db.select().from(sessions).where(eq(sessions.id, id))
   return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
 }
 
-export async function rowByNativeId(db: ConcivDb, nativeId: string): Promise<SessionRecord | null> {
+export async function rowByNativeId(db: ConcivDb, nativeId: HarnessSessionId): Promise<SessionRecord | null> {
   const rows = await db.select().from(sessions).where(eq(sessions.harnessSessionId, nativeId))
   return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
 }
@@ -45,14 +57,14 @@ export async function createRow(
   return record
 }
 
-export const nativeIdFor = async (db: ConcivDb, id: string): Promise<string | null> =>
+export const nativeIdFor = async (db: ConcivDb, id: SessionId): Promise<HarnessSessionId | null> =>
   (await rowById(db, id))?.harnessSessionId ?? null
 
-export async function recordNativeId(db: ConcivDb, id: string, nativeId: string): Promise<void> {
+export async function recordNativeId(db: ConcivDb, id: SessionId, nativeId: HarnessSessionId): Promise<void> {
   await db.update(sessions).set({harnessSessionId: nativeId, updatedAt: Date.now()}).where(eq(sessions.id, id))
 }
 
-export async function ensureRow(db: ConcivDb, id: string, harnessKind: string, cwd: string): Promise<void> {
+export async function ensureRow(db: ConcivDb, id: SessionId, harnessKind: string, cwd: string): Promise<void> {
   if (await rowById(db, id)) return
   await createRow(db, {
     id,
@@ -67,19 +79,20 @@ export async function ensureRow(db: ConcivDb, id: string, harnessKind: string, c
   })
 }
 
-export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<{sessionId: string}> {
+export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<{sessionId: SessionId}> {
   const mint = mintIdOf(scope)
   if (body.id && isSessionId(body.id)) {
     const existing = await rowById(scope.db, body.id)
     if (existing) return {sessionId: existing.id}
     return {sessionId: body.id}
   }
-  if (body.id) {
-    const wrapped = await rowByNativeId(scope.db, body.id)
+  const nativeId = HarnessSessionIdSchema.safeParse(body.id)
+  if (nativeId.success) {
+    const wrapped = await rowByNativeId(scope.db, nativeId.data)
     if (wrapped) return {sessionId: wrapped.id}
     const created = await createRow(scope.db, {
       id: mint(),
-      harnessSessionId: body.id,
+      harnessSessionId: nativeId.data,
       harnessKind: scope.harnessKind,
       origin: 'external',
       title: null,
@@ -93,7 +106,7 @@ export async function resolveRow(scope: RowScope, body: {id?: string}): Promise<
   return {sessionId: mint()}
 }
 
-export async function openNativeRow(scope: RowScope, ref: NativeSessionRef): Promise<{sessionId: string}> {
+export async function openNativeRow(scope: RowScope, ref: NativeSessionRef): Promise<{sessionId: SessionId}> {
   const existing = await rowByNativeRef(scope.db, ref)
   if (existing) {
     if (existing.deletedAt !== null) {
@@ -115,15 +128,15 @@ export async function openNativeRow(scope: RowScope, ref: NativeSessionRef): Pro
   return {sessionId: created.id}
 }
 
-export async function tombstoneRow(db: ConcivDb, id: string): Promise<void> {
+export async function tombstoneRow(db: ConcivDb, id: SessionId): Promise<void> {
   await db.update(sessions).set({deletedAt: Date.now(), updatedAt: Date.now()}).where(eq(sessions.id, id))
 }
 
-export async function restoreRow(db: ConcivDb, id: string): Promise<void> {
+export async function restoreRow(db: ConcivDb, id: SessionId): Promise<void> {
   await db.update(sessions).set({deletedAt: null, updatedAt: Date.now()}).where(eq(sessions.id, id))
 }
 
-export async function ensureAgentRow(scope: RowScope, nativeId: string): Promise<SessionRecord> {
+export async function ensureAgentRow(scope: RowScope, nativeId: HarnessSessionId): Promise<SessionRecord> {
   const existing = await rowByNativeId(scope.db, nativeId)
   if (existing) return existing
   return createRow(scope.db, {
@@ -139,6 +152,26 @@ export async function ensureAgentRow(scope: RowScope, nativeId: string): Promise
   })
 }
 
+export async function mintExternalRow(scope: RowScope): Promise<SessionId> {
+  const created = await createRow(scope.db, {
+    id: mintIdOf(scope)(),
+    harnessSessionId: null,
+    harnessKind: scope.harnessKind,
+    origin: 'external',
+    title: null,
+    model: null,
+    usage: null,
+    cwd: scope.cwd,
+    deletedAt: null,
+  })
+  return created.id
+}
+
+export async function resolveOrMintRow(scope: RowScope, id: SessionId | null): Promise<SessionId> {
+  if (id !== null) return id
+  return mintExternalRow(scope)
+}
+
 export async function sweepEmptyRows(db: ConcivDb): Promise<void> {
   await db
     .delete(sessions)
@@ -150,8 +183,8 @@ export type SessionListInput = {
   harnessKind: string
   cwd: string
   nativeList: HarnessSessionMeta[]
-  running: (sessionId: string) => boolean
-  model: (sessionId: string) => string | null
+  running: (sessionId: SessionId) => boolean
+  model: (sessionId: SessionId) => string | null
   includeHidden: boolean
 }
 
@@ -184,19 +217,16 @@ function rowMeta(row: SessionRecord, native: HarnessSessionMeta | undefined, inp
   }
 }
 
-function nativeOnlyMeta(native: HarnessSessionMeta, input: SessionListInput): SessionMeta {
-  return {
-    id: native.id,
-    title: native.derivedTitle,
-    updatedAt: native.updatedAt,
-    messageCount: native.messageCount,
-    running: false,
-    origin: 'external',
-    usage: null,
-    model: native.model ?? null,
-    hidden: false,
-    native: {harnessKind: input.harnessKind, cwd: input.cwd, nativeId: native.id},
-  }
+async function materializeNative(native: HarnessSessionMeta, input: SessionListInput): Promise<SessionMeta> {
+  const scope: RowScope = {db: input.db, harnessKind: input.harnessKind, cwd: input.cwd}
+  const {sessionId} = await openNativeRow(scope, {
+    harnessKind: input.harnessKind,
+    cwd: input.cwd,
+    nativeId: native.id,
+  })
+  const row = await rowById(input.db, sessionId)
+  if (row === null) throw new Error(`session row "${sessionId}" vanished while listing native sessions`)
+  return rowMeta(row, native, input)
 }
 
 export async function listSessionMetas(input: SessionListInput): Promise<SessionMeta[]> {
@@ -209,8 +239,8 @@ export async function listSessionMetas(input: SessionListInput): Promise<Session
   const ours = rows.map((row) =>
     rowMeta(row, row.harnessSessionId ? nativeById.get(row.harnessSessionId) : undefined, input),
   )
-  const unmaterialized = input.nativeList
-    .filter((native) => !claimed.has(native.id))
-    .map((native) => nativeOnlyMeta(native, input))
+  const unmaterialized = await Promise.all(
+    input.nativeList.filter((native) => !claimed.has(native.id)).map((native) => materializeNative(native, input)),
+  )
   return [...ours, ...unmaterialized].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }

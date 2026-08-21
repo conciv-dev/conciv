@@ -1,6 +1,6 @@
 import type {UIMessage} from '@tanstack/ai'
-import {ChatHistorySchema} from '@conciv/protocol/chat-types'
-import type {SessionRecord} from '@conciv/protocol/chat-types'
+import {ChatHistorySchema, isSessionId} from '@conciv/protocol/chat-types'
+import type {HarnessSessionId, SessionId, SessionRecord} from '@conciv/protocol/chat-types'
 import {FILE_REF_PREFIX} from '@conciv/protocol/harness-types'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {getHarness} from '@conciv/harness'
@@ -36,7 +36,7 @@ const foldedText = (value: string): string => value.replace(/\s+/g, ' ').trim()
 async function readTranscript(
   harness: HarnessAdapter,
   cwd: string,
-  nativeId: string,
+  nativeId: HarnessSessionId,
   claudeHome?: string,
 ): Promise<UIMessage[]> {
   const history = harness.history
@@ -56,7 +56,7 @@ function recoveryHarness(booted: HarnessAdapter, harnessKind: string): HarnessAd
   return getHarness(harnessKind) ?? null
 }
 
-function pendingUserText(db: ConcivDb, sessionId: string): string {
+function pendingUserText(db: ConcivDb, sessionId: SessionId): string {
   const parsed = ChatHistorySchema.safeParse(runMessagesFor(db, sessionId)?.messages ?? [])
   if (!parsed.success) return ''
   const head = parsed.data[0]
@@ -72,7 +72,7 @@ async function cliIngestedPending(scope: RecoveryScope, row: SessionRecord, harn
   return transcript.some((message) => foldedText(withoutFileRefs(userTextOf(message))) === pending)
 }
 
-async function settlesAgainstTranscript(scope: RecoveryScope, sessionId: string): Promise<boolean> {
+async function settlesAgainstTranscript(scope: RecoveryScope, sessionId: SessionId): Promise<boolean> {
   const row = await rowById(scope.db, sessionId)
   if (!row) return false
   const harness = recoveryHarness(scope.harness, row.harnessKind)
@@ -81,7 +81,7 @@ async function settlesAgainstTranscript(scope: RecoveryScope, sessionId: string)
 }
 
 export async function recoverInterruptedRuns(scope: RecoveryScope): Promise<void> {
-  for (const sessionId of runSessions(scope.db)) {
+  for (const sessionId of runSessions(scope.db).filter(isSessionId)) {
     if (!(await settlesAgainstTranscript(scope, sessionId))) {
       foldRunMessagesIntoHistory(scope.db, sessionId)
       continue
@@ -91,7 +91,7 @@ export async function recoverInterruptedRuns(scope: RecoveryScope): Promise<void
   }
 }
 
-function storedMessages(deps: ChatDeps, sessionId: string): UIMessage[] {
+function storedMessages(deps: ChatDeps, sessionId: SessionId): UIMessage[] {
   const stored = [
     ...(sessionHistoryFor(deps.db, sessionId)?.messages ?? []),
     ...(runMessagesFor(deps.db, sessionId)?.messages ?? []),
@@ -115,7 +115,7 @@ function mergedMessages(transcript: UIMessage[], stored: UIMessage[]): UIMessage
   return [...settledTranscript(transcript, stored), ...stored]
 }
 
-export async function sessionSnapshot(deps: ChatDeps, sessionId: string): Promise<UIMessage[]> {
+export async function sessionSnapshot(deps: ChatDeps, sessionId: SessionId): Promise<UIMessage[]> {
   const row = await rowById(deps.db, sessionId)
   const nativeId = row?.harnessSessionId ?? null
   if (!nativeId || !deps.harness.capabilities.transcriptHistory) {

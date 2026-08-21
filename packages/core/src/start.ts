@@ -13,6 +13,7 @@ import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
 import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint} from './lib/dev-endpoint.js'
+import type {SessionId} from '@conciv/protocol/chat-types'
 
 export type PortRequest = {exact: number} | {preferred: number}
 
@@ -134,7 +135,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   )
 
   const portRef = {port: 0}
-  const harnessEnv = (sessionId?: string): NodeJS.ProcessEnv => {
+  const harnessEnv = (sessionId?: SessionId): NodeJS.ProcessEnv => {
     const baseEnv = opts.childEnv ? opts.childEnv(portRef.port) : process.env
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }

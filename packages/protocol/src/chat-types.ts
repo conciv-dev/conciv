@@ -82,18 +82,23 @@ export function isSessionId(id: unknown): id is SessionId {
   return SessionId.safeParse(id).success
 }
 
-export const HarnessSessionId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
+export const HarnessSessionId = z.string().min(1).brand<'HarnessSessionId'>()
+export type HarnessSessionId = z.infer<typeof HarnessSessionId>
+
+export function isHarnessSessionId(id: unknown): id is HarnessSessionId {
+  return HarnessSessionId.safeParse(id).success
+}
 
 export const NativeSessionRefSchema = z.object({
   harnessKind: z.string().min(1),
   cwd: z.string().min(1),
-  nativeId: z.string().min(1),
+  nativeId: HarnessSessionId,
 })
 export type NativeSessionRef = z.infer<typeof NativeSessionRefSchema>
 
 export const SessionRecordSchema = z.object({
   id: SessionId,
-  harnessSessionId: z.string().nullable(),
+  harnessSessionId: HarnessSessionId.nullable(),
   harnessKind: z.string(),
   origin: z.enum(['chat', 'agent', 'external']),
   title: z.string().nullable(),

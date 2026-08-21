@@ -1,6 +1,6 @@
 import {safe, toORPCError, type ORPCError} from '@orpc/client'
 import {z} from 'zod'
-import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, isSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
@@ -28,15 +28,37 @@ function defaultOrigin(): string {
   return `http://127.0.0.1:${port}`
 }
 
-function sessionHeaders(): Record<string, string> {
-  const sessionId = process.env.CONCIV_SESSION_ID ?? ''
-  if (!isSessionId(sessionId)) return {}
-  return {[CONCIV_SESSION_HEADER]: sessionId}
+function declaredSessionId(): SessionId | null {
+  const raw = process.env.CONCIV_SESSION_ID?.trim()
+  if (!raw) return null
+  if (!isSessionId(raw)) {
+    throw userFailure(`CONCIV_SESSION_ID is not a conciv session id: "${raw}"`, {
+      hint: 'Unset it, or set it to the conciv_… id the engine handed your terminal.',
+    })
+  }
+  return raw
+}
+
+const processSession: {id: SessionId | null} = {id: null}
+
+async function sessionId(origin: string): Promise<SessionId> {
+  const declared = declaredSessionId()
+  if (declared !== null) return declared
+  const held = processSession.id
+  if (held !== null) return held
+  const resolved = await makeRpcClient(origin).sessions.resolve({})
+  processSession.id = resolved.sessionId
+  return resolved.sessionId
+}
+
+async function withSession(origin: string, call: (rpc: RpcClient) => Promise<unknown>): Promise<unknown> {
+  const headers = {[CONCIV_SESSION_HEADER]: await sessionId(origin)}
+  return call(makeRpcClient(origin, {headers}))
 }
 
 export async function runRpc(call: (rpc: RpcClient) => Promise<unknown>): Promise<CliOutcome> {
   const origin = defaultOrigin()
-  const result = await safe(call(makeRpcClient(origin, {headers: sessionHeaders()})))
+  const result = await safe(withSession(origin, call))
   if (result.isSuccess) return {report: 'json', data: result.data}
   if (result.isDefined) throw rpcFailure(toORPCError(result.error))
   if (offline(result.error, 0)) throw offlineFailure(origin)

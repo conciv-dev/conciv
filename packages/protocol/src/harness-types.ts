@@ -1,5 +1,5 @@
 import type {AnyTextAdapter, ModelMessage, UIMessage} from '@tanstack/ai'
-import type {SessionId} from './chat-types.js'
+import type {HarnessSessionId, SessionId} from './chat-types.js'
 import type {TtyCommand} from './terminal-types.js'
 
 export type HarnessCapabilities = {
@@ -35,7 +35,7 @@ export type HarnessModels = HarnessModel[] | (() => HarnessModel[] | Promise<Har
 
 export type HarnessCommand = {name: string; description?: string; argumentHint?: string}
 
-export type HarnessCommandsContext = {cwd: string; sessionId?: string; mcpUrl?: string}
+export type HarnessCommandsContext = {cwd: string; sessionId: SessionId; mcpUrl?: string}
 
 export type HarnessCommands = (ctx: HarnessCommandsContext) => Promise<HarnessCommand[]>
 
@@ -43,7 +43,7 @@ export type HarnessConnectContext = {
   cwd: string
   stateDir: string
   concivSessionId: SessionId
-  harnessSessionId: string | null
+  harnessSessionId: HarnessSessionId | null
   resume: boolean
   owned: boolean
   model: string | null
@@ -97,7 +97,7 @@ export type TerminalOpenRequest = {bin: string; args: string[]}
 export type TerminalOpener = (request: TerminalOpenRequest) => Promise<boolean>
 
 export type HarnessLiveSession = {
-  sessionId: string
+  sessionId: HarnessSessionId
   pid: number
   cwd: string
   name: string
@@ -124,8 +124,8 @@ export type HarnessAttach = {
 
 export type HarnessChatDeps = {
   cwd: string
-  sessionId: string
-  resumeSessionId: string | null
+  sessionId: SessionId
+  resumeSessionId: HarnessSessionId | null
   model?: string
   env: Record<string, string | undefined>
   kind: 'chat' | 'compact'
@@ -140,7 +140,7 @@ export type HarnessChatConfig = {
 }
 
 export type HarnessSessionMeta = {
-  id: string
+  id: HarnessSessionId
   derivedTitle: string
   updatedAt: number
   messageCount: number
@@ -175,12 +175,12 @@ export type TranscriptHandle = {
 }
 
 export type HarnessHistory = {
-  messages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]>
-  observe(cwd: string, sessionId: string, home?: string): TranscriptHandle
+  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<UIMessage[]>
+  observe(cwd: string, sessionId: HarnessSessionId, home?: string): TranscriptHandle
 
-  transcriptPath?(cwd: string, sessionId: string, home?: string): string
+  transcriptPath?(cwd: string, sessionId: HarnessSessionId, home?: string): string
 
-  withinProject?(cwd: string, sessionId: string, home?: string): boolean
+  withinProject?(cwd: string, sessionId: HarnessSessionId, home?: string): boolean
 
   nameFromTranscript?(raw: string): string | null
 
@@ -188,9 +188,9 @@ export type HarnessHistory = {
 
   list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
 
-  meta?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionMeta | null>
+  meta?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
 
-  summary?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionSummary | null>
+  summary?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionSummary | null>
 }
 
 type HarnessAdapterBase = {
